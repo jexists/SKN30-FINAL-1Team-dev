@@ -1,97 +1,34 @@
 # 프로젝트 구조
 
-파일 위치를 고를 때만 참고하는 문서입니다. 개발 규칙은 [`AGENTS.md`](../AGENTS.md)에 있습니다.
-
-## 최상위 폴더
+현재 최상위 폴더의 역할만 설명합니다. 세부 파일 위치는 실제 구현과 가까운 기존 코드를 기준으로 판단합니다.
 
 | 폴더 | 역할 |
 |---|---|
-| `backend/` | FastAPI 서버·데이터 파이프라인·SQL |
-| `data/` | 수집 원본과 가공 데이터 |
-| `demo/` | React 전 정적 HTML 목업 |
-| `deploy/` | Docker·인프라 설정 |
-| `docs/` | 실행·설계 문서 |
-| `final/` | 발표자료·보고서 등 제출물 |
+| `backend/` | FastAPI 서버·에이전트·데이터 처리·SQL |
+| `data/` | 로컬 수집 원본과 가공 데이터 |
+| `demo/` | React 전 정적 화면 목업 |
+| `deploy/` | 배포 설정 |
+| `docs/` | 프로젝트 문서 |
+| `final/` | 제출 완료 자료 |
 | `frontend/` | React 앱 |
-| `scripts/` | 로컬 개발 스크립트 |
-| `test/` | 프론트+백 통합/E2E 테스트 |
+| `scripts/` | 로컬 작업 스크립트 |
+| `test/` | 프론트엔드와 백엔드를 함께 쓰는 테스트 |
 
-실제 데이터는 커밋하지 않고 `data/raw/`, `data/processed/`의 골격만 유지합니다.
+비어 있는 폴더는 현재 기능을 의미하지 않습니다. 새로운 구조를 미리 만들지 말고 실제 구현이 생길 때 추가합니다.
 
-## Frontend
-
-```text
-frontend/
-├── public/
-├── src/
-│   ├── api/          axios 인스턴스와 엔드포인트 함수
-│   ├── assets/       이미지·폰트
-│   ├── auth/         로그인·세션·라우트 가드
-│   ├── components/   두 곳 이상에서 쓰는 공용 컴포넌트
-│   ├── config/       env.ts
-│   ├── constants/    라우트 등 고정값
-│   ├── content/      화면 문구
-│   ├── hooks/        커스텀 훅
-│   ├── pages/        라우트별 페이지
-│   ├── store/        전역 상태
-│   ├── styles/       SCSS 변수·믹스인·전역 스타일
-│   ├── test/         Vitest 설정·헬퍼
-│   ├── types/        공용 타입
-│   └── utils/
-├── .env.example
-├── package.json
-├── tsconfig*.json
-└── vite.config.ts
-```
-
-공용 컴포넌트는 한 폴더에 묶습니다.
+## 문서
 
 ```text
-components/Button/
-├── Button.tsx
-├── Button.module.scss
-└── index.ts
+docs/
+├── planning/    기획·요구사항
+├── technical/   ERD·아키텍처 등 기술 자료
+├── research/    실험·비교·검토 결과
+├── meetings/    회의록
+└── references/  외부 제공 자료와 제출 양식 안내
+
+final/           제출이 끝난 자료
 ```
 
-한 페이지에서만 쓰는 하위 컴포넌트는 `pages/<Page>/` 안에 둡니다. 컴포넌트 테스트도 대상 파일 옆에 둡니다.
-
-## Backend
-
-```text
-backend/
-├── app/
-│   ├── main.py          FastAPI 인스턴스·라우터·CORS
-│   ├── agent/           에이전트·프롬프트·오케스트레이션
-│   ├── api/             라우터와 공용 의존성
-│   ├── core/            설정
-│   ├── db/              Base·엔진·세션
-│   ├── models/          SQLAlchemy ORM
-│   ├── repositories/    DB 쿼리
-│   ├── schemas/         Pydantic 요청·응답
-│   ├── services/        비즈니스 로직
-│   └── tools/           에이전트 호출 함수
-├── pipeline/            데이터 수집·전처리
-├── sql/                 스키마·시드 SQL
-├── tests/               pytest 테스트
-├── .env.example
-├── pyproject.toml
-└── uv.lock
-```
-
-새 DB 기능은 아래 순서로 추가합니다.
-
-1. `sql/00N_*.sql`
-2. `models/<resource>.py`
-3. `schemas/<resource>.py`
-4. `repositories/<resource>.py`
-5. `services/<resource>.py`
-6. `api/<resource>.py`와 `api/__init__.py`
-7. `tests/test_<resource>.py`
-
-## 그 밖의 폴더
-
-- `demo/`: 화면별 HTML, `styles/common.css`, `assets/`. 빌드·CI 대상이 아닙니다.
-- `deploy/`: Dockerfile, compose, 배포 환경 설정.
-- `final/`: 완성된 발표자료와 보고서. 진행 중 설계 문서는 `docs/`에 둡니다.
-- `scripts/`: 맥과 윈도우 Git Bash에서 함께 쓰는 `.sh`만 둡니다.
-- `test/`: 두 앱을 함께 실행해야 하는 시나리오만 둡니다.
+- 같은 문서의 작업본과 확정본을 여러 폴더에 복사하지 않습니다.
+- 실제 데이터는 `data/raw/`, `data/processed/`에 로컬 보관하며 커밋하지 않습니다.
+- 외부 제공 원본은 수정하지 않고, 공개 허가와 개인정보·메타데이터 검토 전까지 Git에 추가하지 않습니다.

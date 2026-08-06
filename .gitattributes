@@ -20,6 +20,8 @@
 *.pdf binary
 *.zip binary
 *.xlsx binary
+*.docx binary
+*.pptx binary
 *.parquet binary
 *.woff binary
 *.woff2 binary

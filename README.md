@@ -16,20 +16,19 @@ bash scripts/frontend.sh    # 프론트엔드만
 bash scripts/backend.sh     # 백엔드만
 ```
 
+`setup.sh`는 파일이 없을 때만 각 `.env.example`을 `.env`로 복사합니다. 프론트엔드는 기본 API 주소로 실행할 수 있고, 백엔드의 DB 기능을 사용할 때 `backend/.env`의 `DATABASE_URL`을 설정합니다. 비밀값은 프론트엔드 환경변수에 넣지 않습니다.
+
 | 서비스 | 주소 |
 |---|---|
 | 프론트엔드 | http://localhost:5173 |
 | API 문서 | http://localhost:8000/docs |
 | DB 상태 | http://localhost:8000/api/health/db |
 
-환경변수 설정과 문제 해결은 [시작 가이드](docs/getting-started.md)를 참고하세요.
-
 ## 문서
 
 | 문서 | 용도 |
 |---|---|
 | [AGENTS.md](AGENTS.md) | 사람과 AI가 공유하는 개발 규칙 원본 |
-| [시작 가이드](docs/getting-started.md) | 설치·실행 |
 | [프로젝트 구조](docs/project-structure.md) | 파일·폴더 배치 |
 | [문서 목록](docs/README.md) | 추가 문서 안내 |
 | [SQL 가이드](backend/sql/README.md) | 스키마 변경 절차 |
@@ -40,4 +39,4 @@ bash scripts/backend.sh     # 백엔드만
 - Backend: Python 3.13, FastAPI, uv, SQLAlchemy async, Supabase PostgreSQL
 - Quality: oxlint, prettier, ruff, pytest, GitHub Actions
 
-개발은 `feature/* → develop → main` 순서로 PR을 통해 병합합니다.
+개발은 `<GitHub 사용자명>/<작업명> → develop → main` 순서로 PR을 통해 병합합니다.

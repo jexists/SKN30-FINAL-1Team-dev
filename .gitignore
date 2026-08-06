@@ -61,6 +61,24 @@ htmlcov/
 .idea/
 *.sw?
 
+# Office 임시 잠금 파일
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# 외부 제공 자료는 공개 재배포 허가 전까지 로컬에서만 보관
+docs/references/*
+!docs/references/README.md
+!docs/references/form_docs/
+docs/references/form_docs/*
+!docs/references/form_docs/README.md
+
+# 실제 수집·가공 데이터는 저장소에 올리지 않음
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
 # ─────────────────────────────────────────────
 # AI 도구 (개인 설정만 제외, 팀 공용 설정은 커밋)
 # ─────────────────────────────────────────────
