@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CRM 시장 기능 리서치</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f2f2ee;
+      --panel: #ffffff;
+      --ink: #171816;
+      --muted: #666960;
+      --line: #d8d9d2;
+      --line-strong: #a4a69e;
+      --blue: #2a6ff2;
+      --radius: 18px;
+      --shadow: 0 20px 55px rgba(18, 20, 16, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Pretendard Variable", Pretendard, "Noto Sans KR", "Segoe UI", sans-serif;
+      font-optical-sizing: auto;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, summary { font: inherit; }
+    button, summary { -webkit-tap-highlight-color: transparent; }
+    :focus-visible { outline: 3px solid #3976ff; outline-offset: 3px; }
+    .wrap { width: min(1240px, calc(100% - 40px)); margin: 0 auto; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      color: #f8f8f3;
+      background: #171816;
+      padding: 28px 0 48px;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -170px;
+      top: -240px;
+      width: 660px;
+      height: 660px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(76, 139, 255, .38), rgba(76, 139, 255, 0) 68%);
+      pointer-events: none;
+    }
+    .hero-top {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, .22);
+    }
+    .brand { font-weight: 800; letter-spacing: -.03em; }
+    .checked { color: #aeb1aa; font-size: 12px; }
+    .hero-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+      gap: 58px;
+      align-items: end;
+      padding-top: 52px;
+    }
+    .eyebrow, .section-no, .provider-code, .evidence-tag {
+      font: 700 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .eyebrow { color: #8fb6ff; }
+    h1 {
+      max-width: 820px;
+      margin: 12px 0 18px;
+      font-size: clamp(46px, 6.5vw, 82px);
+      line-height: .94;
+      letter-spacing: -.065em;
+      font-weight: 780;
+    }
+    .hero-lead { max-width: 760px; margin: 0; color: #c3c6be; font-size: 18px; }
+    .rule-box {
+      display: grid;
+      gap: 20px;
+      padding-left: 24px;
+      border-left: 2px solid #6fa4ff;
+    }
+    .rule-box strong { display: block; margin-bottom: 5px; color: #fff; }
+    .rule-box p { margin: 0; color: #bfc2ba; font-size: 13px; }
+    .stats {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      margin-top: 34px;
+      overflow: hidden;
+      border: 1px solid #4b4d47;
+      border-radius: 14px;
+      background: #4b4d47;
+    }
+    .stat { padding: 18px; background: #171816; }
+    .stat b { display: block; font-size: 30px; line-height: 1; letter-spacing: -.05em; }
+    .stat span { color: #aeb1aa; font-size: 12px; }
+
+    .filter-shell {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--line-strong);
+      background: rgba(242, 242, 238, .86);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      backdrop-filter: blur(20px) saturate(160%);
+    }
+    .filter-row { display: flex; align-items: center; gap: 16px; padding: 12px 0; }
+    .filter-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .provider-toggles { display: flex; gap: 8px; min-width: 0; overflow-x: auto; padding: 2px 0; scrollbar-width: thin; }
+    .provider-toggle { position: relative; flex: 0 0 auto; }
+    .provider-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+    .provider-toggle span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .88);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform 100ms ease-out, border-color 100ms ease-out;
+    }
+    .provider-toggle span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    .provider-toggle input:checked + span { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--accent); }
+    .provider-toggle input:focus-visible + span { outline: 3px solid #3976ff; outline-offset: 2px; }
+    .provider-toggle span:active, .image-button:active, .dialog-close:active, summary:active { transform: scale(.98); }
+
+    main { padding-bottom: 100px; }
+    .section { padding-top: 72px; scroll-margin-top: 86px; }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
+      gap: 40px;
+      align-items: end;
+      margin-bottom: 24px;
+      padding-bottom: 22px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .section-no { color: var(--blue); }
+    h2 { margin: 6px 0 0; font-size: clamp(34px, 4vw, 54px); line-height: 1; letter-spacing: -.05em; }
+    .section-head p { margin: 0; color: var(--muted); }
+
+    .common-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
+    .common-row {
+      display: grid;
+      grid-template-columns: 48px minmax(230px, .55fr) minmax(0, 1fr);
+      gap: 20px;
+      align-items: baseline;
+      padding: 18px 4px;
+      border-bottom: 1px solid var(--line);
+    }
+    .common-row .num { color: var(--muted); font: 700 11px ui-monospace, monospace; }
+    .common-row h3 { margin: 0; font-size: 17px; letter-spacing: -.025em; }
+    .common-row p { margin: 0; color: var(--muted); }
+
+    .differentiator-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    .provider-card {
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-top: 6px solid var(--accent);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .provider-card-head { display: flex; justify-content: space-between; gap: 20px; padding: 22px 24px; border-bottom: 1px solid var(--line); }
+    .provider-card h3 { margin: 4px 0 0; font-size: 28px; line-height: 1; letter-spacing: -.045em; }
+    .provider-count { align-self: center; color: var(--muted); font-size: 12px; }
+    .diff-item { display: grid; grid-template-columns: minmax(190px, .42fr) minmax(0, 1fr); min-width: 0; }
+    .diff-item + .diff-item { border-top: 1px solid var(--line); }
+    .diff-copy { padding: 22px; }
+    .diff-copy h4 { margin: 0 0 8px; font-size: 18px; line-height: 1.25; letter-spacing: -.025em; }
+    .diff-copy p { margin: 0; color: var(--muted); font-size: 13px; }
+    .evidence-tag {
+      display: inline-flex;
+      margin-top: 15px;
+      padding: 4px 7px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: #575a52;
+      background: #f5f5f1;
+      letter-spacing: .02em;
+      text-transform: none;
+    }
+
+    .image-button {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: #e8e9e4;
+      cursor: zoom-in;
+    }
+    .image-button img { display: block; width: 100%; height: 100%; min-height: 180px; object-fit: contain; object-position: center; background: #e8e9e4; }
+
+    .evidence-stack { display: grid; gap: 12px; }
+    .evidence-group { overflow: hidden; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--panel); }
+    .evidence-group summary {
+      display: grid;
+      grid-template-columns: 44px minmax(230px, .55fr) minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      padding: 17px 20px;
+      cursor: pointer;
+      list-style: none;
+    }
+    .evidence-group summary::-webkit-details-marker { display: none; }
+    .evidence-group summary::after { content: "화면 보기 +"; color: var(--muted); font: 700 11px ui-monospace, monospace; white-space: nowrap; }
+    .evidence-group[open] summary { border-bottom: 1px solid var(--line); }
+    .evidence-group[open] summary::after { content: "접기 −"; }
+    .evidence-group summary .num { color: var(--muted); font: 700 11px ui-monospace, monospace; }
+    .evidence-group summary b { font-size: 15px; }
+    .evidence-group summary span { color: var(--muted); font-size: 12px; }
+    .screen-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); }
+    .screen-card { min-width: 0; background: var(--panel); }
+    .screen-card .image-button { aspect-ratio: 16 / 10; border: 0; border-bottom: 1px solid var(--line); }
+    .screen-card .image-button img { min-height: 0; object-position: top center; }
+    .screen-copy { padding: 14px 15px 17px; }
+    .screen-provider { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-weight: 760; }
+    .screen-provider::before { content: ""; width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--accent); }
+    .screen-copy p { margin: 0; color: var(--muted); font-size: 12px; }
+    .screen-missing { display: grid; place-items: center; aspect-ratio: 16 / 10; padding: 24px; border-bottom: 1px solid var(--line); color: #777a72; background: repeating-linear-gradient(135deg, #eeefea, #eeefea 10px, #e8e9e4 10px, #e8e9e4 20px); text-align: center; font-size: 12px; }
+    .empty-state { padding: 38px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--muted); background: rgba(255, 255, 255, .5); text-align: center; }
+
+    dialog {
+      width: min(1180px, calc(100% - 28px));
+      max-height: calc(100vh - 28px);
+      padding: 0;
+      border: 1px solid #686a64;
+      border-radius: 16px;
+      color: #fff;
+      background: #11120f;
+      box-shadow: 0 28px 90px rgba(0, 0, 0, .5);
+    }
+    dialog::backdrop { background: rgba(8, 9, 7, .82); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+    .dialog-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 14px; background: rgba(17, 18, 15, .9); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+    .dialog-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dialog-close { flex: 0 0 auto; min-width: 42px; min-height: 42px; border: 1px solid #64665f; border-radius: 999px; color: #fff; background: #2a2b27; cursor: pointer; }
+    .dialog-image { display: block; width: 100%; max-height: calc(100vh - 110px); object-fit: contain; background: #0b0c0a; }
+    footer { padding: 24px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 980px) {
+      .hero-grid, .section-head { grid-template-columns: 1fr; gap: 28px; }
+      .differentiator-grid { grid-template-columns: 1fr; }
+      .screen-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px) {
+      .wrap { width: min(100% - 24px, 1240px); }
+      .hero { padding-bottom: 34px; }
+      .hero-grid { padding-top: 38px; }
+      h1 { font-size: clamp(42px, 14vw, 66px); }
+      .hero-lead { font-size: 16px; }
+      .stats { grid-template-columns: 1fr; }
+      .filter-row { align-items: flex-start; flex-direction: column; gap: 7px; }
+      .provider-toggles { width: 100%; }
+      .section { padding-top: 54px; }
+      .common-row { grid-template-columns: 34px 1fr; gap: 10px; }
+      .common-row p { grid-column: 2; }
+      .diff-item { grid-template-columns: 1fr; }
+      .image-button { border-right: 0; border-bottom: 1px solid var(--line); aspect-ratio: 16 / 9; }
+      .image-button img { min-height: 0; }
+      .evidence-group summary { grid-template-columns: 30px 1fr auto; gap: 10px; }
+      .evidence-group summary > span { display: none; }
+      .screen-grid { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      * { transition-duration: .01ms !important; }
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .filter-shell, .dialog-bar { background: var(--paper); -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .dialog-bar { color: #fff; background: #11120f; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="hero-top">
+        <div class="brand">CRM MARKET RESEARCH</div>
+        <div class="checked">확인일 2026.08.07</div>
+      </div>
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">STRICT FEATURE COMPARISON</div>
+          <h1>공통과 고유만<br>남긴 기능 비교</h1>
+          <p class="hero-lead">Salesmap·HubSpot·Salesforce·채널톡 4개사의 엄격한 교집합과 서비스 고유 기능, 실제 확인 화면만 정리했다.</p>
+        </div>
+        <div class="rule-box" aria-label="분류 기준">
+          <div>
+            <strong>차별화 기능</strong>
+            <p>다른 3사에 같은 사용자 결과가 없고 해당 제공사 제품이 있어야 성립하는 기능. 단순 통합 폭·속도·편의 차이는 제외.</p>
+          </div>
+          <div>
+            <strong>공통 기능</strong>
+            <p>명칭이나 깊이가 달라도 같은 핵심 목적의 기능이 네 곳 모두에서 확인된 경우만 포함.</p>
+          </div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>4</b><span>조사 제공사</span></div>
+        <div class="stat"><b>7</b><span>엄격 공통 기능</span></div>
+        <div class="stat"><b>6</b><span>확인된 고유 기능</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="filter-shell" aria-label="제공사 필터">
+    <div class="wrap filter-row">
+      <div class="filter-label">화면에 표시할 제공사</div>
+      <div class="provider-toggles" id="providerToggles"></div>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section class="section" id="common">
+      <div class="section-head">
+        <div><div class="section-no">01 / COMMON</div><h2>4사 공통 기능</h2></div>
+        <p>현재 조사한 네 제공사 모두에서 같은 핵심 목적이 확인된 기능만 남겼다. 제품별 범위·깊이 차이는 공통 여부와 분리했다.</p>
+      </div>
+      <ol class="common-list" id="commonList"></ol>
+    </section>
+
+    <section class="section" id="differentiators">
+      <div class="section-head">
+        <div><div class="section-no">02 / DIFFERENTIATORS</div><h2>업체별 고유 기능</h2></div>
+        <p>현재 4사 확인 자료 기준이다. 다른 제품에서도 같은 결과가 가능하거나 단순히 더 편한 항목은 뺐다.</p>
+      </div>
+      <div class="differentiator-grid" id="differentiatorGrid"></div>
+    </section>
+
+    <section class="section" id="evidence">
+      <div class="section-head">
+        <div><div class="section-no">03 / ACTUAL SCREENS</div><h2>공통 기능별 실제 화면</h2></div>
+        <p>기능 단위로 네 제공사를 나란히 확인한다. 캡처하지 못한 화면은 다른 화면으로 대체하지 않고 미확보로 표시했다.</p>
+      </div>
+      <div class="evidence-stack" id="evidenceStack"></div>
+    </section>
+  </main>
+
+  <footer><div class="wrap">로그인 UI 직접 확인 자료 기준 · 베타·플랜 게이트·미실행 상태는 화면 설명에 별도 표기</div></footer>
+
+  <dialog id="imageDialog" aria-labelledby="dialogTitle">
+    <div class="dialog-bar">
+      <div class="dialog-title" id="dialogTitle"></div>
+      <button class="dialog-close" id="dialogClose" type="button" aria-label="이미지 닫기">✕</button>
+    </div>
+    <img class="dialog-image" id="dialogImage" alt="">
+  </dialog>
+
+  <script>
+    const PROVIDERS = [
+      { id: 'salesmap', name: 'Salesmap', color: '#6757d7' },
+      { id: 'hubspot', name: 'HubSpot', color: '#e45b2c' },
+      { id: 'salesforce', name: 'Salesforce', color: '#0b74c9' },
+      { id: 'channel-works', name: '채널톡', color: '#181916' }
+    ];
+
+    const COMMON = [
+      {
+        name: '고객·연락처 프로필 및 이력',
+        text: '고객 프로필·속성·태그와 활동 또는 상담 이력을 저장·검색·분류한다.',
+        screens: [
+          ['salesmap', 'sm-c01-customers.png', '고객 목록', '고객 정보와 속성·활동 기반 목록 화면.'],
+          ['hubspot', null, '실제 화면 미확보', '이번 로그인 조사에서 연락처 화면을 캡처하지 못함.'],
+          ['salesforce', null, '실제 화면 미확보', '이번 로그인 조사에서 연락처 화면을 캡처하지 못함.'],
+          ['channel-works', 'cw-c01-contacts-crm.png', '연락처 CRM', '연락처 프로필과 상담 이력 화면.']
+        ]
+      },
+      {
+        name: '조건·트리거·액션 자동화',
+        text: '조건과 이벤트를 기준으로 알림·배정·후속 조치 등 반복 업무를 자동화한다.',
+        screens: [
+          ['salesmap', 'sm-d01-multichannel-sequence.png', '영업 시퀀스', '단계별 영업 후속 조치 구성 화면.'],
+          ['hubspot', 'hs-d04-workflow-plan-gate.png', '워크플로', '워크플로 진입과 플랜 제한 화면.'],
+          ['salesforce', 'sf-d10-flow-builder.png', 'Flow Builder', '트리거와 액션을 구성하는 자동화 빌더.'],
+          ['channel-works', 'cw-d04-workflow.png', '워크플로', '상담 조건과 자동 액션 구성 화면.']
+        ]
+      },
+      {
+        name: '대시보드·리포트',
+        text: '영업·마케팅·상담 등 각 서비스의 핵심 지표를 차트와 보고서로 확인한다.',
+        screens: [
+          ['salesmap', 'sm-c08-dashboard.png', '영업 대시보드', '활동과 파이프라인 지표 대시보드.'],
+          ['hubspot', null, '실제 화면 미확보', '이번 로그인 조사에서 보고서 화면을 캡처하지 못함.'],
+          ['salesforce', 'sf-c04-analytics.png', 'Analytics', '리포트와 대시보드 진입 화면.'],
+          ['channel-works', 'cw-d02-alf-ai-analytics.png', 'ALF AI 분석', '상담 자동화 성과 분석 화면.']
+        ]
+      },
+      {
+        name: '사용자·팀 권한 및 보안',
+        text: '사용자·팀·역할별 접근 권한과 보안 정책을 관리한다.',
+        screens: [
+          ['salesmap', 'sm-c10-roles-security.png', '역할·보안', '역할별 접근 범위를 설정하는 화면.'],
+          ['hubspot', null, '실제 화면 미확보', '이번 로그인 조사에서 권한 화면을 캡처하지 못함.'],
+          ['salesforce', 'sf-c06-permission-sets.png', 'Permission Sets', '사용자 권한 세트를 관리하는 설정 화면.'],
+          ['channel-works', null, '실제 화면 미확보', '이번 로그인 조사에서 권한 화면을 캡처하지 못함.']
+        ]
+      },
+      {
+        name: '외부 데이터·시스템 연결',
+        text: '파일·API·Webhook·데이터 커넥터로 외부 시스템과 데이터를 연결한다.',
+        screens: [
+          ['salesmap', 'sm-c11-data-upload.png', '데이터 업로드', '외부 고객·영업 데이터 업로드 화면.'],
+          ['hubspot', 'hs-d07-data-hub-menu.png', 'Data Hub', '통합·품질·강화 등 데이터 메뉴.'],
+          ['salesforce', 'sf-d08-platform-setup-menu.png', '플랫폼 설정', 'API·통합·데이터 관련 설정 메뉴.'],
+          ['channel-works', 'cw-d09-data-sources.png', '데이터 소스', '외부 DB·Drive·Cafe24 연결 설정 화면.']
+        ]
+      },
+      {
+        name: '세그먼트 기반 메시지·캠페인',
+        text: '조건으로 고객 대상을 나누고 이메일·문자·메시지 캠페인을 발송한다.',
+        screens: [
+          ['salesmap', 'sm-d01-multichannel-sequence.png', '멀티채널 시퀀스', '고객 조건에 따른 단계별 메시지 실행 화면.'],
+          ['hubspot', 'hs-d10-marketing-hub-menu.png', 'Marketing Hub', '이메일·광고·캠페인·세그먼트 메뉴.'],
+          ['salesforce', 'sf-d03-marketing-cloud-starter.png', 'Marketing Cloud', '캠페인 실행 제품 진입 화면.'],
+          ['channel-works', 'cw-d05-marketing-campaigns.png', '마케팅 캠페인', '고객 세그먼트 대상 메시지 캠페인 화면.']
+        ]
+      },
+      {
+        name: '자연어 AI 조회·요약',
+        text: '제품 내부 고객·업무 데이터를 자연어로 질문하고 요약한다. 쓰기·예약 실행은 공통에서 제외했다.',
+        screens: [
+          ['salesmap', 'sm-d04-sailo-ai.png', 'Sailo AI', 'CRM 데이터를 묻고 답을 받는 대화 화면.'],
+          ['hubspot', 'hs-d03-breeze-assistant.png', 'Breeze Assistant', '고객 데이터 문맥을 사용하는 AI 입력 화면.'],
+          ['salesforce', 'sf-d01-agentforce-home.png', 'Agentforce', 'Agentforce 홈과 평가판 플랜 제한 화면.'],
+          ['channel-works', 'cw-d06-ai-cos-work-assistant.png', 'AI CoS', '상담·팀챗·지식을 읽는 업무 어시스턴트 화면.']
+        ]
+      }
+    ];
+
+    const DIFFERENTIATORS = [
+      {
+        provider: 'salesmap',
+        items: [{
+          name: '국내 멀티채널 영업 시퀀스',
+          text: 'TODO·이메일·문자·카카오 알림톡을 하나의 영업 후속 시퀀스에 조합한다.',
+          image: 'sm-d01-multichannel-sequence.png',
+          evidence: '실제 구성 화면 확인'
+        }]
+      },
+      {
+        provider: 'hubspot',
+        items: [{
+          name: 'Content Hub',
+          text: 'CRM에 연결된 CMS·랜딩·블로그·동영상·팟캐스트·사례연구·멤버십을 만들고 AI로 다른 형식으로 리믹스한다.',
+          image: 'hs-d11-content-hub-menu.png',
+          evidence: '메뉴 화면 확인 · 실행 화면 미확보'
+        }]
+      },
+      {
+        provider: 'salesforce',
+        items: [{
+          name: 'Life Sciences Cloud',
+          text: 'HCP/HCO·KOL·영업지역·방문·동의·샘플·의학 문의·오프라인 현장을 전용 데이터와 업무 모델로 제공한다.',
+          image: 'sf-d16-life-sciences-hcp-summary.png',
+          evidence: '공식 제품 UI · 별도 애드온 · 로그인 실행 미검증'
+        }]
+      },
+      {
+        provider: 'channel-works',
+        items: [
+          {
+            name: 'AI CoS 운영 제어',
+            text: '상담·팀챗·지식·외부 데이터를 읽고 채널 설정과 ALF 규칙·태스크를 대화로 변경하며 반복 업무를 예약한다.',
+            image: 'cw-d06-ai-cos-work-assistant.png',
+            evidence: 'Beta 시작 화면 · 변경 실행 미검증'
+          },
+          {
+            name: '고객 ALF 실행 태스크',
+            text: '함수·코드·브라우저 자동화·상담사 승인을 조합해 주문 조회·교환·반품 업무를 수행한다.',
+            image: 'cw-d11-alf-tasks.png',
+            evidence: '플랜·초안 화면 · 퍼블리시 실행 미검증'
+          },
+          {
+            name: 'Notebook 자연어 BI',
+            text: 'Channel·외부 DB·Drive·Cafe24 데이터를 자연어·SQL·Python으로 분석하고 결과를 공유·예약한다.',
+            image: 'cw-d08-notebook-data-analysis.png',
+            evidence: 'Beta 시작 화면 · 분석 실행 미검증'
+          }
+        ]
+      }
+    ];
+
+    const provider = id => PROVIDERS.find(item => item.id === id);
+    const selected = () => new Set(PROVIDERS.filter(item => document.querySelector(`#provider-${item.id}`).checked).map(item => item.id));
+    const imagePath = (providerId, file) => `./assets/${providerId}/${file}`;
+
+    function renderControls() {
+      document.querySelector('#providerToggles').innerHTML = PROVIDERS.map(item => `
+        <label class="provider-toggle" style="--accent:${item.color}">
+          <input id="provider-${item.id}" type="checkbox" checked>
+          <span>${item.name}</span>
+        </label>`).join('');
+      document.querySelectorAll('.provider-toggle input').forEach(input => input.addEventListener('change', renderAll));
+    }
+
+    function renderCommon() {
+      document.querySelector('#commonList').innerHTML = COMMON.map((item, index) => `
+        <li class="common-row">
+          <span class="num">${String(index + 1).padStart(2, '0')}</span>
+          <h3>${item.name}</h3>
+          <p>${item.text}</p>
+        </li>`).join('');
+    }
+
+    function imageButton(providerId, file, title, note) {
+      const item = provider(providerId);
+      const src = imagePath(providerId, file);
+      return `<button class="image-button" type="button" data-image="${src}" data-title="${item.name} · ${title}" data-note="${note}" aria-label="${item.name} ${title} 화면 확대"><img src="${src}" alt="${item.name} ${title} 실제 화면" loading="lazy" decoding="async"></button>`;
+    }
+
+    function renderDifferentiators() {
+      const active = selected();
+      const groups = DIFFERENTIATORS.filter(group => active.has(group.provider));
+      document.querySelector('#differentiatorGrid').innerHTML = groups.length ? groups.map(group => {
+        const item = provider(group.provider);
+        return `<article class="provider-card" style="--accent:${item.color}">
+          <header class="provider-card-head">
+            <div><div class="provider-code">${item.id}</div><h3>${item.name}</h3></div>
+            <div class="provider-count">고유 ${group.items.length}개</div>
+          </header>
+          ${group.items.map(feature => `<div class="diff-item">
+            ${imageButton(group.provider, feature.image, feature.name, feature.evidence)}
+            <div class="diff-copy"><h4>${feature.name}</h4><p>${feature.text}</p><span class="evidence-tag">${feature.evidence}</span></div>
+          </div>`).join('')}
+        </article>`;
+      }).join('') : '<div class="empty-state">표시할 제공사를 하나 이상 선택하세요.</div>';
+    }
+
+    function renderEvidence() {
+      const active = selected();
+      document.querySelector('#evidenceStack').innerHTML = active.size ? COMMON.map((feature, index) => {
+        const screens = feature.screens.filter(screen => active.has(screen[0]));
+        return `<details class="evidence-group" ${index === 0 ? 'open' : ''}>
+          <summary><span class="num">${String(index + 1).padStart(2, '0')}</span><b>${feature.name}</b><span>${feature.text}</span></summary>
+          <div class="screen-grid">
+            ${screens.map(screen => {
+              const item = provider(screen[0]);
+              return `<article class="screen-card" style="--accent:${item.color}">
+                ${screen[1] ? imageButton(screen[0], screen[1], screen[2], screen[3]) : `<div class="screen-missing">${screen[2]}</div>`}
+                <div class="screen-copy"><div class="screen-provider">${item.name}</div><p><b>${screen[2]}</b><br>${screen[3]}</p></div>
+              </article>`;
+            }).join('')}
+          </div>
+        </details>`;
+      }).join('') : '<div class="empty-state">표시할 제공사를 하나 이상 선택하세요.</div>';
+    }
+
+    function bindImages() {
+      document.querySelectorAll('[data-image]').forEach(button => button.addEventListener('click', () => {
+        document.querySelector('#dialogImage').src = button.dataset.image;
+        document.querySelector('#dialogImage').alt = `${button.dataset.title} 실제 화면`;
+        document.querySelector('#dialogTitle').textContent = `${button.dataset.title} · ${button.dataset.note}`;
+        document.querySelector('#imageDialog').showModal();
+      }));
+    }
+
+    function renderAll() {
+      renderDifferentiators();
+      renderEvidence();
+      bindImages();
+    }
+
+    document.querySelector('#dialogClose').addEventListener('click', () => document.querySelector('#imageDialog').close());
+    document.querySelector('#imageDialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
+    renderControls();
+    renderCommon();
+    renderAll();
+    console.assert(PROVIDERS.length === 4 && COMMON.length === 7 && DIFFERENTIATORS.reduce((sum, group) => sum + group.items.length, 0) === 6, '리서치 핵심 데이터 누락');
+  </script>
+</body>
+</html>

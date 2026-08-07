@@ -1,0 +1,273 @@
+{
+  "title": "CRM 제공사 기능 비교 근거 대장",
+  "checkedAt": "2026-08-07",
+  "deliverable": "./crm-provider-feature-comparison.html",
+  "scope": [
+    "Salesmap",
+    "HubSpot",
+    "Salesforce",
+    "채널톡"
+  ],
+  "classification": {
+    "differentiator": "현재 조사한 다른 3개사에 같은 사용자 결과가 없고 해당 제공사 제품이 있어야 성립하는 기능. 단순 통합 폭, 속도, 사용 편의 차이는 제외한다.",
+    "common": "명칭이나 깊이가 달라도 같은 핵심 목적의 기능이 네 제공사 모두에서 확인된 경우만 포함한다.",
+    "evidence": "로그인 UI 캡처와 공식 문서를 교차 확인한다. 메뉴, 설정, 베타 시작 화면은 실제 실행 성공으로 간주하지 않는다."
+  },
+  "commonFeatures": [
+    "고객·연락처 프로필 및 이력",
+    "조건·트리거·액션 자동화",
+    "대시보드·리포트",
+    "사용자·팀 권한 및 보안",
+    "외부 데이터·시스템 연결",
+    "세그먼트 기반 메시지·캠페인",
+    "자연어 AI 조회·요약"
+  ],
+  "providers": [
+    {
+      "id": "salesmap",
+      "name": "Salesmap",
+      "checkedMethod": "로그인된 워크스페이스를 읽기 전용으로 확인하고 공식 문서와 교차 검증",
+      "differentiators": [
+        {
+          "name": "국내 멀티채널 영업 시퀀스",
+          "reason": "TODO, 이메일, 문자, 카카오 알림톡을 하나의 영업 후속 시퀀스에 조합하는 기능은 현재 4사 중 Salesmap에서만 확인했다.",
+          "screen": "assets/salesmap/sm-d01-multichannel-sequence.png",
+          "verification": "실제 구성 화면 확인, 발송 실행은 하지 않음"
+        }
+      ],
+      "retainedScreens": [
+        "sm-c01-customers.png",
+        "sm-c08-dashboard.png",
+        "sm-c10-roles-security.png",
+        "sm-c11-data-upload.png",
+        "sm-d01-multichannel-sequence.png",
+        "sm-d04-sailo-ai.png"
+      ],
+      "constraints": [
+        "데이터 변경과 메시지 발송은 실행하지 않았다.",
+        "Sailo의 자연어 조회 화면은 확인했지만 CRM 쓰기와 지속 프로젝트 메모리는 검증하지 않았다."
+      ],
+      "officialSources": [
+        {
+          "label": "플랜별 기능",
+          "url": "https://salesmap.kr/pricing"
+        },
+        {
+          "label": "시퀀스",
+          "url": "https://docs.salesmap.kr/automation/sequence"
+        },
+        {
+          "label": "카카오 알림톡",
+          "url": "https://docs.salesmap.kr/kakao/infotalk/sending-infotalk"
+        },
+        {
+          "label": "Sailo AI",
+          "url": "https://salesmap.kr/update-note/salesmap-ai-agent-sailo"
+        },
+        {
+          "label": "대시보드",
+          "url": "https://docs.salesmap.kr/data-visualization/dashboard/utilizing-dashboard"
+        },
+        {
+          "label": "사용자와 권한",
+          "url": "https://docs.salesmap.kr/settings/users"
+        },
+        {
+          "label": "Webhook",
+          "url": "https://docs.salesmap.kr/developers/webhook"
+        }
+      ]
+    },
+    {
+      "id": "hubspot",
+      "name": "HubSpot",
+      "checkedMethod": "로그인된 실제 UI와 HubSpot 공식 제품 페이지를 교차 확인",
+      "differentiators": [
+        {
+          "name": "Content Hub",
+          "reason": "CRM에 연결된 CMS, 랜딩, 블로그, 동영상, 팟캐스트, 사례연구, 멤버십과 AI 콘텐츠 리믹스는 현재 4사 중 HubSpot에서만 확인했다.",
+          "screen": "assets/hubspot/hs-d11-content-hub-menu.png",
+          "verification": "메뉴 화면 확인, 콘텐츠 제작 실행 화면은 미확보"
+        }
+      ],
+      "retainedScreens": [
+        "hs-d03-breeze-assistant.png",
+        "hs-d04-workflow-plan-gate.png",
+        "hs-d07-data-hub-menu.png",
+        "hs-d10-marketing-hub-menu.png",
+        "hs-d11-content-hub-menu.png"
+      ],
+      "missingCommonScreens": [
+        "고객·연락처 프로필 및 이력",
+        "대시보드·리포트",
+        "사용자·팀 권한 및 보안"
+      ],
+      "constraints": [
+        "메뉴 노출과 실제 플랜 제공 범위는 같지 않으며 업그레이드 표시와 베타 라벨이 있는 항목이 있다.",
+        "Content Hub는 메뉴와 공식 기능 범위를 확인했지만 실제 게시 실행은 검증하지 않았다."
+      ],
+      "officialSources": [
+        {
+          "label": "Customer Platform",
+          "url": "https://www.hubspot.com/products/customer-platform"
+        },
+        {
+          "label": "Smart CRM",
+          "url": "https://www.hubspot.com/products/crm/ai-crm"
+        },
+        {
+          "label": "AI Agents",
+          "url": "https://www.hubspot.com/products/artificial-intelligence/ai-agents"
+        },
+        {
+          "label": "Content Hub",
+          "url": "https://www.hubspot.com/products/content"
+        },
+        {
+          "label": "Data Hub",
+          "url": "https://www.hubspot.com/products/operations/demo"
+        },
+        {
+          "label": "Workflow",
+          "url": "https://www.hubspot.com/products/workflow-automation-guide"
+        },
+        {
+          "label": "Marketing Hub",
+          "url": "https://www.hubspot.com/products/marketing"
+        }
+      ]
+    },
+    {
+      "id": "salesforce",
+      "name": "Salesforce",
+      "checkedMethod": "Starter 30일 평가판의 로그인 UI와 Salesforce 공식 제품·도움말을 교차 확인",
+      "differentiators": [
+        {
+          "name": "Life Sciences Cloud for Customer Engagement",
+          "reason": "HCP/HCO, KOL, 영업지역, 방문, 동의, 샘플, 의학 문의, 오프라인 현장을 전용 데이터와 업무 모델로 제공하는 산업 특화 제품은 현재 4사 중 Salesforce에서만 확인했다.",
+          "screen": "assets/salesforce/sf-d16-life-sciences-hcp-summary.png",
+          "verification": "공식 제품 페이지의 예시 UI, 별도 애드온이며 로그인 실행은 미검증",
+          "assetSource": "https://wp.sfdcdigital.com/en-us/wp-content/uploads/sites/4/2026/06/Health-Life-Sciences_Medtech_Product-Features-Blade_How-It-Works-Headline-B-Step-1_Version-32_4f4ebc.png?w=1024"
+        }
+      ],
+      "retainedScreens": [
+        "sf-c04-analytics.png",
+        "sf-c06-permission-sets.png",
+        "sf-d01-agentforce-home.png",
+        "sf-d03-marketing-cloud-starter.png",
+        "sf-d08-platform-setup-menu.png",
+        "sf-d10-flow-builder.png",
+        "sf-d16-life-sciences-hcp-summary.png"
+      ],
+      "missingCommonScreens": [
+        "고객·연락처 프로필 및 이력"
+      ],
+      "constraints": [
+        "평가판 화면은 전체 Salesforce 제품군의 라이선스 범위를 뜻하지 않는다.",
+        "Agentforce 패널은 준비 중 상태였고 실제 에이전트 실행은 검증하지 않았다.",
+        "Marketing Cloud, Data 360 등은 에디션, 별도 제품, 애드온에 따라 제공 범위와 비용이 달라진다.",
+        "Life Sciences Cloud for Customer Engagement는 Life Sciences Cloud Enterprise 또는 Unlimited 등에 추가하는 별도 애드온이다. 보고서 이미지는 공식 제품 페이지의 예시 UI이며 조사 계정에서 실행한 화면이 아니다."
+      ],
+      "officialSources": [
+        {
+          "label": "Agentforce Sales",
+          "url": "https://www.salesforce.com/sales/cloud/"
+        },
+        {
+          "label": "Agentforce Platform",
+          "url": "https://www.salesforce.com/platform/agentforce-platform/"
+        },
+        {
+          "label": "Agentforce Pricing",
+          "url": "https://www.salesforce.com/agentforce/pricing/"
+        },
+        {
+          "label": "Life Sciences Cloud for Customer Engagement",
+          "url": "https://www.salesforce.com/life-sciences/cloud/customer-engagement/"
+        },
+        {
+          "label": "Data 360",
+          "url": "https://www.salesforce.com/data/"
+        }
+      ]
+    },
+    {
+      "id": "channel-works",
+      "name": "채널톡",
+      "checkedMethod": "로그인된 실제 UI를 읽기 중심으로 확인하고 채널톡 공식 도움말·가격 페이지와 교차 검증",
+      "differentiators": [
+        {
+          "name": "AI CoS 운영 제어",
+          "reason": "상담, 팀챗, 지식, 외부 데이터를 읽고 채널 설정과 ALF 규칙·태스크를 대화로 변경하며 반복 업무를 예약하는 운영 루프는 현재 4사 중 채널톡에서만 확인했다.",
+          "screen": "assets/channel-works/cw-d06-ai-cos-work-assistant.png",
+          "verification": "Beta 시작 화면, 실제 변경 실행은 미검증"
+        },
+        {
+          "name": "고객 ALF 실행 태스크",
+          "reason": "함수, 코드, 브라우저 자동화, 상담사 승인을 조합한 고객지원 실행 태스크는 현재 4사 중 채널톡에서만 확인했다.",
+          "screen": "assets/channel-works/cw-d11-alf-tasks.png",
+          "verification": "플랜·초안 화면, 퍼블리시와 실행은 미검증"
+        },
+        {
+          "name": "Notebook 자연어 BI",
+          "reason": "Channel, 외부 DB, Drive, Cafe24 데이터를 자연어, SQL, Python으로 분석하고 공유·예약하는 Notebook은 현재 4사 중 채널톡에서만 확인했다.",
+          "screen": "assets/channel-works/cw-d08-notebook-data-analysis.png",
+          "verification": "Beta 시작 화면, 분석 실행은 미검증"
+        }
+      ],
+      "retainedScreens": [
+        "cw-c01-contacts-crm.png",
+        "cw-d02-alf-ai-analytics.png",
+        "cw-d04-workflow.png",
+        "cw-d05-marketing-campaigns.png",
+        "cw-d06-ai-cos-work-assistant.png",
+        "cw-d08-notebook-data-analysis.png",
+        "cw-d09-data-sources.png",
+        "cw-d11-alf-tasks.png"
+      ],
+      "missingCommonScreens": [
+        "사용자·팀 권한 및 보안"
+      ],
+      "constraints": [
+        "대부분 빈 화면, 소개, 템플릿, 설정 화면이므로 실제 실행 성공의 증거로 보지 않는다.",
+        "AI CoS는 Beta이며 멤버당 활성 스케줄 10개, 최소 실행 간격 6시간이다.",
+        "ALF는 Growth 이상 조건이 있고 태스크는 총 100개, 동시 퍼블리시 50개이며 코드 단계 값은 별도 암호화되지 않는다.",
+        "Notebook 화면에는 Beta가 표시된다. Channel, 외부 DB, Drive, Cafe24는 지원하며 Shopify는 출시 예정이다."
+      ],
+      "officialSources": [
+        {
+          "label": "AI CoS",
+          "url": "https://docs.channel.io/help/ko/articles/CoS-a8e86305"
+        },
+        {
+          "label": "ALF Tasks",
+          "url": "https://docs.channel.io/help/ko/articles/%ED%83%9C%EC%8A%A4%ED%81%AC-ALF-v2-2a16be8b"
+        },
+        {
+          "label": "Notebook",
+          "url": "https://docs.channel.io/help/ko/articles/%EB%85%B8%ED%8A%B8%EB%B6%81-7f43769f"
+        },
+        {
+          "label": "고객 연락처",
+          "url": "https://docs.channel.io/help/ko/articles/%EA%B3%A0%EA%B0%9D-%EC%97%B0%EB%9D%BD%EC%B2%98-312d45b2"
+        },
+        {
+          "label": "워크플로",
+          "url": "https://docs.channel.io/help/ko/articles/%EC%9B%8C%ED%81%AC%ED%94%8C%EB%A1%9C%EC%9A%B0-b606de76"
+        },
+        {
+          "label": "마케팅",
+          "url": "https://docs.channel.io/help/ko/articles/368b4bb5"
+        },
+        {
+          "label": "개발자 문서",
+          "url": "https://developers.channel.io/en"
+        },
+        {
+          "label": "가격",
+          "url": "https://channel.io/kr/pricing"
+        }
+      ]
+    }
+  ]
+}
