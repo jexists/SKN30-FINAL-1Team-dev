@@ -13,7 +13,7 @@
 
 ## 연결 구분
 
-- 현재 앱 세션은 Supabase transaction pooler를 기준으로 설정되어 있습니다.
+- 현재 앱 세션은 장기 실행 FastAPI 서버용 Supabase session pooler를 기준으로 설정되어 있습니다.
 - 스키마 변경과 관리 작업에는 direct 연결을 우선 사용합니다.
 - 포트만으로 연결 종류를 단정하지 말고 Supabase의 연결 호스트와 모드를 함께 확인합니다.
 - SQL Editor로 실행해도 저장소와 환경별 적용 이력은 자동으로 남지 않으므로 SQL 파일과 적용 기록이 필요합니다.
