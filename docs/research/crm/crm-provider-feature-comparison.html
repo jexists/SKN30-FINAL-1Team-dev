@@ -241,6 +241,33 @@
     .screen-missing { display: grid; place-items: center; aspect-ratio: 16 / 10; padding: 24px; border-bottom: 1px solid var(--line); color: #777a72; background: repeating-linear-gradient(135deg, #eeefea, #eeefea 10px, #e8e9e4 10px, #e8e9e4 20px); text-align: center; font-size: 12px; }
     .empty-state { padding: 38px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--muted); background: rgba(255, 255, 255, .5); text-align: center; }
 
+    .table-shell { overflow-x: auto; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); }
+    .comparison-table { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; }
+    .comparison-table th, .comparison-table td { padding: 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow-wrap: anywhere; text-align: left; vertical-align: top; }
+    .comparison-table tr:last-child > * { border-bottom: 0; }
+    .comparison-table tr > *:last-child { border-right: 0; }
+    .comparison-table thead th { padding-top: 13px; padding-bottom: 13px; background: #f8f8f5; font-size: 15px; }
+    .comparison-table thead th:not(:first-child) { box-shadow: inset 0 4px 0 var(--accent); }
+    .comparison-table th:first-child { position: sticky; left: 0; z-index: 2; width: 154px; color: #4f524b; background: #f0f1ec; font-size: 12px; }
+    .comparison-table thead th:first-child { z-index: 3; }
+    .comparison-table td { color: #4f524b; font-size: 13px; }
+    .comparison-table p { margin: 0; }
+    .comparison-table ul { margin: 0; padding-left: 17px; }
+    .comparison-table li + li { margin-top: 8px; }
+    .source-link { display: inline-block; margin-left: 4px; color: #1c5fcf; font-size: 11px; font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+    .source-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .source-list a { margin: 0; padding: 3px 7px; border: 1px solid #c6d5f2; border-radius: 999px; color: #1c5fcf; background: #f4f7fd; text-decoration: none; }
+
+    .decision-table { min-width: 820px; }
+    .decision-table th:first-child { width: 112px; }
+    .decision-table th:nth-child(2) { width: 240px; }
+    .priority { display: inline-flex; padding: 3px 8px; border-radius: 999px; color: #fff; background: #1d6a3b; font: 700 11px/1.4 ui-monospace, monospace; }
+    .priority.optional { color: #604c00; background: #f0d66e; }
+    .decision-source { margin: -4px 0 14px; color: var(--muted); font-size: 12px; }
+    .decision-source a { color: #1c5fcf; }
+    .follow-up-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+    .follow-up-list li { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: rgba(255, 255, 255, .64); }
+
     dialog {
       width: min(1180px, calc(100% - 28px));
       max-height: calc(100vh - 28px);
@@ -281,6 +308,8 @@
       .evidence-group summary { grid-template-columns: 30px 1fr auto; gap: 10px; }
       .evidence-group summary > span { display: none; }
       .screen-grid { grid-template-columns: 1fr; }
+      .comparison-table th, .comparison-table td { padding: 13px; }
+      .follow-up-list { grid-template-columns: 1fr; }
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -297,13 +326,13 @@
     <div class="wrap">
       <div class="hero-top">
         <div class="brand">CRM MARKET RESEARCH</div>
-        <div class="checked">확인일 2026.08.07</div>
+        <div class="checked">공식 문서 2026.08.10 · 로그인 UI 2026.08.07</div>
       </div>
       <div class="hero-grid">
         <div>
           <div class="eyebrow">STRICT FEATURE COMPARISON</div>
           <h1>공통과 고유만<br>남긴 기능 비교</h1>
-          <p class="hero-lead">Salesmap·HubSpot·Salesforce·채널톡 4개사의 엄격한 교집합과 서비스 고유 기능, 실제 확인 화면만 정리했다.</p>
+          <p class="hero-lead">Salesmap·HubSpot·Salesforce·채널톡 4개사의 공통·고유 기능과 실제 화면에 공통 조사 양식, FieldMed 필요 기능 판정을 연결했다.</p>
         </div>
         <div class="rule-box" aria-label="분류 기준">
           <div>
@@ -355,9 +384,27 @@
       </div>
       <div class="evidence-stack" id="evidenceStack"></div>
     </section>
+
+    <section class="section" id="research-form">
+      <div class="section-head">
+        <div><div class="section-no">04 / COMMON FORM</div><h2>제공사별 공통 조사 양식</h2></div>
+        <p>이 표의 ‘핵심 기능’은 공통 양식상 대표 제품 범위이며 고유성 판정은 02 섹션만 따른다. 기능·가격·연동 주장은 공식 페이지에 연결했다.</p>
+      </div>
+      <div id="researchForm"></div>
+    </section>
+
+    <section class="section" id="fieldmed-decision">
+      <div class="section-head">
+        <div><div class="section-no">05 / FIELDMED DECISION</div><h2>FieldMed 필요 기능 판정</h2></div>
+        <p>현재 요구사항 정의서의 핵심 MVP·기술 필수·필수 안전요건은 필수로, 명시적으로 제외되거나 Post-MVP인 항목은 선택으로 분류했다.</p>
+      </div>
+      <p class="decision-source">판정 근거: <a href="../../planning/요구사항_정의서_260805.xlsx">요구사항 정의서</a> · <a href="../../technical/스키마_ERD_260805.html">FieldMed MVP ERD</a></p>
+      <div id="fieldMedDecision"></div>
+      <ul class="follow-up-list" id="followUpList"></ul>
+    </section>
   </main>
 
-  <footer><div class="wrap">로그인 UI 직접 확인 자료 기준 · 베타·플랜 게이트·미실행 상태는 화면 설명에 별도 표기</div></footer>
+  <footer><div class="wrap">로그인 UI와 공식 문서 교차 확인 · 가격은 2026-08-10 공개값 · 베타·플랜 게이트·미실행 상태는 별도 표기</div></footer>
 
   <dialog id="imageDialog" aria-labelledby="dialogTitle">
     <div class="dialog-bar">
@@ -501,9 +548,210 @@
       }
     ];
 
+    const claim = (text, source, sourceLabel = '공식') => ({ text, source, sourceLabel });
+
+    const RESEARCH_FORMS = {
+      salesmap: {
+        service: 'Salesmap',
+        core: [
+          claim('고객·회사·리드·딜과 활동 이력을 분리하고 사용자 정의 딜 파이프라인을 운영한다.', 'https://docs.salesmap.kr/sales/deal/generating-deal', '딜'),
+          claim('TODO·이메일·SMS·카카오 알림톡을 시퀀스로 실행하고 조건 기반 워크플로로 담당 배정·후속 작업을 자동화한다.', 'https://docs.salesmap.kr/automation/sequence', '시퀀스'),
+          claim('미팅 예약·노트, 견적서·공유 문서 추적, 모두싸인 전자계약, 영업 대시보드를 연결한다.', 'https://salesmap.kr/pricing', '기능표')
+        ],
+        target: [claim('B2B 영업·마케팅·영업운영 조직. Starter는 소규모 팀, Professional은 10명 이상 또는 커스텀·도입 지원 필요 팀, Enterprise는 대규모 조직으로 안내한다.', 'https://salesmap.kr/pricing', '가격')],
+        channels: [
+          claim('웹 서비스, Gmail·Outlook·IMAP/POP3, Google·Outlook Calendar, 웹 폼, 이메일·SMS·카카오 알림톡, 미팅 예약 페이지.', 'https://docs.salesmap.kr/personal-settings/integration', '연동'),
+          claim('Slack·Microsoft Teams·JANDI·Zapier·모두싸인과 연결하며 REST API v2·Webhook은 Professional 이상이다. API 한도는 워크스페이스 합계 100요청/10초다.', 'https://docs.salesmap.kr/developers/api-reference/rate-limiting', 'API')
+        ],
+        price: [
+          claim('Starter 월 249,000원부터: 일반 사용자 2명 포함, 추가 일반 사용자 39,900원/명.', 'https://salesmap.kr/pricing', '가격'),
+          claim('Professional 월 549,000원부터: 일반 사용자 2명·읽기 전용 5명 포함, 추가 일반 57,900원/명·읽기 전용 23,900원/명.', 'https://salesmap.kr/pricing', '가격'),
+          claim('Enterprise는 문의. 연간 결제 약 17% 할인, VAT 10% 별도, 14일 체험.', 'https://salesmap.kr/pricing', '가격')
+        ],
+        advantages: [
+          claim('리드 수집→딜→국내 메시지 후속→미팅·견적·전자계약→대시보드를 같은 고객·회사 이력으로 연결한다.', 'https://salesmap.kr/pricing', '기능표'),
+          claim('커스텀 필드·관계·객체와 API·Webhook을 제공해 병원·의료진용 데이터 구조를 연결할 수 있다.', 'https://salesmap.kr/pricing', '기능표')
+        ],
+        limitations: [
+          claim('팀 관리·미팅 일정·커스텀 대시보드·견적 템플릿·알림톡·Open API·Webhook은 Professional 이상, 민감정보 마스킹·Audit Log는 Enterprise 범위다.', 'https://salesmap.kr/pricing', '기능표'),
+          claim('SMS는 발신번호 서류 심사와 크레딧 충전이 필요하다.', 'https://docs.salesmap.kr/settings/integration/sms', 'SMS'),
+          claim('알림톡은 카카오 비즈니스 채널과 승인 템플릿이 필요하다.', 'https://docs.salesmap.kr/kakao/infotalk/generating-infotalk-template', '알림톡'),
+          claim('모두싸인 연동은 별도 전용 요금제가 필요하다.', 'https://docs.salesmap.kr/settings/integration/modusign-integration/x', '전자계약'),
+          claim('AI 사용 데이터가 Google·OpenAI·Anthropic을 통해 미국으로 이전될 수 있어 의료·민감정보 전송 범위 확인이 필요하다.', 'https://salesmap.kr/privacy-policy', '개인정보')
+        ],
+        sources: [
+          ['가격·기능 한도', 'https://salesmap.kr/pricing'],
+          ['딜 파이프라인', 'https://docs.salesmap.kr/sales/deal/generating-deal'],
+          ['시퀀스', 'https://docs.salesmap.kr/automation/sequence'],
+          ['개인 연동', 'https://docs.salesmap.kr/personal-settings/integration'],
+          ['개인정보처리방침', 'https://salesmap.kr/privacy-policy']
+        ],
+        checked: '2026-08-10 KST',
+        relevance: '[추론] 병원=회사, 의료진=고객, 방문·딜·견적·후속 업무를 구성할 수 있다. Professional 이상 API 연동이 전제이며, 의료기기 사용량·재고·유지보수·병원 이슈는 FieldMed가 별도 구현해야 한다.',
+        unknowns: ['Sailo AI의 플랜별 포함 범위·추가 요금·외부 AI 전송 필드', 'Enterprise·온보딩·데이터 이관 실제 견적', '네이티브 앱·오프라인·GPS·권역 관리와 의료정보 DPA/SLA']
+      },
+      hubspot: {
+        service: 'HubSpot Smart CRM / Customer Platform',
+        core: [
+          claim('연락처·회사·거래·티켓·리드·작업·활동 이력을 Smart CRM에 저장하고 파이프라인·보고·가져오기를 제공한다.', 'https://www.hubspot.com/products/crm', 'CRM'),
+          claim('Marketing·Sales·Service·Content·Data·Revenue Hub가 같은 고객 기록과 공용 워크플로를 사용한다.', 'https://www.hubspot.com/products/customer-platform', '플랫폼'),
+          claim('Breeze Assistant와 고객지원·잠재고객 발굴·데이터 에이전트가 CRM 문맥에서 조회·콘텐츠·지원 업무를 수행한다.', 'https://www.hubspot.com/products/artificial-intelligence/ai-agents', 'AI')
+        ],
+        target: [claim('영업·마케팅·고객지원·콘텐츠·데이터·매출 조직이 한 고객 기록을 함께 쓰려는 조직. Free/Starter부터 Enterprise까지 등급을 제공한다.', 'https://www.hubspot.com/products/customer-platform', '플랫폼')],
+        channels: [
+          claim('웹, iOS·Android 앱, Gmail·Microsoft 365/Outlook, 팀 이메일, 웹 채팅·폼, Facebook Messenger를 지원한다. 모바일 기록 작업은 인터넷 연결이 필요하다.', 'https://knowledge.hubspot.com/records/work-with-records-in-the-hubspot-mobile-app', '모바일'),
+          claim('WhatsApp·통화·SMS·사용자 정의 채널은 특정 Hub·Professional 이상 또는 Add-on이 필요하다.', 'https://knowledge.hubspot.com/inbox/connect-channels-to-the-conversations-inbox', '채널'),
+          claim('Marketplace 2,000개 이상 앱, 양방향 데이터 동기화, API·UI 확장을 제공한다.', 'https://www.hubspot.com/products/crm/ai-crm', 'Smart CRM')
+        ],
+        price: [
+          claim('Smart CRM: Free 0달러(최대 2명·연락처 1,000개), Starter 20달러/좌석/월, Professional 50달러, Enterprise 75달러.', 'https://legal.hubspot.com/hubspot-product-and-services-catalog', '카탈로그'),
+          claim('Customer Platform: Starter는 신규 고객 프로모션 7달러/좌석/월·정상가 20달러 병기, Professional 1,300~1,450달러/월, Enterprise 4,700달러/월.', 'https://www.hubspot.com/pricing/suite?tier=starter', '가격'),
+          claim('Customer Platform 온보딩 공개가는 Professional 10,000달러, Enterprise 17,000달러다. 좌석·Credits·마케팅 연락처·채널 Add-on에 따라 총액이 달라진다.', 'https://www.hubspot.com/services/onboarding/customer-platform?currency=USD', '온보딩')
+        ],
+        advantages: [
+          claim('고객·회사·거래·지원·콘텐츠·매출 데이터를 같은 CRM 레코드와 워크플로에서 사용한다.', 'https://www.hubspot.com/products/customer-platform', '플랫폼'),
+          claim('Enterprise에서 사용자 정의 객체·SSO·필드 단위 권한·Sensitive Data·샌드박스를 제공한다.', 'https://legal.hubspot.com/hubspot-product-and-services-catalog', '카탈로그')
+        ],
+        limitations: [
+          claim('Hub 등급과 Core/Sales/Service/Revenue 좌석 조합에 따라 기능과 비용이 달라지고 좌석 축소는 갱신 전에 청구액에 반영되지 않는다.', 'https://knowledge.hubspot.com/account-management/manage-seats', '좌석'),
+          claim('WhatsApp·통화·SMS·사용자 정의 채널은 특정 상품·등급 또는 Add-on에 제한된다.', 'https://knowledge.hubspot.com/inbox/connect-channels-to-the-conversations-inbox', '채널'),
+          claim('Sensitive Data는 Enterprise 범위이며 활성화 후 해제와 일부 도구 사용에 제한이 있다.', 'https://knowledge.hubspot.com/account-security/store-sensitive-data', '민감정보'),
+          claim('공식 데이터센터는 미국·EU(독일)·캐나다·호주로 안내되어 한국 리전은 목록에 없다.', 'https://knowledge.hubspot.com/account-security/hubspot-cloud-infrastructure-and-data-hosting-frequently-asked-questions', '호스팅')
+        ],
+        sources: [
+          ['CRM', 'https://www.hubspot.com/products/crm'],
+          ['제품 카탈로그', 'https://legal.hubspot.com/hubspot-product-and-services-catalog'],
+          ['Customer Platform', 'https://www.hubspot.com/products/customer-platform'],
+          ['채널 연결', 'https://knowledge.hubspot.com/inbox/connect-channels-to-the-conversations-inbox'],
+          ['데이터 호스팅', 'https://knowledge.hubspot.com/account-security/hubspot-cloud-infrastructure-and-data-hosting-frequently-asked-questions'],
+          ['가격', 'https://www.hubspot.com/pricing/suite?tier=starter']
+        ],
+        checked: '2026-08-10 KST',
+        relevance: '[추론] 병원·의료진·활동·파이프라인·후속 작업·API는 대응한다. 장비·설치·계약 객체와 필드 단위 보안이 필요하면 Enterprise 사용자 정의 객체를 검토해야 하며, 의료기기 영업 전용 모델은 별도 설계가 필요하다.',
+        unknowns: ['FieldMed 인원·Hub·좌석 조합의 실제 총액과 Starter 갱신가', '온보딩 계약상 필수 여부·한국 청구 통화·국내 메시징 추가 비용', '한국 개인정보보호·국외이전·AI Credits·기존 시스템 API 개발 범위']
+      },
+      salesforce: {
+        service: 'Salesforce Agentforce Sales + Agentforce Life Sciences',
+        core: [
+          claim('리드·계정·연락처·영업기회·활동, 파이프라인·예측, 견적·계약 승인, 리포트·Flow를 제공한다.', 'https://www.salesforce.com/sales/cloud/', 'Sales'),
+          claim('Agentforce와 Salesforce Platform에서 CRM 데이터 기반 에이전트·자동화·API·앱 확장을 구성한다.', 'https://www.salesforce.com/platform/agentforce-platform/', 'Agentforce'),
+          claim('Life Sciences 제품과 Customer Engagement 애드온은 HCP/HCO·제품·자산·방문·동의·샘플·의학 문의·현장 재고·오프라인 iPad 업무를 제공한다.', 'https://www.salesforce.com/life-sciences/cloud/customer-engagement/', 'Life Sciences')
+        ],
+        target: [claim('일반 B2B/B2C 영업·영업운영 조직부터 제약·의료기기·진단 기업의 상업·의료·현장 조직까지 제품군을 분리해 제공한다.', 'https://www.salesforce.com/life-sciences/cloud/', 'Life Sciences')],
+        channels: [
+          claim('Lightning 웹, iOS·Android Salesforce 모바일 앱, Outlook·Gmail 기록 연동을 제공한다.', 'https://help.salesforce.com/s/articleView?id=sf.sales_mobile_app.htm&language=en_US&type=5', '모바일'),
+          claim('Enterprise Web API, AppExchange, MuleSoft·Data 360·Tableau 연동 경로를 제공하며 에디션·추가 라이선스에 따라 범위가 달라진다.', 'https://www.salesforce.com/sales/pricing/', '가격'),
+          claim('Customer Engagement는 전용 iPad 앱에서 HCP/HCO 방문 업무와 콘텐츠를 오프라인으로 사용할 수 있다.', 'https://help.salesforce.com/s/articleView?id=ind.lsc_customer_engagement_mobile_app_setup.htm&language=en_US&type=5', 'iPad')
+        ],
+        price: [
+          claim('Agentforce Sales: Starter 25달러, Pro 100달러, Enterprise 175달러, Unlimited 350달러, Agentforce 1 Sales 550달러/사용자/월. Pro 이상은 연간 결제.', 'https://www.salesforce.com/sales/pricing/', 'Sales 가격'),
+          claim('Life Sciences: Enterprise 350달러, Unlimited 525달러, Agentforce 1 Sales/Service 750달러/사용자/월, 연간 결제.', 'https://www.salesforce.com/life-sciences/cloud/pricing/', 'Life Sciences 가격'),
+          claim('Customer Engagement는 Life Sciences 기본 라이선스에 150달러/사용자/월 추가. Maps·Analytics 등도 별도 구매 항목이다.', 'https://www.salesforce.com/life-sciences/cloud/pricing/', 'Life Sciences 가격')
+        ],
+        advantages: [
+          claim('일반 영업 객체와 의료기기용 HCP/HCO·제품·자산·방문·동의·현장 재고 모델을 같은 Salesforce 제품군에서 선택할 수 있다.', 'https://help.salesforce.com/s/articleView?id=ind.lsc_setup_life_sciences_cloud_medtech_commercial_engagement_features.htm&language=en_US&type=5', 'MedTech'),
+          claim('Customer Engagement 전용 iPad 앱은 현장 방문·콘텐츠·샘플 업무의 오프라인 사용을 제공한다.', 'https://help.salesforce.com/s/articleView?id=ind.lsc_customer_engagement_mobile_app_setup.htm&language=en_US&type=5', 'iPad')
+        ],
+        limitations: [
+          claim('기본 Sales 제품에는 HCP/HCO·동의·샘플·의료 문의 모델이 포함되지 않고 Life Sciences 기본 라이선스와 Customer Engagement 애드온이 별도다.', 'https://www.salesforce.com/life-sciences/cloud/pricing/', '가격'),
+          claim('AI·지도·계약·Revenue Cloud·고급 분석은 에디션 또는 추가 라이선스 비용이 발생한다.', 'https://www.salesforce.com/sales/pricing/add-ons/', '애드온'),
+          claim('Customer Engagement 전용 모바일 앱은 현재 iPad이며 모바일 앱의 Flow는 지원하지 않는다.', 'https://help.salesforce.com/s/articleView?id=ind.lsc_customer_engagement_mobile_app_setup.htm&language=en_US&type=5', '모바일')
+        ],
+        sources: [
+          ['Agentforce Sales', 'https://www.salesforce.com/sales/cloud/'],
+          ['Sales 가격', 'https://www.salesforce.com/sales/pricing/'],
+          ['Life Sciences 가격', 'https://www.salesforce.com/life-sciences/cloud/pricing/'],
+          ['Customer Engagement', 'https://www.salesforce.com/life-sciences/cloud/customer-engagement/'],
+          ['MedTech 기능', 'https://help.salesforce.com/s/articleView?id=ind.lsc_setup_life_sciences_cloud_medtech_commercial_engagement_features.htm&language=en_US&type=5']
+        ],
+        checked: '2026-08-10 KST',
+        relevance: '[추론] 일반 CRM과 의료기기 전용 데이터 모델의 가장 직접적인 비교 기준이다. FieldMed MVP의 병원·의료진·방문·견적·매출에는 대응하지만, 샘플·영업지역·수술 케이스·오프라인 iPad는 현재 요구사항상 선택 범위다.',
+        unknowns: ['한국 판매 SKU·원화·VAT·최소 사용자·구축·이관 총액', '국내 데이터 저장 위치·규제 검증·카카오/국내 문자 연동', 'Life Sciences 기본 기능과 Customer Engagement 애드온의 정확한 라이선스 경계']
+      },
+      'channel-works': {
+        service: '채널톡(채널웍스)',
+        core: [
+          claim('고객 연락처·상담 이력을 채널톡 메시지·전화·이메일·카카오 상담톡·Instagram DM·네이버 톡톡·LINE 수신함에서 관리한다.', 'https://docs.channel.io/help/ko/articles/%EC%88%98%EC%8B%A0%ED%95%A8-c2d439c6', '수신함'),
+          claim('워크플로와 고객 ALF가 상담 분기·배정·메시지·지식 답변과 주문 조회·취소·반품 같은 실행 태스크를 자동화한다.', 'https://docs.channel.io/help/ko/categories/%EA%B3%A0%EA%B0%9D-ALF-f87d5027', 'ALF'),
+          claim('AI CoS가 상담·주문·결제·외부 데이터를 자연어로 분석하고 ALF 규칙·태스크·운영 설정을 승인 후 또는 자동으로 변경·예약한다.', 'https://docs.channel.io/help/ko/articles/CoS-a8e86305', 'CoS')
+        ],
+        target: [claim('고객 상담·CRM 마케팅·팀 커뮤니케이션을 함께 운영하는 조직. 공식 가격 구분은 무료, 얼리 스테이지, 그로스, 엔터프라이즈다.', 'https://channel.io/kr/pricing', '가격')],
+        channels: [
+          claim('웹·모바일 SDK, 고객 메신저, 팀 메신저, 전화, 이메일, 카카오 상담톡·알림톡, Instagram DM, 네이버 톡톡, LINE을 제공한다.', 'https://docs.channel.io/help/ko/articles/%EC%88%98%EC%8B%A0%ED%95%A8-c2d439c6', '수신함'),
+          claim('Open API·Webhook으로 외부 시스템과 고객·상담 기능을 연결한다.', 'https://developers.channel.io/en', '개발자'),
+          claim('앱스토어의 Cafe24·Shopify 주문·상품·매출 데이터를 CoS가 조회·분석한다.', 'https://docs.channel.io/help/ko/articles/CoS-a8e86305', 'CoS')
+        ],
+        price: [
+          claim('무료 0원, 얼리 스테이지 월 27,000원부터, 그로스 월 90,000원부터(표시가는 연 결제 25% 할인), 엔터프라이즈는 문의. VAT 10% 별도.', 'https://channel.io/kr/pricing', '가격'),
+          claim('그로스는 MU 3,000명·기본 시트 5개·오퍼레이터 1개를 포함하며 추가 기본 시트 3,000원, 오퍼레이터 60,000원이다.', 'https://channel.io/kr/pricing', '가격'),
+          claim('고객 ALF는 상담 참여당 500원, 워크플로·마케팅·문자·카카오·전화는 사용량별 별도 과금이다.', 'https://channel.io/kr/pricing', '부가서비스')
+        ],
+        advantages: [
+          claim('고객 프로필과 외부 메신저·전화·이메일 상담을 한 수신함에서 보고 팀 내부 대화를 같은 상담에 남긴다.', 'https://docs.channel.io/help/ko/articles/%EC%88%98%EC%8B%A0%ED%95%A8-c2d439c6', '수신함'),
+          claim('ALF 실행 태스크와 CoS 분석·설정 변경·예약을 고객지원 운영 흐름 안에서 연결한다.', 'https://docs.channel.io/help/ko/articles/CoS-a8e86305', 'CoS')
+        ],
+        limitations: [
+          claim('이번 공식 문서·로그인 UI 범위에서는 영업기회·딜 파이프라인·견적·계약·매출 전용 객체를 확인하지 못했다.', 'https://docs.channel.io/help/ko/articles/%EA%B3%A0%EA%B0%9D-%EC%97%B0%EB%9D%BD%EC%B2%98-312d45b2', '연락처'),
+          claim('MU·기본/오퍼레이터 시트 외에 ALF·워크플로·마케팅·메시지·전화가 사용량 과금이다.', 'https://channel.io/kr/pricing', '가격'),
+          claim('CoS는 채널웍스에서만 사용하며 팀원당 활성 예약 10개·최소 6시간 간격 제한이 있다.', 'https://docs.channel.io/help/ko/articles/CoS-a8e86305', 'CoS'),
+          claim('외부 메신저에서는 워크플로 입력폼이 동작하지 않는다.', 'https://docs.channel.io/help/ko/articles/0907d9ff-%EC%9B%8C%ED%81%AC%ED%94%8C%EB%A1%9C%EC%9A%B0-FAQ', '워크플로')
+        ],
+        sources: [
+          ['가격', 'https://channel.io/kr/pricing'],
+          ['수신함', 'https://docs.channel.io/help/ko/articles/%EC%88%98%EC%8B%A0%ED%95%A8-c2d439c6'],
+          ['고객 연락처', 'https://docs.channel.io/help/ko/articles/%EA%B3%A0%EA%B0%9D-%EC%97%B0%EB%9D%BD%EC%B2%98-312d45b2'],
+          ['AI CoS', 'https://docs.channel.io/help/ko/articles/CoS-a8e86305'],
+          ['워크플로 FAQ', 'https://docs.channel.io/help/ko/articles/0907d9ff-%EC%9B%8C%ED%81%AC%ED%94%8C%EB%A1%9C%EC%9A%B0-FAQ'],
+          ['개발자 문서', 'https://developers.channel.io/en']
+        ],
+        checked: '2026-08-10 KST',
+        relevance: '[추론] 상담 채널 통합·고객지원 자동화·대화형 운영 분석은 선택 기능으로 활용할 수 있다. 병원·의료진 관계, 방문, 영업기회, 견적·계약·매출을 단독으로 관리하는 FieldMed 핵심 CRM 대체재로 보기는 어렵다.',
+        unknowns: ['CoS·Notebook의 정식 플랜·별도 가격·베타 종료 조건', '의료·민감정보 처리 계약, AI 전송 범위, 데이터 저장 위치·삭제·백업 SLA', 'FieldMed 병원·고객·계약 데이터와 앱/API로 연결할 때의 한도·개발 비용']
+      }
+    };
+
+    const RESEARCH_ROWS = [
+      ['service', '서비스명'],
+      ['core', '핵심 기능'],
+      ['target', '주요 사용 대상'],
+      ['channels', '제공 채널 및 연동 범위'],
+      ['price', '가격·요금제'],
+      ['advantages', '장점'],
+      ['limitations', '한계'],
+      ['sources', '공식 근거 링크'],
+      ['checked', '확인일'],
+      ['relevance', 'FieldMed 요구사항과의 관련성'],
+      ['unknowns', '미확인 사항']
+    ];
+
+    const FIELDMED_REQUIREMENTS = [
+      { priority: '필수', feature: '병원·의료진 CRM과 담당 이력', basis: '병원 기준정보, 고객·역할, KOL/제품 사용자, 담당 배정·이관, 확정 History를 팀 범위로 관리한다.', refs: 'CUS-001~008 · DAT-001 · DAT-008', compare: '조직-연락처 관계, 담당 이관, 활동 타임라인, 사용자 정의 필드' },
+      { priority: '필수', feature: '방문 일정·후속 업무·알림', basis: '병원·고객 방문 일정, 다음 방문 추천 승인, D-2·D-1 누락 알림과 후속 업무를 운영한다.', refs: 'CAL-001~005 · DSH-003~005 · NTF-001~002', compare: '캘린더, 작업, 승인 전 추천 상태, 중복 알림 방지' },
+      { priority: '필수', feature: '미팅 입력·구조화·근거·확정', basis: '음성·녹취·직접 입력에서 논의·결정·후속 업무를 추출하고 원문 근거와 사용자 확정을 남긴다.', refs: 'MTG-001~006 · NFR-001', compare: 'STT, 미팅 노트, 원문 연결, 초안/확정, 보존 기간' },
+      { priority: '필수', feature: '견적·계약·문서·전자서명 상태', basis: '상품·금액 규칙으로 견적·계약을 생성하고 미리보기·확정·PDF·서명 상태를 관리한다.', refs: 'DOC-001~004 · RPT-001~006', compare: '제품 카탈로그, 결정론적 계산, 문서 상태, 서명 연동' },
+      { priority: '필수', feature: '영업 현황·목표·매출 보고', basis: '계약 실적과 Excel 실제매출을 분리하고 팀원별 목표·달성률·월/분기/연간 보고를 제공한다.', refs: 'MGR-003~005 · MGR-009 · DSH-006', compare: '딜/파이프라인, 목표, 예측, 실제매출 Import, 대시보드' },
+      { priority: '필수', feature: '역할·팀 권한·감사·보존', basis: '팀·담당자·문서 상태별 서버 접근통제와 확정·이관·민감 원본 접근 이력, 자료별 보존기한이 필요하다.', refs: 'USR-001~004 · SEC-001~003 · DAT-005 · NFR-004', compare: '레코드/필드 권한, SSO, 감사 로그, 보존·삭제·데이터 지역' },
+      { priority: '필수', feature: '데이터 가져오기·API·외부 연동', basis: 'LOCALDATA 병원 동기화, 뉴스 수집, CLOVA STT, Excel 매출 업로드와 실패·재시도·멱등 처리가 필요하다.', refs: 'DAT-003 · DAT-008 · NFR-003 · MGR-003~004', compare: 'Import, API/Webhook, 호출 한도, 오류 처리, 원본 추적' },
+      { priority: '필수', feature: 'AI 브리핑·보고·팀장 분석 오케스트레이션', basis: '4개 논리 Agent가 확정 History로 브리핑·미팅 구조·보고·팀장 요약을 만들고 근거·불확실성·작업 상태를 표시한다.', refs: 'AI-001~008 · AI-009', compare: 'CRM 문맥 조회, 근거 링크, 승인 게이트, 비LLM 계산 분리' },
+      { priority: '필수', feature: '반응형 현장 웹·인앱/Web Push', basis: '모바일 브라우저에서 주요 CRM 흐름을 사용하고 최소 본문의 인앱·Web Push 알림을 제공한다.', refs: 'MOB-001 · NTF-001~002', compare: '모바일 기록 범위, 인터넷 의존, Push, 권한별 알림 본문' },
+      { priority: '선택', feature: '외부 캘린더·네이티브 앱·SMS/카카오·실전자서명', basis: '현재 요구사항이 외부 캘린더·네이티브 앱·실제 전자서명 API를 Post-MVP로, SMS·카카오를 MVP 제외로 명시한다.', refs: 'CAL-005 · DOC-004 · NTF-001 · MOB-001', compare: 'Add-on 비용, 국내 채널 심사, 오프라인 범위, 법적 효력' },
+      { priority: '선택', feature: '리드 마케팅·고객지원·콘텐츠·결제', basis: '웹 폼/UTM·마케팅 캠페인·옴니채널 헬프데스크·CMS·결제/구독은 현재 FieldMed MVP 요구사항에 없다.', refs: '현재 요구사항 미포함', compare: '도입 목적이 생길 때 Marketing/Service/Content/Revenue 제품을 별도 평가' },
+      { priority: '선택', feature: '생명과학 고급 현장 기능', basis: '샘플·영업지역·수술 케이스·이상반응·현장 재고·전용 오프라인 앱은 현재 확정 요구사항이 아니다.', refs: '현재 요구사항 미포함', compare: '실물 샘플·재고·규제 보고 범위가 확정되면 필수 여부 재판정' },
+      { priority: '선택', feature: '범용 대화형 AI 업무 지휘', basis: '논리 Agent 워크플로는 기술 필수지만, 하나의 채팅에서 모든 CRM 조회·쓰기·예약을 수행하는 UI와 권한 범위는 명시되지 않았다.', refs: 'AI-001~009 · 추가 범위 확인 필요', compare: '읽기/쓰기 명령 구분, 미리보기·승인, 대화 메모리, 감사 로그' }
+    ];
+
+    const FOLLOW_UPS = [
+      '실사용 인원·좌석·Hub·에디션·AI/메시지 Add-on을 넣은 3년 총비용 견적',
+      '데이터 저장 위치, DPA, 외부 AI 전송 필드, 삭제·백업·복구 SLA와 국내 개인정보 요건',
+      '병원·의료진·견적·계약·매출 객체 매핑, Import/API 호출 한도와 마이그레이션 시험',
+      '범용 LLM 채팅의 읽기·쓰기·예약 범위, 사용자 승인·철회·감사 기록 방식',
+      'Salesmap Sailo, HubSpot Credits, Salesforce Agentforce, 채널톡 CoS·Notebook의 실제 플랜과 사용량 비용',
+      '샘플·영업지역·현장 재고·오프라인 사용이 FieldMed 후속 범위에 필요한지 현업 확인'
+    ];
+
     const provider = id => PROVIDERS.find(item => item.id === id);
     const selected = () => new Set(PROVIDERS.filter(item => document.querySelector(`#provider-${item.id}`).checked).map(item => item.id));
-    const imagePath = (providerId, file) => `./assets/${providerId}/${file}`;
+    const imagePath = (providerId, file) => `../assets/${providerId}/${file}`;
 
     function renderControls() {
       document.querySelector('#providerToggles').innerHTML = PROVIDERS.map(item => `
@@ -566,6 +814,45 @@
       }).join('') : '<div class="empty-state">표시할 제공사를 하나 이상 선택하세요.</div>';
     }
 
+    function renderResearchValue(key, value) {
+      if (key === 'sources') {
+        return `<div class="source-list">${value.map(([label, url]) => `<a href="${url}" target="_blank" rel="noreferrer">${label}</a>`).join('')}</div>`;
+      }
+      if (Array.isArray(value)) {
+        return `<ul>${value.map(item => {
+          if (typeof item === 'string') return `<li>${item}</li>`;
+          const source = item.source ? `<a class="source-link" href="${item.source}" target="_blank" rel="noreferrer">${item.sourceLabel} ↗</a>` : '';
+          return `<li>${item.text}${source}</li>`;
+        }).join('')}</ul>`;
+      }
+      return `<p>${value}</p>`;
+    }
+
+    function renderResearch() {
+      const active = PROVIDERS.filter(item => selected().has(item.id));
+      document.querySelector('#researchForm').innerHTML = active.length ? `<div class="table-shell">
+        <table class="comparison-table">
+          <thead><tr><th scope="col">조사 항목</th>${active.map(item => `<th scope="col" style="--accent:${item.color}">${item.name}</th>`).join('')}</tr></thead>
+          <tbody>${RESEARCH_ROWS.map(([key, label]) => `<tr><th scope="row">${label}</th>${active.map(item => `<td>${renderResearchValue(key, RESEARCH_FORMS[item.id][key])}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>` : '<div class="empty-state">표시할 제공사를 하나 이상 선택하세요.</div>';
+    }
+
+    function renderFieldMedDecision() {
+      document.querySelector('#fieldMedDecision').innerHTML = `<div class="table-shell">
+        <table class="comparison-table decision-table">
+          <thead><tr><th scope="col">판정</th><th scope="col">기능명</th><th scope="col">FieldMed 근거</th><th scope="col">제공사 비교 시 체크</th></tr></thead>
+          <tbody>${FIELDMED_REQUIREMENTS.map(item => `<tr>
+            <td><span class="priority ${item.priority === '선택' ? 'optional' : ''}">${item.priority}</span></td>
+            <th scope="row">${item.feature}</th>
+            <td>${item.basis}<br><span class="evidence-tag">${item.refs}</span></td>
+            <td>${item.compare}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+      document.querySelector('#followUpList').innerHTML = FOLLOW_UPS.map((item, index) => `<li><span class="num">${String(index + 1).padStart(2, '0')}</span><br>${item}</li>`).join('');
+    }
+
     function bindImages() {
       document.querySelectorAll('[data-image]').forEach(button => button.addEventListener('click', () => {
         document.querySelector('#dialogImage').src = button.dataset.image;
@@ -578,6 +865,7 @@
     function renderAll() {
       renderDifferentiators();
       renderEvidence();
+      renderResearch();
       bindImages();
     }
 
@@ -585,8 +873,9 @@
     document.querySelector('#imageDialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
     renderControls();
     renderCommon();
+    renderFieldMedDecision();
     renderAll();
-    console.assert(PROVIDERS.length === 4 && COMMON.length === 7 && DIFFERENTIATORS.reduce((sum, group) => sum + group.items.length, 0) === 6, '리서치 핵심 데이터 누락');
+    console.assert(PROVIDERS.length === 4 && COMMON.length === 7 && DIFFERENTIATORS.reduce((sum, group) => sum + group.items.length, 0) === 6 && Object.keys(RESEARCH_FORMS).length === 4 && FIELDMED_REQUIREMENTS.length === 13, '리서치 핵심 데이터 누락');
   </script>
 </body>
 </html>
