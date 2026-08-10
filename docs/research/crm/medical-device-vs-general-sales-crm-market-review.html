@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="의료기기 영업 CRM과 일반 영업 CRM의 시장성, 경쟁 구조, 차별화 가능성을 비교한 전략 검토 보고서">
+  <title>의료기기 영업 CRM vs 일반 영업 CRM | 시장 진입 전략</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3f1ea;
+      --surface: #fffdf8;
+      --ink: #121b20;
+      --muted: #667077;
+      --line: #cfd2cc;
+      --blue: #075ee8;
+      --orange: #ee6b2f;
+      --dark: #14242e;
+      --shadow: 0 22px 60px rgba(31, 42, 46, .09);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(18, 27, 32, .035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 100% 32px;
+      font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; }
+    button { font: inherit; }
+    :focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
+    .wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 720px;
+      color: #f8faf8;
+      background: var(--dark);
+    }
+    .hero::before,
+    .hero::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .hero::before {
+      top: -280px;
+      right: -170px;
+      width: 720px;
+      height: 720px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      box-shadow: 0 0 0 90px rgba(7, 94, 232, .12), 0 0 0 180px rgba(7, 94, 232, .06);
+    }
+    .hero::after {
+      left: 46%;
+      bottom: -220px;
+      width: 430px;
+      height: 430px;
+      background: radial-gradient(circle, rgba(238, 107, 47, .34), transparent 69%);
+    }
+    .hero-top {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 24px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, .2);
+    }
+    .brand { font-weight: 850; letter-spacing: -.04em; }
+    .updated { color: #aab8c0; font-size: 11px; }
+    .print-button {
+      padding: 9px 13px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 999px;
+      color: #fff;
+      background: rgba(255, 255, 255, .07);
+      cursor: pointer;
+    }
+    .print-button:hover { background: rgba(255, 255, 255, .14); }
+    .hero-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, .55fr);
+      gap: 72px;
+      align-items: end;
+      padding: 86px 0 74px;
+    }
+    .eyebrow { margin: 0 0 18px; color: #86b3ff; font-size: 12px; font-weight: 800; }
+    h1 {
+      max-width: 850px;
+      margin: 0;
+      font-family: "Noto Serif KR", "AppleMyungjo", ui-serif, serif;
+      font-size: clamp(47px, 7vw, 88px);
+      font-weight: 700;
+      line-height: 1.03;
+      letter-spacing: -.065em;
+    }
+    .hero-lead { max-width: 760px; margin: 28px 0 0; color: #c9d4d9; font-size: 18px; }
+    .decision-card {
+      padding: 28px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-top: 5px solid var(--orange);
+      border-radius: 0 0 20px 20px;
+      background: rgba(255, 255, 255, .07);
+      backdrop-filter: blur(16px);
+    }
+    .decision-card .mono { color: #ffb28e; font-size: 10px; font-weight: 800; }
+    .decision-card strong { display: block; margin: 12px 0 16px; font-size: 25px; line-height: 1.35; letter-spacing: -.035em; }
+    .decision-card p { margin: 0; color: #c9d4d9; font-size: 13px; }
+
+    .nav-shell {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--line);
+      background: rgba(243, 241, 234, .9);
+      backdrop-filter: blur(18px) saturate(145%);
+    }
+    .nav {
+      display: flex;
+      gap: 6px;
+      padding: 10px 0;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .nav a {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: #505c62;
+      font-size: 12px;
+      font-weight: 750;
+      text-decoration: none;
+    }
+    .nav a:hover { color: #fff; background: var(--dark); }
+
+    main { padding: 72px 0 110px; }
+    .section { padding-top: 72px; scroll-margin-top: 54px; }
+    .section:first-child { padding-top: 0; }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
+      gap: 42px;
+      align-items: end;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .section-no { color: var(--blue); font-size: 11px; font-weight: 850; }
+    h2 {
+      margin: 7px 0 0;
+      font-family: "Noto Serif KR", "AppleMyungjo", ui-serif, serif;
+      font-size: clamp(35px, 4.5vw, 56px);
+      line-height: 1.08;
+      letter-spacing: -.05em;
+    }
+    .section-head p { margin: 0; color: var(--muted); font-size: 14px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric {
+      position: relative;
+      min-height: 270px;
+      padding: 22px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .metric::after {
+      content: attr(data-index);
+      position: absolute;
+      right: 15px;
+      bottom: -24px;
+      color: rgba(18, 27, 32, .055);
+      font: 900 110px/1 ui-monospace, monospace;
+    }
+    .metric .mono { color: var(--muted); font-size: 10px; font-weight: 800; }
+    .metric b { display: block; margin: 27px 0 9px; font-size: clamp(34px, 4vw, 50px); line-height: 1; letter-spacing: -.06em; }
+    .metric p { position: relative; z-index: 1; max-width: 260px; margin: 0; color: var(--muted); font-size: 13px; }
+    .submetric {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      margin-top: 12px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      color: #08563d;
+      background: #dcf1e7;
+      font-size: 10px;
+      font-weight: 850;
+    }
+    .metric.medtech { border-top: 5px solid var(--blue); }
+    .metric.general { border-top: 5px solid var(--orange); }
+    .source-link {
+      position: relative;
+      z-index: 1;
+      display: block;
+      width: fit-content;
+      margin-top: 9px;
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 800;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+    .source-link:hover { color: var(--orange); }
+    .inline-sources { display: flex; flex-wrap: wrap; gap: 0 12px; }
+
+    .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .option {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .option-head { min-height: 178px; padding: 26px; color: #fff; }
+    .option.medtech .option-head { background: var(--blue); }
+    .option.general .option-head { background: var(--orange); }
+    .option-code { color: rgba(255, 255, 255, .72); font-size: 10px; font-weight: 850; }
+    .option h3 { margin: 18px 0 8px; font-size: 34px; line-height: 1.05; letter-spacing: -.055em; }
+    .option-head p { max-width: 420px; margin: 0; color: rgba(255, 255, 255, .82); }
+    .option-body { padding: 28px; }
+    .evidence-list { margin: 0; padding: 0; list-style: none; }
+    .evidence-list li {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 16px;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .evidence-list li:first-child { padding-top: 0; }
+    .evidence-list li:last-child { padding-bottom: 0; border-bottom: 0; }
+    .evidence-list b { font-size: 12px; }
+    .evidence-list span { color: var(--muted); font-size: 13px; }
+
+    .table-shell {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    table { width: 100%; min-width: 820px; border-collapse: collapse; }
+    th, td { padding: 17px 18px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-size: 13px; }
+    thead th { color: #fff; background: var(--dark); }
+    thead th:nth-child(2) { background: var(--blue); }
+    thead th:nth-child(3) { background: var(--orange); }
+    tbody th { width: 160px; background: #f1f1eb; }
+    tr:last-child > * { border-bottom: 0; }
+    .signal { display: inline-flex; margin-top: 5px; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 850; }
+    .signal.high { color: #075b3e; background: #ddf3e7; }
+    .signal.medium { color: #835017; background: #f7e8ca; }
+    .signal.low { color: #8b3521; background: #fae1d9; }
+    .verdict {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+      gap: 36px;
+      align-items: center;
+      margin-top: 18px;
+      padding: 30px;
+      border-left: 7px solid var(--orange);
+      color: #fff;
+      background: var(--dark);
+    }
+    .verdict .mono { color: #ffb28e; font-size: 10px; font-weight: 850; }
+    .verdict strong { display: block; margin-top: 9px; font-family: "Noto Serif KR", "AppleMyungjo", ui-serif, serif; font-size: clamp(25px, 3.2vw, 40px); line-height: 1.35; letter-spacing: -.04em; }
+    .verdict p { margin: 0; color: #c7d1d6; font-size: 13px; }
+
+    footer { padding: 28px 0 42px; color: #7a8388; border-top: 1px solid var(--line); font-size: 11px; }
+
+    @media (max-width: 920px) {
+      .hero { min-height: auto; }
+      .hero-grid, .section-head, .verdict { grid-template-columns: 1fr; }
+      .hero-grid { gap: 42px; padding-top: 64px; }
+      .metric-grid { grid-template-columns: repeat(2, 1fr); }
+      .option-grid { grid-template-columns: 1fr; }
+      .section-head { gap: 12px; }
+    }
+
+    @media (max-width: 620px) {
+      .wrap { width: min(100% - 24px, 1180px); }
+      .hero-top { align-items: flex-start; }
+      .updated { display: none; }
+      .hero-grid { padding: 54px 0; }
+      h1 { font-size: 45px; }
+      .hero-lead { font-size: 16px; }
+      main { padding-top: 48px; }
+      .section { padding-top: 58px; }
+      .metric-grid { grid-template-columns: 1fr; }
+      .metric { min-height: 230px; }
+      .evidence-list li { grid-template-columns: 1fr; gap: 4px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    @media print {
+      @page { margin: 14mm; }
+      body { background: #fff; }
+      .hero { min-height: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .hero-grid { padding: 42px 0; }
+      .nav-shell, .print-button { display: none; }
+      main { padding: 24px 0; }
+      .section { padding-top: 34px; break-inside: avoid; }
+      .metric, .option, .table-shell { box-shadow: none; }
+      .option-grid, .metric-grid { gap: 8px; }
+      a { text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="hero-top">
+        <span class="brand">FieldMed Strategy Note</span>
+        <span class="updated mono">Research update · 2026.08.10</span>
+        <button class="print-button" type="button" onclick="window.print()">PDF로 인쇄</button>
+      </div>
+
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow mono">Market entry decision</p>
+          <h1>의료기기 영업 CRM<br>vs 일반 영업 CRM</h1>
+          <p class="hero-lead">시장 크기는 일반 CRM이 압도적이다. 하지만 지금 우리에게 필요한 것은 가장 큰 시장이 아니라, 처음 선택받을 수 있는 시장이다.</p>
+        </div>
+        <aside class="decision-card" aria-label="핵심 권고안">
+          <span class="mono">Recommended direction</span>
+          <strong>의료기기에서 시작하고,<br>범용 현장영업으로 확장한다.</strong>
+          <p>제품의 코어는 범용으로 설계하되, 초기 고객과 메시지는 국내 중소 의료기기 영업팀에 집중한다.</p>
+        </aside>
+      </div>
+    </div>
+  </header>
+
+  <div class="nav-shell">
+    <nav class="wrap nav" aria-label="보고서 바로가기">
+      <a href="#snapshot">핵심 수치</a>
+      <a href="#options">두 시장 분석</a>
+      <a href="#comparison">비교 결론</a>
+    </nav>
+  </div>
+
+  <main class="wrap">
+    <section class="section" id="snapshot">
+      <header class="section-head">
+        <div><span class="section-no mono">01 / Market size</span><h2>시장 크기, 결론부터</h2></div>
+        <p>의료기기는 직접 고객 수와 좌석 수로, 일반 CRM은 조사기관의 시장 매출로 본다. 서로 정의가 다른 숫자이므로 규모 감각을 잡는 용도로만 비교한다.</p>
+      </header>
+
+      <div class="metric-grid">
+        <article class="metric medtech" data-index="01">
+          <span class="mono">Medical device customer base</span>
+          <b>6,661개</b>
+          <p>국내 의료기기 기업. 중소기업 6,172개, 영업·판매 직무 종사자 20,036명.</p>
+          <a class="source-link" href="https://www.khidi.or.kr/board/view?linkId=48945740&amp;menuId=MENU00085" target="_blank" rel="noreferrer">한국보건산업진흥원 실태조사 원문 ↗</a>
+        </article>
+        <article class="metric medtech" data-index="02">
+          <span class="mono">Estimated medtech CRM TAM</span>
+          <b>연 72~120억</b>
+          <p>20,036명 × 월 3만~5만원 × 12개월. 전원이 유료 사용한다는 이론상 구독 매출 상한.</p>
+          <span class="submetric">5~10% 확보 시 연 3.6~12억원</span>
+          <span class="inline-sources"><a class="source-link" href="https://www.khidi.or.kr/board/view?linkId=48945740&amp;menuId=MENU00085" target="_blank" rel="noreferrer">영업 인원 근거 ↗</a><a class="source-link" href="https://www.crm.co.kr/pricing/pricing.do" target="_blank" rel="noreferrer">공개 좌석 가격 ↗</a></span>
+        </article>
+        <article class="metric general" data-index="03">
+          <span class="mono">Korea · Broad CRM 2025</span>
+          <b>약 2.8조원</b>
+          <p>국내 전체 CRM 추정 시장. 원자료를 1달러=1,500원 기준으로 환산.</p>
+          <a class="source-link" href="https://www.grandviewresearch.com/horizon/outlook/customer-relationship-management-market/south-korea" target="_blank" rel="noreferrer">Grand View Research 원문 ↗</a>
+        </article>
+        <article class="metric general" data-index="04">
+          <span class="mono">Worldwide · Sales CRM 2024</span>
+          <b>약 38.6조원</b>
+          <p>Gartner 집계 글로벌 영업 CRM. 원자료를 1달러=1,500원 기준으로 환산.</p>
+          <a class="source-link" href="https://www.gartner.com/en/documents/6791434" target="_blank" rel="noreferrer">Gartner 시장 분석 원문 ↗</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="options">
+      <header class="section-head">
+        <div><span class="section-no mono">02 / Marketability</span><h2>시장성은 왜 갈리는가</h2></div>
+        <p>시장 크기는 일반 CRM이 우세하지만, 현재 제품의 차별성과 초기 고객 정의는 의료기기 쪽이 더 선명하다.</p>
+      </header>
+
+      <div class="option-grid">
+        <article class="option medtech">
+          <header class="option-head">
+            <span class="option-code mono">Option A · Vertical CRM</span>
+            <h3>의료기기 영업 CRM</h3>
+            <p>규모는 제한적이지만 고객과 구매 이유가 명확한 시장.</p>
+          </header>
+          <div class="option-body">
+            <ul class="evidence-list">
+              <li><b>직접 시장</b><span>국내 구독 매출의 이론상 상한은 연 72~120억원. 초기 5~10% 좌석 확보 시 연 3.6~12억원 수준의 시나리오다.<span class="inline-sources"><a class="source-link" href="https://www.khidi.or.kr/board/view?linkId=48945740&amp;menuId=MENU00085" target="_blank" rel="noreferrer">영업 인원 ↗</a><a class="source-link" href="https://www.crm.co.kr/pricing/pricing.do" target="_blank" rel="noreferrer">가격 기준 ↗</a></span></span></li>
+              <li><b>진입 가능성</b><span>병원·의료진·장비·계약·서비스라는 업무 맥락이 분명하고 현재 FieldMed 흐름과 직접 연결된다.</span></li>
+              <li><b>시장 한계</b><span>국내 의료기기만으로는 성장 상한이 낮다. Veeva·Salesforce 같은 전용 경쟁자도 이미 존재한다.<span class="inline-sources"><a class="source-link" href="https://www.veeva.com/medtech/wp-content/uploads/2022/09/Vault-CRM-for-Sales-Teams-Product-Brief-September-2022.pdf" target="_blank" rel="noreferrer">Veeva ↗</a><a class="source-link" href="https://www.salesforce.com/news/stories/life-sciences-cloud-ai-availability/" target="_blank" rel="noreferrer">Salesforce ↗</a></span></span></li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="option general">
+          <header class="option-head">
+            <span class="option-code mono">Option B · Horizontal CRM</span>
+            <h3>일반 영업 CRM</h3>
+            <p>시장 규모는 크지만 경쟁과 고객 획득 난도가 높은 시장.</p>
+          </header>
+          <div class="option-body">
+            <ul class="evidence-list">
+              <li><b>시장 규모</b><span>국내 전체 CRM은 약 2.8조원, 글로벌 영업 CRM은 약 38.6조원으로 추정된다. 모두 1달러=1,500원으로 환산했다.<span class="inline-sources"><a class="source-link" href="https://www.grandviewresearch.com/horizon/outlook/customer-relationship-management-market/south-korea" target="_blank" rel="noreferrer">국내 CRM ↗</a><a class="source-link" href="https://www.gartner.com/en/documents/6791434" target="_blank" rel="noreferrer">글로벌 영업 CRM ↗</a></span></span></li>
+              <li><b>진입 난도</b><span>HubSpot과 핑거세일즈가 이미 미팅 브리핑·요약·후속조치·사용자 승인 반영을 제공한다.<span class="inline-sources"><a class="source-link" href="https://www.hubspot.com/products/artificial-intelligence/use-cases/sales-meeting-prep-and-follow-up" target="_blank" rel="noreferrer">HubSpot ↗</a><a class="source-link" href="https://www.crm.co.kr/home/aicrm.do" target="_blank" rel="noreferrer">핑거세일즈 ↗</a></span></span></li>
+              <li><b>시장 한계</b><span>‘전체 영업직’은 고객 정의가 아니다. 특정 업종이나 영업 방식 없이 진입하면 큰 시장의 대부분은 실제 확보 가능한 시장이 아니다.</span></li>
+            </ul>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="comparison">
+      <header class="section-head">
+        <div><span class="section-no mono">03 / Decision</span><h2>그래서 어디가 더 시장성 있는가</h2></div>
+        <p>전체 시장 규모와 우리가 실제로 진입할 수 있는 시장성을 분리해서 판단한다.</p>
+      </header>
+
+      <div class="table-shell">
+        <table>
+          <thead><tr><th>판단 기준</th><th>의료기기 영업 CRM</th><th>일반 영업 CRM</th></tr></thead>
+          <tbody>
+            <tr><th>시장 크기</th><td>국내 구독 TAM 상한 연 72~120억원<br><span class="signal medium">틈새시장</span></td><td>국내 전체 CRM 약 2.8조원<br><span class="signal high">대형시장</span></td></tr>
+            <tr><th>초기 진입</th><td>고객과 문제가 명확하고 현재 MVP와 일치<br><span class="signal high">유리</span></td><td>고객 범위가 넓고 기존 제품과 기능 중복<br><span class="signal low">불리</span></td></tr>
+            <tr><th>차별화</th><td>병원·의료진·장비·계약·서비스 맥락<br><span class="signal high">선명함</span></td><td>미팅 요약과 CRM 자동 갱신만으로는 부족<br><span class="signal low">약함</span></td></tr>
+            <tr><th>사업성 판단</th><td>국내만으로는 작지만 첫 유료 고객을 만들 가능성이 상대적으로 높음</td><td>잠재력은 크지만 명확한 업종·ICP 없이는 실제 확보 시장이 작음</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <aside class="verdict">
+        <div><span class="mono">Final verdict</span><strong>의료기기는 “작지만 들어갈 이유가 있는 시장”, 일반 CRM은 “크지만 지금 우리를 선택할 이유가 약한 시장”이다.</strong></div>
+        <p><b>현재 선택:</b> 의료기기 영업 CRM<br><b>제품 구조:</b> 범용 영업 코어<br><b>성장 조건:</b> 이후 유사한 B2B 현장영업 업종으로 확장</p>
+      </aside>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="wrap">FieldMed CRM Research · 달러 자료는 1달러=1,500원으로 환산 · 시장 수치와 제품 기능은 공개 시점에 따라 변경될 수 있음 · 의료기기 산업 규모는 CRM 시장 규모와 동일하지 않음</div>
+  </footer>
+</body>
+</html>
