@@ -1,15 +1,63 @@
 @use 'variables' as *;
 
-@mixin mobile {
-  @media (max-width: $bp-mobile) {
+// max-width 계열: 해당 폭 "이하"
+@mixin sm {
+  @media (max-width: $bp-sm) {
     @content;
   }
 }
 
-@mixin tablet {
-  @media (max-width: $bp-tablet) {
+@mixin md {
+  @media (max-width: $bp-md) {
     @content;
   }
+}
+
+@mixin lg {
+  @media (max-width: $bp-lg) {
+    @content;
+  }
+}
+
+@mixin xl {
+  @media (max-width: $bp-xl) {
+    @content;
+  }
+}
+
+// 사이드바가 실제로 존재하는 구간 ($bp-md 초과)
+@mixin desktop {
+  @media (min-width: #{$bp-md + 1px}) {
+    @content;
+  }
+}
+
+// 사이드바가 아이콘 레일로 강제되는 구간
+@mixin rail-range {
+  @media (min-width: #{$bp-md + 1px}) and (max-width: $bp-xl) {
+    @content;
+  }
+}
+
+// demo/layout_v3.html §4 의 .card. 대시보드 섹션이 공유하는 표면입니다.
+@mixin card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-2);
+}
+
+// demo/layout_v3.html §12 의 .tag-pill
+@mixin tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-style: normal;
 }
 
 @mixin flex-center {
