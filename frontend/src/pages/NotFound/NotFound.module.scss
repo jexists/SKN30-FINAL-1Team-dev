@@ -1,0 +1,30 @@
+// demo/layout_v3.html 의 .wip 카드
+.root {
+  display: grid;
+  justify-items: center;
+  gap: var(--s2);
+  padding: var(--s8) var(--s6);
+  text-align: center;
+  color: var(--muted-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-2);
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.title {
+  font-size: 19px;
+  color: var(--ink);
+}
+
+.copy {
+  margin-bottom: var(--s4);
+  color: var(--muted);
+}
