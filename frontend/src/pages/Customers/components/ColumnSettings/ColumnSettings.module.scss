@@ -1,0 +1,98 @@
+.root {
+  width: 268px;
+  max-width: 100%;
+}
+
+.hint {
+  margin-bottom: var(--s2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.list {
+  max-height: 300px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  font-size: 13px;
+  cursor: pointer;
+
+  input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--blue);
+  }
+
+  input:disabled {
+    cursor: default;
+  }
+}
+
+.lock {
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.moves {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.move {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--fill-2);
+    color: var(--blue);
+  }
+}
+
+.flip {
+  transform: rotate(180deg);
+}
+
+.reset {
+  width: 100%;
+  margin-top: var(--s3);
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--line-2);
+  }
+}

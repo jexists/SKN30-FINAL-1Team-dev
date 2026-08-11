@@ -1,0 +1,76 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-top: var(--s3);
+  color: var(--muted);
+  font-size: 12px;
+
+  @include sm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.range {
+  font-size: 12px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+
+  @include sm {
+    justify-content: space-between;
+  }
+}
+
+.size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  select {
+    height: 30px;
+    padding: 0 var(--s2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
+
+.pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.step {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}
+
+.at {
+  min-width: 52px;
+  color: var(--ink-2);
+  font-weight: 600;
+  text-align: center;
+}

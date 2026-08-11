@@ -1,0 +1,78 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid rgba(0, 122, 255, 0.28);
+  border-radius: var(--r-md);
+  background: var(--blue-tint);
+  animation: slide var(--t-fast) var(--ease-out);
+
+  @include sm {
+    flex-wrap: wrap;
+  }
+}
+
+.count {
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--line-2);
+  }
+}
+
+.danger {
+  color: var(--red-ink);
+
+  &:hover {
+    border-color: var(--red);
+  }
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--blue);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(0, 122, 255, 0.12);
+  }
+}
+
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

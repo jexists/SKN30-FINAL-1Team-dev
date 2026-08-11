@@ -1,0 +1,248 @@
+.card {
+  @include card;
+  overflow: hidden; // 둥근 모서리 밖으로 표가 새어 나오지 않게
+}
+
+/* 가로 스크롤은 카드 안에서만 일어납니다. 페이지 본문은 절대 옆으로 밀리지 않습니다. */
+.scroller {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.table {
+  // 폭은 컬럼 합계를 인라인으로 받습니다. 남으면 늘어나고 모자라면 가로로 넘칩니다.
+  // width:100% 만 두면 fixed 레이아웃이 지정 폭을 무시하고 눌러 버립니다.
+  min-width: 100%;
+  border-collapse: separate; // sticky 헤더는 collapse 에서 테두리를 잃습니다
+  border-spacing: 0;
+  table-layout: fixed;
+
+  th,
+  td {
+    height: 44px; // iOS 터치 타깃
+    padding: 0 var(--s3);
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 40px;
+    // 오른쪽 끝의 리사이즈 손잡이가 잘리면 안 됩니다.
+    // 말줄임은 안쪽 .sortButton / .headLabel 이 맡습니다.
+    overflow: visible;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  tbody td {
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody tr:hover td {
+    background: var(--fill-2);
+  }
+}
+
+/* 선택된 행. 왼쪽 파란 획은 demo 의 .customer-row.active 와 같은 언어입니다. */
+.isSelected td {
+  background: var(--blue-tint) !important;
+
+  &:first-child {
+    box-shadow: inset 3px 0 var(--blue);
+  }
+}
+
+/* ---- 왼쪽 고정 열 ---- */
+
+.stickyCheck,
+.stickyName {
+  position: sticky;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.stickyCheck {
+  left: 0;
+}
+
+.stickyName {
+  left: var(--sticky-left);
+  // 아래로 깔린 열과 겹칠 때 경계를 만들어 줍니다.
+  box-shadow: 1px 0 0 var(--line);
+}
+
+/* .table thead th 와 명시도를 맞춰야 합니다. 낮으면 뒤따르는 헤더가 위를 덮습니다. */
+.table thead .stickyCheck,
+.table thead .stickyName {
+  z-index: 4;
+  background: var(--surface-2);
+}
+
+.table tbody tr:hover .stickyCheck,
+.table tbody tr:hover .stickyName {
+  background: #fbfbfd; // 고정 열은 반투명 --fill-2 로는 뒤가 비칩니다
+}
+
+.checkCell {
+  padding: 0 0 0 var(--s4) !important;
+
+  input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+}
+
+/* ---- 헤더 ---- */
+
+.sortButton,
+.headLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sortButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--blue);
+  }
+
+  &:active {
+    transform: none; // 헤더가 눌릴 때마다 들썩이면 표가 산만해집니다
+  }
+}
+
+.isSorted {
+  color: var(--blue);
+}
+
+.sortHint {
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-out);
+
+  .sortButton:hover & {
+    opacity: 0.5;
+  }
+}
+
+.flip {
+  transform: rotate(180deg);
+}
+
+.resizer {
+  position: absolute;
+  top: 0;
+  // 마지막 열의 손잡이가 표 밖으로 나가면 가로 스크롤이 생깁니다. 안쪽에 붙입니다.
+  right: 0;
+  z-index: 1;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 25%;
+    right: 3px;
+    width: 1px;
+    height: 50%;
+    background: var(--line-2);
+    opacity: 0;
+    transition: opacity var(--t-fast) var(--ease-out);
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
+}
+
+/* ---- 빈 상태 ---- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s8) var(--s5);
+  color: var(--muted);
+  text-align: center;
+
+  p {
+    font-size: 13px;
+  }
+}
+
+/* ---- 폰: 표 대신 카드 ---- */
+
+.cardList {
+  display: grid;
+  gap: var(--s2);
+}
+
+.miniCard {
+  @include card;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+}
+
+.miniCheck input {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  accent-color: var(--blue);
+}
+
+.miniBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.miniName {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+.miniOrg {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.miniMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}

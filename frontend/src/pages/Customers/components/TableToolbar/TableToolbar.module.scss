@@ -1,0 +1,122 @@
+// 페이지 제목은 Topbar 가 이미 말해 주므로 이 줄이 화면의 첫 요소입니다.
+// 왼쪽은 찾기, 오른쪽은 다루기 — 한 줄 안에서 역할이 갈립니다.
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+
+.search {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 36px;
+  padding: 0 var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  transition: border-color var(--t-fast) var(--ease-out);
+
+  &:focus-within {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    font-size: 13px;
+    outline: none;
+
+    &::-webkit-search-cancel-button {
+      cursor: pointer;
+    }
+  }
+
+  @include sm {
+    flex-basis: 100%;
+  }
+}
+
+.tools {
+  flex: none;
+  display: flex;
+  gap: var(--s2);
+
+  @include sm {
+    // 폰에서는 도구가 한 줄에 다 들어가지 않아 가로로 흘려 보냅니다.
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--s3);
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+
+  &:hover {
+    border-color: var(--line-2);
+    color: var(--blue);
+  }
+}
+
+.isOn {
+  border-color: rgba(0, 122, 255, 0.32);
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+
+  .isOn & {
+    background: var(--blue);
+    color: #fff;
+  }
+}
+
+.create {
+  flex: none;
+  height: 36px;
+  padding: 0 var(--s4);
+
+  @include sm {
+    // 이 줄에서 유일하게 무언가를 만드는 버튼이라 폰에서는 한 줄을 다 씁니다.
+    flex-basis: 100%;
+  }
+}
