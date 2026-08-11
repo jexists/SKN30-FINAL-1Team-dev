@@ -1,0 +1,230 @@
+﻿section,segment,metric,value,unit,denominator,period_start_utc,period_end_utc,note,source_sha256
+scope,snapshot,review_count,18474,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+scope,snapshot,substantive_text_count,18459,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+scope,snapshot,reviewed_at_start,2011-03-08T20:58:30+00:00,timestamp,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+scope,snapshot,reviewed_at_end,2026-08-10T03:22:30+00:00,timestamp,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+scope,snapshot,nonempty_language_stream_count,46,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+scope,snapshot,language_stream_assignments,18484,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+scope,snapshot,duplicate_stream_assignments,10,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+engagement,all,developer_reply_count,2011,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+engagement,all,developer_reply_share,10.8856,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+engagement,all,thumbs_up_total,15179,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+engagement,all,reviews_with_thumbs_up,4451,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+overall,all,review_count,18474,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+overall,all,mean_rating,3.8633,stars,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+overall,all,low_review_count,4217,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+overall,all,low_review_share,22.8267,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+overall,all,positive_review_count,12986,count,,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+overall,all,positive_review_share,70.2934,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,1,review_count,3318,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,1,review_share,17.9604,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,2,review_count,899,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,2,review_share,4.8663,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,3,review_count,1271,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,3,review_share,6.8799,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,4,review_count,2489,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,4,review_share,13.473,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,5,review_count,10497,count,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+rating,5,review_share,56.8204,percent,18474,,,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,recent_90_days,review_count,419,count,,2026-05-13T00:00:00+00:00,2026-08-11T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,recent_90_days,mean_rating,3.611,stars,,2026-05-13T00:00:00+00:00,2026-08-11T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,recent_90_days,low_review_count,138,count,,2026-05-13T00:00:00+00:00,2026-08-11T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,recent_90_days,low_review_share,32.9356,percent,419,2026-05-13T00:00:00+00:00,2026-08-11T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,recent_90_days,positive_review_count,268,count,,2026-05-13T00:00:00+00:00,2026-08-11T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,recent_90_days,positive_review_share,63.9618,percent,419,2026-05-13T00:00:00+00:00,2026-08-11T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,previous_90_days,review_count,392,count,,2026-02-12T00:00:00+00:00,2026-05-13T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,previous_90_days,mean_rating,4.1684,stars,,2026-02-12T00:00:00+00:00,2026-05-13T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,previous_90_days,low_review_count,68,count,,2026-02-12T00:00:00+00:00,2026-05-13T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,previous_90_days,low_review_share,17.3469,percent,392,2026-02-12T00:00:00+00:00,2026-05-13T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,previous_90_days,positive_review_count,308,count,,2026-02-12T00:00:00+00:00,2026-05-13T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+period,previous_90_days,positive_review_share,78.5714,percent,392,2026-02-12T00:00:00+00:00,2026-05-13T00:00:00+00:00,,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,en,review_count,13134,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,en,mean_rating,3.8529,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,en,low_review_count,3092,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,en,low_review_share,23.542,percent,13134,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,en,positive_review_count,9216,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,en,positive_review_share,70.169,percent,13134,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,es,review_count,2013,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,es,mean_rating,4.3631,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,es,low_review_count,175,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,es,low_review_share,8.6935,percent,2013,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,es,positive_review_count,1682,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,es,positive_review_share,83.5569,percent,2013,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pt,review_count,903,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pt,mean_rating,4.2946,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pt,low_review_count,103,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pt,low_review_share,11.4064,percent,903,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pt,positive_review_count,734,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pt,positive_review_share,81.2846,percent,903,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ja,review_count,380,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ja,mean_rating,2.0658,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ja,low_review_count,260,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ja,low_review_share,68.4211,percent,380,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ja,positive_review_count,85,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ja,positive_review_share,22.3684,percent,380,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,it,review_count,347,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,it,mean_rating,3.1758,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,it,low_review_count,130,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,it,low_review_share,37.464,percent,347,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,it,positive_review_count,171,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,it,positive_review_share,49.2795,percent,347,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fr,review_count,321,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fr,mean_rating,3.4735,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fr,low_review_count,101,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fr,low_review_share,31.4642,percent,321,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fr,positive_review_count,195,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fr,positive_review_share,60.7477,percent,321,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,id,review_count,191,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,id,mean_rating,4.2984,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,id,low_review_count,23,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,id,low_review_share,12.0419,percent,191,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,id,positive_review_count,157,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,id,positive_review_share,82.199,percent,191,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,th,review_count,185,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,th,mean_rating,4.4541,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,th,low_review_count,13,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,th,low_review_share,7.027,percent,185,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,th,positive_review_count,160,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,th,positive_review_share,86.4865,percent,185,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,de,review_count,152,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,de,mean_rating,3.2303,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,de,low_review_count,56,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,de,low_review_share,36.8421,percent,152,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,de,positive_review_count,80,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,de,positive_review_share,52.6316,percent,152,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ko,review_count,120,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ko,mean_rating,3.5917,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ko,low_review_count,31,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ko,low_review_share,25.8333,percent,120,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ko,positive_review_count,73,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ko,positive_review_share,60.8333,percent,120,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ru,review_count,93,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ru,mean_rating,3.2151,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ru,low_review_count,36,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ru,low_review_share,38.7097,percent,93,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ru,positive_review_count,48,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ru,positive_review_share,51.6129,percent,93,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,nl,review_count,81,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,nl,mean_rating,3.1235,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,nl,low_review_count,33,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,nl,low_review_share,40.7407,percent,81,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,nl,positive_review_count,42,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,nl,positive_review_share,51.8519,percent,81,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,tr,review_count,77,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,tr,mean_rating,4.0779,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,tr,low_review_count,12,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,tr,low_review_share,15.5844,percent,77,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,tr,positive_review_count,57,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,tr,positive_review_share,74.026,percent,77,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ar,review_count,67,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ar,mean_rating,3.6418,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ar,low_review_count,19,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ar,low_review_share,28.3582,percent,67,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ar,positive_review_count,41,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ar,positive_review_share,61.194,percent,67,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,vi,review_count,59,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,vi,mean_rating,4.3729,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,vi,low_review_count,6,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,vi,low_review_share,10.1695,percent,59,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,vi,positive_review_count,50,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,vi,positive_review_share,84.7458,percent,59,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pl,review_count,56,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pl,mean_rating,3.3036,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pl,low_review_count,21,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pl,low_review_share,37.5,percent,56,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pl,positive_review_count,32,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,pl,positive_review_share,57.1429,percent,56,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-CN,review_count,49,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-CN,mean_rating,2.5714,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-CN,low_review_count,26,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-CN,low_review_share,53.0612,percent,49,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-CN,positive_review_count,16,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-CN,positive_review_share,32.6531,percent,49,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-TW,review_count,49,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-TW,mean_rating,2.8163,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-TW,low_review_count,23,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-TW,low_review_share,46.9388,percent,49,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-TW,positive_review_count,21,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,zh-TW,positive_review_share,42.8571,percent,49,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,he,review_count,38,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,he,mean_rating,3.4737,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,he,low_review_count,11,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,he,low_review_share,28.9474,percent,38,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,he,positive_review_count,20,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,he,positive_review_share,52.6316,percent,38,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ro,review_count,17,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ro,mean_rating,4.0588,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ro,low_review_count,3,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ro,low_review_share,17.6471,percent,17,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ro,positive_review_count,13,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,ro,positive_review_share,76.4706,percent,17,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,sv,review_count,17,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,sv,mean_rating,3.4118,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,sv,low_review_count,5,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,sv,low_review_share,29.4118,percent,17,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,sv,positive_review_count,10,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,sv,positive_review_share,58.8235,percent,17,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fi,review_count,15,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fi,mean_rating,1.8667,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fi,low_review_count,13,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fi,low_review_share,86.6667,percent,15,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fi,positive_review_count,2,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,fi,positive_review_share,13.3333,percent,15,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,no,review_count,15,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,no,mean_rating,3.4667,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,no,low_review_count,5,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,no,low_review_share,33.3333,percent,15,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,no,positive_review_count,9,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,no,positive_review_share,60.0,percent,15,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,cs,review_count,14,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,cs,mean_rating,3.0,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,cs,low_review_count,5,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,cs,low_review_share,35.7143,percent,14,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,cs,positive_review_count,5,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,cs,positive_review_share,35.7143,percent,14,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hu,review_count,14,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hu,mean_rating,3.2857,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hu,low_review_count,5,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hu,low_review_share,35.7143,percent,14,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hu,positive_review_count,8,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hu,positive_review_share,57.1429,percent,14,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hi,review_count,13,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hi,mean_rating,4.6154,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hi,low_review_count,1,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hi,low_review_share,7.6923,percent,13,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hi,positive_review_count,12,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,hi,positive_review_share,92.3077,percent,13,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,uk,review_count,11,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,uk,mean_rating,4.2727,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,uk,low_review_count,2,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,uk,low_review_share,18.1818,percent,11,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,uk,positive_review_count,9,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,uk,positive_review_share,81.8182,percent,11,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,da,review_count,10,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,da,mean_rating,3.2,stars,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,da,low_review_count,4,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,da,low_review_share,40.0,percent,10,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,da,positive_review_count,6,count,,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,da,positive_review_share,60.0,percent,10,,,queried locale; not detected review language,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+language_stream,suppressed,stream_count,18,count,,,,streams with fewer than 10 reviews,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,english_stream,denominator,3092,count,,,,1-2 stars; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,reliability_performance,matched_count,1316,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,reliability_performance,matched_share,42.5614,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,authentication_access,matched_count,346,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,authentication_access,matched_share,11.1902,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,ux_navigation,matched_count,346,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,ux_navigation,matched_share,11.1902,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,missing_mobile_capability,matched_count,207,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,missing_mobile_capability,matched_share,6.6947,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,data_sync_entry,matched_count,194,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,data_sync_entry,matched_share,6.2743,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,search_list_filter,matched_count,96,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,search_list_filter,matched_share,3.1048,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,files_media,matched_count,67,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,files_media,matched_share,2.1669,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,notifications,matched_count,43,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,notifications,matched_share,1.3907,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,update_regression,matched_count,95,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,update_regression,matched_share,3.0724,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,field_work_context,matched_count,271,count,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
+low_review_theme,field_work_context,matched_share,8.7646,percent,3092,,,English stream; multi-label keyword matching,a9a83c3186adc6016d0b59b5b2454ce3206ed6b4573e919ddb76f1c809970292
