@@ -1,0 +1,118 @@
+// demo/layout_v3.html §13
+.po {
+  @include card;
+
+  padding: var(--s5);
+
+  @include md {
+    padding: var(--s4);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s4);
+
+  h2 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.014em;
+  }
+}
+
+.link {
+  flex: none;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: var(--s3);
+  margin-top: var(--s5);
+}
+
+.stat {
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+
+  strong {
+    display: block;
+    margin: 6px 0 2px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  small {
+    font-size: 11px;
+    color: var(--muted);
+  }
+}
+
+.label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.isZero strong {
+  color: var(--muted-2);
+}
+
+.isAlert {
+  background: var(--orange-tint);
+  border-color: rgba(255, 149, 0, 0.32);
+
+  .label,
+  small,
+  strong {
+    color: var(--orange-ink);
+  }
+}
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin-top: var(--s5);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+  font-size: 13px;
+
+  svg {
+    flex: none;
+    margin-top: 1px;
+  }
+
+  strong {
+    font-weight: 700;
+  }
+
+  & + .alert {
+    margin-top: var(--s2);
+  }
+}
+
+.clear {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s5);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--green-tint);
+  color: var(--green-ink);
+  font-size: 13px;
+}

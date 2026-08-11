@@ -1,0 +1,271 @@
+// demo/layout_v3.html §12
+.agenda {
+  @include card;
+
+  padding: var(--s5);
+  margin-bottom: var(--s4);
+  // 스크롤해 왔을 때 sticky topbar 아래에 가리지 않게 합니다.
+  scroll-margin-top: calc(var(--topbar-h) + var(--s4));
+  transition: box-shadow var(--t-slow) var(--ease-out);
+
+  @include md {
+    padding: var(--s4);
+  }
+}
+
+.isFlash {
+  border-color: rgba(0, 122, 255, 0.34);
+  box-shadow:
+    var(--sh-2),
+    0 0 0 3px var(--blue-ring);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.014em;
+  }
+}
+
+.pill {
+  @include tag-pill;
+}
+
+.now {
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+
+.list {
+  margin-top: var(--s4);
+}
+
+.item {
+  --rail-x: 31px; // 체크 열의 중심. 타임라인 레일이 여기 섭니다.
+  --divider-x: 60px; // 시간 열의 왼쪽 가장자리. 오른쪽도 같은 값으로 맞춥니다.
+
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 52px minmax(0, 1fr);
+  gap: var(--s3);
+  margin: 0 calc(var(--s5) * -1);
+  padding: var(--s4) var(--s5);
+
+  // 구분선을 카드 가장자리까지 흘리지 않고 본문 블록 안으로 들입니다.
+  // 체크·레일 열을 가로지르지 않으면서 행을 나눕니다.
+  & + .item::after {
+    content: '';
+    position: absolute;
+    left: var(--divider-x);
+    right: var(--divider-x);
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+
+  // 타임라인 레일
+  &::before {
+    content: '';
+    position: absolute;
+    left: var(--rail-x);
+    top: 46px;
+    bottom: 0;
+    width: 1px;
+    background: var(--line);
+  }
+
+  &:last-child::before {
+    display: none;
+  }
+
+  @include md {
+    --rail-x: 27px;
+    --divider-x: 48px;
+
+    grid-template-columns: 24px 46px minmax(0, 1fr);
+    gap: var(--s2);
+    margin: 0 calc(var(--s4) * -1);
+    padding: var(--s4);
+  }
+
+  @include sm {
+    grid-template-columns: 24px minmax(0, 1fr);
+
+    &::before {
+      display: none;
+    }
+
+    .rail {
+      grid-column: 2;
+      text-align: left;
+    }
+
+    .body {
+      grid-column: 2 / -1;
+    }
+
+    .org {
+      font-size: 16px;
+    }
+  }
+}
+
+.check {
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-2);
+  border-radius: 50%;
+  background: var(--surface);
+  color: transparent;
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    border-color: var(--blue);
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+  }
+}
+
+.rail {
+  text-align: right;
+}
+
+.time {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.body {
+  min-width: 0;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--fill);
+  color: var(--ink-2);
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentcolor;
+  }
+}
+
+.kindBlue {
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+
+.kindPurple {
+  background: var(--purple-tint);
+  color: var(--purple-ink);
+}
+
+.kindGreen {
+  background: var(--green-tint);
+  color: var(--green-ink);
+}
+
+.kindOrange {
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+}
+
+// 스캔할 때 먼저 찾는 것이 회사라 회사가 앞에 섭니다.
+// 부서와 담당자는 줄을 따로 차지하지 않고 옆에 붙습니다.
+.org {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.016em;
+}
+
+.who {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+
+.title {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+}
+
+.brief {
+  margin-top: var(--s2);
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// .who 는 .org 안에 있어 따로 흐리면 두 번 겹칩니다.
+.isDone {
+  .org,
+  .title,
+  .brief,
+  .rail {
+    opacity: 0.6;
+  }
+}
+
+.empty {
+  padding: var(--s8) var(--s4);
+  text-align: center;
+
+  svg {
+    color: var(--muted-2);
+  }
+
+  p {
+    margin-top: var(--s3);
+    color: var(--muted);
+  }
+}

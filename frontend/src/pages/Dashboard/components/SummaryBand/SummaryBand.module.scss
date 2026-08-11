@@ -1,0 +1,180 @@
+// demo/layout_v3.html §10
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 300px;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+
+  @include xl {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+
+    .goal {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @include lg {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.kpi {
+  @include card;
+
+  display: block;
+  width: 100%;
+  padding: var(--s4);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+
+  strong {
+    display: block;
+    margin: 6px 0 2px;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+  }
+
+  small {
+    font-size: 11px;
+    color: var(--muted);
+  }
+}
+
+// 지금 클릭이 살아 있는 타일은 이것뿐이라 hover 단서도 여기만 붙입니다.
+// 나머지는 눌러도 할 일이 없어 버튼이 아닙니다.
+.jump {
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-spring);
+
+  &:hover {
+    border-color: rgba(0, 122, 255, 0.34);
+    box-shadow:
+      var(--sh-2),
+      0 0 0 3px var(--blue-ring);
+  }
+
+  &:active {
+    transform: scale(0.99);
+  }
+
+  &:hover .cue {
+    color: var(--blue);
+    transform: translateY(2px);
+  }
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-height: 20px;
+
+  span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.cue {
+  flex: none;
+  color: var(--muted-2);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    color var(--t-fast);
+}
+
+.delta {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  background: var(--green-tint);
+  color: var(--green-ink);
+  font-size: 11px;
+  font-weight: 700;
+  font-style: normal;
+}
+
+.warn {
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+}
+
+.danger {
+  background: var(--red-tint);
+  color: var(--red-ink);
+}
+
+/* ---- 월 매출 목표 ---- */
+.goal {
+  @include card;
+
+  padding: var(--s4);
+}
+
+.goalHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+
+  span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  strong {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+.goalValue {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-2);
+
+  em {
+    font-style: normal;
+    color: var(--muted);
+  }
+}
+
+.goalTrack {
+  height: 6px;
+  margin-top: var(--s2);
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 100%;
+    width: var(--p, 0%);
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--blue), #4da3ff);
+    transition: width var(--t-slow) var(--ease-spring);
+  }
+}
+
+.goalFoot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}

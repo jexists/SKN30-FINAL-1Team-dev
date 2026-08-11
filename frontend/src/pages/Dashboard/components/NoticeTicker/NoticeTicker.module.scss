@@ -1,0 +1,114 @@
+// demo/layout_v3.html §9
+.notice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  height: 44px;
+  margin-bottom: var(--s4);
+  padding: 0 var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-1);
+
+  &:hover .caret,
+  &:focus-within .caret {
+    transform: rotate(180deg);
+  }
+
+  &:hover .panel,
+  &:focus-within .panel {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+}
+
+.badge {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.viewport {
+  flex: 1;
+  height: 21px;
+  overflow: hidden;
+}
+
+.track {
+  transform: translateY(calc(var(--i, 0) * -21px));
+  transition: transform var(--t-slow) var(--ease-spring);
+
+  li {
+    height: 21px;
+    line-height: 21px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+  }
+
+  em {
+    font-style: normal;
+    color: var(--muted);
+  }
+}
+
+.count {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.caret {
+  flex: none;
+  color: var(--muted);
+  transition: transform var(--t) var(--ease-spring);
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 25;
+  padding: var(--s2);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-pop);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  opacity: 0;
+  transform: translateY(-6px) scale(0.99);
+  pointer-events: none;
+  transition:
+    opacity var(--t) var(--ease-out),
+    transform var(--t) var(--ease-spring);
+
+  li {
+    padding: 10px var(--s3);
+    border-radius: var(--r-sm);
+
+    & + li {
+      border-top: 1px solid var(--line);
+    }
+  }
+
+  p {
+    font-size: 13px;
+  }
+
+  small {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+}
