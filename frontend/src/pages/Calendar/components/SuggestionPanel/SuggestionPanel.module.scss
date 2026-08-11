@@ -1,0 +1,166 @@
+.panel {
+  @include card;
+
+  padding: var(--s5);
+
+  @include md {
+    padding: var(--s4);
+  }
+}
+
+.head {
+  h2 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.014em;
+  }
+}
+
+.sub {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin-top: var(--s4);
+  list-style: none;
+}
+
+.card {
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  // 끌 수 있다는 것은 커서로 알립니다. 카드마다 손잡이를 그리면 목록이 시끄러워집니다.
+  cursor: grab;
+  // 잡으면 글자가 선택되지 않고 카드 자체가 끌리게 합니다.
+  user-select: none;
+  // 터치에서 끌 때 브라우저가 스크롤로 가로채지 않게 합니다.
+  touch-action: none;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out);
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// 이 카드가 달력의 어느 칸을 가리키고 있는지 짝을 맞춰 줍니다.
+.isPreview {
+  border-color: var(--blue);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--blue-ring);
+}
+
+.when {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue);
+}
+
+.time {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.dismiss {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--muted-2);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    background: var(--fill);
+    color: var(--ink-2);
+  }
+}
+
+.org {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  margin-top: var(--s2);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.014em;
+}
+
+.who {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+
+.title {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+}
+
+.reason {
+  margin-top: 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.basis {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: var(--s3);
+}
+
+.kind,
+.tag {
+  @include tag-pill;
+
+  font-size: 11px;
+}
+
+.kind {
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.accept {
+  width: 100%;
+  margin-top: var(--s3);
+}
+
+.empty {
+  padding: var(--s7) var(--s4);
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.emptyHint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted-2);
+}

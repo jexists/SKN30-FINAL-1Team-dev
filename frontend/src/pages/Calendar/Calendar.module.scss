@@ -1,0 +1,40 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: var(--s4);
+
+  @include lg {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// 달력이 길어져도 추천은 계속 따라옵니다. 한 컬럼으로 접히면 붙일 곳이 없어 풉니다.
+.side {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s4));
+
+  @include lg {
+    position: static;
+  }
+}
+
+// 끄는 동안 손끝을 따라다니는 조각. 자리 찾기(elementFromPoint)를 가리면 안 되므로
+// 포인터 이벤트를 받지 않습니다.
+.dragChip {
+  position: fixed;
+  z-index: 80;
+  transform: translate(10px, 10px);
+  max-width: 240px;
+  padding: 4px 9px;
+  border-radius: var(--r-xs);
+  background: var(--blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--sh-blue);
+  pointer-events: none;
+}

@@ -1,0 +1,127 @@
+.grid {
+  @include card;
+
+  padding: var(--s5);
+
+  @include md {
+    padding: var(--s4);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.month {
+  min-width: 128px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 11px;
+  color: var(--muted);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  @include sm {
+    display: none;
+  }
+}
+
+.dotMeeting {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.dotDelivery {
+  width: 5px;
+  height: 5px;
+  background: var(--orange);
+  transform: rotate(45deg);
+}
+
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast);
+
+  &:hover {
+    background: var(--blue-tint);
+    border-color: rgba(0, 122, 255, 0.28);
+  }
+}
+
+.weekdays,
+.cells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekdays {
+  margin-top: var(--s4);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line);
+
+  span {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .isSun {
+    color: var(--red-ink);
+  }
+
+  .isSat {
+    color: var(--blue);
+  }
+}
+
+.cells {
+  gap: 1px;
+  // 칸 사이 1px 틈에 비치는 배경이 격자선 역할을 합니다. 선을 따로 긋지 않습니다.
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+// 행은 접근성 트리에만 있으면 되고, 배치는 바깥 7열 그리드가 합니다.
+.row {
+  display: contents;
+}
