@@ -1,0 +1,18 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-scrim);
+  background: rgba(0, 0, 0, 0.32);
+  animation: fade-in var(--t-fast) var(--ease-out);
+
+  // 사이드바가 항상 보이는 폭에서는 드로어를 열 수 없습니다.
+  @include desktop {
+    display: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}

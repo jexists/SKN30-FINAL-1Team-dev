@@ -1,0 +1,103 @@
+// demo/layout_v3.html §8 을 옮긴 것입니다.
+// 목업에 없는 것: 햄버거 버튼 (모바일에서 사이드바를 여는 유일한 통로)
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s6);
+  background: rgba(255, 255, 255, 0.78);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+
+  @include md {
+    height: 52px;
+    padding: 0 var(--s4);
+  }
+}
+
+.hamburger {
+  display: none; // 사이드바가 항상 보이는 폭에서는 필요 없습니다
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--t-fast);
+
+  &:hover {
+    background: var(--fill);
+  }
+
+  @include md {
+    display: grid;
+  }
+}
+
+.breadcrumb {
+  font-size: 13px;
+  color: var(--muted);
+
+  strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+}
+
+.spacer {
+  flex: 1;
+}
+
+.demoBadge {
+  padding: 4px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+
+  @include md {
+    display: none;
+  }
+}
+
+.iconBtn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast);
+
+  &:hover {
+    background: var(--blue-tint);
+    border-color: rgba(0, 122, 255, 0.28);
+  }
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+}

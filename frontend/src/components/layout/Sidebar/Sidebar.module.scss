@@ -1,0 +1,397 @@
+// demo/layout_v3.html §7 을 옮긴 것입니다.
+//
+// 목업과 다른 점: 820px 이하에서 하단 탭바로 바뀌지 않고 오프캔버스 드로어가 됩니다.
+// 탭바는 5개까지만 노출할 수 있어 나머지 메뉴에 모바일에서 도달할 방법이 없습니다.
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: var(--z-sidebar);
+  width: var(--sidebar-w);
+  padding: var(--s5) var(--s3) var(--s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  overflow-x: hidden;
+  overflow-y: auto;
+  // 스크롤 막대를 감춥니다. 레일 폭이 68px 뿐이라 막대가 자리를 차지하면
+  // 메뉴 알약이 그만큼 잘려 나갑니다. 휠·키보드로는 그대로 스크롤됩니다.
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  background: rgba(255, 255, 255, 0.86);
+  border-right: 1px solid var(--line);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  transition:
+    width var(--t) var(--ease-spring),
+    box-shadow var(--t) var(--ease-out);
+
+  &:focus {
+    outline: none; // 드로어를 열 때 프로그램적으로 포커스를 받는 컨테이너
+  }
+}
+
+/* ---- 브랜드 ---- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s2);
+}
+
+.brandLockup {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.brandMark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px 11px 11px 3px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.brandName {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.railToggle,
+.drawerClose {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    background: var(--fill);
+    color: var(--ink);
+  }
+}
+
+.railToggle svg {
+  transition: transform var(--t) var(--ease-spring);
+}
+
+.drawerClose {
+  display: none; // 모바일에서만 나타납니다
+}
+
+/* ---- 메뉴 ---- */
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &:last-child {
+    margin-top: auto; // 설정은 바닥에 붙습니다
+  }
+}
+
+// 조작 요소가 아니라 캡션입니다. 아래 항목들이 여기 속한 것으로 읽히도록
+// Finder 사이드바 헤딩처럼 레일 가장자리로 내어 씁니다.
+.sectionTitle {
+  padding: 4px 11px 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.navBtn {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+}
+
+.isActive {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: var(--sh-blue);
+
+  &:hover {
+    background: var(--blue);
+    color: #fff;
+  }
+}
+
+.navIcon {
+  flex: none;
+}
+
+/* ---- 프로필 ---- */
+.foot {
+  display: grid;
+  grid-template-columns: 32px 1fr 30px;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.logout {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    background: var(--red-tint);
+    color: var(--red-ink);
+  }
+}
+
+.footCopy {
+  min-width: 0;
+
+  strong {
+    display: block;
+    font-size: 13px;
+  }
+
+  span {
+    font-size: 11px;
+    color: var(--muted);
+  }
+}
+
+.navText,
+.brandName,
+.sectionTitle,
+.footCopy {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--t-fast) var(--ease-out);
+}
+
+/* ============================================================
+   아이콘 레일
+   ============================================================
+   사용자가 접은 경우(.isRail)와 화면이 좁아 강제된 경우 둘 다 같은 모습이라
+   믹스인 하나로 두고 두 곳에서 씁니다. */
+@mixin rail-look {
+  width: var(--sidebar-mini);
+
+  .navText,
+  .brandName,
+  .sectionTitle,
+  .footCopy {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  // 흐려진 캡션도 자리는 차지해 아이콘 그룹 사이에 구멍을 냅니다.
+  // 아래 경계선이 이미 그룹을 나누므로 상자까지 접습니다.
+  .sectionTitle {
+    height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .brand {
+    flex-direction: column;
+    gap: var(--s2);
+    padding: 0;
+  }
+
+  // 접힌 상태에서는 로고 아래에 화살표만 덩그러니 남습니다.
+  // 마우스를 올리면 사이드바가 펼쳐지면서 제자리에 다시 나타납니다.
+  .railToggle {
+    display: none;
+  }
+
+  // 세로 배치에서는 .brandLockup 의 flex:1 이 높이를 뜻하므로 폭을 붙잡지 못합니다.
+  // 폭을 직접 접어 주지 않으면 흐려진 브랜드명이 자리를 차지한 채
+  // 로고를 사이드바 밖으로 밀어냅니다.
+  .brandLockup {
+    gap: 0;
+  }
+
+  .brandName {
+    width: 0;
+  }
+
+  .section + .section {
+    border-top: 1px solid var(--line);
+    padding-top: var(--s3);
+  }
+
+  .foot {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .logout {
+    display: none; // 레일 폭에 아바타와 나란히 둘 자리가 없습니다
+  }
+
+  // hover / focus 로 펼칠 때는 오버레이로 덮습니다. .main 은 움직이지 않습니다.
+  &:hover,
+  &:focus-within {
+    width: var(--sidebar-w);
+    box-shadow: var(--sh-3);
+    transition-delay: 90ms;
+
+    .navText,
+    .brandName,
+    .sectionTitle,
+    .footCopy {
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: 130ms;
+    }
+
+    .sectionTitle {
+      height: auto;
+      padding: 4px 11px 6px;
+    }
+
+    .brand {
+      flex-direction: row;
+      gap: var(--s3);
+      padding: 0 var(--s2);
+    }
+
+    .railToggle {
+      display: grid;
+    }
+
+    .brandLockup {
+      gap: var(--s3);
+    }
+
+    .brandName {
+      width: auto;
+    }
+
+    .foot {
+      grid-template-columns: 32px 1fr 30px;
+      justify-items: stretch;
+    }
+
+    .logout {
+      display: grid;
+    }
+  }
+}
+
+@include desktop {
+  .isRail {
+    @include rail-look;
+
+    .railToggle svg {
+      transform: rotate(180deg);
+    }
+  }
+}
+
+// 좁은 데스크톱에서는 접힘 여부와 무관하게 레일입니다. 이 블록이 뒤에 오므로
+// .isRail 과 같은 명시도라도 이쪽이 이깁니다.
+@include rail-range {
+  .sidebar {
+    @include rail-look;
+
+    // 이 구간에서는 접기 상태를 바꿀 수 없으므로 펼쳐도 토글을 내놓지 않습니다.
+    // 믹스인의 hover 규칙과 명시도가 같아 뒤에 오는 이쪽이 이깁니다.
+    &:hover .railToggle,
+    &:focus-within .railToggle {
+      display: none;
+    }
+  }
+}
+
+/* ============================================================
+   모바일 — 오프캔버스 드로어
+   ============================================================ */
+@include md {
+  .sidebar {
+    z-index: var(--z-sidebar-mobile);
+    width: var(--sidebar-drawer);
+    max-width: 85vw;
+    background: var(--surface);
+    border-right: 0;
+    box-shadow: none;
+    transform: translateX(-100%);
+    transition: transform var(--t) var(--ease-spring);
+  }
+
+  .isOpen {
+    transform: none;
+    box-shadow: var(--sh-3);
+  }
+
+  .railToggle {
+    display: none; // 레일 접기는 모바일에서 의미가 없습니다
+  }
+
+  .drawerClose {
+    display: grid;
+  }
+}
