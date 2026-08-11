@@ -8,7 +8,7 @@
 ## 추적 파일
 
 - `scripts/google_play_reviews.py`: 공개 리뷰 수집, 본문·별점 CSV 생성, 비식별 집계
-- `docs/research/crm/salesforce-google-play-review-aggregate-2026-08-11.csv`: 비식별 집계 결과
+- `docs/research/crm/user-feedback/salesforce/google-play-review-aggregate.csv`: 비식별 집계 결과
 
 원본 JSONL과 본문·별점 CSV는 각각 `data/raw/`, `data/processed/`에 생성되며 저장소 정책과 `.gitignore`에 따라 로컬에만 보관한다.
 

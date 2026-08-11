@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Relate, Pipedrive, 세일즈로그, 핑거세일즈, SAP 공식 근거 및 FieldMed 요구사항 기반 CRM 비교">
-  <title>FieldMed CRM 5종 공식 근거 비교</title>
+  <meta name="description" content="Relate, Pipedrive, 세일즈로그, 핑거세일즈, SAP 공식 근거 기반 영업 CRM 비교">
+  <title>영업 CRM 5종 공식 근거 비교</title>
   <style>
     :root{--ink:#142338;--sub:#657489;--line:#dce3eb;--paper:#fff;--soft:#f4f7fa;--navy:#09213e;--blue:#3264db;--shadow:0 16px 48px rgba(16,37,62,.1);--radius:22px}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:#eef3f7;font-family:Pretendard,"Noto Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;line-height:1.55}.wrap{width:min(1180px,calc(100% - 28px));margin:auto}
@@ -30,8 +30,8 @@
 <body>
   <header class="hero">
     <div class="wrap hero-grid">
-      <div><p class="eyebrow">FIELDMED CRM REFERENCE / OFFICIAL EVIDENCE</p><h1>영업 CRM<br>5종 비교</h1><p>서비스별 화면 → 공통 조사표 → FieldMed 판단 → 가격 비교</p></div>
-      <div class="hero-count"><div><b>5</b><span>비교 서비스</span></div><div><b>74</b><span>사용 화면</span></div><div><b>8</b><span>이동 탭</span></div><div><b>5</b><span>공식 심층 조사</span></div></div>
+      <div><p class="eyebrow">SALES CRM REFERENCE / OFFICIAL EVIDENCE</p><h1>영업 CRM<br>5종 비교</h1><p>서비스별 화면 → 공통 조사표 → 가격 비교</p></div>
+      <div class="hero-count"><div><b>5</b><span>비교 서비스</span></div><div><b>74</b><span>사용 화면</span></div><div><b>7</b><span>이동 탭</span></div><div><b>5</b><span>공식 심층 조사</span></div></div>
     </div>
   </header>
 
@@ -43,7 +43,6 @@
       <button class="tab" id="tab-finger" role="tab" aria-controls="finger" aria-selected="false" data-tab="finger">핑거세일즈</button>
       <button class="tab" id="tab-sap" role="tab" aria-controls="sap" aria-selected="false" data-tab="sap">SAP</button>
       <button class="tab" id="tab-overview" role="tab" aria-controls="overview" aria-selected="false" data-tab="overview">공통 조사표</button>
-      <button class="tab" id="tab-conclusion" role="tab" aria-controls="conclusion" aria-selected="false" data-tab="conclusion">핵심 결론</button>
       <button class="tab" id="tab-pricing" role="tab" aria-controls="pricing" aria-selected="false" data-tab="pricing">가격 비교</button>
     </nav>
   </div>
@@ -264,48 +263,6 @@
       <p class="research-foot">장점·한계·FieldMed 관련성은 공식 자료와 FieldMed 요구사항 정의서를 대조한 판단입니다. 공식 페이지에 없는 기능은 추정하지 않고 미확인으로 분리했습니다.</p>
     </section>
 
-    <section id="conclusion" class="panel" role="tabpanel" aria-labelledby="tab-conclusion">
-      <div class="section-head"><div><span class="kicker">FIELDMED DECISION</span><h2>핵심 결론</h2></div><p>제품 설명 모음이 아니라 FieldMed 기획에 필요한 CRM 기능을 필수·선택으로 분류</p></div>
-
-      <div class="subsection" style="margin-top:0"><span class="priority-label">필수 · MVP</span><div class="requirement-grid">
-        <div class="requirement-card"><b>병원·고객·담당자 History</b><span>CUS-001~006 · 명함 OCR 원본 · 병원 매칭 사용자 승인 · 담당자 이관 이력</span></div>
-        <div class="requirement-card"><b>일정·후속 알림</b><span>CAL-001~005 · 방문·후속 권장일 · 사용자 승인 · D-2/D-1 중복 방지</span></div>
-        <div class="requirement-card"><b>미팅 입력·STT·확정</b><span>MTG-001~005 · 녹음 동의 · 한국어 STT · 근거 구간 · 사용자 검토·확정</span></div>
-        <div class="requirement-card"><b>보고서·문서 상태</b><span>RPT-001~006 · 미팅/일간/주간 초안 · 검색 · 원본/PDF · draft/confirmed</span></div>
-        <div class="requirement-card"><b>견적·계약 계산</b><span>DOC-001~004 · 품목·템플릿 · VAT/합계 결정 규칙 · 미리보기·확정</span></div>
-        <div class="requirement-card"><b>실매출·목표·Excel 검증</b><span>제품/고객/영업사원 매출 · 전표번호 유일성 · 전체 성공/전체 실패 · 달성률</span></div>
-        <div class="requirement-card"><b>팀·권한·감사·보존</b><span>USR-002/003 · team_id 격리 · 원문 접근 통제 · 감사로그 · 종류별 보존기간</span></div>
-        <div class="requirement-card"><b>공공 병원 마스터 동기화</b><span>LOCALDATA 의료기관 정보 일 1회 동기화 · 공통 병원 기준정보</span></div>
-        <div class="requirement-card"><b>PWA·업무 알림</b><span>반응형 Web/PWA · In-app/Web Push · 실패 격리 · 알림 출처·상태</span></div>
-      </div></div>
-
-      <div class="subsection"><span class="priority-label optional">선택 · Post-MVP</span><div class="requirement-grid">
-        <div class="requirement-card"><b>외부 캘린더</b><span>Google·Outlook 등 양방향 동기화</span></div><div class="requirement-card"><b>네이티브 앱·외부 협업</b><span>iOS·Android · NAVER WORKS</span></div><div class="requirement-card"><b>실제 전자서명 API</b><span>MVP 데모 서명 이후 상용 API 연결</span></div><div class="requirement-card"><b>추가 알림 채널</b><span>SMS·Kakao·네이티브 Push</span></div><div class="requirement-card"><b>문서 반응 분석</b><span>열람·페이지별 체류·다운로드 추적</span></div><div class="requirement-card"><b>외부 Marketplace</b><span>범용 앱·Webhook·자동화 연동</span></div>
-      </div><a class="file-source" href="../../planning/요구사항_정의서_260805.xlsx">FieldMed 요구사항 정의서 열기</a></div>
-
-      <div class="subsection"><div class="section-head"><div><span class="kicker">COVERAGE</span><h2>필수 기능 대응표</h2></div><p><span class="status yes">기본 확인</span> 유사 기본 기능 공식 확인 · <span class="status partial">부분</span> FieldMed 세부 규칙 미충족/미확인 · <span class="status unknown">미확인</span> 공식 근거 미확보</p></div>
-        <div class="table-shell"><table class="matrix-table"><thead><tr><th>FieldMed 필수 기능</th><th>Relate</th><th>Pipedrive</th><th>세일즈로그</th><th>핑거세일즈</th><th>SAP</th></tr></thead><tbody>
-          <tr><th>고객·고객사·활동 History</th><td><span class="status yes">기본 확인</span></td><td><span class="status yes">기본 확인</span></td><td><span class="status yes">기본 확인</span></td><td><span class="status yes">기본 확인</span></td><td><span class="status yes">기본 확인</span></td></tr>
-          <tr><th>팀 권한·담당자 이관</th><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td></tr>
-          <tr><th>방문 일정·후속 알림·사용자 승인</th><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td></tr>
-          <tr><th>명함 OCR·병원 매칭·원본 보존</th><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td></tr>
-          <tr><th>현장 녹취·한국어 STT·근거·확정</th><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td></tr>
-          <tr><th>보고서 초안·PDF·상태</th><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td></tr>
-          <tr><th>견적·계약·VAT 결정 규칙</th><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td></tr>
-          <tr><th>실매출·목표·Excel 전체 검증</th><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td><td><span class="status unknown">미확인</span></td><td><span class="status partial">부분</span></td><td><span class="status partial">부분</span></td></tr>
-          <tr><th>LOCALDATA 병원 마스터 일 동기화</th><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td></tr>
-          <tr><th>FieldMed 보존기간·감사·원문 접근</th><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td><td><span class="status unknown">미확인</span></td></tr>
-        </tbody></table></div>
-      </div>
-
-      <div class="subsection conclusion-grid">
-        <div class="conclusion-box"><h3>핵심 판단</h3><ul class="check-list"><li><b>전 항목 충족 제품 없음:</b> 공개 공식 자료만으로 FieldMed MVP 전체 범위를 충족한다고 확인되는 서비스는 없음.</li><li><b>핑거세일즈:</b> 국내 CRM DB·명함 등록·STT 요약·사용자 확인·견적·계약·매출 구조 참고.</li><li><b>Pipedrive:</b> 온보딩·파이프라인·Scheduler·고객 타임라인·자동화·예측 UI 참고.</li><li><b>Relate:</b> 문서 반응·Sequence·미팅 예약·온라인 Notetaker 참고.</li><li><b>SAP:</b> 현장 방문·경로·기업 계정·CPQ·ERP 연계 참고.</li><li><b>세일즈로그:</b> 개인 현장 영업자의 오늘 업무·연락주기·정체 경고 UX 참고.</li></ul></div>
-        <div class="conclusion-box"><h3>FieldMed 차별화 범위</h3><ul class="check-list"><li>LOCALDATA 기반 병원 마스터와 담당자 이관</li><li>녹취 동의·근거 구간·사용자 확인 게이트</li><li>의료기기 견적·계약·실매출·목표의 분리</li><li>전표 전체 검증과 결정적 VAT/합계 계산</li><li>팀 격리·원문 접근 제한·감사·보존기간</li><li>D-2/D-1 후속 알림과 D-1 병원 브리핑</li><li>PWA·In-app·Web Push 기반 현장 업무</li></ul></div>
-      </div>
-
-      <div class="subsection conclusion-box"><h3>추가 확인 목록</h3><ul class="check-list"><li>공통: 데이터 위치·암호화·보존·삭제·감사로그·내보내기·역할별 원문 접근</li><li>공통: API·Webhook·LOCALDATA 연동, 병원·고객 중복 매칭, 담당자 이관 이력</li><li>Relate: Notetaker의 현장 음성 업로드, 한국어 지원, 원본·근거 구간, Early Access 제공 조건</li><li>Pipedrive: Premium 계약·전자서명과 Smart Docs 애드온 경계, 의료 문서 계산 규칙</li><li>세일즈로그: 팀 계정·웹·CSV·API·캘린더·보안 운영 범위</li><li>핑거세일즈: AI 요금·모델·한국어 성능·근거·동의·보존·원문 권한</li><li>SAP: 한국 계약가·구축비·현장영업 애드온 범위·국내 데이터 위치·한국어 STT/OCR</li></ul></div>
-    </section>
-
     <section id="pricing" class="panel" role="tabpanel" aria-labelledby="tab-pricing">
       <div class="section-head"><div><span class="kicker">PRICING</span><h2>가격 비교</h2></div><p>2026-08-10 공식 공개 가격 · 사용자당 월 요금 기준 · 세금·환율·계약·애드온 별도</p></div>
       <div class="table-shell"><table class="pricing-table"><thead><tr><th>서비스</th><th>무료·체험</th><th>공식 공개 가격</th><th>비교 시 포함할 추가 비용</th><th>공식 근거</th></tr></thead><tbody>
@@ -320,7 +277,7 @@
     </section>
   </main>
 
-  <footer><div class="wrap">사용자 제공 화면 관찰 + 5개 서비스 공식 자료 분담 조사 + FieldMed 요구사항 정의서 / 확인일 2026-08-10 / 미확인 항목은 도입 전 공급사 서면 확인</div></footer>
+  <footer><div class="wrap">사용자 제공 화면 관찰 + 5개 서비스 공식 자료 조사 / 확인일 2026-08-10 / 미확인 항목은 도입 전 공급사 서면 확인</div></footer>
   <div class="lightbox" role="dialog" aria-modal="true" aria-label="이미지 확대"><button aria-label="닫기">×</button><img alt="확대 화면"></div>
 
   <script>
@@ -519,4 +476,3 @@
   </script>
 </body>
 </html>
-

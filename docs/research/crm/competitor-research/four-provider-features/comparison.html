@@ -332,7 +332,7 @@
         <div>
           <div class="eyebrow">STRICT FEATURE COMPARISON</div>
           <h1>공통과 고유만<br>남긴 기능 비교</h1>
-          <p class="hero-lead">Salesmap·HubSpot·Salesforce·채널톡 4개사의 공통·고유 기능과 실제 화면에 공통 조사 양식, FieldMed 필요 기능 판정을 연결했다.</p>
+          <p class="hero-lead">Salesmap·HubSpot·Salesforce·채널톡 4개사의 공통·고유 기능과 실제 화면을 같은 조사 양식으로 비교했다.</p>
         </div>
         <div class="rule-box" aria-label="분류 기준">
           <div>
@@ -393,15 +393,6 @@
       <div id="researchForm"></div>
     </section>
 
-    <section class="section" id="fieldmed-decision">
-      <div class="section-head">
-        <div><div class="section-no">05 / FIELDMED DECISION</div><h2>FieldMed 필요 기능 판정</h2></div>
-        <p>현재 요구사항 정의서의 핵심 MVP·기술 필수·필수 안전요건은 필수로, 명시적으로 제외되거나 Post-MVP인 항목은 선택으로 분류했다.</p>
-      </div>
-      <p class="decision-source">판정 근거: <a href="../../planning/요구사항_정의서_260805.xlsx">요구사항 정의서</a> · <a href="../../technical/스키마_ERD_260805.html">FieldMed MVP ERD</a></p>
-      <div id="fieldMedDecision"></div>
-      <ul class="follow-up-list" id="followUpList"></ul>
-    </section>
   </main>
 
   <footer><div class="wrap">로그인 UI와 공식 문서 교차 확인 · 가격은 2026-08-10 공개값 · 베타·플랜 게이트·미실행 상태는 별도 표기</div></footer>
@@ -720,38 +711,12 @@
       ['limitations', '한계'],
       ['sources', '공식 근거 링크'],
       ['checked', '확인일'],
-      ['relevance', 'FieldMed 요구사항과의 관련성'],
       ['unknowns', '미확인 사항']
-    ];
-
-    const FIELDMED_REQUIREMENTS = [
-      { priority: '필수', feature: '병원·의료진 CRM과 담당 이력', basis: '병원 기준정보, 고객·역할, KOL/제품 사용자, 담당 배정·이관, 확정 History를 팀 범위로 관리한다.', refs: 'CUS-001~008 · DAT-001 · DAT-008', compare: '조직-연락처 관계, 담당 이관, 활동 타임라인, 사용자 정의 필드' },
-      { priority: '필수', feature: '방문 일정·후속 업무·알림', basis: '병원·고객 방문 일정, 다음 방문 추천 승인, D-2·D-1 누락 알림과 후속 업무를 운영한다.', refs: 'CAL-001~005 · DSH-003~005 · NTF-001~002', compare: '캘린더, 작업, 승인 전 추천 상태, 중복 알림 방지' },
-      { priority: '필수', feature: '미팅 입력·구조화·근거·확정', basis: '음성·녹취·직접 입력에서 논의·결정·후속 업무를 추출하고 원문 근거와 사용자 확정을 남긴다.', refs: 'MTG-001~006 · NFR-001', compare: 'STT, 미팅 노트, 원문 연결, 초안/확정, 보존 기간' },
-      { priority: '필수', feature: '견적·계약·문서·전자서명 상태', basis: '상품·금액 규칙으로 견적·계약을 생성하고 미리보기·확정·PDF·서명 상태를 관리한다.', refs: 'DOC-001~004 · RPT-001~006', compare: '제품 카탈로그, 결정론적 계산, 문서 상태, 서명 연동' },
-      { priority: '필수', feature: '영업 현황·목표·매출 보고', basis: '계약 실적과 Excel 실제매출을 분리하고 팀원별 목표·달성률·월/분기/연간 보고를 제공한다.', refs: 'MGR-003~005 · MGR-009 · DSH-006', compare: '딜/파이프라인, 목표, 예측, 실제매출 Import, 대시보드' },
-      { priority: '필수', feature: '역할·팀 권한·감사·보존', basis: '팀·담당자·문서 상태별 서버 접근통제와 확정·이관·민감 원본 접근 이력, 자료별 보존기한이 필요하다.', refs: 'USR-001~004 · SEC-001~003 · DAT-005 · NFR-004', compare: '레코드/필드 권한, SSO, 감사 로그, 보존·삭제·데이터 지역' },
-      { priority: '필수', feature: '데이터 가져오기·API·외부 연동', basis: 'LOCALDATA 병원 동기화, 뉴스 수집, CLOVA STT, Excel 매출 업로드와 실패·재시도·멱등 처리가 필요하다.', refs: 'DAT-003 · DAT-008 · NFR-003 · MGR-003~004', compare: 'Import, API/Webhook, 호출 한도, 오류 처리, 원본 추적' },
-      { priority: '필수', feature: 'AI 브리핑·보고·팀장 분석 오케스트레이션', basis: '4개 논리 Agent가 확정 History로 브리핑·미팅 구조·보고·팀장 요약을 만들고 근거·불확실성·작업 상태를 표시한다.', refs: 'AI-001~008 · AI-009', compare: 'CRM 문맥 조회, 근거 링크, 승인 게이트, 비LLM 계산 분리' },
-      { priority: '필수', feature: '반응형 현장 웹·인앱/Web Push', basis: '모바일 브라우저에서 주요 CRM 흐름을 사용하고 최소 본문의 인앱·Web Push 알림을 제공한다.', refs: 'MOB-001 · NTF-001~002', compare: '모바일 기록 범위, 인터넷 의존, Push, 권한별 알림 본문' },
-      { priority: '선택', feature: '외부 캘린더·네이티브 앱·SMS/카카오·실전자서명', basis: '현재 요구사항이 외부 캘린더·네이티브 앱·실제 전자서명 API를 Post-MVP로, SMS·카카오를 MVP 제외로 명시한다.', refs: 'CAL-005 · DOC-004 · NTF-001 · MOB-001', compare: 'Add-on 비용, 국내 채널 심사, 오프라인 범위, 법적 효력' },
-      { priority: '선택', feature: '리드 마케팅·고객지원·콘텐츠·결제', basis: '웹 폼/UTM·마케팅 캠페인·옴니채널 헬프데스크·CMS·결제/구독은 현재 FieldMed MVP 요구사항에 없다.', refs: '현재 요구사항 미포함', compare: '도입 목적이 생길 때 Marketing/Service/Content/Revenue 제품을 별도 평가' },
-      { priority: '선택', feature: '생명과학 고급 현장 기능', basis: '샘플·영업지역·수술 케이스·이상반응·현장 재고·전용 오프라인 앱은 현재 확정 요구사항이 아니다.', refs: '현재 요구사항 미포함', compare: '실물 샘플·재고·규제 보고 범위가 확정되면 필수 여부 재판정' },
-      { priority: '선택', feature: '범용 대화형 AI 업무 지휘', basis: '논리 Agent 워크플로는 기술 필수지만, 하나의 채팅에서 모든 CRM 조회·쓰기·예약을 수행하는 UI와 권한 범위는 명시되지 않았다.', refs: 'AI-001~009 · 추가 범위 확인 필요', compare: '읽기/쓰기 명령 구분, 미리보기·승인, 대화 메모리, 감사 로그' }
-    ];
-
-    const FOLLOW_UPS = [
-      '실사용 인원·좌석·Hub·에디션·AI/메시지 Add-on을 넣은 3년 총비용 견적',
-      '데이터 저장 위치, DPA, 외부 AI 전송 필드, 삭제·백업·복구 SLA와 국내 개인정보 요건',
-      '병원·의료진·견적·계약·매출 객체 매핑, Import/API 호출 한도와 마이그레이션 시험',
-      '범용 LLM 채팅의 읽기·쓰기·예약 범위, 사용자 승인·철회·감사 기록 방식',
-      'Salesmap Sailo, HubSpot Credits, Salesforce Agentforce, 채널톡 CoS·Notebook의 실제 플랜과 사용량 비용',
-      '샘플·영업지역·현장 재고·오프라인 사용이 FieldMed 후속 범위에 필요한지 현업 확인'
     ];
 
     const provider = id => PROVIDERS.find(item => item.id === id);
     const selected = () => new Set(PROVIDERS.filter(item => document.querySelector(`#provider-${item.id}`).checked).map(item => item.id));
-    const imagePath = (providerId, file) => `../assets/${providerId}/${file}`;
+    const imagePath = (providerId, file) => `./assets/${providerId}/${file}`;
 
     function renderControls() {
       document.querySelector('#providerToggles').innerHTML = PROVIDERS.map(item => `
@@ -838,21 +803,6 @@
       </div>` : '<div class="empty-state">표시할 제공사를 하나 이상 선택하세요.</div>';
     }
 
-    function renderFieldMedDecision() {
-      document.querySelector('#fieldMedDecision').innerHTML = `<div class="table-shell">
-        <table class="comparison-table decision-table">
-          <thead><tr><th scope="col">판정</th><th scope="col">기능명</th><th scope="col">FieldMed 근거</th><th scope="col">제공사 비교 시 체크</th></tr></thead>
-          <tbody>${FIELDMED_REQUIREMENTS.map(item => `<tr>
-            <td><span class="priority ${item.priority === '선택' ? 'optional' : ''}">${item.priority}</span></td>
-            <th scope="row">${item.feature}</th>
-            <td>${item.basis}<br><span class="evidence-tag">${item.refs}</span></td>
-            <td>${item.compare}</td>
-          </tr>`).join('')}</tbody>
-        </table>
-      </div>`;
-      document.querySelector('#followUpList').innerHTML = FOLLOW_UPS.map((item, index) => `<li><span class="num">${String(index + 1).padStart(2, '0')}</span><br>${item}</li>`).join('');
-    }
-
     function bindImages() {
       document.querySelectorAll('[data-image]').forEach(button => button.addEventListener('click', () => {
         document.querySelector('#dialogImage').src = button.dataset.image;
@@ -873,9 +823,8 @@
     document.querySelector('#imageDialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
     renderControls();
     renderCommon();
-    renderFieldMedDecision();
     renderAll();
-    console.assert(PROVIDERS.length === 4 && COMMON.length === 7 && DIFFERENTIATORS.reduce((sum, group) => sum + group.items.length, 0) === 6 && Object.keys(RESEARCH_FORMS).length === 4 && FIELDMED_REQUIREMENTS.length === 13, '리서치 핵심 데이터 누락');
+    console.assert(PROVIDERS.length === 4 && COMMON.length === 7 && DIFFERENTIATORS.reduce((sum, group) => sum + group.items.length, 0) === 6 && Object.keys(RESEARCH_FORMS).length === 4, '리서치 핵심 데이터 누락');
   </script>
 </body>
 </html>

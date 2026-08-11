@@ -6,6 +6,7 @@
 | [planning/](planning/) | 프로젝트 기획·요구사항 등 현재 기준본 |
 | [technical/](technical/) | ERD·아키텍처 등 기술 설계 |
 | [research/](research/) | 실험·비교·검토 결과 |
+| [research/crm/README.md](research/crm/README.md) | CRM 시장·경쟁사·제품 결정·사용자 의견 문서 안내 |
 | [meetings/](meetings/) | 날짜별 회의록 |
 | [references/](references/) | 외부 제공 원본과 제출 양식 안내 |
 | [../final/](../final/) | 제출이 끝난 발표자료·보고서 |

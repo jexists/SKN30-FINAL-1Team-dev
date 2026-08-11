@@ -2,7 +2,7 @@
   "title": "CRM 제공사 기능 비교 근거 대장",
   "checkedAt": "2026-08-10",
   "uiCheckedAt": "2026-08-07",
-  "deliverable": "./crm-provider-feature-comparison.html",
+  "deliverable": "./comparison.html",
   "scope": [
     "Salesmap",
     "HubSpot",
@@ -32,7 +32,7 @@
         {
           "name": "국내 멀티채널 영업 시퀀스",
           "reason": "TODO, 이메일, 문자, 카카오 알림톡을 하나의 영업 후속 시퀀스에 조합하는 기능은 현재 4사 중 Salesmap에서만 확인했다.",
-          "screen": "../assets/salesmap/sm-d01-multichannel-sequence.png",
+          "screen": "./assets/salesmap/sm-d01-multichannel-sequence.png",
           "verification": "실제 구성 화면 확인, 발송 실행은 하지 않음"
         }
       ],
@@ -87,7 +87,7 @@
         {
           "name": "Content Hub",
           "reason": "CRM에 연결된 CMS, 랜딩, 블로그, 동영상, 팟캐스트, 사례연구, 멤버십과 AI 콘텐츠 리믹스는 현재 4사 중 HubSpot에서만 확인했다.",
-          "screen": "../assets/hubspot/hs-d11-content-hub-menu.png",
+          "screen": "./assets/hubspot/hs-d11-content-hub-menu.png",
           "verification": "메뉴 화면 확인, 콘텐츠 제작 실행 화면은 미확보"
         }
       ],
@@ -146,7 +146,7 @@
         {
           "name": "Life Sciences Cloud for Customer Engagement",
           "reason": "HCP/HCO, KOL, 영업지역, 방문, 동의, 샘플, 의학 문의, 오프라인 현장을 전용 데이터와 업무 모델로 제공하는 산업 특화 제품은 현재 4사 중 Salesforce에서만 확인했다.",
-          "screen": "../assets/salesforce/sf-d16-life-sciences-hcp-summary.png",
+          "screen": "./assets/salesforce/sf-d16-life-sciences-hcp-summary.png",
           "verification": "공식 제품 페이지의 예시 UI, 별도 애드온이며 로그인 실행은 미검증",
           "assetSource": "https://wp.sfdcdigital.com/en-us/wp-content/uploads/sites/4/2026/06/Health-Life-Sciences_Medtech_Product-Features-Blade_How-It-Works-Headline-B-Step-1_Version-32_4f4ebc.png?w=1024"
         }
@@ -200,19 +200,19 @@
         {
           "name": "AI CoS 운영 제어",
           "reason": "상담, 팀챗, 지식, 외부 데이터를 읽고 채널 설정과 ALF 규칙·태스크를 대화로 변경하며 반복 업무를 예약하는 운영 루프는 현재 4사 중 채널톡에서만 확인했다.",
-          "screen": "../assets/channel-works/cw-d06-ai-cos-work-assistant.png",
+          "screen": "./assets/channel-works/cw-d06-ai-cos-work-assistant.png",
           "verification": "Beta 시작 화면, 실제 변경 실행은 미검증"
         },
         {
           "name": "고객 ALF 실행 태스크",
           "reason": "함수, 코드, 브라우저 자동화, 상담사 승인을 조합한 고객지원 실행 태스크는 현재 4사 중 채널톡에서만 확인했다.",
-          "screen": "../assets/channel-works/cw-d11-alf-tasks.png",
+          "screen": "./assets/channel-works/cw-d11-alf-tasks.png",
           "verification": "플랜·초안 화면, 퍼블리시와 실행은 미검증"
         },
         {
           "name": "Notebook 자연어 BI",
           "reason": "Channel, 외부 DB, Drive, Cafe24 데이터를 자연어, SQL, Python으로 분석하고 공유·예약하는 Notebook은 현재 4사 중 채널톡에서만 확인했다.",
-          "screen": "../assets/channel-works/cw-d08-notebook-data-analysis.png",
+          "screen": "./assets/channel-works/cw-d08-notebook-data-analysis.png",
           "verification": "Beta 시작 화면, 분석 실행은 미검증"
         }
       ],
@@ -308,7 +308,6 @@
         "https://salesmap.kr/privacy-policy"
       ],
       "checkedAt": "2026-08-10",
-      "fieldMedRelevance": "[추론] 병원=회사, 의료진=고객, 방문·딜·견적·후속 업무를 구성할 수 있으나 의료기기 사용량·재고·유지보수·병원 이슈는 별도 구현이 필요하다.",
       "unknowns": [
         "Sailo AI의 플랜별 범위·추가 요금·외부 AI 전송 필드",
         "Enterprise·온보딩·데이터 이관 실제 견적",
@@ -348,7 +347,6 @@
         "https://www.hubspot.com/pricing/suite?tier=starter"
       ],
       "checkedAt": "2026-08-10",
-      "fieldMedRelevance": "[추론] 병원·의료진·활동·파이프라인·후속 작업·API는 대응하나 장비·설치·계약 객체와 필드 권한이 필요하면 Enterprise 사용자 정의 객체와 별도 의료기기 모델을 검토해야 한다.",
       "unknowns": [
         "FieldMed 좌석 조합의 실제 총액과 Starter 갱신가",
         "온보딩 의무·한국 청구·국내 메시징 비용",
@@ -387,7 +385,6 @@
         "https://help.salesforce.com/s/articleView?id=ind.lsc_setup_life_sciences_cloud_medtech_commercial_engagement_features.htm&language=en_US&type=5"
       ],
       "checkedAt": "2026-08-10",
-      "fieldMedRelevance": "[추론] 일반 CRM과 의료기기 전용 데이터 모델의 직접 비교 기준이며, 샘플·영업지역·수술 케이스·오프라인 iPad는 현재 FieldMed 요구사항상 선택 범위다.",
       "unknowns": [
         "한국 판매 SKU·원화·VAT·최소 사용자·구축·이관 총액",
         "국내 데이터 저장·규제 검증·국내 메시징 연동",
@@ -427,44 +424,11 @@
         "https://developers.channel.io/en"
       ],
       "checkedAt": "2026-08-10",
-      "fieldMedRelevance": "[추론] 상담 채널 통합·고객지원 자동화·대화형 운영 분석은 선택 기능이며, 병원·의료진·방문·영업기회·견적·계약·매출을 단독 관리하는 핵심 CRM 대체재로 보기는 어렵다.",
       "unknowns": [
         "CoS·Notebook 정식 플랜·별도 가격·베타 종료 조건",
         "의료·민감정보 처리·AI 전송·데이터 저장·삭제·백업 SLA",
         "FieldMed 데이터와 앱/API 연동 한도·개발 비용"
       ]
     }
-  ],
-  "fieldMedRequirements": {
-    "sources": [
-      "../../planning/요구사항_정의서_260805.xlsx",
-      "../../technical/스키마_ERD_260805.html"
-    ],
-    "classificationRule": "요구사항 정의서의 핵심 MVP·기술 필수·필수 안전요건은 필수, 명시적 MVP 제외·Post-MVP 또는 현재 요구사항 미포함은 선택으로 분류",
-    "required": [
-      "병원·의료진 CRM과 담당 이력",
-      "방문 일정·후속 업무·알림",
-      "미팅 입력·구조화·원문 근거·사용자 확정",
-      "견적·계약·문서·전자서명 상태",
-      "영업 현황·목표·계약 실적과 실제매출 분리 보고",
-      "역할·팀 권한·감사·보존",
-      "데이터 가져오기·API·외부 연동",
-      "AI 브리핑·미팅·보고·팀장 분석 오케스트레이션과 승인 게이트",
-      "반응형 현장 웹·인앱/Web Push"
-    ],
-    "optional": [
-      "외부 캘린더·네이티브 앱·SMS/카카오·실제 전자서명 API",
-      "리드 마케팅·고객지원·콘텐츠·결제/구독",
-      "샘플·영업지역·수술 케이스·이상반응·현장 재고·전용 오프라인 앱",
-      "모든 CRM 조회·쓰기·예약을 수행하는 범용 대화형 AI 업무 지휘 UI"
-    ]
-  },
-  "additionalChecks": [
-    "실사용 인원·좌석·Hub·에디션·AI/메시지 Add-on 기반 3년 총비용",
-    "데이터 저장 위치·DPA·외부 AI 전송 필드·삭제·백업·복구 SLA",
-    "병원·의료진·견적·계약·매출 객체 매핑과 Import/API 마이그레이션 시험",
-    "범용 LLM 채팅의 읽기·쓰기·예약 범위와 승인·철회·감사 방식",
-    "각 제공사 AI 기능의 실제 플랜·사용량 비용",
-    "샘플·영업지역·현장 재고·오프라인 사용의 FieldMed 후속 필요성"
   ]
 }
