@@ -1,32 +1,57 @@
+// demo/layout_v3.html 의 .btn 계열
 .root {
-  padding: $space-sm $space-md;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
   border: 1px solid transparent;
-  border-radius: $radius-sm;
-  font-size: $font-size-base;
+  border-radius: 12px;
+  padding: 10px 15px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition:
+    background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
 
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    opacity: 0.45;
+    cursor: default;
   }
 }
 
 .primary {
-  background: $color-primary;
-  color: $color-on-primary;
+  color: #fff;
+  background: var(--blue);
+  box-shadow: var(--sh-blue);
 
   &:hover:not(:disabled) {
-    background: $color-primary-hover;
+    background: var(--blue-press);
+  }
+}
+
+.outline {
+  background: var(--surface);
+  border-color: var(--line-2);
+
+  &:hover:not(:disabled) {
+    border-color: var(--blue);
+    color: var(--blue);
   }
 }
 
 .ghost {
+  padding: 7px 11px;
+  border-color: var(--line);
+  border-radius: var(--r-sm);
   background: transparent;
-  border-color: $color-border;
-  color: $color-text;
+  color: var(--ink-2);
+  font-size: 12px;
 
   &:hover:not(:disabled) {
-    background: $color-primary-subtle;
+    background: var(--blue-tint);
+    border-color: rgba(0, 122, 255, 0.28);
+    color: var(--blue);
   }
 }

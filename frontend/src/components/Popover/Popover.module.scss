@@ -1,0 +1,35 @@
+.root {
+  position: relative;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--s2));
+  left: 0;
+  z-index: 30;
+  min-width: 240px;
+  padding: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-pop);
+  animation: pop var(--t-fast) var(--ease-out);
+
+  @include sm {
+    // 좁은 화면에서 팝오버가 화면 밖으로 나가지 않게 폭을 묶습니다.
+    min-width: 0;
+    width: min(84vw, 300px);
+  }
+}
+
+.alignEnd {
+  left: auto;
+  right: 0;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
