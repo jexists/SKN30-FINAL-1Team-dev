@@ -19,6 +19,7 @@
     --c2:#d97706; --c2-bg:#fdf1e0;   /* 보고서 */
     --c3:#7c3aed; --c3-bg:#f2ecff;   /* 계약관리 */
     --c4:#0d9488; --c4-bg:#e0f5f1;   /* 일정관리 */
+    --c5:#e11d48; --c5-bg:#ffe9ee;   /* 자료요약 */
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
@@ -28,6 +29,7 @@
       --c2:#f0b45e; --c2-bg:#33260f;
       --c3:#b593ff; --c3-bg:#251a3d;
       --c4:#4fd1bd; --c4-bg:#0e2f2b;
+      --c5:#ff8ea6; --c5-bg:#3a1520;
     }
   }
   :root[data-theme="dark"]{
@@ -37,6 +39,7 @@
     --c2:#f0b45e; --c2-bg:#33260f;
     --c3:#b593ff; --c3-bg:#251a3d;
     --c4:#4fd1bd; --c4-bg:#0e2f2b;
+    --c5:#ff8ea6; --c5-bg:#3a1520;
   }
 
   *{ box-sizing:border-box; }
@@ -77,7 +80,8 @@
       "st1 in1 ag1 ou1"
       "st1 in1 ag2 ou2"
       "st2 in2 ag3 ou3"
-      "st3 in3 ag4 ou4";
+      "st3 in3 ag4 ou4"
+      "st4 in4 ag5 ou5";
     column-gap:56px;
     row-gap:56px;
     align-items:center;
@@ -127,6 +131,7 @@
   .a2{ --ac:var(--c2); --ac-bg:var(--c2-bg); }
   .a3{ --ac:var(--c3); --ac-bg:var(--c3-bg); }
   .a4{ --ac:var(--c4); --ac-bg:var(--c4-bg); }
+  .a5{ --ac:var(--c5); --ac-bg:var(--c5-bg); }
 
   /* ---------- outputs ---------- */
   .outs{ display:flex; flex-direction:column; gap:14px; align-items:flex-start; }
@@ -241,6 +246,26 @@
     <div class="outs" id="ou4" style="grid-area:ou4">
       <div class="chip" id="o-nextsched"><i class="badge out">O</i> 다음 일정 추천 제시</div>
     </div>
+
+    <!-- ============ 자료실 ============ -->
+    <div class="stage" style="grid-area:st4">I</div>
+
+    <div class="in" id="in4" style="grid-area:in4">
+      <h3>자료실 자료</h3>
+      <ul>
+        <li>PDF · PPTX</li>
+        <li>DOCX · HTML</li>
+        <li>그 외 문서 파일</li>
+      </ul>
+    </div>
+
+    <div class="agent a5" id="ag-doc" style="grid-area:ag5">
+      <div class="nm">자료요약</div>
+      <div class="tag">AGENT</div>
+    </div>
+    <div class="outs" id="ou5" style="grid-area:ou5">
+      <div class="chip" id="o-docsum"><i class="badge out">O</i> 자료요약 브리핑</div>
+    </div>
   </div>
 
 </div>
@@ -267,6 +292,9 @@
 
     ['in3',          'ag-schedule', 'line'],
     ['ag-schedule',  'o-nextsched', 'line'],
+
+    ['in4',          'ag-doc',      'line'],
+    ['ag-doc',       'o-docsum',    'line'],
 
     // 에이전트 간 연결
     ['o-emo',        'ag-contract', 'rail',   {label:'I', enter:-22, gutter:38}],
