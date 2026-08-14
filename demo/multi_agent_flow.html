@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SalesLuv 멀티에이전트 운영 흐름 초안">
+  <title>SalesLuv — Multi-Agent Flow</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f6f9;
+      --surface: #ffffff;
+      --ink: #17202b;
+      --text: #46505c;
+      --muted: #7c8795;
+      --line: #dfe4ea;
+      --blue: #1f6feb;
+      --blue-soft: #edf4ff;
+      --green: #0f7b5f;
+      --green-soft: #eaf7f2;
+      --amber: #a5630b;
+      --amber-soft: #fff6e8;
+      --shadow: 0 18px 50px rgba(23, 32, 43, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--paper);
+      font-family: "Avenir Next", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      word-break: keep-all;
+    }
+
+    .page {
+      width: min(1400px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 48px 0 64px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 32px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(30px, 4vw, 50px);
+      line-height: 1.05;
+      letter-spacing: -.055em;
+    }
+
+    .summary {
+      max-width: 440px;
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .editor-bar {
+      position: sticky;
+      top: 12px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(207, 213, 219, .9);
+      border-radius: 15px;
+      background: rgba(255, 255, 255, .92);
+      box-shadow: 0 12px 32px rgba(23, 32, 43, .09);
+      backdrop-filter: blur(18px);
+    }
+
+    .editor-help {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: auto;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .editor-help strong { color: var(--ink); font-size: 12px; }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px var(--green-soft);
+    }
+
+    .editor-actions { display: flex; gap: 6px; }
+
+    .tool-button {
+      min-height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      background: #fff;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .tool-button:hover { border-color: #b7c2cf; background: #f8fafc; }
+    .tool-button[aria-pressed="true"] { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+    .tool-button:disabled { opacity: .38; cursor: default; }
+    .tool-button.danger:not(:disabled) { color: #b3403a; }
+
+    .save-status {
+      min-width: 74px;
+      color: var(--muted);
+      font-size: 10px;
+      text-align: right;
+    }
+
+    .frame {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .flow-canvas {
+      position: relative;
+      width: 1400px;
+      height: 900px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(31, 111, 235, .028) 0 48%, transparent 48% 100%),
+        radial-gradient(circle at 1px 1px, rgba(23, 32, 43, .08) 1px, transparent 0) 0 0 / 24px 24px,
+        #fff;
+    }
+
+    .phase {
+      position: absolute;
+      left: 22px;
+      z-index: 3;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--muted);
+      background: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+
+    .phase::after {
+      position: absolute;
+      top: 36px;
+      width: 1px;
+      height: 224px;
+      content: "";
+      background: var(--line);
+    }
+
+    .phase-1 { top: 48px; }
+    .phase-2 { top: 440px; }
+    .phase-3 { top: 710px; }
+    .phase-3::after { display: none; }
+
+    .node {
+      position: absolute;
+      z-index: 2;
+    }
+
+    .node.dragging { z-index: 8; filter: drop-shadow(0 18px 26px rgba(23, 32, 43, .16)); }
+    .node.connect-source { outline: 3px solid rgba(31, 111, 235, .34); outline-offset: 5px; }
+
+    .drag-handle {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      z-index: 5;
+      display: grid;
+      place-items: center;
+      width: 27px;
+      height: 27px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .9);
+      font-size: 15px;
+      line-height: 1;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .drag-handle:active { cursor: grabbing; }
+    .agent .drag-handle { right: 27px; }
+
+    [contenteditable="true"] { cursor: text; }
+    [contenteditable="true"]:hover { background: rgba(31, 111, 235, .055); }
+    [contenteditable="true"]:focus {
+      outline: 2px solid rgba(31, 111, 235, .3);
+      outline-offset: 3px;
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    .flow-canvas.is-connecting .node { cursor: crosshair; }
+    .flow-canvas.is-connecting [contenteditable="true"] { cursor: crosshair; }
+
+    .card {
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, .96);
+      box-shadow: 0 8px 28px rgba(23, 32, 43, .06);
+    }
+
+    .kind {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      margin-bottom: 10px;
+      padding: 0;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      color: var(--muted);
+      background: #f1f3f6;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .card h2,
+    .card h3 {
+      margin: 0;
+      color: var(--ink);
+      letter-spacing: -.025em;
+    }
+
+    .card h2 { font-size: 17px; }
+    .card h3 { font-size: 15px; }
+
+    .card ul {
+      display: grid;
+      gap: 6px;
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .card li {
+      position: relative;
+      padding-left: 13px;
+    }
+
+    .card li::before {
+      position: absolute;
+      top: .56em;
+      left: 0;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      content: "";
+      background: var(--blue);
+    }
+
+    .source { border-left: 3px solid var(--ink); }
+    .source .kind { color: var(--ink); }
+
+    .result { border-color: #cfdcf0; }
+    .result .kind { color: var(--blue); background: var(--blue-soft); }
+
+    .gate {
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      border-color: #a8d4c5;
+      background: var(--green-soft);
+      text-align: center;
+    }
+
+    .gate .kind {
+      width: auto;
+      margin-bottom: 7px;
+      padding: 0 8px;
+      border-radius: 999px;
+      color: var(--green);
+      background: #fff;
+      font-size: 9px;
+      letter-spacing: .1em;
+    }
+    .gate h3 { color: var(--green); }
+
+    .agent {
+      display: grid;
+      place-items: center;
+      width: 190px;
+      height: 150px;
+      padding: 25px;
+      border: 1.5px solid rgba(31, 111, 235, .58);
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--blue-soft);
+      box-shadow: 0 14px 36px rgba(31, 111, 235, .12);
+      text-align: center;
+    }
+
+    .agent::before {
+      position: absolute;
+      top: 20px;
+      left: 27px;
+      color: rgba(31, 111, 235, .12);
+      content: attr(data-letter);
+      font-size: 64px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .agent b,
+    .agent span { position: relative; z-index: 1; }
+
+    .agent b {
+      display: block;
+      color: var(--ink);
+      font-size: 20px;
+      letter-spacing: -.035em;
+    }
+
+    .agent span {
+      display: block;
+      margin-top: 5px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .14em;
+    }
+
+    .contract-agent {
+      border-color: rgba(15, 123, 95, .58);
+      color: var(--green);
+      background: var(--green-soft);
+      box-shadow: 0 14px 36px rgba(15, 123, 95, .12);
+    }
+
+    .contract-agent::before { color: rgba(15, 123, 95, .12); }
+
+    .schedule-agent {
+      border-color: rgba(165, 99, 11, .58);
+      color: var(--amber);
+      background: var(--amber-soft);
+      box-shadow: 0 14px 36px rgba(165, 99, 11, .11);
+    }
+
+    .schedule-agent::before { color: rgba(165, 99, 11, .12); }
+
+    .result.green { border-color: #b7dacc; }
+    .result.green .kind { color: var(--green); background: var(--green-soft); }
+    .result.green li::before { background: var(--green); }
+
+    .result.amber { border-color: #ead3b2; }
+    .result.amber .kind { color: var(--amber); background: var(--amber-soft); }
+    .result.amber li::before { background: var(--amber); }
+
+    .capture { left: 70px; top: 60px; width: 235px; min-height: 170px; }
+    .customer { left: 390px; top: 60px; }
+    .cs { left: 720px; top: 38px; width: 260px; min-height: 88px; }
+    .sentiment { left: 720px; top: 145px; width: 260px; min-height: 100px; }
+    .report { left: 390px; top: 270px; }
+    .draft { left: 710px; top: 289px; width: 220px; min-height: 112px; }
+    .approval { left: 1000px; top: 306px; width: 150px; min-height: 80px; }
+    .complete { left: 1210px; top: 306px; width: 155px; min-height: 80px; }
+    .sales-data { left: 70px; top: 460px; width: 235px; min-height: 180px; }
+    .contract { left: 390px; top: 470px; }
+    .briefing { left: 720px; top: 430px; width: 250px; min-height: 95px; }
+    .next-meeting { left: 720px; top: 620px; width: 250px; min-height: 95px; }
+    .calendar-data { left: 70px; top: 730px; width: 235px; min-height: 120px; }
+    .schedule { left: 390px; top: 735px; }
+    .next-schedule { left: 720px; top: 785px; width: 250px; min-height: 95px; }
+
+    .wires {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .wire {
+      fill: none;
+      stroke: #7b8794;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+      marker-end: url(#arrow-dark);
+    }
+
+    .wire.blue { stroke: var(--blue); marker-end: url(#arrow-blue); }
+    .wire.green { stroke: var(--green); marker-end: url(#arrow-green); }
+    .wire.amber { stroke: var(--amber); marker-end: url(#arrow-amber); }
+    .wire.exchange-up { stroke: var(--green); stroke-width: 2.2; marker-end: url(#arrow-green); }
+    .wire.exchange-down { stroke: var(--amber); stroke-width: 2.2; marker-end: url(#arrow-amber); }
+    .wire.dashed { stroke-dasharray: 6 6; }
+    .wire.no-arrow { marker-end: none; }
+
+    .wire.user-wire {
+      stroke: #526173;
+      stroke-width: 2.6;
+      marker-end: url(#arrow-user);
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+
+    .wire.user-wire.bidirectional { marker-start: url(#arrow-user); }
+    .wire.user-wire.selected { stroke: #e0564a; filter: drop-shadow(0 0 3px rgba(224, 86, 74, .4)); }
+
+    .wire-label {
+      fill: var(--muted);
+      stroke: #fff;
+      stroke-width: 5px;
+      paint-order: stroke;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      padding: 16px 22px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      background: #fbfcfd;
+      font-size: 11px;
+    }
+
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--line); }
+    .legend-io {
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      color: var(--ink);
+      font-size: 10px;
+    }
+    .legend-io.output { color: var(--blue); }
+    .legend .l-agent { border: 1px solid var(--blue); border-radius: 50%; background: var(--blue-soft); }
+    .legend .l-output { border: 1px solid #cfdcf0; background: #fff; }
+    .legend .l-human { border: 1px solid var(--green); background: var(--green-soft); }
+
+    @media (max-width: 760px) {
+      .page { width: calc(100% - 24px); padding-top: 28px; }
+      header { align-items: flex-start; flex-direction: column; gap: 12px; }
+      .summary { max-width: 580px; }
+      .editor-bar { align-items: flex-start; flex-wrap: wrap; }
+      .editor-help { width: 100%; }
+      .save-status { margin-left: auto; }
+      .frame { border-radius: 18px; }
+    }
+
+    @media print {
+      @page { size: A3 landscape; margin: 10mm; }
+      body { background: #fff; }
+      .page { width: 100%; padding: 0; }
+      header { margin-bottom: 14px; }
+      .editor-bar, .drag-handle { display: none; }
+      .frame { box-shadow: none; }
+      .flow-canvas { transform-origin: top left; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <p class="eyebrow">SalesLuv · System Map</p>
+        <h1>Multi-Agent Flow</h1>
+      </div>
+      <p class="summary">고객 접점 데이터를 수집하고, 보고서와 추천을 거쳐 다음 영업 일정을 만드는 전체 흐름입니다.</p>
+    </header>
+
+    <nav class="editor-bar" aria-label="그래프 편집 도구">
+      <div class="editor-help">
+        <i class="live-dot" aria-hidden="true"></i>
+        <strong>편집 모드</strong>
+        <span>글자 클릭 · 우측 핸들로 이동</span>
+      </div>
+      <div class="editor-actions">
+        <button class="tool-button" type="button" data-connect="one" aria-pressed="false">→ 화살표</button>
+        <button class="tool-button" type="button" data-connect="both" aria-pressed="false">↔ 쌍방</button>
+        <button class="tool-button danger" id="delete-edge" type="button" disabled>선 삭제</button>
+        <button class="tool-button" id="reset-editor" type="button">초기화</button>
+      </div>
+      <output class="save-status" id="save-status" aria-live="polite">자동 저장</output>
+    </nav>
+
+    <section class="frame" aria-label="SalesLuv 멀티에이전트 흐름도">
+      <!-- 텍스트를 수정하려면 아래 각 node의 제목과 목록만 바꾸면 됩니다. -->
+      <div class="flow-canvas">
+        <span class="phase phase-1">01</span>
+        <span class="phase phase-2">02</span>
+        <span class="phase phase-3">03</span>
+
+        <article class="node card source capture" id="node-capture">
+          <span class="kind" aria-label="Input">I</span>
+          <h2>고객 접점 정보</h2>
+          <ul>
+            <li>명함 정보</li>
+            <li>STT · OCR</li>
+            <li>직접 입력</li>
+          </ul>
+        </article>
+
+        <article class="node agent customer" id="node-customer" data-letter="C">
+          <div><b>고객관리</b><span>AGENT</span></div>
+        </article>
+
+        <article class="node card result cs" id="node-cs">
+          <span class="kind" aria-label="Output">O</span>
+          <h3>C/S 사항 정리</h3>
+        </article>
+
+        <article class="node card result sentiment" id="node-sentiment">
+          <span class="kind" aria-label="Output">O</span>
+          <h3>감정 분석</h3>
+          <ul><li>분노 · 호감 · 만족도</li></ul>
+        </article>
+
+        <article class="node agent report" id="node-report" data-letter="R">
+          <div><b>보고서</b><span>AGENT</span></div>
+        </article>
+
+        <article class="node card result draft" id="node-draft">
+          <span class="kind" aria-label="Output">O</span>
+          <h3>보고서 초안</h3>
+          <ul><li>핵심 내용 자동 정리</li></ul>
+        </article>
+
+        <article class="node card gate approval" id="node-approval">
+          <span class="kind">HUMAN</span>
+          <h3>수동 승인</h3>
+        </article>
+
+        <article class="node card result complete" id="node-complete">
+          <span class="kind" aria-label="Output">O</span>
+          <h3>보고서 완성</h3>
+        </article>
+
+        <article class="node card source sales-data" id="node-contract-data">
+          <span class="kind" aria-label="Input">I</span>
+          <h2>계약 관련 정보</h2>
+          <ul>
+            <li>신규 계약 정보</li>
+            <li>거래처별 매출</li>
+            <li>과거 방문 · 실적</li>
+          </ul>
+        </article>
+
+        <article class="node agent contract-agent contract" id="node-contract" data-letter="K">
+          <div><b>계약관리</b><span>AGENT</span></div>
+        </article>
+
+        <article class="node card result green briefing" id="node-briefing">
+          <span class="kind" aria-label="Output">O</span>
+          <h3>브리핑 생성</h3>
+        </article>
+
+        <article class="node card result green next-meeting" id="node-next-meeting">
+          <span class="kind" aria-label="Output">O</span>
+          <h3>다음 미팅 일정 제시</h3>
+        </article>
+
+        <article class="node card source calendar-data" id="node-calendar-data">
+          <span class="kind" aria-label="Input">I</span>
+          <h2>일정 관련 정보</h2>
+          <ul>
+            <li>방문 등록 · 수정 · 취소</li>
+            <li>캘린더</li>
+          </ul>
+        </article>
+
+        <article class="node agent schedule-agent schedule" id="node-schedule" data-letter="S">
+          <div><b>일정관리</b><span>AGENT</span></div>
+        </article>
+
+        <article class="node card result amber next-schedule" id="node-next-schedule">
+          <span class="kind" aria-label="Output">O</span>
+          <h3>다음 일정 추천 제시</h3>
+        </article>
+
+        <svg class="wires" viewBox="0 0 1400 900" aria-hidden="true">
+          <defs>
+            <marker id="arrow-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8794"/>
+            </marker>
+            <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f6feb"/>
+            </marker>
+            <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f7b5f"/>
+            </marker>
+            <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#a5630b"/>
+            </marker>
+            <marker id="arrow-user" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#526173"/>
+            </marker>
+          </defs>
+
+          <path class="wire blue" d="M305 145 H390" data-edge data-from="node-capture" data-to="node-customer" data-from-side="right" data-to-side="left"/>
+          <path class="wire" d="M305 180 H340 V345 H390" data-edge data-from="node-capture" data-to="node-report" data-from-side="right" data-to-side="left" data-from-shift="35"/>
+          <path class="wire blue" d="M580 132 H655 V82 H720" data-edge data-from="node-customer" data-to="node-cs" data-from-side="right" data-to-side="left" data-from-shift="-3"/>
+          <path class="wire blue" d="M580 158 H670 V195 H720" data-edge data-from="node-customer" data-to="node-sentiment" data-from-side="right" data-to-side="left" data-from-shift="23"/>
+          <path class="wire" d="M580 345 H710" data-edge data-from="node-report" data-to="node-draft" data-from-side="right" data-to-side="left"/>
+          <path class="wire green" d="M930 345 H1000" data-edge data-from="node-draft" data-to="node-approval" data-from-side="right" data-to-side="left"/>
+          <path class="wire green" d="M1150 345 H1210" data-edge data-from="node-approval" data-to="node-complete" data-from-side="right" data-to-side="left"/>
+
+          <path class="wire green dashed no-arrow" id="feedback-sentiment" d="M980 195 H1380 V480"/>
+          <path class="wire green dashed no-arrow" id="feedback-report" d="M1288 386 V480 H1380"/>
+          <path class="wire green dashed" id="feedback-merged" d="M1380 480 V570 H580"/>
+          <circle id="feedback-junction" cx="1380" cy="480" r="4" fill="#0f7b5f"/>
+          <text class="wire-label" id="label-sentiment" x="1160" y="186">감정 분석</text>
+          <text class="wire-label" id="label-report" x="1298" y="440">보고서 완성</text>
+          <text class="wire-label" id="label-contract-input" x="1090" y="560">계약관리 입력</text>
+
+          <path class="wire green" d="M305 550 H390" data-edge data-from="node-contract-data" data-to="node-contract" data-from-side="right" data-to-side="left"/>
+          <path class="wire green" d="M580 510 H650 V477 H720" data-edge data-from="node-contract" data-to="node-briefing" data-from-side="right" data-to-side="left" data-from-shift="-35"/>
+          <path class="wire green" d="M580 600 H660 V667 H720" data-edge data-from="node-contract" data-to="node-next-meeting" data-from-side="right" data-to-side="left" data-from-shift="55"/>
+
+          <path class="wire exchange-up" id="exchange-up" d="M475 735 V620"/>
+          <path class="wire exchange-down" id="exchange-down" d="M495 620 V735"/>
+          <text class="wire-label" id="label-exchange" x="515" y="681">쌍방 교류</text>
+          <path class="wire amber" d="M305 790 H350 V810 H390" data-edge data-from="node-calendar-data" data-to="node-schedule" data-from-side="right" data-to-side="left"/>
+          <path class="wire amber" d="M580 835 H720" data-edge data-from="node-schedule" data-to="node-next-schedule" data-from-side="right" data-to-side="left" data-from-shift="25"/>
+          <g id="user-edge-layer"></g>
+        </svg>
+      </div>
+
+      <div class="legend" aria-label="범례">
+        <span><b class="legend-io">I</b>인풋</span>
+        <span><b class="legend-io output">O</b>아웃풋</span>
+        <span><i class="l-agent"></i>에이전트</span>
+        <span><i class="l-human"></i>사용자 승인</span>
+        <span>↑↓ 에이전트 간 쌍방 교류</span>
+        <span>점선은 다음 판단에 반영되는 피드백</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const STORAGE_KEY = "salesluv-flow-editor:v1";
+      const canvas = document.querySelector(".flow-canvas");
+      const wires = document.querySelector(".wires");
+      const userEdgeLayer = document.querySelector("#user-edge-layer");
+      const nodes = [...canvas.querySelectorAll(".node")];
+      const nodeById = new Map(nodes.map((node) => [node.id, node]));
+      const connectButtons = [...document.querySelectorAll("[data-connect]")];
+      const deleteButton = document.querySelector("#delete-edge");
+      const resetButton = document.querySelector("#reset-editor");
+      const status = document.querySelector("#save-status");
+      let connectMode = null;
+      let connectSource = null;
+      let selectedEdgeId = null;
+      let userEdges = [];
+      let saveTimer;
+      let statusTimer;
+      let drawFrame;
+
+      const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+      const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+      const box = (node) => ({
+        left: node.offsetLeft,
+        top: node.offsetTop,
+        width: node.offsetWidth,
+        height: node.offsetHeight,
+        right: node.offsetLeft + node.offsetWidth,
+        bottom: node.offsetTop + node.offsetHeight,
+        cx: node.offsetLeft + node.offsetWidth / 2,
+        cy: node.offsetTop + node.offsetHeight / 2
+      });
+
+      function pointAt(rect, side, shift = 0) {
+        if (side === "left") return { x: rect.left, y: rect.cy + shift };
+        if (side === "right") return { x: rect.right, y: rect.cy + shift };
+        if (side === "top") return { x: rect.cx + shift, y: rect.top };
+        return { x: rect.cx + shift, y: rect.bottom };
+      }
+
+      function automaticSides(from, to) {
+        const dx = to.cx - from.cx;
+        const dy = to.cy - from.cy;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          return dx >= 0 ? ["right", "left"] : ["left", "right"];
+        }
+        return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
+      }
+
+      function orthogonalPath(fromNode, toNode, options = {}) {
+        if (!fromNode || !toNode || fromNode === toNode) return "";
+        const from = box(fromNode);
+        const to = box(toNode);
+        const auto = automaticSides(from, to);
+        const fromSide = options.fromSide || auto[0];
+        const toSide = options.toSide || auto[1];
+        const start = pointAt(from, fromSide, number(options.fromShift));
+        const end = pointAt(to, toSide, number(options.toShift));
+        const horizontal = ["left", "right"].includes(fromSide);
+
+        if (horizontal) {
+          const middle = (start.x + end.x) / 2 + number(options.lane);
+          return `M${start.x} ${start.y} H${middle} V${end.y} H${end.x}`;
+        }
+
+        const middle = (start.y + end.y) / 2 + number(options.lane);
+        return `M${start.x} ${start.y} V${middle} H${end.x} V${end.y}`;
+      }
+
+      function updateBaseEdges() {
+        wires.querySelectorAll("path[data-edge]").forEach((path) => {
+          path.setAttribute("d", orthogonalPath(
+            nodeById.get(path.dataset.from),
+            nodeById.get(path.dataset.to),
+            {
+              fromSide: path.dataset.fromSide,
+              toSide: path.dataset.toSide,
+              fromShift: path.dataset.fromShift,
+              toShift: path.dataset.toShift,
+              lane: path.dataset.lane
+            }
+          ));
+        });
+      }
+
+      function updateFeedback() {
+        const sentiment = box(nodeById.get("node-sentiment"));
+        const report = box(nodeById.get("node-complete"));
+        const contract = box(nodeById.get("node-contract"));
+        const busX = canvas.clientWidth - 20;
+        const joinY = clamp(Math.max(report.bottom + 60, contract.top + 10), 40, canvas.clientHeight - 40);
+        const targetY = clamp(contract.top + contract.height * 2 / 3, contract.top + 18, contract.bottom - 18);
+
+        document.querySelector("#feedback-sentiment").setAttribute("d", `M${sentiment.right} ${sentiment.cy} H${busX} V${joinY}`);
+        document.querySelector("#feedback-report").setAttribute("d", `M${report.cx} ${report.bottom} V${joinY} H${busX}`);
+        document.querySelector("#feedback-merged").setAttribute("d", `M${busX} ${joinY} V${targetY} H${contract.right}`);
+        document.querySelector("#feedback-junction").setAttribute("cx", busX);
+        document.querySelector("#feedback-junction").setAttribute("cy", joinY);
+
+        const sentimentLabel = document.querySelector("#label-sentiment");
+        sentimentLabel.setAttribute("x", sentiment.right + (busX - sentiment.right) * .45);
+        sentimentLabel.setAttribute("y", sentiment.cy - 9);
+
+        const reportLabel = document.querySelector("#label-report");
+        reportLabel.setAttribute("x", report.cx + 10);
+        reportLabel.setAttribute("y", report.bottom + (joinY - report.bottom) / 2 + 7);
+
+        const inputLabel = document.querySelector("#label-contract-input");
+        inputLabel.setAttribute("x", contract.right + (busX - contract.right) * .64);
+        inputLabel.setAttribute("y", targetY - 10);
+      }
+
+      function updateExchange() {
+        const contract = nodeById.get("node-contract");
+        const schedule = nodeById.get("node-schedule");
+        document.querySelector("#exchange-up").setAttribute("d", orthogonalPath(schedule, contract, {
+          fromSide: "top", toSide: "bottom", fromShift: -10, toShift: -10
+        }));
+        document.querySelector("#exchange-down").setAttribute("d", orthogonalPath(contract, schedule, {
+          fromSide: "bottom", toSide: "top", fromShift: 10, toShift: 10
+        }));
+
+        const a = box(contract);
+        const b = box(schedule);
+        const label = document.querySelector("#label-exchange");
+        label.setAttribute("x", (a.cx + b.cx) / 2 + 30);
+        label.setAttribute("y", (a.bottom + b.top) / 2 + 4);
+      }
+
+      function renderUserEdges() {
+        userEdgeLayer.replaceChildren();
+        userEdges.forEach((edge) => {
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.classList.add("wire", "user-wire");
+          if (edge.kind === "both") path.classList.add("bidirectional");
+          path.dataset.edgeId = edge.id;
+          path.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectEdge(edge.id);
+          });
+          userEdgeLayer.append(path);
+        });
+        updateUserEdges();
+      }
+
+      function updateUserEdges() {
+        userEdges.forEach((edge) => {
+          const path = userEdgeLayer.querySelector(`[data-edge-id="${edge.id}"]`);
+          if (!path) return;
+          path.setAttribute("d", orthogonalPath(nodeById.get(edge.from), nodeById.get(edge.to)));
+          path.classList.toggle("selected", edge.id === selectedEdgeId);
+        });
+      }
+
+      function updateAll() {
+        cancelAnimationFrame(drawFrame);
+        drawFrame = requestAnimationFrame(() => {
+          updateBaseEdges();
+          updateFeedback();
+          updateExchange();
+          updateUserEdges();
+        });
+      }
+
+      function showStatus(message, sticky = false) {
+        clearTimeout(statusTimer);
+        status.textContent = message;
+        if (!sticky) statusTimer = setTimeout(() => { status.textContent = "자동 저장"; }, 1600);
+      }
+
+      function snapshot() {
+        return {
+          version: 1,
+          nodes: Object.fromEntries(nodes.map((node) => [node.id, {
+            x: node.offsetLeft,
+            y: node.offsetTop,
+            texts: [...node.querySelectorAll("[contenteditable]")].map((item) => item.textContent)
+          }])),
+          edges: userEdges
+        };
+      }
+
+      function saveNow() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot()));
+          showStatus("저장됨");
+        } catch {
+          showStatus("저장 불가", true);
+        }
+      }
+
+      function scheduleSave() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveNow, 250);
+      }
+
+      function restore() {
+        let saved;
+        try {
+          saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        } catch {
+          return;
+        }
+        if (!saved || saved.version !== 1) return;
+
+        Object.entries(saved.nodes || {}).forEach(([id, value]) => {
+          const node = nodeById.get(id);
+          if (!node || !value) return;
+          if (Number.isFinite(Number(value.x))) node.style.left = `${number(value.x)}px`;
+          if (Number.isFinite(Number(value.y))) node.style.top = `${number(value.y)}px`;
+          if (Array.isArray(value.texts)) {
+            [...node.querySelectorAll("[contenteditable]")].forEach((item, index) => {
+              if (typeof value.texts[index] === "string") item.textContent = value.texts[index];
+            });
+          }
+        });
+
+        userEdges = Array.isArray(saved.edges) ? saved.edges.filter((edge) =>
+          edge && typeof edge.id === "string" && nodeById.has(edge.from) && nodeById.has(edge.to) &&
+          edge.from !== edge.to && ["one", "both"].includes(edge.kind)
+        ) : [];
+        showStatus("저장본 복원");
+      }
+
+      function prepareNodes() {
+        nodes.forEach((node) => {
+          node.querySelectorAll("h2, h3, li, b").forEach((item) => {
+            item.contentEditable = "true";
+            item.spellcheck = false;
+          });
+
+          const handle = document.createElement("button");
+          handle.type = "button";
+          handle.className = "drag-handle";
+          handle.textContent = "⠿";
+          handle.setAttribute("aria-label", `${node.textContent.trim().split("\n")[0]} 노드 이동`);
+          node.append(handle);
+
+          handle.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const startLeft = node.offsetLeft;
+            const startTop = node.offsetTop;
+            node.classList.add("dragging");
+            handle.setPointerCapture(event.pointerId);
+
+            const move = (moveEvent) => {
+              const left = clamp(startLeft + moveEvent.clientX - startX, 0, canvas.clientWidth - node.offsetWidth);
+              const top = clamp(startTop + moveEvent.clientY - startY, 0, canvas.clientHeight - node.offsetHeight);
+              node.style.left = `${left}px`;
+              node.style.top = `${top}px`;
+              updateAll();
+            };
+
+            const end = () => {
+              node.classList.remove("dragging");
+              handle.removeEventListener("pointermove", move);
+              handle.removeEventListener("pointerup", end);
+              handle.removeEventListener("pointercancel", end);
+              saveNow();
+            };
+
+            handle.addEventListener("pointermove", move);
+            handle.addEventListener("pointerup", end);
+            handle.addEventListener("pointercancel", end);
+          });
+        });
+      }
+
+      function setConnectMode(mode) {
+        connectMode = mode;
+        connectSource?.classList.remove("connect-source");
+        connectSource = null;
+        canvas.classList.toggle("is-connecting", Boolean(mode));
+        connectButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.connect === mode)));
+        if (mode) showStatus("시작 노드 선택", true);
+        else showStatus("자동 저장");
+      }
+
+      function selectEdge(id) {
+        selectedEdgeId = id;
+        deleteButton.disabled = !id;
+        updateUserEdges();
+      }
+
+      function addEdge(from, to, kind) {
+        const duplicate = userEdges.find((edge) => edge.kind === kind && (
+          edge.from === from.id && edge.to === to.id ||
+          kind === "both" && edge.from === to.id && edge.to === from.id
+        ));
+        if (duplicate) {
+          selectEdge(duplicate.id);
+          showStatus("이미 있는 화살표");
+          return;
+        }
+
+        const edge = {
+          id: `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+          from: from.id,
+          to: to.id,
+          kind
+        };
+        userEdges.push(edge);
+        renderUserEdges();
+        selectEdge(edge.id);
+        saveNow();
+        showStatus(kind === "both" ? "쌍방 화살표 추가" : "화살표 추가");
+      }
+
+      connectButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const mode = button.dataset.connect;
+          setConnectMode(connectMode === mode ? null : mode);
+        });
+      });
+
+      canvas.addEventListener("pointerdown", (event) => {
+        if (connectMode && event.target.closest(".node") && !event.target.closest(".drag-handle")) event.preventDefault();
+      }, true);
+
+      canvas.addEventListener("click", (event) => {
+        const node = event.target.closest(".node");
+        if (!connectMode) {
+          if (!event.target.closest(".user-wire")) selectEdge(null);
+          return;
+        }
+        if (!node || event.target.closest(".drag-handle")) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!connectSource) {
+          connectSource = node;
+          node.classList.add("connect-source");
+          showStatus("도착 노드 선택", true);
+          return;
+        }
+        if (connectSource === node) {
+          setConnectMode(null);
+          return;
+        }
+
+        const source = connectSource;
+        const kind = connectMode;
+        setConnectMode(null);
+        addEdge(source, node, kind);
+      });
+
+      canvas.addEventListener("input", (event) => {
+        if (!event.target.isContentEditable) return;
+        updateAll();
+        scheduleSave();
+      });
+
+      deleteButton.addEventListener("click", () => {
+        if (!selectedEdgeId) return;
+        userEdges = userEdges.filter((edge) => edge.id !== selectedEdgeId);
+        selectedEdgeId = null;
+        deleteButton.disabled = true;
+        renderUserEdges();
+        saveNow();
+        showStatus("선 삭제됨");
+      });
+
+      resetButton.addEventListener("click", () => {
+        if (!confirm("편집한 글자, 위치, 추가 화살표를 모두 초기화할까요?")) return;
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        location.reload();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          setConnectMode(null);
+          selectEdge(null);
+        }
+        if ((event.key === "Delete" || event.key === "Backspace") && selectedEdgeId && !document.activeElement?.isContentEditable) {
+          event.preventDefault();
+          deleteButton.click();
+        }
+      });
+
+      prepareNodes();
+      restore();
+      renderUserEdges();
+      updateAll();
+      if ("ResizeObserver" in window) {
+        const observer = new ResizeObserver(updateAll);
+        nodes.forEach((node) => observer.observe(node));
+      }
+      window.addEventListener("resize", updateAll);
+    })();
+  </script>
+</body>
+</html>
