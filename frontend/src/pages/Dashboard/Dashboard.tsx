@@ -106,7 +106,6 @@ export default function Dashboard() {
         ref={agendaRef}
         dateISO={selectedISO}
         doneIds={doneIds}
-        onToggleDone={toggleDone}
         onOpen={(item) => setOpen({ type: 'record', item })}
         onAddSchedule={() => setOpen({ type: 'addEvent' })}
         flash={flash}
@@ -123,7 +122,12 @@ export default function Dashboard() {
       )}
 
       {open?.type === 'record' && (
-        <RecordDrawer item={open.item} done={doneIds.has(open.item.id)} onClose={closeDrawer} />
+        <RecordDrawer
+          item={open.item}
+          done={doneIds.has(open.item.id)}
+          onToggleDone={toggleDone}
+          onClose={closeDrawer}
+        />
       )}
 
       {open?.type === 'kpi' && <ListDrawer list={kpiList(open.key)} onClose={closeDrawer} />}

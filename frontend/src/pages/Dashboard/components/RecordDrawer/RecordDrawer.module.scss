@@ -14,6 +14,11 @@
   color: var(--orange-ink);
 }
 
+.doneTag {
+  background: var(--green-tint);
+  color: var(--green-ink);
+}
+
 // 일시는 일정 제목 뒤에 이어 붙입니다. 제목보다 약하게 둡니다.
 .when {
   margin-left: 5px;
@@ -93,6 +98,53 @@
     color: var(--ink-2);
     font-size: 13px;
     line-height: 1.6;
+  }
+}
+
+// 완료 확인. 푸터는 오른쪽 정렬이라 auto 여백으로 혼자 왼쪽에 섭니다.
+// 보고서 CTA 와 무게를 다투지 않게 테두리만 두르고, 누르면 초록으로 앉습니다.
+.doneBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+  padding: 10px 15px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+
+  // 누르면 어떤 색이 되는지 hover 에서 미리 보여 줍니다.
+  &:hover {
+    border-color: var(--green);
+    color: var(--green-ink);
+  }
+
+  &:active {
+    transform: translateY(1px);
+    box-shadow: none;
+  }
+
+  // 끝난 뒤에는 더 누를 것이 없다는 뜻으로 그림자를 걷고 눕힙니다.
+  &[aria-pressed='true'] {
+    border-color: transparent;
+    background: var(--green-tint);
+    box-shadow: none;
+    color: var(--green-ink);
+
+    // 되돌릴 수 있다는 것만 알리고 색은 그대로 둡니다.
+    &:hover {
+      border-color: var(--green);
+    }
   }
 }
 

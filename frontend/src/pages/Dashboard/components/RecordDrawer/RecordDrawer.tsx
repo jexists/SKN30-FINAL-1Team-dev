@@ -7,6 +7,7 @@
 import { Link } from 'react-router'
 
 import Drawer from '@/components/Drawer'
+import { CheckIcon } from '@/components/icons'
 import { statusScope } from '@/content/agenda'
 import type { AgendaItem } from '@/content/types'
 import { meetingComposePath, meetingReportPath } from '@/constants/routes'
@@ -18,10 +19,11 @@ import styles from './RecordDrawer.module.scss'
 interface Props {
   item: AgendaItem
   done: boolean
+  onToggleDone: (id: string) => void
   onClose: () => void
 }
 
-export default function RecordDrawer({ item, done, onClose }: Props) {
+export default function RecordDrawer({ item, done, onToggleDone, onClose }: Props) {
   const { findByAgenda } = useMeetingReports()
   // 이 자리에서 쓴 기록이 있으면 새로 쓰지 않고 그것을 엽니다.
   const saved = findByAgenda(item.id)
@@ -48,25 +50,41 @@ export default function RecordDrawer({ item, done, onClose }: Props) {
       onClose={onClose}
       meta={
         <>
-          {/* 태그는 DayAgenda 목록과 같습니다. 상태 하나, 그리고 끝냈는데
-              보고를 안 썼을 때만 그 사실을 덧붙입니다. */}
+          {/* 배지는 DayAgenda 목록과 종류·순서·색이 모두 같아야 합니다.
+              목록에서 본 줄을 그대로 펼친 것으로 읽혀야 하기 때문입니다. */}
           <i
             className={`${styles.pill} ${statusScope(item.stage) === '외부' ? styles.scopeExternal : ''}`}
           >
             {item.stage}
           </i>
+          {done && <i className={`${styles.pill} ${styles.doneTag}`}>완료</i>}
           {done && !saved && (
             <i className={`${styles.pill} ${styles.needsReport}`}>보고서 미작성</i>
           )}
         </>
       }
       footer={
-        <Link
-          className={styles.cta}
-          to={saved ? meetingReportPath(saved.id) : meetingComposePath(item.id)}
-        >
-          {saved ? '미팅보고서 열기' : '미팅보고서 작성'}
-        </Link>
+        <>
+          {/* 일정을 끝냈는지는 목록을 훑다가가 아니라 상세를 열어 확인한 뒤
+              정합니다. 드로어를 닫기 전 마지막으로 누르는 자리에 둡니다. */}
+          <button
+            type="button"
+            className={styles.doneBtn}
+            aria-pressed={done}
+            aria-label={done ? '완료 취소' : '이 일정을 완료로 표시'}
+            onClick={() => onToggleDone(item.id)}
+          >
+            {done && <CheckIcon width={14} height={14} />}
+            {done ? '완료' : '완료 확인'}
+          </button>
+
+          <Link
+            className={styles.cta}
+            to={saved ? meetingReportPath(saved.id) : meetingComposePath(item.id)}
+          >
+            {saved ? '미팅보고서 열기' : '미팅보고서 작성'}
+          </Link>
+        </>
       }
     >
       <div className={styles.grid}>
