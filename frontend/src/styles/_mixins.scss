@@ -60,6 +60,52 @@
   font-style: normal;
 }
 
+/**
+ * 폼 한 칸(라벨 + 입력). 모달과 상세 폼이 전부 같은 모양이라 여기 한 벌만 둡니다.
+ * 쓰는 쪽은 .field 에 @include form-field 하고 라벨·에러 스타일만 따로 둡니다.
+ */
+@mixin form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 9px var(--s3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    font-size: 13px;
+    outline: none;
+    transition:
+      border-color var(--t-fast) var(--ease-out),
+      box-shadow var(--t-fast) var(--ease-out);
+
+    &:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-ring);
+    }
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  // 브라우저 기본 화살표는 굵고 오른쪽 끝에 붙어 다른 입력과 어긋납니다.
+  // 표식을 우리가 그리고 글자가 그 아래로 들어가지 않게 자리를 비웁니다.
+  // (색은 --muted 와 같은 값. data URI 라 변수를 넣을 수 없습니다.)
+  select {
+    appearance: none;
+    padding-right: 32px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--s3) center;
+  }
+}
+
 @mixin flex-center {
   display: flex;
   align-items: center;

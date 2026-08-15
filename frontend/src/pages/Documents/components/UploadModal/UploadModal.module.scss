@@ -119,33 +119,13 @@
 }
 
 .field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
+  @include form-field;
 
-  input,
-  select {
-    width: 100%;
-    padding: 9px var(--s3);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    font-size: 13px;
-    outline: none;
-    transition:
-      border-color var(--t-fast) var(--ease-out),
-      box-shadow var(--t-fast) var(--ease-out);
-
-    &:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px var(--blue-ring);
-    }
-
-    &:disabled {
-      background: var(--fill);
-      color: var(--muted);
-    }
+  // 새 버전 올릴 때는 문서 이름·분류를 고칠 수 없습니다. 잠긴 칸을 표시합니다.
+  input:disabled,
+  select:disabled {
+    background: var(--fill);
+    color: var(--muted);
   }
 }
 
