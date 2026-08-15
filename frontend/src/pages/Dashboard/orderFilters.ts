@@ -41,7 +41,7 @@ export const ORDER_FILTERS: OrderFilter[] = [
     key: 'thisweek',
     label: '이번 주 입고 예정',
     note: () => `${fmtDay(TODAY).slice(0, -4)} – ${fmtDay(addDays(TODAY, 7)).slice(0, -4)}`,
-    test: (o) => o.status !== '입고완료' && dday(o) >= 0 && dday(o) <= 7,
+    test: (o) => !['입고완료', '납품완료'].includes(o.status) && dday(o) >= 0 && dday(o) <= 7,
   },
   {
     key: 'late',

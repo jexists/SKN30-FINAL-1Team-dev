@@ -5,6 +5,7 @@
 // 컬럼 집합이 코드가 아니라 데이터입니다. 대신 컬럼마다 outcome 을 들고 있어
 // 어느 컬럼에 놓이든 계약의 status 는 늘 정해집니다.
 import { contracts } from '@/shared/contracts'
+import { orders } from '@/shared/orders'
 import type { Contract, ContractKind, ContractStatus } from '@/types'
 
 export type ColumnTone = 'gray' | 'blue' | 'purple' | 'orange' | 'green' | 'red'
@@ -46,13 +47,28 @@ export interface BoardContract extends Contract {
 }
 
 export const DEFAULT_COLUMNS: BoardColumn[] = [
-  { id: 'review', name: '검토', tone: 'gray', outcome: '진행중' },
-  { id: 'proposal', name: '제안', tone: 'blue', outcome: '진행중' },
-  { id: 'negotiation', name: '협상', tone: 'purple', outcome: '진행중' },
-  { id: 'pending', name: '계약 대기', tone: 'orange', outcome: '진행중' },
-  { id: 'won', name: '확정', tone: 'green', outcome: '확정' },
+  { id: 'needs', name: '니즈 검증', tone: 'gray', outcome: '진행중' },
+  { id: 'demo', name: '제품 시연 평가', tone: 'blue', outcome: '진행중' },
+  { id: 'quote', name: '견적서 발송', tone: 'purple', outcome: '진행중' },
+  { id: 'sent', name: '계약서 발송', tone: 'orange', outcome: '진행중' },
+  { id: 'reviewing', name: '계약서 검토', tone: 'orange', outcome: '진행중' },
+  { id: 'won', name: '계약 완료', tone: 'green', outcome: '확정' },
+  { id: 'delivered', name: '납품 완료', tone: 'green', outcome: '확정' },
   { id: 'lost', name: '취소', tone: 'red', outcome: '취소' },
 ]
+
+/**
+ * 진행 스텝바가 쓰는 단계 차례. 취소는 흐름 밖이라 빠집니다.
+ * 컬럼은 화면에서 늘고 줄 수 있어 기본 컬럼에서 그때그때 뽑습니다.
+ */
+export const STAGE_ORDER: string[] = DEFAULT_COLUMNS.filter((c) => c.id !== 'lost').map((c) => c.id)
+
+export const STAGE_NAMES: string[] = DEFAULT_COLUMNS.filter((c) => c.id !== 'lost').map(
+  (c) => c.name,
+)
+
+/** 이 단계가 몇 번째 칸인지. 모르는 단계·취소는 -1 입니다. */
+export const stageIndexOf = (stageId: string): number => STAGE_ORDER.indexOf(stageId)
 
 /** 새로 만든 컬럼의 기본 성격. 확정·취소는 사람이 따로 정해야 하므로 진행중으로 둡니다. */
 export const NEW_COLUMN_OUTCOME: ContractStatus = '진행중'
@@ -73,16 +89,23 @@ export function parseSlot(key: string): { columnId: string; index: number } | nu
 }
 
 /** 진행중 계약이 처음 놓일 컬럼. 뒤로 갈수록 계약에 가깝습니다. */
-const PIPELINE = ['review', 'proposal', 'negotiation', 'pending']
+const PIPELINE = ['needs', 'demo', 'quote', 'sent', 'reviewing']
+
+/** 납품까지 끝난 발주가 걸린 계약번호. 확정 건을 계약 완료와 납품 완료로 가릅니다. */
+const DELIVERED_CONTRACTS = new Set(
+  orders.filter((o) => o.status === '납품완료').map((o) => o.contract),
+)
 
 /**
- * 시드에는 확정·진행중·취소 세 가지밖에 없어 진행중 건을 앞 네 컬럼에 나눠 놓습니다.
+ * 시드에는 확정·진행중·취소 세 가지밖에 없어 진행중 건을 앞 다섯 컬럼에 나눠 놓습니다.
  * 협의를 시작한 지 오래된 건일수록 뒤 단계에 있다고 봅니다.
  *
  * 무작위가 아니라 날짜 순서로 나눕니다. 시연할 때마다 보드가 달라지면 곤란합니다.
  */
 function stageOf(contract: Contract, rankAmongOpen: number, openCount: number): string {
-  if (contract.status === '확정') return 'won'
+  if (contract.status === '확정') {
+    return DELIVERED_CONTRACTS.has(contract.no) ? 'delivered' : 'won'
+  }
   if (contract.status === '취소') return 'lost'
   const bucket = Math.floor((rankAmongOpen / Math.max(openCount, 1)) * PIPELINE.length)
   return PIPELINE[Math.min(bucket, PIPELINE.length - 1)]

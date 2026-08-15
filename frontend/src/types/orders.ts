@@ -5,7 +5,7 @@ export interface OrderLine {
 }
 
 export type OrderStatus =
-  '승인대기' | '승인' | '출고의뢰서 작성완료' | '생산중' | '출고' | '입고완료' | '취소'
+  '승인대기' | '승인' | '출고의뢰서 작성완료' | '생산중' | '출고' | '입고완료' | '납품완료' | '취소'
 
 export interface PurchaseOrderSeed {
   no: string

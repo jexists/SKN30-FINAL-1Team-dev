@@ -18,6 +18,7 @@ export const ORDER_STATUSES: OrderStatus[] = [
   '생산중',
   '출고',
   '입고완료',
+  '납품완료',
   '취소',
 ]
 
@@ -28,7 +29,26 @@ export const TONE_OF: Record<OrderStatus, StatusTone> = {
   생산중: 'orange',
   출고: 'blue',
   입고완료: 'green',
+  납품완료: 'green',
   취소: 'red',
+}
+
+/**
+ * 진행 스텝바가 보여 줄 다섯 칸. 상태 일곱 가지를 사람이 말하는 단계로 묶습니다.
+ * 승인대기·승인은 아직 '접수'고, 출고는 생산이 끝났다는 뜻이라 '생산 중' 칸에 섭니다.
+ */
+export const ORDER_STEPS = ['발주 접수', '출고 의뢰서 완료', '생산 중', '입고 완료', '납품 완료']
+
+/** 상태가 놓이는 칸. 취소는 흐름 밖이라 -1 입니다. */
+export const STEP_OF: Record<OrderStatus, number> = {
+  승인대기: 0,
+  승인: 0,
+  '출고의뢰서 작성완료': 1,
+  생산중: 2,
+  출고: 2,
+  입고완료: 3,
+  납품완료: 4,
+  취소: -1,
 }
 
 /** 필터와 폼의 선택지. 데이터에서 뽑아야 목록과 어긋나지 않습니다. */

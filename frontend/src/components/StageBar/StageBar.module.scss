@@ -1,0 +1,135 @@
+// 칸을 절대 위치로 세웁니다. 첫 점이 왼쪽 끝, 끝 점이 오른쪽 끝에 박혀야
+// 칸 수가 다른 막대끼리 양 끝이 맞습니다.
+//
+// ponytail: 높이를 값으로 박아 둡니다. 단계 이름이 두 줄을 넘으면 여기를 늘려야 합니다.
+.bar {
+  position: relative;
+  height: 62px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  // 단계를 잇는 선. 점이 양 끝에 박히므로 한 줄로 깔면 됩니다.
+  &::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 0;
+    left: 0;
+    height: 2px;
+    background: var(--line);
+  }
+}
+
+.step {
+  position: absolute;
+  top: 0;
+  left: calc(var(--i) / var(--n) * 100%);
+  width: 84px;
+  transform: translateX(-50%);
+
+  button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    padding: 16px 0 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+
+    &:disabled {
+      cursor: default;
+    }
+  }
+
+  // 점. 칸 가운데 위에 앉습니다.
+  i {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--line-2);
+    transform: translateX(-50%);
+    transition:
+      background var(--t) var(--ease-out),
+      box-shadow var(--t) var(--ease-out);
+  }
+}
+
+// 양 끝 칸은 밖으로 삐져나가지 않게 안쪽으로 붙여 씁니다.
+.first {
+  transform: none;
+
+  button {
+    align-items: flex-start;
+  }
+
+  i {
+    left: 5px;
+  }
+}
+
+.last {
+  transform: translateX(-100%);
+
+  button {
+    align-items: flex-end;
+  }
+
+  i {
+    right: 5px;
+    left: auto;
+    transform: none;
+  }
+}
+
+.name {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+// 건이 걸린 칸. 여기만 누를 수 있으므로 색으로 먼저 눈에 걸리게 합니다.
+.hasAny {
+  button {
+    color: var(--ink-2);
+  }
+
+  i {
+    background: var(--blue);
+  }
+
+  .count {
+    color: var(--blue);
+  }
+
+  button:hover i {
+    box-shadow: 0 0 0 3px var(--blue-tint);
+  }
+}
+
+// 펼친 칸. 아래 목록이 어느 칸의 것인지 여기서만 알 수 있습니다.
+.isOpen {
+  button,
+  .count {
+    color: var(--blue);
+  }
+
+  .name {
+    font-weight: 700;
+  }
+
+  i {
+    box-shadow: 0 0 0 3px var(--blue-tint);
+  }
+}
