@@ -5,7 +5,7 @@ import { createElement, type ReactNode } from 'react'
 import type { Customer } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
-import { DateCell, EmailCell, NameCell, NextCell, PlainNumber, StatusCell } from './cells'
+import { EmailCell, PlainNumber } from './cells'
 
 export interface ColumnDef {
   id: string
@@ -37,11 +37,11 @@ export const ALL_COLUMNS: ColumnDef[] = [
   {
     id: 'name',
     header: '이름',
-    width: 170,
-    minWidth: 140,
+    width: 110,
+    minWidth: 88,
     sortable: true,
+    fixed: true,
     value: (c) => c.name,
-    render: (c) => createElement(NameCell, { customer: c }),
   },
   {
     id: 'dept',
@@ -79,47 +79,11 @@ export const ALL_COLUMNS: ColumnDef[] = [
   },
   {
     id: 'owner',
-    header: '담당 영업',
+    header: '담당자',
     width: 110,
     minWidth: 90,
     sortable: true,
     value: (c) => c.owner,
-  },
-  {
-    id: 'source',
-    header: '유입 소스',
-    width: 110,
-    minWidth: 90,
-    sortable: true,
-    value: (c) => c.source,
-  },
-  {
-    id: 'status',
-    header: '상태',
-    width: 88,
-    minWidth: 82,
-    sortable: true,
-    value: (c) => c.status,
-    render: (c) => createElement(StatusCell, { customer: c }),
-  },
-  {
-    id: 'last',
-    header: '최근 접촉',
-    width: 132,
-    minWidth: 124,
-    sortable: true,
-    value: (c) => short(c.last),
-    render: (c) => createElement(DateCell, { date: c.last }),
-  },
-  {
-    id: 'next',
-    header: '다음 일정',
-    width: 152,
-    minWidth: 140,
-    sortable: true,
-    // 미등록은 빈 값이라 오름차순에서 맨 위로 옵니다. 후속이 늦은 쪽을 먼저 보는 게 맞습니다.
-    value: (c) => (c.next === null ? '' : short(c.next)),
-    render: (c) => createElement(NextCell, { customer: c }),
   },
   {
     id: 'created',
@@ -141,17 +105,7 @@ export const ALL_COLUMNS: ColumnDef[] = [
 ]
 
 /** 처음 보이는 컬럼. 나머지는 컬럼 설정에서 켭니다. */
-// 담당 영업은 여러 사람의 고객이 섞여 보일 때만 표에 나옵니다(Customers.tsx).
-export const DEFAULT_VISIBLE = [
-  'org',
-  'name',
-  'title',
-  'email',
-  'phone',
-  'owner',
-  'status',
-  'last',
-  'next',
-]
+// 고객 등록 모달에서 받는 항목과 같은 순서로 둡니다.
+export const DEFAULT_VISIBLE = ['org', 'name', 'dept', 'title', 'email', 'phone', 'owner', 'memo']
 
 export const COLUMN_BY_ID = new Map(ALL_COLUMNS.map((c) => [c.id, c]))

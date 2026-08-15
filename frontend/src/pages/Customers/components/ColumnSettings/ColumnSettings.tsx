@@ -41,7 +41,7 @@ export default function ColumnSettings({ prefs, onToggle, onMove, onReset }: Col
                 <button
                   type="button"
                   className={styles.move}
-                  disabled={col.fixed || index <= 1}
+                  disabled={col.fixed || items[index - 1]?.fixed === true}
                   aria-label={`${col.header} 위로`}
                   onClick={() => onMove(col.id, -1)}
                 >

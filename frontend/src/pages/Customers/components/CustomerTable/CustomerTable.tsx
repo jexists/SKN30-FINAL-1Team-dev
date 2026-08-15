@@ -7,7 +7,6 @@ import type { Customer } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
 import type { ColumnDef } from '../../columns'
-import { COLUMN_BY_ID } from '../../columns'
 import type { SortState } from '../../Customers'
 
 import styles from './CustomerTable.module.scss'
@@ -70,6 +69,18 @@ export default function CustomerTable({
     [drag, widths],
   )
 
+  // 고정 열은 체크박스 오른쪽에 차례로 붙습니다. 앞선 고정 열의 폭만큼 밀어 줍니다.
+  const stickyLeft = new Map<string, number>()
+  let offset = CHECK_W
+  for (const col of columns) {
+    if (!col.fixed) break
+    stickyLeft.set(col.id, offset)
+    offset += widthOf(col)
+  }
+
+  const stickyStyle = (col: ColumnDef) =>
+    col.fixed ? ({ '--sticky-left': `${stickyLeft.get(col.id)}px` } as CSSProperties) : undefined
+
   if (rows.length === 0) {
     return (
       <div className={styles.card}>
@@ -79,7 +90,7 @@ export default function CustomerTable({
               <SearchIcon width={34} height={34} strokeWidth={1.5} />
               <p>조건에 맞는 고객이 없습니다.</p>
               <Button variant="outline" onClick={onClearFilters}>
-                검색·필터 초기화
+                검색 초기화
               </Button>
             </>
           ) : (
@@ -129,10 +140,7 @@ export default function CustomerTable({
               </p>
               {/* 직함이 비면 가운뎃점만 덩그러니 남습니다. */}
               <p className={styles.miniOrg}>{[row.org, row.title].filter(Boolean).join(' · ')}</p>
-              <div className={styles.miniMeta}>
-                {COLUMN_BY_ID.get('status')?.render?.(row)}
-                {COLUMN_BY_ID.get('next')?.render?.(row)}
-              </div>
+              <p className={styles.miniMeta}>{row.owner}</p>
             </div>
           </li>
         ))}
@@ -175,9 +183,7 @@ export default function CustomerTable({
                     key={col.id}
                     scope="col"
                     className={col.fixed ? styles.stickyName : undefined}
-                    style={
-                      col.fixed ? ({ '--sticky-left': `${CHECK_W}px` } as CSSProperties) : undefined
-                    }
+                    style={stickyStyle(col)}
                     aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     {col.sortable ? (
@@ -240,16 +246,12 @@ export default function CustomerTable({
                       <td
                         key={col.id}
                         className={col.fixed ? styles.stickyName : undefined}
-                        style={
-                          col.fixed
-                            ? ({ '--sticky-left': `${CHECK_W}px` } as CSSProperties)
-                            : undefined
-                        }
+                        style={stickyStyle(col)}
                         title={col.value(row)}
                       >
                         {/* 줄 전체를 누르지만 tr 은 키보드로 못 잡습니다. 고정된 이름
                             열이 그 손잡이이고, 하는 일은 줄을 누른 것과 같습니다. */}
-                        {col.fixed ? (
+                        {col.id === 'name' ? (
                           <button
                             type="button"
                             className={styles.openButton}

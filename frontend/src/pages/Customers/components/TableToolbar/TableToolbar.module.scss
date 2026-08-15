@@ -86,30 +86,6 @@
   }
 }
 
-.isOn {
-  border-color: rgba(0, 122, 255, 0.32);
-  background: var(--blue-tint);
-  color: var(--blue);
-}
-
-.badge {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: var(--r-pill);
-  background: var(--fill);
-  color: var(--ink-2);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-
-  .isOn & {
-    background: var(--blue);
-    color: #fff;
-  }
-}
-
 .create {
   flex: none;
   height: 36px;

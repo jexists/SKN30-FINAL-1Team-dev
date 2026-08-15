@@ -1,32 +1,5 @@
 /* 표 셀의 표현. 표 자체의 뼈대는 CustomerTable.module.scss 가 갖습니다. */
 
-.nameCell {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  min-width: 0;
-}
-
-.avatar {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-pill);
-  background: var(--blue-tint);
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.nameText {
-  overflow: hidden;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .linkCell {
   color: var(--ink-2);
 
@@ -34,37 +7,4 @@
     color: var(--blue);
     text-decoration: underline;
   }
-}
-
-.badge {
-  @include tag-pill;
-}
-
-.badgeWon {
-  background: var(--green-tint);
-  color: var(--green-ink);
-}
-
-.badgeHold {
-  background: var(--fill-2);
-  color: var(--muted);
-}
-
-.dateCell {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.dateRel {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-/* 표에서 색이 붙는 유일한 자리입니다. 색 = 후속이 늦었다는 뜻. */
-.overdue {
-  @include tag-pill;
-  background: var(--red-tint);
-  color: var(--red-ink);
-  font-variant-numeric: tabular-nums;
 }

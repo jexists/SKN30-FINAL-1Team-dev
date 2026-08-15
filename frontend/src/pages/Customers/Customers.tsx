@@ -16,25 +16,12 @@ import SelectionBar from './components/SelectionBar'
 import TableToolbar from './components/TableToolbar'
 import { TODAY_ISO } from '@/utils/date'
 
-export interface Filters {
-  status: string[]
-  owner: string[]
-  source: string[]
-  overdueOnly: boolean
-}
-
-const NO_FILTERS: Filters = { status: [], owner: [], source: [], overdueOnly: false }
-
-/** 담당 영업 필터를 쓰지 않을 때의 값. 참조가 고정돼야 목록 계산이 매번 다시 돌지 않습니다. */
-const NO_OWNERS: string[] = []
-
 export type SortState = { id: string; dir: 'asc' | 'desc' } | null
 
 export default function Customers() {
-  const { matchesOwner, showOwner } = useOwnerScope()
+  const { matchesOwner } = useOwnerScope()
   const [rows, setRows] = useState<Customer[]>(seedCustomers)
   const [query, setQuery] = useState('')
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const [sort, setSort] = useState<SortState>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [page, setPage] = useState(1)
@@ -51,36 +38,20 @@ export default function Customers() {
     () =>
       prefs.order
         .filter((id) => prefs.visible.includes(id))
-        // 한 사람만 보고 있으면 담당 영업 열은 모든 줄이 같은 값이라 자리만 차지합니다.
-        .filter((id) => id !== 'owner' || showOwner)
         .map((id) => COLUMN_BY_ID.get(id))
         .filter((c) => c !== undefined),
-    [prefs.order, prefs.visible, showOwner],
+    [prefs.order, prefs.visible],
   )
 
   // 보기 범위 밖은 없는 셈 칩니다. 빈 화면 안내와 드로어의 '같은 회사 고객'까지
-  // 같은 범위를 봐야 하므로 필터보다 먼저 한 번 걸러 둡니다.
+  // 같은 범위를 봐야 하므로 검색보다 먼저 한 번 걸러 둡니다.
   const scoped = useMemo(() => rows.filter((c) => matchesOwner(c.owner)), [rows, matchesOwner])
 
-  // 보기 범위가 한 사람으로 좁혀져 있으면 담당 영업 필터는 감춰져 있습니다. 그때 남아 있던
-  // 선택은 세지도, 걸지도 않습니다. 보이지 않는 조건이 목록을 비우면 이유를 알 수 없습니다.
-  const ownerFilter = showOwner ? filters.owner : NO_OWNERS
-
-  const filterCount =
-    filters.status.length +
-    ownerFilter.length +
-    filters.source.length +
-    (filters.overdueOnly ? 1 : 0)
-
-  // 필터 → 검색 → 정렬. 이 순서를 한 곳에 모아 두어야 결과를 설명할 수 있습니다.
+  // 검색 → 정렬. 이 순서를 한 곳에 모아 두어야 결과를 설명할 수 있습니다.
   const matched = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase()
 
     const filtered = scoped.filter((c) => {
-      if (filters.status.length > 0 && !filters.status.includes(c.status)) return false
-      if (ownerFilter.length > 0 && !ownerFilter.includes(c.owner)) return false
-      if (filters.source.length > 0 && !filters.source.includes(c.source)) return false
-      if (filters.overdueOnly && !c.overdue) return false
       if (needle === '') return true
       // 검색은 숨긴 컬럼까지 포함합니다. 안 보인다고 못 찾으면 답답합니다.
       return [c.name, c.org, c.dept, c.title, c.email, c.phone, c.owner, c.memo]
@@ -95,7 +66,7 @@ export default function Customers() {
 
     const sign = sort.dir === 'asc' ? 1 : -1
     return [...filtered].sort((a, b) => sign * column.value(a).localeCompare(column.value(b), 'ko'))
-  }, [scoped, deferredQuery, filters, ownerFilter, sort])
+  }, [scoped, deferredQuery, sort])
 
   // 결과가 줄어들어 현재 페이지가 사라졌으면 마지막 페이지로 당겨 옵니다.
   const pageCount = Math.max(1, Math.ceil(matched.length / pageSize))
@@ -119,16 +90,7 @@ export default function Customers() {
     [resetPage],
   )
 
-  const onFiltersChange = useCallback(
-    (next: Filters) => {
-      setFilters(next)
-      resetPage()
-    },
-    [resetPage],
-  )
-
-  const clearFilters = useCallback(() => {
-    setFilters(NO_FILTERS)
+  const clearQuery = useCallback(() => {
     setQuery('')
     resetPage()
   }, [resetPage])
@@ -195,9 +157,6 @@ export default function Customers() {
       <TableToolbar
         query={query}
         onQueryChange={onQueryChange}
-        filters={filters}
-        filterCount={filterCount}
-        onFiltersChange={onFiltersChange}
         prefs={prefs}
         onToggleColumn={toggleColumn}
         onMoveColumn={moveColumn}
@@ -227,9 +186,9 @@ export default function Customers() {
         onToggleRow={toggleRow}
         onTogglePage={togglePage}
         onOpen={setOpenId}
-        isFiltered={filterCount > 0 || query.trim() !== ''}
+        isFiltered={query.trim() !== ''}
         hasAnyData={scoped.length > 0}
-        onClearFilters={clearFilters}
+        onClearFilters={clearQuery}
         onCreate={() => setModal('create')}
       />
 

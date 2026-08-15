@@ -78,6 +78,10 @@
   background: none;
   color: inherit;
   font: inherit;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   letter-spacing: inherit;
   text-align: left;
   cursor: pointer;
@@ -266,8 +270,7 @@
 }
 
 .miniMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
   margin-top: var(--s2);
+  color: var(--muted);
+  font-size: 12px;
 }

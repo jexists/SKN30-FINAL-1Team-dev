@@ -1,29 +1,17 @@
 import { useState } from 'react'
 
 import Button from '@/components/Button'
-import {
-  ColumnsIcon,
-  DownloadIcon,
-  FilterIcon,
-  PlusIcon,
-  SearchIcon,
-  UploadIcon,
-} from '@/components/icons'
+import { ColumnsIcon, DownloadIcon, PlusIcon, SearchIcon, UploadIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 
-import type { Filters } from '../../Customers'
 import type { ColumnPrefs } from '../../useColumnPrefs'
 import ColumnSettings from '../ColumnSettings'
-import FilterPanel from '../FilterPanel'
 
 import styles from './TableToolbar.module.scss'
 
 interface TableToolbarProps {
   query: string
   onQueryChange: (value: string) => void
-  filters: Filters
-  filterCount: number
-  onFiltersChange: (next: Filters) => void
   prefs: ColumnPrefs
   onToggleColumn: (id: string) => void
   onMoveColumn: (id: string, delta: -1 | 1) => void
@@ -36,9 +24,6 @@ interface TableToolbarProps {
 export default function TableToolbar({
   query,
   onQueryChange,
-  filters,
-  filterCount,
-  onFiltersChange,
   prefs,
   onToggleColumn,
   onMoveColumn,
@@ -47,7 +32,7 @@ export default function TableToolbar({
   onImport,
   onCreate,
 }: TableToolbarProps) {
-  const [open, setOpen] = useState<'filter' | 'columns' | null>(null)
+  const [open, setOpen] = useState<'columns' | null>(null)
 
   return (
     <div className={styles.root}>
@@ -63,26 +48,6 @@ export default function TableToolbar({
       </div>
 
       <div className={styles.tools}>
-        <Popover
-          open={open === 'filter'}
-          onClose={() => setOpen(null)}
-          label="필터"
-          trigger={
-            <button
-              type="button"
-              className={`${styles.tool} ${filterCount > 0 ? styles.isOn : ''}`}
-              aria-expanded={open === 'filter'}
-              onClick={() => setOpen(open === 'filter' ? null : 'filter')}
-            >
-              <FilterIcon width={15} height={15} />
-              필터
-              <span className={styles.badge}>{filterCount}</span>
-            </button>
-          }
-        >
-          <FilterPanel filters={filters} onChange={onFiltersChange} />
-        </Popover>
-
         <Popover
           open={open === 'columns'}
           onClose={() => setOpen(null)}

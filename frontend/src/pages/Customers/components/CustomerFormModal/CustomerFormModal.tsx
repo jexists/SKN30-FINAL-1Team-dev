@@ -18,15 +18,12 @@ interface CustomerFormModalProps {
 }
 
 const EMPTY = {
-  name: '',
   org: '',
+  name: '',
   dept: '',
   title: '',
   email: '',
   phone: '',
-  owner: CUSTOMER_OWNERS[0],
-  source: CUSTOMER_SOURCES[0],
-  status: CUSTOMER_STATUSES[0],
   memo: '',
 }
 
@@ -64,9 +61,10 @@ export default function CustomerFormModal({ onClose, onSubmit }: CustomerFormMod
         title: draft.title.trim(),
         email: draft.email.trim(),
         phone: draft.phone.trim(),
-        owner: draft.owner,
-        source: draft.source as CustomerSource,
-        status: draft.status as CustomerStatus,
+        // 등록 화면에서는 받지 않고 기본값으로 넣습니다.
+        owner: CUSTOMER_OWNERS[0],
+        source: CUSTOMER_SOURCES[0] as CustomerSource,
+        status: CUSTOMER_STATUSES[0] as CustomerStatus,
         lastOff: 0,
         nextOff: null,
         createdOff: 0,
@@ -78,7 +76,6 @@ export default function CustomerFormModal({ onClose, onSubmit }: CustomerFormMod
   return (
     <Modal
       title="고객 등록"
-      description="등록하면 목록 맨 위에 추가됩니다. 다음 일정은 캘린더에서 잡습니다."
       onClose={onClose}
       onSubmit={submit}
       footer={
@@ -91,22 +88,22 @@ export default function CustomerFormModal({ onClose, onSubmit }: CustomerFormMod
       }
     >
       <div className={styles.grid}>
-        <Field label="이름" required error={errors.name}>
-          <input value={draft.name} onChange={(e) => set('name', e.target.value)} />
-        </Field>
-
         <Field label="회사" required error={errors.org}>
           <input
             value={draft.org}
-            placeholder="한빛대학교병원"
+            placeholder="회사 이름"
             onChange={(e) => set('org', e.target.value)}
           />
+        </Field>
+
+        <Field label="이름" required error={errors.name}>
+          <input value={draft.name} onChange={(e) => set('name', e.target.value)} />
         </Field>
 
         <Field label="부서">
           <input
             value={draft.dept}
-            placeholder="순환기내과"
+            placeholder="부서 이름"
             onChange={(e) => set('dept', e.target.value)}
           />
         </Field>
@@ -119,7 +116,7 @@ export default function CustomerFormModal({ onClose, onSubmit }: CustomerFormMod
           />
         </Field>
 
-        <Field label="이메일" required error={errors.email} wide>
+        <Field label="이메일" required error={errors.email}>
           <input
             type="email"
             value={draft.email}
@@ -136,35 +133,11 @@ export default function CustomerFormModal({ onClose, onSubmit }: CustomerFormMod
           />
         </Field>
 
-        <Field label="담당 영업">
-          <select value={draft.owner} onChange={(e) => set('owner', e.target.value)}>
-            {CUSTOMER_OWNERS.map((o) => (
-              <option key={o}>{o}</option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="상태">
-          <select value={draft.status} onChange={(e) => set('status', e.target.value)}>
-            {CUSTOMER_STATUSES.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="유입 소스">
-          <select value={draft.source} onChange={(e) => set('source', e.target.value)}>
-            {CUSTOMER_SOURCES.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </Field>
-
         <Field label="메모" wide>
           <textarea
             rows={3}
             value={draft.memo}
-            placeholder="다음에 확인할 것"
+            placeholder="참고사항"
             onChange={(e) => set('memo', e.target.value)}
           />
         </Field>
