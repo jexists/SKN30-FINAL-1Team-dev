@@ -18,6 +18,8 @@ interface Props {
   meta?: ReactNode
   /** layout_v3 의 .is-wide. 2열로 나눠 담을 내용이 있을 때만 씁니다. */
   wide?: boolean
+  /** 닫기 버튼 왼쪽에 붙는 것. 상세의 '수정·삭제' 메뉴가 여기 옵니다. */
+  actions?: ReactNode
   /** 머리말과 본문 사이에 고정으로 붙는 줄. 목록 드로어의 필터 칩이 여기 옵니다. */
   filters?: ReactNode
   footer?: ReactNode
@@ -32,6 +34,7 @@ export default function Drawer({
   sub,
   meta,
   wide,
+  actions,
   filters,
   footer,
   resetKey,
@@ -90,9 +93,12 @@ export default function Drawer({
             {sub && <p className={styles.sub}>{sub}</p>}
             {meta && <div className={styles.meta}>{meta}</div>}
           </div>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="닫기">
-            <CloseIcon />
-          </button>
+          <div className={styles.tools}>
+            {actions}
+            <button type="button" className={styles.close} onClick={onClose} aria-label="닫기">
+              <CloseIcon />
+            </button>
+          </div>
         </header>
 
         {filters && <div className={styles.filters}>{filters}</div>}

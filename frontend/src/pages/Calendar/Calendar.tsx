@@ -1,15 +1,17 @@
 import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { agendaById } from '@/shared/agenda'
 import { aiSuggestions } from '@/shared/suggestions'
 import type { AiSuggestion, CalendarEvent } from '@/types'
 import usePointerDrag from '@/hooks/usePointerDrag'
+import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import { parseISO, startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 
 import EventModal from './components/EventModal'
 import MonthGrid from './components/MonthGrid'
 import SuggestionPanel from './components/SuggestionPanel'
 import { CELL_ATTR, type Dragging } from './dragging'
-import useCalendarEvents from './useCalendarEvents'
+import useCalendarEvents, { DEFAULTS } from './useCalendarEvents'
 
 import styles from './Calendar.module.scss'
 
@@ -20,7 +22,11 @@ export default function Calendar() {
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set())
+  /** 상세를 보고 있는 일정. 칩을 누르면 고치기 전에 먼저 이것부터 폅니다. */
+  const [viewingId, setViewingId] = useState<string | null>(null)
   const [editing, setEditing] = useState<CalendarEvent | null>(null)
+  /** 새 일정을 만드는 날짜. 등록 모달을 그 날짜로 엽니다. */
+  const [creating, setCreating] = useState<string | null>(null)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
 
   const suggestions = useMemo(() => aiSuggestions.filter((s) => !dismissed.has(s.id)), [dismissed])
@@ -99,12 +105,17 @@ export default function Calendar() {
     }
   }, [suggestions, previewId, dragging, dropISO])
 
-  const quickAdd = useCallback(
-    (dateISO: string, title: string) => {
-      setJustAddedId(addEvent({ date: dateISO, title }).id)
+  const create = useCallback(
+    (event: CalendarEvent) => {
+      // 빈 id 는 addEvent 가 새로 매깁니다.
+      setJustAddedId(addEvent(event).id)
+      setCreating(null)
     },
     [addEvent],
   )
+
+  // 목록이 바뀌면 이 컴포넌트가 다시 그려지므로 여기서 매번 집어 옵니다.
+  const viewed = viewingId ? agendaById(viewingId) : undefined
 
   const save = useCallback(
     (event: CalendarEvent) => {
@@ -138,8 +149,8 @@ export default function Calendar() {
           dropISO={dropISO}
           onCursorChange={setCursor}
           onSelect={setSelectedISO}
-          onOpenEvent={setEditing}
-          onQuickAdd={quickAdd}
+          onOpenEvent={(event) => setViewingId(event.id)}
+          onCreate={setCreating}
           onGrabEvent={grabEvent}
         />
 
@@ -160,6 +171,31 @@ export default function Calendar() {
         <div className={styles.dragChip} style={{ left: point.x, top: point.y }} aria-hidden="true">
           {dragging.label}
         </div>
+      )}
+
+      {viewed && (
+        <RecordDrawer
+          item={viewed}
+          done={viewed.done}
+          onClose={() => setViewingId(null)}
+          onEdit={(item) => {
+            setViewingId(null)
+            setEditing(item)
+          }}
+          onDelete={(id) => {
+            setViewingId(null)
+            removeEvent(id)
+          }}
+        />
+      )}
+
+      {creating && (
+        <EventModal
+          draft={{ ...DEFAULTS, id: '', date: creating, title: '' }}
+          mode="create"
+          onClose={() => setCreating(null)}
+          onSave={create}
+        />
       )}
 
       {editing && (

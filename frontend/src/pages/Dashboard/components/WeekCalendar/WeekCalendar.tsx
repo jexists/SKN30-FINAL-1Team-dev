@@ -1,8 +1,7 @@
 import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import WeekStrip from '@/components/WeekStrip'
-import { agendaFor } from '@/shared/agenda'
-import { orders } from '@/shared/orders'
+import { agendaFor, useAgenda } from '@/shared/agenda'
 import { addDays, iso, TODAY, weekRangeLabel } from '@/utils/date'
 
 import styles from './WeekCalendar.module.scss'
@@ -27,12 +26,16 @@ export default function WeekCalendar({
   onWeekChange,
   onToday,
 }: Props) {
+  // 일정이 늘거나 줄면 날짜 아래 점이 따라 움직여야 합니다.
+  useAgenda()
   const days = rangeDays(weekOffset)
 
   // 선택 칸은 배경이 파랗게 차므로 점 색을 뒤집습니다.
   const renderMarks = (dateISO: string, isSelected: boolean) => {
-    const meetings = agendaFor(dateISO).length
-    const deliveries = orders.filter((o) => o.expect === dateISO).length
+    // 점은 아래 하루 목록과 같은 것을 셉니다. 사내 일정이 업무, 나머지가 미팅입니다.
+    const day = agendaFor(dateISO)
+    const meetings = day.filter((it) => it.kind !== 'internal').length
+    const deliveries = day.length - meetings
     const meetingCls = `${styles.dotMeeting} ${isSelected ? styles.isOnBlue : ''}`
     const deliveryCls = `${styles.dotDelivery} ${isSelected ? styles.isOnBlue : ''}`
 

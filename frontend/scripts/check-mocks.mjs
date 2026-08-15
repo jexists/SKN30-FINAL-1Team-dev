@@ -30,7 +30,7 @@ async function load(profileId) {
   const out = {
     프로필: mocks.profile.id,
     이름: mocks.profile.name,
-    일정: Object.values(agenda.agendaByDate).flat().length,
+    일정: agenda.agendaSnapshot().length,
     고객: customers.customers.length,
     계약: contracts.contracts.length,
     발주: orders.orders.length,
@@ -58,7 +58,7 @@ console.table(rows)
 const [mgr, mem, emptyMgr, emptyMem] = rows
 
 // 샘플 팀장은 전체를 본다
-assert(mgr.일정 === 11 && mgr.고객 === 32 && mgr.계약 === 111, '샘플 팀장이 전체 시드를 못 받음')
+assert(mgr.일정 === 12 && mgr.고객 === 32 && mgr.계약 === 111, '샘플 팀장이 전체 시드를 못 받음')
 
 // 샘플 팀원은 자기 것만 — 스코프가 닿지 않는 시드가 실제로 줄어야 한다
 assert(mem.일정 < mgr.일정 && mem.일정 > 0, `팀원 일정이 안 걸러짐: ${mem.일정}`)

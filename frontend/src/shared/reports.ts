@@ -25,7 +25,7 @@ export function draftActivitiesFor(dateISO: string): ReportActivity[] {
     id: `cal-${item.id}`,
     source: '캘린더',
     title: `${item.time} ${item.hospital} ${item.title}`,
-    desc: `${item.contact} · ${item.stage}`,
+    desc: [item.contact, item.stage].filter(Boolean).join(' · '),
     // 이미 끝난 일정만 기본으로 켭니다. 안 한 일이 보고서에 실리면 안 됩니다.
     included: item.done,
   }))

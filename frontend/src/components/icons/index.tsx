@@ -69,6 +69,15 @@ export function CalendarIcon(props: IconProps) {
   )
 }
 
+export function ClockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </Icon>
+  )
+}
+
 export function DailyReportIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -259,6 +268,23 @@ export function PlusIcon(props: IconProps) {
   return (
     <Icon strokeWidth={2.2} {...props}>
       <path d="M12 5v14M5 12h14" />
+    </Icon>
+  )
+}
+
+export function EditIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20h4l10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5V20z" />
+      <path d="M13.5 7.5 16.5 10.5" />
+    </Icon>
+  )
+}
+
+export function MoreIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2.4} {...props}>
+      <path d="M12 5.6h.01M12 12h.01M12 18.4h.01" />
     </Icon>
   )
 }

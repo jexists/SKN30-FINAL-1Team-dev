@@ -22,6 +22,16 @@
   }
 }
 
+// 메뉴처럼 항목만 몇 개 든 팝오버. 넓은 판이 뜨면 고른 것보다 판이 먼저 보입니다.
+.compact {
+  min-width: 0;
+  padding: 4px;
+
+  @include sm {
+    width: auto;
+  }
+}
+
 .alignEnd {
   left: auto;
   right: 0;

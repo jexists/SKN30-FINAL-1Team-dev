@@ -9,6 +9,12 @@
   color: var(--blue);
 }
 
+// 목록의 업무 태그와 같은 색입니다.
+.taskTag {
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+}
+
 .needsReport {
   background: var(--orange-tint);
   color: var(--orange-ink);
@@ -22,6 +28,11 @@
 // 일시는 일정 제목 뒤에 이어 붙입니다. 제목보다 약하게 둡니다.
 .when {
   margin-left: 5px;
+
+  // 업무는 앞에 붙을 제목이 없어 이 줄이 곧 시작입니다.
+  &:first-child {
+    margin-left: 0;
+  }
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
@@ -40,10 +51,99 @@
 
 .block {
   h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--s2);
     margin-bottom: var(--s3);
     font-size: 13px;
     font-weight: 700;
   }
+}
+
+// 계약번호·납기처럼 제목을 거드는 값. 제목보다 약하게 둡니다.
+.sub {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+// 진행 중인 건수 합계. StageTabs 의 숫자와 같은 모양입니다.
+.total {
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+// 고른 단계에 걸린 건들. 테두리 대신 옅은 면으로 깔아 막대에 딸린 것으로 읽히게 합니다.
+.picks {
+  margin-top: var(--s3);
+  padding: var(--s2);
+  border-radius: var(--r-md);
+  background: var(--fill-2);
+  list-style: none;
+}
+
+// 어느 칸을 눌러서 나온 목록인지. 이 줄이 없으면 아래 건들이 어디 소속인지 알 수 없습니다.
+.picksHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s2) var(--s3);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+
+  b {
+    color: var(--blue);
+    font-weight: 700;
+  }
+
+  // 막대의 파란 점을 그대로 옮겨 와 눌린 칸과 이어 붙입니다.
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--blue);
+  }
+}
+
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  transition: background var(--t-fast) var(--ease-out);
+
+  &:hover {
+    background: var(--surface);
+  }
+
+  b {
+    font-weight: 700;
+  }
+}
+
+// 금액·납기는 줄 오른쪽 끝에 세워 여러 줄을 눈으로 견주게 합니다.
+.amount {
+  margin-left: auto;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+// 접힌 히스토리의 나머지 건수. 셀 것이 더 있다는 것만 알립니다.
+.more {
+  margin-top: var(--s3);
+  padding-left: var(--s4);
+  color: var(--muted);
+  font-size: 12px;
 }
 
 // 두 열을 가로지르는 블록입니다.
@@ -101,53 +201,6 @@
   }
 }
 
-// 완료 확인. 푸터는 오른쪽 정렬이라 auto 여백으로 혼자 왼쪽에 섭니다.
-// 보고서 CTA 와 무게를 다투지 않게 테두리만 두르고, 누르면 초록으로 앉습니다.
-.doneBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-right: auto;
-  padding: 10px 15px;
-  border: 1px solid var(--line-2);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--sh-1);
-  color: var(--ink-2);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background var(--t-fast) var(--ease-out),
-    border-color var(--t-fast) var(--ease-out),
-    box-shadow var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out);
-
-  // 누르면 어떤 색이 되는지 hover 에서 미리 보여 줍니다.
-  &:hover {
-    border-color: var(--green);
-    color: var(--green-ink);
-  }
-
-  &:active {
-    transform: translateY(1px);
-    box-shadow: none;
-  }
-
-  // 끝난 뒤에는 더 누를 것이 없다는 뜻으로 그림자를 걷고 눕힙니다.
-  &[aria-pressed='true'] {
-    border-color: transparent;
-    background: var(--green-tint);
-    box-shadow: none;
-    color: var(--green-ink);
-
-    // 되돌릴 수 있다는 것만 알리고 색은 그대로 둡니다.
-    &:hover {
-      border-color: var(--green);
-    }
-  }
-}
-
 // Button 의 primary 와 같은 모양입니다. 링크라 태그만 다릅니다.
 .cta {
   display: inline-flex;
@@ -164,5 +217,70 @@
 
   &:hover {
     background: var(--blue-press);
+  }
+}
+
+// 닫기 버튼 옆의 '...'. 같은 줄에 서므로 Drawer 의 .close 와 크기를 맞춥니다.
+.menuBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    svg {
+      flex: none;
+      color: var(--muted);
+    }
+
+    &:hover {
+      background: var(--fill-2);
+    }
+  }
+
+  // 지우는 것은 되돌릴 수 없어 색으로 한 번 더 세웁니다. 평소에는 글자만,
+  // 올렸을 때 붉은 바탕이 깔립니다.
+  .danger {
+    color: var(--red-ink);
+
+    svg {
+      color: currentcolor;
+    }
+
+    &:hover {
+      background: var(--red-tint);
+    }
   }
 }

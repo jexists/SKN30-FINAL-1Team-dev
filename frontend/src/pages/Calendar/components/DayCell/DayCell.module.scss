@@ -113,6 +113,8 @@
   place-items: center;
   width: 20px;
   height: 20px;
+  // .num 과 같은 이유입니다. 버튼 기본 padding(1px 6px)이 남으면 아이콘이 한쪽으로 밀립니다.
+  padding: 0;
   border: 0;
   border-radius: var(--r-xs);
   background: var(--fill);
@@ -313,17 +315,6 @@
     color: var(--muted);
     font-size: 11px;
   }
-}
-
-.draft {
-  width: 100%;
-  padding: 2px 6px;
-  border: 1px solid var(--blue);
-  border-radius: var(--r-xs);
-  background: var(--surface);
-  font-size: 11px;
-  outline: none;
-  box-shadow: 0 0 0 3px var(--blue-ring);
 }
 
 // 좁은 화면에서는 칩이 제목을 담을 폭이 없어 종류 색 점만 남깁니다.

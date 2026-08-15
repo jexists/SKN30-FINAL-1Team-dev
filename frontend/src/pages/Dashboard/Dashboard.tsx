@@ -4,7 +4,7 @@ import { directives } from '@/shared/notices'
 import type { AgendaItem, CalendarEvent, Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import EventModal from '@/pages/Calendar/components/EventModal'
-import { DEFAULTS } from '@/pages/Calendar/useCalendarEvents'
+import useCalendarEvents, { DEFAULTS } from '@/pages/Calendar/useCalendarEvents'
 import { addDays, iso, TODAY, TODAY_ISO } from '@/utils/date'
 
 import DayAgenda from './components/DayAgenda'
@@ -32,6 +32,8 @@ type OpenDrawer =
   | { type: 'notice'; label: string; notice: Notice }
 
 export default function Dashboard() {
+  // 캘린더와 같은 일정 목록입니다. 여기서 등록한 것이 그쪽에도 그대로 있습니다.
+  const { addEvent } = useCalendarEvents()
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
   const [weekOffset, setWeekOffset] = useState(0)
   const [doneIds, setDoneIds] = useState<ReadonlySet<string>>(new Set())
@@ -106,6 +108,7 @@ export default function Dashboard() {
         ref={agendaRef}
         dateISO={selectedISO}
         doneIds={doneIds}
+        onToggleDone={toggleDone}
         onOpen={(item) => setOpen({ type: 'record', item })}
         onAddSchedule={() => setOpen({ type: 'addEvent' })}
         flash={flash}
@@ -114,20 +117,30 @@ export default function Dashboard() {
       {open?.type === 'addEvent' && (
         <EventModal
           mode="create"
-          draft={{ ...DEFAULTS, id: '', date: selectedISO, title: '' } satisfies CalendarEvent}
+          // 영업 화면이라 새 일정은 미팅으로 열어 둡니다. DEFAULTS 의 'internal' 은
+          // 캘린더 인라인 추가(제목만 받는 자리)의 기본값이라 여기서는 뒤집습니다.
+          draft={
+            {
+              ...DEFAULTS,
+              kind: 'visit',
+              id: '',
+              date: selectedISO,
+              title: '',
+            } satisfies CalendarEvent
+          }
           onClose={closeDrawer}
-          // 목업 단계라 저장하지 않습니다. 백엔드가 붙는 지점은 useCalendarEvents 입니다.
-          onSave={closeDrawer}
+          onSave={(event) => {
+            // id 는 스토어가 붙입니다. 모달이 들고 있던 빈 id 는 넘기지 않습니다.
+            const { id: _id, ...draft } = event
+            addEvent(draft)
+            setSelectedISO(draft.date)
+            closeDrawer()
+          }}
         />
       )}
 
       {open?.type === 'record' && (
-        <RecordDrawer
-          item={open.item}
-          done={doneIds.has(open.item.id)}
-          onToggleDone={toggleDone}
-          onClose={closeDrawer}
-        />
+        <RecordDrawer item={open.item} done={doneIds.has(open.item.id)} onClose={closeDrawer} />
       )}
 
       {open?.type === 'kpi' && <ListDrawer list={kpiList(open.key)} onClose={closeDrawer} />}

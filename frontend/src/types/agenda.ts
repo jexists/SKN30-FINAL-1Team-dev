@@ -37,7 +37,8 @@ export interface AgendaSeed {
   dept: string
   contact: string
   product: string
-  stage: ScheduleStatus
+  /** 사내 업무처럼 영업 단계에 걸리지 않는 일정은 비어 있습니다. */
+  stage?: ScheduleStatus
   place: string
   title: string
   brief: string

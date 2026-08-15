@@ -246,4 +246,25 @@ export const agendaSeed: AgendaSeed[] = [
     done: false,
     reported: false,
   },
+  {
+    id: 'a12',
+    off: 0,
+    time: '17:00',
+    dur: '40분',
+    kind: 'internal',
+    // 화면에서 등록한 업무와 같은 모양입니다. 고객 쪽 칸은 등록할 자리가 없어 비어 있습니다.
+    hospital: '',
+    owner: '김지훈',
+    dept: '',
+    contact: '',
+    product: '',
+    place: '본사 회의실 B',
+    title: '담당 고객 진척 공유',
+    brief:
+      '한빛대학교병원 견적 회신 일정과 서림메디컬센터 데모 결과를 팀장에게 공유합니다. 다음 주 방문 계획을 확정합니다.',
+    history: [],
+    tags: [],
+    done: false,
+    reported: true,
+  },
 ]

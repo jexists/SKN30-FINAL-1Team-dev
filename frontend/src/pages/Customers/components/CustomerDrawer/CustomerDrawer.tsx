@@ -295,7 +295,7 @@ export default function CustomerDrawer({ customer, all, onOpen, onClose }: Props
                     note={`${it.time} · ${it.dur} · ${it.place}`}
                     tags={[
                       { text: KIND_LABEL[it.kind], kind: it.kind },
-                      { text: it.stage },
+                      ...(it.stage ? [{ text: it.stage }] : []),
                       { text: it.product },
                     ]}
                   />

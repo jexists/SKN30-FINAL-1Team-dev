@@ -79,6 +79,13 @@
   margin-top: var(--s2);
 }
 
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
 .close {
   display: grid;
   place-items: center;

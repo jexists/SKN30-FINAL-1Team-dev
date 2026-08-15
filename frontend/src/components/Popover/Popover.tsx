@@ -9,6 +9,8 @@ interface PopoverProps {
   trigger: ReactNode
   /** 트리거의 왼쪽 끝에 맞출지 오른쪽 끝에 맞출지 */
   align?: 'start' | 'end'
+  /** 항목 몇 개짜리 메뉴. 기본 폭(240px)과 안쪽 여백을 줄입니다. */
+  compact?: boolean
   label: string
   children: ReactNode
 }
@@ -18,6 +20,7 @@ export default function Popover({
   onClose,
   trigger,
   align = 'start',
+  compact,
   label,
   children,
 }: PopoverProps) {
@@ -51,7 +54,7 @@ export default function Popover({
 
       {open && (
         <div
-          className={`${styles.panel} ${align === 'end' ? styles.alignEnd : ''}`}
+          className={`${styles.panel} ${align === 'end' ? styles.alignEnd : ''} ${compact ? styles.compact : ''}`}
           role="dialog"
           aria-label={label}
         >

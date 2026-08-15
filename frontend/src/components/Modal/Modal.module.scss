@@ -45,10 +45,10 @@
 
 .head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s4);
-  padding: var(--s5) var(--s5) var(--s4);
+  padding: var(--s4) var(--s5);
   border-bottom: 1px solid var(--line);
 
   h2 {

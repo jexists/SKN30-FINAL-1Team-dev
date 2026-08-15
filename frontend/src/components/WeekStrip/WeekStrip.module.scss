@@ -103,13 +103,14 @@
   }
 }
 
-// 선택한 날을 바로 아래 내용으로 이어 주는 노치
+// 선택한 날을 바로 아래 내용으로 이어 주는 꼬리입니다. 칸에서 떨어뜨리면
+// 삼각형만 따로 떠 보여, 붙여서 말풍선 한 덩어리로 읽히게 합니다.
 .hasNotch .isSelected::after {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: -19px;
+  bottom: -11px;
   transform: translateX(-50%);
-  border: 7px solid transparent;
+  border: 6px solid transparent;
   border-top-color: var(--blue);
 }

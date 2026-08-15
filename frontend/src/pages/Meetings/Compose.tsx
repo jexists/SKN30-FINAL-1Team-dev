@@ -156,7 +156,7 @@ export default function Compose() {
           <article className={styles.panel}>
             <div className={styles.panelHead}>
               <h2>미팅 정보</h2>
-              <span className={styles.pill}>{item.stage}</span>
+              {item.stage && <span className={styles.pill}>{item.stage}</span>}
             </div>
             <p className={styles.panelNote}>캘린더 일정에서 가져왔습니다.</p>
 

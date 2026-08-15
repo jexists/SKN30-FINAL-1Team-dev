@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 
 import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
@@ -39,7 +39,7 @@ interface Props {
   onCursorChange: (next: Date) => void
   onSelect: (dateISO: string) => void
   onOpenEvent: (event: CalendarEvent) => void
-  onQuickAdd: (dateISO: string, title: string) => void
+  onCreate: (dateISO: string) => void
   onGrabEvent: (pointer: ReactPointerEvent, event: CalendarEvent) => void
 }
 
@@ -60,12 +60,9 @@ export default function MonthGrid({
   onCursorChange,
   onSelect,
   onOpenEvent,
-  onQuickAdd,
+  onCreate,
   onGrabEvent,
 }: Props) {
-  // 인라인 입력이 열려 있는 날짜. 한 번에 한 칸만 엽니다.
-  const [composingISO, setComposingISO] = useState<string | null>(null)
-
   const days = monthMatrix(cursor)
   const month = cursor.getMonth()
   const keys = days.map(iso)
@@ -105,13 +102,11 @@ export default function MonthGrid({
   const changeMonth = (delta: number) => {
     const next = addMonths(cursor, delta)
     onCursorChange(next)
-    setComposingISO(null)
     focusCell(iso(next))
   }
 
   const goToday = () => {
     onCursorChange(startOfMonth(TODAY))
-    setComposingISO(null)
     goto(TODAY_ISO)
   }
 
@@ -183,13 +178,11 @@ export default function MonthGrid({
                   deliveries={deliveriesByDate.get(key) ?? 0}
                   ghost={ghost?.date === key ? ghost : null}
                   justAddedId={justAddedId}
-                  composing={composingISO === key}
                   dragging={dragging}
                   isDropTarget={dropISO === key}
                   onSelect={onSelect}
-                  onCompose={setComposingISO}
                   onOpenEvent={onOpenEvent}
-                  onQuickAdd={onQuickAdd}
+                  onCreate={onCreate}
                   onGrabEvent={onGrabEvent}
                 />
               )

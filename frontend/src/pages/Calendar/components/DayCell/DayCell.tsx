@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { PlusIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
@@ -31,15 +31,14 @@ interface Props {
   deliveries: number
   ghost: Ghost | null
   justAddedId: string | null
-  composing: boolean
   /** 지금 끌고 있는 것. 일정이면 원본 칩을 흐리게 두어 어디서 떠났는지 보이게 합니다. */
   dragging: Dragging | null
   /** 놓으면 여기로 들어간다는 표시 */
   isDropTarget: boolean
   onSelect: (dateISO: string) => void
-  onCompose: (dateISO: string | null) => void
   onOpenEvent: (event: CalendarEvent) => void
-  onQuickAdd: (dateISO: string, title: string) => void
+  /** 그 날짜로 일정 등록 모달을 엽니다. */
+  onCreate: (dateISO: string) => void
   onGrabEvent: (pointer: ReactPointerEvent, event: CalendarEvent) => void
 }
 
@@ -66,13 +65,11 @@ export default function DayCell({
   deliveries,
   ghost,
   justAddedId,
-  composing,
   dragging,
   isDropTarget,
   onSelect,
-  onCompose,
   onOpenEvent,
-  onQuickAdd,
+  onCreate,
   onGrabEvent,
 }: Props) {
   const [listOpen, setListOpen] = useState(false)
@@ -100,20 +97,9 @@ export default function DayCell({
     .filter(Boolean)
     .join(' ')
 
-  const submitDraft = (input: HTMLInputElement) => {
-    const title = input.value.trim()
-    // Enter 로 확정하면 입력이 사라지면서 blur 가 한 번 더 들어옵니다.
-    // 값을 먼저 비워 같은 일정이 두 번 만들어지지 않게 합니다.
-    input.value = ''
-    if (title !== '') onQuickAdd(dateISO, title)
-    onCompose(null)
-  }
-
-  const onDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    // 그리드의 화살표 이동이 입력 중 커서를 가로채지 않게 막습니다.
-    event.stopPropagation()
-    if (event.key === 'Enter') submitDraft(event.currentTarget)
-    else if (event.key === 'Escape') onCompose(null)
+  const openCreate = () => {
+    onSelect(dateISO)
+    onCreate(dateISO)
   }
 
   const renderChip = (event: CalendarEvent) => (
@@ -160,7 +146,7 @@ export default function DayCell({
       // 놓을 자리를 찾을 때 이 표식을 봅니다. usePointerDrag 참고.
       {...{ [CELL_ATTR]: dateISO }}
       onClick={() => onSelect(dateISO)}
-      onDoubleClick={() => onCompose(dateISO)}
+      onDoubleClick={openCreate}
     >
       <div className={styles.top}>
         <button
@@ -183,8 +169,7 @@ export default function DayCell({
             aria-label={`${label} 일정 추가`}
             onClick={(e) => {
               e.stopPropagation()
-              onSelect(dateISO)
-              onCompose(dateISO)
+              openCreate()
             }}
           >
             <PlusIcon width={13} height={13} />
@@ -247,18 +232,6 @@ export default function DayCell({
               ))}
             </div>
           </Popover>
-        )}
-
-        {composing && (
-          <input
-            className={styles.draft}
-            autoFocus
-            placeholder="일정 제목"
-            aria-label={`${label} 새 일정 제목`}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={onDraftKeyDown}
-            onBlur={(e) => submitDraft(e.currentTarget)}
-          />
         )}
       </div>
     </div>
