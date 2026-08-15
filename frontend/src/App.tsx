@@ -6,6 +6,7 @@ import SessionProvider from '@/auth/SessionProvider'
 import AppShell from '@/components/layout/AppShell'
 import { ROUTES } from '@/constants/routes'
 import Calendar from '@/pages/Calendar'
+import Complaints from '@/pages/Complaints'
 import Contracts, { ContractBoard, ContractDetail, ContractNew } from '@/pages/Contracts'
 import Customers from '@/pages/Customers'
 import Daily, { DailyCompose, DailyDetail } from '@/pages/Daily'
@@ -30,6 +31,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
               <Route path={ROUTES.CUSTOMERS} element={<Customers />} />
+              <Route path={ROUTES.COMPLAINTS} element={<Complaints />} />
 
               {/* 팀장만 들어갈 수 있는 화면. 팀원이 주소를 직접 치면 대시보드로 돌아갑니다. */}
               <Route element={<ManagerRoute />}>

@@ -1,6 +1,6 @@
 import { ArrowDownIcon } from '@/components/icons'
 import { agendaFor, useAgenda } from '@/shared/agenda'
-import { csRequests, followUps, renewals, salesGoal } from '@/shared/counters'
+import { csSnapshot, followUps, renewals, salesGoal, useCsRequests } from '@/shared/counters'
 import { TODAY_ISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
@@ -18,6 +18,7 @@ function deriveCounters() {
   const todayList = agendaFor(TODAY_ISO)
   const external = todayList.filter((it) => it.kind !== 'internal')
   const orgs = new Set(external.map((it) => it.hospital))
+  const cs = csSnapshot()
 
   return {
     visits: {
@@ -30,9 +31,9 @@ function deriveCounters() {
       sub: `이번 주 마감 ${followUps.filter((f) => f.dueOff >= 0 && f.dueOff <= 7).length}건`,
     },
     cs: {
-      count: csRequests.length,
-      urgent: csRequests.filter((c) => c.urgent).length,
-      sub: `처리중 ${csRequests.filter((c) => c.state === '처리중').length}건`,
+      count: cs.length,
+      urgent: cs.filter((c) => c.urgent).length,
+      sub: `처리중 ${cs.filter((c) => c.state === '처리중').length}건`,
     },
     renewal: {
       count: renewals.length,
@@ -79,6 +80,8 @@ interface Props {
 export default function SummaryBand({ onJumpToToday, onOpenList }: Props) {
   // 일정이 늘거나 줄면 '오늘 방문 회사' 타일이 따라 움직여야 합니다.
   useAgenda()
+  // 고객불만관리에서 등록하거나 상태를 바꾸면 C/S 타일이 따라 움직입니다.
+  useCsRequests()
   const c = deriveCounters()
   const percent = (salesGoal.achieved / salesGoal.target) * 100
   const over = salesGoal.achieved >= salesGoal.target

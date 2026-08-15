@@ -13,7 +13,7 @@
 // 바깥은 아래 함수 이름만 알고 있어 그때 고칠 곳은 여기뿐입니다.
 import { agendaSnapshot } from '@/shared/agenda'
 import { contracts } from '@/shared/contracts'
-import { csRequests, followUps, renewals } from '@/shared/counters'
+import { csSnapshot, followUps, renewals } from '@/shared/counters'
 import { activeOrders } from '@/shared/orders'
 import type {
   AgendaItem,
@@ -60,9 +60,11 @@ export function followUpsOf(c: Customer): FollowUp[] {
   return followUps.filter((f) => matchesWho(f, c)).sort((a, b) => a.dueOff - b.dueOff)
 }
 
-/** 접수가 최근인 것부터 */
+/** 접수가 최근인 것부터. C/S 도 화면에서 등록되므로 부를 때 읽습니다. */
 export function csRequestsOf(c: Customer): CsRequest[] {
-  return csRequests.filter((r) => matchesWho(r, c)).sort((a, b) => b.agoOff - a.agoOff)
+  return csSnapshot()
+    .filter((r) => matchesWho(r, c))
+    .sort((a, b) => b.agoOff - a.agoOff)
 }
 
 /** 만료가 가까운 것부터 */

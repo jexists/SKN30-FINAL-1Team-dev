@@ -10,14 +10,19 @@ export interface FollowUp {
   dueOff: number
 }
 
+export type CsState = '처리중' | '처리완료'
+
 export interface CsRequest {
+  id: string
   /** 담당 영업 */
   owner: string
   issue: string
   org: string
+  /** 접수한 사람. 화면에서 등록한 건은 비어 있습니다. */
   who: string
+  /** 문제가 난 제품. 화면에서 등록한 건은 비어 있습니다. */
   product: string
-  state: '미응답' | '처리중'
+  state: CsState
   urgent: boolean
   agoOff: number
   ago: string

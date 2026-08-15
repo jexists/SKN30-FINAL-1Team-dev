@@ -3,7 +3,7 @@
 //
 // 타일의 숫자는 SummaryBand·PurchaseOrders 가 같은 원본에서 세고, 여기서는
 // 그 원본을 줄로 펼치기만 합니다. 목록을 따로 만들면 숫자와 어긋납니다.
-import { csRequests, followUps, renewals } from '@/shared/counters'
+import { csSnapshot, followUps, renewals } from '@/shared/counters'
 import { activeOrders, orderItemLabel, orderTotal } from '@/shared/orders'
 import { addDays, ddayLabel, fmtDay, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
@@ -63,31 +63,32 @@ function followUpList(): DrawerList {
 }
 
 function csList(): DrawerList {
-  const waiting = csRequests.filter((c) => c.state === '미응답').length
-  const working = csRequests.filter((c) => c.state === '처리중').length
+  // 고객불만관리 화면과 같은 목록입니다. 그쪽에서 등록하거나 상태를 바꾼 것이 여기 그대로 보입니다.
+  const rows = csSnapshot()
+  const working = rows.filter((c) => c.state === '처리중').length
+  const done = rows.length - working
 
   return {
     title: 'C/S 대응요청',
-    sub: `미응답 ${waiting}건 · 처리중 ${working}건`,
-    // 접수가 최근인 건이 위로 옵니다.
-    rows: [...csRequests]
-      .sort((a, b) => b.agoOff - a.agoOff)
-      .map((c, i) => ({
-        key: `cs-${i}`,
-        title: c.issue,
-        titleNote: `${c.org} · ${c.who}`,
-        note: c.note,
-        tags: [
-          ...(c.urgent ? [{ text: '긴급', tone: 'risk' as const }] : []),
-          { text: c.state, tone: c.state === '처리중' ? ('good' as const) : undefined },
-          { text: c.product },
-        ],
-        side: {
-          strong: c.state,
-          late: c.state === '미응답',
-          lines: [{ text: c.ago }],
-        },
-      })),
+    sub: `처리중 ${working}건 · 처리완료 ${done}건`,
+    // 스토어가 이미 접수 최신순으로 들고 있습니다.
+    rows: rows.map((c) => ({
+      key: c.id,
+      title: c.issue,
+      // 화면에서 등록한 건에는 접수자·제품이 없습니다. 빈 칸을 가운뎃점으로 잇지 않습니다.
+      titleNote: [c.org, c.who].filter(Boolean).join(' · '),
+      note: c.note,
+      tags: [
+        ...(c.urgent ? [{ text: '긴급', tone: 'risk' as const }] : []),
+        { text: c.state, tone: c.state === '처리완료' ? ('good' as const) : undefined },
+        ...(c.product ? [{ text: c.product }] : []),
+      ],
+      side: {
+        strong: c.state,
+        late: c.state === '처리중',
+        lines: [{ text: c.ago }],
+      },
+    })),
   }
 }
 
