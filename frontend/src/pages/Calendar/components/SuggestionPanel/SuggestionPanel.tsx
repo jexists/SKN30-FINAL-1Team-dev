@@ -1,7 +1,7 @@
 import Button from '@/components/Button'
 import { CloseIcon } from '@/components/icons'
-import { KIND_LABEL } from '@/content/agenda'
-import type { AiSuggestion } from '@/content/types'
+import { KIND_LABEL } from '@/shared/agenda'
+import type { AiSuggestion } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import type { PointerEvent as ReactPointerEvent } from 'react'

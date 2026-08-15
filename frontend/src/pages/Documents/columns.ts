@@ -3,7 +3,7 @@
 //
 // 분류 열은 보이는 값과 정렬 기준이 다릅니다. 이름순으로 세우면 '계약서 → 기타'
 // 같은 탭 순서가 흐트러져 DOCUMENT_CATEGORIES 의 순서를 그대로 씁니다.
-import type { SalesDocument } from '@/content/types'
+import type { SalesDocument } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDotShort, parseISO } from '@/utils/date'
 

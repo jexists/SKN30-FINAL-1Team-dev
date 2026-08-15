@@ -6,7 +6,7 @@
 // 목록으로 돌아왔을 때 사라집니다. 계약의 useContractBoard 와 같은 방식입니다.
 import { useCallback, useSyncExternalStore } from 'react'
 
-import type { OrderLine, OrderStatus, PurchaseOrder } from '@/content/types'
+import type { OrderLine, OrderStatus, PurchaseOrder } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
 import { initialOrders, nextOrderNo } from './pipeline'

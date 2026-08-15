@@ -1,4 +1,4 @@
-import type { ReportFieldDef, ReportTemplate } from '@/content/types'
+import type { ReportFieldDef, ReportTemplate } from '@/types'
 
 import styles from './ReportFields.module.scss'
 

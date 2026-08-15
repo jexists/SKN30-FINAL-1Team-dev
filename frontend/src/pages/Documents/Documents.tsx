@@ -12,7 +12,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { SearchIcon, UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import Pagination from '@/components/Pagination'
-import type { DocumentCategory, SalesDocument } from '@/content/types'
+import type { DocumentCategory, SalesDocument } from '@/types'
 import { useOwnerScope } from '@/scope/scopeContext'
 import { addDays, iso, TODAY } from '@/utils/date'
 

@@ -4,10 +4,10 @@
 // 오른쪽 목표 패널이 어긋날 수 없습니다.
 import { useMemo } from 'react'
 
-import { confirmedTotal, contractsIn } from '@/content/contracts'
-import { REGIONS } from '@/content/regions'
-import { monthlyTargetByOrg, targetFor, targetForRegion, totalTarget } from '@/content/salesTargets'
-import type { Contract } from '@/content/types'
+import { confirmedTotal, contractsIn } from '@/shared/contracts'
+import { REGIONS } from '@/shared/regions'
+import { monthlyTargetByOrg, targetFor, targetForRegion, totalTarget } from '@/shared/salesTargets'
+import type { Contract } from '@/types'
 
 import { prevRange, resolveRange, type GroupBy, type PeriodType } from './periods'
 
@@ -41,7 +41,8 @@ export interface SalesSummary {
   delta: number
 }
 
-const pct = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0)
+/** 실적이 0인 기간에도 NaN 이 화면에 뜨지 않게 합니다. */
+export const pct = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0)
 
 /**
  * 목표가 있는 축은 실적이 0이어도 자리를 지킵니다. 팔지 못한 회사·지역이 표에서

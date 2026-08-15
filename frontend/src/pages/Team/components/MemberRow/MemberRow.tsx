@@ -1,6 +1,6 @@
 import Button from '@/components/Button'
-import type { Role } from '@/auth/sessionContext'
-import type { TeamMember } from '@/content/team'
+import type { Role } from '@/types'
+import type { TeamMember } from '@/types'
 import { wonFull } from '@/utils/format'
 
 import styles from './MemberRow.module.scss'

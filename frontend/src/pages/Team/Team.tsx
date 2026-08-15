@@ -8,7 +8,8 @@ import { useMemo, useState } from 'react'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
-import { TEAM, type TeamMember } from '@/content/team'
+import { TEAM } from '@/shared/team'
+import type { TeamMember } from '@/types'
 import { wonFull } from '@/utils/format'
 
 import MemberRow from './components/MemberRow'

@@ -7,7 +7,7 @@ import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import { ChevronLeftIcon } from '@/components/icons'
 import { ROUTES, contractPath } from '@/constants/routes'
-import { orderItemLabel, orders } from '@/content/orders'
+import { orderItemLabel, orders } from '@/shared/orders'
 import { fmtDot, fmtDotShort, parseISO } from '@/utils/date'
 import { won, wonFull } from '@/utils/format'
 

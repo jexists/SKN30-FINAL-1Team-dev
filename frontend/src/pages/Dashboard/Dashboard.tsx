@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 
-import { directives } from '@/content/notices'
-import type { AgendaItem, CalendarEvent, Notice } from '@/content/types'
+import { directives } from '@/shared/notices'
+import type { AgendaItem, CalendarEvent, Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import EventModal from '@/pages/Calendar/components/EventModal'
 import { DEFAULTS } from '@/pages/Calendar/useCalendarEvents'

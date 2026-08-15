@@ -6,7 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import { CheckIcon, ChevronDownIcon } from '@/components/icons'
-import { TEAM } from '@/content/team'
+import { TEAM } from '@/shared/team'
 import { SCOPE_ME, SCOPE_TEAM, useOwnerScope } from '@/scope/scopeContext'
 
 import styles from './ScopeSwitcher.module.scss'

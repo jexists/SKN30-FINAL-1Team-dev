@@ -1,54 +1,8 @@
-// 시연용 합성 데이터입니다. demo/layout_v3.html 에서 옮겼습니다.
+// 일정. 시연용 합성 데이터입니다. demo/layout_v3.html 에서 옮겼습니다.
 // 실제 병원·담당자·제품이 아닙니다.
-import { addDays, iso, TODAY } from '@/utils/date'
+import type { AgendaSeed } from '@/types'
 
-import type {
-  AgendaItem,
-  AgendaKind,
-  AgendaSeed,
-  ExternalStatus,
-  InternalStatus,
-  ScheduleStatus,
-} from './types'
-
-export const KIND_LABEL: Record<AgendaKind, string> = {
-  visit: '방문',
-  demo: '데모',
-  edu: '교육',
-  call: '전화',
-  delivery: '납품',
-  booth: '학회',
-  internal: '내부',
-}
-
-/** 고객 대상 활동 */
-export const EXTERNAL_STATUSES: readonly ExternalStatus[] = [
-  '첫 전화',
-  '미팅',
-  '데모 요청',
-  '데모 진행',
-  '데모 완료',
-  '견적완료',
-  '계약완료',
-  '제품교육',
-]
-
-/** 사내 활동 */
-export const INTERNAL_STATUSES: readonly InternalStatus[] = [
-  '내부회의',
-  '주간점검',
-  '월간점검',
-  '분기점검',
-  '컨퍼런스',
-  'OJT',
-]
-
-/** 상태가 어느 계열인지. 태그 색이 여기서 갈립니다. */
-export function statusScope(status: ScheduleStatus): '내부' | '외부' {
-  return (INTERNAL_STATUSES as readonly ScheduleStatus[]).includes(status) ? '내부' : '외부'
-}
-
-const agendaSeed: AgendaSeed[] = [
+export const agendaSeed: AgendaSeed[] = [
   {
     id: 'a1',
     off: 0,
@@ -56,6 +10,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '40분',
     kind: 'visit',
     hospital: '한빛대학교병원',
+    owner: '김지훈',
     dept: '순환기내과',
     contact: '박서준 교수',
     product: 'CardioView X7',
@@ -85,6 +40,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '30분',
     kind: 'call',
     hospital: '새봄정형외과',
+    owner: '이수민',
     dept: '원무팀',
     contact: '오정민 병원장',
     product: 'SonoFlex Pro',
@@ -108,6 +64,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '60분',
     kind: 'demo',
     hospital: '서림메디컬센터',
+    owner: '김지훈',
     dept: '영상의학과',
     contact: '윤가영 간호팀장',
     product: 'OrthoScan Mini',
@@ -131,6 +88,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '30분',
     kind: 'internal',
     hospital: '영업 1팀',
+    owner: '김서현',
     dept: '내부 회의',
     contact: '김서현 팀장',
     product: '—',
@@ -150,6 +108,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '종일',
     kind: 'booth',
     hospital: '대한심장학회 추계학술대회',
+    owner: '김지훈',
     dept: '전시 부스',
     contact: '부스 3-A',
     product: 'CardioView X7',
@@ -169,6 +128,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '50분',
     kind: 'visit',
     hospital: '정우병원',
+    owner: '박도윤',
     dept: '구매팀',
     contact: '최수아 책임',
     product: 'OrthoScan Mini',
@@ -189,6 +149,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '90분',
     kind: 'delivery',
     hospital: '새봄정형외과',
+    owner: '이수민',
     dept: '원무팀',
     contact: '오정민 병원장',
     product: 'SonoFlex Pro',
@@ -209,6 +170,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '60분',
     kind: 'edu',
     hospital: '서림메디컬센터',
+    owner: '김지훈',
     dept: '영상의학과',
     contact: '윤가영 간호팀장',
     product: 'OrthoScan Mini',
@@ -229,6 +191,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '45분',
     kind: 'visit',
     hospital: '한빛대학교병원',
+    owner: '김지훈',
     dept: '구매팀',
     contact: '이도현 과장',
     product: 'CardioView X7',
@@ -248,6 +211,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '40분',
     kind: 'visit',
     hospital: '한빛대학교병원',
+    owner: '김지훈',
     dept: '순환기내과',
     contact: '박서준 교수',
     product: 'CardioView X7',
@@ -268,6 +232,7 @@ const agendaSeed: AgendaSeed[] = [
     dur: '40분',
     kind: 'visit',
     hospital: '정우병원',
+    owner: '박도윤',
     dept: '구매팀',
     contact: '최수아 책임',
     product: 'OrthoScan Mini',
@@ -282,28 +247,3 @@ const agendaSeed: AgendaSeed[] = [
     reported: false,
   },
 ]
-
-/** 날짜 키 → 그날의 일정(시간순). offset 을 실제 날짜로 편 결과입니다. */
-export const agendaByDate: Record<string, AgendaItem[]> = {}
-
-for (const seed of agendaSeed) {
-  const date = iso(addDays(TODAY, seed.off))
-  ;(agendaByDate[date] ??= []).push({ ...seed, date })
-}
-
-for (const list of Object.values(agendaByDate)) {
-  list.sort((a, b) => a.time.localeCompare(b.time))
-}
-
-export function agendaFor(dateISO: string): AgendaItem[] {
-  return agendaByDate[dateISO] ?? []
-}
-
-/** 일정 하나를 id 로 찾습니다. 미팅보고서 작성 화면이 ?agenda= 로 받은 값을 폅니다. */
-export function agendaById(id: string): AgendaItem | undefined {
-  for (const list of Object.values(agendaByDate)) {
-    const found = list.find((item) => item.id === id)
-    if (found) return found
-  }
-  return undefined
-}

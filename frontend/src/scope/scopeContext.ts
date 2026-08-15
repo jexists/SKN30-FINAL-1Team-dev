@@ -6,7 +6,7 @@
 import { createContext, useContext, useMemo } from 'react'
 
 import { useCurrentUser } from '@/auth/sessionContext'
-import { findMemberById, TEAM } from '@/content/team'
+import { findMemberById, TEAM } from '@/shared/team'
 
 /** 로그인한 본인. 이름이 아니라 자리로 두어야 다른 사람이 로그인해도 그대로 맞습니다. */
 export const SCOPE_ME = 'me'

@@ -2,8 +2,8 @@ import { forwardRef } from 'react'
 
 import Button from '@/components/Button'
 import { CalendarIcon } from '@/components/icons'
-import { agendaFor, statusScope } from '@/content/agenda'
-import type { AgendaItem } from '@/content/types'
+import { agendaFor, statusScope } from '@/shared/agenda'
+import type { AgendaItem } from '@/types'
 import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import { fmtDay, parseISO, TODAY } from '@/utils/date'
 

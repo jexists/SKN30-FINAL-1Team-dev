@@ -3,20 +3,7 @@
 // 담당자 이름은 화면마다 흩어진 owner 문자열(고객·계약·발주·자료실)과 같은 값이라야
 // 스코프가 맞습니다. 백엔드가 붙으면 REP 테이블이 이 자리를 대신하고, id 가 rep_id 가
 // 됩니다. 지금은 이름이 사실상의 키라 name 을 바꾸면 시드 데이터도 함께 바꿔야 합니다.
-import type { Role } from '@/auth/sessionContext'
-
-export interface TeamMember {
-  /** 백엔드 rep_id 자리 */
-  id: string
-  /** 시드 데이터의 owner 문자열과 같아야 합니다. */
-  name: string
-  title: string
-  role: Role
-  /** ERD 의 employment_status. 퇴사·휴직자는 스코프 선택지에서 빠집니다. */
-  active: boolean
-  /** 월 매출 목표(원). 합계는 counters.ts 의 팀 월 목표 3억과 같습니다. */
-  monthlyTarget: number
-}
+import type { TeamMember } from '@/types'
 
 export const TEAM: TeamMember[] = [
   {
@@ -60,11 +47,3 @@ export const TEAM: TeamMember[] = [
     monthlyTarget: 50_000_000,
   },
 ]
-
-export function findMemberById(id: string): TeamMember | undefined {
-  return TEAM.find((member) => member.id === id)
-}
-
-export function findMemberByName(name: string): TeamMember | undefined {
-  return TEAM.find((member) => member.name === name)
-}

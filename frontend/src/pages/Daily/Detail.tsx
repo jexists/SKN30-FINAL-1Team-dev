@@ -4,7 +4,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { ChevronLeftIcon } from '@/components/icons'
 import ReportFields from '@/components/ReportFields'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
-import { templateFor } from '@/content/reports'
+import { templateFor } from '@/shared/reports'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import ActivityList from './components/ActivityList'

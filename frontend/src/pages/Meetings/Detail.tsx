@@ -5,7 +5,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { ChevronLeftIcon } from '@/components/icons'
 import ReportFields from '@/components/ReportFields'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
-import { meetingTemplate } from '@/content/meetings'
+import { meetingTemplate } from '@/shared/meetings'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import MeetingFacts from './components/MeetingFacts'

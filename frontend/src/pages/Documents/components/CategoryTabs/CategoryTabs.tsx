@@ -2,7 +2,7 @@
 //
 // 옆의 건수는 검색·등록자·기간까지만 적용한 수입니다. 분류까지 적용하면 고른 탭만
 // 숫자가 남고 나머지가 0 이 되어 어디에 몇 건이 있는지 알 수 없습니다.
-import type { DocumentCategory } from '@/content/types'
+import type { DocumentCategory } from '@/types'
 
 import { type CategoryTone, DOCUMENT_CATEGORIES, TONE_OF } from '../../catalog'
 

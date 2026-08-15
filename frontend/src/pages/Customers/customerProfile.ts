@@ -11,10 +11,10 @@
 //
 // 백엔드를 붙이면 이 파일의 이름 맞추기를 customerId 비교로 갈아탑니다.
 // 바깥은 아래 함수 이름만 알고 있어 그때 고칠 곳은 여기뿐입니다.
-import { agendaByDate } from '@/content/agenda'
-import { contracts } from '@/content/contracts'
-import { csRequests, followUps, renewals } from '@/content/counters'
-import { activeOrders } from '@/content/orders'
+import { agendaByDate } from '@/shared/agenda'
+import { contracts } from '@/shared/contracts'
+import { csRequests, followUps, renewals } from '@/shared/counters'
+import { activeOrders } from '@/shared/orders'
 import type {
   AgendaItem,
   Contract,
@@ -23,7 +23,7 @@ import type {
   FollowUp,
   PurchaseOrder,
   Renewal,
-} from '@/content/types'
+} from '@/types'
 
 /** 일정은 날짜 키로 묶여 있습니다. 사람 기준으로 훑으려면 한 줄로 펴야 합니다. */
 const allAgenda: AgendaItem[] = Object.values(agendaByDate).flat()

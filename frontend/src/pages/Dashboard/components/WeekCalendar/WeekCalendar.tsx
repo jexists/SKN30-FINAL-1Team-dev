@@ -1,8 +1,8 @@
 import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import WeekStrip from '@/components/WeekStrip'
-import { agendaFor } from '@/content/agenda'
-import { orders } from '@/content/orders'
+import { agendaFor } from '@/shared/agenda'
+import { orders } from '@/shared/orders'
 import { addDays, iso, TODAY, weekRangeLabel } from '@/utils/date'
 
 import styles from './WeekCalendar.module.scss'

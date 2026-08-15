@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 
 import { TrashIcon, UploadIcon } from '@/components/icons'
-import type { AttachmentKind, ReportAttachment } from '@/content/types'
+import type { AttachmentKind, ReportAttachment } from '@/types'
 
 import styles from './AttachmentPanel.module.scss'
 

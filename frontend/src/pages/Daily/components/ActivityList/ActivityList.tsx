@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { CheckIcon, PlusIcon, TrashIcon } from '@/components/icons'
-import type { ReportActivity } from '@/content/types'
+import type { ReportActivity } from '@/types'
 
 import styles from './ActivityList.module.scss'
 

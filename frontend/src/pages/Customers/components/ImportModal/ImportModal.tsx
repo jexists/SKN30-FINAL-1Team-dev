@@ -8,8 +8,8 @@ import {
   CUSTOMER_SOURCES,
   CUSTOMER_STATUSES,
   toCustomer,
-} from '@/content/customers'
-import type { Customer, CustomerSeed } from '@/content/types'
+} from '@/shared/customers'
+import type { Customer, CustomerSeed } from '@/types'
 import { parseCsv } from '@/utils/csv'
 
 import styles from './ImportModal.module.scss'

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 
-import { agendaByDate } from '@/content/agenda'
-import type { CalendarEvent } from '@/content/types'
+import { agendaByDate } from '@/shared/agenda'
+import type { CalendarEvent } from '@/types'
 
 // 백엔드가 붙는 지점은 이 파일 하나입니다. 화면은 아래 반환값만 알면 되므로
 // seed 를 API 응답으로, 각 mutator 를 요청으로 바꾸면 나머지는 그대로 둘 수 있습니다.

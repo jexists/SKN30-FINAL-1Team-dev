@@ -1,6 +1,6 @@
 // 계약 입력값을 다루는 규칙입니다. 모달(ContractForm)과 추가 화면(New)이 같은 항목을
 // 받으므로 검사와 변환을 여기 한 곳에 둡니다. 어느 쪽으로 넣든 결과가 같아야 합니다.
-import type { ContractKind } from '@/content/types'
+import type { ContractKind } from '@/types'
 import { TODAY_ISO } from '@/utils/date'
 
 import { KINDS, OWNERS, type BoardContract } from './board'

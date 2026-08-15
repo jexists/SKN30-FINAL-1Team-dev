@@ -2,8 +2,8 @@ import { useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } 
 
 import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
-import { orders } from '@/content/orders'
-import type { CalendarEvent } from '@/content/types'
+import { orders } from '@/shared/orders'
+import type { CalendarEvent } from '@/types'
 import {
   addDays,
   addMonths,

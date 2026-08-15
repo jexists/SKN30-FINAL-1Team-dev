@@ -3,8 +3,8 @@
 // 목록은 카드 폭에 맞춰 한 줄로 자르므로, 끝까지 읽을 자리가 따로 필요합니다.
 // 상세는 전부 오른쪽 드로어로 연다는 대시보드의 약속을 그대로 따릅니다.
 import Drawer from '@/components/Drawer'
-import { postedFull } from '@/content/notices'
-import type { Notice } from '@/content/types'
+import { postedFull } from '@/shared/notices'
+import type { Notice } from '@/types'
 
 import styles from './NoticeDrawer.module.scss'
 

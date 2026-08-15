@@ -1,18 +1,12 @@
-// 실제 인증이 붙기 전까지 세션은 로그인 화면의 데모 역할 버튼으로만 만들어집니다.
+// 실제 인증이 붙기 전까지 세션은 로그인 화면의 데모 프로필 버튼으로만 만들어집니다.
 // 백엔드 인증이 들어오면 SessionProvider 의 login 이 API 를 호출하도록 바꾸면 됩니다.
 import { createContext, useContext } from 'react'
 
-export type Role = 'manager' | 'member'
+import type { Role } from '@/types'
 
 export interface Profile {
   name: string
   title: string
-}
-
-/** 역할별 표시용 프로필. 실제 사용자 정보가 붙기 전까지 쓰는 시연 값입니다. */
-export const PROFILES: Record<Role, Profile> = {
-  manager: { name: '김서현', title: '영업팀장' },
-  member: { name: '김지훈', title: '영업 담당자' },
 }
 
 export interface Session {
@@ -22,7 +16,8 @@ export interface Session {
 
 export interface SessionContextValue {
   session: Session | null
-  login: (role: Role) => void
+  /** mocks/profiles.ts 의 MockProfile.id */
+  login: (profileId: string) => void
   logout: () => void
 }
 

@@ -6,8 +6,9 @@
 // 여기서 확정한 미팅이 일일보고 활동 내역에 나타나지 않습니다.
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
-import { meetingReportHistory } from '@/content/meetings'
-import type { MeetingReport, ReportAttachment, ReportStatus } from '@/content/types'
+import { useCurrentUser } from '@/auth/sessionContext'
+import { meetingReportHistory } from '@/shared/meetings'
+import type { MeetingReport, ReportAttachment, ReportStatus } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
 let reports: MeetingReport[] = meetingReportHistory
@@ -45,11 +46,12 @@ export interface MeetingDraftPayload {
   evidence?: string
 }
 
-function toReport(draft: MeetingDraftPayload, status: ReportStatus): MeetingReport {
+function toReport(draft: MeetingDraftPayload, status: ReportStatus, owner: string): MeetingReport {
   return {
     ...draft,
     // 일정 하나에 기록 하나라 id 를 일정에서 그대로 끌어옵니다.
     id: `mt-${draft.agendaId}`,
+    owner,
     // 기록은 실제 날짜로 다루지만 타입은 시드와 공유하므로 off 도 채워 둡니다.
     off: Math.round((parseISO(draft.date).getTime() - TODAY.getTime()) / 86_400_000),
     status,
@@ -57,6 +59,7 @@ function toReport(draft: MeetingDraftPayload, status: ReportStatus): MeetingRepo
 }
 
 export default function useMeetingReports() {
+  const { profile } = useCurrentUser()
   const list = useSyncExternalStore(
     subscribe,
     () => reports,
@@ -82,15 +85,21 @@ export default function useMeetingReports() {
   }, [list])
 
   /** 확정. 이때부터 일일보고 활동 내역에 실립니다. */
-  const saveReport = useCallback((draft: MeetingDraftPayload) => {
-    const report = toReport(draft, '확정')
-    upsert(report)
-    return report
-  }, [])
+  const saveReport = useCallback(
+    (draft: MeetingDraftPayload) => {
+      const report = toReport(draft, '확정', profile.name)
+      upsert(report)
+      return report
+    },
+    [profile.name],
+  )
 
-  const saveDraft = useCallback((draft: MeetingDraftPayload) => {
-    upsert(toReport(draft, '작성중'))
-  }, [])
+  const saveDraft = useCallback(
+    (draft: MeetingDraftPayload) => {
+      upsert(toReport(draft, '작성중', profile.name))
+    },
+    [profile.name],
+  )
 
   return {
     reports: list,

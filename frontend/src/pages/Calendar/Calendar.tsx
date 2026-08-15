@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-import { aiSuggestions } from '@/content/suggestions'
-import type { AiSuggestion, CalendarEvent } from '@/content/types'
+import { aiSuggestions } from '@/shared/suggestions'
+import type { AiSuggestion, CalendarEvent } from '@/types'
 import usePointerDrag from '@/hooks/usePointerDrag'
 import { parseISO, startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 

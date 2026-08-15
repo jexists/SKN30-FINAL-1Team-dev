@@ -2,7 +2,7 @@
 // 셋을 따로 두면 컬럼을 하나 늘릴 때 세 군데를 고쳐야 하고 결국 어긋납니다.
 import { createElement, type ReactNode } from 'react'
 
-import type { Customer } from '@/content/types'
+import type { Customer } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
 import { DateCell, EmailCell, NameCell, NextCell, PlainNumber, StatusCell } from './cells'

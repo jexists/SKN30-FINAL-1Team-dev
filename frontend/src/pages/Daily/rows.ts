@@ -5,8 +5,8 @@
 // 매번 갈라지면 같은 코드를 두 벌 갖게 됩니다. 그래서 화면에 필요한 것만 여기서
 // 한 모양으로 만들고, 아래쪽 컴포넌트는 이 타입 하나만 압니다.
 import { dailyReportPath, meetingReportPath } from '@/constants/routes'
-import { templateFor } from '@/content/reports'
-import type { DailyReport, MeetingReport, ReportStatus } from '@/content/types'
+import { templateFor } from '@/shared/reports'
+import type { DailyReport, MeetingReport, ReportStatus } from '@/types'
 
 import { reportTitle } from './periods'
 

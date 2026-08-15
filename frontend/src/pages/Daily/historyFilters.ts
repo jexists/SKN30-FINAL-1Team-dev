@@ -3,7 +3,7 @@
 //
 // 조건은 주소에 둡니다. 걸러 둔 목록을 링크로 건네면 받는 쪽도 같은 화면을 봅니다.
 // 계약·발주·자료실 화면과 같은 방식이고, 여러 개를 고르는 값만 쉼표로 잇습니다.
-import type { ReportStatus } from '@/content/types'
+import type { ReportStatus } from '@/types'
 
 import { showsDaily, type Period } from './periods'
 

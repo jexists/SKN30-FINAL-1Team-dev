@@ -7,8 +7,8 @@ import {
   CUSTOMER_SOURCES,
   CUSTOMER_STATUSES,
   toCustomer,
-} from '@/content/customers'
-import type { Customer, CustomerSource, CustomerStatus } from '@/content/types'
+} from '@/shared/customers'
+import type { Customer, CustomerSource, CustomerStatus } from '@/types'
 
 import styles from './CustomerFormModal.module.scss'
 

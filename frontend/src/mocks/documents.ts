@@ -1,12 +1,7 @@
-// 시연용 합성 데이터입니다. 계약·발주·고객 시드에 실제로 있는 번호와 병원명을 씁니다.
-//
-// 등록일은 orders.ts 와 같이 오늘 기준 offset 으로 두고 toDocument() 에서 풉니다.
-// 시연 데이터가 시간이 지나도 '3년 전 자료'로 늙지 않게 하기 위해서입니다.
-import { addDays, iso, TODAY } from '@/utils/date'
+// 자료실 문서. 시연용 합성 데이터입니다.
+import type { SalesDocumentSeed } from '@/types'
 
-import type { SalesDocument, SalesDocumentSeed } from './types'
-
-const documentSeed: SalesDocumentSeed[] = [
+export const documentSeed: SalesDocumentSeed[] = [
   {
     id: 'FM-DOC-2026-0014',
     title: '한빛대학교병원 유지보수 계약서',
@@ -316,14 +311,3 @@ const documentSeed: SalesDocumentSeed[] = [
 ]
 
 /** offset 을 실제 날짜로 푼 문서. 시연 데이터가 늘 '최근'으로 보입니다. */
-function toDocument(seed: SalesDocumentSeed): SalesDocument {
-  return {
-    ...seed,
-    versions: seed.versions.map(({ uploadedOff, ...rest }) => ({
-      ...rest,
-      uploaded: iso(addDays(TODAY, uploadedOff)),
-    })),
-  }
-}
-
-export const documents: SalesDocument[] = documentSeed.map(toDocument)

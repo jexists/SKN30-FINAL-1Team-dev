@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import type { PurchaseOrder } from '@/content/types'
+import type { PurchaseOrder } from '@/types'
 
 import {
   initialState,

@@ -6,7 +6,7 @@ import Button from '@/components/Button'
 import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
-import { APPROVERS } from '@/content/reports'
+import { APPROVERS } from '@/shared/reports'
 import { dailyReportPath, ROUTES } from '@/constants/routes'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 

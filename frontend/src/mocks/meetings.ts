@@ -1,15 +1,8 @@
-// 시연용 합성 데이터입니다. demo/layout_v2.html 의 #meetingDialog 에서 옮겼습니다.
-// 실제 병원·담당자·제품이 아닙니다.
+// 미팅 보고 양식과 기록. 시연용 합성 데이터입니다.
 import { addDays, iso, TODAY } from '@/utils/date'
 
-import type { MeetingReport, MeetingReportSeed, ReportActivity, ReportTemplate } from './types'
+import type { MeetingReportSeed, ReportTemplate } from '@/types'
 
-/**
- * 미팅 기록 양식. 일일보고와 같은 ReportTemplate 을 써서 화면이 필드를 그대로 그립니다.
- *
- * 앞의 네 항목은 녹취·메모에서 AI 가 뽑아 냅니다. 특이사항만 사람이 직접 씁니다.
- * 들은 것과 판단한 것을 섞지 않기 위해서입니다.
- */
 export const meetingTemplate: ReportTemplate = {
   id: 'tpl-meeting-1',
   name: '미팅 기록 양식',
@@ -60,13 +53,14 @@ export const meetingTemplate: ReportTemplate = {
   ],
 }
 
-const meetingReportSeed: MeetingReportSeed[] = [
+export const meetingReportSeed: MeetingReportSeed[] = [
   {
     id: 'mt-a10',
     agendaId: 'a10',
     off: -6,
     time: '14:00',
     hospital: '한빛대학교병원',
+    owner: '김지훈',
     dept: '순환기내과',
     contact: '박서준 교수',
     product: 'CardioView X7',
@@ -91,6 +85,7 @@ const meetingReportSeed: MeetingReportSeed[] = [
     off: -2,
     time: '16:00',
     hospital: '정우병원',
+    owner: '박도윤',
     dept: '구매팀',
     contact: '최수아 책임',
     product: 'OrthoScan Mini',
@@ -112,22 +107,3 @@ const meetingReportSeed: MeetingReportSeed[] = [
 ]
 
 /** offset 을 실제 날짜로 편 미팅 기록. 최근 것이 앞에 옵니다. */
-export const meetingReportHistory: MeetingReport[] = meetingReportSeed
-  .map((seed) => ({ ...seed, date: iso(addDays(TODAY, seed.off)) }))
-  .sort((a, b) => b.date.localeCompare(a.date))
-
-/**
- * 확정된 미팅 기록을 일일보고의 활동 한 줄로 바꿉니다.
- * 작성 중인 기록은 아직 일어난 일로 볼 수 없어 빼고 넘깁니다.
- */
-export function meetingActivitiesFor(reports: MeetingReport[]): ReportActivity[] {
-  return reports
-    .filter((report) => report.status === '확정')
-    .map((report) => ({
-      id: `meet-${report.id}`,
-      source: '미팅보고서',
-      title: `${report.hospital} ${report.title}`,
-      desc: report.values.decision?.split('\n')[0] || '미팅 기록 확정',
-      included: true,
-    }))
-}

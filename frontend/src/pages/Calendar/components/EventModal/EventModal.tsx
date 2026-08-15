@@ -3,8 +3,8 @@ import { useState, type ReactNode } from 'react'
 import Button from '@/components/Button'
 import { TrashIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import { EXTERNAL_STATUSES, INTERNAL_STATUSES, KIND_LABEL } from '@/content/agenda'
-import type { AgendaKind, CalendarEvent } from '@/content/types'
+import { EXTERNAL_STATUSES, INTERNAL_STATUSES, KIND_LABEL } from '@/shared/agenda'
+import type { AgendaKind, CalendarEvent } from '@/types'
 
 import styles from './EventModal.module.scss'
 

@@ -3,8 +3,8 @@
 //
 // 다섯 조건은 서로 겹칩니다(한 발주가 진행중이면서 납기 지연일 수 있습니다).
 // 그래서 단계 표시가 아니라 나란한 타일입니다 — 연결선은 순서를 암시합니다.
-import { dday, isLate } from '@/content/orders'
-import type { PurchaseOrder } from '@/content/types'
+import { dday, isLate } from '@/shared/orders'
+import type { PurchaseOrder } from '@/types'
 import { addDays, fmtDay, TODAY } from '@/utils/date'
 
 export type OrderFilterKey = 'pending' | 'request' | 'inflight' | 'thisweek' | 'late'

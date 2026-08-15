@@ -1,16 +1,12 @@
 import { type FormEvent, useState } from 'react'
 import { Navigate } from 'react-router'
 
-import { type Role, useSession } from '@/auth/sessionContext'
+import { useSession } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import { ROUTES } from '@/constants/routes'
+import { DEFAULT_PROFILE_ID, MOCK_PROFILES } from '@/mocks/profiles'
 
 import styles from './Login.module.scss'
-
-const DEMO_ROLES: { role: Role; label: string; note: string }[] = [
-  { role: 'member', label: '영업 담당자', note: '내 고객·일정·문서만 조회' },
-  { role: 'manager', label: '영업 팀장', note: '팀 전체 현황과 매출 조회' },
-]
 
 export default function Login() {
   const { session, login } = useSession()
@@ -28,7 +24,7 @@ export default function Login() {
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     // 아직 인증 API 가 없어 입력값을 검증하지 않습니다. 아래 각주가 이를 밝힙니다.
-    login('manager')
+    login(DEFAULT_PROFILE_ID)
   }
 
   return (
@@ -100,16 +96,11 @@ export default function Login() {
           </Button>
         </form>
 
-        <div className={styles.or}>역할별 화면 바로 보기</div>
+        <div className={styles.or}>데모 프로필로 바로 보기</div>
 
         <div className={styles.demoRoles}>
-          {DEMO_ROLES.map(({ role, label, note }) => (
-            <button
-              key={role}
-              className={styles.demoRole}
-              type="button"
-              onClick={() => login(role)}
-            >
+          {MOCK_PROFILES.map(({ id, label, note }) => (
+            <button key={id} className={styles.demoRole} type="button" onClick={() => login(id)}>
               <strong>{label}</strong>
               <span>{note}</span>
             </button>

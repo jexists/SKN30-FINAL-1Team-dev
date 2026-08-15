@@ -1,8 +1,8 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 
 import Pagination from '@/components/Pagination'
-import { customers as seedCustomers } from '@/content/customers'
-import type { Customer } from '@/content/types'
+import { customers as seedCustomers } from '@/shared/customers'
+import type { Customer } from '@/types'
 import { useOwnerScope } from '@/scope/scopeContext'
 import { downloadCsv, toCsv } from '@/utils/csv'
 

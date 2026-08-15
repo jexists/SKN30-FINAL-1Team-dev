@@ -4,8 +4,8 @@
 // 컬럼을 타입 유니온으로 두지 않은 이유: 화면에서 컬럼을 추가·삭제할 수 있어야 해서
 // 컬럼 집합이 코드가 아니라 데이터입니다. 대신 컬럼마다 outcome 을 들고 있어
 // 어느 컬럼에 놓이든 계약의 status 는 늘 정해집니다.
-import { contracts } from '@/content/contracts'
-import type { Contract, ContractKind, ContractStatus } from '@/content/types'
+import { contracts } from '@/shared/contracts'
+import type { Contract, ContractKind, ContractStatus } from '@/types'
 
 export type ColumnTone = 'gray' | 'blue' | 'purple' | 'orange' | 'green' | 'red'
 

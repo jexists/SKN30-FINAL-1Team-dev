@@ -2,7 +2,7 @@
 // 일일업무보고와 미팅보고서가 같은 규칙으로 첨부를 다룹니다.
 //
 // extract 는 아직 흉내입니다. STT·OCR 이 붙으면 fakeExtract 대신 그 결과를 씁니다.
-import type { AttachmentKind } from '@/content/types'
+import type { AttachmentKind } from '@/types'
 
 export function kindOf(file: File): AttachmentKind {
   if (file.type.startsWith('audio/')) return 'audio'

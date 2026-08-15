@@ -1,6 +1,6 @@
 import { ArrowDownIcon } from '@/components/icons'
-import { agendaFor } from '@/content/agenda'
-import { csRequests, followUps, renewals, salesGoal } from '@/content/counters'
+import { agendaFor } from '@/shared/agenda'
+import { csRequests, followUps, renewals, salesGoal } from '@/shared/counters'
 import { TODAY_ISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
@@ -32,8 +32,7 @@ function deriveCounters() {
     cs: {
       count: csRequests.length,
       urgent: csRequests.filter((c) => c.urgent).length,
-      sub:
-        `처리중 ${csRequests.filter((c) => c.state === '처리중').length}건`,
+      sub: `처리중 ${csRequests.filter((c) => c.state === '처리중').length}건`,
     },
     renewal: {
       count: renewals.length,
@@ -142,7 +141,8 @@ export default function SummaryBand({ onJumpToToday, onOpenList }: Props) {
               '--p': `${(percent / trackMax) * 100}%`,
               // 트랙 안에서의 100% 눈금 위치와, 막대 안에서 색이 갈리는 지점.
               '--mark': `${(100 / trackMax) * 100}%`,
-              '--split': `${(100 / percent) * 100}%`,
+              // 실적이 0이면 나눌 지점이 없습니다. 막대 전체를 미달성 색으로 둡니다.
+              '--split': percent > 0 ? `${(100 / percent) * 100}%` : '100%',
             } as React.CSSProperties
           }
         >

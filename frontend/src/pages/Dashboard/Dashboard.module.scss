@@ -1,10 +1,14 @@
+// minmax(0, 1fr) 이어야 합니다. 그리드 아이템은 기본이 min-width: auto 라
+// 맨 1fr 로 두면 칸이 min-content 아래로 못 줄어듭니다. 공지 줄은 한 줄로
+// 자르려고 white-space: nowrap 이어서, 좁은 화면에서 말줄임이 되는 대신
+// 칸을 밀어내 카드가 화면 밖으로 나갑니다.
 .notices {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s4);
   margin-bottom: var(--s4);
 
   @media (max-width: 900px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }

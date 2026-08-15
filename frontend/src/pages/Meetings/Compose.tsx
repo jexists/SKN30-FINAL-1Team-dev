@@ -11,7 +11,7 @@ import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
 import { meetingReportPath, ROUTES } from '@/constants/routes'
-import { agendaById } from '@/content/agenda'
+import { agendaById } from '@/shared/agenda'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import MeetingFacts from './components/MeetingFacts'

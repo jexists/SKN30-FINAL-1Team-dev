@@ -2,8 +2,8 @@ import { useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } 
 
 import { PlusIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
-import { KIND_LABEL } from '@/content/agenda'
-import type { AgendaKind, CalendarEvent } from '@/content/types'
+import { KIND_LABEL } from '@/shared/agenda'
+import type { AgendaKind, CalendarEvent } from '@/types'
 
 import { CELL_ATTR, type Dragging } from '../../dragging'
 

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
-import { notices as defaultNotices, postedLabel } from '@/content/notices'
-import type { Notice } from '@/content/types'
+import { notices as defaultNotices, postedLabel } from '@/shared/notices'
+import type { Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
 import styles from './NoticeTicker.module.scss'

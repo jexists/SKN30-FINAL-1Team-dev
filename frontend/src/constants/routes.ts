@@ -1,4 +1,4 @@
-import type { ReportKind } from '@/content/types'
+import type { ReportKind } from '@/types'
 
 // 화면 경로. 내비게이션 라벨은 navigation.ts 가 갖습니다.
 //

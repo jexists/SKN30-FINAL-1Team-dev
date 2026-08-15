@@ -2,8 +2,8 @@
 //
 // 상태 열만 보이는 값과 정렬 기준이 다릅니다. 이름순으로 세우면 '승인대기 → 입고완료'
 // 같은 진행 순서가 흐트러져 ORDER_STATUSES 의 순서를 그대로 씁니다.
-import { orderItemLabel, orderTotal } from '@/content/orders'
-import type { PurchaseOrder } from '@/content/types'
+import { orderItemLabel, orderTotal } from '@/shared/orders'
+import type { PurchaseOrder } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 

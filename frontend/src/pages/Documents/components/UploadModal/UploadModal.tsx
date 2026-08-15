@@ -10,7 +10,7 @@ import { useRef, useState } from 'react'
 import Button from '@/components/Button'
 import { TrashIcon, UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import type { DocumentCategory, DocumentLink, SalesDocument } from '@/content/types'
+import type { DocumentCategory, DocumentLink, SalesDocument } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 
 import { DOCUMENT_CATEGORIES, guessCategory, latestOf, LINK_KINDS } from '../../catalog'

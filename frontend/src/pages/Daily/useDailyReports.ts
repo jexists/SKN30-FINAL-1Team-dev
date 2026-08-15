@@ -6,8 +6,9 @@
 // 제출한 보고서가 목록에 나타나지 않습니다.
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
-import { reportHistory } from '@/content/reports'
-import type { DailyReport, ReportKind, ReportStatus } from '@/content/types'
+import { useCurrentUser } from '@/auth/sessionContext'
+import { reportHistory } from '@/shared/reports'
+import type { DailyReport, ReportKind, ReportStatus } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
 import { periodLabelFor } from './periods'
@@ -46,11 +47,12 @@ export interface DraftPayload {
 /** 시드 id 와 같은 접두사를 씁니다. */
 const ID_PREFIX: Record<ReportKind, string> = { 일일: 'dr', 주간: 'wr', 월간: 'mr' }
 
-function toReport(draft: DraftPayload, status: ReportStatus): DailyReport {
+function toReport(draft: DraftPayload, status: ReportStatus, owner: string): DailyReport {
   const included = draft.activities.filter((a) => a.included).length
   const files = draft.attachments.length
   return {
     id: `${ID_PREFIX[draft.kind]}-${draft.date}`,
+    owner,
     // 이력은 실제 날짜로 다루지만 타입은 시드와 공유하므로 off 도 채워 둡니다.
     off: Math.round((parseISO(draft.date).getTime() - TODAY.getTime()) / 86_400_000),
     date: draft.date,
@@ -66,6 +68,7 @@ function toReport(draft: DraftPayload, status: ReportStatus): DailyReport {
 }
 
 export default function useDailyReports() {
+  const { profile } = useCurrentUser()
   const list = useSyncExternalStore(
     subscribe,
     () => reports,
@@ -91,15 +94,21 @@ export default function useDailyReports() {
     [byDate],
   )
 
-  const submitReport = useCallback((draft: DraftPayload) => {
-    const report = toReport(draft, '검토 대기')
-    upsert(report)
-    return report
-  }, [])
+  const submitReport = useCallback(
+    (draft: DraftPayload) => {
+      const report = toReport(draft, '검토 대기', profile.name)
+      upsert(report)
+      return report
+    },
+    [profile.name],
+  )
 
-  const saveDraft = useCallback((draft: DraftPayload) => {
-    upsert(toReport(draft, '작성중'))
-  }, [])
+  const saveDraft = useCallback(
+    (draft: DraftPayload) => {
+      upsert(toReport(draft, '작성중', profile.name))
+    },
+    [profile.name],
+  )
 
   return {
     reports: list,

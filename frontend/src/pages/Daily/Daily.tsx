@@ -9,7 +9,7 @@ import { Link, useSearchParams } from 'react-router'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import WeekStrip from '@/components/WeekStrip'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
-import { APPROVERS } from '@/content/reports'
+import { APPROVERS } from '@/shared/reports'
 import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import {
   addDays,

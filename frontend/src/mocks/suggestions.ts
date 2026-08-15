@@ -1,13 +1,7 @@
-// 시연용 합성 데이터입니다. 실제 병원·담당자·제품이 아닙니다.
-//
-// AI 가 제안하는 일정입니다. 근거(basis)는 counters.ts 의 후속 조치·갱신 예정 건과
-// customers.ts 의 미접촉 고객에서 뽑은 것처럼 읽히도록 맞춰 두었습니다.
-// off 는 agenda.ts 의 일정이 없는 날에 두어, 추천이 빈 칸을 채우는 것으로 보이게 합니다.
-import { addDays, iso, TODAY } from '@/utils/date'
+// AI 추천 일정. 시연용 합성 데이터입니다.
+import type { AiSuggestionSeed } from '@/types'
 
-import type { AiSuggestion, AiSuggestionSeed } from './types'
-
-const suggestionSeed: AiSuggestionSeed[] = [
+export const suggestionSeed: AiSuggestionSeed[] = [
   {
     id: 's1',
     off: 3,
@@ -16,6 +10,7 @@ const suggestionSeed: AiSuggestionSeed[] = [
     kind: 'call',
     title: '리스 조건표 설명 통화',
     hospital: '새봄정형외과',
+    owner: '이수민',
     dept: '원무팀',
     contact: '오정민 병원장',
     place: '전화',
@@ -31,6 +26,7 @@ const suggestionSeed: AiSuggestionSeed[] = [
     kind: 'visit',
     title: '유지보수 계약 갱신 사전 협의',
     hospital: '새봄정형외과',
+    owner: '이수민',
     dept: '원무팀',
     contact: '오정민 병원장',
     place: '원장실',
@@ -45,6 +41,7 @@ const suggestionSeed: AiSuggestionSeed[] = [
     kind: 'internal',
     title: 'TCO 비교표 검토 요청',
     hospital: '영업 1팀',
+    owner: '김서현',
     dept: '내부 회의',
     contact: '김서현 팀장',
     place: '본사 회의실 B',
@@ -60,6 +57,7 @@ const suggestionSeed: AiSuggestionSeed[] = [
     kind: 'edu',
     title: 'OrthoScan Mini 사용 교육 2회차',
     hospital: '서림메디컬센터',
+    owner: '김지훈',
     dept: '영상의학과',
     contact: '윤가영 간호팀장',
     place: '교육실',
@@ -74,6 +72,7 @@ const suggestionSeed: AiSuggestionSeed[] = [
     kind: 'visit',
     title: '소모품 공급 단가 조정 면담',
     hospital: '서림메디컬센터',
+    owner: '김지훈',
     dept: '구매팀',
     contact: '한지우 대리',
     place: '본관 4층',
@@ -89,6 +88,7 @@ const suggestionSeed: AiSuggestionSeed[] = [
     kind: 'demo',
     title: 'CardioView X7 2차 데모',
     hospital: '정우병원',
+    owner: '박도윤',
     dept: '구매팀',
     contact: '최수아 책임',
     place: '회의실',
@@ -99,6 +99,3 @@ const suggestionSeed: AiSuggestionSeed[] = [
 ]
 
 /** 실제 날짜가 붙은 추천. 가까운 날짜부터 나옵니다. */
-export const aiSuggestions: AiSuggestion[] = suggestionSeed
-  .map((seed) => ({ ...seed, date: iso(addDays(TODAY, seed.off)) }))
-  .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))

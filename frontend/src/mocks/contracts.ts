@@ -1,14 +1,7 @@
-// 시연용 합성 계약 데이터입니다. 매출 분석 화면의 모든 숫자가 여기서 파생됩니다.
-//
-// 날짜는 다른 시드와 같은 방식으로 오늘 기준 상대 일수(signedOff)를 씁니다. 고정
-// 날짜를 박아 두면 시간이 지날수록 "이번 달"이 비어 버립니다. 최근 24개월에 걸쳐
-// 흩어 두어 주간·월·분기·반기·년 어느 탭을 열어도 볼 것이 있습니다.
-import { addDays, iso, TODAY } from '@/utils/date'
+// 계약. 시연용 합성 데이터입니다.
+import type { ContractSeed } from '@/types'
 
-import { regionOf } from './regions'
-import type { Contract, ContractSeed } from './types'
-
-const seeds: ContractSeed[] = [
+export const contractSeed: ContractSeed[] = [
   // 아직 체결되지 않은 건들입니다. 계약 현황 보드가 다루는 대상이 이쪽이라 따로 모아 두었습니다.
   // 매출 실적은 '확정' 만 세므로(confirmedTotal) 여기 있는 건들은 매출 숫자에 들어가지 않습니다.
   {
@@ -1129,20 +1122,3 @@ const seeds: ContractSeed[] = [
  * 정렬을 코드로 합니다. 시드는 체결된 건과 진행 중인 건을 나눠 적어 두어서
  * 배열에 적힌 순서가 곧 날짜 순서는 아닙니다.
  */
-export const contracts: Contract[] = seeds
-  .map((seed) => ({
-    ...seed,
-    date: iso(addDays(TODAY, seed.signedOff)),
-    region: regionOf(seed.org),
-  }))
-  .sort((a, b) => b.date.localeCompare(a.date))
-
-/** 기간 안에 계약일이 들어오는 계약. 양 끝을 포함합니다. */
-export function contractsIn(fromISO: string, toISO: string): Contract[] {
-  return contracts.filter((c) => c.date >= fromISO && c.date <= toISO)
-}
-
-/** 매출 실적으로 잡는 것은 확정 계약뿐입니다. 진행중·취소는 목록에만 남습니다. */
-export function confirmedTotal(list: Contract[]): number {
-  return list.reduce((sum, c) => (c.status === '확정' ? sum + c.amount : sum), 0)
-}

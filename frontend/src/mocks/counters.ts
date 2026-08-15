@@ -1,11 +1,12 @@
-// 시연용 합성 데이터입니다. demo/layout_v3.html 에서 옮겼습니다.
+// 대시보드 KPI 목록. 시연용 합성 데이터입니다.
 // KPI 타일의 숫자는 이 목록들에서 파생됩니다 — 타일과 목록이 어긋날 수 없게 하려는 것입니다.
-import type { CsRequest, FollowUp, Renewal } from './types'
+import type { CsRequest, FollowUp, Renewal } from '@/types'
 
 export const followUps: FollowUp[] = [
   {
     task: '리스 옵션 안내 자료 발송',
     org: '새봄정형외과',
+    owner: '이수민',
     who: '원무팀 · 오정민 병원장',
     note: '견적 회신이 14일째 없습니다. 리스 조건표를 먼저 보내고 통화로 확인하세요.',
     dueOff: -4,
@@ -13,6 +14,7 @@ export const followUps: FollowUp[] = [
   {
     task: '3년 유지보수 TCO 비교표 회신',
     org: '한빛대학교병원',
+    owner: '김지훈',
     who: '순환기내과 · 박서준 교수',
     note: '테스트 후 요청받은 자료입니다. 경쟁사 대비 납기 항목까지 채워야 합니다.',
     dueOff: -1,
@@ -20,6 +22,7 @@ export const followUps: FollowUp[] = [
   {
     task: '분할 납품 2차 일정 확정',
     org: '한빛대학교병원',
+    owner: '김지훈',
     who: '구매팀 · 이도현 과장',
     note: 'FM-PO-2026-0020의 잔여 1대 일정입니다. 생산팀 회신을 받은 뒤 통보하세요.',
     dueOff: 1,
@@ -27,6 +30,7 @@ export const followUps: FollowUp[] = [
   {
     task: '교육 참석자 명단 취합',
     org: '서림메디컬센터',
+    owner: '김지훈',
     who: '영상의학과 · 윤가영 간호팀장',
     note: '사용 교육 1회차 전날까지 확정해야 교재 부수를 맞출 수 있습니다.',
     dueOff: 1,
@@ -34,6 +38,7 @@ export const followUps: FollowUp[] = [
   {
     task: '보안 요구사항 문서 요청',
     org: '정우병원',
+    owner: '박도윤',
     who: '구매팀 · 최수아 책임',
     note: '본원 데모 전에 데이터 접근 권한 범위를 문서로 받아야 합니다.',
     dueOff: 3,
@@ -41,6 +46,7 @@ export const followUps: FollowUp[] = [
   {
     task: 'SonoFlex Pro 설치 일정 회신',
     org: '새봄정형외과',
+    owner: '이수민',
     who: '원무팀 · 오정민 병원장',
     note: '입회 후 초기 셋업과 사용 교육 일정을 묶어서 제안하세요.',
     dueOff: 4,
@@ -48,6 +54,7 @@ export const followUps: FollowUp[] = [
   {
     task: '소모품 단가표 갱신본 전달',
     org: '서림메디컬센터',
+    owner: '김지훈',
     who: '구매팀 · 한지우 대리',
     note: '하반기 단가 조정분을 반영한 표를 전달합니다.',
     dueOff: 9,
@@ -58,6 +65,7 @@ export const csRequests: CsRequest[] = [
   {
     issue: '부팅 시 화면 깜빡임',
     org: '한빛대학교병원',
+    owner: '김지훈',
     who: '순환기내과 · 박서준 교수',
     product: 'CardioView X7',
     state: '미응답',
@@ -69,6 +77,7 @@ export const csRequests: CsRequest[] = [
   {
     issue: '프로브 케이블 접촉 불량',
     org: '서림메디컬센터',
+    owner: '김지훈',
     who: '영상의학과 · 윤가영 간호팀장',
     product: 'OrthoScan Mini',
     state: '미응답',
@@ -80,6 +89,7 @@ export const csRequests: CsRequest[] = [
   {
     issue: '젤 워머 온도 편차',
     org: '새봄정형외과',
+    owner: '이수민',
     who: '원무팀 · 오정민 병원장',
     product: 'SonoFlex Pro',
     state: '처리중',
@@ -91,6 +101,7 @@ export const csRequests: CsRequest[] = [
   {
     issue: '패드 접착력 저하 문의',
     org: '한빛대학교병원',
+    owner: '김지훈',
     who: '구매팀 · 이도현 과장',
     product: '전극 패드 (소모품)',
     state: '처리중',
@@ -104,6 +115,7 @@ export const csRequests: CsRequest[] = [
 export const renewals: Renewal[] = [
   {
     org: '새봄정형외과',
+    owner: '이수민',
     who: '원무팀 · 오정민 병원장',
     contract: 'FM-CT-2025-0112',
     kind: '유지보수 계약',
@@ -113,6 +125,7 @@ export const renewals: Renewal[] = [
   },
   {
     org: '서림메디컬센터',
+    owner: '김지훈',
     who: '구매팀 · 한지우 대리',
     contract: 'FM-CT-2025-0129',
     kind: '소모품 공급 계약',

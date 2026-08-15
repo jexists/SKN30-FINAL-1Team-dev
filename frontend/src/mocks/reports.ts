@@ -1,22 +1,8 @@
-// 시연용 합성 데이터입니다. demo/demo-jeseop.html 의 일일업무 패널에서 옮겼습니다.
-// 실제 병원·담당자·제품이 아닙니다.
-import { addDays, iso, parseISO, TODAY } from '@/utils/date'
+// 업무보고 양식과 이력. 시연용 합성 데이터입니다.
+import { addDays, iso, TODAY } from '@/utils/date'
 
-import { agendaFor } from './agenda'
-import type {
-  DailyReport,
-  DailyReportSeed,
-  ReportActivity,
-  ReportKind,
-  ReportTemplate,
-} from './types'
+import type { DailyReportSeed, ReportActivity, ReportTemplate } from '@/types'
 
-/**
- * 팀장이 정한 보고 양식.
- *
- * 보고 대상(approver)은 여기 넣지 않습니다. 보고 "내용"이 아니라 어디로 보내는지에
- * 대한 값이라 DailyReport 가 직접 갖고, 제출 바에서 고릅니다.
- */
 export const dailyTemplate: ReportTemplate = {
   id: 'tpl-sales-1',
   name: '영업 1팀 일일보고 양식',
@@ -89,16 +75,12 @@ export const monthlyTemplate: ReportTemplate = {
 }
 
 /** 보고서 종류에 맞는 양식. 상세와 drawer 가 필드 라벨을 여기서 얻습니다. */
-export function templateFor(kind: ReportKind): ReportTemplate {
-  if (kind === '주간') return weeklyTemplate
-  if (kind === '월간') return monthlyTemplate
-  return dailyTemplate
-}
 
 export const APPROVERS = ['김서현 영업팀장', '영업본부장'] as const
 
 /** 캘린더 밖에서 붙는 활동. 날짜 offset 별로 몇 건씩 섞어 둡니다. */
-const extraActivitySeed: Record<number, Omit<ReportActivity, 'included'>[]> = {
+
+export const extraActivitySeed: Record<number, Omit<ReportActivity, 'included'>[]> = {
   0: [
     {
       id: 'x-today-1',
@@ -142,26 +124,11 @@ const extraActivitySeed: Record<number, Omit<ReportActivity, 'included'>[]> = {
  *
  * 날짜를 인자로 받으므로 밀린 날짜를 소급 작성할 때도 그대로 씁니다.
  */
-export function draftActivitiesFor(dateISO: string): ReportActivity[] {
-  const fromCalendar: ReportActivity[] = agendaFor(dateISO).map((item) => ({
-    id: `cal-${item.id}`,
-    source: '캘린더',
-    title: `${item.time} ${item.hospital} ${item.title}`,
-    desc: `${item.contact} · ${item.stage}`,
-    // 이미 끝난 일정만 기본으로 켭니다. 안 한 일이 보고서에 실리면 안 됩니다.
-    included: item.done,
-  }))
 
-  // parseISO 로 로컬 자정을 맞춥니다. Date.parse('YYYY-MM-DD') 는 UTC 로 읽어 하루 밀립니다.
-  const offset = Math.round((parseISO(dateISO).getTime() - TODAY.getTime()) / 86_400_000)
-  const extras = (extraActivitySeed[offset] ?? []).map((item) => ({ ...item, included: true }))
-
-  return [...fromCalendar, ...extras]
-}
-
-const reportSeed: DailyReportSeed[] = [
+export const reportSeed: DailyReportSeed[] = [
   {
     id: 'dr-1',
+    owner: '김지훈',
     off: -1,
     kind: '일일',
     approver: '김서현 영업팀장',
@@ -179,6 +146,7 @@ const reportSeed: DailyReportSeed[] = [
   },
   {
     id: 'dr-2',
+    owner: '김지훈',
     off: -2,
     kind: '일일',
     approver: '김서현 영업팀장',
@@ -195,6 +163,7 @@ const reportSeed: DailyReportSeed[] = [
   },
   {
     id: 'dr-3',
+    owner: '김지훈',
     off: -6,
     kind: '일일',
     approver: '김서현 영업팀장',
@@ -211,6 +180,7 @@ const reportSeed: DailyReportSeed[] = [
   },
   {
     id: 'dr-4',
+    owner: '김지훈',
     off: -7,
     kind: '일일',
     approver: '김서현 영업팀장',
@@ -227,6 +197,7 @@ const reportSeed: DailyReportSeed[] = [
   },
   {
     id: 'dr-5',
+    owner: '김지훈',
     off: -8,
     kind: '일일',
     approver: '영업본부장',
@@ -243,6 +214,7 @@ const reportSeed: DailyReportSeed[] = [
   },
   {
     id: 'dr-6',
+    owner: '김지훈',
     off: -9,
     kind: '일일',
     approver: '김서현 영업팀장',
@@ -262,6 +234,7 @@ const reportSeed: DailyReportSeed[] = [
   // 제출일은 기간이 끝난 다음 근무일이라 일일보고와 같은 날에 겹칩니다.
   {
     id: 'wr-1',
+    owner: '김지훈',
     off: -2,
     kind: '주간',
     period: '8/3 – 8/9',
@@ -279,6 +252,7 @@ const reportSeed: DailyReportSeed[] = [
   },
   {
     id: 'wr-2',
+    owner: '김지훈',
     off: -9,
     kind: '주간',
     period: '7/27 – 8/2',
@@ -295,6 +269,7 @@ const reportSeed: DailyReportSeed[] = [
   },
   {
     id: 'mr-1',
+    owner: '김지훈',
     off: -7,
     kind: '월간',
     period: '2026년 7월',
@@ -312,26 +287,3 @@ const reportSeed: DailyReportSeed[] = [
 ]
 
 /** offset 을 실제 날짜로 편 제출 이력. 최근 것이 앞에 옵니다. */
-export const reportHistory: DailyReport[] = reportSeed
-  .map((seed) => ({ ...seed, date: iso(addDays(TODAY, seed.off)) }))
-  .sort((a, b) => b.date.localeCompare(a.date))
-
-/**
- * 최근 days 일 중 보고서가 없는 평일. 오늘은 아직 마감 전이라 빼고 셉니다.
- * 화면의 "밀린 보고" 줄이 이 값을 그대로 씁니다.
- */
-export function missingReportDates(reports: DailyReport[], days = 7): string[] {
-  // 주간·월간이 같은 날에 제출돼 있어도 일일보고를 낸 것은 아닙니다.
-  const written = new Set(reports.filter((r) => r.kind === '일일').map((r) => r.date))
-  const missing: string[] = []
-
-  for (let back = 1; back <= days; back += 1) {
-    const day = addDays(TODAY, -back)
-    const weekday = day.getDay()
-    if (weekday === 0 || weekday === 6) continue
-    const key = iso(day)
-    if (!written.has(key)) missing.push(key)
-  }
-
-  return missing
-}

@@ -8,7 +8,7 @@ import { TODAY_ISO } from '@/utils/date'
 import { won, wonFull } from '@/utils/format'
 
 import type { Range } from '../../periods'
-import type { SalesSummary } from '../../useSalesSummary'
+import { pct, type SalesSummary } from '../../useSalesSummary'
 
 import styles from './TargetGauge.module.scss'
 
@@ -124,7 +124,7 @@ export default function TargetGauge({ range, summary }: { range: Range; summary:
           <li key={s.name}>
             <i style={{ background: s.color }} />
             <span>{s.name}</span>
-            <b className="tnum">{((s.value / totals.actual) * 100).toFixed(1)}%</b>
+            <b className="tnum">{pct(s.value, totals.actual).toFixed(1)}%</b>
           </li>
         ))}
       </ul>

@@ -3,8 +3,8 @@
 //
 // 타일의 숫자는 SummaryBand·PurchaseOrders 가 같은 원본에서 세고, 여기서는
 // 그 원본을 줄로 펼치기만 합니다. 목록을 따로 만들면 숫자와 어긋납니다.
-import { csRequests, followUps, renewals } from '@/content/counters'
-import { activeOrders, orderItemLabel, orderTotal } from '@/content/orders'
+import { csRequests, followUps, renewals } from '@/shared/counters'
+import { activeOrders, orderItemLabel, orderTotal } from '@/shared/orders'
 import { addDays, ddayLabel, fmtDay, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
 

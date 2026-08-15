@@ -4,9 +4,9 @@
 // 계약의 board.ts 와 달리 상태 집합은 데이터가 아니라 타입입니다. 발주 상태는
 // 결재·생산·물류 흐름이라 화면에서 늘리고 줄일 수 있는 것이 아닙니다.
 // (파일 이름이 orders.ts 가 아닌 이유: Orders.tsx 와 대소문자만 달라 충돌합니다.)
-import { contracts } from '@/content/contracts'
-import { orders as seed } from '@/content/orders'
-import type { OrderStatus, PurchaseOrder } from '@/content/types'
+import { contracts } from '@/shared/contracts'
+import { orders as seed } from '@/shared/orders'
+import type { OrderStatus, PurchaseOrder } from '@/types'
 
 export type StatusTone = 'gray' | 'blue' | 'purple' | 'orange' | 'green' | 'red'
 

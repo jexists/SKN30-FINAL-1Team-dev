@@ -4,8 +4,8 @@
 // api/client.ts 호출로 바꾸면 화면은 그대로 둘 수 있습니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { meetingTemplate } from '@/content/meetings'
-import type { AgendaItem, MeetingReport, ReportAttachment } from '@/content/types'
+import { meetingTemplate } from '@/shared/meetings'
+import type { AgendaItem, MeetingReport, ReportAttachment } from '@/types'
 import { fakeExtract, kindOf, sizeLabel } from '@/utils/attachment'
 
 export type MeetingPhase = 'idle' | 'generating' | 'ready'

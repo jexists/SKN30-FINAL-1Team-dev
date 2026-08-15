@@ -6,7 +6,7 @@
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import { DownloadIcon, TrashIcon, UploadIcon } from '@/components/icons'
-import type { DocumentVersion, SalesDocument } from '@/content/types'
+import type { DocumentVersion, SalesDocument } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDay, parseISO } from '@/utils/date'
 

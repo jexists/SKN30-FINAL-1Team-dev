@@ -1,7 +1,7 @@
 // 표 셀의 표시 전용 조각들. columns.ts 가 값(정렬·검색·CSV)을 맡고
 // 여기가 보이는 모양만 맡습니다.
-import { relativeDayLabel } from '@/content/customers'
-import type { Customer } from '@/content/types'
+import { relativeDayLabel } from '@/shared/customers'
+import type { Customer } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
 import styles from './Customers.module.scss'

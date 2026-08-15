@@ -2,7 +2,7 @@
 //
 // auth 쪽에서 로그아웃 때 지울 수 있도록 컨텍스트와 분리해 두었습니다.
 // 이 파일은 auth 를 참조하지 않습니다.
-import { findMemberById } from '@/content/team'
+import { findMemberById } from '@/shared/team'
 
 import { type Scope, SCOPE_ME } from './scopeContext'
 

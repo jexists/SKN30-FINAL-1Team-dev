@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import Button from '@/components/Button'
 import { ArrowUpIcon, CustomersIcon, SearchIcon, SortIcon } from '@/components/icons'
 import { BP_DESKTOP } from '@/constants/breakpoints'
-import type { Customer } from '@/content/types'
+import type { Customer } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
 import type { ColumnDef } from '../../columns'

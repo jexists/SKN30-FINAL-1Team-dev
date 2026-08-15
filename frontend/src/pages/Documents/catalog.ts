@@ -2,13 +2,8 @@
 // 어떻게 판정하는지를 여기서 정합니다. 발주의 pipeline.ts 와 같은 자리입니다.
 //
 // (파일 이름이 documents.ts 가 아닌 이유: Documents.tsx 와 대소문자만 달라 충돌합니다.)
-import { documents as seed } from '@/content/documents'
-import type {
-  DocumentCategory,
-  DocumentFileKind,
-  DocumentVersion,
-  SalesDocument,
-} from '@/content/types'
+import { documents as seed } from '@/shared/documents'
+import type { DocumentCategory, DocumentFileKind, DocumentVersion, SalesDocument } from '@/types'
 
 export type CategoryTone = 'blue' | 'purple' | 'green' | 'orange' | 'gray'
 

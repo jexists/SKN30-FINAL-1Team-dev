@@ -4,7 +4,7 @@
 import { useState } from 'react'
 
 import { ChevronDownIcon } from '@/components/icons'
-import type { Contract } from '@/content/types'
+import type { Contract } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
 

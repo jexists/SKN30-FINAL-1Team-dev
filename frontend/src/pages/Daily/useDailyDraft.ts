@@ -4,9 +4,9 @@
 // api/client.ts 호출로 바꾸면 화면은 그대로 둘 수 있습니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { meetingActivitiesFor } from '@/content/meetings'
-import { draftActivitiesFor, templateFor } from '@/content/reports'
-import type { ReportActivity, ReportAttachment, ReportKind, ReportTemplate } from '@/content/types'
+import { meetingActivitiesFor } from '@/shared/meetings'
+import { draftActivitiesFor, templateFor } from '@/shared/reports'
+import type { ReportActivity, ReportAttachment, ReportKind, ReportTemplate } from '@/types'
 import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import { fakeExtract, kindOf, sizeLabel } from '@/utils/attachment'
 

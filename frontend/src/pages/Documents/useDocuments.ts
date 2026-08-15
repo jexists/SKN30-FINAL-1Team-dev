@@ -9,7 +9,7 @@
 // 훅 인스턴스를 쓰더라도 한 데이터를 봐야 합니다.
 import { useCallback, useSyncExternalStore } from 'react'
 
-import type { DocumentVersion, SalesDocument } from '@/content/types'
+import type { DocumentVersion, SalesDocument } from '@/types'
 import { TODAY_ISO } from '@/utils/date'
 
 import { initialDocuments, kindOfFile, latestOf, nextDocumentId } from './catalog'

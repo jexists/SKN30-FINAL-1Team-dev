@@ -6,8 +6,8 @@
 // 보드로 돌아왔을 때 사라집니다.
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
-import { regionOf } from '@/content/regions'
-import type { ContractKind } from '@/content/types'
+import { regionOf } from '@/shared/regions'
+import type { ContractKind } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
 import {

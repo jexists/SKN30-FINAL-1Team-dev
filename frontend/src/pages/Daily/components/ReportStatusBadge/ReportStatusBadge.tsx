@@ -1,4 +1,4 @@
-import type { ReportStatus } from '@/content/types'
+import type { ReportStatus } from '@/types'
 
 import styles from './ReportStatusBadge.module.scss'
 

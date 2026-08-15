@@ -1,4 +1,4 @@
-import { CUSTOMER_OWNERS, CUSTOMER_SOURCES, CUSTOMER_STATUSES } from '@/content/customers'
+import { CUSTOMER_OWNERS, CUSTOMER_SOURCES, CUSTOMER_STATUSES } from '@/shared/customers'
 import { useOwnerScope } from '@/scope/scopeContext'
 
 import type { Filters } from '../../Customers'

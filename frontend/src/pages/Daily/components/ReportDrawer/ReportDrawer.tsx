@@ -7,8 +7,8 @@ import { Link } from 'react-router'
 
 import { ChevronRightIcon, CloseIcon } from '@/components/icons'
 import { dailyComposePath } from '@/constants/routes'
-import { agendaFor } from '@/content/agenda'
-import type { ReportKind } from '@/content/types'
+import { agendaFor } from '@/shared/agenda'
+import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
 import ReportStatusBadge from '../ReportStatusBadge'
