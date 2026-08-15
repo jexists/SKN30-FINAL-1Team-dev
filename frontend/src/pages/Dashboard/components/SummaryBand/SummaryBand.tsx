@@ -1,5 +1,5 @@
 import { ArrowDownIcon } from '@/components/icons'
-import { agendaFor } from '@/shared/agenda'
+import { agendaFor, useAgenda } from '@/shared/agenda'
 import { csRequests, followUps, renewals, salesGoal } from '@/shared/counters'
 import { TODAY_ISO } from '@/utils/date'
 import { won } from '@/utils/format'
@@ -77,6 +77,8 @@ interface Props {
 }
 
 export default function SummaryBand({ onJumpToToday, onOpenList }: Props) {
+  // 일정이 늘거나 줄면 '오늘 방문 회사' 타일이 따라 움직여야 합니다.
+  useAgenda()
   const c = deriveCounters()
   const percent = (salesGoal.achieved / salesGoal.target) * 100
   const over = salesGoal.achieved >= salesGoal.target
