@@ -103,6 +103,8 @@ export default function GroupTable({ by, onByChange, summary }: GroupTableProps)
       </div>
 
       <ul className={styles.rows}>
+        {/* 묶을 것이 하나도 없으면 머리글과 합계만 남아 표가 고장난 것처럼 보입니다. */}
+        {groups.length === 0 && <li className={styles.none}>이 기간에 등록된 계약이 없습니다.</li>}
         {groups.map((group) => {
           const open = openKeys.has(group.key)
 
@@ -136,9 +138,9 @@ export default function GroupTable({ by, onByChange, summary }: GroupTableProps)
         <span className="tnum">100.0%</span>
       </div>
 
-      <p className={styles.note}>
+      {/* <p className={styles.note}>
         계약금액은 확정 계약만 더합니다. 진행중·취소 건은 목록에만 남습니다.
-      </p>
+      </p> */}
     </section>
   )
 }

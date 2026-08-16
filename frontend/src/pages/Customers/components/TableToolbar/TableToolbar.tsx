@@ -3,6 +3,8 @@ import { useState } from 'react'
 import Button from '@/components/Button'
 import { ColumnsIcon, DownloadIcon, PlusIcon, SearchIcon, UploadIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
+import { BP_PHONE } from '@/constants/breakpoints'
+import useMediaQuery from '@/hooks/useMediaQuery'
 
 import type { ColumnPrefs } from '../../useColumnPrefs'
 import ColumnSettings from '../ColumnSettings'
@@ -33,6 +35,8 @@ export default function TableToolbar({
   onCreate,
 }: TableToolbarProps) {
   const [open, setOpen] = useState<'columns' | null>(null)
+  // 폰에서는 이 버튼이 줄 맨 왼쪽이라, 오른쪽 정렬하면 판이 화면 밖으로 나갑니다.
+  const isPhone = useMediaQuery(`(max-width: ${BP_PHONE}px)`)
 
   return (
     <div className={styles.root}>
@@ -52,16 +56,17 @@ export default function TableToolbar({
           open={open === 'columns'}
           onClose={() => setOpen(null)}
           label="컬럼 설정"
-          align="end"
+          align={isPhone ? 'start' : 'end'}
           trigger={
             <button
               type="button"
               className={styles.tool}
               aria-expanded={open === 'columns'}
+              aria-label="컬럼 설정"
               onClick={() => setOpen(open === 'columns' ? null : 'columns')}
             >
               <ColumnsIcon width={15} height={15} />
-              컬럼 설정
+              <span>컬럼 설정</span>
             </button>
           }
         >
@@ -73,14 +78,14 @@ export default function TableToolbar({
           />
         </Popover>
 
-        <button type="button" className={styles.tool} onClick={onImport}>
+        <button type="button" className={`${styles.tool} ${styles.iconOnly}`} aria-label="가져오기" onClick={onImport}>
           <UploadIcon width={15} height={15} />
-          가져오기
+          <span>가져오기</span>
         </button>
 
-        <button type="button" className={styles.tool} onClick={onExport}>
+        <button type="button" className={`${styles.tool} ${styles.iconOnly}`} aria-label="내보내기" onClick={onExport}>
           <DownloadIcon width={15} height={15} />
-          내보내기
+          <span>내보내기</span>
         </button>
       </div>
 

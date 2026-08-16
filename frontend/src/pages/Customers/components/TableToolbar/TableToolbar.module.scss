@@ -50,16 +50,6 @@
   display: flex;
   gap: var(--s2);
 
-  @include sm {
-    // 폰에서는 도구가 한 줄에 다 들어가지 않아 가로로 흘려 보냅니다.
-    flex: 1;
-    overflow-x: auto;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
 }
 
 .tool {
@@ -84,6 +74,18 @@
     border-color: var(--line-2);
     color: var(--blue);
   }
+
+}
+
+// 아이콘만으로도 뜻이 통하는 도구. 폰에서는 글자를 접어 한 줄에 담습니다.
+.iconOnly {
+  @include sm {
+    padding: 0 var(--s2);
+
+    span {
+      display: none;
+    }
+  }
 }
 
 .create {
@@ -91,8 +93,5 @@
   height: 36px;
   padding: 0 var(--s4);
 
-  @include sm {
-    // 이 줄에서 유일하게 무언가를 만드는 버튼이라 폰에서는 한 줄을 다 씁니다.
-    flex-basis: 100%;
-  }
+  margin-left: auto;
 }

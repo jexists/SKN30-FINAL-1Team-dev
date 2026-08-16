@@ -1,5 +1,5 @@
 // 고객사별 월 매출 목표. 시연용 합성 데이터입니다.
-// 합계는 mocks/counters.ts 의 salesGoal.target(팀 월 목표 3억)과 같습니다.
+// 팀 월 목표(3억)는 이 표의 합계입니다 — shared/salesTargets 의 monthlyTotal 로 씁니다.
 
 export const monthlyTargetByOrg: Record<string, number> = {
   한빛대학교병원: 90_000_000,

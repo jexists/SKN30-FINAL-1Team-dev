@@ -147,6 +147,10 @@ export default function MonthGrid({
           <Button variant="ghost" onClick={goToday}>
             오늘
           </Button>
+          {/* 폰에서는 칸 안 + 버튼이 들어갈 폭이 없어 여기로 옮겨 둡니다. */}
+          <Button className={styles.createOnPhone} onClick={() => onCreate(selectedISO)}>
+            일정 등록
+          </Button>
         </div>
       </header>
 

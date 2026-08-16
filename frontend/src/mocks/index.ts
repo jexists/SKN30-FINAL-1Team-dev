@@ -20,7 +20,9 @@ import { purchaseOrderSeed as allOrders } from './orders'
 import { quoteSeed as allQuotes } from './quotes'
 import { findProfile, type MockProfile } from './profiles'
 import { extraActivitySeed as allExtraActivities, reportSeed as allReports } from './reports'
+import { monthlyTargetByOrg as allTargets } from './salesTargets'
 import { suggestionSeed as allSuggestions } from './suggestions'
+import { TEAM as allTeam } from './team'
 
 const KEY = 'salesluv.profile'
 
@@ -74,8 +76,18 @@ export const directives = only(allDirectives)
 // 알림도 같은 이유로 담당자를 나누지 않습니다.
 export const notificationSeed = only(allNotifications)
 
-// 첫 세팅에서는 실적이 0 입니다. 목표는 조직이 정해 둔 값이라 남깁니다.
+// 첫 세팅에서는 실적이 0 입니다.
 export const salesGoal = profile.seeded ? teamGoal : { ...teamGoal, achieved: 0 }
+
+// 목표도 조직이 정해 두는 설정값이지만, 계정만 만든 첫 세팅에는 아직 정한 사람이
+// 없습니다. 비워 두면 매출 목표 카드와 매출분석이 '목표 미설정'으로 읽고, 목표를
+// 축으로 세우는 표(회사별·지역별)도 없는 회사를 지어내지 않습니다.
+export const monthlyTargetByOrg = profile.seeded ? allTargets : {}
+
+// 명부는 계정을 만들 때 함께 들어오지만 각자의 목표는 아직 비어 있습니다.
+export const TEAM = profile.seeded
+  ? allTeam
+  : allTeam.map((member) => ({ ...member, monthlyTarget: 0 }))
 
 // 담당자를 화면에서 useOwnerScope 로 이미 거르는 것들. 첫 세팅인지만 여기서 봅니다.
 export const customerSeed = only(allCustomers)
@@ -87,9 +99,7 @@ export const quoteSeed = only(allQuotes)
 /** 보고서 초안에 딸려 오는 활동. 첫 세팅에는 주워 올 활동이 없습니다. */
 export const extraActivitySeed = profile.seeded ? allExtraActivities : {}
 
-// 팀 명부·지역·목표·보고 양식은 계정이 만들어질 때 이미 있는 설정값이라 늘 그대로입니다.
+// 지역 구획과 보고 양식은 계정이 만들어질 때 이미 있는 설정값이라 늘 그대로입니다.
 export { meetingTemplate } from './meetings'
 export { regionByOrg } from './regions'
 export { APPROVERS, dailyTemplate, monthlyTemplate, weeklyTemplate } from './reports'
-export { monthlyTargetByOrg } from './salesTargets'
-export { TEAM } from './team'

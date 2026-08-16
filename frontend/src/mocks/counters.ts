@@ -139,12 +139,12 @@ export const renewals: Renewal[] = [
   },
 ]
 
-/** 월 매출 목표. 진행률은 achieved/target 에서 파생합니다. */
+/**
+ * 월 매출 실적. 목표는 조직이 정해 둔 값(salesTargets)에서, 이번 달과 마감까지
+ * 남은 일수는 오늘 날짜에서 파생합니다. 여기에 박아 두면 달이 바뀌어도 따라오지
+ * 않아 "8월 목표 · D-21" 같은 옛날 문구가 그대로 남습니다.
+ */
 export const salesGoal = {
-  month: 8,
   achieved: 189_900_000,
-  target: 300_000_000,
-  /** 마감까지 남은 일수 */
-  deadlineInDays: 21,
   teamName: '영업 1팀',
 }

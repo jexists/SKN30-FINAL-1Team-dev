@@ -6,3 +6,6 @@
 
 /** 사이드바가 드로어에서 고정 사이드바로 바뀌는 폭 ($bp-md + 1px) */
 export const BP_DESKTOP = 821
+
+/** 좁은 폰 ($bp-sm) */
+export const BP_PHONE = 520

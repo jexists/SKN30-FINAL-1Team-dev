@@ -89,7 +89,6 @@ export default function DayCell({
 
   const numCls = [
     styles.num,
-    'tnum',
     isToday && styles.isToday,
     dow === 0 && styles.isSun,
     dow === 6 && styles.isSat,
@@ -172,7 +171,7 @@ export default function DayCell({
               openCreate()
             }}
           >
-            <PlusIcon width={13} height={13} />
+            <PlusIcon width={12} height={12} />
           </button>
         </span>
       </div>

@@ -13,6 +13,9 @@ export { monthlyTargetByOrg }
 
 const ORGS = Object.keys(monthlyTargetByOrg)
 
+/** 팀의 한 달 목표 합계. 첫 세팅에는 정해 둔 목표가 없어 0 입니다. */
+export const monthlyTotal = ORGS.reduce((sum, org) => sum + monthlyTargetByOrg[org], 0)
+
 /** 기간이 덮는 달마다 (덮은 일수 / 그 달의 일수)를 더한 값. 한 달을 다 덮으면 1 입니다. */
 function monthsCovered(fromISO: string, toISO: string): number {
   const from = parseISO(fromISO)
@@ -51,6 +54,5 @@ export function targetForRegion(region: string, fromISO: string, toISO: string):
 }
 
 export function totalTarget(fromISO: string, toISO: string): number {
-  const monthly = ORGS.reduce((sum, org) => sum + monthlyTargetByOrg[org], 0)
-  return round(monthly * monthsCovered(fromISO, toISO))
+  return round(monthlyTotal * monthsCovered(fromISO, toISO))
 }

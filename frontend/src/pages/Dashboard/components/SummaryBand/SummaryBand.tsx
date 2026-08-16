@@ -1,7 +1,8 @@
 import { ArrowDownIcon } from '@/components/icons'
 import { agendaFor, useAgenda } from '@/shared/agenda'
 import { csSnapshot, followUps, renewals, salesGoal, useCsRequests } from '@/shared/counters'
-import { TODAY_ISO } from '@/utils/date'
+import { monthlyTotal } from '@/shared/salesTargets'
+import { ddayLabel, endOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import type { KpiListKey } from '../../drawerLists'
@@ -83,12 +84,18 @@ export default function SummaryBand({ onJumpToToday, onOpenList }: Props) {
   // 고객불만관리에서 등록하거나 상태를 바꾸면 C/S 타일이 따라 움직입니다.
   useCsRequests()
   const c = deriveCounters()
-  const percent = (salesGoal.achieved / salesGoal.target) * 100
-  const over = salesGoal.achieved >= salesGoal.target
+  // 목표는 조직이 회사별로 정해 둔 값의 합이고, 첫 세팅에는 아직 아무도 정하지 않아 0 입니다.
+  const target = monthlyTotal
+  const hasTarget = target > 0
+  const month = TODAY.getMonth() + 1
+  // 이 달 말일까지 남은 일수. 말일이면 0 이고 ddayLabel 이 '오늘'로 읽습니다.
+  const daysLeft = endOfMonth(TODAY).getDate() - TODAY.getDate()
+  const percent = hasTarget ? (salesGoal.achieved / target) * 100 : 0
+  const over = hasTarget && salesGoal.achieved >= target
   // 목표를 넘기면 트랙이 100%가 아니라 달성률 전체를 담습니다. 그래야 막대가 잘리지 않고
   // 100% 눈금이 트랙 안쪽에 남아 "얼마나 넘었는지"가 길이로 읽힙니다.
   const trackMax = Math.max(percent, 100)
-  const surplus = salesGoal.achieved - salesGoal.target
+  const surplus = hasTarget ? salesGoal.achieved - target : 0
 
   return (
     <div className={styles.summary}>
@@ -129,15 +136,23 @@ export default function SummaryBand({ onJumpToToday, onOpenList }: Props) {
 
       <article
         className={[styles.goal, over && styles.over].filter(Boolean).join(' ')}
-        aria-label={`${salesGoal.month}월 매출 목표${over ? ' — 목표 달성' : ''}`}
+        aria-label={`${month}월 매출 목표${over ? ' — 목표 달성' : ''}`}
       >
         <div className={styles.goalHead}>
-          <span>{salesGoal.month}월 매출 목표</span>
+          <span>{month}월 매출 목표</span>
           {over && <i className={styles.delta}>목표 달성</i>}
-          <strong className="tnum">{percent.toFixed(1)}%</strong>
+          <strong className="tnum">{hasTarget ? `${percent.toFixed(1)}%` : '—'}</strong>
         </div>
+        {/* 목표가 없으면 견줄 기준이 없습니다. 0을 목표로 적으면 달성률 0%가 부진으로
+            읽히므로, 실적 대신 아직 정해지지 않았다는 사실을 그대로 말합니다. */}
         <p className={`${styles.goalValue} tnum`}>
-          {won(salesGoal.achieved)} <em>/ {won(salesGoal.target)}</em>
+          {hasTarget ? (
+            <>
+              {won(salesGoal.achieved)} <em>/ {won(target)}</em>
+            </>
+          ) : (
+            <em>목표 미설정</em>
+          )}
         </p>
         <div
           className={styles.goalTrack}
@@ -158,7 +173,7 @@ export default function SummaryBand({ onJumpToToday, onOpenList }: Props) {
           <span className={`tnum ${surplus > 0 ? styles.surplus : ''}`}>
             {/* 딱 맞춰 달성한 경우엔 초과분 대신 남은 기간을 그대로 둡니다.
                 '초과 +₩0' 은 읽는 사람에게 아무것도 알려 주지 않습니다. */}
-            {surplus > 0 ? `목표 초과 +${won(surplus)}` : `마감 D-${salesGoal.deadlineInDays}`}
+            {surplus > 0 ? `목표 초과 +${won(surplus)}` : `마감 ${ddayLabel(daysLeft)}`}
           </span>
         </div>
       </article>

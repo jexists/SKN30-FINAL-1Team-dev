@@ -61,6 +61,8 @@
 .num {
   display: grid;
   place-items: center;
+  // 좁은 칸에서 눌려 타원이 되지 않게 합니다.
+  flex: none;
   width: 24px;
   height: 24px;
   // 브라우저 기본 padding(1px 6px)이 남으면 내용 폭이 12px 로 줄어 숫자가 오른쪽으로 밀립니다.
@@ -70,6 +72,8 @@
   background: none;
   font-size: 13px;
   font-weight: 600;
+  // 자간이 남으면 그만큼 숫자가 원 안에서 오른쪽으로 밀립니다.
+  letter-spacing: 0;
   color: var(--ink);
   cursor: pointer;
 }
@@ -319,6 +323,16 @@
 
 // 좁은 화면에서는 칩이 제목을 담을 폭이 없어 종류 색 점만 남깁니다.
 @include sm {
+  // 칸 폭이 40px 남짓이라 숫자와 + 가 같이 들어가지 않습니다.
+  // 추가는 헤더의 '일정 등록' 버튼이 대신 맡습니다.
+  .top {
+    min-height: 22px;
+  }
+
+  .add {
+    display: none;
+  }
+
   // 제목을 담을 폭이 없어 종류 색만 남긴 막대가 됩니다.
   .chip,
   .ghost {

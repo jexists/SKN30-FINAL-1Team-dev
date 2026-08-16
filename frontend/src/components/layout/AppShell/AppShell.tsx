@@ -47,7 +47,11 @@ export default function AppShell() {
   const closeMobile = useCallback(() => setMobileOpen(false), [])
 
   // 이동하면 드로어를 닫습니다. 화면을 가린 채 남아 있으면 도착한 페이지가 보이지 않습니다.
-  useEffect(() => setMobileOpen(false), [pathname])
+  // 스크롤도 맨 위로 되돌립니다. 이전 화면의 스크롤 위치가 남으면 새 페이지 중간부터 보입니다.
+  useEffect(() => {
+    setMobileOpen(false)
+    window.scrollTo(0, 0)
+  }, [pathname])
 
   // 드로어를 연 채 창을 넓히면 사이드바가 정상 위치로 돌아오므로 열림 상태를 정리합니다.
   useEffect(() => {

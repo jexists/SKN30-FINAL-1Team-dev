@@ -49,9 +49,13 @@ export const pct = (part: number, whole: number) => (whole > 0 ? (part / whole) 
  * 사라지면 안 되기 때문입니다. 상품은 목표가 없으므로 그 기간에 판 것만 나옵니다.
  */
 function keysFor(by: GroupBy): string[] {
+  const orgs = Object.keys(monthlyTargetByOrg)
+  // 첫 세팅에는 목표를 정해 둔 회사가 하나도 없습니다. 축을 세울 근거가 없으므로
+  // 회사도 지역도 만들지 않습니다. 빈 계정에 병원 이름이 떠 있으면 안 됩니다.
+  if (orgs.length === 0) return []
   if (by === 'region') return [...REGIONS]
   if (by === 'product') return []
-  return Object.keys(monthlyTargetByOrg)
+  return orgs
 }
 
 function keyOf(contract: Contract, by: GroupBy): string {
