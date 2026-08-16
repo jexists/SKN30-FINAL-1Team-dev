@@ -40,7 +40,7 @@ export function initialState(order?: PurchaseOrder): FormState {
     hospital: order?.hospital ?? '',
     supplier: order?.supplier ?? '',
     contract: order?.contract ?? '',
-    status: order?.status ?? '승인대기',
+    status: order?.status ?? '발주 접수',
     ordered: order?.ordered ?? TODAY_ISO,
     // 새 발주는 납기를 2주 뒤로 잡아 둡니다. 대부분 그 언저리라 고치는 손이 줄어듭니다.
     due: order?.due ?? iso(addDays(TODAY, 14)),

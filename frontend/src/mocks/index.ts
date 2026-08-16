@@ -16,6 +16,7 @@ import { documentSeed as allDocuments } from './documents'
 import { meetingReportSeed as allMeetings } from './meetings'
 import { directives as allDirectives, notices as allNotices } from './notices'
 import { purchaseOrderSeed as allOrders } from './orders'
+import { quoteSeed as allQuotes } from './quotes'
 import { findProfile, type MockProfile } from './profiles'
 import { extraActivitySeed as allExtraActivities, reportSeed as allReports } from './reports'
 import { suggestionSeed as allSuggestions } from './suggestions'
@@ -77,6 +78,7 @@ export const customerSeed = only(allCustomers)
 export const contractSeed = only(allContracts)
 export const documentSeed = only(allDocuments)
 export const purchaseOrderSeed = only(allOrders)
+export const quoteSeed = only(allQuotes)
 
 /** 보고서 초안에 딸려 오는 활동. 첫 세팅에는 주워 올 활동이 없습니다. */
 export const extraActivitySeed = profile.seeded ? allExtraActivities : {}

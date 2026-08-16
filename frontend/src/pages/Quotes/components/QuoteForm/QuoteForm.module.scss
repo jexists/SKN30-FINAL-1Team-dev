@@ -1,0 +1,10 @@
+// 계약 폼과 같은 두 칸 배치입니다.
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -54,11 +54,11 @@ export const meetingComposePath = (agendaId?: string) =>
 /** 확정한 미팅보고서 상세 */
 export const meetingReportPath = (id: string) => `${ROUTES.MEETINGS}/${id}`
 
+/** 영업 보드. 목록과 같은 데이터를 단계별 칸으로 봅니다. */
+export const visitBoardPath = () => `${ROUTES.VISITS}/board`
+
 /** 계약 상세. 계약번호(FM-CT-2026-0039)를 그대로 씁니다. */
 export const contractPath = (no: string) => `${ROUTES.CONTRACTS}/${no}`
-
-/** 계약 보드. 목록과 같은 데이터를 단계별 칸으로 봅니다. */
-export const contractBoardPath = () => `${ROUTES.CONTRACTS}/board`
 
 /** 계약 추가 화면. stageId 를 주면 그 단계로 시작합니다. */
 export const contractNewPath = (stageId?: string) =>

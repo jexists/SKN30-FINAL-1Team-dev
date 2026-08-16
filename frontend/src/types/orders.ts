@@ -4,8 +4,12 @@ export interface OrderLine {
   price: number
 }
 
+/**
+ * 발주 상태. 결재·생산·물류 흐름을 다섯 단계로 두고, 흐름 밖의 취소를 하나 더 둡니다.
+ * 순서가 곧 진행 순서라 탭·정렬·스텝바가 이 배열 순서를 그대로 씁니다.
+ */
 export type OrderStatus =
-  '승인대기' | '승인' | '출고의뢰서 작성완료' | '생산중' | '출고' | '입고완료' | '납품완료' | '취소'
+  '발주 접수' | '출고 의뢰서 완료' | '생산중' | '입고 완료' | '납품 완료' | '취소'
 
 export interface PurchaseOrderSeed {
   no: string

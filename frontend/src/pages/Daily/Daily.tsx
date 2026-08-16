@@ -6,6 +6,7 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
+import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import WeekStrip from '@/components/WeekStrip'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
@@ -242,14 +243,14 @@ export default function Daily() {
             >
               <ChevronLeftIcon width={15} height={15} />
             </button>
-            <button
-              type="button"
-              className={styles.thisWeek}
+            {/* 문구와 톤을 대시보드 주간 달력과 맞춥니다. 같은 줄을 넘기는 버튼입니다. */}
+            <Button
+              variant="ghost"
               onClick={() => (showMonth ? setCursor(startOfMonth(TODAY)) : setWeekOffset(0))}
               disabled={showMonth ? iso(cursor) === iso(startOfMonth(TODAY)) : weekOffset === 0}
             >
-              {showMonth ? '이번 달' : '이번 주'}
-            </button>
+              {showMonth ? '이번 달' : '오늘'}
+            </Button>
             <button
               type="button"
               className={styles.iconBtn}

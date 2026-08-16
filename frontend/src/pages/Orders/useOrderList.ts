@@ -3,7 +3,7 @@
 //
 // 상태를 모듈 수준에 두는 이유: 목록(/orders)·추가(/orders/new)·상세(/orders/:no)가
 // 서로 다른 페이지라 훅 인스턴스가 따로 생깁니다. useState 로 두면 상세에서 고친 값이
-// 목록으로 돌아왔을 때 사라집니다. 계약의 useContractBoard 와 같은 방식입니다.
+// 목록으로 돌아왔을 때 사라집니다. 계약의 useContractList 와 같은 방식입니다.
 import { useCallback, useSyncExternalStore } from 'react'
 
 import type { OrderLine, OrderStatus, PurchaseOrder } from '@/types'

@@ -5,6 +5,7 @@
 //
 // 보고서 작성 폼은 여기 넣지 않습니다. 미팅 기록은 첨부와 AI 구조화가 붙어
 // 드로어 한 장에 담기지 않으므로 하단 버튼으로 작성 화면으로 넘깁니다.
+// 사내 업무는 미팅보고서가 아니라 그날 일일업무보고로 넘어갑니다(shared/agendaReport).
 import { useState } from 'react'
 import { Link } from 'react-router'
 
@@ -16,10 +17,10 @@ import { endTime, statusScope } from '@/shared/agenda'
 import { contracts } from '@/shared/contracts'
 import { activeOrders, orders } from '@/shared/orders'
 import type { AgendaItem, Contract } from '@/types'
-import { contractPath, meetingComposePath, meetingReportPath, orderPath } from '@/constants/routes'
-import { initialCards, STAGE_NAMES, stageIndexOf } from '@/pages/Contracts/board'
-import { ORDER_STEPS, STEP_OF } from '@/pages/Orders/pipeline'
-import useMeetingReports from '@/pages/Meetings/useMeetingReports'
+import { useAgendaReportLink } from '@/shared/agendaReport'
+import { contractPath, orderPath } from '@/constants/routes'
+import { initialCards, STAGE_NAMES, stageIndexOf } from '@/pages/Visits/board'
+import { ORDER_STEPS, stepOf } from '@/pages/Orders/pipeline'
 import { won } from '@/utils/format'
 import { fmtDay, parseISO } from '@/utils/date'
 
@@ -62,11 +63,9 @@ export default function RecordDrawer({ item, done, onClose, onEdit, onDelete }: 
   const [openStep, setOpenStep] = useState(-1)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const { findByAgenda } = useMeetingReports()
-  // 이 자리에서 쓴 기록이 있으면 새로 쓰지 않고 그것을 엽니다.
-  const saved = findByAgenda(item.id)
-  // 사내 업무는 고객도 미팅보고서도 없습니다. 미팅의 어휘를 그대로 쓰면
-  // 쓸 수 없는 보고서를 권하게 되므로 그 자리들을 걷어냅니다.
+  // 이 일정에 이미 쓴 보고서가 있으면 새로 쓰지 않고 그것을 엽니다.
+  const report = useAgendaReportLink()(item)
+  // 사내 업무는 고객이 없습니다. 고객 쪽 어휘를 쓰는 자리들을 걷어냅니다.
   const task = item.kind === 'internal'
   const until = task ? endTime(item.time, item.dur) : ''
 
@@ -89,12 +88,12 @@ export default function RecordDrawer({ item, done, onClose, onEdit, onDelete }: 
   // 이 병원에서 아직 굴러가는 건만 봅니다. 지난 계약까지 걸면 큰 병원은 서른 줄이 넘습니다.
   const openContracts = contracts.filter((c) => c.org === item.hospital && isOpenContract(c))
   const openOrders = activeOrders().filter(
-    (o) => o.hospital === item.hospital && o.status !== '납품완료',
+    (o) => o.hospital === item.hospital && o.status !== '납품 완료',
   )
 
   const contractsAt = (stage: number) =>
     openContracts.filter((c) => stageIndexOf(STAGE_BY_NO.get(c.no) ?? '') === stage)
-  const ordersAt = (step: number) => openOrders.filter((o) => STEP_OF[o.status] === step)
+  const ordersAt = (step: number) => openOrders.filter((o) => stepOf(o.status) === step)
 
   return (
     <Drawer
@@ -167,22 +166,16 @@ export default function RecordDrawer({ item, done, onClose, onEdit, onDelete }: 
             </i>
           )}
           {done && <i className={`${styles.pill} ${styles.doneTag}`}>완료</i>}
-          {!task && done && !saved && (
+          {done && !report.written && (
             <i className={`${styles.pill} ${styles.needsReport}`}>보고서 미작성</i>
           )}
         </>
       }
       footer={
         // 완료는 목록 줄의 버튼에서 정합니다. 여기는 읽는 자리라 배지로만 둡니다.
-        // 미팅보고서는 고객을 만난 기록이라 사내 업무에는 걸지 않습니다.
-        task ? undefined : (
-          <Link
-            className={styles.cta}
-            to={saved ? meetingReportPath(saved.id) : meetingComposePath(item.id)}
-          >
-            {saved ? '미팅보고서 열기' : '미팅보고서 작성'}
-          </Link>
-        )
+        <Link className={styles.cta} to={report.to}>
+          {report.label}
+        </Link>
       }
     >
       <div className={styles.grid}>

@@ -1,0 +1,191 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+// Sidebar 드로어와 같은 방식으로 들어옵니다.
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100vw);
+  max-height: 100%;
+  background: var(--surface);
+  box-shadow: var(--sh-3);
+  animation: slide-in var(--t) var(--ease-spring);
+
+  @include sm {
+    // 좁은 화면에서는 Modal 과 같이 바텀시트가 됩니다.
+    width: 100%;
+    margin-top: auto;
+    max-height: 88vh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    animation-name: slide-up;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s5) var(--s5) var(--s4);
+  border-bottom: 1px solid var(--line);
+
+  h2 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.014em;
+  }
+}
+
+.no {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5);
+}
+
+.tags {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.kind {
+  @include tag-pill;
+}
+
+.amount {
+  margin-top: var(--s3);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+
+  dt {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  dd {
+    margin: 3px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.memo {
+  margin-top: var(--s5);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.memoEmpty {
+  margin-top: var(--s5);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s5);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+  flex: 1;
+  padding: 8px var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+  }
+}
+
+.danger {
+  border-color: var(--red-tint);
+  background: var(--red-tint);
+  color: var(--red-ink);
+
+  &:hover {
+    background: var(--red-tint);
+    filter: brightness(0.97);
+  }
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  margin-top: var(--s4);
+  padding: 8px var(--s4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 600;
+
+  &:hover {
+    background: var(--fill-2);
+  }
+}

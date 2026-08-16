@@ -53,9 +53,19 @@
   color: var(--blue);
 }
 
-.needsReport {
-  background: var(--orange-tint);
-  color: var(--orange-ink);
+// 배지 줄 오른쪽 끝. 알약들과 색이 경쟁하지 않게 테두리 없는 글자로 두고,
+// 대신 줄 안에서 유일하게 파란 글자라 눌리는 곳이라는 것이 드러납니다.
+.reportLink {
+  margin-left: auto;
+  padding: 2px 0 2px var(--s3);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .list {

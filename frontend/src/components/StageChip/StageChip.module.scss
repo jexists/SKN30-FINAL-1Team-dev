@@ -1,0 +1,35 @@
+.chip {
+  @include tag-pill;
+
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--tone-tint);
+  color: var(--tone-ink);
+}
+
+.gray {
+  --tone-tint: var(--fill);
+  --tone-ink: var(--ink-2);
+}
+.blue {
+  --tone-tint: var(--blue-tint);
+  --tone-ink: var(--blue);
+}
+.purple {
+  --tone-tint: var(--purple-tint);
+  --tone-ink: var(--purple-ink);
+}
+.orange {
+  --tone-tint: var(--orange-tint);
+  --tone-ink: var(--orange-ink);
+}
+.green {
+  --tone-tint: var(--green-tint);
+  --tone-ink: var(--green-ink);
+}
+.red {
+  --tone-tint: var(--red-tint);
+  --tone-ink: var(--red-ink);
+}

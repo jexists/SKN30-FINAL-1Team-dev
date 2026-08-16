@@ -8,7 +8,7 @@ import { addDays, iso, TODAY } from '@/utils/date'
 import { contractSeed } from '@/mocks'
 
 import { regionOf } from './regions'
-import type { Contract } from '@/types'
+import type { Contract, ContractKind } from '@/types'
 
 export const contracts: Contract[] = contractSeed
   .map((seed) => ({
@@ -17,6 +17,14 @@ export const contracts: Contract[] = contractSeed
     region: regionOf(seed.org),
   }))
   .sort((a, b) => b.date.localeCompare(a.date))
+
+/** 계약 유형 선택지. 타입에 적힌 순서를 그대로 씁니다. */
+export const KINDS: ContractKind[] = ['신규 도입', '증설', '갱신', '유지보수', '소모품 공급']
+
+// 필터와 폼의 선택지. 데이터에서 뽑아야 목록과 어긋나지 않습니다.
+export const OWNERS: string[] = [...new Set(contracts.map((c) => c.owner))].sort()
+export const ORGS: string[] = [...new Set(contracts.map((c) => c.org))].sort()
+export const PRODUCTS: string[] = [...new Set(contracts.map((c) => c.product))].sort()
 
 /** 기간 안에 계약일이 들어오는 계약. 양 끝을 포함합니다. */
 export function contractsIn(fromISO: string, toISO: string): Contract[] {

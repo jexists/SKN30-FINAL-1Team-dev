@@ -1,10 +1,11 @@
 import { forwardRef } from 'react'
+import { Link } from 'react-router'
 
 import Button from '@/components/Button'
 import { CalendarIcon, CheckIcon } from '@/components/icons'
 import { endTime, statusScope, useAgendaFor } from '@/shared/agenda'
+import { useAgendaReportLink } from '@/shared/agendaReport'
 import type { AgendaItem } from '@/types'
-import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import { fmtDay, parseISO, TODAY } from '@/utils/date'
 
 import styles from './DayAgenda.module.scss'
@@ -32,15 +33,15 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   // 먼저 훑고 그 아래에서 업무를 봅니다. 주간 줄의 파란 점·노란 점과 같은 구분입니다.
   const meetings = list.filter((it) => it.kind !== 'internal')
   const tasks = list.filter((it) => it.kind === 'internal')
-  // 보고서를 썼는지는 RecordDrawer 와 같은 곳을 봅니다. AgendaItem.reported 는
+  // 보고서로 가는 길은 RecordDrawer 와 같은 곳을 봅니다. AgendaItem.reported 는
   // 목업 시드의 고정값이라 이 자리에서 쓴 기록을 따라오지 못합니다.
-  const { findByAgenda } = useMeetingReports()
+  const reportLink = useAgendaReportLink()
   const date = parseISO(dateISO)
   const relative = RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
   /** groupStart 는 업무 묶음의 첫 줄입니다. 미팅과의 경계를 선 하나로 긋습니다. */
   const renderItem = (it: AgendaItem, groupStart = false) => {
     const done = doneIds.has(it.id)
-    const reported = Boolean(findByAgenda(it.id))
+    const report = reportLink(it)
     // 업무는 고객이 없어 회사·담당자 자리가 비고, 대신 언제까지 어디서 하는지가 남습니다.
     const task = it.kind === 'internal'
     const until = task ? endTime(it.time, it.dur) : ''
@@ -84,12 +85,17 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
                 {it.stage}
               </i>
             )}
-            {/* 끝냈다는 것은 왼쪽 버튼이 이미 말합니다. 여기서는
-                끝냈는데 보고를 아직 안 썼다는 것만 덧붙입니다.
-                미팅보고서는 미팅의 것이라 업무에는 걸지 않습니다. */}
-            {!task && done && !reported && (
-              <i className={`${styles.pill} ${styles.needsReport}`}>보고서 미작성</i>
-            )}
+            {/* 끝냈다는 것은 왼쪽 버튼이 이미 말합니다. 여기서는 보고서를
+                썼는지만 덧붙이는데, 그 자리를 배지 대신 링크가 맡습니다.
+                '작성' 이라고 서 있는 것 자체가 아직 안 썼다는 뜻입니다.
+                줄 전체는 상세를 열므로 링크에서 그 전파를 끊습니다. */}
+            <Link
+              className={styles.reportLink}
+              to={report.to}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {report.label}
+            </Link>
           </div>
 
           {/* 마우스는 줄 전체를 누르지만 키보드는 잡을 곳이 있어야 합니다.

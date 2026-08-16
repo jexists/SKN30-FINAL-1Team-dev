@@ -96,8 +96,8 @@
 .iconBtn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--surface);
@@ -109,25 +109,6 @@
   &:hover {
     background: var(--blue-tint);
     border-color: rgba(0, 122, 255, 0.28);
-  }
-}
-
-.thisWeek {
-  padding: 7px var(--s3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--fill-2);
-  }
-
-  &:disabled {
-    color: var(--muted-2);
-    cursor: default;
   }
 }
 

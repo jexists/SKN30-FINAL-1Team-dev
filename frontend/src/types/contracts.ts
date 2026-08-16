@@ -26,4 +26,23 @@ export interface Contract extends ContractSeed {
   date: string
   /** 고객사가 있는 시. regions.ts 에서 파생합니다. */
   region: string
+  /** 화면에서 적어 넣은 메모. 시드에는 없습니다. */
+  memo?: string
+}
+
+/** 계약 하나가 놓인 단계. 영업현황·계약현황이 저마다 다른 단계 집합을 씁니다. */
+export interface StagedContract extends Contract {
+  stageId: string
+}
+
+/** 계약 입력 폼이 내놓는 값. 계약번호·단계는 폼 밖에서 정합니다. */
+export interface ContractDraft {
+  org: string
+  product: string
+  amount: number
+  kind: ContractKind
+  owner: string
+  /** YYYY-MM-DD */
+  date: string
+  memo: string
 }

@@ -7,25 +7,27 @@ import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
+import DataTable, { compareBy, type SortState } from '@/components/DataTable'
 import FilterSelect from '@/components/FilterSelect'
-import { PlusIcon, SearchIcon } from '@/components/icons'
+import { OrdersIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import OrderDrawer from '@/components/OrderDrawer'
 import Pagination from '@/components/Pagination'
+import StageChip from '@/components/StageChip'
+import StageTabs from '@/components/StageTabs'
 import { orderNewPath, orderPath } from '@/constants/routes'
-import { orderItemLabel } from '@/shared/orders'
+import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
 import type { OrderStatus, PurchaseOrder } from '@/types'
 import { useOwnerScope } from '@/scope/scopeContext'
-import { addDays, iso, TODAY } from '@/utils/date'
+import { addDays, fmtDotShort, iso, parseISO, TODAY } from '@/utils/date'
+import { won } from '@/utils/format'
 
-import { compareBy, type SortState } from './columns'
+import { ORDER_COLUMNS } from './columns'
 import OrderForm from './components/OrderForm'
-import OrderTable from './components/OrderTable'
-import StatusTabs from './components/StatusTabs'
-import { ownerOfOrder, SUPPLIERS } from './pipeline'
+import { ORDER_STAGES, ownerOfOrder, SUPPLIERS, TONE_OF } from './pipeline'
 import useOrderList from './useOrderList'
 
-import styles from './Orders.module.scss'
+import styles from '@/pages/listPage.module.scss'
 
 /** 기간 선택지. 값이 개월 수이고 0 이면 전체입니다. 계약 목록과 같은 어휘를 씁니다. */
 const RANGES = [
@@ -64,6 +66,12 @@ export default function Orders() {
   const [editingNo, setEditingNo] = useState<string | null>(null)
   const [deletingNo, setDeletingNo] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'supplier' | 'range' | null>(null)
+
+  // 한 사람만 보고 있으면 담당 영업 열은 모든 줄이 같은 값이라 자리만 차지합니다.
+  const columns = useMemo(
+    () => ORDER_COLUMNS.filter((col) => col.id !== 'owner' || isTeamView),
+    [isTeamView],
+  )
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   // 조건이 바뀌면 첫 페이지로 돌아옵니다. 3페이지에 있다가 결과가 줄면 빈 화면을 봅니다.
@@ -112,9 +120,9 @@ export default function Orders() {
     const rows = status === '' ? beforeStatus : beforeStatus.filter((o) => o.status === status)
     if (!sort) return rows
     const sign = sort.dir === 'asc' ? 1 : -1
-    const compare = compareBy(sort.id)
+    const compare = compareBy(columns, sort.id)
     return [...rows].sort((a, b) => sign * compare(a, b))
-  }, [beforeStatus, status, sort])
+  }, [beforeStatus, status, sort, columns])
 
   // 결과가 줄어들어 현재 페이지가 사라졌으면 마지막 페이지로 당겨 옵니다.
   const pageCount = Math.max(1, Math.ceil(matched.length / pageSize))
@@ -189,21 +197,72 @@ export default function Orders() {
         </div>
       </div>
 
-      <StatusTabs
+      <StageTabs
+        stages={ORDER_STAGES}
+        label="발주 상태"
         value={status}
-        countOf={(id) => statusCounts.get(id) ?? 0}
+        countOf={(id) => statusCounts.get(id as OrderStatus) ?? 0}
         total={beforeStatus.length}
         onChange={(next) => setParam('status', next)}
       />
 
-      <OrderTable
+      <DataTable
         rows={pageRows}
+        columns={columns}
+        rowKey={(order) => order.no}
+        handleColumn="hospital"
         sort={sort}
         onSort={onSort}
-        onOpen={setOpenNo}
-        isFiltered={isFiltered}
-        onClearFilters={clearFilters}
-        onCreate={() => navigate(orderNewPath())}
+        onOpen={(order) => setOpenNo(order.no)}
+        caption="발주 목록. 헤더를 눌러 정렬할 수 있습니다."
+        renderCell={(id, order) => {
+          if (id === 'status') return statusChip(order)
+          // 납기를 넘긴 건은 여기서 바로 알아야 해서 지연 일수를 납기 옆에 붙입니다.
+          if (id !== 'due' || !isLate(order)) return undefined
+          return (
+            <span className={styles.late}>
+              {fmtDotShort(parseISO(order.due))}
+              <i>{lateLabel(order)}</i>
+            </span>
+          )
+        }}
+        mini={(order) => ({
+          title: order.hospital,
+          badge: statusChip(order),
+          sub: orderItemLabel(order),
+          meta: [
+            <span key="m1" className="tnum">
+              {won(orderTotal(order))}
+            </span>,
+            <span key="m2" className="tnum">
+              납기 {fmtDotShort(parseISO(order.due))}
+            </span>,
+            isLate(order) ? (
+              <i key="m3" className={styles.lateOnly}>
+                {lateLabel(order)}
+              </i>
+            ) : (
+              order.supplier
+            ),
+          ],
+        })}
+        empty={
+          isFiltered ? (
+            <>
+              <SearchIcon width={34} height={34} strokeWidth={1.5} />
+              <p>조건에 맞는 발주가 없습니다.</p>
+              <Button variant="outline" onClick={clearFilters}>
+                검색·필터 초기화
+              </Button>
+            </>
+          ) : (
+            <>
+              <OrdersIcon width={34} height={34} strokeWidth={1.5} />
+              <p>아직 등록한 발주가 없습니다.</p>
+              <Button onClick={() => navigate(orderNewPath())}>발주 추가</Button>
+            </>
+          )
+        }
       />
 
       {matched.length > 0 && (
@@ -260,6 +319,14 @@ export default function Orders() {
       )}
     </section>
   )
+}
+
+/** 납기를 며칠 넘겼는지. 표와 카드가 같은 문구를 씁니다. */
+const lateLabel = (order: PurchaseOrder) => `${order.expectOff - order.dueOff}일 지연`
+
+/** 표와 카드가 같은 배지를 씁니다. */
+function statusChip(order: PurchaseOrder) {
+  return <StageChip tone={TONE_OF[order.status]}>{order.status}</StageChip>
 }
 
 interface DeleteConfirmProps {

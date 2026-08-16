@@ -1,4 +1,5 @@
-// 계약 목록. 같은 계약을 보드(/contracts/board)에서는 단계별 칸으로 봅니다.
+// 계약 목록. 계약서가 지나는 다섯 단계를 탭으로 두고 훑어봅니다.
+// 영업 파이프라인을 칸으로 보고 싶으면 영업현황(/visits)으로 갑니다.
 //
 // 조건은 주소에 둡니다(q·owner·range·stage). 목록을 걸러 둔 채로 링크를 건네면
 // 받는 쪽도 같은 화면을 봅니다. 정렬과 페이지는 보는 사람 사정이라 주소에 남기지 않습니다.
@@ -6,26 +7,29 @@ import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
+import ContractDrawer from '@/components/ContractDrawer'
+import ContractForm from '@/components/ContractForm'
+import DataTable, { compareBy, type SortState } from '@/components/DataTable'
 import FilterSelect from '@/components/FilterSelect'
-import { PlusIcon, SearchIcon } from '@/components/icons'
+import { ContractIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import Pagination from '@/components/Pagination'
+import StageChip from '@/components/StageChip'
+import StageTabs from '@/components/StageTabs'
 import { contractNewPath } from '@/constants/routes'
 import { useOwnerScope } from '@/scope/scopeContext'
-import { addDays, iso, TODAY } from '@/utils/date'
+import { OWNERS } from '@/shared/contracts'
+import type { StagedContract } from '@/types'
+import { addDays, fmtDot, iso, parseISO, TODAY } from '@/utils/date'
+import { won } from '@/utils/format'
 
-import { OWNERS, type BoardContract } from './board'
-import { compareBy, type SortState } from './columns'
-import ContractDrawer from './components/ContractDrawer'
-import ContractForm from './components/ContractForm'
-import ContractTable from './components/ContractTable'
-import StageTabs from './components/StageTabs'
-import ViewToggle from './components/ViewToggle'
-import useContractBoard from './useContractBoard'
+import { CONTRACT_COLUMNS } from './columns'
+import { CONTRACT_STAGES, stageById } from './stages'
+import useContractList from './useContractList'
 
-import styles from './Contracts.module.scss'
+import styles from '@/pages/listPage.module.scss'
 
-/** 기간 선택지. 값이 개월 수이고 0 이면 전체입니다. 보드와 같은 어휘를 씁니다. */
+/** 기간 선택지. 값이 개월 수이고 0 이면 전체입니다. 다른 목록과 같은 어휘를 씁니다. */
 const RANGES = [
   { value: '3', label: '최근 3개월' },
   { value: '6', label: '최근 6개월' },
@@ -37,7 +41,7 @@ const RANGES = [
 const DEFAULT_RANGE = '6'
 
 export default function Contracts() {
-  const { columns, cards, findContract, updateContract, removeContract } = useContractBoard()
+  const { contracts, findContract, updateContract, removeContract } = useContractList()
   const navigate = useNavigate()
   // 팀 전체를 볼 때만 담당 영업으로 한 번 더 좁힙니다. 범위가 이미 한 사람이면
   // 같은 뜻의 조건이 둘이 되어 서로 어긋날 수 있습니다.
@@ -46,6 +50,8 @@ export default function Contracts() {
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
   const owner = showOwner ? (params.get('owner') ?? '') : ''
+  const range = params.get('range') ?? DEFAULT_RANGE
+  const stage = params.get('stage') ?? ''
 
   const ownerOptions = useMemo(
     () => [
@@ -57,8 +63,6 @@ export default function Contracts() {
     ],
     [owners],
   )
-  const range = params.get('range') ?? DEFAULT_RANGE
-  const stage = params.get('stage') ?? ''
 
   // 타이핑 중에도 입력이 밀리지 않도록 목록 계산만 한 박자 늦춥니다.
   const deferredQuery = useDeferredValue(query)
@@ -70,6 +74,12 @@ export default function Contracts() {
   const [editingNo, setEditingNo] = useState<string | null>(null)
   const [deletingNo, setDeletingNo] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
+
+  // 한 사람만 보고 있으면 담당 영업 열은 모든 줄이 같은 값이라 자리만 차지합니다.
+  const columns = useMemo(
+    () => CONTRACT_COLUMNS.filter((col) => col.id !== 'owner' || showOwner),
+    [showOwner],
+  )
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   // 조건이 바뀌면 첫 페이지로 돌아옵니다. 3페이지에 있다가 결과가 줄면 빈 화면을 봅니다.
@@ -93,21 +103,21 @@ export default function Contracts() {
   // 단계를 뺀 나머지 조건까지만 거른 목록입니다. 탭의 건수를 여기서 셉니다.
   const beforeStage = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase()
-    return cards.filter((card) => {
-      if (!matchesOwner(card.owner)) return false
-      if (owner !== '' && card.owner !== owner) return false
-      if (fromISO !== null && card.date < fromISO) return false
+    return contracts.filter((contract) => {
+      if (!matchesOwner(contract.owner)) return false
+      if (owner !== '' && contract.owner !== owner) return false
+      if (fromISO !== null && contract.date < fromISO) return false
       if (needle === '') return true
-      return [card.no, card.org, card.product, card.owner, card.memo ?? '']
+      return [contract.no, contract.org, contract.product, contract.owner, contract.memo ?? '']
         .join(' ')
         .toLowerCase()
         .includes(needle)
     })
-  }, [cards, matchesOwner, owner, fromISO, deferredQuery])
+  }, [contracts, matchesOwner, owner, fromISO, deferredQuery])
 
   const stageCounts = useMemo(() => {
     const map = new Map<string, number>()
-    for (const card of beforeStage) map.set(card.stageId, (map.get(card.stageId) ?? 0) + 1)
+    for (const c of beforeStage) map.set(c.stageId, (map.get(c.stageId) ?? 0) + 1)
     return map
   }, [beforeStage])
 
@@ -115,7 +125,7 @@ export default function Contracts() {
     const rows = stage === '' ? beforeStage : beforeStage.filter((c) => c.stageId === stage)
     if (!sort) return rows
     const sign = sort.dir === 'asc' ? 1 : -1
-    const compare = compareBy(sort.id, columns)
+    const compare = compareBy(columns, sort.id)
     return [...rows].sort((a, b) => sign * compare(a, b))
   }, [beforeStage, stage, sort, columns])
 
@@ -186,7 +196,6 @@ export default function Contracts() {
         />
 
         <div className={styles.actions}>
-          <ViewToggle view="list" />
           <Button onClick={() => navigate(contractNewPath(stage || undefined))}>
             <PlusIcon width={15} height={15} />
             계약 추가
@@ -195,22 +204,55 @@ export default function Contracts() {
       </div>
 
       <StageTabs
-        stages={columns}
+        stages={CONTRACT_STAGES}
+        label="계약 단계"
         value={stage}
         countOf={(id) => stageCounts.get(id) ?? 0}
         total={beforeStage.length}
         onChange={(next) => setParam('stage', next)}
       />
 
-      <ContractTable
+      <DataTable
         rows={pageRows}
-        stages={columns}
+        columns={columns}
+        rowKey={(c) => c.no}
+        handleColumn="org"
         sort={sort}
         onSort={onSort}
-        onOpen={setOpenNo}
-        isFiltered={isFiltered}
-        onClearFilters={clearFilters}
-        onCreate={() => navigate(contractNewPath())}
+        onOpen={(c) => setOpenNo(c.no)}
+        caption="계약 목록. 헤더를 눌러 정렬할 수 있습니다."
+        renderCell={(id, contract) => (id === 'stage' ? stageChip(contract) : undefined)}
+        mini={(contract) => ({
+          title: contract.org,
+          badge: stageChip(contract),
+          sub: `${contract.product} · ${contract.kind}`,
+          meta: [
+            <span key="m1" className="tnum">
+              {won(contract.amount)}
+            </span>,
+            <span key="m2" className="tnum">
+              {fmtDot(parseISO(contract.date))}
+            </span>,
+            ...(showOwner ? [contract.owner] : []),
+          ],
+        })}
+        empty={
+          isFiltered ? (
+            <>
+              <SearchIcon width={34} height={34} strokeWidth={1.5} />
+              <p>조건에 맞는 계약이 없습니다.</p>
+              <Button variant="outline" onClick={clearFilters}>
+                검색·필터 초기화
+              </Button>
+            </>
+          ) : (
+            <>
+              <ContractIcon width={34} height={34} strokeWidth={1.5} />
+              <p>아직 등록한 계약이 없습니다.</p>
+              <Button onClick={() => navigate(contractNewPath())}>계약 추가</Button>
+            </>
+          )
+        }
       />
 
       {matched.length > 0 && (
@@ -231,7 +273,7 @@ export default function Contracts() {
       {openContract && (
         <ContractDrawer
           contract={openContract}
-          column={columns.find((col) => col.id === openContract.stageId)}
+          stage={stageById(openContract.stageId)}
           onClose={() => setOpenNo(null)}
           onEdit={() => {
             setEditingNo(openContract.no)
@@ -256,46 +298,38 @@ export default function Contracts() {
       )}
 
       {deletingContract && (
-        <DeleteConfirm
-          contract={deletingContract}
+        <Modal
+          title="계약을 삭제할까요?"
+          description={`${deletingContract.no} · ${deletingContract.org}. 되돌릴 수 없습니다.`}
           onClose={() => setDeletingNo(null)}
-          onConfirm={() => {
-            removeContract(deletingContract.no)
-            setDeletingNo(null)
-          }}
-        />
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setDeletingNo(null)}>
+                취소
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  removeContract(deletingContract.no)
+                  setDeletingNo(null)
+                }}
+              >
+                삭제
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>
+            {deletingContract.product} · {deletingContract.owner}
+          </p>
+        </Modal>
       )}
     </section>
   )
 }
 
-interface DeleteConfirmProps {
-  contract: BoardContract
-  onClose: () => void
-  onConfirm: () => void
-}
-
-/** 지우기 전 한 번 묻습니다. 보드와 같은 문구를 씁니다. */
-function DeleteConfirm({ contract, onClose, onConfirm }: DeleteConfirmProps) {
-  return (
-    <Modal
-      title="계약을 삭제할까요?"
-      description={`${contract.no} · ${contract.org}. 되돌릴 수 없습니다.`}
-      onClose={onClose}
-      footer={
-        <>
-          <Button type="button" variant="outline" onClick={onClose}>
-            취소
-          </Button>
-          <Button type="button" onClick={onConfirm}>
-            삭제
-          </Button>
-        </>
-      }
-    >
-      <p className={styles.confirm}>
-        {contract.product} · {contract.owner}
-      </p>
-    </Modal>
-  )
+/** 표와 카드가 같은 배지를 씁니다. */
+function stageChip(contract: StagedContract) {
+  const stage = stageById(contract.stageId)
+  return stage ? <StageChip tone={stage.tone}>{stage.name}</StageChip> : null
 }

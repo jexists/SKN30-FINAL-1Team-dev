@@ -1,0 +1,83 @@
+// 목록 화면의 껍데기입니다. 영업·견적·계약·발주 네 화면이 같은 파일을 씁니다.
+// 툴바 → 단계 탭 → 표 → 페이지네이션 순서는 네 화면이 모두 같습니다.
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: 1 1 260px;
+  max-width: 360px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--muted);
+
+  &:focus-within {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-size: 13px;
+    outline: none;
+  }
+}
+
+// 보기 전환과 추가 버튼은 오른쪽 끝에 함께 둡니다.
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-left: auto;
+
+  @include sm {
+    // 좁은 화면에서는 검색줄 아래로 내려와 폭을 다 씁니다.
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+.confirm {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+// 납기를 넘긴 발주. 날짜 옆에 지연 일수를 붙입니다.
+.late {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+
+  i {
+    color: var(--red-ink);
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 600;
+  }
+}
+
+.lateOnly {
+  color: var(--red-ink);
+  font-style: normal;
+  font-weight: 600;
+}

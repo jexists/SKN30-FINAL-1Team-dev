@@ -21,27 +21,27 @@ export interface OrderFilter {
 export const ORDER_FILTERS: OrderFilter[] = [
   {
     key: 'pending',
-    label: '승인 대기',
-    note: () => '팀장 승인 필요',
-    test: (o) => o.status === '승인대기',
+    label: '발주 접수',
+    note: () => '출고 의뢰 전',
+    test: (o) => o.status === '발주 접수',
   },
   {
     key: 'request',
-    label: '출고의뢰서 처리',
+    label: '출고 의뢰서 처리',
     note: () => '출고 준비 단계',
-    test: (o) => o.status === '출고의뢰서 작성완료',
+    test: (o) => o.status === '출고 의뢰서 완료',
   },
   {
     key: 'inflight',
-    label: '생산·출고 진행중',
-    note: () => '승인부터 출고까지',
-    test: (o) => ['승인', '출고의뢰서 작성완료', '생산중', '출고'].includes(o.status),
+    label: '생산 진행중',
+    note: () => '출고 의뢰부터 생산까지',
+    test: (o) => ['출고 의뢰서 완료', '생산중'].includes(o.status),
   },
   {
     key: 'thisweek',
     label: '이번 주 입고 예정',
     note: () => `${fmtDay(TODAY).slice(0, -4)} – ${fmtDay(addDays(TODAY, 7)).slice(0, -4)}`,
-    test: (o) => !['입고완료', '납품완료'].includes(o.status) && dday(o) >= 0 && dday(o) <= 7,
+    test: (o) => !['입고 완료', '납품 완료'].includes(o.status) && dday(o) >= 0 && dday(o) <= 7,
   },
   {
     key: 'late',

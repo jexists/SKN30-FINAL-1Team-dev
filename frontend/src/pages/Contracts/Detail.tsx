@@ -11,16 +11,17 @@ import { orderItemLabel, orders } from '@/shared/orders'
 import { fmtDot, fmtDotShort, parseISO } from '@/utils/date'
 import { won, wonFull } from '@/utils/format'
 
-import ContractForm from './components/ContractForm'
-import useContractBoard from './useContractBoard'
+import ContractForm from '@/components/ContractForm'
+
+import { CONTRACT_STAGES, stageById } from './stages'
+import useContractList from './useContractList'
 
 import styles from './Detail.module.scss'
 
 export default function ContractDetail() {
   const { contractNo = '' } = useParams()
   const navigate = useNavigate()
-  const { columns, cards, findContract, moveCard, updateContract, removeContract } =
-    useContractBoard()
+  const { contracts, findContract, setStage, updateContract, removeContract } = useContractList()
 
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -40,9 +41,11 @@ export default function ContractDetail() {
     )
   }
 
-  const column = columns.find((col) => col.id === contract.stageId)
+  const stage = stageById(contract.stageId)
   const related = orders.filter((o) => o.contract === contract.no)
-  const sameOrg = cards.filter((c) => c.org === contract.org && c.no !== contract.no).slice(0, 8)
+  const sameOrg = contracts
+    .filter((c) => c.org === contract.org && c.no !== contract.no)
+    .slice(0, 8)
 
   return (
     <section className={styles.page}>
@@ -69,11 +72,11 @@ export default function ContractDetail() {
           <select
             className={styles.select}
             value={contract.stageId}
-            onChange={(event) => moveCard(contract.no, event.target.value, 0)}
+            onChange={(event) => setStage(contract.no, event.target.value)}
           >
-            {columns.map((col) => (
-              <option key={col.id} value={col.id}>
-                {col.name}
+            {CONTRACT_STAGES.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
               </option>
             ))}
           </select>
@@ -94,7 +97,7 @@ export default function ContractDetail() {
         </div>
         <div>
           <dt>단계</dt>
-          <dd>{column?.name ?? '-'}</dd>
+          <dd>{stage?.name ?? '-'}</dd>
         </div>
         <div>
           <dt>담당 영업</dt>

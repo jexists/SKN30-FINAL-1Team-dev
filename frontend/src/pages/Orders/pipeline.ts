@@ -1,55 +1,44 @@
 // 발주 화면의 어휘입니다. 상태가 무엇이고 무슨 색으로 보이는지, 폼과 필터가
 // 어떤 선택지를 내놓는지를 여기서 정합니다.
 //
-// 계약의 board.ts 와 달리 상태 집합은 데이터가 아니라 타입입니다. 발주 상태는
+// 영업현황의 board.ts 와 달리 상태 집합은 데이터가 아니라 타입입니다. 발주 상태는
 // 결재·생산·물류 흐름이라 화면에서 늘리고 줄일 수 있는 것이 아닙니다.
 // (파일 이름이 orders.ts 가 아닌 이유: Orders.tsx 와 대소문자만 달라 충돌합니다.)
 import { contracts } from '@/shared/contracts'
 import { orders as seed } from '@/shared/orders'
-import type { OrderStatus, PurchaseOrder } from '@/types'
+import type { ColumnTone, OrderStatus, PurchaseOrder, Stage } from '@/types'
 
-export type StatusTone = 'gray' | 'blue' | 'purple' | 'orange' | 'green' | 'red'
-
-/** 상태 선택지. 승인부터 입고까지 실제 진행 순서대로 둡니다. 탭·정렬이 이 순서를 씁니다. */
+/** 상태 선택지. 타입에 적힌 순서가 곧 진행 순서입니다. 탭·정렬이 이 순서를 씁니다. */
 export const ORDER_STATUSES: OrderStatus[] = [
-  '승인대기',
-  '승인',
-  '출고의뢰서 작성완료',
+  '발주 접수',
+  '출고 의뢰서 완료',
   '생산중',
-  '출고',
-  '입고완료',
-  '납품완료',
+  '입고 완료',
+  '납품 완료',
   '취소',
 ]
 
-export const TONE_OF: Record<OrderStatus, StatusTone> = {
-  승인대기: 'gray',
-  승인: 'blue',
-  '출고의뢰서 작성완료': 'purple',
+export const TONE_OF: Record<OrderStatus, ColumnTone> = {
+  '발주 접수': 'gray',
+  '출고 의뢰서 완료': 'purple',
   생산중: 'orange',
-  출고: 'blue',
-  입고완료: 'green',
-  납품완료: 'green',
+  '입고 완료': 'blue',
+  '납품 완료': 'green',
   취소: 'red',
 }
 
-/**
- * 진행 스텝바가 보여 줄 다섯 칸. 상태 일곱 가지를 사람이 말하는 단계로 묶습니다.
- * 승인대기·승인은 아직 '접수'고, 출고는 생산이 끝났다는 뜻이라 '생산 중' 칸에 섭니다.
- */
-export const ORDER_STEPS = ['발주 접수', '출고 의뢰서 완료', '생산 중', '입고 완료', '납품 완료']
+/** 단계 탭이 쓰는 어휘. 상태 하나가 곧 단계 하나입니다. */
+export const ORDER_STAGES: Stage[] = ORDER_STATUSES.map((status) => ({
+  id: status,
+  name: status,
+  tone: TONE_OF[status],
+}))
+
+/** 진행 스텝바가 보여 줄 다섯 칸 */
+export const ORDER_STEPS: OrderStatus[] = ORDER_STATUSES.filter((status) => status !== '취소')
 
 /** 상태가 놓이는 칸. 취소는 흐름 밖이라 -1 입니다. */
-export const STEP_OF: Record<OrderStatus, number> = {
-  승인대기: 0,
-  승인: 0,
-  '출고의뢰서 작성완료': 1,
-  생산중: 2,
-  출고: 2,
-  입고완료: 3,
-  납품완료: 4,
-  취소: -1,
-}
+export const stepOf = (status: OrderStatus): number => ORDER_STEPS.indexOf(status)
 
 /** 필터와 폼의 선택지. 데이터에서 뽑아야 목록과 어긋나지 않습니다. */
 export const SUPPLIERS: string[] = [...new Set(seed.map((o) => o.supplier))].sort()
