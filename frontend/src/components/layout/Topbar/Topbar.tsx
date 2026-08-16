@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react'
-import { useLocation } from 'react-router'
+import { Link, useLocation } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import { BellIcon, MenuIcon } from '@/components/icons'
 import { useSidebar } from '@/components/layout/AppShell/sidebarContext'
 import { SIDEBAR_ID } from '@/components/layout/Sidebar/Sidebar'
 import { findNavLabel } from '@/constants/navigation'
+import { ROUTES } from '@/constants/routes'
+import { useHasUnread } from '@/shared/notifications'
 
 import ScopeSwitcher from './ScopeSwitcher'
 
@@ -15,6 +17,7 @@ export default function Topbar() {
   const { mobileOpen, openMobile } = useSidebar()
   const { profile, isManager } = useCurrentUser()
   const { pathname } = useLocation()
+  const hasUnread = useHasUnread()
 
   const hamburgerRef = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)
@@ -53,9 +56,15 @@ export default function Topbar() {
         </div>
       )}
 
-      <button type="button" className={styles.iconBtn} aria-label="알림">
+      {/* 알림은 화면 하나입니다. 벨은 그리로 가는 통로일 뿐이라 점만 얹습니다. */}
+      <Link
+        className={styles.iconBtn}
+        to={ROUTES.NOTIFICATIONS}
+        aria-label={hasUnread ? '알림 (읽지 않음 있음)' : '알림'}
+      >
         <BellIcon />
-      </button>
+        {hasUnread && <span className={styles.dot} />}
+      </Link>
 
       <span className={styles.avatar}>{profile.name.charAt(0)}</span>
     </header>

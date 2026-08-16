@@ -15,6 +15,7 @@ import { customerSeed as allCustomers } from './customers'
 import { documentSeed as allDocuments } from './documents'
 import { meetingReportSeed as allMeetings } from './meetings'
 import { directives as allDirectives, notices as allNotices } from './notices'
+import { notifications as allNotifications } from './notifications'
 import { purchaseOrderSeed as allOrders } from './orders'
 import { quoteSeed as allQuotes } from './quotes'
 import { findProfile, type MockProfile } from './profiles'
@@ -69,6 +70,9 @@ export const renewals = pick(allRenewals)
 // 공지는 팀 전체가 함께 보는 글이라 담당자로 나누지 않습니다.
 export const notices = only(allNotices)
 export const directives = only(allDirectives)
+
+// 알림도 같은 이유로 담당자를 나누지 않습니다.
+export const notificationSeed = only(allNotifications)
 
 // 첫 세팅에서는 실적이 0 입니다. 목표는 조직이 정해 둔 값이라 남깁니다.
 export const salesGoal = profile.seeded ? teamGoal : { ...teamGoal, achieved: 0 }

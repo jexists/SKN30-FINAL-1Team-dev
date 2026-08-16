@@ -85,6 +85,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--surface);
+  color: var(--ink-2);
   cursor: pointer;
   transition:
     background var(--t-fast),
@@ -94,6 +95,20 @@
     background: var(--blue-tint);
     border-color: rgba(0, 122, 255, 0.28);
   }
+}
+
+// 안 읽은 알림이 있다는 표시. 숫자는 세어 봐야 할 일이 달라지지 않아 점만 찍습니다.
+// 벨 모양과 겹치면 아이콘이 지저분해 보여 버튼 모서리 밖으로 반쯤 걸칩니다.
+// 흰 테두리는 헤더 배경이 아니라 버튼 테두리와 점 사이를 띄우는 용도입니다.
+.dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--blue);
 }
 
 .avatar {

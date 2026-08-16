@@ -97,6 +97,7 @@ const NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items)
  */
 const OFF_MENU_LABELS: { to: Route; label: string }[] = [
   { to: ROUTES.MEETINGS, label: '미팅보고서' },
+  { to: ROUTES.NOTIFICATIONS, label: '알림' },
 ]
 
 /**

@@ -8,7 +8,7 @@ import type { Notice } from '@/types'
  * 목록 오른쪽에 찍는 작성 시점. 오늘 올린 글만 시각까지 보여 줍니다.
  * 어제 이전은 시각을 알아도 할 일이 달라지지 않아 며칠 전인지만 남깁니다.
  */
-export function postedLabel(n: Notice): string {
+export function postedLabel(n: Pick<Notice, 'postedOff' | 'postedAt'>): string {
   if (n.postedOff === 0) return n.postedAt
   if (n.postedOff === -1) return '어제'
   return `${-n.postedOff}일 전`

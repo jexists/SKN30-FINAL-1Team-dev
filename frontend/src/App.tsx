@@ -15,6 +15,7 @@ import Documents from '@/pages/Documents'
 import Login from '@/pages/Login'
 import { MeetingCompose, MeetingDetail } from '@/pages/Meetings'
 import NotFound from '@/pages/NotFound'
+import Notifications from '@/pages/Notifications'
 import Orders, { OrderDetail, OrderNew } from '@/pages/Orders'
 import Quotes from '@/pages/Quotes'
 import Sales from '@/pages/Sales'
@@ -39,6 +40,9 @@ export default function App() {
               <Route element={<ManagerRoute />}>
                 <Route path={ROUTES.TEAM} element={<Team />} />
               </Route>
+
+              {/* 알림은 사이드바에 없습니다. 진입은 헤더 벨에서만 합니다. */}
+              <Route path={ROUTES.NOTIFICATIONS} element={<Notifications />} />
 
               <Route path={ROUTES.CALENDAR} element={<Calendar />} />
 

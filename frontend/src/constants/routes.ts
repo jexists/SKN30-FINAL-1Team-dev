@@ -10,6 +10,7 @@ export const ROUTES = {
   TEAM: '/team', // 팀 관리 (팀장 전용)
   CUSTOMERS: '/customers',
   COMPLAINTS: '/complaints', // 고객 불만 관리
+  NOTIFICATIONS: '/notifications', // 알림. 진입은 헤더 벨에서 합니다.
   CALENDAR: '/calendar',
   MEETINGS: '/meetings', // 미팅보고서. 진입은 대시보드 일정에서 합니다.
   DAILY: '/daily', // 업무 보고

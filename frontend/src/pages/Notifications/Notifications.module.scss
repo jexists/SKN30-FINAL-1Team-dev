@@ -1,0 +1,164 @@
+// 목록 서식은 대시보드 공지(NoticeTicker), 탭은 고객불만관리(Complaints) 를 따릅니다.
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* ---- 탭 ---- */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 7px var(--s3);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill);
+    color: var(--ink);
+  }
+}
+
+.isActive {
+  border-color: var(--line-2);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--sh-1);
+}
+
+/* ---- 목록 ---- */
+
+.card {
+  @include card;
+
+  overflow: hidden; // 줄 배경이 카드의 둥근 모서리 밖으로 새지 않게 잡습니다.
+}
+
+.list {
+  li + li {
+    border-top: 1px solid var(--line);
+  }
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  transition: background var(--t-fast);
+
+  &:hover {
+    background: var(--fill-2);
+  }
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex: 1;
+  min-width: 0;
+  padding: 14px var(--s2) 14px var(--s4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  // 목록 한 줄은 눌러도 줄어들지 않습니다. 폭이 넓어 눌림이 화면 흔들림으로 보입니다.
+  &:active {
+    transform: none;
+  }
+}
+
+// 안 읽은 줄 표시. 점 자리는 읽은 줄에도 남아 글머리가 흔들리지 않습니다.
+.mark {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  // 긴 알림도 목록에서는 한 줄입니다. 전문은 이동한 화면에서 봅니다.
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// "09:10" 과 "2일 전" 의 폭이 달라도 줄마다 시각이 같은 자리에서 끝납니다.
+.time {
+  flex: none;
+  min-width: 44px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.unread {
+  .mark {
+    background: var(--blue);
+  }
+
+  .text {
+    color: var(--ink);
+    font-weight: 600;
+  }
+}
+
+/* ---- 삭제 ---- */
+
+.remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  margin-right: var(--s2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--muted-2);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    background: var(--fill);
+    color: var(--ink);
+  }
+}
+
+/* ---- 빈 목록 ---- */
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--s2);
+  padding: var(--s8) var(--s4);
+  color: var(--muted-2);
+
+  p {
+    font-size: 13px;
+  }
+}
