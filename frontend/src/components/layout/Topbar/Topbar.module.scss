@@ -112,6 +112,7 @@
 }
 
 .avatar {
+  flex: none;
   display: grid;
   place-items: center;
   width: 32px;
@@ -121,4 +122,9 @@
   color: var(--blue);
   font-size: 13px;
   font-weight: 700;
+  transition: box-shadow var(--t-fast);
+
+  &:hover {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
 }

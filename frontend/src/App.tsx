@@ -12,8 +12,10 @@ import Customers from '@/pages/Customers'
 import Daily, { DailyCompose, DailyDetail } from '@/pages/Daily'
 import Dashboard from '@/pages/Dashboard'
 import Documents from '@/pages/Documents'
+import LegalDoc from '@/pages/Legal'
 import Login from '@/pages/Login'
 import { MeetingCompose, MeetingDetail } from '@/pages/Meetings'
+import MyPage from '@/pages/MyPage'
 import NotFound from '@/pages/NotFound'
 import Notifications from '@/pages/Notifications'
 import Orders, { OrderDetail, OrderNew } from '@/pages/Orders'
@@ -88,6 +90,15 @@ export default function App() {
                 <Route index element={<Orders />} />
                 <Route path="new" element={<OrderNew />} />
                 <Route path=":orderNo" element={<OrderDetail />} />
+              </Route>
+
+              {/* 마이페이지는 사이드바에 없습니다. 진입은 사이드바 하단 이름과
+                  헤더 아바타에서 합니다. 약관 세 화면은 여기서만 들어갑니다. */}
+              <Route path={ROUTES.MYPAGE}>
+                <Route index element={<MyPage />} />
+                <Route path="terms" element={<LegalDoc doc="terms" />} />
+                <Route path="privacy" element={<LegalDoc doc="privacy" />} />
+                <Route path="legal" element={<LegalDoc doc="legal" />} />
               </Route>
 
               {/* 나머지 메뉴는 아직 라우트가 없어 여기로 떨어집니다.

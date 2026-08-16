@@ -1,0 +1,122 @@
+// 카드와 목록 서식은 알림 화면(pages/Notifications)을 따릅니다.
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.card {
+  @include card;
+
+  overflow: hidden; // 줄 배경이 둥근 모서리 밖으로 새지 않게 잡습니다.
+}
+
+.cardTitle {
+  padding: var(--s4) var(--s4) var(--s2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ---- 내 정보 ---- */
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4);
+}
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.identity {
+  flex: 1;
+  min-width: 0;
+
+  strong {
+    display: block;
+    font-size: 15px;
+    color: var(--ink);
+  }
+
+  span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+}
+
+.role {
+  @include tag-pill;
+}
+
+/* ---- 약관 목록 ---- */
+
+.list {
+  li + li {
+    border-top: 1px solid var(--line);
+  }
+
+  li:first-child {
+    border-top: 1px solid var(--line);
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 14px var(--s4);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  transition: background var(--t-fast);
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+
+  svg {
+    flex: none;
+    color: var(--muted-2);
+  }
+}
+
+/* ---- 로그아웃 ---- */
+
+.logout {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px var(--s4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    background: var(--red-tint);
+    border-color: var(--red-tint);
+    color: var(--red-ink);
+  }
+}

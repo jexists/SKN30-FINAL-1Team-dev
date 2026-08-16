@@ -1,0 +1,132 @@
+// 읽기만 하는 문서라 카드 한 장에 글만 담습니다.
+.page {
+  @include card;
+
+  padding: var(--s6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.head {
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--line);
+
+  h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted-2);
+  }
+}
+
+.lead {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+.article {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+
+  h2 {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  p {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--ink-2);
+  }
+}
+
+/* ---- 목록 ---- */
+
+// global.scss 가 목록 기호를 지워 두어 여기서 다시 켭니다. 조문 안의 열거는
+// 번호·기호가 있어야 어디까지가 한 항목인지 읽힙니다.
+.ordered,
+.bullets {
+  padding-left: var(--s5);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
+
+  li + li {
+    margin-top: 6px;
+  }
+}
+
+.ordered {
+  list-style: decimal;
+}
+
+.bullets {
+  list-style: disc;
+}
+
+/* ---- 표 ---- */
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.6;
+
+  th,
+  td {
+    padding: 10px var(--s3);
+    border: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  thead th {
+    background: var(--fill);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  tbody th {
+    width: 34%;
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  td {
+    color: var(--ink-2);
+  }
+}
+
+/* ---- 보충 설명 ---- */
+
+// 조문 본문이 아니라 덧붙이는 설명이라 한 걸음 물러난 서식으로 둡니다.
+// 장 구분. 조문 제목 위에 붙는 캡션입니다.
+// 아래 둘은 뒤에 오고 명시도가 같아 위 .article p 를 이깁니다.
+p.chapter {
+  margin-bottom: 2px;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+p.note {
+  padding-left: var(--s3);
+  border-left: 2px solid var(--line-2);
+  color: var(--muted);
+  font-size: 12.5px;
+}

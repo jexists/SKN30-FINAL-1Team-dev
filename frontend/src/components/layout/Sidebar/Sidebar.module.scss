@@ -113,10 +113,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-
-  &:last-child {
-    margin-top: auto; // 설정은 바닥에 붙습니다
-  }
 }
 
 // 조작 요소가 아니라 캡션입니다. 아래 항목들이 여기 속한 것으로 읽히도록
@@ -168,11 +164,28 @@
 /* ---- 프로필 ---- */
 .foot {
   display: grid;
-  grid-template-columns: 32px 1fr 30px;
+  grid-template-columns: 1fr 30px;
   align-items: center;
   gap: var(--s2);
   padding: var(--s3) var(--s2) 0;
   border-top: 1px solid var(--line);
+}
+
+// 아바타와 이름이 함께 마이페이지 링크입니다.
+.footLink {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  padding: 4px;
+  margin: -4px;
+  border-radius: var(--r-sm);
+  color: inherit;
+  transition: background var(--t-fast);
+
+  &:hover {
+    background: var(--fill-2);
+  }
 }
 
 .avatar {
@@ -288,6 +301,16 @@
     justify-items: center;
   }
 
+  // 브랜드명과 같은 이유로 폭을 접습니다. 흐려진 이름이 자리를 차지하면
+  // 아바타가 레일 밖으로 밀려납니다.
+  .footLink {
+    gap: 0;
+  }
+
+  .footCopy {
+    width: 0;
+  }
+
   .logout {
     display: none; // 레일 폭에 아바타와 나란히 둘 자리가 없습니다
   }
@@ -332,8 +355,16 @@
     }
 
     .foot {
-      grid-template-columns: 32px 1fr 30px;
+      grid-template-columns: 1fr 30px;
       justify-items: stretch;
+    }
+
+    .footLink {
+      gap: var(--s2);
+    }
+
+    .footCopy {
+      width: auto;
     }
 
     .logout {

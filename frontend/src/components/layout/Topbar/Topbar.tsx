@@ -66,7 +66,10 @@ export default function Topbar() {
         {hasUnread && <span className={styles.dot} />}
       </Link>
 
-      <span className={styles.avatar}>{profile.name.charAt(0)}</span>
+      {/* 아바타는 마이페이지로 가는 통로입니다. */}
+      <Link className={styles.avatar} to={ROUTES.MYPAGE} aria-label="마이페이지">
+        {profile.name.charAt(0)}
+      </Link>
     </header>
   )
 }

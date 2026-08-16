@@ -91,12 +91,15 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* 이름을 누르면 마이페이지로 갑니다. 로그아웃은 링크 밖 형제로 둡니다. */}
       <div className={styles.foot}>
-        <span className={styles.avatar}>{profile.name.charAt(0)}</span>
-        <span className={styles.footCopy}>
-          <strong>{profile.name}</strong>
-          <span>{profile.title}</span>
-        </span>
+        <Link to={ROUTES.MYPAGE} className={styles.footLink} title="마이페이지">
+          <span className={styles.avatar}>{profile.name.charAt(0)}</span>
+          <span className={styles.footCopy}>
+            <strong>{profile.name}</strong>
+            <span>{profile.title}</span>
+          </span>
+        </Link>
         <button type="button" className={styles.logout} onClick={logout} aria-label="로그아웃">
           <LogoutIcon />
         </button>

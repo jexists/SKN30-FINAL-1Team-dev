@@ -20,7 +20,12 @@ export const ROUTES = {
   CONTRACTS: '/contracts',
   ORDERS: '/orders',
   DOCUMENTS: '/documents',
-  SETTINGS: '/settings',
+  // 마이페이지. 진입은 사이드바 하단 이름과 헤더 아바타에서 합니다.
+  // 바꿀 수 있는 설정이 없어 '설정' 대신 내 정보·약관을 보는 화면 하나만 둡니다.
+  MYPAGE: '/mypage',
+  TERMS: '/mypage/terms', // 이용약관
+  PRIVACY: '/mypage/privacy', // 개인정보처리방침
+  LEGAL: '/mypage/legal', // 법적고지
 } as const
 
 export type Route = (typeof ROUTES)[keyof typeof ROUTES]

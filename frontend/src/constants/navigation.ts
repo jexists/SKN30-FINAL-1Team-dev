@@ -14,7 +14,6 @@ import {
   OrdersIcon,
   QuoteIcon,
   SalesReportIcon,
-  SettingsIcon,
   TeamIcon,
   VisitIcon,
 } from '@/components/icons'
@@ -82,11 +81,8 @@ export const NAV_SECTIONS: NavSection[] = [
     managerOnly: true,
     items: [{ to: ROUTES.TEAM, label: '팀 관리', icon: TeamIcon }],
   },
-  {
-    id: 'settings',
-    ariaLabel: '설정',
-    items: [{ to: ROUTES.SETTINGS, label: '설정', icon: SettingsIcon }],
-  },
+  // 설정 메뉴는 두지 않습니다. 바꿀 수 있는 값이 없어 마이페이지로 대체했고,
+  // 진입은 사이드바 하단 이름과 헤더 아바타에서 합니다.
 ]
 
 const NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items)
@@ -98,6 +94,10 @@ const NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items)
 const OFF_MENU_LABELS: { to: Route; label: string }[] = [
   { to: ROUTES.MEETINGS, label: '미팅보고서' },
   { to: ROUTES.NOTIFICATIONS, label: '알림' },
+  { to: ROUTES.MYPAGE, label: '마이페이지' },
+  { to: ROUTES.TERMS, label: '이용약관' },
+  { to: ROUTES.PRIVACY, label: '개인정보처리방침' },
+  { to: ROUTES.LEGAL, label: '법적고지' },
 ]
 
 /**
