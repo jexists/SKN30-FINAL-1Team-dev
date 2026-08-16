@@ -23,9 +23,7 @@ export default function NotFound() {
       <NotFoundIcon width={40} height={40} />
       <p className={styles.eyebrow}>404</p>
       <h1 className={styles.title}>{plannedLabel ?? '페이지를 찾을 수 없습니다'}</h1>
-      <p className={styles.copy}>
-        해당하는 화면이 없습니다.
-      </p>
+      <p className={styles.copy}>해당하는 화면이 없습니다.</p>
       <Button variant="outline" onClick={() => void navigate(ROUTES.DASHBOARD)}>
         대시보드로 돌아가기
       </Button>

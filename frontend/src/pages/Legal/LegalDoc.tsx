@@ -176,10 +176,7 @@ const DOCS = {
               '고객사·담당자 정보',
               '고객사명·주소, 담당자·의사결정자 성명 및 연락처(명함 OCR 등록 정보 포함)',
             ],
-            [
-              '서비스 이용기록',
-              '방문일정, 미팅기록, 업무보고, 발주내역, 접속기록, 쿠키',
-            ],
+            ['서비스 이용기록', '방문일정, 미팅기록, 업무보고, 발주내역, 접속기록, 쿠키'],
           ],
         },
         note: '고객사 담당자의 개인정보는 회원(영업담당자)이 업무 수행 과정에서 수집·입력하는 정보이며, 회원은 해당 정보주체에 대한 적법한 수집 근거(「개인정보 보호법」 제15조·제17조 등)를 스스로 확보할 책임이 있다.',
@@ -373,7 +370,9 @@ export default function LegalDoc({ doc }: LegalDocProps) {
           {article.chapter && <p className={styles.chapter}>{article.chapter}</p>}
           <h2>{article.heading}</h2>
 
-          {article.paragraphs?.map((text) => <p key={text}>{text}</p>)}
+          {article.paragraphs?.map((text) => (
+            <p key={text}>{text}</p>
+          ))}
 
           {article.table && (
             // 좁은 화면에서 표가 카드 밖으로 넘치지 않게 표만 따로 가로 스크롤합니다.

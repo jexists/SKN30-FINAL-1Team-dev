@@ -78,12 +78,22 @@ export default function TableToolbar({
           />
         </Popover>
 
-        <button type="button" className={`${styles.tool} ${styles.iconOnly}`} aria-label="가져오기" onClick={onImport}>
+        <button
+          type="button"
+          className={`${styles.tool} ${styles.iconOnly}`}
+          aria-label="가져오기"
+          onClick={onImport}
+        >
           <UploadIcon width={15} height={15} />
           <span>가져오기</span>
         </button>
 
-        <button type="button" className={`${styles.tool} ${styles.iconOnly}`} aria-label="내보내기" onClick={onExport}>
+        <button
+          type="button"
+          className={`${styles.tool} ${styles.iconOnly}`}
+          aria-label="내보내기"
+          onClick={onExport}
+        >
           <DownloadIcon width={15} height={15} />
           <span>내보내기</span>
         </button>
