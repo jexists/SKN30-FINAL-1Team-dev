@@ -5,6 +5,7 @@
 - 데이터 기준: [SalesLuv 최종 ERD](../SalesLuv_ERD.md)
 - Agent 동작 기준: [SalesLuv 멀티에이전트 운영 플로우](../SalesLuv_멀티에이전트_운영_플로우.html)
 - 화면 기준: [SalesLuv 화면 기준](../../../demo/layout_v3.html)
+- 프론트 제안 원본: [대시보드 API 요구사항](dashboard-api-spec.md)
 
 이 문서는 경로, 인증, 권한, 직렬화, 페이지네이션, 오류, 파일과 비동기 Agent 규칙을 정한다. 기능별 엔드포인트의 필드와 상태 전이는 별도 명세와 Pydantic 모델로 정하며 대시보드 고유 요구사항은 이 문서의 마지막 절에 둔다.
 
