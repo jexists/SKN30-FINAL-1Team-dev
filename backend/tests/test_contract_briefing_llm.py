@@ -2,9 +2,6 @@ import asyncio
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
-import pytest
-
-from app.core.config import Settings
 from app.schemas.contract_briefing import (
     ApprovedMeetingInsight,
     ContractEvidenceBundle,
@@ -14,7 +11,6 @@ from app.schemas.contract_briefing import (
 )
 from app.schemas.sales_deals import SalesDealRead
 from app.services.contract_briefing_llm import (
-    AnthropicContractBriefingSynthesizer,
     MockContractBriefingSynthesizer,
     get_contract_briefing_synthesizer,
 )
@@ -182,29 +178,6 @@ def test_cited_evidence_lists_each_risk_kind():
 # ---- 팩토리 ----
 
 
-def _settings(**overrides) -> Settings:
-    defaults = dict(app_env="test", session_secret="x" * 32)
-    defaults.update(overrides)
-    return Settings(**defaults)
-
-
-def test_factory_returns_mock_by_default():
-    synthesizer = get_contract_briefing_synthesizer(_settings())
+def test_factory_returns_mock():
+    synthesizer = get_contract_briefing_synthesizer()
     assert isinstance(synthesizer, MockContractBriefingSynthesizer)
-
-
-def test_factory_rejects_anthropic_without_api_key():
-    with pytest.raises(RuntimeError, match="anthropic_api_key"):
-        get_contract_briefing_synthesizer(_settings(llm_provider="anthropic"))
-
-
-def test_factory_anthropic_without_package_installed_fails_clearly():
-    with pytest.raises(RuntimeError, match="anthropic 패키지"):
-        get_contract_briefing_synthesizer(
-            _settings(llm_provider="anthropic", anthropic_api_key="dummy-key")
-        )
-
-
-def test_anthropic_synthesizer_cannot_be_constructed_without_package():
-    with pytest.raises(RuntimeError, match="anthropic 패키지"):
-        AnthropicContractBriefingSynthesizer(api_key="dummy-key")

@@ -8,7 +8,6 @@ API 키가 없는 지금은 같은 인터페이스를 만족하는 목업을 대
 
 from typing import Protocol
 
-from app.core.config import Settings
 from app.schemas.contract_briefing import (
     ApprovedMeetingInsight,
     BriefingPriority,
@@ -27,7 +26,7 @@ class ContractBriefingSynthesizer(Protocol):
 class MockContractBriefingSynthesizer:
     """실제 LLM 대신 인터페이스 계약만 만족하는 대역.
 
-    나중에 AnthropicContractBriefingSynthesizer로 바꿔도 호출부
+    실 provider는 아직 정해지지 않았다. 나중에 구현체를 추가해도 호출부
     (get_contract_briefing_synthesizer 사용처)는 그대로다.
     """
 
@@ -42,40 +41,9 @@ class MockContractBriefingSynthesizer:
         )
 
 
-class AnthropicContractBriefingSynthesizer:
-    """실 연동 자리. API 키가 오면 이 클래스 안쪽만 채운다.
-
-    지금은 패키지도 안 깔려 있고 키도 없어서, 생성 시점에 명확한 이유와
-    함께 실패한다 — 죽은 코드가 아니라 다음 단계를 위한 자리라는 뜻이다.
-    """
-
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5") -> None:
-        try:
-            import anthropic  # noqa: F401
-        except ImportError as exc:
-            raise RuntimeError(
-                "anthropic 패키지가 설치돼 있지 않습니다. "
-                "실제 연동 시 `uv add anthropic`으로 추가하세요."
-            ) from exc
-        self._api_key = api_key
-        self._model = model
-
-    async def synthesize(self, evidence: ContractEvidenceBundle) -> ContractBriefingSynthesis:
-        raise NotImplementedError(
-            "AnthropicContractBriefingSynthesizer는 아직 실제 호출 로직이 없습니다. "
-            "tool_choice로 ContractBriefingSynthesis 스키마를 강제하는 구조적 출력을 "
-            "구현하세요."
-        )
-
-
-def get_contract_briefing_synthesizer(settings: Settings) -> ContractBriefingSynthesizer:
-    if settings.llm_provider == "mock":
-        return MockContractBriefingSynthesizer()
-    if settings.anthropic_api_key is None:
-        raise RuntimeError("llm_provider가 anthropic인데 anthropic_api_key가 비어 있습니다.")
-    return AnthropicContractBriefingSynthesizer(
-        api_key=settings.anthropic_api_key.get_secret_value()
-    )
+def get_contract_briefing_synthesizer() -> ContractBriefingSynthesizer:
+    """실 LLM provider가 정해지지 않아 지금은 목업만 반환한다."""
+    return MockContractBriefingSynthesizer()
 
 
 def _determine_priority(assessment: ContractRiskAssessment) -> tuple[BriefingPriority, str]:
