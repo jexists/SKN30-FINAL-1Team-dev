@@ -2,7 +2,7 @@
 
 > 범위: 팀원 화면과 SalesLuv 멀티에이전트 운영 흐름<br>
 > 상태: 구현 전 최종 설계안<br>
-> 권고 규모: **20테이블 / 199컬럼**
+> 권고 규모: **20테이블 / 200컬럼**
 
 ## 설계 원칙
 
@@ -99,7 +99,7 @@
 - `image_alt?` — 이미지 접근성을 위한 대체 설명
 - `published_at` — 공지가 게시된 시각
 - `due_at?` — 업무 지시의 실제 마감 시각
-- `due_label?` — “오늘 중”처럼 화면에 표시할 기한 문구
+- `due_text?` — “매일 18:00”처럼 작성자가 입력한 자유형 기한 안내
 
 ### 7. `activities / 일정·업무` — 22개
 
@@ -239,6 +239,8 @@
 - `target_month` — 목표가 적용되는 연·월
 - `target_amount` — 해당 월의 목표금액
 
+같은 담당자·고객사·월의 목표는 하나만 존재하며 `target_amount >= 0`으로 제한한다.
+
 ## 4. 보고·자료실
 
 ### 16. `reports / 보고서` — 20개
@@ -316,7 +318,7 @@ LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 
 
 ## 5. LLM Agent
 
-### 20. `agent_runs / 에이전트 실행 이력` — 16개
+### 20. `agent_runs / 에이전트 실행 이력` — 17개
 
 각 LLM Agent 실행의 입력·출력·모델·근거·실패 상태와 에이전트 간 호출 관계를 추적한다.
 
@@ -326,6 +328,7 @@ LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 
 - `requested_by_member_id? FK` — 실행을 직접 요청한 팀원
 - `agent_code` — 고객관리·보고서·계약·일정·자료요약 Agent 구분
 - `trigger_code` — 미팅 업로드·계약 변경 등 실행 계기
+- `idempotency_key?` — 사용자가 시작한 같은 실행 요청의 중복 처리를 막는 키
 - `status_code` — 대기·실행 중·완료·실패 상태
 - `model_name` — 실행에 사용한 LLM 모델
 - `prompt_version` — 적용한 시스템 프롬프트 버전
@@ -334,10 +337,12 @@ LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 
 - `output_snapshot? JSONB` — LLM이 생성한 원본 결과
 - `evidence? JSONB` — 결과를 뒷받침한 문서·데이터 근거
 - `error_message?` — 실패한 경우 원인 메시지
-- `started_at` — 실행을 시작한 시각
+- `started_at?` — 대기 상태가 끝나고 실행을 시작한 시각
 - `finished_at?` — 완료 또는 실패한 시각
 
-`parent_run_id`로 Agent 간 교류를 표현한다. 보고서 Agent가 고객관리 Agent의 감정분석을 호출하면 두 실행을 부모·자식으로 연결한다.
+`parent_run_id`로 Agent 간 교류를 표현한다. 고객관리 Agent의 감정분석 결과가 계약관리 Agent 실행을 호출하면 두 실행을 부모·자식으로 연결한다.
+
+사용자가 시작한 실행은 `requested_by_member_id`, `idempotency_key` 조합을 중복 불가로 둔다. Agent 내부 호출은 `idempotency_key`를 사용하지 않는다.
 
 `input_snapshot`에는 비밀번호나 불필요한 개인정보 원문을 복제하지 않고, 권한 검사를 통과한 정제 데이터만 저장한다.
 

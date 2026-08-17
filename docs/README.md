@@ -5,9 +5,9 @@
 | [project-structure.md](project-structure.md) | 폴더 역할과 파일 배치 |
 | [planning/](planning/) | 프로젝트 기획·요구사항 등 현재 기준본 |
 | [technical/](technical/) | ERD·아키텍처 등 기술 설계 |
-| [technical/SalesLuv_MVP_ERD.html](technical/SalesLuv_MVP_ERD.html) | 편집 가능한 SalesLuv MVP ERD 관계도 |
-| [technical/SalesLuv_MVP_ERD.md](technical/SalesLuv_MVP_ERD.md) | 최신 범용 영업 CRM 기준 상세 데이터 사전·제약 |
-| [technical/멀티에이전트_플로우.html](technical/멀티에이전트_플로우.html) | SalesLuv 멀티에이전트 전체 흐름도 |
+| [technical/SalesLuv_ERD.md](technical/SalesLuv_ERD.md) | SalesLuv 최종 ERD |
+| [technical/SalesLuv_멀티에이전트_운영_플로우.html](technical/SalesLuv_멀티에이전트_운영_플로우.html) | SalesLuv 멀티에이전트 운영 흐름 |
+| [technical/backend/api-conventions.md](technical/backend/api-conventions.md) | SalesLuv 최종 API 공통 규약 |
 | [research/](research/) | 실험·비교·검토 결과 |
 | [research/crm/README.md](research/crm/README.md) | CRM 시장·경쟁사·제품 결정·사용자 의견 문서 안내 |
 | [meetings/](meetings/) | 날짜별 회의록 |
