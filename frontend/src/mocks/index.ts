@@ -84,10 +84,10 @@ export const salesGoal = profile.seeded ? teamGoal : { ...teamGoal, achieved: 0 
 // 축으로 세우는 표(회사별·지역별)도 없는 회사를 지어내지 않습니다.
 export const monthlyTargetByOrg = profile.seeded ? allTargets : {}
 
-// 명부는 계정을 만들 때 함께 들어오지만 각자의 목표는 아직 비어 있습니다.
+// 첫 세팅 팀에는 로그인 가능한 팀장·팀원 두 명만 있고 목표는 아직 비어 있습니다.
 export const TEAM = profile.seeded
   ? allTeam
-  : allTeam.map((member) => ({ ...member, monthlyTarget: 0 }))
+  : allTeam.slice(0, 2).map((member) => ({ ...member, monthlyTarget: 0 }))
 
 // 담당자를 화면에서 useOwnerScope 로 이미 거르는 것들. 첫 세팅인지만 여기서 봅니다.
 export const customerSeed = only(allCustomers)

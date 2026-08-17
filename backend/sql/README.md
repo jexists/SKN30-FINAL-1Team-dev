@@ -26,6 +26,8 @@
   외래키를 추가해 전체 20테이블·200컬럼을 완성하고, 모든 테이블의 RLS를 활성화합니다.
 - `20260817_0003_singular_table_names.sql`: 20개 테이블 이름을 단수형으로 변경합니다.
   PostgreSQL 예약어인 `order` 대신 `purchase_order`, 발주 품목은 `purchase_order_item`을 사용합니다.
+- `20260817_0004_unique_customer_company_name.sql`: 같은 팀에 같은 이름의 고객사가 중복
+  생성되지 않도록 유일 인덱스를 추가합니다.
 
 ## 적용 이력
 
@@ -34,16 +36,29 @@
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0001_core_schema.sql` | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0002_remaining_schema.sql` | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0003_singular_table_names.sql` | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `20260817_0004_unique_customer_company_name.sql` | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 초기 2계정 | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·4계정 | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_customers.py` 고객사 6개·담당자 32명 | Session Pooler | 성공 |
 
 ## 개발 로그인 계정
 
-`backend/.env`의 `DEMO_MANAGER_LOGIN_ID`, `DEMO_MEMBER_LOGIN_ID`, `DEMO_PASSWORD`를 채운 뒤
-아래 명령을 실행합니다. 평문 비밀번호는 파일이나 로그에 남기지 않고 실행 시 scrypt로 해시합니다.
+`backend/.env`의 `DEMO_FILLED_MANAGER_LOGIN_ID`, `DEMO_FILLED_MEMBER_LOGIN_ID`,
+`DEMO_EMPTY_MANAGER_LOGIN_ID`, `DEMO_EMPTY_MEMBER_LOGIN_ID`, `DEMO_PASSWORD`를 채운 뒤 아래
+명령을 실행합니다. 평문 비밀번호는 파일이나 로그에 남기지 않고 실행 시 scrypt로 해시합니다.
 
 ```bash
 cd backend
 DEBUG=false uv run python -m scripts.seed_demo_auth
 ```
 
-고정된 합성 팀과 팀장·팀원 계정을 upsert하므로 같은 개발 DB에 다시 실행할 수 있습니다.
+고정된 합성 UUID로 데이터가 채워진 팀과 비어 있는 첫 세팅 팀, 각 팀의 팀장·팀원 계정을
+upsert하므로 같은 개발 DB에 다시 실행할 수 있습니다.
+
+프론트 목업과 같은 합성 고객 데이터는 인증 seed 다음에 실행합니다. 데이터가 있는 팀에만
+고객사와 담당자를 upsert하고 첫 세팅 팀은 건드리지 않습니다.
+
+```bash
+cd backend
+DEBUG=false uv run python -m scripts.seed_demo_customers
+```

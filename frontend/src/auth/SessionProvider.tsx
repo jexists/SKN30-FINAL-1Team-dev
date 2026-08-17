@@ -9,14 +9,24 @@ import { type Session, SessionContext } from './sessionContext'
 
 interface AuthUser {
   id: string
+  team_id: string
   display_name: string
   role_code: Session['role']
   job_title: string | null
 }
 
-const PROFILE_ID_BY_ROLE: Record<Session['role'], string> = {
-  manager: 'sample-manager',
-  member: 'sample-member',
+const FILLED_TEAM_ID = '6d0f1b76-6b1a-4b72-9ba3-1df477a62d78'
+const EMPTY_TEAM_ID = 'dc153ea5-9ba6-4b96-a4df-845a44798003'
+
+const PROFILE_ID_BY_TEAM_AND_ROLE: Record<string, Record<Session['role'], string>> = {
+  [FILLED_TEAM_ID]: {
+    manager: 'sample-manager',
+    member: 'sample-member',
+  },
+  [EMPTY_TEAM_ID]: {
+    manager: 'empty-manager',
+    member: 'empty-member',
+  },
 }
 
 const toSession = ({ display_name, role_code, job_title }: AuthUser): Session => ({
@@ -24,10 +34,19 @@ const toSession = ({ display_name, role_code, job_title }: AuthUser): Session =>
   profile: { name: display_name, title: job_title ?? '' },
 })
 
+function resolveMockProfileId(teamId: string, role: Session['role']): string | undefined {
+  return PROFILE_ID_BY_TEAM_AND_ROLE[teamId]?.[role]
+}
+
 /** 인증과 무관한 합성 데이터 선택값만 실제 역할에 맞춥니다. */
-function syncMockProfile(role: Session['role']): 'ready' | 'reload' | 'failed' {
-  const expectedId = PROFILE_ID_BY_ROLE[role]
-  if (readProfileId() !== expectedId) writeProfileId(expectedId)
+function syncMockProfile(user: AuthUser): 'ready' | 'reload' | 'failed' {
+  const expectedId = resolveMockProfileId(user.team_id, user.role_code)
+  if (expectedId === undefined) return 'failed'
+
+  if (readProfileId() !== expectedId) {
+    clearScope()
+    writeProfileId(expectedId)
+  }
 
   if (mockProfile.id === expectedId) return 'ready'
   return readProfileId() === expectedId ? 'reload' : 'failed'
@@ -46,7 +65,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
       .then(({ data }) => {
         if (!active) return
         const next = toSession(data)
-        const mockSync = syncMockProfile(next.role)
+        const mockSync = syncMockProfile(data)
         if (mockSync === 'reload') {
           window.location.reload()
           return
@@ -78,7 +97,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     })
     const next = toSession(data)
     clearScope()
-    const mockSync = syncMockProfile(next.role)
+    const mockSync = syncMockProfile(data)
     if (mockSync === 'reload') {
       window.location.reload()
       return

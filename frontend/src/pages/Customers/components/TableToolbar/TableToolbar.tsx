@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import Button from '@/components/Button'
-import { ColumnsIcon, DownloadIcon, PlusIcon, UploadIcon } from '@/components/icons'
+import { ColumnsIcon, PlusIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import SearchInput from '@/components/SearchInput'
 import { BP_PHONE } from '@/constants/breakpoints'
@@ -19,8 +19,6 @@ interface TableToolbarProps {
   onToggleColumn: (id: string) => void
   onMoveColumn: (id: string, delta: -1 | 1) => void
   onResetColumns: () => void
-  onExport: () => void
-  onImport: () => void
   onCreate: () => void
 }
 
@@ -31,8 +29,6 @@ export default function TableToolbar({
   onToggleColumn,
   onMoveColumn,
   onResetColumns,
-  onExport,
-  onImport,
   onCreate,
 }: TableToolbarProps) {
   const [open, setOpen] = useState<'columns' | null>(null)
@@ -44,7 +40,7 @@ export default function TableToolbar({
       <SearchInput
         className={styles.search}
         value={query}
-        placeholder="이름, 회사, 직함, 메모 검색"
+        placeholder="이름, 회사, 부서, 직함, 이메일, 전화 검색"
         label="고객 검색"
         onChange={onQueryChange}
       />
@@ -74,26 +70,6 @@ export default function TableToolbar({
             onReset={onResetColumns}
           />
         </Popover>
-
-        <Button
-          variant="outline"
-          className={styles.foldLabel}
-          aria-label="가져오기"
-          onClick={onImport}
-        >
-          <UploadIcon width={15} height={15} />
-          <span>가져오기</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          className={styles.foldLabel}
-          aria-label="내보내기"
-          onClick={onExport}
-        >
-          <DownloadIcon width={15} height={15} />
-          <span>내보내기</span>
-        </Button>
       </div>
 
       <Button className={styles.create} onClick={onCreate}>

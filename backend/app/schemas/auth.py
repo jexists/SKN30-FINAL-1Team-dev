@@ -27,6 +27,7 @@ class SessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    team_id: UUID
     display_name: str
     role_code: Literal["member", "manager"]
     job_title: str | None

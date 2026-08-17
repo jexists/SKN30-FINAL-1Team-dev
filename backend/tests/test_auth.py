@@ -101,6 +101,7 @@ def test_login_me_and_logout_use_signed_cookie():
         assert login.status_code == 200
         assert login.json() == {
             "id": str(member.id),
+            "team_id": str(member.team_id),
             "display_name": "합성 팀장",
             "role_code": "manager",
             "job_title": "영업팀장",

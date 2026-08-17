@@ -50,8 +50,8 @@ export default function Topbar() {
 
       <div className={styles.spacer} />
 
-      {/* 팀원에게는 고를 것이 없습니다. 늘 자기 데이터만 봅니다. */}
-      {isManager && (
+      {/* 고객 API는 이번 슬라이스에서 담당자 범위를 받지 않으므로 고객 화면에만 숨깁니다. */}
+      {isManager && pathname !== ROUTES.CUSTOMERS && (
         <div className={styles.scope}>
           <ScopeSwitcher />
         </div>

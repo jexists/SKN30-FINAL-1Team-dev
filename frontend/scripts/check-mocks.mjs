@@ -87,7 +87,7 @@ for (const [name, row] of [
     assert(row[k] === 0, `첫 세팅 ${name} 의 ${k} 가 ${row[k]} (0 이어야 함)`)
   }
   assert(row.매출실적 === 0, `첫 세팅 ${name} 의 매출 실적이 ${row.매출실적}`)
-  assert(row.팀명부 === 5, `첫 세팅 ${name} 의 팀 명부가 비었음`)
+  assert(row.팀명부 === 2, `첫 세팅 ${name} 의 팀 명부가 ${row.팀명부} (2 이어야 함)`)
 }
 
 // 프로필이 없으면 샘플 팀장으로 떨어진다

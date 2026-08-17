@@ -1,0 +1,149 @@
+from datetime import datetime
+from typing import Annotated, Literal, Self
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+
+Text = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=254),
+]
+RegionCode = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=64),
+]
+Phone = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=50),
+]
+Email = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=3,
+        max_length=254,
+        pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
+    ),
+]
+Memo = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=5_000),
+]
+SearchQuery = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100),
+]
+CustomerStatus = Literal["new", "proposal", "negotiation", "contracted", "on_hold"]
+CustomerSource = Literal[
+    "referral",
+    "exhibition",
+    "website",
+    "cold_call",
+    "existing_customer",
+]
+
+
+class _WriteModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CustomerCompanyCreate(_WriteModel):
+    name: Text
+    region_code: RegionCode | None = None
+
+
+class CustomerCompanyPatch(_WriteModel):
+    name: Text | None = None
+    region_code: RegionCode | None = None
+
+    @model_validator(mode="after")
+    def name_cannot_be_null(self) -> Self:
+        if "name" in self.model_fields_set and self.name is None:
+            raise ValueError("name cannot be null")
+        return self
+
+
+class CustomerCompanyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    team_id: UUID
+    name: str
+    region_code: str | None
+    created_at: datetime
+
+
+class CustomerCompanyPage(BaseModel):
+    items: list[CustomerCompanyRead]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+    next_skip: int | None
+
+
+class CustomerContactCreate(_WriteModel):
+    company_id: UUID
+    name: Text
+    department: Text | None = None
+    job_title: Text | None = None
+    email: Email | None = None
+    phone: Phone
+    status_code: CustomerStatus | None = None
+    source_code: CustomerSource | None = None
+    memo: Memo | None = None
+
+
+class CustomerContactPatch(_WriteModel):
+    company_id: UUID | None = None
+    name: Text | None = None
+    department: Text | None = None
+    job_title: Text | None = None
+    email: Email | None = None
+    phone: Phone | None = None
+    status_code: CustomerStatus | None = None
+    source_code: CustomerSource | None = None
+    memo: Memo | None = None
+
+    @model_validator(mode="after")
+    def required_fields_cannot_be_null(self) -> Self:
+        for field_name in ("company_id", "name", "phone"):
+            if field_name in self.model_fields_set and getattr(self, field_name) is None:
+                raise ValueError(f"{field_name} cannot be null")
+        return self
+
+
+class CustomerContactRead(BaseModel):
+    id: UUID
+    company_id: UUID
+    owner_member_id: UUID
+    name: str
+    department: str | None
+    job_title: str | None
+    email: str | None
+    phone: str
+    status_code: CustomerStatus | None
+    source_code: CustomerSource | None
+    memo: str | None
+    registered_at: datetime
+    company_name: str
+    company_region_code: str | None
+    owner_display_name: str
+
+
+class CustomerContactPage(BaseModel):
+    items: list[CustomerContactRead]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+    next_skip: int | None
+
+
+class CustomerPageParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    q: SearchQuery | None = None
+    skip: int = Field(default=0, ge=0)
+    limit: int = Field(default=30, ge=1, le=100)
