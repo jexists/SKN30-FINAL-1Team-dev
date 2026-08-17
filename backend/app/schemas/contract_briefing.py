@@ -54,3 +54,14 @@ class ContractBriefingSynthesis(BaseModel):
     priority_reason: str
     customer_insight_summary: dict[str, list[str]] | None
     cited_evidence: list[str]
+
+
+class NextMeetingSuggestion(BaseModel):
+    """일정관리 Agent로 넘길 값의 자리. 텍스트 제안으로 줄지 activity 초안으로
+    줄지 아직 미정이라(ADR 6절 참고), 지금은 형식 중립적인 최소 정보만
+    담는다. 실제 전달 형식이 정해지면 이 스키마를 그 형식에 맞게 확장한다."""
+
+    is_needed: bool
+    suggested_date: date | None
+    reason: str
+    agenda: list[str] | None = None
