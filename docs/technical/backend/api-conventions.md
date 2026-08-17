@@ -288,6 +288,19 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 발주 이동 | `POST /api/orders/{purchase_order_id}/move` | `expected_stage_code`, 목표 `stage_code` |
 | C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,skip,limit`; 상태 `in_progress|completed` |
 | C/S 전이·답변 | `POST /api/support-requests/{request_id}/transition`, `POST /api/support-requests/{request_id}/responses` | expected 상태 비교; 답변 생성 `201` |
+| 보고서 | `GET/POST /api/reports`, `GET/PATCH/DELETE /api/reports/{report_id}` | 목록은 `q,report_kind,status_code,start_date,end_date,author_member_id,skip,limit` |
+| 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
+
+### 보고서의 상태와 작성 범위
+
+- 보고서 종류는 `meeting`, `daily`, `weekly`, `monthly`다.
+- 상태는 `draft`, `submitted`, `approved`, `rejected`이며 현재 API가 만드는 값은 `draft`와 `submitted` 둘이다.
+- 생성은 항상 `draft`로 시작한다. 요청으로 `status_code`나 작성자를 정할 수 없다.
+- 수정과 삭제는 `draft`에서만 허용하고 그 밖의 상태는 `409 report_not_editable`이다.
+- `weekly`, `monthly`는 `period_start`와 `period_end`가 모두 필요하고 `period_end >= period_start`여야 한다.
+- `meeting`은 근거가 되는 `source_activity_id`가 필요하다.
+- `activity_ids`로 묶는 일정은 같은 팀에서 조회 가능한 일정만 허용하며 아니면 `404 activity_not_found`다.
+- 검토(`approved`, `rejected`)와 `reviewed_by_member_id` 설정은 팀장 기능이라 이번 범위에 없다.
 
 ### 영업 딜의 화면 필터와 상태 전이
 
