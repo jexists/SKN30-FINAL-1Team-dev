@@ -1,17 +1,21 @@
 """계약 위험 신호와 다음 미팅 필요 여부를 계산하는 결정적 로직.
 
 DB 세션을 모르는 순수 함수다. 조회는 API 레이어가 맡고, 이미 팀·권한 스코프를
-통과한 ContractRead와 같은 고객사 최근 활동 시각 목록만 받는다.
+통과한 SalesDealRead와 같은 고객사 최근 활동 시각 목록만 받는다.
 
 임계값(D-30/60/90, 납품 D-7, 미접촉 14일)은 학습된 값이 아니라 초기 추정치이며,
 데모 피드백과 실사용 데이터를 근거로 조정한다.
+
+계약(Contract) 도메인은 딜·파이프라인 통합(PR #32)으로 SalesDeal로 리네임됐다.
+여기서 쓰는 `contract_ends_on`, `sales_pipeline_stage_outcome_code`,
+`sales_pipeline_stage_position`은 그 이후 스키마의 필드명이다.
 """
 
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 
 from app.schemas.contract_briefing import ContractRiskAssessment, NextMeetingCandidate, RiskItem
-from app.schemas.contracts import ContractRead
+from app.schemas.sales_deals import SalesDealRead
 
 _EXPIRY_WARNING_DAYS = 90
 _DELIVERY_WARNING_DAYS = 7
@@ -21,11 +25,11 @@ _DELIVERED_STAGE_POSITION = 6
 
 
 def evaluate_contract_risks(
-    contract: ContractRead,
+    deal: SalesDealRead,
     recent_company_activity_at: Sequence[datetime],
     today: date,
 ) -> ContractRiskAssessment:
-    if contract.stage_outcome_code == "cancelled":
+    if deal.sales_pipeline_stage_outcome_code == "cancelled":
         return ContractRiskAssessment(
             risks=[],
             next_meeting=NextMeetingCandidate(
@@ -35,11 +39,11 @@ def evaluate_contract_risks(
 
     risks: list[RiskItem] = []
 
-    expiry_risk = _evaluate_expiry(contract, today)
+    expiry_risk = _evaluate_expiry(deal, today)
     if expiry_risk is not None:
         risks.append(expiry_risk)
 
-    delivery_risk = _evaluate_delivery(contract, today)
+    delivery_risk = _evaluate_delivery(deal, today)
     if delivery_risk is not None:
         risks.append(delivery_risk)
 
@@ -48,14 +52,14 @@ def evaluate_contract_risks(
     if stale_contact_risk is not None:
         risks.append(stale_contact_risk)
 
-    next_meeting = _next_meeting_candidate(contract, risks, days_since_contact, today)
+    next_meeting = _next_meeting_candidate(deal, risks, days_since_contact, today)
     return ContractRiskAssessment(risks=risks, next_meeting=next_meeting)
 
 
-def _evaluate_expiry(contract: ContractRead, today: date) -> RiskItem | None:
-    if contract.ends_on is None:
+def _evaluate_expiry(deal: SalesDealRead, today: date) -> RiskItem | None:
+    if deal.contract_ends_on is None:
         return None
-    days_left = (contract.ends_on - today).days
+    days_left = (deal.contract_ends_on - today).days
     if days_left < 0 or days_left > _EXPIRY_WARNING_DAYS:
         return None
     severity = "high" if days_left <= 30 else "medium" if days_left <= 60 else "low"
@@ -63,23 +67,23 @@ def _evaluate_expiry(contract: ContractRead, today: date) -> RiskItem | None:
         kind="expiry",
         severity=severity,
         message=f"계약 만료(갱신 판단 기준일)까지 {days_left}일 남았습니다.",
-        evidence={"ends_on": contract.ends_on.isoformat(), "days_left": days_left},
+        evidence={"contract_ends_on": deal.contract_ends_on.isoformat(), "days_left": days_left},
     )
 
 
-def _evaluate_delivery(contract: ContractRead, today: date) -> RiskItem | None:
-    if contract.expected_delivery_at is None:
+def _evaluate_delivery(deal: SalesDealRead, today: date) -> RiskItem | None:
+    if deal.expected_delivery_at is None:
         return None
-    if contract.stage_position >= _DELIVERED_STAGE_POSITION:
+    if deal.sales_pipeline_stage_position >= _DELIVERED_STAGE_POSITION:
         return None
-    days_left = (contract.expected_delivery_at.date() - today).days
+    days_left = (deal.expected_delivery_at.date() - today).days
     if days_left < 0:
         return RiskItem(
             kind="delivery",
             severity="high",
             message=f"납품 예정일이 {abs(days_left)}일 지났습니다.",
             evidence={
-                "expected_delivery_at": contract.expected_delivery_at.isoformat(),
+                "expected_delivery_at": deal.expected_delivery_at.isoformat(),
                 "days_overdue": abs(days_left),
             },
         )
@@ -89,7 +93,7 @@ def _evaluate_delivery(contract: ContractRead, today: date) -> RiskItem | None:
             severity="medium",
             message=f"납품 예정일이 {days_left}일 남았습니다.",
             evidence={
-                "expected_delivery_at": contract.expected_delivery_at.isoformat(),
+                "expected_delivery_at": deal.expected_delivery_at.isoformat(),
                 "days_left": days_left,
             },
         )
@@ -120,21 +124,21 @@ def _evaluate_stale_contact(
     return risk, days_since_contact
 
 
-def _recommended_interval_days(contract: ContractRead) -> int:
-    if contract.stage_outcome_code == "confirmed":
+def _recommended_interval_days(deal: SalesDealRead) -> int:
+    if deal.sales_pipeline_stage_outcome_code == "confirmed":
         return 30
-    if contract.stage_position <= 1:
+    if deal.sales_pipeline_stage_position <= 1:
         return 7
     return 5
 
 
 def _next_meeting_candidate(
-    contract: ContractRead,
+    deal: SalesDealRead,
     risks: list[RiskItem],
     days_since_contact: int | None,
     today: date,
 ) -> NextMeetingCandidate:
-    interval = _recommended_interval_days(contract)
+    interval = _recommended_interval_days(deal)
     triggered_by = [risk.kind for risk in risks]
 
     if days_since_contact is None:

@@ -1,4 +1,9 @@
-"""filled 데모팀 계약 일부에 ends_on·expected_delivery_at을 채워 위험 탐지를 시연 가능하게 한다."""
+"""filled 데모팀 계약 일부에 contract_ends_on·expected_delivery_at을 채워
+위험 탐지를 시연 가능하게 한다.
+
+계약(Contract) 도메인은 딜·파이프라인 통합(PR #32)으로 SalesDeal로
+리네임됐다. 대상 계약번호와 UUID 생성 규칙은 그대로 유지된다.
+"""
 
 import asyncio
 from datetime import datetime, time, timedelta
@@ -6,15 +11,15 @@ from datetime import datetime, time, timedelta
 from sqlalchemy import update
 
 from app.db.session import get_sessionmaker
-from app.models.sales import Contract
+from app.models.sales import SalesDeal
 from scripts.seed_demo_activities import REFERENCE_DATE, SEOUL
 from scripts.seed_demo_auth import FILLED_TEAM_ID
-from scripts.seed_demo_contracts import contract_id
+from scripts.seed_demo_sales_deals import sales_deal_id
 
 # 만료 임박 위험 시연용. day_offset은 REFERENCE_DATE(2026-08-17) 기준 며칠 뒤가
 # 만료일인지를 뜻한다. 2건은 30일 이내, 2건은 60일 이내, 나머지 4건은 90일
 # 이내에 걸리게 잡았다. 전부 outcome_code가 confirmed인 계약(won·delivered)이다.
-ENDS_ON_FIXTURES = {
+CONTRACT_ENDS_ON_FIXTURES = {
     "FM-CT-2026-0037": 15,
     "FM-CT-2026-0032": 25,
     "FM-CT-2026-0030": 40,
@@ -38,24 +43,24 @@ EXPECTED_DELIVERY_FIXTURES = {
 async def seed_demo_contract_risk_fixtures() -> None:
     async with get_sessionmaker()() as session, session.begin():
         updated_ends_on = 0
-        for contract_no, day_offset in ENDS_ON_FIXTURES.items():
+        for contract_no, day_offset in CONTRACT_ENDS_ON_FIXTURES.items():
             result = await session.execute(
-                update(Contract)
+                update(SalesDeal)
                 .where(
-                    Contract.id == contract_id(contract_no),
-                    Contract.team_id == FILLED_TEAM_ID,
+                    SalesDeal.id == sales_deal_id(contract_no),
+                    SalesDeal.team_id == FILLED_TEAM_ID,
                 )
-                .values(ends_on=REFERENCE_DATE + timedelta(days=day_offset))
+                .values(contract_ends_on=REFERENCE_DATE + timedelta(days=day_offset))
             )
             updated_ends_on += result.rowcount
 
         updated_delivery = 0
         for contract_no, day_offset in EXPECTED_DELIVERY_FIXTURES.items():
             result = await session.execute(
-                update(Contract)
+                update(SalesDeal)
                 .where(
-                    Contract.id == contract_id(contract_no),
-                    Contract.team_id == FILLED_TEAM_ID,
+                    SalesDeal.id == sales_deal_id(contract_no),
+                    SalesDeal.team_id == FILLED_TEAM_ID,
                 )
                 .values(
                     expected_delivery_at=datetime.combine(
@@ -67,9 +72,9 @@ async def seed_demo_contract_risk_fixtures() -> None:
             )
             updated_delivery += result.rowcount
 
-        if updated_ends_on != len(ENDS_ON_FIXTURES):
+        if updated_ends_on != len(CONTRACT_ENDS_ON_FIXTURES):
             raise SystemExit(
-                f"ends_on 업데이트 {updated_ends_on}/{len(ENDS_ON_FIXTURES)}건만 "
+                f"contract_ends_on 업데이트 {updated_ends_on}/{len(CONTRACT_ENDS_ON_FIXTURES)}건만 "
                 "반영됐습니다. 계약 seed를 먼저 실행하세요."
             )
         if updated_delivery != len(EXPECTED_DELIVERY_FIXTURES):
@@ -80,7 +85,7 @@ async def seed_demo_contract_risk_fixtures() -> None:
             )
 
     print(
-        f"계약 위험 시연용 픽스처를 채웠습니다: ends_on {updated_ends_on}건, "
+        f"계약 위험 시연용 픽스처를 채웠습니다: contract_ends_on {updated_ends_on}건, "
         f"expected_delivery_at {updated_delivery}건."
     )
 
