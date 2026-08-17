@@ -40,6 +40,7 @@
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 초기 2계정 | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·4계정 | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_customers.py` 고객사 6개·담당자 32명 | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_activities.py` 상품 3개·일정 12건 | Session Pooler | 성공 |
 
 ## 개발 로그인 계정
 
@@ -61,4 +62,12 @@ upsert하므로 같은 개발 DB에 다시 실행할 수 있습니다.
 ```bash
 cd backend
 DEBUG=false uv run python -m scripts.seed_demo_customers
+```
+
+일정 seed는 인증과 고객 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만 고정
+합성 상품 3개와 일정 12건을 upsert하고 첫 세팅 팀은 건드리지 않습니다.
+
+```bash
+cd backend
+DEBUG=false uv run python -m scripts.seed_demo_activities
 ```

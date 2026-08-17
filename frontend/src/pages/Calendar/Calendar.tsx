@@ -7,11 +7,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 
-import { agendaById } from '@/shared/agenda'
+import Button from '@/components/Button'
+import { readProfileId } from '@/mocks'
 import { aiSuggestions } from '@/shared/suggestions'
 import type { AiSuggestion, CalendarEvent } from '@/types'
 import usePointerDrag from '@/hooks/usePointerDrag'
-import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import { parseISO, startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 
 import EventModal from './components/EventModal'
@@ -22,27 +22,63 @@ import useCalendarEvents, { DEFAULTS } from './useCalendarEvents'
 
 import styles from './Calendar.module.scss'
 
-export default function Calendar() {
-  const { eventsByDate, addEvent, updateEvent, moveEvent, removeEvent } = useCalendarEvents()
+const acceptedStorageKey = () => `salesluv.calendar.accepted:${readProfileId() ?? 'default'}`
 
+function readAccepted(): ReadonlySet<string> {
+  try {
+    const value: unknown = JSON.parse(sessionStorage.getItem(acceptedStorageKey()) ?? '[]')
+    return new Set(
+      Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [],
+    )
+  } catch {
+    return new Set()
+  }
+}
+
+export default function Calendar() {
   const [cursor, setCursor] = useState(() => startOfMonth(TODAY))
+  const {
+    events,
+    eventsByDate,
+    loading,
+    error,
+    reload,
+    addEvent,
+    updateEvent,
+    moveEvent,
+    removeEvent,
+  } = useCalendarEvents(cursor)
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set())
-  /**
-   * 이미 달력에 넣은 추천. 목록에서 사라지는 것은 닫은 것과 같지만, 다시 받을 때
-   * 되살아나면 안 됩니다. 같은 일정을 두 번 넣게 됩니다.
-   */
-  const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set())
+  const [accepted, setAccepted] = useState<ReadonlySet<string>>(readAccepted)
   const [refreshing, setRefreshing] = useState(false)
-  /** 상세를 보고 있는 일정. 칩을 누르면 고치기 전에 먼저 이것부터 폅니다. */
-  const [viewingId, setViewingId] = useState<string | null>(null)
   const [editing, setEditing] = useState<CalendarEvent | null>(null)
   /** 새 일정을 만드는 날짜. 등록 모달을 그 날짜로 엽니다. */
   const [creating, setCreating] = useState<string | null>(null)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
+  const accepting = useRef(new Set<string>())
 
-  const suggestions = useMemo(() => aiSuggestions.filter((s) => !dismissed.has(s.id)), [dismissed])
+  const suggestions = useMemo(() => {
+    if (loading || error) return []
+    // ponytail: activity에 추천 원본 ID가 없어 고정 추천 6개의 고유 제목으로 중복만 막습니다.
+    // 추천이 동적으로 늘면 activity에 source_id를 추가해야 합니다.
+    const existingTitles = new Set(events.map((event) => event.title))
+    return aiSuggestions.filter(
+      (suggestion) =>
+        !accepted.has(suggestion.id) &&
+        !dismissed.has(suggestion.id) &&
+        !existingTitles.has(suggestion.title),
+    )
+  }, [accepted, dismissed, error, events, loading])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(acceptedStorageKey(), JSON.stringify([...accepted]))
+    } catch {
+      // 현재 화면에서는 accepted 상태와 DB 제목 대조가 중복을 막습니다.
+    }
+  }, [accepted])
 
   const dismiss = useCallback((id: string) => {
     setDismissed((prev) => new Set(prev).add(id))
@@ -51,28 +87,36 @@ export default function Calendar() {
 
   /** dateISO 를 주면 추천일 대신 그 날짜로 넣습니다. 끌어다 놓은 경우입니다. */
   const accept = useCallback(
-    (s: AiSuggestion, dateISO?: string) => {
+    async (s: AiSuggestion, dateISO?: string) => {
+      if (loading || error || accepting.current.has(s.id)) return
+      accepting.current.add(s.id)
       const date = dateISO ?? s.date
-      const added = addEvent({
-        date,
-        time: s.time,
-        dur: s.dur,
-        kind: s.kind,
-        title: s.title,
-        hospital: s.hospital,
-        dept: s.dept,
-        contact: s.contact,
-        place: s.place,
-        brief: s.reason,
-      })
-      // 넣은 자리가 화면 밖이면 확인할 수 없으니 그 달로 옮기고 그 날을 고릅니다.
-      setCursor(startOfMonth(parseISO(date)))
-      setSelectedISO(date)
-      setJustAddedId(added.id)
-      setAccepted((prev) => new Set(prev).add(s.id))
-      dismiss(s.id)
+      try {
+        const added = await addEvent({
+          date,
+          time: s.time,
+          dur: s.dur,
+          kind: s.kind,
+          title: s.title,
+          hospital: s.hospital,
+          dept: s.dept,
+          contact: s.contact,
+          place: s.place,
+          brief: s.reason,
+        })
+        // 넣은 자리가 화면 밖이면 확인할 수 없으니 그 달로 옮기고 그 날을 고릅니다.
+        setCursor(startOfMonth(parseISO(date)))
+        setSelectedISO(date)
+        setJustAddedId(added.id)
+        setAccepted((prev) => new Set(prev).add(s.id))
+        dismiss(s.id)
+      } catch {
+        return
+      } finally {
+        accepting.current.delete(s.id)
+      }
     },
-    [addEvent, dismiss],
+    [addEvent, dismiss, error, loading],
   )
 
   // 목업이라 부를 서버가 없습니다. 닫아 둔 추천을 되살리는 것이 다시 받아 온
@@ -84,25 +128,36 @@ export default function Calendar() {
     setRefreshing(true)
     setPreviewId(null)
     refreshTimer.current = setTimeout(() => {
-      // 이미 넣은 것만 빼고 처음 상태로 돌립니다.
       setDismissed(new Set(accepted))
       setRefreshing(false)
     }, 600)
   }, [accepted])
 
+  const move = useCallback(
+    async (id: string, dateISO: string) => {
+      try {
+        const moved = await moveEvent(id, dateISO)
+        if (!moved) return
+        setSelectedISO(dateISO)
+        setJustAddedId(moved.id)
+      } catch {
+        return
+      }
+    },
+    [moveEvent],
+  )
+
   /** 끌던 것을 이 날짜에 놓습니다. */
   const drop = useCallback(
     (dragged: Dragging, dateISO: string) => {
       if (dragged.kind === 'event') {
-        moveEvent(dragged.id, dateISO)
-        setSelectedISO(dateISO)
-        setJustAddedId(dragged.id)
+        void move(dragged.id, dateISO)
         return
       }
       const s = suggestions.find((item) => item.id === dragged.id)
-      if (s) accept(s, dateISO)
+      if (s) void accept(s, dateISO)
     },
-    [suggestions, moveEvent, accept],
+    [suggestions, move, accept],
   )
 
   // 놓인 자리의 표식은 날짜 칸의 ISO 문자열입니다. 이 화면의 어휘로 이름만 바꿔 받습니다.
@@ -135,28 +190,25 @@ export default function Calendar() {
   }, [suggestions, previewId, dragging, dropISO])
 
   const create = useCallback(
-    (event: CalendarEvent) => {
-      // 빈 id 는 addEvent 가 새로 매깁니다.
-      setJustAddedId(addEvent(event).id)
+    async (event: CalendarEvent) => {
+      const added = await addEvent(event)
+      setJustAddedId(added.id)
       setCreating(null)
     },
     [addEvent],
   )
 
-  // 목록이 바뀌면 이 컴포넌트가 다시 그려지므로 여기서 매번 집어 옵니다.
-  const viewed = viewingId ? agendaById(viewingId) : undefined
-
   const save = useCallback(
-    (event: CalendarEvent) => {
-      updateEvent(event)
+    async (event: CalendarEvent) => {
+      await updateEvent(event)
       setEditing(null)
     },
     [updateEvent],
   )
 
   const remove = useCallback(
-    (id: string) => {
-      removeEvent(id)
+    async (id: string) => {
+      await removeEvent(id)
       setEditing(null)
     },
     [removeEvent],
@@ -166,6 +218,16 @@ export default function Calendar() {
     <section>
       {/* Topbar breadcrumb 이 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
       <h1 className="sr-only">캘린더</h1>
+
+      {error && (
+        <div role="alert">
+          <span>{error}</span>{' '}
+          <Button variant="outline" size="sm" onClick={reload}>
+            다시 시도
+          </Button>
+        </div>
+      )}
+      {loading && <p role="status">일정을 불러오는 중입니다.</p>}
 
       <div className={styles.layout}>
         <MonthGrid
@@ -178,7 +240,7 @@ export default function Calendar() {
           dropISO={dropISO}
           onCursorChange={setCursor}
           onSelect={setSelectedISO}
-          onOpenEvent={(event) => setViewingId(event.id)}
+          onOpenEvent={setEditing}
           onCreate={setCreating}
           onGrabEvent={grabEvent}
         />
@@ -192,7 +254,7 @@ export default function Calendar() {
             onDismiss={dismiss}
             onGrab={grabSuggestion}
             onRefresh={refresh}
-            refreshing={refreshing}
+            refreshing={refreshing || loading}
           />
         </div>
       </div>
@@ -202,22 +264,6 @@ export default function Calendar() {
         <div className={styles.dragChip} style={{ left: point.x, top: point.y }} aria-hidden="true">
           {dragging.label}
         </div>
-      )}
-
-      {viewed && (
-        <RecordDrawer
-          item={viewed}
-          done={viewed.done}
-          onClose={() => setViewingId(null)}
-          onEdit={(item) => {
-            setViewingId(null)
-            setEditing(item)
-          }}
-          onDelete={(id) => {
-            setViewingId(null)
-            removeEvent(id)
-          }}
-        />
       )}
 
       {creating && (

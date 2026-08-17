@@ -1,6 +1,28 @@
 /** 일정 종류. 배지 색이 여기에 묶여 있습니다. */
 export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth' | 'internal'
 
+export type ActivityTypeCode = 'meeting' | 'task'
+
+export type ActivityCategoryCode =
+  'visit' | 'demo' | 'education' | 'call' | 'delivery' | 'conference' | 'internal'
+
+export type ActivityActionTagCode =
+  | 'first_call'
+  | 'meeting'
+  | 'demo_requested'
+  | 'demo_in_progress'
+  | 'demo_completed'
+  | 'quote_completed'
+  | 'contract_completed'
+  | 'product_training'
+  | 'delivery_completed'
+  | 'internal_meeting'
+  | 'weekly_review'
+  | 'monthly_review'
+  | 'quarterly_review'
+  | 'conference'
+  | 'ojt'
+
 /** 고객을 만나서 하는 일. 영업이 어디까지 갔는지를 말합니다. */
 export type ExternalStatus =
   | '첫 전화'
@@ -76,4 +98,55 @@ export interface CalendarEvent {
   place?: string
   brief?: string
   done: boolean
+  activityType?: ActivityTypeCode
+  customerContactId?: string | null
+  customerContactName?: string
+  productId?: string | null
+  product?: string
+  owner?: string
+  startsAt?: string
+  endsAt?: string | null
+  allDay?: boolean
 }
+
+export interface ActivityRead {
+  id: string
+  owner_member_id: string
+  owner_display_name: string
+  customer_contact_id: string | null
+  customer_contact_name: string | null
+  customer_contact_department: string | null
+  customer_contact_job_title: string | null
+  customer_company_id: string | null
+  customer_company_name: string | null
+  product_id: string | null
+  product_name: string | null
+  activity_type: ActivityTypeCode
+  category_code: ActivityCategoryCode
+  title: string
+  starts_at: string
+  ends_at: string | null
+  all_day: boolean
+  location: string | null
+  action_tag: ActivityActionTagCode | null
+  completed_at: string | null
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ActivityCreateRequest {
+  customer_contact_id?: string | null
+  product_id?: string | null
+  activity_type: ActivityTypeCode
+  category_code: ActivityCategoryCode
+  title: string
+  starts_at: string
+  ends_at?: string | null
+  all_day: boolean
+  location?: string | null
+  action_tag?: ActivityActionTagCode | null
+  note?: string | null
+}
+
+export type ActivityPatchRequest = Partial<ActivityCreateRequest>

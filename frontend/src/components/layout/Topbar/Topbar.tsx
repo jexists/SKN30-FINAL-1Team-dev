@@ -50,8 +50,8 @@ export default function Topbar() {
 
       <div className={styles.spacer} />
 
-      {/* 고객 API는 이번 슬라이스에서 담당자 범위를 받지 않으므로 고객 화면에만 숨깁니다. */}
-      {isManager && pathname !== ROUTES.CUSTOMERS && (
+      {/* 실제 팀원 UUID 목록이 붙기 전까지 DB 화면에는 목업 담당자 필터를 노출하지 않습니다. */}
+      {isManager && pathname !== ROUTES.CUSTOMERS && pathname !== ROUTES.CALENDAR && (
         <div className={styles.scope}>
           <ScopeSwitcher />
         </div>

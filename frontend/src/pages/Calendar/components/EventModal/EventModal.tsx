@@ -1,14 +1,22 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useDeferredValue,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { ko } from 'date-fns/locale'
 
+import { client } from '@/api/client'
 import Button from '@/components/Button'
 import { ChevronDownIcon, SearchIcon, TrashIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import { EXTERNAL_STATUSES, INTERNAL_STATUSES } from '@/shared/agenda'
-import { customers } from '@/shared/customers'
-import type { CalendarEvent, Customer, ScheduleStatus } from '@/types'
+import type { CalendarEvent, CustomerContactResponse, PageResponse, ScheduleStatus } from '@/types'
 import { iso, parseISO } from '@/utils/date'
 
 import 'react-datepicker/dist/react-datepicker.css'
@@ -22,8 +30,8 @@ interface Props {
   /** 새로 만드는 중이면 지울 것이 아직 없어 삭제를 감춥니다. */
   mode?: 'edit' | 'create'
   onClose: () => void
-  onSave: (event: CalendarEvent) => void
-  onDelete?: (id: string) => void
+  onSave: (event: CalendarEvent) => void | Promise<void>
+  onDelete?: (id: string) => void | Promise<void>
 }
 
 /**
@@ -40,6 +48,24 @@ type EventType = '미팅' | '업무'
  * (태그 색은 저장된 값을 보고 statusScope 가 알아서 가릅니다.)
  */
 const STATUSES: readonly ScheduleStatus[] = [...EXTERNAL_STATUSES, ...INTERNAL_STATUSES]
+
+interface CustomerOption {
+  id: string
+  name: string
+  org: string
+  dept: string
+  title: string
+}
+
+function toCustomerOption(contact: CustomerContactResponse): CustomerOption {
+  return {
+    id: contact.id,
+    name: contact.name,
+    org: contact.company_name,
+    dept: contact.department ?? '',
+    title: contact.job_title ?? '',
+  }
+}
 
 // 폼은 시작·끝 두 시점으로 다루고, 저장은 '40분' 같은 소요 문구로 합니다.
 // 목록·드로어가 그 문구를 그대로 읽으므로 두 표현을 여기서 오갑니다.
@@ -76,9 +102,17 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
   const [end, setEnd] = useState(
     () => new Date(at(draft.date, draft.time).getTime() + parseDur(draft.dur) * MINUTE),
   )
-  const [type, setType] = useState<EventType>(draft.kind === 'internal' ? '업무' : '미팅')
+  const [hasEnd, setHasEnd] = useState(draft.endsAt !== null)
+  const [type, setType] = useState<EventType>(
+    (draft.activityType ?? (draft.kind === 'internal' ? 'task' : 'meeting')) === 'task'
+      ? '업무'
+      : '미팅',
+  )
   const [error, setError] = useState('')
+  const [customerError, setCustomerError] = useState('')
   const [rangeError, setRangeError] = useState('')
+  const [requestError, setRequestError] = useState('')
+  const [pending, setPending] = useState(false)
 
   const set = <K extends keyof CalendarEvent>(key: K, value: CalendarEvent[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -96,57 +130,94 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
   // 화면에는 사라졌는데 값은 살아 있는 상태가 생겨 여기서 함께 정리합니다.
   const changeType = (next: EventType) => {
     setType(next)
+    setCustomerError('')
     if (next === '업무') {
       setForm((prev) => ({
         ...prev,
+        activityType: 'task',
         kind: 'internal',
         stage: undefined,
         hospital: '',
         dept: '',
         contact: '',
+        customerContactId: null,
+        customerContactName: '',
+        productId: null,
+        product: '',
       }))
     } else {
-      setForm((prev) => ({ ...prev, kind: 'visit' }))
+      setForm((prev) => ({ ...prev, activityType: 'meeting', kind: 'visit' }))
     }
   }
 
   // 고객을 고르면 회사·부서가 따라옵니다. 직접 입력하지 않는 값들입니다.
-  const pickCustomer = (name: string, found?: Customer) => {
-    const match = found ?? customers.find((c) => c.name === name)
+  const pickCustomer = (name: string, found?: CustomerOption) => {
+    setCustomerError('')
     setForm((prev) => ({
       ...prev,
-      contact: name,
-      hospital: match?.org ?? '',
-      dept: match?.dept ?? '',
+      contact: found ? [found.name, found.title].filter(Boolean).join(' ') : name,
+      hospital: found?.org ?? '',
+      dept: found?.dept ?? '',
+      customerContactId: found?.id ?? null,
+      customerContactName: name,
     }))
   }
 
-  const submit = () => {
+  const submit = async () => {
     if (form.title.trim() === '') {
       setError('제목을 입력하세요.')
       return
     }
 
+    if (type === '미팅' && form.customerContactName?.trim() && !form.customerContactId) {
+      setCustomerError('검색 결과에서 고객을 선택하세요.')
+      return
+    }
+
     // 소요는 시작과 끝의 차이입니다. 목록·드로어는 이 문구만 읽습니다.
     const minutes = Math.round((end.getTime() - start.getTime()) / MINUTE)
-    if (minutes <= 0) {
+    if (hasEnd && minutes <= 0) {
       setRangeError('종료가 시작보다 빠릅니다.')
       return
     }
 
-    onSave({
-      ...form,
-      title: form.title.trim(),
-      date: iso(start),
-      time: hhmm(start),
-      dur: durLabel(minutes),
-    })
+    setPending(true)
+    setRequestError('')
+    try {
+      await onSave({
+        ...form,
+        title: form.title.trim(),
+        date: iso(start),
+        time: hhmm(start),
+        dur: form.allDay ? '종일' : hasEnd ? durLabel(minutes) : '',
+        allDay: form.allDay ?? false,
+      })
+    } catch {
+      setRequestError(
+        mode === 'create' ? '일정을 등록하지 못했습니다.' : '일정을 수정하지 못했습니다.',
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!onDelete) return
+    setPending(true)
+    setRequestError('')
+    try {
+      await onDelete(form.id)
+    } catch {
+      setRequestError('일정을 삭제하지 못했습니다.')
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
     <Modal
       title={mode === 'create' ? '일정 등록' : '일정 수정'}
-      onClose={onClose}
+      onClose={() => !pending && onClose()}
       onSubmit={submit}
       footer={
         <>
@@ -155,16 +226,19 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
               type="button"
               variant="ghost"
               className={styles.delete}
-              onClick={() => onDelete(form.id)}
+              disabled={pending}
+              onClick={() => void remove()}
             >
               <TrashIcon width={15} height={15} />
               삭제
             </Button>
           )}
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
             취소
           </Button>
-          <Button type="submit">저장</Button>
+          <Button type="submit" disabled={pending}>
+            {pending ? '저장 중…' : '저장'}
+          </Button>
         </>
       }
     >
@@ -202,7 +276,16 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
           </span>
           <div className={styles.range}>
             <Picker selected={start} onChange={moveStart} label="시작" />
-            <Picker selected={end} onChange={(d) => d && setEnd(d)} label="종료" minDate={start} />
+            <Picker
+              selected={end}
+              onChange={(date) => {
+                if (!date) return
+                setEnd(date)
+                setHasEnd(true)
+              }}
+              label="종료"
+              minDate={start}
+            />
           </div>
           {rangeError && <span className={styles.error}>{rangeError}</span>}
         </div>
@@ -237,8 +320,10 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
           <div className={`${styles.field} ${styles.isWide}`}>
             <span className={styles.label}>고객</span>
             <CustomerPicker
-              value={form.contact ?? ''}
+              value={form.customerContactName ?? form.contact ?? ''}
+              selectedId={form.customerContactId ?? null}
               tag={form.hospital ? `${form.hospital}${form.dept ? ` · ${form.dept}` : ''}` : ''}
+              error={customerError}
               onChange={pickCustomer}
             />
           </div>
@@ -252,6 +337,12 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
             onChange={(e) => set('brief', e.target.value)}
           />
         </Field>
+
+        {requestError && (
+          <p className={`${styles.error} ${styles.isWide}`} role="alert">
+            {requestError}
+          </p>
+        )}
       </div>
     </Modal>
   )
@@ -306,25 +397,54 @@ const MAX_MATCHES = 8
 
 function CustomerPicker({
   value,
+  selectedId,
   tag,
+  error,
   onChange,
 }: {
   value: string
+  selectedId: string | null
   tag: string
-  onChange: (name: string, found?: Customer) => void
+  error: string
+  onChange: (name: string, found?: CustomerOption) => void
 }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const [matches, setMatches] = useState<CustomerOption[]>([])
   const boxRef = useRef<HTMLDivElement>(null)
+  const listboxId = `customers-${useId().replaceAll(':', '')}`
+  const errorId = `${listboxId}-error`
 
-  // 빈 칸이면 이름 순 앞부분을 그대로 보여 줍니다. 무엇을 칠 수 있는지
-  // 한 번 훑고 고르는 쪽이 빈 목록을 마주하는 것보다 빠릅니다.
   const query = value.trim()
-  const matches = customers
-    .filter((c) => query === '' || c.name.includes(query) || c.org.includes(query))
-    .slice(0, MAX_MATCHES)
+  const deferredQuery = useDeferredValue(query)
 
-  const choose = (c: Customer) => {
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+
+    void client
+      .get<PageResponse<CustomerContactResponse>>('/customer-contacts', {
+        params: {
+          q: deferredQuery === '' ? undefined : deferredQuery.slice(0, 100),
+          skip: 0,
+          limit: MAX_MATCHES,
+        },
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
+        if (!controller.signal.aborted) {
+          setActive(0)
+          setMatches(data.items.map(toCustomerOption))
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setMatches([])
+      })
+
+    return () => controller.abort()
+  }, [deferredQuery, open])
+
+  const choose = (c: CustomerOption) => {
     onChange(c.name, c)
     setOpen(false)
   }
@@ -359,6 +479,7 @@ function CustomerPicker({
         setOpen(true)
         return
       }
+      if (matches.length === 0) return
       const delta = e.key === 'ArrowDown' ? 1 : -1
       setActive((prev) => (prev + delta + matches.length) % matches.length)
       return
@@ -387,6 +508,12 @@ function CustomerPicker({
           role="combobox"
           aria-expanded={open}
           aria-autocomplete="list"
+          aria-controls={open && matches.length > 0 ? listboxId : undefined}
+          aria-activedescendant={
+            open && matches[active] ? `${listboxId}-${matches[active].id}` : undefined
+          }
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           autoComplete="off"
           onChange={(e) => {
             onChange(e.target.value)
@@ -407,16 +534,29 @@ function CustomerPicker({
         </button>
       </div>
 
+      {error && (
+        <span id={errorId} className={styles.error} role="alert">
+          {error}
+        </span>
+      )}
+
       {open &&
         matches.length > 0 &&
         createPortal(
-          <div className={styles.menu} style={menuStyle} role="listbox" aria-label="고객">
+          <div
+            id={listboxId}
+            className={styles.menu}
+            style={menuStyle}
+            role="listbox"
+            aria-label="고객"
+          >
             {matches.map((c, i) => (
               <button
                 key={c.id}
+                id={`${listboxId}-${c.id}`}
                 type="button"
                 role="option"
-                aria-selected={c.name === value}
+                aria-selected={c.id === selectedId}
                 className={`${styles.option} ${i === active ? styles.isActive : ''}`}
                 onPointerMove={() => setActive(i)}
                 // 목록은 입력칸 밖(body)에 있어, 누르는 순간 포커스가 빠지면
