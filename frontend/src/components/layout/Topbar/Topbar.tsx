@@ -32,6 +32,8 @@ export default function Topbar() {
   const pageLabel = findNavLabel(pathname) ?? '페이지를 찾을 수 없음'
   const isVisits = pathname === ROUTES.VISITS || pathname.startsWith(`${ROUTES.VISITS}/`)
   const isOrders = pathname === ROUTES.ORDERS || pathname.startsWith(`${ROUTES.ORDERS}/`)
+  const isComplaints =
+    pathname === ROUTES.COMPLAINTS || pathname.startsWith(`${ROUTES.COMPLAINTS}/`)
 
   return (
     <header className={styles.topbar}>
@@ -57,7 +59,8 @@ export default function Topbar() {
         pathname !== ROUTES.CUSTOMERS &&
         pathname !== ROUTES.CALENDAR &&
         !isVisits &&
-        !isOrders && (
+        !isOrders &&
+        !isComplaints && (
           <div className={styles.scope}>
             <ScopeSwitcher />
           </div>

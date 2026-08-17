@@ -1,138 +1,175 @@
-// 불만 등록. 받는 값은 다섯 개뿐입니다 — 제목·회사·담당자·내용·상태.
-// 접수자·제품처럼 시드에만 있는 칸은 비워 두고, 목록과 드로어가 그 칸을 그리지 않습니다.
 import { useState, type ReactNode } from 'react'
 
-import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import type { CsDraft } from '@/shared/counters'
-import type { CsState } from '@/types'
+import type { SupportRequestCreateRequest, SupportStatusCode } from '@/types'
+
+import { type ContactOption, mutationErrorMessage } from '../useSupportRequests'
 
 import styles from '../Complaints.module.scss'
 
-const STATES: CsState[] = ['처리중', '처리완료']
+const STATES: { code: SupportStatusCode; label: string }[] = [
+  { code: 'in_progress', label: '처리중' },
+  { code: 'completed', label: '처리완료' },
+]
 
 interface Props {
+  contacts: ContactOption[]
   onClose: () => void
-  onSubmit: (draft: CsDraft) => void
+  onSubmit: (payload: SupportRequestCreateRequest) => Promise<void>
 }
 
-type Errors = Partial<Record<'issue' | 'org' | 'owner', string>>
+type Errors = Partial<Record<'contact' | 'title' | 'body', string>>
 
-export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
-  const { profile } = useCurrentUser()
-
-  const [issue, setIssue] = useState('')
-  const [org, setOrg] = useState('')
-  // 담당 영업은 보통 접수한 본인입니다. 비어 있으면 목록에서 담당자 칸이 빕니다.
-  const [owner, setOwner] = useState(profile.name)
-  const [product, setProduct] = useState('')
-  const [note, setNote] = useState('')
-  const [state, setState] = useState<CsState>('처리중')
+export default function ComplaintFormModal({ contacts, onClose, onSubmit }: Props) {
+  const [contactId, setContactId] = useState('')
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [statusCode, setStatusCode] = useState<SupportStatusCode>('in_progress')
   const [urgent, setUrgent] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = () => {
+  const submit = async () => {
+    if (submitting) return
+
     const found: Errors = {}
-    if (issue.trim() === '') found.issue = '제목을 입력하세요.'
-    if (org.trim() === '') found.org = '회사를 입력하세요.'
-    if (owner.trim() === '') found.owner = '담당자를 입력하세요.'
+    if (contactId === '') found.contact = '고객 담당자를 선택하세요.'
+    if (title.trim() === '') found.title = '제목을 입력하세요.'
+    if (body.trim() === '') found.body = '내용을 입력하세요.'
     setErrors(found)
     if (Object.keys(found).length > 0) return
 
-    onSubmit({
-      issue: issue.trim(),
-      org: org.trim(),
-      owner: owner.trim(),
-      product: product.trim(),
-      note: note.trim(),
-      state,
-      urgent,
-    })
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      await onSubmit({
+        customer_contact_id: contactId,
+        title: title.trim(),
+        body: body.trim(),
+        is_urgent: urgent,
+        status_code: statusCode,
+      })
+    } catch (caught: unknown) {
+      setSubmitError(mutationErrorMessage(caught, '고객불만을 등록'))
+      setSubmitting(false)
+    }
+  }
+
+  const close = () => {
+    if (!submitting) onClose()
   }
 
   return (
     <Modal
       title="불만 등록"
-      onClose={onClose}
+      onClose={close}
       onSubmit={submit}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" disabled={submitting} onClick={close}>
             취소
           </Button>
-          <Button type="submit">불만 등록</Button>
+          <Button type="submit" disabled={submitting || contacts.length === 0}>
+            {submitting ? '등록 중…' : '불만 등록'}
+          </Button>
         </>
       }
     >
-      {/* 칸 순서는 목록의 열 순서와 같습니다 — 회사·담당자·제목·물품명·상태·내용. */}
-      <div className={styles.grid}>
-        <Field label="회사" required error={errors.org}>
-          <input value={org} placeholder="회사 이름" onChange={(e) => setOrg(e.target.value)} />
-        </Field>
-
-        <Field label="담당자" required error={errors.owner}>
-          <input value={owner} onChange={(e) => setOwner(e.target.value)} />
-        </Field>
-
-        <Field label="제목" required error={errors.issue} wide>
-          <input
-            value={issue}
-            placeholder="부팅 시 화면 깜빡임"
-            onChange={(e) => setIssue(e.target.value)}
-          />
-        </Field>
-
-        <Field label="물품명" wide>
-          <input
-            value={product}
-            placeholder="CardioView X7"
-            onChange={(e) => setProduct(e.target.value)}
-          />
-        </Field>
-
-        <Field label="상태">
-          <select value={state} onChange={(e) => setState(e.target.value as CsState)}>
-            {STATES.map((option) => (
-              <option key={option} value={option}>
-                {option}
+      <div className={styles.grid} aria-busy={submitting}>
+        <Field label="고객 담당자" required error={errors.contact} wide>
+          <select
+            value={contactId}
+            disabled={submitting || contacts.length === 0}
+            onChange={(event) => {
+              setContactId(event.target.value)
+              setErrors((previous) => ({ ...previous, contact: undefined }))
+            }}
+          >
+            <option value="">
+              {contacts.length === 0 ? '등록된 고객 담당자가 없습니다' : '고객 담당자 선택'}
+            </option>
+            {contacts.map((contact) => (
+              <option key={contact.id} value={contact.id}>
+                {contact.label}
               </option>
             ))}
           </select>
         </Field>
 
-        {/* 대시보드 C/S 타일이 이 값을 '긴급 N건' 으로 셉니다.
-            fieldset/legend 는 flex 안에서 브라우저마다 다르게 자리를 잡아 옆 칸과 높이가
-            어긋납니다. 다른 칸과 같은 마크업을 쓰고 그룹 역할만 role 로 알립니다. */}
+        <Field label="제목" required error={errors.title} wide>
+          <input
+            value={title}
+            maxLength={254}
+            disabled={submitting}
+            placeholder="요청 내용을 요약해 주세요"
+            onChange={(event) => {
+              setTitle(event.target.value)
+              setErrors((previous) => ({ ...previous, title: undefined }))
+            }}
+          />
+        </Field>
+
+        <Field label="상태">
+          <select
+            value={statusCode}
+            disabled={submitting}
+            onChange={(event) => setStatusCode(event.target.value as SupportStatusCode)}
+          >
+            {STATES.map((state) => (
+              <option key={state.code} value={state.code}>
+                {state.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <div className={styles.field}>
           <span className={styles.label}>긴급도</span>
           <div className={styles.tags} role="radiogroup" aria-label="긴급도">
-            {/* 라디오 두 개를 태그 모양으로 입힙니다. 고른 것만 색이 차고,
-                긴급은 목록에 붙을 배지와 같은 주황입니다. 기본은 보통입니다. */}
             <label className={styles.tag}>
               <input
                 type="radio"
                 name="urgent"
                 checked={!urgent}
+                disabled={submitting}
                 onChange={() => setUrgent(false)}
               />
               <span>보통</span>
             </label>
             <label className={`${styles.tag} ${styles.urgentTag}`}>
-              <input type="radio" name="urgent" checked={urgent} onChange={() => setUrgent(true)} />
+              <input
+                type="radio"
+                name="urgent"
+                checked={urgent}
+                disabled={submitting}
+                onChange={() => setUrgent(true)}
+              />
               <span>긴급</span>
             </label>
           </div>
         </div>
 
-        <Field label="내용" wide>
+        <Field label="내용" required error={errors.body} wide>
           <textarea
-            rows={4}
-            value={note}
-            placeholder="접수한 내용과 처리 상황"
-            onChange={(e) => setNote(e.target.value)}
+            rows={5}
+            value={body}
+            maxLength={5_000}
+            disabled={submitting}
+            placeholder="접수한 내용을 입력해 주세요"
+            onChange={(event) => {
+              setBody(event.target.value)
+              setErrors((previous) => ({ ...previous, body: undefined }))
+            }}
           />
         </Field>
+
+        {submitError && (
+          <p className={`${styles.error} ${styles.isWide}`} role="alert">
+            {submitError}
+          </p>
+        )}
       </div>
     </Modal>
   )

@@ -162,6 +162,14 @@
   }
 }
 
+.loadState {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* ---- 폰: 표 대신 카드 ---- */
 
 .cardList {
@@ -231,6 +239,65 @@
   dd {
     margin: 0;
     line-height: 1.6;
+  }
+}
+
+.responses {
+  display: grid;
+  gap: var(--s3);
+  margin-top: var(--s6);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--line);
+
+  h3 {
+    color: var(--ink);
+    font-size: 14px;
+  }
+
+  ol {
+    display: grid;
+    gap: var(--s2);
+  }
+
+  li {
+    padding: var(--s3);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+
+    div {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--s2);
+      color: var(--ink-2);
+      font-size: 12px;
+    }
+
+    time {
+      color: var(--muted);
+    }
+
+    p {
+      margin-top: var(--s2);
+      color: var(--ink-2);
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+  }
+}
+
+.noResponses {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.responseForm {
+  @include form-field;
+  align-items: flex-start;
+
+  button {
+    align-self: flex-end;
   }
 }
 

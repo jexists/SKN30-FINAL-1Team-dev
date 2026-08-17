@@ -29,6 +29,46 @@ export interface CsRequest {
   note: string
 }
 
+export type SupportStatusCode = 'in_progress' | 'completed'
+
+export interface SupportResponseResponse {
+  id: string
+  request_id: string
+  responder_member_id: string
+  responder_display_name: string
+  body: string
+  responded_at: string
+}
+
+export interface SupportRequestResponse {
+  id: string
+  customer_contact_id: string
+  customer_contact_name: string
+  customer_company_id: string
+  customer_company_name: string
+  assignee_member_id: string
+  assignee_display_name: string
+  title: string
+  body: string
+  is_urgent: boolean
+  status_code: SupportStatusCode
+  registered_at: string
+  responses: SupportResponseResponse[]
+}
+
+export interface SupportRequestCreateRequest {
+  customer_contact_id: string
+  title: string
+  body: string
+  is_urgent: boolean
+  status_code: SupportStatusCode
+}
+
+export interface SupportTransitionRequest {
+  expected_status_code: SupportStatusCode
+  status_code: SupportStatusCode
+}
+
 export interface Renewal {
   /** 담당 영업 */
   owner: string

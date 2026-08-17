@@ -1,8 +1,3 @@
-// 고객불만관리. 대시보드 KPI 타일 'C/S 대응요청' 이 보여 주는 그 목록의 본화면입니다.
-// 목록은 shared/counters.ts 한 곳에 있어, 여기서 등록하거나 상태를 바꾸면 대시보드
-// 타일 숫자와 드로어 줄이 함께 바뀝니다.
-//
-// 조건은 주소에 둡니다(q·status). 걸러 둔 채로 링크를 건네면 받는 쪽도 같은 화면을 봅니다.
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -12,23 +7,30 @@ import { ComplaintIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import SearchInput from '@/components/SearchInput'
 import Tabs, { type TabItem } from '@/components/Tabs'
 import { BP_DESKTOP } from '@/constants/breakpoints'
-import { addCsRequest, setCsState, useCsRequests } from '@/shared/counters'
-import type { ColumnTone, CsRequest, CsState } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
-import { addDays, fmtDay, fmtDotShort, TODAY } from '@/utils/date'
+import type {
+  ColumnTone,
+  SupportRequestResponse,
+  SupportStatusCode,
+  SupportResponseResponse,
+} from '@/types'
+import { fmtDotShort } from '@/utils/date'
 
 import ComplaintFormModal from './components/ComplaintFormModal'
+import useSupportRequests from './useSupportRequests'
 
 import styles from './Complaints.module.scss'
 
-/** 상태 두 가지. 탭 순서와 배지 색이 여기에 묶여 있습니다. */
-const STATES: CsState[] = ['처리중', '처리완료']
+const STATES: { code: SupportStatusCode; label: string; tone: ColumnTone }[] = [
+  { code: 'in_progress', label: '처리중', tone: 'blue' },
+  { code: 'completed', label: '처리완료', tone: 'green' },
+]
 
-/** 탭 앞 색 점. 목록 배지와 같은 색을 씁니다. */
-const TONE_OF: Record<CsState, ColumnTone> = { 처리중: 'blue', 처리완료: 'green' }
+const STATUS_LABEL: Record<SupportStatusCode, string> = {
+  in_progress: '처리중',
+  completed: '처리완료',
+}
 
-// 표가 화면보다 넓으면 이 폭 그대로, 좁으면 이 폭의 비율로 늘어납니다(table-layout: fixed).
-// 남는 자리는 잘리면 아쉬운 '내용'이 가져가고 상태·날짜는 좁게 붙잡아 둡니다.
 const COLUMNS = [
   { id: 'org', header: '회사', width: 150 },
   { id: 'owner', header: '담당자', width: 90 },
@@ -38,25 +40,44 @@ const COLUMNS = [
   { id: 'created', header: '등록날짜', width: 104 },
 ]
 
-/** 접수한 날. agoOff 가 오늘로부터 며칠 전인지를 들고 있습니다. */
-const createdAt = (c: CsRequest) => addDays(TODAY, c.agoOff)
+const dateOf = (value: string) => new Date(value)
+
+const dateTime = new Intl.DateTimeFormat('ko-KR', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+})
 
 export default function Complaints() {
-  const complaints = useCsRequests()
-
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
   const status = params.get('status') ?? ''
-
-  // 타이핑 중에도 입력이 밀리지 않도록 목록 계산만 한 박자 늦춥니다.
   const deferredQuery = useDeferredValue(query)
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
-
   const isDesktop = useMediaQuery(`(min-width: ${BP_DESKTOP}px)`)
 
-  // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
+  const {
+    requests,
+    contacts,
+    loading,
+    error,
+    reload,
+    detail,
+    detailLoading,
+    detailError,
+    reloadDetail,
+    pendingKey,
+    mutationError,
+    clearMutationError,
+    createRequest,
+    transition,
+    addResponse,
+  } = useSupportRequests(openId)
+
   const setParam = useCallback(
     (key: string, value: string) => {
       const next = new URLSearchParams(params)
@@ -67,17 +88,28 @@ export default function Complaints() {
     [params, setParams],
   )
 
-  // 상태를 뺀 나머지 조건까지만 거른 목록입니다. 탭의 건수를 여기서 셉니다.
   const beforeStatus = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase()
-    if (needle === '') return complaints
-    return complaints.filter((c) =>
-      [c.issue, c.org, c.owner, c.note].join(' ').toLowerCase().includes(needle),
+    if (needle === '') return requests
+    return requests.filter((request) =>
+      [
+        request.title,
+        request.body,
+        request.customer_company_name,
+        request.customer_contact_name,
+        request.assignee_display_name,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
     )
-  }, [complaints, deferredQuery])
+  }, [requests, deferredQuery])
 
   const rows = useMemo(
-    () => (status === '' ? beforeStatus : beforeStatus.filter((c) => c.state === status)),
+    () =>
+      status === ''
+        ? beforeStatus
+        : beforeStatus.filter((request) => request.status_code === status),
     [beforeStatus, status],
   )
 
@@ -85,24 +117,26 @@ export default function Complaints() {
     () => [
       { value: '', label: '전체', count: beforeStatus.length },
       ...STATES.map((state) => ({
-        value: state,
-        label: state,
-        count: beforeStatus.filter((c) => c.state === state).length,
-        tone: TONE_OF[state],
+        value: state.code,
+        label: state.label,
+        count: beforeStatus.filter((request) => request.status_code === state.code).length,
+        tone: state.tone,
       })),
     ],
     [beforeStatus],
   )
 
-  // 객체가 아니라 id 를 들고 목록에서 찾습니다. 상태를 바꾸면 새 객체가 되므로
-  // 열어 둔 드로어가 바뀐 값을 그대로 받습니다.
-  const open = openId ? complaints.find((c) => c.id === openId) : undefined
-
+  const summary = openId === null ? undefined : requests.find((request) => request.id === openId)
+  const open = detail?.id === openId ? detail : summary
   const isFiltered = query.trim() !== '' || status !== ''
 
+  const closeDrawer = useCallback(() => {
+    setOpenId(null)
+    clearMutationError()
+  }, [clearMutationError])
+
   return (
-    <section className={styles.page}>
-      {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
+    <section className={styles.page} aria-busy={loading}>
       <h1 className="sr-only">고객불만관리</h1>
 
       <div className={styles.toolbar}>
@@ -115,7 +149,7 @@ export default function Complaints() {
         />
 
         <div className={styles.actions}>
-          <Button onClick={() => setAdding(true)}>
+          <Button disabled={loading} onClick={() => setAdding(true)}>
             <PlusIcon width={15} height={15} />
             불만 등록
           </Button>
@@ -129,7 +163,18 @@ export default function Complaints() {
         onChange={(next) => setParam('status', next)}
       />
 
-      {rows.length === 0 ? (
+      {error ? (
+        <div className={styles.loadState} role="alert">
+          <p>{error}</p>
+          <Button variant="outline" onClick={reload}>
+            다시 시도
+          </Button>
+        </div>
+      ) : loading && requests.length === 0 ? (
+        <p className={styles.loadState} role="status">
+          고객불만 목록을 불러오는 중입니다.
+        </p>
+      ) : rows.length === 0 ? (
         <div className={styles.card}>
           <div className={styles.empty}>
             {isFiltered ? (
@@ -150,60 +195,59 @@ export default function Complaints() {
           </div>
         </div>
       ) : isDesktop ? (
-        // 표와 카드는 마크업 자체가 다릅니다. CSS 로는 한쪽을 숨기는 것밖에 못 해
-        // 폰에서도 여섯 열짜리 DOM 을 그대로 들고 있게 됩니다.
         <div className={styles.card}>
           <div className={styles.scroller}>
             <table
               className={styles.table}
-              style={{ width: COLUMNS.reduce((sum, col) => sum + col.width, 0) }}
+              style={{ width: COLUMNS.reduce((sum, column) => sum + column.width, 0) }}
             >
               <caption className="sr-only">고객불만 목록. 줄을 누르면 상세가 열립니다.</caption>
-
               <colgroup>
-                {COLUMNS.map((col) => (
-                  <col key={col.id} style={{ width: col.width }} />
+                {COLUMNS.map((column) => (
+                  <col key={column.id} style={{ width: column.width }} />
                 ))}
               </colgroup>
-
               <thead>
                 <tr>
-                  {COLUMNS.map((col) => (
-                    <th key={col.id} scope="col">
-                      {col.header}
+                  {COLUMNS.map((column) => (
+                    <th key={column.id} scope="col">
+                      {column.header}
                     </th>
                   ))}
                 </tr>
               </thead>
-
               <tbody>
-                {rows.map((c) => (
-                  <tr key={c.id} className={styles.clickable} onClick={() => setOpenId(c.id)}>
-                    <td title={c.org}>
-                      {/* 줄 전체를 누르지만 tr 은 키보드로 못 잡습니다. 첫 칸이
-                          그 손잡이이고, 하는 일은 줄을 누른 것과 같습니다. */}
+                {rows.map((request) => (
+                  <tr
+                    key={request.id}
+                    className={styles.clickable}
+                    onClick={() => setOpenId(request.id)}
+                  >
+                    <td title={request.customer_company_name}>
                       <button
                         type="button"
                         className={styles.openButton}
                         onClick={(event) => {
                           event.stopPropagation()
-                          setOpenId(c.id)
+                          setOpenId(request.id)
                         }}
                       >
-                        {c.org}
+                        {request.customer_company_name}
                       </button>
                     </td>
-                    <td title={c.owner}>{c.owner}</td>
-                    <td className={styles.issue} title={c.issue}>
-                      {c.issue}
+                    <td title={request.assignee_display_name}>{request.assignee_display_name}</td>
+                    <td className={styles.issue} title={request.title}>
+                      {request.title}
                     </td>
-                    <td className={styles.note} title={c.note}>
-                      {c.note}
+                    <td className={styles.note} title={request.body}>
+                      {request.body}
                     </td>
                     <td>
-                      <StateBadge state={c.state} />
+                      <StateBadge state={request.status_code} />
                     </td>
-                    <td className={`${styles.date} tnum`}>{fmtDotShort(createdAt(c))}</td>
+                    <td className={`${styles.date} tnum`}>
+                      {fmtDotShort(dateOf(request.registered_at))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -212,20 +256,23 @@ export default function Complaints() {
         </div>
       ) : (
         <ul className={styles.cardList}>
-          {rows.map((c) => (
-            <li key={c.id} className={styles.miniCard} onClick={() => setOpenId(c.id)}>
-              {/* 표와 같은 순서로 읽힙니다 — 회사·담당자 다음에 제목·내용. */}
+          {rows.map((request) => (
+            <li key={request.id} className={styles.miniCard} onClick={() => setOpenId(request.id)}>
               <div className={styles.miniHead}>
-                <button type="button" className={styles.openButton} onClick={() => setOpenId(c.id)}>
-                  {c.org}
+                <button
+                  type="button"
+                  className={styles.openButton}
+                  onClick={() => setOpenId(request.id)}
+                >
+                  {request.customer_company_name}
                 </button>
-                <StateBadge state={c.state} />
+                <StateBadge state={request.status_code} />
               </div>
-              <p className={styles.miniIssue}>{c.issue}</p>
-              <p className={styles.miniNote}>{c.note}</p>
+              <p className={styles.miniIssue}>{request.title}</p>
+              <p className={styles.miniNote}>{request.body}</p>
               <div className={styles.miniMeta}>
-                <span>{c.owner}</span>
-                <span className="tnum">{fmtDotShort(createdAt(c))}</span>
+                <span>{request.assignee_display_name}</span>
+                <span className="tnum">{fmtDotShort(dateOf(request.registered_at))}</span>
               </div>
             </li>
           ))}
@@ -234,56 +281,95 @@ export default function Complaints() {
 
       {open && (
         <Drawer
-          title={open.issue}
-          sub={open.org}
-          onClose={() => setOpenId(null)}
+          title={open.title}
+          sub={`${open.customer_company_name} · ${open.customer_contact_name}`}
+          onClose={closeDrawer}
           meta={
             <>
-              <StateBadge state={open.state} />
-              {open.urgent && <i className={`${styles.badge} ${styles.risk}`}>긴급</i>}
+              <StateBadge state={open.status_code} />
+              {open.is_urgent && <i className={`${styles.badge} ${styles.risk}`}>긴급</i>}
             </>
           }
           footer={
-            open.state === '처리중' ? (
-              <Button onClick={() => setCsState(open.id, '처리완료')}>처리완료로 변경</Button>
-            ) : (
-              <Button variant="outline" onClick={() => setCsState(open.id, '처리중')}>
-                처리중으로 되돌리기
+            detail?.id === open.id ? (
+              <Button
+                variant={detail.status_code === 'in_progress' ? 'primary' : 'outline'}
+                disabled={pendingKey !== null}
+                onClick={() =>
+                  void transition(
+                    detail,
+                    detail.status_code === 'in_progress' ? 'completed' : 'in_progress',
+                  )
+                }
+              >
+                {pendingKey === `transition:${open.id}`
+                  ? '변경 중…'
+                  : detail.status_code === 'in_progress'
+                    ? '처리완료로 변경'
+                    : '처리중으로 되돌리기'}
               </Button>
-            )
+            ) : undefined
           }
         >
-          <dl className={styles.rows}>
-            {/* 화면에서 등록한 건에는 접수자가 없습니다. 있는 값만 늘어놓습니다. */}
-            {(
-              [
-                ['회사', open.org],
-                ['담당자', open.owner],
-                ['접수자', open.who],
-                ['물품명', open.product],
-                ['등록날짜', `${fmtDay(createdAt(open))} · ${open.ago}`],
-                ['내용', open.note],
-              ] as [string, string][]
-            )
-              .filter(([, value]) => value !== '')
-              .map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
+          {detailError ? (
+            <div className={styles.loadState} role="alert">
+              <p>{detailError}</p>
+              <Button variant="outline" onClick={reloadDetail}>
+                다시 시도
+              </Button>
+            </div>
+          ) : detailLoading || detail?.id !== open.id ? (
+            <p className={styles.loadState} role="status">
+              상세 내용을 불러오는 중입니다.
+            </p>
+          ) : (
+            <>
+              <dl className={styles.rows}>
+                <div>
+                  <dt>회사</dt>
+                  <dd>{detail.customer_company_name}</dd>
                 </div>
-              ))}
-          </dl>
+                <div>
+                  <dt>고객 담당자</dt>
+                  <dd>{detail.customer_contact_name}</dd>
+                </div>
+                <div>
+                  <dt>처리 담당자</dt>
+                  <dd>{detail.assignee_display_name}</dd>
+                </div>
+                <div>
+                  <dt>등록일시</dt>
+                  <dd>{dateTime.format(dateOf(detail.registered_at))}</dd>
+                </div>
+                <div>
+                  <dt>내용</dt>
+                  <dd>{detail.body}</dd>
+                </div>
+              </dl>
+
+              <ResponseHistory
+                key={detail.id}
+                request={detail}
+                pending={pendingKey === `response:${detail.id}`}
+                error={mutationError}
+                onClearError={clearMutationError}
+                onSubmit={(body) => addResponse(detail.id, body)}
+              />
+            </>
+          )}
         </Drawer>
       )}
 
       {adding && (
         <ComplaintFormModal
+          contacts={contacts}
           onClose={() => setAdding(false)}
-          onSubmit={(draft) => {
-            const created = addCsRequest(draft)
+          onSubmit={async (payload) => {
+            const created = await createRequest(payload)
             setAdding(false)
-            // 방금 등록한 건이 걸러져 보이지 않으면 저장됐는지 알 수 없습니다.
-            if (status !== '' && status !== created.state) setParam('status', created.state)
+            if (status !== '' && status !== created.status_code) {
+              setParam('status', created.status_code)
+            }
           }}
         />
       )}
@@ -291,10 +377,92 @@ export default function Complaints() {
   )
 }
 
-function StateBadge({ state }: { state: CsState }) {
+function StateBadge({ state }: { state: SupportStatusCode }) {
   return (
-    <i className={`${styles.badge} ${state === '처리완료' ? styles.done : styles.working}`}>
-      {state}
+    <i className={`${styles.badge} ${state === 'completed' ? styles.done : styles.working}`}>
+      {STATUS_LABEL[state]}
     </i>
+  )
+}
+
+interface ResponseHistoryProps {
+  request: SupportRequestResponse
+  pending: boolean
+  error: string | null
+  onClearError: () => void
+  onSubmit: (body: string) => Promise<boolean>
+}
+
+function ResponseHistory({
+  request,
+  pending,
+  error,
+  onClearError,
+  onSubmit,
+}: ResponseHistoryProps) {
+  const [body, setBody] = useState('')
+  const [bodyError, setBodyError] = useState<string | null>(null)
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const value = body.trim()
+    if (value === '') {
+      setBodyError('답변 내용을 입력하세요.')
+      return
+    }
+
+    if (await onSubmit(value)) setBody('')
+  }
+
+  return (
+    <section className={styles.responses}>
+      <h3>답변 이력</h3>
+      {request.responses.length === 0 ? (
+        <p className={styles.noResponses}>등록된 답변이 없습니다.</p>
+      ) : (
+        <ol>
+          {request.responses.map((response: SupportResponseResponse) => (
+            <li key={response.id}>
+              <div>
+                <strong>{response.responder_display_name}</strong>
+                <time dateTime={response.responded_at}>
+                  {dateTime.format(dateOf(response.responded_at))}
+                </time>
+              </div>
+              <p>{response.body}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <form className={styles.responseForm} onSubmit={submit}>
+        <label htmlFor={`response-${request.id}`}>답변 추가</label>
+        <textarea
+          id={`response-${request.id}`}
+          rows={4}
+          maxLength={5_000}
+          value={body}
+          disabled={pending}
+          onChange={(event) => {
+            setBody(event.target.value)
+            setBodyError(null)
+            onClearError()
+          }}
+        />
+        {bodyError && (
+          <p className={styles.error} role="alert">
+            {bodyError}
+          </p>
+        )}
+        {error && (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
+        <Button type="submit" disabled={pending}>
+          {pending ? '등록 중…' : '답변 등록'}
+        </Button>
+      </form>
+    </section>
   )
 }

@@ -89,3 +89,13 @@ DEBUG=false uv run python -m scripts.seed_demo_contracts
 cd backend
 DEBUG=false uv run python -m scripts.seed_demo_orders
 ```
+
+C/S seed는 인증·고객 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만 고객사,
+접수자, 담당자가 정확히 연결되는 합성 C/S 요청 3건을 upsert합니다. 접수자가 없는 나머지
+프론트 목업 1건은 넣지 않고, 별도 대응 이력이 없어 답변 이력도 만들지 않으며 비어 있는
+팀은 건드리지 않습니다.
+
+```bash
+cd backend
+DEBUG=false uv run python -m scripts.seed_demo_support
+```
