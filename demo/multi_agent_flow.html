@@ -389,8 +389,8 @@
 
     .capture { left: 70px; top: 60px; width: 235px; min-height: 170px; }
     .customer { left: 390px; top: 60px; }
-    .cs { left: 720px; top: 38px; width: 260px; min-height: 88px; }
-    .sentiment { left: 720px; top: 145px; width: 260px; min-height: 100px; }
+    .cs { left: 720px; top: 28px; width: 260px; min-height: 110px; }
+    .deal-score { left: 720px; top: 165px; width: 260px; min-height: 100px; }
     .report { left: 390px; top: 270px; }
     .draft { left: 710px; top: 289px; width: 220px; min-height: 112px; }
     .approval { left: 1000px; top: 306px; width: 150px; min-height: 80px; }
@@ -507,7 +507,7 @@
         <p class="eyebrow">SalesLuv · System Map</p>
         <h1>Multi-Agent Flow</h1>
       </div>
-      <p class="summary">고객 접점 데이터를 수집하고, 보고서와 추천을 거쳐 다음 영업 일정을 만드는 전체 흐름입니다.</p>
+      <p class="summary">미팅 자료를 분석해 C/S와 딜 점수를 만들고, 원문과 분석 결과로 보고서를 작성하는 흐름입니다.</p>
     </header>
 
     <nav class="editor-bar" aria-label="그래프 편집 도구">
@@ -534,37 +534,38 @@
 
         <article class="node card source capture" id="node-capture">
           <span class="kind" aria-label="Input">I</span>
-          <h2>고객 접점 정보</h2>
+          <h2>미팅 자료</h2>
           <ul>
-            <li>명함 정보</li>
-            <li>STT · OCR</li>
+            <li>녹음 파일 · STT</li>
+            <li>미팅 내용 메모</li>
             <li>직접 입력</li>
           </ul>
         </article>
 
-        <article class="node agent customer" id="node-customer" data-letter="C">
-          <div><b>고객관리</b><span>AGENT</span></div>
+        <article class="node agent customer" id="node-customer" data-letter="A">
+          <div><b>미팅 분석</b><span>AGENT</span></div>
         </article>
 
         <article class="node card result cs" id="node-cs">
           <span class="kind" aria-label="Output">O</span>
-          <h3>C/S 사항 정리</h3>
+          <h3>C/S 사항</h3>
+          <ul><li>보고서 · C/S 관리 페이지 공통 사용</li></ul>
         </article>
 
-        <article class="node card result sentiment" id="node-sentiment">
-          <span class="kind" aria-label="Output">O</span>
-          <h3>감정 분석</h3>
-          <ul><li>분노 · 호감 · 만족도</li></ul>
+        <article class="node card result deal-score" id="node-deal-score">
+          <span class="kind" aria-label="Model">M</span>
+          <h3>딜 승산 점수</h3>
+          <ul><li>0–100점 · 승인 없이 화면 표시만</li></ul>
         </article>
 
         <article class="node agent report" id="node-report" data-letter="R">
-          <div><b>보고서</b><span>AGENT</span></div>
+          <div><b>보고서 작성</b><span>AGENT</span></div>
         </article>
 
         <article class="node card result draft" id="node-draft">
           <span class="kind" aria-label="Output">O</span>
           <h3>보고서 초안</h3>
-          <ul><li>핵심 내용 자동 정리</li></ul>
+          <ul><li>원문 + 분석 결과 기반 · C/S 포함</li></ul>
         </article>
 
         <article class="node card gate approval" id="node-approval">
@@ -639,18 +640,17 @@
           </defs>
 
           <path class="wire blue" d="M305 145 H390" data-edge data-from="node-capture" data-to="node-customer" data-from-side="right" data-to-side="left"/>
-          <path class="wire" d="M305 180 H340 V345 H390" data-edge data-from="node-capture" data-to="node-report" data-from-side="right" data-to-side="left" data-from-shift="35"/>
+          <path class="wire dashed" d="M305 180 H340 V375 H390" data-edge data-from="node-capture" data-to="node-report" data-from-side="right" data-to-side="left" data-from-shift="35"/>
           <path class="wire blue" d="M580 132 H655 V82 H720" data-edge data-from="node-customer" data-to="node-cs" data-from-side="right" data-to-side="left" data-from-shift="-3"/>
-          <path class="wire blue" d="M580 158 H670 V195 H720" data-edge data-from="node-customer" data-to="node-sentiment" data-from-side="right" data-to-side="left" data-from-shift="23"/>
+          <path class="wire blue" d="M580 158 H670 V195 H720" data-edge data-from="node-customer" data-to="node-deal-score" data-from-side="right" data-to-side="left" data-from-shift="23"/>
+          <path class="wire blue" d="M485 210 V300" data-edge data-from="node-customer" data-to="node-report" data-from-side="bottom" data-to-side="top"/>
           <path class="wire" d="M580 345 H710" data-edge data-from="node-report" data-to="node-draft" data-from-side="right" data-to-side="left"/>
           <path class="wire green" d="M930 345 H1000" data-edge data-from="node-draft" data-to="node-approval" data-from-side="right" data-to-side="left"/>
           <path class="wire green" d="M1150 345 H1210" data-edge data-from="node-approval" data-to="node-complete" data-from-side="right" data-to-side="left"/>
 
-          <path class="wire green dashed no-arrow" id="feedback-sentiment" d="M980 195 H1380 V480"/>
           <path class="wire green dashed no-arrow" id="feedback-report" d="M1288 386 V480 H1380"/>
           <path class="wire green dashed" id="feedback-merged" d="M1380 480 V570 H580"/>
           <circle id="feedback-junction" cx="1380" cy="480" r="4" fill="#0f7b5f"/>
-          <text class="wire-label" id="label-sentiment" x="1160" y="186">감정 분석</text>
           <text class="wire-label" id="label-report" x="1298" y="440">보고서 완성</text>
           <text class="wire-label" id="label-contract-input" x="1090" y="560">계약관리 입력</text>
 
@@ -670,17 +670,18 @@
       <div class="legend" aria-label="범례">
         <span><b class="legend-io">I</b>인풋</span>
         <span><b class="legend-io output">O</b>아웃풋</span>
+        <span><b class="legend-io output">M</b>ML 모델</span>
         <span><i class="l-agent"></i>에이전트</span>
         <span><i class="l-human"></i>사용자 승인</span>
         <span>↑↓ 에이전트 간 쌍방 교류</span>
-        <span>점선은 다음 판단에 반영되는 피드백</span>
+        <span>점선은 원문 참조 또는 다음 판단 피드백</span>
       </div>
     </section>
   </main>
 
   <script>
     (() => {
-      const STORAGE_KEY = "salesluv-flow-editor:v1";
+      const STORAGE_KEY = "salesluv-flow-editor:v2";
       const canvas = document.querySelector(".flow-canvas");
       const wires = document.querySelector(".wires");
       const userEdgeLayer = document.querySelector("#user-edge-layer");
@@ -764,22 +765,16 @@
       }
 
       function updateFeedback() {
-        const sentiment = box(nodeById.get("node-sentiment"));
         const report = box(nodeById.get("node-complete"));
         const contract = box(nodeById.get("node-contract"));
         const busX = canvas.clientWidth - 20;
         const joinY = clamp(Math.max(report.bottom + 60, contract.top + 10), 40, canvas.clientHeight - 40);
         const targetY = clamp(contract.top + contract.height * 2 / 3, contract.top + 18, contract.bottom - 18);
 
-        document.querySelector("#feedback-sentiment").setAttribute("d", `M${sentiment.right} ${sentiment.cy} H${busX} V${joinY}`);
         document.querySelector("#feedback-report").setAttribute("d", `M${report.cx} ${report.bottom} V${joinY} H${busX}`);
         document.querySelector("#feedback-merged").setAttribute("d", `M${busX} ${joinY} V${targetY} H${contract.right}`);
         document.querySelector("#feedback-junction").setAttribute("cx", busX);
         document.querySelector("#feedback-junction").setAttribute("cy", joinY);
-
-        const sentimentLabel = document.querySelector("#label-sentiment");
-        sentimentLabel.setAttribute("x", sentiment.right + (busX - sentiment.right) * .45);
-        sentimentLabel.setAttribute("y", sentiment.cy - 9);
 
         const reportLabel = document.querySelector("#label-report");
         reportLabel.setAttribute("x", report.cx + 10);
@@ -850,7 +845,7 @@
 
       function snapshot() {
         return {
-          version: 1,
+          version: 2,
           nodes: Object.fromEntries(nodes.map((node) => [node.id, {
             x: node.offsetLeft,
             y: node.offsetTop,
@@ -881,7 +876,7 @@
         } catch {
           return;
         }
-        if (!saved || saved.version !== 1) return;
+        if (!saved || saved.version !== 2) return;
 
         Object.entries(saved.nodes || {}).forEach(([id, value]) => {
           const node = nodeById.get(id);

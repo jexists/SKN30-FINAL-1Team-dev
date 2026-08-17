@@ -340,7 +340,7 @@ LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 
 - `started_at?` — 대기 상태가 끝나고 실행을 시작한 시각
 - `finished_at?` — 완료 또는 실패한 시각
 
-`parent_run_id`로 Agent 간 교류를 표현한다. 고객관리 Agent의 감정분석 결과가 계약관리 Agent 실행을 호출하면 두 실행을 부모·자식으로 연결한다.
+`parent_run_id`로 Agent 간 교류를 표현한다. 보고서 Agent의 승인된 최종 결과가 계약관리 Agent 실행을 호출하면 두 실행을 부모·자식으로 연결한다. 딜 승산 점수는 화면 표시용 ML 결과이며 다른 Agent 실행을 호출하지 않는다.
 
 사용자가 시작한 실행은 `requested_by_member_id`, `idempotency_key` 조합을 중복 불가로 둔다. Agent 내부 호출은 `idempotency_key`를 사용하지 않는다.
 

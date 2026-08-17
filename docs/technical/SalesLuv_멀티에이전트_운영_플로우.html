@@ -15,7 +15,7 @@
     --wire:#aab2be;
     --chip:#ffffff;
 
-    --c1:#2563eb; --c1-bg:#eaf0ff;   /* 고객관리 */
+    --c1:#2563eb; --c1-bg:#eaf0ff;   /* 미팅분석 */
     --c2:#d97706; --c2-bg:#fdf1e0;   /* 보고서 */
     --c3:#7c3aed; --c3-bg:#f2ecff;   /* 계약관리 */
     --c4:#0d9488; --c4-bg:#e0f5f1;   /* 일정관리 */
@@ -66,6 +66,7 @@
   }
   .badge.in{ color:var(--muted); }
   .badge.out{ color:var(--muted); }
+  .badge.model{ color:var(--c3); }
 
   /* ---------- board ---------- */
   .board{
@@ -135,7 +136,7 @@
 
   /* ---------- outputs ---------- */
   .outs{ display:flex; flex-direction:column; gap:14px; align-items:flex-start; }
-  .outs.row{ flex-direction:row; align-items:center; flex-wrap:wrap; gap:12px 46px; }
+  .outs.row{ flex-direction:row; align-items:center; flex-wrap:wrap; gap:12px 24px; }
 
   .chip{
     display:inline-flex; align-items:center; gap:9px;
@@ -169,6 +170,7 @@
     <div class="legend">
       <span><i class="badge in">I</i> Input — 에이전트로 들어오는 값</span>
       <span><i class="badge out">O</i> Output — 에이전트가 내보내는 값</span>
+      <span><i class="badge model">M</i> Model — ML 분류 모델</span>
       <span><i class="badge" style="color:var(--wire)">↕</i> 에이전트 간 교류</span>
     </div>
   </header>
@@ -182,27 +184,28 @@
     <div class="in" id="in1" style="grid-area:in1">
       <h3>미팅 자료</h3>
       <ul>
-        <li>STT</li>
-        <li>OCR</li>
-        <li>직접입력</li>
+        <li>녹음 파일 (STT)</li>
+        <li>미팅 내용 메모</li>
+        <li>직접 입력</li>
       </ul>
     </div>
 
     <div class="agent a1" id="ag-customer" style="grid-area:ag1">
-      <div class="nm">고객관리</div>
+      <div class="nm">미팅 분석</div>
       <div class="tag">AGENT</div>
     </div>
     <div class="outs" id="ou1" style="grid-area:ou1">
-      <div class="chip" id="o-cs"><i class="badge out">O</i> C/S 사항</div>
-      <div class="chip" id="o-emo"><i class="badge out">O</i> 감정 분석 <em>(현재 감정, 변화된 감정 )</em></div>
+      <div class="chip" id="o-cs"><i class="badge out">O</i> C/S 사항 <em>(보고서 · C/S 관리 페이지 공통 사용)</em></div>
+      <div class="chip" id="o-deal-features"><i class="badge out">O</i> 딜 특성 구조화 <em>(승인권자 · 예산 · 경쟁사 · 니즈)</em></div>
+      <div class="chip" id="o-win-score"><i class="badge model">M</i> 딜 승산 점수 <em>(0–100점 · 승인 없이 화면 표시만)</em></div>
     </div>
 
     <div class="agent a2" id="ag-report" style="grid-area:ag2">
-      <div class="nm">보고서</div>
+      <div class="nm">보고서 작성</div>
       <div class="tag">AGENT</div>
     </div>
     <div class="outs row" id="ou2" style="grid-area:ou2">
-      <div class="chip" id="o-draft"><i class="badge out">O</i> 보고서 초안</div>
+      <div class="chip" id="o-draft"><i class="badge out">O</i> 보고서 초안 · C/S 포함</div>
       <div class="human" id="o-human"><span class="k">HUMAN</span> 수정 · 승인</div>
       <div class="chip solid" id="o-final">보고서 완성</div>
     </div>
@@ -279,9 +282,11 @@
   // A→B 연결 정의. type: line(가로) / rail(우측 레일 경유) / drop(아래로) / duplex(양방향)
   const LINKS = [
     ['in1',          'ag-customer', 'line'],
-    ['in1',          'ag-report',   'line'],
+    ['in1',          'ag-report',   'line', {label:'원문 참조', dashed:true}],
+    ['ag-customer',  'ag-report',   'drop', {label:'분석 결과', gutter:18}],
     ['ag-customer',  'o-cs',        'line'],
-    ['ag-customer',  'o-emo',       'line'],
+    ['ag-customer',  'o-deal-features', 'line'],
+    ['o-deal-features', 'o-win-score',  'drop', {gutter:9}],
     ['ag-report',    'o-draft',     'line'],
     ['o-draft',      'o-human',     'line', {thin:true}],
     ['o-human',      'o-final',     'line', {thin:true}],
@@ -297,7 +302,6 @@
     ['ag-doc',       'o-docsum',    'line'],
 
     // 에이전트 간 연결
-    ['o-emo',        'ag-contract', 'rail',   {label:'I', enter:-22, gutter:38}],
     ['o-final',      'ag-contract', 'drop',   {label:'I', enter: 22, gutter:18}],
     ['o-nextmeet',   'ag-schedule', 'drop',   {label:'I', enter: 26, gutter:20}],
     ['ag-contract',  'ag-schedule', 'duplex', {label:'교류', offset:-34}],
@@ -405,6 +409,7 @@
         'stroke-linecap':'round',
         'marker-end':'url(#ah)'
       });
+      if(opt.dashed) path.setAttribute('stroke-dasharray', '6 5');
 
       if(type === 'line'){
         const x1 = a.r + 4, y1 = a.cy;
@@ -412,6 +417,7 @@
         const dx = Math.max(24, (x2 - x1) * .5);
         path.setAttribute('d',
           `M ${px(x1)} ${px(y1)} C ${px(x1+dx)} ${px(y1)}, ${px(x2-dx)} ${px(y2)}, ${px(x2)} ${px(y2)}`);
+        if(opt.label) labelAt(labels, (x1+x2)/2, (y1+y2)/2, opt.label);
       }
 
       else if(type === 'rail'){
