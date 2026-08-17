@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     demo_empty_member2_login_id: str = ""
     demo_password: SecretStr = SecretStr("")
 
+    # 계약관리 Agent의 브리핑 합성. 기본은 실 API 키 없이 도는 mock이다.
+    llm_provider: Literal["mock", "anthropic"] = "mock"
+    anthropic_api_key: SecretStr | None = None
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
