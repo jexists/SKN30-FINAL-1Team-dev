@@ -9,22 +9,22 @@
 - 독립적으로 조회·수정되는 업무 데이터와 1:N·N:M 이력은 별도 테이블로 둔다.
 - 화면 표시값, 합계, 최근 접촉, 다음 일정, 진행률은 원천 데이터에서 계산한다.
 - 보고 양식은 코드로 관리하고 작성 시점의 `template_snapshot`을 보고서에 저장한다.
-- 보고 첨부와 문서 버전은 공통 `files` 테이블로 관리한다.
-- LLM 실행 자체의 상태·모델·프롬프트·입출력·근거는 `agent_runs`에 기록한다.
+- 보고 첨부와 문서 버전은 공통 `file` 테이블로 관리한다.
+- LLM 실행 자체의 상태·모델·프롬프트·입출력·근거는 `agent_run`에 기록한다.
 - `?`는 NULL 허용, `PK`는 기본키, `FK`는 외래키, `UQ`는 중복 불가다.
 
 ## LLM 에이전트 연결
 
-- 고객관리 Agent → `customer_companies`, `customer_contacts`, `support_requests`, `activities`
-- 보고서 Agent → `reports`, `report_activities`, `files`
-- 계약관리 Agent → `contracts`, `pipeline_stages`, `orders`, `activities`
-- 일정관리 Agent → `activities`, `activity_companions`
-- 자료요약 Agent → `documents`, `files`
-- 모든 Agent 실행 이력 → `agent_runs`
+- 고객관리 Agent → `customer_company`, `customer_contact`, `support_request`, `activity`
+- 보고서 Agent → `report`, `report_activity`, `file`
+- 계약관리 Agent → `contract`, `pipeline_stage`, `purchase_order`, `activity`
+- 일정관리 Agent → `activity`, `activity_companion`
+- 자료요약 Agent → `document`, `file`
+- 모든 Agent 실행 이력 → `agent_run`
 
 ## 1. 조직·사용자
 
-### 1. `teams / 팀` — 3개
+### 1. `team / 팀` — 3개
 
 다른 팀의 고객·계약·자료가 섞이지 않도록 데이터 접근 범위를 정한다.
 
@@ -32,7 +32,7 @@
 - `name` — 화면에 표시할 팀 이름
 - `created_at` — 팀이 생성된 시각
 
-### 2. `members / 팀원` — 9개
+### 2. `member / 팀원` — 9개
 
 로그인 계정과 소속 팀, 권한, 업무 담당자를 관리한다.
 
@@ -48,7 +48,7 @@
 
 ## 2. 고객·CRM
 
-### 3. `customer_companies / 고객사` — 5개
+### 3. `customer_company / 고객사` — 5개
 
 여러 고객 담당자가 소속되는 거래처 회사 정보를 관리한다.
 
@@ -58,7 +58,7 @@
 - `region_code?` — 지역별 검색·매출 분석 코드
 - `created_at` — 고객사가 등록된 시각
 
-### 4. `customer_contacts / 고객 담당자` — 12개
+### 4. `customer_contact / 고객 담당자` — 12개
 
 실제로 연락하고 미팅하는 고객 측 인물 정보를 관리한다.
 
@@ -75,7 +75,7 @@
 - `memo?` — 고객 관련 추가 참고사항
 - `registered_at` — 고객 담당자가 등록된 시각
 
-### 5. `products / 상품` — 4개
+### 5. `product / 상품` — 4개
 
 일정·계약·발주에서 동일한 상품을 일관되게 참조한다.
 
@@ -84,7 +84,7 @@
 - `name` — 상품명
 - `active` — 현재 판매·선택 가능한 상품인지 표시
 
-### 6. `notices / 공지·지시` — 12개
+### 6. `notice / 공지·지시` — 12개
 
 팀 공지와 개인 업무 지시, 기한 정보를 전달한다.
 
@@ -101,7 +101,7 @@
 - `due_at?` — 업무 지시의 실제 마감 시각
 - `due_text?` — “매일 18:00”처럼 작성자가 입력한 자유형 기한 안내
 
-### 7. `activities / 일정·업무` — 22개
+### 7. `activity / 일정·업무` — 22개
 
 미팅·방문·전화·할 일과 후속 업무를 하나의 일정 흐름으로 관리한다.
 
@@ -128,14 +128,14 @@
 - `created_at` — 일정이 생성된 시각
 - `updated_at` — 일정이 마지막으로 수정된 시각
 
-### 8. `activity_companions / 일정 동행자` — 2개
+### 8. `activity_companion / 일정 동행자` — 2개
 
 한 일정에 여러 팀원이 참여하는 N:M 관계를 관리한다.
 
 - `activity_id PK/FK` — 동행자가 참여하는 일정
 - `member_id PK/FK` — 해당 일정에 동행하는 팀원
 
-### 9. `support_requests / C/S 요청` — 9개
+### 9. `support_request / C/S 요청` — 9개
 
 고객 문의·불편·지원 요청과 처리 상태를 관리한다.
 
@@ -149,7 +149,7 @@
 - `status_code` — 접수·처리 중·완료 등 처리 상태
 - `registered_at` — 요청이 접수된 시각
 
-### 10. `support_responses / C/S 답변 이력` — 5개
+### 10. `support_response / C/S 답변 이력` — 5개
 
 한 C/S 요청에서 여러 번 발생하는 대응 과정을 시간순으로 보존한다.
 
@@ -161,7 +161,7 @@
 
 ## 3. 계약·발주·매출
 
-### 11. `pipeline_stages / 영업 단계` — 6개
+### 11. `pipeline_stage / 영업 단계` — 6개
 
 팀별 계약 보드의 단계·순서·색상과 매출 인정 기준을 관리한다.
 
@@ -172,7 +172,7 @@
 - `outcome_code` — 진행중·확정·취소 등 매출 판정값
 - `position` — 보드에서 표시할 단계 순서
 
-### 12. `contracts / 계약` — 21개
+### 12. `contract / 계약` — 21개
 
 고객사와의 영업·계약 건, 금액, 단계, 종료·납품 정보를 관리한다.
 
@@ -198,7 +198,7 @@
 - `created_at` — 계약이 생성된 시각
 - `updated_at` — 계약이 마지막으로 수정된 시각
 
-### 13. `orders / 발주` — 15개
+### 13. `purchase_order / 발주` — 15개
 
 계약 이후 발생하는 발주와 공급처·납기·입고 진행 상태를 관리한다.
 
@@ -218,7 +218,7 @@
 - `created_at` — 발주가 생성된 시각
 - `updated_at` — 발주가 마지막으로 수정된 시각
 
-### 14. `order_items / 발주 품목` — 6개
+### 14. `purchase_order_item / 발주 품목` — 6개
 
 한 발주에 포함되는 여러 상품·수량·단가를 행 단위로 관리한다.
 
@@ -229,7 +229,7 @@
 - `unit_price` — 상품 한 개의 단가
 - `position` — 품목 목록의 표시 순서
 
-### 15. `sales_targets / 월별 영업 목표` — 5개
+### 15. `sales_target / 월별 영업 목표` — 5개
 
 담당자·고객사·월 단위의 매출 목표와 달성률 계산 기준을 관리한다.
 
@@ -243,7 +243,7 @@
 
 ## 4. 보고·자료실
 
-### 16. `reports / 보고서` — 20개
+### 16. `report / 보고서` — 20개
 
 LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 함께 보존한다.
 
@@ -268,14 +268,14 @@ LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 
 - `created_at` — 보고서가 생성된 시각
 - `updated_at` — 보고서가 마지막으로 수정된 시각
 
-### 17. `report_activities / 보고서 포함 활동` — 2개
+### 17. `report_activity / 보고서 포함 활동` — 2개
 
 일·주·월 보고서에 여러 활동을 연결하는 N:M 관계다.
 
 - `report_id PK/FK` — 활동을 포함하는 보고서
 - `activity_id PK/FK` — 보고서에 포함된 일정·업무
 
-### 18. `documents / 자료실 문서` — 12개
+### 18. `document / 자료실 문서` — 12개
 
 자료실에서 문서의 제목·분류·업무 연결과 파일 버전 묶음을 관리한다.
 
@@ -292,7 +292,7 @@ LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 
 - `tags JSONB` — 검색·분류용 문서 태그 목록
 - `created_at` — 논리 문서가 생성된 시각
 
-### 19. `files / 파일·문서 버전` — 13개
+### 19. `file / 파일·문서 버전` — 13개
 
 보고서 첨부파일과 자료실 문서 버전을 공통 파일 메타데이터로 관리한다.
 
@@ -318,7 +318,7 @@ LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 
 
 ## 5. LLM Agent
 
-### 20. `agent_runs / 에이전트 실행 이력` — 17개
+### 20. `agent_run / 에이전트 실행 이력` — 17개
 
 각 LLM Agent 실행의 입력·출력·모델·근거·실패 상태와 에이전트 간 호출 관계를 추적한다.
 

@@ -1,6 +1,6 @@
 # DB 변경
 
-현재 자동 마이그레이션 도구와 적용 이력 저장소가 없으며, 이 폴더에도 기준 스키마가 아직 없습니다. 따라서 저장소만으로 원격 DB 상태를 재현하거나 적용 여부를 판단할 수 없습니다.
+현재 자동 마이그레이션 도구와 적용 이력 저장소가 없으므로 이 문서에서 SQL 파일의 적용 이력을 관리합니다.
 
 ## 변경 원칙
 
@@ -24,6 +24,8 @@
   일정, 일정 동행자 6테이블을 먼저 생성합니다.
 - `20260817_0002_remaining_schema.sql`: 최종 ERD의 나머지 14테이블과 일정의 상품·계약·발주
   외래키를 추가해 전체 20테이블·200컬럼을 완성하고, 모든 테이블의 RLS를 활성화합니다.
+- `20260817_0003_singular_table_names.sql`: 20개 테이블 이름을 단수형으로 변경합니다.
+  PostgreSQL 예약어인 `order` 대신 `purchase_order`, 발주 품목은 `purchase_order_item`을 사용합니다.
 
 ## 적용 이력
 
@@ -31,3 +33,4 @@
 |---|---|---|---|---|
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0001_core_schema.sql` | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0002_remaining_schema.sql` | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `20260817_0003_singular_table_names.sql` | Session Pooler | 성공 |

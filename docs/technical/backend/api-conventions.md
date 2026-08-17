@@ -22,7 +22,7 @@
 
 - 업무 리소스 URL은 영문 소문자, 복수 명사, `kebab-case`를 사용한다.
 - Query와 JSON 필드명은 `snake_case`를 사용한다.
-- ERD의 이름을 그대로 사용한다. 예: `/api/customer-companies`, `/api/support-requests`, `/api/agent-runs`.
+- 업무 리소스 URL은 단수형 DB 테이블명과 독립적으로 복수 명사를 사용한다. 예: `/api/customer-companies`, `/api/support-requests`, `/api/agent-runs`.
 - 종속 리소스는 부모 아래에 둔다. 예: `/api/orders/{order_id}/items`.
 - 상태 전이는 마지막 경로에 동사를 사용한다. 예: `POST /api/reports/{report_id}/submit`.
 - 모든 내부 `id`와 `*_id`는 하이픈을 포함한 소문자 UUID 문자열이다. 신규 ID는 서버가 UUID v4로 생성한다.
@@ -36,7 +36,7 @@ GET /api/orders/9f64618b-8ed8-4aed-9560-78b25228dbe5
 
 ## 3. 인증과 세션
 
-- 브라우저 인증은 `members.login_id`와 비밀번호로 시작하고, 로그인 성공 시 서버가 서명한 세션 쿠키를 발급한다.
+- 브라우저 인증은 `member.login_id`와 비밀번호로 시작하고, 로그인 성공 시 서버가 서명한 세션 쿠키를 발급한다.
 - 인증 API는 `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` 세 개만 둔다.
 - 세션 쿠키 이름은 `salesluv_session`이며 `HttpOnly`, `SameSite=Lax`, `Path=/api`를 적용한다.
 - 운영 HTTPS에서는 `Secure`를 반드시 적용하고 `Domain`을 지정하지 않아 host-only 쿠키로 둔다.
@@ -49,9 +49,9 @@ GET /api/orders/9f64618b-8ed8-4aed-9560-78b25228dbe5
 
 ## 4. 권한과 팀 범위
 
-- 현재 ERD에서는 `teams`가 최상위 데이터 경계다. 조직 범위는 사용하지 않는다.
+- 현재 ERD에서는 `team`이 최상위 데이터 경계다. 조직 범위는 사용하지 않는다.
 - 서버는 매 요청에서 세션의 회원이 활성 상태인지, 역할과 현재 팀이 유효한지 확인한다.
-- `members.role_code`의 API 값은 `member`, `manager` 두 개만 사용한다.
+- `member.role_code`의 API 값은 `member`, `manager` 두 개만 사용한다.
 - `team_id`, 작성자, 요청자와 기본 담당자는 인증 정보로 결정한다. 요청값만으로 소유권을 정하지 않는다.
 - 담당자 필드가 있는 업무 리소스에서 팀원은 본인 담당 데이터만 조회·변경한다.
 - 팀 공유 기준정보와 공지는 같은 팀 안에서 기능별 역할 규칙을 적용한다.
@@ -76,7 +76,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 숫자, 불리언, enum처럼 잘못된 자동 변환이 위험한 필드는 strict 타입이나 validator로 검증한다.
 - 알 수 없는 JSON 필드와 해당 엔드포인트가 받지 않는 Query는 `422 Unprocessable Entity`로 거절한다.
 - enum wire 값은 영문 소문자 `snake_case`로 고정하고 한국어 표시는 프론트에서 매핑한다.
-- `pipeline_stages.outcome_code`는 `in_progress`, `confirmed`, `cancelled`를 사용한다.
+- `pipeline_stage.outcome_code`는 `in_progress`, `confirmed`, `cancelled`를 사용한다.
 - nullable 응답 필드는 값을 알 수 없거나 없으면 key를 유지하고 `null`을 반환한다.
 - 목록·태그·자식 컬렉션은 값이 없으면 `[]`를 반환하며 `null`로 보내지 않는다.
 - 서버가 계산할 수 있는 `D-4`, `3일 전`, 금액 서식, 파일 크기 라벨 같은 표시 문자열은 반환하지 않는다.
@@ -158,7 +158,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - FK를 받는 요청은 대상 존재 여부, 같은 팀 소속, 활성·보관 상태를 함께 검증한다.
 - 루트 리소스와 자식, 상태 전이와 이력 기록, 승인과 업무 반영은 각각 한 DB 트랜잭션에서 처리한다.
 - 상태 전이는 현재 상태를 조건으로 원자적으로 갱신하고 허용되지 않은 전이는 `409 invalid_state_transition`을 반환한다.
-- Agent 실행 시 실제 사용한 원천 필드를 `agent_runs.input_snapshot`에 저장하고, 확정 시 같은 필드의 현재 값과 비교한다. 값이 바뀌었으면 `409 stale_agent_result`로 거절한다.
+- Agent 실행 시 실제 사용한 원천 필드를 `agent_run.input_snapshot`에 저장하고, 확정 시 같은 필드의 현재 값과 비교한다. 값이 바뀌었으면 `409 stale_agent_result`로 거절한다.
 
 ## 10. 에러
 
@@ -200,7 +200,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - `GET` 이외 요청은 클라이언트가 자동 재시도하지 않는다.
 - 사용자가 비동기 Agent 실행을 시작하는 `POST`는 `Idempotency-Key` header를 필수로 받는다.
 - `Idempotency-Key` 값은 클라이언트가 매 동작마다 새로 생성한 UUID v4이며 형식이 다르면 `422`다.
-- 서버는 key를 `agent_runs.idempotency_key`에 실행 이력과 함께 보존하고 로그인 회원 범위에서 비교한다.
+- 서버는 key를 `agent_run.idempotency_key`에 실행 이력과 함께 보존하고 로그인 회원 범위에서 비교한다.
 - 같은 key와 같은 요청은 `200`으로 기존 실행 조회 모델을 반환하고, 같은 key의 다른 요청은 `409 idempotency_key_reused`로 거절한다.
 - key가 누락되면 `422`다. Agent 내부 호출은 `parent_run_id`로 추적하며 이 header를 사용하지 않는다.
 - MVP에는 모든 CRUD에 적용하는 범용 optimistic lock을 두지 않는다. 상태 전이는 DB에서 원자적으로 검증하며, 실제 동시 편집이 필요한 리소스에는 `version` 또는 `expected_updated_at`을 추가한다.
@@ -229,7 +229,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - polling 응답에서 작업 자체가 실패했어도 조회는 `200`이고 `status_code=failed`와 안전한 오류 코드를 반환한다.
 - `completed`는 제안·초안 생성 완료이며 업무 데이터 반영 완료가 아니다.
 - Agent가 제안한 고객, 계약, 일정, 보고서 변경은 인증된 사용자의 별도 확정 요청 후 반영한다.
-- 검증 실패, 사용자 거절 또는 Agent 실패 시 확정 업무 데이터는 변경하지 않되 실패 실행 이력은 `agent_runs`에 남긴다.
+- 검증 실패, 사용자 거절 또는 Agent 실패 시 확정 업무 데이터는 변경하지 않되 실패 실행 이력은 `agent_run`에 남긴다.
 - 입력·출력·근거에는 비밀번호, 토큰, 불필요한 개인정보와 권한 밖 원문을 복제하지 않는다.
 - 업로드 문서와 고객 입력은 명령이 아니라 신뢰하지 않는 데이터로 취급한다.
 - Agent 간 호출은 `parent_run_id`로 연결하고 각 실행의 권한과 근거를 독립적으로 기록한다.
@@ -283,8 +283,8 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 매출 목표는 다음과 같이 계산한다.
 
 - 목표 월은 요청값이 없으면 오늘이 속한 월이다.
-- 목표 금액은 같은 목표 월과 담당자 범위에 속한 `sales_targets.target_amount`의 합계다.
-- 확정 매출액은 `contract_date`가 목표 월에 속하고 `outcome_code=confirmed` 단계에 있는 미삭제 `contracts.amount`의 합계다.
+- 목표 금액은 같은 목표 월과 담당자 범위에 속한 `sales_target.target_amount`의 합계다.
+- 확정 매출액은 `contract_date`가 목표 월에 속하고 `outcome_code=confirmed` 단계에 있는 미삭제 `contract.amount`의 합계다.
 - 달성률은 `확정 매출액 / 목표 금액 * 100`을 소수점 첫째 자리로 반올림하며 100으로 제한하지 않는다. 목표가 없거나 합계가 0이면 `null`이다.
 
 선택 날짜 일정의 각 항목에는 다음 값이 필요하다.
