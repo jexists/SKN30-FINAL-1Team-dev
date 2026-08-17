@@ -17,7 +17,16 @@ from scripts.seed_demo_auth import EMPTY_TEAM_ID, FILLED_TEAM_ID
 
 
 def test_demo_activity_seed_shape_is_fixed_and_synthetic():
-    rows = {seed.mock_id: activity_row(seed) for seed in ACTIVITY_SEEDS}
+    category_ids = {
+        code: uuid5(FILLED_TEAM_ID, f"activity-category:{code}") for code in CATEGORY_CODES.values()
+    }
+    action_tag_ids = {
+        code: uuid5(FILLED_TEAM_ID, f"activity-action-tag:{code}")
+        for code in ACTION_TAG_CODES.values()
+    }
+    rows = {
+        seed.mock_id: activity_row(seed, category_ids, action_tag_ids) for seed in ACTIVITY_SEEDS
+    }
 
     assert REFERENCE_DATE.isoformat() == "2026-08-17"
     assert SEOUL.key == "Asia/Seoul"
@@ -98,7 +107,13 @@ def test_demo_activity_seed_shape_is_fixed_and_synthetic():
     }
     assert {mock_id for mock_id, row in rows.items() if row["all_day"]} == {"a5"}
     assert rows["a5"]["ends_at"] is None
-    assert rows["a12"]["action_tag"] is None
+    assert rows["a12"]["activity_action_tag_id"] is None
+    for seed in ACTIVITY_SEEDS:
+        row = rows[seed.mock_id]
+        assert row["activity_category_id"] == category_ids[CATEGORY_CODES[seed.kind]]
+        assert row["activity_action_tag_id"] == (
+            action_tag_ids[ACTION_TAG_CODES[seed.stage]] if seed.stage else None
+        )
 
     for seed in ACTIVITY_SEEDS:
         row = rows[seed.mock_id]

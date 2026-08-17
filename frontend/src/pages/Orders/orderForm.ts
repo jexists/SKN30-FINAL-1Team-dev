@@ -1,6 +1,6 @@
 // 발주 입력값을 다루는 규칙입니다. 모달(OrderForm)과 추가 화면(New)이 같은 항목을
 // 받으므로 검사와 변환을 여기 한 곳에 둡니다. 어느 쪽으로 넣든 결과가 같아야 합니다.
-import type { ApiPurchaseOrder, OrderStatus } from '@/types'
+import type { ApiPurchaseOrder } from '@/types'
 import { addDays, iso, TODAY, TODAY_ISO } from '@/utils/date'
 
 import type { OrderDraft } from './useOrderList'
@@ -14,10 +14,9 @@ export interface ItemState {
 }
 
 export interface FormState {
-  customerCompanyId: string
   supplier: string
-  contractId: string
-  status: string
+  salesDealId: string
+  stageCode: string
   ordered: string
   due: string
   expect: string
@@ -37,10 +36,9 @@ export const emptyItem = (): ItemState => ({ productId: '', qty: '1', price: '' 
 
 export function initialState(order?: ApiPurchaseOrder): FormState {
   return {
-    customerCompanyId: order?.customerCompanyId ?? '',
     supplier: order?.supplier ?? '',
-    contractId: order?.contractId ?? '',
-    status: order?.status ?? '발주 접수',
+    salesDealId: order?.salesDealId ?? '',
+    stageCode: order?.stageCode ?? '',
     ordered: order?.ordered ?? TODAY_ISO,
     // 새 발주는 납기를 2주 뒤로 잡아 둡니다. 대부분 그 언저리라 고치는 손이 줄어듭니다.
     due: order?.due ?? iso(addDays(TODAY, 14)),
@@ -62,7 +60,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export function validate(form: FormState): FormErrors {
   const errors: FormErrors = {}
-  if (form.customerCompanyId === '') errors.customerCompanyId = '고객사를 선택하세요.'
+  if (form.salesDealId === '') errors.salesDealId = '영업 딜을 선택하세요.'
+  if (form.stageCode === '') errors.stageCode = '발주 상태를 선택하세요.'
   if (form.supplier.trim() === '') errors.supplier = '공급처를 입력하세요.'
 
   if (!DATE_RE.test(form.ordered)) errors.ordered = '날짜를 선택하세요.'
@@ -104,10 +103,9 @@ export function totalOf(form: FormState): number {
 
 export function toDraft(form: FormState): OrderDraft {
   return {
-    customerCompanyId: form.customerCompanyId,
     supplier: form.supplier.trim(),
-    contractId: form.contractId || null,
-    status: form.status as OrderStatus,
+    salesDealId: form.salesDealId,
+    stageCode: form.stageCode,
     ordered: form.ordered,
     due: form.due,
     expect: form.expect,

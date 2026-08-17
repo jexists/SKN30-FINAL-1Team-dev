@@ -34,7 +34,16 @@ SearchQuery = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100),
 ]
-CustomerStatus = Literal["new", "proposal", "negotiation", "contracted", "on_hold"]
+OptionCode = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+    ),
+]
 CustomerSource = Literal[
     "referral",
     "exhibition",
@@ -90,7 +99,7 @@ class CustomerContactCreate(_WriteModel):
     job_title: Text | None = None
     email: Email | None = None
     phone: Phone
-    status_code: CustomerStatus | None = None
+    status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
 
@@ -102,7 +111,7 @@ class CustomerContactPatch(_WriteModel):
     job_title: Text | None = None
     email: Email | None = None
     phone: Phone | None = None
-    status_code: CustomerStatus | None = None
+    status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
 
@@ -123,13 +132,26 @@ class CustomerContactRead(BaseModel):
     job_title: str | None
     email: str | None
     phone: str
-    status_code: CustomerStatus | None
+    customer_contact_status_id: UUID | None
+    customer_contact_status_name: str | None
+    customer_contact_status_tone: str | None
+    status_code: OptionCode | None
     source_code: CustomerSource | None
     memo: str | None
     registered_at: datetime
     company_name: str
     company_region_code: str | None
     owner_display_name: str
+
+
+class CustomerContactStatusOptionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: OptionCode
+    name: str
+    tone: str
+    position: int
 
 
 class CustomerContactPage(BaseModel):

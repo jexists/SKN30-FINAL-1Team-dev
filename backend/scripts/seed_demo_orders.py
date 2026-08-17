@@ -9,18 +9,19 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.db.session import get_sessionmaker
+from app.models.configuration import PurchaseOrderStatus
 from app.models.crm import CustomerCompany
-from app.models.sales import Contract, Product, PurchaseOrder, PurchaseOrderItem
+from app.models.sales import Product, PurchaseOrder, PurchaseOrderItem, SalesDeal
 from app.models.workspace import Member, Team
 from scripts.seed_demo_activities import REFERENCE_DATE, product_id
 from scripts.seed_demo_auth import FILLED_TEAM_ID
-from scripts.seed_demo_contracts import contract_id
 from scripts.seed_demo_customers import FILLED_TEAM_NAME, company_id
+from scripts.seed_demo_sales_deals import sales_deal_id
 
 
 class PurchaseOrderSeed(NamedTuple):
     order_no: str
-    contract_no: str
+    deal_no: str
     company_name: str
     product_name: str
     supplier_name: str
@@ -74,16 +75,14 @@ def purchase_order_item_id(order_no: str, position: int) -> UUID:
     return uuid5(FILLED_TEAM_ID, f"purchase-order-item:{order_no}:{position}")
 
 
-def purchase_order_row(seed: PurchaseOrderSeed, owner_member_id: UUID) -> dict:
+def purchase_order_row(seed: PurchaseOrderSeed, purchase_order_status_id: UUID) -> dict:
     return {
         "id": purchase_order_id(seed.order_no),
         "team_id": FILLED_TEAM_ID,
         "order_no": seed.order_no,
-        "contract_id": contract_id(seed.contract_no),
-        "customer_company_id": company_id(seed.company_name),
-        "owner_member_id": owner_member_id,
+        "sales_deal_id": sales_deal_id(seed.deal_no),
         "supplier_name": seed.supplier_name,
-        "stage_code": seed.stage_code,
+        "purchase_order_status_id": purchase_order_status_id,
         "ordered_on": REFERENCE_DATE + timedelta(days=seed.ordered_day_offset),
         "due_on": REFERENCE_DATE + timedelta(days=seed.due_day_offset),
         "expected_receipt_on": REFERENCE_DATE + timedelta(days=seed.expected_receipt_day_offset),
@@ -95,7 +94,7 @@ def purchase_order_row(seed: PurchaseOrderSeed, owner_member_id: UUID) -> dict:
 def purchase_order_item_row(seed: PurchaseOrderSeed, position: int = 0) -> dict:
     return {
         "id": purchase_order_item_id(seed.order_no, position),
-        "order_id": purchase_order_id(seed.order_no),
+        "purchase_order_id": purchase_order_id(seed.order_no),
         "product_id": product_id(seed.product_name),
         "quantity": seed.quantity,
         "unit_price": seed.unit_price,
@@ -125,13 +124,13 @@ def purchase_order_item_upsert(row: dict):
     update_fields = {
         key: getattr(item_insert.excluded, key)
         for key in row
-        if key not in {"id", "order_id", "position"}
+        if key not in {"id", "purchase_order_id", "position"}
     }
     return item_insert.on_conflict_do_update(
         index_elements=[PurchaseOrderItem.id],
         set_=update_fields,
         where=and_(
-            PurchaseOrderItem.order_id == row["order_id"],
+            PurchaseOrderItem.purchase_order_id == row["purchase_order_id"],
             PurchaseOrderItem.position == row["position"],
         ),
     ).returning(PurchaseOrderItem.id)
@@ -144,10 +143,11 @@ async def seed_demo_orders() -> None:
     expected_products = {
         product_id(seed.product_name): seed.product_name for seed in PURCHASE_ORDER_SEEDS
     }
-    expected_contract_seeds = {contract_id(seed.contract_no): seed for seed in PURCHASE_ORDER_SEEDS}
-    expected_contract_ids_by_no = {
-        seed.contract_no: id_ for id_, seed in expected_contract_seeds.items()
+    expected_sales_deal_seeds = {sales_deal_id(seed.deal_no): seed for seed in PURCHASE_ORDER_SEEDS}
+    expected_sales_deal_ids_by_no = {
+        seed.deal_no: id_ for id_, seed in expected_sales_deal_seeds.items()
     }
+    expected_status_codes = {seed.stage_code for seed in PURCHASE_ORDER_SEEDS}
 
     async with get_sessionmaker()() as session, session.begin():
         filled_team_name = (
@@ -157,6 +157,21 @@ async def seed_demo_orders() -> None:
         ).scalar_one_or_none()
         if filled_team_name != FILLED_TEAM_NAME:
             raise SystemExit("filled 인증 seed를 먼저 실행하세요.")
+
+        status_rows = (
+            await session.execute(
+                select(PurchaseOrderStatus.id, PurchaseOrderStatus.code)
+                .where(
+                    PurchaseOrderStatus.team_id == FILLED_TEAM_ID,
+                    PurchaseOrderStatus.code.in_(expected_status_codes),
+                    PurchaseOrderStatus.deleted_at.is_(None),
+                )
+                .with_for_update()
+            )
+        ).all()
+        status_ids_by_code = {row.code: row.id for row in status_rows}
+        if set(status_ids_by_code) != expected_status_codes:
+            raise SystemExit("filled 인증 seed를 먼저 실행해 발주 상태를 준비하세요.")
 
         existing_companies = (
             await session.execute(
@@ -211,46 +226,46 @@ async def seed_demo_orders() -> None:
         if {row.id for row in existing_products} != set(expected_products):
             raise SystemExit("일정 seed를 먼저 실행해 발주 상품을 준비하세요.")
 
-        existing_contracts = (
+        existing_sales_deals = (
             await session.execute(
                 select(
-                    Contract.id,
-                    Contract.team_id,
-                    Contract.contract_no,
-                    Contract.customer_company_id,
-                    Contract.product_id,
-                    Contract.owner_member_id,
-                    Contract.deleted_at,
+                    SalesDeal.id,
+                    SalesDeal.team_id,
+                    SalesDeal.deal_no,
+                    SalesDeal.customer_company_id,
+                    SalesDeal.product_id,
+                    SalesDeal.owner_member_id,
+                    SalesDeal.deleted_at,
                 )
                 .where(
                     or_(
-                        Contract.id.in_(expected_contract_seeds),
+                        SalesDeal.id.in_(expected_sales_deal_seeds),
                         and_(
-                            Contract.team_id == FILLED_TEAM_ID,
-                            Contract.contract_no.in_(expected_contract_ids_by_no),
+                            SalesDeal.team_id == FILLED_TEAM_ID,
+                            SalesDeal.deal_no.in_(expected_sales_deal_ids_by_no),
                         ),
                     )
                 )
                 .with_for_update()
             )
         ).all()
-        contracts_by_id = {row.id: row for row in existing_contracts}
-        for row in existing_contracts:
-            seed = expected_contract_seeds.get(row.id)
+        sales_deals_by_id = {row.id: row for row in existing_sales_deals}
+        for row in existing_sales_deals:
+            seed = expected_sales_deal_seeds.get(row.id)
             if (
                 seed is None
                 or row.team_id != FILLED_TEAM_ID
-                or row.contract_no != seed.contract_no
-                or expected_contract_ids_by_no.get(row.contract_no) != row.id
+                or row.deal_no != seed.deal_no
+                or expected_sales_deal_ids_by_no.get(row.deal_no) != row.id
                 or row.customer_company_id != company_id(seed.company_name)
                 or row.product_id != product_id(seed.product_name)
                 or row.deleted_at is not None
             ):
                 raise SystemExit("합성 발주 계약 ID, 번호, 고객사, 상품 또는 팀이 충돌합니다.")
-        if set(contracts_by_id) != set(expected_contract_seeds):
+        if set(sales_deals_by_id) != set(expected_sales_deal_seeds):
             raise SystemExit("계약 seed를 먼저 실행해 발주 계약을 준비하세요.")
 
-        expected_owner_ids = {row.owner_member_id for row in existing_contracts}
+        expected_owner_ids = {row.owner_member_id for row in existing_sales_deals}
         existing_owners = (
             await session.execute(
                 select(Member.id, Member.team_id, Member.active)
@@ -264,10 +279,7 @@ async def seed_demo_orders() -> None:
             raise SystemExit("합성 발주 계약 담당자 ID, 팀 또는 상태가 충돌합니다.")
 
         orders = tuple(
-            purchase_order_row(
-                seed,
-                contracts_by_id[contract_id(seed.contract_no)].owner_member_id,
-            )
+            purchase_order_row(seed, status_ids_by_code[seed.stage_code])
             for seed in PURCHASE_ORDER_SEEDS
         )
         items = tuple(purchase_order_item_row(seed) for seed in PURCHASE_ORDER_SEEDS)
@@ -275,7 +287,7 @@ async def seed_demo_orders() -> None:
         expected_order_ids_by_no = {row["order_no"]: row["id"] for row in orders}
         expected_items = {row["id"]: row for row in items}
         expected_item_ids_by_order_position = {
-            (row["order_id"], row["position"]): row["id"] for row in items
+            (row["purchase_order_id"], row["position"]): row["id"] for row in items
         }
 
         existing_orders = (
@@ -307,13 +319,13 @@ async def seed_demo_orders() -> None:
             await session.execute(
                 select(
                     PurchaseOrderItem.id,
-                    PurchaseOrderItem.order_id,
+                    PurchaseOrderItem.purchase_order_id,
                     PurchaseOrderItem.position,
                 )
                 .where(
                     or_(
                         PurchaseOrderItem.id.in_(expected_items),
-                        PurchaseOrderItem.order_id.in_(expected_orders),
+                        PurchaseOrderItem.purchase_order_id.in_(expected_orders),
                     )
                 )
                 .with_for_update()
@@ -323,9 +335,10 @@ async def seed_demo_orders() -> None:
             expected = expected_items.get(row.id)
             if (
                 expected is None
-                or expected["order_id"] != row.order_id
+                or expected["purchase_order_id"] != row.purchase_order_id
                 or expected["position"] != row.position
-                or expected_item_ids_by_order_position.get((row.order_id, row.position)) != row.id
+                or expected_item_ids_by_order_position.get((row.purchase_order_id, row.position))
+                != row.id
             ):
                 raise SystemExit("합성 발주 품목 ID, 발주 또는 순서가 충돌합니다.")
 

@@ -192,17 +192,21 @@
 
     <div class="agent a1" id="ag-customer" style="grid-area:ag1">
       <div class="nm">미팅 분석</div>
-      <div class="tag">AGENT</div>
+      <div class="tag">meeting_analysis</div>
     </div>
     <div class="outs" id="ou1" style="grid-area:ou1">
-      <div class="chip" id="o-cs"><i class="badge out">O</i> C/S 사항 <em>(보고서 · C/S 관리 페이지 공통 사용)</em></div>
+      <div class="outs row">
+        <div class="chip" id="o-cs-candidates"><i class="badge out">O</i> C/S 후보 <em>support_candidates</em></div>
+        <div class="human" id="o-cs-confirm"><span class="k">HUMAN</span> 검토 · 확정</div>
+        <div class="chip solid" id="o-support-request">C/S 요청 등록 <em>support_request</em></div>
+      </div>
       <div class="chip" id="o-deal-features"><i class="badge out">O</i> 딜 특성 구조화 <em>(승인권자 · 예산 · 경쟁사 · 니즈)</em></div>
       <div class="chip" id="o-win-score"><i class="badge model">M</i> 딜 승산 점수 <em>(0–100점 · 승인 없이 화면 표시만)</em></div>
     </div>
 
     <div class="agent a2" id="ag-report" style="grid-area:ag2">
       <div class="nm">보고서 작성</div>
-      <div class="tag">AGENT</div>
+      <div class="tag">report_writing</div>
     </div>
     <div class="outs row" id="ou2" style="grid-area:ou2">
       <div class="chip" id="o-draft"><i class="badge out">O</i> 보고서 초안 · C/S 포함</div>
@@ -214,17 +218,17 @@
     <div class="stage" style="grid-area:st2">I</div>
 
     <div class="in" id="in2" style="grid-area:in2">
-      <h3>계약 관련 활동</h3>
+      <h3>영업 딜 · 계약 관련 활동</h3>
       <ul>
-        <li>신규 계약 등록</li>
-        <li>기존 계약 수정</li>
-        <li>계약 만료 · 삭제</li>
+        <li>신규 영업 딜 등록</li>
+        <li>영업 단계 · 정보 수정</li>
+        <li>성사 계약 갱신 · 만료</li>
       </ul>
     </div>
 
     <div class="agent a3" id="ag-contract" style="grid-area:ag3">
-      <div class="nm">계약관리</div>
-      <div class="tag">AGENT</div>
+      <div class="nm">영업 · 계약관리</div>
+      <div class="tag">contract_management</div>
     </div>
     <div class="outs" id="ou3" style="grid-area:ou3">
       <div class="chip" id="o-brief"><i class="badge out">O</i> 브리핑 생성</div>
@@ -244,7 +248,7 @@
 
     <div class="agent a4" id="ag-schedule" style="grid-area:ag4">
       <div class="nm">일정관리</div>
-      <div class="tag">AGENT</div>
+      <div class="tag">schedule_management</div>
     </div>
     <div class="outs" id="ou4" style="grid-area:ou4">
       <div class="chip" id="o-nextsched"><i class="badge out">O</i> 다음 일정 추천 제시</div>
@@ -264,7 +268,7 @@
 
     <div class="agent a5" id="ag-doc" style="grid-area:ag5">
       <div class="nm">자료요약</div>
-      <div class="tag">AGENT</div>
+      <div class="tag">document_summary</div>
     </div>
     <div class="outs" id="ou5" style="grid-area:ou5">
       <div class="chip" id="o-docsum"><i class="badge out">O</i> 자료요약 브리핑</div>
@@ -284,7 +288,9 @@
     ['in1',          'ag-customer', 'line'],
     ['in1',          'ag-report',   'line', {label:'원문 참조', dashed:true}],
     ['ag-customer',  'ag-report',   'drop', {label:'분석 결과', gutter:18}],
-    ['ag-customer',  'o-cs',        'line'],
+    ['ag-customer',  'o-cs-candidates', 'line'],
+    ['o-cs-candidates', 'o-cs-confirm', 'line', {thin:true}],
+    ['o-cs-confirm', 'o-support-request', 'line', {thin:true}],
     ['ag-customer',  'o-deal-features', 'line'],
     ['o-deal-features', 'o-win-score',  'drop', {gutter:9}],
     ['ag-report',    'o-draft',     'line'],

@@ -101,6 +101,7 @@ export interface CalendarEvent {
   activityType?: ActivityTypeCode
   customerContactId?: string | null
   customerContactName?: string
+  salesDealId?: string | null
   productId?: string | null
   product?: string
   owner?: string
@@ -119,6 +120,8 @@ export interface ActivityRead {
   customer_contact_job_title: string | null
   customer_company_id: string | null
   customer_company_name: string | null
+  sales_deal_id: string | null
+  purchase_order_id: string | null
   product_id: string | null
   product_name: string | null
   activity_type: ActivityTypeCode
@@ -137,6 +140,7 @@ export interface ActivityRead {
 
 export interface ActivityCreateRequest {
   customer_contact_id?: string | null
+  sales_deal_id?: string | null
   product_id?: string | null
   activity_type: ActivityTypeCode
   category_code: ActivityCategoryCode

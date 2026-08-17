@@ -14,15 +14,21 @@ EXPECTED_COLUMN_COUNTS = {
     "member": 9,
     "customer_company": 5,
     "customer_contact": 12,
+    "customer_contact_status": 9,
     "product": 4,
     "notice": 12,
     "activity": 22,
+    "activity_category": 10,
+    "activity_action_tag": 10,
     "activity_companion": 2,
     "support_request": 9,
     "support_response": 5,
-    "pipeline_stage": 6,
-    "contract": 21,
-    "purchase_order": 15,
+    "sales_pipeline": 10,
+    "sales_pipeline_stage": 10,
+    "sales_deal_type": 8,
+    "sales_deal": 28,
+    "purchase_order_status": 10,
+    "purchase_order": 13,
     "purchase_order_item": 6,
     "sales_target": 5,
     "report": 20,
@@ -40,13 +46,19 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 200
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 266
 
-    foreign_keys = [
-        foreign_key for table in Base.metadata.tables.values() for foreign_key in table.foreign_keys
+    foreign_key_constraints = [
+        foreign_key
+        for table in Base.metadata.tables.values()
+        for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_keys) == 55
-    assert all(foreign_key.column.table.schema == "public" for foreign_key in foreign_keys)
+    assert len(foreign_key_constraints) == 64
+    assert all(
+        element.column.table.schema == "public"
+        for foreign_key in foreign_key_constraints
+        for element in foreign_key.elements
+    )
 
 
 @pytest.mark.skipif(not settings.database_url, reason="DATABASE_URL 미설정")

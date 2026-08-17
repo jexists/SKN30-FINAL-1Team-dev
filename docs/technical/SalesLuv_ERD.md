@@ -1,356 +1,621 @@
-# SalesLuv 최종 ERD
-
-> 범위: 팀원 화면과 SalesLuv 멀티에이전트 운영 흐름<br>
-> 상태: 구현 전 최종 설계안<br>
-> 권고 규모: **20테이블 / 200컬럼**
-
-## 설계 원칙
-
-- 독립적으로 조회·수정되는 업무 데이터와 1:N·N:M 이력은 별도 테이블로 둔다.
-- 화면 표시값, 합계, 최근 접촉, 다음 일정, 진행률은 원천 데이터에서 계산한다.
-- 보고 양식은 코드로 관리하고 작성 시점의 `template_snapshot`을 보고서에 저장한다.
-- 보고 첨부와 문서 버전은 공통 `file` 테이블로 관리한다.
-- LLM 실행 자체의 상태·모델·프롬프트·입출력·근거는 `agent_run`에 기록한다.
-- `?`는 NULL 허용, `PK`는 기본키, `FK`는 외래키, `UQ`는 중복 불가다.
-
-## LLM 에이전트 연결
-
-- 고객관리 Agent → `customer_company`, `customer_contact`, `support_request`, `activity`
-- 보고서 Agent → `report`, `report_activity`, `file`
-- 계약관리 Agent → `contract`, `pipeline_stage`, `purchase_order`, `activity`
-- 일정관리 Agent → `activity`, `activity_companion`
-- 자료요약 Agent → `document`, `file`
-- 모든 Agent 실행 이력 → `agent_run`
-
-## 1. 조직·사용자
-
-### 1. `team / 팀` — 3개
-
-다른 팀의 고객·계약·자료가 섞이지 않도록 데이터 접근 범위를 정한다.
-
-- `id PK` — 팀을 식별하는 기본키
-- `name` — 화면에 표시할 팀 이름
-- `created_at` — 팀이 생성된 시각
-
-### 2. `member / 팀원` — 9개
-
-로그인 계정과 소속 팀, 권한, 업무 담당자를 관리한다.
-
-- `id PK` — 팀원을 식별하는 기본키
-- `team_id FK` — 팀원이 소속된 팀
-- `login_id UQ` — 중복되지 않는 로그인 아이디
-- `password_hash` — 비밀번호를 안전하게 저장한 해시
-- `display_name` — 화면과 보고서에 표시할 이름
-- `role_code` — 팀원·팀장 등 권한 구분
-- `job_title?` — 팀원의 직책 또는 직급
-- `active` — 로그인과 업무 배정 가능 여부
-- `created_at` — 계정이 생성된 시각
-
-## 2. 고객·CRM
-
-### 3. `customer_company / 고객사` — 5개
-
-여러 고객 담당자가 소속되는 거래처 회사 정보를 관리한다.
-
-- `id PK` — 고객사를 식별하는 기본키
-- `team_id FK` — 고객사를 관리하는 내부 팀
-- `name` — 고객사명
-- `region_code?` — 지역별 검색·매출 분석 코드
-- `created_at` — 고객사가 등록된 시각
-
-### 4. `customer_contact / 고객 담당자` — 12개
-
-실제로 연락하고 미팅하는 고객 측 인물 정보를 관리한다.
-
-- `id PK` — 고객 담당자를 식별하는 기본키
-- `company_id FK` — 담당자가 소속된 고객사
-- `owner_member_id FK` — 관계를 담당하는 내부 팀원
-- `name` — 고객 담당자 이름
-- `department?` — 고객 담당자의 소속 부서
-- `job_title?` — 고객 담당자의 직책
-- `email?` — 이메일 주소
-- `phone` — 연락 가능한 전화번호
-- `status_code?` — 잠재·활성·휴면 등 고객 상태
-- `source_code?` — 소개·문의 등 고객 유입 경로
-- `memo?` — 고객 관련 추가 참고사항
-- `registered_at` — 고객 담당자가 등록된 시각
-
-### 5. `product / 상품` — 4개
-
-일정·계약·발주에서 동일한 상품을 일관되게 참조한다.
-
-- `id PK` — 상품을 식별하는 기본키
-- `team_id FK` — 상품을 관리하는 팀
-- `name` — 상품명
-- `active` — 현재 판매·선택 가능한 상품인지 표시
-
-### 6. `notice / 공지·지시` — 12개
-
-팀 공지와 개인 업무 지시, 기한 정보를 전달한다.
-
-- `id PK` — 공지·지시를 식별하는 기본키
-- `team_id FK` — 공지가 속한 팀
-- `author_member_id FK` — 공지를 작성한 팀원
-- `recipient_member_id? FK` — 개인 수신자이며, 없으면 팀 공지
-- `tag?` — 공지·긴급·업무 등 분류 태그
-- `title` — 목록에 표시할 제목
-- `body` — 공지·지시 본문
-- `image_storage_key?` — 첨부 이미지의 저장 위치
-- `image_alt?` — 이미지 접근성을 위한 대체 설명
-- `published_at` — 공지가 게시된 시각
-- `due_at?` — 업무 지시의 실제 마감 시각
-- `due_text?` — “매일 18:00”처럼 작성자가 입력한 자유형 기한 안내
-
-### 7. `activity / 일정·업무` — 22개
-
-미팅·방문·전화·할 일과 후속 업무를 하나의 일정 흐름으로 관리한다.
-
-- `id PK` — 일정·업무를 식별하는 기본키
-- `team_id FK` — 일정이 속한 팀
-- `owner_member_id FK` — 일정을 담당하는 팀원
-- `customer_contact_id? FK` — 일정의 주요 고객 담당자
-- `end_user_contact_id? FK` — 실사용자가 주요 담당자와 다를 때 연결
-- `product_id? FK` — 일정에서 다루는 상품
-- `contract_id? FK` — 일정과 관련된 계약
-- `order_id? FK` — 일정과 관련된 발주
-- `activity_type` — 미팅·업무 등 핵심 활동 유형
-- `category_code` — 방문·데모·내부업무 등 화면 분류
-- `title` — 캘린더와 목록에 표시할 일정명
-- `starts_at` — 일정 시작 시각
-- `ends_at?` — 일정 종료 시각
-- `all_day` — 종일 일정 여부
-- `due_at?` — 완료해야 하는 업무 마감 시각
-- `location?` — 방문·미팅 장소
-- `action_tag?` — 데모 완료·견적 완료 등 후속조치 태그
-- `completed_at?` — 일정·업무를 완료한 시각
-- `note?` — 일정 관련 메모
-- `deleted_at?` — 기록을 보존하는 소프트 삭제 시각
-- `created_at` — 일정이 생성된 시각
-- `updated_at` — 일정이 마지막으로 수정된 시각
-
-### 8. `activity_companion / 일정 동행자` — 2개
-
-한 일정에 여러 팀원이 참여하는 N:M 관계를 관리한다.
-
-- `activity_id PK/FK` — 동행자가 참여하는 일정
-- `member_id PK/FK` — 해당 일정에 동행하는 팀원
-
-### 9. `support_request / C/S 요청` — 9개
-
-고객 문의·불편·지원 요청과 처리 상태를 관리한다.
-
-- `id PK` — C/S 요청을 식별하는 기본키
-- `team_id FK` — 요청을 처리하는 팀
-- `customer_contact_id FK` — 요청과 관련된 고객 담당자
-- `assignee_member_id FK` — 요청 처리 담당 팀원
-- `title` — 요청 내용을 요약한 제목
-- `body` — 고객 요청의 상세 내용
-- `is_urgent` — 긴급 처리 필요 여부
-- `status_code` — 접수·처리 중·완료 등 처리 상태
-- `registered_at` — 요청이 접수된 시각
-
-### 10. `support_response / C/S 답변 이력` — 5개
-
-한 C/S 요청에서 여러 번 발생하는 대응 과정을 시간순으로 보존한다.
-
-- `id PK` — 답변 이력을 식별하는 기본키
-- `request_id FK` — 답변이 속한 C/S 요청
-- `responder_member_id FK` — 답변을 작성한 팀원
-- `body` — 답변 또는 처리 내용
-- `responded_at` — 답변이 등록된 시각
-
-## 3. 계약·발주·매출
-
-### 11. `pipeline_stage / 영업 단계` — 6개
-
-팀별 계약 보드의 단계·순서·색상과 매출 인정 기준을 관리한다.
-
-- `id PK` — 영업 단계를 식별하는 기본키
-- `team_id FK` — 단계 설정을 사용하는 팀
-- `name` — 화면에 표시할 단계명
-- `tone` — 단계 배지·컬럼의 표시 색상
-- `outcome_code` — 진행중·확정·취소 등 매출 판정값
-- `position` — 보드에서 표시할 단계 순서
-
-### 12. `contract / 계약` — 21개
-
-고객사와의 영업·계약 건, 금액, 단계, 종료·납품 정보를 관리한다.
-
-- `id PK` — 계약을 식별하는 기본키
-- `team_id FK` — 계약을 관리하는 팀
-- `contract_no` — 사용자에게 보이는 계약번호
-- `customer_company_id FK` — 계약 상대 고객사
-- `contact_id? FK` — 계약과 관련된 고객 담당자
-- `owner_member_id FK` — 계약 담당 내부 팀원
-- `product_id? FK` — 계약 대상 상품
-- `stage_id FK` — 현재 영업 보드 단계
-- `title` — 계약명
-- `description?` — 계약 내용 요약
-- `contract_type` — 신규·갱신·유지보수 등 계약 유형
-- `amount` — 계약금액과 매출 분석의 원천
-- `contract_date` — 계약 체결 또는 기준일
-- `ends_on?` — 계약 종료일·갱신 예정 판단 기준
-- `warranty_terms?` — 보증기간 또는 보증 조건
-- `expected_delivery_at?` — 납품 예정 일시
-- `memo?` — 계약 관련 내부 메모
-- `position` — 같은 단계 안에서의 카드 표시 순서
-- `deleted_at?` — 참조를 보존하는 소프트 삭제 시각
-- `created_at` — 계약이 생성된 시각
-- `updated_at` — 계약이 마지막으로 수정된 시각
-
-### 13. `purchase_order / 발주` — 15개
-
-계약 이후 발생하는 발주와 공급처·납기·입고 진행 상태를 관리한다.
-
-- `id PK` — 발주를 식별하는 기본키
-- `team_id FK` — 발주를 관리하는 팀
-- `order_no` — 사용자에게 보이는 발주번호
-- `contract_id? FK` — 발주와 연결된 계약
-- `customer_company_id FK` — 발주 대상 고객사
-- `owner_member_id FK` — 발주 담당 내부 팀원
-- `supplier_name` — 물품을 공급하는 공급처명
-- `stage_code` — 발주 접수부터 납품 완료까지의 상태
-- `ordered_on` — 발주가 등록된 날짜
-- `due_on` — 발주의 약정 납기일
-- `expected_receipt_on` — 입고 예상일
-- `memo?` — 발주 관련 내부 메모
-- `deleted_at?` — 기록을 보존하는 소프트 삭제 시각
-- `created_at` — 발주가 생성된 시각
-- `updated_at` — 발주가 마지막으로 수정된 시각
-
-### 14. `purchase_order_item / 발주 품목` — 6개
-
-한 발주에 포함되는 여러 상품·수량·단가를 행 단위로 관리한다.
-
-- `id PK` — 발주 품목을 식별하는 기본키
-- `order_id FK` — 품목이 속한 발주
-- `product_id FK` — 발주한 상품
-- `quantity` — 발주 수량
-- `unit_price` — 상품 한 개의 단가
-- `position` — 품목 목록의 표시 순서
-
-### 15. `sales_target / 월별 영업 목표` — 5개
-
-담당자·고객사·월 단위의 매출 목표와 달성률 계산 기준을 관리한다.
-
-- `id PK` — 목표를 식별하는 기본키
-- `owner_member_id FK` — 목표를 담당하는 팀원
-- `customer_company_id FK` — 목표가 설정된 고객사
-- `target_month` — 목표가 적용되는 연·월
-- `target_amount` — 해당 월의 목표금액
-
-같은 담당자·고객사·월의 목표는 하나만 존재하며 `target_amount >= 0`으로 제한한다.
-
-## 4. 보고·자료실
-
-### 16. `report / 보고서` — 20개
-
-LLM이 만든 초안과 사람이 수정·검토·승인한 최종 보고서를 함께 보존한다.
-
-- `id PK` — 보고서를 식별하는 기본키
-- `team_id FK` — 보고서가 속한 팀
-- `author_member_id FK` — 보고서를 작성·제출한 팀원
-- `recipient_member_id? FK` — 보고서를 검토할 대상자
-- `template_snapshot JSONB` — 작성 당시 사용한 보고 양식
-- `source_activity_id? FK` — 미팅 보고서의 원천 일정
-- `report_kind` — 미팅·일간·주간·월간 보고 구분
-- `report_date` — 보고 기준일
-- `period_start?` — 기간 보고의 시작일
-- `period_end?` — 기간 보고의 종료일
-- `status_code` — 임시저장·검토대기·승인·반려 상태
-- `content JSONB` — 양식에 따라 작성된 보고서 본문
-- `transcript?` — STT 또는 직접 입력된 미팅 원문
-- `source_snapshot? JSONB` — 보고서 생성 당시 고객·계약·일정 정보
-- `ai_evidence? JSONB` — LLM 출력에 사용한 근거와 출처
-- `note?` — 작성자·검토자가 남긴 추가 메모
-- `reviewed_by_member_id? FK` — 실제 검토·승인한 팀원
-- `reviewed_at?` — 검토·승인 또는 반려가 처리된 시각
-- `created_at` — 보고서가 생성된 시각
-- `updated_at` — 보고서가 마지막으로 수정된 시각
-
-### 17. `report_activity / 보고서 포함 활동` — 2개
-
-일·주·월 보고서에 여러 활동을 연결하는 N:M 관계다.
-
-- `report_id PK/FK` — 활동을 포함하는 보고서
-- `activity_id PK/FK` — 보고서에 포함된 일정·업무
-
-### 18. `document / 자료실 문서` — 12개
-
-자료실에서 문서의 제목·분류·업무 연결과 파일 버전 묶음을 관리한다.
-
-- `id PK` — 자료실 문서를 식별하는 기본키
-- `team_id FK` — 문서가 속한 팀
-- `created_by_member_id FK` — 문서를 처음 등록한 팀원
-- `document_no` — 자료실과 계약서에 표시할 문서번호
-- `category_code` — 계약서·발주서·교육자료 등 문서 분류
-- `title` — 자료실 목록에 표시할 제목
-- `description?` — 문서 내용에 대한 설명
-- `customer_company_id? FK` — 문서와 관련된 고객사
-- `contract_id? FK` — 문서와 관련된 계약
-- `order_id? FK` — 문서와 관련된 발주
-- `tags JSONB` — 검색·분류용 문서 태그 목록
-- `created_at` — 논리 문서가 생성된 시각
-
-### 19. `file / 파일·문서 버전` — 13개
-
-보고서 첨부파일과 자료실 문서 버전을 공통 파일 메타데이터로 관리한다.
-
-- `id PK` — 파일을 식별하는 기본키
-- `report_id? FK` — 보고서 첨부파일일 때 연결되는 보고서
-- `document_id? FK` — 문서 버전일 때 연결되는 자료실 문서
-- `version_no?` — 자료실 문서의 버전 번호
-- `file_name` — 사용자가 확인하는 원본 파일명
-- `storage_key UQ` — 실제 파일 저장소 위치를 찾는 고유 키
-- `media_type?` — PDF·PPTX 등 MIME 유형
-- `byte_size` — 파일 크기
-- `processing_status` — 업로드·OCR·추출 처리 상태
-- `extracted_text?` — 자료요약 Agent가 사용할 추출 텍스트
-- `uploaded_by_member_id FK` — 파일을 업로드한 팀원
-- `note?` — 문서 버전 또는 파일 관련 메모
-- `uploaded_at` — 파일이 업로드된 시각
-
-제약:
-
-- `report_id`, `document_id` 중 정확히 하나만 존재한다.
-- 문서 버전이면 `version_no >= 1`, 보고 첨부면 `version_no IS NULL`이다.
-- `UNIQUE(document_id, version_no)`와 `UNIQUE(storage_key)`를 적용한다.
-
-## 5. LLM Agent
-
-### 20. `agent_run / 에이전트 실행 이력` — 17개
-
-각 LLM Agent 실행의 입력·출력·모델·근거·실패 상태와 에이전트 간 호출 관계를 추적한다.
-
-- `id PK` — 에이전트 실행 한 건의 기본키
-- `team_id FK` — 실행이 속한 팀 범위
-- `parent_run_id? FK` — 다른 Agent가 호출한 경우 상위 실행
-- `requested_by_member_id? FK` — 실행을 직접 요청한 팀원
-- `agent_code` — 고객관리·보고서·계약·일정·자료요약 Agent 구분
-- `trigger_code` — 미팅 업로드·계약 변경 등 실행 계기
-- `idempotency_key?` — 사용자가 시작한 같은 실행 요청의 중복 처리를 막는 키
-- `status_code` — 대기·실행 중·완료·실패 상태
-- `model_name` — 실행에 사용한 LLM 모델
-- `prompt_version` — 적용한 시스템 프롬프트 버전
-- `source_refs JSONB` — 고객·일정·계약·문서 등 참조 원천 ID 목록
-- `input_snapshot JSONB` — LLM에 전달된 정제 입력
-- `output_snapshot? JSONB` — LLM이 생성한 원본 결과
-- `evidence? JSONB` — 결과를 뒷받침한 문서·데이터 근거
-- `error_message?` — 실패한 경우 원인 메시지
-- `started_at?` — 대기 상태가 끝나고 실행을 시작한 시각
-- `finished_at?` — 완료 또는 실패한 시각
-
-`parent_run_id`로 Agent 간 교류를 표현한다. 보고서 Agent의 승인된 최종 결과가 계약관리 Agent 실행을 호출하면 두 실행을 부모·자식으로 연결한다. 딜 승산 점수는 화면 표시용 ML 결과이며 다른 Agent 실행을 호출하지 않는다.
-
-사용자가 시작한 실행은 `requested_by_member_id`, `idempotency_key` 조합을 중복 불가로 둔다. Agent 내부 호출은 `idempotency_key`를 사용하지 않는다.
-
-`input_snapshot`에는 비밀번호나 불필요한 개인정보 원문을 복제하지 않고, 권한 검사를 통과한 정제 데이터만 저장한다.
-
-별도의 `agent_tool_calls` 테이블은 지금 만들지 않는다. 도구별 입력·출력을 장기간 감사해야 하는 운영·컴플라이언스 요구가 생길 때만 분리한다.
-
-## 보류 항목
-
-- 견적현황은 유스케이스의 입력 필드·상태 전이가 확정될 때 `quotes` 테이블을 추가한다.
-- 알림은 공지와 다른 개인별 읽음·삭제 이력이 실제 API로 확정될 때 `notifications` 테이블을 추가한다.
-- 팀장이 보고 양식을 직접 생성·수정할 때 `report_templates` 테이블을 다시 분리한다.
-- 에이전트의 도구 호출 단위 감사가 필요할 때 `agent_tool_calls`를 추가한다.
+# SalesLuv ERD
+
+> 기준: `backend/sql/20260817_0001_core_schema.sql`부터 `20260817_0005_sales_deal_names.sql`까지 모두 적용한 `public` 스키마<br>
+> 규모: **26테이블 / 266컬럼 / 64개 외래키 제약조건**<br>
+> 상세 운영 설계: [데이터베이스 저장소 설계 문서](데이터베이스_저장소_설계_문서_260817.docx)
+
+## 1. 표기와 설계 원칙
+
+- 테이블명과 컬럼명은 설명용 별칭이 아니라 실제 물리 식별자다.
+- `NN`은 `NOT NULL`, `NULL`은 NULL 허용, `PK`는 기본키, `FK`는 외래키, `UQ`는 유일 제약이다.
+- 시간형은 PostgreSQL `timestamptz`, 금액형은 `bigint`, 구조화 스냅샷은 `jsonb`를 사용한다.
+- 화면 표시용 합계·진행률·최근 접촉·다음 일정은 원천 데이터에서 계산하고 중복 저장하지 않는다.
+- `team`이 데이터 경계다. 단일 FK로 보장할 수 없는 같은 팀·같은 담당자 범위는 API가 검증한다.
+- 26개 테이블 모두 RLS가 활성화되어 있다. 현재 SQL에는 RLS 정책이 없으므로 애플리케이션의 팀 범위 검증을 생략할 수 없다.
+- `deleted_at`이 있는 업무·설정 데이터는 soft delete한다. 과거 레코드가 참조하는 설정 행은 hard delete하지 않는다.
+
+## 2. 핵심 관계
+
+```mermaid
+erDiagram
+  team ||--o{ member : has
+  team ||--o{ customer_company : owns
+  team ||--o{ customer_contact_status : configures
+  customer_company ||--o{ customer_contact : has
+  member ||--o{ customer_contact : owns
+  customer_contact_status ||--o{ customer_contact : classifies
+
+  team ||--o{ activity_category : configures
+  team ||--o{ activity_action_tag : configures
+  team ||--o{ activity : owns
+  member ||--o{ activity : owns
+  customer_contact ||--o{ activity : attends
+  activity_category ||--o{ activity : classifies
+  activity_action_tag ||--o{ activity : tags
+  activity ||--o{ activity_companion : has
+  member ||--o{ activity_companion : joins
+
+  team ||--o{ sales_pipeline : saves
+  sales_pipeline ||--|{ sales_pipeline_stage : contains
+  team ||--o{ sales_deal_type : configures
+  sales_pipeline_stage ||--o{ sales_deal : locates
+  sales_deal_type ||--o{ sales_deal : classifies
+  customer_company ||--o{ sales_deal : has
+  member ||--o{ sales_deal : owns
+  product ||--o{ sales_deal : proposes
+  sales_deal ||--o{ purchase_order : creates
+  purchase_order_status ||--o{ purchase_order : classifies
+  purchase_order ||--|{ purchase_order_item : contains
+  product ||--o{ purchase_order_item : references
+
+  customer_contact ||--o{ support_request : raises
+  member ||--o{ support_request : handles
+  support_request ||--o{ support_response : has
+  activity ||--o{ report : sources
+  report ||--o{ report_activity : includes
+  activity ||--o{ report_activity : included
+  report ||--o{ file : attaches
+  document ||--o{ file : versions
+  sales_deal ||--o{ document : relates
+  purchase_order ||--o{ document : relates
+  agent_run ||--o{ agent_run : parent_of
+```
+
+`sales_deal`의 `(sales_pipeline_id, sales_pipeline_stage_id)`는 `sales_pipeline_stage(sales_pipeline_id, id)`를 참조하는 **하나의 복합 FK 제약**이다. 따라서 단계가 선택한 파이프라인에 속함을 DB가 보장하며, `sales_deal.sales_pipeline_id`에서 `sales_pipeline.id`로 가는 중복 FK는 두지 않는다.
+
+### FK 제약조건 전수 목록
+
+| 테이블 | 개수 | FK 컬럼 → 참조 |
+|---|---:|---|
+| `team` | 0 | — |
+| `member` | 1 | `team_id → team.id` |
+| `customer_company` | 1 | `team_id → team.id` |
+| `customer_contact_status` | 1 | `team_id → team.id` |
+| `customer_contact` | 3 | `company_id → customer_company.id`; `owner_member_id → member.id`; `customer_contact_status_id → customer_contact_status.id` |
+| `activity_category` | 1 | `team_id → team.id` |
+| `activity_action_tag` | 1 | `team_id → team.id` |
+| `activity` | 9 | `team_id → team.id`; `owner_member_id → member.id`; `customer_contact_id,end_user_contact_id → customer_contact.id`; `activity_category_id → activity_category.id`; `activity_action_tag_id → activity_action_tag.id`; `product_id → product.id`; `sales_deal_id → sales_deal.id`; `purchase_order_id → purchase_order.id` |
+| `activity_companion` | 2 | `activity_id → activity.id`; `member_id → member.id` |
+| `notice` | 3 | `team_id → team.id`; `author_member_id,recipient_member_id → member.id` |
+| `support_request` | 3 | `team_id → team.id`; `customer_contact_id → customer_contact.id`; `assignee_member_id → member.id` |
+| `support_response` | 2 | `support_request_id → support_request.id`; `responder_member_id → member.id` |
+| `product` | 1 | `team_id → team.id` |
+| `sales_deal_type` | 1 | `team_id → team.id` |
+| `sales_pipeline` | 1 | `team_id → team.id` |
+| `sales_pipeline_stage` | 1 | `sales_pipeline_id → sales_pipeline.id` |
+| `sales_deal` | 7 | `team_id → team.id`; `customer_company_id → customer_company.id`; `customer_contact_id → customer_contact.id`; `owner_member_id → member.id`; `product_id → product.id`; `sales_deal_type_id → sales_deal_type.id`; `(sales_pipeline_id,sales_pipeline_stage_id) → sales_pipeline_stage(sales_pipeline_id,id)` |
+| `purchase_order_status` | 1 | `team_id → team.id` |
+| `purchase_order` | 3 | `team_id → team.id`; `sales_deal_id → sales_deal.id`; `purchase_order_status_id → purchase_order_status.id` |
+| `purchase_order_item` | 2 | `purchase_order_id → purchase_order.id`; `product_id → product.id` |
+| `sales_target` | 2 | `owner_member_id → member.id`; `customer_company_id → customer_company.id` |
+| `report` | 5 | `team_id → team.id`; `author_member_id,recipient_member_id,reviewed_by_member_id → member.id`; `source_activity_id → activity.id` |
+| `report_activity` | 2 | `report_id → report.id`; `activity_id → activity.id` |
+| `document` | 5 | `team_id → team.id`; `created_by_member_id → member.id`; `customer_company_id → customer_company.id`; `sales_deal_id → sales_deal.id`; `purchase_order_id → purchase_order.id` |
+| `file` | 3 | `report_id → report.id`; `document_id → document.id`; `uploaded_by_member_id → member.id` |
+| `agent_run` | 3 | `team_id → team.id`; `parent_run_id → agent_run.id`; `requested_by_member_id → member.id` |
+| **합계** | **64** | 복합 FK는 컬럼이 두 개여도 제약조건 하나로 계산 |
+
+## 3. 물리 데이터 사전
+
+### 3.1 조직·사용자
+
+#### `team` — 3컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `name` | `text` | NN | `btrim(name) <> ''` |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+#### `member` — 9컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `login_id` | `text` | NN | UQ, 비어 있지 않고 소문자만 허용 |
+| `password_hash` | `text` | NN | 비어 있지 않음 |
+| `display_name` | `text` | NN | 비어 있지 않음 |
+| `role_code` | `text` | NN | `member \| manager` |
+| `job_title` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `active` | `boolean` | NN | `DEFAULT true` |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+### 3.2 고객·일정·지원
+
+#### `customer_company` — 5컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `name` | `text` | NN | 비어 있지 않음, `(team_id, name)` 유일 인덱스 |
+| `region_code` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+#### `customer_contact_status` — 9컬럼
+
+팀장이 관리할 수 있는 고객 담당자 상태의 표시값이다. `code`는 저장용 안정 식별자이고 `name`, `tone`, `position`은 표시 편의를 위한 값이다.
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `code` | `text` | NN | 비어 있지 않음, UQ `(team_id, code)` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `tone` | `text` | NN | `gray \| blue \| purple \| orange \| green \| red` |
+| `position` | `integer` | NN | `>= 0` |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+기본값은 `new`, `proposal`, `negotiation`, `contracted`, `on_hold`다.
+
+#### `customer_contact` — 12컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `company_id` | `uuid` | NN | FK → `customer_company.id` |
+| `owner_member_id` | `uuid` | NN | FK → `member.id` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `department` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `job_title` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `email` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `phone` | `text` | NN | 비어 있지 않음 |
+| `customer_contact_status_id` | `uuid` | NULL | FK → `customer_contact_status.id` |
+| `source_code` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `memo` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `registered_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+#### `activity_category` — 10컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `code` | `text` | NN | 비어 있지 않음, UQ `(team_id, code)` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `tone` | `text` | NN | 여섯 `tone` 값 중 하나 |
+| `position` | `integer` | NN | `>= 0` |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `activity_type` | `text` | NN | `meeting \| task` |
+
+기본값은 `visit`, `demo`, `education`, `call`, `delivery`, `conference`(`meeting`)와 `internal`(`task`)이다.
+
+#### `activity_action_tag` — 10컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `code` | `text` | NN | 비어 있지 않음, UQ `(team_id, code)` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `tone` | `text` | NN | 여섯 `tone` 값 중 하나 |
+| `position` | `integer` | NN | `>= 0` |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `activity_type` | `text` | NN | `meeting \| task` |
+
+기본 코드는 `first_call`, `meeting`, `demo_requested`, `demo_in_progress`, `demo_completed`, `quote_completed`, `contract_completed`, `product_training`, `delivery_completed`, `internal_meeting`, `weekly_review`, `monthly_review`, `quarterly_review`, `conference`, `ojt`다. 각 행의 `activity_type`은 바뀌지 않는 시스템 의미다.
+
+#### `activity` — 22컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `owner_member_id` | `uuid` | NN | FK → `member.id` |
+| `customer_contact_id` | `uuid` | NULL | FK → `customer_contact.id` |
+| `end_user_contact_id` | `uuid` | NULL | FK → `customer_contact.id` |
+| `activity_type` | `text` | NN | `meeting \| task` |
+| `activity_category_id` | `uuid` | NN | FK → `activity_category.id` |
+| `title` | `text` | NN | 비어 있지 않음 |
+| `starts_at` | `timestamptz` | NN |  |
+| `ends_at` | `timestamptz` | NULL | `ends_at > starts_at` |
+| `all_day` | `boolean` | NN | `DEFAULT false` |
+| `due_at` | `timestamptz` | NULL |  |
+| `location` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `activity_action_tag_id` | `uuid` | NULL | FK → `activity_action_tag.id` |
+| `completed_at` | `timestamptz` | NULL |  |
+| `note` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `product_id` | `uuid` | NULL | FK → `product.id` |
+| `sales_deal_id` | `uuid` | NULL | FK → `sales_deal.id` |
+| `purchase_order_id` | `uuid` | NULL | FK → `purchase_order.id` |
+
+`activity_type`과 선택한 category/action tag의 `activity_type` 일치는 API가 검사한다.
+
+#### `activity_companion` — 2컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `activity_id` | `uuid` | NN | PK/FK → `activity.id`, `ON DELETE CASCADE` |
+| `member_id` | `uuid` | NN | PK/FK → `member.id` |
+
+#### `notice` — 12컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `author_member_id` | `uuid` | NN | FK → `member.id` |
+| `recipient_member_id` | `uuid` | NULL | FK → `member.id`; NULL이면 팀 공지 |
+| `tag` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `title` | `text` | NN | 비어 있지 않음 |
+| `body` | `text` | NN | 비어 있지 않음 |
+| `image_storage_key` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `image_alt` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `published_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `due_at` | `timestamptz` | NULL |  |
+| `due_text` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+
+#### `support_request` — 9컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `customer_contact_id` | `uuid` | NN | FK → `customer_contact.id` |
+| `assignee_member_id` | `uuid` | NN | FK → `member.id` |
+| `title` | `text` | NN | 비어 있지 않음 |
+| `body` | `text` | NN | 비어 있지 않음 |
+| `is_urgent` | `boolean` | NN | `DEFAULT false` |
+| `status_code` | `text` | NN | 비어 있지 않음 |
+| `registered_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+#### `support_response` — 5컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `support_request_id` | `uuid` | NN | FK → `support_request.id` |
+| `responder_member_id` | `uuid` | NN | FK → `member.id` |
+| `body` | `text` | NN | 비어 있지 않음 |
+| `responded_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+### 3.3 영업 파이프라인·딜·발주
+
+#### `product` — 4컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `active` | `boolean` | NN | `DEFAULT true` |
+
+#### `sales_deal_type` — 8컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `code` | `text` | NN | 비어 있지 않음, UQ `(team_id, code)` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `position` | `integer` | NN | `>= 0` |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+기본값은 `new_installation`, `expansion`, `renewal`, `maintenance`, `consumables_supply`다.
+
+#### `sales_pipeline` — 10컬럼
+
+저장 가능한 영업 절차의 버전이다. 팀은 여러 파이프라인을 가질 수 있지만 기본 published 파이프라인은 하나만 가진다.
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `name` | `text` | NN | 비어 있지 않음, UQ `(team_id, name)` |
+| `description` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `status_code` | `text` | NN | `draft \| published \| archived` |
+| `is_default` | `boolean` | NN | `DEFAULT false`; true이면 published |
+| `published_at` | `timestamptz` | NULL | published/archived이면 필수 |
+| `archived_at` | `timestamptz` | NULL | archived이면 필수, `>= published_at` |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+수명주기 검사는 다음 세 조합만 허용한다.
+
+- `draft`: `published_at IS NULL`, `archived_at IS NULL`
+- `published`: `published_at IS NOT NULL`, `archived_at IS NULL`
+- `archived`: 두 시각 모두 존재하고 `archived_at >= published_at`
+
+부분 유일 인덱스가 팀마다 `is_default=true AND status_code='published'`인 행을 최대 하나로 제한한다.
+
+#### `sales_pipeline_stage` — 10컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `sales_pipeline_id` | `uuid` | NN | FK → `sales_pipeline.id` |
+| `stage_code` | `text` | NN | 비어 있지 않음, UQ `(sales_pipeline_id, stage_code)` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `tone` | `text` | NN | 여섯 `tone` 값 중 하나 |
+| `phase_code` | `text` | NN | `sales \| quote \| contract \| order \| closed` |
+| `outcome_code` | `text` | NN | `in_progress \| confirmed \| cancelled` |
+| `position` | `integer` | NN | `>= 0`, UQ `(sales_pipeline_id, position)` |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+복합 FK의 참조 대상이 되도록 `(sales_pipeline_id, id)`도 UQ다.
+
+기본 published 파이프라인 `기본 영업`은 다음 9개 단계를 제공한다.
+
+| 순서 | `stage_code` | 이름 | `phase_code` | `outcome_code` |
+|---:|---|---|---|---|
+| 0 | `needs_validation` | 니즈 검증 | `sales` | `in_progress` |
+| 1 | `product_demo` | 제품 시연 평가 | `sales` | `in_progress` |
+| 2 | `quote_sent` | 견적서 발송 | `quote` | `in_progress` |
+| 3 | `contract_sent` | 계약서 발송 | `contract` | `in_progress` |
+| 4 | `contract_review` | 계약서 검토 | `contract` | `in_progress` |
+| 5 | `contract_completed` | 계약 완료 | `contract` | `confirmed` |
+| 6 | `order_in_progress` | 발주 진행 | `order` | `confirmed` |
+| 7 | `order_delivered` | 납품 완료 | `order` | `confirmed` |
+| 8 | `closed_cancelled` | 취소 | `closed` | `cancelled` |
+
+#### `sales_deal` — 28컬럼
+
+영업 시작, 견적, 계약, 발주 단계가 모두 이어지는 하나의 영업 기회다. 견적·계약 메타데이터도 같은 행에 보존한다.
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `deal_no` | `text` | NN | 비어 있지 않음, UQ `(team_id, deal_no)` |
+| `customer_company_id` | `uuid` | NN | FK → `customer_company.id` |
+| `customer_contact_id` | `uuid` | NULL | FK → `customer_contact.id` |
+| `owner_member_id` | `uuid` | NN | FK → `member.id` |
+| `product_id` | `uuid` | NULL | FK → `product.id` |
+| `sales_pipeline_id` | `uuid` | NN | 복합 FK 첫 컬럼 → `sales_pipeline_stage.sales_pipeline_id` |
+| `sales_pipeline_stage_id` | `uuid` | NN | 복합 FK 둘째 컬럼 → `sales_pipeline_stage.id` |
+| `title` | `text` | NN | 비어 있지 않음 |
+| `description` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `sales_deal_type_id` | `uuid` | NN | FK → `sales_deal_type.id` |
+| `deal_amount` | `bigint` | NN | `>= 0` |
+| `opened_on` | `date` | NN | 딜 시작일 |
+| `closed_on` | `date` | NULL | 파이프라인 종료일, `>= opened_on` |
+| `quote_no` | `text` | NULL | 값이 있으면 비어 있지 않음, UQ `(team_id, quote_no)` |
+| `quote_issued_on` | `date` | NULL | `>= opened_on` |
+| `quote_valid_until` | `date` | NULL | `quote_issued_on` 필수, `>= quote_issued_on` |
+| `contract_no` | `text` | NULL | 값이 있으면 비어 있지 않음, UQ `(team_id, contract_no)` |
+| `contract_signed_on` | `date` | NULL | 실제 계약 체결일, `>= opened_on` |
+| `contract_ends_on` | `date` | NULL | `contract_signed_on` 필수, `>= contract_signed_on` |
+| `warranty_terms` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `expected_delivery_at` | `timestamptz` | NULL | 납품 예정 시각 |
+| `memo` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `stage_position` | `integer` | NN | `>= 0` |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+`closed_on`은 계약 체결일이나 매출 확정일이 아니다. 확정 매출의 귀속일은 `contract_signed_on`이다. 단계 이동과 고객·담당자·상품의 같은 팀 조건은 API가 한 트랜잭션에서 검증한다.
+
+#### `purchase_order_status` — 10컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `code` | `text` | NN | 비어 있지 않음, UQ `(team_id, code)` |
+| `name` | `text` | NN | 비어 있지 않음 |
+| `tone` | `text` | NN | 여섯 `tone` 값 중 하나 |
+| `position` | `integer` | NN | `>= 0` |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `outcome_code` | `text` | NN | `in_progress \| completed \| cancelled` |
+
+기본 상태는 `order_received`, `dispatch_request_completed`, `in_production`, `stock_received`, `delivered`, `cancelled`이다.
+
+#### `purchase_order` — 13컬럼
+
+고객사와 담당자는 중복 저장하지 않고 필수 연결인 `sales_deal`에서 파생한다.
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `order_no` | `text` | NN | 비어 있지 않음, UQ `(team_id, order_no)` |
+| `sales_deal_id` | `uuid` | NN | FK → `sales_deal.id` |
+| `supplier_name` | `text` | NN | 비어 있지 않음 |
+| `purchase_order_status_id` | `uuid` | NN | FK → `purchase_order_status.id` |
+| `ordered_on` | `date` | NN |  |
+| `due_on` | `date` | NN | `>= ordered_on` |
+| `expected_receipt_on` | `date` | NN | `>= ordered_on` |
+| `memo` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `deleted_at` | `timestamptz` | NULL | soft delete |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+#### `purchase_order_item` — 6컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `purchase_order_id` | `uuid` | NN | FK → `purchase_order.id`, `ON DELETE CASCADE` |
+| `product_id` | `uuid` | NN | FK → `product.id` |
+| `quantity` | `integer` | NN | `> 0` |
+| `unit_price` | `bigint` | NN | `>= 0` |
+| `position` | `integer` | NN | `>= 0` |
+
+#### `sales_target` — 5컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `owner_member_id` | `uuid` | NN | FK → `member.id` |
+| `customer_company_id` | `uuid` | NN | FK → `customer_company.id` |
+| `target_month` | `date` | NN | 해당 월 1일만 허용 |
+| `target_amount` | `bigint` | NN | `>= 0` |
+
+UQ는 `(owner_member_id, customer_company_id, target_month)`다.
+
+### 3.4 보고·자료·Agent 실행
+
+#### `report` — 20컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `author_member_id` | `uuid` | NN | FK → `member.id` |
+| `recipient_member_id` | `uuid` | NULL | FK → `member.id` |
+| `template_snapshot` | `jsonb` | NN | 작성 시점 양식 스냅샷 |
+| `source_activity_id` | `uuid` | NULL | FK → `activity.id` |
+| `report_kind` | `text` | NN | 비어 있지 않음 |
+| `report_date` | `date` | NN |  |
+| `period_start` | `date` | NULL |  |
+| `period_end` | `date` | NULL | 둘 다 있으면 `>= period_start` |
+| `status_code` | `text` | NN | 비어 있지 않음 |
+| `content` | `jsonb` | NN | 보고 내용 |
+| `transcript` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `source_snapshot` | `jsonb` | NULL | 생성 당시 원천 스냅샷 |
+| `ai_evidence` | `jsonb` | NULL | 생성 근거 |
+| `note` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `reviewed_by_member_id` | `uuid` | NULL | FK → `member.id` |
+| `reviewed_at` | `timestamptz` | NULL |  |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+#### `report_activity` — 2컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `report_id` | `uuid` | NN | PK/FK → `report.id`, `ON DELETE CASCADE` |
+| `activity_id` | `uuid` | NN | PK/FK → `activity.id` |
+
+#### `document` — 12컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `created_by_member_id` | `uuid` | NN | FK → `member.id` |
+| `document_no` | `text` | NN | 비어 있지 않음 |
+| `category_code` | `text` | NN | 비어 있지 않음 |
+| `title` | `text` | NN | 비어 있지 않음 |
+| `description` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `customer_company_id` | `uuid` | NULL | FK → `customer_company.id` |
+| `sales_deal_id` | `uuid` | NULL | FK → `sales_deal.id` |
+| `purchase_order_id` | `uuid` | NULL | FK → `purchase_order.id` |
+| `tags` | `jsonb` | NN | `DEFAULT '[]'::jsonb`, JSON 배열만 허용 |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+#### `file` — 13컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `report_id` | `uuid` | NULL | FK → `report.id` |
+| `document_id` | `uuid` | NULL | FK → `document.id` |
+| `version_no` | `integer` | NULL | 문서 파일이면 `>= 1`, 보고서 파일이면 NULL |
+| `file_name` | `text` | NN | 비어 있지 않음 |
+| `storage_key` | `text` | NN | UQ, 비어 있지 않음 |
+| `media_type` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `byte_size` | `bigint` | NN | `>= 0` |
+| `processing_status` | `text` | NN | `uploaded \| processing \| completed \| failed` |
+| `extracted_text` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `uploaded_by_member_id` | `uuid` | NN | FK → `member.id` |
+| `note` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `uploaded_at` | `timestamptz` | NN | `DEFAULT now()` |
+
+`num_nonnulls(report_id, document_id) = 1`이며 `(document_id, version_no)`는 UQ다.
+
+#### `agent_run` — 17컬럼
+
+| 컬럼 | 타입 | NULL | 키·기본값·검사 |
+|---|---|---|---|
+| `id` | `uuid` | NN | PK |
+| `team_id` | `uuid` | NN | FK → `team.id` |
+| `parent_run_id` | `uuid` | NULL | FK → `agent_run.id`, 자기 자신 금지 |
+| `requested_by_member_id` | `uuid` | NULL | FK → `member.id` |
+| `agent_code` | `text` | NN | 비어 있지 않음 |
+| `trigger_code` | `text` | NN | 비어 있지 않음 |
+| `idempotency_key` | `uuid` | NULL | 값이 있으면 요청자 필수 |
+| `status_code` | `text` | NN | `queued \| running \| completed \| failed` |
+| `llm_model_name` | `text` | NN | 비어 있지 않음 |
+| `prompt_version` | `text` | NN | 비어 있지 않음 |
+| `source_refs` | `jsonb` | NN | 원천 레코드 식별자 |
+| `input_snapshot` | `jsonb` | NN | 실행 입력 스냅샷 |
+| `output_snapshot` | `jsonb` | NULL | 실행 출력 |
+| `evidence` | `jsonb` | NULL | 출력 근거 |
+| `error_message` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `started_at` | `timestamptz` | NULL |  |
+| `finished_at` | `timestamptz` | NULL |  |
+
+UQ는 `(requested_by_member_id, idempotency_key)`다. 고정 Agent 코드는 `meeting_analysis`, `report_writing`, `contract_management`, `schedule_management`, `document_summary`다.
+
+미팅 분석 실행은 다음 구조를 사용한다.
+
+```json
+{
+  "agent_code": "meeting_analysis",
+  "source_refs": {
+    "activity_id": "uuid",
+    "sales_deal_id": "uuid"
+  },
+  "output_snapshot": {
+    "support_candidates": [],
+    "deal_assessment": {
+      "features": {},
+      "score": 0,
+      "model_version": "string"
+    }
+  }
+}
+```
+
+- 점수는 `0~100`이고 같은 딜의 `completed` 실행 중 `finished_at DESC, id DESC` 첫 행을 표시한다.
+- 재분석은 이전 행을 덮어쓰지 않고 새 `agent_run`을 추가한다.
+- `support_candidates`는 제안이다. 사용자가 확정한 항목만 별도 트랜잭션으로 `support_request`에 저장한다.
+
+## 4. 고정 의미와 팀별 표시 설정
+
+다음 값은 필터·상태 전이에 사용하는 고정 시스템 의미이므로 팀장이 변경하지 않는다.
+
+| 구분 | 고정값 |
+|---|---|
+| 영업 phase | `sales`, `quote`, `contract`, `order`, `closed` |
+| 영업 결과 | `in_progress`, `confirmed`, `cancelled` |
+| 일정 성격 | `meeting`, `task` |
+| 발주 결과 | `in_progress`, `completed`, `cancelled` |
+| 파이프라인 수명주기 | `draft`, `published`, `archived` |
+
+팀별 표시 편의값은 `customer_contact_status`, `activity_category`, `activity_action_tag`, `sales_deal_type`, `purchase_order_status` 행으로 관리한다. 현재 기본값은 초기 제공값이며 이후 추가·수정·soft delete할 수 있다. 이때 과거 레코드의 FK와 마지막 표시값은 유지되고 신규 입력 선택지에서만 제외된다.
+
+## 5. 파이프라인 버전 규칙
+
+- `draft`만 파이프라인과 단계의 이름·색상·순서·구조를 수정할 수 있다.
+- `published` 파이프라인과 그 단계는 모든 필드를 불변으로 취급한다. DB 트리거가 아니라 API가 이 규칙을 강제한다.
+- 변경은 기존 published 정의를 복사한 새 draft에서 수행한 뒤 publish한다.
+- 기존 딜은 기존 `sales_pipeline_id`와 `sales_pipeline_stage_id`를 계속 사용한다.
+- 새 딜부터 새 published 파이프라인을 선택할 수 있다.
+- `archived`는 신규 딜과 단계 이동 선택지에서 제외하지만 기존 딜 조회에는 남긴다.
+- 한 팀의 기본 published 파이프라인은 하나다.
+
+## 6. 화면의 phase 포함 규칙
+
+| 화면 | 조회 규칙 |
+|---|---|
+| 영업현황 | 접근 가능한 `sales_deal` 전체 |
+| 견적현황 | 현재 단계의 `phase_code = 'quote'` |
+| 계약현황 | 현재 단계의 `phase_code = 'contract'` |
+| 발주현황 | 현재 단계의 `phase_code = 'order'` |
+
+화면명, 단계명, 단계 순번으로 포함 여부를 추정하지 않는다. 예를 들어 계약 phase의 딜을 발주 phase 단계로 이동하면 계약현황에서는 빠지고 발주현황에 나타나며, 영업현황에는 계속 표시된다.
+
+## 7. 마이그레이션 보존 규칙
+
+- `contract`는 `sales_deal`, `pipeline_stage`는 `sales_pipeline_stage`로 이름을 바꾸되 기존 UUID를 보존한다.
+- 기존 `contract.contract_date`는 모든 행에서 `sales_deal.opened_on`으로 보존한다.
+- 기존 단계가 `confirmed`였던 행만 `contract_signed_on = opened_on`으로 조건부 보정한다.
+- 기존 발주는 반드시 딜과 연결되며 고객사·담당자는 딜에서 파생한다.
+- 알 수 없는 legacy 단계·상태, 중복 업무 번호, 팀·고객·담당자 불일치가 있으면 추정하지 않고 `0005` 트랜잭션 전체를 중단한다.

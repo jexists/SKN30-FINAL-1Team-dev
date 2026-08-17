@@ -4,13 +4,22 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import delete, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession
+from app.models.configuration import PurchaseOrderStatus
 from app.models.crm import CustomerCompany
-from app.models.sales import Contract, Product, PurchaseOrder, PurchaseOrderItem
+from app.models.sales import (
+    Product,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    SalesDeal,
+    SalesPipeline,
+    SalesPipelineStage,
+)
 from app.models.workspace import Member, Team
 from app.schemas.orders import (
     OrderCreate,
@@ -21,6 +30,7 @@ from app.schemas.orders import (
     OrderPageParams,
     OrderPatch,
     OrderRead,
+    PurchaseOrderStatusRead,
 )
 
 router = APIRouter(tags=["orders"])
@@ -28,7 +38,9 @@ router = APIRouter(tags=["orders"])
 _SEOUL = ZoneInfo("Asia/Seoul")
 _owner = aliased(Member)
 _company = aliased(CustomerCompany)
-_contract = aliased(Contract)
+_sales_deal = aliased(SalesDeal)
+_sales_stage = aliased(SalesPipelineStage)
+_order_status = aliased(PurchaseOrderStatus)
 _search_item = aliased(PurchaseOrderItem)
 _search_product = aliased(Product)
 
@@ -38,13 +50,19 @@ def _contains(value: str) -> str:
     return f"%{escaped}%"
 
 
+def _seoul(value: datetime) -> datetime:
+    return value.astimezone(_SEOUL)
+
+
 def _joined_select(*entities):
     return (
         select(*entities)
         .select_from(PurchaseOrder)
-        .join(_owner, PurchaseOrder.owner_member_id == _owner.id)
-        .join(_company, PurchaseOrder.customer_company_id == _company.id)
-        .outerjoin(_contract, PurchaseOrder.contract_id == _contract.id)
+        .join(_sales_deal, PurchaseOrder.sales_deal_id == _sales_deal.id)
+        .join(_sales_stage, _sales_deal.sales_pipeline_stage_id == _sales_stage.id)
+        .join(_owner, _sales_deal.owner_member_id == _owner.id)
+        .join(_company, _sales_deal.customer_company_id == _company.id)
+        .join(_order_status, PurchaseOrder.purchase_order_status_id == _order_status.id)
     )
 
 
@@ -56,7 +74,7 @@ def _items_are_team_scoped(team_id: UUID):
         .select_from(item)
         .outerjoin(product, item.product_id == product.id)
         .where(
-            item.order_id == PurchaseOrder.id,
+            item.purchase_order_id == PurchaseOrder.id,
             or_(product.id.is_(None), product.team_id != team_id),
         )
         .exists()
@@ -68,59 +86,68 @@ def _scope(member: Member, owner_ids: tuple[UUID, ...] | None = None):
     conditions = [
         PurchaseOrder.team_id == member.team_id,
         PurchaseOrder.deleted_at.is_(None),
+        _sales_deal.team_id == member.team_id,
+        _sales_deal.deleted_at.is_(None),
         _owner.team_id == member.team_id,
         _owner.active.is_(True),
         _owner.role_code.in_(("member", "manager")),
         _company.team_id == member.team_id,
-        or_(
-            PurchaseOrder.contract_id.is_(None),
-            and_(
-                _contract.team_id == member.team_id,
-                _contract.deleted_at.is_(None),
-                _contract.customer_company_id == PurchaseOrder.customer_company_id,
-                _contract.owner_member_id == PurchaseOrder.owner_member_id,
-            ),
-        ),
+        _order_status.team_id == member.team_id,
         _items_are_team_scoped(member.team_id),
     ]
     if member.role_code == "member":
-        conditions.append(PurchaseOrder.owner_member_id == member.id)
+        conditions.append(_sales_deal.owner_member_id == member.id)
     elif owner_ids is not None:
-        conditions.append(PurchaseOrder.owner_member_id.in_(owner_ids))
+        conditions.append(_sales_deal.owner_member_id.in_(owner_ids))
     return conditions
 
 
 def _read_entities():
     return (
         PurchaseOrder,
-        _owner.display_name,
+        _sales_deal.deal_no,
+        _sales_deal.customer_company_id,
         _company.name,
-        _contract.contract_no,
+        _sales_deal.owner_member_id,
+        _owner.display_name,
+        _order_status.code,
+        _order_status.name,
+        _order_status.tone,
+        _order_status.outcome_code,
+        _order_status.position,
     )
-
-
-def _seoul(value: datetime) -> datetime:
-    return value.astimezone(_SEOUL)
 
 
 def _order_read(
     order: PurchaseOrder,
-    owner_display_name: str,
+    deal_no: str,
+    customer_company_id: UUID,
     company_name: str,
-    contract_no: str | None,
+    owner_member_id: UUID,
+    owner_display_name: str,
+    stage_code: str,
+    stage_name: str,
+    stage_tone: str,
+    stage_outcome_code: str,
+    stage_position: int,
     items: list[OrderItemRead],
 ) -> OrderRead:
     return OrderRead(
         id=order.id,
         order_no=order.order_no,
-        contract_id=order.contract_id,
-        contract_no=contract_no,
-        customer_company_id=order.customer_company_id,
+        sales_deal_id=order.sales_deal_id,
+        deal_no=deal_no,
+        customer_company_id=customer_company_id,
         customer_company_name=company_name,
-        owner_member_id=order.owner_member_id,
+        owner_member_id=owner_member_id,
         owner_display_name=owner_display_name,
         supplier_name=order.supplier_name,
-        stage_code=order.stage_code,
+        purchase_order_status_id=order.purchase_order_status_id,
+        stage_code=stage_code,
+        stage_name=stage_name,
+        stage_tone=stage_tone,
+        stage_outcome_code=stage_outcome_code,
+        stage_position=stage_position,
         ordered_on=order.ordered_on,
         due_on=order.due_on,
         expected_receipt_on=order.expected_receipt_on,
@@ -131,25 +158,37 @@ def _order_read(
     )
 
 
+def _validate_order_dates(order: PurchaseOrder) -> None:
+    if order.due_on < order.ordered_on or order.expected_receipt_on < order.ordered_on:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="invalid_order_dates",
+        )
+
+
 async def _items_by_order_ids(
     db: AsyncSession,
     member: Member,
     order_ids: list[UUID],
 ) -> dict[UUID, list[OrderItemRead]]:
-    items_by_order = {order_id: [] for order_id in order_ids}
+    items_by_order = {purchase_order_id: [] for purchase_order_id in order_ids}
     if not order_ids:
         return items_by_order
     result = await db.execute(
         select(PurchaseOrderItem, Product.name)
         .join(Product, PurchaseOrderItem.product_id == Product.id)
         .where(
-            PurchaseOrderItem.order_id.in_(order_ids),
+            PurchaseOrderItem.purchase_order_id.in_(order_ids),
             Product.team_id == member.team_id,
         )
-        .order_by(PurchaseOrderItem.order_id, PurchaseOrderItem.position, PurchaseOrderItem.id)
+        .order_by(
+            PurchaseOrderItem.purchase_order_id,
+            PurchaseOrderItem.position,
+            PurchaseOrderItem.id,
+        )
     )
     for item, product_name in result.all():
-        items_by_order[item.order_id].append(
+        items_by_order[item.purchase_order_id].append(
             OrderItemRead(
                 id=item.id,
                 product_id=item.product_id,
@@ -170,10 +209,7 @@ async def _owner_filter(
     if requested is None:
         return None
     if member.role_code != "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="scope_not_allowed",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="scope_not_allowed")
     owner_ids = tuple(dict.fromkeys(requested))
     result = await db.execute(
         select(Member.id).where(
@@ -184,115 +220,126 @@ async def _owner_filter(
         )
     )
     if set(result.scalars().all()) != set(owner_ids):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="scope_not_allowed",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="scope_not_allowed")
     return owner_ids
 
 
-async def _order_row(db: AsyncSession, member: Member, order_id: UUID):
+async def _order_row(
+    db: AsyncSession,
+    member: Member,
+    purchase_order_id: UUID,
+    *,
+    order_phase_only: bool = False,
+):
+    scope = _scope(member)
+    if order_phase_only:
+        scope.append(_sales_stage.phase_code == "order")
     result = await db.execute(
         _joined_select(*_read_entities()).where(
-            PurchaseOrder.id == order_id,
-            *_scope(member),
+            PurchaseOrder.id == purchase_order_id,
+            *scope,
         )
     )
     row = result.one_or_none()
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="order_not_found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="order_not_found")
     return row
 
 
-async def _locked_order(db: AsyncSession, member: Member, order_id: UUID) -> PurchaseOrder:
+async def _locked_order(
+    db: AsyncSession,
+    member: Member,
+    purchase_order_id: UUID,
+) -> tuple[PurchaseOrder, str]:
     conditions = [
-        PurchaseOrder.id == order_id,
+        PurchaseOrder.id == purchase_order_id,
         PurchaseOrder.team_id == member.team_id,
         PurchaseOrder.deleted_at.is_(None),
+        SalesDeal.team_id == member.team_id,
+        SalesDeal.deleted_at.is_(None),
         Member.team_id == member.team_id,
         Member.active.is_(True),
         Member.role_code.in_(("member", "manager")),
         CustomerCompany.team_id == member.team_id,
-        or_(
-            PurchaseOrder.contract_id.is_(None),
-            and_(
-                Contract.team_id == member.team_id,
-                Contract.deleted_at.is_(None),
-                Contract.customer_company_id == PurchaseOrder.customer_company_id,
-                Contract.owner_member_id == PurchaseOrder.owner_member_id,
-            ),
-        ),
+        PurchaseOrderStatus.team_id == member.team_id,
         _items_are_team_scoped(member.team_id),
     ]
     if member.role_code == "member":
-        conditions.append(PurchaseOrder.owner_member_id == member.id)
+        conditions.append(SalesDeal.owner_member_id == member.id)
     result = await db.execute(
-        select(PurchaseOrder)
-        .join(Member, PurchaseOrder.owner_member_id == Member.id)
-        .join(CustomerCompany, PurchaseOrder.customer_company_id == CustomerCompany.id)
-        .outerjoin(Contract, PurchaseOrder.contract_id == Contract.id)
+        select(PurchaseOrder, PurchaseOrderStatus.code)
+        .join(SalesDeal, PurchaseOrder.sales_deal_id == SalesDeal.id)
+        .join(Member, SalesDeal.owner_member_id == Member.id)
+        .join(CustomerCompany, SalesDeal.customer_company_id == CustomerCompany.id)
+        .join(PurchaseOrderStatus, PurchaseOrder.purchase_order_status_id == PurchaseOrderStatus.id)
         .where(*conditions)
         .with_for_update(of=PurchaseOrder)
     )
-    order = result.scalar_one_or_none()
-    if order is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="order_not_found",
-        )
-    return order
+    row = result.one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="order_not_found")
+    return row
 
 
-async def _team_company(
+async def _team_sales_deal(
     db: AsyncSession,
     member: Member,
-    company_id: UUID,
-) -> CustomerCompany:
-    result = await db.execute(
-        select(CustomerCompany).where(
-            CustomerCompany.id == company_id,
-            CustomerCompany.team_id == member.team_id,
-        )
-    )
-    company = result.scalar_one_or_none()
-    if company is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="customer_company_not_found",
-        )
-    return company
-
-
-async def _team_contract(
-    db: AsyncSession,
-    member: Member,
-    contract_id: UUID,
-) -> tuple[Contract, str]:
+    sales_deal_id: UUID,
+    *,
+    lock: bool = False,
+) -> tuple[SalesDeal, str, str]:
     conditions = [
-        Contract.id == contract_id,
-        Contract.team_id == member.team_id,
-        Contract.deleted_at.is_(None),
+        SalesDeal.id == sales_deal_id,
+        SalesDeal.team_id == member.team_id,
+        SalesDeal.deleted_at.is_(None),
         Member.team_id == member.team_id,
         Member.active.is_(True),
         Member.role_code.in_(("member", "manager")),
+        SalesPipeline.team_id == member.team_id,
+        SalesPipeline.status_code == "published",
+        SalesPipelineStage.id == SalesDeal.sales_pipeline_stage_id,
+        SalesPipelineStage.sales_pipeline_id == SalesDeal.sales_pipeline_id,
     ]
     if member.role_code == "member":
-        conditions.append(Contract.owner_member_id == member.id)
-    result = await db.execute(
-        select(Contract, Member.display_name)
-        .join(Member, Contract.owner_member_id == Member.id)
+        conditions.append(SalesDeal.owner_member_id == member.id)
+    statement = (
+        select(SalesDeal, Member.display_name, SalesPipelineStage.phase_code)
+        .join(Member, SalesDeal.owner_member_id == Member.id)
+        .join(SalesPipeline, SalesDeal.sales_pipeline_id == SalesPipeline.id)
+        .join(
+            SalesPipelineStage,
+            SalesDeal.sales_pipeline_stage_id == SalesPipelineStage.id,
+        )
         .where(*conditions)
     )
+    if lock:
+        statement = statement.with_for_update(of=SalesDeal)
+    result = await db.execute(statement)
     row = result.one_or_none()
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="contract_not_found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="deal_not_found")
     return row
+
+
+async def _active_order_status(
+    db: AsyncSession,
+    member: Member,
+    stage_code: str,
+) -> PurchaseOrderStatus:
+    result = await db.execute(
+        select(PurchaseOrderStatus).where(
+            PurchaseOrderStatus.team_id == member.team_id,
+            PurchaseOrderStatus.code == stage_code,
+            PurchaseOrderStatus.deleted_at.is_(None),
+        )
+    )
+    order_status = result.scalar_one_or_none()
+    if order_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="purchase_order_status_code_not_found",
+        )
+    return order_status
 
 
 async def _team_products(
@@ -310,26 +357,79 @@ async def _team_products(
     )
     products = {product.id: product for product in result.scalars().all()}
     if set(products) != set(product_ids):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="product_not_found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_not_found")
     return products
 
 
-async def _next_order_no(
+async def _move_deal_to_first_order_stage(
     db: AsyncSession,
     member: Member,
-    year: int,
-) -> str:
+    sales_deal: SalesDeal,
+    current_phase_code: str,
+) -> None:
+    if current_phase_code == "order":
+        return
+    target_result = await db.execute(
+        select(SalesPipelineStage)
+        .where(
+            SalesPipelineStage.sales_pipeline_id == sales_deal.sales_pipeline_id,
+            SalesPipelineStage.phase_code == "order",
+        )
+        .order_by(SalesPipelineStage.position, SalesPipelineStage.id)
+        .limit(1)
+    )
+    target_stage = target_result.scalar_one_or_none()
+    if target_stage is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="sales_pipeline_order_stage_not_found",
+        )
+
+    # ponytail: 작은 보드는 단계 전체를 재번호한다. 느려지면 sparse rank로 바꾼다.
+    stage_ids = (sales_deal.sales_pipeline_stage_id, target_stage.id)
+    conditions = [
+        SalesDeal.team_id == member.team_id,
+        SalesDeal.sales_pipeline_stage_id.in_(stage_ids),
+        SalesDeal.deleted_at.is_(None),
+    ]
+    if member.role_code == "member":
+        conditions.append(SalesDeal.owner_member_id == member.id)
+    result = await db.execute(
+        select(SalesDeal)
+        .where(*conditions)
+        .order_by(
+            SalesDeal.sales_pipeline_stage_id,
+            SalesDeal.stage_position,
+            SalesDeal.id,
+        )
+        .with_for_update(of=SalesDeal)
+    )
+    deals = list(result.scalars().all())
+    source = [
+        item
+        for item in deals
+        if item.sales_pipeline_stage_id == sales_deal.sales_pipeline_stage_id
+        and item.id != sales_deal.id
+    ]
+    target = [item for item in deals if item.sales_pipeline_stage_id == target_stage.id]
+    target.insert(0, sales_deal)
+    now = datetime.now(UTC)
+    for position, item in enumerate(source):
+        item.stage_position = position
+        item.updated_at = now
+    for position, item in enumerate(target):
+        item.sales_pipeline_stage_id = target_stage.id
+        item.stage_position = position
+        item.updated_at = now
+    sales_deal.closed_on = None
+
+
+async def _next_order_no(db: AsyncSession, member: Member, year: int) -> str:
     team_result = await db.execute(
         select(Team.id).where(Team.id == member.team_id).with_for_update(of=Team)
     )
     if team_result.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="team_not_found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="team_not_found")
 
     prefix = f"SL-PO-{year}-"
     numbers_result = await db.execute(
@@ -345,21 +445,18 @@ async def _next_order_no(
             numbers.append(int(suffix))
     next_number = max(numbers, default=0) + 1
     if next_number > 9_999:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="order_number_exhausted",
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="order_number_exhausted")
     return f"{prefix}{next_number:04d}"
 
 
 def _new_items(
-    order_id: UUID,
+    purchase_order_id: UUID,
     values: list[OrderItemWrite],
 ) -> list[PurchaseOrderItem]:
     return [
         PurchaseOrderItem(
             id=uuid4(),
-            order_id=order_id,
+            purchase_order_id=purchase_order_id,
             product_id=value.product_id,
             quantity=value.quantity,
             unit_price=value.unit_price,
@@ -369,21 +466,20 @@ def _new_items(
     ]
 
 
-def _item_reads(
-    items: list[PurchaseOrderItem],
-    products: dict[UUID, Product],
-) -> list[OrderItemRead]:
-    return [
-        OrderItemRead(
-            id=item.id,
-            product_id=item.product_id,
-            product_name=products[item.product_id].name,
-            quantity=item.quantity,
-            unit_price=item.unit_price,
-            position=item.position,
+@router.get("/purchase-order-statuses", response_model=list[PurchaseOrderStatusRead])
+async def list_purchase_order_statuses(
+    member: CurrentMember,
+    db: DbSession,
+) -> list[PurchaseOrderStatus]:
+    result = await db.execute(
+        select(PurchaseOrderStatus)
+        .where(
+            PurchaseOrderStatus.team_id == member.team_id,
+            PurchaseOrderStatus.deleted_at.is_(None),
         )
-        for item in items
-    ]
+        .order_by(PurchaseOrderStatus.position, PurchaseOrderStatus.id)
+    )
+    return list(result.scalars().all())
 
 
 @router.get("/orders", response_model=OrderPage)
@@ -394,10 +490,11 @@ async def list_orders(
 ) -> OrderPage:
     owner_ids = await _owner_filter(db, member, page.owner_member_id)
     scope = _scope(member, owner_ids)
+    scope.append(_sales_stage.phase_code == "order")
     if page.supplier_name is not None:
         scope.append(PurchaseOrder.supplier_name == page.supplier_name)
     if page.stage_code is not None:
-        scope.append(PurchaseOrder.stage_code.in_(tuple(dict.fromkeys(page.stage_code))))
+        scope.append(_order_status.code.in_(tuple(dict.fromkeys(page.stage_code))))
     if page.start_date is not None:
         scope.append(PurchaseOrder.ordered_on >= page.start_date)
     if page.end_date is not None:
@@ -409,7 +506,7 @@ async def list_orders(
             .select_from(_search_item)
             .join(_search_product, _search_item.product_id == _search_product.id)
             .where(
-                _search_item.order_id == PurchaseOrder.id,
+                _search_item.purchase_order_id == PurchaseOrder.id,
                 _search_product.team_id == member.team_id,
                 _search_product.name.ilike(pattern, escape="\\"),
             )
@@ -421,7 +518,8 @@ async def list_orders(
                 PurchaseOrder.supplier_name.ilike(pattern, escape="\\"),
                 PurchaseOrder.memo.ilike(pattern, escape="\\"),
                 _company.name.ilike(pattern, escape="\\"),
-                _contract.contract_no.ilike(pattern, escape="\\"),
+                _sales_deal.deal_no.ilike(pattern, escape="\\"),
+                _order_status.name.ilike(pattern, escape="\\"),
                 product_match,
             )
         )
@@ -449,15 +547,15 @@ async def list_orders(
     )
 
 
-@router.get("/orders/{order_id}", response_model=OrderRead)
+@router.get("/orders/{purchase_order_id}", response_model=OrderRead)
 async def get_order(
-    order_id: UUID,
+    purchase_order_id: UUID,
     member: CurrentMember,
     db: DbSession,
 ) -> OrderRead:
-    row = await _order_row(db, member, order_id)
-    item_map = await _items_by_order_ids(db, member, [order_id])
-    return _order_read(*row, item_map[order_id])
+    row = await _order_row(db, member, purchase_order_id, order_phase_only=True)
+    item_map = await _items_by_order_ids(db, member, [purchase_order_id])
+    return _order_read(*row, item_map[purchase_order_id])
 
 
 @router.post(
@@ -472,51 +570,55 @@ async def create_order(
     db: DbSession,
 ) -> OrderRead:
     try:
-        company = await _team_company(db, member, payload.customer_company_id)
-        contract = None
-        contract_no = None
-        owner_id = member.id
-        owner_display_name = member.display_name
-        if payload.contract_id is not None:
-            contract, owner_display_name = await _team_contract(db, member, payload.contract_id)
-            if contract.customer_company_id != company.id:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="contract_company_mismatch",
-                )
-            contract_no = contract.contract_no
-            owner_id = contract.owner_member_id
-
+        sales_deal, _owner_display_name, phase_code = await _team_sales_deal(
+            db,
+            member,
+            payload.sales_deal_id,
+            lock=True,
+        )
+        order_status = await _active_order_status(db, member, payload.stage_code)
         products = await _team_products(db, member, payload.items)
+        await _move_deal_to_first_order_stage(db, member, sales_deal, phase_code)
         order_no = await _next_order_no(db, member, payload.ordered_on.year)
         order = PurchaseOrder(
             id=uuid4(),
             team_id=member.team_id,
             order_no=order_no,
-            contract_id=payload.contract_id,
-            customer_company_id=payload.customer_company_id,
-            owner_member_id=owner_id,
+            sales_deal_id=sales_deal.id,
             supplier_name=payload.supplier_name,
-            stage_code=payload.stage_code,
+            purchase_order_status_id=order_status.id,
             ordered_on=payload.ordered_on,
             due_on=payload.due_on,
             expected_receipt_on=payload.expected_receipt_on,
             memo=payload.memo,
             deleted_at=None,
         )
+        _validate_order_dates(order)
         order_items = _new_items(order.id, payload.items)
         db.add(order)
         for item in order_items:
             db.add(item)
         await db.flush()
-        read = _order_read(
-            order,
-            owner_display_name,
-            company.name,
-            contract_no,
-            _item_reads(order_items, products),
-        )
+        row = await _order_row(db, member, order.id)
+        items = [
+            OrderItemRead(
+                id=item.id,
+                product_id=item.product_id,
+                product_name=products[item.product_id].name,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                position=item.position,
+            )
+            for item in order_items
+        ]
+        read = _order_read(*row, items)
         await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="order_conflict",
+        ) from exc
     except Exception:
         await db.rollback()
         raise
@@ -524,29 +626,23 @@ async def create_order(
     return read
 
 
-@router.patch("/orders/{order_id}", response_model=OrderRead)
+@router.patch("/orders/{purchase_order_id}", response_model=OrderRead)
 async def update_order(
-    order_id: UUID,
+    purchase_order_id: UUID,
     payload: OrderPatch,
     member: CurrentMember,
     db: DbSession,
 ) -> OrderRead:
     try:
-        order = await _locked_order(db, member, order_id)
+        order, _stage_code = await _locked_order(db, member, purchase_order_id)
         values = payload.model_dump(exclude_unset=True, exclude={"items"})
-        company_id = values.get("customer_company_id", order.customer_company_id)
-        if "customer_company_id" in values:
-            await _team_company(db, member, company_id)
-
-        contract_id = values.get("contract_id", order.contract_id)
-        if contract_id is not None:
-            contract, _owner_display_name = await _team_contract(db, member, contract_id)
-            if contract.customer_company_id != company_id:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="contract_company_mismatch",
-                )
-            order.owner_member_id = contract.owner_member_id
+        if "sales_deal_id" in values:
+            sales_deal, _owner_display_name, _phase_code = await _team_sales_deal(
+                db,
+                member,
+                values["sales_deal_id"],
+            )
+            values["sales_deal_id"] = sales_deal.id
 
         for field_name, value in values.items():
             setattr(order, field_name, value)
@@ -555,43 +651,51 @@ async def update_order(
             assert payload.items is not None
             await _team_products(db, member, payload.items)
             await db.execute(
-                delete(PurchaseOrderItem).where(PurchaseOrderItem.order_id == order.id)
+                delete(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == order.id)
             )
             for item in _new_items(order.id, payload.items):
                 db.add(item)
 
         order.updated_at = datetime.now(UTC)
+        _validate_order_dates(order)
         await db.flush()
-        row = await _order_row(db, member, order_id)
-        item_map = await _items_by_order_ids(db, member, [order_id])
-        read = _order_read(*row, item_map[order_id])
+        row = await _order_row(db, member, purchase_order_id)
+        item_map = await _items_by_order_ids(db, member, [purchase_order_id])
+        read = _order_read(*row, item_map[purchase_order_id])
         await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="order_conflict",
+        ) from exc
     except Exception:
         await db.rollback()
         raise
     return read
 
 
-@router.post("/orders/{order_id}/move", response_model=OrderRead)
+@router.post("/orders/{purchase_order_id}/move", response_model=OrderRead)
 async def move_order(
-    order_id: UUID,
+    purchase_order_id: UUID,
     payload: OrderMove,
     member: CurrentMember,
     db: DbSession,
 ) -> OrderRead:
     try:
-        order = await _locked_order(db, member, order_id)
-        if order.stage_code != payload.expected_stage_code:
+        order, current_stage_code = await _locked_order(db, member, purchase_order_id)
+        if current_stage_code != payload.expected_stage_code:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="invalid_state_transition",
             )
-        order.stage_code = payload.stage_code
+        order_status = await _active_order_status(db, member, payload.stage_code)
+        order.purchase_order_status_id = order_status.id
         order.updated_at = datetime.now(UTC)
         await db.flush()
-        row = await _order_row(db, member, order_id)
-        item_map = await _items_by_order_ids(db, member, [order_id])
-        read = _order_read(*row, item_map[order_id])
+        row = await _order_row(db, member, purchase_order_id)
+        item_map = await _items_by_order_ids(db, member, [purchase_order_id])
+        read = _order_read(*row, item_map[purchase_order_id])
         await db.commit()
     except Exception:
         await db.rollback()
@@ -599,14 +703,14 @@ async def move_order(
     return read
 
 
-@router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/orders/{purchase_order_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_order(
-    order_id: UUID,
+    purchase_order_id: UUID,
     member: CurrentMember,
     db: DbSession,
 ) -> None:
     try:
-        order = await _locked_order(db, member, order_id)
+        order, _stage_code = await _locked_order(db, member, purchase_order_id)
         now = datetime.now(UTC)
         order.deleted_at = now
         order.updated_at = now

@@ -8,8 +8,6 @@ import type { ApiPurchaseOrder } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
-import { ORDER_STATUSES } from './pipeline'
-
 export const ORDER_COLUMNS: DataColumn<ApiPurchaseOrder>[] = [
   { id: 'no', header: '발주번호', width: 132, numeric: true, sortable: true, text: (o) => o.no },
   { id: 'hospital', header: '고객사', width: 140, sortable: true, text: (o) => o.hospital },
@@ -60,6 +58,6 @@ export const ORDER_COLUMNS: DataColumn<ApiPurchaseOrder>[] = [
     width: 140,
     sortable: true,
     text: (o) => o.status,
-    sortValue: (o) => ORDER_STATUSES.indexOf(o.status),
+    sortValue: (o) => o.stagePosition,
   },
 ]

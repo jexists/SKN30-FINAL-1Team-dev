@@ -21,31 +21,15 @@ def _seoul_offset(value: datetime) -> datetime:
 
 
 ActivityType = Literal["meeting", "task"]
-ActivityCategory = Literal[
-    "visit",
-    "demo",
-    "education",
-    "call",
-    "delivery",
-    "conference",
-    "internal",
-]
-ActionTag = Literal[
-    "first_call",
-    "meeting",
-    "demo_requested",
-    "demo_in_progress",
-    "demo_completed",
-    "quote_completed",
-    "contract_completed",
-    "product_training",
-    "delivery_completed",
-    "internal_meeting",
-    "weekly_review",
-    "monthly_review",
-    "quarterly_review",
-    "conference",
-    "ojt",
+OptionCode = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+    ),
 ]
 SafeDateTime = Annotated[
     AwareDatetime,
@@ -77,14 +61,15 @@ class _WriteModel(BaseModel):
 class ActivityCreate(_WriteModel):
     customer_contact_id: UUID | None = None
     product_id: UUID | None = None
+    sales_deal_id: UUID | None = None
     activity_type: ActivityType
-    category_code: ActivityCategory
+    category_code: OptionCode
     title: Title
     starts_at: SafeDateTime
     ends_at: SafeDateTime | None = None
     all_day: StrictBool = False
     location: ShortText | None = None
-    action_tag: ActionTag | None = None
+    action_tag: OptionCode | None = None
     note: Note | None = None
 
     @model_validator(mode="after")
@@ -97,14 +82,15 @@ class ActivityCreate(_WriteModel):
 class ActivityPatch(_WriteModel):
     customer_contact_id: UUID | None = None
     product_id: UUID | None = None
+    sales_deal_id: UUID | None = None
     activity_type: ActivityType | None = None
-    category_code: ActivityCategory | None = None
+    category_code: OptionCode | None = None
     title: Title | None = None
     starts_at: SafeDateTime | None = None
     ends_at: SafeDateTime | None = None
     all_day: StrictBool | None = None
     location: ShortText | None = None
-    action_tag: ActionTag | None = None
+    action_tag: OptionCode | None = None
     note: Note | None = None
 
     @model_validator(mode="after")
@@ -141,18 +127,36 @@ class ActivityRead(BaseModel):
     customer_company_name: str | None
     product_id: UUID | None
     product_name: str | None
+    sales_deal_id: UUID | None
     activity_type: ActivityType
-    category_code: ActivityCategory
+    activity_category_id: UUID
+    activity_category_name: str
+    activity_category_tone: str
+    category_code: OptionCode
     title: str
     starts_at: datetime
     ends_at: datetime | None
     all_day: bool
     location: str | None
-    action_tag: ActionTag | None
+    activity_action_tag_id: UUID | None
+    activity_action_tag_name: str | None
+    activity_action_tag_tone: str | None
+    action_tag: OptionCode | None
     completed_at: datetime | None
     note: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class ActivityOptionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: OptionCode
+    name: str
+    tone: str
+    position: int
+    activity_type: ActivityType
 
 
 class ActivityPage(BaseModel):

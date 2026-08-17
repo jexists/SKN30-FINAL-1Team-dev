@@ -7,7 +7,7 @@ import AppShell from '@/components/layout/AppShell'
 import { ROUTES } from '@/constants/routes'
 import Calendar from '@/pages/Calendar'
 import Complaints from '@/pages/Complaints'
-import Contracts, { ContractDetail, ContractNew } from '@/pages/Contracts'
+import Contracts from '@/pages/Contracts'
 import Customers from '@/pages/Customers'
 import Daily, { DailyCompose, DailyDetail, DailyMeetingPick } from '@/pages/Daily'
 import Dashboard from '@/pages/Dashboard'
@@ -22,7 +22,7 @@ import Orders, { OrderDetail, OrderNew } from '@/pages/Orders'
 import Quotes from '@/pages/Quotes'
 import Sales from '@/pages/Sales'
 import Team from '@/pages/Team'
-import Visits, { VisitBoard } from '@/pages/Visits'
+import Deals, { DealBoard } from '@/pages/Deals'
 
 export default function App() {
   return (
@@ -71,20 +71,18 @@ export default function App() {
               <Route path={ROUTES.DOCUMENTS} element={<Documents />} />
 
               {/* 영업 현황은 같은 딜을 목록과 보드 두 가지로 봅니다. */}
-              <Route path={ROUTES.VISITS}>
-                <Route index element={<Visits />} />
-                <Route path="board" element={<VisitBoard />} />
+              <Route path={ROUTES.DEALS}>
+                <Route index element={<Deals />} />
+                <Route path="board" element={<DealBoard />} />
               </Route>
 
               <Route path={ROUTES.QUOTES} element={<Quotes />} />
 
-              {/* 계약은 목록·작성·상세가 한 기능이라 경로를 묶어 둡니다.
-                  고정 경로를 :contractNo 위에 둡니다. */}
-              <Route path={ROUTES.CONTRACTS}>
-                <Route index element={<Contracts />} />
-                <Route path="new" element={<ContractNew />} />
-                <Route path=":contractNo" element={<ContractDetail />} />
-              </Route>
+              <Route path={ROUTES.CONTRACTS} element={<Contracts />} />
+              <Route
+                path={`${ROUTES.CONTRACTS}/*`}
+                element={<Navigate to={ROUTES.CONTRACTS} replace />}
+              />
 
               {/* 발주도 목록·작성·상세가 한 기능이라 경로를 묶어 둡니다.
                   고정 경로를 :orderNo 위에 둡니다. */}

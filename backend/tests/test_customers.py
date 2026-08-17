@@ -10,6 +10,7 @@ from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
+from app.models.configuration import CustomerContactStatus
 from app.models.crm import CustomerCompany, CustomerContact
 from app.models.workspace import Member
 from app.schemas.customers import (
@@ -133,10 +134,30 @@ def _contact(company_id: UUID, owner_id: UUID) -> CustomerContact:
         job_title="팀장",
         email="customer@demo.test",
         phone="02-000-0000",
-        status_code="negotiation",
+        customer_contact_status_id=uuid4(),
         source_code="referral",
         memo="합성 메모",
         registered_at=NOW,
+    )
+
+
+def _contact_status(
+    team_id: UUID,
+    *,
+    status_id: UUID | None = None,
+    code: str = "negotiation",
+    deleted_at: datetime | None = None,
+) -> CustomerContactStatus:
+    return CustomerContactStatus(
+        id=status_id or uuid4(),
+        team_id=team_id,
+        code=code,
+        name="협상",
+        tone="amber",
+        position=2,
+        deleted_at=deleted_at,
+        created_at=NOW,
+        updated_at=NOW,
     )
 
 
@@ -152,7 +173,7 @@ def _client(db: _Db, member: Member) -> TestClient:
     return TestClient(app)
 
 
-def test_customer_request_contract_trims_and_rejects_invalid_values():
+def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
     company = CustomerCompanyCreate(name="  합성 고객사  ", region_code="  seoul ")
     contact = CustomerContactCreate(
         company_id=uuid4(),
@@ -167,6 +188,15 @@ def test_customer_request_contract_trims_and_rejects_invalid_values():
     assert contact.name == "합성 고객"
     assert contact.email == "customer@demo.test"
     assert contact.phone == "02-000-0000"
+    assert (
+        CustomerContactCreate(
+            company_id=uuid4(),
+            name="합성 고객",
+            phone="02-000-0000",
+            status_code="custom_status",
+        ).status_code
+        == "custom_status"
+    )
     assert CustomerCompanyPatch(region_code=None).model_dump(exclude_unset=True) == {
         "region_code": None
     }
@@ -295,7 +325,8 @@ def test_company_list_detail_and_manager_patch_share_team_scope():
 def test_contact_create_uses_current_owner_and_join_fields():
     member = _member()
     company = _company(member.team_id)
-    db = _Db(_Result(scalar=company))
+    contact_status = _contact_status(member.team_id, code="proposal")
+    db = _Db(_Result(scalar=company), _Result(scalar=contact_status))
 
     with _client(db, member) as client:
         response = client.post(
@@ -316,8 +347,12 @@ def test_contact_create_uses_current_owner_and_join_fields():
     assert response.json()["company_name"] == company.name
     assert response.json()["company_region_code"] == company.region_code
     assert response.json()["owner_display_name"] == member.display_name
+    assert response.json()["customer_contact_status_id"] == str(contact_status.id)
+    assert response.json()["customer_contact_status_name"] == contact_status.name
+    assert response.json()["customer_contact_status_tone"] == contact_status.tone
     assert response.headers["location"] == f"/api/customer-contacts/{response.json()['id']}"
     assert db.added[0].owner_member_id == member.id
+    assert db.added[0].customer_contact_status_id == contact_status.id
     assert db.flush_count == db.commit_count == 1
     assert member.team_id in db.statements[0].compile().params.values()
 
@@ -326,9 +361,24 @@ def test_contact_list_is_owner_scoped_for_member_and_returns_join_fields():
     member = _member()
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
+    contact_status = _contact_status(
+        member.team_id,
+        status_id=contact.customer_contact_status_id,
+        deleted_at=NOW,
+    )
     db = _Db(
         _Result(scalar=1),
-        _Result(rows=[(contact, company.name, company.region_code, member.display_name)]),
+        _Result(
+            rows=[
+                (
+                    contact,
+                    company.name,
+                    company.region_code,
+                    member.display_name,
+                    contact_status,
+                )
+            ]
+        ),
     )
 
     with _client(db, member) as client:
@@ -340,6 +390,8 @@ def test_contact_list_is_owner_scoped_for_member_and_returns_join_fields():
     assert response.status_code == 200
     assert response.json()["items"][0]["company_name"] == company.name
     assert response.json()["items"][0]["owner_display_name"] == member.display_name
+    assert response.json()["items"][0]["status_code"] == "negotiation"
+    assert response.json()["items"][0]["customer_contact_status_name"] == "협상"
     assert response.json()["next_skip"] is None
     for statement in db.statements:
         assert member.id in statement.compile().params.values()
@@ -347,6 +399,8 @@ def test_contact_list_is_owner_scoped_for_member_and_returns_join_fields():
         sql = str(statement)
         assert "public.member.active IS true" in sql
         assert "public.member.role_code IN" in sql
+        assert "customer_contact_status.deleted_at IS NULL" not in sql
+    assert "customer_contact_status.team_id =" in str(db.statements[1])
 
 
 def test_manager_contact_list_and_detail_cover_the_whole_team():
@@ -354,7 +408,17 @@ def test_manager_contact_list_and_detail_cover_the_whole_team():
     company = _company(manager.team_id)
     other_owner = _member(team_id=manager.team_id)
     contact = _contact(company.id, other_owner.id)
-    row = (contact, company.name, company.region_code, other_owner.display_name)
+    contact_status = _contact_status(
+        manager.team_id,
+        status_id=contact.customer_contact_status_id,
+    )
+    row = (
+        contact,
+        company.name,
+        company.region_code,
+        other_owner.display_name,
+        contact_status,
+    )
     db = _Db(_Result(scalar=1), _Result(rows=[row]), _Result(rows=[row]))
 
     with _client(db, manager) as client:
@@ -377,8 +441,22 @@ def test_contact_patch_revalidates_destination_company_team():
     old_company = _company(manager.team_id)
     new_company = _company(manager.team_id)
     contact = _contact(old_company.id, manager.id)
+    contact_status = _contact_status(
+        manager.team_id,
+        status_id=contact.customer_contact_status_id,
+    )
     db = _Db(
-        _Result(rows=[(contact, old_company.name, old_company.region_code, manager.display_name)]),
+        _Result(
+            rows=[
+                (
+                    contact,
+                    old_company.name,
+                    old_company.region_code,
+                    manager.display_name,
+                    contact_status,
+                )
+            ]
+        ),
         _Result(scalar=new_company),
     )
 
@@ -396,6 +474,88 @@ def test_contact_patch_revalidates_destination_company_team():
     assert contact.company_id == new_company.id
     assert db.flush_count == db.commit_count == 1
     assert manager.team_id in db.statements[1].compile().params.values()
+
+
+def test_contact_status_write_resolves_only_active_same_team_lookup():
+    member = _member()
+    company = _company(member.team_id)
+    create_db = _Db(_Result(scalar=company), _Result(scalar=None))
+    with _client(create_db, member) as client:
+        other_team = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "phone": "02-000-0000",
+                "status_code": "other_team_status",
+            },
+        )
+
+    contact = _contact(company.id, member.id)
+    contact_status = _contact_status(
+        member.team_id,
+        status_id=contact.customer_contact_status_id,
+    )
+    patch_db = _Db(
+        _Result(
+            rows=[
+                (
+                    contact,
+                    company.name,
+                    company.region_code,
+                    member.display_name,
+                    contact_status,
+                )
+            ]
+        ),
+        _Result(scalar=None),
+    )
+    with _client(patch_db, member) as client:
+        deleted = client.patch(
+            f"/api/customer-contacts/{contact.id}",
+            headers={"Origin": ORIGIN},
+            json={"status_code": "deleted_status"},
+        )
+
+    assert other_team.status_code == deleted.status_code == 422
+    assert (
+        other_team.json() == deleted.json() == {"detail": "customer_contact_status_code_not_found"}
+    )
+    for statement, code in (
+        (create_db.statements[1], "other_team_status"),
+        (patch_db.statements[1], "deleted_status"),
+    ):
+        sql = str(statement)
+        values = statement.compile().params.values()
+        assert "customer_contact_status.deleted_at IS NULL" in sql
+        assert member.team_id in values
+        assert code in values
+
+
+def test_contact_status_options_are_active_same_team_and_ordered():
+    member = _member()
+    contact_status = _contact_status(member.team_id, code="custom_status")
+    db = _Db(_Result(scalar_values=[contact_status]))
+
+    with _client(db, member) as client:
+        response = client.get("/api/customer-contact-statuses")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": str(contact_status.id),
+            "code": contact_status.code,
+            "name": contact_status.name,
+            "tone": contact_status.tone,
+            "position": contact_status.position,
+        }
+    ]
+    statement = db.statements[0]
+    sql = str(statement)
+    assert "customer_contact_status.deleted_at IS NULL" in sql
+    assert "ORDER BY public.customer_contact_status.position" in sql
+    assert member.team_id in statement.compile().params.values()
 
 
 def test_cross_team_contact_detail_is_hidden_and_unknown_query_is_rejected():

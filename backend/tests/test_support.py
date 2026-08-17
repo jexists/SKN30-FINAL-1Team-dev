@@ -119,7 +119,7 @@ def _contact(owner: Member, company: CustomerCompany) -> CustomerContact:
         job_title="팀장",
         email=None,
         phone="010-0000-0000",
-        status_code="contracted",
+        customer_contact_status_id=None,
         source_code=None,
         memo=None,
         registered_at=NOW,
@@ -148,7 +148,7 @@ def _request(
 def _support_response(request: SupportRequest, responder: Member) -> SupportResponse:
     return SupportResponse(
         id=uuid4(),
-        request_id=request.id,
+        support_request_id=request.id,
         responder_member_id=responder.id,
         body="합성 답변",
         responded_at=NOW,
@@ -261,7 +261,7 @@ def test_member_list_and_detail_are_scoped_and_include_response_history():
                 "responses": [
                     {
                         "id": str(response_item.id),
-                        "request_id": str(request.id),
+                        "support_request_id": str(request.id),
                         "responder_member_id": str(member.id),
                         "responder_display_name": member.display_name,
                         "body": response_item.body,
@@ -412,7 +412,7 @@ def test_response_creation_uses_current_member_and_hides_invisible_request():
 
     assert response.status_code == 201
     data = response.json()
-    assert data["request_id"] == str(request.id)
+    assert data["support_request_id"] == str(request.id)
     assert data["responder_member_id"] == str(manager.id)
     assert data["responder_display_name"] == manager.display_name
     assert data["body"] == "합성 처리 답변"

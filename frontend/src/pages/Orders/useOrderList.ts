@@ -4,19 +4,16 @@ import { isAxiosError } from 'axios'
 import { client } from '@/api/client'
 import type {
   ApiPurchaseOrder,
-  ContractResponse,
-  CustomerCompanyResponse,
   OrderCreateRequest,
   OrderMoveRequest,
   OrderPatchRequest,
   OrderResponse,
-  OrderStatus,
   PageResponse,
   ProductResponse,
+  PurchaseOrderStatusResponse,
+  SalesDealResponse,
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
-
-import { CODE_BY_STATUS, STATUS_BY_CODE } from './pipeline'
 
 const PAGE_LIMIT = 100
 
@@ -25,10 +22,10 @@ export interface OrderOption {
   name: string
 }
 
-export interface OrderContractOption {
+export interface OrderSalesDealOption {
   id: string
   no: string
-  customerCompanyId: string
+  customerCompanyName: string
 }
 
 export interface OrderDraftItem {
@@ -38,10 +35,9 @@ export interface OrderDraftItem {
 }
 
 export interface OrderDraft {
-  contractId: string | null
-  customerCompanyId: string
+  salesDealId: string
   supplier: string
-  status: OrderStatus
+  stageCode: string
   ordered: string
   due: string
   expect: string
@@ -56,14 +52,20 @@ function toOrder(order: OrderResponse): ApiPurchaseOrder {
   return {
     id: order.id,
     no: order.order_no,
-    contractId: order.contract_id,
-    contract: order.contract_no ?? '',
+    salesDealId: order.sales_deal_id,
+    salesDeal: order.deal_no,
+    // 공용 목업 발주 표시 로직이 아직 contract 필드를 사용합니다.
+    contract: order.deal_no,
     customerCompanyId: order.customer_company_id,
     hospital: order.customer_company_name,
     ownerMemberId: order.owner_member_id,
     owner: order.owner_display_name,
     supplier: order.supplier_name,
-    status: STATUS_BY_CODE[order.stage_code],
+    status: order.stage_name,
+    stageCode: order.stage_code,
+    stageTone: order.stage_tone,
+    stageOutcomeCode: order.stage_outcome_code,
+    stagePosition: order.stage_position,
     memo: order.memo ?? '',
     items: [...order.items]
       .sort((a, b) => a.position - b.position)
@@ -111,8 +113,7 @@ async function fetchAllOrders(signal?: AbortSignal): Promise<ApiPurchaseOrder[]>
 
 function toWriteRequest(draft: OrderDraft): OrderPatchRequest {
   return {
-    contract_id: draft.contractId,
-    customer_company_id: draft.customerCompanyId,
+    sales_deal_id: draft.salesDealId,
     supplier_name: draft.supplier,
     ordered_on: draft.ordered,
     due_on: draft.due,
@@ -148,9 +149,9 @@ function mutationErrorMessage(error: unknown, action: string): string {
 
 export default function useOrderList(detailNo?: string) {
   const [orders, setOrders] = useState<ApiPurchaseOrder[]>([])
-  const [companies, setCompanies] = useState<OrderOption[]>([])
   const [products, setProducts] = useState<OrderOption[]>([])
-  const [contracts, setContracts] = useState<OrderContractOption[]>([])
+  const [salesDeals, setSalesDeals] = useState<OrderSalesDealOption[]>([])
+  const [statuses, setStatuses] = useState<PurchaseOrderStatusResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -171,22 +172,28 @@ export default function useOrderList(detailNo?: string) {
 
     void Promise.all([
       fetchAllOrders(controller.signal),
-      fetchAllPage<CustomerCompanyResponse>('/customer-companies', controller.signal),
       fetchAllPage<ProductResponse>('/products', controller.signal),
-      fetchAllPage<ContractResponse>('/contracts', controller.signal),
+      fetchAllPage<SalesDealResponse>('/sales-deals', controller.signal),
+      client
+        .get<PurchaseOrderStatusResponse[]>('/purchase-order-statuses', {
+          signal: controller.signal,
+        })
+        .then((response) => response.data),
     ])
-      .then(([orderItems, companyItems, productItems, contractItems]) => {
+      .then(([orderItems, productItems, dealItems, statusItems]) => {
         if (controller.signal.aborted) return
         setOrders(orderItems)
-        setCompanies(companyItems.map(({ id, name }) => ({ id, name })))
         setProducts(productItems.map(({ id, name }) => ({ id, name })))
-        setContracts(
-          contractItems.map((contract) => ({
-            id: contract.id,
-            no: contract.contract_no,
-            customerCompanyId: contract.customer_company_id,
-          })),
+        setSalesDeals(
+          dealItems
+            .filter((salesDeal) => salesDeal.sales_pipeline_status_code === 'published')
+            .map((salesDeal) => ({
+              id: salesDeal.id,
+              no: salesDeal.deal_no,
+              customerCompanyName: salesDeal.customer_company_name,
+            })),
         )
+        setStatuses(statusItems)
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) setError(requestErrorMessage(caught, '목록'))
@@ -258,7 +265,7 @@ export default function useOrderList(detailNo?: string) {
       runMutation('create', '발주를 등록', async () => {
         const request: OrderCreateRequest = {
           ...toWriteRequest(draft),
-          stage_code: CODE_BY_STATUS[draft.status],
+          stage_code: draft.stageCode,
         }
         const { data } = await client.post<OrderResponse>('/orders', request)
         const created = toOrder(data)
@@ -281,11 +288,11 @@ export default function useOrderList(detailNo?: string) {
   )
 
   const setStatus = useCallback(
-    (id: string, expected: OrderStatus, status: OrderStatus) =>
+    (id: string, expectedStageCode: string, stageCode: string) =>
       runMutation(id, '발주 상태를 변경', async () => {
         const request: OrderMoveRequest = {
-          expected_stage_code: CODE_BY_STATUS[expected],
-          stage_code: CODE_BY_STATUS[status],
+          expected_stage_code: expectedStageCode,
+          stage_code: stageCode,
         }
         const { data } = await client.post<OrderResponse>(`/orders/${id}/move`, request)
         const updated = toOrder(data)
@@ -322,9 +329,9 @@ export default function useOrderList(detailNo?: string) {
 
   return {
     orders,
-    companies,
     products,
-    contracts,
+    salesDeals,
+    statuses,
     suppliers,
     loading,
     error,

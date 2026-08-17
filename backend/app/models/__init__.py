@@ -1,1 +1,1 @@
-from app.models import agent, content, crm, sales, workspace  # noqa: F401
+from app.models import agent, configuration, content, crm, sales, workspace  # noqa: F401

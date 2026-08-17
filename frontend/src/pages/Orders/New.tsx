@@ -1,7 +1,7 @@
 // 발주 추가 화면입니다. 목록에서 "발주 추가"로 들어옵니다.
 //
 // 품목 줄이 몇 개까지 늘어날지 모르므로 모달이 아니라 화면 하나를 씁니다.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -17,15 +17,14 @@ import {
   type FormState,
   type ItemState,
 } from './orderForm'
-import { ORDER_STATUSES } from './pipeline'
 import useOrderList from './useOrderList'
 
 import styles from './New.module.scss'
 
 export default function New() {
   const {
-    companies,
-    contracts,
+    salesDeals,
+    statuses,
     products,
     suppliers,
     loading,
@@ -37,15 +36,17 @@ export default function New() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
-  const [form, setForm] = useState<FormState>(() => {
-    const base = initialState()
-    // 목록에서 상태 탭을 고른 채로 들어오면 그 상태로 시작합니다.
-    const wanted = params.get('status') ?? ''
-    return (ORDER_STATUSES as string[]).includes(wanted) ? { ...base, status: wanted } : base
-  })
+  const [form, setForm] = useState<FormState>(initialState)
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const submittingRef = useRef(false)
+
+  useEffect(() => {
+    if (form.stageCode !== '' || statuses.length === 0) return
+    const wanted = params.get('status') ?? ''
+    const initial = statuses.find(({ code }) => code === wanted) ?? statuses[0]
+    setForm((current) => ({ ...current, stageCode: initial.code }))
+  }, [form.stageCode, params, statuses])
 
   const set = (key: Exclude<keyof FormState, 'items'>, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -105,8 +106,8 @@ export default function New() {
           <OrderFields
             form={form}
             errors={errors}
-            companies={companies}
-            contracts={contracts}
+            salesDeals={salesDeals}
+            statuses={statuses}
             products={products}
             suppliers={suppliers}
             optionsLoading={loading}
@@ -133,7 +134,8 @@ export default function New() {
               isCreating ||
               loading ||
               error !== null ||
-              companies.length === 0 ||
+              salesDeals.length === 0 ||
+              statuses.length === 0 ||
               products.length === 0
             }
           >

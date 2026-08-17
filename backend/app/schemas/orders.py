@@ -16,20 +16,34 @@ SearchQuery = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100),
 ]
+OptionCode = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+    ),
+]
 Quantity = Annotated[StrictInt, Field(ge=1, le=2_147_483_647)]
 Money = Annotated[StrictInt, Field(ge=0, le=9_223_372_036_854_775_807)]
-OrderStage = Literal[
-    "order_received",
-    "dispatch_request_completed",
-    "in_production",
-    "stock_received",
-    "delivered",
-    "cancelled",
-]
+OrderOutcome = Literal["in_progress", "completed", "cancelled"]
 
 
 class _WriteModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class PurchaseOrderStatusRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: OptionCode
+    name: str
+    tone: str
+    outcome_code: OrderOutcome
+    position: int
 
 
 class OrderItemWrite(_WriteModel):
@@ -42,20 +56,24 @@ OrderItems = Annotated[list[OrderItemWrite], Field(min_length=1, max_length=100)
 
 
 class OrderCreate(_WriteModel):
-    contract_id: UUID | None = None
-    customer_company_id: UUID
+    sales_deal_id: UUID
     supplier_name: Text
-    stage_code: OrderStage
+    stage_code: OptionCode
     ordered_on: date
     due_on: date
     expected_receipt_on: date
     memo: LongText | None = None
     items: OrderItems
 
+    @model_validator(mode="after")
+    def dates_in_order(self) -> Self:
+        if self.due_on < self.ordered_on or self.expected_receipt_on < self.ordered_on:
+            raise ValueError("order dates must not be before ordered_on")
+        return self
+
 
 class OrderPatch(_WriteModel):
-    contract_id: UUID | None = None
-    customer_company_id: UUID | None = None
+    sales_deal_id: UUID | None = None
     supplier_name: Text | None = None
     ordered_on: date | None = None
     due_on: date | None = None
@@ -66,7 +84,7 @@ class OrderPatch(_WriteModel):
     @model_validator(mode="after")
     def required_fields_cannot_be_null(self) -> Self:
         for field_name in (
-            "customer_company_id",
+            "sales_deal_id",
             "supplier_name",
             "ordered_on",
             "due_on",
@@ -79,8 +97,8 @@ class OrderPatch(_WriteModel):
 
 
 class OrderMove(_WriteModel):
-    expected_stage_code: OrderStage
-    stage_code: OrderStage
+    expected_stage_code: OptionCode
+    stage_code: OptionCode
 
 
 class OrderItemRead(BaseModel):
@@ -95,14 +113,19 @@ class OrderItemRead(BaseModel):
 class OrderRead(BaseModel):
     id: UUID
     order_no: str
-    contract_id: UUID | None
-    contract_no: str | None
+    sales_deal_id: UUID
+    deal_no: str
     customer_company_id: UUID
     customer_company_name: str
     owner_member_id: UUID
     owner_display_name: str
     supplier_name: str
-    stage_code: OrderStage
+    purchase_order_status_id: UUID
+    stage_code: OptionCode
+    stage_name: str
+    stage_tone: str
+    stage_outcome_code: OrderOutcome
+    stage_position: int
     ordered_on: date
     due_on: date
     expected_receipt_on: date
@@ -126,7 +149,7 @@ class OrderPageParams(BaseModel):
 
     q: SearchQuery | None = None
     supplier_name: Text | None = None
-    stage_code: list[OrderStage] | None = None
+    stage_code: list[OptionCode] | None = None
     start_date: date | None = None
     end_date: date | None = None
     owner_member_id: list[UUID] | None = None

@@ -5,23 +5,23 @@ import type { ColumnTone } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
 
-import type { PipelineContract } from './usePipelineContracts'
+import type { SalesDeal } from './useSalesDeals'
 
-import styles from './PipelineContractForm.module.scss'
+import styles from './SalesDealForm.module.scss'
 
 interface Props {
-  contract: PipelineContract | null
+  deal: SalesDeal | null
   stage?: { name: string; tone: ColumnTone }
   loading: boolean
   error: string | null
   onRetry: () => void
-  onEdit: () => void
-  onDelete: () => void
+  onEdit?: () => void
+  onDelete?: () => void
   onClose: () => void
 }
 
-export default function PipelineContractDrawer({
-  contract,
+export default function SalesDealDrawer({
+  deal,
   stage,
   loading,
   error,
@@ -30,31 +30,33 @@ export default function PipelineContractDrawer({
   onDelete,
   onClose,
 }: Props) {
-  const facts = contract
+  const readOnly = deal?.pipelineStatus === 'archived'
+  const facts = deal
     ? [
-        ['제품', contract.product],
-        ['금액', wonFull(contract.amount)],
-        ['담당 영업', contract.owner],
-        ['고객 담당자', contract.contactName ?? '미지정'],
-        ['지역', contract.region],
-        ['계약일', fmtDot(parseISO(contract.date))],
+        ['파이프라인', deal.pipelineName],
+        ['제품', deal.product],
+        ['금액', wonFull(deal.amount)],
+        ['담당 영업', deal.owner],
+        ['고객 담당자', deal.contactName ?? '미지정'],
+        ['지역', deal.region],
+        ['영업 시작일', fmtDot(parseISO(deal.date))],
       ]
     : []
 
   return (
     <Drawer
-      title={contract?.org ?? '영업 건 상세'}
-      sub={contract ? `${contract.no} · ${contract.title}` : undefined}
+      title={deal?.org ?? '영업 딜 상세'}
+      sub={deal ? `${deal.no} · ${deal.title}` : undefined}
       meta={
-        contract && (
+        deal && (
           <>
             {stage && <StageChip tone={stage.tone}>{stage.name}</StageChip>}
-            <span>{contract.kind}</span>
+            <span>{deal.kind}</span>
           </>
         )
       }
       footer={
-        contract && !loading && !error ? (
+        deal && !loading && !error && !readOnly && onEdit && onDelete ? (
           <>
             <Button variant="outline" onClick={onEdit}>
               수정
@@ -76,28 +78,29 @@ export default function PipelineContractDrawer({
         </div>
       ) : loading ? (
         <p className={styles.drawerState} role="status">
-          계약 상세를 불러오는 중입니다.
+          영업 딜 상세를 불러오는 중입니다.
         </p>
-      ) : contract ? (
+      ) : deal ? (
         <>
+          {readOnly && <p className={styles.memoEmpty}>보관된 파이프라인 · 읽기 전용</p>}
           <dl className={styles.drawerFacts}>
             {facts.map(([label, value]) => (
               <div key={label}>
                 <dt>{label}</dt>
-                <dd className={label === '금액' || label === '계약일' ? 'tnum' : undefined}>
+                <dd className={label === '금액' || label === '영업 시작일' ? 'tnum' : undefined}>
                   {value}
                 </dd>
               </div>
             ))}
           </dl>
-          {contract.memo ? (
-            <p className={styles.memo}>{contract.memo}</p>
+          {deal.memo ? (
+            <p className={styles.memo}>{deal.memo}</p>
           ) : (
             <p className={styles.memoEmpty}>메모가 없습니다.</p>
           )}
         </>
       ) : (
-        <p className={styles.drawerState}>계약 상세 정보가 없습니다.</p>
+        <p className={styles.drawerState}>영업 딜 상세 정보가 없습니다.</p>
       )}
     </Drawer>
   )

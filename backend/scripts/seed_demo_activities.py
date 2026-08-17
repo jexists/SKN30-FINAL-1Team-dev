@@ -10,6 +10,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.db.session import get_sessionmaker
+from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product
 from app.models.workspace import Member, Team
@@ -294,7 +295,11 @@ def activity_id(mock_id: str) -> UUID:
     return uuid5(FILLED_TEAM_ID, f"activity:{mock_id}")
 
 
-def activity_row(seed: ActivitySeed) -> dict:
+def activity_row(
+    seed: ActivitySeed,
+    category_ids: dict[str, UUID],
+    action_tag_ids: dict[str, UUID],
+) -> dict:
     starts_at = datetime.combine(
         REFERENCE_DATE + timedelta(days=seed.day_offset),
         seed.start_time,
@@ -312,27 +317,27 @@ def activity_row(seed: ActivitySeed) -> dict:
         "customer_contact_id": seed.customer_contact_id,
         "end_user_contact_id": None,
         "activity_type": "task" if seed.kind == "internal" else "meeting",
-        "category_code": CATEGORY_CODES[seed.kind],
+        "activity_category_id": category_ids[CATEGORY_CODES[seed.kind]],
         "title": seed.title,
         "starts_at": starts_at,
         "ends_at": ends_at,
         "all_day": seed.all_day,
         "due_at": None,
         "location": seed.location,
-        "action_tag": ACTION_TAG_CODES[seed.stage] if seed.stage else None,
+        "activity_action_tag_id": (
+            action_tag_ids[ACTION_TAG_CODES[seed.stage]] if seed.stage else None
+        ),
         "completed_at": (ends_at or starts_at) if seed.completed else None,
         "note": seed.note,
         "deleted_at": None,
         "product_id": product_id(seed.product_name) if seed.product_name else None,
-        "contract_id": None,
-        "order_id": None,
+        "sales_deal_id": None,
+        "purchase_order_id": None,
     }
 
 
 async def seed_demo_activities() -> None:
     products = {product_id(name): name for name in PRODUCT_NAMES}
-    activities = tuple(activity_row(seed) for seed in ACTIVITY_SEEDS)
-    expected_activity_ids = {row["id"] for row in activities}
     expected_members = {
         ACTIVITY_OWNER_IDS[seed.owner_name]: (
             seed.owner_name,
@@ -367,6 +372,62 @@ async def seed_demo_activities() -> None:
         ).scalar_one_or_none()
         if filled_team_name != FILLED_TEAM_NAME:
             raise SystemExit("filled 인증 seed를 먼저 실행하세요.")
+
+        activity_types = {
+            code: "task" if seed.kind == "internal" else "meeting"
+            for seed in ACTIVITY_SEEDS
+            for code in (CATEGORY_CODES[seed.kind],)
+        }
+        action_tag_types = {
+            ACTION_TAG_CODES[seed.stage]: "task" if seed.kind == "internal" else "meeting"
+            for seed in ACTIVITY_SEEDS
+            if seed.stage is not None
+        }
+        category_rows = (
+            await session.execute(
+                select(
+                    ActivityCategory.id,
+                    ActivityCategory.code,
+                    ActivityCategory.activity_type,
+                ).where(
+                    ActivityCategory.team_id == FILLED_TEAM_ID,
+                    ActivityCategory.code.in_(activity_types),
+                    ActivityCategory.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        action_tag_rows = (
+            await session.execute(
+                select(
+                    ActivityActionTag.id,
+                    ActivityActionTag.code,
+                    ActivityActionTag.activity_type,
+                ).where(
+                    ActivityActionTag.team_id == FILLED_TEAM_ID,
+                    ActivityActionTag.code.in_(action_tag_types),
+                    ActivityActionTag.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        category_ids = {row.code: row.id for row in category_rows}
+        action_tag_ids = {row.code: row.id for row in action_tag_rows}
+        if (
+            set(category_ids) != set(activity_types)
+            or len(category_rows) != len(category_ids)
+            or any(row.activity_type != activity_types[row.code] for row in category_rows)
+        ):
+            raise SystemExit("filled 팀의 활성 일정 카테고리 lookup을 먼저 준비하세요.")
+        if (
+            set(action_tag_ids) != set(action_tag_types)
+            or len(action_tag_rows) != len(action_tag_ids)
+            or any(row.activity_type != action_tag_types[row.code] for row in action_tag_rows)
+        ):
+            raise SystemExit("filled 팀의 활성 일정 액션 태그 lookup을 먼저 준비하세요.")
+
+        activities = tuple(
+            activity_row(seed, category_ids, action_tag_ids) for seed in ACTIVITY_SEEDS
+        )
+        expected_activity_ids = {row["id"] for row in activities}
 
         existing_members = (
             await session.execute(

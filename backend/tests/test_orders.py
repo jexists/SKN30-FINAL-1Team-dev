@@ -1,20 +1,25 @@
+import asyncio
 from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
 from pydantic import ValidationError
 
-from app.api.deps import get_current_member
-from app.core.config import settings
-from app.db.session import get_db
-from app.main import app
+from app.api import orders as api
+from app.models.configuration import PurchaseOrderStatus
 from app.models.crm import CustomerCompany
-from app.models.sales import Contract, Product, PurchaseOrder, PurchaseOrderItem
+from app.models.sales import (
+    Product,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    SalesDeal,
+    SalesPipeline,
+    SalesPipelineStage,
+)
 from app.models.workspace import Member
 from app.schemas.orders import OrderCreate, OrderMove, OrderPageParams, OrderPatch
 
-ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
 _MISSING = object()
 
@@ -53,11 +58,9 @@ class _Result:
 
 
 class _Db:
-    def __init__(self, *results: _Result, flush_error: Exception | None = None):
+    def __init__(self, *results: _Result):
         self.results = list(results)
-        self.flush_error = flush_error
         self.statements = []
-        self.added = []
         self.flush_count = 0
         self.commit_count = 0
         self.rollback_count = 0
@@ -67,17 +70,8 @@ class _Db:
         assert self.results
         return self.results.pop(0)
 
-    def add(self, value):
-        self.added.append(value)
-
     async def flush(self):
         self.flush_count += 1
-        if self.flush_error is not None:
-            raise self.flush_error
-        for value in self.added:
-            if isinstance(value, PurchaseOrder):
-                value.created_at = value.created_at or NOW
-                value.updated_at = value.updated_at or NOW
 
     async def commit(self):
         self.commit_count += 1
@@ -86,82 +80,132 @@ class _Db:
         self.rollback_count += 1
 
 
-@pytest.fixture(autouse=True)
-def reset_dependency_overrides():
-    app.dependency_overrides.clear()
-    yield
-    app.dependency_overrides.clear()
-
-
 def _member(*, role: str = "member", team_id: UUID | None = None) -> Member:
     return Member(
         id=uuid4(),
         team_id=team_id or uuid4(),
         login_id=f"{uuid4()}@salesluv.demo",
         password_hash="unused",
-        display_name="합성 영업 담당자",
+        display_name="합성 담당자",
         role_code=role,
         job_title="영업 담당자",
         active=True,
     )
 
 
-def _company(team_id: UUID, *, name: str = "합성 고객사") -> CustomerCompany:
+def _company(member: Member) -> CustomerCompany:
     return CustomerCompany(
         id=uuid4(),
-        team_id=team_id,
-        name=name,
+        team_id=member.team_id,
+        name="합성 고객사",
         region_code="seoul",
         created_at=NOW,
     )
 
 
-def _product(team_id: UUID, *, name: str = "합성 상품", active: bool = True) -> Product:
-    return Product(id=uuid4(), team_id=team_id, name=name, active=active)
-
-
-def _contract(member: Member, company: CustomerCompany) -> Contract:
-    return Contract(
+def _pipeline(member: Member, *, status_code: str = "published") -> SalesPipeline:
+    return SalesPipeline(
         id=uuid4(),
         team_id=member.team_id,
-        contract_no="FM-CT-2026-0020",
+        name="기본 영업",
+        description=None,
+        status_code=status_code,
+        is_default=True,
+        published_at=NOW,
+        archived_at=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+
+def _stage(
+    pipeline: SalesPipeline,
+    *,
+    code: str,
+    phase: str,
+    position: int,
+) -> SalesPipelineStage:
+    return SalesPipelineStage(
+        id=uuid4(),
+        sales_pipeline_id=pipeline.id,
+        stage_code=code,
+        name=code,
+        tone="gray",
+        phase_code=phase,
+        outcome_code="in_progress",
+        position=position,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+
+def _deal(
+    member: Member,
+    company: CustomerCompany,
+    pipeline: SalesPipeline,
+    stage: SalesPipelineStage,
+    *,
+    position: int = 0,
+) -> SalesDeal:
+    return SalesDeal(
+        id=uuid4(),
+        team_id=member.team_id,
+        deal_no="FM-CT-2026-0020",
         customer_company_id=company.id,
-        contact_id=None,
+        customer_contact_id=None,
         owner_member_id=member.id,
         product_id=None,
-        stage_id=uuid4(),
-        title="합성 계약",
+        sales_pipeline_id=pipeline.id,
+        sales_pipeline_stage_id=stage.id,
+        title="합성 딜",
         description=None,
-        contract_type="new_installation",
-        amount=10_000_000,
-        contract_date=date(2026, 8, 1),
-        ends_on=None,
+        sales_deal_type_id=uuid4(),
+        deal_amount=10_000_000,
+        opened_on=date(2026, 8, 1),
+        closed_on=date(2026, 8, 10),
+        quote_no=None,
+        quote_issued_on=None,
+        quote_valid_until=None,
+        contract_no=None,
+        contract_signed_on=None,
+        contract_ends_on=None,
         warranty_terms=None,
         expected_delivery_at=None,
         memo=None,
-        position=0,
+        stage_position=position,
         deleted_at=None,
         created_at=NOW,
         updated_at=NOW,
     )
 
 
-def _order(
-    member: Member,
-    company: CustomerCompany,
-    *,
-    contract: Contract | None = None,
-    stage_code: str = "order_received",
-) -> PurchaseOrder:
+def _status(member: Member, *, code: str = "order_received", deleted: bool = False):
+    return PurchaseOrderStatus(
+        id=uuid4(),
+        team_id=member.team_id,
+        code=code,
+        name=code,
+        tone="gray",
+        position=0,
+        deleted_at=NOW if deleted else None,
+        created_at=NOW,
+        updated_at=NOW,
+        outcome_code="in_progress",
+    )
+
+
+def _product(member: Member) -> Product:
+    return Product(id=uuid4(), team_id=member.team_id, name="합성 상품", active=True)
+
+
+def _order(member: Member, deal: SalesDeal, order_status: PurchaseOrderStatus) -> PurchaseOrder:
     return PurchaseOrder(
         id=uuid4(),
         team_id=member.team_id,
         order_no="SL-PO-2026-0001",
-        contract_id=None if contract is None else contract.id,
-        customer_company_id=company.id,
-        owner_member_id=member.id,
+        sales_deal_id=deal.id,
         supplier_name="합성 공급처",
-        stage_code=stage_code,
+        purchase_order_status_id=order_status.id,
         ordered_on=date(2026, 8, 17),
         due_on=date(2026, 8, 31),
         expected_receipt_on=date(2026, 8, 30),
@@ -172,493 +216,221 @@ def _order(
     )
 
 
-def _item(order: PurchaseOrder, product: Product, *, position: int = 0) -> PurchaseOrderItem:
+def _item(order: PurchaseOrder, product: Product) -> PurchaseOrderItem:
     return PurchaseOrderItem(
         id=uuid4(),
-        order_id=order.id,
+        purchase_order_id=order.id,
         product_id=product.id,
-        quantity=position + 1,
+        quantity=2,
         unit_price=1_000_000,
-        position=position,
+        position=0,
     )
 
 
 def _row(
     order: PurchaseOrder,
-    owner: Member,
+    deal: SalesDeal,
     company: CustomerCompany,
-    contract: Contract | None = None,
+    member: Member,
+    order_status: PurchaseOrderStatus,
 ):
     return (
         order,
-        owner.display_name,
+        deal.deal_no,
+        company.id,
         company.name,
-        None if contract is None else contract.contract_no,
+        member.id,
+        member.display_name,
+        order_status.code,
+        order_status.name,
+        order_status.tone,
+        order_status.outcome_code,
+        order_status.position,
     )
 
 
-def _client(db: _Db, member: Member) -> TestClient:
-    async def override_db():
-        yield db
-
-    async def override_member():
-        return member
-
-    app.dependency_overrides[get_db] = override_db
-    app.dependency_overrides[get_current_member] = override_member
-    return TestClient(app)
-
-
-def _payload(company: CustomerCompany, product: Product, **overrides):
-    values = {
-        "customer_company_id": str(company.id),
-        "supplier_name": " 합성 공급처 ",
-        "stage_code": "order_received",
-        "ordered_on": "2026-08-17",
-        "due_on": "2026-08-31",
-        "expected_receipt_on": "2026-08-30",
-        "memo": " 합성 메모 ",
-        "items": [
-            {
-                "product_id": str(product.id),
-                "quantity": 2,
-                "unit_price": 1_000_000,
-            }
-        ],
-    }
-    return values | overrides
-
-
-def test_order_request_contract_is_strict_and_uses_six_stage_codes():
-    company_id = uuid4()
+def test_order_writes_require_deal_and_keep_dynamic_stage_code():
     product_id = uuid4()
-    stages = (
-        "order_received",
-        "dispatch_request_completed",
-        "in_production",
-        "stock_received",
-        "delivered",
-        "cancelled",
-    )
-    parsed = tuple(
-        OrderMove(expected_stage_code="order_received", stage_code=stage).stage_code
-        for stage in stages
-    )
-    assert parsed == stages
-    assert OrderPatch(contract_id=None).model_dump(exclude_unset=True) == {"contract_id": None}
-    # ERD에 없는 날짜 선후 규칙은 API가 임의로 만들지 않는다.
-    assert OrderCreate(
-        customer_company_id=company_id,
+    payload = OrderCreate(
+        sales_deal_id=uuid4(),
         supplier_name="공급처",
-        stage_code="order_received",
+        stage_code="team_custom_status",
         ordered_on="2026-08-17",
-        due_on="2026-08-16",
-        expected_receipt_on="2026-08-15",
+        due_on="2026-08-18",
+        expected_receipt_on="2026-08-19",
         items=[{"product_id": product_id, "quantity": 1, "unit_price": 0}],
     )
+    assert payload.stage_code == "team_custom_status"
+    assert OrderPatch(memo=None).model_dump(exclude_unset=True) == {"memo": None}
+    assert OrderPageParams(stage_code=["team_custom_status"])
 
     with pytest.raises(ValidationError):
-        OrderCreate(
-            customer_company_id=company_id,
-            supplier_name="공급처",
-            stage_code="발주 접수",
-            ordered_on="2026-08-17",
-            due_on="2026-08-31",
-            expected_receipt_on="2026-08-30",
-            items=[{"product_id": product_id, "quantity": 1, "unit_price": 0}],
-        )
+        OrderCreate(**(payload.model_dump() | {"sales_deal_id": None}))
     with pytest.raises(ValidationError):
-        OrderCreate(
-            customer_company_id=company_id,
-            supplier_name="공급처",
-            stage_code="order_received",
-            ordered_on="2026-08-17",
-            due_on="2026-08-31",
-            expected_receipt_on="2026-08-30",
-            items=[],
-        )
+        OrderCreate(**(payload.model_dump() | {"due_on": date(2026, 8, 16)}))
     with pytest.raises(ValidationError):
-        OrderCreate(
-            customer_company_id=company_id,
-            supplier_name="공급처",
-            stage_code="order_received",
-            ordered_on="2026-08-17",
-            due_on="2026-08-31",
-            expected_receipt_on="2026-08-30",
-            items=[{"product_id": product_id, "quantity": 1.5, "unit_price": 0}],
-        )
+        OrderCreate(**(payload.model_dump() | {"customer_company_id": uuid4()}))
     with pytest.raises(ValidationError):
-        OrderPatch(stage_code="delivered")
+        OrderPatch(sales_deal_id=None)
     with pytest.raises(ValidationError):
-        OrderPatch(items=None)
-    assert OrderPageParams(start_date="2026-08-17", end_date="2026-08-17")
-    with pytest.raises(ValidationError):
-        OrderPageParams(start_date="2026-08-18", end_date="2026-08-17")
+        OrderMove(expected_stage_code="order_received", stage_code="발주 완료")
 
 
-def test_member_order_list_and_detail_are_scoped_and_include_items():
+def test_order_status_options_hide_deleted_but_order_reads_preserve_deleted_status():
     member = _member()
-    company = _company(member.team_id)
-    product = _product(member.team_id)
-    contract = _contract(member, company)
-    order = _order(member, company, contract=contract)
+    company = _company(member)
+    pipeline = _pipeline(member, status_code="archived")
+    stage = _stage(pipeline, code="order_in_progress", phase="order", position=6)
+    deal = _deal(member, company, pipeline, stage)
+    current_status = _status(member, deleted=True)
+    order = _order(member, deal, current_status)
+    product = _product(member)
     item = _item(order, product)
-    list_db = _Db(
+    db = _Db(
+        _Result(scalar_values=[_status(member)]),
         _Result(scalar=1),
-        _Result(rows=[_row(order, member, company, contract)]),
+        _Result(rows=[_row(order, deal, company, member, current_status)]),
+        _Result(rows=[(item, product.name)]),
+        _Result(rows=[_row(order, deal, company, member, current_status)]),
         _Result(rows=[(item, product.name)]),
     )
 
-    with _client(list_db, member) as client:
-        response = client.get(
-            "/api/orders",
-            params=[
-                ("q", " 합성 "),
-                ("supplier_name", order.supplier_name),
-                ("stage_code", "order_received"),
-                ("start_date", "2026-08-01"),
-                ("end_date", "2026-08-31"),
-            ],
-        )
+    options = asyncio.run(api.list_purchase_order_statuses(member, db))
+    page = asyncio.run(api.list_orders(OrderPageParams(), member, db))
+    detail = asyncio.run(api.get_order(order.id, member, db))
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["total"] == 1
-    assert data["items"][0] | {} == {
-        "id": str(order.id),
-        "order_no": order.order_no,
-        "contract_id": str(contract.id),
-        "contract_no": contract.contract_no,
-        "customer_company_id": str(company.id),
-        "customer_company_name": company.name,
-        "owner_member_id": str(member.id),
-        "owner_display_name": member.display_name,
-        "supplier_name": order.supplier_name,
-        "stage_code": order.stage_code,
-        "ordered_on": "2026-08-17",
-        "due_on": "2026-08-31",
-        "expected_receipt_on": "2026-08-30",
-        "memo": order.memo,
-        "items": [
-            {
-                "id": str(item.id),
-                "product_id": str(product.id),
-                "product_name": product.name,
-                "quantity": 1,
-                "unit_price": 1_000_000,
-                "position": 0,
-            }
-        ],
-        "created_at": "2026-08-17T18:00:00+09:00",
-        "updated_at": "2026-08-17T18:00:00+09:00",
-    }
-    for statement in list_db.statements[:2]:
+    assert len(options) == 1
+    assert page.items[0].stage_code == current_status.code
+    assert detail.id == order.id
+    assert page.items[0].customer_company_id == deal.customer_company_id
+    assert page.items[0].owner_member_id == deal.owner_member_id
+    assert "purchase_order_status.deleted_at IS NULL" in str(db.statements[0])
+    for statement in (db.statements[1], db.statements[2], db.statements[4]):
         sql = str(statement)
         assert "purchase_order.deleted_at IS NULL" in sql
-        assert member.id in statement.compile().params.values()
-        assert member.team_id in statement.compile().params.values()
-        assert "%합성%" in statement.compile().params.values()
-        assert "EXISTS" in sql
-    assert "product.active" not in str(list_db.statements[2])
-
-    detail_db = _Db(
-        _Result(rows=[_row(order, member, company, contract)]),
-        _Result(rows=[(item, product.name)]),
-    )
-    with _client(detail_db, member) as client:
-        detail = client.get(f"/api/orders/{order.id}")
-    assert detail.status_code == 200
-    assert detail.json()["items"][0]["product_name"] == product.name
+        assert "purchase_order_status.deleted_at IS NULL" not in sql
+        assert "sales_pipeline_stage_1.phase_code" in sql
+        assert "order" in statement.compile().params.values()
 
 
-def test_owner_filter_rules_and_cross_team_detail_are_hidden():
-    manager = _member(role="manager")
-    owner = _member(team_id=manager.team_id)
-    manager_db = _Db(
-        _Result(scalar_values=[owner.id]),
-        _Result(scalar=0),
-        _Result(rows=[]),
-    )
-    with _client(manager_db, manager) as client:
-        response = client.get("/api/orders", params={"owner_member_id": str(owner.id)})
-    assert response.status_code == 200
-    assert response.json()["items"] == []
-    assert [owner.id] in manager_db.statements[2].compile().params.values()
-
+def test_order_detail_hides_order_after_deal_leaves_order_phase():
     member = _member()
-    scope_db = _Db()
-    with _client(scope_db, member) as client:
-        denied = client.get("/api/orders", params={"owner_member_id": str(member.id)})
-    assert denied.status_code == 403
-    assert denied.json() == {"detail": "scope_not_allowed"}
-    assert not scope_db.statements
+    order_id = uuid4()
+    db = _Db(_Result(rows=[]))
 
-    detail_db = _Db(_Result(rows=[]))
-    with _client(detail_db, member) as client:
-        hidden = client.get(f"/api/orders/{uuid4()}")
-    assert hidden.status_code == 404
-    assert hidden.json() == {"detail": "order_not_found"}
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(api.get_order(order_id, member, db))
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "order_not_found"
+    assert "sales_pipeline_stage_1.phase_code" in str(db.statements[0])
+    assert "order" in db.statements[0].compile().params.values()
 
 
-def test_order_scope_hides_invalid_contracts_and_cross_team_items_without_hiding_inactive_items():
+def test_archived_pipeline_deal_is_not_a_new_order_or_relink_target():
     member = _member()
+    db = _Db(_Result(rows=[]))
 
-    list_db = _Db(_Result(scalar=0), _Result(rows=[]))
-    with _client(list_db, member) as client:
-        listed = client.get("/api/orders")
-    assert listed.status_code == 200
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(api._team_sales_deal(db, member, uuid4()))
 
-    detail_db = _Db(_Result(rows=[]))
-    with _client(detail_db, member) as client:
-        detail = client.get(f"/api/orders/{uuid4()}")
-    assert detail.status_code == 404
-
-    lock_db = _Db(_Result(scalar=None))
-    with _client(lock_db, member) as client:
-        locked = client.delete(
-            f"/api/orders/{uuid4()}",
-            headers={"Origin": ORIGIN},
-        )
-    assert locked.status_code == 404
-
-    for statement in [*list_db.statements, *detail_db.statements, *lock_db.statements]:
-        sql = str(statement)
-        assert "contract.deleted_at IS NULL" in sql or "contract_1.deleted_at IS NULL" in sql
-        assert "customer_company_id = public.purchase_order.customer_company_id" in sql
-        assert "owner_member_id = public.purchase_order.owner_member_id" in sql
-        assert "NOT (EXISTS" in sql
-        assert "product" in sql and "team_id !=" in sql
-        assert "product_1.active" not in sql
+    assert exc.value.status_code == 404
+    params = db.statements[0].compile().params.values()
+    assert "published" in params
+    assert "archived" not in params
 
 
-def test_create_derives_owner_from_contract_and_assigns_server_number():
-    manager = _member(role="manager")
-    contract_owner = _member(team_id=manager.team_id)
-    company = _company(manager.team_id)
-    product = _product(manager.team_id)
-    contract = _contract(contract_owner, company)
+def test_order_creation_move_uses_first_order_stage_and_reorders_atomically():
+    member = _member()
+    company = _company(member)
+    pipeline = _pipeline(member)
+    source_stage = _stage(pipeline, code="contract_completed", phase="contract", position=5)
+    order_stage = _stage(pipeline, code="order_in_progress", phase="order", position=6)
+    moving = _deal(member, company, pipeline, source_stage, position=1)
+    source_first = _deal(member, company, pipeline, source_stage, position=0)
+    target_first = _deal(member, company, pipeline, order_stage, position=0)
     db = _Db(
-        _Result(scalar=company),
-        _Result(rows=[(contract, contract_owner.display_name)]),
-        _Result(scalar_values=[product]),
-        _Result(scalar=manager.team_id),
-        _Result(
-            scalar_values=[
-                "FM-PO-2026-9999",
-                "SL-PO-2025-9999",
-                "SL-PO-2026-0003",
-                "SL-PO-2026-nope",
-                "SL-PO-2026-10000",
-            ]
-        ),
+        _Result(scalar=order_stage),
+        _Result(scalar_values=[source_first, moving, target_first]),
     )
 
-    with _client(db, manager) as client:
-        response = client.post(
-            "/api/orders",
-            headers={"Origin": ORIGIN},
-            json=_payload(company, product, contract_id=str(contract.id)),
-        )
+    asyncio.run(api._move_deal_to_first_order_stage(db, member, moving, "contract"))
 
-    assert response.status_code == 201
-    item = response.json()
-    assert item["order_no"] == "SL-PO-2026-0004"
-    assert item["owner_member_id"] == str(contract_owner.id)
-    assert item["owner_display_name"] == contract_owner.display_name
-    assert item["contract_no"] == contract.contract_no
-    assert item["items"][0]["position"] == 0
-    assert response.headers["location"] == f"/api/orders/{item['id']}"
-    created_order = next(value for value in db.added if isinstance(value, PurchaseOrder))
-    assert created_order.team_id == manager.team_id
-    assert created_order.owner_member_id == contract_owner.id
-    assert len([value for value in db.added if isinstance(value, PurchaseOrderItem)]) == 1
-    assert "contract.deleted_at IS NULL" in str(db.statements[1])
-    assert "product.active IS true" in str(db.statements[2])
-    assert "FOR UPDATE" in str(db.statements[3])
-    assert "SL-PO-2026-%" in db.statements[4].compile().params.values()
-    assert db.flush_count == db.commit_count == 1
-    assert db.rollback_count == 0
+    assert moving.sales_pipeline_stage_id == order_stage.id
+    assert moving.stage_position == 0
+    assert moving.closed_on is None
+    assert source_first.stage_position == 0
+    assert target_first.stage_position == 1
+    assert "sales_pipeline_stage.phase_code" in str(db.statements[0])
 
 
-def test_create_without_contract_uses_current_member_and_rejects_company_mismatch():
+def test_order_creation_fails_when_pipeline_has_no_order_stage():
     member = _member()
-    company = _company(member.team_id)
-    product = _product(member.team_id)
-    db = _Db(
-        _Result(scalar=company),
-        _Result(scalar_values=[product]),
-        _Result(scalar=member.team_id),
-        _Result(scalar_values=[]),
-    )
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/orders",
-            headers={"Origin": ORIGIN},
-            json=_payload(company, product),
-        )
-    assert response.status_code == 201
-    assert response.json()["owner_member_id"] == str(member.id)
-    assert response.json()["contract_id"] is None
+    company = _company(member)
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline, code="contract_completed", phase="contract", position=5)
+    deal = _deal(member, company, pipeline, stage)
+    db = _Db(_Result(scalar=None))
 
-    other_company = _company(member.team_id, name="다른 합성 고객사")
-    contract = _contract(member, other_company)
-    mismatch_db = _Db(
-        _Result(scalar=company),
-        _Result(rows=[(contract, member.display_name)]),
-    )
-    with _client(mismatch_db, member) as client:
-        mismatch = client.post(
-            "/api/orders",
-            headers={"Origin": ORIGIN},
-            json=_payload(company, product, contract_id=str(contract.id)),
-        )
-    assert mismatch.status_code == 422
-    assert mismatch.json() == {"detail": "contract_company_mismatch"}
-    assert mismatch_db.commit_count == 0
-    assert mismatch_db.rollback_count == 1
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(api._move_deal_to_first_order_stage(db, member, deal, "contract"))
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "sales_pipeline_order_stage_not_found"
 
 
-def test_patch_unlinks_contract_preserves_owner_and_replaces_items_atomically():
+def test_order_status_move_resolves_active_target_and_rejects_stale_state(monkeypatch):
     member = _member()
-    company = _company(member.team_id)
-    old_product = _product(member.team_id, name="기존 상품", active=False)
-    new_product = _product(member.team_id, name="새 상품")
-    contract = _contract(member, company)
-    order = _order(member, company, contract=contract)
-    replacement = _item(order, new_product)
-    db = _Db(
-        _Result(scalar=order),
-        _Result(scalar_values=[new_product]),
-        _Result(),
-        _Result(rows=[_row(order, member, company)]),
-        _Result(rows=[(replacement, new_product.name)]),
-    )
+    company = _company(member)
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline, code="order_in_progress", phase="order", position=6)
+    deal = _deal(member, company, pipeline, stage)
+    current_status = _status(member, code="order_received", deleted=True)
+    target_status = _status(member, code="delivered")
+    target_status.outcome_code = "completed"
+    order = _order(member, deal, current_status)
+    db = _Db()
 
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/orders/{order.id}",
-            headers={"Origin": ORIGIN},
-            json={
-                "contract_id": None,
-                "memo": None,
-                "items": [
-                    {
-                        "product_id": str(new_product.id),
-                        "quantity": 3,
-                        "unit_price": 2_000_000,
-                    }
-                ],
-            },
+    async def locked(*_args):
+        return order, current_status.code
+
+    async def active_status(*_args):
+        return target_status
+
+    async def order_row(*_args):
+        return _row(order, deal, company, member, target_status)
+
+    async def items(*_args):
+        return {order.id: []}
+
+    monkeypatch.setattr(api, "_locked_order", locked)
+    monkeypatch.setattr(api, "_active_order_status", active_status)
+    monkeypatch.setattr(api, "_order_row", order_row)
+    monkeypatch.setattr(api, "_items_by_order_ids", items)
+
+    result = asyncio.run(
+        api.move_order(
+            order.id,
+            OrderMove(expected_stage_code="order_received", stage_code="delivered"),
+            member,
+            db,
         )
+    )
+    assert result.stage_code == "delivered"
+    assert order.purchase_order_status_id == target_status.id
 
-    assert response.status_code == 200
-    assert response.json()["contract_id"] is None
-    assert response.json()["owner_member_id"] == str(member.id)
-    assert response.json()["memo"] is None
-    assert order.contract_id is None
-    assert order.owner_member_id == member.id
-    assert "DELETE FROM public.purchase_order_item" in str(db.statements[2])
-    added_item = next(value for value in db.added if isinstance(value, PurchaseOrderItem))
-    added_values = (
-        added_item.product_id,
-        added_item.quantity,
-        added_item.unit_price,
-        added_item.position,
-    )
-    assert added_values == (
-        new_product.id,
-        3,
-        2_000_000,
-        0,
-    )
-    assert db.flush_count == db.commit_count == 1
-    assert db.rollback_count == 0
-    # 읽기에서는 과거 비활성 상품도 제외하지 않는다.
-    assert old_product.active is False
-    assert "product.active" not in str(db.statements[4])
+    async def stale(*_args):
+        return order, "delivered"
 
-    failing_order = _order(member, company)
-    failing_db = _Db(
-        _Result(scalar=failing_order),
-        _Result(scalar_values=[new_product]),
-        _Result(),
-        flush_error=RuntimeError("synthetic failure"),
-    )
-    with (
-        _client(failing_db, member) as client,
-        pytest.raises(RuntimeError, match="synthetic failure"),
-    ):
-        client.patch(
-            f"/api/orders/{failing_order.id}",
-            headers={"Origin": ORIGIN},
-            json={
-                "items": [
-                    {
-                        "product_id": str(new_product.id),
-                        "quantity": 1,
-                        "unit_price": 0,
-                    }
-                ]
-            },
+    monkeypatch.setattr(api, "_locked_order", stale)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            api.move_order(
+                order.id,
+                OrderMove(expected_stage_code="order_received", stage_code="delivered"),
+                member,
+                db,
+            )
         )
-    assert failing_db.commit_count == 0
-    assert failing_db.rollback_count == 1
-
-
-def test_move_uses_stale_guard_and_delete_is_soft():
-    member = _member()
-    company = _company(member.team_id)
-    product = _product(member.team_id)
-    order = _order(member, company)
-    item = _item(order, product)
-    move_db = _Db(
-        _Result(scalar=order),
-        _Result(rows=[_row(order, member, company)]),
-        _Result(rows=[(item, product.name)]),
-    )
-    with _client(move_db, member) as client:
-        moved = client.post(
-            f"/api/orders/{order.id}/move",
-            headers={"Origin": ORIGIN},
-            json={
-                "expected_stage_code": "order_received",
-                "stage_code": "delivered",
-            },
-        )
-    assert moved.status_code == 200
-    assert moved.json()["stage_code"] == "delivered"
-    assert order.stage_code == "delivered"
-    assert "FOR UPDATE" in str(move_db.statements[0])
-    assert move_db.flush_count == move_db.commit_count == 1
-
-    stale_order = _order(member, company, stage_code="in_production")
-    stale_db = _Db(_Result(scalar=stale_order))
-    with _client(stale_db, member) as client:
-        conflict = client.post(
-            f"/api/orders/{stale_order.id}/move",
-            headers={"Origin": ORIGIN},
-            json={
-                "expected_stage_code": "order_received",
-                "stage_code": "stock_received",
-            },
-        )
-    assert conflict.status_code == 409
-    assert conflict.json() == {"detail": "invalid_state_transition"}
-    assert stale_db.flush_count == stale_db.commit_count == 0
-    assert stale_db.rollback_count == 1
-
-    delete_db = _Db(_Result(scalar=order))
-    with _client(delete_db, member) as client:
-        deleted = client.delete(
-            f"/api/orders/{order.id}",
-            headers={"Origin": ORIGIN},
-        )
-    assert deleted.status_code == 204
-    assert deleted.content == b""
-    assert order.deleted_at is not None
-    assert order.updated_at == order.deleted_at
-    assert all(
-        not str(statement).startswith("DELETE FROM public.purchase_order_item")
-        for statement in delete_db.statements
-    )
-    assert delete_db.flush_count == delete_db.commit_count == 1
+    assert exc.value.status_code == 409
+    assert db.rollback_count == 1

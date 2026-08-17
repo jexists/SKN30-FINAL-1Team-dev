@@ -19,13 +19,12 @@ import StageChip from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { orderNewPath, orderPath } from '@/constants/routes'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
-import type { ApiPurchaseOrder, OrderStatus } from '@/types'
+import type { ApiPurchaseOrder } from '@/types'
 import { addDays, fmtDotShort, iso, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import { ORDER_COLUMNS } from './columns'
 import OrderForm from './components/OrderForm'
-import { ORDER_STAGES, TONE_OF } from './pipeline'
 import useOrderList from './useOrderList'
 
 import styles from '@/pages/listPage.module.scss'
@@ -44,8 +43,8 @@ const DEFAULT_RANGE = '6'
 export default function Orders() {
   const {
     orders,
-    companies,
-    contracts,
+    salesDeals,
+    statuses,
     products,
     suppliers,
     loading,
@@ -92,6 +91,11 @@ export default function Orders() {
     [suppliers],
   )
 
+  const orderStages = useMemo(
+    () => statuses.map(({ code, name, tone }) => ({ id: code, name, tone })),
+    [statuses],
+  )
+
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   // 조건이 바뀌면 첫 페이지로 돌아옵니다. 3페이지에 있다가 결과가 줄면 빈 화면을 봅니다.
   const setParam = useCallback(
@@ -118,7 +122,7 @@ export default function Orders() {
       if (supplier !== '' && order.supplier !== supplier) return false
       if (fromISO !== null && order.ordered < fromISO) return false
       if (needle === '') return true
-      return [order.no, order.hospital, order.supplier, order.contract, order.memo]
+      return [order.no, order.hospital, order.supplier, order.salesDeal, order.memo]
         .concat(orderItemLabel(order))
         .join(' ')
         .toLowerCase()
@@ -127,13 +131,13 @@ export default function Orders() {
   }, [orders, supplier, fromISO, deferredQuery])
 
   const statusCounts = useMemo(() => {
-    const map = new Map<OrderStatus, number>()
-    for (const order of beforeStatus) map.set(order.status, (map.get(order.status) ?? 0) + 1)
+    const map = new Map<string, number>()
+    for (const order of beforeStatus) map.set(order.stageCode, (map.get(order.stageCode) ?? 0) + 1)
     return map
   }, [beforeStatus])
 
   const matched = useMemo(() => {
-    const rows = status === '' ? beforeStatus : beforeStatus.filter((o) => o.status === status)
+    const rows = status === '' ? beforeStatus : beforeStatus.filter((o) => o.stageCode === status)
     if (!sort) return rows
     const sign = sort.dir === 'asc' ? 1 : -1
     const compare = compareBy(columns, sort.id)
@@ -213,10 +217,10 @@ export default function Orders() {
       </div>
 
       <StageTabs
-        stages={ORDER_STAGES}
+        stages={orderStages}
         label="발주 상태"
         value={status}
-        countOf={(id) => statusCounts.get(id as OrderStatus) ?? 0}
+        countOf={(id) => statusCounts.get(id) ?? 0}
         total={beforeStatus.length}
         onChange={(next) => setParam('status', next)}
       />
@@ -339,8 +343,8 @@ export default function Orders() {
       {editingOrder && (
         <OrderForm
           order={editingOrder}
-          companies={companies}
-          contracts={contracts}
+          salesDeals={salesDeals}
+          statuses={statuses}
           products={products}
           suppliers={suppliers}
           optionsLoading={loading}
@@ -373,7 +377,7 @@ const lateLabel = (order: ApiPurchaseOrder) => `${order.expectOff - order.dueOff
 
 /** 표와 카드가 같은 배지를 씁니다. */
 function statusChip(order: ApiPurchaseOrder) {
-  return <StageChip tone={TONE_OF[order.status]}>{order.status}</StageChip>
+  return <StageChip tone={order.stageTone}>{order.status}</StageChip>
 }
 
 interface DeleteConfirmProps {

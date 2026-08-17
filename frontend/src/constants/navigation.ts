@@ -65,7 +65,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: '딜상세관리',
     shortTitle: '딜',
     items: [
-      { to: ROUTES.VISITS, label: '영업현황', icon: VisitIcon },
+      { to: ROUTES.DEALS, label: '영업현황', icon: VisitIcon },
       { to: ROUTES.QUOTES, label: '견적현황', icon: QuoteIcon },
       { to: ROUTES.CONTRACTS, label: '계약현황', icon: ContractIcon },
       { to: ROUTES.ORDERS, label: '발주현황', icon: OrdersIcon },

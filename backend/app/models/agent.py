@@ -20,7 +20,7 @@ class AgentRun(Base):
     trigger_code: Mapped[str]
     idempotency_key: Mapped[UUID | None]
     status_code: Mapped[str]
-    model_name: Mapped[str]
+    llm_model_name: Mapped[str]
     prompt_version: Mapped[str]
     source_refs: Mapped[Any] = mapped_column(JSONB, nullable=False)
     input_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)

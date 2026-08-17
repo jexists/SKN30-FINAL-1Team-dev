@@ -123,6 +123,7 @@ function toCalendarEvent(activity: ActivityRead): CalendarEvent {
     activityType: activity.activity_type,
     customerContactId: activity.customer_contact_id,
     customerContactName: activity.customer_contact_name ?? '',
+    salesDealId: activity.sales_deal_id,
     productId: activity.product_id,
     product: activity.product_name ?? '',
     owner: activity.owner_display_name,
@@ -155,6 +156,7 @@ function eventTimes(
 function toActivityPayload(event: CalendarEvent): ActivityCreateRequest {
   return {
     customer_contact_id: event.customerContactId ?? null,
+    sales_deal_id: event.salesDealId ?? null,
     product_id: event.productId ?? null,
     activity_type: event.activityType ?? (event.kind === 'internal' ? 'task' : 'meeting'),
     category_code: CATEGORY_BY_KIND[event.kind],

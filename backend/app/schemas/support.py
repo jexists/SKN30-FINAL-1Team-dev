@@ -42,7 +42,7 @@ class SupportResponseCreate(_WriteModel):
 
 class SupportResponseRead(BaseModel):
     id: UUID
-    request_id: UUID
+    support_request_id: UUID
     responder_member_id: UUID
     responder_display_name: str
     body: str

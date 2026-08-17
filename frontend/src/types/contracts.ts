@@ -1,15 +1,7 @@
-import type { ColumnTone } from './stage'
-
 /** 계약 진행 상태. 매출 실적으로 잡히는 것은 '확정' 뿐입니다. */
 export type ContractStatus = '확정' | '진행중' | '취소'
 
-export type PipelineOutcomeCode = 'in_progress' | 'confirmed' | 'cancelled'
-
 export type ContractKind = '신규 도입' | '증설' | '갱신' | '유지보수' | '소모품 공급'
-
-/** API/DB에 저장하는 계약 유형 코드. 화면에서는 ContractKind의 한국어 라벨을 씁니다. */
-export type ContractKindCode =
-  'new_installation' | 'expansion' | 'renewal' | 'maintenance' | 'consumables_supply'
 
 export interface ContractSeed {
   no: string
@@ -53,79 +45,4 @@ export interface ContractDraft {
   /** YYYY-MM-DD */
   date: string
   memo: string
-}
-
-/** GET /api/pipeline-stages 응답. 순서는 position 오름차순입니다. */
-export interface PipelineStageResponse {
-  id: string
-  name: string
-  tone: ColumnTone
-  outcome_code: PipelineOutcomeCode
-  position: number
-}
-
-/** GET /api/products 응답. */
-export interface ProductResponse {
-  id: string
-  name: string
-  active: boolean
-}
-
-export interface ContractCreateRequest {
-  customer_company_id: string
-  contact_id: null
-  product_id: string
-  stage_id: string
-  contract_type: ContractKindCode
-  amount: number
-  contract_date: string
-  memo: string | null
-}
-
-export interface ContractPatchRequest {
-  customer_company_id: string
-  contact_id?: null
-  product_id: string
-  contract_type: ContractKindCode
-  amount: number
-  contract_date: string
-  memo: string | null
-}
-
-export interface ContractMoveRequest {
-  expected_stage_id: string
-  stage_id: string
-  position: number
-}
-
-/** GET /api/contracts 및 상세 조회 응답. 내부 UUID와 표시값을 함께 보존합니다. */
-export interface ContractResponse {
-  id: string
-  contract_no: string
-  customer_company_id: string
-  customer_company_name: string
-  customer_company_region_code: string | null
-  contact_id: string | null
-  contact_name: string | null
-  owner_member_id: string
-  owner_display_name: string
-  product_id: string | null
-  product_name: string | null
-  stage_id: string
-  stage_name: string
-  stage_tone: ColumnTone
-  stage_outcome_code: PipelineOutcomeCode
-  stage_position: number
-  title: string
-  description: string | null
-  contract_type: ContractKindCode
-  amount: number
-  contract_date: string
-  ends_on: string | null
-  warranty_terms: string | null
-  expected_delivery_at: string | null
-  memo: string | null
-  position: number
-  created_at: string
-  updated_at: string
 }

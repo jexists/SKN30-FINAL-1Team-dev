@@ -1,4 +1,4 @@
-// 영업 현황 목록. 계약과 영업 단계를 API에서 읽고 실제 UUID로 상세·쓰기를 처리합니다.
+// 영업 현황 목록. 영업 딜과 파이프라인 단계를 API에서 읽고 실제 UUID로 쓰기를 처리합니다.
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -6,7 +6,7 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import DataTable, { compareBy, type SortState } from '@/components/DataTable'
 import FilterSelect from '@/components/FilterSelect'
-import { ContractIcon, PlusIcon, SearchIcon } from '@/components/icons'
+import { VisitIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import Pagination from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
@@ -17,9 +17,9 @@ import { won } from '@/utils/format'
 
 import { dealColumns } from './columns'
 import ViewToggle from './components/ViewToggle'
-import PipelineContractDrawer from './PipelineContractDrawer'
-import PipelineContractForm from './PipelineContractForm'
-import usePipelineContracts, { type PipelineContract } from './usePipelineContracts'
+import SalesDealDrawer from './SalesDealDrawer'
+import SalesDealForm from './SalesDealForm'
+import useSalesDeals, { type SalesDeal } from './useSalesDeals'
 
 import styles from '@/pages/listPage.module.scss'
 
@@ -32,13 +32,18 @@ const RANGES = [
 
 const DEFAULT_RANGE = '6'
 
-export default function Visits() {
+export default function Deals() {
   const [openId, setOpenId] = useState<string | null>(null)
+  const [params, setParams] = useSearchParams()
+  const requestedPipelineId = params.get('pipeline') ?? ''
   const {
+    pipelines,
+    dealPipelineId,
     columns,
     cards,
     companies,
     products,
+    dealTypes,
     loading,
     error,
     reload,
@@ -48,17 +53,17 @@ export default function Visits() {
     reloadDetail,
     mutationError,
     clearMutationError,
+    canCreate,
     isCreating,
     isPending,
-    createContract,
-    updateContract,
-    deleteContract,
-  } = usePipelineContracts(openId)
+    createSalesDeal,
+    updateSalesDeal,
+    deleteSalesDeal,
+  } = useSalesDeals(openId, requestedPipelineId || null, 'list')
   const { isManager } = useCurrentUser()
   // 팀원은 서버가 본인 데이터로 제한합니다. mock 담당자 스코프는 요청에 싣지 않습니다.
   const showOwner = isManager
 
-  const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
   const range = params.get('range') ?? DEFAULT_RANGE
   const stage = params.get('stage') ?? ''
@@ -67,7 +72,7 @@ export default function Visits() {
   const [sort, setSort] = useState<SortState>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [openFilter, setOpenFilter] = useState<'range' | null>(null)
+  const [openFilter, setOpenFilter] = useState<'pipeline' | 'range' | null>(null)
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -77,11 +82,34 @@ export default function Visits() {
     [columns, showOwner],
   )
 
+  const pipelineOptions = useMemo(
+    () => [
+      { value: '', label: '파이프라인 전체' },
+      ...pipelines.map((pipeline) => ({
+        value: pipeline.id,
+        label: pipeline.name + (pipeline.status_code === 'archived' ? ' (보관)' : ''),
+      })),
+    ],
+    [pipelines],
+  )
+
   const setParam = useCallback(
     (key: string, value: string, fallback = '') => {
       const next = new URLSearchParams(params)
       if (value === fallback) next.delete(key)
       else next.set(key, value)
+      setParams(next, { replace: true })
+      setPage(1)
+    },
+    [params, setParams],
+  )
+
+  const setPipeline = useCallback(
+    (value: string) => {
+      const next = new URLSearchParams(params)
+      if (value === '') next.delete('pipeline')
+      else next.set('pipeline', value)
+      next.delete('stage')
       setParams(next, { replace: true })
       setPage(1)
     },
@@ -113,12 +141,14 @@ export default function Visits() {
   }, [beforeStage])
 
   const matched = useMemo(() => {
-    const rows = stage === '' ? beforeStage : beforeStage.filter((card) => card.stageId === stage)
+    const activeStage = dealPipelineId ? stage : ''
+    const rows =
+      activeStage === '' ? beforeStage : beforeStage.filter((card) => card.stageId === activeStage)
     if (!sort) return rows
     const sign = sort.dir === 'asc' ? 1 : -1
     const compare = compareBy(tableColumns, sort.id)
     return [...rows].sort((a, b) => sign * compare(a, b))
-  }, [beforeStage, sort, stage, tableColumns])
+  }, [beforeStage, dealPipelineId, sort, stage, tableColumns])
 
   const pageCount = Math.max(1, Math.ceil(matched.length / pageSize))
   const safePage = Math.min(page, pageCount)
@@ -140,15 +170,22 @@ export default function Visits() {
     setPage(1)
   }, [setParams])
 
-  const stageOf = (card: PipelineContract) => columns.find((column) => column.id === card.stageId)
-  const selectedContract = detail ?? cards.find((card) => card.id === openId) ?? null
-  const selectedStage = selectedContract ? stageOf(selectedContract) : undefined
-  const editingContract = cards.find((card) => card.id === editingId)
-  const deletingContract = cards.find((card) => card.id === deletingId)
+  const stageOf = (card: SalesDeal) =>
+    columns.find((column) => column.id === card.stageId) ?? {
+      id: card.stageId,
+      name: card.stageName,
+      tone: card.stageTone,
+      outcome: card.status,
+    }
+  const selectedDeal = detail ?? cards.find((card) => card.id === openId) ?? null
+  const selectedStage = selectedDeal ? stageOf(selectedDeal) : undefined
+  const editingDeal = cards.find((card) => card.id === editingId)
+  const deletingDeal = cards.find((card) => card.id === deletingId)
   const addingColumn = columns.find((column) => column.id === addingTo)
   const defaultColumn = columns.find((column) => column.id === stage) ?? columns[0]
-  const isDeleting = deletingContract ? isPending(deletingContract.id) : false
-  const isFiltered = query.trim() !== '' || stage !== '' || range !== DEFAULT_RANGE
+  const isDeleting = deletingDeal ? isPending(deletingDeal.id) : false
+  const isFiltered =
+    query.trim() !== '' || requestedPipelineId !== '' || stage !== '' || range !== DEFAULT_RANGE
 
   return (
     <section className={styles.page} aria-busy={loading}>
@@ -158,9 +195,18 @@ export default function Visits() {
         <SearchInput
           className={styles.search}
           value={query}
-          placeholder="고객사·제품·계약번호 검색"
-          label="영업 건 검색"
+          placeholder="고객사·제품·영업번호 검색"
+          label="영업 딜 검색"
           onChange={(next) => setParam('q', next)}
+        />
+
+        <FilterSelect
+          label="파이프라인"
+          value={dealPipelineId ?? ''}
+          options={pipelineOptions}
+          open={openFilter === 'pipeline'}
+          onOpenChange={(open) => setOpenFilter(open ? 'pipeline' : null)}
+          onChange={setPipeline}
         />
 
         <FilterSelect
@@ -175,7 +221,7 @@ export default function Visits() {
         <div className={styles.actions}>
           <ViewToggle view="list" />
           <Button
-            disabled={loading || !defaultColumn || isCreating}
+            disabled={loading || !canCreate || !defaultColumn || isCreating}
             onClick={() => {
               if (!defaultColumn) return
               clearMutationError()
@@ -183,19 +229,21 @@ export default function Visits() {
             }}
           >
             <PlusIcon width={15} height={15} />
-            영업 건 추가
+            영업 딜 추가
           </Button>
         </div>
       </div>
 
-      <StageTabs
-        stages={columns}
-        label="영업 단계"
-        value={stage}
-        countOf={(id) => stageCounts.get(id) ?? 0}
-        total={beforeStage.length}
-        onChange={(next) => setParam('stage', next)}
-      />
+      {dealPipelineId && (
+        <StageTabs
+          stages={columns}
+          label="영업 단계"
+          value={stage}
+          countOf={(id) => stageCounts.get(id) ?? 0}
+          total={beforeStage.length}
+          onChange={(next) => setParam('stage', next)}
+        />
+      )}
 
       {mutationError && (
         <div role="alert">
@@ -257,15 +305,15 @@ export default function Visits() {
             isFiltered ? (
               <>
                 <SearchIcon width={34} height={34} strokeWidth={1.5} />
-                <p>조건에 맞는 영업 건이 없습니다.</p>
+                <p>조건에 맞는 영업 딜이 없습니다.</p>
                 <Button variant="outline" onClick={clearFilters}>
                   검색·필터 초기화
                 </Button>
               </>
             ) : (
               <>
-                <ContractIcon width={34} height={34} strokeWidth={1.5} />
-                <p>아직 등록한 영업 건이 없습니다.</p>
+                <VisitIcon width={34} height={34} strokeWidth={1.5} />
+                <p>아직 등록한 영업 딜이 없습니다.</p>
               </>
             )
           }
@@ -290,60 +338,62 @@ export default function Visits() {
       )}
 
       {openId && (
-        <PipelineContractDrawer
-          contract={selectedContract}
+        <SalesDealDrawer
+          deal={selectedDeal}
           stage={selectedStage}
           loading={detailLoading}
           error={detailError}
           onRetry={reloadDetail}
           onClose={() => setOpenId(null)}
           onEdit={() => {
-            if (!selectedContract) return
+            if (!selectedDeal) return
             clearMutationError()
-            setEditingId(selectedContract.id)
+            setEditingId(selectedDeal.id)
             setOpenId(null)
           }}
           onDelete={() => {
-            if (!selectedContract) return
+            if (!selectedDeal) return
             clearMutationError()
-            setDeletingId(selectedContract.id)
+            setDeletingId(selectedDeal.id)
             setOpenId(null)
           }}
         />
       )}
 
       {addingColumn && (
-        <PipelineContractForm
+        <SalesDealForm
           stageName={addingColumn.name}
           companies={companies}
           products={products}
+          dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setAddingTo(null)}
           onSubmit={async (input) => {
-            await createContract(input, addingColumn.id)
+            await createSalesDeal(input, addingColumn.id)
             setAddingTo(null)
           }}
         />
       )}
 
-      {editingContract && (
-        <PipelineContractForm
-          contract={editingContract}
+      {editingDeal && (
+        <SalesDealForm
+          deal={editingDeal}
           companies={companies}
           products={products}
+          dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setEditingId(null)}
           onSubmit={async (input) => {
-            await updateContract(editingContract.id, input)
+            await updateSalesDeal(editingDeal.id, input)
             setEditingId(null)
           }}
         />
       )}
 
-      {deletingContract && (
+      {deletingDeal && (
         <Modal
-          title="영업 건을 삭제할까요?"
-          description={deletingContract.no + ' · ' + deletingContract.org + '. 되돌릴 수 없습니다.'}
+          title="영업 딜을 삭제할까요?"
+          description={deletingDeal.no + ' · ' + deletingDeal.org + '. 되돌릴 수 없습니다.'}
           onClose={() => {
             if (!isDeleting) setDeletingId(null)
           }}
@@ -361,7 +411,7 @@ export default function Visits() {
                 type="button"
                 disabled={isDeleting}
                 onClick={() => {
-                  void deleteContract(deletingContract.id)
+                  void deleteSalesDeal(deletingDeal.id)
                     .then(() => setDeletingId(null))
                     .catch(() => undefined)
                 }}
@@ -372,7 +422,7 @@ export default function Visits() {
           }
         >
           <p className={styles.confirm}>
-            {deletingContract.product} · {deletingContract.owner}
+            {deletingDeal.product} · {deletingDeal.owner}
           </p>
           {mutationError && <p role="alert">{mutationError}</p>}
         </Modal>

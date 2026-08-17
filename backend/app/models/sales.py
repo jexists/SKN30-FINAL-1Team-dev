@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, ForeignKey, text
+from sqlalchemy import BigInteger, ForeignKey, ForeignKeyConstraint, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -16,38 +16,93 @@ class Product(Base):
     active: Mapped[bool] = mapped_column(server_default=text("true"))
 
 
-class PipelineStage(Base):
-    __tablename__ = "pipeline_stage"
+class SalesPipeline(Base):
+    __tablename__ = "sales_pipeline"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     name: Mapped[str]
+    description: Mapped[str | None]
+    status_code: Mapped[str]
+    is_default: Mapped[bool] = mapped_column(server_default=text("false"))
+    published_at: Mapped[datetime | None]
+    archived_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class SalesPipelineStage(Base):
+    __tablename__ = "sales_pipeline_stage"
+    __table_args__ = (
+        UniqueConstraint(
+            "sales_pipeline_id",
+            "stage_code",
+            name="sales_pipeline_stage_sales_pipeline_id_stage_code_key",
+        ),
+        UniqueConstraint(
+            "sales_pipeline_id",
+            "position",
+            name="sales_pipeline_stage_sales_pipeline_id_position_key",
+        ),
+        UniqueConstraint(
+            "sales_pipeline_id",
+            "id",
+            name="sales_pipeline_stage_sales_pipeline_id_id_key",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    sales_pipeline_id: Mapped[UUID] = mapped_column(ForeignKey("public.sales_pipeline.id"))
+    stage_code: Mapped[str]
+    name: Mapped[str]
     tone: Mapped[str]
+    phase_code: Mapped[str]
     outcome_code: Mapped[str]
     position: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
-class Contract(Base):
-    __tablename__ = "contract"
+class SalesDeal(Base):
+    __tablename__ = "sales_deal"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["sales_pipeline_id", "sales_pipeline_stage_id"],
+            [
+                "public.sales_pipeline_stage.sales_pipeline_id",
+                "public.sales_pipeline_stage.id",
+            ],
+            name="sales_deal_sales_pipeline_stage_membership_fkey",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
-    contract_no: Mapped[str]
+    deal_no: Mapped[str]
     customer_company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
-    contact_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.customer_contact.id"))
+    customer_contact_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("public.customer_contact.id")
+    )
     owner_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     product_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.product.id"))
-    stage_id: Mapped[UUID] = mapped_column(ForeignKey("public.pipeline_stage.id"))
+    sales_pipeline_id: Mapped[UUID]
+    sales_pipeline_stage_id: Mapped[UUID]
     title: Mapped[str]
     description: Mapped[str | None]
-    contract_type: Mapped[str]
-    amount: Mapped[int] = mapped_column(BigInteger)
-    contract_date: Mapped[date]
-    ends_on: Mapped[date | None]
+    sales_deal_type_id: Mapped[UUID] = mapped_column(ForeignKey("public.sales_deal_type.id"))
+    deal_amount: Mapped[int] = mapped_column(BigInteger)
+    opened_on: Mapped[date]
+    closed_on: Mapped[date | None]
+    quote_no: Mapped[str | None]
+    quote_issued_on: Mapped[date | None]
+    quote_valid_until: Mapped[date | None]
+    contract_no: Mapped[str | None]
+    contract_signed_on: Mapped[date | None]
+    contract_ends_on: Mapped[date | None]
     warranty_terms: Mapped[str | None]
     expected_delivery_at: Mapped[datetime | None]
     memo: Mapped[str | None]
-    position: Mapped[int]
+    stage_position: Mapped[int]
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
@@ -59,11 +114,11 @@ class PurchaseOrder(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     order_no: Mapped[str]
-    contract_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.contract.id"))
-    customer_company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
-    owner_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    sales_deal_id: Mapped[UUID] = mapped_column(ForeignKey("public.sales_deal.id"))
     supplier_name: Mapped[str]
-    stage_code: Mapped[str]
+    purchase_order_status_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.purchase_order_status.id")
+    )
     ordered_on: Mapped[date]
     due_on: Mapped[date]
     expected_receipt_on: Mapped[date]
@@ -77,7 +132,7 @@ class PurchaseOrderItem(Base):
     __tablename__ = "purchase_order_item"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    order_id: Mapped[UUID] = mapped_column(
+    purchase_order_id: Mapped[UUID] = mapped_column(
         ForeignKey("public.purchase_order.id", ondelete="CASCADE")
     )
     product_id: Mapped[UUID] = mapped_column(ForeignKey("public.product.id"))

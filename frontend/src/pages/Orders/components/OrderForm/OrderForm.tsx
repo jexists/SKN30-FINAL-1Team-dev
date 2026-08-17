@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import type { ApiPurchaseOrder } from '@/types'
+import type { ApiPurchaseOrder, PurchaseOrderStatusResponse } from '@/types'
 
 import {
   initialState,
@@ -14,13 +14,13 @@ import {
   type FormState,
   type ItemState,
 } from '../../orderForm'
-import type { OrderContractOption, OrderDraft, OrderOption } from '../../useOrderList'
+import type { OrderSalesDealOption, OrderDraft, OrderOption } from '../../useOrderList'
 import OrderFields from '../OrderFields'
 
 interface Props {
   order: ApiPurchaseOrder
-  companies: OrderOption[]
-  contracts: OrderContractOption[]
+  salesDeals: OrderSalesDealOption[]
+  statuses: PurchaseOrderStatusResponse[]
   products: OrderOption[]
   suppliers: string[]
   optionsLoading?: boolean
@@ -30,14 +30,24 @@ interface Props {
 
 export default function OrderForm({
   order,
-  companies,
-  contracts,
+  salesDeals,
+  statuses,
   products,
   suppliers,
   optionsLoading = false,
   onClose,
   onSubmit,
 }: Props) {
+  const dealOptions = salesDeals.some(({ id }) => id === order.salesDealId)
+    ? salesDeals
+    : [
+        {
+          id: order.salesDealId,
+          no: order.salesDeal,
+          customerCompanyName: order.hospital,
+        },
+        ...salesDeals,
+      ]
   const [form, setForm] = useState<FormState>(() => initialState(order))
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -86,7 +96,7 @@ export default function OrderForm({
           <Button
             type="submit"
             disabled={
-              submitting || optionsLoading || companies.length === 0 || products.length === 0
+              submitting || optionsLoading || dealOptions.length === 0 || products.length === 0
             }
           >
             {submitting ? '저장 중…' : '저장'}
@@ -97,13 +107,14 @@ export default function OrderForm({
       <OrderFields
         form={form}
         errors={errors}
-        companies={companies}
-        contracts={contracts}
+        salesDeals={dealOptions}
+        statuses={statuses}
         products={products}
         suppliers={suppliers}
         optionsLoading={optionsLoading}
         disabled={submitting}
         showStatus={false}
+        lockSalesDeal
         onChange={set}
         onItemsChange={setItems}
       />

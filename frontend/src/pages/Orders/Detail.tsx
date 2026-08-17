@@ -8,12 +8,10 @@ import Modal from '@/components/Modal'
 import { ChevronLeftIcon } from '@/components/icons'
 import { ROUTES, orderPath } from '@/constants/routes'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
-import type { OrderStatus } from '@/types'
 import { fmtDot, fmtDotShort, parseISO } from '@/utils/date'
 import { won, wonFull } from '@/utils/format'
 
 import OrderForm from './components/OrderForm'
-import { ORDER_STATUSES, TONE_OF } from './pipeline'
 import useOrderList from './useOrderList'
 
 import styles from './Detail.module.scss'
@@ -23,8 +21,8 @@ export default function OrderDetail() {
   const navigate = useNavigate()
   const {
     orders,
-    companies,
-    contracts,
+    salesDeals,
+    statuses,
     products,
     suppliers,
     loading,
@@ -106,16 +104,21 @@ export default function OrderDetail() {
           <span className={styles.statusLabel}>상태</span>
           <select
             className={styles.select}
-            value={order.status}
+            value={order.stageCode}
             disabled={isPending(order.id)}
             onChange={(event) => {
-              const next = event.target.value as OrderStatus
-              if (next !== order.status)
-                void setStatus(order.id, order.status, next).catch(() => undefined)
+              const next = event.target.value
+              if (next !== order.stageCode)
+                void setStatus(order.id, order.stageCode, next).catch(() => undefined)
             }}
           >
-            {ORDER_STATUSES.map((status) => (
-              <option key={status}>{status}</option>
+            {!statuses.some(({ code }) => code === order.stageCode) && (
+              <option value={order.stageCode}>{order.status} (기존값)</option>
+            )}
+            {statuses.map((status) => (
+              <option key={status.id} value={status.code}>
+                {status.name}
+              </option>
             ))}
           </select>
         </label>
@@ -142,24 +145,18 @@ export default function OrderDetail() {
         <div>
           <dt>상태</dt>
           <dd>
-            <span className={[styles.pill, styles[TONE_OF[order.status]]].join(' ')}>
-              {order.status}
-            </span>
+            <span className={[styles.pill, styles[order.stageTone]].join(' ')}>{order.status}</span>
           </dd>
         </div>
         <div>
-          <dt>계약</dt>
+          <dt>영업 딜</dt>
           <dd>
-            {order.contract ? (
-              <Link
-                className={styles.link}
-                to={`${ROUTES.VISITS}?q=${encodeURIComponent(order.contract)}`}
-              >
-                {order.contract}
-              </Link>
-            ) : (
-              '계약 없는 선발주'
-            )}
+            <Link
+              className={styles.link}
+              to={`${ROUTES.DEALS}?q=${encodeURIComponent(order.salesDeal)}`}
+            >
+              {order.salesDeal}
+            </Link>
           </dd>
         </div>
         <div>
@@ -222,8 +219,8 @@ export default function OrderDetail() {
       {editing && (
         <OrderForm
           order={order}
-          companies={companies}
-          contracts={contracts}
+          salesDeals={salesDeals}
+          statuses={statuses}
           products={products}
           suppliers={suppliers}
           optionsLoading={loading}

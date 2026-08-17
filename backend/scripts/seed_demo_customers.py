@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.core.security import dummy_password_hash
 from app.db.session import get_sessionmaker
+from app.models.configuration import CustomerContactStatus
 from app.models.crm import CustomerCompany, CustomerContact
 from app.models.workspace import Member, Team
 from scripts.seed_demo_auth import FILLED_MEMBER2_ID, FILLED_MEMBER_ID, FILLED_TEAM_ID
@@ -540,31 +541,32 @@ def contact_id(mock_id: str) -> UUID:
     return uuid5(FILLED_TEAM_ID, f"contact:{mock_id}")
 
 
-async def seed_demo_customers() -> None:
-    roster_password_hash = await asyncio.to_thread(dummy_password_hash)
-    company_ids = {name: company_id(name) for name in COMPANY_REGIONS}
-    expected_company_by_id = {value: name for name, value in company_ids.items()}
-    extra_member_by_id = {member["id"]: member for member in ROSTER_MEMBERS}
-    extra_member_by_login = {member["login_id"]: member for member in ROSTER_MEMBERS}
-
-    contacts = tuple(
+def contact_rows(status_ids: dict[str, UUID]) -> tuple[dict, ...]:
+    return tuple(
         {
             "id": contact_id(seed.mock_id),
-            "company_id": company_ids[seed.company_name],
+            "company_id": company_id(seed.company_name),
             "owner_member_id": OWNER_IDS[seed.owner_name],
             "name": seed.name,
             "department": seed.department,
             "job_title": seed.job_title,
             "email": seed.email,
             "phone": seed.phone,
-            "status_code": STATUS_CODES[seed.status],
+            "customer_contact_status_id": status_ids[STATUS_CODES[seed.status]],
             "source_code": SOURCE_CODES[seed.source],
             "memo": seed.memo,
             "registered_at": REFERENCE_AT + timedelta(days=seed.created_offset),
         }
         for seed in CONTACT_SEEDS
     )
-    expected_contact_by_id = {contact["id"]: contact for contact in contacts}
+
+
+async def seed_demo_customers() -> None:
+    roster_password_hash = await asyncio.to_thread(dummy_password_hash)
+    company_ids = {name: company_id(name) for name in COMPANY_REGIONS}
+    expected_company_by_id = {value: name for name, value in company_ids.items()}
+    extra_member_by_id = {member["id"]: member for member in ROSTER_MEMBERS}
+    extra_member_by_login = {member["login_id"]: member for member in ROSTER_MEMBERS}
 
     async with get_sessionmaker()() as session, session.begin():
         filled_team_name = (
@@ -574,6 +576,23 @@ async def seed_demo_customers() -> None:
         ).scalar_one_or_none()
         if filled_team_name != FILLED_TEAM_NAME:
             raise SystemExit("filled 인증 seed의 고정 팀이 없거나 이름이 변경되었습니다.")
+
+        required_status_codes = set(STATUS_CODES.values())
+        status_rows = (
+            await session.execute(
+                select(CustomerContactStatus.id, CustomerContactStatus.code).where(
+                    CustomerContactStatus.team_id == FILLED_TEAM_ID,
+                    CustomerContactStatus.code.in_(required_status_codes),
+                    CustomerContactStatus.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        status_ids = {row.code: row.id for row in status_rows}
+        if set(status_ids) != required_status_codes or len(status_rows) != len(status_ids):
+            raise SystemExit("filled 팀의 활성 고객 담당자 상태 lookup을 먼저 준비하세요.")
+
+        contacts = contact_rows(status_ids)
+        expected_contact_by_id = {contact["id"]: contact for contact in contacts}
 
         login_members = {
             FILLED_MEMBER_ID: "김지훈",
@@ -731,7 +750,9 @@ async def seed_demo_customers() -> None:
                             "job_title": contact_insert.excluded.job_title,
                             "email": contact_insert.excluded.email,
                             "phone": contact_insert.excluded.phone,
-                            "status_code": contact_insert.excluded.status_code,
+                            "customer_contact_status_id": (
+                                contact_insert.excluded.customer_contact_status_id
+                            ),
                             "source_code": contact_insert.excluded.source_code,
                             "memo": contact_insert.excluded.memo,
                             "registered_at": contact_insert.excluded.registered_at,

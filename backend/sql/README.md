@@ -28,6 +28,12 @@
   PostgreSQL 예약어인 `order` 대신 `purchase_order`, 발주 품목은 `purchase_order_item`을 사용합니다.
 - `20260817_0004_unique_customer_company_name.sql`: 같은 팀에 같은 이름의 고객사가 중복
   생성되지 않도록 유일 인덱스를 추가합니다.
+- `20260817_0005_sales_deal_names.sql`: 기존 `contract`를 영업 시작부터 견적·계약·발주를
+  잇는 `sales_deal`로 바꾸고, 저장형 파이프라인과 팀별 표시 설정 5종을 추가합니다. 기존
+  행과 UUID를 보존하면서 최종 **26테이블·266컬럼·64개 FK 제약조건**을 완성합니다.
+
+SQL은 `0001 → 0002 → 0003 → 0004 → 0005` 순서로 적용합니다. `0005` 적용 전에는 앱의
+최종 ORM/API와 물리 스키마가 일치하지 않으므로 데모 seed를 실행하지 않습니다.
 
 ## 적용 이력
 
@@ -38,23 +44,25 @@
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0003_singular_table_names.sql` | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0004_unique_customer_company_name.sql` | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 초기 2계정 | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·4계정 | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·6계정 | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_customers.py` 고객사 6개·담당자 32명 | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_activities.py` 상품 3개·일정 12건 | Session Pooler | 성공 |
 
 ## 개발 로그인 계정
 
 `backend/.env`의 `DEMO_FILLED_MANAGER_LOGIN_ID`, `DEMO_FILLED_MEMBER_LOGIN_ID`,
-`DEMO_EMPTY_MANAGER_LOGIN_ID`, `DEMO_EMPTY_MEMBER_LOGIN_ID`, `DEMO_PASSWORD`를 채운 뒤 아래
-명령을 실행합니다. 평문 비밀번호는 파일이나 로그에 남기지 않고 실행 시 scrypt로 해시합니다.
+`DEMO_FILLED_MEMBER2_LOGIN_ID`, `DEMO_EMPTY_MANAGER_LOGIN_ID`, `DEMO_EMPTY_MEMBER_LOGIN_ID`,
+`DEMO_EMPTY_MEMBER2_LOGIN_ID`, `DEMO_PASSWORD`를 채운 뒤 아래 명령을 실행합니다. 평문
+비밀번호는 파일이나 로그에 남기지 않고 실행 시 scrypt로 해시합니다.
 
 ```bash
 cd backend
 DEBUG=false uv run python -m scripts.seed_demo_auth
 ```
 
-고정된 합성 UUID로 데이터가 채워진 팀과 비어 있는 첫 세팅 팀, 각 팀의 팀장·팀원 계정을
-upsert하므로 같은 개발 DB에 다시 실행할 수 있습니다.
+고정된 합성 UUID로 데이터가 채워진 팀과 비어 있는 첫 세팅 팀, 각 팀의 팀장·팀원 2명 계정,
+팀별 기본 표시 설정과 9단계 기본 published 파이프라인을 upsert하므로 같은 개발 DB에 다시
+실행할 수 있습니다.
 
 프론트 목업과 같은 합성 고객 데이터는 인증 seed 다음에 실행합니다. 데이터가 있는 팀에만
 고객사와 담당자를 upsert하고 첫 세팅 팀은 건드리지 않습니다.
@@ -72,17 +80,17 @@ cd backend
 DEBUG=false uv run python -m scripts.seed_demo_activities
 ```
 
-계약 seed는 인증·고객·일정 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만
-영업 단계 8개와 기존 상품 3종에 연결되는 합성 계약 61건을 upsert합니다. 별도 상품이
-필요한 프론트 목 계약 50건은 넣지 않으며 첫 세팅 팀은 건드리지 않습니다.
+영업 딜 seed는 인증·고객·일정 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀의
+9단계 기본 영업 파이프라인과 기존 상품 3종에 연결되는 합성 영업 딜 61건을 upsert합니다.
+별도 상품이 필요한 프론트 목업 50건은 넣지 않으며 첫 세팅 팀은 건드리지 않습니다.
 
 ```bash
 cd backend
-DEBUG=false uv run python -m scripts.seed_demo_contracts
+DEBUG=false uv run python -m scripts.seed_demo_sales_deals
 ```
 
-발주 seed는 인증·고객·일정·계약 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만
-현재 고객사·상품·계약 관계가 모두 정확한 합성 발주 2건과 품목 2건을 upsert합니다. 관계가
+발주 seed는 인증·고객·일정·영업 딜 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만
+현재 고객사·상품·영업 딜 관계가 모두 정확한 합성 발주 2건과 품목 2건을 upsert합니다. 관계가
 누락되거나 불일치하는 나머지 프론트 목업 발주 3건은 넣지 않으며 비어 있는 팀은 건드리지 않습니다.
 
 ```bash

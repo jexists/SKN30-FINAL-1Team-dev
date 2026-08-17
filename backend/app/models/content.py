@@ -56,8 +56,8 @@ class Document(Base):
     customer_company_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_company.id")
     )
-    contract_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.contract.id"))
-    order_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.purchase_order.id"))
+    sales_deal_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.sales_deal.id"))
+    purchase_order_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.purchase_order.id"))
     tags: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 

@@ -11,6 +11,7 @@ from scripts.seed_demo_customers import (
     STATUS_CODES,
     company_id,
     contact_id,
+    contact_rows,
 )
 
 
@@ -33,6 +34,16 @@ def test_demo_customer_seed_shape_is_fixed_and_synthetic():
     assert all(contact.phone.startswith("02-000-") for contact in CONTACT_SEEDS)
     assert all(contact.source in SOURCE_CODES for contact in CONTACT_SEEDS)
     assert all(contact.status in STATUS_CODES for contact in CONTACT_SEEDS)
+
+    status_ids = {
+        code: uuid5(FILLED_TEAM_ID, f"customer-contact-status:{code}")
+        for code in STATUS_CODES.values()
+    }
+    rows = contact_rows(status_ids)
+    assert len(rows) == 32
+    for seed, row in zip(CONTACT_SEEDS, rows, strict=True):
+        assert row["customer_contact_status_id"] == status_ids[STATUS_CODES[seed.status]]
+        assert "status_code" not in row
 
     for member in ROSTER_MEMBERS:
         assert member["id"] == uuid5(FILLED_TEAM_ID, f"member:{member['display_name']}")

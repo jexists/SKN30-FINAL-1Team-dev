@@ -11,6 +11,7 @@
 
 export type * from './agenda'
 export type * from './contracts'
+export type * from './deals'
 export type * from './counters'
 export type * from './customers'
 export type * from './documents'

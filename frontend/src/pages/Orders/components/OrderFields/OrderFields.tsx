@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react'
 
 import { TrashIcon } from '@/components/icons'
+import type { PurchaseOrderStatusResponse } from '@/types'
 import { wonFull } from '@/utils/format'
 
 import {
@@ -15,8 +16,7 @@ import {
   type FormState,
   type ItemState,
 } from '../../orderForm'
-import { ORDER_STATUSES } from '../../pipeline'
-import type { OrderContractOption, OrderOption } from '../../useOrderList'
+import type { OrderSalesDealOption, OrderOption } from '../../useOrderList'
 
 import styles from './OrderFields.module.scss'
 
@@ -25,13 +25,14 @@ interface Props {
   errors: FormErrors
   onChange: (key: Exclude<keyof FormState, 'items'>, value: string) => void
   onItemsChange: (items: ItemState[]) => void
-  companies: OrderOption[]
-  contracts: OrderContractOption[]
+  salesDeals: OrderSalesDealOption[]
+  statuses: PurchaseOrderStatusResponse[]
   products: OrderOption[]
   suppliers: string[]
   optionsLoading?: boolean
   disabled?: boolean
   showStatus?: boolean
+  lockSalesDeal?: boolean
   /** 메모 앞에 들어갈 추가 항목 */
   children?: ReactNode
 }
@@ -41,46 +42,37 @@ export default function OrderFields({
   errors,
   onChange,
   onItemsChange,
-  companies,
-  contracts,
+  salesDeals,
+  statuses,
   products,
   suppliers,
   optionsLoading = false,
   disabled = false,
   showStatus = true,
+  lockSalesDeal = false,
   children,
 }: Props) {
   const setItem = (index: number, key: keyof ItemState, value: string) =>
     onItemsChange(form.items.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
 
-  const availableContracts = contracts.filter(
-    (contract) => contract.customerCompanyId === form.customerCompanyId,
-  )
-
-  const changeCompany = (customerCompanyId: string) => {
-    onChange('customerCompanyId', customerCompanyId)
-    const selected = contracts.find((contract) => contract.id === form.contractId)
-    if (selected && selected.customerCompanyId !== customerCompanyId) onChange('contractId', '')
-  }
-
   return (
     <div className={styles.grid}>
-      <Field label="고객사" required error={errors.customerCompanyId}>
+      <Field label="영업 딜" required error={errors.salesDealId}>
         <select
-          value={form.customerCompanyId}
-          disabled={disabled || optionsLoading || companies.length === 0}
-          onChange={(event) => changeCompany(event.target.value)}
+          value={form.salesDealId}
+          disabled={disabled || lockSalesDeal || optionsLoading || salesDeals.length === 0}
+          onChange={(event) => onChange('salesDealId', event.target.value)}
         >
           <option value="">
             {optionsLoading
-              ? '고객사를 불러오는 중…'
-              : companies.length === 0
-                ? '등록된 고객사가 없습니다'
-                : '고객사를 선택하세요'}
+              ? '영업 딜을 불러오는 중…'
+              : salesDeals.length === 0
+                ? '선택할 영업 딜이 없습니다'
+                : '영업 딜을 선택하세요'}
           </option>
-          {companies.map((company) => (
-            <option key={company.id} value={company.id}>
-              {company.name}
+          {salesDeals.map((salesDeal) => (
+            <option key={salesDeal.id} value={salesDeal.id}>
+              {salesDeal.no} · {salesDeal.customerCompanyName}
             </option>
           ))}
         </select>
@@ -102,30 +94,18 @@ export default function OrderFields({
         </datalist>
       </Field>
 
-      <Field label="계약번호">
-        <select
-          value={form.contractId}
-          disabled={disabled || optionsLoading || form.customerCompanyId === ''}
-          onChange={(event) => onChange('contractId', event.target.value)}
-        >
-          <option value="">계약 없는 선발주</option>
-          {availableContracts.map((contract) => (
-            <option key={contract.id} value={contract.id}>
-              {contract.no}
-            </option>
-          ))}
-        </select>
-      </Field>
-
       {showStatus && (
-        <Field label="상태">
+        <Field label="상태" required error={errors.stageCode}>
           <select
-            value={form.status}
-            disabled={disabled}
-            onChange={(e) => onChange('status', e.target.value)}
+            value={form.stageCode}
+            disabled={disabled || optionsLoading || statuses.length === 0}
+            onChange={(e) => onChange('stageCode', e.target.value)}
           >
-            {ORDER_STATUSES.map((status) => (
-              <option key={status}>{status}</option>
+            <option value="">발주 상태를 선택하세요</option>
+            {statuses.map((status) => (
+              <option key={status.id} value={status.code}>
+                {status.name}
+              </option>
             ))}
           </select>
         </Field>

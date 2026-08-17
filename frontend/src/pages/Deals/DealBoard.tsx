@@ -1,4 +1,4 @@
-// 영업 현황 보드. 컬럼은 서버의 영업 단계이고 카드 한 장이 실제 계약 하나입니다.
+// 영업 현황 보드. 컬럼은 서버의 영업 단계이고 카드 한 장이 영업 딜 하나입니다.
 import {
   useCallback,
   useDeferredValue,
@@ -16,14 +16,14 @@ import SearchInput from '@/components/SearchInput'
 import usePointerDrag from '@/hooks/usePointerDrag'
 import { addDays, iso, TODAY } from '@/utils/date'
 
-import { DROP_ATTR, parseSlot, type BoardContract } from './board'
+import { DROP_ATTR, parseSlot, type BoardDeal } from './board'
 import StageColumn from './components/StageColumn'
 import ViewToggle from './components/ViewToggle'
-import PipelineContractDrawer from './PipelineContractDrawer'
-import PipelineContractForm from './PipelineContractForm'
-import usePipelineContracts, { type PipelineContract } from './usePipelineContracts'
+import SalesDealDrawer from './SalesDealDrawer'
+import SalesDealForm from './SalesDealForm'
+import useSalesDeals, { type SalesDeal } from './useSalesDeals'
 
-import styles from './BoardView.module.scss'
+import styles from './DealBoard.module.scss'
 
 const RANGES = [
   { value: '3', label: '최근 3개월' },
@@ -40,15 +40,21 @@ interface CardDrag {
   label: string
 }
 
-const pipelineIdentity = (contract: BoardContract) => (contract as PipelineContract).id
+const pipelineIdentity = (deal: BoardDeal) => (deal as SalesDeal).id
 
-export default function BoardView() {
+export default function DealBoard() {
   const [openId, setOpenId] = useState<string | null>(null)
+  const [params, setParams] = useSearchParams()
+  const requestedPipelineId = params.get('pipeline') ?? ''
   const {
+    pipelines,
+    dealPipelineId,
+    activePipeline,
     columns,
     cards,
     companies,
     products,
+    dealTypes,
     loading,
     error,
     reload,
@@ -58,29 +64,49 @@ export default function BoardView() {
     reloadDetail,
     mutationError,
     clearMutationError,
+    canCreate,
     isCreating,
     isPending,
-    createContract,
-    updateContract,
-    deleteContract,
-    moveContract,
-  } = usePipelineContracts(openId)
+    createSalesDeal,
+    updateSalesDeal,
+    deleteSalesDeal,
+    moveSalesDeal,
+  } = useSalesDeals(openId, requestedPipelineId || null, 'board')
 
-  const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
   const range = params.get('range') ?? DEFAULT_RANGE
   const deferredQuery = useDeferredValue(query)
+  const readOnly = activePipeline?.status_code === 'archived'
 
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [openFilter, setOpenFilter] = useState<'range' | null>(null)
+  const [openFilter, setOpenFilter] = useState<'pipeline' | 'range' | null>(null)
+
+  const pipelineOptions = useMemo(
+    () =>
+      pipelines.map((pipeline) => ({
+        value: pipeline.id,
+        label: pipeline.name + (pipeline.status_code === 'archived' ? ' (보관)' : ''),
+      })),
+    [pipelines],
+  )
 
   const setParam = useCallback(
     (key: string, value: string, fallback = '') => {
       const next = new URLSearchParams(params)
       if (value === fallback) next.delete(key)
       else next.set(key, value)
+      setParams(next, { replace: true })
+    },
+    [params, setParams],
+  )
+
+  const setPipeline = useCallback(
+    (value: string) => {
+      const next = new URLSearchParams(params)
+      next.set('pipeline', value)
+      next.delete('stage')
       setParams(next, { replace: true })
     },
     [params, setParams],
@@ -93,7 +119,7 @@ export default function BoardView() {
   }, [range])
 
   const byColumn = useMemo(() => {
-    const grouped = new Map<string, PipelineContract[]>()
+    const grouped = new Map<string, SalesDeal[]>()
     for (const column of columns) grouped.set(column.id, [])
     for (const card of cards) grouped.get(card.stageId)?.push(card)
     for (const stageCards of grouped.values()) stageCards.sort((a, b) => a.order - b.order)
@@ -101,7 +127,7 @@ export default function BoardView() {
   }, [cards, columns])
 
   const matches = useCallback(
-    (card: PipelineContract) => {
+    (card: SalesDeal) => {
       if (fromISO !== null && card.date < fromISO) return false
       const needle = deferredQuery.trim().toLowerCase()
       if (needle === '') return true
@@ -114,7 +140,7 @@ export default function BoardView() {
   )
 
   const shownByColumn = useMemo(() => {
-    const grouped = new Map<string, PipelineContract[]>()
+    const grouped = new Map<string, SalesDeal[]>()
     for (const column of columns)
       grouped.set(column.id, (byColumn.get(column.id) ?? []).filter(matches))
     return grouped
@@ -124,6 +150,7 @@ export default function BoardView() {
 
   const drop = useCallback(
     (dragged: CardDrag, key: string) => {
+      if (readOnly) return
       const slot = parseSlot(key)
       const card = cards.find(({ id }) => id === dragged.id)
       if (!slot || !card || isPending(card.id)) return
@@ -139,15 +166,16 @@ export default function BoardView() {
         position -= 1
       if (card.stageId === slot.columnId && position === sourceIndex) return
 
-      void moveContract(card.id, card.stageId, slot.columnId, position).catch(() => undefined)
+      void moveSalesDeal(card.id, card.stageId, slot.columnId, position).catch(() => undefined)
     },
-    [byColumn, cards, isPending, moveContract, shownByColumn],
+    [byColumn, cards, isPending, moveSalesDeal, readOnly, shownByColumn],
   )
 
   const { dragging, dropKey, point, start } = usePointerDrag<CardDrag>(DROP_ATTR, drop)
 
   const grab = useCallback(
-    (pointer: ReactPointerEvent, _contract: BoardContract, id: string) => {
+    (pointer: ReactPointerEvent, _deal: BoardDeal, id: string) => {
+      if (readOnly) return
       const card = findById(id)
       if (!card || isPending(card.id)) return
       start(pointer, {
@@ -155,18 +183,19 @@ export default function BoardView() {
         label: card.org + ' · ' + card.product,
       })
     },
-    [findById, isPending, start],
+    [findById, isPending, readOnly, start],
   )
 
   const nudge = useCallback(
     (id: string, delta: -1 | 1) => {
+      if (readOnly) return
       const card = findById(id)
       if (!card || isPending(card.id)) return
       const at = columns.findIndex((column) => column.id === card.stageId)
       const target = columns[at + delta]
-      if (target) void moveContract(card.id, card.stageId, target.id, 0).catch(() => undefined)
+      if (target) void moveSalesDeal(card.id, card.stageId, target.id, 0).catch(() => undefined)
     },
-    [columns, findById, isPending, moveContract],
+    [columns, findById, isPending, moveSalesDeal, readOnly],
   )
 
   const openById = useCallback(
@@ -197,15 +226,13 @@ export default function BoardView() {
     [clearMutationError, findById],
   )
 
-  const openContract = detail ?? cards.find(({ id }) => id === openId) ?? null
-  const editingContract = cards.find(({ id }) => id === editingId)
-  const deletingContract = cards.find(({ id }) => id === deletingId)
+  const openDeal = detail ?? cards.find(({ id }) => id === openId) ?? null
+  const editingDeal = cards.find(({ id }) => id === editingId)
+  const deletingDeal = cards.find(({ id }) => id === deletingId)
   const addingColumn = columns.find(({ id }) => id === addingTo)
   const firstColumn = columns[0]
-  const openStage = openContract
-    ? columns.find((column) => column.id === openContract.stageId)
-    : undefined
-  const isDeleting = deletingContract ? isPending(deletingContract.id) : false
+  const openStage = openDeal ? columns.find((column) => column.id === openDeal.stageId) : undefined
+  const isDeleting = deletingDeal ? isPending(deletingDeal.id) : false
 
   return (
     <section className={styles.page} aria-busy={loading}>
@@ -215,9 +242,18 @@ export default function BoardView() {
         <SearchInput
           className={styles.search}
           value={query}
-          placeholder="고객사·제품·계약번호 검색"
-          label="영업 건 검색"
+          placeholder="고객사·제품·영업번호 검색"
+          label="영업 딜 검색"
           onChange={(next) => setParam('q', next)}
+        />
+
+        <FilterSelect
+          label="파이프라인"
+          value={dealPipelineId ?? ''}
+          options={pipelineOptions}
+          open={openFilter === 'pipeline'}
+          onOpenChange={(open) => setOpenFilter(open ? 'pipeline' : null)}
+          onChange={setPipeline}
         />
 
         <FilterSelect
@@ -232,14 +268,16 @@ export default function BoardView() {
         <div className={styles.actions}>
           <ViewToggle view="board" />
           <Button
-            disabled={loading || !firstColumn || isCreating}
+            disabled={loading || !canCreate || !firstColumn || isCreating}
             onClick={() => firstColumn && setAddingTo(firstColumn.id)}
           >
             <PlusIcon width={15} height={15} />
-            영업 건 추가
+            영업 딜 추가
           </Button>
         </div>
       </div>
+
+      {readOnly && <p role="status">보관된 파이프라인은 읽기 전용입니다.</p>}
 
       {mutationError && (
         <div role="alert">
@@ -269,7 +307,7 @@ export default function BoardView() {
         <p role="status">아직 설정된 영업 단계가 없습니다.</p>
       ) : (
         <>
-          {!loading && cards.length === 0 && <p role="status">아직 등록한 영업 건이 없습니다.</p>}
+          {!loading && cards.length === 0 && <p role="status">아직 등록한 영업 딜이 없습니다.</p>}
           <div className={styles.board}>
             {columns.map((column) => (
               <StageColumn
@@ -278,6 +316,7 @@ export default function BoardView() {
                 cards={shownByColumn.get(column.id) ?? []}
                 identityOf={pipelineIdentity}
                 editableStages={false}
+                readOnly={readOnly}
                 dropSlot={dropKey}
                 draggingIdentity={dragging?.id ?? null}
                 others={[]}
@@ -309,60 +348,62 @@ export default function BoardView() {
       )}
 
       {openId && (
-        <PipelineContractDrawer
-          contract={openContract}
+        <SalesDealDrawer
+          deal={openDeal}
           stage={openStage}
           loading={detailLoading}
           error={detailError}
           onRetry={reloadDetail}
           onClose={() => setOpenId(null)}
           onEdit={() => {
-            if (!openContract) return
+            if (!openDeal) return
             clearMutationError()
-            setEditingId(openContract.id)
+            setEditingId(openDeal.id)
             setOpenId(null)
           }}
           onDelete={() => {
-            if (!openContract) return
+            if (!openDeal) return
             clearMutationError()
-            setDeletingId(openContract.id)
+            setDeletingId(openDeal.id)
             setOpenId(null)
           }}
         />
       )}
 
-      {addingColumn && (
-        <PipelineContractForm
+      {addingColumn && !readOnly && (
+        <SalesDealForm
           stageName={addingColumn.name}
           companies={companies}
           products={products}
+          dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setAddingTo(null)}
           onSubmit={async (input) => {
-            await createContract(input, addingColumn.id)
+            await createSalesDeal(input, addingColumn.id)
             setAddingTo(null)
           }}
         />
       )}
 
-      {editingContract && (
-        <PipelineContractForm
-          contract={editingContract}
+      {editingDeal && !readOnly && (
+        <SalesDealForm
+          deal={editingDeal}
           companies={companies}
           products={products}
+          dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setEditingId(null)}
           onSubmit={async (input) => {
-            await updateContract(editingContract.id, input)
+            await updateSalesDeal(editingDeal.id, input)
             setEditingId(null)
           }}
         />
       )}
 
-      {deletingContract && (
+      {deletingDeal && !readOnly && (
         <Modal
-          title="영업 건을 삭제할까요?"
-          description={deletingContract.no + ' · ' + deletingContract.org + '. 되돌릴 수 없습니다.'}
+          title="영업 딜을 삭제할까요?"
+          description={deletingDeal.no + ' · ' + deletingDeal.org + '. 되돌릴 수 없습니다.'}
           onClose={() => {
             if (!isDeleting) setDeletingId(null)
           }}
@@ -380,7 +421,7 @@ export default function BoardView() {
                 type="button"
                 disabled={isDeleting}
                 onClick={() => {
-                  void deleteContract(deletingContract.id)
+                  void deleteSalesDeal(deletingDeal.id)
                     .then(() => setDeletingId(null))
                     .catch(() => undefined)
                 }}
@@ -391,7 +432,7 @@ export default function BoardView() {
           }
         >
           <p className={styles.confirm}>
-            {deletingContract.product} · {deletingContract.owner}
+            {deletingDeal.product} · {deletingDeal.owner}
           </p>
           {mutationError && <p role="alert">{mutationError}</p>}
         </Modal>

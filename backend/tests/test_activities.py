@@ -9,6 +9,7 @@ from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
+from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product
 from app.models.workspace import Member
@@ -128,7 +129,7 @@ def _contact(company_id: UUID, owner_id: UUID) -> CustomerContact:
         job_title="팀장",
         email=None,
         phone="02-000-0000",
-        status_code=None,
+        customer_contact_status_id=None,
         source_code=None,
         memo=None,
         registered_at=NOW,
@@ -147,22 +148,64 @@ def _activity(member: Member, *, contact_id: UUID | None = None, product_id: UUI
         customer_contact_id=contact_id,
         end_user_contact_id=None,
         activity_type="meeting",
-        category_code="visit",
+        activity_category_id=uuid4(),
         title="합성 미팅",
         starts_at=START,
         ends_at=END,
         all_day=False,
         due_at=None,
         location="회의실",
-        action_tag="meeting",
+        activity_action_tag_id=uuid4(),
         completed_at=None,
         note="합성 메모",
         deleted_at=None,
         created_at=NOW,
         updated_at=NOW,
         product_id=product_id,
-        contract_id=None,
-        order_id=None,
+        sales_deal_id=None,
+        purchase_order_id=None,
+    )
+
+
+def _category(
+    team_id: UUID,
+    *,
+    code: str = "visit",
+    activity_type: str = "meeting",
+    deleted_at: datetime | None = None,
+) -> ActivityCategory:
+    return ActivityCategory(
+        id=uuid4(),
+        team_id=team_id,
+        code=code,
+        name="방문",
+        tone="blue",
+        position=1,
+        deleted_at=deleted_at,
+        created_at=NOW,
+        updated_at=NOW,
+        activity_type=activity_type,
+    )
+
+
+def _action_tag(
+    team_id: UUID,
+    *,
+    code: str = "meeting",
+    activity_type: str = "meeting",
+    deleted_at: datetime | None = None,
+) -> ActivityActionTag:
+    return ActivityActionTag(
+        id=uuid4(),
+        team_id=team_id,
+        code=code,
+        name="미팅",
+        tone="violet",
+        position=1,
+        deleted_at=deleted_at,
+        created_at=NOW,
+        updated_at=NOW,
+        activity_type=activity_type,
     )
 
 
@@ -172,7 +215,12 @@ def _row(
     contact: CustomerContact | None = None,
     company: CustomerCompany | None = None,
     product: Product | None = None,
+    category: ActivityCategory | None = None,
+    action_tag: ActivityActionTag | None | object = _MISSING,
 ):
+    category = category or _category(owner.team_id)
+    if action_tag is _MISSING:
+        action_tag = _action_tag(owner.team_id)
     return (
         activity,
         owner.display_name,
@@ -180,6 +228,8 @@ def _row(
         None if company is None else company.id,
         None if company is None else company.name,
         None if product is None else product.name,
+        category,
+        action_tag,
     )
 
 
@@ -195,7 +245,7 @@ def _client(db: _Db, member: Member) -> TestClient:
     return TestClient(app)
 
 
-def test_activity_request_contract_rejects_unsafe_values():
+def test_activity_request_sales_deal_rejects_unsafe_values():
     payload = ActivityCreate(
         activity_type="meeting",
         category_code="education",
@@ -206,12 +256,23 @@ def test_activity_request_contract_rejects_unsafe_values():
     )
 
     assert payload.title == "합성 미팅"
+    assert (
+        ActivityCreate(
+            activity_type="meeting",
+            category_code="custom_category",
+            title="합성 미팅",
+            starts_at="2026-08-17T10:00:00+09:00",
+            action_tag="custom_action",
+        ).action_tag
+        == "custom_action"
+    )
     assert ActivityPatch(note=None).model_dump(exclude_unset=True) == {"note": None}
     assert ActivityPageParams(start_date="2026-08-17").end_date is None
 
     invalid_payloads = (
         {"owner_member_id": str(uuid4())},
-        {"category_code": "edu"},
+        {"category_code": "Bad-Code"},
+        {"action_tag": "bad__code"},
         {"action_tag": "데모 완료"},
         {"starts_at": "2026-08-17T10:00:00"},
         {"starts_at": "2026-08-17T01:00:00Z"},
@@ -270,7 +331,12 @@ def test_member_list_is_owner_date_and_soft_delete_scoped():
     contact = _contact(company.id, member.id)
     product = _product(member.team_id)
     activity = _activity(member, contact_id=contact.id, product_id=product.id)
-    db = _Db(_Result(scalar=1), _Result(rows=[_row(activity, member, contact, company, product)]))
+    category = _category(member.team_id, deleted_at=NOW)
+    action_tag = _action_tag(member.team_id, deleted_at=NOW)
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[_row(activity, member, contact, company, product, category, action_tag)]),
+    )
 
     with _client(db, member) as client:
         response = client.get(
@@ -284,9 +350,19 @@ def test_member_list_is_owner_date_and_soft_delete_scoped():
     assert response.json()["items"][0]["starts_at"].endswith("+09:00")
     assert response.json()["items"][0]["customer_company_name"] == company.name
     assert response.json()["items"][0]["product_name"] == product.name
+    assert response.json()["items"][0]["category_code"] == "visit"
+    assert response.json()["items"][0]["action_tag"] == "meeting"
+    assert response.json()["items"][0]["activity_category_id"] == str(category.id)
+    assert response.json()["items"][0]["activity_category_name"] == category.name
+    assert response.json()["items"][0]["activity_category_tone"] == category.tone
+    assert response.json()["items"][0]["activity_action_tag_id"] == str(action_tag.id)
+    assert response.json()["items"][0]["activity_action_tag_name"] == action_tag.name
+    assert response.json()["items"][0]["activity_action_tag_tone"] == action_tag.tone
     for statement in db.statements:
         sql = str(statement)
         assert "activity.deleted_at IS NULL" in sql
+        assert "activity_category.deleted_at IS NULL" not in sql
+        assert "activity_action_tag.deleted_at IS NULL" not in sql
         assert member.id in statement.compile().params.values()
         assert member.team_id in statement.compile().params.values()
 
@@ -349,9 +425,13 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
     product = _product(member.team_id)
+    category = _category(member.team_id, code="demo")
+    action_tag = _action_tag(member.team_id, code="demo_in_progress")
     db = _Db(
         _Result(rows=[(contact, company.id, company.name)]),
         _Result(scalar=product),
+        _Result(scalar=category),
+        _Result(scalar=action_tag),
     )
 
     with _client(db, member) as client:
@@ -379,6 +459,10 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     activity = db.added[0]
     assert activity.team_id == member.team_id
     assert activity.owner_member_id == member.id
+    assert activity.activity_category_id == category.id
+    assert activity.activity_action_tag_id == action_tag.id
+    assert response.json()["activity_category_name"] == category.name
+    assert response.json()["activity_action_tag_name"] == action_tag.name
     assert activity.title == "합성 데모"
     assert db.flush_count == db.commit_count == 1
     assert db.rollback_count == 0
@@ -402,6 +486,123 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     assert hidden.json() == {"detail": "customer_contact_not_found"}
     assert hidden_db.rollback_count == 1
     assert not hidden_db.added
+
+
+def test_activity_options_reject_other_team_deleted_or_wrong_type_lookups():
+    member = _member()
+    category_db = _Db(_Result(scalar=None))
+    with _client(category_db, member) as client:
+        other_team_category = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "activity_type": "meeting",
+                "category_code": "other_team_category",
+                "title": "합성 미팅",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    action_db = _Db(_Result(scalar=_category(member.team_id)), _Result(scalar=None))
+    with _client(action_db, member) as client:
+        deleted_action = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "activity_type": "meeting",
+                "category_code": "visit",
+                "action_tag": "deleted_action",
+                "title": "합성 미팅",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    activity = _activity(member)
+    patch_db = _Db(_Result(scalar=activity), _Result(scalar=None))
+    with _client(patch_db, member) as client:
+        deleted_category = client.patch(
+            f"/api/activities/{activity.id}",
+            headers={"Origin": ORIGIN},
+            json={"category_code": "deleted_category"},
+        )
+
+    assert other_team_category.status_code == deleted_category.status_code == 422
+    assert (
+        other_team_category.json()
+        == deleted_category.json()
+        == {"detail": "activity_category_code_not_found"}
+    )
+    assert deleted_action.status_code == 422
+    assert deleted_action.json() == {"detail": "activity_action_tag_code_not_found"}
+
+    checks = (
+        (category_db.statements[0], "other_team_category", "activity_category"),
+        (action_db.statements[1], "deleted_action", "activity_action_tag"),
+        (patch_db.statements[1], "deleted_category", "activity_category"),
+    )
+    for statement, code, table in checks:
+        sql = str(statement)
+        values = statement.compile().params.values()
+        assert f"{table}.deleted_at IS NULL" in sql
+        assert member.team_id in values
+        assert code in values
+        assert "meeting" in values
+
+
+def test_member_cannot_link_another_owners_sales_deal():
+    member = _member()
+    sales_deal_id = uuid4()
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "sales_deal_id": str(sales_deal_id),
+                "activity_type": "meeting",
+                "category_code": "visit",
+                "title": "합성 미팅",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "sales_deal_not_found"}
+    statement = db.statements[0]
+    assert "sales_deal.owner_member_id" in str(statement)
+    assert member.id in statement.compile().params.values()
+    assert member.team_id in statement.compile().params.values()
+    assert db.rollback_count == 1
+
+
+def test_activity_options_are_active_same_team_type_and_ordered():
+    member = _member()
+    category = _category(member.team_id, code="custom_category")
+    action_tag = _action_tag(member.team_id, code="custom_action")
+    db = _Db(
+        _Result(scalar_values=[category]),
+        _Result(scalar_values=[action_tag]),
+    )
+
+    with _client(db, member) as client:
+        categories = client.get("/api/activity-categories", params={"activity_type": "meeting"})
+        action_tags = client.get("/api/activity-action-tags", params={"activity_type": "meeting"})
+
+    assert categories.status_code == action_tags.status_code == 200
+    assert categories.json()[0]["code"] == category.code
+    assert action_tags.json()[0]["code"] == action_tag.code
+    for statement, table in zip(
+        db.statements,
+        ("activity_category", "activity_action_tag"),
+        strict=True,
+    ):
+        sql = str(statement)
+        values = statement.compile().params.values()
+        assert f"{table}.deleted_at IS NULL" in sql
+        assert f"ORDER BY public.{table}.position" in sql
+        assert member.team_id in values
+        assert "meeting" in values
 
 
 def test_detail_and_patch_share_scope_and_patch_revalidates_range():
@@ -483,7 +684,10 @@ def test_cross_team_activity_is_hidden_and_delete_is_soft():
 
 def test_write_failure_rolls_back_transaction():
     member = _member()
-    db = _Db(flush_error=RuntimeError("synthetic failure"))
+    db = _Db(
+        _Result(scalar=_category(member.team_id, code="internal", activity_type="task")),
+        flush_error=RuntimeError("synthetic failure"),
+    )
 
     with _client(db, member) as client, pytest.raises(RuntimeError, match="synthetic failure"):
         client.post(

@@ -32,6 +32,16 @@ SearchQuery = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100),
 ]
+OptionCode = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+    ),
+]
 Money = Annotated[StrictInt, Field(ge=0, le=9_223_372_036_854_775_807)]
 Position = Annotated[StrictInt, Field(ge=0, le=2_147_483_647)]
 SafeDateTime = Annotated[
@@ -42,28 +52,47 @@ SafeDateTime = Annotated[
     ),
     AfterValidator(_seoul_offset),
 ]
-ContractType = Literal[
-    "new_installation",
-    "expansion",
-    "renewal",
-    "maintenance",
-    "consumables_supply",
-]
+PipelineStatus = Literal["published", "archived"]
 StageTone = Literal["gray", "blue", "purple", "orange", "green", "red"]
-StageOutcome = Literal["in_progress", "confirmed", "cancelled"]
+SalesPhase = Literal["sales", "quote", "contract", "order", "closed"]
+SalesOutcome = Literal["in_progress", "confirmed", "cancelled"]
 
 
 class _WriteModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class PipelineStageRead(BaseModel):
+class SalesPipelineRead(BaseModel):
+    id: UUID
+    name: str
+    description: str | None
+    status_code: PipelineStatus
+    is_default: bool
+    published_at: datetime | None
+    archived_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SalesPipelineStageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    sales_pipeline_id: UUID
+    stage_code: OptionCode
     name: str
     tone: StageTone
-    outcome_code: StageOutcome
+    phase_code: SalesPhase
+    outcome_code: SalesOutcome
+    position: int
+
+
+class SalesDealTypeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: OptionCode
+    name: str
     position: int
 
 
@@ -92,42 +121,61 @@ class ProductPageParams(BaseModel):
     limit: int = Field(default=30, ge=1, le=100)
 
 
-class PipelineStageParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class ContractCreate(_WriteModel):
+class SalesDealCreate(_WriteModel):
     customer_company_id: UUID
-    contact_id: UUID | None = None
+    customer_contact_id: UUID | None = None
     product_id: UUID
-    stage_id: UUID
+    sales_pipeline_id: UUID
+    sales_pipeline_stage_id: UUID
     title: Text | None = None
     description: LongText | None = None
-    contract_type: ContractType
-    amount: Money
-    contract_date: date
-    ends_on: date | None = None
+    deal_type_code: OptionCode
+    deal_amount: Money
+    opened_on: date
+    quote_no: Text | None = None
+    quote_issued_on: date | None = None
+    quote_valid_until: date | None = None
+    contract_no: Text | None = None
+    contract_signed_on: date | None = None
+    contract_ends_on: date | None = None
     warranty_terms: LongText | None = None
     expected_delivery_at: SafeDateTime | None = None
     memo: LongText | None = None
 
     @model_validator(mode="after")
-    def title_cannot_be_null(self) -> Self:
+    def validate_write(self) -> Self:
         if "title" in self.model_fields_set and self.title is None:
             raise ValueError("title cannot be null")
+        if self.quote_issued_on is not None and self.quote_issued_on < self.opened_on:
+            raise ValueError("quote_issued_on must not be before opened_on")
+        if self.quote_valid_until is not None and (
+            self.quote_issued_on is None or self.quote_valid_until < self.quote_issued_on
+        ):
+            raise ValueError("quote_valid_until requires a non-later quote_issued_on")
+        if self.contract_signed_on is not None and self.contract_signed_on < self.opened_on:
+            raise ValueError("contract_signed_on must not be before opened_on")
+        if self.contract_ends_on is not None and (
+            self.contract_signed_on is None or self.contract_ends_on < self.contract_signed_on
+        ):
+            raise ValueError("contract_ends_on requires a non-later contract_signed_on")
         return self
 
 
-class ContractPatch(_WriteModel):
+class SalesDealPatch(_WriteModel):
     customer_company_id: UUID | None = None
-    contact_id: UUID | None = None
+    customer_contact_id: UUID | None = None
     product_id: UUID | None = None
     title: Text | None = None
     description: LongText | None = None
-    contract_type: ContractType | None = None
-    amount: Money | None = None
-    contract_date: date | None = None
-    ends_on: date | None = None
+    deal_type_code: OptionCode | None = None
+    deal_amount: Money | None = None
+    opened_on: date | None = None
+    quote_no: Text | None = None
+    quote_issued_on: date | None = None
+    quote_valid_until: date | None = None
+    contract_no: Text | None = None
+    contract_signed_on: date | None = None
+    contract_ends_on: date | None = None
     warranty_terms: LongText | None = None
     expected_delivery_at: SafeDateTime | None = None
     memo: LongText | None = None
@@ -138,54 +186,68 @@ class ContractPatch(_WriteModel):
             "customer_company_id",
             "product_id",
             "title",
-            "contract_type",
-            "amount",
-            "contract_date",
+            "deal_type_code",
+            "deal_amount",
+            "opened_on",
         ):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} cannot be null")
         return self
 
 
-class ContractMove(_WriteModel):
-    expected_stage_id: UUID
-    stage_id: UUID
-    position: Position
+class SalesDealMove(_WriteModel):
+    expected_sales_pipeline_stage_id: UUID
+    sales_pipeline_stage_id: UUID
+    stage_position: Position
 
 
-class ContractRead(BaseModel):
+class SalesDealRead(BaseModel):
     id: UUID
-    contract_no: str
+    deal_no: str
     customer_company_id: UUID
     customer_company_name: str
     customer_company_region_code: str | None
-    contact_id: UUID | None
-    contact_name: str | None
+    customer_contact_id: UUID | None
+    customer_contact_name: str | None
     owner_member_id: UUID
     owner_display_name: str
     product_id: UUID | None
     product_name: str | None
-    stage_id: UUID
-    stage_name: str
-    stage_tone: StageTone
-    stage_outcome_code: StageOutcome
-    stage_position: int
+    sales_pipeline_id: UUID
+    sales_pipeline_name: str
+    sales_pipeline_status_code: PipelineStatus
+    sales_pipeline_is_default: bool
+    sales_pipeline_stage_id: UUID
+    sales_pipeline_stage_code: OptionCode
+    sales_pipeline_stage_name: str
+    sales_pipeline_stage_tone: StageTone
+    sales_pipeline_stage_phase_code: SalesPhase
+    sales_pipeline_stage_outcome_code: SalesOutcome
+    sales_pipeline_stage_position: int
+    sales_deal_type_id: UUID
+    deal_type_code: OptionCode
+    deal_type_name: str
     title: str
     description: str | None
-    contract_type: ContractType
-    amount: int
-    contract_date: date
-    ends_on: date | None
+    deal_amount: int
+    opened_on: date
+    closed_on: date | None
+    quote_no: str | None
+    quote_issued_on: date | None
+    quote_valid_until: date | None
+    contract_no: str | None
+    contract_signed_on: date | None
+    contract_ends_on: date | None
     warranty_terms: str | None
     expected_delivery_at: datetime | None
     memo: str | None
-    position: int
+    stage_position: int
     created_at: datetime
     updated_at: datetime
 
 
-class ContractPage(BaseModel):
-    items: list[ContractRead]
+class SalesDealPage(BaseModel):
+    items: list[SalesDealRead]
     skip: int
     limit: int
     total: int
@@ -193,14 +255,16 @@ class ContractPage(BaseModel):
     next_skip: int | None
 
 
-class ContractPageParams(BaseModel):
+class SalesDealPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     q: SearchQuery | None = None
     start_date: date | None = None
     end_date: date | None = None
     owner_member_id: list[UUID] | None = None
-    stage_id: list[UUID] | None = None
+    sales_pipeline_id: UUID | None = None
+    sales_pipeline_stage_id: list[UUID] | None = None
+    phase_code: list[SalesPhase] | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=100)
 

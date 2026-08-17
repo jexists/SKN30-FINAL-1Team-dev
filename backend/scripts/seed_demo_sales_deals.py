@@ -1,4 +1,4 @@
-"""filled 데모팀에만 영업 단계 8개와 합성 계약 61건을 반복 가능하게 넣는다."""
+"""filled 데모팀의 기본 파이프라인에 합성 딜 61건을 반복 가능하게 넣는다."""
 
 import asyncio
 from datetime import timedelta
@@ -9,49 +9,43 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.db.session import get_sessionmaker
+from app.models.configuration import SalesDealType
 from app.models.crm import CustomerCompany
-from app.models.sales import Contract, PipelineStage, Product
+from app.models.sales import Product, SalesDeal, SalesPipeline, SalesPipelineStage
 from app.models.workspace import Member, Team
 from scripts.seed_demo_activities import PRODUCT_NAMES, REFERENCE_DATE, product_id
 from scripts.seed_demo_auth import FILLED_TEAM_ID
 from scripts.seed_demo_customers import FILLED_TEAM_NAME, OWNER_IDS, company_id
 
 
-class PipelineStageSeed(NamedTuple):
-    key: str
-    name: str
-    tone: str
-    outcome_code: str
-    position: int
-
-
-class ContractSeed(NamedTuple):
-    contract_no: str
+class SalesDealSeed(NamedTuple):
+    deal_no: str
     company_name: str
     product_name: str
-    amount: int
-    contract_type: str
+    deal_amount: int
+    deal_type_code: str
     day_offset: int
     owner_name: str
-    stage_key: str
-    position: int
+    sales_pipeline_stage_key: str
+    stage_position: int
 
 
-PIPELINE_STAGE_SEEDS = (
-    PipelineStageSeed("needs", "니즈 검증", "gray", "in_progress", 0),
-    PipelineStageSeed("demo", "제품 시연 평가", "blue", "in_progress", 1),
-    PipelineStageSeed("quote", "견적서 발송", "purple", "in_progress", 2),
-    PipelineStageSeed("sent", "계약서 발송", "orange", "in_progress", 3),
-    PipelineStageSeed("reviewing", "계약서 검토", "orange", "in_progress", 4),
-    PipelineStageSeed("won", "계약 완료", "green", "confirmed", 5),
-    PipelineStageSeed("delivered", "납품 완료", "green", "confirmed", 6),
-    PipelineStageSeed("lost", "취소", "red", "cancelled", 7),
-)
+STAGE_CODE_BY_KEY = {
+    "needs": "needs_validation",
+    "demo": "product_demo",
+    "quote": "quote_sent",
+    "sent": "contract_sent",
+    "reviewing": "contract_review",
+    "won": "contract_completed",
+    "order_in_progress": "order_in_progress",
+    "delivered": "order_delivered",
+    "lost": "closed_cancelled",
+}
 
-# 프론트 계약 111건 중 현재 product seed 3종에 정확히 연결되는 61건만 옮긴다.
-# position은 제외된 50건을 포함한 기존 영업 보드의 순서를 그대로 보존한다.
-CONTRACT_SEEDS = (
-    ContractSeed(
+# 프론트 딜 111건 중 현재 product seed 3종에 정확히 연결되는 61건만 옮긴다.
+# stage_position은 제외된 50건을 포함한 기존 영업 보드의 순서를 그대로 보존한다.
+SALES_DEAL_SEEDS = (
+    SalesDealSeed(
         "FM-CT-2026-0039",
         "정우병원",
         "SonoFlex Pro",
@@ -62,7 +56,7 @@ CONTRACT_SEEDS = (
         "needs",
         0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0059",
         "한빛대학교병원",
         "CardioView X7",
@@ -73,7 +67,7 @@ CONTRACT_SEEDS = (
         "needs",
         1,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0058",
         "미래아동병원",
         "SonoFlex Pro",
@@ -84,7 +78,7 @@ CONTRACT_SEEDS = (
         "needs",
         2,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0037",
         "한빛대학교병원",
         "SonoFlex Pro",
@@ -95,7 +89,7 @@ CONTRACT_SEEDS = (
         "won",
         1,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0055",
         "서림메디컬센터",
         "OrthoScan Mini",
@@ -106,7 +100,7 @@ CONTRACT_SEEDS = (
         "demo",
         0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0054",
         "새봄정형외과",
         "OrthoScan Mini",
@@ -117,7 +111,7 @@ CONTRACT_SEEDS = (
         "demo",
         1,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0051",
         "도담재활병원",
         "CardioView X7",
@@ -128,7 +122,7 @@ CONTRACT_SEEDS = (
         "quote",
         0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0050",
         "정우병원",
         "SonoFlex Pro",
@@ -139,7 +133,7 @@ CONTRACT_SEEDS = (
         "quote",
         1,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0032",
         "한빛대학교병원",
         "OrthoScan Mini",
@@ -150,7 +144,7 @@ CONTRACT_SEEDS = (
         "won",
         6,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0047",
         "한빛대학교병원",
         "OrthoScan Mini",
@@ -161,7 +155,7 @@ CONTRACT_SEEDS = (
         "sent",
         0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0030",
         "새봄정형외과",
         "CardioView X7",
@@ -172,7 +166,7 @@ CONTRACT_SEEDS = (
         "won",
         7,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0046",
         "미래아동병원",
         "CardioView X7",
@@ -183,7 +177,7 @@ CONTRACT_SEEDS = (
         "sent",
         1,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0029",
         "미래아동병원",
         "CardioView X7",
@@ -194,7 +188,7 @@ CONTRACT_SEEDS = (
         "won",
         8,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0044",
         "정우병원",
         "OrthoScan Mini",
@@ -205,7 +199,7 @@ CONTRACT_SEEDS = (
         "sent",
         3,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0043",
         "서림메디컬센터",
         "SonoFlex Pro",
@@ -216,7 +210,7 @@ CONTRACT_SEEDS = (
         "reviewing",
         0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0028",
         "도담재활병원",
         "CardioView X7",
@@ -227,7 +221,7 @@ CONTRACT_SEEDS = (
         "won",
         9,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0027",
         "서림메디컬센터",
         "SonoFlex Pro",
@@ -238,7 +232,7 @@ CONTRACT_SEEDS = (
         "won",
         10,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0040",
         "도담재활병원",
         "OrthoScan Mini",
@@ -249,7 +243,7 @@ CONTRACT_SEEDS = (
         "reviewing",
         3,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0026",
         "미래아동병원",
         "SonoFlex Pro",
@@ -260,7 +254,7 @@ CONTRACT_SEEDS = (
         "won",
         11,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0024",
         "새봄정형외과",
         "OrthoScan Mini",
@@ -271,7 +265,7 @@ CONTRACT_SEEDS = (
         "won",
         13,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0022",
         "도담재활병원",
         "SonoFlex Pro",
@@ -282,7 +276,7 @@ CONTRACT_SEEDS = (
         "won",
         15,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0021",
         "한빛대학교병원",
         "SonoFlex Pro",
@@ -293,7 +287,7 @@ CONTRACT_SEEDS = (
         "lost",
         0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0020",
         "한빛대학교병원",
         "CardioView X7",
@@ -301,10 +295,10 @@ CONTRACT_SEEDS = (
         "new_installation",
         -93,
         "김지훈",
-        "won",
-        16,
+        "order_in_progress",
+        0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0019",
         "서림메디컬센터",
         "CardioView X7",
@@ -315,7 +309,7 @@ CONTRACT_SEEDS = (
         "won",
         17,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0015",
         "한빛대학교병원",
         "OrthoScan Mini",
@@ -326,7 +320,7 @@ CONTRACT_SEEDS = (
         "won",
         20,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0013",
         "서림메디컬센터",
         "OrthoScan Mini",
@@ -337,7 +331,7 @@ CONTRACT_SEEDS = (
         "delivered",
         0,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0011",
         "미래아동병원",
         "CardioView X7",
@@ -348,7 +342,7 @@ CONTRACT_SEEDS = (
         "won",
         23,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0010",
         "서림메디컬센터",
         "CardioView X7",
@@ -359,7 +353,7 @@ CONTRACT_SEEDS = (
         "won",
         24,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0009",
         "한빛대학교병원",
         "SonoFlex Pro",
@@ -370,7 +364,7 @@ CONTRACT_SEEDS = (
         "won",
         25,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0006",
         "한빛대학교병원",
         "OrthoScan Mini",
@@ -381,7 +375,7 @@ CONTRACT_SEEDS = (
         "won",
         28,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0005",
         "서림메디컬센터",
         "CardioView X7",
@@ -392,7 +386,7 @@ CONTRACT_SEEDS = (
         "won",
         29,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0004",
         "서림메디컬센터",
         "CardioView X7",
@@ -403,7 +397,7 @@ CONTRACT_SEEDS = (
         "won",
         30,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0002",
         "정우병원",
         "SonoFlex Pro",
@@ -414,7 +408,7 @@ CONTRACT_SEEDS = (
         "won",
         32,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2026-0001",
         "새봄정형외과",
         "CardioView X7",
@@ -425,7 +419,7 @@ CONTRACT_SEEDS = (
         "won",
         33,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0039",
         "서림메디컬센터",
         "CardioView X7",
@@ -436,7 +430,7 @@ CONTRACT_SEEDS = (
         "won",
         35,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0038",
         "한빛대학교병원",
         "SonoFlex Pro",
@@ -447,7 +441,7 @@ CONTRACT_SEEDS = (
         "won",
         36,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0035",
         "서림메디컬센터",
         "SonoFlex Pro",
@@ -458,7 +452,7 @@ CONTRACT_SEEDS = (
         "won",
         39,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0034",
         "한빛대학교병원",
         "CardioView X7",
@@ -469,7 +463,7 @@ CONTRACT_SEEDS = (
         "won",
         40,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0032",
         "한빛대학교병원",
         "OrthoScan Mini",
@@ -480,7 +474,7 @@ CONTRACT_SEEDS = (
         "won",
         42,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0029",
         "미래아동병원",
         "CardioView X7",
@@ -491,7 +485,7 @@ CONTRACT_SEEDS = (
         "won",
         45,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0026",
         "한빛대학교병원",
         "SonoFlex Pro",
@@ -502,7 +496,7 @@ CONTRACT_SEEDS = (
         "won",
         48,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0024",
         "새봄정형외과",
         "CardioView X7",
@@ -513,7 +507,7 @@ CONTRACT_SEEDS = (
         "won",
         50,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0021",
         "새봄정형외과",
         "SonoFlex Pro",
@@ -524,7 +518,7 @@ CONTRACT_SEEDS = (
         "won",
         53,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0020",
         "서림메디컬센터",
         "SonoFlex Pro",
@@ -535,7 +529,7 @@ CONTRACT_SEEDS = (
         "lost",
         2,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0017",
         "한빛대학교병원",
         "OrthoScan Mini",
@@ -546,7 +540,7 @@ CONTRACT_SEEDS = (
         "won",
         56,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0016",
         "서림메디컬센터",
         "SonoFlex Pro",
@@ -557,7 +551,7 @@ CONTRACT_SEEDS = (
         "won",
         57,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0015",
         "한빛대학교병원",
         "CardioView X7",
@@ -568,7 +562,7 @@ CONTRACT_SEEDS = (
         "won",
         58,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0014",
         "한빛대학교병원",
         "SonoFlex Pro",
@@ -579,7 +573,7 @@ CONTRACT_SEEDS = (
         "won",
         59,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0013",
         "새봄정형외과",
         "CardioView X7",
@@ -590,7 +584,7 @@ CONTRACT_SEEDS = (
         "won",
         60,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0008",
         "한빛대학교병원",
         "CardioView X7",
@@ -601,7 +595,7 @@ CONTRACT_SEEDS = (
         "won",
         65,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2025-0004",
         "한빛대학교병원",
         "CardioView X7",
@@ -612,7 +606,7 @@ CONTRACT_SEEDS = (
         "won",
         69,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0011",
         "한빛대학교병원",
         "OrthoScan Mini",
@@ -623,7 +617,7 @@ CONTRACT_SEEDS = (
         "won",
         74,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0010",
         "서림메디컬센터",
         "CardioView X7",
@@ -634,7 +628,7 @@ CONTRACT_SEEDS = (
         "won",
         75,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0009",
         "정우병원",
         "SonoFlex Pro",
@@ -645,7 +639,7 @@ CONTRACT_SEEDS = (
         "won",
         76,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0008",
         "새봄정형외과",
         "CardioView X7",
@@ -656,7 +650,7 @@ CONTRACT_SEEDS = (
         "won",
         77,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0007",
         "미래아동병원",
         "CardioView X7",
@@ -667,7 +661,7 @@ CONTRACT_SEEDS = (
         "won",
         78,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0005",
         "정우병원",
         "SonoFlex Pro",
@@ -678,7 +672,7 @@ CONTRACT_SEEDS = (
         "won",
         80,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0004",
         "서림메디컬센터",
         "CardioView X7",
@@ -689,7 +683,7 @@ CONTRACT_SEEDS = (
         "won",
         81,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0003",
         "한빛대학교병원",
         "CardioView X7",
@@ -700,7 +694,7 @@ CONTRACT_SEEDS = (
         "won",
         82,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0002",
         "서림메디컬센터",
         "SonoFlex Pro",
@@ -711,7 +705,7 @@ CONTRACT_SEEDS = (
         "won",
         83,
     ),
-    ContractSeed(
+    SalesDealSeed(
         "FM-CT-2024-0001",
         "새봄정형외과",
         "OrthoScan Mini",
@@ -725,96 +719,78 @@ CONTRACT_SEEDS = (
 )
 
 
-def pipeline_stage_id(key: str) -> UUID:
-    return uuid5(FILLED_TEAM_ID, f"pipeline-stage:{key}")
+def sales_deal_id(deal_no: str) -> UUID:
+    # 기존 seed UUID를 보존해야 이미 저장된 딜과 같은 행을 갱신한다.
+    return uuid5(FILLED_TEAM_ID, f"contract:{deal_no}")
 
 
-def contract_id(contract_no: str) -> UUID:
-    return uuid5(FILLED_TEAM_ID, f"contract:{contract_no}")
-
-
-def pipeline_stage_row(seed: PipelineStageSeed) -> dict:
+def sales_deal_row(
+    seed: SalesDealSeed,
+    sales_pipeline_id: UUID,
+    stage_ids_by_key: dict[str, UUID],
+    deal_type_ids_by_code: dict[str, UUID],
+) -> dict:
+    opened_on = REFERENCE_DATE + timedelta(days=seed.day_offset)
     return {
-        "id": pipeline_stage_id(seed.key),
+        "id": sales_deal_id(seed.deal_no),
         "team_id": FILLED_TEAM_ID,
-        "name": seed.name,
-        "tone": seed.tone,
-        "outcome_code": seed.outcome_code,
-        "position": seed.position,
-    }
-
-
-def contract_row(seed: ContractSeed) -> dict:
-    return {
-        "id": contract_id(seed.contract_no),
-        "team_id": FILLED_TEAM_ID,
-        "contract_no": seed.contract_no,
+        "deal_no": seed.deal_no,
         "customer_company_id": company_id(seed.company_name),
-        "contact_id": None,
+        "customer_contact_id": None,
         "owner_member_id": OWNER_IDS[seed.owner_name],
         "product_id": product_id(seed.product_name),
-        "stage_id": pipeline_stage_id(seed.stage_key),
+        "sales_pipeline_id": sales_pipeline_id,
+        "sales_pipeline_stage_id": stage_ids_by_key[seed.sales_pipeline_stage_key],
         "title": f"{seed.company_name} {seed.product_name}",
         "description": None,
-        "contract_type": seed.contract_type,
-        "amount": seed.amount,
-        "contract_date": REFERENCE_DATE + timedelta(days=seed.day_offset),
-        "ends_on": None,
+        "sales_deal_type_id": deal_type_ids_by_code[seed.deal_type_code],
+        "deal_amount": seed.deal_amount,
+        "opened_on": opened_on,
+        "closed_on": opened_on if seed.sales_pipeline_stage_key == "lost" else None,
+        "quote_no": None,
+        "quote_issued_on": None,
+        "quote_valid_until": None,
+        "contract_no": None,
+        "contract_signed_on": (
+            opened_on
+            if seed.sales_pipeline_stage_key in {"won", "order_in_progress", "delivered"}
+            else None
+        ),
+        "contract_ends_on": None,
         "warranty_terms": None,
         "expected_delivery_at": None,
         "memo": None,
-        "position": seed.position,
+        "stage_position": seed.stage_position,
         "deleted_at": None,
     }
 
 
-def pipeline_stage_upsert(row: dict):
-    stage_insert = insert(PipelineStage).values(**row)
-    return stage_insert.on_conflict_do_update(
-        index_elements=[PipelineStage.id],
-        set_={
-            "tone": stage_insert.excluded.tone,
-            "outcome_code": stage_insert.excluded.outcome_code,
-            "position": stage_insert.excluded.position,
-        },
-        where=and_(
-            PipelineStage.team_id == FILLED_TEAM_ID,
-            PipelineStage.name == row["name"],
-        ),
-    ).returning(PipelineStage.id)
-
-
-def contract_upsert(row: dict):
-    contract_insert = insert(Contract).values(**row)
+def sales_deal_upsert(row: dict):
+    sales_deal_insert = insert(SalesDeal).values(**row)
     update_fields = {
-        key: getattr(contract_insert.excluded, key)
+        key: getattr(sales_deal_insert.excluded, key)
         for key in row
-        if key not in {"id", "team_id", "contract_no"}
+        if key not in {"id", "team_id", "deal_no"}
     }
-    return contract_insert.on_conflict_do_update(
-        index_elements=[Contract.id],
+    return sales_deal_insert.on_conflict_do_update(
+        index_elements=[SalesDeal.id],
         set_=update_fields,
         where=and_(
-            Contract.team_id == FILLED_TEAM_ID,
-            Contract.contract_no == row["contract_no"],
+            SalesDeal.team_id == FILLED_TEAM_ID,
+            SalesDeal.deal_no == row["deal_no"],
         ),
-    ).returning(Contract.id)
+    ).returning(SalesDeal.id)
 
 
-async def seed_demo_contracts() -> None:
-    stages = tuple(pipeline_stage_row(seed) for seed in PIPELINE_STAGE_SEEDS)
-    contracts = tuple(contract_row(seed) for seed in CONTRACT_SEEDS)
+async def seed_demo_sales_deals() -> None:
     expected_members = {
-        OWNER_IDS[name]: name for name in {seed.owner_name for seed in CONTRACT_SEEDS}
+        OWNER_IDS[name]: name for name in {seed.owner_name for seed in SALES_DEAL_SEEDS}
     }
     expected_companies = {
-        company_id(name): name for name in {seed.company_name for seed in CONTRACT_SEEDS}
+        company_id(name): name for name in {seed.company_name for seed in SALES_DEAL_SEEDS}
     }
     expected_products = {product_id(name): name for name in PRODUCT_NAMES}
-    expected_stages = {row["id"]: row for row in stages}
-    expected_stage_ids_by_name = {row["name"]: row["id"] for row in stages}
-    expected_contracts = {row["id"]: row for row in contracts}
-    expected_contract_ids_by_no = {row["contract_no"]: row["id"] for row in contracts}
+    expected_deal_type_codes = {seed.deal_type_code for seed in SALES_DEAL_SEEDS}
 
     async with get_sessionmaker()() as session, session.begin():
         filled_team_name = (
@@ -824,6 +800,66 @@ async def seed_demo_contracts() -> None:
         ).scalar_one_or_none()
         if filled_team_name != FILLED_TEAM_NAME:
             raise SystemExit("filled 인증 seed를 먼저 실행하세요.")
+
+        pipeline = (
+            await session.execute(
+                select(SalesPipeline)
+                .where(
+                    SalesPipeline.team_id == FILLED_TEAM_ID,
+                    SalesPipeline.status_code == "published",
+                    SalesPipeline.is_default.is_(True),
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if pipeline is None:
+            raise SystemExit("filled 인증 seed를 먼저 실행해 기본 파이프라인을 준비하세요.")
+
+        stage_rows = (
+            await session.execute(
+                select(
+                    SalesPipelineStage.id,
+                    SalesPipelineStage.stage_code,
+                    SalesPipelineStage.phase_code,
+                    SalesPipelineStage.outcome_code,
+                )
+                .where(SalesPipelineStage.sales_pipeline_id == pipeline.id)
+                .with_for_update()
+            )
+        ).all()
+        stages_by_code = {row.stage_code: row for row in stage_rows}
+        if set(stages_by_code) != set(STAGE_CODE_BY_KEY.values()):
+            raise SystemExit("기본 파이프라인의 9개 영업 단계를 확인하세요.")
+        stage_ids_by_key = {
+            key: stages_by_code[stage_code].id for key, stage_code in STAGE_CODE_BY_KEY.items()
+        }
+
+        deal_type_rows = (
+            await session.execute(
+                select(SalesDealType.id, SalesDealType.code)
+                .where(
+                    SalesDealType.team_id == FILLED_TEAM_ID,
+                    SalesDealType.code.in_(expected_deal_type_codes),
+                    SalesDealType.deleted_at.is_(None),
+                )
+                .with_for_update()
+            )
+        ).all()
+        deal_type_ids_by_code = {row.code: row.id for row in deal_type_rows}
+        if set(deal_type_ids_by_code) != expected_deal_type_codes:
+            raise SystemExit("filled 인증 seed를 먼저 실행해 딜 유형을 준비하세요.")
+
+        sales_deals = tuple(
+            sales_deal_row(
+                seed,
+                pipeline.id,
+                stage_ids_by_key,
+                deal_type_ids_by_code,
+            )
+            for seed in SALES_DEAL_SEEDS
+        )
+        expected_sales_deals = {row["id"]: row for row in sales_deals}
+        expected_sales_deal_ids_by_no = {row["deal_no"]: row["id"] for row in sales_deals}
 
         existing_members = (
             await session.execute(
@@ -839,7 +875,7 @@ async def seed_demo_contracts() -> None:
             )
         ).all()
         if {row.id for row in existing_members} != set(expected_members):
-            raise SystemExit("고객 seed를 먼저 실행해 계약 담당자를 준비하세요.")
+            raise SystemExit("고객 seed를 먼저 실행해 딜 담당자를 준비하세요.")
         for row in existing_members:
             if (
                 row.team_id != FILLED_TEAM_ID
@@ -847,7 +883,7 @@ async def seed_demo_contracts() -> None:
                 or row.role_code != "member"
                 or not row.active
             ):
-                raise SystemExit("합성 계약 담당자 ID, 팀, 이름 또는 역할이 충돌합니다.")
+                raise SystemExit("합성 딜 담당자 ID, 팀, 이름 또는 역할이 충돌합니다.")
 
         existing_companies = (
             await session.execute(
@@ -873,7 +909,7 @@ async def seed_demo_contracts() -> None:
             ):
                 raise SystemExit("합성 계약 고객사 ID, 이름 또는 팀이 충돌합니다.")
         if {row.id for row in existing_companies} != set(expected_companies):
-            raise SystemExit("고객 seed를 먼저 실행해 계약 고객사를 준비하세요.")
+            raise SystemExit("고객 seed를 먼저 실행해 딜 고객사를 준비하세요.")
 
         existing_products = (
             await session.execute(
@@ -902,68 +938,38 @@ async def seed_demo_contracts() -> None:
         if {row.id for row in existing_products} != set(expected_products):
             raise SystemExit("일정 seed를 먼저 실행해 계약 상품을 준비하세요.")
 
-        existing_stages = (
+        existing_sales_deals = (
             await session.execute(
-                select(PipelineStage.id, PipelineStage.team_id, PipelineStage.name)
+                select(SalesDeal.id, SalesDeal.team_id, SalesDeal.deal_no)
                 .where(
                     or_(
-                        PipelineStage.id.in_(expected_stages),
+                        SalesDeal.id.in_(expected_sales_deals),
                         and_(
-                            PipelineStage.team_id == FILLED_TEAM_ID,
-                            PipelineStage.name.in_(expected_stage_ids_by_name),
+                            SalesDeal.team_id == FILLED_TEAM_ID,
+                            SalesDeal.deal_no.in_(expected_sales_deal_ids_by_no),
                         ),
                     )
                 )
                 .with_for_update()
             )
         ).all()
-        for row in existing_stages:
-            expected = expected_stages.get(row.id)
+        for row in existing_sales_deals:
+            expected = expected_sales_deals.get(row.id)
             if (
                 expected is None
                 or row.team_id != FILLED_TEAM_ID
-                or expected["name"] != row.name
-                or expected_stage_ids_by_name.get(row.name) != row.id
+                or expected["deal_no"] != row.deal_no
+                or expected_sales_deal_ids_by_no.get(row.deal_no) != row.id
             ):
-                raise SystemExit("합성 영업 단계 ID, 이름 또는 팀이 충돌합니다.")
+                raise SystemExit("합성 딜 ID, 딜 번호 또는 팀이 충돌합니다.")
 
-        existing_contracts = (
-            await session.execute(
-                select(Contract.id, Contract.team_id, Contract.contract_no)
-                .where(
-                    or_(
-                        Contract.id.in_(expected_contracts),
-                        and_(
-                            Contract.team_id == FILLED_TEAM_ID,
-                            Contract.contract_no.in_(expected_contract_ids_by_no),
-                        ),
-                    )
-                )
-                .with_for_update()
-            )
-        ).all()
-        for row in existing_contracts:
-            expected = expected_contracts.get(row.id)
-            if (
-                expected is None
-                or row.team_id != FILLED_TEAM_ID
-                or expected["contract_no"] != row.contract_no
-                or expected_contract_ids_by_no.get(row.contract_no) != row.id
-            ):
-                raise SystemExit("합성 계약 ID, 계약번호 또는 팀이 충돌합니다.")
-
-        for row in stages:
-            upserted_id = (await session.execute(pipeline_stage_upsert(row))).scalar_one_or_none()
+        for row in sales_deals:
+            upserted_id = (await session.execute(sales_deal_upsert(row))).scalar_one_or_none()
             if upserted_id is None:
-                raise SystemExit("합성 영업 단계 ID, 이름 또는 팀이 충돌합니다.")
+                raise SystemExit("합성 딜 ID, 딜 번호 또는 팀이 충돌합니다.")
 
-        for row in contracts:
-            upserted_id = (await session.execute(contract_upsert(row))).scalar_one_or_none()
-            if upserted_id is None:
-                raise SystemExit("합성 계약 ID, 계약번호 또는 팀이 충돌합니다.")
-
-    print("개발 DB의 filled 합성 팀에 영업 단계 8개와 계약 61건을 준비했습니다.")
+    print("개발 DB의 filled 합성 팀 기본 파이프라인에 딜 61건을 준비했습니다.")
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_demo_contracts())
+    asyncio.run(seed_demo_sales_deals())

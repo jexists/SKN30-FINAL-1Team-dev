@@ -14,7 +14,7 @@ export const ROUTES = {
   CALENDAR: '/calendar',
   MEETINGS: '/meetings', // 미팅보고서. 진입은 대시보드 일정에서 합니다.
   DAILY: '/daily', // 업무 보고
-  VISITS: '/visits', // 영업 현황
+  DEALS: '/deals', // 영업 현황
   SALES: '/sales', // 매출 분석
   QUOTES: '/quotes', // 견적 현황
   CONTRACTS: '/contracts',
@@ -72,7 +72,7 @@ export const meetingComposePath = (agendaId?: string) =>
 export const meetingReportPath = (id: string) => `${ROUTES.MEETINGS}/${id}`
 
 /** 영업 보드. 목록과 같은 데이터를 단계별 칸으로 봅니다. */
-export const visitBoardPath = () => `${ROUTES.VISITS}/board`
+export const dealBoardPath = () => `${ROUTES.DEALS}/board`
 
 /** 계약 상세. 계약번호(FM-CT-2026-0039)를 그대로 씁니다. */
 export const contractPath = (no: string) => `${ROUTES.CONTRACTS}/${no}`

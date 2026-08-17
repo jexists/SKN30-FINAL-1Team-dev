@@ -1,34 +1,36 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 
-import type { BoardContract } from '../../board'
+import type { BoardDeal } from '../../board'
 import { fmtDotShort, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import styles from './DealCard.module.scss'
 
 interface Props {
-  contract: BoardContract
-  /** 실제 API에서는 UUID, 목업에서는 contract.no 입니다. */
+  deal: BoardDeal
+  /** 실제 API에서는 UUID, 목업에서는 deal.no 입니다. */
   identity?: string
   isDragging: boolean
   onOpen: (identity: string) => void
-  onGrab: (event: ReactPointerEvent, contract: BoardContract, identity: string) => void
+  onGrab: (event: ReactPointerEvent, deal: BoardDeal, identity: string) => void
   /** 키보드로 앞뒤 컬럼에 옮기기. 드래그를 못 쓰는 경우의 길입니다. */
   onNudge: (identity: string, delta: -1 | 1) => void
   onEdit: (identity: string) => void
   onDelete: (identity: string) => void
+  readOnly?: boolean
 }
 
 export default function DealCard({
-  contract,
-  identity = contract.no,
+  deal,
+  identity = deal.no,
   isDragging,
   onOpen,
   onGrab,
   onNudge,
   onEdit,
   onDelete,
+  readOnly = false,
 }: Props) {
   return (
     // ⋯ 는 카드 버튼 안에 못 둡니다. 버튼 안의 버튼은 만들 수 없어 형제로 두고
@@ -37,30 +39,34 @@ export default function DealCard({
       <button
         type="button"
         className={[styles.card, isDragging && styles.isDragging].filter(Boolean).join(' ')}
-        aria-keyshortcuts="[ ]"
-        onPointerDown={(event) => onGrab(event, contract, identity)}
+        aria-keyshortcuts={readOnly ? undefined : '[ ]'}
+        onPointerDown={(event) => {
+          if (!readOnly) onGrab(event, deal, identity)
+        }}
         onClick={() => onOpen(identity)}
         onKeyDown={(event) => {
-          if (event.key !== '[' && event.key !== ']') return
+          if (readOnly || (event.key !== '[' && event.key !== ']')) return
           event.preventDefault()
           onNudge(identity, event.key === '[' ? -1 : 1)
         }}
       >
-        <span className={styles.org}>{contract.org}</span>
-        <span className={styles.product}>{contract.product}</span>
+        <span className={styles.org}>{deal.org}</span>
+        <span className={styles.product}>{deal.product}</span>
 
         <span className={styles.amount}>
-          <span className="tnum">{won(contract.amount)}</span>
-          <span className={styles.kind}>{contract.kind}</span>
+          <span className="tnum">{won(deal.amount)}</span>
+          <span className={styles.kind}>{deal.kind}</span>
         </span>
 
         <span className={styles.meta}>
-          <span>{contract.owner}</span>
-          <span className="tnum">{fmtDotShort(parseISO(contract.date))}</span>
+          <span>{deal.owner}</span>
+          <span className="tnum">{fmtDotShort(parseISO(deal.date))}</span>
         </span>
       </button>
 
-      <CardMenu identity={identity} contract={contract} onEdit={onEdit} onDelete={onDelete} />
+      {!readOnly && (
+        <CardMenu identity={identity} deal={deal} onEdit={onEdit} onDelete={onDelete} />
+      )}
     </div>
   )
 }
@@ -73,7 +79,7 @@ interface MenuAt {
 
 interface CardMenuProps {
   identity: string
-  contract: BoardContract
+  deal: BoardDeal
   onEdit: (identity: string) => void
   onDelete: (identity: string) => void
 }
@@ -86,7 +92,7 @@ interface CardMenuProps {
  * 세웁니다. 좌표는 열 때 한 번만 재므로 스크롤하면 자리가 어긋납니다. 따라다니게
  * 만들기보다 닫습니다.
  */
-function CardMenu({ identity, contract, onEdit, onDelete }: CardMenuProps) {
+function CardMenu({ identity, deal, onEdit, onDelete }: CardMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [at, setAt] = useState<MenuAt | null>(null)
@@ -133,7 +139,7 @@ function CardMenu({ identity, contract, onEdit, onDelete }: CardMenuProps) {
     if (at !== null) panelRef.current?.querySelector('button')?.focus()
   }, [at])
 
-  const label = `${contract.org} ${contract.product} 계약 관리`
+  const label = `${deal.org} ${deal.product} 영업 딜 관리`
 
   return (
     <div className={styles.menu}>

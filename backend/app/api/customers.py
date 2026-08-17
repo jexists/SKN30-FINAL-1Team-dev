@@ -2,11 +2,12 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentMember, DbSession
+from app.models.configuration import CustomerContactStatus
 from app.models.crm import CustomerCompany, CustomerContact
 from app.models.workspace import Member
 from app.schemas.customers import (
@@ -18,6 +19,7 @@ from app.schemas.customers import (
     CustomerContactPage,
     CustomerContactPatch,
     CustomerContactRead,
+    CustomerContactStatusOptionRead,
     CustomerPageParams,
 )
 
@@ -65,16 +67,24 @@ async def _get_contact_row(
     db: AsyncSession,
     member: Member,
     contact_id: UUID,
-) -> tuple[CustomerContact, str, str | None, str]:
+) -> tuple[CustomerContact, str, str | None, str, CustomerContactStatus | None]:
     result = await db.execute(
         select(
             CustomerContact,
             CustomerCompany.name,
             CustomerCompany.region_code,
             Member.display_name,
+            CustomerContactStatus,
         )
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
         .join(Member, CustomerContact.owner_member_id == Member.id)
+        .outerjoin(
+            CustomerContactStatus,
+            and_(
+                CustomerContact.customer_contact_status_id == CustomerContactStatus.id,
+                CustomerContactStatus.team_id == member.team_id,
+            ),
+        )
         .where(CustomerContact.id == contact_id, *_contact_scope(member))
     )
     row = result.one_or_none()
@@ -83,8 +93,8 @@ async def _get_contact_row(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="customer_contact_not_found",
         )
-    contact, company_name, company_region_code, owner_display_name = row
-    return contact, company_name, company_region_code, owner_display_name
+    contact, company_name, company_region_code, owner_display_name, contact_status = row
+    return contact, company_name, company_region_code, owner_display_name, contact_status
 
 
 def _contact_read(
@@ -92,6 +102,7 @@ def _contact_read(
     company_name: str,
     company_region_code: str | None,
     owner_display_name: str,
+    contact_status: CustomerContactStatus | None,
 ) -> CustomerContactRead:
     return CustomerContactRead(
         id=contact.id,
@@ -102,7 +113,10 @@ def _contact_read(
         job_title=contact.job_title,
         email=contact.email,
         phone=contact.phone,
-        status_code=contact.status_code,
+        customer_contact_status_id=None if contact_status is None else contact_status.id,
+        customer_contact_status_name=None if contact_status is None else contact_status.name,
+        customer_contact_status_tone=None if contact_status is None else contact_status.tone,
+        status_code=None if contact_status is None else contact_status.code,
         source_code=contact.source_code,
         memo=contact.memo,
         registered_at=contact.registered_at,
@@ -112,6 +126,27 @@ def _contact_read(
     )
 
 
+async def _active_customer_contact_status(
+    db: AsyncSession,
+    member: Member,
+    code: str,
+) -> CustomerContactStatus:
+    result = await db.execute(
+        select(CustomerContactStatus).where(
+            CustomerContactStatus.team_id == member.team_id,
+            CustomerContactStatus.code == code,
+            CustomerContactStatus.deleted_at.is_(None),
+        )
+    )
+    contact_status = result.scalar_one_or_none()
+    if contact_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="customer_contact_status_code_not_found",
+        )
+    return contact_status
+
+
 async def _flush_and_commit(db: AsyncSession) -> None:
     try:
         await db.flush()
@@ -119,6 +154,25 @@ async def _flush_and_commit(db: AsyncSession) -> None:
     except Exception:
         await db.rollback()
         raise
+
+
+@router.get(
+    "/customer-contact-statuses",
+    response_model=list[CustomerContactStatusOptionRead],
+)
+async def list_customer_contact_statuses(
+    member: CurrentMember,
+    db: DbSession,
+) -> list[CustomerContactStatus]:
+    result = await db.execute(
+        select(CustomerContactStatus)
+        .where(
+            CustomerContactStatus.team_id == member.team_id,
+            CustomerContactStatus.deleted_at.is_(None),
+        )
+        .order_by(CustomerContactStatus.position, CustomerContactStatus.id)
+    )
+    return list(result.scalars().all())
 
 
 @router.get("/customer-companies", response_model=CustomerCompanyPage)
@@ -251,9 +305,17 @@ async def list_customer_contacts(
             CustomerCompany.name,
             CustomerCompany.region_code,
             Member.display_name,
+            CustomerContactStatus,
         )
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
         .join(Member, CustomerContact.owner_member_id == Member.id)
+        .outerjoin(
+            CustomerContactStatus,
+            and_(
+                CustomerContact.customer_contact_status_id == CustomerContactStatus.id,
+                CustomerContactStatus.team_id == member.team_id,
+            ),
+        )
         .where(*scope)
         .order_by(CustomerContact.registered_at.desc(), CustomerContact.id)
         .offset(page.skip)
@@ -292,10 +354,18 @@ async def create_customer_contact(
     db: DbSession,
 ) -> CustomerContactRead:
     company = await _get_company(db, member, payload.company_id)
+    values = payload.model_dump()
+    status_code = values.pop("status_code")
+    contact_status = (
+        None
+        if status_code is None
+        else await _active_customer_contact_status(db, member, status_code)
+    )
     contact = CustomerContact(
         id=uuid4(),
         owner_member_id=member.id,
-        **payload.model_dump(),
+        customer_contact_status_id=None if contact_status is None else contact_status.id,
+        **values,
     )
     db.add(contact)
     await _flush_and_commit(db)
@@ -305,6 +375,7 @@ async def create_customer_contact(
         company.name,
         company.region_code,
         member.display_name,
+        contact_status,
     )
 
 
@@ -315,7 +386,13 @@ async def update_customer_contact(
     member: CurrentMember,
     db: DbSession,
 ) -> CustomerContactRead:
-    contact, company_name, company_region_code, owner_display_name = await _get_contact_row(
+    (
+        contact,
+        company_name,
+        company_region_code,
+        owner_display_name,
+        contact_status,
+    ) = await _get_contact_row(
         db,
         member,
         contact_id,
@@ -325,6 +402,14 @@ async def update_customer_contact(
         company = await _get_company(db, member, values["company_id"])
         company_name = company.name
         company_region_code = company.region_code
+    if "status_code" in values:
+        status_code = values.pop("status_code")
+        contact_status = (
+            None
+            if status_code is None
+            else await _active_customer_contact_status(db, member, status_code)
+        )
+        contact.customer_contact_status_id = None if contact_status is None else contact_status.id
     for field_name, value in values.items():
         setattr(contact, field_name, value)
     await _flush_and_commit(db)
@@ -333,4 +418,5 @@ async def update_customer_contact(
         company_name,
         company_region_code,
         owner_display_name,
+        contact_status,
     )

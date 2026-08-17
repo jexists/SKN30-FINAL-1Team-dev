@@ -75,7 +75,7 @@ def _read_entities():
 def _response_read(response: SupportResponse, responder_display_name: str) -> SupportResponseRead:
     return SupportResponseRead(
         id=response.id,
-        request_id=response.request_id,
+        support_request_id=response.support_request_id,
         responder_member_id=response.responder_member_id,
         responder_display_name=responder_display_name,
         body=response.body,
@@ -120,14 +120,14 @@ async def _responses_by_request_ids(
         select(SupportResponse, _responder.display_name)
         .join(_responder, SupportResponse.responder_member_id == _responder.id)
         .where(
-            SupportResponse.request_id.in_(request_ids),
+            SupportResponse.support_request_id.in_(request_ids),
             _responder.team_id == member.team_id,
             _responder.role_code.in_(("member", "manager")),
         )
         .order_by(SupportResponse.responded_at, SupportResponse.id)
     )
     for response, responder_name in result.all():
-        responses[response.request_id].append(_response_read(response, responder_name))
+        responses[response.support_request_id].append(_response_read(response, responder_name))
     return responses
 
 
@@ -339,7 +339,7 @@ async def create_support_response(
         await _locked_request(db, member, request_id)
         support_response = SupportResponse(
             id=uuid4(),
-            request_id=request_id,
+            support_request_id=request_id,
             responder_member_id=member.id,
             body=payload.body,
         )

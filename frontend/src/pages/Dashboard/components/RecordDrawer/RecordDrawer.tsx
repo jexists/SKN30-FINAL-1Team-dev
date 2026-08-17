@@ -20,7 +20,7 @@ import { activeOrders, orders } from '@/shared/orders'
 import type { AgendaItem, Contract } from '@/types'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { contractPath, orderPath } from '@/constants/routes'
-import { initialCards, STAGE_NAMES, stageIndexOf } from '@/pages/Visits/board'
+import { initialDeals, STAGE_NAMES, stageIndexOf } from '@/pages/Deals/board'
 import { ORDER_STEPS, stepOf } from '@/pages/Orders/pipeline'
 import { won } from '@/utils/format'
 import { fmtDay, parseISO } from '@/utils/date'
@@ -34,7 +34,7 @@ const HISTORY_LIMIT = 3
  * 계약의 단계. 계약 시드에는 단계가 없어 보드가 세우는 배치를 그대로 빌립니다.
  * 보드와 같은 결정적 계산이라 두 화면이 어긋나지 않습니다.
  */
-const STAGE_BY_NO = new Map(initialCards().map((card) => [card.no, card.stageId]))
+const STAGE_BY_NO = new Map(initialDeals().map((deal) => [deal.no, deal.stageId]))
 
 /**
  * 아직 굴러가는 계약인가.

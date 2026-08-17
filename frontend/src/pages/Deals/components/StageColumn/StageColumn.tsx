@@ -5,7 +5,7 @@ import { PlusIcon } from '@/components/icons'
 import type { ColumnTone } from '@/types'
 import { won } from '@/utils/format'
 
-import { DROP_ATTR, slotKey, type BoardColumn, type BoardContract } from '../../board'
+import { DROP_ATTR, slotKey, type BoardColumn, type BoardDeal } from '../../board'
 import ColumnMenu from '../ColumnMenu'
 import DealCard from '../DealCard'
 
@@ -16,17 +16,18 @@ const PAGE = 15
 
 interface Props {
   column: BoardColumn
-  cards: BoardContract[]
-  /** 실제 API 카드는 UUID, 목업 카드는 계약번호를 상호작용 식별자로 씁니다. */
-  identityOf?: (contract: BoardContract) => string
+  cards: BoardDeal[]
+  /** 실제 API 카드는 UUID, 목업 카드는 영업번호를 상호작용 식별자로 씁니다. */
+  identityOf?: (deal: BoardDeal) => string
   /** 실제 API에는 단계 CRUD가 없으므로 그 화면에서는 설정 메뉴를 숨깁니다. */
   editableStages?: boolean
+  readOnly?: boolean
   /** 지금 가리키고 있는 자리. `<컬럼 id>:<자리>` */
   dropSlot: string | null
   draggingIdentity: string | null
   others: BoardColumn[]
   onOpen: (identity: string) => void
-  onGrab: (event: ReactPointerEvent, contract: BoardContract, identity: string) => void
+  onGrab: (event: ReactPointerEvent, deal: BoardDeal, identity: string) => void
   onNudge: (identity: string, delta: -1 | 1) => void
   onEditCard: (identity: string) => void
   onDeleteCard: (identity: string) => void
@@ -40,8 +41,9 @@ interface Props {
 export default function StageColumn({
   column,
   cards,
-  identityOf = (contract) => contract.no,
+  identityOf = (deal) => deal.no,
   editableStages = true,
+  readOnly = false,
   dropSlot,
   draggingIdentity,
   others,
@@ -97,7 +99,7 @@ export default function StageColumn({
               {...{ [DROP_ATTR]: key }}
             >
               <DealCard
-                contract={card}
+                deal={card}
                 identity={identity}
                 isDragging={draggingIdentity === identity}
                 onOpen={onOpen}
@@ -105,6 +107,7 @@ export default function StageColumn({
                 onNudge={onNudge}
                 onEdit={onEditCard}
                 onDelete={onDeleteCard}
+                readOnly={readOnly}
               />
             </li>
           )
@@ -129,10 +132,12 @@ export default function StageColumn({
         )}
       </ul>
 
-      <button type="button" className={styles.add} onClick={() => onAddCard(column.id)}>
-        <PlusIcon width={14} height={14} />
-        계약 추가
-      </button>
+      {!readOnly && (
+        <button type="button" className={styles.add} onClick={() => onAddCard(column.id)}>
+          <PlusIcon width={14} height={14} />
+          영업 딜 추가
+        </button>
+      )}
     </section>
   )
 }
