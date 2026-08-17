@@ -47,6 +47,13 @@ SQL은 `0001 → 0002 → 0003 → 0004 → 0005` 순서로 적용합니다. `00
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·6계정 | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_customers.py` 고객사 6개·담당자 32명 | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_activities.py` 상품 3개·일정 12건 | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `20260817_0005_sales_deal_names.sql` | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·6계정 | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_customers.py` 고객사 6개·담당자 32명 | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_activities.py` 상품 3개·일정 12건 | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_sales_deals.py` 딜 61건 | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_orders.py` 발주 2건·품목 2건 | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_support.py` C/S 요청 3건 | Session Pooler | 성공 |
 
 ## 개발 로그인 계정
 
