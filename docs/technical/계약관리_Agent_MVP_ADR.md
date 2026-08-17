@@ -71,6 +71,14 @@
 
 **근거**: 마이그레이션 파일은 다른 팀원의 변경과 파일명·순서가 겹칠 위험이 있다. 이번 MVP 범위(브리핑·위험 탐지·제안)는 기존 필드 조합만으로 충분히 구현 가능하다고 판단했다.
 
+### 3.6 일정관리 Agent 출력도 입력과 같은 원칙으로 분리한다
+
+**결정**: `NextMeetingSuggestion` 스키마와 `build_next_meeting_suggestion()`을 추가했다. 다음 미팅이 필요 없으면 `None`을 반환하고, 필요하면 권장일·이유·의제(있으면)를 담은 형식 중립적인 값을 반환한다. 실제로 일정관리 Agent에 전달하는 통신 수단(API 호출, `agent_run` 연계 등)은 아직 만들지 않았다.
+
+**근거**: `ApprovedMeetingInsight`(입력)와 대칭을 맞췄다 — 일정관리 Agent와의 연결 형식(텍스트 제안 vs activity 초안)이 아직 정해지지 않았다고 미확정으로 남겨뒀지만, 그렇다고 계약관리 Agent 내부에서 이 판단 자체를 안 만들어 둘 이유는 없다. "무엇을 넘길지"는 지금 결정하고 "어떻게 넘길지"만 Draft PR 이후로 미룬다.
+
+**이유(reason) 생성 방식**: `NextMeetingCandidate.triggered_by`(위험 종류 + 접촉 주기 경과 여부)를 문장으로 매핑하는 결정적 로직이다. LLM이 아니다 — "왜 다음 미팅이 필요한지"는 근거가 명확한 사실이라 3.1의 원칙과 같다.
+
 ## 4. 발생한 이슈: SalesDeal 리네임 대응 (PR #32)
 
 작업 도중 팀원이 `develop`에 "영업 딜과 파이프라인 데이터 모델 통합"(PR #32, 커밋 `aa27cb3`)을 머지했다. `Contract` 모델·`contracts.py`가 `SalesDeal`·`sales_deals.py`로 리네임됐고, 필드명도 다수 바뀌었다. 이미 커밋한 Task 0·1 코드가 옛 스키마를 참조하고 있어 별도 수정 커밋(`aa43c7a`)으로 대응했다.
@@ -92,7 +100,8 @@
 - Task 0에서 값을 채운 12건 외 나머지 49건은 항상 "위험 없음"으로 나온다(시연 범위 한정).
 - `activity`와 `sales_deal`을 직접 연결하는 필드가 없어, 장기 미접촉 판단은 같은 고객사의 최근 활동으로 근사한다 — 실제로는 다른 계약 건의 접촉일 수도 있다.
 - 목업 LLM 응답은 문장 조합 수준이라 실제 LLM의 표현력과 다르다.
-- DB 접속 정보(비밀번호)가 아직 확인되지 않아 Task 0~2 전부 실 데이터로 검증되지 않았다. 로컬 유닛테스트(38건)만 통과한 상태다.
+- DB 접속 정보(비밀번호)가 아직 확인되지 않아 Task 0~2 전부 실 데이터로 검증되지 않았다. 로컬 유닛테스트(110건, 백엔드 전체 기준)만 통과한 상태다.
+- `NextMeetingSuggestion`은 아직 API 응답이나 실제 전송 경로에 연결되지 않은 순수 계산 결과다.
 
 ## 6. 미해결 질문 (Draft PR에서 확인)
 
@@ -100,23 +109,25 @@
 2. 실 LLM 연동 시점과 provider(OpenAI 계열로 예정, 정확한 모델·SDK 확정 필요), API 키 발급 일정.
 3. `agent_run` 기록이 필요한지, 필요하다면 동기 호출 직후 1회 INSERT로 충분한지 아니면 14절의 202+polling까지 가야 하는지.
 4. **계약관리 Agent의 스코프 문제**: [영업_파이프라인_프론트_연동_제안서.md](영업_파이프라인_프론트_연동_제안서.md)를 보면 "계약현황" 화면은 `phase_code=contract`인 딜만 다룬다. 지금 위험 엔진은 `phase_code`와 무관하게 `sales_pipeline_stage_position`만 보고 있어, needs/demo 같은 초기 영업 단계 딜도 대상에 포함된다. 계약관리 Agent가 `phase_code ∈ {contract, order, closed}`로 범위를 좁혀야 하는지 확인이 필요하다.
-5. 일정관리 Agent에 "다음 미팅 권장 시점"을 어떤 형태로 넘길지(텍스트 제안 vs activity 초안).
+5. 일정관리 Agent에 "다음 미팅 권장 시점"을 어떤 형태로 넘길지(텍스트 제안 vs activity 초안). `NextMeetingSuggestion` 스키마로 내용은 정리했지만, 실제 전달 수단(API 호출 방식, `agent_run` 연계 여부)은 아직 미정이다.
 
 ## 7. 이어서 진행할 작업
 
 1. Supabase Session Pooler 접속 정보(비밀번호) 재확인 후 DB 연결 검증.
 2. Task 0 시드 픽스처 스크립트를 실제 DB에 실행하고 반영 건수 확인.
-3. Task 1·2 로직을 실 데이터로 스모크 테스트(유닛테스트는 이미 38건 통과, 합성 데이터 기준).
-4. Task 3: `GET /api/contracts/{id}/briefing` API 엔드포인트 구현 — 기존 `sales_deals.py`의 팀·권한 스코프 규칙 재사용, evidence 조회(결정적 엔진 입력 조립) + 합성 호출 + 실패 시 폴백 응답.
+3. Task 1·2 로직을 실 데이터로 스모크 테스트(유닛테스트는 이미 통과, 합성 데이터 기준).
+4. Task 3: `GET /api/contracts/{id}/briefing` API 엔드포인트 구현 — 기존 `sales_deals.py`의 팀·권한 스코프 규칙 재사용, evidence 조회(결정적 엔진 입력 조립) + 합성 호출 + `NextMeetingSuggestion` 포함 + 실패 시 폴백 응답.
 5. Draft PR 오픈 — 이 문서를 PR 설명에 요약해 링크하고, 6절의 미해결 질문을 리뷰 요청 포인트로 명시.
 6. 리뷰 반영 후 보고서작성·일정관리 담당자와 인터페이스(입력 스키마, 다음 미팅 전달 형식) 동기화.
 7. (여유 있으면) 계약 상세 화면에 브리핑 카드 프론트 연동.
 
 ## 8. 관련 커밋
 
-브랜치 `jiyu-park/contract-agent-mvp` (base: `develop`, 아직 push 전)
+브랜치 `jiyu-park/contract-agent-mvp` (base: `develop`, push됨, PR 미오픈)
 
 - `f36323a` — 계약 위험 시연용 시드 픽스처
 - `e5a68bd` — 계약 위험 판단 결정적 엔진
 - `aa43c7a` — SalesDeal 리네임 대응
 - `d647e2d` — 계약 브리핑 LLM 합성 인터페이스와 목업 구현체
+- `3625fd4` — 확정되지 않은 앤트로픽 provider 가정 제거
+- `dea4cd0` — MVP ADR 추가
