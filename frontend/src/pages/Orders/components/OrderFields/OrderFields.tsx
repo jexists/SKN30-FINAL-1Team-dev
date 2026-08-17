@@ -15,7 +15,8 @@ import {
   type FormState,
   type ItemState,
 } from '../../orderForm'
-import { HOSPITALS, ORDER_STATUSES, PRODUCTS, SUPPLIERS } from '../../pipeline'
+import { ORDER_STATUSES } from '../../pipeline'
+import type { OrderContractOption, OrderOption } from '../../useOrderList'
 
 import styles from './OrderFields.module.scss'
 
@@ -24,78 +25,135 @@ interface Props {
   errors: FormErrors
   onChange: (key: Exclude<keyof FormState, 'items'>, value: string) => void
   onItemsChange: (items: ItemState[]) => void
+  companies: OrderOption[]
+  contracts: OrderContractOption[]
+  products: OrderOption[]
+  suppliers: string[]
+  optionsLoading?: boolean
+  disabled?: boolean
+  showStatus?: boolean
   /** 메모 앞에 들어갈 추가 항목 */
   children?: ReactNode
 }
 
-export default function OrderFields({ form, errors, onChange, onItemsChange, children }: Props) {
+export default function OrderFields({
+  form,
+  errors,
+  onChange,
+  onItemsChange,
+  companies,
+  contracts,
+  products,
+  suppliers,
+  optionsLoading = false,
+  disabled = false,
+  showStatus = true,
+  children,
+}: Props) {
   const setItem = (index: number, key: keyof ItemState, value: string) =>
     onItemsChange(form.items.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
 
+  const availableContracts = contracts.filter(
+    (contract) => contract.customerCompanyId === form.customerCompanyId,
+  )
+
+  const changeCompany = (customerCompanyId: string) => {
+    onChange('customerCompanyId', customerCompanyId)
+    const selected = contracts.find((contract) => contract.id === form.contractId)
+    if (selected && selected.customerCompanyId !== customerCompanyId) onChange('contractId', '')
+  }
+
   return (
     <div className={styles.grid}>
-      <Field label="고객사" required error={errors.hospital}>
-        {/* 목록에 없는 곳도 새로 적을 수 있어야 해서 select 가 아니라 datalist 입니다. */}
-        <input
-          list="order-hospitals"
-          value={form.hospital}
-          placeholder="한빛대학교병원"
-          onChange={(e) => onChange('hospital', e.target.value)}
-        />
-        <datalist id="order-hospitals">
-          {HOSPITALS.map((hospital) => (
-            <option key={hospital} value={hospital} />
+      <Field label="고객사" required error={errors.customerCompanyId}>
+        <select
+          value={form.customerCompanyId}
+          disabled={disabled || optionsLoading || companies.length === 0}
+          onChange={(event) => changeCompany(event.target.value)}
+        >
+          <option value="">
+            {optionsLoading
+              ? '고객사를 불러오는 중…'
+              : companies.length === 0
+                ? '등록된 고객사가 없습니다'
+                : '고객사를 선택하세요'}
+          </option>
+          {companies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
+            </option>
           ))}
-        </datalist>
+        </select>
       </Field>
 
       <Field label="공급처" required error={errors.supplier}>
         <input
           list="order-suppliers"
           value={form.supplier}
+          disabled={disabled}
+          maxLength={254}
           placeholder="본사 생산팀"
           onChange={(e) => onChange('supplier', e.target.value)}
         />
         <datalist id="order-suppliers">
-          {SUPPLIERS.map((supplier) => (
+          {suppliers.map((supplier) => (
             <option key={supplier} value={supplier} />
           ))}
         </datalist>
       </Field>
 
       <Field label="계약번호">
-        {/* 계약을 걸지 않은 선발주도 있어 비워 둘 수 있습니다. */}
-        <input
-          value={form.contract}
-          placeholder="FM-CT-2026-0038 (선택)"
-          onChange={(e) => onChange('contract', e.target.value)}
-        />
-      </Field>
-
-      <Field label="상태">
-        <select value={form.status} onChange={(e) => onChange('status', e.target.value)}>
-          {ORDER_STATUSES.map((status) => (
-            <option key={status}>{status}</option>
+        <select
+          value={form.contractId}
+          disabled={disabled || optionsLoading || form.customerCompanyId === ''}
+          onChange={(event) => onChange('contractId', event.target.value)}
+        >
+          <option value="">계약 없는 선발주</option>
+          {availableContracts.map((contract) => (
+            <option key={contract.id} value={contract.id}>
+              {contract.no}
+            </option>
           ))}
         </select>
       </Field>
+
+      {showStatus && (
+        <Field label="상태">
+          <select
+            value={form.status}
+            disabled={disabled}
+            onChange={(e) => onChange('status', e.target.value)}
+          >
+            {ORDER_STATUSES.map((status) => (
+              <option key={status}>{status}</option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <Field label="발주일" error={errors.ordered}>
         <input
           type="date"
           value={form.ordered}
+          disabled={disabled}
           onChange={(e) => onChange('ordered', e.target.value)}
         />
       </Field>
 
       <Field label="납기" error={errors.due}>
-        <input type="date" value={form.due} onChange={(e) => onChange('due', e.target.value)} />
+        <input
+          type="date"
+          value={form.due}
+          disabled={disabled}
+          onChange={(e) => onChange('due', e.target.value)}
+        />
       </Field>
 
       <Field label="예상 입고" error={errors.expect}>
         <input
           type="date"
           value={form.expect}
+          disabled={disabled}
           onChange={(e) => onChange('expect', e.target.value)}
         />
       </Field>
@@ -119,18 +177,31 @@ export default function OrderFields({ form, errors, onChange, onItemsChange, chi
               // 줄을 지워도 남은 줄이 제 값을 그대로 들고 있습니다.
               <li key={index} className={styles.item}>
                 <div className={styles.itemRow}>
-                  <input
-                    list="order-products"
+                  <select
                     className={styles.product}
-                    value={item.product}
-                    placeholder="SonoFlex Pro"
+                    value={item.productId}
+                    disabled={disabled || optionsLoading || products.length === 0}
                     aria-label={`품목 ${index + 1} 제품`}
-                    onChange={(e) => setItem(index, 'product', e.target.value)}
-                  />
+                    onChange={(e) => setItem(index, 'productId', e.target.value)}
+                  >
+                    <option value="">
+                      {optionsLoading
+                        ? '제품을 불러오는 중…'
+                        : products.length === 0
+                          ? '등록된 제품이 없습니다'
+                          : '제품 선택'}
+                    </option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     className={styles.qty}
                     inputMode="numeric"
                     value={item.qty}
+                    disabled={disabled}
                     placeholder="수량"
                     aria-label={`품목 ${index + 1} 수량`}
                     onChange={(e) => setItem(index, 'qty', e.target.value)}
@@ -139,6 +210,7 @@ export default function OrderFields({ form, errors, onChange, onItemsChange, chi
                     className={styles.price}
                     inputMode="numeric"
                     value={item.price}
+                    disabled={disabled}
                     placeholder="단가"
                     aria-label={`품목 ${index + 1} 단가`}
                     onChange={(e) => setItem(index, 'price', e.target.value)}
@@ -148,27 +220,24 @@ export default function OrderFields({ form, errors, onChange, onItemsChange, chi
                     type="button"
                     className={styles.remove}
                     aria-label={`품목 ${index + 1} 삭제`}
-                    disabled={form.items.length === 1}
+                    disabled={disabled || form.items.length === 1}
                     onClick={() => onItemsChange(form.items.filter((_, i) => i !== index))}
                   >
                     <TrashIcon width={14} height={14} />
                   </button>
                 </div>
-                {row && <span className={styles.error}>{row.product ?? row.qty ?? row.price}</span>}
+                {row && (
+                  <span className={styles.error}>{row.productId ?? row.qty ?? row.price}</span>
+                )}
               </li>
             )
           })}
         </ul>
 
-        <datalist id="order-products">
-          {PRODUCTS.map((product) => (
-            <option key={product} value={product} />
-          ))}
-        </datalist>
-
         <button
           type="button"
           className={styles.addItem}
+          disabled={disabled || optionsLoading || products.length === 0 || form.items.length >= 100}
           onClick={() => onItemsChange([...form.items, emptyItem()])}
         >
           + 품목 추가
@@ -181,6 +250,8 @@ export default function OrderFields({ form, errors, onChange, onItemsChange, chi
         <textarea
           rows={3}
           value={form.memo}
+          disabled={disabled}
+          maxLength={5000}
           placeholder="설치 공간 사전 확인 완료"
           onChange={(e) => onChange('memo', e.target.value)}
         />

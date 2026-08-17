@@ -4,25 +4,23 @@
 // 같은 진행 순서가 흐트러져 ORDER_STATUSES 의 순서를 그대로 씁니다.
 import type { DataColumn } from '@/components/DataTable'
 import { orderItemLabel, orderTotal } from '@/shared/orders'
-import type { PurchaseOrder } from '@/types'
+import type { ApiPurchaseOrder } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
-import { ORDER_STATUSES, ownerOfOrder } from './pipeline'
+import { ORDER_STATUSES } from './pipeline'
 
-export const ORDER_COLUMNS: DataColumn<PurchaseOrder>[] = [
+export const ORDER_COLUMNS: DataColumn<ApiPurchaseOrder>[] = [
   { id: 'no', header: '발주번호', width: 132, numeric: true, sortable: true, text: (o) => o.no },
   { id: 'hospital', header: '고객사', width: 140, sortable: true, text: (o) => o.hospital },
   { id: 'items', header: '품목', width: 160, sortable: true, text: orderItemLabel },
   { id: 'supplier', header: '공급처', width: 124, sortable: true, text: (o) => o.supplier },
   {
-    // 발주에는 담당자가 없어 연결된 계약에서 가져옵니다. 계약 없는 선발주는 빈칸입니다.
-    // 여러 사람의 발주가 섞여 보일 때만 표에 나옵니다.
     id: 'owner',
     header: '담당 영업',
     width: 96,
     sortable: true,
-    text: (o) => ownerOfOrder(o) ?? '—',
+    text: (o) => o.owner,
   },
   {
     id: 'amount',

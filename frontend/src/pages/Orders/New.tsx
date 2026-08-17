@@ -1,7 +1,7 @@
 // 발주 추가 화면입니다. 목록에서 "발주 추가"로 들어옵니다.
 //
 // 품목 줄이 몇 개까지 늘어날지 모르므로 모달이 아니라 화면 하나를 씁니다.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -23,7 +23,17 @@ import useOrderList from './useOrderList'
 import styles from './New.module.scss'
 
 export default function New() {
-  const { addOrder } = useOrderList()
+  const {
+    companies,
+    contracts,
+    products,
+    suppliers,
+    loading,
+    error,
+    reload,
+    isCreating,
+    addOrder,
+  } = useOrderList()
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
@@ -34,20 +44,30 @@ export default function New() {
     return (ORDER_STATUSES as string[]).includes(wanted) ? { ...base, status: wanted } : base
   })
   const [errors, setErrors] = useState<FormErrors>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const submittingRef = useRef(false)
 
   const set = (key: Exclude<keyof FormState, 'items'>, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
   const setItems = (items: ItemState[]) => setForm((prev) => ({ ...prev, items }))
 
-  const submit = () => {
+  const submit = async () => {
+    if (submittingRef.current) return
     const found = validate(form)
     setErrors(found)
     if (Object.keys(found).length > 0) return
 
-    addOrder(toDraft(form))
-    // 새 발주는 맨 위에 들어갑니다. 목록으로 돌아가면 바로 보입니다.
-    navigate(ROUTES.ORDERS)
+    submittingRef.current = true
+    setSubmitError(null)
+    try {
+      await addOrder(toDraft(form))
+      navigate(ROUTES.ORDERS)
+    } catch (caught) {
+      setSubmitError(caught instanceof Error ? caught.message : '발주를 등록하지 못했습니다.')
+    } finally {
+      submittingRef.current = false
+    }
   }
 
   return (
@@ -66,7 +86,7 @@ export default function New() {
         noValidate
         onSubmit={(event) => {
           event.preventDefault()
-          submit()
+          void submit()
         }}
       >
         <div className={styles.panelHead}>
@@ -74,13 +94,51 @@ export default function New() {
           <p>발주번호는 저장할 때 자동으로 매깁니다.</p>
         </div>
 
-        <OrderFields form={form} errors={errors} onChange={set} onItemsChange={setItems} />
+        {error ? (
+          <div role="alert">
+            <p>{error}</p>
+            <Button type="button" variant="outline" onClick={reload}>
+              다시 시도
+            </Button>
+          </div>
+        ) : (
+          <OrderFields
+            form={form}
+            errors={errors}
+            companies={companies}
+            contracts={contracts}
+            products={products}
+            suppliers={suppliers}
+            optionsLoading={loading}
+            disabled={isCreating}
+            onChange={set}
+            onItemsChange={setItems}
+          />
+        )}
+
+        {submitError && <p role="alert">{submitError}</p>}
 
         <div className={styles.actions}>
-          <Button type="button" variant="outline" onClick={() => navigate(ROUTES.ORDERS)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isCreating}
+            onClick={() => navigate(ROUTES.ORDERS)}
+          >
             취소
           </Button>
-          <Button type="submit">발주 추가</Button>
+          <Button
+            type="submit"
+            disabled={
+              isCreating ||
+              loading ||
+              error !== null ||
+              companies.length === 0 ||
+              products.length === 0
+            }
+          >
+            {isCreating ? '등록 중…' : '발주 추가'}
+          </Button>
         </div>
       </form>
     </section>

@@ -80,3 +80,12 @@ DEBUG=false uv run python -m scripts.seed_demo_activities
 cd backend
 DEBUG=false uv run python -m scripts.seed_demo_contracts
 ```
+
+발주 seed는 인증·고객·일정·계약 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만
+현재 고객사·상품·계약 관계가 모두 정확한 합성 발주 2건과 품목 2건을 upsert합니다. 관계가
+누락되거나 불일치하는 나머지 프론트 목업 발주 3건은 넣지 않으며 비어 있는 팀은 건드리지 않습니다.
+
+```bash
+cd backend
+DEBUG=false uv run python -m scripts.seed_demo_orders
+```

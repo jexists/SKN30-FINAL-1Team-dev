@@ -1,6 +1,6 @@
 // 발주 입력값을 다루는 규칙입니다. 모달(OrderForm)과 추가 화면(New)이 같은 항목을
 // 받으므로 검사와 변환을 여기 한 곳에 둡니다. 어느 쪽으로 넣든 결과가 같아야 합니다.
-import type { OrderStatus, PurchaseOrder } from '@/types'
+import type { ApiPurchaseOrder, OrderStatus } from '@/types'
 import { addDays, iso, TODAY, TODAY_ISO } from '@/utils/date'
 
 import type { OrderDraft } from './useOrderList'
@@ -8,15 +8,15 @@ import type { OrderDraft } from './useOrderList'
 // 입력값은 전부 문자열로 다룹니다. 지우는 도중 0 이 되어 버리지 않게 수량·단가도
 // 문자열로 두고 제출할 때 한 번에 숫자로 돌립니다.
 export interface ItemState {
-  product: string
+  productId: string
   qty: string
   price: string
 }
 
 export interface FormState {
-  hospital: string
+  customerCompanyId: string
   supplier: string
-  contract: string
+  contractId: string
   status: string
   ordered: string
   due: string
@@ -33,13 +33,13 @@ export interface FormErrors extends Partial<Record<Exclude<keyof FormState, 'ite
   itemRows?: ItemErrors
 }
 
-export const emptyItem = (): ItemState => ({ product: '', qty: '1', price: '' })
+export const emptyItem = (): ItemState => ({ productId: '', qty: '1', price: '' })
 
-export function initialState(order?: PurchaseOrder): FormState {
+export function initialState(order?: ApiPurchaseOrder): FormState {
   return {
-    hospital: order?.hospital ?? '',
+    customerCompanyId: order?.customerCompanyId ?? '',
     supplier: order?.supplier ?? '',
-    contract: order?.contract ?? '',
+    contractId: order?.contractId ?? '',
     status: order?.status ?? '발주 접수',
     ordered: order?.ordered ?? TODAY_ISO,
     // 새 발주는 납기를 2주 뒤로 잡아 둡니다. 대부분 그 언저리라 고치는 손이 줄어듭니다.
@@ -48,7 +48,7 @@ export function initialState(order?: PurchaseOrder): FormState {
     memo: order?.memo ?? '',
     items: order
       ? order.items.map((it) => ({
-          product: it.product,
+          productId: it.productId,
           qty: String(it.qty),
           price: String(it.price),
         }))
@@ -62,7 +62,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export function validate(form: FormState): FormErrors {
   const errors: FormErrors = {}
-  if (form.hospital.trim() === '') errors.hospital = '고객사를 입력하세요.'
+  if (form.customerCompanyId === '') errors.customerCompanyId = '고객사를 선택하세요.'
   if (form.supplier.trim() === '') errors.supplier = '공급처를 입력하세요.'
 
   if (!DATE_RE.test(form.ordered)) errors.ordered = '날짜를 선택하세요.'
@@ -70,18 +70,20 @@ export function validate(form: FormState): FormErrors {
   if (!DATE_RE.test(form.expect)) errors.expect = '날짜를 선택하세요.'
 
   if (form.items.length === 0) errors.items = '품목을 한 줄 이상 넣으세요.'
+  else if (form.items.length > 100) errors.items = '품목은 100개까지 넣을 수 있습니다.'
 
   const rows: ItemErrors = {}
   form.items.forEach((item, index) => {
     const row: Partial<Record<keyof ItemState, string>> = {}
-    if (item.product.trim() === '') row.product = '제품을 입력하세요.'
+    if (item.productId === '') row.productId = '제품을 선택하세요.'
 
     const qty = num(item.qty)
-    if (item.qty.trim() === '' || Number.isNaN(qty) || qty <= 0) row.qty = '1 이상으로 입력하세요.'
+    if (!/^\d+$/.test(item.qty) || !Number.isSafeInteger(qty) || qty <= 0)
+      row.qty = '1 이상의 정수로 입력하세요.'
 
     const price = num(item.price)
-    if (item.price.trim() === '' || Number.isNaN(price) || price < 0)
-      row.price = '0 이상으로 입력하세요.'
+    if (!/^\d+$/.test(item.price) || !Number.isSafeInteger(price))
+      row.price = '0 이상의 정수로 입력하세요.'
 
     if (Object.keys(row).length > 0) rows[index] = row
   })
@@ -102,16 +104,16 @@ export function totalOf(form: FormState): number {
 
 export function toDraft(form: FormState): OrderDraft {
   return {
-    hospital: form.hospital.trim(),
+    customerCompanyId: form.customerCompanyId,
     supplier: form.supplier.trim(),
-    contract: form.contract.trim(),
+    contractId: form.contractId || null,
     status: form.status as OrderStatus,
     ordered: form.ordered,
     due: form.due,
     expect: form.expect,
-    memo: form.memo.trim(),
+    memo: form.memo.trim() || null,
     items: form.items.map((item) => ({
-      product: item.product.trim(),
+      productId: item.productId,
       qty: num(item.qty),
       price: num(item.price),
     })),

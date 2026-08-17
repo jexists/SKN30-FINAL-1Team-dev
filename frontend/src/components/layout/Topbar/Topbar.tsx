@@ -31,6 +31,7 @@ export default function Topbar() {
 
   const pageLabel = findNavLabel(pathname) ?? '페이지를 찾을 수 없음'
   const isVisits = pathname === ROUTES.VISITS || pathname.startsWith(`${ROUTES.VISITS}/`)
+  const isOrders = pathname === ROUTES.ORDERS || pathname.startsWith(`${ROUTES.ORDERS}/`)
 
   return (
     <header className={styles.topbar}>
@@ -52,11 +53,15 @@ export default function Topbar() {
       <div className={styles.spacer} />
 
       {/* 실제 팀원 UUID 목록이 붙기 전까지 DB 화면에는 목업 담당자 필터를 노출하지 않습니다. */}
-      {isManager && pathname !== ROUTES.CUSTOMERS && pathname !== ROUTES.CALENDAR && !isVisits && (
-        <div className={styles.scope}>
-          <ScopeSwitcher />
-        </div>
-      )}
+      {isManager &&
+        pathname !== ROUTES.CUSTOMERS &&
+        pathname !== ROUTES.CALENDAR &&
+        !isVisits &&
+        !isOrders && (
+          <div className={styles.scope}>
+            <ScopeSwitcher />
+          </div>
+        )}
 
       {/* 알림은 화면 하나입니다. 벨은 그리로 가는 통로일 뿐이라 점만 얹습니다. */}
       <Link

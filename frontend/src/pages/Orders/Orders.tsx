@@ -6,6 +6,7 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import DataTable, { compareBy, type SortState } from '@/components/DataTable'
 import FilterSelect from '@/components/FilterSelect'
@@ -18,14 +19,13 @@ import StageChip from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { orderNewPath, orderPath } from '@/constants/routes'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
-import type { OrderStatus, PurchaseOrder } from '@/types'
-import { useOwnerScope } from '@/scope/scopeContext'
+import type { ApiPurchaseOrder, OrderStatus } from '@/types'
 import { addDays, fmtDotShort, iso, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import { ORDER_COLUMNS } from './columns'
 import OrderForm from './components/OrderForm'
-import { ORDER_STAGES, ownerOfOrder, SUPPLIERS, TONE_OF } from './pipeline'
+import { ORDER_STAGES, TONE_OF } from './pipeline'
 import useOrderList from './useOrderList'
 
 import styles from '@/pages/listPage.module.scss'
@@ -38,18 +38,28 @@ const RANGES = [
   { value: '0', label: '전체' },
 ]
 
-const SUPPLIER_OPTIONS = [
-  { value: '', label: '공급처 전체' },
-  ...SUPPLIERS.map((name) => ({ value: name, label: name })),
-]
-
 /** 기본 기간. 발주일 기준입니다. */
 const DEFAULT_RANGE = '6'
 
 export default function Orders() {
-  const { orders, findOrder, updateOrder, removeOrder } = useOrderList()
+  const {
+    orders,
+    companies,
+    contracts,
+    products,
+    suppliers,
+    loading,
+    error,
+    reload,
+    mutationError,
+    clearMutationError,
+    isPending,
+    findOrderById,
+    updateOrder,
+    removeOrder,
+  } = useOrderList()
   const navigate = useNavigate()
-  const { matchesOwner, isTeamView } = useOwnerScope()
+  const { isManager } = useCurrentUser()
 
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
@@ -63,15 +73,23 @@ export default function Orders() {
   const [sort, setSort] = useState<SortState>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [openNo, setOpenNo] = useState<string | null>(null)
-  const [editingNo, setEditingNo] = useState<string | null>(null)
-  const [deletingNo, setDeletingNo] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'supplier' | 'range' | null>(null)
 
   // 한 사람만 보고 있으면 담당 영업 열은 모든 줄이 같은 값이라 자리만 차지합니다.
   const columns = useMemo(
-    () => ORDER_COLUMNS.filter((col) => col.id !== 'owner' || isTeamView),
-    [isTeamView],
+    () => ORDER_COLUMNS.filter((col) => col.id !== 'owner' || isManager),
+    [isManager],
+  )
+
+  const supplierOptions = useMemo(
+    () => [
+      { value: '', label: '공급처 전체' },
+      ...suppliers.map((name) => ({ value: name, label: name })),
+    ],
+    [suppliers],
   )
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
@@ -97,9 +115,6 @@ export default function Orders() {
   const beforeStatus = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase()
     return orders.filter((order) => {
-      // 계약 없는 선발주는 담당자를 알 수 없어 팀 전체에서만 보입니다.
-      const owner = ownerOfOrder(order)
-      if (owner === undefined ? !isTeamView : !matchesOwner(owner)) return false
       if (supplier !== '' && order.supplier !== supplier) return false
       if (fromISO !== null && order.ordered < fromISO) return false
       if (needle === '') return true
@@ -109,7 +124,7 @@ export default function Orders() {
         .toLowerCase()
         .includes(needle)
     })
-  }, [orders, matchesOwner, isTeamView, supplier, fromISO, deferredQuery])
+  }, [orders, supplier, fromISO, deferredQuery])
 
   const statusCounts = useMemo(() => {
     const map = new Map<OrderStatus, number>()
@@ -149,15 +164,16 @@ export default function Orders() {
 
   // 객체가 아니라 발주번호를 들고 목록에서 찾습니다. 열어 둔 발주를 지우면
   // 여기가 비면서 드로어가 알아서 닫힙니다.
-  const openOrder = openNo ? findOrder(openNo) : undefined
-  const editingOrder = editingNo ? findOrder(editingNo) : undefined
-  const deletingOrder = deletingNo ? findOrder(deletingNo) : undefined
+  const openOrder = openId ? findOrderById(openId) : undefined
+  const editingOrder = editingId ? findOrderById(editingId) : undefined
+  const deletingOrder = deletingId ? findOrderById(deletingId) : undefined
+  const isDeleting = deletingOrder ? isPending(deletingOrder.id) : false
 
   const isFiltered =
     query.trim() !== '' || supplier !== '' || status !== '' || range !== DEFAULT_RANGE
 
   return (
-    <section className={styles.page}>
+    <section className={styles.page} aria-busy={loading}>
       {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
       <h1 className="sr-only">발주 관리</h1>
 
@@ -173,7 +189,7 @@ export default function Orders() {
         <FilterSelect
           label="공급처"
           value={supplier}
-          options={SUPPLIER_OPTIONS}
+          options={supplierOptions}
           open={openFilter === 'supplier'}
           onOpenChange={(open) => setOpenFilter(open ? 'supplier' : null)}
           onChange={(value) => setParam('supplier', value)}
@@ -189,7 +205,7 @@ export default function Orders() {
         />
 
         <div className={styles.actions}>
-          <Button onClick={() => navigate(orderNewPath(status || undefined))}>
+          <Button disabled={loading} onClick={() => navigate(orderNewPath(status || undefined))}>
             <PlusIcon width={15} height={15} />
             발주 추가
           </Button>
@@ -205,64 +221,89 @@ export default function Orders() {
         onChange={(next) => setParam('status', next)}
       />
 
-      <DataTable
-        rows={pageRows}
-        columns={columns}
-        rowKey={(order) => order.no}
-        handleColumn="hospital"
-        sort={sort}
-        onSort={onSort}
-        onOpen={(order) => setOpenNo(order.no)}
-        caption="발주 목록. 헤더를 눌러 정렬할 수 있습니다."
-        renderCell={(id, order) => {
-          if (id === 'status') return statusChip(order)
-          // 납기를 넘긴 건은 여기서 바로 알아야 해서 지연 일수를 납기 옆에 붙입니다.
-          if (id !== 'due' || !isLate(order)) return undefined
-          return (
-            <span className={styles.late}>
-              {fmtDotShort(parseISO(order.due))}
-              <i>{lateLabel(order)}</i>
-            </span>
-          )
-        }}
-        mini={(order) => ({
-          title: order.hospital,
-          badge: statusChip(order),
-          sub: orderItemLabel(order),
-          meta: [
-            <span key="m1" className="tnum">
-              {won(orderTotal(order))}
-            </span>,
-            <span key="m2" className="tnum">
-              납기 {fmtDotShort(parseISO(order.due))}
-            </span>,
-            isLate(order) ? (
-              <i key="m3" className={styles.lateOnly}>
-                {lateLabel(order)}
-              </i>
+      {mutationError && !deletingOrder && (
+        <div role="alert">
+          <p>{mutationError}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              clearMutationError()
+              reload()
+            }}
+          >
+            목록 새로고침
+          </Button>
+        </div>
+      )}
+
+      {error ? (
+        <div role="alert">
+          <p>{error}</p>
+          <Button variant="outline" onClick={reload}>
+            다시 시도
+          </Button>
+        </div>
+      ) : loading && orders.length === 0 ? (
+        <p role="status">발주 목록을 불러오는 중입니다.</p>
+      ) : (
+        <DataTable
+          rows={pageRows}
+          columns={columns}
+          rowKey={(order) => order.id}
+          handleColumn="hospital"
+          sort={sort}
+          onSort={onSort}
+          onOpen={(order) => setOpenId(order.id)}
+          caption="발주 목록. 헤더를 눌러 정렬할 수 있습니다."
+          renderCell={(id, order) => {
+            if (id === 'status') return statusChip(order)
+            if (id !== 'due' || !isLate(order)) return undefined
+            return (
+              <span className={styles.late}>
+                {fmtDotShort(parseISO(order.due))}
+                <i>{lateLabel(order)}</i>
+              </span>
+            )
+          }}
+          mini={(order) => ({
+            title: order.hospital,
+            badge: statusChip(order),
+            sub: orderItemLabel(order),
+            meta: [
+              <span key="m1" className="tnum">
+                {won(orderTotal(order))}
+              </span>,
+              <span key="m2" className="tnum">
+                납기 {fmtDotShort(parseISO(order.due))}
+              </span>,
+              isLate(order) ? (
+                <i key="m3" className={styles.lateOnly}>
+                  {lateLabel(order)}
+                </i>
+              ) : (
+                order.supplier
+              ),
+            ],
+          })}
+          empty={
+            isFiltered ? (
+              <>
+                <SearchIcon width={34} height={34} strokeWidth={1.5} />
+                <p>조건에 맞는 발주가 없습니다.</p>
+                <Button variant="outline" onClick={clearFilters}>
+                  검색·필터 초기화
+                </Button>
+              </>
             ) : (
-              order.supplier
-            ),
-          ],
-        })}
-        empty={
-          isFiltered ? (
-            <>
-              <SearchIcon width={34} height={34} strokeWidth={1.5} />
-              <p>조건에 맞는 발주가 없습니다.</p>
-              <Button variant="outline" onClick={clearFilters}>
-                검색·필터 초기화
-              </Button>
-            </>
-          ) : (
-            <>
-              <OrdersIcon width={34} height={34} strokeWidth={1.5} />
-              <p>아직 등록한 발주가 없습니다.</p>
-              <Button onClick={() => navigate(orderNewPath())}>발주 추가</Button>
-            </>
-          )
-        }
-      />
+              <>
+                <OrdersIcon width={34} height={34} strokeWidth={1.5} />
+                <p>아직 등록한 발주가 없습니다.</p>
+                <Button onClick={() => navigate(orderNewPath())}>발주 추가</Button>
+              </>
+            )
+          }
+        />
+      )}
 
       {matched.length > 0 && (
         <Pagination
@@ -283,14 +324,14 @@ export default function Orders() {
         <OrderDrawer
           order={openOrder}
           detailTo={orderPath(openOrder.no)}
-          onClose={() => setOpenNo(null)}
+          onClose={() => setOpenId(null)}
           onEdit={() => {
-            setEditingNo(openOrder.no)
-            setOpenNo(null)
+            setEditingId(openOrder.id)
+            setOpenId(null)
           }}
           onDelete={() => {
-            setDeletingNo(openOrder.no)
-            setOpenNo(null)
+            setDeletingId(openOrder.id)
+            setOpenId(null)
           }}
         />
       )}
@@ -298,10 +339,15 @@ export default function Orders() {
       {editingOrder && (
         <OrderForm
           order={editingOrder}
-          onClose={() => setEditingNo(null)}
-          onSubmit={(draft) => {
-            updateOrder(editingOrder.no, draft)
-            setEditingNo(null)
+          companies={companies}
+          contracts={contracts}
+          products={products}
+          suppliers={suppliers}
+          optionsLoading={loading}
+          onClose={() => setEditingId(null)}
+          onSubmit={async (draft) => {
+            await updateOrder(editingOrder.id, draft)
+            setEditingId(null)
           }}
         />
       )}
@@ -309,10 +355,12 @@ export default function Orders() {
       {deletingOrder && (
         <DeleteConfirm
           order={deletingOrder}
-          onClose={() => setDeletingNo(null)}
-          onConfirm={() => {
-            removeOrder(deletingOrder.no)
-            setDeletingNo(null)
+          pending={isDeleting}
+          error={mutationError}
+          onClose={() => setDeletingId(null)}
+          onConfirm={async () => {
+            await removeOrder(deletingOrder.id)
+            setDeletingId(null)
           }}
         />
       )}
@@ -321,33 +369,39 @@ export default function Orders() {
 }
 
 /** 납기를 며칠 넘겼는지. 표와 카드가 같은 문구를 씁니다. */
-const lateLabel = (order: PurchaseOrder) => `${order.expectOff - order.dueOff}일 지연`
+const lateLabel = (order: ApiPurchaseOrder) => `${order.expectOff - order.dueOff}일 지연`
 
 /** 표와 카드가 같은 배지를 씁니다. */
-function statusChip(order: PurchaseOrder) {
+function statusChip(order: ApiPurchaseOrder) {
   return <StageChip tone={TONE_OF[order.status]}>{order.status}</StageChip>
 }
 
 interface DeleteConfirmProps {
-  order: PurchaseOrder
+  order: ApiPurchaseOrder
+  pending: boolean
+  error: string | null
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: () => Promise<void>
 }
 
 /** 지우기 전 한 번 묻습니다. 계약 목록과 같은 문구를 씁니다. */
-function DeleteConfirm({ order, onClose, onConfirm }: DeleteConfirmProps) {
+function DeleteConfirm({ order, pending, error, onClose, onConfirm }: DeleteConfirmProps) {
   return (
     <Modal
       title="발주를 삭제할까요?"
       description={`${order.no} · ${order.hospital}. 되돌릴 수 없습니다.`}
-      onClose={onClose}
+      onClose={pending ? () => {} : onClose}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
             취소
           </Button>
-          <Button type="button" onClick={onConfirm}>
-            삭제
+          <Button
+            type="button"
+            disabled={pending}
+            onClick={() => void onConfirm().catch(() => undefined)}
+          >
+            {pending ? '삭제 중…' : '삭제'}
           </Button>
         </>
       }
@@ -355,6 +409,7 @@ function DeleteConfirm({ order, onClose, onConfirm }: DeleteConfirmProps) {
       <p className={styles.confirm}>
         {orderItemLabel(order)} · {order.supplier}
       </p>
+      {error && <p role="alert">{error}</p>}
     </Modal>
   )
 }

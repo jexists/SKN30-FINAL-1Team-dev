@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import { ChevronLeftIcon } from '@/components/icons'
-import { ROUTES, contractPath, orderPath } from '@/constants/routes'
+import { ROUTES, orderPath } from '@/constants/routes'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
 import type { OrderStatus } from '@/types'
 import { fmtDot, fmtDotShort, parseISO } from '@/utils/date'
@@ -21,12 +21,50 @@ import styles from './Detail.module.scss'
 export default function OrderDetail() {
   const { orderNo = '' } = useParams()
   const navigate = useNavigate()
-  const { orders, findOrder, updateOrder, setStatus, removeOrder } = useOrderList()
+  const {
+    orders,
+    companies,
+    contracts,
+    products,
+    suppliers,
+    loading,
+    error,
+    reload,
+    detail,
+    detailLoading,
+    detailError,
+    reloadDetail,
+    mutationError,
+    isPending,
+    findOrderByNo,
+    updateOrder,
+    setStatus,
+    removeOrder,
+  } = useOrderList(orderNo)
 
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const order = findOrder(orderNo)
+  const order = detail ?? findOrderByNo(orderNo)
+
+  if ((loading || detailLoading) && !order) {
+    return (
+      <section className={styles.missing} role="status">
+        <h1>발주를 불러오는 중입니다.</h1>
+      </section>
+    )
+  }
+
+  if (error || detailError) {
+    return (
+      <section className={styles.missing} role="alert">
+        <h1>{detailError ?? error}</h1>
+        <Button variant="outline" onClick={detailError ? reloadDetail : reload}>
+          다시 시도
+        </Button>
+      </section>
+    )
+  }
 
   if (!order) {
     return (
@@ -47,7 +85,7 @@ export default function OrderDetail() {
     .slice(0, 8)
 
   return (
-    <section className={styles.page}>
+    <section className={styles.page} aria-busy={detailLoading || isPending(order.id)}>
       <Link className={styles.back} to={ROUTES.ORDERS}>
         <ChevronLeftIcon />
         발주 관리
@@ -69,7 +107,12 @@ export default function OrderDetail() {
           <select
             className={styles.select}
             value={order.status}
-            onChange={(event) => setStatus(order.no, event.target.value as OrderStatus)}
+            disabled={isPending(order.id)}
+            onChange={(event) => {
+              const next = event.target.value as OrderStatus
+              if (next !== order.status)
+                void setStatus(order.id, order.status, next).catch(() => undefined)
+            }}
           >
             {ORDER_STATUSES.map((status) => (
               <option key={status}>{status}</option>
@@ -77,10 +120,20 @@ export default function OrderDetail() {
           </select>
         </label>
 
-        <Button type="button" variant="outline" onClick={() => setEditing(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending(order.id)}
+          onClick={() => setEditing(true)}
+        >
           수정
         </Button>
-        <Button type="button" variant="ghost" onClick={() => setDeleting(true)}>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={isPending(order.id)}
+          onClick={() => setDeleting(true)}
+        >
           삭제
         </Button>
       </div>
@@ -98,7 +151,10 @@ export default function OrderDetail() {
           <dt>계약</dt>
           <dd>
             {order.contract ? (
-              <Link className={styles.link} to={contractPath(order.contract)}>
+              <Link
+                className={styles.link}
+                to={`${ROUTES.VISITS}?q=${encodeURIComponent(order.contract)}`}
+              >
                 {order.contract}
               </Link>
             ) : (
@@ -129,7 +185,7 @@ export default function OrderDetail() {
         <h2 className={styles.blockTitle}>품목</h2>
         <ul className={styles.items}>
           {order.items.map((item) => (
-            <li key={item.product} className={styles.item}>
+            <li key={item.id} className={styles.item}>
               <span className={styles.itemProduct}>{item.product}</span>
               {/* 소모품은 단가가 몇만 원이라 요약 표기로는 ₩0.0M 이 됩니다. */}
               <span className={`${styles.itemQty} tnum`}>
@@ -166,9 +222,14 @@ export default function OrderDetail() {
       {editing && (
         <OrderForm
           order={order}
+          companies={companies}
+          contracts={contracts}
+          products={products}
+          suppliers={suppliers}
+          optionsLoading={loading}
           onClose={() => setEditing(false)}
-          onSubmit={(draft) => {
-            updateOrder(order.no, draft)
+          onSubmit={async (draft) => {
+            await updateOrder(order.id, draft)
             setEditing(false)
           }}
         />
@@ -178,21 +239,27 @@ export default function OrderDetail() {
         <Modal
           title="발주를 삭제할까요?"
           description={`${order.no} · ${order.hospital}. 되돌릴 수 없습니다.`}
-          onClose={() => setDeleting(false)}
+          onClose={isPending(order.id) ? () => {} : () => setDeleting(false)}
           footer={
             <>
-              <Button type="button" variant="outline" onClick={() => setDeleting(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending(order.id)}
+                onClick={() => setDeleting(false)}
+              >
                 취소
               </Button>
               <Button
                 type="button"
+                disabled={isPending(order.id)}
                 onClick={() => {
-                  removeOrder(order.no)
-                  // 지운 발주의 상세에 머물면 "찾을 수 없습니다" 만 보입니다.
-                  navigate(ROUTES.ORDERS, { replace: true })
+                  void removeOrder(order.id)
+                    .then(() => navigate(ROUTES.ORDERS, { replace: true }))
+                    .catch(() => undefined)
                 }}
               >
-                삭제
+                {isPending(order.id) ? '삭제 중…' : '삭제'}
               </Button>
             </>
           }
@@ -200,8 +267,11 @@ export default function OrderDetail() {
           <p className={styles.empty}>
             {orderItemLabel(order)} · {order.supplier}
           </p>
+          {mutationError && <p role="alert">{mutationError}</p>}
         </Modal>
       )}
+
+      {mutationError && !deleting && <p role="alert">{mutationError}</p>}
     </section>
   )
 }
