@@ -1,41 +1,117 @@
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { isAxiosError } from 'axios'
 
-import { ROUTES } from '@/constants/routes'
-import { clearProfileId, readProfileId, writeProfileId } from '@/mocks'
-import { findProfile } from '@/mocks/profiles'
+import { client } from '@/api/client'
+import { clearProfileId, profile as mockProfile, readProfileId, writeProfileId } from '@/mocks'
 import { clearScope } from '@/scope/scopeStorage'
 
 import { type Session, SessionContext } from './sessionContext'
 
-// 세션은 고른 데모 프로필 자체입니다. 탭을 닫으면 사라지도록 sessionStorage 에 두며,
-// 읽고 쓰는 자리는 mocks/ 한 곳입니다 — 시드를 고르는 것과 같은 값이라야 하기 때문입니다.
-function readSession(): Session | null {
-  const id = readProfileId()
-  if (id === null) return null
-  const { role, name, title } = findProfile(id)
-  return { role, profile: { name, title } }
+interface AuthUser {
+  id: string
+  display_name: string
+  role_code: Session['role']
+  job_title: string | null
+}
+
+const PROFILE_ID_BY_ROLE: Record<Session['role'], string> = {
+  manager: 'sample-manager',
+  member: 'sample-member',
+}
+
+const toSession = ({ display_name, role_code, job_title }: AuthUser): Session => ({
+  role: role_code,
+  profile: { name: display_name, title: job_title ?? '' },
+})
+
+/** 인증과 무관한 합성 데이터 선택값만 실제 역할에 맞춥니다. */
+function syncMockProfile(role: Session['role']): 'ready' | 'reload' | 'failed' {
+  const expectedId = PROFILE_ID_BY_ROLE[role]
+  if (readProfileId() !== expectedId) writeProfileId(expectedId)
+
+  if (mockProfile.id === expectedId) return 'ready'
+  return readProfileId() === expectedId ? 'reload' : 'failed'
 }
 
 export default function SessionProvider({ children }: { children: ReactNode }) {
-  // 초기화 함수는 첫 페인트 전에 실행되므로 새로고침해도 로그인 화면이 스쳐 지나가지 않습니다.
-  const [session, setSession] = useState<Session | null>(readSession)
+  // undefined 는 서버 세션 복원 중입니다. 이때 라우트를 렌더하면 로그인 화면으로 잘못 튕깁니다.
+  const [session, setSession] = useState<Session | null>()
+  const [restoreFailed, setRestoreFailed] = useState(false)
 
-  const login = useCallback((profileId: string) => {
-    writeProfileId(profileId)
-    // 앞사람이 보던 범위가 다음 로그인에 남지 않도록 지웁니다.
-    clearScope()
-    // 목업 시드는 모듈이 로드될 때 프로필에 맞춰 확정됩니다. setState 로는 이미 만들어진
-    // 데이터셋이 바뀌지 않으므로 프로필을 저장한 뒤 통째로 새로고침합니다.
-    window.location.assign(ROUTES.DASHBOARD)
+  useEffect(() => {
+    let active = true
+
+    client
+      .get<AuthUser>('/auth/me')
+      .then(({ data }) => {
+        if (!active) return
+        const next = toSession(data)
+        const mockSync = syncMockProfile(next.role)
+        if (mockSync === 'reload') {
+          window.location.reload()
+          return
+        }
+        if (mockSync === 'failed') {
+          setRestoreFailed(true)
+          return
+        }
+        setSession(next)
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        if (isAxiosError(error) && error.response?.status === 401) {
+          setSession(null)
+          return
+        }
+        setRestoreFailed(true)
+      })
+
+    return () => {
+      active = false
+    }
   }, [])
 
-  const logout = useCallback(() => {
+  const login = useCallback(async (loginId: string, password: string) => {
+    const { data } = await client.post<AuthUser>('/auth/login', {
+      login_id: loginId,
+      password,
+    })
+    const next = toSession(data)
+    clearScope()
+    const mockSync = syncMockProfile(next.role)
+    if (mockSync === 'reload') {
+      window.location.reload()
+      return
+    }
+    if (mockSync === 'failed') {
+      await client.post('/auth/logout')
+      throw new Error('mock profile storage unavailable')
+    }
+    setSession(next)
+  }, [])
+
+  const logout = useCallback(async () => {
+    try {
+      await client.post('/auth/logout')
+    } catch {
+      return
+    }
     clearProfileId()
     clearScope()
     setSession(null)
   }, [])
 
-  const value = useMemo(() => ({ session, login, logout }), [session, login, logout])
+  if (restoreFailed) {
+    return (
+      <main role="alert">
+        서버에 연결할 수 없습니다.{' '}
+        <button type="button" onClick={() => window.location.reload()}>
+          다시 시도
+        </button>
+      </main>
+    )
+  }
+  if (session === undefined) return null
 
-  return <SessionContext value={value}>{children}</SessionContext>
+  return <SessionContext value={{ session, login, logout }}>{children}</SessionContext>
 }

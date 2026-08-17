@@ -226,59 +226,11 @@
   margin-top: 4px;
 }
 
-.or {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 24px 0;
-  color: var(--muted);
-  font-size: 11px;
-
-  &::before,
-  &::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--line);
-  }
-}
-
-.demoRoles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-
-  @include sm {
-    grid-template-columns: 1fr;
-  }
-}
-
-.demoRole {
-  padding: 14px;
-  text-align: left;
-  cursor: pointer;
-  background: var(--surface);
-  border: 1px solid var(--line-2);
-  border-radius: 13px;
-  transition:
-    background var(--t-fast),
-    border-color var(--t-fast);
-
-  &:hover {
-    border-color: rgba(0, 122, 255, 0.36);
-    background: #f4f8ff;
-  }
-
-  strong {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 13px;
-  }
-
-  span {
-    font-size: 11px;
-    color: var(--muted);
-  }
+.error {
+  margin-top: -4px;
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .footnote {

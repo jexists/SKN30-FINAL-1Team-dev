@@ -1,18 +1,29 @@
 import { type FormEvent, useState } from 'react'
+import { isAxiosError } from 'axios'
 import { Navigate } from 'react-router'
 
 import { useSession } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import { ROUTES } from '@/constants/routes'
-import { DEFAULT_PROFILE_ID, MOCK_PROFILES } from '@/mocks/profiles'
 
 import styles from './Login.module.scss'
+
+function loginErrorMessage(error: unknown): string {
+  if (isAxiosError(error)) {
+    if (error.response?.status === 401) return '로그인 아이디 또는 비밀번호를 확인해 주세요.'
+    if (error.response?.status === 429)
+      return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.'
+  }
+  return '로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+}
 
 export default function Login() {
   const { session, login } = useSession()
 
-  const [email, setEmail] = useState('manager@salesluv.demo')
-  const [password, setPassword] = useState('salesluv')
+  const [loginId, setLoginId] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // 로그인 직후에도, 이미 로그인한 채로 /login 에 들어와도 이 한 줄이 목적지를 정합니다.
   // login() 뒤에 navigate() 를 따로 부르면 이 리다이렉트와 경합해 목적지를 잃습니다.
@@ -21,10 +32,17 @@ export default function Login() {
   // 대시보드뿐이라 나머지로 되돌아가 봐야 404 를 만나기 때문입니다.
   if (session) return <Navigate to={ROUTES.DASHBOARD} replace />
 
-  const onSubmit = (event: FormEvent) => {
+  const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    // 아직 인증 API 가 없어 입력값을 검증하지 않습니다. 아래 각주가 이를 밝힙니다.
-    login(DEFAULT_PROFILE_ID)
+    setSubmitting(true)
+    setError(null)
+    try {
+      await login(loginId.trim(), password)
+    } catch (cause) {
+      setError(loginErrorMessage(cause))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -70,13 +88,17 @@ export default function Login() {
 
         <form onSubmit={onSubmit}>
           <div className={styles.field}>
-            <label htmlFor="email">이메일</label>
+            <label htmlFor="login-id">로그인 아이디</label>
             <input
               className={styles.input}
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="login-id"
+              type="text"
+              autoComplete="username"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              disabled={submitting}
+              aria-invalid={error !== null}
+              aria-describedby={error ? 'login-error' : undefined}
               required
             />
           </div>
@@ -86,26 +108,24 @@ export default function Login() {
               className={styles.input}
               id="password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={submitting}
+              aria-invalid={error !== null}
+              aria-describedby={error ? 'login-error' : undefined}
               required
             />
           </div>
-          <Button className={styles.mainBtn} type="submit">
-            팀장 데모로 로그인 <span aria-hidden="true">→</span>
+          {error && (
+            <p id="login-error" className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+          <Button className={styles.mainBtn} type="submit" disabled={submitting}>
+            {submitting ? '로그인 중…' : '로그인'} <span aria-hidden="true">→</span>
           </Button>
         </form>
-
-        <div className={styles.or}>데모 프로필로 바로 보기</div>
-
-        <div className={styles.demoRoles}>
-          {MOCK_PROFILES.map(({ id, label, note }) => (
-            <button key={id} className={styles.demoRole} type="button" onClick={() => login(id)}>
-              <strong>{label}</strong>
-              <span>{note}</span>
-            </button>
-          ))}
-        </div>
 
         <p className={styles.footnote}>
           시연용 합성 데이터입니다. 실제 개인정보는 포함되어 있지 않습니다.

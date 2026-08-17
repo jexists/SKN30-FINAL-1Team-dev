@@ -1,5 +1,3 @@
-// 실제 인증이 붙기 전까지 세션은 로그인 화면의 데모 프로필 버튼으로만 만들어집니다.
-// 백엔드 인증이 들어오면 SessionProvider 의 login 이 API 를 호출하도록 바꾸면 됩니다.
 import { createContext, useContext } from 'react'
 
 import type { Role } from '@/types'
@@ -16,9 +14,8 @@ export interface Session {
 
 export interface SessionContextValue {
   session: Session | null
-  /** mocks/profiles.ts 의 MockProfile.id */
-  login: (profileId: string) => void
-  logout: () => void
+  login: (loginId: string, password: string) => Promise<void>
+  logout: () => Promise<void>
 }
 
 export const SessionContext = createContext<SessionContextValue | null>(null)

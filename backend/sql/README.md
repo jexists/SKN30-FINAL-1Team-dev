@@ -34,3 +34,16 @@
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0001_core_schema.sql` | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0002_remaining_schema.sql` | Session Pooler | 성공 |
 | 2026-08-17 | 개발 Supabase `public` | `20260817_0003_singular_table_names.sql` | Session Pooler | 성공 |
+| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` | Session Pooler | 성공 |
+
+## 개발 로그인 계정
+
+`backend/.env`의 `DEMO_MANAGER_LOGIN_ID`, `DEMO_MEMBER_LOGIN_ID`, `DEMO_PASSWORD`를 채운 뒤
+아래 명령을 실행합니다. 평문 비밀번호는 파일이나 로그에 남기지 않고 실행 시 scrypt로 해시합니다.
+
+```bash
+cd backend
+DEBUG=false uv run python -m scripts.seed_demo_auth
+```
+
+고정된 합성 팀과 팀장·팀원 계정을 upsert하므로 같은 개발 DB에 다시 실행할 수 있습니다.

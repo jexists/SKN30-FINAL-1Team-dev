@@ -21,6 +21,11 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      APP_ENV: test
+      DEBUG: 'false'
+      CORS_ORIGINS: http://testserver
+      SESSION_SECRET: test-only-session-signing-key-at-least-32-characters
     steps:
       - uses: actions/checkout@v4
 

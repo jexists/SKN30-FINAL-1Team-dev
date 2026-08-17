@@ -4,8 +4,10 @@
 코드 다른 곳에서 os.getenv 를 직접 호출하지 마세요.
 """
 
+from typing import Literal, Self
 from urllib.parse import urlsplit, urlunsplit
 
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,7 +18,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_env: str = "local"
+    app_env: Literal["local", "test", "production"]
     debug: bool = True
 
     # 프론트 개발 서버 주소. 쉼표로 여러 개 지정 가능.
@@ -26,9 +28,45 @@ class Settings(BaseSettings):
     # 드라이버 접두사(+asyncpg)는 아래에서 자동으로 붙입니다.
     database_url: str = ""
 
+    session_secret: SecretStr = Field(min_length=32)
+    session_ttl_seconds: int = Field(default=28_800, ge=300, le=86_400)
+    login_max_attempts: int = Field(default=5, ge=1, le=20)
+    login_window_seconds: int = Field(default=60, ge=10, le=3_600)
+
+    # 공유 개발 DB에 합성 계정을 넣는 일회성 seed 전용 값입니다.
+    demo_manager_login_id: str = ""
+    demo_member_login_id: str = ""
+    demo_password: SecretStr = SecretStr("")
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def session_cookie_secure(self) -> bool:
+        return self.app_env == "production"
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> Self:
+        if self.app_env != "production":
+            return self
+        if self.debug:
+            raise ValueError("production에서는 DEBUG=false여야 합니다.")
+        if not self.cors_origin_list:
+            raise ValueError("production CORS origin이 비어 있습니다.")
+        for origin in self.cors_origin_list:
+            parts = urlsplit(origin)
+            if (
+                parts.scheme != "https"
+                or not parts.hostname
+                or parts.username is not None
+                or parts.password is not None
+                or parts.path
+                or parts.query
+                or parts.fragment
+            ):
+                raise ValueError("production CORS origin은 경로 없는 HTTPS origin이어야 합니다.")
+        return self
 
     @property
     def async_database_url(self) -> str:
