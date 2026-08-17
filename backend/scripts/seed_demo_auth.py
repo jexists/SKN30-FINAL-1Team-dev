@@ -15,34 +15,42 @@ FILLED_TEAM_ID = UUID("6d0f1b76-6b1a-4b72-9ba3-1df477a62d78")
 EMPTY_TEAM_ID = UUID("dc153ea5-9ba6-4b96-a4df-845a44798003")
 FILLED_MANAGER_ID = UUID("a6a7a7f6-7141-4b94-9355-bde585f44d1a")
 FILLED_MEMBER_ID = UUID("86d40aa1-0a5b-4a23-912f-e039c392c60a")
+FILLED_MEMBER2_ID = UUID("318a44b7-6726-5054-9b67-469a43b3dd6f")
 EMPTY_MANAGER_ID = UUID("7a489d16-0e50-4061-9c23-8756fb79e3ed")
 EMPTY_MEMBER_ID = UUID("cc1b70c1-71bb-421b-9ce4-66464ee17018")
+EMPTY_MEMBER2_ID = UUID("56ef16f5-19c0-5778-a429-2a71edf18de0")
 
 
 async def seed_demo_auth() -> None:
     (
         filled_manager_login_id,
         filled_member_login_id,
+        filled_member2_login_id,
         empty_manager_login_id,
         empty_member_login_id,
+        empty_member2_login_id,
     ) = (
         settings.demo_filled_manager_login_id.strip().lower(),
         settings.demo_filled_member_login_id.strip().lower(),
+        settings.demo_filled_member2_login_id.strip().lower(),
         settings.demo_empty_manager_login_id.strip().lower(),
         settings.demo_empty_member_login_id.strip().lower(),
+        settings.demo_empty_member2_login_id.strip().lower(),
     )
     login_ids = (
         filled_manager_login_id,
         filled_member_login_id,
+        filled_member2_login_id,
         empty_manager_login_id,
         empty_member_login_id,
+        empty_member2_login_id,
     )
     password = settings.demo_password.get_secret_value()
 
     if not all(login_ids) or not password:
         raise SystemExit("backend/.env의 DEMO_* 인증 값을 먼저 채워주세요.")
     if len(set(login_ids)) != len(login_ids):
-        raise SystemExit("네 데모 계정의 로그인 ID는 서로 달라야 합니다.")
+        raise SystemExit("여섯 데모 계정의 로그인 ID는 서로 달라야 합니다.")
     if any(len(login_id) > 254 for login_id in login_ids):
         raise SystemExit("데모 계정 로그인 ID는 254자 이하여야 합니다.")
     if not 1 <= len(password) <= 256:
@@ -98,10 +106,19 @@ async def seed_demo_auth() -> None:
                 "job_title": "영업 담당자",
             },
             {
+                "id": FILLED_MEMBER2_ID,
+                "team_id": FILLED_TEAM_ID,
+                "login_id": filled_member2_login_id,
+                "password_hash": password_hashes[2],
+                "display_name": "이수민",
+                "role_code": "member",
+                "job_title": "영업 담당자",
+            },
+            {
                 "id": EMPTY_MANAGER_ID,
                 "team_id": EMPTY_TEAM_ID,
                 "login_id": empty_manager_login_id,
-                "password_hash": password_hashes[2],
+                "password_hash": password_hashes[3],
                 "display_name": "김서현",
                 "role_code": "manager",
                 "job_title": "영업팀장",
@@ -110,8 +127,17 @@ async def seed_demo_auth() -> None:
                 "id": EMPTY_MEMBER_ID,
                 "team_id": EMPTY_TEAM_ID,
                 "login_id": empty_member_login_id,
-                "password_hash": password_hashes[3],
+                "password_hash": password_hashes[4],
                 "display_name": "김지훈",
+                "role_code": "member",
+                "job_title": "영업 담당자",
+            },
+            {
+                "id": EMPTY_MEMBER2_ID,
+                "team_id": EMPTY_TEAM_ID,
+                "login_id": empty_member2_login_id,
+                "password_hash": password_hashes[5],
+                "display_name": "이수민",
                 "role_code": "member",
                 "job_title": "영업 담당자",
             },
@@ -159,7 +185,7 @@ async def seed_demo_auth() -> None:
                 )
             )
 
-    print("개발 DB의 합성 팀 2개와 로그인 계정 4개를 준비했습니다.")
+    print("개발 DB의 합성 팀 2개와 로그인 계정 6개를 준비했습니다.")
 
 
 if __name__ == "__main__":

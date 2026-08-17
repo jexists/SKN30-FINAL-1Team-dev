@@ -17,15 +17,19 @@ const PAGE = 15
 interface Props {
   column: BoardColumn
   cards: BoardContract[]
+  /** 실제 API 카드는 UUID, 목업 카드는 계약번호를 상호작용 식별자로 씁니다. */
+  identityOf?: (contract: BoardContract) => string
+  /** 실제 API에는 단계 CRUD가 없으므로 그 화면에서는 설정 메뉴를 숨깁니다. */
+  editableStages?: boolean
   /** 지금 가리키고 있는 자리. `<컬럼 id>:<자리>` */
   dropSlot: string | null
-  draggingNo: string | null
+  draggingIdentity: string | null
   others: BoardColumn[]
-  onOpen: (no: string) => void
-  onGrab: (event: ReactPointerEvent, contract: BoardContract) => void
-  onNudge: (no: string, delta: -1 | 1) => void
-  onEditCard: (no: string) => void
-  onDeleteCard: (no: string) => void
+  onOpen: (identity: string) => void
+  onGrab: (event: ReactPointerEvent, contract: BoardContract, identity: string) => void
+  onNudge: (identity: string, delta: -1 | 1) => void
+  onEditCard: (identity: string) => void
+  onDeleteCard: (identity: string) => void
   onAddCard: (columnId: string) => void
   onRename: (id: string, name: string) => void
   onRecolor: (id: string, tone: ColumnTone) => void
@@ -36,8 +40,10 @@ interface Props {
 export default function StageColumn({
   column,
   cards,
+  identityOf = (contract) => contract.no,
+  editableStages = true,
   dropSlot,
-  draggingNo,
+  draggingIdentity,
   others,
   onOpen,
   onGrab,
@@ -64,24 +70,27 @@ export default function StageColumn({
         <span className={styles.count}>{cards.length}</span>
         <span className={`${styles.total} tnum`}>{won(total)}</span>
 
-        <ColumnMenu
-          column={column}
-          others={others}
-          cardCount={cards.length}
-          onRename={(name) => onRename(column.id, name)}
-          onRecolor={(tone) => onRecolor(column.id, tone)}
-          onAddAfter={() => onAddAfter(column.id)}
-          onRemove={(moveToId) => onRemove(column.id, moveToId)}
-        />
+        {editableStages && (
+          <ColumnMenu
+            column={column}
+            others={others}
+            cardCount={cards.length}
+            onRename={(name) => onRename(column.id, name)}
+            onRecolor={(tone) => onRecolor(column.id, tone)}
+            onAddAfter={() => onAddAfter(column.id)}
+            onRemove={(moveToId) => onRemove(column.id, moveToId)}
+          />
+        )}
       </header>
 
       {/* 목록 자체도 놓을 자리입니다. 카드 아래 빈 곳에 놓으면 맨 끝으로 갑니다. */}
       <ul className={styles.list} {...{ [DROP_ATTR]: slotKey(column.id, cards.length) }}>
         {visible.map((card, index) => {
           const key = slotKey(column.id, index)
+          const identity = identityOf(card)
           return (
             <li
-              key={card.no}
+              key={identity}
               className={[styles.slot, dropSlot === key && styles.isDropTarget]
                 .filter(Boolean)
                 .join(' ')}
@@ -89,7 +98,8 @@ export default function StageColumn({
             >
               <DealCard
                 contract={card}
-                isDragging={draggingNo === card.no}
+                identity={identity}
+                isDragging={draggingIdentity === identity}
                 onOpen={onOpen}
                 onGrab={onGrab}
                 onNudge={onNudge}

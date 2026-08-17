@@ -1,0 +1,87 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.field {
+  @include form-field;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+
+  b {
+    margin-left: 3px;
+    color: var(--red);
+  }
+}
+
+.error,
+.submitError {
+  color: var(--red-ink);
+}
+
+.error {
+  font-size: 11px;
+}
+
+.notice,
+.submitError {
+  margin-top: var(--s3);
+  font-size: 12px;
+}
+
+.drawerFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+
+  dt {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  dd {
+    margin: 3px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.memo,
+.memoEmpty {
+  margin-top: var(--s5);
+  font-size: 13px;
+}
+
+.memo {
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.memoEmpty {
+  color: var(--muted);
+}
+
+.drawerState {
+  display: grid;
+  justify-items: start;
+  gap: var(--s3);
+  color: var(--muted);
+  font-size: 13px;
+}

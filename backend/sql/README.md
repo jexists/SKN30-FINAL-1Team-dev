@@ -71,3 +71,12 @@ DEBUG=false uv run python -m scripts.seed_demo_customers
 cd backend
 DEBUG=false uv run python -m scripts.seed_demo_activities
 ```
+
+계약 seed는 인증·고객·일정 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만
+영업 단계 8개와 기존 상품 3종에 연결되는 합성 계약 61건을 upsert합니다. 별도 상품이
+필요한 프론트 목 계약 50건은 넣지 않으며 첫 세팅 팀은 건드리지 않습니다.
+
+```bash
+cd backend
+DEBUG=false uv run python -m scripts.seed_demo_contracts
+```

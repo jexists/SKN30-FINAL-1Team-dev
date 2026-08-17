@@ -30,6 +30,7 @@ export default function Topbar() {
   }, [mobileOpen])
 
   const pageLabel = findNavLabel(pathname) ?? '페이지를 찾을 수 없음'
+  const isVisits = pathname === ROUTES.VISITS || pathname.startsWith(`${ROUTES.VISITS}/`)
 
   return (
     <header className={styles.topbar}>
@@ -51,7 +52,7 @@ export default function Topbar() {
       <div className={styles.spacer} />
 
       {/* 실제 팀원 UUID 목록이 붙기 전까지 DB 화면에는 목업 담당자 필터를 노출하지 않습니다. */}
-      {isManager && pathname !== ROUTES.CUSTOMERS && pathname !== ROUTES.CALENDAR && (
+      {isManager && pathname !== ROUTES.CUSTOMERS && pathname !== ROUTES.CALENDAR && !isVisits && (
         <div className={styles.scope}>
           <ScopeSwitcher />
         </div>

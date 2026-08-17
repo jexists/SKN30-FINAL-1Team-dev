@@ -15,7 +15,7 @@ from app.core.security import dummy_password_hash
 from app.db.session import get_sessionmaker
 from app.models.crm import CustomerCompany, CustomerContact
 from app.models.workspace import Member, Team
-from scripts.seed_demo_auth import FILLED_MEMBER_ID, FILLED_TEAM_ID
+from scripts.seed_demo_auth import FILLED_MEMBER2_ID, FILLED_MEMBER_ID, FILLED_TEAM_ID
 
 FILLED_TEAM_NAME = "SalesLuv 데모팀"
 REFERENCE_AT = datetime(2026, 8, 17, tzinfo=UTC)
@@ -63,11 +63,6 @@ class ContactSeed(NamedTuple):
 
 ROSTER_MEMBERS = (
     {
-        "id": uuid5(FILLED_TEAM_ID, "member:이수민"),
-        "login_id": "demo-roster-rep-3@example.invalid",
-        "display_name": "이수민",
-    },
-    {
         "id": uuid5(FILLED_TEAM_ID, "member:박도윤"),
         "login_id": "demo-roster-rep-4@example.invalid",
         "display_name": "박도윤",
@@ -81,6 +76,7 @@ ROSTER_MEMBERS = (
 
 OWNER_IDS = {
     "김지훈": FILLED_MEMBER_ID,
+    "이수민": FILLED_MEMBER2_ID,
     **{member["display_name"]: member["id"] for member in ROSTER_MEMBERS},
 }
 
@@ -579,7 +575,11 @@ async def seed_demo_customers() -> None:
         if filled_team_name != FILLED_TEAM_NAME:
             raise SystemExit("filled 인증 seed의 고정 팀이 없거나 이름이 변경되었습니다.")
 
-        member_ids = {FILLED_MEMBER_ID, *extra_member_by_id}
+        login_members = {
+            FILLED_MEMBER_ID: "김지훈",
+            FILLED_MEMBER2_ID: "이수민",
+        }
+        member_ids = {*login_members, *extra_member_by_id}
         existing_members = (
             await session.execute(
                 select(
@@ -601,15 +601,15 @@ async def seed_demo_customers() -> None:
         ).all()
         found_member_ids = {row.id for row in existing_members}
         for row in existing_members:
-            if row.id == FILLED_MEMBER_ID:
+            if row.id in login_members:
                 if (
                     row.team_id != FILLED_TEAM_ID
-                    or row.display_name != "김지훈"
+                    or row.display_name != login_members[row.id]
                     or row.role_code != "member"
                     or not row.active
                     or row.login_id in extra_member_by_login
                 ):
-                    raise SystemExit("김지훈 데모 계정이 없거나 소속·역할이 다릅니다.")
+                    raise SystemExit("filled 팀원 데모 계정의 소속·역할이 다릅니다.")
                 continue
 
             expected = extra_member_by_id.get(row.id)
@@ -620,8 +620,8 @@ async def seed_demo_customers() -> None:
                 or extra_member_by_login.get(row.login_id) != expected
             ):
                 raise SystemExit("합성 팀원 ID, 로그인 ID 또는 팀이 충돌합니다.")
-        if FILLED_MEMBER_ID not in found_member_ids:
-            raise SystemExit("인증 seed를 먼저 실행해 김지훈 데모 계정을 만드세요.")
+        if not set(login_members).issubset(found_member_ids):
+            raise SystemExit("인증 seed를 먼저 실행해 filled 팀원 데모 계정을 만드세요.")
 
         for member in ROSTER_MEMBERS:
             member_insert = insert(Member).values(

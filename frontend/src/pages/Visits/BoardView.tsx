@@ -1,8 +1,4 @@
-// 영업 현황 보드. 컬럼은 영업 단계이고 카드 한 장이 영업 건 하나입니다.
-//
-// 카드를 끄는 동안 목록을 실제로 바꾸지 않습니다. 놓을 자리를 선으로만 알리고,
-// 손을 뗄 때 한 번만 옮깁니다. 끌면서 목록이 계속 재배치되면 어디에 놓이는지
-// 오히려 알기 어렵습니다.
+// 영업 현황 보드. 컬럼은 서버의 영업 단계이고 카드 한 장이 실제 계약 하나입니다.
 import {
   useCallback,
   useDeferredValue,
@@ -13,25 +9,22 @@ import {
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
-import ContractDrawer from '@/components/ContractDrawer'
-import ContractForm from '@/components/ContractForm'
 import FilterSelect from '@/components/FilterSelect'
 import { PlusIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import SearchInput from '@/components/SearchInput'
 import usePointerDrag from '@/hooks/usePointerDrag'
-import { useOwnerScope } from '@/scope/scopeContext'
-import { OWNERS } from '@/shared/contracts'
 import { addDays, iso, TODAY } from '@/utils/date'
 
-import { DROP_ATTR, parseSlot, TONES, type BoardContract } from './board'
+import { DROP_ATTR, parseSlot, type BoardContract } from './board'
 import StageColumn from './components/StageColumn'
 import ViewToggle from './components/ViewToggle'
-import useDealBoard from './useDealBoard'
+import PipelineContractDrawer from './PipelineContractDrawer'
+import PipelineContractForm from './PipelineContractForm'
+import usePipelineContracts, { type PipelineContract } from './usePipelineContracts'
 
 import styles from './BoardView.module.scss'
 
-/** 기간 선택지. 값이 개월 수이고 0 이면 전체입니다. */
 const RANGES = [
   { value: '3', label: '최근 3개월' },
   { value: '6', label: '최근 6개월' },
@@ -39,63 +32,50 @@ const RANGES = [
   { value: '0', label: '전체' },
 ]
 
-/** 기본 기간. 확정 건이 2년치라 전부 펼치면 확정 컬럼만 길어집니다. */
 const DEFAULT_RANGE = '6'
+const ignoreStageEdit = () => undefined
 
-/** 손끝에 붙어 다니는 조각이 알아야 하는 것 */
 interface CardDrag {
-  no: string
+  id: string
   label: string
 }
 
+const pipelineIdentity = (contract: BoardContract) => (contract as PipelineContract).id
+
 export default function BoardView() {
+  const [openId, setOpenId] = useState<string | null>(null)
   const {
     columns,
-    byColumn,
-    findContract,
-    moveCard,
-    addContract,
+    cards,
+    companies,
+    products,
+    loading,
+    error,
+    reload,
+    detail,
+    detailLoading,
+    detailError,
+    reloadDetail,
+    mutationError,
+    clearMutationError,
+    isCreating,
+    isPending,
+    createContract,
     updateContract,
-    removeContract,
-    renameColumn,
-    recolorColumn,
-    addColumn,
-    removeColumn,
-  } = useDealBoard()
-
-  // 팀 전체를 볼 때만 담당 영업으로 한 번 더 좁힙니다. 목록 화면과 같은 규칙입니다.
-  const { matchesOwner, showOwner, owners } = useOwnerScope()
+    deleteContract,
+    moveContract,
+  } = usePipelineContracts(openId)
 
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
-  const owner = showOwner ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
-
-  const ownerOptions = useMemo(
-    () => [
-      { value: '', label: '담당 전체' },
-      ...OWNERS.filter((name) => owners.includes(name)).map((name) => ({
-        value: name,
-        label: name,
-      })),
-    ],
-    [owners],
-  )
-
-  // 타이핑 중에도 입력이 밀리지 않도록 목록 계산만 한 박자 늦춥니다.
   const deferredQuery = useDeferredValue(query)
 
-  const [openNo, setOpenNo] = useState<string | null>(null)
   const [addingTo, setAddingTo] = useState<string | null>(null)
-  const [editingNo, setEditingNo] = useState<string | null>(null)
-  const [deletingNo, setDeletingNo] = useState<string | null>(null)
-  const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
-  // 새 컬럼을 어느 컬럼 오른쪽에 넣을지. null 이면 입력칸이 닫힌 상태이고,
-  // 빈 문자열이면 보드 맨 끝입니다.
-  const [newColumnAfter, setNewColumnAfter] = useState<string | null>(null)
-  const [newColumnName, setNewColumnName] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [openFilter, setOpenFilter] = useState<'range' | null>(null)
 
-  // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   const setParam = useCallback(
     (key: string, value: string, fallback = '') => {
       const next = new URLSearchParams(params)
@@ -112,10 +92,16 @@ export default function BoardView() {
     return iso(addDays(TODAY, -Math.round(months * 30.4)))
   }, [range])
 
+  const byColumn = useMemo(() => {
+    const grouped = new Map<string, PipelineContract[]>()
+    for (const column of columns) grouped.set(column.id, [])
+    for (const card of cards) grouped.get(card.stageId)?.push(card)
+    for (const stageCards of grouped.values()) stageCards.sort((a, b) => a.order - b.order)
+    return grouped
+  }, [cards, columns])
+
   const matches = useCallback(
-    (card: BoardContract) => {
-      if (!matchesOwner(card.owner)) return false
-      if (owner !== '' && card.owner !== owner) return false
+    (card: PipelineContract) => {
       if (fromISO !== null && card.date < fromISO) return false
       const needle = deferredQuery.trim().toLowerCase()
       if (needle === '') return true
@@ -124,73 +110,105 @@ export default function BoardView() {
         .toLowerCase()
         .includes(needle)
     },
-    [matchesOwner, owner, fromISO, deferredQuery],
+    [deferredQuery, fromISO],
   )
 
   const shownByColumn = useMemo(() => {
-    const map = new Map<string, BoardContract[]>()
+    const grouped = new Map<string, PipelineContract[]>()
     for (const column of columns)
-      map.set(column.id, (byColumn.get(column.id) ?? []).filter(matches))
-    return map
-  }, [columns, byColumn, matches])
+      grouped.set(column.id, (byColumn.get(column.id) ?? []).filter(matches))
+    return grouped
+  }, [byColumn, columns, matches])
 
-  /**
-   * 놓은 자리는 화면에 보이는 목록 기준입니다. 필터가 걸려 있으면 그 자리가
-   * 전체 목록에서는 다른 번호라, 그 자리에 있던 카드 앞으로 넣습니다.
-   */
+  const findById = useCallback((id: string) => cards.find((card) => card.id === id), [cards])
+
   const drop = useCallback(
     (dragged: CardDrag, key: string) => {
       const slot = parseSlot(key)
-      if (!slot) return
+      const card = cards.find(({ id }) => id === dragged.id)
+      if (!slot || !card || isPending(card.id)) return
 
       const shown = shownByColumn.get(slot.columnId) ?? []
       const all = byColumn.get(slot.columnId) ?? []
       const anchor = shown[slot.index]
-      const index = anchor ? all.findIndex((c) => c.no === anchor.no) : all.length
+      let position = anchor ? all.findIndex(({ id }) => id === anchor.id) : all.length
+      if (position < 0) position = all.length
 
-      moveCard(dragged.no, slot.columnId, index < 0 ? all.length : index)
+      const sourceIndex = (byColumn.get(card.stageId) ?? []).findIndex(({ id }) => id === card.id)
+      if (card.stageId === slot.columnId && sourceIndex >= 0 && sourceIndex < position)
+        position -= 1
+      if (card.stageId === slot.columnId && position === sourceIndex) return
+
+      void moveContract(card.id, card.stageId, slot.columnId, position).catch(() => undefined)
     },
-    [shownByColumn, byColumn, moveCard],
+    [byColumn, cards, isPending, moveContract, shownByColumn],
   )
 
   const { dragging, dropKey, point, start } = usePointerDrag<CardDrag>(DROP_ATTR, drop)
 
   const grab = useCallback(
-    (pointer: ReactPointerEvent, contract: BoardContract) =>
-      start(pointer, { no: contract.no, label: `${contract.org} · ${contract.product}` }),
-    [start],
-  )
-
-  /** 키보드로 앞뒤 컬럼에 옮깁니다. 옮긴 카드는 그 컬럼 맨 위로 갑니다. */
-  const nudge = useCallback(
-    (no: string, delta: -1 | 1) => {
-      const card = findContract(no)
-      if (!card) return
-      const at = columns.findIndex((col) => col.id === card.stageId)
-      const target = columns[at + delta]
-      if (target) moveCard(no, target.id, 0)
+    (pointer: ReactPointerEvent, _contract: BoardContract, id: string) => {
+      const card = findById(id)
+      if (!card || isPending(card.id)) return
+      start(pointer, {
+        id: card.id,
+        label: card.org + ' · ' + card.product,
+      })
     },
-    [findContract, columns, moveCard],
+    [findById, isPending, start],
   )
 
-  const openContract = openNo ? findContract(openNo) : undefined
-  const editingContract = editingNo ? findContract(editingNo) : undefined
-  const deletingContract = deletingNo ? findContract(deletingNo) : undefined
-  const addingColumn = addingTo ? columns.find((col) => col.id === addingTo) : undefined
-  const firstColumn = columns[0]
+  const nudge = useCallback(
+    (id: string, delta: -1 | 1) => {
+      const card = findById(id)
+      if (!card || isPending(card.id)) return
+      const at = columns.findIndex((column) => column.id === card.stageId)
+      const target = columns[at + delta]
+      if (target) void moveContract(card.id, card.stageId, target.id, 0).catch(() => undefined)
+    },
+    [columns, findById, isPending, moveContract],
+  )
 
-  const createColumn = () => {
-    const name = newColumnName.trim()
-    if (name === '') return
-    // 색은 컬럼 수에 따라 돌려 씁니다. 만들자마자 옆 컬럼과 같은 색이면 구분이 안 됩니다.
-    addColumn(name, TONES[columns.length % TONES.length], newColumnAfter ?? undefined)
-    setNewColumnName('')
-    setNewColumnAfter(null)
-  }
+  const openById = useCallback(
+    (id: string) => {
+      const card = findById(id)
+      if (card) setOpenId(card.id)
+    },
+    [findById],
+  )
+
+  const editById = useCallback(
+    (id: string) => {
+      const card = findById(id)
+      if (!card) return
+      clearMutationError()
+      setEditingId(card.id)
+    },
+    [clearMutationError, findById],
+  )
+
+  const deleteById = useCallback(
+    (id: string) => {
+      const card = findById(id)
+      if (!card) return
+      clearMutationError()
+      setDeletingId(card.id)
+    },
+    [clearMutationError, findById],
+  )
+
+  const openContract = detail ?? cards.find(({ id }) => id === openId) ?? null
+  const editingContract = cards.find(({ id }) => id === editingId)
+  const deletingContract = cards.find(({ id }) => id === deletingId)
+  const addingColumn = columns.find(({ id }) => id === addingTo)
+  const firstColumn = columns[0]
+  const openStage = openContract
+    ? columns.find((column) => column.id === openContract.stageId)
+    : undefined
+  const isDeleting = deletingContract ? isPending(deletingContract.id) : false
 
   return (
-    <section className={styles.page}>
-      {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
+    <section className={styles.page} aria-busy={loading}>
       <h1 className="sr-only">영업 현황 보드</h1>
 
       <div className={styles.toolbar}>
@@ -201,17 +219,6 @@ export default function BoardView() {
           label="영업 건 검색"
           onChange={(next) => setParam('q', next)}
         />
-
-        {showOwner && (
-          <FilterSelect
-            label="담당 영업"
-            value={owner}
-            options={ownerOptions}
-            open={openFilter === 'owner'}
-            onOpenChange={(open) => setOpenFilter(open ? 'owner' : null)}
-            onChange={(value) => setParam('owner', value)}
-          />
-        )}
 
         <FilterSelect
           label="기간"
@@ -224,113 +231,130 @@ export default function BoardView() {
 
         <div className={styles.actions}>
           <ViewToggle view="board" />
-          {/* 목록 화면과 같은 자리·같은 버튼. 보기를 바꿔도 버튼이 움직이지 않습니다.
-              보드에서는 단계 탭이 없으므로 첫 단계로 들어갑니다. */}
-          <Button onClick={() => firstColumn && setAddingTo(firstColumn.id)}>
+          <Button
+            disabled={loading || !firstColumn || isCreating}
+            onClick={() => firstColumn && setAddingTo(firstColumn.id)}
+          >
             <PlusIcon width={15} height={15} />
             영업 건 추가
           </Button>
         </div>
       </div>
 
-      <div className={styles.board}>
-        {columns.map((column) => (
-          <StageColumn
-            key={column.id}
-            column={column}
-            cards={shownByColumn.get(column.id) ?? []}
-            dropSlot={dropKey}
-            draggingNo={dragging?.no ?? null}
-            others={columns.filter((col) => col.id !== column.id)}
-            onOpen={setOpenNo}
-            onGrab={grab}
-            onNudge={nudge}
-            onEditCard={setEditingNo}
-            onDeleteCard={setDeletingNo}
-            onAddCard={setAddingTo}
-            onRename={renameColumn}
-            onRecolor={recolorColumn}
-            onAddAfter={(id) => setNewColumnAfter(id)}
-            onRemove={removeColumn}
-          />
-        ))}
-
-        <div className={styles.newColumn}>
-          {newColumnAfter === null ? (
-            <button
-              type="button"
-              className={styles.newButton}
-              onClick={() => setNewColumnAfter('')}
-            >
-              <PlusIcon width={14} height={14} />
-              컬럼 추가
-            </button>
-          ) : (
-            <div className={styles.newForm}>
-              <input
-                autoFocus
-                className={styles.newInput}
-                value={newColumnName}
-                placeholder="컬럼 이름"
-                aria-label="새 컬럼 이름"
-                onChange={(event) => setNewColumnName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') createColumn()
-                  if (event.key === 'Escape') {
-                    setNewColumnName('')
-                    setNewColumnAfter(null)
-                  }
-                }}
-              />
-              <Button type="button" onClick={createColumn}>
-                추가
-              </Button>
-            </div>
-          )}
+      {mutationError && (
+        <div role="alert">
+          <p>{mutationError}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              clearMutationError()
+              reload()
+            }}
+          >
+            목록 새로고침
+          </Button>
         </div>
-      </div>
+      )}
 
-      {/* 네이티브 드래그가 아니라 직접 그리므로, 끌고 다니는 조각도 우리가 띄웁니다. */}
+      {error ? (
+        <div role="alert">
+          <p>{error}</p>
+          <Button variant="outline" onClick={reload}>
+            다시 시도
+          </Button>
+        </div>
+      ) : loading && columns.length === 0 ? (
+        <p role="status">영업 현황을 불러오는 중입니다.</p>
+      ) : columns.length === 0 ? (
+        <p role="status">아직 설정된 영업 단계가 없습니다.</p>
+      ) : (
+        <>
+          {!loading && cards.length === 0 && <p role="status">아직 등록한 영업 건이 없습니다.</p>}
+          <div className={styles.board}>
+            {columns.map((column) => (
+              <StageColumn
+                key={column.id}
+                column={column}
+                cards={shownByColumn.get(column.id) ?? []}
+                identityOf={pipelineIdentity}
+                editableStages={false}
+                dropSlot={dropKey}
+                draggingIdentity={dragging?.id ?? null}
+                others={[]}
+                onOpen={openById}
+                onGrab={grab}
+                onNudge={nudge}
+                onEditCard={editById}
+                onDeleteCard={deleteById}
+                onAddCard={(id) => {
+                  clearMutationError()
+                  setAddingTo(id)
+                }}
+                onRename={ignoreStageEdit}
+                onRecolor={ignoreStageEdit}
+                onAddAfter={ignoreStageEdit}
+                onRemove={ignoreStageEdit}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {!error && loading && columns.length > 0 && <p role="status">보드를 새로고침 중입니다.</p>}
+
       {dragging && point && (
         <div className={styles.dragChip} style={{ left: point.x, top: point.y }} aria-hidden="true">
           {dragging.label}
         </div>
       )}
 
-      {openContract && (
-        <ContractDrawer
+      {openId && (
+        <PipelineContractDrawer
           contract={openContract}
-          stage={columns.find((col) => col.id === openContract.stageId)}
-          onClose={() => setOpenNo(null)}
+          stage={openStage}
+          loading={detailLoading}
+          error={detailError}
+          onRetry={reloadDetail}
+          onClose={() => setOpenId(null)}
           onEdit={() => {
-            setEditingNo(openContract.no)
-            setOpenNo(null)
+            if (!openContract) return
+            clearMutationError()
+            setEditingId(openContract.id)
+            setOpenId(null)
           }}
           onDelete={() => {
-            setDeletingNo(openContract.no)
-            setOpenNo(null)
+            if (!openContract) return
+            clearMutationError()
+            setDeletingId(openContract.id)
+            setOpenId(null)
           }}
         />
       )}
 
       {addingColumn && (
-        <ContractForm
+        <PipelineContractForm
           stageName={addingColumn.name}
+          companies={companies}
+          products={products}
+          optionsLoading={loading}
           onClose={() => setAddingTo(null)}
-          onSubmit={(draft) => {
-            addContract(draft, addingColumn.id)
+          onSubmit={async (input) => {
+            await createContract(input, addingColumn.id)
             setAddingTo(null)
           }}
         />
       )}
 
       {editingContract && (
-        <ContractForm
+        <PipelineContractForm
           contract={editingContract}
-          onClose={() => setEditingNo(null)}
-          onSubmit={(draft) => {
-            updateContract(editingContract.no, draft)
-            setEditingNo(null)
+          companies={companies}
+          products={products}
+          optionsLoading={loading}
+          onClose={() => setEditingId(null)}
+          onSubmit={async (input) => {
+            await updateContract(editingContract.id, input)
+            setEditingId(null)
           }}
         />
       )}
@@ -338,21 +362,30 @@ export default function BoardView() {
       {deletingContract && (
         <Modal
           title="영업 건을 삭제할까요?"
-          description={`${deletingContract.no} · ${deletingContract.org}. 되돌릴 수 없습니다.`}
-          onClose={() => setDeletingNo(null)}
+          description={deletingContract.no + ' · ' + deletingContract.org + '. 되돌릴 수 없습니다.'}
+          onClose={() => {
+            if (!isDeleting) setDeletingId(null)
+          }}
           footer={
             <>
-              <Button type="button" variant="outline" onClick={() => setDeletingNo(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isDeleting}
+                onClick={() => setDeletingId(null)}
+              >
                 취소
               </Button>
               <Button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => {
-                  removeContract(deletingContract.no)
-                  setDeletingNo(null)
+                  void deleteContract(deletingContract.id)
+                    .then(() => setDeletingId(null))
+                    .catch(() => undefined)
                 }}
               >
-                삭제
+                {isDeleting ? '삭제 중…' : '삭제'}
               </Button>
             </>
           }
@@ -360,6 +393,7 @@ export default function BoardView() {
           <p className={styles.confirm}>
             {deletingContract.product} · {deletingContract.owner}
           </p>
+          {mutationError && <p role="alert">{mutationError}</p>}
         </Modal>
       )}
     </section>

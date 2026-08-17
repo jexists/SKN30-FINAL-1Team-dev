@@ -9,17 +9,20 @@ import styles from './DealCard.module.scss'
 
 interface Props {
   contract: BoardContract
+  /** 실제 API에서는 UUID, 목업에서는 contract.no 입니다. */
+  identity?: string
   isDragging: boolean
-  onOpen: (no: string) => void
-  onGrab: (event: ReactPointerEvent, contract: BoardContract) => void
+  onOpen: (identity: string) => void
+  onGrab: (event: ReactPointerEvent, contract: BoardContract, identity: string) => void
   /** 키보드로 앞뒤 컬럼에 옮기기. 드래그를 못 쓰는 경우의 길입니다. */
-  onNudge: (no: string, delta: -1 | 1) => void
-  onEdit: (no: string) => void
-  onDelete: (no: string) => void
+  onNudge: (identity: string, delta: -1 | 1) => void
+  onEdit: (identity: string) => void
+  onDelete: (identity: string) => void
 }
 
 export default function DealCard({
   contract,
+  identity = contract.no,
   isDragging,
   onOpen,
   onGrab,
@@ -35,12 +38,12 @@ export default function DealCard({
         type="button"
         className={[styles.card, isDragging && styles.isDragging].filter(Boolean).join(' ')}
         aria-keyshortcuts="[ ]"
-        onPointerDown={(event) => onGrab(event, contract)}
-        onClick={() => onOpen(contract.no)}
+        onPointerDown={(event) => onGrab(event, contract, identity)}
+        onClick={() => onOpen(identity)}
         onKeyDown={(event) => {
           if (event.key !== '[' && event.key !== ']') return
           event.preventDefault()
-          onNudge(contract.no, event.key === '[' ? -1 : 1)
+          onNudge(identity, event.key === '[' ? -1 : 1)
         }}
       >
         <span className={styles.org}>{contract.org}</span>
@@ -57,7 +60,7 @@ export default function DealCard({
         </span>
       </button>
 
-      <CardMenu contract={contract} onEdit={onEdit} onDelete={onDelete} />
+      <CardMenu identity={identity} contract={contract} onEdit={onEdit} onDelete={onDelete} />
     </div>
   )
 }
@@ -69,9 +72,10 @@ interface MenuAt {
 }
 
 interface CardMenuProps {
+  identity: string
   contract: BoardContract
-  onEdit: (no: string) => void
-  onDelete: (no: string) => void
+  onEdit: (identity: string) => void
+  onDelete: (identity: string) => void
 }
 
 /**
@@ -82,7 +86,7 @@ interface CardMenuProps {
  * 세웁니다. 좌표는 열 때 한 번만 재므로 스크롤하면 자리가 어긋납니다. 따라다니게
  * 만들기보다 닫습니다.
  */
-function CardMenu({ contract, onEdit, onDelete }: CardMenuProps) {
+function CardMenu({ identity, contract, onEdit, onDelete }: CardMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [at, setAt] = useState<MenuAt | null>(null)
@@ -158,7 +162,7 @@ function CardMenu({ contract, onEdit, onDelete }: CardMenuProps) {
               className={styles.action}
               onClick={() => {
                 setAt(null)
-                onEdit(contract.no)
+                onEdit(identity)
               }}
             >
               수정
@@ -168,7 +172,7 @@ function CardMenu({ contract, onEdit, onDelete }: CardMenuProps) {
               className={`${styles.action} ${styles.danger}`}
               onClick={() => {
                 setAt(null)
-                onDelete(contract.no)
+                onDelete(identity)
               }}
             >
               삭제

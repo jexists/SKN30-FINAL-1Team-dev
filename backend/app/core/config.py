@@ -36,8 +36,10 @@ class Settings(BaseSettings):
     # 공유 개발 DB에 합성 계정을 넣는 일회성 seed 전용 값입니다.
     demo_filled_manager_login_id: str = ""
     demo_filled_member_login_id: str = ""
+    demo_filled_member2_login_id: str = ""
     demo_empty_manager_login_id: str = ""
     demo_empty_member_login_id: str = ""
+    demo_empty_member2_login_id: str = ""
     demo_password: SecretStr = SecretStr("")
 
     @property
