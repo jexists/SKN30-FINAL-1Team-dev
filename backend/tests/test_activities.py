@@ -703,3 +703,87 @@ def test_write_failure_rolls_back_transaction():
 
     assert db.commit_count == 0
     assert db.rollback_count == 1
+
+
+def test_patch_cannot_set_completed_at():
+    """완료 여부는 전용 endpoint 로만 바꾼다. 일반 PATCH 는 받지 않는다."""
+    with pytest.raises(ValidationError):
+        ActivityPatch(completed_at="2026-08-17T10:00:00+09:00")
+
+
+def test_complete_and_reopen_toggle_completed_at():
+    member = _member()
+    activity = _activity(member)
+
+    complete_db = _Db(
+        _Result(scalar=activity),
+        _Result(rows=[_row(activity, member)]),
+    )
+    with _client(complete_db, member) as client:
+        completed = client.post(
+            f"/api/activities/{activity.id}/complete",
+            headers={"Origin": ORIGIN},
+        )
+    assert completed.status_code == 200
+    assert completed.json()["completed_at"] is not None
+    assert activity.completed_at is not None
+    assert activity.updated_at == activity.completed_at
+    assert "FOR UPDATE" in str(complete_db.statements[0])
+    assert complete_db.flush_count == complete_db.commit_count == 1
+
+    reopen_db = _Db(
+        _Result(scalar=activity),
+        _Result(rows=[_row(activity, member)]),
+    )
+    with _client(reopen_db, member) as client:
+        reopened = client.post(
+            f"/api/activities/{activity.id}/reopen",
+            headers={"Origin": ORIGIN},
+        )
+    assert reopened.status_code == 200
+    assert reopened.json()["completed_at"] is None
+    assert activity.completed_at is None
+    assert reopen_db.flush_count == reopen_db.commit_count == 1
+
+
+def test_complete_and_reopen_reject_repeated_state():
+    member = _member()
+    done = _activity(member)
+    done.completed_at = NOW
+
+    repeat_db = _Db(_Result(scalar=done))
+    with _client(repeat_db, member) as client:
+        repeated = client.post(
+            f"/api/activities/{done.id}/complete",
+            headers={"Origin": ORIGIN},
+        )
+    assert repeated.status_code == 409
+    assert repeated.json() == {"detail": "already_completed"}
+    assert repeat_db.commit_count == 0
+    assert repeat_db.rollback_count == 1
+
+    open_activity = _activity(member)
+    reopen_db = _Db(_Result(scalar=open_activity))
+    with _client(reopen_db, member) as client:
+        reopened = client.post(
+            f"/api/activities/{open_activity.id}/reopen",
+            headers={"Origin": ORIGIN},
+        )
+    assert reopened.status_code == 409
+    assert reopened.json() == {"detail": "not_completed"}
+    assert reopen_db.commit_count == 0
+    assert reopen_db.rollback_count == 1
+
+
+def test_complete_hides_other_scope_activity():
+    member = _member()
+    hidden_db = _Db(_Result(scalar=None))
+    with _client(hidden_db, member) as client:
+        hidden = client.post(
+            f"/api/activities/{uuid4()}/complete",
+            headers={"Origin": ORIGIN},
+        )
+    assert hidden.status_code == 404
+    assert hidden.json() == {"detail": "activity_not_found"}
+    assert hidden_db.commit_count == 0
+    assert hidden_db.rollback_count == 1
