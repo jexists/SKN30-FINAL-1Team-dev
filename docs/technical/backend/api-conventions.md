@@ -288,7 +288,16 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 발주 이동 | `POST /api/orders/{purchase_order_id}/move` | `expected_stage_code`, 목표 `stage_code` |
 | C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,skip,limit`; 상태 `in_progress|completed` |
 | C/S 전이·답변 | `POST /api/support-requests/{request_id}/transition`, `POST /api/support-requests/{request_id}/responses` | expected 상태 비교; 답변 생성 `201` |
+| 일정 완료 | `POST /api/activities/{activity_id}/complete`, `POST /api/activities/{activity_id}/reopen` | 본문 없음; 완료 시각은 서버가 정함 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
+
+### 일정 완료 처리
+
+- 완료 여부는 `completed_at` 하나로 표현한다. 완료면 시각이 있고 아니면 `null`이다.
+- 완료 시각은 서버가 정하므로 두 endpoint 모두 요청 본문을 받지 않는다.
+- 일반 `PATCH /api/activities/{activity_id}`로는 `completed_at`을 바꿀 수 없다. 보내면 `422`다.
+- 이미 완료된 일정의 완료 요청은 `409 already_completed`, 완료되지 않은 일정의 재개 요청은 `409 not_completed`다.
+- 조회 범위와 잠금 규칙은 일정 상세·수정과 같다.
 
 ### 공지와 개인 지시의 조회 범위
 

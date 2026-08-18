@@ -602,3 +602,52 @@ async def delete_activity(
     except Exception:
         await db.rollback()
         raise
+
+
+@router.post("/activities/{activity_id}/complete", response_model=ActivityRead)
+async def complete_activity(
+    activity_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+):
+    try:
+        activity = await _locked_activity(db, member, activity_id)
+        if activity.completed_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="already_completed",
+            )
+        now = datetime.now(UTC)
+        activity.completed_at = now
+        activity.updated_at = now
+        await db.flush()
+        read = _activity_read(*await _activity_row(db, member, activity_id))
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    return read
+
+
+@router.post("/activities/{activity_id}/reopen", response_model=ActivityRead)
+async def reopen_activity(
+    activity_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+):
+    try:
+        activity = await _locked_activity(db, member, activity_id)
+        if activity.completed_at is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="not_completed",
+            )
+        activity.completed_at = None
+        activity.updated_at = datetime.now(UTC)
+        await db.flush()
+        read = _activity_read(*await _activity_row(db, member, activity_id))
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    return read
