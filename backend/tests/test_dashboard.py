@@ -260,6 +260,28 @@ def test_cards_and_weekly_band_shape():
     assert "storage_key" not in response.text
 
 
+@pytest.mark.parametrize(
+    ("requested", "expected_start"),
+    [
+        ("2026-08-16", "2026-08-16"),  # 일요일
+        ("2026-08-18", "2026-08-16"),  # 화요일
+        ("2026-08-22", "2026-08-16"),  # 토요일
+        ("2026-08-23", "2026-08-23"),  # 다음 주 일요일
+    ],
+)
+def test_weekly_band_is_the_calendar_week(requested, expected_start):
+    """유스케이스의 전 주·오늘·다음 주 이동이 주 단위라 달력 주(일~토)를 반환한다."""
+    member = _member()
+    db = _Db()
+    with _client(db, member) as client:
+        weekly = client.get(f"/api/dashboard?date={requested}").json()["weekly"]
+
+    assert weekly["start_date"] == expected_start
+    assert len(weekly["days"]) == 7
+    assert weekly["days"][0]["date"] == expected_start
+    assert weekly["days"][-1]["date"] == weekly["end_date"]
+
+
 def test_missing_target_gives_null_rate_not_zero():
     member = _member()
     db = _Db(deal_sums=_Result(row=(98_000_000, 0)))

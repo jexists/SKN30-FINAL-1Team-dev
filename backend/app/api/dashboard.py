@@ -41,8 +41,8 @@ from app.schemas.dashboard import (
 router = APIRouter(tags=["dashboard"])
 
 _SEOUL = ZoneInfo("Asia/Seoul")
-# 주간 밴드는 기준일을 셋째 칸에 둔다. 대시보드 주간 캘린더와 같은 규칙이다.
-_WEEK_OFFSET_BEFORE = 2
+# 주간 밴드는 기준일이 속한 주의 일요일부터 7일이다. 유스케이스의 전 주·오늘·다음 주
+# 이동이 주 단위라서 달력 주에 맞춘다.
 _WEEK_DAYS = 7
 
 
@@ -230,7 +230,8 @@ async def _weekly_band(
     owner_ids: tuple[UUID, ...] | None,
     day: date,
 ) -> WeeklyBand:
-    start_date = day - timedelta(days=_WEEK_OFFSET_BEFORE)
+    # weekday() 는 월요일이 0 이라 일요일 시작으로 옮긴다.
+    start_date = day - timedelta(days=(day.weekday() + 1) % 7)
     end_date = start_date + timedelta(days=_WEEK_DAYS - 1)
     range_start, _ = _day_bounds(start_date)
     _, range_end = _day_bounds(end_date)
