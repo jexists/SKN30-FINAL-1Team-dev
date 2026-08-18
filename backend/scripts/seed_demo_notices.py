@@ -20,7 +20,7 @@ REFERENCE_AT = datetime(2026, 8, 17, tzinfo=UTC)
 
 
 class NoticeSeed(NamedTuple):
-    mock_id: str
+    key: str
     # 유스케이스에 공지 태그 어휘 정의가 없어 비워 둔다. 정의되면 그때 채운다.
     tag: str | None
     title: str
@@ -133,8 +133,8 @@ NOTICE_SEEDS = (
 )
 
 
-def notice_id(mock_id: str) -> UUID:
-    return uuid5(FILLED_TEAM_ID, f"notice:{mock_id}")
+def notice_id(key: str) -> UUID:
+    return uuid5(FILLED_TEAM_ID, f"notice:{key}")
 
 
 def notice_row(seed: NoticeSeed) -> dict:
@@ -147,7 +147,7 @@ def notice_row(seed: NoticeSeed) -> dict:
         else REFERENCE_AT + timedelta(days=seed.due_day_offset, hours=18)
     )
     return {
-        "id": notice_id(seed.mock_id),
+        "id": notice_id(seed.key),
         "team_id": FILLED_TEAM_ID,
         "author_member_id": FILLED_MANAGER_ID,
         "recipient_member_id": seed.recipient_id,
