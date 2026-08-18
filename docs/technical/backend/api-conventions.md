@@ -293,6 +293,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
 | 보고서 초안 실행 | `POST /api/agent-runs`, `GET /api/agent-runs/{agent_run_id}` | `202` + `Location` + `Retry-After`; polling 으로 상태 확인 |
+| 대시보드 | `GET /api/dashboard` | `date?,owner_member_id*?,notice_limit=3`; 카드 집계와 주간 밴드를 한 번에 반환 |
 | 자료실 | `GET/POST /api/documents`, `GET/PATCH /api/documents/{document_id}` | 목록은 `q,category_code,customer_company_id,sales_deal_id,created_by_member_id,skip,limit` |
 | 자료 파일 | `POST /api/documents/{document_id}/files`, `GET /api/documents/{document_id}/files/{file_id}/download` | `multipart/form-data` 업로드; 다운로드는 짧은 서명 URL |
 
@@ -390,6 +391,16 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 계약갱신 | `confirmed` 영업 딜의 계약 종료일을 기준으로 대상 수, 대표 고객사와 나머지 고객사 수를 반환한다. |
 | 매출 목표 | 목표 월, 목표 금액, 확정 매출액과 달성률을 반환한다. |
 | 주간 일정 | 화면에 표시할 시작일·종료일과 7일 각각의 일정 수·납기 수를 반환한다. 납기는 발주의 `expected_receipt_on`을 기준으로 센다. |
+
+### 대시보드 응답 규칙
+
+- `GET /api/dashboard` 하나로 카드 집계와 주간 밴드를 반환한다. 오늘 일정 목록은 `GET /api/activities`를 쓴다.
+- 한 요청의 모든 집계는 요청 시작 시각에 고정한 `as_of` 하나를 기준으로 한다.
+- 카드 숫자는 같은 조건의 목록 API `total`과 일치해야 한다. 구현은 각 도메인 라우터의 조회 범위 조건을 그대로 재사용한다.
+- 주간 밴드는 기준일이 셋째 칸에 오는 7일이며 `days`는 항상 7개다.
+- 계약갱신 항목은 계약 종료일과 계약서 번호를 함께 반환한다. `새봄정형외과 외 1곳` 같은 문장은 프론트가 조합한다.
+- 매출 목표는 계약 상태를 구분해 확정 금액과 진행 중 금액을 함께 반환한다. 달성률은 확정 금액 기준이며 목표가 없으면 `null`이다.
+- 공지와 개인 지시는 담당자 범위와 무관하다. `owner_member_id`를 적용하지 않는다.
 | 선택 날짜 일정 | 미팅 목록과 업무 목록, 각각의 전체 수를 반환한다. |
 
 매출 목표는 다음과 같이 계산한다.
