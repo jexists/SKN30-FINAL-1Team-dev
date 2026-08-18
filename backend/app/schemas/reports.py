@@ -29,9 +29,11 @@ SearchQuery = Annotated[
 
 # 미팅보고서는 일정 하나에 붙고, 나머지는 기간을 덮습니다.
 ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
-# 팀원이 다루는 범위는 draft 와 submitted 두 개다. 검토 결과 값은 조회로만 나온다.
-ReportStatus = Literal["draft", "submitted", "approved", "rejected"]
-WritableStatus = Literal["draft", "submitted"]
+# 유스케이스 RPT-004 의 검토 결과는 확인·반려·수정 요청 세 가지다.
+# 팀원이 다루는 범위는 draft 와 submitted 두 개이고 검토 결과는 조회로만 나온다.
+ReportStatus = Literal["draft", "submitted", "approved", "rejected", "changes_requested"]
+# 제출을 시작할 수 있는 상태. 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다.
+SubmittableStatus = Literal["draft", "changes_requested"]
 
 _PERIOD_KINDS = ("weekly", "monthly")
 
@@ -95,7 +97,7 @@ class ReportPatch(_WriteModel):
 
 
 class ReportSubmit(_WriteModel):
-    expected_status_code: WritableStatus
+    expected_status_code: SubmittableStatus
 
 
 class ReportActivityRead(BaseModel):
