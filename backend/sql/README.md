@@ -54,6 +54,7 @@ SQL은 `0001 → 0002 → 0003 → 0004 → 0005` 순서로 적용합니다. `00
 | 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_sales_deals.py` 딜 61건 | Session Pooler | 성공 |
 | 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_orders.py` 발주 2건·품목 2건 | Session Pooler | 성공 |
 | 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_support.py` C/S 요청 3건 | Session Pooler | 성공 |
+| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_notices.py` 공지 5건·지시 2건 | Session Pooler | 성공 |
 
 ## 개발 로그인 계정
 
@@ -113,4 +114,13 @@ C/S seed는 인증·고객 seed를 차례로 실행한 뒤 적용합니다. 데�
 ```bash
 cd backend
 DEBUG=false uv run python -m scripts.seed_demo_support
+```
+
+공지 seed는 인증 seed를 실행한 뒤 적용합니다. 데이터가 있는 팀에만 팀 공지 5건과 팀원
+한 명에게 가는 개인 지시 2건을 upsert합니다. 수신자가 없는 행이 팀 공지, 수신자가 있는
+행이 개인 지시이며 비어 있는 팀은 건드리지 않습니다.
+
+```bash
+cd backend
+DEBUG=false uv run python -m scripts.seed_demo_notices
 ```
