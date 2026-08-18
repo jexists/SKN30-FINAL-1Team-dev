@@ -82,6 +82,7 @@
       "st1 in1 ag2 ou2"
       "st2 in2 ag3 ou3"
       "st3 in3 ag4 ou4"
+      ".   .   ag6 ou6"
       "st4 in4 ag5 ou5";
     column-gap:56px;
     row-gap:56px;
@@ -195,11 +196,6 @@
       <div class="tag">meeting_analysis</div>
     </div>
     <div class="outs" id="ou1" style="grid-area:ou1">
-      <div class="outs row">
-        <div class="chip" id="o-cs-candidates"><i class="badge out">O</i> C/S 후보 <em>support_candidates</em></div>
-        <div class="human" id="o-cs-confirm"><span class="k">HUMAN</span> 검토 · 확정</div>
-        <div class="chip solid" id="o-support-request">C/S 요청 등록 <em>support_request</em></div>
-      </div>
       <div class="chip" id="o-deal-features"><i class="badge model">M</i> ML 입력값 변환 <em>(승인권자 · 예산 · 경쟁사 · 니즈)</em></div>
       <div class="chip" id="o-win-score"><i class="badge out">O</i> 딜 승산 점수 <em>(0–100점 · 승인 없이 화면 표시만)</em></div>
     </div>
@@ -231,7 +227,6 @@
       <div class="tag">contract_management</div>
     </div>
     <div class="outs" id="ou3" style="grid-area:ou3">
-      <div class="chip" id="o-brief"><i class="badge out">O</i> 브리핑 생성</div>
       <div class="chip" id="o-nextmeet"><i class="badge out">O</i> 다음 미팅 일정 제시</div>
     </div>
 
@@ -250,8 +245,17 @@
       <div class="nm">일정관리</div>
       <div class="tag">schedule_management</div>
     </div>
-    <div class="outs" id="ou4" style="grid-area:ou4">
+    <div class="outs row" id="ou4" style="grid-area:ou4">
       <div class="chip" id="o-nextsched"><i class="badge out">O</i> 다음 일정 추천 제시</div>
+      <div class="human" id="o-sched-human"><span class="k">HUMAN</span> 수정 · 승인</div>
+    </div>
+
+    <div class="agent a3" id="ag-contract-2" style="grid-area:ag6">
+      <div class="nm">영업 · 계약관리</div>
+      <div class="tag">contract_management</div>
+    </div>
+    <div class="outs" id="ou6" style="grid-area:ou6">
+      <div class="chip" id="o-brief"><i class="badge out">O</i> 브리핑 생성</div>
     </div>
 
     <!-- ============ 자료실 ============ -->
@@ -287,10 +291,6 @@
   const LINKS = [
     ['in1',          'ag-customer', 'line'],
     ['in1',          'ag-report',   'line', {label:'원문 참조', dashed:true}],
-    ['ag-customer',  'ag-report',   'drop', {label:'C/S 내용', gutter:18}],
-    ['ag-customer',  'o-cs-candidates', 'line'],
-    ['o-cs-candidates', 'o-cs-confirm', 'line', {thin:true}],
-    ['o-cs-confirm', 'o-support-request', 'line', {thin:true}],
     ['ag-customer',  'o-deal-features', 'line'],
     ['o-deal-features', 'o-win-score',  'drop', {gutter:9}],
     ['ag-report',    'o-draft',     'line'],
@@ -298,11 +298,13 @@
     ['o-human',      'o-final',     'line', {thin:true}],
 
     ['in2',          'ag-contract', 'line'],
-    ['ag-contract',  'o-brief',     'line'],
     ['ag-contract',  'o-nextmeet',  'line'],
 
     ['in3',          'ag-schedule', 'line'],
     ['ag-schedule',  'o-nextsched', 'line'],
+    ['o-nextsched',  'o-sched-human',  'line', {thin:true}],
+    ['o-sched-human','ag-contract-2',  'drop', {label:'I', enter:22, gutter:18}],
+    ['ag-contract-2','o-brief',        'line'],
 
     ['in4',          'ag-doc',      'line'],
     ['ag-doc',       'o-docsum',    'line'],
@@ -311,6 +313,7 @@
     ['o-final',      'ag-contract', 'drop',   {label:'I', enter: 22, gutter:18}],
     ['o-nextmeet',   'ag-schedule', 'drop',   {label:'I', enter: 26, gutter:20}],
     ['ag-contract',  'ag-schedule', 'duplex', {label:'교류', offset:-34}],
+    ['ag-contract-2','ag-doc',      'duplex', {label:'RAG 조회', offset:-34}],
   ];
 
   const px = n => Math.round(n * 10) / 10;
