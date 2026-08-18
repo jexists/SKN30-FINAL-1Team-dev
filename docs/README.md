@@ -2,9 +2,16 @@
 
 | 문서 | 내용 |
 |---|---|
+| [getting-started.md](getting-started.md) | 로컬 실행과 환경 설정 |
+| [project-overview.md](project-overview.md) | 문제·시장 근거·시나리오·MVP 완료 기준을 정리한 프로젝트 개요 |
+| [tech-stack.md](tech-stack.md) | 현재 사용·도입 예정 기술과 선정 이유 |
 | [project-structure.md](project-structure.md) | 폴더 역할과 파일 배치 |
 | [planning/](planning/) | 프로젝트 기획·요구사항 등 현재 기준본 |
-| [planning/요구사항_정의서_260805.xlsx](planning/요구사항_정의서_260805.xlsx) | 현재 구현 범위와 후속 범위를 구분한 요구사항 정의서 |
+| [planning/프로젝트기획서_260817.pdf](planning/프로젝트기획서_260817.pdf) | MVP 범위·완료 기준·KPI를 담은 프로젝트 기획서 |
+| [planning/요구사항_정의서_260817.xlsx](planning/요구사항_정의서_260817.xlsx) | 현재 구현 범위와 후속 범위를 구분한 요구사항 정의서 |
+| [planning/wbs_20260818.xlsx](planning/wbs_20260818.xlsx) | 주차별 추진 일정 WBS |
+| [presentation/](presentation/) | 발표자료 작업본 |
+| [presentation/SalesLuv_CassTerra_기획발표_완료.pptx](presentation/SalesLuv_CassTerra_기획발표_완료.pptx) | 기획 발표 기준본 |
 | [technical/](technical/) | ERD·아키텍처 등 기술 설계 |
 | [technical/SalesLuv_ERD.md](technical/SalesLuv_ERD.md) | 실제 테이블·컬럼 이름을 기준으로 한 SalesLuv ERD |
 | [technical/데이터베이스_저장소_설계_문서_260817.docx](technical/데이터베이스_저장소_설계_문서_260817.docx) | 타입·NULL·FK·제약·적용 이력을 포함한 상세 DB 설계서 |

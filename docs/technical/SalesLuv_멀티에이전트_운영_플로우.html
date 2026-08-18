@@ -200,8 +200,8 @@
         <div class="human" id="o-cs-confirm"><span class="k">HUMAN</span> 검토 · 확정</div>
         <div class="chip solid" id="o-support-request">C/S 요청 등록 <em>support_request</em></div>
       </div>
-      <div class="chip" id="o-deal-features"><i class="badge out">O</i> 딜 특성 구조화 <em>(승인권자 · 예산 · 경쟁사 · 니즈)</em></div>
-      <div class="chip" id="o-win-score"><i class="badge model">M</i> 딜 승산 점수 <em>(0–100점 · 승인 없이 화면 표시만)</em></div>
+      <div class="chip" id="o-deal-features"><i class="badge model">M</i> ML 입력값 변환 <em>(승인권자 · 예산 · 경쟁사 · 니즈)</em></div>
+      <div class="chip" id="o-win-score"><i class="badge out">O</i> 딜 승산 점수 <em>(0–100점 · 승인 없이 화면 표시만)</em></div>
     </div>
 
     <div class="agent a2" id="ag-report" style="grid-area:ag2">
@@ -287,7 +287,7 @@
   const LINKS = [
     ['in1',          'ag-customer', 'line'],
     ['in1',          'ag-report',   'line', {label:'원문 참조', dashed:true}],
-    ['ag-customer',  'ag-report',   'drop', {label:'분석 결과', gutter:18}],
+    ['ag-customer',  'ag-report',   'drop', {label:'C/S 내용', gutter:18}],
     ['ag-customer',  'o-cs-candidates', 'line'],
     ['o-cs-candidates', 'o-cs-confirm', 'line', {thin:true}],
     ['o-cs-confirm', 'o-support-request', 'line', {thin:true}],
@@ -418,12 +418,32 @@
       if(opt.dashed) path.setAttribute('stroke-dasharray', '6 5');
 
       if(type === 'line'){
-        const x1 = a.r + 4, y1 = a.cy;
-        const x2 = b.l - 9, y2 = b.cy;
-        const dx = Math.max(24, (x2 - x1) * .5);
-        path.setAttribute('d',
-          `M ${px(x1)} ${px(y1)} C ${px(x1+dx)} ${px(y1)}, ${px(x2-dx)} ${px(y2)}, ${px(x2)} ${px(y2)}`);
-        if(opt.label) labelAt(labels, (x1+x2)/2, (y1+y2)/2, opt.label);
+        // 대상이 오른쪽에 있을 때만 곡선. 뒤(왼쪽)로 가는 연결은 직각으로 돌아 들어간다.
+        if(b.l > a.r - 4){
+          const x1 = a.r + 4, y1 = a.cy;
+          const x2 = b.l - 9, y2 = b.cy;
+          const dx = Math.max(24, (x2 - x1) * .5);
+          path.setAttribute('d',
+            `M ${px(x1)} ${px(y1)} C ${px(x1+dx)} ${px(y1)}, ${px(x2-dx)} ${px(y2)}, ${px(x2)} ${px(y2)}`);
+          if(opt.label) labelAt(labels, (x1+x2)/2, (y1+y2)/2, opt.label);
+        } else {
+          const startY = b.cy > a.cy ? a.b + 4 : a.t - 4;
+          if(a.cx > b.l && a.cx < b.r){
+            // 가로로 겹치면 그대로 위/아래에서 진입
+            const endY = b.cy > a.cy ? b.t - 8 : b.b + 8;
+            path.setAttribute('d', `M ${px(a.cx)} ${px(startY)} L ${px(a.cx)} ${px(endY)}`);
+            if(opt.label) labelAt(labels, a.cx + 28, (startY + endY) / 2, opt.label);
+          } else {
+            // 대상 바깥쪽에서 가까운 변으로 진입
+            const ex = a.cx > b.r ? b.r + 7 : b.l - 7;
+            path.setAttribute('d', ortho([
+              [a.cx, startY],
+              [a.cx, b.cy],
+              [ex,   b.cy]
+            ], 10));
+            if(opt.label) labelAt(labels, (a.cx + ex) / 2, b.cy - 18, opt.label);
+          }
+        }
       }
 
       else if(type === 'rail'){
@@ -440,20 +460,24 @@
       }
 
       else if(type === 'drop'){
-        const gy = b.t - (opt.gutter ?? 20);
         const ex = b.cx + (opt.enter ?? 0);
+        const endY = b.t - 8;
+        // 마지막 세로 진입 구간이 모서리 반경보다 짧으면 화살표가 옆을 향한다.
+        // 두 요소 사이 여유 안에서 최소 34px를 확보한다.
+        const room = Math.max(b.t - a.b - 6, 8);
+        const gy   = b.t - Math.min(Math.max(opt.gutter ?? 20, 34), room);
         path.setAttribute('d', ortho([
           [a.cx, a.b + 4],
           [a.cx, gy],
           [ex,   gy],
-          [ex,   b.t - 8]
+          [ex,   endY]
         ], 11));
-        if(opt.label) labelAt(labels, ex + 28, b.t - 24, opt.label);
+        if(opt.label) labelAt(labels, ex + 28, gy + (endY - gy) / 2, opt.label);
       }
 
       else if(type === 'duplex'){
-        const x = a.cx + (opt.offset ?? 0);
-        path.setAttribute('d', `M ${px(x)} ${px(a.b + 6)} L ${px(x)} ${px(b.t - 6)}`);
+        const x = (a.cx + b.cx) / 2 + (opt.offset ?? 0);
+        path.setAttribute('d', `M ${px(x)} ${px(a.b + 3)} L ${px(x)} ${px(b.t - 3)}`);
         path.setAttribute('marker-start', 'url(#ah-start)');
         path.setAttribute('stroke-dasharray', '6 5');
         if(opt.label) labelAt(labels, x - 30, (a.b + b.t) / 2, opt.label);

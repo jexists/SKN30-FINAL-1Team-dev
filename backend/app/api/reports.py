@@ -28,8 +28,9 @@ _SEOUL = ZoneInfo("Asia/Seoul")
 _author = aliased(Member)
 _recipient = aliased(Member)
 
-# 제출한 보고서는 팀원이 더 고치지 않는다. 검토 결과는 팀장 기능에서 다룬다.
-_EDITABLE_STATUS = "draft"
+# 팀원이 고칠 수 있는 상태. 팀장이 수정 요청하면(유스케이스 RPT-004) 다시 편집·제출한다.
+_EDITABLE_STATUSES = ("draft", "changes_requested")
+_INITIAL_STATUS = "draft"
 
 
 def _contains(value: str) -> str:
@@ -349,7 +350,7 @@ async def create_report(
             period_start=payload.period_start,
             period_end=payload.period_end,
             # 작성은 언제나 draft 로 시작한다. 제출은 별도 endpoint 를 거친다.
-            status_code=_EDITABLE_STATUS,
+            status_code=_INITIAL_STATUS,
             content=payload.content,
             transcript=payload.transcript,
             source_snapshot=None,
@@ -380,7 +381,7 @@ async def update_report(
 ) -> ReportRead:
     try:
         report = await _locked_report(db, member, report_id)
-        if report.status_code != _EDITABLE_STATUS:
+        if report.status_code not in _EDITABLE_STATUSES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="report_not_editable",
@@ -431,7 +432,7 @@ async def submit_report(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="invalid_state_transition",
             )
-        if report.status_code != _EDITABLE_STATUS:
+        if report.status_code not in _EDITABLE_STATUSES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="invalid_state_transition",
@@ -455,7 +456,7 @@ async def delete_report(
 ) -> None:
     try:
         report = await _locked_report(db, member, report_id)
-        if report.status_code != _EDITABLE_STATUS:
+        if report.status_code not in _EDITABLE_STATUSES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="report_not_editable",
