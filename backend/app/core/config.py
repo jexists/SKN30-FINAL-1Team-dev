@@ -28,25 +28,23 @@ class Settings(BaseSettings):
     # 드라이버 접두사(+asyncpg)는 아래에서 자동으로 붙입니다.
     database_url: str = ""
 
-    session_secret: SecretStr = Field(min_length=32)
-    session_ttl_seconds: int = Field(default=28_800, ge=300, le=86_400)
+    # 로그인 시도 제한은 IP 단위로만 겁니다. 계정 단위 버킷은 두지 않습니다.
     login_max_attempts: int = Field(default=5, ge=1, le=20)
     login_window_seconds: int = Field(default=60, ge=10, le=3_600)
 
-    # 공유 개발 DB에 합성 계정을 넣는 일회성 seed 전용 값입니다.
-    demo_filled_manager_login_id: str = ""
-    demo_filled_member_login_id: str = ""
-    demo_filled_member2_login_id: str = ""
-    demo_empty_manager_login_id: str = ""
-    demo_empty_member_login_id: str = ""
-    demo_empty_member2_login_id: str = ""
-    demo_password: SecretStr = SecretStr("")
+    # refresh 쿠키 수명. 갱신할 때마다 다시 내려 미사용 기간만 만료로 이어집니다.
+    # Supabase Dashboard 의 Inactivity timeout 과 같은 값으로 맞춥니다.
+    refresh_cookie_max_age_seconds: int = Field(default=30 * 86_400, ge=3_600, le=90 * 86_400)
 
     # LLM 공급자. API key 는 서버 프로세스 안에서만 쓰고 응답이나 로그에 남기지 않는다.
     llm_api_url: str = ""
     llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
     llm_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+
+    # Supabase Auth. password login 은 secret 이 아니라 publishable 키를 씁니다.
+    # 두 키 모두 서버 프로세스 안에서만 쓰고 브라우저로 보내지 않습니다.
+    supabase_publishable_key: SecretStr = SecretStr("")
 
     # Supabase Storage. secret 키는 RLS 를 우회하므로 서버에서만 쓴다.
     supabase_secret_key: SecretStr = SecretStr("")
@@ -57,12 +55,17 @@ class Settings(BaseSettings):
 
     @property
     def supabase_project_url(self) -> str:
-        """Storage REST 주소. DATABASE_URL 의 `postgres.<project_ref>` 에서 뽑는다."""
+        """Auth/Storage REST 주소. DATABASE_URL 의 `postgres.<project_ref>` 에서 뽑는다."""
         if self.supabase_url:
             return self.supabase_url.rstrip("/")
         user = urlsplit(self.database_url).username or ""
         _, _, project_ref = user.partition(".")
         return f"https://{project_ref}.supabase.co" if project_ref else ""
+
+    @property
+    def auth_configured(self) -> bool:
+        """Supabase Auth 호출에 필요한 값이 모두 있는지. 없으면 인증을 503 으로 막는다."""
+        return bool(self.supabase_project_url and self.supabase_publishable_key.get_secret_value())
 
     @property
     def storage_configured(self) -> bool:
@@ -84,6 +87,7 @@ class Settings(BaseSettings):
 
     @property
     def session_cookie_secure(self) -> bool:
+        """access/refresh 쿠키가 함께 쓰는 Secure 플래그."""
         return self.app_env == "production"
 
     @model_validator(mode="after")

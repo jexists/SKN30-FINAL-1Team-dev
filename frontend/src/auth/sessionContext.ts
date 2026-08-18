@@ -12,9 +12,22 @@ export interface Session {
   profile: Profile
 }
 
+/**
+ * 세션 판정 결과입니다.
+ *
+ * - `loading`: 아직 서버에 물어보는 중입니다.
+ * - `authenticated`: 백엔드가 확인해 준 세션이 있습니다.
+ * - `unauthenticated`: 로그인하지 않았거나 연결된 구성원이 없습니다.
+ * - `unavailable`: 백엔드에 닿지 못했습니다. 로그인하지 않은 것과 다릅니다.
+ */
+export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'unavailable'
+
 export interface SessionContextValue {
   session: Session | null
-  login: (loginId: string, password: string) => Promise<void>
+  status: SessionStatus
+  /** 합성 데이터 저장소를 쓸 수 없습니다. 백엔드 장애와 구분합니다. */
+  mockUnavailable: boolean
+  login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
 

@@ -11,12 +11,16 @@ from uuid import UUID, uuid5
 from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
-from app.core.security import dummy_password_hash
 from app.db.session import get_sessionmaker
 from app.models.configuration import CustomerContactStatus
 from app.models.crm import CustomerCompany, CustomerContact
 from app.models.workspace import Member, Team
-from scripts.seed_demo_auth import FILLED_MEMBER2_ID, FILLED_MEMBER_ID, FILLED_TEAM_ID
+from scripts.seed_demo_auth import (
+    FILLED_MEMBER2_ID,
+    FILLED_MEMBER_ID,
+    FILLED_TEAM_ID,
+    disabled_login_columns,
+)
 
 FILLED_TEAM_NAME = "SalesLuv 데모팀"
 REFERENCE_AT = datetime(2026, 8, 17, tzinfo=UTC)
@@ -562,7 +566,6 @@ def contact_rows(status_ids: dict[str, UUID]) -> tuple[dict, ...]:
 
 
 async def seed_demo_customers() -> None:
-    roster_password_hash = await asyncio.to_thread(dummy_password_hash)
     company_ids = {name: company_id(name) for name in COMPANY_REGIONS}
     expected_company_by_id = {value: name for name, value in company_ids.items()}
     extra_member_by_id = {member["id"]: member for member in ROSTER_MEMBERS}
@@ -647,7 +650,7 @@ async def seed_demo_customers() -> None:
                 id=member["id"],
                 team_id=FILLED_TEAM_ID,
                 login_id=member["login_id"],
-                password_hash=roster_password_hash,
+                password_hash=disabled_login_columns(member["id"])["password_hash"],
                 display_name=member["display_name"],
                 role_code="member",
                 job_title="영업 담당자",

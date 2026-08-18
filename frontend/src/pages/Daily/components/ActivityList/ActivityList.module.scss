@@ -37,6 +37,7 @@
   width: 22px;
   height: 22px;
   margin-top: 1px;
+  padding: 0;
   display: grid;
   place-items: center;
   border: 1.5px solid var(--line-2);
@@ -57,6 +58,10 @@
     background: var(--blue);
     border-color: var(--blue);
     color: #fff;
+  }
+
+  svg {
+    transform: translateX(-1px);
   }
 }
 

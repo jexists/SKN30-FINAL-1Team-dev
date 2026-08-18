@@ -20,6 +20,10 @@ class Member(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
+    # Supabase auth.users.id 와의 유일한 연결 고리.
+    # 로그인하지 않는 목업 구성원이 있으므로 nullable 이다.
+    auth_user_id: Mapped[UUID | None]
+    # 0007 로 컬럼을 지우기 전까지 남는 자체 로그인 흔적. 인증에는 쓰지 않는다.
     login_id: Mapped[str]
     password_hash: Mapped[str]
     display_name: Mapped[str]

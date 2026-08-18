@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import ManagerRoute from '@/auth/ManagerRoute'
 import ProtectedRoute from '@/auth/ProtectedRoute'
 import SessionProvider from '@/auth/SessionProvider'
+import ConnectionAlert from '@/components/ConnectionAlert'
 import AppShell from '@/components/layout/AppShell'
 import { ROUTES } from '@/constants/routes'
 import Calendar from '@/pages/Calendar'
@@ -28,6 +29,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <SessionProvider>
+        {/* 라우트와 형제로 둡니다. 앱 화면을 대체하지 않고 위에만 얹힙니다. */}
+        <ConnectionAlert />
         <Routes>
           <Route path={ROUTES.LOGIN} element={<Login />} />
 

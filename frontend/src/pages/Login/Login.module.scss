@@ -226,10 +226,16 @@
   margin-top: 4px;
 }
 
+// 로그인 실패는 폼 안에서 유일한 안내라 눈에 확실히 들어와야 합니다.
 .error {
   margin-top: -4px;
-  color: var(--red);
-  font-size: 12px;
+  margin-bottom: 16px;
+  border-radius: var(--r-sm);
+  border-left: 3px solid var(--red);
+  background: var(--red-tint);
+  padding: 10px 12px;
+  color: var(--red-ink);
+  font-size: 13px;
   line-height: 1.5;
 }
 

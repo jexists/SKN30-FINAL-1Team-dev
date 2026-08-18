@@ -5,15 +5,17 @@ requires-python = ">=3.13"
 dependencies = [
     "asyncpg>=0.31.0",
     "fastapi>=0.141.1",
+    "httpx>=0.28.1",
     "pydantic-settings>=2.14.2",
+    "pyjwt[crypto]>=2.10.1",
     "python-multipart>=0.0.32",
     "sqlalchemy[asyncio]>=2.0.51",
+    "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "ruff>=0.16.1",
 ]

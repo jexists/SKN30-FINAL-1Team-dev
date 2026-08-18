@@ -1,4 +1,9 @@
-"""공유 개발 DB에 두 합성 팀, 기본 설정과 로그인 계정 여섯 개를 반복 가능하게 넣는다."""
+"""공유 개발 DB에 세 합성 팀, 기본 설정과 구성원 여덟 명을 반복 가능하게 넣는다.
+
+이 스크립트는 계정 자격증명을 다루지 않는다. 이메일과 비밀번호는 Supabase
+Authentication 에서만 관리하고, 만들어진 사용자를 여기 구성원에 붙이는 일은
+scripts/link_demo_auth_users.py 가 맡는다.
+"""
 
 import asyncio
 from datetime import UTC, datetime
@@ -9,8 +14,6 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.security import hash_password
 from app.db.session import get_sessionmaker
 from app.models.configuration import (
     ActivityActionTag,
@@ -24,16 +27,31 @@ from app.models.workspace import Member, Team
 
 FILLED_TEAM_ID = UUID("6d0f1b76-6b1a-4b72-9ba3-1df477a62d78")
 EMPTY_TEAM_ID = UUID("dc153ea5-9ba6-4b96-a4df-845a44798003")
+TEST_TEAM_ID = UUID("95d7978d-5281-45fa-9412-14db072f5c01")
 FILLED_MANAGER_ID = UUID("a6a7a7f6-7141-4b94-9355-bde585f44d1a")
 FILLED_MEMBER_ID = UUID("86d40aa1-0a5b-4a23-912f-e039c392c60a")
 FILLED_MEMBER2_ID = UUID("318a44b7-6726-5054-9b67-469a43b3dd6f")
 EMPTY_MANAGER_ID = UUID("7a489d16-0e50-4061-9c23-8756fb79e3ed")
 EMPTY_MEMBER_ID = UUID("cc1b70c1-71bb-421b-9ce4-66464ee17018")
 EMPTY_MEMBER2_ID = UUID("56ef16f5-19c0-5778-a429-2a71edf18de0")
+TEST_MANAGER_ID = UUID("501aff03-b33b-4136-8c00-0f966d65db31")
+TEST_MEMBER_ID = UUID("8e06589a-b78d-48a3-8003-eef1ee0e8e3c")
 
 
 def rows(columns, values):
     return tuple(dict(zip(columns, value, strict=True)) for value in values)
+
+
+def disabled_login_columns(member_id: UUID) -> dict[str, str]:
+    """0007 로 지우기 전까지 NOT NULL 인 두 컬럼을 채우는 자리표시자.
+
+    인증 경로가 더 이상 이 값을 읽지 않으므로 로그인에 쓰이지 않는다.
+    member id 에서 파생해 반복 실행해도 같은 값이 나온다.
+    """
+    return {
+        "login_id": f"{member_id}@disabled.invalid",
+        "password_hash": f"disabled${member_id}",
+    }
 
 
 LOOKUP_DEFAULTS = (
@@ -302,46 +320,11 @@ async def seed_team_configuration(session: AsyncSession, team_id: UUID) -> None:
 
 
 async def seed_demo_auth() -> None:
-    (
-        filled_manager_login_id,
-        filled_member_login_id,
-        filled_member2_login_id,
-        empty_manager_login_id,
-        empty_member_login_id,
-        empty_member2_login_id,
-    ) = (
-        settings.demo_filled_manager_login_id.strip().lower(),
-        settings.demo_filled_member_login_id.strip().lower(),
-        settings.demo_filled_member2_login_id.strip().lower(),
-        settings.demo_empty_manager_login_id.strip().lower(),
-        settings.demo_empty_member_login_id.strip().lower(),
-        settings.demo_empty_member2_login_id.strip().lower(),
-    )
-    login_ids = (
-        filled_manager_login_id,
-        filled_member_login_id,
-        filled_member2_login_id,
-        empty_manager_login_id,
-        empty_member_login_id,
-        empty_member2_login_id,
-    )
-    password = settings.demo_password.get_secret_value()
-
-    if not all(login_ids) or not password:
-        raise SystemExit("backend/.env의 DEMO_* 인증 값을 먼저 채워주세요.")
-    if len(set(login_ids)) != len(login_ids):
-        raise SystemExit("여섯 데모 계정의 로그인 ID는 서로 달라야 합니다.")
-    if any(len(login_id) > 254 for login_id in login_ids):
-        raise SystemExit("데모 계정 로그인 ID는 254자 이하여야 합니다.")
-    if not 1 <= len(password) <= 256:
-        raise SystemExit("DEMO_PASSWORD는 1자 이상 256자 이하여야 합니다.")
-
-    password_hashes = [await asyncio.to_thread(hash_password, password) for _ in login_ids]
-
     async with get_sessionmaker()() as session, session.begin():
         teams = (
             (FILLED_TEAM_ID, "SalesLuv 데모팀"),
             (EMPTY_TEAM_ID, "SalesLuv 첫 세팅팀"),
+            (TEST_TEAM_ID, "SalesLuv 테스트팀"),
         )
         expected_team_names = dict(teams)
         existing_teams = await session.execute(
@@ -373,8 +356,6 @@ async def seed_demo_auth() -> None:
             {
                 "id": FILLED_MANAGER_ID,
                 "team_id": FILLED_TEAM_ID,
-                "login_id": filled_manager_login_id,
-                "password_hash": password_hashes[0],
                 "display_name": "김서현",
                 "role_code": "manager",
                 "job_title": "영업팀장",
@@ -382,8 +363,6 @@ async def seed_demo_auth() -> None:
             {
                 "id": FILLED_MEMBER_ID,
                 "team_id": FILLED_TEAM_ID,
-                "login_id": filled_member_login_id,
-                "password_hash": password_hashes[1],
                 "display_name": "김지훈",
                 "role_code": "member",
                 "job_title": "영업 담당자",
@@ -391,8 +370,6 @@ async def seed_demo_auth() -> None:
             {
                 "id": FILLED_MEMBER2_ID,
                 "team_id": FILLED_TEAM_ID,
-                "login_id": filled_member2_login_id,
-                "password_hash": password_hashes[2],
                 "display_name": "이수민",
                 "role_code": "member",
                 "job_title": "영업 담당자",
@@ -400,8 +377,6 @@ async def seed_demo_auth() -> None:
             {
                 "id": EMPTY_MANAGER_ID,
                 "team_id": EMPTY_TEAM_ID,
-                "login_id": empty_manager_login_id,
-                "password_hash": password_hashes[3],
                 "display_name": "김서현",
                 "role_code": "manager",
                 "job_title": "영업팀장",
@@ -409,8 +384,6 @@ async def seed_demo_auth() -> None:
             {
                 "id": EMPTY_MEMBER_ID,
                 "team_id": EMPTY_TEAM_ID,
-                "login_id": empty_member_login_id,
-                "password_hash": password_hashes[4],
                 "display_name": "김지훈",
                 "role_code": "member",
                 "job_title": "영업 담당자",
@@ -418,48 +391,46 @@ async def seed_demo_auth() -> None:
             {
                 "id": EMPTY_MEMBER2_ID,
                 "team_id": EMPTY_TEAM_ID,
-                "login_id": empty_member2_login_id,
-                "password_hash": password_hashes[5],
                 "display_name": "이수민",
                 "role_code": "member",
                 "job_title": "영업 담당자",
             },
+            {
+                "id": TEST_MANAGER_ID,
+                "team_id": TEST_TEAM_ID,
+                "display_name": "김서현",
+                "role_code": "manager",
+                "job_title": "영업팀장",
+            },
+            {
+                "id": TEST_MEMBER_ID,
+                "team_id": TEST_TEAM_ID,
+                "display_name": "김지훈",
+                "role_code": "member",
+                "job_title": "영업 담당자",
+            },
         )
-        expected_by_id = {
-            account["id"]: (account["login_id"], account["team_id"]) for account in accounts
-        }
-        expected_by_login = {
-            login_id: member_id for member_id, (login_id, _team_id) in expected_by_id.items()
-        }
+        expected_team_by_id = {account["id"]: account["team_id"] for account in accounts}
         existing = await session.execute(
-            select(Member.id, Member.login_id, Member.team_id)
-            .where(
-                or_(
-                    Member.id.in_(expected_by_id),
-                    Member.login_id.in_(expected_by_login),
-                )
-            )
+            select(Member.id, Member.team_id)
+            .where(Member.id.in_(expected_team_by_id))
             .with_for_update()
         )
-        for member_id, login_id, team_id in existing:
-            expected_member = expected_by_id.get(member_id)
-            expected_member_id = expected_by_login.get(login_id)
-            if (
-                expected_member is None
-                or team_id != expected_member[1]
-                or (expected_member_id is not None and expected_member_id != member_id)
-            ):
-                raise SystemExit("기존 회원과 데모 계정 ID, 로그인 ID 또는 팀이 충돌합니다.")
+        for member_id, team_id in existing:
+            if team_id != expected_team_by_id[member_id]:
+                raise SystemExit("기존 회원과 데모 계정의 ID 또는 팀이 충돌합니다.")
 
         for account in accounts:
-            member_insert = insert(Member).values(active=True, **account)
+            member_insert = insert(Member).values(
+                active=True,
+                **account,
+                **disabled_login_columns(account["id"]),
+            )
             await session.execute(
                 member_insert.on_conflict_do_update(
                     index_elements=[Member.id],
                     set_={
                         "team_id": member_insert.excluded.team_id,
-                        "login_id": member_insert.excluded.login_id,
-                        "password_hash": member_insert.excluded.password_hash,
                         "display_name": member_insert.excluded.display_name,
                         "role_code": member_insert.excluded.role_code,
                         "job_title": member_insert.excluded.job_title,
@@ -468,7 +439,8 @@ async def seed_demo_auth() -> None:
                 )
             )
 
-    print("개발 DB의 합성 팀 2개, 기본 설정과 로그인 계정 6개를 준비했습니다.")
+    print("개발 DB의 합성 팀 3개, 기본 설정과 구성원 8명을 준비했습니다.")
+    print("로그인 계정 연결은 scripts/link_demo_auth_users.py 로 이어서 진행합니다.")
 
 
 if __name__ == "__main__":
