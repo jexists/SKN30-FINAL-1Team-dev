@@ -1,6 +1,15 @@
 from fastapi import APIRouter
 
-from app.api import activities, auth, customers, health, orders, sales_deals, support
+from app.api import (
+    activities,
+    auth,
+    customers,
+    health,
+    notices,
+    orders,
+    sales_deals,
+    support,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -10,3 +19,4 @@ api_router.include_router(activities.router)
 api_router.include_router(sales_deals.router)
 api_router.include_router(orders.router)
 api_router.include_router(support.router)
+api_router.include_router(notices.router)

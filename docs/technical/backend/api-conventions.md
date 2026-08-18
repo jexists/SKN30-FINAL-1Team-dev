@@ -288,6 +288,17 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 발주 이동 | `POST /api/orders/{purchase_order_id}/move` | `expected_stage_code`, 목표 `stage_code` |
 | C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,skip,limit`; 상태 `in_progress|completed` |
 | C/S 전이·답변 | `POST /api/support-requests/{request_id}/transition`, `POST /api/support-requests/{request_id}/responses` | expected 상태 비교; 답변 생성 `201` |
+| 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
+
+### 공지와 개인 지시의 조회 범위
+
+- `notice.recipient_member_id`가 NULL이면 팀 공지, 값이 있으면 그 사람에게 온 개인 지시다.
+- 응답의 `scope`가 `team`과 `personal`을 구분해 주므로 프론트가 `recipient_member_id`로 다시 판정하지 않는다.
+- 담당자 범위와 무관하다. 팀 공지는 같은 팀 전체가 보고 개인 지시는 수신자 본인만 본다.
+- `scope`를 생략하면 팀 공지와 본인 수신 지시를 함께 조회한다.
+- 다른 사람에게 온 지시는 팀장에게도 보이지 않는다.
+- `image_storage_key`는 내부 저장소 주소라 응답하지 않고 `image_alt`만 내보낸다.
+- 각 `scope`의 전체 건수는 페이지 응답의 `total`로 얻는다.
 
 ### 영업 딜의 화면 필터와 상태 전이
 
