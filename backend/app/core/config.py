@@ -48,6 +48,31 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
 
+    # Supabase Storage. secret 키는 RLS 를 우회하므로 서버에서만 쓴다.
+    supabase_secret_key: SecretStr = SecretStr("")
+    supabase_storage_bucket: str = ""
+    # 보통은 DATABASE_URL 에서 뽑아 쓴다. 다른 호스트를 쓸 때만 채운다.
+    supabase_url: str = ""
+    upload_max_bytes: int = Field(default=50 * 1024 * 1024, gt=0, le=1024 * 1024 * 1024)
+
+    @property
+    def supabase_project_url(self) -> str:
+        """Storage REST 주소. DATABASE_URL 의 `postgres.<project_ref>` 에서 뽑는다."""
+        if self.supabase_url:
+            return self.supabase_url.rstrip("/")
+        user = urlsplit(self.database_url).username or ""
+        _, _, project_ref = user.partition(".")
+        return f"https://{project_ref}.supabase.co" if project_ref else ""
+
+    @property
+    def storage_configured(self) -> bool:
+        """업로드에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""
+        return bool(
+            self.supabase_project_url
+            and self.supabase_secret_key.get_secret_value()
+            and self.supabase_storage_bucket
+        )
+
     @property
     def llm_configured(self) -> bool:
         """LLM 호출에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""

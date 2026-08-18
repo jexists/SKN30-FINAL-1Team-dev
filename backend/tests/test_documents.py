@@ -1,0 +1,277 @@
+from datetime import UTC, datetime
+from uuid import uuid4
+
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from app.api.deps import get_current_member
+from app.core.config import settings
+from app.db.session import get_db
+from app.main import app
+from app.models.content import Document
+from app.models.content import File as FileRow
+from app.models.workspace import Member
+from app.schemas.documents import DocumentCreate, DocumentPageParams
+from app.services import storage
+
+ORIGIN = settings.cors_origin_list[0]
+NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
+PDF = b"%PDF-1.7\ntest\n"
+_MISSING = object()
+
+
+class _Result:
+    def __init__(self, *, scalar=_MISSING, rows=None):
+        self.scalar = scalar
+        self.rows = [] if rows is None else rows
+
+    def scalar_one(self):
+        assert self.scalar is not _MISSING
+        return self.scalar
+
+    def scalar_one_or_none(self):
+        assert self.scalar is not _MISSING
+        return self.scalar
+
+    def one_or_none(self):
+        assert len(self.rows) <= 1
+        return self.rows[0] if self.rows else None
+
+    def all(self):
+        return self.rows
+
+
+class _Db:
+    def __init__(self, *results: _Result):
+        self.results = list(results)
+        self.statements = []
+        self.added = []
+        self.commit_count = 0
+        self.rollback_count = 0
+
+    async def execute(self, statement):
+        self.statements.append(statement)
+        assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
+        return self.results.pop(0)
+
+    def add(self, value):
+        self.added.append(value)
+
+    async def flush(self):
+        for value in self.added:
+            if isinstance(value, FileRow) and value.uploaded_at is None:
+                value.uploaded_at = NOW
+
+    async def commit(self):
+        self.commit_count += 1
+
+    async def rollback(self):
+        self.rollback_count += 1
+
+
+@pytest.fixture(autouse=True)
+def reset_dependency_overrides():
+    app.dependency_overrides.clear()
+    yield
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def storage_ready(monkeypatch):
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: True))
+    yield
+
+
+@pytest.fixture
+def storage_missing(monkeypatch):
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: False))
+    yield
+
+
+def _member(*, role: str = "member") -> Member:
+    return Member(
+        id=uuid4(),
+        team_id=uuid4(),
+        login_id=f"{uuid4()}@salesluv.demo",
+        password_hash="unused",
+        display_name="합성 영업 담당자",
+        role_code=role,
+        job_title="영업 담당자",
+        active=True,
+    )
+
+
+def _document(member: Member) -> Document:
+    return Document(
+        id=uuid4(),
+        team_id=member.team_id,
+        created_by_member_id=member.id,
+        document_no="SL-DC-2026-0001",
+        category_code="proposal",
+        title="합성 자료",
+        description=None,
+        customer_company_id=None,
+        sales_deal_id=None,
+        purchase_order_id=None,
+        tags=[],
+        created_at=NOW,
+    )
+
+
+def _file(document: Document, member: Member) -> FileRow:
+    return FileRow(
+        id=uuid4(),
+        report_id=None,
+        document_id=document.id,
+        version_no=1,
+        file_name="제안서.pdf",
+        storage_key=f"{member.team_id}/secret-object-key.pdf",
+        media_type="application/pdf",
+        byte_size=len(PDF),
+        processing_status="uploaded",
+        extracted_text=None,
+        uploaded_by_member_id=member.id,
+        note=None,
+        uploaded_at=NOW,
+    )
+
+
+def _client(db: _Db, member: Member) -> TestClient:
+    async def override_db():
+        yield db
+
+    async def override_member():
+        return member
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_member] = override_member
+    return TestClient(app)
+
+
+def test_document_request_rejects_unsafe_values():
+    with pytest.raises(ValidationError):
+        # 업무 번호와 작성자는 요청으로 정할 수 없다.
+        DocumentCreate(category_code="proposal", title="a", document_no="SL-DC-2026-0001")
+    with pytest.raises(ValidationError):
+        DocumentCreate(category_code="Proposal", title="a")
+    with pytest.raises(ValidationError):
+        DocumentCreate(category_code="proposal", title="")
+    with pytest.raises(ValidationError):
+        DocumentPageParams(limit=101)
+
+
+def test_upload_requires_storage_configuration(storage_missing):
+    member = _member()
+    db = _Db()
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/documents/{uuid4()}/files",
+            headers={"Origin": ORIGIN},
+            files={"upload": ("a.pdf", PDF, "application/pdf")},
+        )
+    assert response.status_code == 503
+    assert response.json() == {"detail": "storage_not_configured"}
+
+
+@pytest.mark.parametrize(
+    ("file_name", "media_type", "content", "detail", "code"),
+    [
+        ("악성.pdf", "application/pdf", b"MZ\x90\x00", "file_signature_mismatch", 415),
+        ("a.zip", "application/zip", b"PK\x03\x04", "unsupported_file_extension", 415),
+        ("a.pdf", "image/png", PDF, "media_type_mismatch", 415),
+        ("a.pdf", "application/pdf", b"", "empty_file", 422),
+        ("../a.pdf", "application/pdf", PDF, "invalid_file_name", 422),
+    ],
+)
+def test_upload_rejects_bad_files_before_touching_storage(
+    storage_ready, monkeypatch, file_name, media_type, content, detail, code
+):
+    uploaded: list[str] = []
+
+    async def _never(**kwargs):
+        uploaded.append(kwargs["storage_key"])
+
+    monkeypatch.setattr(storage, "upload", _never)
+
+    member = _member()
+    db = _Db()
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/documents/{uuid4()}/files",
+            headers={"Origin": ORIGIN},
+            files={"upload": (file_name, content, media_type)},
+        )
+
+    assert response.status_code == code
+    assert response.json() == {"detail": detail}
+    # 검증 전에 저장소를 건드리지 않는다.
+    assert uploaded == []
+    assert db.commit_count == 0
+
+
+def test_upload_removes_object_when_db_write_fails(storage_ready, monkeypatch):
+    uploaded: list[str] = []
+    removed: list[str] = []
+
+    async def _upload(**kwargs):
+        uploaded.append(kwargs["storage_key"])
+
+    async def _remove(**kwargs):
+        removed.append(kwargs["storage_key"])
+
+    monkeypatch.setattr(storage, "upload", _upload)
+    monkeypatch.setattr(storage, "remove", _remove)
+
+    member = _member()
+    # 문서를 찾지 못해 404 로 끝난다.
+    db = _Db(_Result(scalar=None))
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/documents/{uuid4()}/files",
+            headers={"Origin": ORIGIN},
+            files={"upload": ("a.pdf", PDF, "application/pdf")},
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "document_not_found"}
+    # 올린 객체를 지워 고아를 남기지 않는다.
+    assert uploaded == removed
+    assert len(removed) == 1
+    assert db.rollback_count == 1
+
+
+def test_download_never_exposes_storage_key(storage_ready, monkeypatch):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+
+    async def _signed(**kwargs):
+        return "https://example.invalid/storage/v1/object/sign/x?token=abc"
+
+    monkeypatch.setattr(storage, "signed_url", _signed)
+
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+    with _client(db, member) as client:
+        response = client.get(
+            f"/api/documents/{document.id}/files/{row.id}/download",
+        )
+
+    assert response.status_code == 200
+    assert "storage_key" not in response.text
+    assert row.storage_key not in response.text
+    assert response.json()["expires_in"] == 60
+    assert response.json()["file_name"] == "제안서.pdf"
+
+
+def test_other_team_document_is_hidden():
+    member = _member()
+    db = _Db(_Result(rows=[]))
+    with _client(db, member) as client:
+        response = client.get(f"/api/documents/{uuid4()}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "document_not_found"}
+    assert member.team_id in db.statements[0].compile().params.values()

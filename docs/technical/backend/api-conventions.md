@@ -293,6 +293,8 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
 | 보고서 초안 실행 | `POST /api/agent-runs`, `GET /api/agent-runs/{agent_run_id}` | `202` + `Location` + `Retry-After`; polling 으로 상태 확인 |
+| 자료실 | `GET/POST /api/documents`, `GET/PATCH /api/documents/{document_id}` | 목록은 `q,category_code,customer_company_id,sales_deal_id,created_by_member_id,skip,limit` |
+| 자료 파일 | `POST /api/documents/{document_id}/files`, `GET /api/documents/{document_id}/files/{file_id}/download` | `multipart/form-data` 업로드; 다운로드는 짧은 서명 URL |
 
 ### 일정 완료 처리
 
@@ -333,6 +335,21 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 실행이 실패해도 조회는 `200`이고 `status_code=failed`와 안전한 오류 코드를 반환한다.
 - 오류 코드에는 공급자 URL과 API key를 넣지 않는다. `llm_request_failed:<예외종류>`, `llm_provider_error:<상태>`, `llm_output_schema_mismatch` 형태만 쓴다.
 - 실행 이력은 같은 팀 안에서 요청자 본인 것만 조회한다.
+
+### 자료실 업로드와 다운로드
+
+- 자료실은 팀 공유물이다. 같은 팀이면 팀원도 문서를 모두 조회한다.
+- 업로드는 `multipart/form-data`만 받는다. JSON base64 업로드는 없다.
+- 확장자, 선언 MIME, 실제 파일 signature 셋을 함께 검사한다. 하나라도 어긋나면 거절한다.
+- 허용 형식은 `.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.xlsx`, `.pptx`다. 실행 파일과 압축 파일은 받지 않는다.
+- 형식 위반은 `415`, 크기 초과는 `413`, 빈 파일과 잘못된 파일명은 `422`다.
+- 저장 경로는 서버가 만든다. 원본 파일명을 경로에 쓰지 않고 표시용으로만 보관한다.
+- `storage_key`는 어떤 응답에도 넣지 않는다. 다운로드는 매 요청마다 팀 권한을 검사한 뒤 짧게 사는 서명 URL을 발급한다.
+- 버전 번호는 서버가 트랜잭션 안에서 매긴다. 같은 문서에 다시 올리면 `version_no`가 하나 올라간다.
+- 저장소에 올린 뒤 DB 기록이 실패하면 올린 객체를 지워 고아를 남기지 않는다.
+- 문서 번호는 서버가 `SL-DC-YYYY-####`로 생성한다.
+- Storage 설정이 없으면 업로드와 다운로드를 `503 storage_not_configured`로 막는다.
+- OCR과 텍스트 추출은 아직 없다. `processing_status`는 업로드 시 `uploaded`로 둔다.
 
 ### 영업 딜의 화면 필터와 상태 전이
 

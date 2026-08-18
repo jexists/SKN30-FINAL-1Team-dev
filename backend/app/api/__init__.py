@@ -5,6 +5,7 @@ from app.api import (
     agent_runs,
     auth,
     customers,
+    documents,
     health,
     notices,
     orders,
@@ -24,3 +25,4 @@ api_router.include_router(support.router)
 api_router.include_router(reports.router)
 api_router.include_router(notices.router)
 api_router.include_router(agent_runs.router)
+api_router.include_router(documents.router)
