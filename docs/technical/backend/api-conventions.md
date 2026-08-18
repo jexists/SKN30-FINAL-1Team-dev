@@ -3,7 +3,7 @@
 이 문서는 ERD 확정 이후 모든 SalesLuv 기능 API에 공통으로 적용할 백엔드 기준이다.
 
 - 데이터 기준: [SalesLuv 최종 ERD](../SalesLuv_ERD.md)
-- Agent 동작 기준: [SalesLuv 멀티에이전트 운영 플로우](../SalesLuv_멀티에이전트_운영_플로우.html)
+- Agent 동작 기준: [SalesLuv 멀티에이전트 운영 플로우](../multiagent/SalesLuv_멀티에이전트_운영_플로우.html)
 - 화면 기준: [SalesLuv 화면 기준](../../../demo/layout_v3.html)
 - 프론트 제안 원본: [대시보드 API 요구사항](dashboard-api-spec.md)
 

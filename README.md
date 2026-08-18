@@ -76,7 +76,7 @@
 
 미팅·보고서·딜·계약·일정·자료실 업무를 5개 에이전트가 나누어 지원합니다.
 
-![SalesLuv 멀티에이전트 운영 플로우](docs/assets/multiagent-flow.png)
+![SalesLuv 멀티에이전트 운영 플로우](docs/technical/multiagent/multiagent-flow.png)
 
 | 에이전트 | 역할 |
 |---|---|

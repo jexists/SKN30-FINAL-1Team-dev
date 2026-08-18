@@ -104,9 +104,9 @@ B2B 영업의 핵심 자산인 고객 맥락과 영업 노하우는 담당자 �
 
 아래는 SalesLuv가 지향하는 전체 협업 체계입니다. MVP는 이 가운데 유스케이스에서 실제로 호출되는 **미팅 브리핑 · 보고 내용 · 자료 요약**을 우선 연결하고, 화면 범위는 8장 완료 기준으로 검증합니다.
 
-![SalesLuv 멀티에이전트 운영 플로우](assets/multiagent-flow.png)
+![SalesLuv 멀티에이전트 운영 플로우](technical/multiagent/multiagent-flow.png)
 
-상호작용 원본 → [멀티에이전트 운영 플로우](technical/SalesLuv_멀티에이전트_운영_플로우.html)
+상호작용 원본 → [멀티에이전트 운영 플로우](technical/multiagent/SalesLuv_멀티에이전트_운영_플로우.html)
 
 ### 7.1 에이전트별 책임
 
