@@ -566,14 +566,14 @@ UQ는 `(requested_by_member_id, idempotency_key)`다. 고정 Agent 코드는 `me
     "support_candidates": [],
     "deal_assessment": {
       "features": {},
-      "score": 0,
+      "label": "high",
       "model_version": "string"
     }
   }
 }
 ```
 
-- 점수는 `0~100`이고 같은 딜의 `completed` 실행 중 `finished_at DESC, id DESC` 첫 행을 표시한다.
+- `label`은 `high`(계약가능성 높음) 또는 `watch`(계약가능성 주의) 두 값이고, 같은 딜의 `completed` 실행 중 `finished_at DESC, id DESC` 첫 행을 표시한다.
 - 재분석은 이전 행을 덮어쓰지 않고 새 `agent_run`을 추가한다.
 - `support_candidates`는 제안이다. 사용자가 확정한 항목만 별도 트랜잭션으로 `support_request`에 저장한다.
 
