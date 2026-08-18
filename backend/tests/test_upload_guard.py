@@ -20,10 +20,10 @@ def test_accepts_matching_extension_mime_and_signature():
     )
     assert result.media_type == "application/pdf"
 
-    png = check_upload(file_name="a.PNG", declared_media_type=None, content=PNG)
-    assert png.extension == ".png"
-    assert check_upload(file_name="b.jpeg", declared_media_type="image/jpeg", content=JPEG)
-    assert check_upload(file_name="c.docx", declared_media_type=DOCX_TYPE, content=DOCX)
+    assert (
+        check_upload(file_name="c.docx", declared_media_type=DOCX_TYPE, content=DOCX).extension
+        == ".docx"
+    )
     # charset 이 붙어도 앞부분만 본다.
     assert check_upload(
         file_name="d.pdf", declared_media_type="application/pdf; charset=binary", content=PDF
@@ -48,7 +48,8 @@ def test_rejects_mime_that_contradicts_extension():
 
 
 def test_rejects_unsupported_and_executable_types():
-    for name in ("a.exe", "b.sh", "c.zip", "d.html", "e.svg", "noextension"):
+    # 유스케이스에 없는 이미지·스프레드시트도 받지 않는다.
+    for name in ("a.exe", "b.sh", "c.zip", "d.html", "e.svg", "noextension", "f.png", "g.xlsx"):
         with pytest.raises(UploadRejected) as caught:
             check_upload(file_name=name, declared_media_type=None, content=PDF)
         assert caught.value.detail == "unsupported_file_extension"

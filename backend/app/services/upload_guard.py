@@ -9,10 +9,7 @@ from dataclasses import dataclass
 # 허용 형식만 둔다. 실행 가능한 형식과 압축 파일은 넣지 않는다.
 # (확장자, 선언 MIME 집합, signature 검사 함수)
 _PDF = "application/pdf"
-_PNG = "image/png"
-_JPEG = "image/jpeg"
 _DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 
@@ -33,13 +30,11 @@ class AllowedType:
     magic: tuple[bytes, ...]
 
 
+# 멀티에이전트 운영 플로우의 자료실 입력이 PDF·PPTX·DOCX 다. HTML 은 규약 13절에 따라
+# 인라인 실행 위험이 있어 받지 않는다.
 _ALLOWED: tuple[AllowedType, ...] = (
     AllowedType(".pdf", _PDF, (b"%PDF-",)),
-    AllowedType(".png", _PNG, (b"\x89PNG\r\n\x1a\n",)),
-    AllowedType(".jpg", _JPEG, (b"\xff\xd8\xff",)),
-    AllowedType(".jpeg", _JPEG, (b"\xff\xd8\xff",)),
     AllowedType(".docx", _DOCX, (b"PK\x03\x04",)),
-    AllowedType(".xlsx", _XLSX, (b"PK\x03\x04",)),
     AllowedType(".pptx", _PPTX, (b"PK\x03\x04",)),
 )
 
