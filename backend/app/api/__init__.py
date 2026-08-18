@@ -7,6 +7,7 @@ from app.api import (
     health,
     notices,
     orders,
+    reports,
     sales_deals,
     support,
 )
@@ -19,4 +20,5 @@ api_router.include_router(activities.router)
 api_router.include_router(sales_deals.router)
 api_router.include_router(orders.router)
 api_router.include_router(support.router)
+api_router.include_router(reports.router)
 api_router.include_router(notices.router)

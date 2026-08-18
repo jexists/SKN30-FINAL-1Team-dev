@@ -289,6 +289,8 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,skip,limit`; 상태 `in_progress|completed` |
 | C/S 전이·답변 | `POST /api/support-requests/{request_id}/transition`, `POST /api/support-requests/{request_id}/responses` | expected 상태 비교; 답변 생성 `201` |
 | 일정 완료 | `POST /api/activities/{activity_id}/complete`, `POST /api/activities/{activity_id}/reopen` | 본문 없음; 완료 시각은 서버가 정함 |
+| 보고서 | `GET/POST /api/reports`, `GET/PATCH/DELETE /api/reports/{report_id}` | 목록은 `q,report_kind,status_code,start_date,end_date,author_member_id,skip,limit` |
+| 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
 
 ### 일정 완료 처리
@@ -299,6 +301,16 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 이미 완료된 일정의 완료 요청은 `409 already_completed`, 완료되지 않은 일정의 재개 요청은 `409 not_completed`다.
 - 조회 범위와 잠금 규칙은 일정 상세·수정과 같다.
 
+### 보고서의 상태와 작성 범위
+
+- 보고서 종류는 `meeting`, `daily`, `weekly`, `monthly`다.
+- 상태는 `draft`, `submitted`, `approved`, `rejected`이며 현재 API가 만드는 값은 `draft`와 `submitted` 둘이다.
+- 생성은 항상 `draft`로 시작한다. 요청으로 `status_code`나 작성자를 정할 수 없다.
+- 수정과 삭제는 `draft`에서만 허용하고 그 밖의 상태는 `409 report_not_editable`이다.
+- `weekly`, `monthly`는 `period_start`와 `period_end`가 모두 필요하고 `period_end >= period_start`여야 한다.
+- `meeting`은 근거가 되는 `source_activity_id`가 필요하다.
+- `activity_ids`로 묶는 일정은 같은 팀에서 조회 가능한 일정만 허용하며 아니면 `404 activity_not_found`다.
+- 검토(`approved`, `rejected`)와 `reviewed_by_member_id` 설정은 팀장 기능이라 이번 범위에 없다.
 ### 공지와 개인 지시의 조회 범위
 
 - `notice.recipient_member_id`가 NULL이면 팀 공지, 값이 있으면 그 사람에게 온 개인 지시다.
