@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api import (
     activities,
+    agent_runs,
     auth,
     customers,
     health,
@@ -22,3 +23,4 @@ api_router.include_router(orders.router)
 api_router.include_router(support.router)
 api_router.include_router(reports.router)
 api_router.include_router(notices.router)
+api_router.include_router(agent_runs.router)

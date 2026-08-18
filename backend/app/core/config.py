@@ -42,6 +42,17 @@ class Settings(BaseSettings):
     demo_empty_member2_login_id: str = ""
     demo_password: SecretStr = SecretStr("")
 
+    # LLM 공급자. API key 는 서버 프로세스 안에서만 쓰고 응답이나 로그에 남기지 않는다.
+    llm_api_url: str = ""
+    llm_api_key: SecretStr = SecretStr("")
+    llm_model: str = ""
+    llm_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+
+    @property
+    def llm_configured(self) -> bool:
+        """LLM 호출에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""
+        return bool(self.llm_api_url and self.llm_api_key.get_secret_value() and self.llm_model)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

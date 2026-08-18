@@ -292,6 +292,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 보고서 | `GET/POST /api/reports`, `GET/PATCH/DELETE /api/reports/{report_id}` | 목록은 `q,report_kind,status_code,start_date,end_date,author_member_id,skip,limit` |
 | 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
+| 보고서 초안 실행 | `POST /api/agent-runs`, `GET /api/agent-runs/{agent_run_id}` | `202` + `Location` + `Retry-After`; polling 으로 상태 확인 |
 
 ### 일정 완료 처리
 
@@ -320,6 +321,18 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 다른 사람에게 온 지시는 팀장에게도 보이지 않는다.
 - `image_storage_key`는 내부 저장소 주소라 응답하지 않고 `image_alt`만 내보낸다.
 - 각 `scope`의 전체 건수는 페이지 응답의 `total`로 얻는다.
+
+### 보고서 초안 실행
+
+- 현재 사람이 시작할 수 있는 `agent_code`는 `report_writing` 하나다. 멀티에이전트는 아직 없다.
+- `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL` 중 하나라도 비면 `503 llm_not_configured`다.
+- 대상 보고서는 조회 가능한 `draft`여야 한다. 제출된 보고서는 `409 report_not_editable`이다.
+- 시작은 `202`와 `Location`, `Retry-After`를 반환하고 클라이언트는 `GET /api/agent-runs/{agent_run_id}`로 polling한다.
+- `idempotency_key`는 필수다. 같은 요청자가 같은 키로 다시 보내면 새 실행을 만들지 않고 기존 실행을 돌려준다.
+- 결과는 제안일 뿐이다. `output_snapshot`에만 남고 `report.content`는 사람이 `PATCH /api/reports/{report_id}`로 확정하기 전까지 바뀌지 않는다.
+- 실행이 실패해도 조회는 `200`이고 `status_code=failed`와 안전한 오류 코드를 반환한다.
+- 오류 코드에는 공급자 URL과 API key를 넣지 않는다. `llm_request_failed:<예외종류>`, `llm_provider_error:<상태>`, `llm_output_schema_mismatch` 형태만 쓴다.
+- 실행 이력은 같은 팀 안에서 요청자 본인 것만 조회한다.
 
 ### 영업 딜의 화면 필터와 상태 전이
 
