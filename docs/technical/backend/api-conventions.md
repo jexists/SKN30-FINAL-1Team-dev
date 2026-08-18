@@ -293,7 +293,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
 | 보고서 초안 실행 | `POST /api/agent-runs`, `GET /api/agent-runs/{agent_run_id}` | `202` + `Location` + `Retry-After`; polling 으로 상태 확인 |
-| 대시보드 | `GET /api/dashboard` | `date?,owner_member_id*?,notice_limit=3`; 카드 집계와 주간 밴드를 한 번에 반환 |
+| 대시보드 | `GET /api/dashboard` | `date?,owner_member_id*?,notice_limit=3,renewal_within_days?`; 카드 집계와 주간 밴드를 한 번에 반환 |
 | 자료실 | `GET/POST /api/documents`, `GET/PATCH /api/documents/{document_id}` | 목록은 `q,category_code,customer_company_id,sales_deal_id,created_by_member_id,skip,limit` |
 | 자료 파일 | `POST /api/documents/{document_id}/files`, `GET /api/documents/{document_id}/files/{file_id}/download` | `multipart/form-data` 업로드; 다운로드는 짧은 서명 URL |
 
@@ -399,6 +399,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 카드 숫자는 같은 조건의 목록 API `total`과 일치해야 한다. 구현은 각 도메인 라우터의 조회 범위 조건을 그대로 재사용한다.
 - 주간 밴드는 기준일이 셋째 칸에 오는 7일이며 `days`는 항상 7개다.
 - 계약갱신 항목은 계약 종료일과 계약서 번호를 함께 반환한다. `새봄정형외과 외 1곳` 같은 문장은 프론트가 조합한다.
+- 갱신 기준 일수는 서버가 정하지 않는다. `renewal_within_days`를 준 요청만 그 창으로 거르고, 생략하면 기준일 이후 만료 예정 전체를 센다. 응답의 `within_days`는 적용한 값이며 생략 시 `null`이다.
 - 매출 목표는 계약 상태를 구분해 확정 금액과 진행 중 금액을 함께 반환한다. 달성률은 확정 금액 기준이며 목표가 없으면 `null`이다.
 - 공지와 개인 지시는 담당자 범위와 무관하다. `owner_member_id`를 적용하지 않는다.
 | 선택 날짜 일정 | 미팅 목록과 업무 목록, 각각의 전체 수를 반환한다. |

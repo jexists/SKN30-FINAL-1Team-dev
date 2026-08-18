@@ -24,7 +24,6 @@ from app.models.crm import Activity, SupportRequest
 from app.models.sales import PurchaseOrder, SalesDeal, SalesTarget
 from app.models.workspace import Member, Notice
 from app.schemas.dashboard import (
-    RENEWAL_WITHIN_DAYS,
     CountCard,
     DashboardParams,
     DashboardRead,
@@ -140,18 +139,21 @@ async def _renewal_card(
     member: Member,
     owner_ids: tuple[UUID, ...] | None,
     day: date,
+    within_days: int | None,
 ) -> RenewalCard:
-    """확정된 계약 중 종료일이 기준일 이내인 딜. 갱신 대상이다."""
+    """확정된 계약 중 종료일이 다가오는 딜. 갱신 대상이다."""
+    conditions = [
+        *deals_api._scope(member, owner_ids),
+        deals_api._stage.outcome_code == "confirmed",
+        SalesDeal.contract_ends_on.is_not(None),
+        SalesDeal.contract_ends_on >= day,
+    ]
+    if within_days is not None:
+        conditions.append(SalesDeal.contract_ends_on <= day + timedelta(days=within_days))
     rows = (
         await db.execute(
             deals_api._joined_select(SalesDeal, deals_api._company.name)
-            .where(
-                *deals_api._scope(member, owner_ids),
-                deals_api._stage.outcome_code == "confirmed",
-                SalesDeal.contract_ends_on.is_not(None),
-                SalesDeal.contract_ends_on >= day,
-                SalesDeal.contract_ends_on <= day + timedelta(days=RENEWAL_WITHIN_DAYS),
-            )
+            .where(*conditions)
             .order_by(SalesDeal.contract_ends_on, SalesDeal.id)
         )
     ).all()
@@ -166,7 +168,7 @@ async def _renewal_card(
         )
         for deal, company_name in rows
     ]
-    return RenewalCard(within_days=RENEWAL_WITHIN_DAYS, count=len(items), items=items)
+    return RenewalCard(within_days=within_days, count=len(items), items=items)
 
 
 async def _sales_target_card(
@@ -307,7 +309,9 @@ async def read_dashboard(
         activities=activity_total,
         follow_ups=follow_ups,
         support_requests=await _support_card(db, member),
-        contract_renewals=await _renewal_card(db, member, owner_ids, day),
+        contract_renewals=await _renewal_card(
+            db, member, owner_ids, day, params.renewal_within_days
+        ),
         sales_target=await _sales_target_card(db, member, owner_ids, day),
         weekly=await _weekly_band(db, member, owner_ids, day),
     )

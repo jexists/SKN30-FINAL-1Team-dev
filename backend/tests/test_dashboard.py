@@ -230,7 +230,7 @@ def test_cards_and_weekly_band_shape():
     )
 
     with _client(db, member) as client:
-        response = client.get("/api/dashboard?date=2026-08-18")
+        response = client.get("/api/dashboard?date=2026-08-18&renewal_within_days=30")
 
     assert response.status_code == 200
     body = response.json()
@@ -241,6 +241,7 @@ def test_cards_and_weekly_band_shape():
     assert body["support_requests"] == {"total": 3, "in_progress": 2, "urgent": 1}
 
     renewal = body["contract_renewals"]
+    # 서버가 기준 일수를 정하지 않는다. 요청이 준 값을 그대로 되돌려 준다.
     assert renewal["within_days"] == 30
     assert renewal["count"] == 1
     assert renewal["items"][0]["contract_no"] == "FM-CT-2026-0001"
@@ -280,6 +281,20 @@ def test_weekly_band_is_the_calendar_week(requested, expected_start):
     assert len(weekly["days"]) == 7
     assert weekly["days"][0]["date"] == expected_start
     assert weekly["days"][-1]["date"] == weekly["end_date"]
+
+
+def test_renewal_window_is_caller_supplied():
+    """유스케이스가 갱신 기준 일수를 정하지 않아 서버가 기본값을 만들지 않는다."""
+    member = _member()
+    db = _Db()
+    with _client(db, member) as client:
+        body = client.get("/api/dashboard?date=2026-08-18").json()
+
+    assert body["contract_renewals"]["within_days"] is None
+    # 생략하면 기준일 이후 만료 예정 전체를 보므로 상한 조건이 붙지 않는다.
+    sql = db.sql_for("renewals")
+    assert "contract_ends_on >=" in sql
+    assert "contract_ends_on <=" not in sql
 
 
 def test_missing_target_gives_null_rate_not_zero():

@@ -6,9 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.notices import NoticeRead
 
-# 계약갱신 카드의 기준 일수. 화면 문구와 함께 바뀌므로 응답에도 담아 보낸다.
-RENEWAL_WITHIN_DAYS = 30
-
 
 class NoticeSummary(BaseModel):
     """전체 수와 첫 화면에 보여줄 최근 항목. 나머지는 /api/notices 로 더 불러온다."""
@@ -45,7 +42,9 @@ class RenewalItem(BaseModel):
 
 
 class RenewalCard(BaseModel):
-    within_days: int
+    # 유스케이스가 갱신 기준 일수를 정하지 않는다. 요청이 준 값을 그대로 되돌려 주고,
+    # 주지 않으면 기준일 이후 만료 예정 전체를 센다.
+    within_days: int | None
     count: int
     # "새봄정형외과 외 1곳" 같은 문장은 프론트가 items 로 만든다.
     items: list[RenewalItem]
@@ -98,3 +97,5 @@ class DashboardParams(BaseModel):
     date: Date | None = None
     owner_member_id: list[UUID] | None = None
     notice_limit: int = Field(default=3, ge=1, le=30)
+    # 계약갱신 조회 창. 생략하면 기준일 이후 만료 예정 전체를 본다.
+    renewal_within_days: int | None = Field(default=None, ge=1, le=365)
