@@ -213,13 +213,23 @@
     <!-- ============ 계약 ============ -->
     <div class="stage" style="grid-area:st2">I</div>
 
-    <div class="in" id="in2" style="grid-area:in2">
-      <h3>영업 딜 · 계약 관련 활동</h3>
-      <ul>
-        <li>신규 영업 딜 등록</li>
-        <li>영업 단계 · 정보 수정</li>
-        <li>성사 계약 갱신 · 만료</li>
-      </ul>
+    <div style="grid-area:in2; display:flex; flex-direction:column; gap:14px">
+      <div class="in" id="in2">
+        <h3>영업 딜 · 계약 관련 활동</h3>
+        <ul>
+          <li>신규 영업 딜 등록</li>
+          <li>영업 단계 · 정보 수정</li>
+          <li>성사 계약 갱신 · 만료</li>
+        </ul>
+      </div>
+      <div class="in" id="in5">
+        <h3>C/S 관련 활동</h3>
+        <ul>
+          <li>C/S 대응요청 등록</li>
+          <li>처리 상태 · 담당자 변경</li>
+          <li>대응 이력 · 답변 등록</li>
+        </ul>
+      </div>
     </div>
 
     <div class="agent a3" id="ag-contract" style="grid-area:ag3">
@@ -298,6 +308,7 @@
     ['o-human',      'o-final',     'line', {thin:true}],
 
     ['in2',          'ag-contract', 'line'],
+    ['in5',          'ag-contract', 'line'],
     ['ag-contract',  'o-nextmeet',  'line'],
 
     ['in3',          'ag-schedule', 'line'],
