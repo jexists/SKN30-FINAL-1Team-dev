@@ -1,0 +1,1733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>SalesLuv Backend Map</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="SalesLuv Backend Map" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;SalesLuv Backend Map&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: var(--border-radius-lg, 12.5px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: 16px !important;
+  height: 16px !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;salesluv-backend-map&quot;&gt;
+  &lt;header class=&quot;map-header&quot;&gt;
+    &lt;div&gt;
+      &lt;h1&gt;SalesLuv 백엔드 지도&lt;/h1&gt;
+      &lt;div class=&quot;viz-row text-muted&quot;&gt;
+        &lt;span&gt;ERD 26개 테이블&lt;/span&gt;
+        &lt;span&gt;외래키 65개&lt;/span&gt;
+        &lt;span&gt;API 43개 경로 · 62개 동작&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;nav class=&quot;viz-controls&quot; aria-label=&quot;백엔드 지도 보기&quot;&gt;
+      &lt;button type=&quot;button&quot; class=&quot;btn btn-primary&quot; id=&quot;sl-tab-erd&quot; aria-pressed=&quot;true&quot; aria-controls=&quot;sl-erd-panel&quot;&gt;ERD&lt;/button&gt;
+      &lt;button type=&quot;button&quot; class=&quot;btn&quot; id=&quot;sl-tab-api&quot; aria-pressed=&quot;false&quot; aria-controls=&quot;sl-api-panel&quot;&gt;API&lt;/button&gt;
+    &lt;/nav&gt;
+  &lt;/header&gt;
+
+  &lt;section id=&quot;sl-erd-panel&quot; aria-labelledby=&quot;sl-tab-erd&quot;&gt;
+    &lt;div class=&quot;viz-controls&quot; aria-label=&quot;ERD 필터&quot;&gt;
+      &lt;label class=&quot;form-label&quot; for=&quot;sl-erd-domain&quot;&gt;도메인
+        &lt;select class=&quot;form-select&quot; id=&quot;sl-erd-domain&quot;&gt;&lt;/select&gt;
+      &lt;/label&gt;
+      &lt;label class=&quot;form-label&quot; for=&quot;sl-erd-search&quot;&gt;테이블 찾기
+        &lt;input class=&quot;form-control&quot; id=&quot;sl-erd-search&quot; type=&quot;search&quot; placeholder=&quot;예: sales_deal, 보고서&quot;&gt;
+      &lt;/label&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;erd-layout&quot;&gt;
+      &lt;div&gt;
+        &lt;div class=&quot;section-line&quot;&gt;
+          &lt;h2&gt;엔티티 목록&lt;/h2&gt;
+          &lt;span id=&quot;sl-erd-count&quot; class=&quot;text-muted&quot; aria-live=&quot;polite&quot;&gt;&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div id=&quot;sl-entity-groups&quot; class=&quot;entity-groups&quot;&gt;&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;aside id=&quot;sl-entity-detail&quot; class=&quot;card&quot; aria-live=&quot;polite&quot;&gt;&lt;/aside&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;section id=&quot;sl-api-panel&quot; aria-labelledby=&quot;sl-tab-api&quot; hidden&gt;
+    &lt;div class=&quot;viz-controls&quot; aria-label=&quot;API 필터&quot;&gt;
+      &lt;label class=&quot;form-label&quot; for=&quot;sl-api-domain&quot;&gt;도메인
+        &lt;select class=&quot;form-select&quot; id=&quot;sl-api-domain&quot;&gt;&lt;/select&gt;
+      &lt;/label&gt;
+      &lt;label class=&quot;form-label&quot; for=&quot;sl-api-method&quot;&gt;메서드
+        &lt;select class=&quot;form-select&quot; id=&quot;sl-api-method&quot;&gt;
+          &lt;option value=&quot;all&quot;&gt;전체 메서드&lt;/option&gt;
+          &lt;option value=&quot;GET&quot;&gt;GET&lt;/option&gt;
+          &lt;option value=&quot;POST&quot;&gt;POST&lt;/option&gt;
+          &lt;option value=&quot;PATCH&quot;&gt;PATCH&lt;/option&gt;
+          &lt;option value=&quot;DELETE&quot;&gt;DELETE&lt;/option&gt;
+        &lt;/select&gt;
+      &lt;/label&gt;
+      &lt;label class=&quot;form-label&quot; for=&quot;sl-api-search&quot;&gt;API 찾기
+        &lt;input class=&quot;form-control&quot; id=&quot;sl-api-search&quot; type=&quot;search&quot; placeholder=&quot;경로·기능·권한 검색&quot;&gt;
+      &lt;/label&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;section-line&quot;&gt;
+      &lt;h2&gt;개발된 API&lt;/h2&gt;
+      &lt;span id=&quot;sl-api-count&quot; class=&quot;text-muted&quot; aria-live=&quot;polite&quot;&gt;&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;table-responsive api-table-wrap&quot;&gt;
+      &lt;table class=&quot;table table-sm&quot;&gt;
+        &lt;thead&gt;
+          &lt;tr&gt;
+            &lt;th scope=&quot;col&quot;&gt;메서드&lt;/th&gt;
+            &lt;th scope=&quot;col&quot;&gt;경로&lt;/th&gt;
+            &lt;th scope=&quot;col&quot;&gt;범위&lt;/th&gt;
+            &lt;th scope=&quot;col&quot;&gt;한 줄 설명&lt;/th&gt;
+          &lt;/tr&gt;
+        &lt;/thead&gt;
+        &lt;tbody id=&quot;sl-api-body&quot;&gt;&lt;/tbody&gt;
+      &lt;/table&gt;
+    &lt;/div&gt;
+    &lt;div id=&quot;sl-api-mobile&quot; class=&quot;api-mobile-list&quot;&gt;&lt;/div&gt;
+    &lt;p class=&quot;text-small text-muted&quot;&gt;GET 32 · POST 19 · PATCH 7 · DELETE 4. 모든 POST/PATCH/DELETE 요청은 허용된 Origin 검사를 추가로 통과해야 합니다.&lt;/p&gt;
+  &lt;/section&gt;
+
+  &lt;footer class=&quot;text-small text-muted&quot;&gt;기준: 20260819 baseline schema와 FastAPI 런타임 OpenAPI · 2026-08-20&lt;/footer&gt;
+&lt;/div&gt;
+
+&lt;style&gt;
+  #salesluv-backend-map {
+    display: grid;
+    gap: 24px;
+    color: var(--foreground);
+  }
+  #salesluv-backend-map .map-header,
+  #salesluv-backend-map .section-line {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  #salesluv-backend-map .map-header &gt; div,
+  #salesluv-backend-map .section-line &gt; * {
+    min-width: 0;
+  }
+  #salesluv-backend-map .erd-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(290px, 0.75fr);
+    gap: 24px;
+    align-items: start;
+  }
+  #salesluv-backend-map .entity-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+  #salesluv-backend-map .entity-group {
+    min-width: 0;
+  }
+  #salesluv-backend-map .domain-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  #salesluv-backend-map .domain-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+  #salesluv-backend-map .entity-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.75fr) minmax(0, 1.25fr);
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  #salesluv-backend-map .entity-row p,
+  #salesluv-backend-map .relation-row p,
+  #salesluv-backend-map .detail-copy {
+    margin: 0;
+  }
+  #salesluv-backend-map .entity-empty,
+  #salesluv-backend-map .relation-empty {
+    color: var(--muted-foreground);
+    padding: 8px 0;
+  }
+  #salesluv-backend-map .detail-head,
+  #salesluv-backend-map .detail-section {
+    display: grid;
+    gap: 8px;
+  }
+  #salesluv-backend-map .detail-section + .detail-section {
+    margin-top: 18px;
+  }
+  #salesluv-backend-map .field-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  #salesluv-backend-map .relation-row {
+    display: grid;
+    gap: 4px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  #salesluv-backend-map .relation-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  #salesluv-backend-map .relation-link {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--foreground);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+  }
+  #salesluv-backend-map .relation-link:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  #salesluv-backend-map .scope-text {
+    color: var(--muted-foreground);
+  }
+  #salesluv-backend-map .api-mobile-list {
+    display: none;
+  }
+  #salesluv-backend-map .api-mobile-row {
+    display: grid;
+    gap: 6px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  #salesluv-backend-map .api-mobile-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #salesluv-backend-map .api-mobile-path {
+    overflow-wrap: anywhere;
+  }
+  #salesluv-backend-map .method-get { color: var(--blue); }
+  #salesluv-backend-map .method-post { color: var(--green); }
+  #salesluv-backend-map .method-patch { color: var(--orange); }
+  #salesluv-backend-map .method-delete { color: var(--red); }
+  #salesluv-backend-map footer {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  @media (max-width: 760px) {
+    #salesluv-backend-map .erd-layout,
+    #salesluv-backend-map .entity-groups {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 460px) {
+    #salesluv-backend-map .entity-row {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    #salesluv-backend-map .api-table-wrap {
+      display: none;
+    }
+    #salesluv-backend-map .api-mobile-list {
+      display: block;
+    }
+  }
+&lt;/style&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  const root = document.getElementById(&#x27;salesluv-backend-map&#x27;);
+  if (!root) return;
+
+  const domains = {
+    workspace: { label: &#x27;워크스페이스&#x27;, color: &#x27;var(--viz-series-1)&#x27; },
+    configuration: { label: &#x27;업무 설정&#x27;, color: &#x27;var(--viz-series-2)&#x27; },
+    crm: { label: &#x27;고객·활동&#x27;, color: &#x27;var(--viz-series-3)&#x27; },
+    sales: { label: &#x27;영업·발주&#x27;, color: &#x27;var(--viz-series-4)&#x27; },
+    content: { label: &#x27;보고서·자료&#x27;, color: &#x27;var(--viz-series-5)&#x27; },
+    ai: { label: &#x27;AI 실행&#x27;, color: &#x27;var(--viz-series-6)&#x27; }
+  };
+
+  const entities = [
+    { name: &#x27;team&#x27;, domain: &#x27;workspace&#x27;, desc: &#x27;조직과 데이터 격리의 최상위 단위입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;name&#x27;, &#x27;created_at&#x27;] },
+    { name: &#x27;member&#x27;, domain: &#x27;workspace&#x27;, desc: &#x27;Supabase 사용자와 연결된 구성원·역할·활성 상태입니다.&#x27;, fields: [&#x27;id · PK/FK&#x27;, &#x27;team_id · FK&#x27;, &#x27;display_name&#x27;, &#x27;role_code&#x27;, &#x27;job_title&#x27;, &#x27;active&#x27;] },
+    { name: &#x27;notice&#x27;, domain: &#x27;workspace&#x27;, desc: &#x27;팀 전체 공지 또는 특정 구성원에게 보내는 개인 지시입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;author_member_id · FK&#x27;, &#x27;recipient_member_id · FK?&#x27;, &#x27;title&#x27;, &#x27;body&#x27;, &#x27;published_at&#x27;, &#x27;due_at&#x27;] },
+
+    { name: &#x27;customer_contact_status&#x27;, domain: &#x27;configuration&#x27;, desc: &#x27;고객 담당자의 현재 영업 상태를 정의하는 팀별 옵션입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;code&#x27;, &#x27;name&#x27;, &#x27;tone&#x27;, &#x27;position&#x27;, &#x27;deleted_at&#x27;] },
+    { name: &#x27;activity_category&#x27;, domain: &#x27;configuration&#x27;, desc: &#x27;미팅과 업무 활동을 분류하는 팀별 카테고리입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;code&#x27;, &#x27;name&#x27;, &#x27;activity_type&#x27;, &#x27;tone&#x27;, &#x27;position&#x27;] },
+    { name: &#x27;activity_action_tag&#x27;, domain: &#x27;configuration&#x27;, desc: &#x27;활동의 다음 행동이나 성격을 표시하는 팀별 태그입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;code&#x27;, &#x27;name&#x27;, &#x27;activity_type&#x27;, &#x27;tone&#x27;, &#x27;position&#x27;] },
+    { name: &#x27;sales_deal_type&#x27;, domain: &#x27;configuration&#x27;, desc: &#x27;신규·갱신 등 영업 딜의 유형을 정의하는 옵션입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;code&#x27;, &#x27;name&#x27;, &#x27;position&#x27;, &#x27;deleted_at&#x27;] },
+    { name: &#x27;purchase_order_status&#x27;, domain: &#x27;configuration&#x27;, desc: &#x27;발주의 진행·완료·취소 상태를 정의하는 옵션입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;code&#x27;, &#x27;name&#x27;, &#x27;outcome_code&#x27;, &#x27;tone&#x27;, &#x27;position&#x27;] },
+
+    { name: &#x27;customer_company&#x27;, domain: &#x27;crm&#x27;, desc: &#x27;고객사 이름과 지역 등 회사 기본 정보를 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;name&#x27;, &#x27;region_code&#x27;, &#x27;created_at&#x27;] },
+    { name: &#x27;customer_contact&#x27;, domain: &#x27;crm&#x27;, desc: &#x27;고객사의 실무 담당자와 내부 소유자를 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;company_id · FK&#x27;, &#x27;owner_member_id · FK&#x27;, &#x27;customer_contact_status_id · FK?&#x27;, &#x27;name&#x27;, &#x27;department&#x27;, &#x27;job_title&#x27;, &#x27;email&#x27;, &#x27;phone&#x27;] },
+    { name: &#x27;activity&#x27;, domain: &#x27;crm&#x27;, desc: &#x27;미팅·업무 일정과 고객·딜·발주의 연결 정보를 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;owner_member_id · FK&#x27;, &#x27;customer_contact_id · FK?&#x27;, &#x27;activity_type&#x27;, &#x27;title&#x27;, &#x27;starts_at&#x27;, &#x27;ends_at&#x27;, &#x27;completed_at&#x27;, &#x27;deleted_at&#x27;] },
+    { name: &#x27;activity_companion&#x27;, domain: &#x27;crm&#x27;, desc: &#x27;활동과 동행 구성원을 연결하는 다대다 중간 테이블입니다.&#x27;, fields: [&#x27;activity_id · PK/FK&#x27;, &#x27;member_id · PK/FK&#x27;] },
+    { name: &#x27;support_request&#x27;, domain: &#x27;crm&#x27;, desc: &#x27;고객 문의·요청과 담당자, 긴급도, 처리 상태를 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;customer_contact_id · FK&#x27;, &#x27;assignee_member_id · FK&#x27;, &#x27;title&#x27;, &#x27;body&#x27;, &#x27;is_urgent&#x27;, &#x27;status_code&#x27;] },
+    { name: &#x27;support_response&#x27;, domain: &#x27;crm&#x27;, desc: &#x27;고객 지원 요청에 남긴 구성원 답변 이력을 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;support_request_id · FK&#x27;, &#x27;responder_member_id · FK&#x27;, &#x27;body&#x27;, &#x27;responded_at&#x27;] },
+
+    { name: &#x27;product&#x27;, domain: &#x27;sales&#x27;, desc: &#x27;팀에서 판매하고 발주하는 상품 마스터입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;name&#x27;, &#x27;active&#x27;] },
+    { name: &#x27;sales_pipeline&#x27;, domain: &#x27;sales&#x27;, desc: &#x27;팀의 영업 프로세스 정의와 게시 상태를 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;name&#x27;, &#x27;status_code&#x27;, &#x27;is_default&#x27;, &#x27;published_at&#x27;, &#x27;archived_at&#x27;] },
+    { name: &#x27;sales_pipeline_stage&#x27;, domain: &#x27;sales&#x27;, desc: &#x27;파이프라인 안의 영업·견적·계약·발주·종료 단계를 정의합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;sales_pipeline_id · FK&#x27;, &#x27;stage_code&#x27;, &#x27;phase_code&#x27;, &#x27;outcome_code&#x27;, &#x27;position&#x27;] },
+    { name: &#x27;sales_deal&#x27;, domain: &#x27;sales&#x27;, desc: &#x27;영업 시작부터 견적·계약·납품까지 한 건의 기회를 관리합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;deal_no&#x27;, &#x27;customer_company_id · FK&#x27;, &#x27;owner_member_id · FK&#x27;, &#x27;sales_pipeline_id · FK&#x27;, &#x27;sales_pipeline_stage_id · FK&#x27;, &#x27;deal_amount&#x27;, &#x27;quote_no&#x27;, &#x27;contract_no&#x27;, &#x27;deleted_at&#x27;] },
+    { name: &#x27;purchase_order&#x27;, domain: &#x27;sales&#x27;, desc: &#x27;확정 딜에 연결된 발주 헤더와 일정·상태를 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;order_no&#x27;, &#x27;sales_deal_id · FK&#x27;, &#x27;purchase_order_status_id · FK&#x27;, &#x27;supplier_name&#x27;, &#x27;ordered_on&#x27;, &#x27;due_on&#x27;, &#x27;deleted_at&#x27;] },
+    { name: &#x27;purchase_order_item&#x27;, domain: &#x27;sales&#x27;, desc: &#x27;한 발주에 포함된 상품·수량·단가 목록입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;purchase_order_id · FK&#x27;, &#x27;product_id · FK&#x27;, &#x27;quantity&#x27;, &#x27;unit_price&#x27;, &#x27;position&#x27;] },
+    { name: &#x27;sales_target&#x27;, domain: &#x27;sales&#x27;, desc: &#x27;구성원·고객사·월 단위의 매출 목표 금액입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;owner_member_id · FK&#x27;, &#x27;customer_company_id · FK&#x27;, &#x27;target_month&#x27;, &#x27;target_amount&#x27;] },
+
+    { name: &#x27;report&#x27;, domain: &#x27;content&#x27;, desc: &#x27;일일·회의 등 보고서 내용, 제출 상태, 검토 정보를 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;author_member_id · FK&#x27;, &#x27;recipient_member_id · FK?&#x27;, &#x27;source_activity_id · FK?&#x27;, &#x27;report_kind&#x27;, &#x27;status_code&#x27;, &#x27;content&#x27;, &#x27;transcript&#x27;, &#x27;ai_evidence&#x27;, &#x27;reviewed_by_member_id · FK?&#x27;] },
+    { name: &#x27;report_activity&#x27;, domain: &#x27;content&#x27;, desc: &#x27;보고서와 여러 활동을 연결하는 다대다 중간 테이블입니다.&#x27;, fields: [&#x27;report_id · PK/FK&#x27;, &#x27;activity_id · PK/FK&#x27;] },
+    { name: &#x27;document&#x27;, domain: &#x27;content&#x27;, desc: &#x27;자료실 문서의 메타데이터와 고객·딜·발주 연결을 저장합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;created_by_member_id · FK&#x27;, &#x27;document_no&#x27;, &#x27;category_code&#x27;, &#x27;title&#x27;, &#x27;customer_company_id · FK?&#x27;, &#x27;sales_deal_id · FK?&#x27;, &#x27;purchase_order_id · FK?&#x27;, &#x27;tags&#x27;] },
+    { name: &#x27;file&#x27;, domain: &#x27;content&#x27;, desc: &#x27;보고서 첨부 또는 자료실 문서 버전의 Storage 파일 정보입니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;report_id · FK?&#x27;, &#x27;document_id · FK?&#x27;, &#x27;version_no&#x27;, &#x27;file_name&#x27;, &#x27;storage_key&#x27;, &#x27;media_type&#x27;, &#x27;byte_size&#x27;, &#x27;processing_status&#x27;, &#x27;extracted_text&#x27;, &#x27;uploaded_by_member_id · FK&#x27;] },
+
+    { name: &#x27;agent_run&#x27;, domain: &#x27;ai&#x27;, desc: &#x27;AI 실행 요청의 입력·출력·증거·오류와 처리 상태를 기록합니다.&#x27;, fields: [&#x27;id · PK&#x27;, &#x27;team_id · FK&#x27;, &#x27;parent_run_id · FK?&#x27;, &#x27;requested_by_member_id · FK?&#x27;, &#x27;agent_code&#x27;, &#x27;trigger_code&#x27;, &#x27;idempotency_key&#x27;, &#x27;status_code&#x27;, &#x27;llm_model_name&#x27;, &#x27;source_refs&#x27;, &#x27;input_snapshot&#x27;, &#x27;output_snapshot&#x27;, &#x27;evidence&#x27;] }
+  ];
+
+  const relations = [
+    { from: &#x27;member&#x27;, field: &#x27;id&#x27;, to: &#x27;auth.users&#x27;, target: &#x27;id&#x27;, required: true, note: &#x27;Supabase 인증 사용자와 1:1&#x27; },
+    { from: &#x27;member&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;customer_company&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;customer_contact_status&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;activity_category&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;activity_action_tag&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_deal_type&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;purchase_order_status&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_pipeline&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_pipeline_stage&#x27;, field: &#x27;sales_pipeline_id&#x27;, to: &#x27;sales_pipeline&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;product&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;customer_contact&#x27;, field: &#x27;company_id&#x27;, to: &#x27;customer_company&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;customer_contact&#x27;, field: &#x27;owner_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;customer_contact&#x27;, field: &#x27;customer_contact_status_id&#x27;, to: &#x27;customer_contact_status&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;sales_deal&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_deal&#x27;, field: &#x27;customer_company_id&#x27;, to: &#x27;customer_company&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_deal&#x27;, field: &#x27;customer_contact_id&#x27;, to: &#x27;customer_contact&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;sales_deal&#x27;, field: &#x27;owner_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_deal&#x27;, field: &#x27;product_id&#x27;, to: &#x27;product&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;sales_deal&#x27;, field: &#x27;sales_deal_type_id&#x27;, to: &#x27;sales_deal_type&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_deal&#x27;, field: &#x27;(sales_pipeline_id, sales_pipeline_stage_id)&#x27;, to: &#x27;sales_pipeline_stage&#x27;, target: &#x27;(sales_pipeline_id, id)&#x27;, required: true, note: &#x27;딜 단계가 같은 파이프라인에 속하도록 복합 FK&#x27; },
+    { from: &#x27;purchase_order&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;purchase_order&#x27;, field: &#x27;sales_deal_id&#x27;, to: &#x27;sales_deal&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;purchase_order&#x27;, field: &#x27;purchase_order_status_id&#x27;, to: &#x27;purchase_order_status&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;purchase_order_item&#x27;, field: &#x27;purchase_order_id&#x27;, to: &#x27;purchase_order&#x27;, target: &#x27;id&#x27;, required: true, note: &#x27;발주 삭제 시 품목도 함께 삭제&#x27; },
+    { from: &#x27;purchase_order_item&#x27;, field: &#x27;product_id&#x27;, to: &#x27;product&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;activity&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;activity&#x27;, field: &#x27;owner_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;activity&#x27;, field: &#x27;customer_contact_id&#x27;, to: &#x27;customer_contact&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;activity&#x27;, field: &#x27;end_user_contact_id&#x27;, to: &#x27;customer_contact&#x27;, target: &#x27;id&#x27;, required: false, note: &#x27;최종 사용자 담당자&#x27; },
+    { from: &#x27;activity&#x27;, field: &#x27;product_id&#x27;, to: &#x27;product&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;activity&#x27;, field: &#x27;sales_deal_id&#x27;, to: &#x27;sales_deal&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;activity&#x27;, field: &#x27;purchase_order_id&#x27;, to: &#x27;purchase_order&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;activity&#x27;, field: &#x27;activity_category_id&#x27;, to: &#x27;activity_category&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;activity&#x27;, field: &#x27;activity_action_tag_id&#x27;, to: &#x27;activity_action_tag&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;activity_companion&#x27;, field: &#x27;activity_id&#x27;, to: &#x27;activity&#x27;, target: &#x27;id&#x27;, required: true, note: &#x27;활동-구성원 다대다 연결&#x27; },
+    { from: &#x27;activity_companion&#x27;, field: &#x27;member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true, note: &#x27;활동-구성원 다대다 연결&#x27; },
+    { from: &#x27;notice&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;notice&#x27;, field: &#x27;author_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;notice&#x27;, field: &#x27;recipient_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: false, note: &#x27;없으면 팀 공지, 있으면 개인 지시&#x27; },
+    { from: &#x27;support_request&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;support_request&#x27;, field: &#x27;customer_contact_id&#x27;, to: &#x27;customer_contact&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;support_request&#x27;, field: &#x27;assignee_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;support_response&#x27;, field: &#x27;support_request_id&#x27;, to: &#x27;support_request&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;support_response&#x27;, field: &#x27;responder_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_target&#x27;, field: &#x27;owner_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;sales_target&#x27;, field: &#x27;customer_company_id&#x27;, to: &#x27;customer_company&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;report&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;report&#x27;, field: &#x27;author_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;report&#x27;, field: &#x27;recipient_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;report&#x27;, field: &#x27;source_activity_id&#x27;, to: &#x27;activity&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;report&#x27;, field: &#x27;reviewed_by_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;report_activity&#x27;, field: &#x27;report_id&#x27;, to: &#x27;report&#x27;, target: &#x27;id&#x27;, required: true, note: &#x27;보고서-활동 다대다 연결&#x27; },
+    { from: &#x27;report_activity&#x27;, field: &#x27;activity_id&#x27;, to: &#x27;activity&#x27;, target: &#x27;id&#x27;, required: true, note: &#x27;보고서-활동 다대다 연결&#x27; },
+    { from: &#x27;document&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;document&#x27;, field: &#x27;created_by_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;document&#x27;, field: &#x27;customer_company_id&#x27;, to: &#x27;customer_company&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;document&#x27;, field: &#x27;sales_deal_id&#x27;, to: &#x27;sales_deal&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;document&#x27;, field: &#x27;purchase_order_id&#x27;, to: &#x27;purchase_order&#x27;, target: &#x27;id&#x27;, required: false },
+    { from: &#x27;file&#x27;, field: &#x27;report_id&#x27;, to: &#x27;report&#x27;, target: &#x27;id&#x27;, required: false, note: &#x27;report_id와 document_id 중 정확히 하나만 존재&#x27; },
+    { from: &#x27;file&#x27;, field: &#x27;document_id&#x27;, to: &#x27;document&#x27;, target: &#x27;id&#x27;, required: false, note: &#x27;report_id와 document_id 중 정확히 하나만 존재&#x27; },
+    { from: &#x27;file&#x27;, field: &#x27;uploaded_by_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;agent_run&#x27;, field: &#x27;team_id&#x27;, to: &#x27;team&#x27;, target: &#x27;id&#x27;, required: true },
+    { from: &#x27;agent_run&#x27;, field: &#x27;parent_run_id&#x27;, to: &#x27;agent_run&#x27;, target: &#x27;id&#x27;, required: false, note: &#x27;상위 AI 실행을 가리키는 자기 참조&#x27; },
+    { from: &#x27;agent_run&#x27;, field: &#x27;requested_by_member_id&#x27;, to: &#x27;member&#x27;, target: &#x27;id&#x27;, required: false }
+  ];
+
+  const apiDomains = {
+    health: &#x27;Health&#x27;, auth: &#x27;Auth&#x27;, customers: &#x27;Customers&#x27;, activities: &#x27;Activities&#x27;,
+    sales: &#x27;Sales Deals&#x27;, orders: &#x27;Orders&#x27;, support: &#x27;Support&#x27;, reports: &#x27;Reports&#x27;,
+    notices: &#x27;Notices&#x27;, agent: &#x27;Agent Runs&#x27;, documents: &#x27;Documents&#x27;, dashboard: &#x27;Dashboard&#x27;
+  };
+
+  const apis = [
+    { d: &#x27;health&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/health&#x27;, s: &#x27;공개&#x27;, x: &#x27;애플리케이션 프로세스의 생존 상태를 반환합니다.&#x27; },
+    { d: &#x27;health&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/health/db&#x27;, s: &#x27;공개&#x27;, x: &#x27;DB에 SELECT 1을 실행해 실제 연결 상태를 확인합니다.&#x27; },
+    { d: &#x27;auth&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/auth/login&#x27;, s: &#x27;공개&#x27;, x: &#x27;Supabase로 로그인하고 활성 구성원을 확인한 뒤 세션 쿠키를 발급합니다.&#x27; },
+    { d: &#x27;auth&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/auth/refresh&#x27;, s: &#x27;Refresh cookie&#x27;, x: &#x27;Supabase 세션을 갱신하고 새 access·refresh 쿠키를 발급합니다.&#x27; },
+    { d: &#x27;auth&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/auth/me&#x27;, s: &#x27;인증&#x27;, x: &#x27;현재 구성원의 ID·팀·이름·역할을 반환합니다.&#x27; },
+    { d: &#x27;auth&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/auth/logout&#x27;, s: &#x27;공개·멱등&#x27;, x: &#x27;Supabase 로그아웃을 시도하고 브라우저 세션 쿠키를 삭제합니다.&#x27; },
+
+    { d: &#x27;customers&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/customer-contact-statuses&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;팀의 활성 고객 담당자 상태 옵션을 순서대로 조회합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/customer-companies&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;고객사 목록을 검색하고 페이지 단위로 조회합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/customer-companies&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;고객사를 생성하며 같은 팀·이름이면 기존 고객사를 반환합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/customer-companies/{company_id}&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;팀에 속한 고객사 상세를 조회합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/customer-companies/{company_id}&#x27;, s: &#x27;Manager&#x27;, x: &#x27;고객사 이름과 지역 정보를 수정합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/customer-contacts&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;접근 가능한 고객 담당자를 검색하고 페이지 조회합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/customer-contacts&#x27;, s: &#x27;인증&#x27;, x: &#x27;현재 구성원을 소유자로 고객 담당자를 생성합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/customer-contacts/{contact_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;접근 가능한 고객 담당자 상세를 조회합니다.&#x27; },
+    { d: &#x27;customers&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/customer-contacts/{contact_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;담당자의 기본 정보·상태·소속 고객사를 수정합니다.&#x27; },
+
+    { d: &#x27;activities&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/activity-categories&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;활동 유형별 활성 카테고리 옵션을 조회합니다.&#x27; },
+    { d: &#x27;activities&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/activity-action-tags&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;활동 유형별 활성 액션 태그를 조회합니다.&#x27; },
+    { d: &#x27;activities&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/activities&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;날짜 범위의 일정과 업무를 페이지 조회합니다.&#x27; },
+    { d: &#x27;activities&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/activities&#x27;, s: &#x27;인증&#x27;, x: &#x27;현재 구성원 소유의 미팅 또는 업무 활동을 생성합니다.&#x27; },
+    { d: &#x27;activities&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/activities/{activity_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;활동과 고객·상품·딜·분류 정보를 상세 조회합니다.&#x27; },
+    { d: &#x27;activities&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/activities/{activity_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;활동의 일정·연결 대상·분류를 수정합니다.&#x27; },
+    { d: &#x27;activities&#x27;, m: &#x27;DELETE&#x27;, p: &#x27;/api/activities/{activity_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;활동을 soft delete합니다.&#x27; },
+    { d: &#x27;activities&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/activities/{activity_id}/complete&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;미완료 활동을 완료 상태로 전환합니다.&#x27; },
+
+    { d: &#x27;sales&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/sales-pipelines&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;팀의 게시·보관된 영업 파이프라인을 조회합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/sales-pipelines/{sales_pipeline_id}/stages&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;지정한 파이프라인의 단계를 순서대로 조회합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/sales-deal-types&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;활성 영업 딜 유형 옵션을 조회합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/products&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;활성 상품을 검색하고 페이지 조회합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/sales-deals&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;딜을 파이프라인·단계·기간·검색어로 페이지 조회합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/sales-deals&#x27;, s: &#x27;인증&#x27;, x: &#x27;현재 구성원을 소유자로 영업 딜을 생성합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/sales-deals/{sales_deal_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;딜과 고객·담당자·상품·파이프라인 정보를 조회합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/sales-deals/{sales_deal_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;딜의 기본·견적·계약·납품 정보를 수정합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;DELETE&#x27;, p: &#x27;/api/sales-deals/{sales_deal_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;영업 딜을 soft delete합니다.&#x27; },
+    { d: &#x27;sales&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/sales-deals/{sales_deal_id}/move&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;현재 단계를 검증한 뒤 딜을 목표 단계와 위치로 이동합니다.&#x27; },
+
+    { d: &#x27;orders&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/purchase-order-statuses&#x27;, s: &#x27;인증·팀&#x27;, x: &#x27;팀의 활성 발주 상태 옵션을 조회합니다.&#x27; },
+    { d: &#x27;orders&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/orders&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;발주를 검색·필터하고 페이지 조회합니다.&#x27; },
+    { d: &#x27;orders&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/orders&#x27;, s: &#x27;본인 딜 / Manager 팀&#x27;, x: &#x27;발주와 품목을 생성하고 필요하면 연결 딜을 발주 단계로 이동합니다.&#x27; },
+    { d: &#x27;orders&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/orders/{purchase_order_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;발주 헤더와 전체 품목을 상세 조회합니다.&#x27; },
+    { d: &#x27;orders&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/orders/{purchase_order_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;발주 정보와 전체 품목 목록을 수정합니다.&#x27; },
+    { d: &#x27;orders&#x27;, m: &#x27;DELETE&#x27;, p: &#x27;/api/orders/{purchase_order_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;발주를 soft delete합니다.&#x27; },
+    { d: &#x27;orders&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/orders/{purchase_order_id}/move&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;현재 상태를 검증한 뒤 발주 상태를 전환합니다.&#x27; },
+
+    { d: &#x27;support&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/support-requests&#x27;, s: &#x27;배정 본인 / Manager 팀&#x27;, x: &#x27;고객 지원 요청과 답변을 검색·상태 필터·페이지 조회합니다.&#x27; },
+    { d: &#x27;support&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/support-requests&#x27;, s: &#x27;인증&#x27;, x: &#x27;현재 구성원을 담당자로 고객 지원 요청을 생성합니다.&#x27; },
+    { d: &#x27;support&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/support-requests/{request_id}&#x27;, s: &#x27;배정 본인 / Manager 팀&#x27;, x: &#x27;지원 요청과 전체 답변을 상세 조회합니다.&#x27; },
+    { d: &#x27;support&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/support-requests/{request_id}/transition&#x27;, s: &#x27;배정 본인 / Manager 팀&#x27;, x: &#x27;현재 상태를 검증한 뒤 지원 요청 상태를 전환합니다.&#x27; },
+    { d: &#x27;support&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/support-requests/{request_id}/responses&#x27;, s: &#x27;배정 본인 / Manager 팀&#x27;, x: &#x27;지원 요청에 현재 구성원 명의로 답변을 추가합니다.&#x27; },
+
+    { d: &#x27;reports&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/reports&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;보고서를 유형·상태·기간·검색어로 페이지 조회합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/reports&#x27;, s: &#x27;인증&#x27;, x: &#x27;현재 구성원을 작성자로 draft 보고서와 연결 활동을 생성합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/reports/{report_id}&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;보고서와 연결 활동을 상세 조회합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/reports/{report_id}&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;편집 가능한 보고서 내용과 연결 활동을 수정합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;DELETE&#x27;, p: &#x27;/api/reports/{report_id}&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;편집 가능한 보고서를 hard delete합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/reports/{report_id}/submit&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;현재 상태를 검증한 뒤 보고서를 submitted로 전환합니다.&#x27; },
+
+    { d: &#x27;notices&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/notices&#x27;, s: &#x27;인증&#x27;, x: &#x27;팀 공지와 현재 구성원 개인 지시를 조회합니다.&#x27; },
+    { d: &#x27;notices&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/notices/{notice_id}&#x27;, s: &#x27;인증&#x27;, x: &#x27;접근 가능한 팀 공지 또는 개인 지시 상세를 조회합니다.&#x27; },
+
+    { d: &#x27;agent&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/agent-runs&#x27;, s: &#x27;인증&#x27;, x: &#x27;draft 보고서에 대한 report_writing LLM 실행을 비동기로 요청합니다.&#x27; },
+    { d: &#x27;agent&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/agent-runs/{agent_run_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;AI 실행의 상태·결과·오류를 조회합니다.&#x27; },
+
+    { d: &#x27;documents&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/documents&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;문서와 파일 버전을 검색·필터하고 페이지 조회합니다.&#x27; },
+    { d: &#x27;documents&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/documents&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;고객사·딜·발주 연결을 검증하고 자료실 문서를 생성합니다.&#x27; },
+    { d: &#x27;documents&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/documents/{document_id}&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;문서와 전체 파일 버전을 상세 조회합니다.&#x27; },
+    { d: &#x27;documents&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/documents/{document_id}&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;문서 메타데이터와 업무 객체 연결을 수정합니다.&#x27; },
+    { d: &#x27;documents&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/documents/{document_id}/files&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;PDF·DOCX·PPTX를 검증해 Storage에 새 버전으로 업로드합니다.&#x27; },
+    { d: &#x27;documents&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/documents/{document_id}/files/{file_id}/download&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;권한을 확인하고 60초 유효한 Storage 서명 URL을 발급합니다.&#x27; },
+
+    { d: &#x27;dashboard&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/dashboard&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;공지·활동·후속업무·지원·갱신·매출목표·주간 일정을 집계합니다.&#x27; }
+  ];
+
+  const byName = new Map(entities.map(entity =&gt; [entity.name, entity]));
+  const erdDomain = root.querySelector(&#x27;#sl-erd-domain&#x27;);
+  const erdSearch = root.querySelector(&#x27;#sl-erd-search&#x27;);
+  const apiDomain = root.querySelector(&#x27;#sl-api-domain&#x27;);
+  const apiMethod = root.querySelector(&#x27;#sl-api-method&#x27;);
+  const apiSearch = root.querySelector(&#x27;#sl-api-search&#x27;);
+  const entityGroups = root.querySelector(&#x27;#sl-entity-groups&#x27;);
+  const entityDetail = root.querySelector(&#x27;#sl-entity-detail&#x27;);
+  const apiBody = root.querySelector(&#x27;#sl-api-body&#x27;);
+  const apiMobile = root.querySelector(&#x27;#sl-api-mobile&#x27;);
+  let selectedEntity = &#x27;team&#x27;;
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll(&#x27;&amp;&#x27;, &#x27;&amp;amp;&#x27;)
+      .replaceAll(&#x27;&lt;&#x27;, &#x27;&amp;lt;&#x27;)
+      .replaceAll(&#x27;&gt;&#x27;, &#x27;&amp;gt;&#x27;)
+      .replaceAll(&#x27;&quot;&#x27;, &#x27;&amp;quot;&#x27;)
+      .replaceAll(&quot;&#x27;&quot;, &#x27;&amp;#039;&#x27;);
+  }
+
+  function fillSelect(select, entries, allLabel) {
+    select.innerHTML = `&lt;option value=&quot;all&quot;&gt;${escapeHtml(allLabel)}&lt;/option&gt;` + entries
+      .map(([value, label]) =&gt; `&lt;option value=&quot;${escapeHtml(value)}&quot;&gt;${escapeHtml(label)}&lt;/option&gt;`)
+      .join(&#x27;&#x27;);
+  }
+
+  fillSelect(erdDomain, Object.entries(domains).map(([key, value]) =&gt; [key, value.label]), &#x27;전체 도메인&#x27;);
+  fillSelect(apiDomain, Object.entries(apiDomains), &#x27;전체 도메인&#x27;);
+
+  function entityMatches(entity) {
+    const domainOk = erdDomain.value === &#x27;all&#x27; || entity.domain === erdDomain.value;
+    const query = erdSearch.value.trim().toLocaleLowerCase(&#x27;ko&#x27;);
+    const queryOk = !query || `${entity.name} ${domains[entity.domain].label} ${entity.desc} ${entity.fields.join(&#x27; &#x27;)}`.toLocaleLowerCase(&#x27;ko&#x27;).includes(query);
+    return domainOk &amp;&amp; queryOk;
+  }
+
+  function renderEntityList() {
+    const filtered = entities.filter(entityMatches);
+    root.querySelector(&#x27;#sl-erd-count&#x27;).textContent = `${filtered.length} / ${entities.length}개 표시`;
+    if (!filtered.length) {
+      entityGroups.innerHTML = &#x27;&lt;p class=&quot;entity-empty&quot;&gt;조건에 맞는 테이블이 없습니다.&lt;/p&gt;&#x27;;
+      return;
+    }
+    entityGroups.innerHTML = Object.entries(domains).map(([domainKey, domain]) =&gt; {
+      const rows = filtered.filter(entity =&gt; entity.domain === domainKey);
+      if (!rows.length) return &#x27;&#x27;;
+      return `&lt;section class=&quot;entity-group&quot; aria-label=&quot;${escapeHtml(domain.label)}&quot;&gt;
+        &lt;div class=&quot;domain-heading&quot;&gt;
+          &lt;span class=&quot;domain-swatch&quot; style=&quot;background:${domain.color}&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+          &lt;h3&gt;${escapeHtml(domain.label)} · ${rows.length}&lt;/h3&gt;
+        &lt;/div&gt;
+        ${rows.map(entity =&gt; `&lt;div class=&quot;entity-row&quot;&gt;
+          &lt;button type=&quot;button&quot; class=&quot;btn btn-ghost text-nowrap&quot; data-entity=&quot;${escapeHtml(entity.name)}&quot; aria-pressed=&quot;${entity.name === selectedEntity}&quot;&gt;${escapeHtml(entity.name)}&lt;/button&gt;
+          &lt;p&gt;${escapeHtml(entity.desc)}&lt;/p&gt;
+        &lt;/div&gt;`).join(&#x27;&#x27;)}
+      &lt;/section&gt;`;
+    }).join(&#x27;&#x27;);
+  }
+
+  function tableButton(name) {
+    if (!byName.has(name)) return `&lt;code&gt;${escapeHtml(name)}&lt;/code&gt;`;
+    return `&lt;button type=&quot;button&quot; class=&quot;relation-link&quot; data-entity=&quot;${escapeHtml(name)}&quot;&gt;${escapeHtml(name)}&lt;/button&gt;`;
+  }
+
+  function relationMarkup(relation, direction) {
+    const other = direction === &#x27;out&#x27; ? relation.to : relation.from;
+    const label = relation.required ? &#x27;필수 FK&#x27; : &#x27;선택 FK&#x27;;
+    const path = direction === &#x27;out&#x27;
+      ? `&lt;code&gt;${escapeHtml(relation.field)}&lt;/code&gt;&lt;span aria-hidden=&quot;true&quot;&gt;→&lt;/span&gt;${tableButton(other)}&lt;code&gt;${escapeHtml(relation.target)}&lt;/code&gt;`
+      : `${tableButton(other)}&lt;code&gt;${escapeHtml(relation.field)}&lt;/code&gt;&lt;span aria-hidden=&quot;true&quot;&gt;→&lt;/span&gt;&lt;code&gt;${escapeHtml(relation.to)}.${escapeHtml(relation.target)}&lt;/code&gt;`;
+    return `&lt;div class=&quot;relation-row&quot;&gt;
+      &lt;div class=&quot;relation-main&quot;&gt;
+        ${path}
+        &lt;span class=&quot;viz-badge&quot;&gt;${label}&lt;/span&gt;
+      &lt;/div&gt;
+      ${relation.note ? `&lt;p class=&quot;text-small text-muted&quot;&gt;${escapeHtml(relation.note)}&lt;/p&gt;` : &#x27;&#x27;}
+    &lt;/div&gt;`;
+  }
+
+  function renderEntityDetail() {
+    const entity = byName.get(selectedEntity) || entities[0];
+    const outgoing = relations.filter(relation =&gt; relation.from === entity.name);
+    const incoming = relations.filter(relation =&gt; relation.to === entity.name &amp;&amp; relation.from !== entity.name);
+    entityDetail.innerHTML = `&lt;div class=&quot;detail-head&quot;&gt;
+      &lt;span class=&quot;text-small text-muted&quot;&gt;${escapeHtml(domains[entity.domain].label)}&lt;/span&gt;
+      &lt;h2&gt;${escapeHtml(entity.name)}&lt;/h2&gt;
+      &lt;p class=&quot;detail-copy&quot;&gt;${escapeHtml(entity.desc)}&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;section class=&quot;detail-section&quot;&gt;
+      &lt;h3&gt;핵심 필드&lt;/h3&gt;
+      &lt;div class=&quot;field-list&quot;&gt;${entity.fields.map(field =&gt; `&lt;code&gt;${escapeHtml(field)}&lt;/code&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;
+    &lt;/section&gt;
+    &lt;section class=&quot;detail-section&quot;&gt;
+      &lt;h3&gt;참조하는 부모 · ${outgoing.length}&lt;/h3&gt;
+      ${outgoing.length ? outgoing.map(relation =&gt; relationMarkup(relation, &#x27;out&#x27;)).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;relation-empty&quot;&gt;참조하는 부모가 없습니다.&lt;/p&gt;&#x27;}
+    &lt;/section&gt;
+    &lt;section class=&quot;detail-section&quot;&gt;
+      &lt;h3&gt;참조받는 자식 · ${incoming.length}&lt;/h3&gt;
+      ${incoming.length ? incoming.map(relation =&gt; relationMarkup(relation, &#x27;in&#x27;)).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;relation-empty&quot;&gt;이 테이블을 참조하는 자식이 없습니다.&lt;/p&gt;&#x27;}
+    &lt;/section&gt;`;
+  }
+
+  function renderApis() {
+    const query = apiSearch.value.trim().toLocaleLowerCase(&#x27;ko&#x27;);
+    const filtered = apis.filter(api =&gt; {
+      const domainOk = apiDomain.value === &#x27;all&#x27; || api.d === apiDomain.value;
+      const methodOk = apiMethod.value === &#x27;all&#x27; || api.m === apiMethod.value;
+      const queryOk = !query || `${api.m} ${api.p} ${api.s} ${api.x} ${apiDomains[api.d]}`.toLocaleLowerCase(&#x27;ko&#x27;).includes(query);
+      return domainOk &amp;&amp; methodOk &amp;&amp; queryOk;
+    });
+    root.querySelector(&#x27;#sl-api-count&#x27;).textContent = `${filtered.length} / ${apis.length}개 표시`;
+    apiBody.innerHTML = filtered.length ? filtered.map(api =&gt; `&lt;tr&gt;
+      &lt;td class=&quot;text-nowrap&quot;&gt;&lt;code class=&quot;method-${api.m.toLowerCase()}&quot;&gt;${api.m}&lt;/code&gt;&lt;/td&gt;
+      &lt;td&gt;&lt;code&gt;${escapeHtml(api.p)}&lt;/code&gt;&lt;div class=&quot;text-small text-muted&quot;&gt;${escapeHtml(apiDomains[api.d])}&lt;/div&gt;&lt;/td&gt;
+      &lt;td class=&quot;scope-text&quot;&gt;${escapeHtml(api.s)}&lt;/td&gt;
+      &lt;td&gt;${escapeHtml(api.x)}&lt;/td&gt;
+    &lt;/tr&gt;`).join(&#x27;&#x27;) : &#x27;&lt;tr&gt;&lt;td colspan=&quot;4&quot;&gt;조건에 맞는 API가 없습니다.&lt;/td&gt;&lt;/tr&gt;&#x27;;
+    apiMobile.innerHTML = filtered.length ? filtered.map(api =&gt; `&lt;article class=&quot;api-mobile-row&quot;&gt;
+      &lt;div class=&quot;api-mobile-meta&quot;&gt;
+        &lt;code class=&quot;method-${api.m.toLowerCase()}&quot;&gt;${api.m}&lt;/code&gt;
+        &lt;span class=&quot;text-small scope-text&quot;&gt;${escapeHtml(api.s)}&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;code class=&quot;api-mobile-path&quot;&gt;${escapeHtml(api.p)}&lt;/code&gt;
+      &lt;p class=&quot;detail-copy&quot;&gt;${escapeHtml(api.x)}&lt;/p&gt;
+      &lt;span class=&quot;text-small text-muted&quot;&gt;${escapeHtml(apiDomains[api.d])}&lt;/span&gt;
+    &lt;/article&gt;`).join(&#x27;&#x27;) : &#x27;&lt;p class=&quot;entity-empty&quot;&gt;조건에 맞는 API가 없습니다.&lt;/p&gt;&#x27;;
+  }
+
+  function setView(view) {
+    const isErd = view === &#x27;erd&#x27;;
+    root.querySelector(&#x27;#sl-erd-panel&#x27;).hidden = !isErd;
+    root.querySelector(&#x27;#sl-api-panel&#x27;).hidden = isErd;
+    const erdTab = root.querySelector(&#x27;#sl-tab-erd&#x27;);
+    const apiTab = root.querySelector(&#x27;#sl-tab-api&#x27;);
+    erdTab.setAttribute(&#x27;aria-pressed&#x27;, String(isErd));
+    apiTab.setAttribute(&#x27;aria-pressed&#x27;, String(!isErd));
+    erdTab.classList.toggle(&#x27;btn-primary&#x27;, isErd);
+    apiTab.classList.toggle(&#x27;btn-primary&#x27;, !isErd);
+  }
+
+  root.addEventListener(&#x27;click&#x27;, event =&gt; {
+    const tab = event.target.closest(&#x27;#sl-tab-erd, #sl-tab-api&#x27;);
+    if (tab) {
+      setView(tab.id === &#x27;sl-tab-erd&#x27; ? &#x27;erd&#x27; : &#x27;api&#x27;);
+      return;
+    }
+    const entityButton = event.target.closest(&#x27;[data-entity]&#x27;);
+    if (entityButton &amp;&amp; byName.has(entityButton.dataset.entity)) {
+      selectedEntity = entityButton.dataset.entity;
+      renderEntityList();
+      renderEntityDetail();
+    }
+  });
+
+  erdDomain.addEventListener(&#x27;change&#x27;, renderEntityList);
+  erdSearch.addEventListener(&#x27;input&#x27;, renderEntityList);
+  apiDomain.addEventListener(&#x27;change&#x27;, renderApis);
+  apiMethod.addEventListener(&#x27;change&#x27;, renderApis);
+  apiSearch.addEventListener(&#x27;input&#x27;, renderApis);
+
+  if (relations.length !== 65 || entities.length !== 26 || apis.length !== 62) {
+    root.querySelector(&#x27;footer&#x27;).classList.add(&#x27;text-destructive&#x27;);
+    root.querySelector(&#x27;footer&#x27;).textContent = `데이터 검산 오류: tables=${entities.length}, fks=${relations.length}, apis=${apis.length}`;
+  }
+
+  renderEntityList();
+  renderEntityDetail();
+  renderApis();
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>
