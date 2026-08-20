@@ -25,6 +25,8 @@ export interface DocumentVersionSeed {
 }
 
 export interface DocumentVersion extends Omit<DocumentVersionSeed, 'uploadedOff'> {
+  id?: string
+  documentId?: string
   /** YYYY-MM-DD */
   uploaded: string
   /** 이 세션에서 올린 파일만 갖습니다. 시드에는 없어 내려받을 수 없습니다. */
@@ -45,5 +47,47 @@ export interface SalesDocumentSeed {
 
 /** 실제 날짜가 붙은 자료실 문서 */
 export interface SalesDocument extends Omit<SalesDocumentSeed, 'versions'> {
+  documentNo?: string
   versions: DocumentVersion[]
+}
+
+export type DocumentProcessingStatus = 'uploaded' | 'processing' | 'completed' | 'failed'
+
+export interface DocumentFileResponse {
+  id: string
+  version_no: number
+  file_name: string
+  media_type: string | null
+  byte_size: number
+  processing_status: DocumentProcessingStatus
+  uploaded_by_member_id: string
+  uploaded_by_display_name: string
+  note: string | null
+  uploaded_at: string
+}
+
+export interface DocumentResponse {
+  id: string
+  document_no: string
+  category_code: string
+  title: string
+  description: string | null
+  customer_company_id: string | null
+  customer_company_name: string | null
+  sales_deal_id: string | null
+  purchase_order_id: string | null
+  tags: string[]
+  created_by_member_id: string
+  created_by_display_name: string
+  created_at: string
+  files: DocumentFileResponse[]
+  latest_version_no: number | null
+}
+
+export interface DownloadResponse {
+  url: string
+  expires_in: number
+  file_name: string
+  media_type: string | null
+  byte_size: number
 }

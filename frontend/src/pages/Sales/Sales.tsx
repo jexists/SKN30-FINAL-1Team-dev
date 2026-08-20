@@ -2,6 +2,9 @@
 // 왼쪽은 계약을 회사별·지역별로 접은 리스트, 오른쪽은 목표선과 견준 이 기간 매출입니다.
 import { useSearchParams } from 'react-router'
 
+import Button from '@/components/Button'
+import useSalesDeals from '@/pages/Deals/useSalesDeals'
+
 import { downloadCsv, toCsv } from '@/utils/csv'
 
 import GroupTable from './components/GroupTable'
@@ -30,10 +33,10 @@ export default function Sales() {
 
   const range = resolveRange(type, offset)
 
+  const { cards, loading, error, reload } = useSalesDeals(null, null, 'list')
   // 왼쪽 표는 탭이 고른 축으로, 오른쪽 패널은 언제나 회사별로 봅니다.
-  // totals 는 축과 무관하게 같은 값이라 좌우 숫자가 어긋나지 않습니다.
-  const grouped = useSalesSummary(type, offset, by)
-  const byOrg = useSalesSummary(type, offset, 'org')
+  const grouped = useSalesSummary(cards, type, offset, by)
+  const byOrg = useSalesSummary(cards, type, offset, 'org')
 
   /** 기간 탭을 바꾸면 이동량은 의미가 달라지므로 현재 기간으로 되돌립니다. */
   const setType = (next: PeriodType) => {
@@ -52,7 +55,7 @@ export default function Sales() {
 
   const exportCsv = () => {
     // 상품에는 목표가 없습니다. 빈 목표를 0으로 내보내면 달성률 0% 로 읽힙니다.
-    const withTarget = hasTarget(by)
+    const withTarget = grouped.targetsAvailable && hasTarget(by)
     const headers = [
       GROUP_HEADER[by],
       '건수',
@@ -92,14 +95,28 @@ export default function Sales() {
         onExport={exportCsv}
       />
 
-      <div className={styles.split}>
-        <GroupTable
-          by={by}
-          onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
-          summary={grouped}
-        />
-        <TargetGauge range={range} summary={byOrg} />
-      </div>
+      {error ? (
+        <div role="alert">
+          <p>{error}</p>
+          <Button variant="outline" onClick={reload}>
+            다시 시도
+          </Button>
+        </div>
+      ) : loading && cards.length === 0 ? (
+        <p role="status">매출 데이터를 불러오는 중입니다.</p>
+      ) : (
+        <div className={styles.split}>
+          <GroupTable
+            by={by}
+            onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
+            summary={grouped}
+          />
+          <TargetGauge range={range} summary={byOrg} />
+        </div>
+      )}
+      {!error && loading && cards.length > 0 && (
+        <p role="status">매출 데이터를 새로고침 중입니다.</p>
+      )}
     </section>
   )
 }

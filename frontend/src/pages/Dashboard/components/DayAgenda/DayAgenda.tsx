@@ -49,13 +49,13 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   const tasks = list.filter((it) => it.kind === 'internal')
   // 보고서로 가는 길은 RecordDrawer 와 같은 곳을 봅니다. AgendaItem.reported 는
   // 목업 시드의 고정값이라 이 자리에서 쓴 기록을 따라오지 못합니다.
-  const reportLink = useAgendaReportLink()
+  const reportState = useAgendaReportLink()
   const date = parseISO(dateISO)
   const relative = RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
   /** groupStart 는 업무 묶음의 첫 줄입니다. 미팅과의 경계를 선 하나로 긋습니다. */
   const renderItem = (it: AgendaItem, groupStart = false) => {
     const done = doneIds.has(it.id)
-    const report = reportLink(it)
+    const report = reportState.resolve(it)
     // 업무는 고객이 없어 회사·담당자 자리가 비고, 대신 언제까지 어디서 하는지가 남습니다.
     const task = it.kind === 'internal'
     const until = task ? endTime(it.time, it.dur) : ''
@@ -124,10 +124,12 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
               >
                 <div className={styles.menu}>
                   {/* '작성' 이라고 서 있으면 아직 안 쓴 것, '열기' 면 이미 쓴 것입니다. */}
-                  <Link to={report.to} onClick={() => setMenuId(null)}>
-                    <DailyReportIcon width={15} height={15} />
-                    {report.label}
-                  </Link>
+                  {!reportState.loading && !reportState.error && (
+                    <Link to={report.to} onClick={() => setMenuId(null)}>
+                      <DailyReportIcon width={15} height={15} />
+                      {report.label}
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -197,6 +199,18 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
           일정 추가
         </Button>
       </div>
+
+      {reportState.error && (
+        <p role="alert">
+          {reportState.error}{' '}
+          <Button variant="outline" size="sm" onClick={reportState.reload}>
+            다시 시도
+          </Button>
+        </p>
+      )}
+      {!reportState.error && reportState.loading && (
+        <p role="status">보고서 연결을 확인하는 중입니다.</p>
+      )}
 
       {list.length === 0 ? (
         <div className={styles.empty}>

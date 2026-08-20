@@ -11,7 +11,6 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import Tabs from '@/components/Tabs'
 import WeekStrip from '@/components/WeekStrip'
 import { dailyComposePath, meetingPickPath } from '@/constants/routes'
-import { APPROVERS } from '@/shared/reports'
 import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import {
   addDays,
@@ -79,8 +78,18 @@ export default function Daily() {
         ? dailyComposePath(TODAY_ISO, kind)
         : null
 
-  const { reports } = useDailyReports()
-  const { reports: meetings } = useMeetingReports()
+  const {
+    reports,
+    loading: dailyLoading,
+    error: dailyError,
+    reload: reloadDaily,
+  } = useDailyReports()
+  const {
+    reports: meetings,
+    loading: meetingLoading,
+    error: meetingError,
+    reload: reloadMeetings,
+  } = useMeetingReports()
 
   const [weekOffset, setWeekOffset] = useState(0)
   const [showMonth, setShowMonth] = useState(false)
@@ -191,6 +200,10 @@ export default function Daily() {
     () => [...new Set(meetings.map((meeting) => meeting.hospital))].sort(),
     [meetings],
   )
+  const approvers = useMemo(
+    () => [...new Set(reports.map((report) => report.approver).filter(Boolean))].sort(),
+    [reports],
+  )
 
   // 칸마다 점 하나. 평일인데 지나갔고 일일보고가 비었으면 미작성 표시입니다.
   const renderMark = (dateISO: string, isSelected: boolean) => {
@@ -216,6 +229,24 @@ export default function Daily() {
     <section>
       {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
       <h1 className="sr-only">업무 보고</h1>
+
+      {(dailyError || meetingError) && (
+        <div className={styles.empty} role="alert">
+          <p>{dailyError ?? meetingError}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              reloadDaily()
+              reloadMeetings()
+            }}
+          >
+            다시 시도
+          </Button>
+        </div>
+      )}
+      {!dailyError && !meetingError && (dailyLoading || meetingLoading) && (
+        <p role="status">보고서를 불러오는 중입니다.</p>
+      )}
 
       <div className={styles.head}>
         <Tabs
@@ -332,7 +363,7 @@ export default function Daily() {
         onQueryChange={setQuery}
         filters={filters}
         onFiltersChange={setFilters}
-        approvers={[...APPROVERS]}
+        approvers={approvers}
         hospitals={hospitals}
         period={period}
       />

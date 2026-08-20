@@ -3,8 +3,6 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { subscribeSessionExpired } from '@/api/connectionState'
-import { clearProfileId, profile as mockProfile, readProfileId, writeProfileId } from '@/mocks'
-import { clearScope } from '@/scope/scopeStorage'
 
 import { type Session, SessionContext, type SessionStatus } from './sessionContext'
 import { clearSignedInHint, hasSignedInHint } from './signedInHint'
@@ -17,54 +15,14 @@ interface AuthUser {
   job_title: string | null
 }
 
-const FILLED_TEAM_ID = '6d0f1b76-6b1a-4b72-9ba3-1df477a62d78'
-const EMPTY_TEAM_ID = 'dc153ea5-9ba6-4b96-a4df-845a44798003'
-const TEST_TEAM_ID = '95d7978d-5281-45fa-9412-14db072f5c01'
-
-const PROFILE_ID_BY_TEAM_AND_ROLE: Record<string, Record<Session['role'], string>> = {
-  [FILLED_TEAM_ID]: {
-    manager: 'sample-manager',
-    member: 'sample-member',
-  },
-  [EMPTY_TEAM_ID]: {
-    manager: 'empty-manager',
-    member: 'empty-member',
-  },
-  // 테스트팀도 데이터가 없는 팀이라 첫 세팅 팀과 같은 목업 프로필을 씁니다.
-  [TEST_TEAM_ID]: {
-    manager: 'empty-manager',
-    member: 'empty-member',
-  },
-}
-
 const toSession = ({ display_name, role_code, job_title }: AuthUser): Session => ({
   role: role_code,
   profile: { name: display_name, title: job_title ?? '' },
 })
 
-function resolveMockProfileId(teamId: string, role: Session['role']): string | undefined {
-  return PROFILE_ID_BY_TEAM_AND_ROLE[teamId]?.[role]
-}
-
-/** 인증과 무관한 합성 데이터 선택값만 실제 역할에 맞춥니다. */
-function syncMockProfile(user: AuthUser): 'ready' | 'reload' | 'failed' {
-  const expectedId = resolveMockProfileId(user.team_id, user.role_code)
-  if (expectedId === undefined) return 'failed'
-
-  if (readProfileId() !== expectedId) {
-    clearScope()
-    writeProfileId(expectedId)
-  }
-
-  if (mockProfile.id === expectedId) return 'ready'
-  return readProfileId() === expectedId ? 'reload' : 'failed'
-}
-
 export default function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<SessionStatus>('loading')
-  // 합성 데이터 저장 실패는 백엔드 장애가 아니므로 연결 상태와 섞지 않습니다.
-  const [mockUnavailable, setMockUnavailable] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -79,16 +37,6 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
       .get<AuthUser>('/auth/me')
       .then(({ data }) => {
         if (!active) return
-        const mockSync = syncMockProfile(data)
-        if (mockSync === 'reload') {
-          window.location.reload()
-          return
-        }
-        if (mockSync === 'failed') {
-          setMockUnavailable(true)
-          setStatus('unauthenticated')
-          return
-        }
         setSession(toSession(data))
         setStatus('authenticated')
       })
@@ -130,19 +78,6 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     // 로그인 응답이 세션 표시 쿠키까지 함께 설정하므로, 아래 reload 를 타도
     // 다시 뜬 앱이 세션을 되찾을 수 있습니다.
     const { data } = await client.post<AuthUser>('/auth/login', { email, password })
-    clearScope()
-    const mockSync = syncMockProfile(data)
-    if (mockSync === 'reload') {
-      window.location.reload()
-      return
-    }
-    if (mockSync === 'failed') {
-      await client.post('/auth/logout').catch(() => undefined)
-      clearSignedInHint()
-      setMockUnavailable(true)
-      throw new Error('mock profile storage unavailable')
-    }
-    setMockUnavailable(false)
     setSession(toSession(data))
     setStatus('authenticated')
   }, [])
@@ -152,15 +87,9 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     // 실패는 인터셉터가 먼저 잡아 연결 실패 모달로 알립니다.
     await client.post('/auth/logout').catch(() => undefined)
     clearSignedInHint()
-    clearProfileId()
-    clearScope()
     setSession(null)
     setStatus('unauthenticated')
   }, [])
 
-  return (
-    <SessionContext value={{ session, status, mockUnavailable, login, logout }}>
-      {children}
-    </SessionContext>
-  )
+  return <SessionContext value={{ session, status, login, logout }}>{children}</SessionContext>
 }

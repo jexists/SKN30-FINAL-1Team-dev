@@ -27,6 +27,18 @@
     // 좁은 화면에서는 검색줄 아래로 내려와 폭을 다 씁니다.
     margin-left: 0;
     width: 100%;
+
+    .state {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--s3);
+      padding: var(--s3) var(--s4);
+      border: 1px solid var(--line);
+      border-radius: var(--r2);
+      color: var(--ink-2);
+      font-size: 13px;
+    }
     justify-content: flex-end;
   }
 }

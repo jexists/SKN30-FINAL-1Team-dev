@@ -8,17 +8,13 @@ import { useSidebar } from '@/components/layout/AppShell/sidebarContext'
 import { SIDEBAR_ID } from '@/components/layout/Sidebar/Sidebar'
 import { findNavLabel } from '@/constants/navigation'
 import { ROUTES } from '@/constants/routes'
-import { useHasUnread } from '@/shared/notifications'
-
-import ScopeSwitcher from './ScopeSwitcher'
 
 import styles from './Topbar.module.scss'
 
 export default function Topbar() {
   const { mobileOpen, openMobile } = useSidebar()
-  const { profile, isManager } = useCurrentUser()
+  const { profile } = useCurrentUser()
   const { pathname } = useLocation()
-  const hasUnread = useHasUnread()
 
   const hamburgerRef = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)
@@ -30,10 +26,6 @@ export default function Topbar() {
   }, [mobileOpen])
 
   const pageLabel = findNavLabel(pathname) ?? '페이지를 찾을 수 없음'
-  const isDeals = pathname === ROUTES.DEALS || pathname.startsWith(`${ROUTES.DEALS}/`)
-  const isOrders = pathname === ROUTES.ORDERS || pathname.startsWith(`${ROUTES.ORDERS}/`)
-  const isComplaints =
-    pathname === ROUTES.COMPLAINTS || pathname.startsWith(`${ROUTES.COMPLAINTS}/`)
 
   return (
     <header className={styles.topbar}>
@@ -54,26 +46,13 @@ export default function Topbar() {
 
       <div className={styles.spacer} />
 
-      {/* 실제 팀원 UUID 목록이 붙기 전까지 DB 화면에는 목업 담당자 필터를 노출하지 않습니다. */}
-      {isManager &&
-        pathname !== ROUTES.CUSTOMERS &&
-        pathname !== ROUTES.CALENDAR &&
-        !isDeals &&
-        !isOrders &&
-        !isComplaints && (
-          <div className={styles.scope}>
-            <ScopeSwitcher />
-          </div>
-        )}
-
-      {/* 알림은 화면 하나입니다. 벨은 그리로 가는 통로일 뿐이라 점만 얹습니다. */}
+      {/* 알림 조회 API가 없어 읽지 않음 여부는 표시하지 않습니다. */}
       <Link
         className={buttonClass({ variant: 'outline', iconOnly: true }, styles.iconBtn)}
         to={ROUTES.NOTIFICATIONS}
-        aria-label={hasUnread ? '알림 (읽지 않음 있음)' : '알림'}
+        aria-label="알림"
       >
         <BellIcon />
-        {hasUnread && <span className={styles.dot} />}
       </Link>
 
       {/* 아바타는 마이페이지로 가는 통로입니다. */}

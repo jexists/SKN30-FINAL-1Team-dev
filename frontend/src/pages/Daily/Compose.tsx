@@ -11,7 +11,7 @@ import Button, { buttonClass } from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
-import { APPROVERS } from '@/shared/reports'
+import { APPROVERS, REPORT_CONFIGURATION_ERROR } from '@/shared/reports'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
@@ -70,7 +70,8 @@ export default function Compose() {
   const pickId = params.get('pick') ?? undefined
 
   const draft = useDailyDraft(dateISO, kind, { pickId })
-  const { submitReport, saveDraft } = useDailyReports()
+  const { submitReport, saveDraft, pending, error, reload } = useDailyReports()
+  const loadError = draft.error ?? error
 
   const [confirm, setConfirm] = useState<Confirm>(null)
   const [saved, setSaved] = useState(false)
@@ -90,6 +91,7 @@ export default function Compose() {
     approver: draft.approver,
     values: draft.values,
     activities: draft.activities,
+    template: draft.template,
     attachments: draft.attachments,
   }
 
@@ -116,19 +118,32 @@ export default function Compose() {
     changeDate(next)
   }
 
+  const runGenerate = async () => {
+    try {
+      const report = await saveDraft(payload)
+      await draft.generate(report.id)
+    } catch {
+      // 저장 훅이 오류를 표시합니다.
+    }
+  }
+
   const onGenerate = () => {
     // 사람이 손댄 항목이 있으면 덮어써도 되는지 먼저 묻습니다.
     if (draft.phase === 'ready' && draft.dirtyIds.size > 0) {
       setConfirm({ kind: 'regenerate' })
       return
     }
-    draft.generate()
+    void runGenerate()
   }
 
-  const onSubmit = () => {
-    const report = submitReport(payload)
-    setConfirm(null)
-    navigate(dailyReportPath(report.id))
+  const onSubmit = async () => {
+    try {
+      const report = await submitReport(payload)
+      setConfirm(null)
+      navigate(dailyReportPath(report.id))
+    } catch {
+      // 훅이 같은 화면에 오류를 표시합니다.
+    }
   }
 
   const generateLabel =
@@ -214,15 +229,37 @@ export default function Compose() {
           <Button
             variant="outline"
             type="button"
-            onClick={() => {
-              saveDraft(payload)
-              setSaved(true)
+            disabled={pending}
+            onClick={async () => {
+              try {
+                await saveDraft(payload)
+                setSaved(true)
+              } catch {
+                setSaved(false)
+              }
             }}
           >
-            임시저장
+            {pending ? '저장 중…' : '임시저장'}
           </Button>
         </div>
       </header>
+
+      {loadError && (
+        <p className={styles.locked} role="alert">
+          {loadError}{' '}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              draft.reload()
+              reload()
+            }}
+          >
+            다시 시도
+          </Button>
+        </p>
+      )}
+      {!loadError && draft.loading && <p role="status">보고서 자료를 불러오는 중입니다.</p>}
 
       {saved && <p className={styles.saved}>임시저장했습니다. 목록에서 이어서 쓸 수 있습니다.</p>}
 
@@ -301,11 +338,10 @@ export default function Compose() {
               <span className={styles.pill}>선택 사항</span>
             </div>
 
-            <AttachmentPanel
-              attachments={draft.attachments}
-              onAttach={draft.attach}
-              onRemove={draft.removeAttachment}
-            />
+            <p className={styles.missing} role="alert">
+              보고서 첨부 업로드·분석 API가 없어 파일을 추가할 수 없습니다.
+            </p>
+            <AttachmentPanel attachments={draft.attachments} readOnly />
           </article>
 
           {/* AI 가 채우는 항목이 없는 양식에서는 초안 생성이 없습니다. */}
@@ -314,21 +350,16 @@ export default function Compose() {
               <Button
                 type="button"
                 onClick={onGenerate}
-                disabled={!draft.canGenerate || draft.phase === 'generating'}
+                disabled={pending || locked || !draft.canGenerate || draft.phase === 'generating'}
               >
                 {generateLabel}
               </Button>
               <p className={styles.basis}>
                 {draft.canGenerate ? basis : '자료를 1건 이상 선택하세요.'}
               </p>
-              {draft.analyzingCount > 0 && (
-                <p className={styles.hint}>
-                  분석 중인 첨부 {draft.analyzingCount}건은 이번 초안에서 빠집니다.
-                </p>
-              )}
-              {draft.staleAttachments && draft.phase === 'ready' && (
-                <p className={styles.hint}>
-                  새로 분석된 자료가 있습니다. 다시 작성하면 반영됩니다.
+              {draft.generationError && (
+                <p className={styles.missing} role="alert">
+                  {draft.generationError}
                 </p>
               )}
             </div>
@@ -341,7 +372,8 @@ export default function Compose() {
               <h2>보고 내용</h2>
             </div>
             <p className={styles.panelNote}>
-              {draft.template.owner}이 지정한 양식 · 항목 {draft.template.fields.length}개
+              {draft.template.owner ? `${draft.template.owner} 지정` : '기본 화면'} 양식 · 항목{' '}
+              {draft.template.fields.length}개
             </p>
 
             {draft.hasAiFields && draft.phase === 'idle' && (
@@ -378,11 +410,18 @@ export default function Compose() {
                 value={draft.approver}
                 onChange={(event) => draft.setApprover(event.target.value)}
               >
+                <option value="">조회 API 없음</option>
                 {APPROVERS.map((name) => (
                   <option key={name}>{name}</option>
                 ))}
               </select>
             </label>
+
+            {APPROVERS.length === 0 && (
+              <p className={styles.missing} role="alert">
+                {REPORT_CONFIGURATION_ERROR}
+              </p>
+            )}
 
             <p className={draft.missing.length > 0 ? styles.missing : styles.okay}>
               {draft.missing.length > 0
@@ -416,7 +455,7 @@ export default function Compose() {
                 type="button"
                 onClick={() => {
                   setConfirm(null)
-                  draft.generate()
+                  void runGenerate()
                 }}
               >
                 다시 작성
@@ -470,8 +509,8 @@ export default function Compose() {
               <Button variant="outline" type="button" onClick={() => setConfirm(null)}>
                 취소
               </Button>
-              <Button type="button" onClick={onSubmit}>
-                제출
+              <Button type="button" disabled={pending} onClick={onSubmit}>
+                {pending ? '제출 중…' : '제출'}
               </Button>
             </>
           }

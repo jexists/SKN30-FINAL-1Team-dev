@@ -9,7 +9,6 @@ import { ArrowUpIcon, DocumentsIcon, DownloadIcon, SearchIcon, SortIcon } from '
 import { BP_DESKTOP } from '@/constants/breakpoints'
 import type { SalesDocument } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
-import { useOwnerScope } from '@/scope/scopeContext'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
@@ -28,6 +27,7 @@ interface Props {
   onClearFilters: () => void
   /** 팀원에게는 업로드가 없어 빈 화면의 권유도 함께 빠집니다. */
   canUpload: boolean
+  showOwner: boolean
   onUpload: () => void
 }
 
@@ -39,10 +39,9 @@ export default function DocumentTable({
   isFiltered,
   onClearFilters,
   canUpload,
+  showOwner,
   onUpload,
 }: Props) {
-  // 한 사람만 보고 있으면 등록자 열은 모든 줄이 같은 값이라 자리만 차지합니다.
-  const { showOwner } = useOwnerScope()
   const columns = useMemo(
     () => DOCUMENT_COLUMNS.filter((col) => col.id !== 'owner' || showOwner),
     [showOwner],

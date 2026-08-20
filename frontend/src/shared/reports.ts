@@ -1,9 +1,74 @@
-// 업무보고 도메인. 양식·시드는 mocks/ 에서 받고 여기서는 로직·파생만 둡니다.
-import { APPROVERS, dailyTemplate, monthlyTemplate, reportSeed, weeklyTemplate } from '@/mocks'
 import type { DailyReport, ReportKind, ReportTemplate } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
-export { APPROVERS, dailyTemplate, monthlyTemplate, weeklyTemplate }
+export const APPROVERS: readonly string[] = []
+export const REPORT_CONFIGURATION_ERROR =
+  '보고 양식·결재자 조회 API가 없어 기본 화면 양식을 사용하며 제출 대상을 선택할 수 없습니다.'
+
+export const dailyTemplate: ReportTemplate = {
+  id: 'builtin-daily',
+  name: '기본 일일보고 양식',
+  owner: '',
+  updated: '',
+  fields: [
+    {
+      id: 'summary',
+      label: '업무 요약',
+      type: 'textarea',
+      required: true,
+      aiFilled: true,
+      placeholder: '오늘 진행한 활동을 요약합니다.',
+    },
+    {
+      id: 'issue',
+      label: '특이사항 · 이슈',
+      type: 'textarea',
+      required: false,
+      aiFilled: true,
+      placeholder: '지연, 고객 불만, 예산 보류 등',
+    },
+    {
+      id: 'next',
+      label: '내일 계획',
+      type: 'textarea',
+      required: true,
+      aiFilled: true,
+      placeholder: '내일 처리할 후속 업무',
+    },
+    {
+      id: 'competitor',
+      label: '경쟁사 동향',
+      type: 'text',
+      required: false,
+      aiFilled: false,
+      placeholder: '직접 확인한 내용이 있으면 입력하세요.',
+    },
+  ],
+}
+
+export const weeklyTemplate: ReportTemplate = {
+  id: 'builtin-weekly',
+  name: '기본 주간보고 양식',
+  owner: '',
+  updated: '',
+  fields: [
+    { id: 'result', label: '주간 성과', type: 'textarea', required: true, aiFilled: true },
+    { id: 'plan', label: '다음 주 계획', type: 'textarea', required: true, aiFilled: true },
+    { id: 'risk', label: '리스크', type: 'textarea', required: false, aiFilled: true },
+  ],
+}
+
+export const monthlyTemplate: ReportTemplate = {
+  id: 'builtin-monthly',
+  name: '기본 월간보고 양식',
+  owner: '',
+  updated: '',
+  fields: [
+    { id: 'perf', label: '월간 실적', type: 'textarea', required: true, aiFilled: true },
+    { id: 'gap', label: '목표 대비', type: 'textarea', required: true, aiFilled: false },
+    { id: 'focus', label: '다음 달 중점', type: 'textarea', required: false, aiFilled: true },
+  ],
+}
 
 export function templateFor(kind: ReportKind): ReportTemplate {
   if (kind === '주간') return weeklyTemplate
@@ -11,20 +76,10 @@ export function templateFor(kind: ReportKind): ReportTemplate {
   return dailyTemplate
 }
 
-// 보고서에 넣을 후보 자료를 모으는 일은 종류마다 다릅니다.
-// pages/Daily/sources.ts 가 종류별로 갈라 갖고 있습니다.
-
-export const reportHistory: DailyReport[] = reportSeed
-  .map((seed) => ({ ...seed, date: iso(addDays(TODAY, seed.off)) }))
-  .sort((a, b) => b.date.localeCompare(a.date))
-
-/**
- * 최근 days 일 중 보고서가 없는 평일. 오늘은 아직 마감 전이라 빼고 셉니다.
- * 화면의 "밀린 보고" 줄이 이 값을 그대로 씁니다.
- */
 export function missingReportDates(reports: DailyReport[], days = 7): string[] {
-  // 주간·월간이 같은 날에 제출돼 있어도 일일보고를 낸 것은 아닙니다.
-  const written = new Set(reports.filter((r) => r.kind === '일일').map((r) => r.date))
+  const written = new Set(
+    reports.filter((report) => report.kind === '일일').map((report) => report.date),
+  )
   const missing: string[] = []
 
   for (let back = 1; back <= days; back += 1) {
@@ -36,4 +91,49 @@ export function missingReportDates(reports: DailyReport[], days = 7): string[] {
   }
 
   return missing
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+export function reportTemplateFromSnapshot(
+  snapshot: Record<string, unknown>,
+  fallbackName: string,
+): ReportTemplate {
+  const source = asRecord(snapshot)
+  const rawFields = Array.isArray(source.fields) ? source.fields : []
+  const fields: ReportTemplate['fields'] = rawFields.flatMap((value) => {
+    const field = asRecord(value)
+    if (typeof field.id !== 'string' || typeof field.label !== 'string') return []
+    const type =
+      field.type === 'text' || field.type === 'select' || field.type === 'textarea'
+        ? field.type
+        : 'textarea'
+    const options = Array.isArray(field.options)
+      ? field.options.filter((option): option is string => typeof option === 'string')
+      : undefined
+    return [
+      {
+        id: field.id,
+        label: field.label,
+        type,
+        required: field.required === true,
+        aiFilled: field.aiFilled === true,
+        placeholder: typeof field.placeholder === 'string' ? field.placeholder : undefined,
+        hint: typeof field.hint === 'string' ? field.hint : undefined,
+        options,
+      },
+    ]
+  })
+
+  return {
+    id: typeof source.id === 'string' ? source.id : 'snapshot',
+    name: typeof source.name === 'string' ? source.name : fallbackName,
+    owner: typeof source.owner === 'string' ? source.owner : '',
+    updated: typeof source.updated === 'string' ? source.updated : '',
+    fields,
+  }
 }

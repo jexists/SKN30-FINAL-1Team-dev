@@ -1,4 +1,4 @@
-import type { ReportAttachment, ReportStatus } from './reports'
+import type { ReportAttachment, ReportStatus, ReportTemplate } from './reports'
 
 /**
  * 미팅 한 건의 기록. 캘린더 일정(AgendaItem) 하나에 붙습니다.
@@ -36,4 +36,5 @@ export interface MeetingReportSeed {
 export interface MeetingReport extends MeetingReportSeed {
   /** YYYY-MM-DD */
   date: string
+  template: ReportTemplate
 }

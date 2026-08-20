@@ -7,10 +7,10 @@
 // 보내되 그 업무가 미리 체크된 채로 열리게 합니다.
 import { Link, useSearchParams } from 'react-router'
 
-import { buttonClass } from '@/components/Button'
+import Button, { buttonClass } from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
-import { KIND_LABEL, useAgendaFor } from '@/shared/agenda'
+import { KIND_LABEL, useAgendaState } from '@/shared/agenda'
 import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
@@ -27,9 +27,25 @@ export default function MeetingPick() {
   const asked = params.get('date') ?? TODAY_ISO
   const dateISO = asked > TODAY_ISO ? TODAY_ISO : asked
 
-  const agenda = useAgendaFor(dateISO)
-  const { findByAgenda } = useMeetingReports()
-  const { findByDate } = useDailyReports()
+  const {
+    items,
+    loading: agendaLoading,
+    error: agendaError,
+    reload: reloadAgenda,
+  } = useAgendaState()
+  const agenda = items.filter((item) => item.date === dateISO)
+  const {
+    findByAgenda,
+    loading: meetingLoading,
+    error: meetingError,
+    reload: reloadMeetings,
+  } = useMeetingReports()
+  const {
+    findByDate,
+    loading: dailyLoading,
+    error: dailyError,
+    reload: reloadDaily,
+  } = useDailyReports()
 
   /**
    * 사내 업무가 가는 곳. 단건 보고서를 만들지 않고 그날 일일업무보고로 묶습니다.
@@ -87,54 +103,82 @@ export default function MeetingPick() {
         {fmtDot(parseISO(dateISO))}의 미팅과 사내 업무입니다. 기록할 일정을 고르세요.
       </p>
 
-      {agenda.length === 0 ? (
-        <div className={styles.empty}>
-          <p>이 날짜에 등록된 일정이 없습니다.</p>
-          <Link
-            className={buttonClass({ variant: 'outline' }, styles.emptyCta)}
-            to={ROUTES.CALENDAR}
+      {(agendaError || meetingError || dailyError) && (
+        <div className={styles.empty} role="alert">
+          <p>{agendaError ?? meetingError ?? dailyError}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              reloadAgenda()
+              reloadMeetings()
+              reloadDaily()
+            }}
           >
-            캘린더에서 일정 등록하기
-            <ChevronRightIcon />
-          </Link>
+            다시 시도
+          </Button>
         </div>
-      ) : (
-        <ul className={styles.rows}>
-          {agenda.map((item) => {
-            // 사내 업무는 단건 보고서를 만들지 않습니다. 그날 일일보고로 보냅니다.
-            const internal = item.kind === 'internal'
-            const link = internal
-              ? internalLink(item.id)
-              : meetingLinkFor(item.id, findByAgenda(item.id))
-
-            return (
-              <li key={item.id} className={styles.row}>
-                <span className={styles.kind}>{KIND_LABEL[item.kind]}</span>
-                <span className={`${styles.time} tnum`}>{item.time}</span>
-
-                <div className={styles.body}>
-                  <strong>{item.hospital || item.title}</strong>
-                  <span>{item.hospital ? item.title : item.place}</span>
-                </div>
-
-                <span className={item.done ? styles.done : styles.todo}>
-                  {item.done ? '완료' : '예정'}
-                </span>
-
-                {/* 상태는 실제 보고서에서 봅니다. 일정의 reported 값은 믿지 않습니다. */}
-                <ReportStatusBadge status={link.status} />
-
-                <Link
-                  className={buttonClass({ variant: 'outline', size: 'sm' }, styles.action)}
-                  to={link.to ?? dailyComposePath(dateISO, '일일')}
-                >
-                  {link.label}
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
       )}
+      {!agendaError &&
+        !meetingError &&
+        !dailyError &&
+        (agendaLoading || meetingLoading || dailyLoading) && (
+          <p role="status">일정과 보고서를 불러오는 중입니다.</p>
+        )}
+
+      {!agendaLoading &&
+        !meetingLoading &&
+        !dailyLoading &&
+        !agendaError &&
+        !meetingError &&
+        !dailyError &&
+        (agenda.length === 0 ? (
+          <div className={styles.empty}>
+            <p>이 날짜에 등록된 일정이 없습니다.</p>
+            <Link
+              className={buttonClass({ variant: 'outline' }, styles.emptyCta)}
+              to={ROUTES.CALENDAR}
+            >
+              캘린더에서 일정 등록하기
+              <ChevronRightIcon />
+            </Link>
+          </div>
+        ) : (
+          <ul className={styles.rows}>
+            {agenda.map((item) => {
+              // 사내 업무는 단건 보고서를 만들지 않습니다. 그날 일일보고로 보냅니다.
+              const internal = item.kind === 'internal'
+              const link = internal
+                ? internalLink(item.id)
+                : meetingLinkFor(item.id, findByAgenda(item.id))
+
+              return (
+                <li key={item.id} className={styles.row}>
+                  <span className={styles.kind}>{KIND_LABEL[item.kind]}</span>
+                  <span className={`${styles.time} tnum`}>{item.time}</span>
+
+                  <div className={styles.body}>
+                    <strong>{item.hospital || item.title}</strong>
+                    <span>{item.hospital ? item.title : item.place}</span>
+                  </div>
+
+                  <span className={item.done ? styles.done : styles.todo}>
+                    {item.done ? '완료' : '예정'}
+                  </span>
+
+                  {/* 상태는 실제 보고서에서 봅니다. 일정의 reported 값은 믿지 않습니다. */}
+                  <ReportStatusBadge status={link.status} />
+
+                  <Link
+                    className={buttonClass({ variant: 'outline', size: 'sm' }, styles.action)}
+                    to={link.to ?? dailyComposePath(dateISO, '일일')}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        ))}
     </section>
   )
 }

@@ -1,22 +1,21 @@
-// 일정 도메인. 시드는 mocks/ 에서 받고 여기서는 상수·로직·파생만 둡니다.
-//
-// 일정은 대시보드에서 등록하고 캘린더에서 옮기고 지웁니다. 두 화면이 각자
-// 복사본을 들면 한쪽에서 만든 일정이 다른 쪽에 없습니다. 그래서 목록을 이
-// 모듈 하나에 두고, 화면은 아래 훅으로 구독만 합니다.
-//
-// 백엔드가 붙는 지점은 addAgenda / updateAgenda / removeAgenda 셋입니다.
-// 저장은 메모리에만 합니다. 새로고침하면 목업 초기 상태로 돌아갑니다.
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
-import { agendaSeed } from '@/mocks'
+import { client } from '@/api/client'
+import { errorMessage } from '@/api/errorMessage'
 import type {
+  ActivityActionTagCode,
+  ActivityCategoryCode,
+  ActivityCreateRequest,
+  ActivityRead,
   AgendaItem,
   AgendaKind,
+  CalendarEvent,
   ExternalStatus,
   InternalStatus,
+  PageResponse,
   ScheduleStatus,
 } from '@/types'
-import { addDays, iso, TODAY } from '@/utils/date'
+import { parseISO, TODAY } from '@/utils/date'
 
 export const KIND_LABEL: Record<AgendaKind, string> = {
   visit: '방문',
@@ -28,7 +27,6 @@ export const KIND_LABEL: Record<AgendaKind, string> = {
   internal: '내부',
 }
 
-/** 고객 대상 활동 */
 export const EXTERNAL_STATUSES: readonly ExternalStatus[] = [
   '첫 전화',
   '미팅',
@@ -41,7 +39,6 @@ export const EXTERNAL_STATUSES: readonly ExternalStatus[] = [
   '납품완료',
 ]
 
-/** 사내 활동 */
 export const INTERNAL_STATUSES: readonly InternalStatus[] = [
   '내부회의',
   '주간점검',
@@ -51,31 +48,171 @@ export const INTERNAL_STATUSES: readonly InternalStatus[] = [
   'OJT',
 ]
 
-/** 상태가 어느 계열인지. 태그 색이 여기서 갈립니다. */
 export function statusScope(status: ScheduleStatus): '내부' | '외부' {
   return (INTERNAL_STATUSES as readonly ScheduleStatus[]).includes(status) ? '내부' : '외부'
 }
 
-// ── 스토어 ────────────────────────────────────────────────────────────────
+const CATEGORY_BY_KIND: Record<AgendaKind, ActivityCategoryCode> = {
+  visit: 'visit',
+  demo: 'demo',
+  edu: 'education',
+  call: 'call',
+  delivery: 'delivery',
+  booth: 'conference',
+  internal: 'internal',
+}
 
-let items: AgendaItem[] = agendaSeed.map((seed) => ({
-  ...seed,
-  date: iso(addDays(TODAY, seed.off)),
-}))
+const KIND_BY_CATEGORY: Record<ActivityCategoryCode, AgendaKind> = {
+  visit: 'visit',
+  demo: 'demo',
+  education: 'edu',
+  call: 'call',
+  delivery: 'delivery',
+  conference: 'booth',
+  internal: 'internal',
+}
 
+const ACTION_TAG_BY_STATUS: Record<ScheduleStatus, ActivityActionTagCode> = {
+  '첫 전화': 'first_call',
+  미팅: 'meeting',
+  '데모 요청': 'demo_requested',
+  '데모 진행': 'demo_in_progress',
+  '데모 완료': 'demo_completed',
+  견적완료: 'quote_completed',
+  계약완료: 'contract_completed',
+  제품교육: 'product_training',
+  납품완료: 'delivery_completed',
+  내부회의: 'internal_meeting',
+  주간점검: 'weekly_review',
+  월간점검: 'monthly_review',
+  분기점검: 'quarterly_review',
+  컨퍼런스: 'conference',
+  OJT: 'ojt',
+}
+
+const STATUS_BY_ACTION_TAG = Object.fromEntries(
+  Object.entries(ACTION_TAG_BY_STATUS).map(([label, code]) => [code, label]),
+) as Record<ActivityActionTagCode, ScheduleStatus>
+
+const MINUTE = 60_000
+const DAY = 86_400_000
+const KST_OFFSET = 9 * 60 * MINUTE
+const PAGE_LIMIT = 100
+
+function kstIso(value: number | Date): string {
+  const time = typeof value === 'number' ? value : value.getTime()
+  return `${new Date(time + KST_OFFSET).toISOString().slice(0, 19)}+09:00`
+}
+
+function kstParts(value: string): { date: string; time: string } {
+  const shifted = new Date(new Date(value).getTime() + KST_OFFSET).toISOString()
+  return { date: shifted.slice(0, 10), time: shifted.slice(11, 16) }
+}
+
+function durationMinutes(label: string): number | null {
+  const hours = /(\d+)\s*시간/.exec(label)
+  const minutes = /(\d+)\s*분/.exec(label)
+  const total = (hours ? Number(hours[1]) * 60 : 0) + (minutes ? Number(minutes[1]) : 0)
+  return total > 0 ? total : null
+}
+
+function durationLabel(start: string, end: string): string {
+  const minutes = Math.round((new Date(end).getTime() - new Date(start).getTime()) / MINUTE)
+  if (minutes <= 0) return ''
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${rest}분`
+  return rest === 0 ? `${hours}시간` : `${hours}시간 ${rest}분`
+}
+
+export function activityToAgenda(activity: ActivityRead): AgendaItem {
+  const start = kstParts(activity.starts_at)
+  return {
+    id: activity.id,
+    owner: activity.owner_display_name,
+    off: Math.round((parseISO(start.date).getTime() - TODAY.getTime()) / DAY),
+    date: start.date,
+    time: start.time,
+    dur: activity.all_day
+      ? '종일'
+      : activity.ends_at
+        ? durationLabel(activity.starts_at, activity.ends_at)
+        : '',
+    kind: KIND_BY_CATEGORY[activity.category_code],
+    hospital: activity.customer_company_name ?? '',
+    dept: activity.customer_contact_department ?? '',
+    contact: [activity.customer_contact_name, activity.customer_contact_job_title]
+      .filter(Boolean)
+      .join(' '),
+    product: activity.product_name ?? '',
+    stage: activity.action_tag ? STATUS_BY_ACTION_TAG[activity.action_tag] : undefined,
+    place: activity.location ?? '',
+    title: activity.title,
+    brief: activity.note ?? '',
+    history: [],
+    tags: [],
+    done: activity.completed_at !== null,
+    reported: false,
+    activityType: activity.activity_type,
+    customerContactId: activity.customer_contact_id,
+    customerContactName: activity.customer_contact_name ?? '',
+    salesDealId: activity.sales_deal_id,
+    productId: activity.product_id,
+    ownerMemberId: activity.owner_member_id,
+    startsAt: kstIso(new Date(activity.starts_at)),
+    endsAt: activity.ends_at ? kstIso(new Date(activity.ends_at)) : null,
+    allDay: activity.all_day,
+  }
+}
+
+function nullableText(value?: string): string | null {
+  const trimmed = value?.trim() ?? ''
+  return trimmed === '' ? null : trimmed
+}
+
+export function agendaToActivity(event: CalendarEvent): ActivityCreateRequest {
+  const start = new Date(`${event.date}T${event.time}:00+09:00`)
+  if (Number.isNaN(start.getTime())) throw new Error('invalid_activity_start')
+  const allDay = event.allDay ?? false
+  const minutes = durationMinutes(event.dur)
+  return {
+    customer_contact_id: event.customerContactId ?? null,
+    sales_deal_id: event.salesDealId ?? null,
+    product_id: event.productId ?? null,
+    activity_type: event.activityType ?? (event.kind === 'internal' ? 'task' : 'meeting'),
+    category_code: CATEGORY_BY_KIND[event.kind],
+    title: event.title.trim(),
+    starts_at: kstIso(start),
+    ends_at: allDay || minutes === null ? null : kstIso(start.getTime() + minutes * MINUTE),
+    all_day: allDay,
+    location: nullableText(event.place),
+    action_tag: event.stage ? ACTION_TAG_BY_STATUS[event.stage] : null,
+    note: nullableText(event.brief),
+  }
+}
+
+let items: AgendaItem[] = []
+let loading = true
+let loadError: string | null = null
+let loadedRange: string | null = null
+let loadPromise: Promise<void> | null = null
+let revision = 0
 const listeners = new Set<() => void>()
+
+function notify() {
+  revision += 1
+  for (const listener of listeners) listener()
+}
 
 function commit(next: AgendaItem[]) {
   items = next
   byDate = null
-  for (const notify of listeners) notify()
+  notify()
 }
 
-export function subscribeAgenda(notify: () => void) {
-  listeners.add(notify)
-  return () => {
-    listeners.delete(notify)
-  }
+export function subscribeAgenda(notifyListener: () => void) {
+  listeners.add(notifyListener)
+  return () => listeners.delete(notifyListener)
 }
 
 export function agendaSnapshot(): AgendaItem[] {
@@ -94,15 +231,52 @@ export function removeAgenda(id: string) {
   commit(items.filter((item) => item.id !== id))
 }
 
-// ── 파생 ──────────────────────────────────────────────────────────────────
+async function fetchAgenda(startDate: string, endDate: string): Promise<AgendaItem[]> {
+  // ponytail: 현재 소비 화면은 전건 집계가 필요합니다. 커지면 서버 요약 API로 바꿉니다.
+  const result: AgendaItem[] = []
+  let skip = 0
+  while (true) {
+    const { data } = await client.get<PageResponse<ActivityRead>>('/activities', {
+      params: { start_date: startDate, end_date: endDate, skip, limit: PAGE_LIMIT },
+    })
+    result.push(...data.items.map(activityToAgenda))
+    if (!data.has_more || data.next_skip === null) return result
+    if (data.next_skip <= skip) throw new Error('invalid_pagination')
+    skip = data.next_skip
+  }
+}
 
-// 날짜별 묶음은 훑을 때마다 다시 만들면 비쌉니다. commit 이 무효화합니다.
+export function loadAgenda(startDate: string, endDate: string, force = false): Promise<void> {
+  const rangeKey = `${startDate}:${endDate}`
+  if (loadPromise) {
+    return loadPromise.then(() => loadAgenda(startDate, endDate, force))
+  }
+  if (loadedRange === rangeKey && !force) return Promise.resolve()
+  commit([])
+  loading = true
+  loadError = null
+  notify()
+  loadPromise = fetchAgenda(startDate, endDate)
+    .then((next) => {
+      loadedRange = rangeKey
+      commit(next)
+    })
+    .catch((error: unknown) => {
+      loadError = errorMessage(error, '일정 목록을 불러오지 못했습니다.')
+    })
+    .finally(() => {
+      loading = false
+      loadPromise = null
+      notify()
+    })
+  return loadPromise
+}
+
 let byDate: Map<string, AgendaItem[]> | null = null
+const NONE: AgendaItem[] = []
 
-/** 날짜 키 → 그날의 일정(시간순) */
 export function agendaByDate(): Map<string, AgendaItem[]> {
   if (byDate) return byDate
-
   const map = new Map<string, AgendaItem[]>()
   for (const item of items) {
     const list = map.get(item.date)
@@ -110,56 +284,59 @@ export function agendaByDate(): Map<string, AgendaItem[]> {
     else map.set(item.date, [item])
   }
   for (const list of map.values()) list.sort((a, b) => a.time.localeCompare(b.time))
-
   byDate = map
   return map
 }
-
-// useAgendaFor 가 getSnapshot 으로 부르므로 빈 날에도 같은 배열을 돌려줘야 합니다.
-// 매번 새 [] 를 만들면 스냅샷이 늘 달라져 렌더가 멈추지 않습니다.
-const NONE: AgendaItem[] = []
 
 export function agendaFor(dateISO: string): AgendaItem[] {
   return agendaByDate().get(dateISO) ?? NONE
 }
 
-/**
- * 시작 시각과 소요로 끝나는 시각. '17:00' + '40분' → '17:40'.
- * '종일'처럼 분으로 읽히지 않는 소요는 빈 문자열입니다.
- */
 export function endTime(time: string, dur: string): string {
   const hours = /(\d+)\s*시간/.exec(dur)
   const mins = /(\d+)\s*분/.exec(dur)
   const total = (hours ? Number(hours[1]) * 60 : 0) + (mins ? Number(mins[1]) : 0)
   if (total <= 0) return ''
-
   const [h, m] = time.split(':').map(Number)
   if (Number.isNaN(h) || Number.isNaN(m)) return ''
-
-  // 자정을 넘기면 그날 안에서 말할 수 있는 시각이 아닙니다. 표시하지 않습니다.
   const end = h * 60 + m + total
   if (end >= 24 * 60) return ''
-
   return `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`
 }
 
-/** 일정 하나를 id 로 찾습니다. 미팅보고서 작성 화면이 ?agenda= 로 받은 값을 폅니다. */
 export function agendaById(id: string): AgendaItem | undefined {
   return items.find((item) => item.id === id)
 }
 
-// ── 구독 훅 ───────────────────────────────────────────────────────────────
+const DEFAULT_START_DATE = '2000-01-01'
+const DEFAULT_END_DATE = '2099-12-31'
 
-/** 전체 목록을 보고 스스로 거르는 화면용. 목록이 바뀌면 다시 그립니다. */
 export function useAgenda(): AgendaItem[] {
-  return useSyncExternalStore(subscribeAgenda, agendaSnapshot)
+  useEffect(() => {
+    void loadAgenda(DEFAULT_START_DATE, DEFAULT_END_DATE)
+  }, [])
+  return useSyncExternalStore(subscribeAgenda, agendaSnapshot, agendaSnapshot)
 }
 
-/**
- * 하루치 일정. 그날 목록이 그대로면 같은 배열을 돌려주어 헛렌더를 막습니다.
- * (agendaByDate 가 캐시를 들고 있어 getSnapshot 이 매번 새 배열을 만들지 않습니다.)
- */
+export function useAgendaState(startDate = DEFAULT_START_DATE, endDate = DEFAULT_END_DATE) {
+  useEffect(() => {
+    void loadAgenda(startDate, endDate)
+  }, [endDate, startDate])
+  useSyncExternalStore(
+    subscribeAgenda,
+    () => revision,
+    () => revision,
+  )
+  return {
+    items,
+    loading,
+    error: loadError,
+    reload: () => loadAgenda(startDate, endDate, true),
+  }
+}
+
 export function useAgendaFor(dateISO: string): AgendaItem[] {
+  useAgenda()
   const snapshot = useCallback(() => agendaFor(dateISO), [dateISO])
-  return useSyncExternalStore(subscribeAgenda, snapshot)
+  return useSyncExternalStore(subscribeAgenda, snapshot, snapshot)
 }

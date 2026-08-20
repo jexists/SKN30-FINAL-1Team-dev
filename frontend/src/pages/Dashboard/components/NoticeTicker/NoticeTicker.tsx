@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
-import { notices as defaultNotices, postedLabel } from '@/shared/notices'
+import { postedLabel } from '@/shared/notices'
 import type { Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
@@ -19,11 +19,7 @@ interface Props {
   onOpen: (notice: Notice) => void
 }
 
-export default function NoticeTicker({
-  label = '공지',
-  items: notices = defaultNotices,
-  onOpen,
-}: Props) {
+export default function NoticeTicker({ label = '공지', items: notices = [], onOpen }: Props) {
   const [page, setPage] = useState(0)
   const [paused, setPaused] = useState(false)
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')

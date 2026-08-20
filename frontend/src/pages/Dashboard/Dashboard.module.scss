@@ -18,3 +18,15 @@
   color: var(--ink-2);
   font-size: 13px;
 }
+
+.state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  color: var(--ink-2);
+}

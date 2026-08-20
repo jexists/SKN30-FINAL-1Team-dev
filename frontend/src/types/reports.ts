@@ -92,4 +92,63 @@ export interface DailyReportSeed {
 export interface DailyReport extends DailyReportSeed {
   /** YYYY-MM-DD */
   date: string
+  template: ReportTemplate
+}
+
+export type ApiReportKind = 'meeting' | 'daily' | 'weekly' | 'monthly'
+export type ApiReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
+
+export interface ReportActivityResponse {
+  activity_id: string
+  title: string
+  activity_type: string
+  starts_at: string
+}
+
+export interface ReportResponse {
+  id: string
+  author_member_id: string
+  author_display_name: string
+  recipient_member_id: string | null
+  recipient_display_name: string | null
+  source_activity_id: string | null
+  report_kind: ApiReportKind
+  report_date: string
+  period_start: string | null
+  period_end: string | null
+  status_code: ApiReportStatus
+  template_snapshot: Record<string, unknown>
+  content: Record<string, unknown>
+  transcript: string | null
+  note: string | null
+  activities: ReportActivityResponse[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ReportWriteRequest {
+  report_kind: ApiReportKind
+  report_date: string
+  period_start: string | null
+  period_end: string | null
+  source_activity_id: string | null
+  recipient_member_id: string | null
+  template_snapshot: ReportTemplate
+  content: Record<string, unknown>
+  transcript: string | null
+  note: string | null
+  activity_ids: string[]
+}
+
+export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'failed'
+
+export interface AgentRunResponse {
+  id: string
+  status_code: AgentRunStatus
+  output_snapshot: {
+    fields?: { field_id: string; value: string }[]
+    summary?: string
+  } | null
+  evidence: { summary?: string } | null
+  error_message: string | null
 }

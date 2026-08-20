@@ -10,14 +10,12 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import FilterSelect from '@/components/FilterSelect'
 import { UploadIcon } from '@/components/icons'
-import Modal from '@/components/Modal'
 import Pagination from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import type { DocumentCategory, SalesDocument } from '@/types'
-import { useOwnerScope } from '@/scope/scopeContext'
+import type { DocumentCategory } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
-import { latestOf, OWNERS } from './catalog'
+import { latestOf } from './catalog'
 import { compareBy, linkLabel, type SortState } from './columns'
 import CategoryTabs from './components/CategoryTabs'
 import DocumentDrawer from './components/DocumentDrawer'
@@ -39,27 +37,24 @@ const RANGES = [
 const DEFAULT_RANGE = '12'
 
 export default function Documents() {
-  const { documents, findDocument, addDocument, addVersion, removeDocument } = useDocuments()
+  const { documents, findDocument, loading, error, pending, reload, addDocument, addVersion } =
+    useDocuments()
   // 자료를 올리는 것은 팀장 몫입니다. 팀원은 받아 보기만 합니다.
   const { profile, isManager } = useCurrentUser()
-  // 자료는 최신 버전의 등록자를 그 자료의 담당으로 봅니다.
-  const { matchesOwner, showOwner, owners } = useOwnerScope()
+  const showOwner = isManager
 
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
   const owner = showOwner ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
 
-  const ownerOptions = useMemo(
-    () => [
+  const ownerOptions = useMemo(() => {
+    const names = [...new Set(documents.map((doc) => latestOf(doc).owner))].sort()
+    return [
       { value: '', label: '등록자 전체' },
-      ...OWNERS.filter((name) => owners.includes(name)).map((name) => ({
-        value: name,
-        label: name,
-      })),
-    ],
-    [owners],
-  )
+      ...names.map((name) => ({ value: name, label: name })),
+    ]
+  }, [documents])
   const category = params.get('category') ?? ''
 
   // 타이핑 중에도 입력이 밀리지 않도록 목록 계산만 한 박자 늦춥니다.
@@ -69,7 +64,6 @@ export default function Documents() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [openId, setOpenId] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
   /** 업로드 모달. 'new' 는 새 문서, 문서 id 면 그 문서의 새 버전입니다. */
   const [uploading, setUploading] = useState<string | null>(null)
@@ -98,7 +92,6 @@ export default function Documents() {
     const needle = deferredQuery.trim().toLowerCase()
     return documents.filter((doc) => {
       const latest = latestOf(doc)
-      if (!matchesOwner(latest.owner)) return false
       if (owner !== '' && latest.owner !== owner) return false
       if (fromISO !== null && latest.uploaded < fromISO) return false
       if (needle === '') return true
@@ -109,7 +102,7 @@ export default function Documents() {
         .toLowerCase()
         .includes(needle)
     })
-  }, [documents, matchesOwner, owner, fromISO, deferredQuery])
+  }, [documents, owner, fromISO, deferredQuery])
 
   const categoryCounts = useMemo(() => {
     const map = new Map<DocumentCategory, number>()
@@ -148,42 +141,55 @@ export default function Documents() {
     setPage(1)
   }, [setParams])
 
-  // 객체가 아니라 id 를 들고 목록에서 찾습니다. 열어 둔 자료를 지우면
-  // 여기가 비면서 드로어가 알아서 닫힙니다.
   const openDoc = openId ? findDocument(openId) : undefined
-  const deletingDoc = deletingId ? findDocument(deletingId) : undefined
   const versionTarget = uploading && uploading !== 'new' ? findDocument(uploading) : undefined
 
-  const onUpload = (results: UploadResult[]) => {
-    if (versionTarget) {
-      // 새 버전은 파일 하나만 올라옵니다.
-      const [result] = results
-      addVersion(versionTarget.id, result.file, profile.name, result.note)
-    } else {
-      // 나중에 올린 것이 위로 오도록 역순으로 넣습니다.
-      for (const result of [...results].reverse()) {
-        addDocument({
-          file: result.file,
-          owner: profile.name,
-          note: result.note,
-          title: result.title,
-          category: result.category,
-          link: result.link,
-          description: result.description,
-          tags: result.tags,
-        })
+  const onUpload = async (results: UploadResult[]) => {
+    try {
+      if (versionTarget) {
+        const [result] = results
+        await addVersion(versionTarget.id, result.file, profile.name, result.note)
+      } else {
+        for (const result of [...results].reverse()) {
+          await addDocument({
+            file: result.file,
+            owner: profile.name,
+            note: result.note,
+            title: result.title,
+            category: result.category,
+            link: result.link,
+            description: result.description,
+            tags: result.tags,
+          })
+        }
       }
+      setUploading(null)
+    } catch {
+      // 훅이 화면에 오류를 표시하며, 모달은 입력값 보존을 위해 그대로 둡니다.
     }
-    setUploading(null)
   }
 
   const isFiltered =
     query.trim() !== '' || owner !== '' || category !== '' || range !== DEFAULT_RANGE
 
   return (
-    <section className={styles.page}>
+    <section className={styles.page} aria-busy={loading || pending}>
       {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
       <h1 className="sr-only">자료실</h1>
+
+      {error && (
+        <div className={styles.state} role="alert">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={reload}>
+            다시 시도
+          </Button>
+        </div>
+      )}
+      {!error && loading && (
+        <p className={styles.state} role="status">
+          자료를 불러오는 중입니다.
+        </p>
+      )}
 
       <div className={styles.toolbar}>
         <SearchInput
@@ -216,7 +222,7 @@ export default function Documents() {
 
         {isManager && (
           <div className={styles.actions}>
-            <Button onClick={() => setUploading('new')}>
+            <Button disabled={pending} onClick={() => setUploading('new')}>
               <UploadIcon width={15} height={15} />
               파일 업로드
             </Button>
@@ -239,6 +245,7 @@ export default function Documents() {
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
         canUpload={isManager}
+        showOwner={showOwner}
         onUpload={() => setUploading('new')}
       />
 
@@ -263,62 +270,17 @@ export default function Documents() {
           onClose={() => setOpenId(null)}
           canUpload={isManager}
           onNewVersion={() => setUploading(openDoc.id)}
-          onDelete={() => {
-            setDeletingId(openDoc.id)
-            setOpenId(null)
-          }}
         />
       )}
 
       {uploading && (
         <UploadModal
           target={versionTarget}
+          submitting={pending}
           onClose={() => setUploading(null)}
           onSubmit={onUpload}
         />
       )}
-
-      {deletingDoc && (
-        <DeleteConfirm
-          doc={deletingDoc}
-          onClose={() => setDeletingId(null)}
-          onConfirm={() => {
-            removeDocument(deletingDoc.id)
-            setDeletingId(null)
-          }}
-        />
-      )}
     </section>
-  )
-}
-
-interface DeleteConfirmProps {
-  doc: SalesDocument
-  onClose: () => void
-  onConfirm: () => void
-}
-
-/** 지우기 전 한 번 묻습니다. 발주 목록과 같은 문구를 씁니다. */
-function DeleteConfirm({ doc, onClose, onConfirm }: DeleteConfirmProps) {
-  return (
-    <Modal
-      title="자료를 삭제할까요?"
-      description={`${doc.title}. 버전 ${doc.versions.length}개가 함께 사라지며 되돌릴 수 없습니다.`}
-      onClose={onClose}
-      footer={
-        <>
-          <Button type="button" variant="outline" onClick={onClose}>
-            취소
-          </Button>
-          <Button type="button" onClick={onConfirm}>
-            삭제
-          </Button>
-        </>
-      }
-    >
-      <p className={styles.confirm}>
-        {doc.category} · {latestOf(doc).fileName}
-      </p>
-    </Modal>
   )
 }

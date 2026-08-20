@@ -1,9 +1,3 @@
-// 시연용 합성 데이터입니다. 실제 고객·의료 데이터가 아닙니다.
-//
-// 이메일은 전부 @demo.test, 전화는 02-000-xxxx 로 두어 실재하는 연락처가
-// 섞이지 않게 합니다. 날짜는 오늘 기준 offset(일) 이라 시연이 낡지 않습니다.
-
-import { customerSeed } from '@/mocks'
 import type { Customer, CustomerSeed, CustomerSource, CustomerStatus } from '@/types'
 
 import { addDays, iso, parseISO, TODAY, TODAY_ISO } from '@/utils/date'
@@ -19,7 +13,7 @@ export const CUSTOMER_SOURCES: CustomerSource[] = [
   '기존 거래',
 ]
 
-export const CUSTOMER_OWNERS: string[] = [...new Set(customerSeed.map((c) => c.owner))].sort()
+export const CUSTOMER_OWNERS: string[] = []
 
 export function toCustomer(seed: CustomerSeed): Customer {
   const next = seed.nextOff === null ? null : iso(addDays(TODAY, seed.nextOff))
@@ -32,7 +26,7 @@ export function toCustomer(seed: CustomerSeed): Customer {
   }
 }
 
-export const customers: Customer[] = customerSeed.map(toCustomer)
+export const customers: Customer[] = []
 
 /** "3일 전" / "오늘" / "2일 뒤" — 목록에서 날짜 옆에 붙는 보조 라벨입니다. */
 export function relativeDayLabel(isoDate: string): string {

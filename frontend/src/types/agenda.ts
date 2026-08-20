@@ -74,6 +74,15 @@ export interface AgendaSeed {
 /** 실제 날짜 키가 붙은 일정 */
 export interface AgendaItem extends AgendaSeed {
   date: string
+  activityType?: ActivityTypeCode
+  customerContactId?: string | null
+  customerContactName?: string
+  salesDealId?: string | null
+  productId?: string | null
+  ownerMemberId?: string
+  startsAt?: string
+  endsAt?: string | null
+  allDay?: boolean
 }
 
 /**

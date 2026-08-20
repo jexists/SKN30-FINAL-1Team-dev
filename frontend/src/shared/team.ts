@@ -1,8 +1,7 @@
-// 팀 명부 도메인. 명부 시드는 mocks/ 에서 받습니다.
-import { TEAM } from '@/mocks'
 import type { TeamMember } from '@/types'
 
-export { TEAM }
+export const TEAM_API_ERROR = '팀 구성원과 매출 목표 조회 API가 백엔드에 제공되지 않습니다.'
+export const TEAM: TeamMember[] = []
 
 export function findMemberById(id: string): TeamMember | undefined {
   return TEAM.find((member) => member.id === id)

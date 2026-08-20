@@ -32,30 +32,6 @@
   }
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--red);
-}
-
-.isRecording {
-  border-style: solid;
-  border-color: var(--red);
-  background: var(--red-tint);
-  color: var(--red-ink);
-
-  .dot {
-    animation: pulse 1.1s ease-in-out infinite;
-  }
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.25;
-  }
-}
-
 .list {
   display: flex;
   flex-direction: column;

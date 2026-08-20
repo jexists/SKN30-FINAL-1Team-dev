@@ -5,7 +5,7 @@ import { useState } from 'react'
 
 import { ChevronDownIcon } from '@/components/icons'
 import Tabs from '@/components/Tabs'
-import type { Contract } from '@/types'
+import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import { fmtDotShort, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
 
@@ -21,7 +21,7 @@ interface GroupTableProps {
 }
 
 /** 확정이 아닌 계약만 배지를 답니다. 확정에 배지를 달면 목록이 배지로 가득 찹니다. */
-function StatusBadge({ status }: { status: Contract['status'] }) {
+function StatusBadge({ status }: { status: SalesDeal['status'] }) {
   if (status === '확정') return null
   return (
     <i className={`${styles.badge} ${status === '취소' ? styles.isCanceled : styles.isPending}`}>

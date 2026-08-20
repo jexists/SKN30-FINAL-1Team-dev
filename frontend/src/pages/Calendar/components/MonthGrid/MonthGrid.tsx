@@ -2,7 +2,6 @@ import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 
 import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
-import { orders } from '@/shared/orders'
 import type { CalendarEvent } from '@/types'
 import {
   addDays,
@@ -28,6 +27,7 @@ interface Props {
   cursor: Date
   selectedISO: string
   eventsByDate: Map<string, CalendarEvent[]>
+  deliveriesByDate: Map<string, number>
   /** 추천 카드에 올려 둔 동안 미리 보여 줄 자리. 없으면 null 입니다. */
   ghost: Ghost | null
   /** 방금 추가되어 한 번 강조할 일정 */
@@ -43,16 +43,11 @@ interface Props {
   onGrabEvent: (pointer: ReactPointerEvent, event: CalendarEvent) => void
 }
 
-// orders 는 고정 데이터라 매 렌더마다 세지 않고 한 번만 집계합니다.
-const deliveriesByDate = orders.reduce<Map<string, number>>(
-  (map, o) => map.set(o.expect, (map.get(o.expect) ?? 0) + 1),
-  new Map(),
-)
-
 export default function MonthGrid({
   cursor,
   selectedISO,
   eventsByDate,
+  deliveriesByDate,
   ghost,
   justAddedId,
   dragging,

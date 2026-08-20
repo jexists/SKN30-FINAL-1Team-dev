@@ -2,10 +2,10 @@
 import { Link, useParams } from 'react-router'
 
 import AttachmentPanel from '@/components/AttachmentPanel'
+import Button from '@/components/Button'
 import { ChevronLeftIcon } from '@/components/icons'
 import ReportFields from '@/components/ReportFields'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
-import { meetingTemplate } from '@/shared/meetings'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import MeetingFacts from './components/MeetingFacts'
@@ -15,9 +15,29 @@ import styles from './Detail.module.scss'
 
 export default function Detail() {
   const { reportId } = useParams()
-  const { findReport } = useMeetingReports()
+  const { findReport, loading, error, reload } = useMeetingReports()
 
   const report = reportId ? findReport(reportId) : undefined
+
+  if (loading)
+    return (
+      <p className={styles.missing} role="status">
+        미팅보고서를 불러오는 중입니다.
+      </p>
+    )
+
+  if (error) {
+    return (
+      <section>
+        <p className={styles.missing} role="alert">
+          {error}
+        </p>
+        <Button variant="outline" onClick={reload}>
+          다시 시도
+        </Button>
+      </section>
+    )
+  }
 
   if (!report) {
     return (
@@ -72,7 +92,11 @@ export default function Detail() {
 
         <article className={styles.panel}>
           <h2>구조화 결과</h2>
-          <ReportFields template={meetingTemplate} values={report.values} readOnly />
+          {report.template.fields.length === 0 ? (
+            <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
+          ) : (
+            <ReportFields template={report.template} values={report.values} readOnly />
+          )}
           {report.evidence && <p className={styles.evidence}>{report.evidence}</p>}
         </article>
 

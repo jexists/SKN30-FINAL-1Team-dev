@@ -11,7 +11,7 @@ import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
 import { meetingReportPath, ROUTES } from '@/constants/routes'
-import { agendaById } from '@/shared/agenda'
+import { useAgendaState } from '@/shared/agenda'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import MeetingFacts from './components/MeetingFacts'
@@ -28,15 +28,46 @@ export default function Compose() {
   const navigate = useNavigate()
 
   const agendaId = params.get('agenda') ?? ''
-  const item = agendaId ? agendaById(agendaId) : undefined
+  const {
+    items: agenda,
+    loading: agendaLoading,
+    error: agendaError,
+    reload: reloadAgenda,
+  } = useAgendaState()
+  const item = agendaId ? agenda.find((entry) => entry.id === agendaId) : undefined
 
-  const { findByAgenda, saveReport, saveDraft } = useMeetingReports()
+  const { findByAgenda, saveReport, saveDraft, loading, error, pending, reload } =
+    useMeetingReports()
   const saved = agendaId ? findByAgenda(agendaId) : undefined
+  const locked = saved?.status === '확정'
 
   const draft = useMeetingDraft(item, saved)
 
   const [confirm, setConfirm] = useState<Confirm>(null)
   const [savedNote, setSavedNote] = useState(false)
+
+  if (agendaLoading || loading) {
+    return <p role="status">미팅 기록을 불러오는 중입니다.</p>
+  }
+
+  if (agendaError || error) {
+    return (
+      <section>
+        <p className={styles.notFound} role="alert">
+          {agendaError ?? error}
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => {
+            reloadAgenda()
+            reload()
+          }}
+        >
+          다시 시도
+        </Button>
+      </section>
+    )
+  }
 
   // 일정이 없으면 무엇에 대한 기록인지 알 수 없습니다. 빈 폼을 띄우지 않습니다.
   if (!item) {
@@ -53,6 +84,7 @@ export default function Compose() {
 
   const payload: MeetingDraftPayload = {
     agendaId: item.id,
+    template: draft.template,
     date: item.date,
     time: item.time,
     hospital: item.hospital,
@@ -67,19 +99,33 @@ export default function Compose() {
     evidence: draft.evidence,
   }
 
+  const runGenerate = async () => {
+    try {
+      const report = await saveDraft(payload)
+      await draft.generate(report.id)
+    } catch {
+      // 저장 훅이 오류를 표시합니다.
+    }
+  }
+
   const onGenerate = () => {
     // 사람이 손댄 항목이 있으면 덮어써도 되는지 먼저 묻습니다.
     if (draft.phase === 'ready' && draft.dirtyIds.size > 0) {
       setConfirm({ kind: 'regenerate' })
       return
     }
-    draft.generate()
+    void runGenerate()
   }
 
-  const onSave = () => {
-    const report = saveReport(payload)
-    setConfirm(null)
-    navigate(meetingReportPath(report.id))
+  const onSave = async () => {
+    if (locked) return
+    try {
+      const report = await saveReport(payload)
+      setConfirm(null)
+      navigate(meetingReportPath(report.id))
+    } catch {
+      // 훅이 같은 화면에 오류를 표시합니다.
+    }
   }
 
   const generateLabel =
@@ -129,12 +175,17 @@ export default function Compose() {
           <Button
             variant="outline"
             type="button"
-            onClick={() => {
-              saveDraft(payload)
-              setSavedNote(true)
+            disabled={pending || locked}
+            onClick={async () => {
+              try {
+                await saveDraft(payload)
+                setSavedNote(true)
+              } catch {
+                setSavedNote(false)
+              }
             }}
           >
-            임시저장
+            {pending ? '저장 중…' : '임시저장'}
           </Button>
         </div>
       </header>
@@ -145,9 +196,8 @@ export default function Compose() {
 
       {saved?.status === '확정' && (
         <p className={styles.locked}>
-          이 미팅은 이미 기록했습니다.{' '}
-          <Link to={meetingReportPath(saved.id)}>기록한 보고서 열기</Link> · 아래에서 고쳐 다시
-          확정할 수 있습니다.
+          이 미팅 기록은 이미 제출되어 수정할 수 없습니다.{' '}
+          <Link to={meetingReportPath(saved.id)}>기록한 보고서 열기</Link>
         </p>
       )}
 
@@ -176,12 +226,10 @@ export default function Compose() {
               <span className={styles.pill}>선택 사항</span>
             </div>
 
-            <AttachmentPanel
-              attachments={draft.attachments}
-              note="녹취·사진·PDF를 넣으면 구조화가 더 정확해집니다. 없으면 아래에 직접 적으세요."
-              onAttach={draft.attach}
-              onRemove={draft.removeAttachment}
-            />
+            <p className={styles.missing} role="alert">
+              보고서 첨부 업로드·분석 API가 없어 파일을 추가할 수 없습니다.
+            </p>
+            <AttachmentPanel attachments={draft.attachments} readOnly />
           </article>
 
           <article className={styles.panel}>
@@ -189,7 +237,7 @@ export default function Compose() {
               <h2>미팅 내용</h2>
             </div>
             <p className={styles.panelNote}>
-              녹취가 없으면 기억나는 대로 적어도 됩니다. 이 내용과 첨부가 구조화의 근거입니다.
+              기억나는 미팅 내용을 적으세요. 이 내용이 구조화의 근거가 됩니다.
             </p>
 
             <label className="sr-only" htmlFor="transcript">
@@ -209,21 +257,14 @@ export default function Compose() {
             <Button
               type="button"
               onClick={onGenerate}
-              disabled={!draft.canGenerate || draft.phase === 'generating'}
+              disabled={pending || locked || !draft.canGenerate || draft.phase === 'generating'}
             >
               {generateLabel}
             </Button>
-            <p className={styles.basis}>
-              {draft.canGenerate ? basis : '녹취를 올리거나 미팅 내용을 입력하세요.'}
-            </p>
-            {draft.analyzingCount > 0 && (
-              <p className={styles.hint}>
-                분석 중인 첨부 {draft.analyzingCount}건은 이번 정리에서 빠집니다.
-              </p>
-            )}
-            {draft.staleAttachments && draft.phase === 'ready' && (
-              <p className={styles.hint}>
-                새로 분석된 자료가 있습니다. 다시 구조화하면 반영됩니다.
+            <p className={styles.basis}>{draft.canGenerate ? basis : '미팅 내용을 입력하세요.'}</p>
+            {draft.generationError && (
+              <p className={styles.missing} role="alert">
+                {draft.generationError}
               </p>
             )}
           </div>
@@ -236,13 +277,14 @@ export default function Compose() {
               <span className={styles.pill}>확인 필요</span>
             </div>
             <p className={styles.panelNote}>
-              {draft.template.owner}이 지정한 양식 · 항목 {draft.template.fields.length}개 · 확정
-              전까지 고객 히스토리와 업무보고에 반영되지 않습니다.
+              {draft.template.owner ? `${draft.template.owner} 지정` : '기본 화면'} 양식 · 항목{' '}
+              {draft.template.fields.length}개 · 확정 전까지 고객 히스토리와 업무보고에 반영되지
+              않습니다.
             </p>
 
             {draft.phase === 'idle' && (
               <div className={styles.blank}>
-                <p>왼쪽에 녹취를 올리거나 미팅 내용을 적은 뒤 “AI로 구조화”를 누르세요.</p>
+                <p>왼쪽에 미팅 내용을 적은 뒤 “AI로 구조화”를 누르세요.</p>
                 <p className={styles.blankSub}>직접 입력해서 채워도 됩니다.</p>
               </div>
             )}
@@ -276,7 +318,7 @@ export default function Compose() {
             <Button
               type="button"
               className={styles.submit}
-              disabled={draft.missing.length > 0}
+              disabled={locked || draft.missing.length > 0}
               onClick={() => setConfirm({ kind: 'save' })}
             >
               확정하고 저장
@@ -299,7 +341,7 @@ export default function Compose() {
                 type="button"
                 onClick={() => {
                   setConfirm(null)
-                  draft.generate()
+                  void runGenerate()
                 }}
               >
                 다시 구조화
@@ -324,8 +366,8 @@ export default function Compose() {
               <Button variant="outline" type="button" onClick={() => setConfirm(null)}>
                 취소
               </Button>
-              <Button type="button" onClick={onSave}>
-                확정
+              <Button type="button" disabled={pending} onClick={onSave}>
+                {pending ? '저장 중…' : '확정'}
               </Button>
             </>
           }

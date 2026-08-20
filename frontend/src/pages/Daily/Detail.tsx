@@ -1,10 +1,10 @@
 import { Link, useParams } from 'react-router'
 
 import AttachmentPanel from '@/components/AttachmentPanel'
+import Button from '@/components/Button'
 import { ChevronLeftIcon } from '@/components/icons'
 import ReportFields from '@/components/ReportFields'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
-import { templateFor } from '@/shared/reports'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import ActivityList from './components/ActivityList'
@@ -16,9 +16,29 @@ import styles from './Detail.module.scss'
 
 export default function Detail() {
   const { reportId } = useParams()
-  const { findReport } = useDailyReports()
+  const { findReport, loading, error, reload } = useDailyReports()
 
   const report = reportId ? findReport(reportId) : undefined
+
+  if (loading)
+    return (
+      <p className={styles.missing} role="status">
+        보고서를 불러오는 중입니다.
+      </p>
+    )
+
+  if (error) {
+    return (
+      <section>
+        <p className={styles.missing} role="alert">
+          {error}
+        </p>
+        <Button variant="outline" onClick={reload}>
+          다시 시도
+        </Button>
+      </section>
+    )
+  }
 
   if (!report) {
     return (
@@ -54,7 +74,11 @@ export default function Detail() {
       <div className={styles.panels}>
         <article className={styles.panel}>
           <h2>보고 내용</h2>
-          <ReportFields template={templateFor(report.kind)} values={report.values} readOnly />
+          {report.template.fields.length === 0 ? (
+            <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
+          ) : (
+            <ReportFields template={report.template} values={report.values} readOnly />
+          )}
         </article>
 
         <article className={styles.panel}>

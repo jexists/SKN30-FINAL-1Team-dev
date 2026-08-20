@@ -29,7 +29,6 @@ export default function AttachmentPanel({
   onRemove,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [recording, setRecording] = useState(false)
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
 
   const toggleExtract = (id: string) => {
@@ -40,16 +39,6 @@ export default function AttachmentPanel({
     })
   }
 
-  // 실제 녹음 대신 상태만 오갑니다. 멈추면 음성 파일 하나를 올린 것으로 칩니다.
-  const toggleRecording = () => {
-    if (recording) {
-      setRecording(false)
-      onAttach?.([new File([''], `방문메모_${Date.now()}.m4a`, { type: 'audio/mp4' })])
-      return
-    }
-    setRecording(true)
-  }
-
   return (
     <div>
       {!readOnly && (
@@ -57,15 +46,6 @@ export default function AttachmentPanel({
           <p className={styles.note}>{note}</p>
 
           <div className={styles.actions}>
-            <button
-              type="button"
-              className={`${styles.action} ${recording ? styles.isRecording : ''}`}
-              onClick={toggleRecording}
-            >
-              <span className={styles.dot} aria-hidden="true" />
-              {recording ? '녹음 중지' : '녹음 시작'}
-            </button>
-
             <button
               type="button"
               className={styles.action}

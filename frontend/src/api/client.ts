@@ -13,6 +13,8 @@ export const client = axios.create({
   baseURL: `${env.apiBaseUrl}/api`,
   timeout: 10_000,
   withCredentials: true,
+  // FastAPI의 list Query는 key=value&key=value 형식을 사용합니다.
+  paramsSerializer: { indexes: null },
 })
 
 /** 요청당 한 번만 재시도합니다. 무한 갱신 고리를 막습니다. */

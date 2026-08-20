@@ -38,6 +38,7 @@ export interface UploadResult {
 interface Props {
   /** 새 버전을 올릴 문서. 없으면 새 문서 등록입니다. */
   target?: SalesDocument
+  submitting?: boolean
   onClose: () => void
   /** 고른 파일 수만큼 한 건씩 넘어옵니다. */
   onSubmit: (results: UploadResult[]) => void
@@ -52,7 +53,7 @@ const pick = (file: File): Picked => ({
   category: guessCategory(file.name),
 })
 
-export default function UploadModal({ target, onClose, onSubmit }: Props) {
+export default function UploadModal({ target, submitting = false, onClose, onSubmit }: Props) {
   const isVersion = target !== undefined
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -73,6 +74,7 @@ export default function UploadModal({ target, onClose, onSubmit }: Props) {
   }
 
   const submit = () => {
+    if (submitting) return
     if (picked.length === 0) {
       setError('올릴 파일을 고르세요.')
       return
@@ -117,7 +119,9 @@ export default function UploadModal({ target, onClose, onSubmit }: Props) {
           <Button type="button" variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button type="submit">{isVersion ? '새 버전 등록' : '업로드'}</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? '업로드 중…' : isVersion ? '새 버전 등록' : '업로드'}
+          </Button>
         </>
       }
     >

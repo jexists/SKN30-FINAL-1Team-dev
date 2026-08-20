@@ -54,7 +54,7 @@ function toOrder(order: OrderResponse): ApiPurchaseOrder {
     no: order.order_no,
     salesDealId: order.sales_deal_id,
     salesDeal: order.deal_no,
-    // 공용 목업 발주 표시 로직이 아직 contract 필드를 사용합니다.
+    // 공용 발주 표시 로직이 contract 필드 이름을 사용합니다.
     contract: order.deal_no,
     customerCompanyId: order.customer_company_id,
     hospital: order.customer_company_name,

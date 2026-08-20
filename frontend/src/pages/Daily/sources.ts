@@ -10,16 +10,20 @@ import {
   meetingComposePath,
   meetingReportPath,
 } from '@/constants/routes'
-import { extraActivitySeed } from '@/mocks'
-import { agendaFor } from '@/shared/agenda'
-import type { DailyReport, MeetingReport, ReportActivity, ReportKind, ReportStatus } from '@/types'
+import type {
+  AgendaItem,
+  DailyReport,
+  MeetingReport,
+  ReportActivity,
+  ReportKind,
+  ReportStatus,
+} from '@/types'
 import {
   addDays,
   fmtDay,
   iso,
   parseISO,
   startOfWeek,
-  TODAY,
   TODAY_ISO,
   weekRangeLabel,
 } from '@/utils/date'
@@ -91,7 +95,11 @@ export function meetingLinkFor(agendaId: string, report: MeetingReport | undefin
  * 같은 일정이 두 줄이 되지 않게, 확정된 미팅보고서가 있으면 일정 원본 대신
  * 미팅보고서를 싣습니다. 기록한 내용이 일정 제목보다 정확합니다.
  */
-function dailySources(dateISO: string, meetings: MeetingReport[]): DraftSources {
+function dailySources(
+  dateISO: string,
+  meetings: MeetingReport[],
+  agendaItems: AgendaItem[],
+): DraftSources {
   const activities: ReportActivity[] = []
   const meta = new Map<string, SourceMeta>()
   const values = new Map<string, Record<string, string>>()
@@ -99,7 +107,7 @@ function dailySources(dateISO: string, meetings: MeetingReport[]): DraftSources 
   const byAgenda = new Map(meetings.map((report) => [report.agendaId, report]))
   const used = new Set<string>()
 
-  for (const item of agendaFor(dateISO)) {
+  for (const item of agendaItems.filter((entry) => entry.date === dateISO)) {
     const report = byAgenda.get(item.id)
 
     // 사내 업무는 일정 하나로 보고서를 따로 내지 않습니다. 일정 정보가 그대로 자료입니다.
@@ -164,14 +172,6 @@ function dailySources(dateISO: string, meetings: MeetingReport[]): DraftSources 
       to: meetingReportPath(report.id),
       label: '보고서 열기',
     })
-  }
-
-  // 캘린더 밖에서 붙는 활동(문서·후속). 날짜 offset 으로 들어 있습니다.
-  // parseISO 로 로컬 자정을 맞춥니다. Date.parse('YYYY-MM-DD') 는 UTC 로 읽어 하루 밀립니다.
-  const offset = Math.round((parseISO(dateISO).getTime() - TODAY.getTime()) / 86_400_000)
-  for (const extra of extraActivitySeed[offset] ?? []) {
-    activities.push({ ...extra, included: true })
-    meta.set(extra.id, { status: null })
   }
 
   return { activities, meta, values, pending: [] }
@@ -284,8 +284,9 @@ export function sourcesFor(
   dateISO: string,
   meetings: MeetingReport[],
   reports: DailyReport[],
+  agendaItems: AgendaItem[],
 ): DraftSources {
-  if (kind === '일일') return dailySources(dateISO, meetings)
+  if (kind === '일일') return dailySources(dateISO, meetings, agendaItems)
   return rollupSources(kind, dateISO, reports)
 }
 

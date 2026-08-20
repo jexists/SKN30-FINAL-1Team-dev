@@ -25,8 +25,6 @@ export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'u
 export interface SessionContextValue {
   session: Session | null
   status: SessionStatus
-  /** 합성 데이터 저장소를 쓸 수 없습니다. 백엔드 장애와 구분합니다. */
-  mockUnavailable: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }

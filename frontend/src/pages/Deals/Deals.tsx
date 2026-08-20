@@ -61,7 +61,7 @@ export default function Deals() {
     deleteSalesDeal,
   } = useSalesDeals(openId, requestedPipelineId || null, 'list')
   const { isManager } = useCurrentUser()
-  // 팀원은 서버가 본인 데이터로 제한합니다. mock 담당자 스코프는 요청에 싣지 않습니다.
+  // 팀원은 서버가 본인 데이터로 제한하므로 담당자 스코프를 요청에 싣지 않습니다.
   const showOwner = isManager
 
   const query = params.get('q') ?? ''

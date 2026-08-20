@@ -13,6 +13,7 @@ import { ko } from 'date-fns/locale'
 
 import { client } from '@/api/client'
 import Button from '@/components/Button'
+import { errorMessage } from '@/api/errorMessage'
 import { ChevronDownIcon, SearchIcon, TrashIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import { EXTERNAL_STATUSES, INTERNAL_STATUSES } from '@/shared/agenda'
@@ -412,6 +413,9 @@ function CustomerPicker({
   const [active, setActive] = useState(0)
   const [matches, setMatches] = useState<CustomerOption[]>([])
   const boxRef = useRef<HTMLDivElement>(null)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const listboxId = `customers-${useId().replaceAll(':', '')}`
   const errorId = `${listboxId}-error`
 
@@ -422,6 +426,8 @@ function CustomerPicker({
     if (!open) return
     const controller = new AbortController()
 
+    setLoading(true)
+    setLoadError(null)
     void client
       .get<PageResponse<CustomerContactResponse>>('/customer-contacts', {
         params: {
@@ -437,12 +443,17 @@ function CustomerPicker({
           setMatches(data.items.map(toCustomerOption))
         }
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setMatches([])
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) return
+        setMatches([])
+        setLoadError(errorMessage(reason, '고객 검색 결과를 불러오지 못했습니다.'))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
       })
 
     return () => controller.abort()
-  }, [deferredQuery, open])
+  }, [deferredQuery, open, reloadKey])
 
   const choose = (c: CustomerOption) => {
     onChange(c.name, c)
@@ -541,7 +552,6 @@ function CustomerPicker({
       )}
 
       {open &&
-        matches.length > 0 &&
         createPortal(
           <div
             id={listboxId}
@@ -550,27 +560,51 @@ function CustomerPicker({
             role="listbox"
             aria-label="고객"
           >
-            {matches.map((c, i) => (
-              <button
-                key={c.id}
-                id={`${listboxId}-${c.id}`}
-                type="button"
-                role="option"
-                aria-selected={c.id === selectedId}
-                className={`${styles.option} ${i === active ? styles.isActive : ''}`}
-                onPointerMove={() => setActive(i)}
-                // 목록은 입력칸 밖(body)에 있어, 누르는 순간 포커스가 빠지면
-                // 클릭이 닿기 전에 닫힙니다. 포커스를 입력에 붙들어 둡니다.
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => choose(c)}
-              >
-                <b>{c.name}</b>
-                <span>
-                  {c.org}
-                  {c.dept && ` · ${c.dept}`}
-                </span>
-              </button>
-            ))}
+            {loading && (
+              <p className={styles.option} role="status">
+                고객을 불러오는 중입니다.
+              </p>
+            )}
+            {!loading && loadError && (
+              <div className={styles.option} role="alert">
+                <span>{loadError}</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setReloadKey((value) => value + 1)}
+                >
+                  다시 시도
+                </Button>
+              </div>
+            )}
+            {!loading && !loadError && matches.length === 0 && (
+              <p className={styles.option}>검색 결과가 없습니다.</p>
+            )}
+            {!loading &&
+              !loadError &&
+              matches.map((c, i) => (
+                <button
+                  key={c.id}
+                  id={`${listboxId}-${c.id}`}
+                  type="button"
+                  role="option"
+                  aria-selected={c.id === selectedId}
+                  className={`${styles.option} ${i === active ? styles.isActive : ''}`}
+                  onPointerMove={() => setActive(i)}
+                  // 목록은 입력칸 밖(body)에 있어, 누르는 순간 포커스가 빠지면
+                  // 클릭이 닿기 전에 닫힙니다. 포커스를 입력에 붙들어 둡니다.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => choose(c)}
+                >
+                  <b>{c.name}</b>
+                  <span>
+                    {c.org}
+                    {c.dept && ` · ${c.dept}`}
+                  </span>
+                </button>
+              ))}
           </div>,
           document.body,
         )}

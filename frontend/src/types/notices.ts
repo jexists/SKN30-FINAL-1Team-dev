@@ -1,4 +1,5 @@
 export interface Notice {
+  id?: string
   tag: string
   author: string
   /** 올린 날. 오늘 기준 며칠이며 지난 일이므로 0 이하입니다. */
@@ -15,4 +16,19 @@ export interface Notice {
   imageAlt?: string
   /** 지시사항에만 붙는 기한. 공지에는 없습니다. */
   due?: string
+}
+
+export interface NoticeResponse {
+  id: string
+  scope: 'team' | 'personal'
+  author_member_id: string
+  author_display_name: string
+  recipient_member_id: string | null
+  tag: string | null
+  title: string
+  body: string
+  image_alt: string | null
+  published_at: string
+  due_at: string | null
+  due_text: string | null
 }

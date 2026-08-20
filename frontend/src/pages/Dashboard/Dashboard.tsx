@@ -1,12 +1,15 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import { directives } from '@/shared/notices'
 import type { AgendaItem, CalendarEvent, Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import EventModal from '@/pages/Calendar/components/EventModal'
 import useCalendarEvents, { DEFAULTS } from '@/pages/Calendar/useCalendarEvents'
+import useSupportRequests from '@/pages/Complaints/useSupportRequests'
+import useSalesDeals from '@/pages/Deals/useSalesDeals'
+import useOrderList from '@/pages/Orders/useOrderList'
+import { useNotices } from '@/shared/notices'
 import { addDays, iso, TODAY, TODAY_ISO } from '@/utils/date'
 
 import DayAgenda from './components/DayAgenda'
@@ -20,13 +23,9 @@ import { kpiList, type KpiListKey } from './drawerLists'
 
 import styles from './Dashboard.module.scss'
 
-// 주간 캘린더는 오늘을 왼쪽에서 셋째 칸에 둡니다. 주를 옮기면 보이는 범위의
-// 첫날을 고르게 해 선택이 화면 밖으로 나가지 않게 합니다.
 const rangeStart = (offset: number) => addDays(TODAY, -2 + offset * 7)
-
 const FLASH_MS = 1400
 
-/** 열려 있는 드로어. 한 번에 하나만 뜹니다. */
 type OpenDrawer =
   | { type: 'addEvent' }
   | { type: 'record'; item: AgendaItem }
@@ -34,18 +33,53 @@ type OpenDrawer =
   | { type: 'notice'; label: string; notice: Notice }
 
 export default function Dashboard() {
-  // 캘린더와 같은 일정 목록입니다. 여기서 등록한 것이 그쪽에도 그대로 있습니다.
-  const { addEvent, updateEvent, removeEvent } = useCalendarEvents()
+  const {
+    events,
+    loading: agendaLoading,
+    error: agendaError,
+    reload: reloadAgenda,
+    addEvent,
+    updateEvent,
+    removeEvent,
+    toggleComplete,
+  } = useCalendarEvents()
+  const {
+    notices,
+    directives,
+    loading: noticesLoading,
+    error: noticesError,
+    reload: reloadNotices,
+  } = useNotices()
+  const {
+    requests,
+    loading: supportLoading,
+    error: supportError,
+    reload: reloadSupport,
+  } = useSupportRequests(null)
+  const {
+    cards: deals,
+    loading: dealsLoading,
+    error: dealsError,
+    reload: reloadDeals,
+  } = useSalesDeals(null, null, 'list')
+  const {
+    orders,
+    loading: ordersLoading,
+    error: ordersError,
+    reload: reloadOrders,
+  } = useOrderList()
+
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
   const [weekOffset, setWeekOffset] = useState(0)
-  const [doneIds, setDoneIds] = useState<ReadonlySet<string>>(new Set())
   const [flash, setFlash] = useState(false)
   const [open, setOpen] = useState<OpenDrawer | null>(null)
-  /** 고치고 있는 일정. 캘린더와 같은 폼을 씁니다. */
   const [editing, setEditing] = useState<AgendaItem | null>(null)
-  /** 지우려는 일정. 되돌릴 수 없어 확인 모달을 한 장 더 거칩니다. */
   const [deleting, setDeleting] = useState<AgendaItem | null>(null)
 
+  const doneIds = useMemo(
+    () => new Set(events.filter((event) => event.done).map((event) => event.id)),
+    [events],
+  )
   const agendaRef = useRef<HTMLElement>(null)
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 
@@ -59,19 +93,16 @@ export default function Dashboard() {
     setSelectedISO(TODAY_ISO)
   }, [])
 
-  const toggleDone = useCallback((id: string) => {
-    // 메모리에만 둡니다. 저장하지 않으므로 새로고침하면 초기 상태로 돌아갑니다.
-    setDoneIds((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
-  }, [])
+  const toggleDone = useCallback(
+    (id: string) => {
+      const event = events.find((item) => item.id === id)
+      if (event) void toggleComplete(id, event.done).catch(() => undefined)
+    },
+    [events, toggleComplete],
+  )
 
   const closeDrawer = useCallback(() => setOpen(null), [])
 
-  // '오늘 방문 회사' 타일은 패널을 여는 대신 아젠다로 내려보냅니다.
-  // 답이 이미 페이지 안에 있어 잠깐 강조하는 것으로 충분합니다.
   const jumpToToday = useCallback(() => {
     goToday()
     agendaRef.current?.scrollIntoView({
@@ -82,14 +113,40 @@ export default function Dashboard() {
     setTimeout(() => setFlash(false), FLASH_MS)
   }, [goToday, reduceMotion])
 
+  const error = agendaError ?? noticesError ?? supportError ?? dealsError ?? ordersError
+  const loading = agendaLoading || noticesLoading || supportLoading || dealsLoading || ordersLoading
+
+  const reload = () => {
+    reloadAgenda()
+    reloadNotices()
+    reloadSupport()
+    reloadDeals()
+    reloadOrders()
+  }
+
   return (
-    <section>
-      {/* Topbar breadcrumb 이 이미 화면 이름을 말하므로, 이 제목은 스크린리더용
-          문서 개요만 잡습니다. */}
+    <section aria-busy={loading}>
       <h1 className="sr-only">영업 대시보드</h1>
 
+      {error && (
+        <div className={styles.state} role="alert">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={reload}>
+            다시 시도
+          </Button>
+        </div>
+      )}
+      {!error && loading && (
+        <p className={styles.state} role="status">
+          대시보드 데이터를 불러오는 중입니다.
+        </p>
+      )}
+
       <div className={styles.notices}>
-        <NoticeTicker onOpen={(notice) => setOpen({ type: 'notice', label: '공지', notice })} />
+        <NoticeTicker
+          items={notices}
+          onOpen={(notice) => setOpen({ type: 'notice', label: '공지', notice })}
+        />
         <NoticeTicker
           label="팀장 지시사항"
           items={directives}
@@ -98,6 +155,8 @@ export default function Dashboard() {
       </div>
 
       <SummaryBand
+        requests={requests}
+        deals={deals}
         onJumpToToday={jumpToToday}
         onOpenList={(key) => setOpen({ type: 'kpi', key })}
       />
@@ -125,8 +184,6 @@ export default function Dashboard() {
       {open?.type === 'addEvent' && (
         <EventModal
           mode="create"
-          // 영업 화면이라 새 일정은 미팅으로 열어 둡니다. DEFAULTS 의 'internal' 은
-          // 캘린더 인라인 추가(제목만 받는 자리)의 기본값이라 여기서는 뒤집습니다.
           draft={
             {
               ...DEFAULTS,
@@ -138,9 +195,8 @@ export default function Dashboard() {
           }
           onClose={closeDrawer}
           onSave={(event) => {
-            // id 는 스토어가 붙입니다. 모달이 들고 있던 빈 id 는 넘기지 않습니다.
             const { id: _id, ...draft } = event
-            addEvent(draft)
+            void addEvent(draft).catch(() => undefined)
             setSelectedISO(draft.date)
             closeDrawer()
           }}
@@ -148,12 +204,11 @@ export default function Dashboard() {
       )}
 
       {editing && (
-        // 삭제는 줄 메뉴에서 확인 모달을 거쳐 하므로 이 폼에는 걸지 않습니다.
         <EventModal
           draft={editing}
           onClose={() => setEditing(null)}
           onSave={(event) => {
-            updateEvent(event)
+            void updateEvent(event).catch(() => undefined)
             setSelectedISO(event.date)
             setEditing(null)
           }}
@@ -173,7 +228,7 @@ export default function Dashboard() {
               <Button
                 type="button"
                 onClick={() => {
-                  removeEvent(deleting.id)
+                  void removeEvent(deleting.id).catch(() => undefined)
                   setDeleting(null)
                 }}
               >
@@ -189,10 +244,24 @@ export default function Dashboard() {
       )}
 
       {open?.type === 'record' && (
-        <RecordDrawer item={open.item} done={doneIds.has(open.item.id)} onClose={closeDrawer} />
+        <RecordDrawer
+          item={open.item}
+          done={doneIds.has(open.item.id)}
+          deals={deals}
+          orders={orders}
+          relatedLoading={dealsLoading || ordersLoading}
+          relatedError={dealsError ?? ordersError}
+          onRetryRelated={() => {
+            reloadDeals()
+            reloadOrders()
+          }}
+          onClose={closeDrawer}
+        />
       )}
 
-      {open?.type === 'kpi' && <ListDrawer list={kpiList(open.key)} onClose={closeDrawer} />}
+      {open?.type === 'kpi' && (
+        <ListDrawer list={kpiList(open.key, requests, deals)} onClose={closeDrawer} />
+      )}
 
       {open?.type === 'notice' && (
         <NoticeDrawer label={open.label} notice={open.notice} onClose={closeDrawer} />

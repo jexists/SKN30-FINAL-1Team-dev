@@ -23,12 +23,8 @@ function loginErrorMessage(error: unknown): string {
   return errorMessage(error, '로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.')
 }
 
-// 브라우저 저장소를 쓸 수 없으면 합성 데이터 프로필을 고를 수 없습니다.
-const MOCK_UNAVAILABLE_MESSAGE =
-  '브라우저 저장소를 사용할 수 없어 데모 데이터를 준비하지 못했습니다. 시크릿 모드나 저장소 차단 설정을 확인해 주세요.'
-
 export default function Login() {
-  const { session, login, mockUnavailable } = useSession()
+  const { session, login } = useSession()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -42,8 +38,7 @@ export default function Login() {
   // 대시보드뿐이라 나머지로 되돌아가 봐야 404 를 만나기 때문입니다.
   if (session) return <Navigate to={ROUTES.DASHBOARD} replace />
 
-  // 저장소를 못 쓰는 건 자격증명 문제가 아니라 원인이 따로 있으므로 먼저 알립니다.
-  const message = mockUnavailable ? MOCK_UNAVAILABLE_MESSAGE : error
+  const message = error
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -97,7 +92,7 @@ export default function Login() {
       <div className={styles.panel}>
         <p className={styles.eyebrow}>Welcome back</p>
         <h2>현장으로 돌아가기</h2>
-        <p className={styles.lead}>SalesLuv 데모 계정으로 주요 영업 흐름을 확인하세요.</p>
+        <p className={styles.lead}>SalesLuv 백엔드 계정으로 로그인하세요.</p>
 
         <form onSubmit={onSubmit}>
           <div className={styles.field}>
@@ -140,9 +135,7 @@ export default function Login() {
           </Button>
         </form>
 
-        <p className={styles.footnote}>
-          시연용 합성 데이터입니다. 실제 개인정보는 포함되어 있지 않습니다.
-        </p>
+        <p className={styles.footnote}>인증과 업무 데이터는 백엔드에서 조회합니다.</p>
       </div>
     </section>
   )

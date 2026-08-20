@@ -10,8 +10,7 @@
     "typecheck": "tsc -b --noEmit",
     "format": "prettier --write src",
     "format:check": "prettier --check src",
-    "preview": "vite preview",
-    "check:mocks": "node scripts/check-mocks.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "axios": "^1.19.0",
