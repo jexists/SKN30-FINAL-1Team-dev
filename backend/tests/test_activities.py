@@ -709,7 +709,7 @@ def test_patch_cannot_set_completed_at():
         ActivityPatch(completed_at="2026-08-17T10:00:00+09:00")
 
 
-def test_complete_and_reopen_toggle_completed_at():
+def test_complete_sets_completed_at():
     member = _member()
     activity = _activity(member)
 
@@ -729,22 +729,8 @@ def test_complete_and_reopen_toggle_completed_at():
     assert "FOR UPDATE" in str(complete_db.statements[0])
     assert complete_db.flush_count == complete_db.commit_count == 1
 
-    reopen_db = _Db(
-        _Result(scalar=activity),
-        _Result(rows=[_row(activity, member)]),
-    )
-    with _client(reopen_db, member) as client:
-        reopened = client.post(
-            f"/api/activities/{activity.id}/reopen",
-            headers={"Origin": ORIGIN},
-        )
-    assert reopened.status_code == 200
-    assert reopened.json()["completed_at"] is None
-    assert activity.completed_at is None
-    assert reopen_db.flush_count == reopen_db.commit_count == 1
 
-
-def test_complete_and_reopen_reject_repeated_state():
+def test_complete_rejects_already_completed():
     member = _member()
     done = _activity(member)
     done.completed_at = NOW
@@ -760,17 +746,16 @@ def test_complete_and_reopen_reject_repeated_state():
     assert repeat_db.commit_count == 0
     assert repeat_db.rollback_count == 1
 
-    open_activity = _activity(member)
-    reopen_db = _Db(_Result(scalar=open_activity))
-    with _client(reopen_db, member) as client:
-        reopened = client.post(
-            f"/api/activities/{open_activity.id}/reopen",
+
+def test_reopen_endpoint_does_not_exist():
+    """유스케이스는 완료만 정의한다. 재개 endpoint 를 두지 않는다."""
+    member = _member()
+    with _client(_Db(), member) as client:
+        response = client.post(
+            f"/api/activities/{uuid4()}/reopen",
             headers={"Origin": ORIGIN},
         )
-    assert reopened.status_code == 409
-    assert reopened.json() == {"detail": "not_completed"}
-    assert reopen_db.commit_count == 0
-    assert reopen_db.rollback_count == 1
+    assert response.status_code == 404
 
 
 def test_complete_hides_other_scope_activity():

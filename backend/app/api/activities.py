@@ -627,27 +627,3 @@ async def complete_activity(
         await db.rollback()
         raise
     return read
-
-
-@router.post("/activities/{activity_id}/reopen", response_model=ActivityRead)
-async def reopen_activity(
-    activity_id: UUID,
-    member: CurrentMember,
-    db: DbSession,
-):
-    try:
-        activity = await _locked_activity(db, member, activity_id)
-        if activity.completed_at is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="not_completed",
-            )
-        activity.completed_at = None
-        activity.updated_at = datetime.now(UTC)
-        await db.flush()
-        read = _activity_read(*await _activity_row(db, member, activity_id))
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        raise
-    return read

@@ -12,7 +12,12 @@ from app.main import app
 from app.models.content import Report
 from app.models.crm import Activity
 from app.models.workspace import Member
-from app.schemas.reports import ReportCreate, ReportPageParams, ReportPatch
+from app.schemas.reports import (
+    ReportCreate,
+    ReportPageParams,
+    ReportPatch,
+    ReportSubmit,
+)
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
@@ -283,6 +288,33 @@ def test_create_starts_as_draft_and_ignores_client_status():
     assert body["activities"] == []
     assert response.headers["Location"] == f"/api/reports/{body['id']}"
     assert db.flush_count == db.commit_count == 1
+
+
+def test_changes_requested_report_is_editable_again():
+    """유스케이스 RPT-004: 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다."""
+    member = _member()
+    report = _report(member, status_code="changes_requested")
+
+    submit_db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+    )
+    with _client(submit_db, member) as client:
+        submitted = client.post(
+            f"/api/reports/{report.id}/submit",
+            headers={"Origin": ORIGIN},
+            json={"expected_status_code": "changes_requested"},
+        )
+    assert submitted.status_code == 200
+    assert submitted.json()["status_code"] == "submitted"
+    assert submit_db.commit_count == 1
+
+    # 검토 결과 상태는 팀원이 제출 시작점으로 쓸 수 없다.
+    with pytest.raises(ValidationError):
+        ReportSubmit(expected_status_code="approved")
+    with pytest.raises(ValidationError):
+        ReportSubmit(expected_status_code="rejected")
 
 
 def test_submitted_report_is_not_editable_or_deletable():

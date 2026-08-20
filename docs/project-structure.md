@@ -24,6 +24,7 @@ docs/
 ├── technical/   ERD·아키텍처 등 기술 자료
 ├── research/    실험·비교·검토 결과
 ├── meetings/    회의록
+├── legal/       서비스 이용약관·개인정보처리방침·법적고지 등 실사용 법적 문서
 └── references/  외부 제공 자료와 제출 양식 안내
 
 final/           제출이 끝난 자료

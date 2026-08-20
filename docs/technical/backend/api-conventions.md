@@ -3,7 +3,7 @@
 이 문서는 ERD 확정 이후 모든 SalesLuv 기능 API에 공통으로 적용할 백엔드 기준이다.
 
 - 데이터 기준: [SalesLuv 최종 ERD](../SalesLuv_ERD.md)
-- Agent 동작 기준: [SalesLuv 멀티에이전트 운영 플로우](../SalesLuv_멀티에이전트_운영_플로우.html)
+- Agent 동작 기준: [SalesLuv 멀티에이전트 운영 플로우](../multiagent/SalesLuv_멀티에이전트_운영_플로우.html)
 - 화면 기준: [SalesLuv 화면 기준](../../../demo/layout_v3.html)
 - 프론트 제안 원본: [대시보드 API 요구사항](dashboard-api-spec.md)
 
@@ -292,29 +292,33 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 발주 이동 | `POST /api/orders/{purchase_order_id}/move` | `expected_stage_code`, 목표 `stage_code` |
 | C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,skip,limit`; 상태 `in_progress|completed` |
 | C/S 전이·답변 | `POST /api/support-requests/{request_id}/transition`, `POST /api/support-requests/{request_id}/responses` | expected 상태 비교; 답변 생성 `201` |
-| 일정 완료 | `POST /api/activities/{activity_id}/complete`, `POST /api/activities/{activity_id}/reopen` | 본문 없음; 완료 시각은 서버가 정함 |
+| 일정 완료 | `POST /api/activities/{activity_id}/complete` | 본문 없음; 완료 시각은 서버가 정함 |
 | 보고서 | `GET/POST /api/reports`, `GET/PATCH/DELETE /api/reports/{report_id}` | 목록은 `q,report_kind,status_code,start_date,end_date,author_member_id,skip,limit` |
 | 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
 | 보고서 초안 실행 | `POST /api/agent-runs`, `GET /api/agent-runs/{agent_run_id}` | `202` + `Location` + `Retry-After`; polling 으로 상태 확인 |
+| 대시보드 | `GET /api/dashboard` | `date?,owner_member_id*?,notice_limit=3,renewal_within_days?`; 카드 집계와 주간 밴드를 한 번에 반환 |
 | 자료실 | `GET/POST /api/documents`, `GET/PATCH /api/documents/{document_id}` | 목록은 `q,category_code,customer_company_id,sales_deal_id,created_by_member_id,skip,limit` |
 | 자료 파일 | `POST /api/documents/{document_id}/files`, `GET /api/documents/{document_id}/files/{file_id}/download` | `multipart/form-data` 업로드; 다운로드는 짧은 서명 URL |
 
 ### 일정 완료 처리
 
 - 완료 여부는 `completed_at` 하나로 표현한다. 완료면 시각이 있고 아니면 `null`이다.
-- 완료 시각은 서버가 정하므로 두 endpoint 모두 요청 본문을 받지 않는다.
+- 완료 시각은 서버가 정하므로 요청 본문을 받지 않는다.
 - 일반 `PATCH /api/activities/{activity_id}`로는 `completed_at`을 바꿀 수 없다. 보내면 `422`다.
-- 이미 완료된 일정의 완료 요청은 `409 already_completed`, 완료되지 않은 일정의 재개 요청은 `409 not_completed`다.
+- 이미 완료된 일정의 완료 요청은 `409 already_completed`다.
+- 유스케이스가 완료만 정의하므로 완료 취소 endpoint 는 두지 않는다.
 - 조회 범위와 잠금 규칙은 일정 상세·수정과 같다.
 
 ### 보고서의 상태와 작성 범위
 
-- 보고서 종류는 `meeting`, `daily`, `weekly`, `monthly`다.
-- 상태는 `draft`, `submitted`, `approved`, `rejected`이며 현재 API가 만드는 값은 `draft`와 `submitted` 둘이다.
+- 보고서 종류는 유스케이스의 미팅·일자별·주간에 대응하는 `meeting`, `daily`, `weekly`다.
+- 상태는 `draft`, `submitted`, `approved`, `rejected`, `changes_requested`다. 검토 결과 세 가지는 유스케이스 RPT-004의 확인·반려·수정 요청에 대응한다.
+- 현재 API가 만드는 값은 `draft`와 `submitted` 둘이다. 검토 상태 전이는 팀장 기능이라 아직 없다.
 - 생성은 항상 `draft`로 시작한다. 요청으로 `status_code`나 작성자를 정할 수 없다.
-- 수정과 삭제는 `draft`에서만 허용하고 그 밖의 상태는 `409 report_not_editable`이다.
-- `weekly`, `monthly`는 `period_start`와 `period_end`가 모두 필요하고 `period_end >= period_start`여야 한다.
+- 수정과 삭제는 `draft`와 `changes_requested`에서만 허용하고 그 밖의 상태는 `409 report_not_editable`이다.
+- 제출은 `draft` 또는 `changes_requested`에서 시작한다. 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다.
+- `weekly`는 `period_start`와 `period_end`가 모두 필요하고 `period_end >= period_start`여야 한다.
 - `meeting`은 근거가 되는 `source_activity_id`가 필요하다.
 - `activity_ids`로 묶는 일정은 같은 팀에서 조회 가능한 일정만 허용하며 아니면 `404 activity_not_found`다.
 - 검토(`approved`, `rejected`)와 `reviewed_by_member_id` 설정은 팀장 기능이라 이번 범위에 없다.
@@ -345,7 +349,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 자료실은 팀 공유물이다. 같은 팀이면 팀원도 문서를 모두 조회한다.
 - 업로드는 `multipart/form-data`만 받는다. JSON base64 업로드는 없다.
 - 확장자, 선언 MIME, 실제 파일 signature 셋을 함께 검사한다. 하나라도 어긋나면 거절한다.
-- 허용 형식은 `.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.xlsx`, `.pptx`다. 실행 파일과 압축 파일은 받지 않는다.
+- 허용 형식은 멀티에이전트 운영 플로우의 자료실 입력인 `.pdf`, `.docx`, `.pptx`다. 실행 파일, 압축 파일과 HTML 은 받지 않는다.
 - 형식 위반은 `415`, 크기 초과는 `413`, 빈 파일과 잘못된 파일명은 `422`다.
 - 저장 경로는 서버가 만든다. 원본 파일명을 경로에 쓰지 않고 표시용으로만 보관한다.
 - `storage_key`는 어떤 응답에도 넣지 않는다. 다운로드는 매 요청마다 팀 권한을 검사한 뒤 짧게 사는 서명 URL을 발급한다.
@@ -394,6 +398,17 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 계약갱신 | `confirmed` 영업 딜의 계약 종료일을 기준으로 대상 수, 대표 고객사와 나머지 고객사 수를 반환한다. |
 | 매출 목표 | 목표 월, 목표 금액, 확정 매출액과 달성률을 반환한다. |
 | 주간 일정 | 화면에 표시할 시작일·종료일과 7일 각각의 일정 수·납기 수를 반환한다. 납기는 발주의 `expected_receipt_on`을 기준으로 센다. |
+
+### 대시보드 응답 규칙
+
+- `GET /api/dashboard` 하나로 카드 집계와 주간 밴드를 반환한다. 오늘 일정 목록은 `GET /api/activities`를 쓴다.
+- 한 요청의 모든 집계는 요청 시작 시각에 고정한 `as_of` 하나를 기준으로 한다.
+- 카드 숫자는 같은 조건의 목록 API `total`과 일치해야 한다. 구현은 각 도메인 라우터의 조회 범위 조건을 그대로 재사용한다.
+- 주간 밴드는 기준일이 셋째 칸에 오는 7일이며 `days`는 항상 7개다.
+- 계약갱신 항목은 계약 종료일과 계약서 번호를 함께 반환한다. `새봄정형외과 외 1곳` 같은 문장은 프론트가 조합한다.
+- 갱신 기준 일수는 서버가 정하지 않는다. `renewal_within_days`를 준 요청만 그 창으로 거르고, 생략하면 기준일 이후 만료 예정 전체를 센다. 응답의 `within_days`는 적용한 값이며 생략 시 `null`이다.
+- 매출 목표는 계약 상태를 구분해 확정 금액과 진행 중 금액을 함께 반환한다. 달성률은 확정 금액 기준이며 목표가 없으면 `null`이다.
+- 공지와 개인 지시는 담당자 범위와 무관하다. `owner_member_id`를 적용하지 않는다.
 | 선택 날짜 일정 | 미팅 목록과 업무 목록, 각각의 전체 수를 반환한다. |
 
 매출 목표는 다음과 같이 계산한다.
