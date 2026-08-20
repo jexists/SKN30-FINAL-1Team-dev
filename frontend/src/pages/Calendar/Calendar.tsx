@@ -14,8 +14,6 @@ import useCalendarEvents, { DEFAULTS } from './useCalendarEvents'
 
 import styles from './Calendar.module.scss'
 
-const SUGGESTION_API_ERROR = 'AI 추천 일정 조회 API가 백엔드에 제공되지 않습니다.'
-
 export default function Calendar() {
   const [cursor, setCursor] = useState(() => startOfMonth(TODAY))
   const {
@@ -151,7 +149,6 @@ export default function Calendar() {
             onDismiss={() => undefined}
             onGrab={() => undefined}
             onRefresh={() => undefined}
-            error={SUGGESTION_API_ERROR}
           />
         </div>
       </div>

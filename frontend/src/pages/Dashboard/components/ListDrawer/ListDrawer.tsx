@@ -86,11 +86,7 @@ export default function ListDrawer({
         ))
       }
     >
-      {list.error ? (
-        <p className={styles.empty} role="alert">
-          {list.error}
-        </p>
-      ) : list.rows.length === 0 ? (
+      {list.rows.length === 0 ? (
         <p className={styles.empty}>{list.empty ?? '표시할 항목이 없습니다.'}</p>
       ) : (
         list.rows.map((row) => {

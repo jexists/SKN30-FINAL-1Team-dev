@@ -46,7 +46,7 @@ export default function TargetGauge({ range, summary }: { range: Range; summary:
   const slices = toSlices(summary)
   // 목표가 없으면 gap 이 0 이라 '목표 초과'가 참이 되어 버립니다. 아무도 목표를 정하지
   // 않은 첫 세팅에서 목표를 넘겼다고 말하지 않게 목표 유무를 먼저 봅니다.
-  const hasTarget = summary.targetsAvailable && totals.target > 0
+  const hasTarget = totals.target > 0
   const over = hasTarget && totals.gap <= 0
   // 목표는 기간 전체를 덮습니다. 아직 끝나지 않은 기간이면 달성률이 낮게 나오는 것이
   // 정상이므로 그 사실을 적어 둡니다. 이 표시가 없으면 진행 중인 분기가 부진해 보입니다.
@@ -64,11 +64,7 @@ export default function TargetGauge({ range, summary }: { range: Range; summary:
         <p className={styles.value}>
           <strong className="tnum">{won(totals.actual)}</strong>
           <span className="tnum">
-            {!summary.targetsAvailable
-              ? '/ 목표 조회 API 없음'
-              : hasTarget
-                ? `/ 목표 ${won(totals.target)}`
-                : '/ 목표 미설정'}
+            {hasTarget ? `/ 목표 ${won(totals.target)}` : '/ 목표 미설정'}
           </span>
         </p>
         {hasTarget && (

@@ -2,8 +2,6 @@ import type { DailyReport, ReportKind, ReportTemplate } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
 export const APPROVERS: readonly string[] = []
-export const REPORT_CONFIGURATION_ERROR =
-  '보고 양식·결재자 조회 API가 없어 기본 화면 양식을 사용하며 제출 대상을 선택할 수 없습니다.'
 
 export const dailyTemplate: ReportTemplate = {
   id: 'builtin-daily',

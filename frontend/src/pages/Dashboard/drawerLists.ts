@@ -1,4 +1,5 @@
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
+import { followUps } from '@/shared/counters'
 import type { SupportRequestResponse } from '@/types'
 import { addDays, ddayLabel, fmtDay, parseISO, TODAY, TODAY_ISO } from '@/utils/date'
 import { won } from '@/utils/format'
@@ -25,7 +26,6 @@ export interface DrawerList {
   sub: string
   rows: DrawerListRow[]
   empty?: string
-  error?: string
 }
 
 export type KpiListKey = 'followUp' | 'cs' | 'renewal'
@@ -102,6 +102,30 @@ function renewalList(deals: SalesDeal[]): DrawerList {
   }
 }
 
+function followUpList(): DrawerList {
+  const late = followUps.filter((item) => item.dueOff < 0).length
+  const week = followUps.filter((item) => item.dueOff >= 0 && item.dueOff <= 7).length
+
+  return {
+    title: '미완료 후속업무',
+    sub: `지연 ${late}건 · 이번 주 마감 ${week}건`,
+    rows: [...followUps]
+      .sort((a, b) => a.dueOff - b.dueOff)
+      .map((item, index) => ({
+        key: `followUp-${index}`,
+        title: item.task,
+        titleNote: `${item.org} · ${item.who}`,
+        note: item.note,
+        tags: [
+          ...(item.dueOff < 0 ? [{ text: '지연', tone: 'risk' as const }] : []),
+          { text: `마감 ${fmtDay(addDays(TODAY, item.dueOff))}` },
+        ],
+        side: { strong: ddayLabel(item.dueOff), late: item.dueOff < 0, numeric: true },
+      })),
+    empty: '미완료 후속업무가 없습니다.',
+  }
+}
+
 export function kpiList(
   key: KpiListKey,
   requests: SupportRequestResponse[],
@@ -109,10 +133,5 @@ export function kpiList(
 ): DrawerList {
   if (key === 'cs') return csList(requests)
   if (key === 'renewal') return renewalList(deals)
-  return {
-    title: '미완료 후속업무',
-    sub: '백엔드 조회 계약 필요',
-    rows: [],
-    error: '후속업무 전용 조회 API와 식별 필드가 백엔드에 제공되지 않습니다.',
-  }
+  return followUpList()
 }

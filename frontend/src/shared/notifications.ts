@@ -1,7 +1,5 @@
 import type { AppNotification } from '@/types'
 
-export const NOTIFICATION_API_ERROR = '알림 조회 API가 백엔드에 제공되지 않습니다.'
-
 const EMPTY_NOTIFICATIONS: AppNotification[] = []
 
 export function markRead(_id: string) {

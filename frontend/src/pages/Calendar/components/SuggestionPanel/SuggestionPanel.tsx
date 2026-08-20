@@ -23,7 +23,6 @@ interface Props {
   onRefresh: () => void
   /** 다시 받아 오는 중. 아이콘이 돌고 버튼은 잠깁니다. */
   refreshing?: boolean
-  error?: string | null
 }
 
 export default function SuggestionPanel({
@@ -35,7 +34,6 @@ export default function SuggestionPanel({
   onGrab,
   onRefresh,
   refreshing = false,
-  error = null,
 }: Props) {
   // 무엇을 보고 고른 추천인지는 한 번 읽으면 그만입니다. 카드보다 먼저 자리를
   // 차지하지 않도록 물음표 하나로 접어 두고 눌렀을 때만 폅니다.
@@ -80,7 +78,7 @@ export default function SuggestionPanel({
           type="button"
           className={`${styles.refresh} ${refreshing ? styles.isSpinning : ''}`}
           onClick={onRefresh}
-          disabled={refreshing || error !== null}
+          disabled={refreshing}
           aria-label="AI 추천 새로고침"
         >
           <RefreshIcon width={15} height={15} />
@@ -88,11 +86,7 @@ export default function SuggestionPanel({
         </button>
       </header>
 
-      {error ? (
-        <div className={styles.empty} role="alert">
-          <p>{error}</p>
-        </div>
-      ) : refreshing ? (
+      {refreshing ? (
         <div className={styles.empty}>
           <p>추천을 새로 받는 중입니다.</p>
         </div>

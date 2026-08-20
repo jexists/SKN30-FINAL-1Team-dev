@@ -55,7 +55,7 @@ export default function Sales() {
 
   const exportCsv = () => {
     // 상품에는 목표가 없습니다. 빈 목표를 0으로 내보내면 달성률 0% 로 읽힙니다.
-    const withTarget = grouped.targetsAvailable && hasTarget(by)
+    const withTarget = hasTarget(by)
     const headers = [
       GROUP_HEADER[by],
       '건수',

@@ -4,8 +4,10 @@ import { ArrowDownIcon } from '@/components/icons'
 import { ROUTES } from '@/constants/routes'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import { agendaFor, useAgenda } from '@/shared/agenda'
+import { followUps, salesGoal } from '@/shared/counters'
+import { monthlyTotal } from '@/shared/salesTargets'
 import type { SupportRequestResponse } from '@/types'
-import { addDays, endOfMonth, iso, startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
+import { addDays, ddayLabel, endOfMonth, iso, startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import type { KpiListKey } from '../../drawerLists'
@@ -69,7 +71,20 @@ export default function SummaryBand({ requests, deals, onJumpToToday, onOpenList
       ? sum + deal.amount
       : sum
   }, 0)
+  const lateFollowUps = followUps.filter((item) => item.dueOff < 0).length
+  const weekFollowUps = followUps.filter((item) => item.dueOff >= 0 && item.dueOff <= 7).length
+  // 목표는 조직이 회사별로 정해 둔 값의 합이고, 아직 아무도 정하지 않았으면 0 입니다.
+  const target = monthlyTotal
+  const hasTarget = target > 0
   const month = TODAY.getMonth() + 1
+  // 이 달 말일까지 남은 일수. 말일이면 0 이고 ddayLabel 이 '오늘'로 읽습니다.
+  const daysLeft = endOfMonth(TODAY).getDate() - TODAY.getDate()
+  const percent = hasTarget ? (achieved / target) * 100 : 0
+  const over = hasTarget && achieved >= target
+  // 목표를 넘기면 트랙이 100%가 아니라 달성률 전체를 담습니다. 그래야 막대가 잘리지 않고
+  // 100% 눈금이 트랙 안쪽에 남아 "얼마나 넘었는지"가 길이로 읽힙니다.
+  const trackMax = Math.max(percent, 100)
+  const surplus = hasTarget ? achieved - target : 0
 
   return (
     <div className={styles.summary}>
@@ -86,9 +101,9 @@ export default function SummaryBand({ requests, deals, onJumpToToday, onOpenList
 
       <Tile
         label="미완료 후속업무"
-        delta={{ text: 'API 필요', tone: 'warn' }}
-        value="—"
-        sub="후속업무 조회 계약 없음"
+        delta={{ text: `${lateFollowUps} 지연`, tone: 'warn' }}
+        value={followUps.length}
+        sub={`이번 주 마감 ${weekFollowUps}건`}
         onOpen={() => onOpenList('followUp')}
       />
       <Tile
@@ -112,21 +127,50 @@ export default function SummaryBand({ requests, deals, onJumpToToday, onOpenList
         onOpen={() => onOpenList('renewal')}
       />
 
+      {/* 목표 대비 어디쯤인지까지가 이 타일의 몫이고, 무엇이 그 숫자를 만들었는지는
+          매출 분석에 있습니다. 그래서 이 타일만 드로어 대신 그 화면으로 넘깁니다. */}
       <Link
         to={ROUTES.SALES}
-        className={styles.goal}
-        aria-label={`${month}월 확정 매출. 매출 분석 열기`}
+        className={[styles.goal, over && styles.over].filter(Boolean).join(' ')}
+        aria-label={`${month}월 매출 목표${over ? ' — 목표 달성' : ''}. 매출 분석 열기`}
       >
         <div className={styles.goalHead}>
-          <span>{month}월 확정 매출</span>
-          <strong className="tnum">목표 API 없음</strong>
+          <span>{month}월 매출 목표</span>
+          {over && <i className={styles.delta}>목표 달성</i>}
+          <strong className="tnum">{hasTarget ? `${percent.toFixed(1)}%` : '—'}</strong>
         </div>
+        {/* 목표가 없으면 견줄 기준이 없습니다. 0을 목표로 적으면 달성률 0%가 부진으로
+            읽히므로, 실적 대신 아직 정해지지 않았다는 사실을 그대로 말합니다. */}
         <p className={`${styles.goalValue} tnum`}>
-          {won(achieved)} <em>/ 목표 미연결</em>
+          {hasTarget ? (
+            <>
+              {won(achieved)} <em>/ {won(target)}</em>
+            </>
+          ) : (
+            <em>목표 미설정</em>
+          )}
         </p>
+        <div
+          className={styles.goalTrack}
+          style={
+            {
+              '--p': `${(percent / trackMax) * 100}%`,
+              // 트랙 안에서의 100% 눈금 위치와, 막대 안에서 색이 갈리는 지점.
+              '--mark': `${(100 / trackMax) * 100}%`,
+              // 실적이 0이면 나눌 지점이 없습니다. 막대 전체를 미달성 색으로 둡니다.
+              '--split': percent > 0 ? `${(100 / percent) * 100}%` : '100%',
+            } as React.CSSProperties
+          }
+        >
+          <i />
+        </div>
         <div className={styles.goalFoot}>
-          <span>영업딜 API 기준</span>
-          <span>계약 목표 조회 계약 필요</span>
+          <span>{salesGoal.teamName}</span>
+          <span className={`tnum ${surplus > 0 ? styles.surplus : ''}`}>
+            {/* 딱 맞춰 달성한 경우엔 초과분 대신 남은 기간을 그대로 둡니다.
+                '초과 +₩0' 은 읽는 사람에게 아무것도 알려 주지 않습니다. */}
+            {surplus > 0 ? `목표 초과 +${won(surplus)}` : `마감 ${ddayLabel(daysLeft)}`}
+          </span>
         </div>
       </Link>
     </div>

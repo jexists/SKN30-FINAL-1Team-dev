@@ -15,7 +15,6 @@ export interface SalesGroup {
 
 export interface SalesSummary {
   groups: SalesGroup[]
-  targetsAvailable: boolean
   totals: {
     target: number
     actual: number
@@ -86,7 +85,6 @@ export default function useSalesSummary(
 
     return {
       groups,
-      targetsAvailable: false,
       totals: {
         target: 0,
         actual,

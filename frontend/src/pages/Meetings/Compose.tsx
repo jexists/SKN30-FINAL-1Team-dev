@@ -226,9 +226,6 @@ export default function Compose() {
               <span className={styles.pill}>선택 사항</span>
             </div>
 
-            <p className={styles.missing} role="alert">
-              보고서 첨부 업로드·분석 API가 없어 파일을 추가할 수 없습니다.
-            </p>
             <AttachmentPanel attachments={draft.attachments} readOnly />
           </article>
 

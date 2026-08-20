@@ -11,7 +11,7 @@ import Button, { buttonClass } from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
-import { APPROVERS, REPORT_CONFIGURATION_ERROR } from '@/shared/reports'
+import { APPROVERS } from '@/shared/reports'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
@@ -338,9 +338,6 @@ export default function Compose() {
               <span className={styles.pill}>선택 사항</span>
             </div>
 
-            <p className={styles.missing} role="alert">
-              보고서 첨부 업로드·분석 API가 없어 파일을 추가할 수 없습니다.
-            </p>
             <AttachmentPanel attachments={draft.attachments} readOnly />
           </article>
 
@@ -410,18 +407,11 @@ export default function Compose() {
                 value={draft.approver}
                 onChange={(event) => draft.setApprover(event.target.value)}
               >
-                <option value="">조회 API 없음</option>
                 {APPROVERS.map((name) => (
                   <option key={name}>{name}</option>
                 ))}
               </select>
             </label>
-
-            {APPROVERS.length === 0 && (
-              <p className={styles.missing} role="alert">
-                {REPORT_CONFIGURATION_ERROR}
-              </p>
-            )}
 
             <p className={draft.missing.length > 0 ? styles.missing : styles.okay}>
               {draft.missing.length > 0
