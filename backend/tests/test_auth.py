@@ -130,11 +130,8 @@ def auth_environment(monkeypatch):
 
 def _member(*, active: bool = True, role_code: str = "manager") -> Member:
     return Member(
-        id=uuid4(),
+        id=AUTH_USER_ID,
         team_id=uuid4(),
-        auth_user_id=AUTH_USER_ID,
-        login_id="disabled@disabled.invalid",
-        password_hash="disabled",
         display_name="합성 팀장",
         role_code=role_code,
         job_title="영업팀장",
@@ -244,7 +241,7 @@ def test_verified_token_resolves_the_linked_member(monkeypatch):
     assert login.status_code == 200
     assert me.status_code == 200
     assert me.json()["id"] == str(member.id)
-    assert member.auth_user_id == AUTH_USER_ID
+    assert member.id == AUTH_USER_ID
 
 
 def test_unlinked_or_inactive_member_is_forbidden(monkeypatch):

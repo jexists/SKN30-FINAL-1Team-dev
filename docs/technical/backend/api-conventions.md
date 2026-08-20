@@ -36,9 +36,13 @@ GET /api/orders/9f64618b-8ed8-4aed-9560-78b25228dbe5
 
 ## 3. 인증과 세션
 
-- 브라우저 인증은 `member.login_id`와 비밀번호로 시작하고, 로그인 성공 시 서버가 서명한 세션 쿠키를 발급한다.
-- 인증 API는 `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` 세 개만 둔다.
-- 세션 쿠키 이름은 `salesluv_session`이며 `HttpOnly`, `SameSite=Lax`, `Path=/api`를 적용한다.
+- 브라우저 인증은 Supabase Auth의 이메일과 비밀번호로 시작한다. 토큰 발급과 검증은 Supabase가
+  담당하고, 팀·역할·활성 판단은 `public.member`가 담당한다. Supabase 사용자 id가 곧 `member.id`다.
+- 인증 API는 `POST /api/auth/login`, `POST /api/auth/refresh`, `GET /api/auth/me`,
+  `POST /api/auth/logout` 네 개만 둔다.
+- 쿠키는 세 개다. `salesluv_access`(`HttpOnly`, `Path=/api`),
+  `salesluv_refresh`(`HttpOnly`, `Path=/api/auth`), 그리고 프론트가 세션 복원 시도 여부만
+  판단하는 `salesluv_signed_in`(`Path=/`, 값은 `1`). 모두 `SameSite=Lax`를 적용한다.
 - 운영 HTTPS에서는 `Secure`를 반드시 적용하고 `Domain`을 지정하지 않아 host-only 쿠키로 둔다.
 - 세션 토큰과 비밀번호를 JSON 응답이나 브라우저 저장소에 노출하지 않는다.
 - 프론트엔드는 API 요청에 credentials를 포함한다. 전역 `Content-Type`은 지정하지 않고 요청 본문에 맞게 클라이언트가 설정하게 한다.

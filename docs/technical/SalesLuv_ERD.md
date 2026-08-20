@@ -1,7 +1,7 @@
 # SalesLuv ERD
 
-> 기준: `backend/sql/20260817_0001_core_schema.sql`부터 `20260817_0005_sales_deal_names.sql`까지 모두 적용한 `public` 스키마<br>
-> 규모: **26테이블 / 266컬럼 / 64개 외래키 제약조건**<br>
+> 기준: `backend/sql/20260819_0001_baseline_schema.sql`을 적용한 `public` 스키마<br>
+> 규모: **26테이블 / 264컬럼 / 외래키 65개** (public 대상 64개 + `member.id` → `auth.users.id` 1개)<br>
 > 상세 운영 설계: [데이터베이스 저장소 설계 문서](데이터베이스_저장소_설계_문서_260817.docx)
 
 ## 1. 표기와 설계 원칙
@@ -107,14 +107,15 @@ erDiagram
 | `name` | `text` | NN | `btrim(name) <> ''` |
 | `created_at` | `timestamptz` | NN | `DEFAULT now()` |
 
-#### `member` — 9컬럼
+#### `member` — 7컬럼
+
+로그인은 Supabase Auth가 담당한다. `member` 행 하나가 auth 사용자 하나이며, 별도 연결
+컬럼 없이 PK 자체를 `auth.users.id`로 맞춘다.
 
 | 컬럼 | 타입 | NULL | 키·기본값·검사 |
 |---|---|---|---|
-| `id` | `uuid` | NN | PK |
+| `id` | `uuid` | NN | PK, FK → `auth.users.id` |
 | `team_id` | `uuid` | NN | FK → `team.id` |
-| `login_id` | `text` | NN | UQ, 비어 있지 않고 소문자만 허용 |
-| `password_hash` | `text` | NN | 비어 있지 않음 |
 | `display_name` | `text` | NN | 비어 있지 않음 |
 | `role_code` | `text` | NN | `member \| manager` |
 | `job_title` | `text` | NULL | 값이 있으면 비어 있지 않음 |

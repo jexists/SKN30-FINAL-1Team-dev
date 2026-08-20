@@ -18,8 +18,8 @@ from app.services import supabase_auth
 type DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
-async def member_by_auth_user_id(db: AsyncSession, auth_user_id: UUID) -> Member | None:
-    """Supabase 사용자에 연결된 활성 구성원.
+async def active_member(db: AsyncSession, member_id: UUID) -> Member | None:
+    """Supabase 사용자 id 는 곧 member.id 다.
 
     팀·역할·활성 상태의 기준은 언제나 public.member 다.
     사용자가 고칠 수 있는 Supabase user_metadata 는 권한 판단에 쓰지 않는다.
@@ -28,7 +28,7 @@ async def member_by_auth_user_id(db: AsyncSession, auth_user_id: UUID) -> Member
         select(Member)
         .join(Team, Member.team_id == Team.id)
         .where(
-            Member.auth_user_id == auth_user_id,
+            Member.id == member_id,
             Member.active.is_(True),
             Member.role_code.in_(("member", "manager")),
         )
@@ -40,7 +40,7 @@ async def get_current_member(request: Request, db: DbSession) -> Member:
     # auth.py 를 import 하면 순환이 되므로 쿠키 이름만 여기서 다시 적는다.
     token = request.cookies.get("salesluv_access", "")
     try:
-        auth_user_id = await supabase_auth.verify_access_token(token)
+        member_id = await supabase_auth.verify_access_token(token)
     except supabase_auth.InvalidCredentials as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,7 +58,7 @@ async def get_current_member(request: Request, db: DbSession) -> Member:
             detail="auth_unavailable",
         ) from error
 
-    member = await member_by_auth_user_id(db, auth_user_id)
+    member = await active_member(db, member_id)
     if member is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

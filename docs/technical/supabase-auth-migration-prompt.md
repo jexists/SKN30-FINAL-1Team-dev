@@ -1,5 +1,9 @@
 # SalesLuv Supabase Auth 전환 및 백엔드 장애 대응 구현 프롬프트
 
+> 이 문서는 전환을 시작할 때의 지시문입니다. 최종 설계는 `member.id` = `auth.users.id`이고
+> `member.auth_user_id`는 존재하지 않습니다. 현재 구조는 `backend/sql/README.md`와
+> `docs/technical/SalesLuv_ERD.md`를 참고하세요.
+
 현재 SalesLuv의 자체 로그인 방식을 Supabase Auth 기반으로 전환하고, 백엔드 장애가 프론트 전체를 가리지 않도록 수정해줘.
 
 작업 전 `AGENTS.md`와 관련 코드를 읽고 현재 변경사항을 확인한다. 요청 범위 밖 코드는 건드리지 말고, 원격 Supabase에 SQL을 적용하거나 Auth 사용자를 생성·삭제하지 않는다. 필요한 SQL과 스크립트만 저장소에 작성하고 실제 적용은 별도 승인 후 진행한다. 커밋·푸시하지 않는다.

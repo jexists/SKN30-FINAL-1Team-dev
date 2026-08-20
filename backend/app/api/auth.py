@@ -11,7 +11,7 @@ import time
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
-from app.api.deps import CurrentMember, DbSession, member_by_auth_user_id
+from app.api.deps import CurrentMember, DbSession, active_member
 from app.core.config import settings
 from app.models.workspace import Member
 from app.schemas.auth import LoginRequest, SessionRead
@@ -165,14 +165,14 @@ async def login(
             email=payload.email,
             password=payload.password,
         )
-        auth_user_id = await supabase_auth.verify_access_token(session.access_token)
+        member_id = await supabase_auth.verify_access_token(session.access_token)
     except supabase_auth.AuthError as error:
         raise auth_http_error(error) from error
     except BaseException:
         _release_login_attempt(client_host)
         raise
 
-    member = await member_by_auth_user_id(db, auth_user_id)
+    member = await active_member(db, member_id)
     if member is None:
         # Supabase 계정은 있지만 이 워크스페이스의 구성원이 아니다.
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="member_not_linked")
@@ -201,7 +201,7 @@ async def refresh(request: Request, response: Response, db: DbSession) -> Member
 
     try:
         session = await supabase_auth.refresh_grant(refresh_token=refresh_token)
-        auth_user_id = await supabase_auth.verify_access_token(session.access_token)
+        member_id = await supabase_auth.verify_access_token(session.access_token)
     except supabase_auth.AuthError as error:
         http_error = auth_http_error(error)
         # 갱신할 수 없는 토큰은 남겨둘 이유가 없다. 다만 Supabase 장애로는 지우지 않는다.
@@ -209,7 +209,7 @@ async def refresh(request: Request, response: Response, db: DbSession) -> Member
             return _rejected(http_error.status_code, "invalid_credentials")
         raise http_error from error
 
-    member = await member_by_auth_user_id(db, auth_user_id)
+    member = await active_member(db, member_id)
     if member is None:
         return _rejected(status.HTTP_403_FORBIDDEN, "member_not_linked")
 

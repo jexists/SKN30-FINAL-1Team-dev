@@ -11,6 +11,11 @@
 5. seed는 스키마 변경과 분리하고, 합성 데이터로 반복 실행 가능하게 작성합니다.
 6. 원격 DB 적용은 명시적으로 요청받은 경우에만 대상 환경을 다시 확인한 뒤 수행하고, 적용한 파일과 결과를 기록합니다.
 
+> **원칙 3의 예외 (2026-08-19).** Supabase Auth 전환으로 `member`의 PK 의미가 바뀌면서
+> (`member.id` = `auth.users.id`) 후속 파일을 덧붙이는 방식으로는 정리할 수 없게 되었습니다.
+> 개발 DB에 보존할 데이터가 없었으므로 기존 SQL 7개(`0001`~`0007`)를 지우고 baseline 한
+> 파일로 합치고 적용 이력을 리셋했습니다. 원칙 3은 이후 변경부터 다시 적용됩니다.
+
 ## 연결 구분
 
 - 현재 앱 세션은 장기 실행 FastAPI 서버용 Supabase session pooler를 기준으로 설정되어 있습니다.
@@ -20,151 +25,123 @@
 
 ## 스키마 파일
 
-- `20260817_0001_core_schema.sql`: 일정 저장 흐름에 필요한 팀, 회원, 고객사, 고객 담당자,
-  일정, 일정 동행자 6테이블을 먼저 생성합니다.
-- `20260817_0002_remaining_schema.sql`: 최종 ERD의 나머지 14테이블과 일정의 상품·계약·발주
-  외래키를 추가해 전체 20테이블·200컬럼을 완성하고, 모든 테이블의 RLS를 활성화합니다.
-- `20260817_0003_singular_table_names.sql`: 20개 테이블 이름을 단수형으로 변경합니다.
-  PostgreSQL 예약어인 `order` 대신 `purchase_order`, 발주 품목은 `purchase_order_item`을 사용합니다.
-- `20260817_0004_unique_customer_company_name.sql`: 같은 팀에 같은 이름의 고객사가 중복
-  생성되지 않도록 유일 인덱스를 추가합니다.
-- `20260817_0005_sales_deal_names.sql`: 기존 `contract`를 영업 시작부터 견적·계약·발주를
-  잇는 `sales_deal`로 바꾸고, 저장형 파이프라인과 팀별 표시 설정 5종을 추가합니다. 기존
-  행과 UUID를 보존하면서 최종 **26테이블·266컬럼·64개 FK 제약조건**을 완성합니다.
-- `20260818_0006_member_auth_user_id.sql`: Supabase Auth 사용자와 구성원을 잇는
-  `member.auth_user_id`(nullable, UNIQUE, `auth.users(id)` 참조) 한 컬럼을 추가합니다.
-  로그인하지 않는 목업 구성원은 `NULL`로 남습니다. `auth` 스키마 참조 권한이 없어
-  FK 생성이 실패하면 FK 없이 `uuid UNIQUE`만 두고 그 사실을 적용 이력에 남깁니다.
-- `20260818_0007_drop_member_login_columns.sql`: 자체 로그인 흔적인 `member.login_id`와
-  `member.password_hash`를 제거합니다. **적용 보류 상태입니다.** `0006` 적용, 테스트 계정
-  4개 연결, 네 계정 로그인 확인을 모두 마친 뒤에만 실행합니다. 되돌릴 수 없습니다.
+- `20260819_0001_baseline_schema.sql`: 최종 ERD 전체를 한 파일로 만듭니다.
+  **26테이블 · 264컬럼 · 외래키 65개**(public 대상 64개 + `member.id` → `auth.users(id)` 1개).
+  로그인은 Supabase Auth가 담당하며 `member` 행 하나가 auth 사용자 하나입니다. 별도 연결
+  컬럼 없이 PK 자체를 `auth.users.id`로 맞추므로 `login_id`, `password_hash`,
+  `auth_user_id`는 존재하지 않습니다.
+  제약조건 이름은 옛 SQL이 남긴 복수형 흔적(`members_pkey` 등) 대신 단수 테이블명을 따릅니다.
+  다만 `app/models/sales.py`가 이름으로 참조하는 네 개(`sales_pipeline_stage_*_key` 3개와
+  `sales_deal_sales_pipeline_stage_membership_fkey`)는 그대로 유지합니다.
 
-SQL은 `0001 → 0002 → 0003 → 0004 → 0005 → 0006` 순서로 적용합니다. `0005` 적용 전에는
-앱의 최종 ORM/API와 물리 스키마가 일치하지 않으므로 데모 seed를 실행하지 않습니다.
-`0007`은 위 조건을 만족한 뒤 별도로 적용합니다.
+이 파일은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
+아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
 ## 적용 이력
 
 | 적용일 | 대상 | 파일 | 연결 | 결과 |
 |---|---|---|---|---|
-| 2026-08-17 | 개발 Supabase `public` | `20260817_0001_core_schema.sql` | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `20260817_0002_remaining_schema.sql` | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `20260817_0003_singular_table_names.sql` | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `20260817_0004_unique_customer_company_name.sql` | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 초기 2계정 | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·6계정 | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_customers.py` 고객사 6개·담당자 32명 | Session Pooler | 성공 |
-| 2026-08-17 | 개발 Supabase `public` | `scripts/seed_demo_activities.py` 상품 3개·일정 12건 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `20260817_0005_sales_deal_names.sql` | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 2팀·6계정 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_customers.py` 고객사 6개·담당자 32명 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_activities.py` 상품 3개·일정 12건 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_sales_deals.py` 딜 61건 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_orders.py` 발주 2건·품목 2건 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_support.py` C/S 요청 3건 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_notices.py` 공지 5건·지시 2건 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `20260818_0006_member_auth_user_id.sql` | Session Pooler | 성공 (`auth.users` FK 포함) |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/seed_demo_auth.py` 3팀·8계정 | Session Pooler | 성공 |
-| 2026-08-18 | 개발 Supabase `public` | `scripts/link_demo_auth_users.py` 테스트팀 2명 연결 | Session Pooler | 성공 |
+| 2026-08-19 | 개발 | (런북 1단계) 26테이블 `DROP TABLE ... CASCADE` | session pooler | 성공. public 테이블 0개 |
+| 2026-08-19 | 개발 | `20260819_0001_baseline_schema.sql` | session pooler | 성공. 26테이블 / 264컬럼 / FK 65 / RLS 26 |
 
-## 개발 로그인 계정
+## 개발 DB 재구축 런북
 
 로그인은 Supabase Auth가 담당합니다. 계정의 이메일과 비밀번호는 Supabase Dashboard에서만
 관리하며 `.env`를 포함해 저장소 어디에도 두지 않습니다.
 
-### 1. 구성원과 기본 데이터 seed
+현재 개발 계정은 두 개입니다.
 
-고정된 합성 UUID로 데이터가 채워진 팀, 비어 있는 첫 세팅 팀, 비어 있는 테스트팀과 각 팀의
-팀장·팀원, 팀별 기본 표시 설정과 9단계 기본 published 파이프라인을 upsert하므로 같은 개발
-DB에 다시 실행할 수 있습니다. 이 스크립트는 자격증명을 다루지 않습니다.
+| 계정 | 이름 | 역할 | 팀 |
+|---|---|---|---|
+| `teamjang@naver.com` | 김서현 | manager | SalesLuv 데모팀 |
+| `teamwon@naver.com` | 김지훈 | member | SalesLuv 데모팀 |
+
+### 1단계. 기존 테이블 삭제
+
+`member` 행이 남아 있으면 `auth.users` FK 때문에 Supabase 사용자를 지울 수 없으므로
+테이블을 먼저 지웁니다. `DROP SCHEMA public CASCADE`는 Supabase가 걸어둔 스키마 권한
+부여까지 날리므로 사용하지 않습니다.
+
+```sql
+DROP TABLE IF EXISTS
+    public.agent_run,
+    public.file,
+    public.document,
+    public.report_activity,
+    public.report,
+    public.sales_target,
+    public.support_response,
+    public.support_request,
+    public.notice,
+    public.activity_companion,
+    public.activity,
+    public.purchase_order_item,
+    public.purchase_order,
+    public.sales_deal,
+    public.customer_contact,
+    public.product,
+    public.sales_pipeline_stage,
+    public.sales_pipeline,
+    public.purchase_order_status,
+    public.sales_deal_type,
+    public.activity_action_tag,
+    public.activity_category,
+    public.customer_contact_status,
+    public.customer_company,
+    public.member,
+    public.team
+CASCADE;
+```
+
+### 2단계. Supabase 사용자 정리
+
+Dashboard > Authentication > Users에서 `teamjang@naver.com`과 `teamwon@naver.com`
+두 개만 남기고 나머지를 삭제합니다. 계정을 새로 만들어야 하면 Add user > Create new user에서
+**Auto Confirm User를 켭니다.** 확인 메일을 보내지 않으므로 수신 가능한 주소가 아니어도 됩니다.
+
+### 3단계. baseline 적용
+
+SQL Editor(direct 연결)에서 `20260819_0001_baseline_schema.sql`을 실행합니다.
+
+### 4단계. 사용자 UID 확인
+
+Dashboard의 사용자 목록에서 두 계정의 UID를 복사합니다. UID는 자격증명이 아니지만 환경에
+종속된 값이므로 `.env`나 저장소에 두지 않고 다음 단계의 인자로만 넘깁니다.
+
+### 5단계. 팀·구성원·기본 설정 seed
+
+팀 하나, 구성원 두 명, 팀별 기본 표시 설정 5종과 9단계 기본 published 파이프라인을
+upsert하므로 같은 개발 DB에 다시 실행할 수 있습니다. 이 스크립트는 자격증명을 다루지 않습니다.
 
 ```bash
 cd backend
-DEBUG=false uv run python -m scripts.seed_demo_auth
+DEBUG=false uv run python -m scripts.seed_demo_auth --dry-run \
+    --manager <teamjang UID> --member <teamwon UID>
+DEBUG=false uv run python -m scripts.seed_demo_auth \
+    --manager <teamjang UID> --member <teamwon UID>
 ```
 
-### 2. Supabase Auth 사용자 생성
+`--dry-run`으로 어떤 UID가 어떤 이름·역할로 들어가는지 확인한 뒤 플래그를 빼고 다시
+실행합니다. UUID 형식 오류나 두 역할에 같은 UUID를 준 경우에는 DB를 건드리기 전에 중단하며,
+같은 인자로 여러 번 실행해도 결과는 같습니다. `auth.users`에 없는 UID를 주면 외래키에 막혀
+어떤 UID가 문제인지 함께 안내합니다.
 
-Supabase Dashboard > Authentication > Users > Add user > Create new user에서 만듭니다.
-**Auto Confirm User를 켜면** 확인 메일을 보내지 않으므로 수신 가능한 주소가 아니어도 됩니다.
-
-| 역할 | 연결 팀 | 데이터 상태 |
-|---|---|---|
-| filled manager | SalesLuv 데모팀 | 기존 목업 데이터 있음 |
-| filled member | SalesLuv 데모팀 | 기존 목업 데이터 있음 |
-| empty manager | SalesLuv 첫 세팅팀 | 초기 설정 상태 |
-| empty member | SalesLuv 첫 세팅팀 | 초기 설정 상태 |
-| test manager | SalesLuv 테스트팀 | 초기 설정 상태 |
-| test member | SalesLuv 테스트팀 | 초기 설정 상태 |
-
-데이터가 있는 팀과 첫 세팅 팀의 두 번째 팀원(이수민)은 로그인하지 않으므로 계정을 만들지
-않고 `auth_user_id = NULL`로 둡니다.
-
-### 3. 사용자와 구성원 연결
-
-생성된 사용자의 UID를 Dashboard에서 복사해 인자로 넘깁니다. UID를 `.env`에 두지 않습니다.
-연결할 역할만 골라 주면 되고, 주지 않은 역할의 구성원은 건드리지 않습니다.
+### 6단계. 검증
 
 ```bash
 cd backend
-uv run python -m scripts.link_demo_auth_users --dry-run \
-    --filled-manager <UUID> --filled-member <UUID> \
-    --empty-manager  <UUID> --empty-member  <UUID> \
-    --test-manager   <UUID> --test-member   <UUID>
+DEBUG=false uv run pytest tests/test_models.py
 ```
 
-`--dry-run`으로 바뀔 내용을 확인한 뒤 플래그를 빼고 다시 실행합니다. 중복·누락·형식 오류가
-있으면 DB를 건드리기 전에 중단하며, 같은 인자로 여러 번 실행해도 결과는 같습니다.
+`test_models_match_configured_database`가 ORM과 물리 스키마의 테이블·컬럼·nullable·타입·
+기본값·PK·FK를 대조합니다. CHECK 제약과 인덱스, RLS는 이 테스트가 보지 않으므로 스키마를
+크게 바꿀 때는 카탈로그를 직접 비교합니다.
 
-프론트 목업과 같은 합성 고객 데이터는 인증 seed 다음에 실행합니다. 데이터가 있는 팀에만
-고객사와 담당자를 upsert하고 첫 세팅 팀은 건드리지 않습니다.
+이후 `teamjang@naver.com`으로 로그인해 `GET /api/auth/me`의 `id`가 Dashboard UID와 같고
+`role_code`가 `manager`인지 확인합니다. `teamwon@naver.com`은 같은 `team_id`에 `member`로
+나와야 합니다.
 
-```bash
-cd backend
-DEBUG=false uv run python -m scripts.seed_demo_customers
-```
+### 주의
 
-일정 seed는 인증과 고객 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만 고정
-합성 상품 3개와 일정 12건을 upsert하고 첫 세팅 팀은 건드리지 않습니다.
-
-```bash
-cd backend
-DEBUG=false uv run python -m scripts.seed_demo_activities
-```
-
-영업 딜 seed는 인증·고객·일정 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀의
-9단계 기본 영업 파이프라인과 기존 상품 3종에 연결되는 합성 영업 딜 61건을 upsert합니다.
-별도 상품이 필요한 프론트 목업 50건은 넣지 않으며 첫 세팅 팀은 건드리지 않습니다.
-
-```bash
-cd backend
-DEBUG=false uv run python -m scripts.seed_demo_sales_deals
-```
-
-발주 seed는 인증·고객·일정·영업 딜 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만
-현재 고객사·상품·영업 딜 관계가 모두 정확한 합성 발주 2건과 품목 2건을 upsert합니다. 관계가
-누락되거나 불일치하는 나머지 프론트 목업 발주 3건은 넣지 않으며 비어 있는 팀은 건드리지 않습니다.
-
-```bash
-cd backend
-DEBUG=false uv run python -m scripts.seed_demo_orders
-```
-
-C/S seed는 인증·고객 seed를 차례로 실행한 뒤 적용합니다. 데이터가 있는 팀에만 고객사,
-접수자, 담당자가 정확히 연결되는 합성 C/S 요청 3건을 upsert합니다. 접수자가 없는 나머지
-프론트 목업 1건은 넣지 않고, 별도 대응 이력이 없어 답변 이력도 만들지 않으며 비어 있는
-팀은 건드리지 않습니다.
-
-```bash
-cd backend
-DEBUG=false uv run python -m scripts.seed_demo_support
-```
-
-공지 seed는 인증 seed를 실행한 뒤 적용합니다. 데이터가 있는 팀에만 팀 공지 5건과 팀원
-한 명에게 가는 개인 지시 2건을 upsert합니다. 수신자가 없는 행이 팀 공지, 수신자가 있는
-행이 개인 지시이며 비어 있는 팀은 건드리지 않습니다.
-
-```bash
-cd backend
-DEBUG=false uv run python -m scripts.seed_demo_notices
-```
+Dashboard에서 사용자를 지우려면 대응하는 `member` 행(그리고 그 구성원을 참조하는 데이터)을
+먼저 지워야 `member.id → auth.users(id)` 외래키에 막히지 않습니다.

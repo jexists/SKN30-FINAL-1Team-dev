@@ -11,7 +11,7 @@ from app.models.agent import AgentRun
 
 EXPECTED_COLUMN_COUNTS = {
     "team": 3,
-    "member": 10,
+    "member": 7,
     "customer_company": 5,
     "customer_contact": 12,
     "customer_contact_status": 9,
@@ -46,7 +46,7 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 267
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 264
 
     foreign_key_constraints = [
         foreign_key
@@ -107,7 +107,7 @@ async def _assert_models_match_database():
 
 
 def _database_foreign_keys(inspector, table_name):
-    # member.auth_user_id 는 Supabase 가 관리하는 auth.users 를 가리킨다.
+    # member.id 는 Supabase 가 관리하는 auth.users 를 가리킨다.
     # 그 스키마는 ORM 에 매핑하지 않으므로 모델 쪽에는 대응하는 FK 가 없다.
     return {
         (

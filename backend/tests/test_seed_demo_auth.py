@@ -8,10 +8,13 @@ from sqlalchemy.dialects import postgresql
 
 from scripts.seed_demo_auth import (
     DEFAULT_PIPELINE_STAGES,
-    FILLED_TEAM_ID,
     LOOKUP_DEFAULTS,
+    MEMBER_ACCOUNTS,
+    TEAM_ID,
     configuration_id,
     insert_missing,
+    member_ids_from_args,
+    parse_args,
     seed_team_configuration,
 )
 
@@ -86,7 +89,7 @@ def test_demo_auth_configuration_matches_the_fixed_defaults():
 
 
 def test_demo_auth_configuration_ids_and_inserts_are_repeatable():
-    pipeline_id = configuration_id(FILLED_TEAM_ID, "sales_pipeline", "default")
+    pipeline_id = configuration_id(TEAM_ID, "sales_pipeline", "default")
     assert pipeline_id == UUID("6feb55b1-21eb-1ff4-3d2f-d4b09d5d66cd")
     assert configuration_id(
         pipeline_id,
@@ -99,8 +102,8 @@ def test_demo_auth_configuration_ids_and_inserts_are_repeatable():
         insert_missing(
             model,
             {
-                "id": configuration_id(FILLED_TEAM_ID, "customer_contact_status", "new"),
-                "team_id": FILLED_TEAM_ID,
+                "id": configuration_id(TEAM_ID, "customer_contact_status", "new"),
+                "team_id": TEAM_ID,
                 **LOOKUP_DEFAULTS[0][2][0],
             },
         ).compile(dialect=postgresql.dialect())
@@ -153,3 +156,38 @@ def test_configuration_id_collision_stops_before_any_write():
         asyncio.run(seed_team_configuration(session, team_id))
 
     assert len(session.statements) == 1
+
+
+def test_member_accounts_cover_one_team_with_distinct_roles():
+    assert len(MEMBER_ACCOUNTS) == 2
+    assert [account["key"] for account in MEMBER_ACCOUNTS] == ["manager", "member"]
+    assert [account["role_code"] for account in MEMBER_ACCOUNTS] == ["manager", "member"]
+    # 이름은 실행 중 구성원을 구분하는 자연키이므로 팀 안에서 겹치면 안 된다.
+    assert len({account["display_name"] for account in MEMBER_ACCOUNTS}) == 2
+    assert len({account["flag"] for account in MEMBER_ACCOUNTS}) == 2
+
+
+def test_member_ids_are_read_from_the_two_flags():
+    manager = uuid4()
+    member = uuid4()
+
+    ids = member_ids_from_args(parse_args(["--manager", str(manager), "--member", str(member)]))
+
+    assert ids == {"manager": manager, "member": member}
+
+
+def test_malformed_uuid_stops_before_any_write():
+    with pytest.raises(SystemExit, match="UUID 형식"):
+        member_ids_from_args(parse_args(["--manager", "not-a-uuid", "--member", str(uuid4())]))
+
+
+def test_the_same_uuid_cannot_fill_two_roles():
+    shared = str(uuid4())
+
+    with pytest.raises(SystemExit, match="같은 UUID"):
+        member_ids_from_args(parse_args(["--manager", shared, "--member", shared]))
+
+
+def test_both_flags_are_required():
+    with pytest.raises(SystemExit):
+        parse_args(["--manager", str(uuid4())])

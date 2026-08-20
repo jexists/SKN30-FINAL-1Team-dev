@@ -105,8 +105,6 @@ def _member(*, role: str = "member", team_id: UUID | None = None) -> Member:
     return Member(
         id=uuid4(),
         team_id=team_id or uuid4(),
-        login_id=f"{uuid4()}@salesluv.demo",
-        password_hash="unused",
         display_name="합성 영업 담당자",
         role_code=role,
         job_title="영업 담당자",

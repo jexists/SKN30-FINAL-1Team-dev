@@ -171,7 +171,7 @@ async def _jwks(*, now: float | None = None) -> PyJWKSet:
 
 
 async def verify_access_token(token: str) -> UUID:
-    """서명을 로컬에서 검증하고 Supabase 사용자 UUID 를 돌려준다.
+    """서명을 로컬에서 검증하고 Supabase 사용자 UUID(= public.member.id)를 돌려준다.
 
     요청마다 Supabase 를 부르지 않으므로 Auth 장애가 조회 API 를 막지 않는다.
     대신 정지·삭제된 사용자는 access token 이 만료될 때까지 통과하므로,
