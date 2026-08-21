@@ -7,6 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.agents import report_writing
+from app.agents.report_writing import ReportDraftOutput
 from app.api import agent_runs
 from app.api.deps import get_current_member
 from app.core.config import settings
@@ -15,7 +17,8 @@ from app.main import app
 from app.models.agent import AgentRun
 from app.models.content import Report
 from app.models.workspace import Member
-from app.schemas.agent_runs import AgentRunCreate, ReportDraftOutput
+from app.schemas.agent_runs import AgentRunCreate
+from app.services import agent_runs as agent_run_service
 from app.services import llm
 
 ORIGIN = settings.cors_origin_list[0]
@@ -145,7 +148,7 @@ def _run(member: Member, *, status_code: str = "queued", key: UUID | None = None
         idempotency_key=key or uuid4(),
         status_code=status_code,
         llm_model_name="test-model",
-        prompt_version=agent_runs.PROMPT_VERSION,
+        prompt_version=report_writing.PROMPT_VERSION,
         source_refs={"report_id": str(uuid4())},
         input_snapshot={},
         output_snapshot=None,
@@ -213,7 +216,7 @@ def test_accepted_run_is_queued_and_does_not_touch_report(llm_ready, monkeypatch
     async def _fake_execute(run_id: UUID) -> None:
         scheduled.append(run_id)
 
-    monkeypatch.setattr(agent_runs, "_execute", _fake_execute)
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
 
     member = _member()
     report = _report(member)
