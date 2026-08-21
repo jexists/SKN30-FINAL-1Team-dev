@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import httpx
@@ -7,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.agents import report_writing
+from app.agents import meeting_analysis, report_writing
 from app.agents.report_writing import ReportDraftOutput
 from app.api import agent_runs
 from app.api.deps import get_current_member
@@ -76,6 +77,17 @@ class _Db:
         self.rollback_count += 1
 
 
+class _SessionContext:
+    def __init__(self, db: _Db):
+        self.db = db
+
+    async def __aenter__(self):
+        return self.db
+
+    async def __aexit__(self, *_exc):
+        return False
+
+
 @pytest.fixture(autouse=True)
 def reset_dependency_overrides():
     app.dependency_overrides.clear()
@@ -110,7 +122,12 @@ def _member(*, role: str = "member") -> Member:
     )
 
 
-def _report(member: Member, *, status_code: str = "draft") -> Report:
+def _report(
+    member: Member,
+    *,
+    status_code: str = "draft",
+    transcript: str | None = None,
+) -> Report:
     return Report(
         id=uuid4(),
         team_id=member.team_id,
@@ -124,7 +141,7 @@ def _report(member: Member, *, status_code: str = "draft") -> Report:
         period_end=None,
         status_code=status_code,
         content={"summary": ""},
-        transcript=None,
+        transcript=transcript,
         source_snapshot=None,
         ai_evidence=None,
         note=None,
@@ -174,7 +191,14 @@ def test_agent_run_request_rejects_unsafe_values():
     key = uuid4()
     with pytest.raises(ValidationError):
         # 이번 범위에 없는 agent 는 받지 않는다.
-        AgentRunCreate(agent_code="meeting_analysis", report_id=report_id, idempotency_key=key)
+        AgentRunCreate(agent_code="unknown", report_id=report_id, idempotency_key=key)
+    with pytest.raises(ValidationError):
+        AgentRunCreate(
+            agent_code="meeting_analysis",
+            report_id=report_id,
+            idempotency_key=key,
+            guidance="이 지시는 보고서 작성에만 쓴다",
+        )
     with pytest.raises(ValidationError):
         # 상태와 팀은 요청으로 정할 수 없다.
         AgentRunCreate(
@@ -243,6 +267,102 @@ def test_accepted_run_is_queued_and_does_not_touch_report(llm_ready, monkeypatch
     assert report.status_code == "draft"
     assert db.commit_count == 1
     assert scheduled == [UUID(body["id"])]
+
+
+def test_meeting_analysis_run_snapshots_transcript(llm_ready, monkeypatch):
+    scheduled: list[UUID] = []
+
+    async def _fake_execute(run_id: UUID) -> None:
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    member = _member()
+    report = _report(member, transcript="고객은 다음 달 예산 승인을 검토합니다.")
+    db = _Db(_Result(scalar=None), _Result(scalar=report))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "meeting_analysis",
+                "report_id": str(report.id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    created = db.added[0]
+    assert created.agent_code == "meeting_analysis"
+    assert created.prompt_version == meeting_analysis.PROMPT_VERSION
+    assert created.input_snapshot == {"transcript": report.transcript}
+    assert scheduled == [created.id]
+
+
+def test_meeting_analysis_requires_transcript(llm_ready):
+    member = _member()
+    report = _report(member)
+    db = _Db(_Result(scalar=None), _Result(scalar=report))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "meeting_analysis",
+                "report_id": str(report.id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "transcript_required"}
+
+
+@pytest.mark.anyio
+async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch):
+    member = _member()
+    run = _run(member)
+    run.agent_code = "meeting_analysis"
+    run.input_snapshot = {"transcript": "고객이 다음 달 예산 승인을 검토합니다."}
+    first = _Db(_Result(scalar=run))
+    second = _Db(_Result(scalar=run))
+    sessions = iter((first, second))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(next(sessions)),
+    )
+
+    output_snapshot = {
+        "deal_assessment": {
+            "features": {},
+            "label": "watch",
+            "high_probability": 0.5,
+            "model_version": "deal-dummy-uniform-v0",
+        }
+    }
+
+    async def fake_run(snapshot):
+        assert snapshot == run.input_snapshot
+        return SimpleNamespace(
+            deal_assessment=SimpleNamespace(model_version="deal-dummy-uniform-v0"),
+            model_dump=lambda: output_snapshot,
+        )
+
+    monkeypatch.setattr(meeting_analysis, "run", fake_run)
+
+    await agent_run_service.execute(run.id)
+
+    assert run.status_code == "completed"
+    assert run.output_snapshot == output_snapshot
+    assert run.evidence == {
+        "prompt_version": meeting_analysis.PROMPT_VERSION,
+        "model_version": "deal-dummy-uniform-v0",
+    }
+    assert first.commit_count == 1
+    assert second.commit_count == 1
 
 
 def test_same_idempotency_key_returns_existing_run(llm_ready):

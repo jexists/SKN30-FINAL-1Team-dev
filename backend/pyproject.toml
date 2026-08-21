@@ -9,6 +9,7 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "pyjwt[crypto]>=2.10.1",
     "python-multipart>=0.0.32",
+    "scikit-learn>=1.9.0",
     "sqlalchemy[asyncio]>=2.0.51",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
