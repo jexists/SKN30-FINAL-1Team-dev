@@ -1,3 +1,6 @@
+"""프론트 보고서 양식에 맞춰 필드별 초안을 생성하는 에이전트."""
+
+import json
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -5,18 +8,22 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.content import Report
 from app.services.llm import generate_structured
 
-PROMPT_VERSION = "report_writing.v1"
+# 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
+# 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
+PROMPT_VERSION = "report_writing.v2"
 
 SYSTEM_PROMPT = (
-    "너는 한국어 영업 보고서 초안을 쓰는 도우미다. "
-    "주어진 양식 항목과 근거 자료만 사용하고 없는 사실을 지어내지 마라. "
-    "각 항목마다 field_id 와 value 를 채우고, 근거가 없으면 value 를 빈 문자열로 둬라. "
+    "너는 한국어 영업 보고서 초안을 작성하는 AI다. "
+    "제공된 보고서 양식, 현재 작성값, 미팅 기록, 작성자 요청만 근거로 사용하고 "
+    "없는 사실을 지어내지 마라. "
+    "양식의 각 항목을 fields 에 한 번씩 넣고 field_id 는 양식의 id 를 그대로 사용하라. "
+    "근거가 없으면 value 를 빈 문자열로 두고, 전체 결과를 summary 로 짧게 요약하라. "
     "JSON 만 출력한다."
 )
 
 
 class ReportDraftField(BaseModel):
-    """양식 항목 하나에 대한 제안. field_id 는 template_snapshot 의 항목 id 다."""
+    """프론트 양식의 입력칸 하나에 넣을 초안."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -25,7 +32,7 @@ class ReportDraftField(BaseModel):
 
 
 class ReportDraftOutput(BaseModel):
-    """LLM 이 돌려줘야 하는 구조. 검증에 실패하면 실행을 failed 로 남긴다."""
+    """프론트가 입력칸별 값으로 변환할 수 있는 LLM 출력."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -34,7 +41,7 @@ class ReportDraftOutput(BaseModel):
 
 
 def input_snapshot(report: Report, guidance: str | None) -> dict[str, Any]:
-    """실행에 실제로 쓴 값만 남긴다. 원문 전체를 복제하지 않는다."""
+    """백그라운드 실행이 사용할 보고서 입력을 실행 시점 값으로 고정한다."""
     return {
         "report_kind": report.report_kind,
         "report_date": report.report_date.isoformat(),
@@ -46,11 +53,14 @@ def input_snapshot(report: Report, guidance: str | None) -> dict[str, Any]:
 
 
 def _prompt_input(snapshot: dict[str, Any]) -> str:
+    """저장된 입력을 모델이 읽을 수 있는 짧고 명시적인 문자열로 만든다."""
+    template = json.dumps(snapshot["template_snapshot"], ensure_ascii=False, separators=(",", ":"))
+    content = json.dumps(snapshot["content"], ensure_ascii=False, separators=(",", ":"))
     lines = [
         f"보고서 종류: {snapshot['report_kind']}",
         f"보고 일자: {snapshot['report_date']}",
-        f"양식: {snapshot['template_snapshot']}",
-        f"현재 작성값: {snapshot['content']}",
+        f"보고서 양식(JSON): {template}",
+        f"현재 작성값(JSON): {content}",
     ]
     if snapshot.get("transcript"):
         lines.append(f"미팅 기록: {snapshot['transcript']}")
@@ -60,7 +70,7 @@ def _prompt_input(snapshot: dict[str, Any]) -> str:
 
 
 async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
-    """보고서 작성 에이전트 진입점."""
+    """저장된 입력으로 LLM 을 호출하는 보고서 작성 에이전트의 단일 진입점."""
     return await generate_structured(
         instructions=SYSTEM_PROMPT,
         input_text=_prompt_input(snapshot),
