@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
 
+    # 미팅 음성은 저장하지 않고 OpenAI 전사 API 로 바로 보낸다.
+    stt_api_key: SecretStr = SecretStr("")
+    stt_model: str = "gpt-4o-transcribe"
+    stt_timeout_seconds: float = Field(default=120.0, gt=0, le=300)
+    stt_max_bytes: int = Field(default=25 * 1024 * 1024, gt=0, le=25 * 1024 * 1024)
+
     # Supabase Auth. password login 은 secret 이 아니라 publishable 키를 씁니다.
     # 두 키 모두 서버 프로세스 안에서만 쓰고 브라우저로 보내지 않습니다.
     supabase_publishable_key: SecretStr = SecretStr("")
@@ -80,6 +86,11 @@ class Settings(BaseSettings):
     def llm_configured(self) -> bool:
         """LLM 호출에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""
         return bool(self.llm_api_url and self.llm_api_key.get_secret_value() and self.llm_model)
+
+    @property
+    def stt_configured(self) -> bool:
+        """STT 호출에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""
+        return bool(self.stt_api_key.get_secret_value() and self.stt_model)
 
     @property
     def cors_origin_list(self) -> list[str]:

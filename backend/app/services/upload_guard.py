@@ -4,6 +4,7 @@
 어긋나면 거절한다. 단순화를 이유로 생략하지 않는다.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 # 허용 형식만 둔다. 실행 가능한 형식과 압축 파일은 넣지 않는다.
@@ -30,6 +31,14 @@ class AllowedType:
     magic: tuple[bytes, ...]
 
 
+@dataclass(frozen=True)
+class AllowedAudioType:
+    extension: str
+    media_type: str
+    declared_media_types: frozenset[str]
+    has_signature: Callable[[bytes], bool]
+
+
 # 멀티에이전트 운영 플로우의 자료실 입력이 PDF·PPTX·DOCX 다. HTML 은 규약 13절에 따라
 # 인라인 실행 위험이 있어 받지 않는다.
 _ALLOWED: tuple[AllowedType, ...] = (
@@ -41,6 +50,58 @@ _ALLOWED: tuple[AllowedType, ...] = (
 _BY_EXTENSION = {allowed.extension: allowed for allowed in _ALLOWED}
 
 ALLOWED_EXTENSIONS = tuple(sorted(_BY_EXTENSION))
+
+
+def _is_mpeg_audio(content: bytes) -> bool:
+    if content.startswith(b"ID3"):
+        return True
+    return (
+        len(content) >= 2
+        and content[0] == 0xFF
+        and content[1] & 0xE0 == 0xE0
+        and content[1] & 0x06 != 0
+    )
+
+
+def _is_m4a(content: bytes) -> bool:
+    return len(content) >= 12 and content[4:8] == b"ftyp"
+
+
+def _is_wav(content: bytes) -> bool:
+    return len(content) >= 12 and content.startswith(b"RIFF") and content[8:12] == b"WAVE"
+
+
+def _is_webm(content: bytes) -> bool:
+    return content.startswith(b"\x1aE\xdf\xa3")
+
+
+_AUDIO_ALLOWED: tuple[AllowedAudioType, ...] = (
+    AllowedAudioType(
+        ".mp3",
+        "audio/mpeg",
+        frozenset(("audio/mpeg", "audio/mp3")),
+        _is_mpeg_audio,
+    ),
+    AllowedAudioType(
+        ".m4a",
+        "audio/mp4",
+        frozenset(("audio/mp4", "audio/m4a", "audio/x-m4a")),
+        _is_m4a,
+    ),
+    AllowedAudioType(
+        ".wav",
+        "audio/wav",
+        frozenset(("audio/wav", "audio/wave", "audio/x-wav")),
+        _is_wav,
+    ),
+    AllowedAudioType(
+        ".webm",
+        "audio/webm",
+        frozenset(("audio/webm",)),
+        _is_webm,
+    ),
+)
+_AUDIO_BY_EXTENSION = {allowed.extension: allowed for allowed in _AUDIO_ALLOWED}
 
 
 def _extension_of(file_name: str) -> str:
@@ -71,6 +132,30 @@ def check_upload(*, file_name: str, declared_media_type: str | None, content: by
     if not any(content.startswith(magic) for magic in allowed.magic):
         raise UploadRejected("file_signature_mismatch", 415)
 
+    return allowed
+
+
+def check_audio_upload(
+    *, file_name: str, declared_media_type: str | None, content: bytes
+) -> AllowedAudioType:
+    """STT가 받을 음성인지 확장자·MIME·signature를 함께 확인한다."""
+    name = file_name.strip()
+    if not name or "/" in name or "\\" in name or name in {".", ".."}:
+        raise UploadRejected("invalid_file_name", 422)
+
+    allowed = _AUDIO_BY_EXTENSION.get(_extension_of(name))
+    if allowed is None:
+        raise UploadRejected("unsupported_file_extension", 415)
+
+    if declared_media_type is not None:
+        declared = declared_media_type.split(";")[0].strip().lower()
+        if declared and declared not in allowed.declared_media_types:
+            raise UploadRejected("media_type_mismatch", 415)
+
+    if not content:
+        raise UploadRejected("empty_file", 422)
+    if not allowed.has_signature(content):
+        raise UploadRejected("file_signature_mismatch", 415)
     return allowed
 
 
