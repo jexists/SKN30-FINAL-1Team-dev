@@ -1,0 +1,649 @@
+name: Deploy Frontend
+
+run-name: Deploy Frontend · ${{ github.ref_name }} · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: salesluv-frontend-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  AWS_ACCOUNT_ID: "816008167575"
+  AWS_ROLE_ARN: arn:aws:iam::816008167575:role/SalesLuvFrontendDeployRole
+  FRONTEND_BUCKET: salesluv-frontend-prod-816008167575-ap-northeast-2-an
+  CLOUDFRONT_DISTRIBUTION_ID: E27EQ7X9F57Z1P
+  FRONTEND_ENV_PARAMETER: /salesluv/production/frontend/env
+  AWS_PAGER: ""
+
+jobs:
+  configuration:
+    name: Prepare frontend build configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+    outputs:
+      validated_build_environment: ${{ steps.frontend_environment.outputs.validated_build_environment }}
+
+    steps:
+      - name: Restrict production deployment to develop
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/heads/develop" ]]; then
+            echo "::error::Frontend production deployment is allowed only from develop."
+            exit 1
+          fi
+
+      - name: Assume the AWS configuration role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+          role-session-name: github-actions-salesluv-frontend-configuration
+
+      # 검증 스크립트는 node:crypto / node:fs 만 쓰므로 러너에 기본 설치된 Node 로 충분하다.
+      # setup-node 를 두면 .nvmrc 와 어긋나는 버전을 손으로 관리해야 한다.
+      - name: Fetch and validate frontend build environment
+        id: frontend_environment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          env_file="$(mktemp "${RUNNER_TEMP}/salesluv-frontend-env.XXXXXX")"
+
+          cleanup_env_file() {
+            rm -f -- "${env_file}"
+          }
+
+          trap cleanup_env_file EXIT
+          chmod 0600 "${env_file}"
+
+          aws ssm get-parameter \
+            --region "${AWS_REGION}" \
+            --name "${FRONTEND_ENV_PARAMETER}" \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text >"${env_file}"
+
+          if [[ ! -s "${env_file}" ]]; then
+            echo "::error::The frontend environment parameter is empty."
+            exit 1
+          fi
+
+          FRONTEND_ENV_FILE="${env_file}" node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+
+          const parameterPath = process.env.FRONTEND_ENV_FILE;
+          const githubOutputPath = process.env.GITHUB_OUTPUT;
+
+          function reject(lineNumber, reason) {
+            const location = lineNumber > 0 ? ` at line ${lineNumber}` : '';
+            console.error(
+              `::error::Invalid frontend environment parameter${location}: ${reason}.`,
+            );
+            process.exit(1);
+          }
+
+          function findClosingQuote(value, quote) {
+            for (let index = 1; index < value.length; index += 1) {
+              if (value[index] !== quote) {
+                continue;
+              }
+
+              let backslashes = 0;
+              for (
+                let previous = index - 1;
+                previous >= 0 && value[previous] === '\\';
+                previous -= 1
+              ) {
+                backslashes += 1;
+              }
+
+              if (backslashes % 2 === 0) {
+                return index;
+              }
+            }
+
+            return -1;
+          }
+
+          function parseValue(rawValue, lineNumber) {
+            const value = rawValue.trim();
+            if (value === '') {
+              return '';
+            }
+
+            const quote = value[0];
+            if (quote !== "'" && quote !== '"' && quote !== '`') {
+              const commentIndex = value.indexOf('#');
+              return value
+                .slice(0, commentIndex === -1 ? value.length : commentIndex)
+                .trim();
+            }
+
+            const closingQuote = findClosingQuote(value, quote);
+            if (closingQuote === -1) {
+              reject(lineNumber, 'unterminated quoted value');
+            }
+
+            const trailingText = value.slice(closingQuote + 1).trim();
+            if (trailingText !== '' && !trailingText.startsWith('#')) {
+              reject(lineNumber, 'unexpected text after the quoted value');
+            }
+
+            const parsed = value.slice(1, closingQuote);
+            if (quote === '"') {
+              return parsed.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+            }
+
+            return parsed;
+          }
+
+          if (!parameterPath || !githubOutputPath) {
+            reject(0, 'the runner environment is incomplete');
+          }
+
+          const parameter = fs.readFileSync(parameterPath, 'utf8');
+          if (parameter.includes('\0')) {
+            reject(0, 'NUL bytes are not allowed');
+          }
+
+          const entries = new Map();
+          const lines = parameter.split('\n');
+
+          for (let index = 0; index < lines.length; index += 1) {
+            const lineNumber = index + 1;
+            const line = lines[index].replace(/\r$/, '');
+
+            if (/^\s*(?:#.*)?$/.test(line)) {
+              continue;
+            }
+
+            const assignment = line.match(
+              /^\s*(?:export[ \t]+)?(VITE_[A-Za-z0-9_]+)[ \t]*=[ \t]*(.*)$/,
+            );
+            if (!assignment) {
+              reject(
+                lineNumber,
+                'only VITE_* dotenv KEY=VALUE assignments are allowed',
+              );
+            }
+
+            const [, key, rawValue] = assignment;
+            if (entries.has(key)) {
+              reject(lineNumber, `duplicate key ${key}`);
+            }
+
+            entries.set(key, parseValue(rawValue, lineNumber));
+          }
+
+          if (
+            !entries.has('VITE_API_BASE_URL') ||
+            entries.get('VITE_API_BASE_URL') === ''
+          ) {
+            reject(0, 'VITE_API_BASE_URL is required and must not be empty');
+          }
+
+          let environmentFile = '';
+          for (const [key, value] of entries) {
+            let delimiter;
+            do {
+              delimiter = `SALESLUV_${crypto.randomUUID().replaceAll('-', '')}`;
+            } while (value.split(/\r?\n/).includes(delimiter));
+
+            environmentFile += `${key}<<${delimiter}\n${value}\n${delimiter}\n`;
+          }
+
+          let outputDelimiter;
+          do {
+            outputDelimiter = `SALESLUV_OUTPUT_${crypto.randomUUID().replaceAll('-', '')}`;
+          } while (environmentFile.split(/\r?\n/).includes(outputDelimiter));
+
+          const output =
+            `validated_build_environment<<${outputDelimiter}\n` +
+            environmentFile +
+            `${outputDelimiter}\n`;
+
+          fs.appendFileSync(githubOutputPath, output, {
+            encoding: 'utf8',
+            mode: 0o600,
+          });
+          console.log(`Validated ${entries.size} VITE_* build variable(s).`);
+          NODE
+
+  build:
+    name: Build frontend artifact
+    needs: configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the deployment commit
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        shell: bash
+        run: npm ci
+
+      - name: Import validated frontend build environment
+        shell: bash
+        env:
+          VALIDATED_BUILD_ENVIRONMENT: ${{ needs.configuration.outputs.validated_build_environment }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${VALIDATED_BUILD_ENVIRONMENT:-}" ]]; then
+            echo "::error::Validated frontend build environment is missing."
+            exit 1
+          fi
+
+          printf '%s\n' "${VALIDATED_BUILD_ENVIRONMENT}" >>"${GITHUB_ENV}"
+
+      - name: Build frontend
+        working-directory: frontend
+        shell: bash
+        run: npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: salesluv-frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    name: Deploy frontend to production
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salesluv-frontend-dist
+          path: frontend/dist
+
+      - name: Validate frontend artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ ! -d frontend/dist/assets ]]; then
+            echo "::error::Expected frontend/dist/assets in the build artifact."
+            exit 1
+          fi
+
+          if [[ ! -f frontend/dist/index.html ]]; then
+            echo "::error::Expected frontend/dist/index.html in the build artifact."
+            exit 1
+          fi
+
+      - name: Assume the AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+          role-session-name: github-actions-salesluv-frontend-deployment
+
+      - name: Publish frontend and prune old assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          readonly asset_prefix="assets/"
+          readonly marker_prefix="_salesluv/frontend-releases/"
+
+          if [[ ! "${GITHUB_RUN_ID}" =~ ^[0-9]+$ || \
+                ! "${GITHUB_RUN_ATTEMPT}" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid GitHub run identity for the release marker."
+            exit 1
+          fi
+
+          marker_key="${marker_prefix}${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.marker"
+
+          if [[ "${marker_key}" != "${marker_prefix}"* || \
+                "${marker_key}" != *.marker ]]; then
+            echo "::error::Refusing to use a release marker outside the protected prefix."
+            exit 1
+          fi
+
+          temp_dir="$(mktemp -d "${RUNNER_TEMP}/salesluv-frontend-retention.XXXXXX")"
+          chmod 0700 "${temp_dir}"
+
+          empty_marker_body="${temp_dir}/empty-marker"
+          markers_json="${temp_dir}/markers.json"
+          sorted_markers_json="${temp_dir}/sorted-markers.json"
+          assets_json="${temp_dir}/assets.json"
+          asset_targets_json="${temp_dir}/asset-targets.json"
+          marker_targets_json="${temp_dir}/marker-targets.json"
+          delete_request_json="${temp_dir}/delete-request.json"
+          delete_response_json="${temp_dir}/delete-response.json"
+          temp_files=(
+            "${empty_marker_body}"
+            "${markers_json}"
+            "${sorted_markers_json}"
+            "${assets_json}"
+            "${asset_targets_json}"
+            "${marker_targets_json}"
+            "${delete_request_json}"
+            "${delete_response_json}"
+          )
+
+          for temp_file in "${temp_files[@]}"; do
+            : >"${temp_file}"
+            chmod 0600 "${temp_file}"
+          done
+
+          cleanup_local_files() {
+            if ! rm -f -- "${temp_files[@]}"; then
+              echo "::warning::Failed to remove one or more local retention files."
+            fi
+            if ! rmdir -- "${temp_dir}"; then
+              echo "::warning::Failed to remove the local retention directory."
+            fi
+          }
+
+          finish_publish() {
+            local publish_exit_code=$?
+
+            trap - EXIT INT TERM
+            cleanup_local_files
+            exit "${publish_exit_code}"
+          }
+
+          delete_object_batches() {
+            local targets_file="$1"
+            local target_type="$2"
+            local target_count=""
+            local offset=0
+
+            target_count="$(jq -er 'length' "${targets_file}")"
+            if [[ ! "${target_count}" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid ${target_type} deletion count."
+              return 1
+            fi
+
+            for ((offset = 0; offset < target_count; offset += 1000)); do
+              jq \
+                --argjson offset "${offset}" \
+                '{
+                  Objects: .[$offset:($offset + 1000)],
+                  Quiet: true
+                }' \
+                "${targets_file}" >"${delete_request_json}"
+
+              case "${target_type}" in
+                assets)
+                  if ! jq -e \
+                      --arg prefix "${asset_prefix}" \
+                      '(
+                        ((.Objects | length) > 0) and
+                        ((.Objects | length) <= 1000) and
+                        all(
+                          .Objects[];
+                          ((.Key | type) == "string") and
+                          (.Key | startswith($prefix))
+                        )
+                      )' \
+                      "${delete_request_json}" >/dev/null; then
+                    echo "::error::Refusing an asset deletion outside assets/."
+                    return 1
+                  fi
+                  ;;
+                markers)
+                  if ! jq -e \
+                      --arg prefix "${marker_prefix}" \
+                      '(
+                        ((.Objects | length) > 0) and
+                        ((.Objects | length) <= 1000) and
+                        all(
+                          .Objects[];
+                          ((.Key | type) == "string") and
+                          (.Key | startswith($prefix)) and
+                          (.Key | endswith(".marker"))
+                        )
+                      )' \
+                      "${delete_request_json}" >/dev/null; then
+                    echo "::error::Refusing a marker deletion outside the protected prefix."
+                    return 1
+                  fi
+                  ;;
+                *)
+                  echo "::error::Unknown retention deletion target type."
+                  return 1
+                  ;;
+              esac
+
+              aws s3api delete-objects \
+                --region "${AWS_REGION}" \
+                --bucket "${FRONTEND_BUCKET}" \
+                --delete "file://${delete_request_json}" \
+                --output json >"${delete_response_json}"
+
+              if ! jq -e \
+                  '((.Errors // []) | length) == 0' \
+                  "${delete_response_json}" >/dev/null; then
+                echo "::error::S3 reported one or more ${target_type} deletion failures."
+                return 1
+              fi
+            done
+          }
+
+          trap finish_publish EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+
+          # sync 로 바꾸지 말 것. 아래 보존 로직이 LastModified 로 세대를 가르므로,
+          # 내용이 같아도 매번 다시 올려 현재 자산의 타임스탬프를 갱신해야 한다.
+          # sync 는 안 바뀐 청크를 건너뛰어 아직 서비스 중인 자산을 삭제 대상으로 만든다.
+          aws s3 cp \
+            frontend/dist/assets/ \
+            "s3://${FRONTEND_BUCKET}/assets/" \
+            --recursive \
+            --cache-control 'public,max-age=31536000,immutable' \
+            --only-show-errors
+
+          aws s3 sync \
+            frontend/dist/ \
+            "s3://${FRONTEND_BUCKET}/" \
+            --delete \
+            --exclude 'assets/*' \
+            --exclude '_salesluv/*' \
+            --cache-control 'no-cache,no-store,must-revalidate' \
+            --only-show-errors
+
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths '/*' >/dev/null
+
+          aws s3api put-object \
+            --region "${AWS_REGION}" \
+            --bucket "${FRONTEND_BUCKET}" \
+            --key "${marker_key}" \
+            --body "fileb://${empty_marker_body}" >/dev/null
+
+          aws s3api list-objects-v2 \
+            --region "${AWS_REGION}" \
+            --bucket "${FRONTEND_BUCKET}" \
+            --prefix "${marker_prefix}" \
+            --output json >"${markers_json}"
+
+          jq \
+            --arg marker_prefix "${marker_prefix}" \
+            '[
+              (.Contents // [])[]
+              | select(
+                  ((.Key | type) == "string") and
+                  (.Key | startswith($marker_prefix)) and
+                  (.Key | endswith(".marker")) and
+                  ((.LastModified | type) == "string")
+                )
+              | {Key, LastModified}
+            ]
+            | sort_by([.LastModified, .Key])
+            | reverse' \
+            "${markers_json}" >"${sorted_markers_json}"
+
+          marker_count="$(jq -er 'length' "${sorted_markers_json}")"
+          current_marker_count="$(
+            jq -er \
+              --arg marker_key "${marker_key}" \
+              '[.[] | select(.Key == $marker_key)] | length' \
+              "${sorted_markers_json}"
+          )"
+          # index 는 못 찾으면 null 이고, jq -e 는 null 에 exit 1 을 낸다.
+          # 그대로 두면 set -e 가 아래 에러 메시지 전에 스텝을 죽인다.
+          current_marker_position="$(
+            jq -r \
+              --arg marker_key "${marker_key}" \
+              'map(.Key) | index($marker_key) // -1' \
+              "${sorted_markers_json}"
+          )"
+
+          if [[ ! "${marker_count}" =~ ^[0-9]+$ || \
+                "${current_marker_count}" != "1" || \
+                ! "${current_marker_position}" =~ ^[0-9]+$ || \
+                "${current_marker_position}" -ge 3 ]]; then
+            echo "::error::The committed release marker is missing from the newest generations."
+            exit 1
+          fi
+
+          if ((marker_count <= 3)); then
+            printf 'Release retention: %d generation(s); no cleanup required.\n' \
+              "${marker_count}"
+            exit 0
+          fi
+
+          cutoff="$(jq -er '.[3].LastModified' "${sorted_markers_json}")"
+
+          aws s3api list-objects-v2 \
+            --region "${AWS_REGION}" \
+            --bucket "${FRONTEND_BUCKET}" \
+            --prefix "${asset_prefix}" \
+            --output json >"${assets_json}"
+
+          jq \
+            --arg asset_prefix "${asset_prefix}" \
+            --arg cutoff "${cutoff}" \
+            '[
+              (.Contents // [])[]
+              | select(
+                  ((.Key | type) == "string") and
+                  (.Key | startswith($asset_prefix)) and
+                  ((.LastModified | type) == "string") and
+                  (.LastModified <= $cutoff)
+                )
+              | {Key}
+            ]' \
+            "${assets_json}" >"${asset_targets_json}"
+
+          jq \
+            '.[3:] | map({Key: .Key})' \
+            "${sorted_markers_json}" >"${marker_targets_json}"
+
+          asset_delete_count="$(jq -er 'length' "${asset_targets_json}")"
+          marker_delete_count="$(jq -er 'length' "${marker_targets_json}")"
+          printf 'Release retention: deleting %d old asset object(s) and %d old marker(s).\n' \
+            "${asset_delete_count}" "${marker_delete_count}"
+
+          delete_object_batches "${asset_targets_json}" assets
+          delete_object_batches "${marker_targets_json}" markers
+
+  notify:
+    name: Notify Discord of deployment result
+    needs:
+      - configuration
+      - build
+      - deploy
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      - name: Send Discord notification
+        continue-on-error: true
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CONFIGURATION_RESULT: ${{ needs.configuration.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${DISCORD_WEBHOOK_URL:-}" ]]; then
+            echo "::warning::Discord webhook is not configured; skipping notification."
+            exit 0
+          fi
+
+          if [[ "${CONFIGURATION_RESULT}" == "success" && \
+                "${BUILD_RESULT}" == "success" && \
+                "${DEPLOY_RESULT}" == "success" ]]; then
+            title='✅ 프론트엔드 배포 완료'
+          else
+            title='❌ 프론트엔드 배포 실패'
+          fi
+
+          short_sha="${DEPLOY_SHA:0:7}"
+          description="$(printf '브랜치: `%s`\n커밋: `%s`\n실행자: `%s`\n[GitHub Actions 실행 보기](%s)' \
+            "${DEPLOY_BRANCH}" "${short_sha}" "${DEPLOY_ACTOR}" "${RUN_URL}")"
+
+          if ! payload="$(
+            jq -n \
+              --arg title "${title}" \
+              --arg description "${description}" \
+              '{
+                embeds: [{title: $title, description: $description}],
+                allowed_mentions: {parse: []}
+              }'
+          )"; then
+            echo "::warning::Failed to build the Discord notification payload."
+            exit 0
+          fi
+
+          if ! curl --disable \
+              --fail \
+              --silent \
+              --retry 2 \
+              --retry-delay 1 \
+              --retry-max-time 30 \
+              --connect-timeout 5 \
+              --max-time 10 \
+              --header 'Content-Type: application/json' \
+              --data-binary "${payload}" \
+              --output /dev/null \
+              "${DISCORD_WEBHOOK_URL}" 2>/dev/null; then
+            echo "::warning::Failed to send the Discord deployment notification."
+            exit 0
+          fi

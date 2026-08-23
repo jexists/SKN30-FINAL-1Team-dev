@@ -1,0 +1,303 @@
+name: Deploy Backend
+
+run-name: Deploy Backend · ${{ github.ref_name }} · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: salesluv-backend-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  AWS_ACCOUNT_ID: '816008167575'
+  AWS_ROLE_ARN: arn:aws:iam::816008167575:role/salesluv-github-actions-deploy-role
+  EC2_INSTANCE_ID: i-0464d8283887dd6f5
+  SSM_EXECUTION_TIMEOUT_SECONDS: '2100'
+  SSM_DELIVERY_TIMEOUT_SECONDS: '60'
+  SSM_POLL_TIMEOUT_SECONDS: '2250'
+  SSM_CANCEL_WAIT_SECONDS: '60'
+
+jobs:
+  deploy:
+    name: Deploy backend to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Restrict production deployment to develop
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/heads/develop" ]]; then
+            echo "::error::Backend production deployment is allowed only from develop."
+            exit 1
+          fi
+
+      - name: Assume the AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+          role-session-name: github-actions-salesluv-backend
+
+      - name: Deploy the exact commit through SSM
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export AWS_PAGER=""
+
+          command_id=""
+          command_finished="false"
+
+          wait_for_command_to_stop() {
+            local cancel_deadline=$((SECONDS + SSM_CANCEL_WAIT_SECONDS))
+            local cancel_status=""
+
+            while ((SECONDS < cancel_deadline)); do
+              if cancel_status="$(
+                aws ssm get-command-invocation \
+                  --region "${AWS_REGION}" \
+                  --command-id "${command_id}" \
+                  --instance-id "${EC2_INSTANCE_ID}" \
+                  --query 'Status' \
+                  --output text 2>/dev/null
+              )"; then
+                case "${cancel_status}" in
+                  Success|Cancelled|Failed|TimedOut)
+                    printf 'SSM command reached terminal state: %s\n' \
+                      "${cancel_status}"
+                    return 0
+                    ;;
+                esac
+              fi
+
+              sleep 5
+            done
+
+            return 1
+          }
+
+          cancel_unfinished_command() {
+            local exit_status=$?
+
+            trap - EXIT INT TERM
+            if [[ -n "${command_id}" && "${command_finished}" != "true" ]]; then
+              echo "Cancelling unfinished SSM command ${command_id}."
+              if aws ssm cancel-command \
+                  --region "${AWS_REGION}" \
+                  --command-id "${command_id}" >/dev/null 2>&1; then
+                if ! wait_for_command_to_stop; then
+                  echo "::warning::SSM command did not reach a terminal state within ${SSM_CANCEL_WAIT_SECONDS} seconds after cancellation."
+                fi
+              else
+                echo "::warning::Failed to request cancellation for SSM command ${command_id}."
+              fi
+            fi
+            exit "${exit_status}"
+          }
+
+          trap cancel_unfinished_command EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+
+          remote_command="$(cat <<'REMOTE_SCRIPT'
+          exec bash -s <<'REMOTE_BASH'
+          set -Eeuo pipefail
+
+          readonly REPO_DIR="/opt/salesluv"
+          readonly DEPLOY_SHA="__DEPLOY_SHA__"
+          deploy_script=""
+
+          cleanup_remote_command() {
+            if [[ -n "${deploy_script}" ]]; then
+              rm -f -- "${deploy_script}"
+            fi
+          }
+
+          trap cleanup_remote_command EXIT
+
+          git -C "${REPO_DIR}" fetch \
+            --no-tags \
+            --depth=1 \
+            origin \
+            "+refs/heads/develop:refs/remotes/origin/develop"
+
+          remote_develop_sha="$(git -C "${REPO_DIR}" rev-parse refs/remotes/origin/develop)"
+          if [[ "${remote_develop_sha}" != "${DEPLOY_SHA}" ]]; then
+            printf 'Refusing deployment: origin/develop is %s, requested SHA is %s.\n' \
+              "${remote_develop_sha}" "${DEPLOY_SHA}" >&2
+            exit 1
+          fi
+
+          deploy_script="$(mktemp /tmp/salesluv-backend-deploy.XXXXXX)"
+          git -C "${REPO_DIR}" show \
+            "${DEPLOY_SHA}:deploy/backend/deploy.sh" >"${deploy_script}"
+          chmod 0700 "${deploy_script}"
+          bash "${deploy_script}" "${DEPLOY_SHA}"
+          REMOTE_BASH
+          REMOTE_SCRIPT
+          )"
+          remote_command="${remote_command/__DEPLOY_SHA__/${GITHUB_SHA}}"
+
+          request_file="${RUNNER_TEMP}/salesluv-backend-send-command.json"
+          jq -n \
+            --arg instance_id "${EC2_INSTANCE_ID}" \
+            --arg comment "Deploy SalesLuv backend ${GITHUB_SHA}" \
+            --arg command "${remote_command}" \
+            --arg execution_timeout "${SSM_EXECUTION_TIMEOUT_SECONDS}" \
+            --argjson delivery_timeout "${SSM_DELIVERY_TIMEOUT_SECONDS}" \
+            '{
+              DocumentName: "AWS-RunShellScript",
+              InstanceIds: [$instance_id],
+              Comment: $comment,
+              TimeoutSeconds: $delivery_timeout,
+              Parameters: {
+                commands: [$command],
+                executionTimeout: [$execution_timeout]
+              }
+            }' > "${request_file}"
+
+          command_id="$(
+            aws ssm send-command \
+              --region "${AWS_REGION}" \
+              --cli-input-json "file://${request_file}" \
+              --query 'Command.CommandId' \
+              --output text
+          )"
+
+          printf 'SSM command started: %s\n' "${command_id}"
+
+          status="Pending"
+          response_code="-1"
+          poll_deadline=$((SECONDS + SSM_POLL_TIMEOUT_SECONDS))
+          while ((SECONDS < poll_deadline)); do
+            set +e
+            invocation="$(
+              aws ssm get-command-invocation \
+                --region "${AWS_REGION}" \
+                --command-id "${command_id}" \
+                --instance-id "${EC2_INSTANCE_ID}" \
+                --query '[Status, ResponseCode]' \
+                --output text 2>/dev/null
+            )"
+            invocation_exit_code=$?
+            set -e
+
+            if ((invocation_exit_code != 0)); then
+              sleep 5
+              continue
+            fi
+
+            read -r status response_code <<< "${invocation}"
+            case "${status}" in
+              Success|Cancelled|Failed|TimedOut)
+                command_finished="true"
+                break
+                ;;
+            esac
+
+            sleep 10
+          done
+
+          if [[ "${command_finished}" != "true" ]]; then
+            echo "::error::Timed out while waiting for the EC2 deployment command."
+            exit 1
+          fi
+
+          echo "----- EC2 deployment output -----"
+          aws ssm get-command-invocation \
+            --region "${AWS_REGION}" \
+            --command-id "${command_id}" \
+            --instance-id "${EC2_INSTANCE_ID}" \
+            --query 'StandardOutputContent' \
+            --output text || true
+
+          echo "----- EC2 deployment errors -----"
+          aws ssm get-command-invocation \
+            --region "${AWS_REGION}" \
+            --command-id "${command_id}" \
+            --instance-id "${EC2_INSTANCE_ID}" \
+            --query 'StandardErrorContent' \
+            --output text || true
+
+          printf 'Final SSM status: %s (response code: %s)\n' \
+            "${status}" "${response_code}"
+
+          if [[ "${status}" != "Success" || "${response_code}" != "0" ]]; then
+            echo "::error::Backend deployment failed on EC2."
+            exit 1
+          fi
+
+  notify:
+    name: Notify backend deployment result
+    needs: deploy
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    timeout-minutes: 5
+
+    steps:
+      - name: Send Discord notification
+        continue-on-error: true
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${DISCORD_WEBHOOK_URL}" ]]; then
+            echo "::warning::Discord webhook is not configured; skipping notification."
+            exit 0
+          fi
+
+          if [[ "${DEPLOY_RESULT}" == "success" ]]; then
+            title='✅ 백엔드 배포 완료'
+          else
+            title='❌ 백엔드 배포 실패'
+          fi
+
+          short_sha="${DEPLOY_SHA:0:7}"
+          description="$(printf '브랜치: `%s`\n커밋: `%s`\n실행자: `%s`\n[GitHub Actions 실행 보기](%s)' \
+            "${DEPLOY_BRANCH}" "${short_sha}" "${DEPLOY_ACTOR}" "${RUN_URL}")"
+
+          if ! payload="$(
+            jq -n \
+              --arg title "${title}" \
+              --arg description "${description}" \
+              '{
+                embeds: [{title: $title, description: $description}],
+                allowed_mentions: {parse: []}
+              }'
+          )"; then
+            echo "::warning::Failed to build the Discord notification payload."
+            exit 0
+          fi
+
+          if ! curl --disable \
+              --fail \
+              --silent \
+              --retry 2 \
+              --retry-delay 1 \
+              --retry-max-time 30 \
+              --connect-timeout 5 \
+              --max-time 10 \
+              --header 'Content-Type: application/json' \
+              --data-binary "${payload}" \
+              --output /dev/null \
+              "${DISCORD_WEBHOOK_URL}" 2>/dev/null; then
+            echo "::warning::Failed to send the Discord deployment notification."
+            exit 0
+          fi
