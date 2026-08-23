@@ -247,8 +247,14 @@ validate_runtime_environment() {
     deployment_prerequisite_value \
         "${dotenv_file}" CORS_ORIGINS "production-security" >/dev/null || return 1
 
-    # 런타임 기능 조건: /api/health/db 와 Supabase 인증이 의존한다.
-    for feature_key in DATABASE_URL SUPABASE_PUBLISHABLE_KEY; do
+    # 런타임 기능 조건: /api/health/db, Supabase 인증, 계정 발급(/admin)이 의존한다.
+    # SUPABASE_SECRET_KEY 가 없으면 계정 발급이 조용히 503 으로 죽으므로 여기서 막는다.
+    for feature_key in \
+        DATABASE_URL \
+        SUPABASE_PUBLISHABLE_KEY \
+        SUPABASE_SECRET_KEY \
+        ADMIN_USER_IDS \
+        FRONTEND_BASE_URL; do
         deployment_prerequisite_value \
             "${dotenv_file}" "${feature_key}" "deployed-feature" >/dev/null \
             || return 1

@@ -34,6 +34,13 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   auth_not_configured: '로그인 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
   auth_unavailable: '인증 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   origin_not_allowed: '허용되지 않은 주소에서 보낸 요청입니다.',
+  // 계정 발급 (/admin)
+  admin_only: '계정을 발급할 수 있는 계정이 아닙니다.',
+  admin_not_configured: '계정 발급 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  email_already_exists: '이미 등록된 이메일입니다.',
+  team_name_already_exists: '같은 이름의 팀이 이미 있습니다.',
+  team_not_found: '고른 팀을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
+  password_rejected: '비밀번호가 정책에 맞지 않습니다. 더 길고 복잡하게 정해 주세요.',
 }
 
 const MESSAGE_BY_STATUS: Record<number, string> = {

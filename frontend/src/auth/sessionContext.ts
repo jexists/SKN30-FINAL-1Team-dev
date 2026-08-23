@@ -10,6 +10,11 @@ export interface Profile {
 export interface Session {
   role: Role
   profile: Profile
+  /**
+   * 계정을 발급할 수 있는지. 서버의 ADMIN_USER_IDS 에서 나오며 role 과 무관합니다.
+   * 화면을 감추는 용도일 뿐이고 실제 권한은 백엔드가 매 요청 다시 판단합니다.
+   */
+  isAdmin: boolean
 }
 
 /**

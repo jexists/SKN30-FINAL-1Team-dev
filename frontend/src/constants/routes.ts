@@ -6,7 +6,10 @@ import type { ReportKind } from '@/types'
 // 화면을 구현할 때 src/pages/<Name>/ 을 만들고 App.tsx 에 <Route> 를 추가하세요.
 export const ROUTES = {
   LOGIN: '/login', // 셸 밖. 내비게이션에 넣지 않습니다.
+  // 초대 메일이 착지하는 곳. 로그인 전에 여는 화면이라 셸 밖에 둡니다.
+  SET_PASSWORD: '/set-password',
   DASHBOARD: '/',
+  ADMIN: '/admin', // 계정 발급 (어드민 전용). 사이드바에 넣지 않습니다.
   TEAM: '/team', // 팀 관리 (팀장 전용)
   CUSTOMERS: '/customers',
   COMPLAINTS: '/complaints', // 고객 불만 관리

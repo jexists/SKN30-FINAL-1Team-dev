@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 
+import AdminRoute from '@/auth/AdminRoute'
 import ManagerRoute from '@/auth/ManagerRoute'
 import ProtectedRoute from '@/auth/ProtectedRoute'
 import SessionProvider from '@/auth/SessionProvider'
@@ -11,6 +12,7 @@ import Complaints from '@/pages/Complaints'
 import Contracts from '@/pages/Contracts'
 import Customers from '@/pages/Customers'
 import Daily, { DailyCompose, DailyDetail, DailyMeetingPick } from '@/pages/Daily'
+import Admin from '@/pages/Admin'
 import Dashboard from '@/pages/Dashboard'
 import Documents from '@/pages/Documents'
 import LegalDoc from '@/pages/Legal'
@@ -22,6 +24,7 @@ import Notifications from '@/pages/Notifications'
 import Orders, { OrderDetail, OrderNew } from '@/pages/Orders'
 import Quotes from '@/pages/Quotes'
 import Sales from '@/pages/Sales'
+import SetPassword from '@/pages/SetPassword'
 import Team from '@/pages/Team'
 import Deals, { DealBoard } from '@/pages/Deals'
 
@@ -33,6 +36,8 @@ export default function App() {
         <ConnectionAlert />
         <Routes>
           <Route path={ROUTES.LOGIN} element={<Login />} />
+          {/* 초대 메일이 착지하는 곳. 아직 비밀번호가 없는 사람이 여는 화면이라 셸 밖입니다. */}
+          <Route path={ROUTES.SET_PASSWORD} element={<SetPassword />} />
 
           <Route element={<ProtectedRoute />}>
             {/* 404 도 셸 안에 둡니다. 사이드바가 남아 있어야 바로 다른 메뉴로 옮겨갈 수 있습니다. */}
@@ -44,6 +49,11 @@ export default function App() {
               {/* 팀장만 들어갈 수 있는 화면. 팀원이 주소를 직접 치면 대시보드로 돌아갑니다. */}
               <Route element={<ManagerRoute />}>
                 <Route path={ROUTES.TEAM} element={<Team />} />
+              </Route>
+
+              {/* 계정 발급. 사이드바에 없고 어드민만 들어갑니다. */}
+              <Route element={<AdminRoute />}>
+                <Route path={ROUTES.ADMIN} element={<Admin />} />
               </Route>
 
               {/* 알림은 사이드바에 없습니다. 진입은 헤더 벨에서만 합니다. */}

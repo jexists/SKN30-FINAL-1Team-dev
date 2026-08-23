@@ -34,7 +34,12 @@
   다만 `app/models/sales.py`가 이름으로 참조하는 네 개(`sales_pipeline_stage_*_key` 3개와
   `sales_deal_sales_pipeline_stage_membership_fkey`)는 그대로 유지합니다.
 
-이 파일은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
+- `20260823_0002_admin_account_provisioning.sql`: `/admin` 계정 발급 화면이 쓰는 컬럼을 더합니다.
+  `team`에 `company_name`, `department`, `business_no`(하이픈 없는 10자리), `member`에 `email`을
+  추가하고 `member(lower(email))`에 부분 유일 인덱스를 겁니다. `email`의 주인은 여전히
+  `auth.users`이며 여기 값은 어드민 목록 표시용 사본입니다. 권한 판단에는 쓰지 않습니다.
+
+`20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
 ## 적용 이력
@@ -43,11 +48,16 @@
 |---|---|---|---|---|
 | 2026-08-19 | 개발 | (런북 1단계) 26테이블 `DROP TABLE ... CASCADE` | session pooler | 성공. public 테이블 0개 |
 | 2026-08-19 | 개발 | `20260819_0001_baseline_schema.sql` | session pooler | 성공. 26테이블 / 264컬럼 / FK 65 / RLS 26 |
+| 2026-08-23 | 개발 | `20260823_0002_admin_account_provisioning.sql` | session pooler | 성공. team +3컬럼 / member +1컬럼 / 부분 유일 인덱스 1. 기존 1팀 2명 그대로 |
 
 ## 개발 DB 재구축 런북
 
-로그인은 Supabase Auth가 담당합니다. 계정의 이메일과 비밀번호는 Supabase Dashboard에서만
-관리하며 `.env`를 포함해 저장소 어디에도 두지 않습니다.
+로그인은 Supabase Auth가 담당합니다. 계정의 이메일과 비밀번호는 저장소 어디에도 두지 않습니다.
+
+`20260823_0002` 적용 이후 일반 계정은 `/admin` 화면에서 발급합니다. 어드민이 이메일과 팀을 넣으면
+Supabase 사용자 생성·초대 메일 발송·`team`/`member` 행 등록이 한 번에 끝나고, 받는 사람이 메일
+링크에서 비밀번호를 직접 정합니다. Dashboard에서 직접 만드는 것은 아래 재구축 런북과 어드민
+계정 자신에게만 해당합니다.
 
 현재 개발 계정은 두 개입니다.
 

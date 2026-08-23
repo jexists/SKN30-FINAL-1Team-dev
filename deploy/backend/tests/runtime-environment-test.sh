@@ -49,7 +49,7 @@ assert_validation_fails() {
     fi
 }
 
-readonly VALID_ENVIRONMENT=$'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+readonly VALID_ENVIRONMENT=$'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 valid_file="$(write_environment valid "${VALID_ENVIRONMENT}")"
 valid_output="$(validate_runtime_environment "${valid_file}")" \
@@ -60,68 +60,82 @@ assert_validation_fails \
     missing_app_env \
     'schema-required key is missing: APP_ENV' \
     '' \
-    $'DEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'DEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     duplicate_app_env \
     'schema-required key is duplicated: APP_ENV' \
     '' \
-    $'APP_ENV=production\nAPP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV=production\nAPP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     empty_app_env \
     'schema-required key is present but empty: APP_ENV' \
     '' \
-    $'APP_ENV=\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV=\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     invalid_app_env_key \
     'Invalid runtime environment key syntax at line 1' \
     '' \
-    $'APP_ENV =production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV =production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 readonly SECRET_MARKER='do-not-print-this-value'
 assert_validation_fails \
     quoted_app_env \
     'APP_ENV must be the unquoted literal production; double-quoted form was provided' \
     "${SECRET_MARKER}" \
-    $'APP_ENV="do-not-print-this-value"\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV="do-not-print-this-value"\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     whitespace_app_env \
     'APP_ENV must be the unquoted literal production; form with surrounding whitespace was provided' \
     '' \
-    $'APP_ENV= production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV= production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     commented_debug \
     'DEBUG must be the unquoted literal false; form with literal inline-comment text was provided' \
     '' \
-    $'APP_ENV=production\nDEBUG=false # production\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV=production\nDEBUG=false # production\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     missing_cors \
     'production-security key is missing: CORS_ORIGINS' \
     '' \
-    $'APP_ENV=production\nDEBUG=false\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV=production\nDEBUG=false\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     empty_database \
     'deployed-feature key is present but empty: DATABASE_URL' \
     '' \
-    $'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
+
+# 계정 발급(/admin)이 의존하는 키다. 없으면 배포는 되고 발급만 503 으로 죽으므로
+# 조용한 실패 대신 배포를 멈춘다.
+assert_validation_fails \
+    missing_supabase_secret \
+    'deployed-feature key is missing: SUPABASE_SECRET_KEY' \
+    '' \
+    $'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
+
+assert_validation_fails \
+    missing_admin_user_ids \
+    'deployed-feature key is missing: ADMIN_USER_IDS' \
+    '' \
+    $'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     bare_duplicate_app_env \
     'explicit KEY=value is required' \
     '' \
-    $'APP_ENV=production\nAPP_ENV\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n'
+    $'APP_ENV=production\nAPP_ENV\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n'
 
 assert_validation_fails \
     malformed_unrelated_key \
     'Invalid runtime environment key syntax' \
     "${SECRET_MARKER}" \
-    $'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\n=do-not-print-this-value\n'
+    $'APP_ENV=production\nDEBUG=false\nCORS_ORIGINS=https://app.example.com\nDATABASE_URL=postgresql://example.invalid/app\nSUPABASE_PUBLISHABLE_KEY=synthetic-key\nSUPABASE_SECRET_KEY=synthetic-secret\nADMIN_USER_IDS=aaaaaaaa-1111-4111-8111-111111111111\nFRONTEND_BASE_URL=https://app.example.com\n=do-not-print-this-value\n'
 
 raw_file="$(write_environment raw_value $'RAW_VALUE=  literal # text = preserved  \r\n')"
 raw_value="$(dotenv_value "${raw_file}" RAW_VALUE)"

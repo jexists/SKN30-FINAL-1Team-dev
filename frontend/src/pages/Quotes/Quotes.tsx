@@ -359,7 +359,6 @@ export default function Quotes() {
       )}
 
       {createOpen && <QuoteForm onClose={closeCreate} onSubmit={closeCreate} />}
-
     </section>
   )
 }

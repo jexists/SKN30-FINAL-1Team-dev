@@ -6,6 +6,7 @@
 
 from typing import Literal, Self
 from urllib.parse import urlsplit, urlunsplit
+from uuid import UUID
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -52,6 +53,13 @@ class Settings(BaseSettings):
     # 두 키 모두 서버 프로세스 안에서만 쓰고 브라우저로 보내지 않습니다.
     supabase_publishable_key: SecretStr = SecretStr("")
 
+    # 계정을 발급할 수 있는 Supabase 사용자 id 목록 (쉼표 구분).
+    # 권한의 근거를 DB 밖에 둔다. member 행만 고쳐서는 어드민이 될 수 없다.
+    admin_user_ids: str = ""
+
+    # 초대 메일이 착지할 프론트 주소. Supabase Dashboard 의 Redirect URLs 에도 같은 값을 등록한다.
+    frontend_base_url: str = "http://localhost:5173"
+
     # Supabase Storage. secret 키는 RLS 를 우회하므로 서버에서만 쓴다.
     supabase_secret_key: SecretStr = SecretStr("")
     supabase_storage_bucket: str = ""
@@ -72,6 +80,28 @@ class Settings(BaseSettings):
     def auth_configured(self) -> bool:
         """Supabase Auth 호출에 필요한 값이 모두 있는지. 없으면 인증을 503 으로 막는다."""
         return bool(self.supabase_project_url and self.supabase_publishable_key.get_secret_value())
+
+    @property
+    def admin_user_id_set(self) -> frozenset[UUID]:
+        """계정을 발급할 수 있는 사용자들. 형식이 틀린 값은 조용히 버리지 않는다.
+
+        조용히 버리면 오타 하나로 어드민이 사라지고, 그 사실을 403 을 받고 나서야 안다.
+        """
+        ids = [part.strip() for part in self.admin_user_ids.split(",") if part.strip()]
+        try:
+            return frozenset(UUID(value) for value in ids)
+        except ValueError as error:
+            raise ValueError("ADMIN_USER_IDS 는 쉼표로 구분한 UUID 목록이어야 합니다.") from error
+
+    @property
+    def admin_configured(self) -> bool:
+        """계정 발급에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""
+        return bool(
+            self.admin_user_id_set
+            and self.supabase_project_url
+            and self.supabase_secret_key.get_secret_value()
+            and self.frontend_base_url
+        )
 
     @property
     def storage_configured(self) -> bool:
@@ -100,6 +130,12 @@ class Settings(BaseSettings):
     def session_cookie_secure(self) -> bool:
         """access/refresh 쿠키가 함께 쓰는 Secure 플래그."""
         return self.app_env == "production"
+
+    @model_validator(mode="after")
+    def validate_admin_user_ids(self) -> Self:
+        """형식이 틀린 목록은 부팅에서 잡는다. 403 을 받고 나서 알게 하지 않는다."""
+        _ = self.admin_user_id_set
+        return self
 
     @model_validator(mode="after")
     def validate_production_security(self) -> Self:

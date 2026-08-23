@@ -10,8 +10,9 @@ from app.db.base import Base
 from app.models.agent import AgentRun
 
 EXPECTED_COLUMN_COUNTS = {
-    "team": 3,
-    "member": 7,
+    # 20260823_0002 로 team 에 company_name/department/business_no, member 에 email 이 늘었다.
+    "team": 6,
+    "member": 8,
     "customer_company": 5,
     "customer_contact": 12,
     "customer_contact_status": 9,
@@ -46,7 +47,7 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 264
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 268
 
     foreign_key_constraints = [
         foreign_key

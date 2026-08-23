@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from app.api.deps import CurrentMember, DbSession, active_member
 from app.core.config import settings
 from app.models.workspace import Member
-from app.schemas.auth import LoginRequest, SessionRead
+from app.schemas.auth import LoginRequest, SessionRead, SetPasswordRequest
 from app.services import supabase_auth
 from app.services.supabase_auth import SupabaseSession
 
@@ -69,6 +69,16 @@ def _release_login_attempt(client_host: str) -> None:
         _login_attempts.pop(client_host)
     else:
         _login_attempts[client_host] = (count - 1, started_at)
+
+
+def _session_read(member: Member) -> SessionRead:
+    """세션 응답. is_admin 은 member 행에 없으므로 여기서 채운다.
+
+    권한의 근거를 DB 밖에 두었기 때문에 ORM 객체를 그대로 돌려줄 수 없다.
+    """
+    return SessionRead.model_validate(member).model_copy(
+        update={"is_admin": member.id in settings.admin_user_id_set}
+    )
 
 
 def _set_session_cookies(response: Response, session: SupabaseSession) -> None:
@@ -150,7 +160,7 @@ async def login(
     request: Request,
     response: Response,
     db: DbSession,
-) -> Member:
+) -> SessionRead:
     client_host = request.client.host if request.client else "unknown"
     retry_after = _reserve_login_attempt(client_host)
     if retry_after is not None:
@@ -179,7 +189,7 @@ async def login(
 
     _release_login_attempt(client_host)
     _set_session_cookies(response, session)
-    return member
+    return _session_read(member)
 
 
 def _rejected(status_code: int, detail: str) -> JSONResponse:
@@ -194,7 +204,9 @@ def _rejected(status_code: int, detail: str) -> JSONResponse:
 
 
 @router.post("/refresh", response_model=SessionRead)
-async def refresh(request: Request, response: Response, db: DbSession) -> Member | JSONResponse:
+async def refresh(
+    request: Request, response: Response, db: DbSession
+) -> SessionRead | JSONResponse:
     refresh_token = request.cookies.get(REFRESH_COOKIE, "")
     if not refresh_token:
         return _rejected(status.HTTP_401_UNAUTHORIZED, "not_authenticated")
@@ -214,13 +226,36 @@ async def refresh(request: Request, response: Response, db: DbSession) -> Member
         return _rejected(status.HTTP_403_FORBIDDEN, "member_not_linked")
 
     _set_session_cookies(response, session)
-    return member
+    return _session_read(member)
 
 
 @router.get("/me", response_model=SessionRead)
-async def me(member: CurrentMember, response: Response) -> Member:
+async def me(member: CurrentMember, response: Response) -> SessionRead:
     response.headers["Cache-Control"] = "no-store"
-    return member
+    return _session_read(member)
+
+
+@router.post("/set-password", status_code=status.HTTP_204_NO_CONTENT)
+async def set_password(payload: SetPasswordRequest, response: Response) -> None:
+    """초대 메일로 들어온 사람이 자기 비밀번호를 정한다.
+
+    로그인 상태를 요구하지 않는다. 링크에 실려 온 토큰이 곧 자격증명이고,
+    Supabase 가 그 서명과 만료를 판정한다. 여기서 세션 쿠키를 굽지 않는다.
+    새 비밀번호가 실제로 되는지 로그인 화면에서 바로 확인되는 편이 낫다.
+    """
+    try:
+        await supabase_auth.update_password(
+            access_token=payload.access_token,
+            password=payload.password,
+        )
+    except supabase_auth.WeakPassword as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="password_rejected",
+        ) from error
+    except supabase_auth.AuthError as error:
+        raise auth_http_error(error) from error
+    response.headers["Cache-Control"] = "no-store"
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

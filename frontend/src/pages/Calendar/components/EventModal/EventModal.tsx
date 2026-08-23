@@ -1008,10 +1008,7 @@ function TargetPicker({
 
   // 아무것도 치지 않았으면 회사 이름으로 그 회사 사람들을 부릅니다.
   const search = query.trim() === '' ? (company?.org ?? '') : query
-  const { matches, loading, loadError, reload } = useContactSearch(
-    search,
-    open && company !== null,
-  )
+  const { matches, loading, loadError, reload } = useContactSearch(search, open && company !== null)
 
   // 다른 회사 사람과 이미 담은 사람은 목록에서 뺍니다.
   const candidates = useMemo(() => {

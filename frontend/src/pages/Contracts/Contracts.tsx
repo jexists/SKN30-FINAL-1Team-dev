@@ -348,7 +348,6 @@ export default function Contracts() {
       )}
 
       {createOpen && <ContractForm onClose={closeCreate} onSubmit={closeCreate} />}
-
     </section>
   )
 }

@@ -12,6 +12,10 @@ class Team(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     name: Mapped[str]
+    company_name: Mapped[str | None]
+    department: Mapped[str | None]
+    # 하이픈 없는 10자리. 화면에 보일 하이픈은 프론트가 붙인다.
+    business_no: Mapped[str | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
@@ -25,6 +29,8 @@ class Member(Base):
     display_name: Mapped[str]
     role_code: Mapped[str]
     job_title: Mapped[str | None]
+    # auth.users.email 의 사본. 권한 판단에는 쓰지 않고 어드민 목록 표시에만 쓴다.
+    email: Mapped[str | None]
     active: Mapped[bool] = mapped_column(server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 

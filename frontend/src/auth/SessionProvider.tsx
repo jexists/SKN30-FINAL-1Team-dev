@@ -13,11 +13,13 @@ interface AuthUser {
   display_name: string
   role_code: Session['role']
   job_title: string | null
+  is_admin: boolean
 }
 
-const toSession = ({ display_name, role_code, job_title }: AuthUser): Session => ({
+const toSession = ({ display_name, role_code, job_title, is_admin }: AuthUser): Session => ({
   role: role_code,
   profile: { name: display_name, title: job_title ?? '' },
+  isAdmin: is_admin,
 })
 
 export default function SessionProvider({ children }: { children: ReactNode }) {

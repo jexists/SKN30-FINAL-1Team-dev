@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.workspace import Member, Team
 from app.services import supabase_auth
@@ -68,3 +69,22 @@ async def get_current_member(request: Request, db: DbSession) -> Member:
 
 
 type CurrentMember = Annotated[Member, Depends(get_current_member)]
+
+
+async def get_admin_member(member: CurrentMember) -> Member:
+    """계정을 발급할 수 있는 사람인지 본다.
+
+    판단 근거는 member.role_code 가 아니라 환경변수 허용목록이다. DB 행만
+    고쳐서 어드민이 될 수 있으면, 계정을 만들 수 있는 권한이 계정 안에 갇힌다.
+    """
+    if not settings.admin_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="admin_not_configured",
+        )
+    if member.id not in settings.admin_user_id_set:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="admin_only")
+    return member
+
+
+type CurrentAdmin = Annotated[Member, Depends(get_admin_member)]

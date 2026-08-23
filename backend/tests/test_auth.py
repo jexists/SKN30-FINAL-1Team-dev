@@ -186,6 +186,8 @@ def test_login_sets_token_cookies_and_a_readable_session_hint(monkeypatch):
         "display_name": "합성 팀장",
         "role_code": "manager",
         "job_title": "영업팀장",
+        # ADMIN_USER_IDS 가 비어 있으므로 어드민이 아니다.
+        "is_admin": False,
     }
     cookies = _cookie_text(response)
     assert _cookie_names(response) == SESSION_COOKIES
@@ -459,6 +461,64 @@ def test_validation_error_does_not_echo_password(monkeypatch):
     assert response.status_code == 422
     assert submitted_password not in response.text
     assert all("input" not in error for error in response.json()["detail"])
+
+
+def test_set_password_forwards_the_invite_token_and_keeps_the_password_quiet(monkeypatch):
+    """초대 링크로 들어온 사람이 로그인 없이 비밀번호를 정한다."""
+    calls: list[tuple[str, str]] = []
+
+    async def fake_update_password(*, access_token: str, password: str) -> None:
+        calls.append((access_token, password))
+
+    monkeypatch.setattr(supabase_auth, "update_password", fake_update_password)
+    client, _stub = _client(None, monkeypatch)
+    token = access_token()
+    chosen = secrets.token_urlsafe(16)
+
+    with client:
+        response = client.post(
+            "/api/auth/set-password",
+            headers={"Origin": ORIGIN},
+            json={"access_token": token, "password": chosen},
+        )
+
+    assert response.status_code == 204
+    assert calls == [(token, chosen)]
+    # 쿠키를 굽지 않는다. 새 비밀번호는 로그인 화면에서 확인시킨다.
+    assert _cookie_names(response) == set()
+
+
+def test_set_password_rejects_a_short_password_without_echoing_it(monkeypatch):
+    submitted = "1234567"
+    client, _stub = _client(None, monkeypatch)
+
+    with client:
+        response = client.post(
+            "/api/auth/set-password",
+            headers={"Origin": ORIGIN},
+            json={"access_token": access_token(), "password": submitted},
+        )
+
+    assert response.status_code == 422
+    assert submitted not in response.text
+
+
+def test_set_password_with_a_dead_link_is_401(monkeypatch):
+    async def fake_update_password(**_kwargs) -> None:
+        raise supabase_auth.InvalidCredentials("invalid_token")
+
+    monkeypatch.setattr(supabase_auth, "update_password", fake_update_password)
+    client, _stub = _client(None, monkeypatch)
+
+    with client:
+        response = client.post(
+            "/api/auth/set-password",
+            headers={"Origin": ORIGIN},
+            json={"access_token": access_token(), "password": secrets.token_urlsafe(16)},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "invalid_credentials"
 
 
 def test_production_auth_settings_fail_closed(monkeypatch):

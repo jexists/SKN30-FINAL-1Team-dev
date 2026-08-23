@@ -1,14 +1,17 @@
 """Supabase Auth 호출 경계.
 
-password login, 세션 갱신, 로그아웃, access token 검증 네 가지만 둔다.
+password login, 세션 갱신, 로그아웃, access token 검증에 더해
+어드민 계정 발급이 쓰는 초대·삭제·비밀번호 변경까지 둔다.
 인증 공급자를 바꾸면 이 모듈만 교체한다.
 
 publishable 키는 Auth REST 호출에만 쓰고 브라우저로 보내지 않는다.
+secret 키는 사용자를 만들고 지울 수 있으므로 admin 경로에서만 쓴다.
 비밀번호와 토큰은 예외 메시지나 로그에 남기지 않는다.
 """
 
 import time
 from dataclasses import dataclass
+from urllib.parse import quote
 from uuid import UUID
 
 import httpx
@@ -45,6 +48,14 @@ class InvalidCredentials(AuthError):
     """자격증명이 틀렸거나 refresh token 이 더 이상 유효하지 않다. 401 로 바꾼다."""
 
 
+class EmailAlreadyExists(AuthError):
+    """그 이메일의 Supabase 사용자가 이미 있다. 409 로 바꾼다."""
+
+
+class WeakPassword(AuthError):
+    """Supabase 의 비밀번호 정책에 걸렸다. 422 로 바꾼다. 본문은 옮기지 않는다."""
+
+
 @dataclass(frozen=True, slots=True)
 class SupabaseSession:
     """Supabase 가 돌려준 세션. 쿠키로만 나가고 응답 본문에는 넣지 않는다."""
@@ -63,9 +74,20 @@ def _headers() -> dict[str, str]:
     return {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
+def _admin_headers() -> dict[str, str]:
+    """사용자를 만들고 지울 수 있는 키다. 이 모듈의 admin 함수 밖으로 새어 나가면 안 된다."""
+    key = settings.supabase_secret_key.get_secret_value()
+    return {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+
 def _require_config() -> None:
     if not settings.auth_configured:
         raise AuthNotConfigured("auth_not_configured")
+
+
+def _require_admin_config() -> None:
+    if not settings.admin_configured:
+        raise AuthNotConfigured("admin_not_configured")
 
 
 def _session_from(payload: object) -> SupabaseSession:
@@ -132,6 +154,82 @@ async def sign_out(*, access_token: str) -> None:
         raise AuthUnavailable(f"auth_request_failed:{type(error).__name__}") from error
     if response.status_code >= 500:
         raise AuthUnavailable(f"auth_upstream_failed:{response.status_code}")
+
+
+async def invite_user(*, email: str, redirect_to: str) -> UUID:
+    """사용자를 만들고 초대 메일을 보낸다. 두 가지가 한 호출로 끝난다.
+
+    비밀번호는 여기서 정하지 않는다. 받는 사람이 메일 링크에서 직접 정하므로
+    임시 비밀번호가 어디에도 남지 않는다.
+    """
+    _require_admin_config()
+    url = _endpoint(f"invite?redirect_to={quote(redirect_to, safe='')}")
+    try:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.post(url, headers=_admin_headers(), json={"email": email})
+    except httpx.HTTPError as error:
+        raise AuthUnavailable(f"auth_request_failed:{type(error).__name__}") from error
+
+    if response.status_code in (409, 422):
+        raise EmailAlreadyExists("email_already_exists")
+    if response.status_code == 429:
+        raise AuthRateLimited("auth_rate_limited")
+    if response.status_code >= 500:
+        raise AuthUnavailable(f"auth_upstream_failed:{response.status_code}")
+    if response.status_code >= 400:
+        raise AuthUnavailable(f"auth_invite_failed:{response.status_code}")
+
+    try:
+        user_id = response.json()["id"]
+    except (ValueError, KeyError, TypeError) as error:
+        raise AuthUnavailable("auth_response_invalid") from error
+    try:
+        return UUID(user_id)
+    except (ValueError, AttributeError, TypeError) as error:
+        raise AuthUnavailable("auth_response_invalid") from error
+
+
+async def delete_user(*, user_id: UUID) -> None:
+    """초대 뒤 DB 기록이 실패했을 때 되돌리기 위해 쓴다. 그 밖에는 부르지 않는다."""
+    _require_admin_config()
+    url = _endpoint(f"admin/users/{user_id}")
+    try:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.delete(url, headers=_admin_headers())
+    except httpx.HTTPError as error:
+        raise AuthUnavailable(f"auth_request_failed:{type(error).__name__}") from error
+    # 이미 없으면 되돌릴 것도 없다. 404 는 성공으로 본다.
+    if response.status_code >= 400 and response.status_code != 404:
+        raise AuthUnavailable(f"auth_delete_failed:{response.status_code}")
+
+
+async def update_password(*, access_token: str, password: str) -> None:
+    """초대·복구 링크로 받은 토큰을 자격증명 삼아 비밀번호를 정한다.
+
+    publishable 키를 쓴다. 이 호출은 토큰 주인 자신만 바꿀 수 있으므로
+    사용자를 임의로 건드릴 수 있는 secret 키가 필요하지 않다.
+    """
+    _require_config()
+    if not isinstance(access_token, str) or not access_token:
+        raise InvalidCredentials("invalid_token")
+
+    url = _endpoint("user")
+    headers = {**_headers(), "Authorization": f"Bearer {access_token}"}
+    try:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.put(url, headers=headers, json={"password": password})
+    except httpx.HTTPError as error:
+        raise AuthUnavailable(f"auth_request_failed:{type(error).__name__}") from error
+
+    if response.status_code in (401, 403):
+        raise InvalidCredentials("invalid_token")
+    if response.status_code == 429:
+        raise AuthRateLimited("auth_rate_limited")
+    if response.status_code >= 500:
+        raise AuthUnavailable(f"auth_upstream_failed:{response.status_code}")
+    if response.status_code >= 400:
+        # 비밀번호 정책 위반 등. 본문에 비밀번호가 섞일 수 있으므로 코드만 남긴다.
+        raise WeakPassword("password_rejected")
 
 
 # JWKS 는 자주 바뀌지 않는다. TTL 안에서는 다시 받지 않아 요청마다 네트워크를 타지 않는다.
