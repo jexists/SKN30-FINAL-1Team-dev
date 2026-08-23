@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'deploy/backend/**'
       - '.github/workflows/ci-backend.yml'
   push:
     branches: [develop, main]
     paths:
       - 'backend/**'
+      - 'deploy/backend/**'
       - '.github/workflows/ci-backend.yml'
 
 permissions:
@@ -45,3 +47,9 @@ jobs:
 
       - name: 테스트 (pytest)
         run: uv run pytest
+
+      - name: 배포 스크립트 검증
+        working-directory: .
+        run: |
+          bash -n deploy/backend/deploy.sh
+          bash deploy/backend/tests/runtime-environment-test.sh

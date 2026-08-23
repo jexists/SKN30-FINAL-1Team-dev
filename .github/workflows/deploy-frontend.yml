@@ -24,6 +24,7 @@ jobs:
   configuration:
     name: Prepare frontend build configuration
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 10
     permissions:
       id-token: write
@@ -232,6 +233,8 @@ jobs:
     steps:
       - name: Check out the deployment commit
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -276,6 +279,7 @@ jobs:
     name: Deploy frontend to production
     needs: build
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 30
     permissions:
       id-token: write
@@ -616,6 +620,8 @@ jobs:
           fi
 
           short_sha="${DEPLOY_SHA:0:7}"
+          # Discord Markdown backticks are intentional literals; printf substitutes the values.
+          # shellcheck disable=SC2016
           description="$(printf '브랜치: `%s`\n커밋: `%s`\n실행자: `%s`\n[GitHub Actions 실행 보기](%s)' \
             "${DEPLOY_BRANCH}" "${short_sha}" "${DEPLOY_ACTOR}" "${RUN_URL}")"
 

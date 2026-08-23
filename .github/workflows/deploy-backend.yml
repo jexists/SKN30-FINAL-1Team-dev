@@ -25,6 +25,7 @@ jobs:
   deploy:
     name: Deploy backend to production
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 45
     permissions:
       id-token: write
@@ -270,6 +271,8 @@ jobs:
           fi
 
           short_sha="${DEPLOY_SHA:0:7}"
+          # Discord Markdown backticks are intentional literals; printf substitutes the values.
+          # shellcheck disable=SC2016
           description="$(printf '브랜치: `%s`\n커밋: `%s`\n실행자: `%s`\n[GitHub Actions 실행 보기](%s)' \
             "${DEPLOY_BRANCH}" "${short_sha}" "${DEPLOY_ACTOR}" "${RUN_URL}")"
 
