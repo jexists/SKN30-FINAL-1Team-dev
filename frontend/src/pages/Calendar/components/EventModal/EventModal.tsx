@@ -12,6 +12,7 @@ import { TrashIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import { contractCreatePath, orderNewPath, quoteNewPath } from '@/constants/routes'
 import CustomerFormModal from '@/pages/Customers/components/CustomerFormModal'
+import { showToast } from '@/shared/toast'
 import type { CalendarEvent, CustomerCompanyResponse, CustomerContactResponse } from '@/types'
 import { iso, parseISO } from '@/utils/date'
 
@@ -270,6 +271,11 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
     }
   }
 
+  // 등록한 단계가 곧 쓸 문서를 가리키면(견적작성·초안작성·발주 접수) 이어서
+  // 그 작성 화면까지 열어 줍니다. 저장 직후 무엇을 보여 줄지가 이 값에 달려
+  // 있어 submit 보다 위에 둡니다.
+  const docName = type === '업무' ? DOCUMENT_BY_TASK_STATUS[taskStatus] : undefined
+
   const submit = async () => {
     if (form.title.trim() === '') {
       setError('제목을 입력하세요.')
@@ -322,8 +328,13 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
         stage: type === '일정' ? picked?.stage : undefined,
         kind: type === '일정' ? (picked?.kind ?? 'visit') : 'internal',
       })
-      if (mode === 'create') setSaved(true)
-      else onClose()
+      // 이어서 쓸 문서가 있을 때만 물어볼 것이 남습니다. 그 밖에는 잘 됐다는
+      // 말 한마디뿐이라, 확인을 누르게 하지 않고 토스트로 알리며 닫습니다.
+      if (mode === 'create' && docName) setSaved(true)
+      else {
+        if (mode === 'create') showToast('등록되었습니다.')
+        onClose()
+      }
     } catch {
       setRequestError(
         mode === 'create' ? '일정을 등록하지 못했습니다.' : '일정을 수정하지 못했습니다.',
@@ -332,10 +343,6 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
       setPending(false)
     }
   }
-
-  // 등록한 단계가 곧 쓸 문서를 가리키면(견적작성·초안작성·발주 접수) 이어서
-  // 그 작성 화면까지 열어 줍니다.
-  const docName = type === '업무' ? DOCUMENT_BY_TASK_STATUS[taskStatus] : undefined
 
   const goToDocument = () => {
     onClose()
@@ -357,32 +364,27 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
     }
   }
 
-  // 등록을 마친 뒤. 문서로 이어질 단계면 그리로 갈지 묻고, 아니면 알리고 닫습니다.
+  // 등록을 마친 뒤. 문서로 이어질 단계일 때만 여기까지 옵니다. 그 밖의 등록은
+  // 토스트로 알리고 이미 닫혔습니다.
   if (saved) {
     return (
       <Modal
         title="일정 등록"
         onClose={onClose}
         footer={
-          docName ? (
-            <>
-              <Button type="button" variant="outline" onClick={onClose}>
-                취소
-              </Button>
-              <Button type="button" onClick={goToDocument}>
-                이동
-              </Button>
-            </>
-          ) : (
-            <Button type="button" onClick={onClose}>
-              확인
+          <>
+            <Button type="button" variant="outline" onClick={onClose}>
+              취소
             </Button>
-          )
+            <Button type="button" onClick={goToDocument}>
+              이동
+            </Button>
+          </>
         }
       >
         <div className={styles.saved}>
           <p>등록되었습니다.</p>
-          {docName && <p>{docName} 작성 화면으로 이동하시겠습니까?</p>}
+          <p>{docName} 작성 화면으로 이동하시겠습니까?</p>
         </div>
       </Modal>
     )
