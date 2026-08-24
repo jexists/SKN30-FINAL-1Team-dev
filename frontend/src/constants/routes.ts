@@ -23,6 +23,7 @@ export const ROUTES = {
   CONTRACTS: '/contracts',
   ORDERS: '/orders',
   DOCUMENTS: '/documents',
+  PRODUCTS: '/products', // 상품관리 (팀장 전용). 상품 목록 조회 자체는 팀원도 씁니다.
   // 마이페이지. 진입은 사이드바 하단 이름과 헤더 아바타에서 합니다.
   // 바꿀 수 있는 설정이 없어 '설정' 대신 내 정보·약관을 보는 화면 하나만 둡니다.
   MYPAGE: '/mypage',

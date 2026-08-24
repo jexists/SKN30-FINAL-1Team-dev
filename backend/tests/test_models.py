@@ -20,7 +20,9 @@ EXPECTED_COLUMN_COUNTS = {
     "customer_contact": 14,
     "customer_contact_assignee": 3,
     "customer_contact_status": 9,
-    "product": 4,
+    # 20260824_0004 로 product 에 category_code/unit_price/shelf_life_months/memo/
+    # image_storage_key 가 늘었다.
+    "product": 9,
     "notice": 12,
     "activity": 22,
     "activity_category": 10,
@@ -51,7 +53,8 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 274
+#     assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 274
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 278
 
     foreign_key_constraints = [
         foreign_key

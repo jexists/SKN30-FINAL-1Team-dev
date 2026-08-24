@@ -96,12 +96,37 @@ class SalesDealTypeRead(BaseModel):
     position: int
 
 
+ProductCategoryCode = Literal["system", "probe", "consumable"]
+
+
 class ProductRead(BaseModel):
+    """image_storage_key 는 내부 저장소 주소라 내보내지 않고 유무만 알린다."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     name: str
     active: bool
+    category_code: str
+    unit_price: int
+    shelf_life_months: int | None
+    memo: str | None
+    has_image: bool
+
+
+class ProductCreate(_WriteModel):
+    name: Text
+    category_code: ProductCategoryCode
+    unit_price: StrictInt = Field(ge=0, le=9_223_372_036_854_775_807)
+    shelf_life_months: StrictInt | None = Field(default=None, gt=0, le=1_200)
+    memo: LongText | None = None
+
+
+class ProductImageRead(BaseModel):
+    """짧게 사는 사진 주소. 매 요청마다 팀 권한을 확인한 뒤에만 발급한다."""
+
+    url: str
+    expires_in: int
 
 
 class ProductPage(BaseModel):

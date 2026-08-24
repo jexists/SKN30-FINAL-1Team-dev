@@ -22,6 +22,7 @@ import MyPage from '@/pages/MyPage'
 import NotFound from '@/pages/NotFound'
 import Notifications from '@/pages/Notifications'
 import Orders, { OrderDetail, OrderNew } from '@/pages/Orders'
+import Products from '@/pages/Products'
 import Quotes from '@/pages/Quotes'
 import Sales from '@/pages/Sales'
 import SetPassword from '@/pages/SetPassword'
@@ -49,6 +50,7 @@ export default function App() {
               {/* 팀장만 들어갈 수 있는 화면. 팀원이 주소를 직접 치면 대시보드로 돌아갑니다. */}
               <Route element={<ManagerRoute />}>
                 <Route path={ROUTES.TEAM} element={<Team />} />
+                <Route path={ROUTES.PRODUCTS} element={<Products />} />
               </Route>
 
               {/* 계정 발급. 사이드바에 없고 어드민만 들어갑니다. */}
