@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,3 +29,16 @@ class AgentRun(Base):
     error_message: Mapped[str | None]
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
+
+
+class AgentApproval(Base):
+    __tablename__ = "agent_approval"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    agent_run_id: Mapped[UUID] = mapped_column(ForeignKey("public.agent_run.id"))
+    team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
+    requested_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    idempotency_key: Mapped[UUID]
+    decision_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    result_refs: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

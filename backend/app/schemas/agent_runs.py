@@ -2,9 +2,16 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-AgentCode = Literal["report_writing", "meeting_analysis"]
+from app.schemas.activities import Note, OptionCode, SafeDateTime, Title
+
+AgentCode = Literal[
+    "report_writing",
+    "meeting_analysis",
+    "contract_management",
+    "schedule_management",
+]
 # queued -> running -> completed 또는 failed 로만 움직인다.
 AgentStatus = Literal["queued", "running", "completed", "failed"]
 
@@ -21,15 +28,73 @@ class AgentRunCreate(BaseModel):
 
     agent_code: AgentCode
     # 실행 원문을 가진 보고서. 작성 중(draft)인 것만 허용된다.
-    report_id: UUID
+    report_id: UUID | None = None
+    customer_company_id: UUID | None = None
+    sales_deal_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=100)
+    parent_run_id: UUID | None = None
+    sales_deal_id: UUID | None = None
+    owner_member_id: UUID | None = None
+    companion_member_ids: list[UUID] = Field(default_factory=list, max_length=20)
+    preferred_starts_at: datetime | None = None
+    preferred_ends_at: datetime | None = None
+    duration_minutes: int | None = Field(default=None, ge=5, le=480)
+    activity_type: Literal["meeting", "task"] | None = None
     # 같은 키로 다시 보내면 새 실행을 만들지 않고 기존 실행을 돌려준다.
     idempotency_key: UUID
     guidance: Guidance | None = None
 
     @model_validator(mode="after")
-    def _check_guidance(self):
+    def _check_agent_input(self):
         if self.agent_code != "report_writing" and self.guidance is not None:
             raise ValueError("guidance_not_supported")
+        if self.agent_code in {"report_writing", "meeting_analysis"}:
+            if self.report_id is None:
+                raise ValueError("report_id_required")
+        elif self.agent_code == "contract_management":
+            if self.customer_company_id is None:
+                raise ValueError("customer_company_id_required")
+        else:
+            required = {
+                "sales_deal_id": self.sales_deal_id,
+                "owner_member_id": self.owner_member_id,
+                "preferred_starts_at": self.preferred_starts_at,
+                "preferred_ends_at": self.preferred_ends_at,
+                "duration_minutes": self.duration_minutes,
+                "activity_type": self.activity_type,
+            }
+            if missing := [name for name, value in required.items() if value is None]:
+                raise ValueError(f"schedule_input_required:{','.join(missing)}")
+            assert self.preferred_starts_at is not None
+            assert self.preferred_ends_at is not None
+            if (
+                self.preferred_starts_at.utcoffset() is None
+                or self.preferred_ends_at.utcoffset() is None
+            ):
+                raise ValueError("timezone_offset_required")
+            if self.preferred_starts_at >= self.preferred_ends_at:
+                raise ValueError("preferred_date_range_invalid")
+
+        allowed = {
+            "report_writing": {"report_id", "guidance"},
+            "meeting_analysis": {"report_id"},
+            "contract_management": {"customer_company_id", "sales_deal_ids"},
+            "schedule_management": {
+                "parent_run_id",
+                "sales_deal_id",
+                "owner_member_id",
+                "companion_member_ids",
+                "preferred_starts_at",
+                "preferred_ends_at",
+                "duration_minutes",
+                "activity_type",
+            },
+        }[self.agent_code]
+        optional_values = self.model_dump(exclude={"agent_code", "idempotency_key"})
+        supplied = {
+            name for name, value in optional_values.items() if value is not None and value != []
+        }
+        if unexpected := supplied - allowed:
+            raise ValueError(f"agent_input_not_supported:{','.join(sorted(unexpected))}")
         return self
 
 
@@ -54,3 +119,34 @@ class AgentRunRead(BaseModel):
     # 이 API 에서는 서울 시간으로 변환해서 내보낸다.
     started_at: datetime | None
     finished_at: datetime | None
+
+
+class AgentApprovalCreate(BaseModel):
+    """일정 후보 승인 요청. 서버가 최종 값을 다시 검증하며, candidate_id 는 신뢰하지 않는다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: UUID
+    title: Title
+    category_code: OptionCode
+    action_tag: OptionCode | None = None
+    starts_at: SafeDateTime
+    ends_at: SafeDateTime
+    # 생략하면 원 실행 요청의 owner/companions 를 그대로 쓴다.
+    owner_member_id: UUID | None = None
+    companion_member_ids: list[UUID] | None = None
+    note: Note | None = None
+
+    @model_validator(mode="after")
+    def _check_range(self):
+        if self.ends_at <= self.starts_at:
+            raise ValueError("ends_at must be after starts_at")
+        return self
+
+
+class AgentApprovalRead(BaseModel):
+    id: UUID
+    agent_run_id: UUID
+    activity_id: UUID
+    report_id: UUID
+    created_at: datetime

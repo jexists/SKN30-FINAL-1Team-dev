@@ -39,6 +39,10 @@
   추가하고 `member(lower(email))`에 부분 유일 인덱스를 겁니다. `email`의 주인은 여전히
   `auth.users`이며 여기 값은 어드민 목록 표시용 사본입니다. 권한 판단에는 쓰지 않습니다.
 
+- `20260824_0003_agent_approval.sql`: 계약관리·일정관리 Agent 승인 이력 테이블 `agent_approval`을
+  새로 만듭니다. `agent_run`처럼 상태 전이를 갖지 않고, `support_response`처럼 승인 시점의
+  선택값(`decision_snapshot`)과 생성된 업무 데이터 ID(`result_refs`)만 append-only로 남깁니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 

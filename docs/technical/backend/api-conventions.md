@@ -229,7 +229,10 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 
 ## 14. LLM과 Agent
 
-이 절은 후속 Agent API가 따라야 할 계약이다. 현재 17절의 라우터에는 `/api/agent-runs`가 아직 등록되어 있지 않다.
+이 절은 모든 Agent API가 따라야 할 공통 계약이다. 현재 `/api/agent-runs`의 실행 생성과 조회가 등록되어 있으며, 새 Agent는 같은 실행 리소스와 polling 방식을 재사용한다. 현재 요청 schema가 허용하는 Agent 코드와 실제 구현 범위는 다를 수 있으므로 Agent별 설계 문서의 구현 상태를 함께 확인한다.
+
+- 영업·계약관리 Agent: [영업_계약관리_Agent_설계.md](../multiagent/영업_계약관리_Agent_설계.md)
+- 일정관리 Agent: [일정관리_Agent_설계.md](../multiagent/일정관리_Agent_설계.md)
 
 - Agent 요청에도 프론트 요청과 동일한 입력 검증, 팀 범위와 권한 검사를 적용한다.
 - 장시간 작업 시작은 `202 Accepted`, 실행 리소스 `Location`, 권장 polling 간격 `Retry-After`를 반환한다.
@@ -245,6 +248,45 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 업로드 문서와 고객 입력은 명령이 아니라 신뢰하지 않는 데이터로 취급한다.
 - Agent 간 호출은 `parent_run_id`로 연결하고 각 실행의 권한과 근거를 독립적으로 기록한다.
 - MVP 전송 방식은 polling 하나만 사용한다. 측정상 polling이 부족할 때 SSE나 webhook을 추가한다.
+
+### 14.1 공통 Agent 오류
+
+모든 Agent의 실행 생성, 조회와 승인 API는 다음 오류 코드를 공통으로 사용한다. Agent별 설계 문서에는 해당 도메인에만 필요한 오류를 추가한다.
+
+| 상태 | `detail` | 조건 |
+|---:|---|---|
+| `404` | `agent_run_not_found` | 실행이 없거나 요청자가 접근할 수 없음 |
+| `409` | `agent_run_not_completed` | 완료되지 않은 실행 결과를 승인하려 함 |
+| `409` | `stale_agent_result` | 실행 이후 판단에 사용한 원천 데이터가 변경됨 |
+| `409` | `idempotency_key_reused` | 같은 중복 요청 식별키를 다른 요청에 재사용함 |
+| `422` | FastAPI 검증 오류 | Agent 코드, 필드 형식 또는 값 검증 실패 |
+| `429` | `agent_rate_limit_exceeded` | Agent 실행 요청 제한 초과 |
+| `503` | `llm_not_configured` | 필수 LLM 설정이 없음 |
+| `503` | `llm_unavailable` | LLM 제공자를 일시적으로 사용할 수 없음 |
+
+### 14.2 사용자 승인과 업무 반영
+
+Agent 실행 API와 업무 반영 API를 분리한다. `agent_run.status_code=completed`는 출력 생성 완료만 뜻하며 승인 또는 업무 반영 상태로 사용하지 않는다.
+
+업무 반영 API는 공통으로 다음 순서를 지킨다.
+
+1. 로그인 회원과 대상 `agent_run`의 팀·권한을 확인한다.
+2. 예상한 `agent_code`와 `completed` 상태인지 확인한다.
+3. Agent 출력 전체가 아니라 기능별 승인 schema로 사용자가 확정한 값만 받는다.
+4. `input_snapshot`의 비교 대상과 현재 DB 값을 대조한다.
+5. 현재 FK, 상태 전이, 충돌과 업무 규칙을 다시 검증한다.
+6. 한 DB 트랜잭션에서 업무 데이터와 필요한 이력을 함께 반영한다.
+7. 승인 요청의 재전송으로 같은 변경이 중복 반영되지 않게 한다.
+
+- 원천 데이터가 바뀌었으면 `409 stale_agent_result`를 반환하고 아무 업무 데이터도 변경하지 않는다.
+- 최종 일정에 충돌이 있으면 `409 schedule_conflict`를 반환한다.
+- stale 또는 충돌 판정에 실패한 기존 실행 이력은 수정하지 않는다. 최신 데이터로 새 Agent 실행을 생성한다.
+- 승인 직전에는 snapshot에 있던 행뿐 아니라 실행 후 새로 생성된 충돌·중복 데이터도 다시 조회한다.
+- Agent 결과를 승인했다는 이유로 팀 권한, 입력 검증 또는 상태 전이 검사를 생략하지 않는다.
+
+### 14.3 공통 구현 차이
+
+규약은 사용자 시작 Agent 요청의 중복 요청 식별키를 `Idempotency-Key` header로 정의한다. 현재 `AgentRunCreate` 구현은 `idempotency_key`를 JSON body로 받으므로, 새 Agent를 연결하기 전에 한 방식으로 통일해야 한다. 호환 기간을 두는 경우에도 최종 저장과 중복 비교 기준은 `agent_run.idempotency_key` 하나만 사용한다.
 
 ## 15. 최소 보안과 로그
 

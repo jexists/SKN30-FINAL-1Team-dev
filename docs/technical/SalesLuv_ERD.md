@@ -578,6 +578,77 @@ UQ는 `(requested_by_member_id, idempotency_key)`다. 고정 Agent 코드는 `me
 - 재분석은 이전 행을 덮어쓰지 않고 새 `agent_run`을 추가한다.
 - `support_candidates`는 제안이다. 사용자가 확정한 항목만 별도 트랜잭션으로 `support_request`에 저장한다.
 
+#### 영업·계약관리 Agent 데이터 참조 관계
+
+`contract_management` 실행은 새 업무 테이블을 만들지 않고 기존 데이터를 조회한 뒤, 조회 기준은 `agent_run.source_refs`, 실행 당시 입력은 `agent_run.input_snapshot`, 결과는 `agent_run.output_snapshot`에 저장한다.
+
+| 기준 데이터 | 참조 관계 | 용도 |
+|---|---|---|
+| 고객사와 딜 | `sales_deal.customer_company_id` → `customer_company.id`; `sales_deal.(sales_pipeline_id,sales_pipeline_stage_id)` → `sales_pipeline_stage.(sales_pipeline_id,id)` | 고객사 범위, 담당 딜과 현재 영업·계약 단계 식별 |
+| 고객 담당자와 C/S | `customer_contact.company_id` → `customer_company.id`; `support_request.customer_contact_id` → `customer_contact.id`; `support_response.support_request_id` → `support_request.id` | 고객사에 속한 미해결·긴급 C/S와 응답 이력 식별 |
+| 보고서와 활동 | `report_activity.report_id` → `report.id`; `report_activity.activity_id` → `activity.id`; `activity.sales_deal_id` → `sales_deal.id` | 딜과 관련된 보고서, 미팅 및 후속 활동 식별 |
+| 최근 활동 | `sales_deal.id` ← `activity.sales_deal_id` | 최근 접점과 미완료 후속 조치 식별 |
+
+모든 조회는 `agent_run.team_id`와 원천 행의 `team_id`가 같은 범위에서 수행한다. `deleted_at`이 있는 행은 제외하고, 보고서는 `status_code='approved'`인 행만 입력 대상으로 사용한다. 변경 여부를 검증할 원천 데이터는 `id`와 `updated_at`을 입력 스냅샷에 함께 기록한다.
+
+```json
+{
+  "agent_code": "contract_management",
+  "source_refs": {
+    "customer_company_id": "uuid",
+    "sales_deal_ids": ["uuid"]
+  },
+  "input_snapshot": {
+    "customer_company": {},
+    "sales_deals": [],
+    "approved_reports": [],
+    "support_requests": [],
+    "activities": []
+  },
+  "output_snapshot": {
+    "contract_summary": {},
+    "risks": [],
+    "missing_information": [],
+    "recommended_actions": [],
+    "next_meeting_suggestion": null
+  }
+}
+```
+
+#### 일정관리 Agent 데이터 참조 관계
+
+`schedule_management` 실행은 완료된 `contract_management` 실행의 제안과 기존 일정을 조회한다. 부모 실행은 `agent_run.parent_run_id`, 조회 대상은 `agent_run.source_refs`, 결과는 `agent_run.output_snapshot`으로 추적한다.
+
+| 기준 데이터 | 참조 관계 | 용도 |
+|---|---|---|
+| 부모 Agent 실행 | `agent_run.parent_run_id` → `agent_run.id` | 같은 팀에서 완료된 계약관리 실행과 `next_meeting_suggestion` 추적 |
+| 대상 딜 | `agent_run.source_refs.sales_deal_id` → `sales_deal.id` | 일정 대상 고객사, 담당자, 계약·납품 기한 식별 |
+| 기존 일정 | `sales_deal.id` ← `activity.sales_deal_id` | 동일 딜과 담당자의 일정 및 시간 충돌 식별 |
+| 동행자 | `activity_companion.activity_id` → `activity.id`; `activity_companion.member_id` → `member.id` | 동행자가 있는 일정의 참여자 범위 식별 |
+| 일정 분류 | `activity.activity_category_id` → `activity_category.id`, `activity.activity_action_tag_id` → `activity_action_tag.id` | 제안할 활동 종류와 태그 식별 |
+
+일정 조회도 `agent_run.team_id`와 같은 팀으로 제한하며 `activity.deleted_at`이 있는 행은 제외한다. 비교에 사용한 일정의 `id`와 `updated_at`을 입력 스냅샷에 기록하고, 날짜와 시간은 offset이 포함된 값으로 보관한다.
+
+```json
+{
+  "agent_code": "schedule_management",
+  "parent_run_id": "uuid",
+  "source_refs": {
+    "sales_deal_id": "uuid",
+    "activity_ids": ["uuid"]
+  },
+  "input_snapshot": {
+    "next_meeting_suggestion": {},
+    "sales_deal": {},
+    "activities": []
+  },
+  "output_snapshot": {
+    "schedule_candidates": [],
+    "conflicts": []
+  }
+}
+```
+
 ## 4. 고정 의미와 팀별 표시 설정
 
 다음 값은 필터·상태 전이에 사용하는 고정 시스템 의미이므로 팀장이 변경하지 않는다.

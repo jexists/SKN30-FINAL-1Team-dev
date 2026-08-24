@@ -37,6 +37,8 @@ EXPECTED_COLUMN_COUNTS = {
     "document": 12,
     "file": 13,
     "agent_run": 17,
+    # 20260824_0003 로 계약관리·일정관리 Agent 승인 이력 테이블이 새로 생겼다.
+    "agent_approval": 8,
 }
 
 
@@ -47,14 +49,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 268
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 276
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 64
+    assert len(foreign_key_constraints) == 67
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

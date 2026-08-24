@@ -29,7 +29,8 @@ SearchQuery = Annotated[
 
 # 유스케이스의 업무 보고는 미팅·일자별·주간 세 가지다.
 # 미팅보고서는 일정 하나에 붙고, 주간은 기간을 덮는다.
-ReportKind = Literal["meeting", "daily", "weekly"]
+# contract_status_briefing 은 일정관리 Agent 후보 승인 시 자동 생성되는 계약 현황 브리핑이다.
+ReportKind = Literal["meeting", "daily", "weekly", "contract_status_briefing"]
 # 유스케이스 RPT-004 의 검토 결과는 확인·반려·수정 요청 세 가지다.
 # 팀원이 다루는 범위는 draft 와 submitted 두 개이고 검토 결과는 조회로만 나온다.
 ReportStatus = Literal["draft", "submitted", "approved", "rejected", "changes_requested"]

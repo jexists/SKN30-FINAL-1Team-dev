@@ -3,7 +3,12 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Response, status
 
 from app.api.deps import CurrentMember, DbSession
-from app.schemas.agent_runs import AgentRunCreate, AgentRunRead
+from app.schemas.agent_runs import (
+    AgentApprovalCreate,
+    AgentApprovalRead,
+    AgentRunCreate,
+    AgentRunRead,
+)
 from app.services import agent_runs as agent_run_service
 
 router = APIRouter(tags=["agent-runs"])
@@ -44,3 +49,18 @@ async def get_agent_run(
 ) -> AgentRunRead:
     """진행 상태와 완료된 초안을 확인하는 폴링 대상."""
     return await agent_run_service.get(agent_run_id, member, db)
+
+
+@router.post(
+    "/agent-runs/{agent_run_id}/approvals",
+    response_model=AgentApprovalRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def approve_agent_run(
+    agent_run_id: UUID,
+    payload: AgentApprovalCreate,
+    member: CurrentMember,
+    db: DbSession,
+) -> AgentApprovalRead:
+    """일정 후보 하나를 승인해 activity 와 계약 현황 브리핑 report 를 반영한다."""
+    return await agent_run_service.approve_schedule(agent_run_id, payload, member, db)
