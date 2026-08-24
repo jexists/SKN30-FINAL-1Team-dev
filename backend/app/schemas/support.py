@@ -79,5 +79,6 @@ class SupportRequestPageParams(BaseModel):
 
     q: SearchQuery | None = None
     status_code: list[SupportStatus] | None = None
+    assignee_member_id: list[UUID] | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=100)

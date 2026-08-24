@@ -1,0 +1,132 @@
+// 모양은 FilterSelect 를 따릅니다. Topbar 줄에 맞춰 높이만 낮춥니다.
+.root {
+  position: relative;
+  flex: none;
+}
+
+.fixed {
+  flex: none;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: var(--control-h);
+  white-space: nowrap;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  max-width: 200px;
+  height: var(--control-h);
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &.isOpen {
+    border-color: var(--blue);
+  }
+
+  &.isOpen {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  &:active {
+    transform: none;
+  }
+}
+
+.triggerLabel {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.isOpen .chevron {
+  color: var(--blue);
+  transform: rotate(180deg);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--s1));
+  left: 0;
+  z-index: 30;
+  min-width: 100%;
+  width: max-content;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: var(--sh-pop);
+  animation: appear var(--t-fast) var(--ease-out);
+}
+
+// 체크가 왼쪽이라 여러 개를 고른 상태를 세로로 훑어보기 좋습니다.
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  min-width: 140px;
+  padding: 7px var(--s2);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:active {
+    transform: none;
+  }
+}
+
+.isActive {
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+
+// 모드 두 줄과 팀원 목록을 가릅니다.
+.isDivided {
+  margin-top: var(--s1);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 7px 7px;
+  padding-top: calc(7px + var(--s1));
+}
+
+.check {
+  flex: 0 0 14px;
+  color: var(--blue);
+}
+
+.isHidden {
+  visibility: hidden;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { client } from '@/api/client'
+import { useScopeOwnerIds } from '@/shared/scope'
 import { errorMessage } from '@/api/errorMessage'
 import { fallbackDailyReports } from '@/mocks/reports'
 import { reportTemplateFromSnapshot } from '@/shared/reports'
@@ -93,12 +94,20 @@ function toReport(item: ReportResponse): DailyReport {
   }
 }
 
-async function fetchReports(signal: AbortSignal): Promise<ReportResponse[]> {
+async function fetchReports(
+  signal: AbortSignal,
+  authorIds?: readonly string[],
+): Promise<ReportResponse[]> {
   const result: ReportResponse[] = []
   let skip = 0
   while (!signal.aborted) {
     const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
-      params: { report_kind: ['daily', 'weekly', 'monthly'], skip, limit: PAGE_LIMIT },
+      params: {
+        report_kind: ['daily', 'weekly', 'monthly'],
+        author_member_id: authorIds,
+        skip,
+        limit: PAGE_LIMIT,
+      },
       signal,
     })
     result.push(...data.items)
@@ -153,17 +162,20 @@ export default function useDailyReports() {
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const authorIds = useScopeOwnerIds()
 
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    void fetchReports(controller.signal)
+    void fetchReports(controller.signal, authorIds)
       .then((items) => {
         if (!controller.signal.aborted) setReports(items.map(toReport))
       })
       // 목록을 못 받아 오면 화면을 에러로 덮지 않고 시연 데이터로 채웁니다.
       // 저장·제출 실패는 아래 save 에서 그대로 알립니다.
+      // 이 시연 데이터는 보기 범위를 따르지 않습니다. 원래도 서버 없이 화면을 띄우기
+      // 위한 것이라 그대로 둡니다.
       .catch(() => {
         if (!controller.signal.aborted) setReports(fallbackDailyReports)
       })
@@ -171,7 +183,7 @@ export default function useDailyReports() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [reloadKey])
+  }, [reloadKey, authorIds])
 
   const byDate = useMemo(() => {
     const map = new Map<string, DailyReport[]>()

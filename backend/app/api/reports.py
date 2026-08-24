@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.api.deps import CurrentMember, DbSession
+from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.content import Report, ReportActivity
 from app.models.crm import Activity
 from app.models.workspace import Member
@@ -104,35 +104,6 @@ def _report_read(
         created_at=_seoul(report.created_at),
         updated_at=_seoul(report.updated_at),
     )
-
-
-async def _author_filter(
-    db: AsyncSession,
-    member: Member,
-    requested: list[UUID] | None,
-) -> tuple[UUID, ...] | None:
-    if requested is None:
-        return None
-    if member.role_code != "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="scope_not_allowed",
-        )
-    author_ids = tuple(dict.fromkeys(requested))
-    result = await db.execute(
-        select(Member.id).where(
-            Member.id.in_(author_ids),
-            Member.team_id == member.team_id,
-            Member.active.is_(True),
-            Member.role_code.in_(("member", "manager")),
-        )
-    )
-    if set(result.scalars().all()) != set(author_ids):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="scope_not_allowed",
-        )
-    return author_ids
 
 
 async def _visible_activity_ids(
@@ -269,7 +240,7 @@ async def list_reports(
     member: CurrentMember,
     db: DbSession,
 ) -> ReportPage:
-    author_ids = await _author_filter(db, member, page.author_member_id)
+    author_ids = await owner_scope(db, member, page.author_member_id)
     scope = _scope(member, author_ids)
     if page.report_kind is not None:
         scope.append(Report.report_kind.in_(tuple(dict.fromkeys(page.report_kind))))

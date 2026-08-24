@@ -23,10 +23,19 @@ NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
 _MISSING = object()
 
 
+class _Scalars:
+    def __init__(self, values):
+        self.values = values
+
+    def all(self):
+        return self.values
+
+
 class _Result:
-    def __init__(self, *, scalar=_MISSING, rows=None):
+    def __init__(self, *, scalar=_MISSING, rows=None, scalar_values=None):
         self.scalar = scalar
         self.rows = [] if rows is None else rows
+        self.scalar_values = [] if scalar_values is None else scalar_values
 
     def scalar_one(self):
         assert self.scalar is not _MISSING
@@ -42,6 +51,9 @@ class _Result:
 
     def all(self):
         return self.rows
+
+    def scalars(self):
+        return _Scalars(self.scalar_values)
 
 
 class _Db:
@@ -430,3 +442,54 @@ def test_response_creation_uses_current_member_and_hides_invisible_request():
     assert hidden.json() == {"detail": "support_request_not_found"}
     assert hidden_db.added == []
     assert hidden_db.rollback_count == 1
+
+
+def test_manager_support_assignee_filter_narrows_to_the_chosen_members():
+    manager = _member(role="manager")
+    first = _member(team_id=manager.team_id)
+    second = _member(team_id=manager.team_id)
+    db = _Db(
+        _Result(scalar_values=[first.id, second.id]),
+        _Result(scalar=0),
+        _Result(rows=[]),
+    )
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/support-requests",
+            params={"assignee_member_id": [str(first.id), str(second.id)]},
+        )
+
+    assert response.status_code == 200
+    # 첫 문장은 범위 검증이고, 그 다음이 개수와 목록이다.
+    assert [first.id, second.id] in db.statements[1].compile().params.values()
+
+
+def test_member_support_assignee_filter_is_denied_before_any_query():
+    member = _member()
+    db = _Db()
+
+    with _client(db, member) as client:
+        response = client.get(
+            "/api/support-requests",
+            params={"assignee_member_id": [str(uuid4())]},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "scope_not_allowed"
+    assert not db.statements
+
+
+def test_manager_support_assignee_filter_rejects_a_member_outside_the_team():
+    manager = _member(role="manager")
+    db = _Db(_Result(scalar_values=[]))
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/support-requests",
+            params={"assignee_member_id": [str(uuid4())]},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "scope_not_allowed"
+    assert len(db.statements) == 1

@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.api.deps import CurrentMember, DbSession
+from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.configuration import CustomerContactStatus
 from app.models.crm import CustomerCompany, CustomerContact, CustomerContactAssignee
 from app.models.workspace import Member
@@ -19,6 +19,7 @@ from app.schemas.customers import (
     CustomerCompanyRead,
     CustomerContactCreate,
     CustomerContactPage,
+    CustomerContactPageParams,
     CustomerContactPatch,
     CustomerContactRead,
     CustomerContactStatusOptionRead,
@@ -53,7 +54,32 @@ async def _get_company(
     return company
 
 
-def _contact_scope(member: Member):
+def _assigned_to(member_ids: tuple[UUID, ...]):
+    """대표 담당자가 아니어도 담당자로 지정됐으면 자기 고객이다.
+
+    담당자는 별도 표에 있어 조인으로 끌어오면 고객 한 명이 담당자 수만큼 늘어난다.
+    EXISTS 로만 묻는다.
+
+    한 명이면 IN 대신 = 로 쓴다. 본인 것만 보는 팀원이 이 경로를 늘 지나므로 지금 나가는
+    쿼리 모양을 그대로 둔다.
+    """
+    one = len(member_ids) == 1
+
+    def matches(column):
+        return column == member_ids[0] if one else column.in_(member_ids)
+
+    return or_(
+        matches(CustomerContact.owner_member_id),
+        select(CustomerContactAssignee.member_id)
+        .where(
+            CustomerContactAssignee.customer_contact_id == CustomerContact.id,
+            matches(CustomerContactAssignee.member_id),
+        )
+        .exists(),
+    )
+
+
+def _contact_scope(member: Member, owner_ids: tuple[UUID, ...] | None = None):
     conditions = [
         CustomerCompany.team_id == member.team_id,
         Member.team_id == member.team_id,
@@ -61,18 +87,12 @@ def _contact_scope(member: Member):
         Member.role_code.in_(("member", "manager")),
     ]
     if member.role_code == "member":
-        # 대표 담당자가 아니어도 담당자로 지정됐으면 자기 고객이다.
-        conditions.append(
-            or_(
-                CustomerContact.owner_member_id == member.id,
-                select(CustomerContactAssignee.member_id)
-                .where(
-                    CustomerContactAssignee.customer_contact_id == CustomerContact.id,
-                    CustomerContactAssignee.member_id == member.id,
-                )
-                .exists(),
-            )
-        )
+        conditions.append(_assigned_to((member.id,)))
+    elif owner_ids is not None:
+        # 팀장이 고른 보기 범위다. 목록 쿼리가 Member 를 owner_member_id 로 조인하고
+        # 있어서 Member.id.in_() 로 쓰고 싶어지지만, 그러면 그 사람이 담당자이되
+        # 대표 담당자가 아닌 고객이 조용히 빠진다. 팀원이 볼 때와 기준이 달라진다.
+        conditions.append(_assigned_to(owner_ids))
     return conditions
 
 
@@ -398,11 +418,13 @@ async def update_customer_company(
 
 @router.get("/customer-contacts", response_model=CustomerContactPage)
 async def list_customer_contacts(
-    page: Annotated[CustomerPageParams, Query()],
+    page: Annotated[CustomerContactPageParams, Query()],
     member: CurrentMember,
     db: DbSession,
 ) -> CustomerContactPage:
-    scope = _contact_scope(member)
+    # 범위를 먼저 검증한다. 거절이면 데이터 쿼리가 한 건도 나가지 않아야 한다.
+    owner_ids = await owner_scope(db, member, page.owner_member_id)
+    scope = _contact_scope(member, owner_ids)
     if page.q is not None:
         pattern = _contains(page.q)
         scope.append(

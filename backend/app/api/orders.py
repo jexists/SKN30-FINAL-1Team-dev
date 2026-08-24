@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.api.deps import CurrentMember, DbSession
+from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.configuration import PurchaseOrderStatus
 from app.models.crm import CustomerCompany
 from app.models.sales import (
@@ -199,29 +199,6 @@ async def _items_by_order_ids(
             )
         )
     return items_by_order
-
-
-async def _owner_filter(
-    db: AsyncSession,
-    member: Member,
-    requested: list[UUID] | None,
-) -> tuple[UUID, ...] | None:
-    if requested is None:
-        return None
-    if member.role_code != "manager":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="scope_not_allowed")
-    owner_ids = tuple(dict.fromkeys(requested))
-    result = await db.execute(
-        select(Member.id).where(
-            Member.id.in_(owner_ids),
-            Member.team_id == member.team_id,
-            Member.active.is_(True),
-            Member.role_code.in_(("member", "manager")),
-        )
-    )
-    if set(result.scalars().all()) != set(owner_ids):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="scope_not_allowed")
-    return owner_ids
 
 
 async def _order_row(
@@ -488,7 +465,7 @@ async def list_orders(
     member: CurrentMember,
     db: DbSession,
 ) -> OrderPage:
-    owner_ids = await _owner_filter(db, member, page.owner_member_id)
+    owner_ids = await owner_scope(db, member, page.owner_member_id)
     scope = _scope(member, owner_ids)
     scope.append(_sales_stage.phase_code == "order")
     if page.supplier_name is not None:

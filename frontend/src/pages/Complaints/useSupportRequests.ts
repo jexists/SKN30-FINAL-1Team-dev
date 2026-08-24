@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
+import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   CustomerContactResponse,
   PageResponse,
@@ -19,14 +20,18 @@ export interface ContactOption {
   label: string
 }
 
-async function fetchAll<T>(path: string, signal: AbortSignal): Promise<T[]> {
+async function fetchAll<T>(
+  path: string,
+  signal: AbortSignal,
+  extraParams?: Record<string, unknown>,
+): Promise<T[]> {
   // ponytail: 탭 건수는 전건 기준입니다. 데이터가 커지면 서버 집계 API로 바꿉니다.
   const items: T[] = []
   let skip = 0
 
   while (!signal.aborted) {
     const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT },
+      params: { skip, limit: PAGE_LIMIT, ...extraParams },
       signal,
     })
     items.push(...data.items)
@@ -74,6 +79,7 @@ export default function useSupportRequests(openId: string | null) {
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const pendingRef = useRef(false)
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const assigneeIds = useScopeOwnerIds()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -81,7 +87,11 @@ export default function useSupportRequests(openId: string | null) {
     setError(null)
 
     void Promise.all([
-      fetchAll<SupportRequestResponse>('/support-requests', controller.signal),
+      fetchAll<SupportRequestResponse>('/support-requests', controller.signal, {
+        assignee_member_id: assigneeIds,
+      }),
+      // 고객은 불만을 등록할 때 고르는 목록입니다. 보기 범위로 좁히면 팀원이 맡은
+      // 고객의 불만을 접수할 수 없게 됩니다.
       fetchAll<CustomerContactResponse>('/customer-contacts', controller.signal),
     ])
       .then(([requestItems, contactItems]) => {
@@ -102,7 +112,7 @@ export default function useSupportRequests(openId: string | null) {
       })
 
     return () => controller.abort()
-  }, [reloadKey])
+  }, [reloadKey, assigneeIds])
 
   useEffect(() => {
     setDetail(null)

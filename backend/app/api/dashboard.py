@@ -19,7 +19,7 @@ from app.api import notices as notices_api
 from app.api import orders as orders_api
 from app.api import sales_deals as deals_api
 from app.api import support as support_api
-from app.api.deps import CurrentMember, DbSession
+from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.crm import Activity, SupportRequest
 from app.models.sales import PurchaseOrder, SalesDeal, SalesTarget
 from app.models.workspace import Member, Notice
@@ -120,8 +120,13 @@ async def _activity_cards(
     )
 
 
-async def _support_card(db: AsyncSession, member: Member) -> SupportCard:
-    scope = support_api._scope(member)
+async def _support_card(
+    db: AsyncSession,
+    member: Member,
+    owner_ids: tuple[UUID, ...] | None,
+) -> SupportCard:
+    """C/S 카드도 다른 카드와 같은 담당자 범위를 쓴다. 여기만 팀 전체면 숫자가 어긋난다."""
+    scope = support_api._scope(member, owner_ids)
     total, in_progress, urgent = (
         await db.execute(
             support_api._joined_select(
@@ -297,7 +302,7 @@ async def read_dashboard(
     # 한 요청의 모든 집계는 같은 시각을 기준으로 한다.
     as_of = datetime.now(UTC).astimezone(_SEOUL)
     day = params.date or as_of.date()
-    owner_ids = await activities_api._owner_filter(db, member, params.owner_member_id)
+    owner_ids = await owner_scope(db, member, params.owner_member_id)
 
     visited, activity_total, follow_ups = await _activity_cards(db, member, owner_ids, day, as_of)
     return DashboardRead(
@@ -308,7 +313,7 @@ async def read_dashboard(
         visited_companies=visited,
         activities=activity_total,
         follow_ups=follow_ups,
-        support_requests=await _support_card(db, member),
+        support_requests=await _support_card(db, member, owner_ids),
         contract_renewals=await _renewal_card(
             db, member, owner_ids, day, params.renewal_within_days
         ),

@@ -33,7 +33,7 @@ export default function Compose() {
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState()
+  } = useAgendaState(undefined, undefined, true)
   const item = agendaId ? agenda.find((entry) => entry.id === agendaId) : undefined
 
   const { findByAgenda, saveReport, saveDraft, loading, error, pending, reload } =

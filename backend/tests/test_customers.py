@@ -813,3 +813,118 @@ def test_company_write_round_trips_business_no_and_rejects_other_shapes():
     assert created.json()["business_no"] == "1234567890"
     assert db.added[0].business_no == "1234567890"
     assert rejected.status_code == 422
+
+
+def test_manager_contact_owner_filter_covers_owner_and_assignees():
+    """팀장이 고른 팀원의 고객에는 그 팀원이 담당자로만 지정된 고객도 들어간다."""
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id)
+    company = _company(manager.team_id)
+    contact = _contact(company.id, teammate.id)
+    contact_status = _contact_status(manager.team_id, status_id=contact.customer_contact_status_id)
+    db = _Db(
+        _Result(scalar_values=[teammate.id]),
+        _Result(scalar=1),
+        _Result(rows=[_contact_row(contact, company, teammate, contact_status)]),
+        _assignee_result((contact, teammate)),
+    )
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/customer-contacts",
+            params={"owner_member_id": [str(teammate.id)]},
+        )
+
+    assert response.status_code == 200
+    # 첫 문장은 범위 검증이고, 그 다음이 개수와 목록이다.
+    sql = str(db.statements[1])
+    assert "customer_contact_assignee" in sql
+    assert "EXISTS" in sql
+    assert teammate.id in db.statements[1].compile().params.values()
+
+
+def test_manager_contact_owner_filter_uses_in_for_several_members():
+    manager = _member(role="manager")
+    first = _member(team_id=manager.team_id)
+    second = _member(team_id=manager.team_id)
+    db = _Db(
+        _Result(scalar_values=[first.id, second.id]),
+        _Result(scalar=0),
+        _Result(rows=[]),
+    )
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/customer-contacts",
+            params={"owner_member_id": [str(first.id), str(second.id)]},
+        )
+
+    assert response.status_code == 200
+    params = db.statements[1].compile().params.values()
+    assert [first.id, second.id] in params
+
+
+def test_member_contact_owner_filter_is_denied_before_any_query():
+    member = _member()
+    db = _Db()
+
+    with _client(db, member) as client:
+        response = client.get(
+            "/api/customer-contacts",
+            params={"owner_member_id": [str(uuid4())]},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "scope_not_allowed"
+    assert not db.statements
+
+
+def test_manager_contact_owner_filter_rejects_a_member_outside_the_team():
+    manager = _member(role="manager")
+    db = _Db(_Result(scalar_values=[]))
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/customer-contacts",
+            params={"owner_member_id": [str(uuid4())]},
+        )
+
+    # 빈 목록이 아니라 거절이다. 조용히 비우면 화면은 "실적 0" 으로 읽는다.
+    assert response.status_code == 403
+    assert response.json()["detail"] == "scope_not_allowed"
+    assert len(db.statements) == 1
+
+
+def test_company_list_does_not_take_an_owner_filter():
+    """회사는 팀 공용이라 담당자가 없다. 받고도 무시하지 않고 거절해야 한다."""
+    manager = _member(role="manager")
+    db = _Db()
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/customer-companies",
+            params={"owner_member_id": [str(uuid4())]},
+        )
+
+    assert response.status_code == 422
+    assert not db.statements
+
+
+def test_manager_contact_owner_filter_accepts_the_manager_themselves():
+    """'내 현황 + 팀원' 을 함께 보는 경우다. 팀장 자신도 같은 팀의 활성 구성원이다."""
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id)
+    db = _Db(
+        _Result(scalar_values=[manager.id, teammate.id]),
+        _Result(scalar=0),
+        _Result(rows=[]),
+    )
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/customer-contacts",
+            params={"owner_member_id": [str(manager.id), str(teammate.id)]},
+        )
+
+    assert response.status_code == 200
+    assert [manager.id, teammate.id] in db.statements[1].compile().params.values()

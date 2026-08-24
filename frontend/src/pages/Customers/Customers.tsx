@@ -5,6 +5,7 @@ import { client } from '@/api/client'
 import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import Pagination from '@/components/Pagination'
+import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   Customer,
   CustomerContactResponse,
@@ -94,6 +95,7 @@ export default function Customers() {
   const { isManager } = useCurrentUser()
   const hiddenColumns = useMemo(() => (isManager ? [] : ['owner']), [isManager])
   const deferredQuery = useDeferredValue(query)
+  const ownerIds = useScopeOwnerIds()
 
   // 정렬 API가 붙기 전에 현재 페이지만 정렬하면 전체 순서를 오해하게 됩니다.
   const columns = useMemo(
@@ -120,6 +122,7 @@ export default function Customers() {
           q: needle === '' ? undefined : needle.slice(0, 100),
           skip: (page - 1) * pageSize,
           limit: pageSize,
+          owner_member_id: ownerIds,
         },
         signal: controller.signal,
       })
@@ -139,11 +142,17 @@ export default function Customers() {
       })
 
     return () => controller.abort()
-  }, [deferredQuery, page, pageSize, reloadKey])
+  }, [deferredQuery, page, pageSize, reloadKey, ownerIds])
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const openCustomer = useMemo(() => rows.find((row) => row.id === openId) ?? null, [rows, openId])
   const resetPage = useCallback(() => setPage(1), [])
+
+  // 서버가 페이지를 나눠 주는 유일한 화면입니다. 팀 전체의 3페이지가 한 사람의 3페이지일
+  // 리 없으므로 범위가 바뀌면 첫 장으로 돌아갑니다.
+  useEffect(() => {
+    resetPage()
+  }, [ownerIds, resetPage])
 
   const onQueryChange = useCallback(
     (next: string) => {

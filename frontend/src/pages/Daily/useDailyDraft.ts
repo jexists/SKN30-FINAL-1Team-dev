@@ -44,7 +44,7 @@ export default function useDailyDraft(
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState(dateISO, dateISO)
+  } = useAgendaState(dateISO, dateISO, true)
   const {
     byDate,
     loading: meetingLoading,

@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { subscribeSessionExpired } from '@/api/connectionState'
+import { initScope, resetScope } from '@/shared/scope'
 
 import { type Session, SessionContext, type SessionStatus } from './sessionContext'
 import { clearSignedInHint, hasSignedInHint } from './signedInHint'
@@ -23,6 +24,16 @@ const toSession = ({ id, display_name, role_code, job_title, is_admin }: AuthUse
   isAdmin: is_admin,
 })
 
+/**
+ * 보기 범위는 세션이 정해지는 자리에서 함께 세웁니다.
+ *
+ * AppShell 의 effect 로 미루면 자식 화면의 첫 요청이 범위를 놓칩니다. effect 는
+ * 자식이 먼저 돌기 때문입니다.
+ */
+function applyScope(next: Session) {
+  initScope(next.memberId, next.role === 'manager')
+}
+
 export default function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<SessionStatus>('loading')
@@ -40,7 +51,9 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
       .get<AuthUser>('/auth/me')
       .then(({ data }) => {
         if (!active) return
-        setSession(toSession(data))
+        const next = toSession(data)
+        setSession(next)
+        applyScope(next)
         setStatus('authenticated')
       })
       .catch((error: unknown) => {
@@ -72,6 +85,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
       subscribeSessionExpired(() => {
         clearSignedInHint()
         setSession(null)
+        resetScope()
         setStatus('unauthenticated')
       }),
     [],
@@ -81,7 +95,9 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     // 로그인 응답이 세션 표시 쿠키까지 함께 설정하므로, 아래 reload 를 타도
     // 다시 뜬 앱이 세션을 되찾을 수 있습니다.
     const { data } = await client.post<AuthUser>('/auth/login', { email, password })
-    setSession(toSession(data))
+    const next = toSession(data)
+    setSession(next)
+    applyScope(next)
     setStatus('authenticated')
   }, [])
 
@@ -91,6 +107,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     await client.post('/auth/logout').catch(() => undefined)
     clearSignedInHint()
     setSession(null)
+    resetScope()
     setStatus('unauthenticated')
   }, [])
 

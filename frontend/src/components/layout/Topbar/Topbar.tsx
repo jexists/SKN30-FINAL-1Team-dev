@@ -6,6 +6,7 @@ import { buttonClass } from '@/components/Button'
 import { BellIcon, MenuIcon } from '@/components/icons'
 import { useSidebar } from '@/components/layout/AppShell/sidebarContext'
 import { SIDEBAR_ID } from '@/components/layout/Sidebar/Sidebar'
+import ScopeSwitcher from '@/components/layout/Topbar/ScopeSwitcher'
 import { findNavLabel } from '@/constants/navigation'
 import { ROUTES } from '@/constants/routes'
 
@@ -45,6 +46,9 @@ export default function Topbar() {
       <p className={styles.pageName}>{pageLabel}</p>
 
       <div className={styles.spacer} />
+
+      {/* 화면 전체가 누구의 현황을 보는지 정합니다. 페이지마다 따로 두지 않습니다. */}
+      <ScopeSwitcher />
 
       {/* 알림 조회 API가 없어 읽지 않음 여부는 표시하지 않습니다. */}
       <Link

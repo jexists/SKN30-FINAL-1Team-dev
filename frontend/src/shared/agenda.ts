@@ -17,6 +17,8 @@ import type {
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
+import { getOwnMemberIds, getScopeKey, getScopeOwnerIds, useScopeKey } from './scope'
+
 export const KIND_LABEL: Record<AgendaKind, string> = {
   visit: '방문',
   demo: '데모',
@@ -194,7 +196,7 @@ export function agendaToActivity(event: CalendarEvent): ActivityCreateRequest {
 let items: AgendaItem[] = []
 let loading = true
 let loadError: string | null = null
-let loadedRange: string | null = null
+let loadedKey: string | null = null
 let loadPromise: Promise<void> | null = null
 let revision = 0
 const listeners = new Set<() => void>()
@@ -219,6 +221,10 @@ export function agendaSnapshot(): AgendaItem[] {
   return items
 }
 
+/**
+ * 보기 범위를 좁혀 둔 채로 자기 일정을 만들면 필터 밖인데도 목록에 붙습니다.
+ * 범위 밖 날짜에서 이미 같은 일이 일어나므로 그대로 둡니다. 다시 불러오면 정리됩니다.
+ */
 export function addAgenda(item: AgendaItem) {
   commit([...items, item])
 }
@@ -231,13 +237,23 @@ export function removeAgenda(id: string) {
   commit(items.filter((item) => item.id !== id))
 }
 
-async function fetchAgenda(startDate: string, endDate: string): Promise<AgendaItem[]> {
+async function fetchAgenda(
+  startDate: string,
+  endDate: string,
+  ownerIds?: readonly string[],
+): Promise<AgendaItem[]> {
   // ponytail: 현재 소비 화면은 전건 집계가 필요합니다. 커지면 서버 요약 API로 바꿉니다.
   const result: AgendaItem[] = []
   let skip = 0
   while (true) {
     const { data } = await client.get<PageResponse<ActivityRead>>('/activities', {
-      params: { start_date: startDate, end_date: endDate, skip, limit: PAGE_LIMIT },
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+        owner_member_id: ownerIds,
+        skip,
+        limit: PAGE_LIMIT,
+      },
     })
     result.push(...data.items.map(activityToAgenda))
     if (!data.has_more || data.next_skip === null) return result
@@ -246,19 +262,27 @@ async function fetchAgenda(startDate: string, endDate: string): Promise<AgendaIt
   }
 }
 
-export function loadAgenda(startDate: string, endDate: string, force = false): Promise<void> {
-  const rangeKey = `${startDate}:${endDate}`
+export function loadAgenda(
+  startDate: string,
+  endDate: string,
+  force = false,
+  ownScopeOnly = false,
+): Promise<void> {
+  // 범위를 매번 여기서 읽습니다. 아래 재진입 가드가 자기를 다시 부르므로, 요청이
+  // 날아가는 사이에 범위가 바뀌면 그 재귀 호출이 새 범위를 봐야 합니다.
+  const ownerIds = ownScopeOnly ? getOwnMemberIds() : getScopeOwnerIds()
+  const key = `${ownScopeOnly ? 'own' : getScopeKey()}|${startDate}:${endDate}`
   if (loadPromise) {
-    return loadPromise.then(() => loadAgenda(startDate, endDate, force))
+    return loadPromise.then(() => loadAgenda(startDate, endDate, force, ownScopeOnly))
   }
-  if (loadedRange === rangeKey && !force) return Promise.resolve()
+  if (loadedKey === key && !force) return Promise.resolve()
   commit([])
   loading = true
   loadError = null
   notify()
-  loadPromise = fetchAgenda(startDate, endDate)
+  loadPromise = fetchAgenda(startDate, endDate, ownerIds)
     .then((next) => {
-      loadedRange = rangeKey
+      loadedKey = key
       commit(next)
     })
     .catch((error: unknown) => {
@@ -312,16 +336,28 @@ const DEFAULT_START_DATE = '2000-01-01'
 const DEFAULT_END_DATE = '2099-12-31'
 
 export function useAgenda(): AgendaItem[] {
+  const scopeKey = useScopeKey()
   useEffect(() => {
     void loadAgenda(DEFAULT_START_DATE, DEFAULT_END_DATE)
-  }, [])
+  }, [scopeKey])
   return useSyncExternalStore(subscribeAgenda, agendaSnapshot, agendaSnapshot)
 }
 
-export function useAgendaState(startDate = DEFAULT_START_DATE, endDate = DEFAULT_END_DATE) {
+/**
+ * `ownScopeOnly` 는 보기 범위를 무시하고 본인 일정만 봅니다.
+ *
+ * 보고서를 쓰는 화면이 씁니다. 보고는 "내가 한 일" 을 적는 일이라 팀 전체를 보고 있어도
+ * 후보에 남의 일정이 섞이면 안 됩니다. 조회하는 화면과 성격이 다릅니다.
+ */
+export function useAgendaState(
+  startDate = DEFAULT_START_DATE,
+  endDate = DEFAULT_END_DATE,
+  ownScopeOnly = false,
+) {
+  const scopeKey = useScopeKey()
   useEffect(() => {
-    void loadAgenda(startDate, endDate)
-  }, [endDate, startDate])
+    void loadAgenda(startDate, endDate, false, ownScopeOnly)
+  }, [endDate, startDate, ownScopeOnly, scopeKey])
   useSyncExternalStore(
     subscribeAgenda,
     () => revision,
@@ -331,7 +367,7 @@ export function useAgendaState(startDate = DEFAULT_START_DATE, endDate = DEFAULT
     items,
     loading,
     error: loadError,
-    reload: () => loadAgenda(startDate, endDate, true),
+    reload: () => loadAgenda(startDate, endDate, true, ownScopeOnly),
   }
 }
 

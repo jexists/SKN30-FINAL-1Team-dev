@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
+import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   ApiPurchaseOrder,
   OrderCreateRequest,
@@ -88,14 +89,18 @@ function toOrder(order: OrderResponse): ApiPurchaseOrder {
   }
 }
 
-async function fetchAllPage<T>(path: string, signal?: AbortSignal): Promise<T[]> {
+async function fetchAllPage<T>(
+  path: string,
+  signal?: AbortSignal,
+  extraParams?: Record<string, unknown>,
+): Promise<T[]> {
   // ponytail: 현재 화면의 필터·탭 건수는 전건 기준입니다. 데이터가 커지면 서버 집계로 바꿉니다.
   const items: T[] = []
   let skip = 0
 
   while (!signal?.aborted) {
     const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT },
+      params: { skip, limit: PAGE_LIMIT, ...extraParams },
       signal,
     })
     items.push(...data.items)
@@ -107,8 +112,14 @@ async function fetchAllPage<T>(path: string, signal?: AbortSignal): Promise<T[]>
   return items
 }
 
-async function fetchAllOrders(signal?: AbortSignal): Promise<ApiPurchaseOrder[]> {
-  return (await fetchAllPage<OrderResponse>('/orders', signal)).map(toOrder)
+async function fetchAllOrders(
+  signal?: AbortSignal,
+  ownerIds?: readonly string[],
+): Promise<ApiPurchaseOrder[]> {
+  // 발주에는 담당자 칸이 따로 없어 서버가 딜의 담당자로 거릅니다.
+  return (await fetchAllPage<OrderResponse>('/orders', signal, { owner_member_id: ownerIds })).map(
+    toOrder,
+  )
 }
 
 function toWriteRequest(draft: OrderDraft): OrderPatchRequest {
@@ -164,6 +175,7 @@ export default function useOrderList(detailNo?: string) {
   const pendingRef = useRef(new Set<string>())
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(() => new Set())
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const ownerIds = useScopeOwnerIds()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -171,7 +183,9 @@ export default function useOrderList(detailNo?: string) {
     setError(null)
 
     void Promise.all([
-      fetchAllOrders(controller.signal),
+      fetchAllOrders(controller.signal, ownerIds),
+      // 제품과 딜은 발주를 등록할 때 고르는 목록입니다. 보기 범위로 좁히면 팀원이 맡은
+      // 딜의 발주를 넣을 수 없게 됩니다.
       fetchAllPage<ProductResponse>('/products', controller.signal),
       fetchAllPage<SalesDealResponse>('/sales-deals', controller.signal),
       client
@@ -203,7 +217,7 @@ export default function useOrderList(detailNo?: string) {
       })
 
     return () => controller.abort()
-  }, [reloadKey])
+  }, [reloadKey, ownerIds])
 
   useEffect(() => {
     setDetail(null)

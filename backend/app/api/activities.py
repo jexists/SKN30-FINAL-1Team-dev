@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.api.deps import CurrentMember, DbSession
+from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product, SalesDeal
@@ -145,35 +145,6 @@ def _activity_read(
         created_at=_seoul(activity.created_at),
         updated_at=_seoul(activity.updated_at),
     )
-
-
-async def _owner_filter(
-    db: AsyncSession,
-    member: Member,
-    requested: list[UUID] | None,
-) -> tuple[UUID, ...] | None:
-    if requested is None:
-        return None
-    if member.role_code != "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="scope_not_allowed",
-        )
-    owner_ids = tuple(dict.fromkeys(requested))
-    result = await db.execute(
-        select(Member.id).where(
-            Member.id.in_(owner_ids),
-            Member.team_id == member.team_id,
-            Member.active.is_(True),
-            Member.role_code.in_(("member", "manager")),
-        )
-    )
-    if set(result.scalars().all()) != set(owner_ids):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="scope_not_allowed",
-        )
-    return owner_ids
 
 
 async def _activity_row(
@@ -396,7 +367,7 @@ async def list_activities(
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityPage:
-    owner_ids = await _owner_filter(db, member, page.owner_member_id)
+    owner_ids = await owner_scope(db, member, page.owner_member_id)
     start_at = datetime.combine(page.start_date, time.min, _SEOUL)
     end_at = datetime.combine(page.end_date or page.start_date, time.min, _SEOUL) + timedelta(
         days=1

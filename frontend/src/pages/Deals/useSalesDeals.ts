@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
+import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   CustomerCompanyResponse,
   PageResponse,
@@ -170,7 +171,7 @@ function toSalesDeal(deal: SalesDealResponse): SalesDeal {
 async function fetchAllPage<T>(
   path: string,
   signal?: AbortSignal,
-  params?: Record<string, string>,
+  params?: Record<string, unknown>,
 ): Promise<T[]> {
   // ponytail: 현재 UI의 건수·정렬은 전건 기준입니다. 데이터가 커지면 서버 집계·정렬로 바꿉니다.
   const items: T[] = []
@@ -194,10 +195,12 @@ async function fetchAllSalesDeals(
   signal?: AbortSignal,
   pipelineId?: string | null,
   phaseCode?: SalesPipelinePhaseCode,
+  ownerIds?: readonly string[],
 ): Promise<SalesDeal[]> {
   const params = {
     ...(pipelineId ? { sales_pipeline_id: pipelineId } : {}),
     ...(phaseCode ? { phase_code: phaseCode } : {}),
+    ...(ownerIds ? { owner_member_id: ownerIds } : {}),
   }
   return (await fetchAllPage<SalesDealResponse>('/sales-deals', signal, params)).map(toSalesDeal)
 }
@@ -264,6 +267,7 @@ export default function useSalesDeals(
   const pendingRef = useRef(new Set<string>())
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(() => new Set())
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const ownerIds = useScopeOwnerIds()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -293,7 +297,8 @@ export default function useSalesDeals(
                   )
                   .then((response) => response.data)
               : Promise.resolve([]),
-            fetchAllSalesDeals(controller.signal, filteredPipelineId, phaseCode),
+            fetchAllSalesDeals(controller.signal, filteredPipelineId, phaseCode, ownerIds),
+            // 고객사와 제품은 딜을 등록할 때 고르는 참조 목록이라 범위로 좁히지 않습니다.
             fetchAllPage<CustomerCompanyResponse>('/customer-companies', controller.signal),
             fetchAllPage<ProductResponse>('/products', controller.signal),
             client
@@ -319,7 +324,7 @@ export default function useSalesDeals(
       })
 
     return () => controller.abort()
-  }, [mode, phaseCode, reloadKey, requestedPipelineId])
+  }, [mode, phaseCode, reloadKey, requestedPipelineId, ownerIds])
 
   useEffect(() => {
     if (openId === null) {
@@ -355,11 +360,12 @@ export default function useSalesDeals(
 
   const syncSalesDeals = useCallback(async () => {
     try {
-      setCards(await fetchAllSalesDeals(undefined, dealPipelineId, phaseCode))
+      // 범위를 빠뜨리면 고치자마자 화면이 조용히 팀 전체로 되돌아갑니다.
+      setCards(await fetchAllSalesDeals(undefined, dealPipelineId, phaseCode, ownerIds))
     } catch {
       setMutationError('변경은 저장됐지만 최신 목록을 불러오지 못했습니다. 새로고침해 주세요.')
     }
-  }, [dealPipelineId, phaseCode])
+  }, [dealPipelineId, phaseCode, ownerIds])
 
   const runMutation = useCallback(
     async <T>(key: string, action: string, request: () => Promise<T>): Promise<T> => {

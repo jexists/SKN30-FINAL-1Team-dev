@@ -189,3 +189,13 @@ class CustomerPageParams(BaseModel):
     q: SearchQuery | None = None
     skip: int = Field(default=0, ge=0)
     limit: int = Field(default=30, ge=1, le=100)
+
+
+class CustomerContactPageParams(CustomerPageParams):
+    """고객 목록만 담당자를 좁힐 수 있다.
+
+    회사 목록은 팀 공용이라 담당자가 없다. 같은 모델을 쓰면 회사 쪽이 파라미터를 받고도
+    조용히 무시하게 되므로 나눠 둔다.
+    """
+
+    owner_member_id: list[UUID] | None = None

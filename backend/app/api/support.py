@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.api.deps import CurrentMember, DbSession
+from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.crm import CustomerCompany, CustomerContact, SupportRequest, SupportResponse
 from app.models.workspace import Member
 from app.schemas.support import (
@@ -46,7 +46,7 @@ def _joined_select(*entities):
     )
 
 
-def _scope(member: Member):
+def _scope(member: Member, assignee_ids: tuple[UUID, ...] | None = None):
     conditions = [
         SupportRequest.team_id == member.team_id,
         _assignee.team_id == member.team_id,
@@ -59,6 +59,8 @@ def _scope(member: Member):
     ]
     if member.role_code == "member":
         conditions.append(SupportRequest.assignee_member_id == member.id)
+    elif assignee_ids is not None:
+        conditions.append(SupportRequest.assignee_member_id.in_(assignee_ids))
     return conditions
 
 
@@ -201,7 +203,9 @@ async def list_support_requests(
     member: CurrentMember,
     db: DbSession,
 ) -> SupportRequestPage:
-    scope = _scope(member)
+    # 범위를 먼저 검증한다. 거절이면 데이터 쿼리가 한 건도 나가지 않아야 한다.
+    assignee_ids = await owner_scope(db, member, page.assignee_member_id)
+    scope = _scope(member, assignee_ids)
     if page.status_code is not None:
         scope.append(SupportRequest.status_code.in_(tuple(dict.fromkeys(page.status_code))))
     if page.q is not None:
