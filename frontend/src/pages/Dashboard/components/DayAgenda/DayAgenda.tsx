@@ -82,7 +82,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
           }}
         >
           {done && <CheckIcon width={13} height={13} />}
-          완료
+          {done ? '완료' : '미완료'}
         </button>
 
         <div className={styles.rail}>
