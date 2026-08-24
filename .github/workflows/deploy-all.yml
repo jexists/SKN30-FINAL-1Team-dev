@@ -27,11 +27,57 @@ jobs:
       contents: read
     secrets: inherit
 
+  # 배포가 모두 성공한 뒤에만 org 저장소 main에 동기화한다.
+  # 로컬 /skn-remote 커맨드와 같은 규칙: force push 금지, 배포된 커밋만 올린다.
+  sync-org:
+    name: Sync to Org main
+    needs:
+      - backend
+      - frontend
+    if: ${{ github.ref_name == 'develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # checkout이 심는 GITHUB_TOKEN extraheader는 github.com 전체에 적용되어
+          # org 리모트 push 때 PAT를 밀어낸다. 그래서 끈다.
+          persist-credentials: false
+
+      - name: Push deployed commit to org main
+        shell: bash
+        env:
+          ORG_PAT: ${{ secrets.ORG_PAT }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${ORG_PAT:-}" ]]; then
+            echo "::error::ORG_PAT secret is not configured."
+            exit 1
+          fi
+
+          # 토큰이 로그에 남지 않도록 remote URL은 출력하지 않는다.
+          git remote remove org 2>/dev/null || true
+          git remote add org "https://oauth2:${ORG_PAT}@github.com/SKNETWORKS-FAMILY-AICAMP/SKN30-FINAL-1Team.git"
+
+          # force push 금지. non-fast-forward면 그대로 실패시키고 사람이 판단한다.
+          git push org "${DEPLOY_SHA}:refs/heads/main"
+
+          echo "Synced ${DEPLOY_SHA} to SKNETWORKS-FAMILY-AICAMP/SKN30-FINAL-1Team main"
+          git log -1 --oneline "${DEPLOY_SHA}"
+
   summary:
     name: Notify combined deployment result
     needs:
       - backend
       - frontend
+      - sync-org
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -45,6 +91,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
+          SYNC_RESULT: ${{ needs.sync-org.result }}
           DEPLOY_BRANCH: ${{ github.ref_name }}
           DEPLOY_SHA: ${{ github.sha }}
           DEPLOY_ACTOR: ${{ github.actor }}
@@ -57,9 +104,15 @@ jobs:
             exit 0
           fi
 
+          # 배포 실패와 동기화 실패는 대응이 다르다(롤백 vs 재동기화). 제목에서 구분한다.
+          # develop이 아닌 브랜치에서는 sync-org가 skipped다. 실패로 보지 않는다.
           if [[ "${BACKEND_RESULT}" == "success" && \
                 "${FRONTEND_RESULT}" == "success" ]]; then
-            title='✅ 전체 배포 완료'
+            if [[ "${SYNC_RESULT}" == "success" || "${SYNC_RESULT}" == "skipped" ]]; then
+              title='✅ 전체 배포 완료'
+            else
+              title='⚠️ 배포 완료 · Org 동기화 실패'
+            fi
           else
             title='❌ 전체 배포 실패'
           fi
@@ -67,8 +120,8 @@ jobs:
           short_sha="${DEPLOY_SHA:0:7}"
           # Discord Markdown backticks are intentional literals; printf substitutes the values.
           # shellcheck disable=SC2016
-          description="$(printf '백엔드: `%s`\n프론트엔드: `%s`\n브랜치: `%s`\n커밋: `%s`\n실행자: `%s`\n[GitHub Actions 실행 보기](%s)' \
-            "${BACKEND_RESULT}" "${FRONTEND_RESULT}" "${DEPLOY_BRANCH}" \
+          description="$(printf '백엔드: `%s`\n프론트엔드: `%s`\nOrg 동기화: `%s`\n브랜치: `%s`\n커밋: `%s`\n실행자: `%s`\n[GitHub Actions 실행 보기](%s)' \
+            "${BACKEND_RESULT}" "${FRONTEND_RESULT}" "${SYNC_RESULT}" "${DEPLOY_BRANCH}" \
             "${short_sha}" "${DEPLOY_ACTOR}" "${RUN_URL}")"
 
           if ! payload="$(
