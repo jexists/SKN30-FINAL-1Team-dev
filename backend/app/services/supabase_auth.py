@@ -9,6 +9,7 @@ secret 키는 사용자를 만들고 지울 수 있으므로 admin 경로에서�
 비밀번호와 토큰은 예외 메시지나 로그에 남기지 않는다.
 """
 
+import logging
 import time
 from dataclasses import dataclass
 from urllib.parse import quote
@@ -16,15 +17,24 @@ from uuid import UUID
 
 import httpx
 import jwt
-from jwt import PyJWKSet
+from jwt import PyJWK, PyJWKSet
 
 from app.core.config import settings
+
+# 실패 원인을 서버 쪽에 남긴다. 응답은 원인을 구분하지 않으므로 여기가 유일한 단서다.
+# 비밀번호·토큰·이메일은 절대 싣지 않는다.
+logger = logging.getLogger(__name__)
 
 # Supabase access token 의 고정 audience.
 _AUDIENCE = "authenticated"
 # 비대칭 서명만 받는다. 대칭키(HS*)는 검증 키를 서버가 들고 있어야 하므로 쓰지 않는다.
 _ALGORITHMS = ("ES256", "RS256")
 _JWKS_TTL_SECONDS = 600.0
+# 모르는 kid 를 만났을 때 JWKS 를 다시 받는 최소 간격. 아무 kid 나 담은 토큰으로
+# 요청마다 JWKS 를 때리지 못하게 막는다.
+_JWKS_MIN_REFETCH_SECONDS = 30.0
+# 로컬 시계가 조금 밀려도 방금 받은 토큰을 거절하지 않는다.
+_CLOCK_SKEW_LEEWAY_SECONDS = 30.0
 _HTTP_TIMEOUT = 10.0
 
 
@@ -109,6 +119,21 @@ def _session_from(payload: object) -> SupabaseSession:
     )
 
 
+def _error_code(response: httpx.Response) -> str:
+    """로그에 남길 Supabase 오류 코드. 본문의 나머지는 옮기지 않는다.
+
+    본문 전체를 남기면 요청에 실린 이메일이 메시지에 섞여 나올 수 있다.
+    """
+    try:
+        payload = response.json()
+    except ValueError:
+        return "unparseable"
+    if not isinstance(payload, dict):
+        return "unparseable"
+    code = payload.get("error_code") or payload.get("error")
+    return code if isinstance(code, str) else "unknown"
+
+
 async def _token_grant(grant_type: str, body: dict[str, str]) -> SupabaseSession:
     """`/token` 은 grant_type 만 다르고 오류 처리가 같아 한 곳에서 다룬다."""
     _require_config()
@@ -125,6 +150,14 @@ async def _token_grant(grant_type: str, body: dict[str, str]) -> SupabaseSession
         raise AuthUnavailable(f"auth_upstream_failed:{response.status_code}")
     if response.status_code >= 400:
         # 400/401/403 은 모두 자격증명 문제로 모은다. 계정 존재 여부를 구분하지 않는다.
+        # 응답에서 지운 구분은 로그에만 남긴다. 이게 없으면 비밀번호 오류와
+        # email_not_confirmed 같은 설정 문제를 서버 운영자도 구분할 수 없다.
+        logger.warning(
+            "supabase token grant rejected: grant_type=%s status=%s error_code=%s",
+            grant_type,
+            response.status_code,
+            _error_code(response),
+        )
         raise InvalidCredentials("invalid_credentials")
 
     try:
@@ -242,10 +275,12 @@ def reset_jwks_cache() -> None:
     _jwks_cache = None
 
 
-async def _jwks(*, now: float | None = None) -> PyJWKSet:
+async def _jwks(*, now: float | None = None, force: bool = False) -> PyJWKSet:
+    """`force` 는 TTL 을 무시하지만 최소 재조회 간격은 지킨다."""
     global _jwks_cache
     current = time.monotonic() if now is None else now
-    if _jwks_cache is not None and current - _jwks_cache[1] < _JWKS_TTL_SECONDS:
+    age_limit = _JWKS_MIN_REFETCH_SECONDS if force else _JWKS_TTL_SECONDS
+    if _jwks_cache is not None and current - _jwks_cache[1] < age_limit:
         return _jwks_cache[0]
 
     _require_config()
@@ -268,6 +303,30 @@ async def _jwks(*, now: float | None = None) -> PyJWKSet:
     return keys
 
 
+async def _signing_key(kid: str) -> PyJWK:
+    """캐시에 없는 kid 는 키 교체 신호다. TTL 이 끝나기를 기다리지 않고 한 번 다시 받는다.
+
+    이걸 하지 않으면 Supabase 가 서명 키를 바꾼 뒤 캐시가 늙어 죽을 때까지
+    (최대 `_JWKS_TTL_SECONDS`) 모든 로그인이 실패한다.
+    """
+    keys = await _jwks()
+    try:
+        return keys[kid]
+    except KeyError:
+        pass
+
+    # 최소 간격이 지나지 않았거나 방금 받아온 목록이면 같은 객체가 돌아온다.
+    # 그때는 다시 볼 것이 없다.
+    refreshed = await _jwks(force=True)
+    if refreshed is not keys:
+        try:
+            return refreshed[kid]
+        except KeyError:
+            pass
+    logger.warning("access token signed by an unknown key: kid=%s", kid)
+    raise InvalidCredentials("unknown_signing_key")
+
+
 async def verify_access_token(token: str) -> UUID:
     """서명을 로컬에서 검증하고 Supabase 사용자 UUID(= public.member.id)를 돌려준다.
 
@@ -278,18 +337,26 @@ async def verify_access_token(token: str) -> UUID:
     if not isinstance(token, str) or not token:
         raise InvalidCredentials("invalid_token")
 
-    keys = await _jwks()
     try:
-        header = jwt.get_unverified_header(token)
-        key = keys[header["kid"]]
+        kid = jwt.get_unverified_header(token)["kid"]
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError) as error:
+        raise InvalidCredentials("invalid_token") from error
+
+    key = await _signing_key(kid)
+    try:
         payload = jwt.decode(
             token,
             key=key,
             algorithms=list(_ALGORITHMS),
             audience=_AUDIENCE,
+            leeway=_CLOCK_SKEW_LEEWAY_SECONDS,
             options={"require": ["exp", "sub", "aud"]},
         )
     except (jwt.PyJWTError, KeyError, TypeError, ValueError) as error:
+        # 서명·만료·audience 중 무엇이 틀렸는지는 응답에 남지 않는다. 여기에만 남긴다.
+        logger.warning(
+            "access token verification failed: kid=%s reason=%s", kid, type(error).__name__
+        )
         raise InvalidCredentials("invalid_token") from error
 
     subject = payload.get("sub")

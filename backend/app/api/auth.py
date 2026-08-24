@@ -175,9 +175,23 @@ async def login(
             email=payload.email,
             password=payload.password,
         )
-        member_id = await supabase_auth.verify_access_token(session.access_token)
     except supabase_auth.AuthError as error:
         raise auth_http_error(error) from error
+    except BaseException:
+        _release_login_attempt(client_host)
+        raise
+
+    try:
+        member_id = await supabase_auth.verify_access_token(session.access_token)
+    except supabase_auth.AuthError as error:
+        # 비밀번호는 맞았고 Supabase 도 토큰을 줬다. 그 토큰을 우리가 못 읽는 것이므로
+        # 자격증명 문제가 아니라 서버 문제다. 401 로 알리면 원인이 비밀번호에 있는 줄 알고
+        # 같은 비밀번호를 계속 다시 치게 된다. 시도 슬롯도 서버 잘못으로 채우지 않는다.
+        _release_login_attempt(client_host)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="auth_unavailable",
+        ) from error
     except BaseException:
         _release_login_attempt(client_host)
         raise

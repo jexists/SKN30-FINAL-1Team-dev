@@ -76,9 +76,17 @@ class _Response:
 class _SupabaseStub:
     """`/token`, `/logout`, JWKS 세 경로만 흉내낸다."""
 
-    def __init__(self, *, token: _Response | Exception, logout: _Response | Exception):
+    def __init__(
+        self,
+        *,
+        token: _Response | Exception,
+        logout: _Response | Exception,
+        jwks: list[object] | None = None,
+    ):
         self.token = token
         self.logout = logout
+        # 키 교체를 흉내내려면 JWKS 응답이 호출마다 달라야 한다. 비우면 늘 같은 키다.
+        self.jwks = list(jwks or [])
         self.calls: list[tuple[str, str]] = []
 
     async def __aenter__(self):
@@ -89,7 +97,7 @@ class _SupabaseStub:
 
     async def get(self, url: str, **_kwargs) -> _Response:
         self.calls.append(("GET", url))
-        return _Response(200, _JWKS)
+        return _Response(200, self.jwks.pop(0) if self.jwks else _JWKS)
 
     async def post(self, url: str, **_kwargs) -> _Response:
         self.calls.append(("POST", url))
@@ -145,11 +153,13 @@ def _client(
     *,
     token: _Response | Exception | None = None,
     logout: _Response | Exception | None = None,
+    jwks: list[object] | None = None,
 ) -> tuple[TestClient, _SupabaseStub]:
     """member 는 DB 조회 결과, token/logout 은 Supabase 응답을 정한다."""
     stub = _SupabaseStub(
         token=_Response(200, session_payload()) if token is None else token,
         logout=_Response(204) if logout is None else logout,
+        jwks=jwks,
     )
     monkeypatch.setattr(supabase_auth.httpx, "AsyncClient", lambda **_kwargs: stub)
 
@@ -228,6 +238,105 @@ def test_invalid_credentials_are_rejected_with_401(monkeypatch):
     assert not response.headers.get_list("set-cookie")
 
 
+def test_rotated_signing_key_is_fetched_without_waiting_for_the_cache(monkeypatch):
+    """Supabase 가 서명 키를 바꿔도 로그인은 즉시 이어져야 한다.
+
+    예전에는 캐시에 없는 kid 를 만나면 그대로 실패했다. JWKS 캐시 TTL 이 10분이라
+    키가 교체되면 그동안 모든 로그인이 401 invalid_credentials 로 막혔고,
+    캐시가 만료되면 아무것도 하지 않아도 저절로 풀렸다.
+    """
+    rotated_key = ec.generate_private_key(ec.SECP256R1())
+    rotated_kid = "rotated-signing-key"
+    rotated_jwks = {
+        "keys": [
+            {
+                **json.loads(jwt.algorithms.ECAlgorithm.to_jwk(rotated_key.public_key())),
+                "kid": rotated_kid,
+                "alg": "ES256",
+                "use": "sig",
+            }
+        ]
+    }
+    rotated_token = jwt.encode(
+        {"sub": str(AUTH_USER_ID), "aud": "authenticated", "exp": int(time.time()) + 3_600},
+        rotated_key,
+        algorithm="ES256",
+        headers={"kid": rotated_kid},
+    )
+
+    # 옛 키만 담긴 캐시가 아직 살아 있는 상태에서 시작한다. TTL 이 지나 버리면
+    # 평범한 재조회가 새 키를 물어와, 정작 확인하려는 경로를 타지 않는다.
+    monkeypatch.setattr(
+        supabase_auth, "_jwks_cache", (jwt.PyJWKSet.from_dict(_JWKS), time.monotonic())
+    )
+    monkeypatch.setattr(supabase_auth, "_JWKS_MIN_REFETCH_SECONDS", 0.0)
+
+    client, stub = _client(
+        _member(),
+        monkeypatch,
+        token=_Response(
+            200,
+            {
+                "access_token": rotated_token,
+                "refresh_token": secrets.token_urlsafe(24),
+                "expires_in": 3_600,
+            },
+        ),
+        jwks=[rotated_jwks],
+    )
+
+    with client:
+        response = client.post(
+            "/api/auth/login",
+            headers={"Origin": ORIGIN},
+            json={"email": "manager@salesluv.demo", "password": secrets.token_urlsafe(16)},
+        )
+
+    assert response.status_code == 200
+    # 캐시가 아직 유효했는데도 JWKS 를 다시 받아 새 키를 찾았다.
+    assert [call for call in stub.calls if call[0] == "GET"]
+
+
+def test_unknown_signing_key_is_a_server_problem_not_a_wrong_password(monkeypatch):
+    """다시 받아온 JWKS 에도 없는 키라면 비밀번호 문제가 아니다.
+
+    401 로 알리면 사용자는 원인이 비밀번호에 있는 줄 알고 같은 값을 계속 다시 친다.
+    """
+    stranger_key = ec.generate_private_key(ec.SECP256R1())
+    stranger_token = jwt.encode(
+        {"sub": str(AUTH_USER_ID), "aud": "authenticated", "exp": int(time.time()) + 3_600},
+        stranger_key,
+        algorithm="ES256",
+        headers={"kid": "unknown-signing-key"},
+    )
+
+    client, _stub = _client(
+        _member(),
+        monkeypatch,
+        token=_Response(
+            200,
+            {
+                "access_token": stranger_token,
+                "refresh_token": secrets.token_urlsafe(24),
+                "expires_in": 3_600,
+            },
+        ),
+    )
+
+    with client:
+        response = client.post(
+            "/api/auth/login",
+            headers={"Origin": ORIGIN},
+            json={"email": "manager@salesluv.demo", "password": secrets.token_urlsafe(16)},
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "auth_unavailable"}
+    assert not response.headers.get_list("set-cookie")
+    # 서버 잘못으로 로그인 시도 슬롯을 채우지 않는다.
+    assert not _login_attempts
+
+
 def test_verified_token_resolves_the_linked_member(monkeypatch):
     member = _member()
     client, _stub = _client(member, monkeypatch)
@@ -270,7 +379,8 @@ def test_expired_access_token_recovers_after_refresh(monkeypatch):
     client, _stub = _client(member, monkeypatch)
 
     with client:
-        client.cookies.set("salesluv_access", access_token(expires_in=-10), path="/api")
+        # 시계 오차 허용치보다 확실히 오래 지난 토큰이어야 만료로 걸린다.
+        client.cookies.set("salesluv_access", access_token(expires_in=-600), path="/api")
         client.cookies.set("salesluv_refresh", secrets.token_urlsafe(24), path="/api/auth")
 
         expired = client.get("/api/auth/me")
