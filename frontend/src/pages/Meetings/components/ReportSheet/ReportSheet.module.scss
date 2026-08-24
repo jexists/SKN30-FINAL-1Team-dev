@@ -1,0 +1,149 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/*
+ * 왼쪽 참고판과 같은 흰 면이지만 이쪽만 떠 있습니다. 참고판은 놓여 있고
+ * 이 문서는 들려 있습니다 — 그림자 한 겹과 넉넉한 여백이 그 차이를 혼자
+ * 짊어집니다. 여기에 더 얹지 않습니다.
+ */
+.sheet {
+  padding: var(--s7) var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+
+  @include md {
+    padding: var(--s5) var(--s4);
+  }
+}
+
+.titleBlock {
+  margin-bottom: var(--s6);
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+/* 제목은 문서의 머리글입니다. 입력처럼 보이지 않게 테두리를 지웁니다. */
+.title {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  outline: none;
+
+  &::placeholder {
+    color: var(--muted-2);
+  }
+
+  &:focus {
+    border-radius: 4px;
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  &:disabled {
+    color: var(--ink);
+  }
+}
+
+.when {
+  margin-top: var(--s2);
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 아직 쓸 것이 없는 상태. 종이 크기의 빈 사각형을 띄우면 무엇이 잘못된 것처럼
+ * 보입니다. 시트는 안내에 필요한 만큼만 서고, 내용이 생기면 그때 자랍니다.
+ */
+.blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s6) 0;
+  text-align: center;
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  p {
+    max-width: 34ch;
+    margin-bottom: var(--s3);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+}
+
+.evidence {
+  margin-top: var(--s5);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/*
+ * 이 화면의 유일한 저장 지점입니다. 머리말에는 저장 버튼을 두지 않습니다.
+ * 시트 아래에 붙어 따라오되, 화면 전체를 가로지르지 않아 본문을 가리지 않습니다.
+ */
+.actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s4);
+  padding: var(--s3) 0;
+  background: linear-gradient(to top, var(--paper) 72%, transparent);
+
+  @include sm {
+    flex-wrap: wrap;
+  }
+}
+
+.submit {
+  margin-left: auto;
+
+  @include sm {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+.missing {
+  padding-bottom: var(--s3);
+  color: var(--orange-ink);
+  font-size: 12px;
+}
+
+/* 인쇄에는 조작부가 남지 않습니다. 시트도 종이 위 종이가 되지 않게 폅니다. */
+@media print {
+  .actions.actions,
+  .missing.missing {
+    display: none;
+  }
+
+  .sheet.sheet {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+}

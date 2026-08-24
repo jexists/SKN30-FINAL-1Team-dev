@@ -30,6 +30,16 @@ export interface MeetingReportSeed {
   attachments: ReportAttachment[]
   /** AI 가 어디를 보고 채웠는지 한 줄 */
   evidence?: string
+  /**
+   * AI 가 최초로 만든 원본. values 와 따로 둡니다.
+   *
+   * 사용자가 values 를 아무리 고쳐도 이 값은 바뀌지 않아야 "AI 는 뭐라고 썼더라" 를
+   * 되짚을 수 있습니다. 한 벌로 관리하면 첫 수정에서 원본이 사라집니다.
+   */
+  aiValues?: Record<string, string>
+  aiEvidence?: string
+  /** 원본을 만든 시각. ISO 8601 */
+  aiGeneratedAt?: string
 }
 
 /** 실제 날짜가 붙은 미팅보고서. date 는 미팅한 날입니다. */

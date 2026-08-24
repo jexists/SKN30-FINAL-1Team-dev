@@ -65,6 +65,9 @@ function toReport(item: ReportResponse): MeetingReport {
       ? (content.attachments as ReportAttachment[])
       : [],
     evidence: text(content.evidence) || undefined,
+    aiValues: valuesOf(content.ai_values),
+    aiEvidence: text(content.ai_evidence) || undefined,
+    aiGeneratedAt: text(content.ai_generated_at) || undefined,
   }
 }
 
@@ -99,6 +102,10 @@ export interface MeetingDraftPayload {
   values: Record<string, string>
   attachments: ReportAttachment[]
   evidence?: string
+  /** AI 원본. 최종본(values)과 나란히 저장해 두 벌을 다 복원합니다. */
+  aiValues: Record<string, string>
+  aiEvidence?: string
+  aiGeneratedAt?: string
 }
 
 function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
@@ -121,6 +128,9 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
       values: draft.values,
       attachments: draft.attachments,
       evidence: draft.evidence ?? null,
+      ai_values: draft.aiValues,
+      ai_evidence: draft.aiEvidence ?? null,
+      ai_generated_at: draft.aiGeneratedAt ?? null,
     },
     transcript: draft.transcript || null,
     note: null,
