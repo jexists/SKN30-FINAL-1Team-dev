@@ -52,6 +52,10 @@ export default function CustomerTable({
   // 폰에서도 12열짜리 DOM 을 그대로 들고 있게 됩니다.
   const isDesktop = useMediaQuery(`(min-width: ${BP_DESKTOP}px)`)
 
+  // 카드에도 표와 같은 담당자 규칙을 씁니다. 컬럼이 빠진 화면에서는 카드에서도 빠집니다.
+  const ownerColumn = columns.find((column) => column.id === 'owner')
+  const showsOwner = ownerColumn !== undefined
+
   const headCheck = useRef<HTMLInputElement>(null)
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id))
   const someChecked = rows.some((r) => selected.has(r.id))
@@ -140,7 +144,10 @@ export default function CustomerTable({
               </p>
               {/* 직함이 비면 가운뎃점만 덩그러니 남습니다. */}
               <p className={styles.miniOrg}>{[row.org, row.title].filter(Boolean).join(' · ')}</p>
-              <p className={styles.miniMeta}>{row.owner}</p>
+              {/* 담당자 칸을 감춘 화면(팀원)에서는 카드에도 띄우지 않습니다. */}
+              {showsOwner && (
+                <p className={styles.miniMeta}>{ownerColumn?.render?.(row) ?? row.owner}</p>
+              )}
             </div>
           </li>
         ))}

@@ -5,7 +5,7 @@ import { createElement, type ReactNode } from 'react'
 import type { Customer } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
-import { EmailCell, PlainNumber } from './cells'
+import { EmailCell, OwnerCell, PlainNumber } from './cells'
 
 export interface ColumnDef {
   id: string
@@ -23,6 +23,10 @@ export interface ColumnDef {
 }
 
 const short = (isoDate: string) => fmtDotShort(parseISO(isoDate))
+
+/** 담당자 이름. API 응답에 담당자 목록이 없으면 대표 한 명만 씁니다. */
+const ownerNames = (c: Customer): string[] =>
+  c.owners !== undefined && c.owners.length > 0 ? c.owners.map((o) => o.name) : [c.owner]
 
 export const ALL_COLUMNS: ColumnDef[] = [
   {
@@ -83,7 +87,9 @@ export const ALL_COLUMNS: ColumnDef[] = [
     width: 110,
     minWidth: 90,
     sortable: true,
-    value: (c) => c.owner,
+    // 정렬·검색·CSV 는 담당자 전체를 봅니다. 표에만 대표 한 명과 +N 으로 줄여 놓습니다.
+    value: (c) => ownerNames(c).join(', '),
+    render: (c) => createElement(OwnerCell, { names: ownerNames(c) }),
   },
   {
     id: 'created',

@@ -9,6 +9,8 @@ export interface Profile {
 
 export interface Session {
   role: Role
+  /** 로그인한 구성원의 member.id. 담당자 기본값처럼 자기 자신을 가리킬 때 씁니다. */
+  memberId: string
   profile: Profile
   /**
    * 계정을 발급할 수 있는지. 서버의 ADMIN_USER_IDS 에서 나오며 role 과 무관합니다.

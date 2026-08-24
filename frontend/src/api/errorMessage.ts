@@ -41,6 +41,13 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   team_name_already_exists: '같은 이름의 팀이 이미 있습니다.',
   team_not_found: '고른 팀을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   password_rejected: '비밀번호가 정책에 맞지 않습니다. 더 길고 복잡하게 정해 주세요.',
+  // 고객 (/customers)
+  manager_required: '이 작업은 팀장만 할 수 있습니다.',
+  assignee_required: '담당자를 한 명 이상 정해 주세요.',
+  assignee_member_not_found: '고른 담당자를 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
+  customer_company_not_found: '고객사를 찾지 못했습니다. 다시 시도해 주세요.',
+  customer_contact_not_found: '고객을 찾지 못했습니다. 목록을 새로 불러와 주세요.',
+  customer_contact_status_code_not_found: '고객 상태 설정을 확인해 주세요.',
 }
 
 const MESSAGE_BY_STATUS: Record<number, string> = {

@@ -9,6 +9,7 @@ from app.api import (
     dashboard,
     documents,
     health,
+    members,
     notices,
     orders,
     reports,
@@ -21,6 +22,7 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(customers.router)
+api_router.include_router(members.router)
 api_router.include_router(activities.router)
 api_router.include_router(sales_deals.router)
 api_router.include_router(orders.router)

@@ -19,6 +19,8 @@ interface TableToolbarProps {
   onToggleColumn: (id: string) => void
   onMoveColumn: (id: string, delta: -1 | 1) => void
   onResetColumns: () => void
+  /** 이 화면에서 아예 쓰지 않는 컬럼. 설정 목록에도 나오지 않습니다. */
+  hiddenColumns?: string[]
   onCreate: () => void
 }
 
@@ -29,6 +31,7 @@ export default function TableToolbar({
   onToggleColumn,
   onMoveColumn,
   onResetColumns,
+  hiddenColumns,
   onCreate,
 }: TableToolbarProps) {
   const [open, setOpen] = useState<'columns' | null>(null)
@@ -68,6 +71,7 @@ export default function TableToolbar({
             onToggle={onToggleColumn}
             onMove={onMoveColumn}
             onReset={onResetColumns}
+            hidden={hiddenColumns}
           />
         </Popover>
       </div>

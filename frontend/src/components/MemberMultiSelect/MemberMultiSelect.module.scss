@@ -1,0 +1,116 @@
+.root {
+  position: relative;
+  min-width: 0;
+}
+
+.box {
+  @include combo-box;
+}
+
+// 칩이 생기면 여러 줄로 자랍니다. 칩이 없을 때는 옆의 일반 input 과 높이가 같습니다.
+.hasChips {
+  align-items: flex-start;
+  padding-top: 5px;
+  padding-bottom: 5px;
+
+  .searchIcon,
+  .iconButton {
+    margin-top: 5px;
+  }
+}
+
+.isDisabled {
+  background: var(--fill-2);
+  color: var(--muted-2);
+}
+
+.chips {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  min-width: 0;
+
+  input {
+    flex: 1 1 90px;
+    min-width: 90px;
+  }
+}
+
+.chip {
+  @include tag-pill;
+
+  flex: 0 0 auto;
+  gap: 4px;
+  background: var(--blue-tint);
+  color: var(--blue-press);
+}
+
+.chipRemove {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &:active {
+    transform: none;
+  }
+}
+
+.iconButton {
+  display: flex;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+
+  &:hover {
+    color: var(--ink-2);
+  }
+
+  &:active {
+    transform: none;
+  }
+}
+
+.searchIcon {
+  flex: 0 0 auto;
+}
+
+.option {
+  @include combo-option;
+
+  align-items: baseline;
+
+  b {
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.isActive {
+  background: var(--blue-tint);
+
+  b,
+  span {
+    color: var(--blue-press);
+  }
+}

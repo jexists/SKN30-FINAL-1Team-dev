@@ -2,6 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import Pagination from '@/components/Pagination'
 import type {
@@ -59,6 +60,10 @@ function toCustomer(contact: CustomerContactResponse): Customer {
     overdue: false,
     companyId: contact.company_id,
     ownerMemberId: contact.owner_member_id,
+    owners: contact.assignees.map((assignee) => ({
+      id: assignee.id,
+      name: assignee.display_name,
+    })),
     regionCode: contact.company_region_code,
   }
 }
@@ -84,6 +89,10 @@ export default function Customers() {
   const [reloadKey, setReloadKey] = useState(0)
 
   const { prefs, toggleColumn, moveColumn, setWidth, reset } = useColumnPrefs()
+  // 팀원에게는 자기가 담당인 고객만 보여, 담당자 칸이 늘 자기 이름입니다. 아예 감춥니다.
+  // 저장된 설정은 건드리지 않습니다. 팀장으로 다시 들어오면 그대로 돌아와야 합니다.
+  const { isManager } = useCurrentUser()
+  const hiddenColumns = useMemo(() => (isManager ? [] : ['owner']), [isManager])
   const deferredQuery = useDeferredValue(query)
 
   // 정렬 API가 붙기 전에 현재 페이지만 정렬하면 전체 순서를 오해하게 됩니다.
@@ -91,10 +100,11 @@ export default function Customers() {
     () =>
       prefs.order
         .filter((id) => prefs.visible.includes(id))
+        .filter((id) => !hiddenColumns.includes(id))
         .map((id) => COLUMN_BY_ID.get(id))
         .filter((column) => column !== undefined)
         .map((column) => ({ ...column, sortable: false })),
-    [prefs.order, prefs.visible],
+    [prefs.order, prefs.visible, hiddenColumns],
   )
 
   useEffect(() => {
@@ -186,6 +196,7 @@ export default function Customers() {
         onToggleColumn={toggleColumn}
         onMoveColumn={moveColumn}
         onResetColumns={reset}
+        hiddenColumns={hiddenColumns}
         onCreate={() => setCreateOpen(true)}
       />
 

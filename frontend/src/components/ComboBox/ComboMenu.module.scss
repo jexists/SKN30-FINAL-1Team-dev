@@ -1,0 +1,28 @@
+.menu {
+  @include combo-menu;
+
+  animation: appear var(--t-fast) var(--ease-out);
+}
+
+.notice {
+  @include combo-option;
+
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.failure {
+  @include combo-option;
+
+  justify-content: space-between;
+  color: var(--red-ink);
+  font-size: 12px;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}

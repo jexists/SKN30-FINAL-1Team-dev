@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
 from app.models.configuration import CustomerContactStatus
-from app.models.crm import CustomerCompany, CustomerContact
+from app.models.crm import CustomerCompany, CustomerContact, CustomerContactAssignee
 from app.models.workspace import Member
 from app.schemas.customers import (
     CustomerCompanyCreate,
@@ -122,11 +122,17 @@ def _company(team_id: UUID, *, company_id: UUID | None = None) -> CustomerCompan
     )
 
 
-def _contact(company_id: UUID, owner_id: UUID) -> CustomerContact:
+def _contact(
+    company_id: UUID,
+    owner_id: UUID,
+    *,
+    created_by_id: UUID | None = None,
+) -> CustomerContact:
     return CustomerContact(
         id=uuid4(),
         company_id=company_id,
         owner_member_id=owner_id,
+        created_by_member_id=created_by_id or owner_id,
         name="합성 고객",
         department="영업부",
         job_title="팀장",
@@ -159,6 +165,31 @@ def _contact_status(
     )
 
 
+def _contact_row(
+    contact: CustomerContact,
+    company: CustomerCompany,
+    owner: Member,
+    contact_status: CustomerContactStatus | None,
+    creator: Member | None = None,
+) -> tuple:
+    """목록·상세 쿼리가 돌려주는 조인 행. 마지막 칸이 등록한 사람의 이름이다."""
+    return (
+        contact,
+        company.name,
+        company.region_code,
+        owner.display_name,
+        contact_status,
+        (creator or owner).display_name,
+    )
+
+
+def _assignee_result(*pairs: tuple[CustomerContact, Member]) -> _Result:
+    """_load_assignees 가 읽는 (고객 id, 담당자 id, 담당자 이름) 행."""
+    return _Result(
+        rows=[(contact.id, assignee.id, assignee.display_name) for contact, assignee in pairs]
+    )
+
+
 def _client(db: _Db, member: Member) -> TestClient:
     async def override_db():
         yield db
@@ -182,7 +213,11 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
         source_code="website",
     )
 
-    assert company.model_dump() == {"name": "합성 고객사", "region_code": "seoul"}
+    assert company.model_dump() == {
+        "name": "합성 고객사",
+        "region_code": "seoul",
+        "business_no": None,
+    }
     assert contact.name == "합성 고객"
     assert contact.email == "customer@demo.test"
     assert contact.phone == "02-000-0000"
@@ -366,17 +401,8 @@ def test_contact_list_is_owner_scoped_for_member_and_returns_join_fields():
     )
     db = _Db(
         _Result(scalar=1),
-        _Result(
-            rows=[
-                (
-                    contact,
-                    company.name,
-                    company.region_code,
-                    member.display_name,
-                    contact_status,
-                )
-            ]
-        ),
+        _Result(rows=[_contact_row(contact, company, member, contact_status)]),
+        _assignee_result((contact, member)),
     )
 
     with _client(db, member) as client:
@@ -391,7 +417,10 @@ def test_contact_list_is_owner_scoped_for_member_and_returns_join_fields():
     assert response.json()["items"][0]["status_code"] == "negotiation"
     assert response.json()["items"][0]["customer_contact_status_name"] == "협상"
     assert response.json()["next_skip"] is None
-    for statement in db.statements:
+    assert [row["id"] for row in response.json()["items"][0]["assignees"]] == [str(member.id)]
+    assert response.json()["items"][0]["created_by_display_name"] == member.display_name
+    # 마지막 문장은 담당자만 읽는 별도 질의라 검색어·스코프 조건이 없다.
+    for statement in db.statements[:2]:
         assert member.id in statement.compile().params.values()
         assert list(statement.compile().params.values()).count("%합성%") == 6
         sql = str(statement)
@@ -410,14 +439,15 @@ def test_manager_contact_list_and_detail_cover_the_whole_team():
         manager.team_id,
         status_id=contact.customer_contact_status_id,
     )
-    row = (
-        contact,
-        company.name,
-        company.region_code,
-        other_owner.display_name,
-        contact_status,
+    row = _contact_row(contact, company, other_owner, contact_status)
+    assignees = _assignee_result((contact, other_owner))
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[row]),
+        assignees,
+        _Result(rows=[row]),
+        _assignee_result((contact, other_owner)),
     )
-    db = _Db(_Result(scalar=1), _Result(rows=[row]), _Result(rows=[row]))
 
     with _client(db, manager) as client:
         listed = client.get("/api/customer-contacts")
@@ -426,7 +456,7 @@ def test_manager_contact_list_and_detail_cover_the_whole_team():
     assert listed.status_code == detail.status_code == 200
     assert listed.json()["items"][0]["owner_member_id"] == str(other_owner.id)
     assert detail.json()["owner_display_name"] == other_owner.display_name
-    for statement in db.statements:
+    for statement in (db.statements[0], db.statements[1], db.statements[3]):
         assert manager.team_id in statement.compile().params.values()
         assert manager.id not in statement.compile().params.values()
         sql = str(statement)
@@ -444,17 +474,8 @@ def test_contact_patch_revalidates_destination_company_team():
         status_id=contact.customer_contact_status_id,
     )
     db = _Db(
-        _Result(
-            rows=[
-                (
-                    contact,
-                    old_company.name,
-                    old_company.region_code,
-                    manager.display_name,
-                    contact_status,
-                )
-            ]
-        ),
+        _Result(rows=[_contact_row(contact, old_company, manager, contact_status)]),
+        _assignee_result((contact, manager)),
         _Result(scalar=new_company),
     )
 
@@ -471,7 +492,7 @@ def test_contact_patch_revalidates_destination_company_team():
     assert response.json()["memo"] is None
     assert contact.company_id == new_company.id
     assert db.flush_count == db.commit_count == 1
-    assert manager.team_id in db.statements[1].compile().params.values()
+    assert manager.team_id in db.statements[2].compile().params.values()
 
 
 def test_contact_status_write_resolves_only_active_same_team_lookup():
@@ -496,17 +517,8 @@ def test_contact_status_write_resolves_only_active_same_team_lookup():
         status_id=contact.customer_contact_status_id,
     )
     patch_db = _Db(
-        _Result(
-            rows=[
-                (
-                    contact,
-                    company.name,
-                    company.region_code,
-                    member.display_name,
-                    contact_status,
-                )
-            ]
-        ),
+        _Result(rows=[_contact_row(contact, company, member, contact_status)]),
+        _assignee_result((contact, member)),
         _Result(scalar=None),
     )
     with _client(patch_db, member) as client:
@@ -522,7 +534,7 @@ def test_contact_status_write_resolves_only_active_same_team_lookup():
     )
     for statement, code in (
         (create_db.statements[1], "other_team_status"),
-        (patch_db.statements[1], "deleted_status"),
+        (patch_db.statements[2], "deleted_status"),
     ):
         sql = str(statement)
         values = statement.compile().params.values()
@@ -585,3 +597,219 @@ def test_write_failure_rolls_back_transaction():
 
     assert db.commit_count == 0
     assert db.rollback_count == 1
+
+
+def test_contact_create_records_creator_and_defaults_assignee_to_self():
+    member = _member()
+    company = _company(member.team_id)
+    db = _Db(_Result(scalar=company))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "phone": "02-000-0000",
+            },
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["owner_member_id"] == body["created_by_member_id"] == str(member.id)
+    assert body["assignees"] == [{"id": str(member.id), "display_name": member.display_name}]
+    # 담당자를 안 보내면 팀원 목록을 읽을 이유가 없다.
+    assert len(db.statements) == 1
+    assignee_rows = [row for row in db.added if isinstance(row, CustomerContactAssignee)]
+    assert [row.member_id for row in assignee_rows] == [member.id]
+    assert assignee_rows[0].customer_contact_id == db.added[0].id
+
+
+def test_manager_assigns_several_owners_and_first_one_becomes_representative():
+    manager = _member(role="manager")
+    company = _company(manager.team_id)
+    first = _member(team_id=manager.team_id)
+    first.display_name = "합성 담당자 가"
+    second = _member(team_id=manager.team_id)
+    second.display_name = "합성 담당자 나"
+    db = _Db(_Result(scalar=company), _Result(scalar_values=[second, first]))
+
+    with _client(db, manager) as client:
+        response = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "phone": "02-000-0000",
+                # 중복은 지워지고 보낸 순서가 그대로 남는다.
+                "assignee_member_ids": [str(first.id), str(second.id), str(first.id)],
+            },
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["owner_member_id"] == str(first.id)
+    assert body["owner_display_name"] == first.display_name
+    # 등록한 사람은 담당자가 아니어도 남는다.
+    assert body["created_by_member_id"] == str(manager.id)
+    assert [row["id"] for row in body["assignees"]] == [str(first.id), str(second.id)]
+    assignee_rows = [row for row in db.added if isinstance(row, CustomerContactAssignee)]
+    assert [row.member_id for row in assignee_rows] == [first.id, second.id]
+    lookup = db.statements[1]
+    assert manager.team_id in lookup.compile().params.values()
+    assert "public.member.active IS true" in str(lookup)
+
+
+def test_member_may_only_assign_themselves():
+    member = _member()
+    company = _company(member.team_id)
+    other = _member(team_id=member.team_id)
+
+    forbidden_db = _Db(_Result(scalar=company))
+    with _client(forbidden_db, member) as client:
+        forbidden = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "phone": "02-000-0000",
+                "assignee_member_ids": [str(other.id)],
+            },
+        )
+
+    allowed_db = _Db(_Result(scalar=company), _Result(scalar_values=[member]))
+    with _client(allowed_db, member) as client:
+        allowed = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "phone": "02-000-0000",
+                "assignee_member_ids": [str(member.id)],
+            },
+        )
+
+    assert forbidden.status_code == 403
+    assert forbidden.json() == {"detail": "manager_required"}
+    # 막혔으면 아무것도 남기지 않는다.
+    assert forbidden_db.added == []
+    assert allowed.status_code == 201
+
+
+def test_assignees_must_exist_in_the_team_and_cannot_be_empty():
+    manager = _member(role="manager")
+    company = _company(manager.team_id)
+    stranger = _member()
+
+    missing_db = _Db(_Result(scalar=company), _Result(scalar_values=[]))
+    with _client(missing_db, manager) as client:
+        missing = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "phone": "02-000-0000",
+                "assignee_member_ids": [str(stranger.id)],
+            },
+        )
+
+    empty_db = _Db(_Result(scalar=company))
+    with _client(empty_db, manager) as client:
+        empty = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "phone": "02-000-0000",
+                "assignee_member_ids": [],
+            },
+        )
+
+    assert missing.status_code == empty.status_code == 422
+    assert missing.json() == {"detail": "assignee_member_not_found"}
+    assert empty.json() == {"detail": "assignee_required"}
+
+
+def test_contact_patch_replaces_assignees_and_refreshes_owner_name():
+    manager = _member(role="manager")
+    company = _company(manager.team_id)
+    old_owner = _member(team_id=manager.team_id)
+    old_owner.display_name = "합성 이전 담당자"
+    new_owner = _member(team_id=manager.team_id)
+    new_owner.display_name = "합성 새 담당자"
+    contact = _contact(company.id, old_owner.id, created_by_id=manager.id)
+    contact_status = _contact_status(manager.team_id, status_id=contact.customer_contact_status_id)
+    db = _Db(
+        _Result(rows=[_contact_row(contact, company, old_owner, contact_status, manager)]),
+        _assignee_result((contact, old_owner)),
+        _Result(scalar_values=[new_owner]),
+        _Result(),
+    )
+
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/customer-contacts/{contact.id}",
+            headers={"Origin": ORIGIN},
+            json={"assignee_member_ids": [str(new_owner.id)]},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert contact.owner_member_id == new_owner.id
+    # 갱신 전 조인 값이 아니라 새 담당자의 이름이 나가야 한다.
+    assert body["owner_display_name"] == new_owner.display_name
+    assert [row["id"] for row in body["assignees"]] == [str(new_owner.id)]
+    # 등록한 사람은 담당자를 바꿔도 그대로다.
+    assert body["created_by_member_id"] == str(manager.id)
+    assert body["created_by_display_name"] == manager.display_name
+    assert "DELETE FROM public.customer_contact_assignee" in str(db.statements[3])
+    assignee_rows = [row for row in db.added if isinstance(row, CustomerContactAssignee)]
+    assert [row.member_id for row in assignee_rows] == [new_owner.id]
+
+
+def test_contact_scope_lets_a_member_see_customers_they_are_assigned_to():
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, uuid4())
+    contact_status = _contact_status(member.team_id, status_id=contact.customer_contact_status_id)
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[_contact_row(contact, company, member, contact_status)]),
+        _assignee_result((contact, member)),
+    )
+
+    with _client(db, member) as client:
+        response = client.get("/api/customer-contacts")
+
+    assert response.status_code == 200
+    sql = str(db.statements[0])
+    assert "customer_contact_assignee" in sql
+    assert "EXISTS" in sql
+
+
+def test_company_write_round_trips_business_no_and_rejects_other_shapes():
+    member = _member()
+    db = _Db()
+
+    with _client(db, member) as client:
+        created = client.post(
+            "/api/customer-companies",
+            headers={"Origin": ORIGIN},
+            json={"name": "합성 고객사", "region_code": None, "business_no": " 1234567890 "},
+        )
+        rejected = client.post(
+            "/api/customer-companies",
+            headers={"Origin": ORIGIN},
+            json={"name": "합성 고객사", "business_no": "123-45-67890"},
+        )
+
+    assert created.status_code == 201
+    assert created.json()["business_no"] == "1234567890"
+    assert db.added[0].business_no == "1234567890"
+    assert rejected.status_code == 422

@@ -39,6 +39,13 @@
   추가하고 `member(lower(email))`에 부분 유일 인덱스를 겁니다. `email`의 주인은 여전히
   `auth.users`이며 여기 값은 어드민 목록 표시용 사본입니다. 권한 판단에는 쓰지 않습니다.
 
+- `20260824_0003_customer_contact_assignees.sql`: 고객 담당자를 여러 명 둘 수 있게 합니다.
+  `customer_contact`에 `created_by_member_id`(등록한 사람)를 더하고, 담당자 전체를 담는
+  `customer_contact_assignee` 테이블을 만듭니다. 기존 `owner_member_id`는 대표 담당자로 남습니다.
+  `customers`·`support`·`activities`·`sales_deals`의 조회 스코프가 이 컬럼을 보기 때문입니다.
+  기존 행은 `owner_member_id`로 등록자와 담당자를 백필합니다.
+  `customer_company`에는 `business_no`(하이픈 없는 10자리)를 더해 같은 이름의 고객사를 구분합니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -49,6 +56,7 @@
 | 2026-08-19 | 개발 | (런북 1단계) 26테이블 `DROP TABLE ... CASCADE` | session pooler | 성공. public 테이블 0개 |
 | 2026-08-19 | 개발 | `20260819_0001_baseline_schema.sql` | session pooler | 성공. 26테이블 / 264컬럼 / FK 65 / RLS 26 |
 | 2026-08-23 | 개발 | `20260823_0002_admin_account_provisioning.sql` | session pooler | 성공. team +3컬럼 / member +1컬럼 / 부분 유일 인덱스 1. 기존 1팀 2명 그대로 |
+| 2026-08-24 | 개발 | `20260824_0003_customer_contact_assignees.sql` | session pooler | 성공. customer_company +1컬럼 / customer_contact +1컬럼 / customer_contact_assignee 신설(RLS on). 기존 고객 2건의 등록자·담당자를 owner_member_id 로 백필 |
 
 ## 개발 DB 재구축 런북
 

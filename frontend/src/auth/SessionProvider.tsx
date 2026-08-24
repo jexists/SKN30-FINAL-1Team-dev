@@ -16,8 +16,9 @@ interface AuthUser {
   is_admin: boolean
 }
 
-const toSession = ({ display_name, role_code, job_title, is_admin }: AuthUser): Session => ({
+const toSession = ({ id, display_name, role_code, job_title, is_admin }: AuthUser): Session => ({
   role: role_code,
+  memberId: id,
   profile: { name: display_name, title: job_title ?? '' },
   isAdmin: is_admin,
 })

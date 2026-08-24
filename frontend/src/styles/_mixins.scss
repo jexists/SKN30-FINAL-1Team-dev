@@ -107,6 +107,91 @@
   }
 }
 
+/**
+ * 검색해서 고르는 입력의 껍데기. form-field 의 input 과 같은 테두리·높이를 씁니다.
+ *
+ * 칩이 여러 개면 세로로 자라야 하므로 height 가 아니라 min-height 입니다. 칩이 없을 때의
+ * 높이는 옆의 일반 input 과 같습니다. 안쪽 input 은 form-field 가 준 테두리를 지웁니다.
+ */
+@mixin combo-box {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--control-h);
+  padding: 0 var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--muted);
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
+
+  &:focus-within {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  // 폼 칸 안에 놓이면 form-field 가 준 테두리·높이가 안쪽 input 에도 걸립니다.
+  // 같은 우선순위로는 파일 순서에 좌우되므로 클래스를 겹쳐 확실히 이깁니다.
+  &#{&} input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font-size: 13px;
+    outline: none;
+
+    &:focus {
+      border: 0;
+      box-shadow: none;
+    }
+
+    &:disabled {
+      background: none;
+    }
+  }
+}
+
+/**
+ * combo-box 가 여는 목록. 모달 안에서도 잘리지 않도록 body 에 portal 로 붙이므로
+ * fixed 이고, 모달 스크림(z-index 70) 보다 위에 있어야 합니다.
+ */
+@mixin combo-menu {
+  position: fixed;
+  z-index: 80;
+  max-height: 236px;
+  overflow-y: auto;
+  padding: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: var(--sh-pop);
+}
+
+/** combo-menu 안의 한 줄. 고를 수 있는 항목과 안내 문구가 같은 자리를 씁니다. */
+@mixin combo-option {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: 7px var(--s2);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  text-align: left;
+
+  // 전역 button:active 의 축소가 목록에서는 덜컹거림으로 보입니다.
+  &:active {
+    transform: none;
+  }
+}
+
 @mixin flex-center {
   display: flex;
   align-items: center;

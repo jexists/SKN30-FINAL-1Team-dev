@@ -8,3 +8,26 @@
     text-decoration: underline;
   }
 }
+
+.ownerCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.ownerName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ownerMore {
+  @include tag-pill;
+
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-style: normal;
+}

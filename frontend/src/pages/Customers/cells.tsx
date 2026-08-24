@@ -19,3 +19,18 @@ export function EmailCell({ email }: { email: string }) {
 export function PlainNumber({ value }: { value: string }) {
   return <span className="tnum">{value}</span>
 }
+
+/**
+ * 담당자가 여럿이면 대표 한 명과 나머지 수만 보여 줍니다. 좁은 칸에 이름을 다 늘어놓으면
+ * 어느 것도 읽히지 않습니다. 전체 이름은 마우스를 올리면 나옵니다.
+ */
+export function OwnerCell({ names }: { names: string[] }) {
+  if (names.length === 0) return null
+
+  return (
+    <span className={styles.ownerCell} title={names.join(', ')}>
+      <span className={styles.ownerName}>{names[0]}</span>
+      {names.length > 1 && <i className={styles.ownerMore}>+{names.length - 1}</i>}
+    </span>
+  )
+}

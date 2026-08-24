@@ -34,6 +34,10 @@ SearchQuery = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100),
 ]
+BusinessNo = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, pattern=r"^[0-9]{10}$"),
+]
 OptionCode = Annotated[
     str,
     StringConstraints(
@@ -60,11 +64,13 @@ class _WriteModel(BaseModel):
 class CustomerCompanyCreate(_WriteModel):
     name: Text
     region_code: RegionCode | None = None
+    business_no: BusinessNo | None = None
 
 
 class CustomerCompanyPatch(_WriteModel):
     name: Text | None = None
     region_code: RegionCode | None = None
+    business_no: BusinessNo | None = None
 
     @model_validator(mode="after")
     def name_cannot_be_null(self) -> Self:
@@ -80,6 +86,7 @@ class CustomerCompanyRead(BaseModel):
     team_id: UUID
     name: str
     region_code: str | None
+    business_no: str | None
     created_at: datetime
 
 
@@ -102,6 +109,8 @@ class CustomerContactCreate(_WriteModel):
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
+    # 담당자. 비우면 등록한 사람 혼자가 담당자가 된다. 첫 번째가 대표 담당자다.
+    assignee_member_ids: list[UUID] | None = None
 
 
 class CustomerContactPatch(_WriteModel):
@@ -114,18 +123,26 @@ class CustomerContactPatch(_WriteModel):
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
+    # 보내면 담당자 전체를 이 목록으로 바꾼다. 등록한 사람은 바뀌지 않는다.
+    assignee_member_ids: list[UUID] | None = None
 
     @model_validator(mode="after")
     def required_fields_cannot_be_null(self) -> Self:
-        for field_name in ("company_id", "name", "phone"):
+        for field_name in ("company_id", "name", "phone", "assignee_member_ids"):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} cannot be null")
         return self
 
 
+class ContactAssigneeRead(BaseModel):
+    id: UUID
+    display_name: str
+
+
 class CustomerContactRead(BaseModel):
     id: UUID
     company_id: UUID
+    # 대표 담당자. assignees 의 첫 번째와 같다.
     owner_member_id: UUID
     name: str
     department: str | None
@@ -142,6 +159,9 @@ class CustomerContactRead(BaseModel):
     company_name: str
     company_region_code: str | None
     owner_display_name: str
+    created_by_member_id: UUID
+    created_by_display_name: str
+    assignees: list[ContactAssigneeRead]
 
 
 class CustomerContactStatusOptionRead(BaseModel):

@@ -10,10 +10,21 @@ interface ColumnSettingsProps {
   onToggle: (id: string) => void
   onMove: (id: string, delta: -1 | 1) => void
   onReset: () => void
+  /** 이 화면에서 아예 쓰지 않는 컬럼. 켜고 끌 대상이 아닙니다. */
+  hidden?: string[]
 }
 
-export default function ColumnSettings({ prefs, onToggle, onMove, onReset }: ColumnSettingsProps) {
-  const items = prefs.order.map((id) => COLUMN_BY_ID.get(id)).filter((c) => c !== undefined)
+export default function ColumnSettings({
+  prefs,
+  onToggle,
+  onMove,
+  onReset,
+  hidden = [],
+}: ColumnSettingsProps) {
+  const items = prefs.order
+    .filter((id) => !hidden.includes(id))
+    .map((id) => COLUMN_BY_ID.get(id))
+    .filter((c) => c !== undefined)
 
   return (
     <div className={styles.root}>

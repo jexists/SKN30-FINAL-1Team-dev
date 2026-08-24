@@ -14,6 +14,8 @@ class CustomerCompany(Base):
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     name: Mapped[str]
     region_code: Mapped[str | None]
+    # 하이픈 없는 10자리. 화면에 보일 하이픈은 프론트가 붙인다.
+    business_no: Mapped[str | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
@@ -22,7 +24,10 @@ class CustomerContact(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
+    # 대표 담당자. CustomerContactAssignee 의 첫 번째와 같고, 조회 스코프가 이 컬럼을 본다.
     owner_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    # 고객을 등록한 사람. 등록 후 바뀌지 않는다.
+    created_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     name: Mapped[str]
     department: Mapped[str | None]
     job_title: Mapped[str | None]
@@ -34,6 +39,18 @@ class CustomerContact(Base):
     source_code: Mapped[str | None]
     memo: Mapped[str | None]
     registered_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class CustomerContactAssignee(Base):
+    """고객 한 건의 담당자. 대표 담당자도 여기에 함께 들어간다."""
+
+    __tablename__ = "customer_contact_assignee"
+
+    customer_contact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.customer_contact.id", ondelete="CASCADE"), primary_key=True
+    )
+    member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
 class Activity(Base):

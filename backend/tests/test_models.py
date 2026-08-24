@@ -13,8 +13,11 @@ EXPECTED_COLUMN_COUNTS = {
     # 20260823_0002 로 team 에 company_name/department/business_no, member 에 email 이 늘었다.
     "team": 6,
     "member": 8,
-    "customer_company": 5,
-    "customer_contact": 12,
+    # 20260824_0003 으로 customer_company 에 business_no,
+    # customer_contact 에 created_by_member_id 가 늘고 customer_contact_assignee 가 생겼다.
+    "customer_company": 6,
+    "customer_contact": 13,
+    "customer_contact_assignee": 3,
     "customer_contact_status": 9,
     "product": 4,
     "notice": 12,
@@ -47,14 +50,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 268
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 273
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 64
+    assert len(foreign_key_constraints) == 67
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

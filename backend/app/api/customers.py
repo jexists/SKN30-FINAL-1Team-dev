@@ -2,15 +2,17 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession
 from app.models.configuration import CustomerContactStatus
-from app.models.crm import CustomerCompany, CustomerContact
+from app.models.crm import CustomerCompany, CustomerContact, CustomerContactAssignee
 from app.models.workspace import Member
 from app.schemas.customers import (
+    ContactAssigneeRead,
     CustomerCompanyCreate,
     CustomerCompanyPage,
     CustomerCompanyPatch,
@@ -59,15 +61,113 @@ def _contact_scope(member: Member):
         Member.role_code.in_(("member", "manager")),
     ]
     if member.role_code == "member":
-        conditions.append(CustomerContact.owner_member_id == member.id)
+        # 대표 담당자가 아니어도 담당자로 지정됐으면 자기 고객이다.
+        conditions.append(
+            or_(
+                CustomerContact.owner_member_id == member.id,
+                select(CustomerContactAssignee.member_id)
+                .where(
+                    CustomerContactAssignee.customer_contact_id == CustomerContact.id,
+                    CustomerContactAssignee.member_id == member.id,
+                )
+                .exists(),
+            )
+        )
     return conditions
+
+
+# owner_member_id 조인은 _contact_scope 가 이름 없는 Member 로 참조하므로 그대로 두고,
+# 등록한 사람은 별칭으로 한 번 더 조인한다.
+_creator = aliased(Member)
+
+
+async def _load_assignees(
+    db: AsyncSession,
+    contacts: list[CustomerContact],
+) -> dict[UUID, list[ContactAssigneeRead]]:
+    """고객들의 담당자를 한 번에 읽는다. 행마다 따로 묻지 않는다.
+
+    대표 담당자를 맨 앞에 두고, 나머지는 지정된 순서를 따른다.
+    """
+    if not contacts:
+        return {}
+    result = await db.execute(
+        select(
+            CustomerContactAssignee.customer_contact_id,
+            Member.id,
+            Member.display_name,
+        )
+        .join(Member, CustomerContactAssignee.member_id == Member.id)
+        .where(
+            CustomerContactAssignee.customer_contact_id.in_([contact.id for contact in contacts])
+        )
+        .order_by(CustomerContactAssignee.created_at, Member.display_name, Member.id)
+    )
+    grouped: dict[UUID, list[ContactAssigneeRead]] = {contact.id: [] for contact in contacts}
+    for contact_id, member_id, display_name in result.all():
+        grouped[contact_id].append(ContactAssigneeRead(id=member_id, display_name=display_name))
+    owner_of = {contact.id: contact.owner_member_id for contact in contacts}
+    return {
+        contact_id: sorted(assignees, key=lambda row: row.id != owner_of[contact_id])
+        for contact_id, assignees in grouped.items()
+    }
+
+
+async def _resolve_assignees(
+    db: AsyncSession,
+    member: Member,
+    assignee_member_ids: list[UUID] | None,
+) -> list[Member]:
+    """담당자를 정한다. 남을 담당자로 세우는 건 팀장만 할 수 있다.
+
+    본인만 담은 목록은 권한을 따지지 않고 통과시킨다. 화면이 늘 값을 보내도 동작이 달라지지 않게
+    하기 위해서다. 반환 순서가 표시 순서이고 첫 번째가 대표 담당자가 된다.
+    """
+    if assignee_member_ids is None:
+        return [member]
+
+    ordered = list(dict.fromkeys(assignee_member_ids))
+    if not ordered:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="assignee_required",
+        )
+    if ordered != [member.id] and member.role_code != "manager":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="manager_required",
+        )
+
+    result = await db.execute(
+        select(Member).where(
+            Member.id.in_(ordered),
+            Member.team_id == member.team_id,
+            Member.active.is_(True),
+            Member.role_code.in_(("member", "manager")),
+        )
+    )
+    found = {row.id: row for row in result.scalars().all()}
+    if len(found) != len(ordered):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="assignee_member_not_found",
+        )
+    return [found[assignee_id] for assignee_id in ordered]
 
 
 async def _get_contact_row(
     db: AsyncSession,
     member: Member,
     contact_id: UUID,
-) -> tuple[CustomerContact, str, str | None, str, CustomerContactStatus | None]:
+) -> tuple[
+    CustomerContact,
+    str,
+    str | None,
+    str,
+    CustomerContactStatus | None,
+    str,
+    list[ContactAssigneeRead],
+]:
     result = await db.execute(
         select(
             CustomerContact,
@@ -75,9 +175,11 @@ async def _get_contact_row(
             CustomerCompany.region_code,
             Member.display_name,
             CustomerContactStatus,
+            _creator.display_name,
         )
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
         .join(Member, CustomerContact.owner_member_id == Member.id)
+        .join(_creator, CustomerContact.created_by_member_id == _creator.id)
         .outerjoin(
             CustomerContactStatus,
             and_(
@@ -93,8 +195,24 @@ async def _get_contact_row(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="customer_contact_not_found",
         )
-    contact, company_name, company_region_code, owner_display_name, contact_status = row
-    return contact, company_name, company_region_code, owner_display_name, contact_status
+    (
+        contact,
+        company_name,
+        company_region_code,
+        owner_display_name,
+        contact_status,
+        created_by_display_name,
+    ) = row
+    assignees = (await _load_assignees(db, [contact]))[contact.id]
+    return (
+        contact,
+        company_name,
+        company_region_code,
+        owner_display_name,
+        contact_status,
+        created_by_display_name,
+        assignees,
+    )
 
 
 def _contact_read(
@@ -103,6 +221,8 @@ def _contact_read(
     company_region_code: str | None,
     owner_display_name: str,
     contact_status: CustomerContactStatus | None,
+    created_by_display_name: str,
+    assignees: list[ContactAssigneeRead],
 ) -> CustomerContactRead:
     return CustomerContactRead(
         id=contact.id,
@@ -123,6 +243,9 @@ def _contact_read(
         company_name=company_name,
         company_region_code=company_region_code,
         owner_display_name=owner_display_name,
+        created_by_member_id=contact.created_by_member_id,
+        created_by_display_name=created_by_display_name,
+        assignees=assignees,
     )
 
 
@@ -306,9 +429,11 @@ async def list_customer_contacts(
             CustomerCompany.region_code,
             Member.display_name,
             CustomerContactStatus,
+            _creator.display_name,
         )
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
         .join(Member, CustomerContact.owner_member_id == Member.id)
+        .join(_creator, CustomerContact.created_by_member_id == _creator.id)
         .outerjoin(
             CustomerContactStatus,
             and_(
@@ -321,7 +446,9 @@ async def list_customer_contacts(
         .offset(page.skip)
         .limit(page.limit)
     )
-    contacts = [_contact_read(*row) for row in contacts_result.all()]
+    rows = contacts_result.all()
+    assignees_by_contact = await _load_assignees(db, [row[0] for row in rows])
+    contacts = [_contact_read(*row, assignees_by_contact[row[0].id]) for row in rows]
     has_more = page.skip + len(contacts) < total
     return CustomerContactPage(
         items=contacts,
@@ -361,21 +488,30 @@ async def create_customer_contact(
         if status_code is None
         else await _active_customer_contact_status(db, member, status_code)
     )
+    assignees = await _resolve_assignees(db, member, values.pop("assignee_member_ids"))
     contact = CustomerContact(
         id=uuid4(),
-        owner_member_id=member.id,
+        owner_member_id=assignees[0].id,
+        created_by_member_id=member.id,
         customer_contact_status_id=None if contact_status is None else contact_status.id,
         **values,
     )
     db.add(contact)
+    for assignee in assignees:
+        db.add(CustomerContactAssignee(customer_contact_id=contact.id, member_id=assignee.id))
     await _flush_and_commit(db)
     response.headers["Location"] = f"/api/customer-contacts/{contact.id}"
     return _contact_read(
         contact,
         company.name,
         company.region_code,
-        member.display_name,
+        assignees[0].display_name,
         contact_status,
+        member.display_name,
+        [
+            ContactAssigneeRead(id=assignee.id, display_name=assignee.display_name)
+            for assignee in assignees
+        ],
     )
 
 
@@ -392,12 +528,30 @@ async def update_customer_contact(
         company_region_code,
         owner_display_name,
         contact_status,
+        created_by_display_name,
+        assignees,
     ) = await _get_contact_row(
         db,
         member,
         contact_id,
     )
     values = payload.model_dump(exclude_unset=True)
+    if "assignee_member_ids" in values:
+        resolved = await _resolve_assignees(db, member, values.pop("assignee_member_ids"))
+        await db.execute(
+            delete(CustomerContactAssignee).where(
+                CustomerContactAssignee.customer_contact_id == contact.id
+            )
+        )
+        for assignee in resolved:
+            db.add(CustomerContactAssignee(customer_contact_id=contact.id, member_id=assignee.id))
+        contact.owner_member_id = resolved[0].id
+        # 담당자가 바뀌면 표시 이름도 바뀐다. 갱신 전 조인 값을 그대로 돌려주지 않는다.
+        owner_display_name = resolved[0].display_name
+        assignees = [
+            ContactAssigneeRead(id=assignee.id, display_name=assignee.display_name)
+            for assignee in resolved
+        ]
     if "company_id" in values:
         company = await _get_company(db, member, values["company_id"])
         company_name = company.name
@@ -419,4 +573,6 @@ async def update_customer_contact(
         company_region_code,
         owner_display_name,
         contact_status,
+        created_by_display_name,
+        assignees,
     )

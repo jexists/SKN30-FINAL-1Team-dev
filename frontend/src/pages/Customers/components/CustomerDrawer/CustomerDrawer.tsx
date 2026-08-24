@@ -29,10 +29,16 @@ function Block({ title, children }: BlockProps) {
 const shown = (value: string | null | undefined): string => value || '—'
 
 export default function CustomerDrawer({ customer, onClose }: Props) {
+  // 담당자가 여럿이면 상세에서는 전부 보여 줍니다. 좁은 표와 달리 자리가 있습니다.
+  const ownerNames =
+    customer.owners !== undefined && customer.owners.length > 0
+      ? customer.owners.map((owner) => owner.name)
+      : [customer.owner]
+
   const facts: [string, string][] = [
     ['부서', shown(customer.dept)],
     ['직함', shown(customer.title)],
-    ['담당 영업', customer.owner],
+    ['담당자', ownerNames.join(', ')],
     ['상태', customer.status],
     ['유입 경로', customer.source],
     ['등록일', fmtDay(parseISO(customer.created))],

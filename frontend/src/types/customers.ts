@@ -57,6 +57,14 @@ export interface Customer {
   companyId?: string
   ownerMemberId?: string
   regionCode?: string | null
+  /** 담당자 전체. 첫 번째가 owner 와 같은 대표 담당자입니다. */
+  owners?: CustomerOwner[]
+}
+
+/** 목록에 이름을 보여줄 담당자 한 명 */
+export interface CustomerOwner {
+  id: string
+  name: string
 }
 
 export interface CustomerContactResponse {
@@ -74,7 +82,16 @@ export interface CustomerContactResponse {
   registered_at: string
   company_name: string
   company_region_code: string | null
+  /** 대표 담당자. assignees 의 첫 번째와 같습니다. */
   owner_display_name: string
+  created_by_member_id: string
+  created_by_display_name: string
+  assignees: ContactAssigneeResponse[]
+}
+
+export interface ContactAssigneeResponse {
+  id: string
+  display_name: string
 }
 
 export interface CustomerCompanyResponse {
@@ -82,7 +99,15 @@ export interface CustomerCompanyResponse {
   team_id: string
   name: string
   region_code: string | null
+  /** 하이픈 없는 10자리. 화면에 보일 하이픈은 프론트가 붙입니다. */
+  business_no: string | null
   created_at: string
+}
+
+export interface CustomerCompanyCreateRequest {
+  name: string
+  region_code: string | null
+  business_no: string | null
 }
 
 export interface CustomerContactCreateRequest {
@@ -95,6 +120,8 @@ export interface CustomerContactCreateRequest {
   status_code: CustomerStatusCode | null
   source_code: CustomerSourceCode | null
   memo: string | null
+  /** 팀장만 보낼 수 있습니다. 비우면 등록한 사람이 담당자가 됩니다. */
+  assignee_member_ids?: string[]
 }
 
 export interface PageResponse<T> {

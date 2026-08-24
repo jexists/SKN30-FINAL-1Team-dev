@@ -1,15 +1,19 @@
 import { useState } from 'react'
-import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
+import { errorMessage } from '@/api/errorMessage'
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
+import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
+import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
 import type {
+  CustomerCompanyCreateRequest,
   CustomerCompanyResponse,
   CustomerContactCreateRequest,
   CustomerContactResponse,
-  PageResponse,
 } from '@/types'
+import { businessNoDigits, formatBusinessNo } from '@/utils/format'
 
 import styles from './CustomerFormModal.module.scss'
 
@@ -19,7 +23,6 @@ interface CustomerFormModalProps {
 }
 
 const EMPTY = {
-  org: '',
   name: '',
   dept: '',
   title: '',
@@ -29,80 +32,91 @@ const EMPTY = {
 }
 
 type Draft = typeof EMPTY
-type Errors = Partial<Record<keyof Draft, string>>
+type ErrorKey = keyof Draft | 'company' | 'businessNo' | 'assignees'
+type Errors = Partial<Record<ErrorKey, string>>
 
-function validate(draft: Draft): Errors {
+interface Form {
+  draft: Draft
+  company: CompanySelection | null
+  businessNo: string
+  assigneeIds: string[]
+}
+
+function validate({ draft, company, businessNo, assigneeIds }: Form): Errors {
   const errors: Errors = {}
-  if (draft.org.trim() === '') errors.org = '소속 회사를 입력하세요.'
+  if (company === null) errors.company = '회사를 검색해서 고르거나 직접 등록해 주세요.'
   if (draft.name.trim() === '') errors.name = '이름을 입력하세요.'
   if (draft.phone.trim() === '') errors.phone = '전화번호를 입력하세요.'
   if (draft.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
     errors.email = '이메일 형식이 맞지 않습니다. 예: name@company.com'
   }
+  if (businessNo.trim() !== '' && businessNoDigits(businessNo).length !== 10) {
+    errors.businessNo = '사업자 등록번호는 숫자 10자리입니다. 예: 123-45-67890'
+  }
+  if (assigneeIds.length === 0) errors.assignees = '담당자를 한 명 이상 고르세요.'
   return errors
 }
 
 const optional = (value: string): string | null => value.trim() || null
 
-async function findCompanies(name: string): Promise<CustomerCompanyResponse[]> {
-  const { data } = await client.get<PageResponse<CustomerCompanyResponse>>('/customer-companies', {
-    params: { q: name.slice(0, 100), skip: 0, limit: 100 },
-  })
-  return data.items
-}
+/** 고른 회사의 id. 새로 등록하기로 한 회사는 이 시점에 만듭니다. */
+async function resolveCompanyId(company: CompanySelection, businessNo: string): Promise<string> {
+  if (company.kind === 'existing') return company.company.id
 
-function submitErrorMessage(error: unknown): string {
-  if (!isAxiosError(error)) return '고객을 등록하지 못했습니다.'
-  if (error.response?.status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
-  if (error.response?.status === 404) return '고객사를 찾지 못했습니다. 다시 시도해 주세요.'
-  if (error.response?.status === 422) return '입력한 내용을 확인해 주세요.'
-  return '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+  const payload: CustomerCompanyCreateRequest = {
+    name: company.name,
+    region_code: null,
+    business_no: businessNoDigits(businessNo) || null,
+  }
+  // 그 사이 남이 같은 이름을 만들었으면 백엔드가 기존 행을 돌려줍니다.
+  const { data } = await client.post<CustomerCompanyResponse>('/customer-companies', payload)
+  return data.id
 }
 
 export default function CustomerFormModal({ onClose, onCreated }: CustomerFormModalProps) {
+  const { isManager, memberId } = useCurrentUser()
+
   const [draft, setDraft] = useState<Draft>(EMPTY)
+  const [company, setCompany] = useState<CompanySelection | null>(null)
+  const [businessNo, setBusinessNo] = useState('')
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([memberId])
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const set = (key: keyof Draft, value: string) => {
-    setDraft((previous) => ({ ...previous, [key]: value }))
+  const clearError = (key: ErrorKey) => {
     setErrors((previous) => ({ ...previous, [key]: undefined }))
     setSubmitError(null)
+  }
+
+  const set = (key: keyof Draft, value: string) => {
+    setDraft((previous) => ({ ...previous, [key]: value }))
+    clearError(key)
+  }
+
+  const pickCompany = (selection: CompanySelection | null) => {
+    setCompany(selection)
+    // 이미 있는 회사의 사업자번호는 그 회사의 것입니다. 여기서 고치지 않습니다.
+    setBusinessNo(
+      selection?.kind === 'existing' ? (formatBusinessNo(selection.company.business_no) ?? '') : '',
+    )
+    clearError('company')
+    clearError('businessNo')
   }
 
   const submit = async () => {
     if (submitting) return
 
-    const found = validate(draft)
+    const found = validate({ draft, company, businessNo, assigneeIds })
     setErrors(found)
-    if (Object.keys(found).length > 0) return
+    if (Object.keys(found).length > 0 || company === null) return
 
     setSubmitting(true)
     setSubmitError(null)
 
     try {
-      const companyName = draft.org.trim()
-      const companies = await findCompanies(companyName)
-      const exact = companies.filter((company) => company.name === companyName)
-
-      if (exact.length > 1) {
-        setSubmitError('같은 이름의 고객사가 여러 개입니다. 고객사 정리 후 다시 등록해 주세요.')
-        setSubmitting(false)
-        return
-      }
-
-      let companyId = exact[0]?.id
-      if (companyId === undefined) {
-        const { data: createdCompany } = await client.post<CustomerCompanyResponse>(
-          '/customer-companies',
-          { name: companyName, region_code: null },
-        )
-        companyId = createdCompany.id
-      }
-
       const payload: CustomerContactCreateRequest = {
-        company_id: companyId,
+        company_id: await resolveCompanyId(company, businessNo),
         name: draft.name.trim(),
         department: optional(draft.dept),
         job_title: optional(draft.title),
@@ -111,12 +125,14 @@ export default function CustomerFormModal({ onClose, onCreated }: CustomerFormMo
         status_code: 'new',
         source_code: null,
         memo: optional(draft.memo),
+        // 팀원은 담당자를 고를 수 없습니다. 백엔드가 등록한 사람으로 채웁니다.
+        ...(isManager ? { assignee_member_ids: assigneeIds } : {}),
       }
       await client.post<CustomerContactResponse>('/customer-contacts', payload)
       setSubmitting(false)
       onCreated()
     } catch (error: unknown) {
-      setSubmitError(submitErrorMessage(error))
+      setSubmitError(errorMessage(error, '고객을 등록하지 못했습니다.'))
       setSubmitting(false)
     }
   }
@@ -142,13 +158,28 @@ export default function CustomerFormModal({ onClose, onCreated }: CustomerFormMo
       }
     >
       <div className={styles.grid} aria-busy={submitting}>
-        <Field label="회사" required error={errors.org}>
-          <input
-            value={draft.org}
-            placeholder="회사 이름"
-            maxLength={254}
+        <Field label="회사" required error={errors.company} htmlFor={false}>
+          <CompanyAutocomplete
+            value={company}
+            onChange={pickCompany}
+            allowCreate
             disabled={submitting}
-            onChange={(event) => set('org', event.target.value)}
+            invalid={errors.company !== undefined}
+          />
+        </Field>
+
+        <Field label="사업자 등록번호" error={errors.businessNo}>
+          <input
+            value={businessNo}
+            placeholder="123-45-67890"
+            maxLength={12}
+            // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
+            readOnly={company?.kind === 'existing'}
+            disabled={submitting || company === null}
+            onChange={(event) => {
+              setBusinessNo(event.target.value)
+              clearError('businessNo')
+            }}
           />
         </Field>
 
@@ -158,6 +189,17 @@ export default function CustomerFormModal({ onClose, onCreated }: CustomerFormMo
             maxLength={254}
             disabled={submitting}
             onChange={(event) => set('name', event.target.value)}
+          />
+        </Field>
+
+        <Field label="전화" required error={errors.phone}>
+          <input
+            type="tel"
+            value={draft.phone}
+            placeholder="02-000-0000"
+            maxLength={50}
+            disabled={submitting}
+            onChange={(event) => set('phone', event.target.value)}
           />
         </Field>
 
@@ -192,16 +234,21 @@ export default function CustomerFormModal({ onClose, onCreated }: CustomerFormMo
           />
         </Field>
 
-        <Field label="전화" required error={errors.phone}>
-          <input
-            type="tel"
-            value={draft.phone}
-            placeholder="02-000-0000"
-            maxLength={50}
-            disabled={submitting}
-            onChange={(event) => set('phone', event.target.value)}
-          />
-        </Field>
+        {/* 담당자를 정할 수 있는 건 팀장뿐입니다. 팀원이 등록하면 본인이 담당자가 됩니다. */}
+        {isManager && (
+          <Field label="담당자" required error={errors.assignees} htmlFor={false}>
+            <MemberMultiSelect
+              value={assigneeIds}
+              onChange={(next) => {
+                setAssigneeIds(next)
+                clearError('assignees')
+              }}
+              disabled={submitting}
+              invalid={errors.assignees !== undefined}
+              firstChipHint="첫 번째 담당자가 대표 담당자입니다."
+            />
+          </Field>
+        )}
 
         <Field label="메모" wide>
           <textarea
@@ -229,18 +276,24 @@ interface FieldProps {
   required?: boolean
   error?: string
   wide?: boolean
+  /**
+   * label 로 감쌀지. 검색해서 고르는 입력은 안에 버튼이 있어, label 을 누르면 버튼이
+   * 눌리거나 포커스가 엉킵니다. 그런 칸은 false 로 두고 div 로 감쌉니다.
+   */
+  htmlFor?: boolean
   children: React.ReactNode
 }
 
-function Field({ label, required, error, wide, children }: FieldProps) {
+function Field({ label, required, error, wide, htmlFor = true, children }: FieldProps) {
+  const Wrapper = htmlFor ? 'label' : 'div'
   return (
-    <label className={`${styles.field} ${wide ? styles.isWide : ''}`}>
+    <Wrapper className={`${styles.field} ${wide ? styles.isWide : ''}`}>
       <span className={styles.label}>
         {label}
         {required && <b aria-hidden="true">*</b>}
       </span>
       {children}
       {error && <span className={styles.error}>{error}</span>}
-    </label>
+    </Wrapper>
   )
 }
