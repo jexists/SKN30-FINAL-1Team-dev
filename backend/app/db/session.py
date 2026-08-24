@@ -26,10 +26,24 @@ def get_engine() -> AsyncEngine:
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL 이 설정되지 않았습니다. backend/.env 를 확인하세요.")
 
+    # session pooler 는 클라이언트 하나가 Postgres 연결 하나를 통째로 붙잡고 있고,
+    # 한도 15 는 머신이 아니라 Supabase 프로젝트 단위다. 배포 서버, 팀원들의 로컬
+    # 서버, pytest 가 모두 같은 15 를 나눠 쓴다.
+    #
+    # SQLAlchemy 기본값(pool_size 5 + max_overflow 10)이면 프로세스 하나가 그 15 를
+    # 혼자 다 가져갈 수 있어, 다른 누군가가 붙는 순간 EMAXCONNSESSION 이 난다.
+    #
+    # max_overflow 를 0 으로 두어 한도를 넘기는 대신 기다리게 한다. 밖에서 거절당하는
+    # 것보다 안에서 줄 서는 편이 낫다.
+    #
+    # ponytail: 2 는 프로젝트 한도 15 를 참여자 수로 나눈 값이다. uvicorn worker 를
+    # 늘리거나 참여자가 늘면 pool_size × 프로세스 수가 15 를 넘지 않는지 다시 계산한다.
     return create_async_engine(
         settings.async_database_url,
         echo=settings.debug,
         pool_pre_ping=True,
+        pool_size=2,
+        max_overflow=0,
     )
 
 
