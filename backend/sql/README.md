@@ -46,6 +46,14 @@
   기존 행은 `owner_member_id`로 등록자와 담당자를 백필합니다.
   `customer_company`에는 `business_no`(하이픈 없는 10자리)를 더해 같은 이름의 고객사를 구분합니다.
 
+- `20260824_0004_product_fields.sql`: 상품 등록 화면(`/products`, 팀장 전용)이 받는 항목을
+  `product`에 더합니다. `category_code`(system/probe/consumable), `unit_price`(원 단위 정수),
+  `shelf_life_months`(유효기간 개월), `memo`, `image_storage_key`입니다. 기존 행은 백필용
+  default로 채운 뒤 default를 떼므로 이후 INSERT는 앱이 값을 직접 넣어야 합니다.
+  `image_storage_key`는 `notice.image_storage_key`와 같은 뜻이며 API 응답에 나가지 않습니다.
+  상품 목록(`GET /api/products`)은 발주·영업 화면이 함께 쓰므로 팀원에게도 그대로 열려 있고,
+  쓰기(`POST /api/products`, 사진 업로드)만 팀장으로 제한합니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 

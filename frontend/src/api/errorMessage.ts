@@ -48,6 +48,17 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   customer_company_not_found: '고객사를 찾지 못했습니다. 다시 시도해 주세요.',
   customer_contact_not_found: '고객을 찾지 못했습니다. 목록을 새로 불러와 주세요.',
   customer_contact_status_code_not_found: '고객 상태 설정을 확인해 주세요.',
+  // 상품 (/products)
+  product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
+  product_image_not_found: '등록된 사진이 없습니다.',
+  // 파일 업로드 (상품 사진, 자료실)
+  invalid_file_name: '파일 이름을 확인해 주세요.',
+  unsupported_file_extension: '올릴 수 없는 파일 형식입니다.',
+  media_type_mismatch: '파일 형식과 내용이 맞지 않습니다.',
+  file_signature_mismatch: '파일 형식과 내용이 맞지 않습니다.',
+  empty_file: '빈 파일은 올릴 수 없습니다.',
+  file_too_large: '파일 용량이 너무 큽니다.',
+  storage_not_configured: '파일 저장소 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
 }
 
 const MESSAGE_BY_STATUS: Record<number, string> = {

@@ -14,6 +14,16 @@ class Product(Base):
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     name: Mapped[str]
     active: Mapped[bool] = mapped_column(server_default=text("true"))
+    category_code: Mapped[str]
+    unit_price: Mapped[int] = mapped_column(BigInteger)
+    shelf_life_months: Mapped[int | None]
+    memo: Mapped[str | None]
+    image_storage_key: Mapped[str | None]
+
+    @property
+    def has_image(self) -> bool:
+        """사진이 있는지만 알린다. storage_key 자체는 내부 주소라 응답에 넣지 않는다."""
+        return self.image_storage_key is not None
 
 
 class SalesPipeline(Base):

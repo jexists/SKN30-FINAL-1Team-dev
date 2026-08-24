@@ -3,20 +3,24 @@ from typing import Annotated
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.core.config import settings
 from app.models.configuration import SalesDealType
 from app.models.crm import CustomerCompany, CustomerContact
 from app.models.sales import Product, SalesDeal, SalesPipeline, SalesPipelineStage
 from app.models.workspace import Member, Team
 from app.schemas.sales_deals import (
+    ProductCreate,
+    ProductImageRead,
     ProductPage,
     ProductPageParams,
+    ProductRead,
     SalesDealCreate,
     SalesDealMove,
     SalesDealPage,
@@ -27,8 +31,15 @@ from app.schemas.sales_deals import (
     SalesPipelineRead,
     SalesPipelineStageRead,
 )
+from app.services import storage
+from app.services.storage import StorageError
+from app.services.upload_guard import UploadRejected, check_image_upload, check_size
 
 router = APIRouter(tags=["sales-deals"])
+
+# 상품 사진 한 장의 상한. 자료실 문서용 upload_max_bytes(50MB)는 사진에 맞지 않는다.
+PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+PRODUCT_IMAGE_EXPIRES_IN = 300
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 _owner = aliased(Member)
@@ -579,6 +590,149 @@ async def list_products(
         has_more=has_more,
         next_skip=page.skip + len(products) if has_more else None,
     )
+
+
+def _require_manager(member: Member) -> None:
+    """상품 마스터는 팀장이 관리한다. 목록 조회는 팀원도 그대로 쓴다."""
+    if member.role_code != "manager":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="manager_required")
+
+
+def _require_storage() -> None:
+    if not settings.storage_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="storage_not_configured",
+        )
+
+
+async def _team_product_for_update(db: AsyncSession, member: Member, product_id: UUID) -> Product:
+    product = (
+        await db.execute(
+            select(Product)
+            .where(Product.id == product_id, Product.team_id == member.team_id)
+            .with_for_update(of=Product)
+        )
+    ).scalar_one_or_none()
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_not_found")
+    return product
+
+
+@router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
+async def create_product(
+    payload: ProductCreate,
+    response: Response,
+    member: CurrentMember,
+    db: DbSession,
+) -> Product:
+    _require_manager(member)
+    product = Product(
+        id=uuid4(),
+        team_id=member.team_id,
+        # DB 기본값에 기대지 않고 넣는다. 넣은 객체를 그대로 응답으로 쓰기 때문이다.
+        active=True,
+        name=payload.name,
+        category_code=payload.category_code,
+        unit_price=payload.unit_price,
+        shelf_life_months=payload.shelf_life_months,
+        memo=payload.memo,
+        image_storage_key=None,
+    )
+    try:
+        db.add(product)
+        await db.flush()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    response.headers["Location"] = f"/api/products/{product.id}"
+    return product
+
+
+@router.put("/products/{product_id}/image", response_model=ProductRead)
+async def upload_product_image(
+    product_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+    upload: Annotated[UploadFile, File()],
+) -> Product:
+    _require_manager(member)
+    _require_storage()
+    content = await upload.read()
+
+    try:
+        check_size(len(content), PRODUCT_IMAGE_MAX_BYTES)
+        allowed = check_image_upload(
+            file_name=upload.filename or "",
+            declared_media_type=upload.content_type,
+            content=content,
+        )
+    except UploadRejected as rejected:
+        raise HTTPException(status_code=rejected.status_code, detail=rejected.detail) from rejected
+
+    storage_key = storage.build_storage_key(member.team_id, allowed.extension)
+    try:
+        await storage.upload(
+            storage_key=storage_key,
+            content=content,
+            media_type=allowed.media_type,
+        )
+    except StorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+
+    try:
+        product = await _team_product_for_update(db, member, product_id)
+        replaced_key = product.image_storage_key
+        product.image_storage_key = storage_key
+        await db.flush()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        # DB 기록이 실패하면 올린 객체를 지워 고아를 남기지 않는다.
+        await storage.remove(storage_key=storage_key)
+        raise
+    if replaced_key is not None:
+        await storage.remove(storage_key=replaced_key)
+    return product
+
+
+@router.get("/products/{product_id}/image", response_model=ProductImageRead)
+async def get_product_image(
+    product_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> ProductImageRead:
+    """짧게 사는 사진 주소. 요청마다 팀 권한을 다시 확인한다.
+
+    ponytail: 목록이 행마다 한 번씩 부르므로 저장소 호출이 N번이다.
+    상품 수가 커지면 한 번에 여러 건을 발급하는 방식으로 바꾼다.
+    """
+    _require_storage()
+    product = (
+        await db.execute(
+            select(Product).where(Product.id == product_id, Product.team_id == member.team_id)
+        )
+    ).scalar_one_or_none()
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_not_found")
+    if product.image_storage_key is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_image_not_found")
+
+    try:
+        url = await storage.signed_url(
+            storage_key=product.image_storage_key,
+            expires_in=PRODUCT_IMAGE_EXPIRES_IN,
+        )
+    except StorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    return ProductImageRead(url=url, expires_in=PRODUCT_IMAGE_EXPIRES_IN)
 
 
 @router.get("/sales-deals", response_model=SalesDealPage)

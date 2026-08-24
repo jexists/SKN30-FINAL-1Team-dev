@@ -12,6 +12,7 @@ import {
   DocumentsIcon,
   type IconProps,
   OrdersIcon,
+  ProductIcon,
   QuoteIcon,
   SalesReportIcon,
   TeamIcon,
@@ -77,12 +78,16 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [{ to: ROUTES.DOCUMENTS, label: '자료실', icon: DocumentsIcon }],
   },
   {
-    // 팀 실적 조회는 Topbar 의 보기 범위 스위처가 맡습니다. 여기 남는 것은
-    // 화면 전체가 팀장 것인 '팀 관리' 하나뿐입니다.
+    // 화면 전체가 팀장 것인 관리 메뉴를 한 섹션으로 묶습니다. 상품은 팀원이
+    // 발주·영업 등록에서 고르기만 하므로 목록 화면이 필요하지 않고, 팀 실적
+    // 조회는 Topbar 의 보기 범위 스위처가 맡습니다.
     id: 'manager',
-    ariaLabel: '팀 관리',
+    title: '관리',
     managerOnly: true,
-    items: [{ to: ROUTES.TEAM, label: '팀 관리', icon: TeamIcon }],
+    items: [
+      { to: ROUTES.PRODUCTS, label: '상품관리', icon: ProductIcon },
+      { to: ROUTES.TEAM, label: '팀 관리', icon: TeamIcon },
+    ],
   },
   // 설정 메뉴는 두지 않습니다. 바꿀 수 있는 값이 없어 마이페이지로 대체했고,
   // 진입은 사이드바 하단 이름과 헤더 아바타에서 합니다.

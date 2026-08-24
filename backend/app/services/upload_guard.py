@@ -32,7 +32,9 @@ class AllowedType:
 
 
 @dataclass(frozen=True)
-class AllowedAudioType:
+class AllowedMediaType:
+    """확장자 하나에 선언 MIME 이 여럿 붙는 형식. 음성과 이미지가 이 모양이다."""
+
     extension: str
     media_type: str
     declared_media_types: frozenset[str]
@@ -75,26 +77,26 @@ def _is_webm(content: bytes) -> bool:
     return content.startswith(b"\x1aE\xdf\xa3")
 
 
-_AUDIO_ALLOWED: tuple[AllowedAudioType, ...] = (
-    AllowedAudioType(
+_AUDIO_ALLOWED: tuple[AllowedMediaType, ...] = (
+    AllowedMediaType(
         ".mp3",
         "audio/mpeg",
         frozenset(("audio/mpeg", "audio/mp3")),
         _is_mpeg_audio,
     ),
-    AllowedAudioType(
+    AllowedMediaType(
         ".m4a",
         "audio/mp4",
         frozenset(("audio/mp4", "audio/m4a", "audio/x-m4a")),
         _is_m4a,
     ),
-    AllowedAudioType(
+    AllowedMediaType(
         ".wav",
         "audio/wav",
         frozenset(("audio/wav", "audio/wave", "audio/x-wav")),
         _is_wav,
     ),
-    AllowedAudioType(
+    AllowedMediaType(
         ".webm",
         "audio/webm",
         frozenset(("audio/webm",)),
@@ -102,6 +104,31 @@ _AUDIO_ALLOWED: tuple[AllowedAudioType, ...] = (
     ),
 )
 _AUDIO_BY_EXTENSION = {allowed.extension: allowed for allowed in _AUDIO_ALLOWED}
+
+
+def _is_png(content: bytes) -> bool:
+    return content.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def _is_jpeg(content: bytes) -> bool:
+    return content.startswith(b"\xff\xd8\xff")
+
+
+def _is_webp(content: bytes) -> bool:
+    return len(content) >= 12 and content.startswith(b"RIFF") and content[8:12] == b"WEBP"
+
+
+# 상품 사진이 쓴다. 자료실(_ALLOWED)과 섞지 않는다. 브라우저가 그대로 그리는 형식만 두고
+# SVG 는 스크립트를 품을 수 있어 받지 않는다.
+_IMAGE_ALLOWED: tuple[AllowedMediaType, ...] = (
+    AllowedMediaType(".png", "image/png", frozenset(("image/png",)), _is_png),
+    AllowedMediaType(".jpg", "image/jpeg", frozenset(("image/jpeg", "image/jpg")), _is_jpeg),
+    AllowedMediaType(".jpeg", "image/jpeg", frozenset(("image/jpeg", "image/jpg")), _is_jpeg),
+    AllowedMediaType(".webp", "image/webp", frozenset(("image/webp",)), _is_webp),
+)
+_IMAGE_BY_EXTENSION = {allowed.extension: allowed for allowed in _IMAGE_ALLOWED}
+
+ALLOWED_IMAGE_EXTENSIONS = tuple(sorted(_IMAGE_BY_EXTENSION))
 
 
 def _extension_of(file_name: str) -> str:
@@ -135,15 +162,18 @@ def check_upload(*, file_name: str, declared_media_type: str | None, content: by
     return allowed
 
 
-def check_audio_upload(
-    *, file_name: str, declared_media_type: str | None, content: bytes
-) -> AllowedAudioType:
-    """STT가 받을 음성인지 확장자·MIME·signature를 함께 확인한다."""
+def _check_media_upload(
+    by_extension: dict[str, AllowedMediaType],
+    *,
+    file_name: str,
+    declared_media_type: str | None,
+    content: bytes,
+) -> AllowedMediaType:
     name = file_name.strip()
     if not name or "/" in name or "\\" in name or name in {".", ".."}:
         raise UploadRejected("invalid_file_name", 422)
 
-    allowed = _AUDIO_BY_EXTENSION.get(_extension_of(name))
+    allowed = by_extension.get(_extension_of(name))
     if allowed is None:
         raise UploadRejected("unsupported_file_extension", 415)
 
@@ -157,6 +187,30 @@ def check_audio_upload(
     if not allowed.has_signature(content):
         raise UploadRejected("file_signature_mismatch", 415)
     return allowed
+
+
+def check_audio_upload(
+    *, file_name: str, declared_media_type: str | None, content: bytes
+) -> AllowedMediaType:
+    """STT가 받을 음성인지 확장자·MIME·signature를 함께 확인한다."""
+    return _check_media_upload(
+        _AUDIO_BY_EXTENSION,
+        file_name=file_name,
+        declared_media_type=declared_media_type,
+        content=content,
+    )
+
+
+def check_image_upload(
+    *, file_name: str, declared_media_type: str | None, content: bytes
+) -> AllowedMediaType:
+    """상품 사진으로 받을 이미지인지 확장자·MIME·signature를 함께 확인한다."""
+    return _check_media_upload(
+        _IMAGE_BY_EXTENSION,
+        file_name=file_name,
+        declared_media_type=declared_media_type,
+        content=content,
+    )
 
 
 def check_size(byte_size: int, limit: int) -> None:

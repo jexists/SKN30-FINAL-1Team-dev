@@ -140,6 +140,16 @@ export function DocumentsIcon(props: IconProps) {
   )
 }
 
+// 상품. 발주(OrdersIcon)가 이미 상자라 값표 모양으로 구분합니다.
+export function ProductIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 11V4a1 1 0 0 1 1-1h7l10 10-8 8z" />
+      <circle cx="7.5" cy="7.5" r="1.4" />
+    </Icon>
+  )
+}
+
 export function SettingsIcon(props: IconProps) {
   return (
     <Icon {...props}>

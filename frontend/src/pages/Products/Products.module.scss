@@ -1,0 +1,244 @@
+// 고객불만 목록(pages/Complaints)의 툴바·표·모달을 여섯 열짜리 상품 목록에 맞게 줄여 씁니다.
+// 폰용 카드 목록은 두지 않습니다. 열이 적어 카드 안 가로 스크롤로 충분합니다.
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* ---- 툴바 ---- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.search {
+  flex: 1 1 320px;
+  max-width: 640px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-left: auto;
+
+  @include sm {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* ---- 표 ---- */
+
+.card {
+  @include card;
+  overflow: hidden;
+}
+
+.scroller {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.table {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+
+  th,
+  td {
+    height: 52px; // 썸네일이 들어가는 줄이라 목록 기본보다 조금 높습니다
+    padding: 0 var(--s3);
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 40px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  tbody td {
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+
+  tbody td.name {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  tbody td.memo {
+    color: var(--muted);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody tr:hover td {
+    background: var(--fill-2);
+  }
+}
+
+.badge {
+  @include tag-pill;
+  background: var(--fill-2);
+  color: var(--ink-2);
+}
+
+/* ---- 썸네일 ---- */
+
+.thumb,
+.thumbEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.thumb {
+  object-fit: cover;
+}
+
+.thumbEmpty {
+  color: var(--muted);
+}
+
+/* ---- 빈 상태 ---- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s8) var(--s5);
+  color: var(--muted);
+  text-align: center;
+
+  p {
+    font-size: 13px;
+  }
+}
+
+.loadState {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- 등록 모달 (components/ProductFormModal.tsx) ---- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.field {
+  @include form-field;
+}
+
+.isWide {
+  grid-column: 1 / -1;
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+
+  b {
+    margin-left: 3px;
+    color: var(--red);
+  }
+}
+
+.error {
+  color: var(--red-ink);
+  font-size: 11px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ---- 사진 고르기 ---- */
+
+.imagePicker {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.preview {
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  object-fit: cover;
+}
+
+.imageActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.fileName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.removeImage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+}
