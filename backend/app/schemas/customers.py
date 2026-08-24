@@ -109,6 +109,8 @@ class CustomerContactCreate(_WriteModel):
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
+    # 아직 만나기 전이므로 미방문에서 시작한다.
+    visited: bool = False
     # 담당자. 비우면 등록한 사람 혼자가 담당자가 된다. 첫 번째가 대표 담당자다.
     assignee_member_ids: list[UUID] | None = None
 
@@ -123,12 +125,13 @@ class CustomerContactPatch(_WriteModel):
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
+    visited: bool | None = None
     # 보내면 담당자 전체를 이 목록으로 바꾼다. 등록한 사람은 바뀌지 않는다.
     assignee_member_ids: list[UUID] | None = None
 
     @model_validator(mode="after")
     def required_fields_cannot_be_null(self) -> Self:
-        for field_name in ("company_id", "name", "phone", "assignee_member_ids"):
+        for field_name in ("company_id", "name", "phone", "visited", "assignee_member_ids"):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} cannot be null")
         return self
@@ -155,6 +158,7 @@ class CustomerContactRead(BaseModel):
     status_code: OptionCode | None
     source_code: CustomerSource | None
     memo: str | None
+    visited: bool
     registered_at: datetime
     company_name: str
     company_region_code: str | None
@@ -199,3 +203,4 @@ class CustomerContactPageParams(CustomerPageParams):
     """
 
     owner_member_id: list[UUID] | None = None
+    company_id: UUID | None = None

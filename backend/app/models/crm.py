@@ -38,6 +38,8 @@ class CustomerContact(Base):
     )
     source_code: Mapped[str | None]
     memo: Mapped[str | None]
+    # 담당자가 직접 켜고 끄는 표시. 활동 기록에서 파생하지 않는다.
+    visited: Mapped[bool] = mapped_column(server_default=text("false"))
     registered_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 

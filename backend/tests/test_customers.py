@@ -141,6 +141,7 @@ def _contact(
         customer_contact_status_id=uuid4(),
         source_code="referral",
         memo="합성 메모",
+        visited=False,
         registered_at=NOW,
     )
 
@@ -386,6 +387,9 @@ def test_contact_create_uses_current_owner_and_join_fields():
     assert response.headers["location"] == f"/api/customer-contacts/{response.json()['id']}"
     assert db.added[0].owner_member_id == member.id
     assert db.added[0].customer_contact_status_id == contact_status.id
+    # 방문 여부를 보내지 않았다. 아직 만나기 전이므로 미방문에서 시작해야 한다.
+    assert response.json()["visited"] is False
+    assert db.added[0].visited is False
     assert db.flush_count == db.commit_count == 1
     assert member.team_id in db.statements[0].compile().params.values()
 
@@ -862,6 +866,33 @@ def test_manager_contact_owner_filter_uses_in_for_several_members():
     assert response.status_code == 200
     params = db.statements[1].compile().params.values()
     assert [first.id, second.id] in params
+
+
+def test_contact_list_narrows_to_one_company():
+    """일정 모달은 고른 고객사의 담당자만 부른다. 회사명 검색 뒤 화면에서 거르면
+    한 페이지 안에 다 들어오지 않은 사람이 조용히 빠진다."""
+    manager = _member(role="manager")
+    company = _company(manager.team_id)
+    contact = _contact(company.id, manager.id)
+    contact_status = _contact_status(manager.team_id, status_id=contact.customer_contact_status_id)
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[_contact_row(contact, company, manager, contact_status)]),
+        _assignee_result((contact, manager)),
+    )
+
+    with _client(db, manager) as client:
+        response = client.get(
+            "/api/customer-contacts",
+            params={"company_id": str(company.id)},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["company_id"] == str(company.id)
+    # 개수와 목록이 같은 범위를 써야 has_more 가 어긋나지 않는다.
+    for statement in (db.statements[0], db.statements[1]):
+        assert "public.customer_contact.company_id = " in str(statement)
+        assert company.id in statement.compile().params.values()
 
 
 def test_member_contact_owner_filter_is_denied_before_any_query():

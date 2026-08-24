@@ -46,6 +46,10 @@
   기존 행은 `owner_member_id`로 등록자와 담당자를 백필합니다.
   `customer_company`에는 `business_no`(하이픈 없는 10자리)를 더해 같은 이름의 고객사를 구분합니다.
 
+- `20260824_0004_customer_contact_visited.sql`: `customer_contact`에 `visited`(boolean, 기본 false)를
+  더합니다. 고객 목록에서 방문·미방문을 한눈에 가르기 위한 값이며 담당자가 직접 바꿉니다.
+  활동 기록에서 자동으로 갱신하지 않습니다. 기존 행은 기본값대로 전부 미방문이 됩니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -57,6 +61,7 @@
 | 2026-08-19 | 개발 | `20260819_0001_baseline_schema.sql` | session pooler | 성공. 26테이블 / 264컬럼 / FK 65 / RLS 26 |
 | 2026-08-23 | 개발 | `20260823_0002_admin_account_provisioning.sql` | session pooler | 성공. team +3컬럼 / member +1컬럼 / 부분 유일 인덱스 1. 기존 1팀 2명 그대로 |
 | 2026-08-24 | 개발 | `20260824_0003_customer_contact_assignees.sql` | session pooler | 성공. customer_company +1컬럼 / customer_contact +1컬럼 / customer_contact_assignee 신설(RLS on). 기존 고객 2건의 등록자·담당자를 owner_member_id 로 백필 |
+| 2026-08-24 | 개발 | `20260824_0004_customer_contact_visited.sql` | session pooler | 성공. customer_contact +1컬럼(`visited` boolean NOT NULL DEFAULT false). 기존 고객 2건 모두 기본값대로 미방문 |
 
 ## 개발 DB 재구축 런북
 

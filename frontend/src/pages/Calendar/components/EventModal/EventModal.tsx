@@ -1,26 +1,18 @@
-import {
-  useDeferredValue,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react'
-import { useNavigate } from 'react-router'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { ko } from 'date-fns/locale'
 
 import { client } from '@/api/client'
 import Button from '@/components/Button'
-import { errorMessage } from '@/api/errorMessage'
-import { ChevronDownIcon, CloseIcon, SearchIcon, TrashIcon } from '@/components/icons'
+import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
+import ContactPicker, { toContactOption, type ContactOption } from '@/components/ContactPicker'
+import { TrashIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import Skeleton from '@/components/Skeleton'
 import { contractCreatePath, orderNewPath, quoteNewPath } from '@/constants/routes'
-import type { CalendarEvent, CustomerContactResponse, PageResponse } from '@/types'
+import CustomerFormModal from '@/pages/Customers/components/CustomerFormModal'
+import type { CalendarEvent, CustomerCompanyResponse, CustomerContactResponse } from '@/types'
 import { iso, parseISO } from '@/utils/date'
 
 import {
@@ -56,22 +48,9 @@ interface Props {
  */
 type EventType = '일정' | '업무'
 
-interface CustomerOption {
-  id: string
-  name: string
-  org: string
-  dept: string
-  title: string
-}
-
-function toCustomerOption(contact: CustomerContactResponse): CustomerOption {
-  return {
-    id: contact.id,
-    name: contact.name,
-    org: contact.company_name,
-    dept: contact.department ?? '',
-    title: contact.job_title ?? '',
-  }
+/** 고객사 칸이 들고 있는 회사의 id. 직접 등록은 쓰지 않아 늘 이미 있는 회사입니다. */
+function companyId(selection: CompanySelection | null): string | null {
+  return selection?.kind === 'existing' ? selection.company.id : null
 }
 
 // 폼은 시작·끝 두 시점으로 다루고, 저장은 '40분' 같은 소요 문구로 합니다.
@@ -125,8 +104,15 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
   const [taskStatus, setTaskStatus] = useState('')
   // 동행자와 미팅대상자도 아직 보낼 곳이 없어 이 모달 안에만 있습니다.
   const [companions, setCompanions] = useState('')
-  const [company, setCompany] = useState<CustomerOption | null>(null)
-  const [targets, setTargets] = useState<CustomerOption[]>([])
+  // 고객사는 두 탭이 함께 씁니다. 일정 탭은 그 아래에서 한 명, 업무 탭은 여럿을 고릅니다.
+  const [company, setCompany] = useState<CompanySelection | null>(null)
+  const [customer, setCustomer] = useState<ContactOption | null>(null)
+  const [targets, setTargets] = useState<ContactOption[]>([])
+  // 아직 없는 고객사·고객은 이 자리에서 등록합니다. null 이면 등록 모달이 닫힌 상태입니다.
+  const [creating, setCreating] = useState<{
+    company: CompanySelection | null
+    name: string
+  } | null>(null)
 
   const [error, setError] = useState('')
   const [customerError, setCustomerError] = useState('')
@@ -141,6 +127,31 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
 
   // 종료를 사람이 직접 만졌으면 유형을 바꿔도 그 값을 덮지 않습니다.
   const touchedEnd = useRef(draft.endsAt !== null && mode === 'edit')
+
+  // 고쳐 쓰려고 연 일정. 저장된 것은 고객 id 하나뿐이라 회사·담당자 두 칸을 채우려면
+  // 그 고객을 한 번 읽어야 합니다. 실패하면 두 칸을 빈 채로 두고 다시 고르게 합니다.
+  const savedContactId = draft.customerContactId ?? null
+  useEffect(() => {
+    if (savedContactId === null) return
+    const controller = new AbortController()
+
+    void client
+      .get<CustomerContactResponse>(`/customer-contacts/${savedContactId}`, {
+        signal: controller.signal,
+      })
+      .then(async ({ data }) => {
+        const { data: found } = await client.get<CustomerCompanyResponse>(
+          `/customer-companies/${data.company_id}`,
+          { signal: controller.signal },
+        )
+        if (controller.signal.aborted) return
+        setCompany({ kind: 'existing', company: found })
+        setCustomer(toContactOption(data))
+      })
+      .catch(() => {})
+
+    return () => controller.abort()
+  }, [savedContactId])
 
   const set = <K extends keyof CalendarEvent>(key: K, value: CalendarEvent[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -173,6 +184,8 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
       setHasEnd(true)
     }
 
+    // 고객사는 두 탭이 함께 쓰므로 유형을 바꿔도 남깁니다. 그 아래에서 고른 사람만
+    // 반대쪽 칸의 것이라 비웁니다.
     if (next === '업무') {
       setForm((prev) => ({
         ...prev,
@@ -189,11 +202,11 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
         place: '',
       }))
       setCompanions('')
+      setCustomer(null)
     } else {
       setForm((prev) => ({ ...prev, activityType: 'meeting', kind: 'visit' }))
       setTaskGroup('')
       setTaskStatus('')
-      setCompany(null)
       setTargets([])
     }
   }
@@ -205,25 +218,56 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
     setStatusError('')
   }
 
-  // 회사를 바꾸면 그 전 회사 사람들이 대상자로 남아 있으면 안 됩니다.
-  const pickCompany = (next: CustomerOption | null) => {
+  // 고객을 고르면 회사·부서가 따라옵니다. 직접 입력하지 않는 값들입니다.
+  const pickCustomer = (found: ContactOption | null) => {
+    setCustomer(found)
+    setCustomerError('')
+    setForm((prev) => ({
+      ...prev,
+      contact: found ? [found.name, found.title].filter(Boolean).join(' ') : '',
+      hospital: found?.org ?? '',
+      dept: found?.dept ?? '',
+      customerContactId: found?.id ?? null,
+      customerContactName: found?.name ?? '',
+    }))
+  }
+
+  // 회사를 바꾸면 그 전 회사 사람들이 고객·대상자로 남아 있으면 안 됩니다.
+  const pickCompany = (next: CompanySelection | null) => {
+    // 아직 없는 회사를 고른 것은 "여기 없으니 새로 만들겠다" 는 뜻입니다. 일정에 붙는 것은
+    // 회사가 아니라 그 회사의 고객이라, 회사만 만들어 두면 일정에는 아무것도 남지 않습니다.
+    // 그래서 곧바로 고객 등록으로 넘겨 회사와 사람을 한 번에 만듭니다.
+    if (next?.kind === 'new') {
+      setCreating({ company: next, name: '' })
+      return
+    }
     setCompany(next)
     setTargets([])
+    pickCustomer(null)
     setCompanyError('')
     setTargetError('')
   }
 
-  // 고객을 고르면 회사·부서가 따라옵니다. 직접 입력하지 않는 값들입니다.
-  const pickCustomer = (name: string, found?: CustomerOption) => {
-    setCustomerError('')
-    setForm((prev) => ({
-      ...prev,
-      contact: found ? [found.name, found.title].filter(Boolean).join(' ') : name,
-      hospital: found?.org ?? '',
-      dept: found?.dept ?? '',
-      customerContactId: found?.id ?? null,
-      customerContactName: name,
-    }))
+  // 방금 등록한 고객. 회사까지 함께 돌아오므로 두 칸이 한 번에 채워집니다.
+  const takeCreated = async (contact: CustomerContactResponse) => {
+    setCreating(null)
+    const option = toContactOption(contact)
+    if (type === '일정') pickCustomer(option)
+    else {
+      setTargets((prev) => [...prev, option])
+      setTargetError('')
+    }
+
+    // 고객사 칸은 회사 한 벌을 그대로 들고 있어야 해, 편집으로 열 때와 같이 읽어 옵니다.
+    try {
+      const { data } = await client.get<CustomerCompanyResponse>(
+        `/customer-companies/${contact.company_id}`,
+      )
+      setCompany({ kind: 'existing', company: data })
+      setCompanyError('')
+    } catch {
+      // 회사를 못 읽어도 고객은 이미 골라졌습니다. 칸만 비어 보입니다.
+    }
   }
 
   const submit = async () => {
@@ -232,8 +276,10 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
       return
     }
 
-    if (type === '일정' && form.customerContactName?.trim() && !form.customerContactId) {
-      setCustomerError('검색 결과에서 고객을 선택하세요.')
+    // 일정 탭의 고객은 없어도 저장됩니다. 다만 회사만 고르고 사람을 비워 두면
+    // 고른 회사가 어디에도 남지 않으므로 그때는 사람까지 고르게 합니다.
+    if (type === '일정' && company !== null && customer === null) {
+      setCustomerError('고객을 선택하세요.')
       return
     }
 
@@ -439,15 +485,35 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
               />
             </Field>
 
+            {/* 이름이 겹치는 고객이 흔해, 회사를 먼저 좁힌 뒤 그 안에서 사람을 고릅니다. */}
+            <div className={`${styles.field} ${styles.isWide}`}>
+              <span className={styles.label}>고객사</span>
+              <CompanyAutocomplete
+                value={company}
+                onChange={pickCompany}
+                allowCreate
+                invalid={companyError !== ''}
+                label="고객사"
+              />
+              {companyError && <span className={styles.error}>{companyError}</span>}
+            </div>
+
             <div className={`${styles.field} ${styles.isWide}`}>
               <span className={styles.label}>고객</span>
-              <CustomerPicker
-                value={form.customerContactName ?? form.contact ?? ''}
-                selectedId={form.customerContactId ?? null}
-                tag={form.hospital ? `${form.hospital}${form.dept ? ` · ${form.dept}` : ''}` : ''}
-                error={customerError}
+              <ContactPicker
+                companyId={companyId(company)}
+                value={customer}
                 onChange={pickCustomer}
+                allowCreate
+                onCreate={(name) => setCreating({ company, name })}
+                invalid={customerError !== ''}
+                label="고객"
               />
+              {customerError && (
+                <span className={styles.error} role="alert">
+                  {customerError}
+                </span>
+              )}
             </div>
 
             <Field label="동행자" wide>
@@ -505,22 +571,42 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
               <span className={styles.label}>
                 고객사<b aria-hidden="true">*</b>
               </span>
-              <CompanyPicker value={company} error={companyError} onChange={pickCompany} />
+              <CompanyAutocomplete
+                value={company}
+                onChange={pickCompany}
+                allowCreate
+                invalid={companyError !== ''}
+                label="고객사"
+              />
+              {companyError && (
+                <span className={styles.error} role="alert">
+                  {companyError}
+                </span>
+              )}
             </div>
 
             <div className={`${styles.field} ${styles.isWide}`}>
               <span className={styles.label}>
                 미팅대상자<b aria-hidden="true">*</b>
               </span>
-              <TargetPicker
-                company={company}
-                picked={targets}
-                error={targetError}
+              <ContactPicker
+                multiple
+                companyId={companyId(company)}
+                value={targets}
                 onChange={(next) => {
                   setTargets(next)
                   setTargetError('')
                 }}
+                allowCreate
+                onCreate={(name) => setCreating({ company, name })}
+                invalid={targetError !== ''}
+                label="미팅대상자"
               />
+              {targetError && (
+                <span className={styles.error} role="alert">
+                  {targetError}
+                </span>
+              )}
             </div>
           </>
         )}
@@ -540,6 +626,19 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
           </p>
         )}
       </div>
+
+      {/* 이 모달 본문은 <form> 이라 등록 폼을 그 안에 두면 폼이 겹칩니다. 바깥 스크림의
+          backdrop-filter 도 fixed 자식의 기준 상자를 바꿔 위치가 어긋납니다. body 로 꺼냅니다. */}
+      {creating &&
+        createPortal(
+          <CustomerFormModal
+            onClose={() => setCreating(null)}
+            onCreated={(contact) => void takeCreated(contact)}
+            initial={{ name: creating.name }}
+            initialCompany={creating.company ?? undefined}
+          />,
+          document.body,
+        )}
     </Modal>
   )
 }
@@ -580,570 +679,6 @@ function Picker({
         // 모달이 overflow: hidden 이라, 아래쪽에서 열린 달력이 잘리지 않게 띄웁니다.
         popperProps={{ strategy: 'fixed' }}
       />
-    </div>
-  )
-}
-
-/**
- * 고객 검색. 네이티브 datalist 는 목록을 브라우저가 그려 앱과 다른 모양으로
- * 뜨고 회사 이름도 함께 보여주지 못해, 같은 토큰으로 칠한 콤보박스로 답니다.
- * 회사·부서는 고른 뒤 딸려 오는 값이라 입력칸을 따로 두지 않고 태그로 붙입니다.
- */
-const MAX_MATCHES = 8
-/** 결과 목록 한 줄의 높이. 자리표시자를 실제 목록과 같은 크기로 잡는 데 씁니다. */
-const OPTION_H = 33
-
-/**
- * 고객 검색 한 번. 고객·고객사·미팅대상자 세 칸이 같은 목록을 다르게 추릴 뿐이라
- * 불러오는 일은 여기 한 곳에 둡니다. 닫혀 있는 동안에는 부르지 않습니다.
- */
-function useContactSearch(query: string, open: boolean) {
-  const [matches, setMatches] = useState<CustomerOption[]>([])
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-
-  const deferredQuery = useDeferredValue(query.trim())
-
-  useEffect(() => {
-    if (!open) return
-    const controller = new AbortController()
-
-    setLoading(true)
-    setLoadError(null)
-    void client
-      .get<PageResponse<CustomerContactResponse>>('/customer-contacts', {
-        params: {
-          q: deferredQuery === '' ? undefined : deferredQuery.slice(0, 100),
-          skip: 0,
-          limit: MAX_MATCHES,
-        },
-        signal: controller.signal,
-      })
-      .then(({ data }) => {
-        if (!controller.signal.aborted) setMatches(data.items.map(toCustomerOption))
-      })
-      .catch((reason: unknown) => {
-        if (controller.signal.aborted) return
-        setMatches([])
-        setLoadError(errorMessage(reason, '고객 검색 결과를 불러오지 못했습니다.'))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-
-    return () => controller.abort()
-  }, [deferredQuery, open, reloadKey])
-
-  return { matches, loading, loadError, reload: () => setReloadKey((value) => value + 1) }
-}
-
-// 모달 본문은 overflow: auto, 다이얼로그는 overflow: hidden 이라 목록을 흐름
-// 안에 두면 잘려 보이지 않습니다. 달력 팝업처럼 body 로 꺼내 화면 좌표에 띄웁니다.
-// ponytail: 좌표는 열 때 한 번만 잽니다. 열어 둔 채 본문을 스크롤하면
-// 목록이 제자리에 남습니다. 거슬리면 scroll 에서 닫으면 됩니다.
-function menuPosition(box: HTMLDivElement | null) {
-  const rect = box?.getBoundingClientRect()
-  if (!rect) return undefined
-  const roomBelow = window.innerHeight - rect.bottom
-  return {
-    left: rect.left,
-    width: rect.width,
-    ...(roomBelow < 200 ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
-  }
-}
-
-/** 세 검색칸이 함께 쓰는 결과 목록. 비어 있음·불러오는 중·실패를 여기서 답니다. */
-function PickerMenu({
-  id,
-  label,
-  style,
-  loading,
-  loadError,
-  onRetry,
-  children,
-  empty,
-}: {
-  id: string
-  label: string
-  style?: React.CSSProperties
-  loading: boolean
-  loadError: string | null
-  onRetry: () => void
-  children: ReactNode
-  empty: boolean
-}) {
-  return createPortal(
-    <div id={id} className={styles.menu} style={style} role="listbox" aria-label={label}>
-      {loading && (
-        <div role="status">
-          <span className="sr-only">고객을 불러오는 중입니다.</span>
-          <Skeleton height={OPTION_H * 3} radius="7px" />
-        </div>
-      )}
-      {!loading && loadError && (
-        <div className={styles.option} role="alert">
-          <span>{loadError}</span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={onRetry}
-          >
-            다시 시도
-          </Button>
-        </div>
-      )}
-      {!loading && !loadError && empty && <p className={styles.option}>검색 결과가 없습니다.</p>}
-      {!loading && !loadError && children}
-    </div>,
-    document.body,
-  )
-}
-
-function CustomerPicker({
-  value,
-  selectedId,
-  tag,
-  error,
-  onChange,
-}: {
-  value: string
-  selectedId: string | null
-  tag: string
-  error: string
-  onChange: (name: string, found?: CustomerOption) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(0)
-  const boxRef = useRef<HTMLDivElement>(null)
-  const listboxId = `customers-${useId().replaceAll(':', '')}`
-  const errorId = `${listboxId}-error`
-
-  const { matches, loading, loadError, reload } = useContactSearch(value, open)
-
-  useEffect(() => setActive(0), [matches])
-
-  const choose = (c: CustomerOption) => {
-    onChange(c.name, c)
-    setOpen(false)
-  }
-
-  const menuStyle = open ? menuPosition(boxRef.current) : undefined
-
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && open) {
-      // 모달까지 올라가면 일정 편집이 통째로 닫힙니다. 목록만 닫습니다.
-      e.stopPropagation()
-      setOpen(false)
-      return
-    }
-
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      if (!open) {
-        setOpen(true)
-        return
-      }
-      if (matches.length === 0) return
-      const delta = e.key === 'ArrowDown' ? 1 : -1
-      setActive((prev) => (prev + delta + matches.length) % matches.length)
-      return
-    }
-
-    if (e.key === 'Enter' && open && matches[active]) {
-      e.preventDefault()
-      choose(matches[active])
-    }
-  }
-
-  return (
-    <div
-      className={styles.customer}
-      onKeyDown={onKeyDown}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false)
-      }}
-    >
-      <div className={styles.customerBox} ref={boxRef}>
-        <SearchIcon width={16} height={16} />
-        <input
-          value={value}
-          placeholder="이름으로 검색"
-          aria-label="고객"
-          role="combobox"
-          aria-expanded={open}
-          aria-autocomplete="list"
-          aria-controls={open && matches.length > 0 ? listboxId : undefined}
-          aria-activedescendant={
-            open && matches[active] ? `${listboxId}-${matches[active].id}` : undefined
-          }
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
-          autoComplete="off"
-          onChange={(e) => {
-            onChange(e.target.value)
-            setActive(0)
-            setOpen(true)
-          }}
-          onFocus={() => setOpen(true)}
-        />
-        {tag && <span className={styles.pickedTag}>{tag}</span>}
-        <button
-          type="button"
-          className={`${styles.toggle} ${open ? styles.isOpen : ''}`}
-          aria-label={open ? '고객 목록 닫기' : '고객 목록 열기'}
-          tabIndex={-1}
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          <ChevronDownIcon width={16} height={16} />
-        </button>
-      </div>
-
-      {error && (
-        <span id={errorId} className={styles.error} role="alert">
-          {error}
-        </span>
-      )}
-
-      {open && (
-        <PickerMenu
-          id={listboxId}
-          label="고객"
-          style={menuStyle}
-          loading={loading}
-          loadError={loadError}
-          onRetry={reload}
-          empty={matches.length === 0}
-        >
-          {matches.map((c, i) => (
-            <button
-              key={c.id}
-              id={`${listboxId}-${c.id}`}
-              type="button"
-              role="option"
-              aria-selected={c.id === selectedId}
-              className={`${styles.option} ${i === active ? styles.isActive : ''}`}
-              onPointerMove={() => setActive(i)}
-              // 목록은 입력칸 밖(body)에 있어, 누르는 순간 포커스가 빠지면
-              // 클릭이 닿기 전에 닫힙니다. 포커스를 입력에 붙들어 둡니다.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => choose(c)}
-            >
-              <b>{c.name}</b>
-              <span>
-                {c.org}
-                {c.dept && ` · ${c.dept}`}
-              </span>
-            </button>
-          ))}
-        </PickerMenu>
-      )}
-    </div>
-  )
-}
-
-/**
- * 고객사 검색. 고객 목록에서 회사 이름만 추려 보여 줍니다. 같은 회사 사람이
- * 여럿이라 이름이 겹치므로 회사 이름 하나로 접습니다.
- */
-function CompanyPicker({
-  value,
-  error,
-  onChange,
-}: {
-  value: CustomerOption | null
-  error: string
-  onChange: (next: CustomerOption | null) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(0)
-  const [query, setQuery] = useState(value?.org ?? '')
-  const boxRef = useRef<HTMLDivElement>(null)
-  const listboxId = `companies-${useId().replaceAll(':', '')}`
-  const errorId = `${listboxId}-error`
-
-  const { matches, loading, loadError, reload } = useContactSearch(query, open)
-
-  // 한 회사에 여러 명이 있으면 목록에 회사가 여러 줄로 나옵니다. 첫 사람만 남깁니다.
-  const companies = useMemo(() => {
-    const seen = new Set<string>()
-    return matches.filter((c) => {
-      if (c.org === '' || seen.has(c.org)) return false
-      seen.add(c.org)
-      return true
-    })
-  }, [matches])
-
-  useEffect(() => setActive(0), [companies])
-
-  const choose = (c: CustomerOption) => {
-    setQuery(c.org)
-    onChange(c)
-    setOpen(false)
-  }
-
-  const menuStyle = open ? menuPosition(boxRef.current) : undefined
-
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && open) {
-      e.stopPropagation()
-      setOpen(false)
-      return
-    }
-
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      if (!open) {
-        setOpen(true)
-        return
-      }
-      if (companies.length === 0) return
-      const delta = e.key === 'ArrowDown' ? 1 : -1
-      setActive((prev) => (prev + delta + companies.length) % companies.length)
-      return
-    }
-
-    if (e.key === 'Enter' && open && companies[active]) {
-      e.preventDefault()
-      choose(companies[active])
-    }
-  }
-
-  return (
-    <div
-      className={styles.customer}
-      onKeyDown={onKeyDown}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false)
-      }}
-    >
-      <div className={styles.customerBox} ref={boxRef}>
-        <SearchIcon width={16} height={16} />
-        <input
-          value={query}
-          placeholder="회사명으로 검색"
-          aria-label="고객사"
-          role="combobox"
-          aria-expanded={open}
-          aria-autocomplete="list"
-          aria-controls={open && companies.length > 0 ? listboxId : undefined}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
-          autoComplete="off"
-          onChange={(e) => {
-            setQuery(e.target.value)
-            // 이름을 고쳐 쓰기 시작하면 앞서 고른 회사는 더 이상 그 값이 아닙니다.
-            if (value) onChange(null)
-            setActive(0)
-            setOpen(true)
-          }}
-          onFocus={() => setOpen(true)}
-        />
-        <button
-          type="button"
-          className={`${styles.toggle} ${open ? styles.isOpen : ''}`}
-          aria-label={open ? '고객사 목록 닫기' : '고객사 목록 열기'}
-          tabIndex={-1}
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          <ChevronDownIcon width={16} height={16} />
-        </button>
-      </div>
-
-      {error && (
-        <span id={errorId} className={styles.error} role="alert">
-          {error}
-        </span>
-      )}
-
-      {open && (
-        <PickerMenu
-          id={listboxId}
-          label="고객사"
-          style={menuStyle}
-          loading={loading}
-          loadError={loadError}
-          onRetry={reload}
-          empty={companies.length === 0}
-        >
-          {companies.map((c, i) => (
-            <button
-              key={c.org}
-              type="button"
-              role="option"
-              aria-selected={c.org === value?.org}
-              className={`${styles.option} ${i === active ? styles.isActive : ''}`}
-              onPointerMove={() => setActive(i)}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => choose(c)}
-            >
-              <b>{c.org}</b>
-            </button>
-          ))}
-        </PickerMenu>
-      )}
-    </div>
-  )
-}
-
-/**
- * 미팅대상자. 고른 고객사 소속인 사람만 보여 주고 여럿을 담습니다.
- * 담은 사람은 칩으로 남아, 목록을 다시 열지 않고도 누구를 골랐는지 보입니다.
- */
-function TargetPicker({
-  company,
-  picked,
-  error,
-  onChange,
-}: {
-  company: CustomerOption | null
-  picked: CustomerOption[]
-  error: string
-  onChange: (next: CustomerOption[]) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(0)
-  const [query, setQuery] = useState('')
-  const boxRef = useRef<HTMLDivElement>(null)
-  const listboxId = `targets-${useId().replaceAll(':', '')}`
-  const errorId = `${listboxId}-error`
-
-  // 아무것도 치지 않았으면 회사 이름으로 그 회사 사람들을 부릅니다.
-  const search = query.trim() === '' ? (company?.org ?? '') : query
-  const { matches, loading, loadError, reload } = useContactSearch(search, open && company !== null)
-
-  // 다른 회사 사람과 이미 담은 사람은 목록에서 뺍니다.
-  const candidates = useMemo(() => {
-    if (!company) return []
-    const taken = new Set(picked.map((p) => p.id))
-    return matches.filter((c) => c.org === company.org && !taken.has(c.id))
-  }, [matches, company, picked])
-
-  useEffect(() => setActive(0), [candidates])
-
-  const add = (c: CustomerOption) => {
-    onChange([...picked, c])
-    setQuery('')
-  }
-
-  const menuStyle = open && company ? menuPosition(boxRef.current) : undefined
-
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && open) {
-      e.stopPropagation()
-      setOpen(false)
-      return
-    }
-
-    // 빈 칸에서 지우면 마지막으로 담은 사람을 뺍니다. 칩 UI 의 관례입니다.
-    if (e.key === 'Backspace' && query === '' && picked.length > 0) {
-      onChange(picked.slice(0, -1))
-      return
-    }
-
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      if (!open) {
-        setOpen(true)
-        return
-      }
-      if (candidates.length === 0) return
-      const delta = e.key === 'ArrowDown' ? 1 : -1
-      setActive((prev) => (prev + delta + candidates.length) % candidates.length)
-      return
-    }
-
-    if (e.key === 'Enter' && open && candidates[active]) {
-      e.preventDefault()
-      add(candidates[active])
-    }
-  }
-
-  return (
-    <div
-      className={styles.customer}
-      onKeyDown={onKeyDown}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false)
-      }}
-    >
-      <div className={`${styles.customerBox} ${styles.hasChips}`} ref={boxRef}>
-        <SearchIcon width={16} height={16} />
-        <div className={styles.chips}>
-          {picked.map((p) => (
-            <span key={p.id} className={styles.chip}>
-              {p.name}
-              {p.title && ` ${p.title}`}
-              <button
-                type="button"
-                className={styles.chipRemove}
-                aria-label={`${p.name} 빼기`}
-                onClick={() => onChange(picked.filter((c) => c.id !== p.id))}
-              >
-                <CloseIcon width={12} height={12} />
-              </button>
-            </span>
-          ))}
-          <input
-            value={query}
-            placeholder={company ? '이름으로 검색' : '고객사를 먼저 고르세요'}
-            aria-label="미팅대상자"
-            role="combobox"
-            aria-expanded={open}
-            aria-autocomplete="list"
-            aria-controls={open && candidates.length > 0 ? listboxId : undefined}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? errorId : undefined}
-            autoComplete="off"
-            disabled={!company}
-            onChange={(e) => {
-              setQuery(e.target.value)
-              setActive(0)
-              setOpen(true)
-            }}
-            onFocus={() => setOpen(true)}
-          />
-        </div>
-      </div>
-
-      {error && (
-        <span id={errorId} className={styles.error} role="alert">
-          {error}
-        </span>
-      )}
-
-      {open && company && (
-        <PickerMenu
-          id={listboxId}
-          label="미팅대상자"
-          style={menuStyle}
-          loading={loading}
-          loadError={loadError}
-          onRetry={reload}
-          empty={candidates.length === 0}
-        >
-          {candidates.map((c, i) => (
-            <button
-              key={c.id}
-              type="button"
-              role="option"
-              aria-selected={false}
-              className={`${styles.option} ${i === active ? styles.isActive : ''}`}
-              onPointerMove={() => setActive(i)}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => add(c)}
-            >
-              <b>{c.name}</b>
-              <span>
-                {c.dept}
-                {c.title && ` · ${c.title}`}
-              </span>
-            </button>
-          ))}
-        </PickerMenu>
-      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import Button from '@/components/Button'
-import { ColumnsIcon, PlusIcon } from '@/components/icons'
+import { CardIcon, ColumnsIcon, DownloadIcon, PlusIcon, SheetIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import SearchInput from '@/components/SearchInput'
 import { BP_PHONE } from '@/constants/breakpoints'
@@ -22,6 +22,13 @@ interface TableToolbarProps {
   /** 이 화면에서 아예 쓰지 않는 컬럼. 설정 목록에도 나오지 않습니다. */
   hiddenColumns?: string[]
   onCreate: () => void
+  onImport: () => void
+  onScanCard: () => void
+  onExport: () => void
+  /** 내보낼 줄을 모으는 동안. 버튼이 두 번 눌리지 않게 막습니다. */
+  exporting?: boolean
+  /** 내보낼 고객이 한 명도 없으면 누를 수 없습니다. */
+  canExport?: boolean
 }
 
 export default function TableToolbar({
@@ -33,6 +40,11 @@ export default function TableToolbar({
   onResetColumns,
   hiddenColumns,
   onCreate,
+  onImport,
+  onScanCard,
+  onExport,
+  exporting = false,
+  canExport = true,
 }: TableToolbarProps) {
   const [open, setOpen] = useState<'columns' | null>(null)
   // 폰에서는 이 버튼이 줄 맨 왼쪽이라, 오른쪽 정렬하면 판이 화면 밖으로 나갑니다.
@@ -48,6 +60,7 @@ export default function TableToolbar({
         onChange={onQueryChange}
       />
 
+      {/* 표를 다루는 도구. 여기 있는 것들은 목록을 바꾸지 않습니다. */}
       <div className={styles.tools}>
         <Popover
           open={open === 'columns'}
@@ -57,6 +70,7 @@ export default function TableToolbar({
           trigger={
             <Button
               variant="outline"
+              className={styles.foldLabel}
               aria-expanded={open === 'columns'}
               aria-label="컬럼 설정"
               onClick={() => setOpen(open === 'columns' ? null : 'columns')}
@@ -74,12 +88,50 @@ export default function TableToolbar({
             hidden={hiddenColumns}
           />
         </Popover>
+
+        <Button
+          variant="outline"
+          className={styles.foldLabel}
+          aria-label="고객 목록 엑셀로 내보내기"
+          disabled={exporting || !canExport}
+          onClick={onExport}
+        >
+          <DownloadIcon width={15} height={15} />
+          <span>{exporting ? '모으는 중…' : '내보내기'}</span>
+        </Button>
       </div>
 
-      <Button className={styles.create} onClick={onCreate}>
-        <PlusIcon width={16} height={16} />
-        고객 등록
-      </Button>
+      {/*
+        고객을 넣는 세 갈래. 결과가 같은 일이라 한 덩어리로 묶고, 손으로 넣는 길만
+        기본 버튼으로 둡니다. 넷을 따로 띄우면 무엇이 주된 길인지 사라집니다.
+      */}
+      <div className={styles.add}>
+        <div className={styles.segment}>
+          <Button
+            variant="outline"
+            className={styles.foldLabel}
+            aria-label="명함으로 고객 등록"
+            onClick={onScanCard}
+          >
+            <CardIcon width={15} height={15} />
+            <span>명함 등록</span>
+          </Button>
+          <Button
+            variant="outline"
+            className={styles.foldLabel}
+            aria-label="엑셀로 고객 등록"
+            onClick={onImport}
+          >
+            <SheetIcon width={15} height={15} />
+            <span>엑셀 등록</span>
+          </Button>
+        </div>
+
+        <Button onClick={onCreate}>
+          <PlusIcon width={16} height={16} />
+          고객 등록
+        </Button>
+      </div>
     </div>
   )
 }

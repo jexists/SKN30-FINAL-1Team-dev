@@ -307,6 +307,28 @@ export function DownloadIcon(props: IconProps) {
   )
 }
 
+/** 표 칸이 그려진 시트. 엑셀로 주고받는 자리에 씁니다. */
+export function SheetIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.7} {...props}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 9.5h17M10 9.5v10M3.5 14.5h17" />
+    </Icon>
+  )
+}
+
+/** 명함. 왼쪽에 얼굴, 오른쪽에 이름·직함 줄. */
+export function CardIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.7} {...props}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <circle cx="8" cy="11" r="1.9" />
+      <path d="M5.2 15.8c.5-1.3 1.6-2 2.8-2s2.3.7 2.8 2" />
+      <path d="M14 10.5h4M14 14h3" />
+    </Icon>
+  )
+}
+
 /** 정렬되지 않은 헤더의 위아래 화살표 */
 export function SortIcon(props: IconProps) {
   return (

@@ -31,3 +31,48 @@
   font-size: 11px;
   font-style: normal;
 }
+
+/* 방문 여부. 방문한 줄만 색을 갖고, 미방문은 흐린 글자로 물러섭니다. */
+.visitOn,
+.visitOff {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.visitDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.visitOn {
+  color: var(--green-ink);
+  font-weight: 600;
+
+  .visitDot {
+    background: var(--green);
+  }
+}
+
+.visitOff {
+  color: var(--muted);
+
+  .visitDot {
+    border: 1.5px solid var(--muted-2);
+  }
+}
+
+/* 방금 무슨 일이 일어났는지 한 줄. 표 위, 툴바 아래에 잠깐 섭니다. */
+.notice {
+  margin-bottom: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--blue-tint);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+}

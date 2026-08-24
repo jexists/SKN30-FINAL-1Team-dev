@@ -5,7 +5,7 @@ import { createElement, type ReactNode } from 'react'
 import type { Customer } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
-import { EmailCell, OwnerCell, PlainNumber } from './cells'
+import { EmailCell, OwnerCell, PlainNumber, VisitCell } from './cells'
 
 export interface ColumnDef {
   id: string
@@ -92,6 +92,16 @@ export const ALL_COLUMNS: ColumnDef[] = [
     render: (c) => createElement(OwnerCell, { names: ownerNames(c) }),
   },
   {
+    id: 'visited',
+    header: '방문여부',
+    width: 96,
+    minWidth: 82,
+    sortable: false,
+    // CSV 도 같은 말을 씁니다. 내보낸 파일을 그대로 다시 가져올 수 있어야 합니다.
+    value: (c) => (c.visited ? '방문' : '미방문'),
+    render: (c) => createElement(VisitCell, { visited: c.visited }),
+  },
+  {
     id: 'created',
     header: '등록일',
     width: 150,
@@ -112,6 +122,16 @@ export const ALL_COLUMNS: ColumnDef[] = [
 
 /** 처음 보이는 컬럼. 나머지는 컬럼 설정에서 켭니다. */
 // 고객 등록 모달에서 받는 항목과 같은 순서로 둡니다.
-export const DEFAULT_VISIBLE = ['org', 'name', 'dept', 'title', 'email', 'phone', 'owner', 'memo']
+export const DEFAULT_VISIBLE = [
+  'org',
+  'name',
+  'dept',
+  'title',
+  'email',
+  'phone',
+  'owner',
+  'visited',
+  'memo',
+]
 
 export const COLUMN_BY_ID = new Map(ALL_COLUMNS.map((c) => [c.id, c]))

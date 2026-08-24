@@ -1,0 +1,95 @@
+/*
+ * 넣는 자리를 명함 비율(91×55mm)로 잘라 둡니다. 사진을 올리면 그 틀이 그대로 액자가
+ * 되어, 잘못 찍힌 각도나 잘린 가장자리가 등록을 누르기 전에 눈에 띕니다.
+ */
+.drop {
+  display: block;
+  width: 100%;
+  aspect-ratio: 91 / 55;
+  overflow: hidden;
+  padding: 0;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out);
+
+  &:hover:not(:disabled) {
+    border-color: var(--blue);
+    background: var(--blue-tint);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+
+  // 전역 button:active 의 축소가 사진 위에서는 흔들림으로 보입니다.
+  &:active {
+    transform: none;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: var(--s4);
+  color: var(--muted);
+
+  strong {
+    color: var(--ink);
+    font-size: 14px;
+  }
+
+  span {
+    max-width: 40ch;
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: center;
+  }
+}
+
+.shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file {
+  margin-top: var(--s2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.error {
+  margin-top: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  color: var(--red-ink);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* 인식이 아직 없다는 안내. 막다른 길이 되지 않게 다음 걸음을 함께 둡니다. */
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  margin-top: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--fill-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
