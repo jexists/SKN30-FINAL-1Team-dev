@@ -55,3 +55,12 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+/* 인쇄물에는 편집용 표식이 남지 않습니다. 필수 표시와 출처 배지는 화면에서 쓰는 것입니다. */
+@media print {
+  .label b,
+  .ai,
+  .hint {
+    display: none;
+  }
+}
