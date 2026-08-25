@@ -448,3 +448,9 @@
     display: grid;
   }
 }
+
+@media print {
+  .sidebar {
+    display: none;
+  }
+}

@@ -1,86 +1,203 @@
+/*
+ * 머리말이 맡는 것은 이동뿐입니다. 이 문서에 하는 일(수정·PDF)은 전부 시트
+ * 아래에 있습니다. 양 끝이 잡혀 있어야 띠로 보이므로 왼쪽에 정체, 오른쪽에
+ * 갈 곳을 두고 아래를 실선으로 닫습니다. 카드 안쪽 여백과 글머리가 어긋나
+ * 보이던 것도 이 선이 층을 갈라 주면서 정리됩니다.
+ */
 .head {
   display: flex;
-  align-items: center;
-  gap: var(--s3);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
   flex-wrap: wrap;
-  margin-bottom: var(--s4);
+  margin-bottom: var(--s5);
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--line);
 }
 
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-
-  &:hover {
-    color: var(--blue);
-  }
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
+/* 제목이 줄바꿈해도 오른쪽 끝에 붙어 있게 합니다. */
+.toDaily {
+  margin-left: auto;
+}
+
+/* 회사 이름과 상태는 한 덩어리입니다. 이 기록이 무엇이고 지금 어디까지 왔는지. */
 .title {
   display: flex;
   align-items: baseline;
-  gap: var(--s2);
+  gap: var(--s3);
+  flex-wrap: wrap;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.016em;
 }
 
-.subject {
-  color: var(--ink-2);
-  font-size: 13px;
-  font-weight: 500;
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .when {
-  color: var(--muted);
-  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
-.status {
-  @include tag-pill;
-
-  font-size: 11px;
+/* 테두리색(--line)은 글자로 쓰기엔 너무 옅어 가운뎃점이 사라집니다. */
+.dot {
+  color: var(--muted-2);
 }
 
-.rewrite {
-  margin-left: auto;
-  padding: 6px var(--s4);
-  border-radius: var(--r-pill);
-  background: var(--blue);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+/* 확인이 끝난 보고서. 수정 버튼 자리에 왜 없는지를 대신 둡니다. */
+.sealed {
+  color: var(--muted);
+  font-size: 12px;
+}
 
-  &:hover {
-    background: var(--blue-press);
+/* 왼쪽 = 낸 자료, 오른쪽 = 나온 보고서. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  grid-template-areas: 'materials sheet';
+  gap: var(--s5);
+  align-items: start;
+
+  // 작성 화면과 같은 비율·같은 간격입니다. 두 화면을 오갈 때 문서가 제자리에 있어야 합니다.
+  @include lg {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'sheet' 'materials';
+    gap: var(--s4);
   }
 }
 
-.panels {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
-}
-
-.panel {
-  @include card;
-
+/*
+ * 왼쪽 자료 판. 작성 화면의 참고 열과 같은 규칙입니다 — 테두리만 있고 그림자가
+ * 없습니다. 오른쪽 보고서만 떠 있어서, 흰 면이 둘이어도 어느 쪽이 결과물인지
+ * 한눈에 갈립니다. 자료는 놓여 있고 문서는 들려 있습니다.
+ */
+.materials {
+  grid-area: materials;
+  min-width: 0;
   padding: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 
-  h2 {
-    margin-bottom: var(--s3);
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+  /*
+   * 보고서를 끝까지 내려도 자료는 제자리에 남습니다. 대조해 가며 읽는 것이
+   * 이 화면의 일이기 때문입니다. 한 열로 접히면 나란히 볼 일이 없으므로
+   * 아래에서 도로 풉니다.
+   *
+   * 길이는 미팅 내용 쪽에서 잡습니다. 여기 max-height 는 첨부가 아주 많을 때를
+   * 위한 뒷받침이라, 평소에는 걸리지 않습니다.
+   */
+  position: sticky;
+  top: var(--s5);
+  max-height: calc(100vh - var(--s7));
+  overflow-y: auto;
+
+  section + section {
+    margin-top: var(--s5);
+    padding-top: var(--s5);
+    border-top: 1px solid var(--line);
+  }
+
+  @include lg {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 
   @include md {
     padding: var(--s4);
   }
+}
+
+.materialHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 보고서 열: 종이 한 장과 그 아래 조작부. */
+.report {
+  grid-area: sheet;
+  min-width: 0;
+}
+
+/*
+ * 작성 화면은 시트 아래 같은 자리에 제출 버튼을 둡니다. 두 화면을 오갈 때
+ * 주된 버튼이 같은 곳에 있습니다. 다만 여기서는 따라붙지 않습니다 —
+ * 다 읽은 뒤에 하는 일이라 끝에서 만나면 됩니다.
+ */
+.docActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s4);
+
+  @include sm {
+    flex-wrap: wrap;
+  }
+}
+
+/* 주된 것은 오른쪽 끝. 작성 화면의 제출 버튼과 같은 자리입니다. */
+.trailing {
+  margin-left: auto;
+
+  @include sm {
+    margin-left: 0;
+  }
+}
+
+/* 다 쓴 보고서. 작성 화면의 시트와 같은 종이이되, 고칠 수 있는 표식이 없습니다. */
+.sheet {
+  min-width: 0;
+  padding: var(--s7) var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+
+  @include md {
+    padding: var(--s5) var(--s4);
+  }
+}
+
+/* 작성 화면에서는 고쳐 쓰는 칸이지만 여기서는 그냥 머리글입니다. */
+.docTitle {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * 작성 화면에서는 제목이 입력칸이라 날짜가 그 상자의 오른쪽 끝에 걸립니다.
+ * 여기서는 상자가 없어 오른쪽 끝에 둘 기준선도 없습니다. 제목 바로 아래 붙입니다.
+ */
+.docWhen {
+  margin-top: 4px;
+  margin-bottom: var(--s6);
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.count {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .evidence {
@@ -93,11 +210,22 @@
   line-height: 1.7;
 }
 
+/*
+ * 미팅 내용만 길이가 정해져 있지 않습니다. 그대로 두면 자료 판이 보고서보다
+ * 훨씬 길어져, 결과물이 곁다리처럼 보입니다. 스크롤은 길어지는 이 한 곳에만 둡니다.
+ */
 .transcript {
+  max-height: 340px;
+  overflow-y: auto;
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.8;
   white-space: pre-wrap;
+
+  @include lg {
+    max-height: none;
+    overflow: visible;
+  }
 }
 
 .missing {
@@ -110,5 +238,34 @@
   a {
     color: var(--blue);
     font-weight: 600;
+  }
+}
+
+/*
+ * 인쇄가 곧 PDF 입니다. 자료 열과 머리말의 조작부를 걷어내고 보고서 한 장만
+ * 남깁니다. 클래스를 겹쳐 쓰는 것은 화면용 규칙과 특정도가 같으면 파일이 붙는
+ * 순서에 좌우돼 개발 서버에서 무엇이 이길지 달라지기 때문입니다.
+ */
+@media print {
+  .materials.materials,
+  .docActions.docActions,
+  .toDaily.toDaily {
+    display: none;
+  }
+
+  /* 종이에서는 머리말이 문서의 머리글입니다. 화면용 구분선은 남기지 않습니다. */
+  .head.head {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .layout.layout {
+    display: block;
+  }
+
+  .sheet.sheet {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
   }
 }

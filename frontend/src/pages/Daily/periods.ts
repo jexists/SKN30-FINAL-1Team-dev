@@ -1,4 +1,5 @@
 // 업무 보고의 기간 탭. ?tab= 값과 화면 문구를 한 곳에서 봅니다.
+import { ROUTES } from '@/constants/routes'
 import type { DailyReport, ReportKind } from '@/types'
 import {
   addDays,
@@ -45,6 +46,16 @@ export const showsMeetings = (period: Period) => period === 'all' || period === 
 export function toPeriod(value: string | null): Period {
   return PERIODS.includes(value as Period) ? (value as Period) : 'all'
 }
+
+/**
+ * 업무보고 목록으로 가는 길. 탭을 주면 그 탭이 열린 채로 갑니다.
+ *
+ * 어디서 눌렀는지가 어느 탭을 볼지를 정합니다. 미팅 기록에서 왔으면 미팅보고서 탭이
+ * 열려야 방금 보던 것이 목록 어디에 있는지 바로 보입니다.
+ * 'all' 은 기본값이라 주소에 붙이지 않습니다.
+ */
+export const dailyListPath = (tab?: Period) =>
+  tab && tab !== 'all' ? `${ROUTES.DAILY}?tab=${tab}` : ROUTES.DAILY
 
 export function kindToPeriod(kind: ReportKind): Period {
   if (kind === '주간') return 'weekly'
