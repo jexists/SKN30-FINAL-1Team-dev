@@ -3,6 +3,7 @@
 import type { FC } from 'react'
 
 import {
+  BellIcon,
   CalendarIcon,
   ComplaintIcon,
   ContractIcon,
@@ -85,6 +86,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: '관리',
     managerOnly: true,
     items: [
+      { to: ROUTES.NOTICES, label: '공지관리', icon: BellIcon },
       { to: ROUTES.PRODUCTS, label: '상품관리', icon: ProductIcon },
       { to: ROUTES.TEAM, label: '팀 관리', icon: TeamIcon },
     ],

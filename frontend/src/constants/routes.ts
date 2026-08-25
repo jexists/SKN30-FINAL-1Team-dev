@@ -26,6 +26,8 @@ export const ROUTES = {
   ORDERS: '/orders',
   DOCUMENTS: '/documents',
   PRODUCTS: '/products', // 상품관리 (팀장 전용). 상품 목록 조회 자체는 팀원도 씁니다.
+  // 공지·팀장 지시사항 관리 (팀장 전용). 읽기는 대시보드 티커와 알림에서 합니다.
+  NOTICES: '/notices',
   // 마이페이지. 진입은 사이드바 하단 이름과 헤더 아바타에서 합니다.
   // 바꿀 수 있는 설정이 없어 '설정' 대신 내 정보·약관을 보는 화면 하나만 둡니다.
   MYPAGE: '/mypage',
