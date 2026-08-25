@@ -282,6 +282,8 @@ class SalesDealPage(BaseModel):
     total: int
     has_more: bool
     next_skip: int | None
+    # 단계 탭 옆 건수 {단계 id: 건수}. 고른 단계는 빼고 센 값이라 total 과 다르다.
+    counts: dict[str, int] = Field(default_factory=dict)
 
 
 class SalesDealPageParams(BaseModel):
@@ -290,6 +292,10 @@ class SalesDealPageParams(BaseModel):
     q: SearchQuery | None = None
     start_date: date | None = None
     end_date: date | None = None
+    # start_date·end_date 를 어느 날짜에 걸지. 견적 화면은 발행일로, 계약 화면은 체결일로
+    # 기간을 좁힌다. 둘 다 비어 있을 수 있어 시작일로 되돌린다. 기본값은 시작일이라
+    # 이미 쓰던 조회는 그대로다.
+    date_basis: Literal["opened", "quote_issued", "contract_signed"] = "opened"
     owner_member_id: list[UUID] | None = None
     sales_pipeline_id: UUID | None = None
     sales_pipeline_stage_id: list[UUID] | None = None
