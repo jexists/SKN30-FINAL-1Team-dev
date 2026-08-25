@@ -8,7 +8,7 @@ import type { ColumnDef } from './columns'
 import { toCustomer } from './contact'
 
 /** 서버가 한 번에 주는 최대치. 더 크게 요청하면 422 로 돌아옵니다. */
-const PAGE = 100
+const PAGE = 30
 
 /** 한 번에 모으는 상한. 이보다 많으면 검색으로 좁혀 달라고 말합니다. */
 const MAX_ROWS = 5_000

@@ -5,9 +5,7 @@ import { client } from '@/api/client'
 import { transportMessage } from '@/api/errorMessage'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
-  CustomerCompanyResponse,
   PageResponse,
-  ProductResponse,
   SalesDealCreateRequest,
   SalesDealMoveRequest,
   SalesDealPatchRequest,
@@ -24,7 +22,7 @@ import { parseISO, TODAY } from '@/utils/date'
 
 import type { BoardColumn, BoardDeal } from './board'
 
-const PAGE_LIMIT = 100
+const PAGE_LIMIT = 30
 
 const STATUS_BY_OUTCOME: Record<SalesPipelineOutcomeCode, SalesDealStatus> = {
   in_progress: '진행중',
@@ -37,11 +35,6 @@ const REGION_LABEL: Record<string, string> = {
   gyeonggi: '경기',
   incheon: '인천',
   chungnam: '충남',
-}
-
-export interface SalesDealOption {
-  id: string
-  name: string
 }
 
 export interface SalesDealSaveInput {
@@ -309,8 +302,6 @@ export default function useSalesDeals(
   const [cards, setCards] = useState<SalesDeal[]>([])
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [companies, setCompanies] = useState<SalesDealOption[]>([])
-  const [products, setProducts] = useState<SalesDealOption[]>([])
   const [dealTypes, setDealTypes] = useState<SalesDealTypeResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -357,28 +348,23 @@ export default function useSalesDeals(
         const stagePipeline = requested ?? fallback
         const filteredPipelineId = mode === 'board' ? stagePipeline?.id : requested?.id
 
-        const [stageItems, dealItems, companyItems, productItems, dealTypeItems] =
-          await Promise.all([
-            stagePipeline
-              ? client
-                  .get<SalesPipelineStageResponse[]>(
-                    `/sales-pipelines/${stagePipeline.id}/stages`,
-                    { signal: controller.signal },
-                  )
-                  .then((response) => response.data)
-              : Promise.resolve([]),
-            // 조회 조건을 받은 목록 화면은 아래 효과가 한 쪽만 받습니다. 여기서 전건을
-            // 받는 것은 칸반과 매출 요약처럼 전건 집계가 필요한 쪽뿐입니다.
-            paging
-              ? Promise.resolve([])
-              : fetchAllSalesDeals(controller.signal, filteredPipelineId, phaseCode, ownerIds),
-            // 고객사와 제품은 딜을 등록할 때 고르는 참조 목록이라 범위로 좁히지 않습니다.
-            fetchAllPage<CustomerCompanyResponse>('/customer-companies', controller.signal),
-            fetchAllPage<ProductResponse>('/products', controller.signal),
-            client
-              .get<SalesDealTypeResponse[]>('/sales-deal-types', { signal: controller.signal })
-              .then((response) => response.data),
-          ])
+        const [stageItems, dealItems, dealTypeItems] = await Promise.all([
+          stagePipeline
+            ? client
+                .get<SalesPipelineStageResponse[]>(`/sales-pipelines/${stagePipeline.id}/stages`, {
+                  signal: controller.signal,
+                })
+                .then((response) => response.data)
+            : Promise.resolve([]),
+          // 조회 조건을 받은 목록 화면은 아래 효과가 한 쪽만 받습니다. 여기서 전건을
+          // 받는 것은 칸반과 매출 요약처럼 전건 집계가 필요한 쪽뿐입니다.
+          paging
+            ? Promise.resolve([])
+            : fetchAllSalesDeals(controller.signal, filteredPipelineId, phaseCode, ownerIds),
+          client
+            .get<SalesDealTypeResponse[]>('/sales-deal-types', { signal: controller.signal })
+            .then((response) => response.data),
+        ])
 
         if (controller.signal.aborted) return
         setPipelines(pipelineItems)
@@ -386,8 +372,6 @@ export default function useSalesDeals(
         setStagePipelineId(stagePipeline?.id ?? null)
         setColumns(stageItems.map(toColumn))
         if (!paging) setCards(dealItems)
-        setCompanies(companyItems.map(({ id, name }) => ({ id, name })))
-        setProducts(productItems.map(({ id, name }) => ({ id, name })))
         setDealTypes(dealTypeItems)
         setOptionsReady(true)
       })
@@ -590,8 +574,6 @@ export default function useSalesDeals(
     cards,
     total,
     counts,
-    companies,
-    products,
     dealTypes,
     loading,
     error,

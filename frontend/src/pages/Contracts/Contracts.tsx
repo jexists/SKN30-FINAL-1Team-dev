@@ -9,7 +9,7 @@ import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { ContractIcon, SearchIcon } from '@/components/icons'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import StageChip from '@/components/StageChip'
@@ -58,7 +58,6 @@ export default function Contracts() {
   const deferredQuery = useDeferredValue(query)
 
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(30)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'owner' | 'range' | null>(null)
 
   const setParam = useCallback(
@@ -96,10 +95,10 @@ export default function Contracts() {
       stageId: stage,
       ownerMemberId: owner,
       fromISO,
-      skip: (page - 1) * pageSize,
-      limit: pageSize,
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
     }),
-    [deferredQuery, stage, owner, fromISO, page, pageSize],
+    [deferredQuery, stage, owner, fromISO, page],
   )
 
   const {
@@ -158,7 +157,7 @@ export default function Contracts() {
     [stageCounts],
   )
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // 헤더 정렬을 끄므로 누를 일이 없습니다. 고객 목록과 같은 처리입니다.
   const ignoreSort = useCallback(() => undefined, [])
@@ -308,18 +307,7 @@ export default function Contracts() {
       />
 
       {!error && !loading && pageRows.length > 0 && (
-        <Pagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={total}
-          unit="건"
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
+        <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
       )}
 
       {openId && (

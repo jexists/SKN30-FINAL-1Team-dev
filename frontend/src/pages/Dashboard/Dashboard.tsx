@@ -217,6 +217,9 @@ export default function Dashboard() {
           loading={followUps.loading}
           error={followUps.error}
           onRetry={followUps.reload}
+          remaining={followUps.total - followUps.items.length}
+          loadingMore={followUps.loadingMore}
+          onLoadMore={followUps.loadMore}
           onClose={closeDrawer}
         />
       )}
@@ -226,6 +229,9 @@ export default function Dashboard() {
           loading={support.loading}
           error={support.error}
           onRetry={support.reload}
+          remaining={support.total - support.items.length}
+          loadingMore={support.loadingMore}
+          onLoadMore={support.loadMore}
           onClose={closeDrawer}
         />
       )}
@@ -235,6 +241,9 @@ export default function Dashboard() {
           loading={renewals.loading}
           error={renewals.error}
           onRetry={renewals.reload}
+          remaining={renewals.total - renewals.items.length}
+          loadingMore={renewals.loadingMore}
+          onLoadMore={renewals.loadMore}
           onClose={closeDrawer}
         />
       )}

@@ -12,24 +12,9 @@ import type {
   OrderPageResponse,
   OrderResponse,
   PageResponse,
-  ProductResponse,
   PurchaseOrderStatusResponse,
-  SalesDealResponse,
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
-
-const PAGE_LIMIT = 100
-
-export interface OrderOption {
-  id: string
-  name: string
-}
-
-export interface OrderSalesDealOption {
-  id: string
-  no: string
-  customerCompanyName: string
-}
 
 export interface OrderDraftItem {
   productId: string
@@ -91,29 +76,6 @@ export function toOrder(order: OrderResponse): ApiPurchaseOrder {
   }
 }
 
-/** 등록 폼의 선택지 목록에만 씁니다. 발주 목록 자체는 서버가 쪽으로 끊어 줍니다. */
-async function fetchAllPage<T>(
-  path: string,
-  signal?: AbortSignal,
-  extraParams?: Record<string, unknown>,
-): Promise<T[]> {
-  const items: T[] = []
-  let skip = 0
-
-  while (!signal?.aborted) {
-    const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT, ...extraParams },
-      signal,
-    })
-    items.push(...data.items)
-    if (!data.has_more || data.next_skip === null) break
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-
-  return items
-}
-
 function toWriteRequest(draft: OrderDraft): OrderPatchRequest {
   return {
     sales_deal_id: draft.salesDealId,
@@ -169,8 +131,6 @@ export default function useOrderList(detailNo?: string, query?: OrderQuery) {
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [suppliers, setSuppliers] = useState<string[]>([])
-  const [products, setProducts] = useState<OrderOption[]>([])
-  const [salesDeals, setSalesDeals] = useState<OrderSalesDealOption[]>([])
   const [statuses, setStatuses] = useState<PurchaseOrderStatusResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -203,32 +163,12 @@ export default function useOrderList(detailNo?: string, query?: OrderQuery) {
     setLoading(true)
     setError(null)
 
-    void Promise.all([
-      // 제품과 딜은 발주를 등록할 때 고르는 목록입니다. 보기 범위로 좁히면 팀원이 맡은
-      // 딜의 발주를 넣을 수 없게 됩니다.
-      //
-      // ponytail: 등록 폼의 선택지라 아직 전건을 받습니다. 목록과 달리 쪽으로 끊을 수
-      // 없는 자리이므로, 늘어나면 검색으로 고르는 입력으로 바꿉니다.
-      fetchAllPage<ProductResponse>('/products', controller.signal),
-      fetchAllPage<SalesDealResponse>('/sales-deals', controller.signal),
-      client
-        .get<PurchaseOrderStatusResponse[]>('/purchase-order-statuses', {
-          signal: controller.signal,
-        })
-        .then((response) => response.data),
-    ])
-      .then(([productItems, dealItems, statusItems]) => {
+    void client
+      .get<PurchaseOrderStatusResponse[]>('/purchase-order-statuses', {
+        signal: controller.signal,
+      })
+      .then(({ data: statusItems }) => {
         if (controller.signal.aborted) return
-        setProducts(productItems.map(({ id, name }) => ({ id, name })))
-        setSalesDeals(
-          dealItems
-            .filter((salesDeal) => salesDeal.sales_pipeline_status_code === 'published')
-            .map((salesDeal) => ({
-              id: salesDeal.id,
-              no: salesDeal.deal_no,
-              customerCompanyName: salesDeal.customer_company_name,
-            })),
-        )
         setStatuses(statusItems)
       })
       .catch((caught: unknown) => {
@@ -412,8 +352,6 @@ export default function useOrderList(detailNo?: string, query?: OrderQuery) {
     orders,
     total,
     counts,
-    products,
-    salesDeals,
     statuses,
     suppliers,
     loading,

@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router'
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import { PlusIcon, ProductIcon, SearchIcon } from '@/components/icons'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import { wonFull } from '@/utils/format'
@@ -33,7 +33,6 @@ export default function Products() {
   const deferredQuery = useDeferredValue(query)
   const [adding, setAdding] = useState(false)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(30)
 
   const {
     products: rows,
@@ -42,9 +41,9 @@ export default function Products() {
     error,
     reload,
     addProduct,
-  } = useProducts({ q: deferredQuery, skip: (page - 1) * pageSize, limit: pageSize })
+  } = useProducts({ q: deferredQuery, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE })
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // 검색어가 바뀌면 결과가 줄어 지금 쪽수가 범위를 넘을 수 있습니다. 첫 쪽으로 돌립니다.
   const setQuery = (value: string) => {
@@ -155,18 +154,7 @@ export default function Products() {
             </table>
           </div>
 
-          <Pagination
-            page={page}
-            pageCount={pageCount}
-            pageSize={pageSize}
-            total={total}
-            unit="개"
-            onPage={setPage}
-            onPageSize={(size) => {
-              setPageSize(size)
-              setPage(1)
-            }}
-          />
+          <Pagination page={page} pageCount={pageCount} total={total} unit="개" onPage={setPage} />
         </div>
       )}
 

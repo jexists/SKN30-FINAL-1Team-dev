@@ -11,7 +11,7 @@ import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { UploadIcon } from '@/components/icons'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import type { DocumentCategory } from '@/types'
@@ -52,7 +52,6 @@ export default function Documents() {
   const deferredQuery = useDeferredValue(query)
 
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(30)
   const [openId, setOpenId] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
   /** 업로드 모달. 'new' 는 새 문서, 문서 id 면 그 문서의 새 버전입니다. */
@@ -83,10 +82,10 @@ export default function Documents() {
       category: category as DocumentCategory | '',
       uploaderMemberId: owner,
       fromISO,
-      skip: (page - 1) * pageSize,
-      limit: pageSize,
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
     }),
-    [deferredQuery, category, owner, fromISO, page, pageSize],
+    [deferredQuery, category, owner, fromISO, page],
   )
 
   const {
@@ -109,7 +108,7 @@ export default function Documents() {
     () => [...categoryCounts.values()].reduce((sum, count) => sum + count, 0),
     [categoryCounts],
   )
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // 등록자 선택지. 받아 둔 목록에서 뽑으면 지금 쪽에 있는 사람만 나옵니다.
   const ownerOptions = useMemo(
@@ -241,18 +240,7 @@ export default function Documents() {
       />
 
       {pageRows.length > 0 && (
-        <Pagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={total}
-          unit="건"
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
+        <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
       )}
 
       {openDoc && (

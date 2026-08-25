@@ -163,7 +163,7 @@ class OrderPageParams(BaseModel):
     end_date: date | None = None
     owner_member_id: list[UUID] | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
-    limit: int = Field(default=30, ge=1, le=100)
+    limit: int = Field(default=30, ge=1, le=30)
 
     @model_validator(mode="after")
     def dates_in_order(self) -> Self:

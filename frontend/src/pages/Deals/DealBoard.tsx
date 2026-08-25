@@ -58,8 +58,6 @@ export default function DealBoard() {
     activePipeline,
     columns,
     cards,
-    companies,
-    products,
     dealTypes,
     loading,
     error,
@@ -401,8 +399,6 @@ export default function DealBoard() {
       {addingColumn && !readOnly && (
         <SalesDealForm
           stageName={addingColumn.name}
-          companies={companies}
-          products={products}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setAddingTo(null)}
@@ -416,8 +412,6 @@ export default function DealBoard() {
       {editingDeal && !readOnly && (
         <SalesDealForm
           deal={editingDeal}
-          companies={companies}
-          products={products}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setEditingId(null)}

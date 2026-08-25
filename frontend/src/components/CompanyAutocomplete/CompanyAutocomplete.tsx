@@ -5,13 +5,11 @@
 // 빈 고객사가 남지 않습니다.
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 
-import { client } from '@/api/client'
-import { errorMessage } from '@/api/errorMessage'
 import { ComboMenu, menuPosition } from '@/components/ComboBox'
 import HighlightedText from '@/components/HighlightedText'
 import { CloseIcon, InfoIcon, SearchIcon } from '@/components/icons'
-import useDebouncedValue from '@/hooks/useDebouncedValue'
-import type { CustomerCompanyResponse, PageResponse } from '@/types'
+import useSearchPaging from '@/hooks/useSearchPaging'
+import type { CustomerCompanyResponse } from '@/types'
 import { formatBusinessNo } from '@/utils/format'
 
 import styles from './CompanyAutocomplete.module.scss'
@@ -33,55 +31,10 @@ interface Props {
   id?: string
 }
 
-const MAX_MATCHES = 8
-
 /** 고른 값이 없을 때도 입력칸에 남아야 하는 글자입니다. */
 function selectionName(selection: CompanySelection | null): string {
   if (selection === null) return ''
   return selection.kind === 'existing' ? selection.company.name : selection.name
-}
-
-function useCompanySearch(query: string, open: boolean) {
-  const [matches, setMatches] = useState<CustomerCompanyResponse[]>([])
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-
-  const settledQuery = useDebouncedValue(query.trim())
-
-  useEffect(() => {
-    // 닫혀 있는 동안 미리 받아 둘 이유가 없습니다.
-    if (!open) return
-
-    const controller = new AbortController()
-    setLoading(true)
-    setLoadError(null)
-
-    void client
-      .get<PageResponse<CustomerCompanyResponse>>('/customer-companies', {
-        params: {
-          q: settledQuery === '' ? undefined : settledQuery.slice(0, 100),
-          skip: 0,
-          limit: MAX_MATCHES,
-        },
-        signal: controller.signal,
-      })
-      .then(({ data }) => {
-        if (!controller.signal.aborted) setMatches(data.items)
-      })
-      .catch((reason: unknown) => {
-        if (controller.signal.aborted) return
-        setMatches([])
-        setLoadError(errorMessage(reason, '고객사를 불러오지 못했습니다.'))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-
-    return () => controller.abort()
-  }, [settledQuery, open, reloadKey])
-
-  return { matches, loading, loadError, reload: () => setReloadKey((value) => value + 1) }
 }
 
 export default function CompanyAutocomplete({
@@ -102,7 +55,11 @@ export default function CompanyAutocomplete({
   const generatedId = `companies-${useId().replaceAll(':', '')}`
   const listboxId = id ?? generatedId
 
-  const { matches, loading, loadError, reload } = useCompanySearch(query, open)
+  const { matches, loading, loadingMore, loadError, hasMore, loadMore, reload } =
+    useSearchPaging<CustomerCompanyResponse>('/customer-companies', query, {
+      open,
+      fallback: '고객사를 불러오지 못했습니다.',
+    })
 
   // 부모가 값을 넣어 주면(수정 화면) 입력칸도 따라갑니다.
   // null 로 비는 경우는 따라가지 않습니다. 고른 뒤 글자를 고치면 선택이 풀리는데,
@@ -238,6 +195,9 @@ export default function CompanyAutocomplete({
           onRetry={reload}
           empty={matches.length === 0}
           emptyText="일치하는 고객사가 없습니다."
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onReachEnd={loadMore}
           footer={
             creatable && (
               <button

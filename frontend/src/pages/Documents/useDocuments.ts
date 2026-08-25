@@ -3,27 +3,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import type {
-  CustomerCompanyResponse,
   DocumentCategory,
   DocumentResponse,
   DocumentVersion,
-  OrderResponse,
-  PageResponse,
   TabbedPageResponse,
-  SalesDealResponse,
   SalesDocument,
 } from '@/types'
 
 import { kindOfFile } from './catalog'
-
-/**
- * 저장할 때 연결 대상(고객사·계약·발주)을 이름으로 찾는 조회에만 씁니다. 자료 목록
- * 자체는 서버가 쪽으로 끊어 줍니다.
- *
- * ponytail: 같은 이름 후보가 100건을 넘으면 정확히 맞는 것을 놓칩니다. 원래 있던 한계라
- * 이번에 건드리지 않았습니다. 정확일치 조회 파라미터가 생기면 그때 바꿉니다.
- */
-const PAGE_LIMIT = 100
 
 /** 등록자 고르는 칸에 세울 사람. 최신 버전을 올린 사람 기준입니다. */
 export interface DocumentUploader {
@@ -81,12 +68,16 @@ function toDocument(item: DocumentResponse): SalesDocument {
     category: CATEGORY_BY_CODE[item.category_code] ?? '기타',
     kind: kindOfFile({ name: latest?.fileName ?? '' }),
     link: item.customer_company_id
-      ? { kind: '고객사', label: item.customer_company_name ?? item.customer_company_id }
+      ? {
+          kind: '고객사',
+          id: item.customer_company_id,
+          label: item.customer_company_name ?? item.customer_company_id,
+        }
       : item.purchase_order_id
-        ? { kind: '발주', label: item.purchase_order_id }
+        ? { kind: '발주', id: item.purchase_order_id, label: item.purchase_order_id }
         : item.sales_deal_id
-          ? { kind: '계약', label: item.sales_deal_id }
-          : { kind: 'none', label: '' },
+          ? { kind: '계약', id: item.sales_deal_id, label: item.sales_deal_id }
+          : { kind: 'none', id: '', label: '' },
     description: item.description ?? '',
     tags: item.tags,
     versions:
@@ -106,41 +97,23 @@ function toDocument(item: DocumentResponse): SalesDocument {
   }
 }
 
-async function resolveLink(link: SalesDocument['link']) {
+/**
+ * 고른 연결 대상을 저장할 칸으로 폅니다.
+ *
+ * 예전에는 사용자가 친 글자를 검색해 그 결과에서 정확히 맞는 것을 골라 냈습니다. q 는
+ * 부분 일치라, 같은 글자가 들어간 후보가 한 쪽을 넘으면 있는데도 못 찾았습니다. 이제는
+ * 고르는 순간 id 를 들고 오므로 되물을 것이 없습니다.
+ */
+function linkFields(link: SalesDocument['link']) {
   const empty = {
-    customer_company_id: null,
-    sales_deal_id: null,
-    purchase_order_id: null,
+    customer_company_id: null as string | null,
+    sales_deal_id: null as string | null,
+    purchase_order_id: null as string | null,
   }
-  if (link.kind === 'none' || link.label.trim() === '') return empty
-
-  const q = link.label.trim()
-  if (link.kind === '고객사') {
-    const { data } = await client.get<PageResponse<CustomerCompanyResponse>>(
-      '/customer-companies',
-      {
-        params: { q, skip: 0, limit: PAGE_LIMIT },
-      },
-    )
-    const found = data.items.find((item) => item.id === q || item.name === q)
-    if (!found) throw new Error('연결할 고객사를 찾을 수 없습니다.')
-    return { ...empty, customer_company_id: found.id }
-  }
-  if (link.kind === '계약') {
-    const { data } = await client.get<PageResponse<SalesDealResponse>>('/sales-deals', {
-      params: { q, phase_code: 'contract', skip: 0, limit: PAGE_LIMIT },
-    })
-    const found = data.items.find((item) => item.id === q || item.deal_no === q)
-    if (!found) throw new Error('연결할 계약 딜을 찾을 수 없습니다.')
-    return { ...empty, sales_deal_id: found.id }
-  }
-
-  const { data } = await client.get<PageResponse<OrderResponse>>('/orders', {
-    params: { q, skip: 0, limit: PAGE_LIMIT },
-  })
-  const found = data.items.find((item) => item.id === q || item.order_no === q)
-  if (!found) throw new Error('연결할 발주를 찾을 수 없습니다.')
-  return { ...empty, purchase_order_id: found.id }
+  if (link.kind === 'none' || link.id === '') return empty
+  if (link.kind === '고객사') return { ...empty, customer_company_id: link.id }
+  if (link.kind === '계약') return { ...empty, sales_deal_id: link.id }
+  return { ...empty, purchase_order_id: link.id }
 }
 
 async function uploadFile(documentId: string, file: File, note: string) {
@@ -238,7 +211,7 @@ export default function useDocuments(query?: DocumentQuery) {
     setPending(true)
     setError(null)
     try {
-      const links = await resolveLink(draft.link)
+      const links = linkFields(draft.link)
       const { data: created } = await client.post<DocumentResponse>('/documents', {
         category_code: CATEGORY_CODE[draft.category],
         title: draft.title,
@@ -284,7 +257,7 @@ export default function useDocuments(query?: DocumentQuery) {
         const current = documents.find((document) => document.id === id)
         if (!current) throw new Error('자료를 찾을 수 없습니다.')
         const next = { ...current, ...meta }
-        const links = await resolveLink(next.link)
+        const links = linkFields(next.link)
         const { data } = await client.patch<DocumentResponse>(`/documents/${id}`, {
           category_code: CATEGORY_CODE[next.category],
           title: next.title,

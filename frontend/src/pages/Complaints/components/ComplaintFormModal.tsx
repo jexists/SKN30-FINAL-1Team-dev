@@ -2,9 +2,14 @@ import { useState, type ReactNode } from 'react'
 
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import type { SupportRequestCreateRequest, SupportStatusCode } from '@/types'
+import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import type {
+  CustomerContactResponse,
+  SupportRequestCreateRequest,
+  SupportStatusCode,
+} from '@/types'
 
-import { type ContactOption, mutationErrorMessage } from '../useSupportRequests'
+import { mutationErrorMessage } from '../useSupportRequests'
 
 import styles from '../Complaints.module.scss'
 
@@ -14,15 +19,14 @@ const STATES: { code: SupportStatusCode; label: string }[] = [
 ]
 
 interface Props {
-  contacts: ContactOption[]
   onClose: () => void
   onSubmit: (payload: SupportRequestCreateRequest) => Promise<void>
 }
 
 type Errors = Partial<Record<'contact' | 'title' | 'body', string>>
 
-export default function ComplaintFormModal({ contacts, onClose, onSubmit }: Props) {
-  const [contactId, setContactId] = useState('')
+export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
+  const [contact, setContact] = useState<RecordOption | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [statusCode, setStatusCode] = useState<SupportStatusCode>('in_progress')
@@ -35,17 +39,17 @@ export default function ComplaintFormModal({ contacts, onClose, onSubmit }: Prop
     if (submitting) return
 
     const found: Errors = {}
-    if (contactId === '') found.contact = '고객 담당자를 선택하세요.'
+    if (contact === null) found.contact = '고객 담당자를 선택하세요.'
     if (title.trim() === '') found.title = '제목을 입력하세요.'
     if (body.trim() === '') found.body = '내용을 입력하세요.'
     setErrors(found)
-    if (Object.keys(found).length > 0) return
+    if (contact === null || Object.keys(found).length > 0) return
 
     setSubmitting(true)
     setSubmitError(null)
     try {
       await onSubmit({
-        customer_contact_id: contactId,
+        customer_contact_id: contact.id,
         title: title.trim(),
         body: body.trim(),
         is_urgent: urgent,
@@ -71,7 +75,7 @@ export default function ComplaintFormModal({ contacts, onClose, onSubmit }: Prop
           <Button type="button" variant="outline" disabled={submitting} onClick={close}>
             취소
           </Button>
-          <Button type="submit" disabled={submitting || contacts.length === 0}>
+          <Button type="submit" disabled={submitting}>
             {submitting ? '등록 중…' : '불만 등록'}
           </Button>
         </>
@@ -79,23 +83,26 @@ export default function ComplaintFormModal({ contacts, onClose, onSubmit }: Prop
     >
       <div className={styles.grid} aria-busy={submitting}>
         <Field label="고객 담당자" required error={errors.contact} wide>
-          <select
-            value={contactId}
-            disabled={submitting || contacts.length === 0}
-            onChange={(event) => {
-              setContactId(event.target.value)
+          <RecordPicker<CustomerContactResponse>
+            path="/customer-contacts"
+            label="고객 담당자"
+            placeholder="회사나 담당자 이름으로 검색"
+            emptyText="일치하는 고객 담당자가 없습니다."
+            loadingText="고객 담당자를 불러오는 중입니다."
+            fallback="고객 담당자를 불러오지 못했습니다."
+            value={contact}
+            disabled={submitting}
+            invalid={errors.contact !== undefined}
+            toOption={(row) => ({
+              id: row.id,
+              label: row.name,
+              note: row.company_name,
+            })}
+            onChange={(next) => {
+              setContact(next)
               setErrors((previous) => ({ ...previous, contact: undefined }))
             }}
-          >
-            <option value="">
-              {contacts.length === 0 ? '등록된 고객 담당자가 없습니다' : '고객 담당자 선택'}
-            </option>
-            {contacts.map((contact) => (
-              <option key={contact.id} value={contact.id}>
-                {contact.label}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="제목" required error={errors.title} wide>

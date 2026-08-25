@@ -158,7 +158,7 @@ def test_document_request_rejects_unsafe_values():
     with pytest.raises(ValidationError):
         DocumentCreate(category_code="proposal", title="")
     with pytest.raises(ValidationError):
-        DocumentPageParams(limit=101)
+        DocumentPageParams(limit=31)
 
 
 def test_upload_requires_storage_configuration(storage_missing):

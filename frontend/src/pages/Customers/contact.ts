@@ -8,6 +8,8 @@ import type {
   CustomerStatusCode,
 } from '@/types'
 
+// 코드 칸은 서버에서 자유 문자열로 옵니다. 이 앱이 모르는 값이 섞여도 빈칸이 아니라
+// '미지정' 으로 보이게 아래 조회에 기본값을 답니다.
 const STATUS_LABEL: Record<CustomerStatusCode, CustomerStatus> = {
   new: '신규',
   proposal: '제안',
@@ -34,8 +36,8 @@ export function toCustomer(contact: CustomerContactResponse): Customer {
     email: contact.email ?? '',
     phone: contact.phone,
     owner: contact.owner_display_name,
-    source: contact.source_code === null ? '미지정' : SOURCE_LABEL[contact.source_code],
-    status: contact.status_code === null ? '미지정' : STATUS_LABEL[contact.status_code],
+    source: (contact.source_code && SOURCE_LABEL[contact.source_code]) ?? '미지정',
+    status: (contact.status_code && STATUS_LABEL[contact.status_code]) ?? '미지정',
     memo: contact.memo ?? '',
     visited: contact.visited,
     last: null,

@@ -596,3 +596,17 @@ def test_date_basis_moves_the_range_to_the_phase_date():
     default_sql = str(default_db.statements[0])
     assert "public.sales_deal.opened_on >=" in default_sql
     assert "coalesce" not in default_sql.lower()
+
+
+def test_pipeline_status_filter_narrows_the_scope():
+    """발주를 넣을 딜을 고르는 칸은 보관된 파이프라인의 딜을 빼고 받는다.
+
+    전건을 받아 화면에서 거르던 자리라, 서버가 걸러 주지 않으면 쪽으로 끊는 순간
+    첫 30건이 전부 보관된 딜일 수 있다.
+    """
+    params = SalesDealPageParams(sales_pipeline_status_code=["published"])
+    assert params.sales_pipeline_status_code == ["published"]
+    # 안 주면 예전처럼 전부 본다.
+    assert SalesDealPageParams().sales_pipeline_status_code is None
+    with pytest.raises(ValidationError):
+        SalesDealPageParams(sales_pipeline_status_code=["draft"])

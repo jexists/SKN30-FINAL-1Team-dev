@@ -151,3 +151,26 @@
   font-size: 13px;
   text-align: center;
 }
+
+// 서버가 쪽으로 끊어 주는 목록의 이어받기. 칸반의 더 보기와 같은 모양입니다.
+.more {
+  width: 100%;
+  margin-top: var(--s2);
+  padding: 9px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--fill-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--fill);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}

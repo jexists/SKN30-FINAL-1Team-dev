@@ -9,7 +9,7 @@ import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { VisitIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import StageChip from '@/components/StageChip'
@@ -48,7 +48,6 @@ export default function Deals() {
   const deferredQuery = useDeferredValue(query)
 
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(30)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'range' | null>(null)
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -90,10 +89,10 @@ export default function Deals() {
       // 이 화면에는 담당자 칸이 없습니다. 서버가 보기 범위로 좁힙니다.
       ownerMemberId: '',
       fromISO,
-      skip: (page - 1) * pageSize,
-      limit: pageSize,
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
     }),
-    [deferredQuery, stage, fromISO, page, pageSize],
+    [deferredQuery, stage, fromISO, page],
   )
 
   const {
@@ -103,8 +102,6 @@ export default function Deals() {
     cards: pageRows,
     total,
     counts,
-    companies,
-    products,
     dealTypes,
     loading,
     error,
@@ -146,7 +143,7 @@ export default function Deals() {
     [stageCounts],
   )
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // 헤더 정렬을 끄므로 누를 일이 없습니다. 고객 목록과 같은 처리입니다.
   const ignoreSort = useCallback(() => undefined, [])
@@ -313,18 +310,7 @@ export default function Deals() {
       />
 
       {!error && !loading && pageRows.length > 0 && (
-        <Pagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={total}
-          unit="건"
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
+        <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
       )}
 
       {openId && (
@@ -353,8 +339,6 @@ export default function Deals() {
       {addingColumn && (
         <SalesDealForm
           stageName={addingColumn.name}
-          companies={companies}
-          products={products}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setAddingTo(null)}
@@ -368,8 +352,6 @@ export default function Deals() {
       {editingDeal && (
         <SalesDealForm
           deal={editingDeal}
-          companies={companies}
-          products={products}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setEditingId(null)}

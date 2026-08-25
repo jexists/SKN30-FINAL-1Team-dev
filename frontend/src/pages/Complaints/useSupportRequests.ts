@@ -5,8 +5,6 @@ import { client } from '@/api/client'
 import { transportMessage } from '@/api/errorMessage'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
-  CustomerContactResponse,
-  PageResponse,
   TabbedPageResponse,
   SupportRequestCreateRequest,
   SupportRequestResponse,
@@ -14,36 +12,6 @@ import type {
   SupportStatusCode,
   SupportTransitionRequest,
 } from '@/types'
-
-const PAGE_LIMIT = 100
-
-export interface ContactOption {
-  id: string
-  label: string
-}
-
-/** 등록 모달의 고객 선택 목록만 씁니다. 목록 자체는 서버가 쪽으로 끊어 줍니다. */
-async function fetchAll<T>(
-  path: string,
-  signal: AbortSignal,
-  extraParams?: Record<string, unknown>,
-): Promise<T[]> {
-  const items: T[] = []
-  let skip = 0
-
-  while (!signal.aborted) {
-    const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT, ...extraParams },
-      signal,
-    })
-    items.push(...data.items)
-    if (!data.has_more || data.next_skip === null) break
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-
-  return items
-}
 
 function loadErrorMessage(error: unknown, detail = false): string {
   const fallback = `고객불만 ${detail ? '상세를' : '목록을'} 불러오지 못했습니다.`
@@ -80,7 +48,6 @@ export default function useSupportRequests(openId: string | null, query: Support
   const [requests, setRequests] = useState<SupportRequestResponse[]>([])
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [contacts, setContacts] = useState<ContactOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -153,26 +120,6 @@ export default function useSupportRequests(openId: string | null, query: Support
     return () => controller.abort()
   }, [openId, detailReloadKey])
 
-  /**
-   * 등록 모달의 고객 선택 목록. 모달을 열 때만 받습니다.
-   *
-   * 보기 범위로 좁히지 않습니다. 좁히면 팀원이 맡은 고객의 불만을 접수할 수 없습니다.
-   *
-   * ponytail: 고객이 많아지면 전건을 받는 select 자체가 무겁습니다. 그때는 이 칸을
-   * ContactPicker 같은 검색 입력으로 바꿉니다. 목록 쪽 넘김과는 무관합니다.
-   */
-  const loadContacts = useCallback(async () => {
-    if (contacts.length > 0) return
-    const controller = new AbortController()
-    const items = await fetchAll<CustomerContactResponse>('/customer-contacts', controller.signal)
-    setContacts(
-      items.map((contact) => ({
-        id: contact.id,
-        label: `${contact.company_name} · ${contact.name}`,
-      })),
-    )
-  }, [contacts.length])
-
   const createRequest = useCallback(async (payload: SupportRequestCreateRequest) => {
     const { data } = await client.post<SupportRequestResponse>('/support-requests', payload)
     // 새 불만이 이 쪽 첫 줄에 오는지는 접수 시각 순서가 정합니다. 목록에 끼워 넣지 않고
@@ -241,8 +188,6 @@ export default function useSupportRequests(openId: string | null, query: Support
     requests,
     total,
     counts,
-    contacts,
-    loadContacts,
     loading,
     error,
     reload: () => setReloadKey((value) => value + 1),

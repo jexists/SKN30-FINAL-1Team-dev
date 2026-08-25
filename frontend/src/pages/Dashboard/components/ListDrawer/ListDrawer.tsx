@@ -16,6 +16,10 @@ interface Props {
   loading?: boolean
   error?: string | null
   onRetry?: () => void
+  /** 아직 안 받은 건수. 0 이면 버튼이 서지 않습니다. 발주 목록은 이미 다 손에 있어 주지 않습니다. */
+  remaining?: number
+  loadingMore?: boolean
+  onLoadMore?: () => void
   /** 있으면 머리말 아래에 필터 칩이 붙습니다. 발주 목록에서만 씁니다. */
   filters?: { key: OrderFilterKey; label: string; n: number }[]
   activeFilter?: OrderFilterKey
@@ -67,6 +71,9 @@ export default function ListDrawer({
   loading,
   error,
   onRetry,
+  remaining = 0,
+  loadingMore,
+  onLoadMore,
   filters,
   activeFilter,
   onFilter,
@@ -109,24 +116,37 @@ export default function ListDrawer({
       ) : list.rows.length === 0 ? (
         <p className={styles.empty}>{list.empty ?? '표시할 항목이 없습니다.'}</p>
       ) : (
-        list.rows.map((row) => {
-          // 발주 줄만 더 들어갈 데가 있어 버튼입니다. 나머지는 여기가 끝입니다.
-          const no = row.orderNo
-          return no && onOpenOrder ? (
+        <>
+          {list.rows.map((row) => {
+            // 발주 줄만 더 들어갈 데가 있어 버튼입니다. 나머지는 여기가 끝입니다.
+            const no = row.orderNo
+            return no && onOpenOrder ? (
+              <button
+                key={row.key}
+                type="button"
+                className={`${styles.row} ${styles.clickable}`}
+                onClick={() => onOpenOrder(no)}
+              >
+                <Row row={row} />
+              </button>
+            ) : (
+              <div key={row.key} className={styles.row}>
+                <Row row={row} />
+              </div>
+            )
+          })}
+
+          {remaining > 0 && (
             <button
-              key={row.key}
               type="button"
-              className={`${styles.row} ${styles.clickable}`}
-              onClick={() => onOpenOrder(no)}
+              className={styles.more}
+              disabled={loadingMore}
+              onClick={onLoadMore}
             >
-              <Row row={row} />
+              {loadingMore ? '불러오는 중입니다…' : `${remaining}건 더 보기`}
             </button>
-          ) : (
-            <div key={row.key} className={styles.row}>
-              <Row row={row} />
-            </div>
-          )
-        })
+          )}
+        </>
       )}
     </Drawer>
   )

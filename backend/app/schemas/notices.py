@@ -46,7 +46,7 @@ class NoticePageParams(BaseModel):
     published_from: datetime | None = None
     published_to: datetime | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
-    limit: int = Field(default=30, ge=1, le=100)
+    limit: int = Field(default=30, ge=1, le=30)
 
     @model_validator(mode="after")
     def _validate(self) -> Self:

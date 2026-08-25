@@ -3,15 +3,13 @@
 // 회사를 먼저 고르고 그 안에서 사람을 찾습니다. 같은 이름이 흔해 사람부터 찾으면 누구인지
 // 가려내기 어렵고, 영업은 회사를 먼저 떠올리기 때문입니다. 한 명만 받는 칸과 여러 명을 칩으로
 // 담는 칸이 하는 일이 같아 multiple 하나로 가릅니다.
-import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
+import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 
-import { client } from '@/api/client'
-import { errorMessage } from '@/api/errorMessage'
 import { ComboMenu, menuPosition } from '@/components/ComboBox'
 import HighlightedText from '@/components/HighlightedText'
 import { CloseIcon, InfoIcon, SearchIcon } from '@/components/icons'
-import useDebouncedValue from '@/hooks/useDebouncedValue'
-import type { CustomerContactResponse, PageResponse } from '@/types'
+import useSearchPaging from '@/hooks/useSearchPaging'
+import type { CustomerContactResponse } from '@/types'
 
 import { toContactOption, type ContactOption } from './contactOption'
 
@@ -42,52 +40,6 @@ type Props = CommonProps &
     | { multiple: true; value: ContactOption[]; onChange: (next: ContactOption[]) => void }
   )
 
-const MAX_MATCHES = 8
-
-function useContactSearch(companyId: string | null, query: string, open: boolean) {
-  const [matches, setMatches] = useState<ContactOption[]>([])
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-
-  const settledQuery = useDebouncedValue(query.trim())
-
-  useEffect(() => {
-    // 닫혀 있거나 회사를 아직 고르지 않았으면 부를 이유가 없습니다.
-    if (!open || companyId === null) return
-
-    const controller = new AbortController()
-    setLoading(true)
-    setLoadError(null)
-
-    void client
-      .get<PageResponse<CustomerContactResponse>>('/customer-contacts', {
-        params: {
-          company_id: companyId,
-          q: settledQuery === '' ? undefined : settledQuery.slice(0, 100),
-          skip: 0,
-          limit: MAX_MATCHES,
-        },
-        signal: controller.signal,
-      })
-      .then(({ data }) => {
-        if (!controller.signal.aborted) setMatches(data.items.map(toContactOption))
-      })
-      .catch((reason: unknown) => {
-        if (controller.signal.aborted) return
-        setMatches([])
-        setLoadError(errorMessage(reason, '고객을 불러오지 못했습니다.'))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-
-    return () => controller.abort()
-  }, [companyId, settledQuery, open, reloadKey])
-
-  return { matches, loading, loadError, reload: () => setReloadKey((value) => value + 1) }
-}
-
 /** 칩에 적는 이름. 같은 이름이 섞여도 직함까지 보면 구분이 됩니다. */
 function chipLabel(contact: ContactOption): string {
   return [contact.name, contact.title].filter(Boolean).join(' ')
@@ -116,11 +68,21 @@ export default function ContactPicker(props: Props) {
   const listboxId = id ?? generatedId
 
   const locked = disabled || companyId === null
-  const { matches, loading, loadError, reload } = useContactSearch(
-    companyId,
-    query,
-    open && !locked,
-  )
+  const {
+    matches: rows,
+    loading,
+    loadingMore,
+    loadError,
+    hasMore,
+    loadMore,
+    reload,
+  } = useSearchPaging<CustomerContactResponse>('/customer-contacts', query, {
+    open,
+    enabled: !locked,
+    params: { company_id: companyId },
+    fallback: '고객을 불러오지 못했습니다.',
+  })
+  const matches = useMemo(() => rows.map(toContactOption), [rows])
 
   // 회사를 바꾸면 앞서 치던 글자는 다른 회사의 것입니다.
   useEffect(() => setQuery(''), [companyId])
@@ -297,6 +259,9 @@ export default function ContactPicker(props: Props) {
           onRetry={reload}
           empty={found.length === 0}
           emptyText={emptyText}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onReachEnd={loadMore}
           footer={
             creatable && (
               <button

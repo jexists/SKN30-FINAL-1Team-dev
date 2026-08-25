@@ -184,7 +184,7 @@ class ActivityPageParams(BaseModel):
     # 서버가 정렬하지 않으면 순서가 페이지 안에서만 맞는다.
     sort: Literal["starts_at", "due_at"] = "starts_at"
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
-    limit: int = Field(default=30, ge=1, le=100)
+    limit: int = Field(default=30, ge=1, le=30)
 
     @model_validator(mode="after")
     def dates_in_order(self) -> Self:

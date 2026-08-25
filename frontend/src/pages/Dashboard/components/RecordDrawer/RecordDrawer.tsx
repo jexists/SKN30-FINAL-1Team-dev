@@ -29,14 +29,18 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
   const {
     deal,
     orders: relatedOrders,
+    orderTotal,
+    hasMoreOrders,
+    loadingMoreOrders,
+    loadMoreOrders,
     loading: relatedLoading,
     error: relatedError,
     reload: onRetryRelated,
   } = useRelatedDeal(item.salesDealId ?? null)
   const done = item.done
   const [menuOpen, setMenuOpen] = useState(false)
-  const reportState = useAgendaReportLink()
-  const report = reportState.resolve(item)
+  // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
+  const reportState = useAgendaReportLink(item)
   const task = item.kind === 'internal'
   const until = task ? endTime(item.time, item.dur) : ''
   const at = item.contact.lastIndexOf(' ')
@@ -117,7 +121,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
             </i>
           )}
           {done && <i className={`${styles.pill} ${styles.doneTag}`}>완료</i>}
-          {done && !report.written && (
+          {done && reportState.link && !reportState.link.written && (
             <i className={`${styles.pill} ${styles.needsReport}`}>보고서 미작성</i>
           )}
         </>
@@ -127,12 +131,12 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
           <Button variant="outline" onClick={reportState.reload}>
             보고서 다시 조회
           </Button>
-        ) : reportState.loading ? (
-          <InlineLoader label="보고서 연결을 확인하는 중입니다." />
-        ) : (
-          <Link className={buttonClass()} to={report.to}>
-            {report.label}
+        ) : reportState.link ? (
+          <Link className={buttonClass()} to={reportState.link.to}>
+            {reportState.link.label}
           </Link>
+        ) : (
+          <InlineLoader label="보고서 연결을 확인하는 중입니다." />
         )
       }
     >
@@ -195,7 +199,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
               <section className={`${styles.block} ${styles.full}`}>
                 <h3>
                   관련 발주
-                  <span className={`${styles.total} tnum`}>{relatedOrders.length}건</span>
+                  <span className={`${styles.total} tnum`}>{orderTotal}건</span>
                 </h3>
                 <ul className={styles.picks}>
                   {relatedOrders.map((order) => (
@@ -210,6 +214,18 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
                     </li>
                   ))}
                 </ul>
+                {hasMoreOrders && (
+                  <button
+                    type="button"
+                    className={styles.more}
+                    disabled={loadingMoreOrders}
+                    onClick={loadMoreOrders}
+                  >
+                    {loadingMoreOrders
+                      ? '불러오는 중입니다…'
+                      : `${orderTotal - relatedOrders.length}건 더 보기`}
+                  </button>
+                )}
               </section>
             )}
           </>

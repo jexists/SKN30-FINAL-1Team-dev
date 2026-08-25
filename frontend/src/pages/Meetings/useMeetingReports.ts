@@ -15,7 +15,7 @@ import type {
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
-const PAGE_LIMIT = 100
+const PAGE_LIMIT = 30
 const DAY = 86_400_000
 
 function record(value: unknown): Record<string, unknown> {
@@ -114,9 +114,13 @@ export interface MeetingDraftPayload {
  * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 일정에 보고서를 하나 더
  * 만듭니다. 서버에 직접 물어야 합니다.
  */
-async function savedIdForAgenda(agendaId: string): Promise<string | undefined> {
+export async function savedIdForAgenda(
+  agendaId: string,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
     params: { report_kind: 'meeting', source_activity_id: agendaId, limit: 1 },
+    signal,
   })
   return data.items[0]?.id
 }

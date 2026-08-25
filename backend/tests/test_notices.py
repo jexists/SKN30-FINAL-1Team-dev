@@ -99,7 +99,7 @@ def test_notice_page_params_reject_unsafe_values():
             published_to="2026-08-10T00:00:00+09:00",
         )
     with pytest.raises(ValidationError):
-        NoticePageParams(limit=101)
+        NoticePageParams(limit=31)
     with pytest.raises(ValidationError):
         NoticePageParams(recipient_member_id=str(uuid4()))
 

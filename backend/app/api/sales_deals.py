@@ -758,6 +758,10 @@ async def list_sales_deals(
     scope = _scope(member, owner_ids)
     if page.sales_pipeline_id is not None:
         scope.append(SalesDeal.sales_pipeline_id == page.sales_pipeline_id)
+    if page.sales_pipeline_status_code is not None:
+        scope.append(
+            _pipeline.status_code.in_(tuple(dict.fromkeys(page.sales_pipeline_status_code)))
+        )
     if page.phase_code is not None:
         scope.append(_stage.phase_code.in_(tuple(dict.fromkeys(page.phase_code))))
     if page.outcome_code is not None:

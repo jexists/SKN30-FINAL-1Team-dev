@@ -147,7 +147,7 @@ class ProductPageParams(BaseModel):
     # 묶는다. 이름 표를 여기에 한 벌 더 두면 두 곳이 어긋난다.
     q_category_code: list[OptionCode] | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
-    limit: int = Field(default=30, ge=1, le=100)
+    limit: int = Field(default=30, ge=1, le=30)
 
 
 class SalesDealCreate(_WriteModel):
@@ -298,6 +298,9 @@ class SalesDealPageParams(BaseModel):
     date_basis: Literal["opened", "quote_issued", "contract_signed"] = "opened"
     owner_member_id: list[UUID] | None = None
     sales_pipeline_id: UUID | None = None
+    # 발주를 넣을 딜을 고르는 칸이 쓴다. 보관된 파이프라인의 딜은 새 발주를 붙일 자리가
+    # 아니라 고르는 칸에서 빼야 한다. 전건을 받아 화면에서 거르면 쪽으로 끊을 수 없다.
+    sales_pipeline_status_code: list[PipelineStatus] | None = None
     sales_pipeline_stage_id: list[UUID] | None = None
     phase_code: list[SalesPhase] | None = None
     outcome_code: list[SalesOutcome] | None = None
@@ -306,7 +309,7 @@ class SalesDealPageParams(BaseModel):
     contract_ends_from: date | None = None
     contract_ends_to: date | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
-    limit: int = Field(default=30, ge=1, le=100)
+    limit: int = Field(default=30, ge=1, le=30)
 
     @model_validator(mode="after")
     def dates_in_order(self) -> Self:

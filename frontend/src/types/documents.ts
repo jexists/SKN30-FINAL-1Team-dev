@@ -7,6 +7,8 @@ export type DocumentFileKind = 'pdf' | 'doc' | 'sheet' | 'slide' | 'image' | 'et
 /** 문서가 붙어 있는 대상. 아무 데도 붙지 않은 문서는 kind 가 'none' 입니다. */
 export interface DocumentLink {
   kind: 'none' | '고객사' | '계약' | '발주'
+  /** 연결 대상의 id. 고르는 순간 손에 들어옵니다. kind 가 'none' 이면 빈 문자열입니다. */
+  id: string
   /** '한빛대학교병원' 또는 'FM-CT-2026-0038'. kind 가 'none' 이면 빈 문자열입니다. */
   label: string
 }

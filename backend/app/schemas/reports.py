@@ -157,7 +157,7 @@ class ReportPageParams(BaseModel):
     # 페이지 밖에 있는 보고서를 못 찾고 같은 일정에 보고서를 또 만든다.
     source_activity_id: UUID | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
-    limit: int = Field(default=30, ge=1, le=100)
+    limit: int = Field(default=30, ge=1, le=30)
 
     @model_validator(mode="after")
     def _validate(self) -> Self:

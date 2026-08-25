@@ -14,7 +14,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { OrdersIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import OrderDrawer from '@/components/OrderDrawer'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import StageChip from '@/components/StageChip'
@@ -56,7 +56,6 @@ export default function Orders() {
   const deferredQuery = useDeferredValue(query)
 
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(30)
   const [openId, setOpenId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -100,19 +99,17 @@ export default function Orders() {
       supplier,
       fromISO,
       status,
-      skip: (page - 1) * pageSize,
-      limit: pageSize,
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
     }),
-    [deferredQuery, supplier, fromISO, status, page, pageSize],
+    [deferredQuery, supplier, fromISO, status, page],
   )
 
   const {
     orders: pageRows,
     total,
     counts,
-    salesDeals,
     statuses,
-    products,
     suppliers,
     loading,
     error,
@@ -142,7 +139,7 @@ export default function Orders() {
   // 0 으로 죽지 않습니다.
   const statusCounts = useMemo(() => new Map(Object.entries(counts)), [counts])
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // 헤더 정렬을 끄므로 누를 일이 없습니다. 고객 목록과 같은 처리입니다.
   const ignoreSort = useCallback(() => undefined, [])
@@ -303,18 +300,7 @@ export default function Orders() {
       />
 
       {pageRows.length > 0 && (
-        <Pagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={total}
-          unit="건"
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
+        <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
       )}
 
       {openOrder && (
@@ -336,9 +322,7 @@ export default function Orders() {
       {editingOrder && (
         <OrderForm
           order={editingOrder}
-          salesDeals={salesDeals}
           statuses={statuses}
-          products={products}
           suppliers={suppliers}
           optionsLoading={loading}
           onClose={() => setEditingId(null)}

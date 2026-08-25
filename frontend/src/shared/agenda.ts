@@ -99,7 +99,7 @@ const STATUS_BY_ACTION_TAG = Object.fromEntries(
 const MINUTE = 60_000
 const DAY = 86_400_000
 const KST_OFFSET = 9 * 60 * MINUTE
-const PAGE_LIMIT = 100
+const PAGE_LIMIT = 30
 
 function kstIso(value: number | Date): string {
   const time = typeof value === 'number' ? value : value.getTime()

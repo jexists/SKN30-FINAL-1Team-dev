@@ -156,7 +156,10 @@ class CustomerContactRead(BaseModel):
     customer_contact_status_name: str | None
     customer_contact_status_tone: str | None
     status_code: OptionCode | None
-    source_code: CustomerSource | None
+    # 컬럼은 자유 문자열이고 CHECK 도 "비어 있지 않다" 뿐이라, 이 앱이 쓰지 않은 값이
+    # 들어 있을 수 있다. 내보내는 쪽을 Literal 로 묶으면 그런 행 하나 때문에 목록 전체가
+    # 500 이 된다. 값을 좁히는 일은 CustomerSource 를 쓰는 쓰기 쪽이 맡는다.
+    source_code: str | None
     memo: str | None
     visited: bool
     registered_at: datetime
@@ -191,8 +194,8 @@ class CustomerPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     q: SearchQuery | None = None
-    skip: int = Field(default=0, ge=0)
-    limit: int = Field(default=30, ge=1, le=100)
+    skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
+    limit: int = Field(default=30, ge=1, le=30)
 
 
 class CustomerContactPageParams(CustomerPageParams):

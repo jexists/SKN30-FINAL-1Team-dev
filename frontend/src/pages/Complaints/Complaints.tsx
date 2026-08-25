@@ -5,7 +5,7 @@ import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
 import { ComplaintIcon, PlusIcon, SearchIcon } from '@/components/icons'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton, SkeletonDetail } from '@/components/Skeleton'
 import Tabs, { type TabItem } from '@/components/Tabs'
@@ -62,7 +62,6 @@ export default function Complaints() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(30)
   const isDesktop = useMediaQuery(`(min-width: ${BP_DESKTOP}px)`)
 
   // 검색어나 탭이 바뀌면 결과가 줄어 지금 쪽수가 범위를 넘을 수 있습니다.
@@ -74,8 +73,6 @@ export default function Complaints() {
     requests: rows,
     total,
     counts,
-    contacts,
-    loadContacts,
     loading,
     error,
     reload,
@@ -92,11 +89,11 @@ export default function Complaints() {
   } = useSupportRequests(openId, {
     q: deferredQuery,
     status: status as SupportStatusCode | '',
-    skip: (page - 1) * pageSize,
-    limit: pageSize,
+    skip: (page - 1) * PAGE_SIZE,
+    limit: PAGE_SIZE,
   })
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const setParam = useCallback(
     (key: string, value: string) => {
@@ -161,13 +158,7 @@ export default function Complaints() {
         />
 
         <div className={styles.actions}>
-          <Button
-            disabled={loading}
-            onClick={() => {
-              setAdding(true)
-              void loadContacts()
-            }}
-          >
+          <Button disabled={loading} onClick={() => setAdding(true)}>
             <PlusIcon width={15} height={15} />
             불만 등록
           </Button>
@@ -202,14 +193,7 @@ export default function Complaints() {
               <>
                 <ComplaintIcon width={34} height={34} strokeWidth={1.5} />
                 <p>접수된 고객불만이 없습니다.</p>
-                <Button
-                  onClick={() => {
-                    setAdding(true)
-                    void loadContacts()
-                  }}
-                >
-                  불만 등록
-                </Button>
+                <Button onClick={() => setAdding(true)}>불만 등록</Button>
               </>
             )}
           </div>
@@ -300,18 +284,7 @@ export default function Complaints() {
       )}
 
       {rows.length > 0 && (
-        <Pagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={total}
-          unit="건"
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
+        <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
       )}
 
       {open && (
@@ -395,7 +368,6 @@ export default function Complaints() {
 
       {adding && (
         <ComplaintFormModal
-          contacts={contacts}
           onClose={() => setAdding(false)}
           onSubmit={async (payload) => {
             const created = await createRequest(payload)

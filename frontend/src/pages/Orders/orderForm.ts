@@ -9,6 +9,8 @@ import type { OrderDraft } from './useOrderList'
 // 문자열로 두고 제출할 때 한 번에 숫자로 돌립니다.
 export interface ItemState {
   productId: string
+  /** 고른 제품의 이름. 검색해서 고르는 칸이 글자를 남겨야 해 함께 듭니다. 제출에는 쓰지 않습니다. */
+  productName: string
   qty: string
   price: string
 }
@@ -16,6 +18,8 @@ export interface ItemState {
 export interface FormState {
   supplier: string
   salesDealId: string
+  /** 고른 딜의 표시 글자. productName 과 같은 이유로 듭니다. */
+  salesDealLabel: string
   stageCode: string
   ordered: string
   due: string
@@ -32,12 +36,13 @@ export interface FormErrors extends Partial<Record<Exclude<keyof FormState, 'ite
   itemRows?: ItemErrors
 }
 
-export const emptyItem = (): ItemState => ({ productId: '', qty: '1', price: '' })
+export const emptyItem = (): ItemState => ({ productId: '', productName: '', qty: '1', price: '' })
 
 export function initialState(order?: ApiPurchaseOrder): FormState {
   return {
     supplier: order?.supplier ?? '',
     salesDealId: order?.salesDealId ?? '',
+    salesDealLabel: order?.salesDeal ?? '',
     stageCode: order?.stageCode ?? '',
     ordered: order?.ordered ?? TODAY_ISO,
     // 새 발주는 납기를 2주 뒤로 잡아 둡니다. 대부분 그 언저리라 고치는 손이 줄어듭니다.
@@ -47,6 +52,7 @@ export function initialState(order?: ApiPurchaseOrder): FormState {
     items: order
       ? order.items.map((it) => ({
           productId: it.productId,
+          productName: it.product,
           qty: String(it.qty),
           price: String(it.price),
         }))

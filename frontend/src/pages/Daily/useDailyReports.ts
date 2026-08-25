@@ -22,7 +22,7 @@ import { parseISO, TODAY } from '@/utils/date'
 
 import { periodLabelFor, periodRange, periodStart } from './periods'
 
-const PAGE_LIMIT = 100
+const PAGE_LIMIT = 30
 const DAY = 86_400_000
 const API_KIND: Record<ReportKind, ApiReportKind> = {
   일일: 'daily',
@@ -134,10 +134,15 @@ export interface DraftPayload {
  * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 기간에 보고서를 하나 더
  * 만듭니다. 기간 전체를 서버에 물어야 합니다. 기간 안 어느 날짜든 같은 기간으로 접힙니다.
  */
-async function savedIdForPeriod(kind: ReportKind, dateISO: string): Promise<string | undefined> {
+export async function savedIdForPeriod(
+  kind: ReportKind,
+  dateISO: string,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   const [from, to] = periodRange(kind, dateISO)
   const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
     params: { report_kind: API_KIND[kind], start_date: from, end_date: to, limit: 1 },
+    signal,
   })
   return data.items[0]?.id
 }
