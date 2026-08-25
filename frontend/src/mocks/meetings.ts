@@ -17,6 +17,7 @@ export const meetingReportSeed: MeetingReportSeed[] = [
     place: '본관 3층',
     title: 'CardioView X7 제품 테스트',
     status: '확정',
+    review: 'approved',
     transcript:
       '박서준 교수님과 CardioView X7 테스트 결과를 확인했다. 화면 가독성은 좋았지만 유지보수 비용이 기존 장비보다 높다는 의견이 있었다. 구매팀 이민호 과장에게 다음 주 화요일까지 비교 견적과 유지보수 범위표를 보내기로 했다.',
     values: {
@@ -42,6 +43,7 @@ export const meetingReportSeed: MeetingReportSeed[] = [
     place: '학회장 미팅룸',
     title: '학회 현장 구매 담당자 면담',
     status: '확정',
+    review: 'submitted',
     transcript:
       '최수아 책임과 학회장에서 짧게 면담했다. 기존 시스템 연동 범위를 확인했고 도입 승인은 하반기 예산 확정 이후에 진행된다고 했다.',
     values: {
