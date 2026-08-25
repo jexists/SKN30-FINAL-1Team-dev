@@ -104,12 +104,12 @@ export default function Dashboard() {
         <>
           <div className={styles.notices}>
             <NoticeTicker
-              items={data.notices.items.map((item) => toNotice(item, 'team'))}
+              items={data.notices.items.map((item) => toNotice(item))}
               onOpen={(notice) => setOpen({ type: 'notice', label: '공지', notice })}
             />
             <NoticeTicker
               label="팀장 지시사항"
-              items={data.directives.items.map((item) => toNotice(item, 'personal'))}
+              items={data.directives.items.map((item) => toNotice(item))}
               onOpen={(notice) => setOpen({ type: 'notice', label: '팀장 지시사항', notice })}
             />
           </div>

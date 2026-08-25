@@ -9,13 +9,19 @@ const DAY = 86_400_000
  */
 type NoticeLike = NoticeBrief & Partial<Pick<NoticeResponse, 'scope' | 'body' | 'image_alt'>>
 
-export function toNotice(item: NoticeLike, scope?: NoticeResponse['scope']): Notice {
+/** 종류는 서버가 준 type 이 먼저입니다. scope 는 type 이 없던 시절의 폴백입니다. */
+function isDirective(item: NoticeLike): boolean {
+  if (item.type !== undefined) return item.type === 'DIRECTIVE'
+  return item.scope === 'personal'
+}
+
+export function toNotice(item: NoticeLike): Notice {
   const published = new Date(item.published_at)
   const localDate = new Date(published.getTime() + 9 * 60 * 60_000).toISOString()
   const date = localDate.slice(0, 10)
   return {
     id: item.id,
-    tag: item.tag ?? ((item.scope ?? scope) === 'personal' ? '지시' : '공지'),
+    tag: item.tag ?? (isDirective(item) ? '지시' : '공지'),
     author: item.author_display_name,
     postedOff: Math.round((parseISO(date).getTime() - TODAY.getTime()) / DAY),
     postedAt: localDate.slice(11, 16),

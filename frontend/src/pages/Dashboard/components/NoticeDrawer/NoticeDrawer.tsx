@@ -45,13 +45,12 @@ export default function NoticeDrawer({ label, notice, onClose }: Props) {
       ) : loading || body === null ? (
         <InlineLoader label="전문을 불러오는 중입니다." />
       ) : (
-        <>
-          <p className={styles.detail}>{body.body}</p>
-          {/* 이미지는 있는 글에만 붙습니다. 본문을 읽고 난 뒤에 옵니다. */}
-          {notice.image && (
-            <img className={styles.image} src={notice.image} alt={body.image_alt ?? ''} />
-          )}
-        </>
+        /* 본문은 팀장이 편집기로 쓴 HTML 입니다. 서버(app/services/html_sanitize.py)가
+           저장할 때 허용 태그만 남기므로 여기서 다시 자르지 않고 그대로 그립니다.
+           허용목록을 넓힐 일이 생기면 반드시 서버 쪽을 먼저 봅니다.
+           사진도 본문 안에 있습니다. 주소는 서버가 응답할 때마다 새로 발급합니다. */
+        // oxlint-disable-next-line react/no-danger
+        <div className={styles.detail} dangerouslySetInnerHTML={{ __html: body.body }} />
       )}
     </Drawer>
   )

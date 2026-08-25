@@ -67,7 +67,7 @@ export default function NoticeTicker({ label = '공지', items: notices = [], on
 
       <ul className={styles.list} aria-live="polite">
         {current.map((n) => (
-          <li key={n.text}>
+          <li key={n.id ?? n.text}>
             <button type="button" onClick={() => onOpen(n)}>
               <p>{n.text}</p>
               <small>{postedLabel(n)}</small>

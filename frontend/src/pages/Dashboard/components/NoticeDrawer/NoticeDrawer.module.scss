@@ -13,20 +13,55 @@
   letter-spacing: -0.01em;
 }
 
+// 본문은 HTML 한 덩어리입니다. 편집기가 낼 수 있는 태그(RichTextEditor.valid_elements)에
+// 맞춰 자식 요소의 여백과 크기를 여기서 정합니다.
 .detail {
   margin-top: var(--s3);
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.75;
-  white-space: pre-line;
-}
 
-// 첨부 이미지는 드로어 폭에 맞춰 줄이고 원래 비율을 지킵니다.
-.image {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin-top: var(--s4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  :global(p) {
+    margin: 0 0 0.75em;
+  }
+
+  :global(ul),
+  :global(ol) {
+    margin: 0 0 0.75em;
+    padding-left: 1.25em;
+  }
+
+  :global(h2),
+  :global(h3),
+  :global(h4) {
+    margin: 1.25em 0 0.5em;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  :global(blockquote) {
+    margin: 0 0 0.75em;
+    padding-left: var(--s3);
+    border-left: 3px solid var(--line);
+    color: var(--muted);
+  }
+
+  :global(a) {
+    color: var(--brand-ink);
+    text-decoration: underline;
+  }
+
+  // 첨부 사진은 드로어 폭에 맞춰 줄이고 원래 비율을 지킵니다.
+  :global(img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: var(--s3) 0;
+    border-radius: var(--r-sm);
+  }
+
+  > :global(*:last-child) {
+    margin-bottom: 0;
+  }
 }
