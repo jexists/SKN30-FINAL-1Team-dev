@@ -17,7 +17,7 @@ import {
   meetingReportPath,
 } from '@/constants/routes'
 import { savedIdForPeriod } from '@/pages/Daily/useDailyReports'
-import { savedIdForAgenda } from '@/pages/Meetings/useMeetingReports'
+import { savedForAgenda } from '@/pages/Meetings/useMeetingReports'
 import type { AgendaItem } from '@/types'
 
 export interface AgendaReportLink {
@@ -51,7 +51,7 @@ export function useAgendaReportLink(item: AgendaItem | null) {
     // 같은 일정에 보고서를 하나 더 만들게 합니다. 서버에 직접 물어야 합니다.
     const ask = internal
       ? savedIdForPeriod('일일', date, controller.signal)
-      : savedIdForAgenda(id, controller.signal)
+      : savedForAgenda(id, controller.signal).then((row) => row?.id)
     void ask
       .then((savedId) => {
         if (controller.signal.aborted) return

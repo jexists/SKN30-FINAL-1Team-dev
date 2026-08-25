@@ -156,10 +156,9 @@ class CustomerContactRead(BaseModel):
     customer_contact_status_name: str | None
     customer_contact_status_tone: str | None
     status_code: OptionCode | None
-    # 컬럼은 자유 문자열이고 CHECK 도 "비어 있지 않다" 뿐이라, 이 앱이 쓰지 않은 값이
-    # 들어 있을 수 있다. 내보내는 쪽을 Literal 로 묶으면 그런 행 하나 때문에 목록 전체가
-    # 500 이 된다. 값을 좁히는 일은 CustomerSource 를 쓰는 쓰기 쪽이 맡는다.
-    source_code: str | None
+    # 예전에 들어온 코드도 그대로 읽어야 하므로 목록을 고정하지 않는다.
+    # 쓰기는 CustomerSource 로 막는다.
+    source_code: OptionCode | None
     memo: str | None
     visited: bool
     registered_at: datetime

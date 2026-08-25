@@ -26,6 +26,17 @@ const SOURCE_LABEL: Record<CustomerSourceCode, CustomerSource> = {
   existing_customer: '기존 거래',
 }
 
+// 목록 밖의 코드가 오면 화면이 빈칸이 되지 않게 미지정으로 둡니다.
+function toSourceLabel(code: string | null): CustomerSource {
+  if (code === null) return '미지정'
+  return SOURCE_LABEL[code as CustomerSourceCode] ?? '미지정'
+}
+
+function toStatusLabel(code: string | null): CustomerStatus {
+  if (code === null) return '미지정'
+  return STATUS_LABEL[code as CustomerStatusCode] ?? '미지정'
+}
+
 export function toCustomer(contact: CustomerContactResponse): Customer {
   return {
     id: contact.id,
@@ -36,8 +47,8 @@ export function toCustomer(contact: CustomerContactResponse): Customer {
     email: contact.email ?? '',
     phone: contact.phone,
     owner: contact.owner_display_name,
-    source: (contact.source_code && SOURCE_LABEL[contact.source_code]) ?? '미지정',
-    status: (contact.status_code && STATUS_LABEL[contact.status_code]) ?? '미지정',
+    source: toSourceLabel(contact.source_code),
+    status: toStatusLabel(contact.status_code),
     memo: contact.memo ?? '',
     visited: contact.visited,
     last: null,

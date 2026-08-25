@@ -56,8 +56,9 @@ export interface CustomerContactResponse {
   job_title: string | null
   email: string | null
   phone: string
-  status_code: CustomerStatusCode | null
-  source_code: CustomerSourceCode | null
+  /** 예전 데이터에는 아래 목록 밖의 코드도 있어 문자열을 그대로 받습니다. */
+  status_code: CustomerStatusCode | string | null
+  source_code: CustomerSourceCode | string | null
   memo: string | null
   visited: boolean
   registered_at: string
