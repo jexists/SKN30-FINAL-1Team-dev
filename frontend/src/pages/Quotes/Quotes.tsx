@@ -69,7 +69,7 @@ export default function Quotes() {
 
   const [sort, setSort] = useState<SortState>(null)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(30)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'owner' | 'range' | null>(null)
 
   const pipelineOptions = useMemo(

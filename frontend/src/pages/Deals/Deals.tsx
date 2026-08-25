@@ -73,7 +73,7 @@ export default function Deals() {
 
   const [sort, setSort] = useState<SortState>(null)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(30)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'range' | null>(null)
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)

@@ -44,7 +44,7 @@ export default function Customers() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(30)
   const [dialog, setDialog] = useState<OpenDialog>(null)
   const [cardDraft, setCardDraft] = useState<BusinessCardDraft | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
