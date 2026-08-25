@@ -9,13 +9,14 @@ import { Link, useSearchParams } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
-import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import { ChevronRightIcon } from '@/components/icons'
 import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
 import { KIND_LABEL, useAgendaState } from '@/shared/agenda'
 import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
+import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { meetingLinkFor, type SourceMeta } from './sources'
 import useDailyReports from './useDailyReports'
@@ -37,7 +38,7 @@ export default function MeetingPick() {
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState(undefined, undefined, true)
+  } = useAgendaState(dateISO, dateISO, true)
   const agenda = items.filter((item) => item.date === dateISO)
   const {
     findByAgenda,
@@ -86,11 +87,6 @@ export default function MeetingPick() {
       <h1 className="sr-only">미팅/업무보고서 작성</h1>
 
       <header className={styles.head}>
-        <Link className={styles.back} to={ROUTES.DAILY}>
-          <ChevronLeftIcon />
-          업무 보고
-        </Link>
-
         <h2 className={styles.title}>미팅/업무보고서 작성</h2>
 
         <label className={styles.dateField}>
@@ -102,6 +98,9 @@ export default function MeetingPick() {
             onChange={(event) => changeDate(event.target.value)}
           />
         </label>
+
+        {/* 미팅과 사내 업무를 함께 고르는 화면이라 목록도 '전체' 로 엽니다. */}
+        <DailyListLink />
       </header>
 
       <p className={styles.note}>

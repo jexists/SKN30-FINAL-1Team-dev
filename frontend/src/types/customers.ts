@@ -56,8 +56,9 @@ export interface CustomerContactResponse {
   job_title: string | null
   email: string | null
   phone: string
-  status_code: CustomerStatusCode | null
-  source_code: CustomerSourceCode | null
+  /** 예전 데이터에는 아래 목록 밖의 코드도 있어 문자열을 그대로 받습니다. */
+  status_code: CustomerStatusCode | string | null
+  source_code: CustomerSourceCode | string | null
   memo: string | null
   visited: boolean
   registered_at: string
@@ -113,4 +114,12 @@ export interface PageResponse<T> {
   total: number
   has_more: boolean
   next_skip: number | null
+}
+
+/**
+ * 탭이 있는 목록의 한 쪽. `counts` 는 {탭 코드: 건수}이고, 고른 탭은 빼고 센 값이라
+ * `total` 과 다릅니다. 탭까지 적용해 세면 고른 탭만 숫자가 남고 나머지가 0 이 됩니다.
+ */
+export interface TabbedPageResponse<T> extends PageResponse<T> {
+  counts: Record<string, number>
 }

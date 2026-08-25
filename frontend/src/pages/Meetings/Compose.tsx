@@ -8,12 +8,12 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
-import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import { meetingReportPath, ROUTES } from '@/constants/routes'
-import { useAgendaState } from '@/shared/agenda'
+import DailyListLink from '@/pages/Daily/components/DailyListLink'
+import { useAgendaItem } from '@/shared/agenda'
 import { showToast } from '@/shared/toast'
 import { fmtDot, parseISO } from '@/utils/date'
 
@@ -37,23 +37,22 @@ export default function Compose() {
 
   const agendaId = params.get('agenda') ?? ''
   const {
-    items: agenda,
+    item,
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState(undefined, undefined, true)
-  const item = agendaId ? agenda.find((entry) => entry.id === agendaId) : undefined
+  } = useAgendaItem(agendaId)
 
   const { findByAgenda, saveReport, saveDraft, loading, error, pending, reload } =
     useMeetingReports()
   const saved = agendaId ? findByAgenda(agendaId) : undefined
-  const locked = saved?.status === '확정'
+  // 팀장 확인이 끝나기 전까지는 다시 열어 고칠 수 있습니다.
+  const locked = saved?.review === 'approved'
 
   const draft = useMeetingDraft(item, saved)
 
   const [reference, setReference] = useState<Reference>('info')
   const [confirm, setConfirm] = useState<Confirm>(null)
-  const [savedNote, setSavedNote] = useState(false)
 
   if (agendaLoading || loading) {
     return (
@@ -132,15 +131,6 @@ export default function Compose() {
     }
   }
 
-  const onSaveDraft = async () => {
-    try {
-      await saveDraft(payload)
-      setSavedNote(true)
-    } catch {
-      setSavedNote(false)
-    }
-  }
-
   const onSubmit = async () => {
     if (locked) return
     try {
@@ -172,22 +162,18 @@ export default function Compose() {
         {item.hospital} {item.title} 미팅 보고서 작성
       </h1>
 
+      {/*
+        누가·언제인지는 왼쪽 미팅 정보가 이미 말합니다. 머리말이 맡는 것은
+        여기서 나가는 길 하나뿐이라 버튼만 오른쪽 끝에 둡니다.
+      */}
       <header className={styles.head}>
-        <Link className={styles.back} to={ROUTES.DASHBOARD}>
-          <ChevronLeftIcon />
-          대시보드
-        </Link>
-        <p className={styles.pageTitle}>미팅 보고서</p>
+        <DailyListLink tab="meeting" />
       </header>
-
-      {savedNote && (
-        <p className={styles.savedNote}>임시저장했습니다. 이 일정에서 다시 열면 이어서 씁니다.</p>
-      )}
 
       {locked && saved && (
         <p className={styles.locked}>
-          이 미팅 보고서는 이미 제출되어 수정할 수 없습니다.{' '}
-          <Link to={meetingReportPath(saved.id)}>확정한 보고서 열기</Link>
+          팀장 확인이 끝난 미팅 보고서라 수정할 수 없습니다.{' '}
+          <Link to={meetingReportPath(saved.id)}>보고서 열기</Link>
         </p>
       )}
 
@@ -219,6 +205,9 @@ export default function Compose() {
             <MeetingInfoPanel
               item={item}
               attachments={draft.attachments}
+              onAttach={(files) => void draft.addAttachments(files)}
+              onRemoveAttachment={draft.removeAttachment}
+              attachmentError={draft.attachmentError}
               transcript={draft.transcript}
               onTranscriptChange={draft.setTranscript}
               canGenerate={draft.canGenerate}
@@ -249,15 +238,15 @@ export default function Compose() {
           onTitleChange={draft.setTitle}
           when={`${fmtDot(parseISO(item.date))} ${item.time}`}
           values={draft.values}
-          aiFilledIds={draft.aiFilledIds}
-          onChange={draft.setValue}
+          docKey={draft.docKey}
+          onChange={draft.applyDocument}
+          sectionIssues={draft.sectionIssues}
+          onRestoreSections={draft.restoreSections}
           evidence={draft.evidence}
-          missing={draft.missing}
           locked={locked}
           saving={pending}
           hasAiOriginal={draft.hasAiOriginal}
           onStartManual={draft.startManual}
-          onSaveDraft={() => void onSaveDraft()}
           onRegenerate={() => void onGenerate()}
           onPrint={() => window.print()}
           onSubmit={() => setConfirm({ kind: 'save' })}
@@ -307,7 +296,6 @@ export default function Compose() {
                 onClick={() => {
                   draft.reset()
                   setConfirm(null)
-                  setSavedNote(false)
                   setReference('info')
                 }}
               >
@@ -322,8 +310,8 @@ export default function Compose() {
 
       {confirm?.kind === 'save' && (
         <Modal
-          title="미팅 보고서를 확정할까요?"
-          description="확정하면 고객 히스토리와 그날 업무보고의 활동 내역에 반영됩니다."
+          title="미팅 보고서를 제출할까요?"
+          description="제출하면 고객 히스토리와 그날 업무보고의 활동 내역에 반영됩니다."
           onClose={() => setConfirm(null)}
           footer={
             <>
@@ -331,7 +319,7 @@ export default function Compose() {
                 취소
               </Button>
               <Button type="button" disabled={pending} onClick={() => void onSubmit()}>
-                {pending ? '저장 중…' : '확정'}
+                {pending ? '제출 중…' : '제출'}
               </Button>
             </>
           }

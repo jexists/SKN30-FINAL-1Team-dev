@@ -7,40 +7,33 @@ import Popover from '@/components/Popover'
 import Skeleton, { InlineLoader } from '@/components/Skeleton'
 import { EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import { orderPath } from '@/constants/routes'
-import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import { endTime, statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
-import type { AgendaItem, ApiPurchaseOrder } from '@/types'
+import type { AgendaItem } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
+
+import { useRelatedDeal } from '../../useDashboard'
 
 import styles from './RecordDrawer.module.scss'
 
 interface Props {
   item: AgendaItem
-  done: boolean
-  deals: SalesDeal[]
-  orders: ApiPurchaseOrder[]
-  relatedLoading: boolean
-  relatedError: string | null
-  onRetryRelated: () => void
   onClose: () => void
   onEdit?: (item: AgendaItem) => void
   onDelete?: (id: string) => void
 }
 
-export default function RecordDrawer({
-  item,
-  done,
-  deals,
-  orders,
-  relatedLoading,
-  relatedError,
-  onRetryRelated,
-  onClose,
-  onEdit,
-  onDelete,
-}: Props) {
+export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props) {
+  // 관련 영업·발주는 이 드로어를 열 때만 받아 옵니다.
+  const {
+    deal,
+    orders: relatedOrders,
+    loading: relatedLoading,
+    error: relatedError,
+    reload: onRetryRelated,
+  } = useRelatedDeal(item.salesDealId ?? null)
+  const done = item.done
   const [menuOpen, setMenuOpen] = useState(false)
   const reportState = useAgendaReportLink()
   const report = reportState.resolve(item)
@@ -56,11 +49,6 @@ export default function RecordDrawer({
       ['장소', item.place],
     ] as [string, string][]
   ).filter(([, value]) => value !== '')
-  const deal = item.salesDealId ? deals.find(({ id }) => id === item.salesDealId) : undefined
-  const relatedOrders = item.salesDealId
-    ? orders.filter((order) => order.salesDealId === item.salesDealId)
-    : []
-
   return (
     <Drawer
       wide

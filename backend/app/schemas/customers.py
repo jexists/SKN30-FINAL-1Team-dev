@@ -156,7 +156,8 @@ class CustomerContactRead(BaseModel):
     customer_contact_status_name: str | None
     customer_contact_status_tone: str | None
     status_code: OptionCode | None
-    source_code: CustomerSource | None
+    # 예전에 들어온 코드도 그대로 읽어야 하므로 목록을 고정하지 않는다. 쓰기는 CustomerSource 로 막는다.
+    source_code: OptionCode | None
     memo: str | None
     visited: bool
     registered_at: datetime

@@ -770,3 +770,56 @@ def test_complete_hides_other_scope_activity():
     assert hidden.json() == {"detail": "activity_not_found"}
     assert hidden_db.commit_count == 0
     assert hidden_db.rollback_count == 1
+
+
+def test_follow_up_filters_drop_the_date_range_and_sort_by_due():
+    """미완료 후속업무는 기간이 아니라 상태로 묶는다. 대시보드 카드와 같은 조건이라야 한다."""
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    product = _product(member.team_id)
+    activity = _activity(member, contact_id=contact.id, product_id=product.id)
+    db = _Db(
+        _Result(scalar=1),
+        _Result(
+            rows=[
+                _row(
+                    activity,
+                    member,
+                    contact,
+                    company,
+                    product,
+                    _category(member.team_id),
+                    _action_tag(member.team_id),
+                )
+            ]
+        ),
+    )
+
+    with _client(db, member) as client:
+        response = client.get(
+            "/api/activities",
+            params=[
+                ("activity_type", "task"),
+                ("completed", "false"),
+                ("sort", "due_at"),
+            ],
+        )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    sql = str(db.statements[-1])
+    assert "activity.activity_type IN" in sql
+    # 대시보드 후속업무 카드가 세는 조건과 글자 그대로 같아야 한다.
+    assert "activity.completed_at IS NULL" in sql
+    assert "activity.starts_at >=" not in sql
+    assert "ORDER BY public.activity.due_at, public.activity.id" in sql
+
+
+def test_end_date_without_start_date_is_rejected():
+    member = _member()
+    db = _Db()
+    with _client(db, member) as client:
+        response = client.get("/api/activities?end_date=2026-08-17")
+    assert response.status_code == 422
+    assert not db.statements

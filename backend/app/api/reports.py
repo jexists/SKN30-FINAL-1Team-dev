@@ -250,6 +250,8 @@ async def list_reports(
         scope.append(Report.report_date >= page.start_date)
     if page.end_date is not None:
         scope.append(Report.report_date <= page.end_date)
+    if page.source_activity_id is not None:
+        scope.append(Report.source_activity_id == page.source_activity_id)
     if page.q is not None:
         pattern = _contains(page.q)
         scope.append(

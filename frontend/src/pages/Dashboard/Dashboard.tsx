@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
@@ -6,12 +6,9 @@ import Modal from '@/components/Modal'
 import type { AgendaItem, CalendarEvent, Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import EventModal from '@/pages/Calendar/components/EventModal'
-import useCalendarEvents, { DEFAULTS } from '@/pages/Calendar/useCalendarEvents'
-import useSupportRequests from '@/pages/Complaints/useSupportRequests'
-import useSalesDeals from '@/pages/Deals/useSalesDeals'
-import useOrderList from '@/pages/Orders/useOrderList'
-import { useNotices } from '@/shared/notices'
-import { addDays, iso, TODAY, TODAY_ISO } from '@/utils/date'
+import { DEFAULTS, useAgendaMutations } from '@/pages/Calendar/useCalendarEvents'
+import { toNotice } from '@/shared/notices'
+import { iso, TODAY_ISO } from '@/utils/date'
 
 import DashboardSkeleton from './components/DashboardSkeleton'
 import DayAgenda from './components/DayAgenda'
@@ -21,11 +18,16 @@ import NoticeTicker from './components/NoticeTicker'
 import RecordDrawer from './components/RecordDrawer'
 import SummaryBand from './components/SummaryBand'
 import WeekCalendar from './components/WeekCalendar'
-import { kpiList, type KpiListKey } from './drawerLists'
+import { csList, followUpList, renewalList, type KpiListKey } from './drawerLists'
+import useDashboard, {
+  useFollowUpList,
+  useRenewalList,
+  useSupportList,
+  weekStart,
+} from './useDashboard'
 
 import styles from './Dashboard.module.scss'
 
-const rangeStart = (offset: number) => addDays(TODAY, -2 + offset * 7)
 const FLASH_MS = 1400
 
 type OpenDrawer =
@@ -35,42 +37,6 @@ type OpenDrawer =
   | { type: 'notice'; label: string; notice: Notice }
 
 export default function Dashboard() {
-  const {
-    events,
-    loading: agendaLoading,
-    error: agendaError,
-    reload: reloadAgenda,
-    addEvent,
-    updateEvent,
-    removeEvent,
-    toggleComplete,
-  } = useCalendarEvents()
-  const {
-    notices,
-    directives,
-    loading: noticesLoading,
-    error: noticesError,
-    reload: reloadNotices,
-  } = useNotices()
-  const {
-    requests,
-    loading: supportLoading,
-    error: supportError,
-    reload: reloadSupport,
-  } = useSupportRequests(null)
-  const {
-    cards: deals,
-    loading: dealsLoading,
-    error: dealsError,
-    reload: reloadDeals,
-  } = useSalesDeals(null, null, 'list')
-  const {
-    orders,
-    loading: ordersLoading,
-    error: ordersError,
-    reload: reloadOrders,
-  } = useOrderList()
-
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
   const [weekOffset, setWeekOffset] = useState(0)
   const [flash, setFlash] = useState(false)
@@ -78,16 +44,22 @@ export default function Dashboard() {
   const [editing, setEditing] = useState<AgendaItem | null>(null)
   const [deleting, setDeleting] = useState<AgendaItem | null>(null)
 
-  const doneIds = useMemo(
-    () => new Set(events.filter((event) => event.done).map((event) => event.id)),
-    [events],
-  )
+  const { data, loading, error: loadError, reload } = useDashboard(weekOffset)
+  // 일정 목록은 하루씩 받아 옵니다. 오늘치는 위 응답이 이미 심어 두어 다시 받지 않습니다.
+  const { mutationError, addEvent, updateEvent, removeEvent, toggleComplete } = useAgendaMutations()
+
+  // 드로어는 눌러야 열립니다. 열린 것만 자기 목록을 받아 옵니다.
+  const kpiKey = open?.type === 'kpi' ? open.key : null
+  const followUps = useFollowUpList(kpiKey === 'followUp')
+  const support = useSupportList(kpiKey === 'cs')
+  const renewals = useRenewalList(kpiKey === 'renewal', data?.date ?? TODAY_ISO)
+
   const agendaRef = useRef<HTMLElement>(null)
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 
   const changeWeek = useCallback((offset: number) => {
     setWeekOffset(offset)
-    setSelectedISO(iso(rangeStart(offset)))
+    setSelectedISO(iso(weekStart(offset)))
   }, [])
 
   const goToday = useCallback(() => {
@@ -96,11 +68,13 @@ export default function Dashboard() {
   }, [])
 
   const toggleDone = useCallback(
-    (id: string) => {
-      const event = events.find((item) => item.id === id)
-      if (event) void toggleComplete(id, event.done).catch(() => undefined)
+    (item: AgendaItem) => {
+      // 타일의 오늘 일정 수는 완료 여부와 무관하지만, 후속업무 수는 따라 움직입니다.
+      void toggleComplete(item.id, item.done)
+        .then(reload)
+        .catch(() => undefined)
     },
-    [events, toggleComplete],
+    [reload, toggleComplete],
   )
 
   const closeDrawer = useCallback(() => setOpen(null), [])
@@ -115,49 +89,39 @@ export default function Dashboard() {
     setTimeout(() => setFlash(false), FLASH_MS)
   }, [goToday, reduceMotion])
 
-  const error = agendaError ?? noticesError ?? supportError ?? dealsError ?? ordersError
-  const loading = agendaLoading || noticesLoading || supportLoading || dealsLoading || ordersLoading
-
-  const reload = () => {
-    reloadAgenda()
-    reloadNotices()
-    reloadSupport()
-    reloadDeals()
-    reloadOrders()
-  }
+  const error = loadError ?? mutationError
 
   return (
     <section aria-busy={loading}>
       <h1 className="sr-only">영업 대시보드</h1>
 
       <ErrorToast message={error} onRetry={reload} />
-      {/* 다섯 군데에서 따로 받아 오지만 화면은 한 벌로 섭니다. 위젯마다 도착할 때마다
-          자리표시자를 걷으면 공지·타일·달력이 차례로 튀어 화면이 서너 번 들썩입니다.
-          그래서 하나라도 오는 중이면 전부 자리표시자로 두고 한 번에 바꿉니다. */}
-      {loading ? (
+      {/* 주를 옮기면 다시 받아 오지만 자리표시자로 되돌리지는 않습니다. 화살표를 누를
+          때마다 화면 전체가 사라졌다 서면 어디를 보고 있었는지 놓칩니다. */}
+      {data === null ? (
         <DashboardSkeleton />
       ) : (
         <>
           <div className={styles.notices}>
             <NoticeTicker
-              items={notices}
+              items={data.notices.items.map((item) => toNotice(item, 'team'))}
               onOpen={(notice) => setOpen({ type: 'notice', label: '공지', notice })}
             />
             <NoticeTicker
               label="팀장 지시사항"
-              items={directives}
+              items={data.directives.items.map((item) => toNotice(item, 'personal'))}
               onOpen={(notice) => setOpen({ type: 'notice', label: '팀장 지시사항', notice })}
             />
           </div>
 
           <SummaryBand
-            requests={requests}
-            deals={deals}
+            data={data}
             onJumpToToday={jumpToToday}
             onOpenList={(key) => setOpen({ type: 'kpi', key })}
           />
 
           <WeekCalendar
+            weekly={data.weekly}
             weekOffset={weekOffset}
             selectedISO={selectedISO}
             onSelect={setSelectedISO}
@@ -168,7 +132,6 @@ export default function Dashboard() {
           <DayAgenda
             ref={agendaRef}
             dateISO={selectedISO}
-            doneIds={doneIds}
             onToggleDone={toggleDone}
             onOpen={(item) => setOpen({ type: 'record', item })}
             onAddSchedule={() => setOpen({ type: 'addEvent' })}
@@ -195,7 +158,9 @@ export default function Dashboard() {
           // 닫는 일은 모달이 합니다. 등록한 뒤 결과를 보여 줄 자리가 있어야 해서입니다.
           onSave={(event) => {
             const { id: _id, ...draft } = event
-            void addEvent(draft).catch(() => undefined)
+            void addEvent(draft)
+              .then(reload)
+              .catch(() => undefined)
             setSelectedISO(draft.date)
           }}
         />
@@ -206,7 +171,9 @@ export default function Dashboard() {
           draft={editing}
           onClose={() => setEditing(null)}
           onSave={(event) => {
-            void updateEvent(event).catch(() => undefined)
+            void updateEvent(event)
+              .then(reload)
+              .catch(() => undefined)
             setSelectedISO(event.date)
           }}
         />
@@ -225,7 +192,9 @@ export default function Dashboard() {
               <Button
                 type="button"
                 onClick={() => {
-                  void removeEvent(deleting.id).catch(() => undefined)
+                  void removeEvent(deleting.id)
+                    .then(reload)
+                    .catch(() => undefined)
                   setDeleting(null)
                 }}
               >
@@ -240,24 +209,34 @@ export default function Dashboard() {
         </Modal>
       )}
 
-      {open?.type === 'record' && (
-        <RecordDrawer
-          item={open.item}
-          done={doneIds.has(open.item.id)}
-          deals={deals}
-          orders={orders}
-          relatedLoading={dealsLoading || ordersLoading}
-          relatedError={dealsError ?? ordersError}
-          onRetryRelated={() => {
-            reloadDeals()
-            reloadOrders()
-          }}
+      {open?.type === 'record' && <RecordDrawer item={open.item} onClose={closeDrawer} />}
+
+      {kpiKey === 'followUp' && data !== null && (
+        <ListDrawer
+          list={followUpList(followUps.items, data.follow_ups)}
+          loading={followUps.loading}
+          error={followUps.error}
+          onRetry={followUps.reload}
           onClose={closeDrawer}
         />
       )}
-
-      {open?.type === 'kpi' && (
-        <ListDrawer list={kpiList(open.key, requests, deals)} onClose={closeDrawer} />
+      {kpiKey === 'cs' && (
+        <ListDrawer
+          list={csList(support.items)}
+          loading={support.loading}
+          error={support.error}
+          onRetry={support.reload}
+          onClose={closeDrawer}
+        />
+      )}
+      {kpiKey === 'renewal' && (
+        <ListDrawer
+          list={renewalList(renewals.items)}
+          loading={renewals.loading}
+          error={renewals.error}
+          onRetry={renewals.reload}
+          onClose={closeDrawer}
+        />
       )}
 
       {open?.type === 'notice' && (

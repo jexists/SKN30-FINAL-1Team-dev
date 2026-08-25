@@ -1,10 +1,11 @@
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
 import { ComplaintIcon, PlusIcon, SearchIcon } from '@/components/icons'
+import Pagination from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton, SkeletonDetail } from '@/components/Skeleton'
 import Tabs, { type TabItem } from '@/components/Tabs'
@@ -60,11 +61,21 @@ export default function Complaints() {
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(30)
   const isDesktop = useMediaQuery(`(min-width: ${BP_DESKTOP}px)`)
 
+  // 검색어나 탭이 바뀌면 결과가 줄어 지금 쪽수가 범위를 넘을 수 있습니다.
+  useEffect(() => {
+    setPage(1)
+  }, [deferredQuery, status])
+
   const {
-    requests,
+    requests: rows,
+    total,
+    counts,
     contacts,
+    loadContacts,
     loading,
     error,
     reload,
@@ -78,7 +89,14 @@ export default function Complaints() {
     createRequest,
     transition,
     addResponse,
-  } = useSupportRequests(openId)
+  } = useSupportRequests(openId, {
+    q: deferredQuery,
+    status: status as SupportStatusCode | '',
+    skip: (page - 1) * pageSize,
+    limit: pageSize,
+  })
+
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   const setParam = useCallback(
     (key: string, value: string) => {
@@ -90,45 +108,26 @@ export default function Complaints() {
     [params, setParams],
   )
 
-  const beforeStatus = useMemo(() => {
-    const needle = deferredQuery.trim().toLowerCase()
-    if (needle === '') return requests
-    return requests.filter((request) =>
-      [
-        request.title,
-        request.body,
-        request.customer_company_name,
-        request.customer_contact_name,
-        request.assignee_display_name,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(needle),
-    )
-  }, [requests, deferredQuery])
-
-  const rows = useMemo(
-    () =>
-      status === ''
-        ? beforeStatus
-        : beforeStatus.filter((request) => request.status_code === status),
-    [beforeStatus, status],
-  )
-
+  // 탭 옆 건수는 서버가 셉니다. 고른 탭은 빼고 센 값이라, 탭을 바꿔도 다른 탭 숫자가
+  // 0 으로 죽지 않습니다.
   const statusTabs = useMemo<TabItem[]>(
     () => [
-      { value: '', label: '전체', count: beforeStatus.length },
+      {
+        value: '',
+        label: '전체',
+        count: Object.values(counts).reduce((sum, count) => sum + count, 0),
+      },
       ...STATES.map((state) => ({
         value: state.code,
         label: state.label,
-        count: beforeStatus.filter((request) => request.status_code === state.code).length,
+        count: counts[state.code] ?? 0,
         tone: state.tone,
       })),
     ],
-    [beforeStatus],
+    [counts],
   )
 
-  const summary = openId === null ? undefined : requests.find((request) => request.id === openId)
+  const summary = openId === null ? undefined : rows.find((request) => request.id === openId)
   const open = detail?.id === openId ? detail : summary
   const isFiltered = query.trim() !== '' || status !== ''
 
@@ -139,7 +138,7 @@ export default function Complaints() {
 
   // 첫 진입입니다. 툴바·탭·표가 차례로 나타나면 화면이 두세 번 들썩이므로
   // 화면 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
-  if (loading && requests.length === 0 && !error) {
+  if (loading && rows.length === 0 && !error) {
     return (
       <section className={styles.page} aria-busy={loading}>
         <h1 className="sr-only">고객불만관리</h1>
@@ -162,7 +161,13 @@ export default function Complaints() {
         />
 
         <div className={styles.actions}>
-          <Button disabled={loading} onClick={() => setAdding(true)}>
+          <Button
+            disabled={loading}
+            onClick={() => {
+              setAdding(true)
+              void loadContacts()
+            }}
+          >
             <PlusIcon width={15} height={15} />
             불만 등록
           </Button>
@@ -176,7 +181,7 @@ export default function Complaints() {
         onChange={(next) => setParam('status', next)}
       />
 
-      {!error && loading && requests.length > 0 && (
+      {!error && loading && rows.length > 0 && (
         <InlineLoader label="고객불만 목록을 새로고침하는 중입니다." />
       )}
 
@@ -197,7 +202,14 @@ export default function Complaints() {
               <>
                 <ComplaintIcon width={34} height={34} strokeWidth={1.5} />
                 <p>접수된 고객불만이 없습니다.</p>
-                <Button onClick={() => setAdding(true)}>불만 등록</Button>
+                <Button
+                  onClick={() => {
+                    setAdding(true)
+                    void loadContacts()
+                  }}
+                >
+                  불만 등록
+                </Button>
               </>
             )}
           </div>
@@ -285,6 +297,21 @@ export default function Complaints() {
             </li>
           ))}
         </ul>
+      )}
+
+      {rows.length > 0 && (
+        <Pagination
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          total={total}
+          unit="건"
+          onPage={setPage}
+          onPageSize={(size) => {
+            setPageSize(size)
+            setPage(1)
+          }}
+        />
       )}
 
       {open && (

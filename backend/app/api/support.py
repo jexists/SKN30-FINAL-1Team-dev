@@ -205,12 +205,11 @@ async def list_support_requests(
 ) -> SupportRequestPage:
     # 범위를 먼저 검증한다. 거절이면 데이터 쿼리가 한 건도 나가지 않아야 한다.
     assignee_ids = await owner_scope(db, member, page.assignee_member_id)
-    scope = _scope(member, assignee_ids)
-    if page.status_code is not None:
-        scope.append(SupportRequest.status_code.in_(tuple(dict.fromkeys(page.status_code))))
+    # 상태를 뺀 나머지 조건. 탭 건수가 이 범위를 센다.
+    shared = _scope(member, assignee_ids)
     if page.q is not None:
         pattern = _contains(page.q)
-        scope.append(
+        shared.append(
             or_(
                 SupportRequest.title.ilike(pattern, escape="\\"),
                 SupportRequest.body.ilike(pattern, escape="\\"),
@@ -219,6 +218,10 @@ async def list_support_requests(
                 _assignee.display_name.ilike(pattern, escape="\\"),
             )
         )
+
+    scope = [*shared]
+    if page.status_code is not None:
+        scope.append(SupportRequest.status_code.in_(tuple(dict.fromkeys(page.status_code))))
 
     total_result = await db.execute(_joined_select(func.count(SupportRequest.id)).where(*scope))
     total = total_result.scalar_one()
@@ -230,6 +233,14 @@ async def list_support_requests(
         .limit(page.limit)
     )
     rows = rows_result.all()
+    # 탭 옆 건수. 고른 상태는 빼고 센다. 상태까지 적용하면 고른 탭만 숫자가 남고 나머지가
+    # 0 이 되어, 다른 탭에 무엇이 얼마나 있는지 알 수 없다.
+    counts_result = await db.execute(
+        _joined_select(SupportRequest.status_code, func.count(SupportRequest.id))
+        .where(*shared)
+        .group_by(SupportRequest.status_code)
+    )
+    counts = {code: count for code, count in counts_result.all()}
     response_map = await _responses_by_request_ids(db, member, [row[0].id for row in rows])
     items = [_request_read(*row, response_map[row[0].id]) for row in rows]
     has_more = page.skip + len(items) < total
@@ -240,6 +251,7 @@ async def list_support_requests(
         total=total,
         has_more=has_more,
         next_skip=page.skip + len(items) if has_more else None,
+        counts=counts,
     )
 
 

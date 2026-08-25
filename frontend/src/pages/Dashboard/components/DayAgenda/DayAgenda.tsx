@@ -21,9 +21,7 @@ import styles from './DayAgenda.module.scss'
 
 interface Props {
   dateISO: string
-  /** 완료 표시한 일정 id. 메모리에만 있고 저장하지 않습니다. */
-  doneIds: ReadonlySet<string>
-  onToggleDone: (id: string) => void
+  onToggleDone: (item: AgendaItem) => void
   onOpen: (item: AgendaItem) => void
   onAddSchedule: () => void
   /** 줄 메뉴의 '수정'. 일정 폼을 엽니다. */
@@ -38,7 +36,7 @@ const DAY = 86_400_000
 const RELATIVE: Record<string, string> = { '-1': '어제', '0': '오늘', '1': '내일' }
 
 const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
-  { dateISO, doneIds, onToggleDone, onOpen, onAddSchedule, onEdit, onDelete, flash },
+  { dateISO, onToggleDone, onOpen, onAddSchedule, onEdit, onDelete, flash },
   ref,
 ) {
   const list = useAgendaFor(dateISO)
@@ -55,7 +53,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   const relative = RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
   /** groupStart 는 업무 묶음의 첫 줄입니다. 미팅과의 경계를 선 하나로 긋습니다. */
   const renderItem = (it: AgendaItem, groupStart = false) => {
-    const done = doneIds.has(it.id)
+    const done = it.done
     const report = reportState.resolve(it)
     // 업무는 고객이 없어 회사·담당자 자리가 비고, 대신 언제까지 어디서 하는지가 남습니다.
     const task = it.kind === 'internal'
@@ -78,7 +76,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
           aria-label={done ? `${it.title} 완료 취소` : `${it.title} 완료로 표시`}
           onClick={(event) => {
             event.stopPropagation()
-            onToggleDone(it.id)
+            onToggleDone(it)
           }}
         >
           {done && <CheckIcon width={13} height={13} />}

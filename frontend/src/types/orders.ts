@@ -1,3 +1,4 @@
+import type { TabbedPageResponse } from './customers'
 import type { ColumnTone } from './stage'
 
 export interface OrderLine {
@@ -117,4 +118,12 @@ export type OrderPatchRequest = Omit<OrderCreateRequest, 'stage_code'>
 export interface OrderMoveRequest {
   expected_stage_code: string
   stage_code: string
+}
+
+/**
+ * 발주 목록 한 쪽. `counts` 는 상태 탭 옆 건수, `suppliers` 는 공급처 고르는 칸에 세울
+ * 이름입니다. 둘 다 자기 조건만 빼고 집계한 값이라 쪽이 바뀌어도 그대로입니다.
+ */
+export interface OrderPageResponse extends TabbedPageResponse<OrderResponse> {
+  suppliers: string[]
 }

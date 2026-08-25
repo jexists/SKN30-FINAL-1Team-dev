@@ -5,22 +5,22 @@
   white-space: nowrap;
 }
 
-.isDraft {
+.isBlue {
   background: var(--blue-tint);
   color: var(--blue);
 }
 
-.isPending {
+.isOrange {
   background: var(--orange-tint);
   color: var(--orange-ink);
 }
 
-.isDone {
+.isGreen {
   background: var(--green-tint);
   color: var(--green-ink);
 }
 
-.isRejected {
+.isRed {
   background: var(--red-tint);
   color: var(--red-ink);
 }

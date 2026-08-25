@@ -1,7 +1,9 @@
 // demo/layout_v3.html 의 #listDrawer 입니다.
 // 대시보드의 모든 카운터 뒤에 이 드로어 하나가 섭니다. KPI 타일이면 필터 없이,
 // 발주 타일이면 위에 필터 칩을 달고 같은 표면을 씁니다.
+import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
+import { InlineLoader } from '@/components/Skeleton'
 
 import type { DrawerList, DrawerListRow } from '../../drawerLists'
 import type { OrderFilterKey } from '../../orderFilters'
@@ -10,6 +12,10 @@ import styles from './ListDrawer.module.scss'
 
 interface Props {
   list: DrawerList
+  /** KPI 목록은 눌러야 받아 옵니다. 발주 목록은 이미 손에 있어 이 셋을 주지 않습니다. */
+  loading?: boolean
+  error?: string | null
+  onRetry?: () => void
   /** 있으면 머리말 아래에 필터 칩이 붙습니다. 발주 목록에서만 씁니다. */
   filters?: { key: OrderFilterKey; label: string; n: number }[]
   activeFilter?: OrderFilterKey
@@ -58,6 +64,9 @@ function Row({ row }: { row: DrawerListRow }) {
 
 export default function ListDrawer({
   list,
+  loading,
+  error,
+  onRetry,
   filters,
   activeFilter,
   onFilter,
@@ -86,7 +95,18 @@ export default function ListDrawer({
         ))
       }
     >
-      {list.rows.length === 0 ? (
+      {error ? (
+        <p className={styles.empty} role="alert">
+          {error}{' '}
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              다시 시도
+            </Button>
+          )}
+        </p>
+      ) : loading ? (
+        <InlineLoader label="목록을 불러오는 중입니다." />
+      ) : list.rows.length === 0 ? (
         <p className={styles.empty}>{list.empty ?? '표시할 항목이 없습니다.'}</p>
       ) : (
         list.rows.map((row) => {

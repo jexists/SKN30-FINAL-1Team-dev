@@ -15,6 +15,8 @@ import type {
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
+import { reviewOf } from './reviewStatus'
+
 const PAGE_LIMIT = 100
 const DAY = 86_400_000
 
@@ -59,6 +61,7 @@ function toReport(item: ReportResponse): MeetingReport {
     place: text(content.place),
     title: text(content.title),
     status: statusOf(item.status_code),
+    review: reviewOf(item.status_code, content.on_hold === true),
     transcript: item.transcript ?? '',
     values: valuesOf(content.values ?? item.content),
     attachments: Array.isArray(content.attachments)
@@ -106,6 +109,19 @@ export interface MeetingDraftPayload {
   aiValues: Record<string, string>
   aiEvidence?: string
   aiGeneratedAt?: string
+}
+
+/**
+ * 이 일정으로 이미 쓴 보고서의 번호. 저장할 때 새로 만들지 고칠지를 이걸로 가릅니다.
+ *
+ * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 일정에 보고서를 하나 더
+ * 만듭니다. 서버에 직접 물어야 합니다.
+ */
+async function savedForAgenda(agendaId: string): Promise<ReportResponse | undefined> {
+  const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
+    params: { report_kind: 'meeting', source_activity_id: agendaId, limit: 1 },
+  })
+  return data.items[0]
 }
 
 function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
@@ -183,39 +199,40 @@ export default function useMeetingReports() {
     [reports],
   )
 
-  const save = useCallback(
-    async (draft: MeetingDraftPayload, submit: boolean) => {
-      setPending(true)
-      setError(null)
-      try {
-        const existing = findByAgenda(draft.agendaId)
-        const request = requestOf(draft)
-        const { report_kind: _kind, source_activity_id: _source, ...patch } = request
-        const saved = existing
-          ? await client.patch<ReportResponse>(`/reports/${existing.id}`, patch)
-          : await client.post<ReportResponse>('/reports', request)
-        const response = submit
+  const save = useCallback(async (draft: MeetingDraftPayload, submit: boolean) => {
+    setPending(true)
+    setError(null)
+    try {
+      const existing = await savedForAgenda(draft.agendaId)
+      const request = requestOf(draft)
+      const { report_kind: _kind, source_activity_id: _source, ...patch } = request
+      const saved = existing
+        ? await client.patch<ReportResponse>(`/reports/${existing.id}`, patch)
+        : await client.post<ReportResponse>('/reports', request)
+      // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
+      // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
+      const from = existing?.status_code ?? 'draft'
+      const response =
+        submit && (from === 'draft' || from === 'rejected')
           ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
-              expected_status_code: 'draft',
+              expected_status_code: from,
             })
           : saved
-        const report = toReport(response.data)
-        setReports((current) => [report, ...current.filter((item) => item.id !== report.id)])
-        return report
-      } catch (reason: unknown) {
-        setError(
-          errorMessage(
-            reason,
-            submit ? '미팅 기록을 확정하지 못했습니다.' : '임시저장하지 못했습니다.',
-          ),
-        )
-        throw reason
-      } finally {
-        setPending(false)
-      }
-    },
-    [findByAgenda],
-  )
+      const report = toReport(response.data)
+      setReports((current) => [report, ...current.filter((item) => item.id !== report.id)])
+      return report
+    } catch (reason: unknown) {
+      setError(
+        errorMessage(
+          reason,
+          submit ? '미팅 기록을 확정하지 못했습니다.' : '임시저장하지 못했습니다.',
+        ),
+      )
+      throw reason
+    } finally {
+      setPending(false)
+    }
+  }, [])
 
   return {
     reports,

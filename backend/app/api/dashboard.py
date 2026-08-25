@@ -23,14 +23,15 @@ from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.crm import Activity, SupportRequest
 from app.models.sales import PurchaseOrder, SalesDeal, SalesTarget
 from app.models.workspace import Member, Notice
+from app.schemas.activities import ActivityRead
 from app.schemas.dashboard import (
     CountCard,
     DashboardParams,
     DashboardRead,
     FollowUpCard,
+    NoticeBrief,
     NoticeSummary,
     RenewalCard,
-    RenewalItem,
     SalesTargetCard,
     SupportCard,
     WeeklyBand,
@@ -40,9 +41,14 @@ from app.schemas.dashboard import (
 router = APIRouter(tags=["dashboard"])
 
 _SEOUL = ZoneInfo("Asia/Seoul")
-# 주간 밴드는 기준일이 속한 주의 일요일부터 7일이다. 유스케이스의 전 주·오늘·다음 주
-# 이동이 주 단위라서 달력 주에 맞춘다.
+# 주간 밴드는 요청이 준 시작일부터 7일이다. 화면이 "오늘을 셋째 칸에" 처럼 자기 기준으로
+# 7일을 세우므로 시작일은 요청이 정한다. 주지 않으면 기준일이 속한 주의 일요일로 둔다.
 _WEEK_DAYS = 7
+
+
+def _week_start(day: date) -> date:
+    """weekday() 는 월요일이 0 이라 일요일 시작으로 옮긴다."""
+    return day - timedelta(days=(day.weekday() + 1) % 7)
 
 
 def _day_bounds(day: date) -> tuple[datetime, datetime]:
@@ -70,7 +76,22 @@ async def _notice_summary(
             .limit(limit)
         )
     ).all()
-    return NoticeSummary(total=total, items=[notices_api._notice_read(*row) for row in rows])
+    # 티커는 제목과 게시 시각만 세운다. 본문과 이미지는 눌렀을 때 /api/notices/{id} 가 준다.
+    return NoticeSummary(
+        total=total,
+        items=[
+            NoticeBrief(
+                id=notice.id,
+                tag=notice.tag,
+                author_display_name=author_display_name,
+                title=notice.title,
+                published_at=notices_api._seoul(notice.published_at),
+                due_at=notices_api._seoul(notice.due_at),
+                due_text=notice.due_text,
+            )
+            for notice, author_display_name in rows
+        ],
+    )
 
 
 async def _activity_cards(
@@ -120,6 +141,41 @@ async def _activity_cards(
     )
 
 
+async def _today_activities(
+    db: AsyncSession,
+    member: Member,
+    owner_ids: tuple[UUID, ...] | None,
+    day: date,
+) -> list[ActivityRead]:
+    """오늘 목록은 눌러야 열리는 드로어와 달리 진입하자마자 화면에 선다.
+
+    카드 숫자와 같은 담당자 범위·같은 하루 경계를 써야 "오늘 일정 N건" 과 목록 길이가
+    어긋나지 않는다.
+    """
+    start, end = _day_bounds(day)
+    rows = (
+        await db.execute(
+            activities_api._joined_select(
+                Activity,
+                activities_api._owner.display_name,
+                activities_api._contact,
+                activities_api._company.id,
+                activities_api._company.name,
+                activities_api._product.name,
+                activities_api._activity_category,
+                activities_api._activity_action_tag,
+            )
+            .where(
+                *activities_api._scope(member, owner_ids),
+                Activity.starts_at >= start,
+                Activity.starts_at < end,
+            )
+            .order_by(Activity.starts_at, Activity.id)
+        )
+    ).all()
+    return [activities_api._activity_read(*row) for row in rows]
+
+
 async def _support_card(
     db: AsyncSession,
     member: Member,
@@ -146,7 +202,11 @@ async def _renewal_card(
     day: date,
     within_days: int | None,
 ) -> RenewalCard:
-    """확정된 계약 중 종료일이 다가오는 딜. 갱신 대상이다."""
+    """확정된 계약 중 종료일이 다가오는 딜. 갱신 대상이다.
+
+    목록 전체는 카드를 눌렀을 때 /api/sales-deals 가 같은 조건으로 준다. 여기서는
+    타일이 쓰는 개수와 대표 회사 이름만 센다.
+    """
     conditions = [
         *deals_api._scope(member, owner_ids),
         deals_api._stage.outcome_code == "confirmed",
@@ -155,25 +215,19 @@ async def _renewal_card(
     ]
     if within_days is not None:
         conditions.append(SalesDeal.contract_ends_on <= day + timedelta(days=within_days))
-    rows = (
+    count = (
+        await db.execute(deals_api._joined_select(func.count(SalesDeal.id)).where(*conditions))
+    ).scalar_one()
+    # "새봄정형외과 외 1곳" 의 앞자리. 종료가 가장 급한 한 건이면 충분하다.
+    lead_company_name = (
         await db.execute(
-            deals_api._joined_select(SalesDeal, deals_api._company.name)
+            deals_api._joined_select(deals_api._company.name)
             .where(*conditions)
             .order_by(SalesDeal.contract_ends_on, SalesDeal.id)
+            .limit(1)
         )
-    ).all()
-    items = [
-        RenewalItem(
-            sales_deal_id=deal.id,
-            deal_no=deal.deal_no,
-            title=deal.title,
-            customer_company_name=company_name,
-            contract_no=deal.contract_no,
-            contract_ends_on=deal.contract_ends_on,
-        )
-        for deal, company_name in rows
-    ]
-    return RenewalCard(within_days=within_days, count=len(items), items=items)
+    ).scalar_one_or_none()
+    return RenewalCard(within_days=within_days, count=count, lead_company_name=lead_company_name)
 
 
 async def _sales_target_card(
@@ -235,10 +289,8 @@ async def _weekly_band(
     db: AsyncSession,
     member: Member,
     owner_ids: tuple[UUID, ...] | None,
-    day: date,
+    start_date: date,
 ) -> WeeklyBand:
-    # weekday() 는 월요일이 0 이라 일요일 시작으로 옮긴다.
-    start_date = day - timedelta(days=(day.weekday() + 1) % 7)
     end_date = start_date + timedelta(days=_WEEK_DAYS - 1)
     range_start, _ = _day_bounds(start_date)
     _, range_end = _day_bounds(end_date)
@@ -312,11 +364,14 @@ async def read_dashboard(
         directives=await _notice_summary(db, member, "personal", params.notice_limit),
         visited_companies=visited,
         activities=activity_total,
+        today_activities=await _today_activities(db, member, owner_ids, day),
         follow_ups=follow_ups,
         support_requests=await _support_card(db, member, owner_ids),
         contract_renewals=await _renewal_card(
             db, member, owner_ids, day, params.renewal_within_days
         ),
         sales_target=await _sales_target_card(db, member, owner_ids, day),
-        weekly=await _weekly_band(db, member, owner_ids, day),
+        weekly=await _weekly_band(
+            db, member, owner_ids, params.weekly_start_date or _week_start(day)
+        ),
     )

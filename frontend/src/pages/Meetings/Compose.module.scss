@@ -1,49 +1,15 @@
+/* 나가는 길 하나만 있는 머리말입니다. 오른쪽 끝, 상세 화면과 같은 자리입니다. */
 .head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s1);
-  margin-bottom: var(--s4);
+  justify-content: flex-end;
+  margin-bottom: var(--s3);
 }
 
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-
-  &:hover {
-    color: var(--blue);
-  }
-}
-
-/*
- * 머리말은 제목과 되돌아가는 길만 맡습니다. 회사·일시는 왼쪽 미팅 정보 탭과
- * 오른쪽 보고서 머리글에 이미 있어 여기서 되풀이하지 않고, 저장 버튼도
- * 시트 아래 한 곳에만 둡니다.
- */
-.pageTitle {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.savedNote,
 .locked {
   margin-bottom: var(--s3);
   padding: var(--s3) var(--s4);
   border-radius: var(--r-md);
   font-size: 13px;
-}
-
-.savedNote {
-  background: var(--green-tint);
-  color: var(--green-ink);
-}
-
-.locked {
   background: var(--orange-tint);
   color: var(--orange-ink);
 
@@ -104,9 +70,7 @@
   justify-content: space-between;
   gap: var(--s3);
   min-height: var(--control-h);
-  margin-bottom: var(--s3);
-  padding-bottom: var(--s3);
-  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--s5);
 }
 
 .refTitle {
@@ -129,7 +93,6 @@
   // 클래스를 겹쳐 씁니다. 화면용 규칙과 특정도가 같으면 파일이 붙는 순서에 좌우돼
   // 개발 서버에서 무엇이 이길지 달라집니다.
   .head.head,
-  .savedNote.savedNote,
   .locked.locked,
   .reference.reference {
     display: none;

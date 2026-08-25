@@ -59,6 +59,9 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   empty_file: '빈 파일은 올릴 수 없습니다.',
   file_too_large: '파일 용량이 너무 큽니다.',
   storage_not_configured: '파일 저장소 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  // 음성 변환 (/transcriptions)
+  stt_not_configured: '음성 변환 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  stt_unavailable: '음성 변환 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
 }
 
 /**

@@ -16,6 +16,8 @@ export const ROUTES = {
   NOTIFICATIONS: '/notifications', // 알림. 진입은 헤더 벨에서 합니다.
   CALENDAR: '/calendar',
   MEETINGS: '/meetings', // 미팅보고서. 진입은 대시보드 일정에서 합니다.
+  // 작성 화면. 머리말 이름이 상세와 달라야 해서 경로를 따로 둡니다.
+  MEETINGS_NEW: '/meetings/new',
   DAILY: '/daily', // 업무 보고
   DEALS: '/deals', // 영업 현황
   SALES: '/sales', // 매출 분석
@@ -68,9 +70,7 @@ export const dailyReportPath = (id: string) => `${ROUTES.DAILY}/${id}`
  * 이미 쓴 기록을 고칠 때도 같은 경로를 씁니다.
  */
 export const meetingComposePath = (agendaId?: string) =>
-  agendaId
-    ? `${ROUTES.MEETINGS}/new?agenda=${encodeURIComponent(agendaId)}`
-    : `${ROUTES.MEETINGS}/new`
+  agendaId ? `${ROUTES.MEETINGS_NEW}?agenda=${encodeURIComponent(agendaId)}` : ROUTES.MEETINGS_NEW
 
 /** 확정한 미팅보고서 상세 */
 export const meetingReportPath = (id: string) => `${ROUTES.MEETINGS}/${id}`

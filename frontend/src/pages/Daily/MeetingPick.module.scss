@@ -6,19 +6,6 @@
   margin-bottom: var(--s3);
 }
 
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-
-  &:hover {
-    color: var(--blue);
-  }
-}
-
 .title {
   font-size: 17px;
   font-weight: 600;

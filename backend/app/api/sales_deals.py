@@ -570,7 +570,14 @@ async def list_products(
 ) -> ProductPage:
     scope = [Product.team_id == member.team_id, Product.active.is_(True)]
     if page.q is not None:
-        scope.append(Product.name.ilike(_contains(page.q), escape="\\"))
+        pattern = _contains(page.q)
+        matches = [
+            Product.name.ilike(pattern, escape="\\"),
+            Product.memo.ilike(pattern, escape="\\"),
+        ]
+        if page.q_category_code is not None:
+            matches.append(Product.category_code.in_(tuple(dict.fromkeys(page.q_category_code))))
+        scope.append(or_(*matches))
     total_result = await db.execute(select(func.count(Product.id)).where(*scope))
     total = total_result.scalar_one()
     products_result = await db.execute(
@@ -746,22 +753,39 @@ async def list_sales_deals(
     if page.sales_pipeline_id is not None:
         await _team_pipeline(db, member, page.sales_pipeline_id)
 
+    # 단계를 뺀 나머지 조건. 단계 탭 옆 건수가 이 범위를 센다. 단계까지 넣고 세면
+    # 고른 탭에만 숫자가 남아 다른 단계에 무엇이 얼마나 있는지 알 수 없다.
     scope = _scope(member, owner_ids)
     if page.sales_pipeline_id is not None:
         scope.append(SalesDeal.sales_pipeline_id == page.sales_pipeline_id)
-    if stage_ids is not None:
-        scope.append(SalesDeal.sales_pipeline_stage_id.in_(stage_ids))
     if page.phase_code is not None:
         scope.append(_stage.phase_code.in_(tuple(dict.fromkeys(page.phase_code))))
+    if page.outcome_code is not None:
+        scope.append(_stage.outcome_code.in_(tuple(dict.fromkeys(page.outcome_code))))
+    # 계약 종료일 범위. 대시보드 계약갱신 카드가 세는 조건과 같아야 타일 숫자와 목록
+    # 총계가 맞는다. 종료일이 없는 딜은 이 비교에서 스스로 빠진다.
+    if page.contract_ends_from is not None:
+        scope.append(SalesDeal.contract_ends_on >= page.contract_ends_from)
+    if page.contract_ends_to is not None:
+        scope.append(SalesDeal.contract_ends_on <= page.contract_ends_to)
+    basis = {
+        "opened": SalesDeal.opened_on,
+        "quote_issued": func.coalesce(SalesDeal.quote_issued_on, SalesDeal.opened_on),
+        "contract_signed": func.coalesce(SalesDeal.contract_signed_on, SalesDeal.opened_on),
+    }[page.date_basis]
     if page.start_date is not None:
-        scope.append(SalesDeal.opened_on >= page.start_date)
+        scope.append(basis >= page.start_date)
     if page.end_date is not None:
-        scope.append(SalesDeal.opened_on <= page.end_date)
+        scope.append(basis <= page.end_date)
     if page.q is not None:
         pattern = _contains(page.q)
         scope.append(
             or_(
                 SalesDeal.deal_no.ilike(pattern, escape="\\"),
+                # 견적·계약 화면은 그 국면의 번호로 찾는다. 번호가 아직 없으면 딜 번호를
+                # 쓰므로 둘 다 본다.
+                SalesDeal.quote_no.ilike(pattern, escape="\\"),
+                SalesDeal.contract_no.ilike(pattern, escape="\\"),
                 SalesDeal.title.ilike(pattern, escape="\\"),
                 SalesDeal.memo.ilike(pattern, escape="\\"),
                 _company.name.ilike(pattern, escape="\\"),
@@ -774,16 +798,26 @@ async def list_sales_deals(
             )
         )
 
-    total_result = await db.execute(_joined_select(func.count(SalesDeal.id)).where(*scope))
+    by_stage = [] if stage_ids is None else [SalesDeal.sales_pipeline_stage_id.in_(stage_ids)]
+    rows_scope = [*scope, *by_stage]
+
+    total_result = await db.execute(_joined_select(func.count(SalesDeal.id)).where(*rows_scope))
     total = total_result.scalar_one()
     rows_result = await db.execute(
         _joined_select(*_read_entities())
-        .where(*scope)
+        .where(*rows_scope)
         .order_by(SalesDeal.opened_on.desc(), SalesDeal.id)
         .offset(page.skip)
         .limit(page.limit)
     )
     items = [_sales_deal_read(*row) for row in rows_result.all()]
+    # 단계 탭 옆 건수. 고른 단계만 빼고 센다.
+    counts_result = await db.execute(
+        _joined_select(SalesDeal.sales_pipeline_stage_id, func.count(SalesDeal.id))
+        .where(*scope)
+        .group_by(SalesDeal.sales_pipeline_stage_id)
+    )
+    counts = {str(stage_id): count for stage_id, count in counts_result.all()}
     has_more = page.skip + len(items) < total
     return SalesDealPage(
         items=items,
@@ -792,6 +826,7 @@ async def list_sales_deals(
         total=total,
         has_more=has_more,
         next_skip=page.skip + len(items) if has_more else None,
+        counts=counts,
     )
 
 

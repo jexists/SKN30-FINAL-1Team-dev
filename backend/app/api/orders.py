@@ -466,16 +466,18 @@ async def list_orders(
     db: DbSession,
 ) -> OrderPage:
     owner_ids = await owner_scope(db, member, page.owner_member_id)
-    scope = _scope(member, owner_ids)
-    scope.append(_sales_stage.phase_code == "order")
-    if page.supplier_name is not None:
-        scope.append(PurchaseOrder.supplier_name == page.supplier_name)
-    if page.stage_code is not None:
-        scope.append(_order_status.code.in_(tuple(dict.fromkeys(page.stage_code))))
+    # 상태 탭과 공급처를 뺀 나머지 조건. 탭 건수와 공급처 목록이 이 범위를 본다. 자기
+    # 조건까지 넣고 집계하면 고른 항목만 남고 나머지가 사라져 고를 수가 없어진다.
+    shared = _scope(member, owner_ids)
+    shared.append(_sales_stage.phase_code == "order")
+    if page.order_no is not None:
+        shared.append(PurchaseOrder.order_no == page.order_no)
+    if page.sales_deal_id is not None:
+        shared.append(PurchaseOrder.sales_deal_id.in_(tuple(dict.fromkeys(page.sales_deal_id))))
     if page.start_date is not None:
-        scope.append(PurchaseOrder.ordered_on >= page.start_date)
+        shared.append(PurchaseOrder.ordered_on >= page.start_date)
     if page.end_date is not None:
-        scope.append(PurchaseOrder.ordered_on <= page.end_date)
+        shared.append(PurchaseOrder.ordered_on <= page.end_date)
     if page.q is not None:
         pattern = _contains(page.q)
         product_match = (
@@ -489,7 +491,7 @@ async def list_orders(
             )
             .exists()
         )
-        scope.append(
+        shared.append(
             or_(
                 PurchaseOrder.order_no.ilike(pattern, escape="\\"),
                 PurchaseOrder.supplier_name.ilike(pattern, escape="\\"),
@@ -501,6 +503,16 @@ async def list_orders(
             )
         )
 
+    by_supplier = (
+        [] if page.supplier_name is None else [PurchaseOrder.supplier_name == page.supplier_name]
+    )
+    by_stage = (
+        []
+        if page.stage_code is None
+        else [_order_status.code.in_(tuple(dict.fromkeys(page.stage_code)))]
+    )
+    scope = [*shared, *by_supplier, *by_stage]
+
     total_result = await db.execute(_joined_select(func.count(PurchaseOrder.id)).where(*scope))
     total = total_result.scalar_one()
     rows_result = await db.execute(
@@ -511,6 +523,23 @@ async def list_orders(
         .limit(page.limit)
     )
     rows = rows_result.all()
+    # 탭 옆 건수. 고른 상태만 빼고 나머지 조건은 그대로 둔다. 상태까지 넣고 세면 고른
+    # 탭에만 숫자가 남아 다른 탭에 무엇이 얼마나 있는지 알 수 없다.
+    counts_result = await db.execute(
+        _joined_select(_order_status.code, func.count(PurchaseOrder.id))
+        .where(*shared, *by_supplier)
+        .group_by(_order_status.code)
+    )
+    counts = {code: count for code, count in counts_result.all()}
+    # 공급처 고르는 칸. 쪽에 담긴 발주만 보면 지금 쪽에 없는 공급처를 고를 수 없다.
+    # 자기 조건만 빼고 상태는 적용해, 골랐을 때 0건이 되는 공급처는 아예 내놓지 않는다.
+    suppliers_result = await db.execute(
+        _joined_select(PurchaseOrder.supplier_name)
+        .where(*shared, *by_stage)
+        .group_by(PurchaseOrder.supplier_name)
+        .order_by(PurchaseOrder.supplier_name)
+    )
+    suppliers = [name for (name,) in suppliers_result.all()]
     item_map = await _items_by_order_ids(db, member, [row[0].id for row in rows])
     items = [_order_read(*row, item_map[row[0].id]) for row in rows]
     has_more = page.skip + len(items) < total
@@ -521,6 +550,8 @@ async def list_orders(
         total=total,
         has_more=has_more,
         next_skip=page.skip + len(items) if has_more else None,
+        counts=counts,
+        suppliers=suppliers,
     )
 
 

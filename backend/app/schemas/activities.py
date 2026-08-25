@@ -137,6 +137,8 @@ class ActivityRead(BaseModel):
     starts_at: datetime
     ends_at: datetime | None
     all_day: bool
+    # 후속업무 목록이 지연과 마감을 이 값으로 읽는다. 미팅에는 대개 비어 있다.
+    due_at: datetime | None
     location: str | None
     activity_action_tag_id: UUID | None
     activity_action_tag_name: str | None
@@ -171,14 +173,27 @@ class ActivityPage(BaseModel):
 class ActivityPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    start_date: CalendarDate
+    # 달력은 늘 범위를 주지만, 미완료 후속업무처럼 기간이 아니라 상태로 묶는 목록도 있다.
+    # 그런 조회는 날짜를 비우고 아래 필터만 쓴다.
+    start_date: CalendarDate | None = None
     end_date: CalendarDate | None = None
+    activity_type: list[ActivityType] | None = None
+    completed: bool | None = None
     owner_member_id: list[UUID] | None = None
+    # 후속업무는 시작 시각이 아니라 마감이 급한 순으로 읽는다. 페이지로 끊어 받으므로
+    # 서버가 정렬하지 않으면 순서가 페이지 안에서만 맞는다.
+    sort: Literal["starts_at", "due_at"] = "starts_at"
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=100)
 
     @model_validator(mode="after")
     def dates_in_order(self) -> Self:
-        if self.end_date is not None and self.end_date < self.start_date:
+        if self.end_date is not None and self.start_date is None:
+            raise ValueError("end_date requires start_date")
+        if (
+            self.start_date is not None
+            and self.end_date is not None
+            and self.end_date < self.start_date
+        ):
             raise ValueError("end_date must not be before start_date")
         return self

@@ -323,6 +323,7 @@ def test_sales_deal_list_exposes_pipeline_stage_type_and_phase_filter():
     db = _Db(
         _Result(scalar=1),
         _Result(rows=[_row(deal, member, pipeline, stage, deal_type, company, product)]),
+        _Result(rows=[(stage.id, 1)]),
     )
 
     page = asyncio.run(
@@ -476,3 +477,122 @@ def test_move_closes_only_closed_phase_and_rejects_another_pipeline(monkeypatch)
     assert exc.value.detail == "sales_pipeline_stage_pipeline_mismatch"
     assert deal.closed_on is None
     assert db.rollback_count == 1
+
+
+def test_renewal_filters_match_the_dashboard_card():
+    """계약갱신 카드를 눌러 여는 목록. 카드가 세는 조건과 같아야 숫자와 총계가 맞는다."""
+    member = _member()
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline, code="contract_completed", phase="contract", outcome="confirmed")
+    deal_type = _deal_type(member)
+    company = _company(member)
+    product = _product(member)
+    deal = _deal(member, pipeline, stage, deal_type, company, product)
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[_row(deal, member, pipeline, stage, deal_type, company, product)]),
+        _Result(rows=[(stage.id, 1)]),
+    )
+
+    page = asyncio.run(
+        api.list_sales_deals(
+            SalesDealPageParams(
+                outcome_code=["confirmed"],
+                contract_ends_from=date(2026, 8, 25),
+                contract_ends_to=date(2026, 9, 24),
+            ),
+            member,
+            db,
+        )
+    )
+
+    assert page.total == 1
+    for statement in db.statements:
+        sql = str(statement)
+        assert "outcome_code IN" in sql
+        assert "sales_deal.contract_ends_on >=" in sql
+        assert "sales_deal.contract_ends_on <=" in sql
+
+
+def test_renewal_window_rejects_a_reversed_range():
+    with pytest.raises(ValidationError):
+        SalesDealPageParams(
+            contract_ends_from=date(2026, 9, 24), contract_ends_to=date(2026, 8, 25)
+        )
+
+
+def test_stage_tab_counts_ignore_the_chosen_stage():
+    """단계 탭 옆 건수는 고른 단계만 빼고 센다.
+
+    단계까지 넣고 세면 고른 탭에만 숫자가 남아 다른 단계에 무엇이 얼마나 있는지 알 수
+    없다. 반대로 파이프라인·검색어까지 빼면 탭 숫자가 실제로 열리는 목록보다 커진다.
+    """
+    member = _member()
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline, code="quote_sent", phase="quote", position=2)
+    other = _stage(pipeline, code="quote_ready", phase="quote", position=1)
+    db = _Db(
+        _Result(scalar_values=[stage.id]),
+        _Result(scalar=pipeline),
+        _Result(scalar=0),
+        _Result(rows=[]),
+        _Result(rows=[(stage.id, 3), (other.id, 7)]),
+    )
+
+    page = asyncio.run(
+        api.list_sales_deals(
+            SalesDealPageParams(
+                sales_pipeline_id=pipeline.id,
+                sales_pipeline_stage_id=[stage.id],
+                q="합성",
+            ),
+            member,
+            db,
+        )
+    )
+
+    assert page.counts == {str(stage.id): 3, str(other.id): 7}
+
+    rows_sql = str(db.statements[3])
+    counts_sql = str(db.statements[4])
+    stage_filter = "sales_deal.sales_pipeline_stage_id IN"
+    # 목록은 단계를 적용한다. 이 단언이 깨지면 아래 not in 이 헛돈다.
+    assert stage_filter in rows_sql
+    # 건수는 단계를 빼고 파이프라인과 검색어는 남긴다.
+    assert stage_filter not in counts_sql
+    assert "sales_deal.sales_pipeline_id = " in counts_sql
+    assert "%합성%" in db.statements[4].compile().params.values()
+
+
+def test_date_basis_moves_the_range_to_the_phase_date():
+    """견적 화면의 기간은 발행일 기준이다. 딜 시작일로 걸면 다른 목록이 나온다.
+
+    발행일이 아직 없는 딜은 시작일로 되돌려 세야, 번호를 매기기 전 견적이 기간에서
+    통째로 사라지지 않는다.
+    """
+    member = _member()
+    db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]))
+
+    asyncio.run(
+        api.list_sales_deals(
+            SalesDealPageParams(
+                phase_code=["quote"],
+                date_basis="quote_issued",
+                start_date=date(2026, 3, 1),
+            ),
+            member,
+            db,
+        )
+    )
+
+    sql = str(db.statements[0])
+    assert "coalesce(public.sales_deal.quote_issued_on, public.sales_deal.opened_on) >=" in sql
+
+    # 기본값은 예전 그대로 시작일이다. 대시보드 등 이미 쓰던 조회가 바뀌면 안 된다.
+    default_db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]))
+    asyncio.run(
+        api.list_sales_deals(SalesDealPageParams(start_date=date(2026, 3, 1)), member, default_db)
+    )
+    default_sql = str(default_db.statements[0])
+    assert "public.sales_deal.opened_on >=" in default_sql
+    assert "coalesce" not in default_sql.lower()

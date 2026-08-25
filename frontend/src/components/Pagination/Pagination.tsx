@@ -5,7 +5,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 
 import styles from './Pagination.module.scss'
 
-const PAGE_SIZES = [25, 50, 100]
+const PAGE_SIZES = [30, 50, 100]
 
 interface PaginationProps {
   page: number

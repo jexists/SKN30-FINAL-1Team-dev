@@ -142,6 +142,10 @@ class ProductPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     q: SearchQuery | None = None
+    # 검색어가 가리키는 분류 코드. 화면은 "소모품" 처럼 분류 이름으로도 찾는데, 그 이름은
+    # 화면(catalog.ts)만 알고 DB 에는 코드만 있다. 화면이 풀어서 보내고 서버는 q 와 OR 로
+    # 묶는다. 이름 표를 여기에 한 벌 더 두면 두 곳이 어긋난다.
+    q_category_code: list[OptionCode] | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=100)
 
@@ -278,6 +282,8 @@ class SalesDealPage(BaseModel):
     total: int
     has_more: bool
     next_skip: int | None
+    # 단계 탭 옆 건수 {단계 id: 건수}. 고른 단계는 빼고 센 값이라 total 과 다르다.
+    counts: dict[str, int] = Field(default_factory=dict)
 
 
 class SalesDealPageParams(BaseModel):
@@ -286,10 +292,19 @@ class SalesDealPageParams(BaseModel):
     q: SearchQuery | None = None
     start_date: date | None = None
     end_date: date | None = None
+    # start_date·end_date 를 어느 날짜에 걸지. 견적 화면은 발행일로, 계약 화면은 체결일로
+    # 기간을 좁힌다. 둘 다 비어 있을 수 있어 시작일로 되돌린다. 기본값은 시작일이라
+    # 이미 쓰던 조회는 그대로다.
+    date_basis: Literal["opened", "quote_issued", "contract_signed"] = "opened"
     owner_member_id: list[UUID] | None = None
     sales_pipeline_id: UUID | None = None
     sales_pipeline_stage_id: list[UUID] | None = None
     phase_code: list[SalesPhase] | None = None
+    outcome_code: list[SalesOutcome] | None = None
+    # 계약갱신 목록이 쓰는 창. start_date/end_date 가 보는 opened_on 과 다른 날짜라
+    # 이름을 따로 둔다.
+    contract_ends_from: date | None = None
+    contract_ends_to: date | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=100)
 
@@ -301,4 +316,10 @@ class SalesDealPageParams(BaseModel):
             and self.end_date < self.start_date
         ):
             raise ValueError("end_date must not be before start_date")
+        if (
+            self.contract_ends_from is not None
+            and self.contract_ends_to is not None
+            and self.contract_ends_to < self.contract_ends_from
+        ):
+            raise ValueError("contract_ends_to must not be before contract_ends_from")
         return self
