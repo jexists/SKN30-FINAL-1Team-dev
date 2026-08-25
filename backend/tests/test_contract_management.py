@@ -30,9 +30,31 @@ def test_risk_rejects_unknown_code_and_extra_fields():
         )
 
 
+def test_risk_requires_at_least_one_source_ref():
+    """근거 없는 위험 판정을 막는다 — source_refs가 비어 있으면 거절한다."""
+    with pytest.raises(ValidationError):
+        contract_management.ContractRisk(
+            code="contract_expiring",
+            severity="high",
+            message="계약 종료일이 임박했습니다.",
+            source_refs=[],
+        )
+
+
 def test_source_ref_accepts_document_type_for_rag_citations():
     ref = contract_management.SourceRef(type="document", id="doc-1")
     assert ref.type == "document"
+
+
+def test_briefing_output_source_refs_default_empty_and_accept_document_refs():
+    empty = contract_management.ContractBriefingOutput(contract_summary="자료 없음")
+    assert empty.source_refs == []
+
+    cited = contract_management.ContractBriefingOutput(
+        contract_summary="자료실 문서를 근거로 작성했습니다.",
+        source_refs=[contract_management.SourceRef(type="document", id="doc-1")],
+    )
+    assert cited.source_refs[0].type == "document"
 
 
 def test_next_meeting_duration_is_bounded():
@@ -69,9 +91,7 @@ async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(mo
                 code="quote_expiring",
                 severity="medium",
                 message="견적 유효기간이 임박했습니다.",
-                source_refs=[
-                    contract_management.SourceRef(type="sales_deal", id="deal-1")
-                ],
+                source_refs=[contract_management.SourceRef(type="sales_deal", id="deal-1")],
             )
         ],
         missing_information=[],
@@ -83,15 +103,18 @@ async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(mo
         return expected
 
     monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    risk_signals = [
+        {
+            "code": "quote_expiring",
+            "severity": "medium",
+            "sales_deal_id": "deal-1",
+        }
+    ]
     snapshot = {
         "customer_company": {"id": "company-1", "name": "테스트 병원"},
-        "risk_signals": [
-            {
-                "code": "quote_expiring",
-                "severity": "medium",
-                "sales_deal_id": "deal-1",
-            }
-        ],
+        "risk_signals": risk_signals,
+        # 허용 목록에 없는 값은 LLM에 전달되면 안 된다.
+        "internal_notes": "이 값은 프롬프트로 나가면 안 된다",
     }
 
     result = await contract_management.propose_next_meeting(snapshot)
@@ -100,7 +123,12 @@ async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(mo
     assert captured["instructions"] == contract_management.PROPOSE_NEXT_MEETING_SYSTEM_PROMPT
     assert captured["schema"] is contract_management.NextMeetingProposalOutput
     assert captured["schema_name"] == "contract_management_propose_next_meeting"
-    assert json.loads(captured["input_text"]) == snapshot
+    assert json.loads(captured["input_text"]) == {
+        "customer_company": {"id": "company-1", "name": "테스트 병원"},
+        "sales_deals": [],
+        "risk_signals": risk_signals,
+        "recent_approved_reports": [],
+    }
 
 
 @pytest.mark.anyio
@@ -118,13 +146,16 @@ async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monke
         return expected
 
     monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    approved_next_meeting = {
+        "sales_deal_id": "deal-1",
+        "starts_at": "2026-08-25T14:00:00+09:00",
+    }
     snapshot = {
         "customer_company": {"id": "company-1", "name": "테스트 병원"},
-        "approved_next_meeting": {
-            "sales_deal_id": "deal-1",
-            "starts_at": "2026-08-25T14:00:00+09:00",
-        },
+        "approved_next_meeting": approved_next_meeting,
         "document_summaries": [],
+        # 허용 목록에 없는 값은 LLM에 전달되면 안 된다.
+        "internal_notes": "이 값은 프롬프트로 나가면 안 된다",
     }
 
     result = await contract_management.generate_briefing(snapshot)
@@ -133,4 +164,9 @@ async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monke
     assert captured["instructions"] == contract_management.GENERATE_BRIEFING_SYSTEM_PROMPT
     assert captured["schema"] is contract_management.ContractBriefingOutput
     assert captured["schema_name"] == "contract_management_generate_briefing"
-    assert json.loads(captured["input_text"]) == snapshot
+    assert json.loads(captured["input_text"]) == {
+        "customer_company": {"id": "company-1", "name": "테스트 병원"},
+        "sales_deals": [],
+        "approved_next_meeting": approved_next_meeting,
+        "document_summaries": [],
+    }

@@ -20,6 +20,8 @@
 | [technical/multiagent/SalesLuv_멀티에이전트_운영_플로우.html](technical/multiagent/SalesLuv_멀티에이전트_운영_플로우.html) | SalesLuv 멀티에이전트 운영 흐름 다이어그램 |
 | [technical/multiagent/SalesLuv_멀티에이전트_운영_설명서.docx](technical/multiagent/SalesLuv_멀티에이전트_운영_설명서.docx) | 5개 에이전트의 역할과 상호작용 설명서 |
 | [technical/multiagent/미팅_보고서_계약_일정_Agent_흐름.md](technical/multiagent/미팅_보고서_계약_일정_Agent_흐름.md) | 미팅분석부터 계약관리 재진입까지 단계별 흐름 |
+| [technical/multiagent/계약에이전트_설계.md](technical/multiagent/계약에이전트_설계.md) | 계약관리 에이전트의 목표·지침·1차 실행/재진입 실행 설계 |
+| [technical/multiagent/일정관리에이전트_설계.md](technical/multiagent/일정관리에이전트_설계.md) | 일정관리 에이전트의 목표·지침·계약관리 에이전트와의 duplex 교류 설계 |
 | [technical/backend/api-conventions.md](technical/backend/api-conventions.md) | SalesLuv 최종 API 공통 규약 |
 | [technical/영업_파이프라인_프론트_연동_제안서.md](technical/영업_파이프라인_프론트_연동_제안서.md) | 프론트에 전달할 기능 역할·데이터·API 계약 |
 | [research/](research/) | 실험·비교·검토 결과 |

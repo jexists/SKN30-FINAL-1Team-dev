@@ -5,7 +5,7 @@ from datetime import datetime, time, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.services.llm import generate_structured
 
@@ -53,6 +53,30 @@ class ScheduleCandidate(BaseModel):
     reason: str = Field(default="", max_length=1_000)
 
 
+class _ActivityWindow(BaseModel):
+    """LLM에는 시간 범위와 충돌 식별자만 전달한다. 담당자 등 개인정보는 보내지 않는다."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    starts_at: str
+    ends_at: str | None = None
+    all_day: bool = False
+
+
+class _ScheduleLLMInput(BaseModel):
+    """LLM에 보낼 값의 허용 목록. snapshot에 다른 키가 있어도 여기 없으면 보내지 않는다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sales_deal_id: str | None = None
+    preferred_starts_at: str | None = None
+    preferred_ends_at: str | None = None
+    duration_minutes: int | None = None
+    reason: str | None = None
+    activities: list[_ActivityWindow] = Field(default_factory=list)
+
+
 class ScheduleManagementOutput(BaseModel):
     """일정관리 Agent의 최종 출력. `agent_run.output_snapshot`에 그대로 저장된다."""
 
@@ -92,17 +116,32 @@ def _occupied_range(activity: dict[str, Any]) -> tuple[datetime, datetime]:
 def _conflicts_for(
     candidate: ScheduleCandidate, activities: list[dict[str, Any]]
 ) -> list[ScheduleConflict]:
-    """시간이 실제로 겹치는 활동만 다시 계산해 충돌 근거로 남긴다."""
+    """시간이 실제로 겹치는 활동만 다시 계산해 충돌 근거로 남긴다.
+
+    개별 활동의 시각이 없거나 파싱할 수 없어도 전체 계산을 중단하지 않는다 — 그 활동만
+    `invalid_time` 충돌로 표시하고 나머지 활동은 정상적으로 검사한다.
+    """
     candidate_start = _parse(candidate.starts_at).astimezone(_SEOUL)
     candidate_end = _parse(candidate.ends_at).astimezone(_SEOUL)
     found: list[ScheduleConflict] = []
     for activity in activities:
-        occupied_start, occupied_end = _occupied_range(activity)
+        activity_id = str(activity.get("id", "unknown"))
+        try:
+            occupied_start, occupied_end = _occupied_range(activity)
+        except (KeyError, ValueError, TypeError):
+            found.append(
+                ScheduleConflict(
+                    activity_id=activity_id,
+                    member_id=activity.get("owner_member_id"),
+                    reason="invalid_time",
+                )
+            )
+            continue
         # 한쪽 종료 시각과 다른 쪽 시작 시각이 같으면(맞닿기만 하면) 겹침이 아니다.
         if candidate_start < occupied_end and occupied_start < candidate_end:
             found.append(
                 ScheduleConflict(
-                    activity_id=str(activity["id"]),
+                    activity_id=activity_id,
                     member_id=activity.get("owner_member_id"),
                     reason="all_day_overlap" if activity.get("all_day") else "time_overlap",
                 )
@@ -132,12 +171,32 @@ def _postprocess(
     )
 
 
+def _llm_activities(activities: list[dict[str, Any]]) -> list[_ActivityWindow]:
+    """형식이 안 맞는 활동은 조용히 건너뛴다 — 프롬프트 구성이 그 하나 때문에 실패하지 않는다."""
+    windows = []
+    for activity in activities:
+        try:
+            windows.append(_ActivityWindow.model_validate(activity))
+        except ValidationError:
+            continue
+    return windows
+
+
 async def run(snapshot: dict[str, Any]) -> ScheduleManagementOutput:
     """저장된 일정 스냅샷으로 LLM을 호출한다. 권한 검사와 실제 일정 생성은 호출 서비스가 맡는다."""
+    llm_input = _ScheduleLLMInput(
+        sales_deal_id=snapshot.get("sales_deal_id"),
+        preferred_starts_at=snapshot.get("preferred_starts_at"),
+        preferred_ends_at=snapshot.get("preferred_ends_at"),
+        duration_minutes=snapshot.get("duration_minutes"),
+        reason=snapshot.get("reason"),
+        activities=_llm_activities(snapshot.get("activities") or []),
+    )
     output = await generate_structured(
         instructions=SYSTEM_PROMPT,
-        input_text=json.dumps(snapshot, ensure_ascii=False, default=str),
+        input_text=json.dumps(llm_input.model_dump(), ensure_ascii=False, default=str),
         schema=ScheduleManagementOutput,
         schema_name="schedule_management",
     )
+    # 담당자 등 개인정보가 포함된 원본 snapshot은 로컬 충돌 재계산에만 쓰고 LLM에는 보내지 않는다.
     return _postprocess(output, snapshot)
