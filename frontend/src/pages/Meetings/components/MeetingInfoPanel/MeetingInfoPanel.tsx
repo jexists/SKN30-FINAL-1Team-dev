@@ -1,12 +1,10 @@
 // 왼쪽 첫 번째 탭. AI 에게 준 것을 그대로 보여 줍니다.
 //
-// 참고 자료 열이라 카드로 띄우지 않고 hairline 으로만 나눕니다. 화면에서 떠 있는 면은
-// 오른쪽 보고서 하나뿐이어야 지금 무엇을 고치는 중인지 헷갈리지 않습니다.
-import { Link } from 'react-router'
-
+// 참고 자료 열이라 카드로도 실선으로도 나누지 않고 제목과 여백으로만 묶습니다.
+// 화면에서 떠 있는 면은 오른쪽 보고서 하나뿐이어야 지금 무엇을 고치는 중인지
+// 헷갈리지 않습니다.
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button from '@/components/Button'
-import { ROUTES } from '@/constants/routes'
 import type { AgendaItem, ReportAttachment } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
 
@@ -17,6 +15,10 @@ import styles from './MeetingInfoPanel.module.scss'
 interface Props {
   item: AgendaItem
   attachments: ReportAttachment[]
+  onAttach: (files: FileList | File[]) => void
+  onRemoveAttachment: (id: string) => void
+  /** 첨부를 받지 못했거나 음성 변환이 실패한 이유. */
+  attachmentError: string | null
   transcript: string
   onTranscriptChange: (value: string) => void
   /** 'AI 보고서 작성' 을 누를 수 있는지. 미팅 내용이 있어야 누릅니다. */
@@ -33,6 +35,9 @@ interface Props {
 export default function MeetingInfoPanel({
   item,
   attachments,
+  onAttach,
+  onRemoveAttachment,
+  attachmentError,
   transcript,
   onTranscriptChange,
   canGenerate,
@@ -60,11 +65,6 @@ export default function MeetingInfoPanel({
         />
 
         {item.brief && <p className={styles.brief}>{item.brief}</p>}
-
-        <p className={styles.source}>
-          캘린더 일정에서 가져왔습니다. 값이 틀렸다면{' '}
-          <Link to={ROUTES.CALENDAR}>캘린더에서 일정을 고치세요.</Link>
-        </p>
       </section>
 
       <section className={styles.block}>
@@ -72,14 +72,25 @@ export default function MeetingInfoPanel({
           <h2>첨부 자료</h2>
         </div>
 
-        <AttachmentPanel attachments={attachments} readOnly />
+        <AttachmentPanel
+          attachments={attachments}
+          readOnly={disabled}
+          note="음성·사진·PDF를 넣을 수 있습니다. 음성은 글로 바꿔 미팅 내용에 채웁니다."
+          onAttach={onAttach}
+          onRemove={onRemoveAttachment}
+        />
+
+        {attachmentError && (
+          <p className={styles.error} role="alert">
+            {attachmentError}
+          </p>
+        )}
       </section>
 
       <section className={styles.block}>
         <div className={styles.blockHead}>
-          <h2>미팅 내용</h2>
+          <h2>미팅 내용 (선택)</h2>
         </div>
-        <p className={styles.note}>내가 적은 원본입니다. AI 는 이 내용을 보고 씁니다.</p>
 
         <label className="sr-only" htmlFor="transcript">
           미팅 내용 직접 입력
@@ -107,13 +118,15 @@ export default function MeetingInfoPanel({
               {generateLabel}
             </Button>
 
-            <p className={styles.basis}>
+            {/* <p className={styles.basis}>
               {canGenerate
                 ? attachments.length > 0
-                  ? `첨부 ${attachments.length}건 · 미팅 내용 기준`
+                  ? transcript.trim()
+                    ? `첨부 ${attachments.length}건 · 미팅 내용 기준`
+                    : `첨부 ${attachments.length}건 기준`
                   : '미팅 내용 기준'
-                : '미팅 내용을 입력하면 누를 수 있습니다.'}
-            </p>
+                : '미팅 내용을 적거나 자료를 첨부하면 누를 수 있습니다.'}
+            </p> */}
           </>
         )}
 

@@ -1,24 +1,32 @@
+/*
+ * 한 줄에 한 가지 사실만 둡니다. 두 열로 나누면 라벨과 값이 좌우로 어긋나 보여
+ * 어느 값이 무엇인지 다시 짚어야 합니다.
+ */
 .facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s3) var(--s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+
+  // dt·dd 한 쌍을 감싼 줄.
+  > div {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s3);
+  }
 
   dt {
-    margin-bottom: 2px;
+    flex: 0 0 72px;
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
   }
 
   dd {
-    // 브라우저 기본 dd 는 40px 들여씁니다. 값이 라벨 오른쪽으로 밀려 두 칸이
-    // 어긋나 보입니다. 라벨과 값은 같은 선에서 시작해야 훑어 읽힙니다.
+    // 브라우저 기본 dd 는 40px 들여씁니다. 값이 라벨에서 한 번 더 밀려 줄마다
+    // 시작점이 달라 보입니다.
+    min-width: 0;
     margin-left: 0;
     font-size: 13px;
     line-height: 1.5;
-  }
-
-  @include md {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
