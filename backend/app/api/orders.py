@@ -468,6 +468,8 @@ async def list_orders(
     owner_ids = await owner_scope(db, member, page.owner_member_id)
     scope = _scope(member, owner_ids)
     scope.append(_sales_stage.phase_code == "order")
+    if page.order_no is not None:
+        scope.append(PurchaseOrder.order_no == page.order_no)
     if page.supplier_name is not None:
         scope.append(PurchaseOrder.supplier_name == page.supplier_name)
     if page.stage_code is not None:

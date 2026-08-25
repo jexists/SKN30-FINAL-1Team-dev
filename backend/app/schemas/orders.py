@@ -148,6 +148,9 @@ class OrderPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     q: SearchQuery | None = None
+    # 발주 번호로 한 건만 집어 오는 조회에 쓴다. q 는 여러 열을 훑는 부분 일치라 번호를
+    # 아는 조회에는 맞지 않는다. 상세 화면이 주소의 번호로 바로 들어올 때 쓴다.
+    order_no: Text | None = None
     supplier_name: Text | None = None
     stage_code: list[OptionCode] | None = None
     sales_deal_id: list[UUID] | None = None

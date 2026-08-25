@@ -460,3 +460,34 @@ def test_orders_can_be_narrowed_to_one_sales_deal():
         assert "purchase_order.sales_deal_id IN" in sql
         # IN 절이라 값이 목록으로 묶여 들어간다.
         assert [deal.id] in statement.compile().params.values()
+
+
+def test_orders_can_be_picked_by_order_no():
+    """상세 화면이 주소의 발주 번호로 바로 들어온다. 번호로 한 건만 집어 온다.
+
+    목록에서 찾으면 그 발주가 현재 페이지 밖일 때 상세가 열리지 않는다. q 는 여러 열을
+    훑는 부분 일치라 번호를 아는 조회에는 쓸 수 없다.
+    """
+    member = _member()
+    company = _company(member)
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline, code="order_in_progress", phase="order", position=6)
+    deal = _deal(member, company, pipeline, stage)
+    status = _status(member)
+    order = _order(member, deal, status)
+    product = _product(member)
+    item = _item(order, product)
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[_row(order, deal, company, member, status)]),
+        _Result(rows=[(item, product.name)]),
+    )
+
+    page = asyncio.run(api.list_orders(OrderPageParams(order_no=order.order_no), member, db))
+
+    assert page.total == 1
+    assert page.items[0].order_no == order.order_no
+    # 개수 쿼리와 행 쿼리가 같은 조건으로 좁혀야 총계와 목록이 어긋나지 않는다.
+    for statement in (db.statements[0], db.statements[1]):
+        assert "purchase_order.order_no = " in str(statement)
+        assert order.order_no in statement.compile().params.values()

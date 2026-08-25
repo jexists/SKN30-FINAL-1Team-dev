@@ -222,16 +222,12 @@ export default function useOrderList(detailNo?: string) {
     return () => controller.abort()
   }, [reloadKey, ownerIds])
 
+  // 번호로 서버에 직접 묻습니다. 목록에서 찾으면 그 발주가 현재 페이지 밖일 때 상세가
+  // 열리지 않습니다. 목록과 상세가 같은 모델이라 이 한 번으로 상세까지 받습니다.
   useEffect(() => {
     setDetail(null)
     setDetailError(null)
-    if (detailNo === undefined || loading) {
-      setDetailLoading(detailNo !== undefined && loading)
-      return
-    }
-
-    const summary = orders.find((order) => order.no === detailNo)
-    if (!summary) {
+    if (detailNo === undefined) {
       setDetailLoading(false)
       return
     }
@@ -239,9 +235,12 @@ export default function useOrderList(detailNo?: string) {
     const controller = new AbortController()
     setDetailLoading(true)
     void client
-      .get<OrderResponse>(`/orders/${summary.id}`, { signal: controller.signal })
+      .get<PageResponse<OrderResponse>>('/orders', {
+        params: { order_no: detailNo, limit: 1 },
+        signal: controller.signal,
+      })
       .then(({ data }) => {
-        if (!controller.signal.aborted) setDetail(toOrder(data))
+        if (!controller.signal.aborted) setDetail(data.items[0] ? toOrder(data.items[0]) : null)
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) setDetailError(requestErrorMessage(caught, '상세'))
@@ -251,7 +250,7 @@ export default function useOrderList(detailNo?: string) {
       })
 
     return () => controller.abort()
-  }, [detailNo, detailReloadKey, loading, orders])
+  }, [detailNo, detailReloadKey])
 
   const reload = useCallback(() => setReloadKey((value) => value + 1), [])
   const reloadDetail = useCallback(() => setDetailReloadKey((value) => value + 1), [])
