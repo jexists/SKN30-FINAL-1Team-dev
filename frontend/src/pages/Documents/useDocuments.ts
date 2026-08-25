@@ -9,13 +9,31 @@ import type {
   DocumentVersion,
   OrderResponse,
   PageResponse,
+  TabbedPageResponse,
   SalesDealResponse,
   SalesDocument,
 } from '@/types'
 
 import { kindOfFile } from './catalog'
 
+/**
+ * 저장할 때 연결 대상(고객사·계약·발주)을 이름으로 찾는 조회에만 씁니다. 자료 목록
+ * 자체는 서버가 쪽으로 끊어 줍니다.
+ *
+ * ponytail: 같은 이름 후보가 100건을 넘으면 정확히 맞는 것을 놓칩니다. 원래 있던 한계라
+ * 이번에 건드리지 않았습니다. 정확일치 조회 파라미터가 생기면 그때 바꿉니다.
+ */
 const PAGE_LIMIT = 100
+
+/** 등록자 고르는 칸에 세울 사람. 최신 버전을 올린 사람 기준입니다. */
+export interface DocumentUploader {
+  id: string
+  name: string
+}
+
+interface DocumentPageResponse extends TabbedPageResponse<DocumentResponse> {
+  uploaders: { member_id: string; display_name: string }[]
+}
 const CATEGORY_CODE: Record<DocumentCategory, string> = {
   계약서: 'contract',
   발주서: 'purchase_order',
@@ -88,22 +106,6 @@ function toDocument(item: DocumentResponse): SalesDocument {
   }
 }
 
-async function fetchAll<T>(path: string, signal?: AbortSignal): Promise<T[]> {
-  const result: T[] = []
-  let skip = 0
-  while (!signal?.aborted) {
-    const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT },
-      signal,
-    })
-    result.push(...data.items)
-    if (!data.has_more || data.next_skip === null) return result
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-  return result
-}
-
 async function resolveLink(link: SalesDocument['link']) {
   const empty = {
     customer_company_id: null,
@@ -153,20 +155,67 @@ function mutationMessage(reason: unknown, fallback: string): string {
   return errorMessage(reason, fallback)
 }
 
-export default function useDocuments() {
+export interface DocumentQuery {
+  q: string
+  /** 고른 분류 탭. 빈 문자열이면 전체입니다. */
+  category: DocumentCategory | ''
+  /** 최신 버전을 올린 사람. 빈 문자열이면 전체입니다. */
+  uploaderMemberId: string
+  /** 최신 버전을 올린 날짜의 하한. null 이면 제한 없음입니다. */
+  fromISO: string | null
+  skip: number
+  limit: number
+}
+
+export default function useDocuments(query?: DocumentQuery) {
   const [documents, setDocuments] = useState<SalesDocument[]>([])
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [uploaders, setUploaders] = useState<DocumentUploader[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
+  // 조회 조건을 낱개로 펼쳐 둡니다. 효과가 객체가 아니라 값 하나하나를 보게 해야, 화면이
+  // 조건 객체를 새로 만들 때마다 다시 받지 않습니다.
+  const {
+    q: queryText = '',
+    category: queryCategory = '',
+    uploaderMemberId: queryUploader = '',
+    fromISO: queryFrom = null,
+    skip: querySkip = 0,
+    limit: queryLimit = 30,
+  } = query ?? {}
+
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    void fetchAll<DocumentResponse>('/documents', controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setDocuments(items.map(toDocument))
+    const needle = queryText.trim()
+    void client
+      .get<DocumentPageResponse>('/documents', {
+        params: {
+          q: needle === '' ? undefined : needle.slice(0, 100),
+          category_code: queryCategory === '' ? undefined : CATEGORY_CODE[queryCategory],
+          latest_uploader_member_id: queryUploader === '' ? undefined : queryUploader,
+          latest_uploaded_from: queryFrom === null ? undefined : `${queryFrom}T00:00:00+09:00`,
+          skip: querySkip,
+          limit: queryLimit,
+        },
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return
+        setDocuments(data.items.map(toDocument))
+        setTotal(data.total)
+        setCounts(data.counts)
+        setUploaders(
+          data.uploaders.map(({ member_id, display_name }) => ({
+            id: member_id,
+            name: display_name,
+          })),
+        )
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -178,7 +227,7 @@ export default function useDocuments() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [reloadKey])
+  }, [reloadKey, queryText, queryCategory, queryUploader, queryFrom, querySkip, queryLimit])
 
   const findDocument = useCallback(
     (id: string) => documents.find((document) => document.id === id),
@@ -257,6 +306,9 @@ export default function useDocuments() {
 
   return {
     documents,
+    total,
+    counts,
+    uploaders,
     findDocument,
     loading,
     error,
