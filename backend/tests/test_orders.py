@@ -288,6 +288,8 @@ def test_order_status_options_hide_deleted_but_order_reads_preserve_deleted_stat
         _Result(scalar_values=[_status(member)]),
         _Result(scalar=1),
         _Result(rows=[_row(order, deal, company, member, current_status)]),
+        _Result(rows=[(current_status.code, 1)]),
+        _Result(rows=[(order.supplier_name,)]),
         _Result(rows=[(item, product.name)]),
         _Result(rows=[_row(order, deal, company, member, current_status)]),
         _Result(rows=[(item, product.name)]),
@@ -448,6 +450,8 @@ def test_orders_can_be_narrowed_to_one_sales_deal():
     db = _Db(
         _Result(scalar=1),
         _Result(rows=[_row(order, deal, company, member, status)]),
+        _Result(rows=[(status.code, 1)]),
+        _Result(rows=[(order.supplier_name,)]),
         _Result(rows=[(item, product.name)]),
     )
 
@@ -480,6 +484,8 @@ def test_orders_can_be_picked_by_order_no():
     db = _Db(
         _Result(scalar=1),
         _Result(rows=[_row(order, deal, company, member, status)]),
+        _Result(rows=[(status.code, 1)]),
+        _Result(rows=[(order.supplier_name,)]),
         _Result(rows=[(item, product.name)]),
     )
 
@@ -491,3 +497,52 @@ def test_orders_can_be_picked_by_order_no():
     for statement in (db.statements[0], db.statements[1]):
         assert "purchase_order.order_no = " in str(statement)
         assert order.order_no in statement.compile().params.values()
+
+
+def test_tab_counts_and_supplier_options_drop_only_their_own_filter():
+    """탭 건수와 공급처 목록은 각자 자기 조건만 빼고 센다.
+
+    자기 조건까지 넣으면 고른 항목만 남아 다른 탭·다른 공급처로 옮겨 갈 수가 없다.
+    반대로 남의 조건까지 빼면 골랐을 때 0건이 되는 항목을 내놓게 된다.
+    """
+    member = _member()
+    company = _company(member)
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline, code="order_in_progress", phase="order", position=6)
+    deal = _deal(member, company, pipeline, stage)
+    status = _status(member)
+    db = _Db(
+        _Result(scalar=0),
+        _Result(rows=[]),
+        _Result(rows=[(status.code, 2), ("done", 5)]),
+        _Result(rows=[("합성 공급처",)]),
+    )
+
+    page = asyncio.run(
+        api.list_orders(
+            OrderPageParams(stage_code=[status.code], supplier_name="합성 공급처"),
+            member,
+            db,
+        )
+    )
+
+    assert page.counts == {status.code: 2, "done": 5}
+    assert page.suppliers == ["합성 공급처"]
+
+    # 상태 표는 별칭으로 조인되므로 별칭 이름으로 본다.
+    status_filter = "purchase_order_status_1.code IN"
+    supplier_filter = "purchase_order.supplier_name = "
+    rows_sql = str(db.statements[1])
+    counts_sql = str(db.statements[2])
+    suppliers_sql = str(db.statements[3])
+
+    # 목록은 두 조건을 다 적용한다. 별칭 이름이 바뀌면 아래 단언이 헛돌므로 여기서 잡는다.
+    assert status_filter in rows_sql
+    assert supplier_filter in rows_sql
+    # 건수는 상태를 빼고 공급처는 남긴다.
+    assert status_filter not in counts_sql
+    assert supplier_filter in counts_sql
+    # 공급처 목록은 그 반대다.
+    assert supplier_filter not in suppliers_sql
+    assert status_filter in suppliers_sql
+    assert deal.id is not None

@@ -142,6 +142,11 @@ class OrderPage(BaseModel):
     total: int
     has_more: bool
     next_skip: int | None
+    # 탭 옆 건수 {상태 코드: 건수}. 고른 상태는 빼고 센 값이라 total 과 다르다.
+    counts: dict[str, int] = Field(default_factory=dict)
+    # 공급처 고르는 칸에 세울 이름. 쪽에 담긴 발주만 보면 지금 쪽에 없는 공급처를
+    # 고를 수 없어서 서버가 전체에서 뽑아 준다.
+    suppliers: list[str] = Field(default_factory=list)
 
 
 class OrderPageParams(BaseModel):
