@@ -21,7 +21,10 @@ import AiOriginalPanel from './components/AiOriginalPanel'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
 import ReportSheet from './components/ReportSheet'
 import useMeetingDraft from './useMeetingDraft'
-import useMeetingReports, { type MeetingDraftPayload } from './useMeetingReports'
+import useMeetingReports, {
+  useMeetingReportOfAgenda,
+  type MeetingDraftPayload,
+} from './useMeetingReports'
 
 import styles from './Compose.module.scss'
 
@@ -43,9 +46,9 @@ export default function Compose() {
     reload: reloadAgenda,
   } = useAgendaItem(agendaId)
 
-  const { findByAgenda, saveReport, saveDraft, loading, error, pending, reload } =
-    useMeetingReports()
-  const saved = agendaId ? findByAgenda(agendaId) : undefined
+  const { report: saved, loading, error: loadError, reload } = useMeetingReportOfAgenda(agendaId)
+  const { saveReport, saveDraft, error: saveError, pending } = useMeetingReports()
+  const error = loadError ?? saveError
   // 팀장 확인이 끝나기 전까지는 다시 열어 고칠 수 있습니다.
   const locked = saved?.review === 'approved'
 

@@ -203,6 +203,28 @@
   cursor: pointer;
 }
 
+// 목록 마지막 줄에 서는 더보기. 칸반의 것과 같은 톤입니다.
+.loadMore {
+  width: 100%;
+  padding: var(--s3);
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: var(--fill-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--fill);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
 .count {
   margin-top: var(--s3);
   color: var(--muted);

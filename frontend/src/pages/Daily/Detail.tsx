@@ -5,6 +5,7 @@ import Button from '@/components/Button'
 import ReportFields from '@/components/ReportFields'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
+import { useReportDetail } from '@/shared/reportQuery'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import ActivityList from './components/ActivityList'
@@ -12,15 +13,18 @@ import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod } from './periods'
 import { activityLink } from './sources'
-import useDailyReports from './useDailyReports'
+import { toReport } from './useDailyReports'
 
 import styles from './Detail.module.scss'
 
 export default function Detail() {
   const { reportId } = useParams()
-  const { findReport, loading, error, reload } = useDailyReports()
+  const { item, loading, error, reload } = useReportDetail(
+    reportId,
+    '보고서를 불러오지 못했습니다.',
+  )
 
-  const report = reportId ? findReport(reportId) : undefined
+  const report = item ? toReport(item) : undefined
 
   if (loading)
     return (

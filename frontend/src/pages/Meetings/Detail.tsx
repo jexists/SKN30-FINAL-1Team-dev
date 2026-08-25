@@ -9,19 +9,23 @@ import { SkeletonDetail } from '@/components/Skeleton'
 import StatusBadge from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
 import DailyListLink from '@/pages/Daily/components/DailyListLink'
+import { useReportDetail } from '@/shared/reportQuery'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import MeetingFacts from './components/MeetingFacts'
 import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
-import useMeetingReports from './useMeetingReports'
+import { toMeetingReport } from './useMeetingReports'
 
 import styles from './Detail.module.scss'
 
 export default function Detail() {
   const { reportId } = useParams()
-  const { findReport, loading, error, reload } = useMeetingReports()
+  const { item, loading, error, reload } = useReportDetail(
+    reportId,
+    '미팅보고서를 불러오지 못했습니다.',
+  )
 
-  const report = reportId ? findReport(reportId) : undefined
+  const report = item ? toMeetingReport(item) : undefined
 
   if (loading)
     return (

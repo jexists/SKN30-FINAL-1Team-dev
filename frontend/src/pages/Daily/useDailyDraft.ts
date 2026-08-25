@@ -17,10 +17,10 @@ import type {
   ReportKind,
   ReportTemplate,
 } from '@/types'
-import useMeetingReports from '@/pages/Meetings/useMeetingReports'
+import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 
 import { sourcesFor } from './sources'
-import useDailyReports from './useDailyReports'
+import { useChildReports, useReportOfPeriod } from './useDailyReports'
 
 export type DraftPhase = 'idle' | 'generating' | 'ready' | 'submitted'
 
@@ -45,23 +45,29 @@ export default function useDailyDraft(
     error: agendaError,
     reload: reloadAgenda,
   } = useAgendaState(dateISO, dateISO, true)
+  // 일일은 그날 미팅보고서를, 주간·월간은 아래 기간의 보고서를 자료로 씁니다.
+  // 쓰지 않는 쪽은 부르지도 않습니다.
   const {
-    byDate,
+    reports: meetings,
     loading: meetingLoading,
     error: meetingError,
     reload: reloadMeetings,
-  } = useMeetingReports()
+  } = useMeetingReportsOn(dateISO, kind === '일일')
   const {
     reports,
-    findByPeriod,
     loading: reportLoading,
     error: reportError,
     reload: reloadReports,
-  } = useDailyReports()
-
-  const meetings = byDate.get(dateISO)
+  } = useChildReports(kind, dateISO, kind !== '일일')
+  // 이 기간에 쓰다 만 보고서. 목록을 뒤지지 않고 그 기간만 서버에 묻습니다.
+  const {
+    report: existing,
+    loading: existingLoading,
+    error: existingError,
+    reload: reloadExisting,
+  } = useReportOfPeriod(kind, dateISO)
   const sources = useMemo(
-    () => sourcesFor(kind, dateISO, meetings ?? [], reports, agendaItems),
+    () => sourcesFor(kind, dateISO, meetings, reports, agendaItems),
     [kind, dateISO, meetings, reports, agendaItems],
   )
 
@@ -72,9 +78,6 @@ export default function useDailyDraft(
    */
   const live = useRef({ meetings, reports, agendaItems })
   live.current = { meetings, reports, agendaItems }
-
-  // 이 기간에 쓰다 만 보고서가 있으면 새로 만들지 않고 이어서 씁니다.
-  const existing = findByPeriod(kind, dateISO)
 
   /**
    * 이어 쓸 원본은 기간이 바뀔 때만 다시 읽습니다. 임시저장이 스토어를 건드릴 때마다
@@ -105,7 +108,7 @@ export default function useDailyDraft(
     const collected = sourcesFor(
       kind,
       dateISO,
-      live.current.meetings ?? [],
+      live.current.meetings,
       live.current.reports,
       live.current.agendaItems,
     )
@@ -240,12 +243,13 @@ export default function useDailyDraft(
     reset,
     /** 이 기간에 이미 있는 보고서. 이어 쓰는 중인지 화면이 이 값으로 안내합니다. */
     existing,
-    loading: agendaLoading || meetingLoading || reportLoading,
-    error: agendaError ?? meetingError ?? reportError,
+    loading: agendaLoading || meetingLoading || reportLoading || existingLoading,
+    error: agendaError ?? meetingError ?? reportError ?? existingError,
     reload: () => {
       void reloadAgenda()
       reloadMeetings()
       reloadReports()
+      reloadExisting()
     },
   }
 }

@@ -5,6 +5,7 @@
 //
 // 사내 업무는 일정마다 보고서를 따로 내지 않습니다. 그날 하루를 묶는 일일업무보고로
 // 보내되 그 업무가 미리 체크된 채로 열리게 합니다.
+import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
@@ -13,13 +14,13 @@ import { ChevronRightIcon } from '@/components/icons'
 import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
 import { KIND_LABEL, useAgendaState } from '@/shared/agenda'
-import useMeetingReports from '@/pages/Meetings/useMeetingReports'
+import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
 import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { meetingLinkFor, type SourceMeta } from './sources'
-import useDailyReports from './useDailyReports'
+import { useReportOfPeriod } from './useDailyReports'
 
 import styles from './MeetingPick.module.scss'
 
@@ -40,25 +41,29 @@ export default function MeetingPick() {
     reload: reloadAgenda,
   } = useAgendaState(dateISO, dateISO, true)
   const agenda = items.filter((item) => item.date === dateISO)
+  // 이 날 것만 봅니다. 하루치라 한 쪽에 다 들어옵니다.
   const {
-    findByAgenda,
+    reports: meetings,
     loading: meetingLoading,
     error: meetingError,
     reload: reloadMeetings,
-  } = useMeetingReports()
+  } = useMeetingReportsOn(dateISO)
+  const byAgenda = useMemo(
+    () => new Map(meetings.map((report) => [report.agendaId, report])),
+    [meetings],
+  )
   const {
-    findByDate,
+    report: daily,
     loading: dailyLoading,
     error: dailyError,
     reload: reloadDaily,
-  } = useDailyReports()
+  } = useReportOfPeriod('일일', dateISO)
 
   /**
    * 사내 업무가 가는 곳. 단건 보고서를 만들지 않고 그날 일일업무보고로 묶습니다.
    * 이미 제출한 날이면 그 보고서를, 아니면 이 업무가 체크된 작성 화면을 엽니다.
    */
   const internalLink = (agendaId: string): SourceMeta => {
-    const daily = findByDate(dateISO, '일일')
     const status = daily?.status ?? null
     if (daily && (status === '검토 대기' || status === '확정')) {
       return { status, to: dailyReportPath(daily.id), label: '일일업무보고서 열기' }
@@ -149,7 +154,7 @@ export default function MeetingPick() {
               const internal = item.kind === 'internal'
               const link = internal
                 ? internalLink(item.id)
-                : meetingLinkFor(item.id, findByAgenda(item.id))
+                : meetingLinkFor(item.id, byAgenda.get(item.id))
 
               return (
                 <li key={item.id} className={styles.row}>

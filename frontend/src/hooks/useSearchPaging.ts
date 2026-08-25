@@ -26,9 +26,12 @@ export default function useSearchPaging<T>(
   { open, params, enabled = true, fallback }: Options,
 ) {
   const [matches, setMatches] = useState<T[]>([])
+  /** 조건에 맞는 전체 건수. 받아 온 건수가 아니라 서버가 센 값입니다. */
+  const [total, setTotal] = useState(0)
   /** 다음에 이어받을 자리. null 이면 끝까지 받은 것입니다. */
   const [nextSkip, setNextSkip] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
+  // 첫 렌더부터 참이어야 화면이 '없습니다' 를 잠깐 비추지 않습니다.
+  const [loading, setLoading] = useState(open && enabled)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -69,11 +72,13 @@ export default function useSearchPaging<T>(
       .then((page) => {
         if (controller.signal.aborted) return
         setMatches(page.items)
+        setTotal(page.total)
         setNextSkip(page.has_more ? page.next_skip : null)
       })
       .catch((reason: unknown) => {
         if (controller.signal.aborted) return
         setMatches([])
+        setTotal(0)
         setNextSkip(null)
         setLoadError(errorMessage(reason, fallback))
       })
@@ -109,6 +114,7 @@ export default function useSearchPaging<T>(
 
   return {
     matches,
+    total,
     loading,
     loadingMore,
     loadError,
