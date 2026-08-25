@@ -37,7 +37,7 @@ export default function MeetingPick() {
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState(undefined, undefined, true)
+  } = useAgendaState(dateISO, dateISO, true)
   const agenda = items.filter((item) => item.date === dateISO)
   const {
     findByAgenda,

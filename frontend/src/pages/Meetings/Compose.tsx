@@ -13,7 +13,7 @@ import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import { meetingReportPath, ROUTES } from '@/constants/routes'
-import { useAgendaState } from '@/shared/agenda'
+import { useAgendaItem } from '@/shared/agenda'
 import { showToast } from '@/shared/toast'
 import { fmtDot, parseISO } from '@/utils/date'
 
@@ -37,12 +37,11 @@ export default function Compose() {
 
   const agendaId = params.get('agenda') ?? ''
   const {
-    items: agenda,
+    item,
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState(undefined, undefined, true)
-  const item = agendaId ? agenda.find((entry) => entry.id === agendaId) : undefined
+  } = useAgendaItem(agendaId)
 
   const { findByAgenda, saveReport, saveDraft, loading, error, pending, reload } =
     useMeetingReports()

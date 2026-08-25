@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
@@ -377,6 +377,53 @@ export function useAgendaState(
     error: loadError,
     reload: () => loadAgenda(startDate, endDate, true, ownScopeOnly),
   }
+}
+
+/**
+ * 활동 하나만 받아 옵니다. 보고서 작성 화면이 주소의 활동 번호로 바로 들어올 때 씁니다.
+ *
+ * 목록에서 찾으면 그 활동이 언제 것인지 모르는 채로 전 기간을 받아야 합니다. 번호를 아는
+ * 조회이므로 단건으로 받습니다.
+ */
+export function useAgendaItem(id: string) {
+  const [item, setItem] = useState<AgendaItem | undefined>(undefined)
+  const [loading, setLoading] = useState(id !== '')
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const scopeKey = useScopeKey()
+
+  useEffect(() => {
+    if (id === '') {
+      setItem(undefined)
+      setLoading(false)
+      setError(null)
+      return
+    }
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+    client
+      .get<ActivityRead>(`/activities/${id}`, { signal: controller.signal })
+      .then(({ data }) => {
+        const next = activityToAgenda(data)
+        // 보고는 본인이 한 일을 적습니다. 주소를 직접 고쳐 남의 일정으로 들어오면 비웁니다.
+        // 팀장이 아니면 서버가 이미 본인 것만 주므로 그대로 받습니다.
+        const own = getOwnMemberIds()
+        const mine =
+          own === undefined ||
+          (next.ownerMemberId !== undefined && own.includes(next.ownerMemberId))
+        setItem(mine ? next : undefined)
+        setLoading(false)
+      })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        setError(errorMessage(cause, '일정을 불러오지 못했습니다.'))
+        setLoading(false)
+      })
+    return () => controller.abort()
+  }, [id, reloadKey, scopeKey])
+
+  return { item, loading, error, reload: () => setReloadKey((key) => key + 1) }
 }
 
 /**
