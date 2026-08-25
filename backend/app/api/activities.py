@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.models.agent import AgentRun
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product, SalesDeal
@@ -112,6 +113,7 @@ def _activity_read(
     product_name: str | None,
     category: ActivityCategory,
     action_tag: ActivityActionTag | None,
+    ai_briefing: dict | None = None,
 ) -> ActivityRead:
     return ActivityRead(
         id=activity.id,
@@ -144,7 +146,34 @@ def _activity_read(
         note=activity.note,
         created_at=_seoul(activity.created_at),
         updated_at=_seoul(activity.updated_at),
+        ai_briefing=ai_briefing,
     )
+
+
+async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID) -> dict | None:
+    """일정에 연결된 단발성 브리핑의 최신 저장 결과를 돌려준다."""
+    run = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.team_id == member.team_id,
+                AgentRun.agent_code == "contract_management_briefing",
+                AgentRun.status_code.in_(("queued", "running", "completed", "failed")),
+                AgentRun.source_refs["activity_id"].as_string() == str(activity_id),
+            )
+            .order_by(AgentRun.finished_at.desc().nullsfirst(), AgentRun.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if run is None:
+        return None
+    return {
+        "run_id": str(run.id),
+        "status": run.status_code,
+        "content": run.output_snapshot,
+        "error": run.error_message,
+        "generated_at": _seoul(run.finished_at).isoformat() if run.finished_at else None,
+    }
 
 
 async def _activity_row(
@@ -413,7 +442,11 @@ async def get_activity(
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityRead:
-    return _activity_read(*await _activity_row(db, member, activity_id))
+    row = await _activity_row(db, member, activity_id)
+    briefing = None
+    if row[0].activity_type == "meeting":
+        briefing = await _activity_briefing(db, member, activity_id)
+    return _activity_read(*row, ai_briefing=briefing)
 
 
 @router.post(

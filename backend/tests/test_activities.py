@@ -608,7 +608,10 @@ def test_detail_and_patch_share_scope_and_patch_revalidates_range():
     activity = _activity(member)
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
-    detail_db = _Db(_Result(rows=[_row(activity, member)]))
+    detail_db = _Db(
+        _Result(rows=[_row(activity, member)]),
+        _Result(scalar=None),  # 연결된 AI 브리핑 없음
+    )
     with _client(detail_db, member) as client:
         detail = client.get(f"/api/activities/{activity.id}")
     assert detail.status_code == 200

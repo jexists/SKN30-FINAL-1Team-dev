@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
 from pydantic import (
@@ -146,6 +146,8 @@ class ActivityRead(BaseModel):
     note: str | None
     created_at: datetime
     updated_at: datetime
+    # 확정 미팅과 연결된 계약 에이전트 브리핑. 목록에서는 생략하고 상세 조회에서 채운다.
+    ai_briefing: dict[str, Any] | None = None
 
 
 class ActivityOptionRead(BaseModel):

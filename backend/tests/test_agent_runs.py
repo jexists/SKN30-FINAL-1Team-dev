@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.agents import meeting_analysis, report_writing
+from app.agents import contract_management, meeting_analysis, report_writing, schedule_management
 from app.agents.report_writing import ReportDraftOutput
 from app.api import agent_runs
 from app.api.deps import get_current_member
@@ -20,7 +20,7 @@ from app.models.content import Report
 from app.models.workspace import Member
 from app.schemas.agent_runs import AgentRunCreate
 from app.services import agent_runs as agent_run_service
-from app.services import llm
+from app.services import contract_schedule_snapshots, llm
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
@@ -486,3 +486,289 @@ async def test_schema_mismatch_is_rejected(llm_ready, monkeypatch):
             schema=ReportDraftOutput,
             schema_name="report_draft",
         )
+
+
+def test_contract_management_select_candidates_run_uses_portfolio_snapshot(
+    llm_ready, monkeypatch
+):
+    scheduled: list[UUID] = []
+
+    async def _fake_execute(run_id: UUID) -> None:
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    fixed_snapshot = {"candidates": []}
+    captured_args = {}
+
+    async def _fake_build_candidate_selection_snapshot(db, member):
+        captured_args["member"] = member
+        return fixed_snapshot
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots,
+        "build_candidate_selection_snapshot",
+        _fake_build_candidate_selection_snapshot,
+    )
+
+    member = _member()
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "contract_management_select_candidates",
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    created = db.added[0]
+    assert created.agent_code == "contract_management_select_candidates"
+    assert created.prompt_version == contract_management.SELECT_CANDIDATES_PROMPT_VERSION
+    assert created.input_snapshot == fixed_snapshot
+    assert created.source_refs == {}
+    assert created.parent_run_id is None
+    assert captured_args["member"] is member
+    assert scheduled == [created.id]
+
+
+def test_contract_management_select_candidates_rejects_target_id():
+    """대상을 지정하지 않는 실행이다 — 다른 agent_code 용 식별 필드를 섞어 보내면 거절한다."""
+    with pytest.raises(ValidationError):
+        AgentRunCreate(
+            agent_code="contract_management_select_candidates",
+            customer_company_id=uuid4(),
+            idempotency_key=uuid4(),
+        )
+
+
+def test_contract_management_next_meeting_run_uses_company_snapshot(llm_ready, monkeypatch):
+    scheduled: list[UUID] = []
+
+    async def _fake_execute(run_id: UUID) -> None:
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    fixed_snapshot = {"customer_company": {"id": "company-1"}, "risk_signals": []}
+
+    async def _fake_build_next_meeting_snapshot(db, member, customer_company_id):
+        return fixed_snapshot
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots,
+        "build_next_meeting_snapshot",
+        _fake_build_next_meeting_snapshot,
+    )
+
+    member = _member()
+    company_id = uuid4()
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "contract_management_next_meeting",
+                "customer_company_id": str(company_id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    created = db.added[0]
+    assert created.agent_code == "contract_management_next_meeting"
+    assert created.prompt_version == contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION
+    assert created.input_snapshot == fixed_snapshot
+    assert created.source_refs == {"customer_company_id": str(company_id)}
+    assert created.parent_run_id is None
+    assert scheduled == [created.id]
+
+
+def test_contract_management_briefing_requires_completed_schedule_parent(llm_ready):
+    member = _member()
+    other_agent_parent = _run(member, status_code="completed")
+    other_agent_parent.agent_code = "meeting_analysis"  # 기대하는 agent_code 가 아니다.
+    db = _Db(_Result(scalar=None), _Result(scalar=other_agent_parent))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "contract_management_briefing",
+                "activity_id": str(uuid4()),
+                "parent_run_id": str(other_agent_parent.id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "parent_run_not_usable"}
+
+
+def test_schedule_management_run_uses_parent_next_meeting_suggestion(llm_ready, monkeypatch):
+    scheduled: list[UUID] = []
+
+    async def _fake_execute(run_id: UUID) -> None:
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    fixed_snapshot = {"sales_deal_id": "deal-1", "activities": []}
+
+    async def _fake_build_schedule_snapshot(
+        db, member, sales_deal_id, parent_run, starts_at, ends_at, duration
+    ):
+        assert parent_run is not None
+        assert starts_at is None and ends_at is None and duration is None
+        return fixed_snapshot
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots, "build_schedule_snapshot", _fake_build_schedule_snapshot
+    )
+
+    member = _member()
+    parent = _run(member, status_code="completed")
+    parent.agent_code = "contract_management_next_meeting"
+    db = _Db(_Result(scalar=None), _Result(scalar=parent))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "schedule_management",
+                "sales_deal_id": str(uuid4()),
+                "parent_run_id": str(parent.id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    created = db.added[0]
+    assert created.prompt_version == schedule_management.PROMPT_VERSION
+    assert created.input_snapshot == fixed_snapshot
+    assert created.parent_run_id == parent.id
+    assert scheduled == [created.id]
+
+
+def test_schedule_management_requires_preferred_window_without_parent_run():
+    with pytest.raises(ValidationError):
+        AgentRunCreate(
+            agent_code="schedule_management",
+            sales_deal_id=uuid4(),
+            idempotency_key=uuid4(),
+        )
+
+
+@pytest.mark.anyio
+async def test_execute_dispatches_contract_management_select_candidates(monkeypatch):
+    member = _member()
+    run = _run(member)
+    run.agent_code = "contract_management_select_candidates"
+    run.input_snapshot = {"candidates": []}
+    first = _Db(_Result(scalar=run))
+    second = _Db(_Result(scalar=run))
+    sessions = iter((first, second))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(next(sessions)),
+    )
+
+    output_snapshot = {"candidates": []}
+
+    async def fake_select(snapshot):
+        assert snapshot == run.input_snapshot
+        return SimpleNamespace(candidates=[], model_dump=lambda: output_snapshot)
+
+    monkeypatch.setattr(contract_management, "select_next_meeting_candidates", fake_select)
+
+    await agent_run_service.execute(run.id)
+
+    assert run.status_code == "completed"
+    assert run.output_snapshot == output_snapshot
+    assert run.evidence == {
+        "prompt_version": contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+        "candidate_count": 0,
+    }
+    assert first.commit_count == 1
+    assert second.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_execute_dispatches_contract_management_next_meeting(monkeypatch):
+    member = _member()
+    run = _run(member)
+    run.agent_code = "contract_management_next_meeting"
+    run.input_snapshot = {"customer_company": {"id": "company-1"}, "risk_signals": []}
+    first = _Db(_Result(scalar=run))
+    second = _Db(_Result(scalar=run))
+    sessions = iter((first, second))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(next(sessions)),
+    )
+
+    output_snapshot = {
+        "risks": [],
+        "missing_information": [],
+        "recommended_actions": [],
+        "next_meeting_suggestion": None,
+    }
+
+    async def fake_propose(snapshot):
+        assert snapshot == run.input_snapshot
+        return SimpleNamespace(risks=[], model_dump=lambda: output_snapshot)
+
+    monkeypatch.setattr(contract_management, "propose_next_meeting", fake_propose)
+
+    await agent_run_service.execute(run.id)
+
+    assert run.status_code == "completed"
+    assert run.output_snapshot == output_snapshot
+    assert run.evidence == {
+        "prompt_version": contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+        "risk_count": 0,
+    }
+    assert first.commit_count == 1
+    assert second.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_execute_dispatches_schedule_management(monkeypatch):
+    member = _member()
+    run = _run(member)
+    run.agent_code = "schedule_management"
+    run.input_snapshot = {"sales_deal_id": "deal-1", "activities": []}
+    first = _Db(_Result(scalar=run))
+    second = _Db(_Result(scalar=run))
+    sessions = iter((first, second))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(next(sessions)),
+    )
+
+    output_snapshot = {"schedule_candidates": [], "conflicts": []}
+
+    async def fake_run(snapshot):
+        assert snapshot == run.input_snapshot
+        return SimpleNamespace(schedule_candidates=[], model_dump=lambda: output_snapshot)
+
+    monkeypatch.setattr(schedule_management, "run", fake_run)
+
+    await agent_run_service.execute(run.id)
+
+    assert run.status_code == "completed"
+    assert run.output_snapshot == output_snapshot
+    assert run.evidence == {
+        "prompt_version": schedule_management.PROMPT_VERSION,
+        "candidate_count": 0,
+    }

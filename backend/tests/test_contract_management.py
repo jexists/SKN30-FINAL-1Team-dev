@@ -83,6 +83,89 @@ def test_briefing_output_has_no_next_meeting_field():
 
 
 @pytest.mark.anyio
+async def test_select_next_meeting_candidates_uses_dedicated_prompt_schema_and_snapshot(
+    monkeypatch,
+):
+    captured = {}
+    expected = contract_management.SelectNextMeetingCandidatesOutput(
+        candidates=[
+            contract_management.SelectedNextMeetingCandidate(
+                customer_company_id="company-1",
+                sales_deal_id="deal-1",
+                reason="계약 만료가 7일 남았습니다.",
+                priority=90,
+            )
+        ]
+    )
+
+    async def fake_generate_structured(**kwargs):
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    candidates = [
+        {
+            "customer_company_id": "company-1",
+            "customer_company_name": "테스트 병원",
+            "sales_deal_id": "deal-1",
+            "sales_deal_title": "테스트 딜",
+            "stage_phase_code": "contract",
+            "risk_signals": [{"code": "contract_expiring", "severity": "high"}],
+        }
+    ]
+    snapshot = {"candidates": candidates}
+
+    result = await contract_management.select_next_meeting_candidates(snapshot)
+
+    assert result == expected
+    assert captured["instructions"] == contract_management.SELECT_CANDIDATES_SYSTEM_PROMPT
+    assert captured["schema"] is contract_management.SelectNextMeetingCandidatesOutput
+    assert captured["schema_name"] == "contract_management_select_candidates"
+    assert json.loads(captured["input_text"]) == {"candidates": candidates}
+
+
+@pytest.mark.anyio
+async def test_select_next_meeting_candidates_drops_unknown_deal_ids(monkeypatch):
+    """LLM이 입력에 없는 딜을 지어내면 걸러낸다 — 근거 없는 선택은 통과시키지 않는다."""
+
+    async def fake_generate_structured(**kwargs):
+        return contract_management.SelectNextMeetingCandidatesOutput(
+            candidates=[
+                contract_management.SelectedNextMeetingCandidate(
+                    customer_company_id="company-1",
+                    sales_deal_id="deal-1",
+                    reason="입력에 있는 딜",
+                    priority=80,
+                ),
+                contract_management.SelectedNextMeetingCandidate(
+                    customer_company_id="company-9",
+                    sales_deal_id="deal-invented",
+                    reason="입력에 없는 딜",
+                    priority=99,
+                ),
+            ]
+        )
+
+    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    snapshot = {
+        "candidates": [
+            {
+                "customer_company_id": "company-1",
+                "customer_company_name": "테스트 병원",
+                "sales_deal_id": "deal-1",
+                "sales_deal_title": "테스트 딜",
+                "stage_phase_code": "contract",
+                "risk_signals": [{"code": "contract_expiring", "severity": "high"}],
+            }
+        ]
+    }
+
+    result = await contract_management.select_next_meeting_candidates(snapshot)
+
+    assert [c.sales_deal_id for c in result.candidates] == ["deal-1"]
+
+
+@pytest.mark.anyio
 async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(monkeypatch):
     captured = {}
     expected = contract_management.NextMeetingProposalOutput(

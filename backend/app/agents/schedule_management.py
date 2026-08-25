@@ -19,6 +19,9 @@ SYSTEM_PROMPT = """너는 영업 일정관리를 보조하는 AI다.
 모든 후보의 시작·종료는 Asia/Seoul 기준 09:00~18:00 업무시간 안에서만 제안하라.
 기존 일정과 겹치는 후보는 만들지 말고, 발견한 충돌은 conflicts 에 근거 ID와 함께 남겨라.
 
+priority 는 1이 가장 추천하는 후보라는 뜻이다. 숫자가 클수록 덜 추천한다. 가장 추천하는
+후보부터 1, 2, 3 순으로 매겨라.
+
 실제 일정을 만들었다고 표현하지 마라. 이 에이전트는 후보만 제안한다.
 JSON 만 출력한다."""
 
@@ -49,7 +52,8 @@ class ScheduleCandidate(BaseModel):
     activity_type: Literal["meeting", "task"]
     starts_at: str
     ends_at: str
-    priority: int = Field(ge=1, le=100)
+    # 1이 가장 추천하는 후보다. 숫자가 클수록 덜 추천한다 — 프롬프트에도 같은 방향을 못박아 둔다.
+    priority: int = Field(ge=1, le=100, description="1이 가장 추천하는 후보다. 클수록 덜 추천한다.")
     reason: str = Field(default="", max_length=1_000)
 
 
@@ -82,7 +86,7 @@ class ScheduleManagementOutput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schedule_candidates: list[ScheduleCandidate] = Field(default_factory=list, max_length=20)
+    schedule_candidates: list[ScheduleCandidate] = Field(default_factory=list, max_length=10)
     conflicts: list[ScheduleConflict] = Field(default_factory=list, max_length=100)
 
 
