@@ -114,3 +114,11 @@ export interface PageResponse<T> {
   has_more: boolean
   next_skip: number | null
 }
+
+/**
+ * 탭이 있는 목록의 한 쪽. `counts` 는 {탭 코드: 건수}이고, 고른 탭은 빼고 센 값이라
+ * `total` 과 다릅니다. 탭까지 적용해 세면 고른 탭만 숫자가 남고 나머지가 0 이 됩니다.
+ */
+export interface TabbedPageResponse<T> extends PageResponse<T> {
+  counts: Record<string, number>
+}

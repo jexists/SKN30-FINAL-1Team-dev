@@ -72,6 +72,9 @@ class SupportRequestPage(BaseModel):
     total: int
     has_more: bool
     next_skip: int | None
+    # 탭 옆 건수 {상태 코드: 건수}. 고른 상태는 빼고 센 값이라 total 과 다르다.
+    # 상태까지 적용해 세면 고른 탭만 숫자가 남고 나머지가 0 이 된다.
+    counts: dict[str, int] = Field(default_factory=dict)
 
 
 class SupportRequestPageParams(BaseModel):

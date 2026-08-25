@@ -243,6 +243,7 @@ def test_member_list_and_detail_are_scoped_and_include_response_history():
     list_db = _Db(
         _Result(scalar=1),
         _Result(rows=[_row(request, contact, company, member)]),
+        _Result(rows=[("in_progress", 1)]),
         _Result(rows=[(response_item, member.display_name)]),
     )
 
@@ -285,12 +286,13 @@ def test_member_list_and_detail_are_scoped_and_include_response_history():
         "total": 1,
         "has_more": False,
         "next_skip": None,
+        "counts": {"in_progress": 1},
     }
     for statement in list_db.statements[:2]:
         assert member.id in statement.compile().params.values()
         assert member.team_id in statement.compile().params.values()
         assert "%합성%" in statement.compile().params.values()
-    assert member.team_id in list_db.statements[2].compile().params.values()
+    assert member.team_id in list_db.statements[3].compile().params.values()
 
     detail_db = _Db(
         _Result(rows=[_row(request, contact, company, member)]),
@@ -311,6 +313,7 @@ def test_manager_reads_team_request_without_member_self_filter():
     db = _Db(
         _Result(scalar=1),
         _Result(rows=[_row(request, contact, company, assignee)]),
+        _Result(rows=[("in_progress", 1)]),
         _Result(rows=[]),
     )
 
@@ -452,6 +455,7 @@ def test_manager_support_assignee_filter_narrows_to_the_chosen_members():
         _Result(scalar_values=[first.id, second.id]),
         _Result(scalar=0),
         _Result(rows=[]),
+        _Result(rows=[]),
     )
 
     with _client(db, manager) as client:
@@ -461,8 +465,10 @@ def test_manager_support_assignee_filter_narrows_to_the_chosen_members():
         )
 
     assert response.status_code == 200
-    # 첫 문장은 범위 검증이고, 그 다음이 개수와 목록이다.
-    assert [first.id, second.id] in db.statements[1].compile().params.values()
+    # 첫 문장은 범위 검증이고, 그 다음이 개수·목록·탭 건수다. 셋 다 같은 담당자로 좁혀야
+    # 목록과 탭 숫자가 어긋나지 않는다.
+    for statement in db.statements[1:]:
+        assert [first.id, second.id] in statement.compile().params.values()
 
 
 def test_member_support_assignee_filter_is_denied_before_any_query():
@@ -493,3 +499,36 @@ def test_manager_support_assignee_filter_rejects_a_member_outside_the_team():
     assert response.status_code == 403
     assert response.json()["detail"] == "scope_not_allowed"
     assert len(db.statements) == 1
+
+
+def test_tab_counts_ignore_the_chosen_status_but_keep_other_filters():
+    """탭 옆 건수는 고른 상태만 빼고 센다.
+
+    상태까지 적용해 세면 고른 탭에만 숫자가 남고 나머지 탭이 모두 0 이 되어, 다른 탭에
+    무엇이 얼마나 있는지 알 수 없다. 반대로 검색어까지 빼고 세면 탭 숫자가 실제로 열리는
+    목록보다 커진다.
+    """
+    member = _member()
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[]),
+        _Result(rows=[("in_progress", 1), ("completed", 4)]),
+    )
+
+    with _client(db, member) as client:
+        response = client.get(
+            "/api/support-requests",
+            params=[("q", "합성"), ("status_code", "in_progress")],
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    # 목록은 고른 상태로 좁혀 1건, 탭 건수는 상태를 빼고 세어 다른 탭도 함께 나온다.
+    assert body["total"] == 1
+    assert body["counts"] == {"in_progress": 1, "completed": 4}
+
+    counts_sql = str(db.statements[2])
+    assert "GROUP BY" in counts_sql
+    # 상태 조건은 빠지고 검색어 조건은 남아야 한다.
+    assert "support_request.status_code IN" not in counts_sql
+    assert "%합성%" in db.statements[2].compile().params.values()
