@@ -23,7 +23,12 @@ EXPECTED_COLUMN_COUNTS = {
     # 20260824_0004 로 product 에 category_code/unit_price/shelf_life_months/memo/
     # image_storage_key 가 늘었다.
     "product": 9,
-    "notice": 12,
+    # 20260825_0005 로 notice 에 type/display_start_date/display_end_date/is_hidden/
+    # sort_order/updated_at/deleted_at 이 늘고 recipient_member_id 가 빠졌다.
+    # 수신자는 notice_target 으로 옮겼고, 본문 사진은 notice_image 가 가리킨다.
+    "notice": 18,
+    "notice_target": 3,
+    "notice_image": 6,
     "activity": 22,
     "activity_category": 10,
     "activity_action_tag": 10,
@@ -53,14 +58,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 279
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 294
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 67
+    assert len(foreign_key_constraints) == 70
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

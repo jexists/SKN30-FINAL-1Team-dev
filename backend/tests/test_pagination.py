@@ -10,7 +10,7 @@ from pydantic import BaseModel, ValidationError
 from app.schemas.activities import ActivityPageParams
 from app.schemas.customers import CustomerContactPageParams, CustomerPageParams
 from app.schemas.documents import DocumentPageParams
-from app.schemas.notices import NoticePageParams
+from app.schemas.notices import NoticeManagePageParams, NoticePageParams
 from app.schemas.orders import OrderPageParams
 from app.schemas.reports import ReportPageParams
 from app.schemas.sales_deals import ProductPageParams, SalesDealPageParams
@@ -21,6 +21,7 @@ PAGE_PARAMS: list[type[BaseModel]] = [
     CustomerPageParams,
     CustomerContactPageParams,
     DocumentPageParams,
+    NoticeManagePageParams,
     NoticePageParams,
     OrderPageParams,
     ProductPageParams,

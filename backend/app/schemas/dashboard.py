@@ -5,12 +5,14 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.activities import ActivityRead
+from app.schemas.notices import NoticeType
 
 
 class NoticeBrief(BaseModel):
     """티커에 세우는 한 줄. 본문과 이미지는 눌렀을 때 /api/notices/{id} 가 준다."""
 
     id: UUID
+    type: NoticeType
     tag: str | None
     author_display_name: str
     title: str

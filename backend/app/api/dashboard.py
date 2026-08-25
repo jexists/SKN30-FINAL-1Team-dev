@@ -72,7 +72,8 @@ async def _notice_summary(
         await db.execute(
             notices_api._joined_select(Notice, notices_api._author.display_name)
             .where(*conditions)
-            .order_by(Notice.published_at.desc(), Notice.id)
+            # 팀장이 정한 순서가 티커에도 그대로 반영되어야 한다.
+            .order_by(Notice.sort_order, Notice.published_at.desc(), Notice.id)
             .limit(limit)
         )
     ).all()
@@ -82,6 +83,7 @@ async def _notice_summary(
         items=[
             NoticeBrief(
                 id=notice.id,
+                type=notice.type,
                 tag=notice.tag,
                 author_display_name=author_display_name,
                 title=notice.title,
@@ -360,8 +362,8 @@ async def read_dashboard(
     return DashboardRead(
         as_of=as_of,
         date=day,
-        notices=await _notice_summary(db, member, "team", params.notice_limit),
-        directives=await _notice_summary(db, member, "personal", params.notice_limit),
+        notices=await _notice_summary(db, member, "NOTICE", params.notice_limit),
+        directives=await _notice_summary(db, member, "DIRECTIVE", params.notice_limit),
         visited_companies=visited,
         activities=activity_total,
         today_activities=await _today_activities(db, member, owner_ids, day),

@@ -124,15 +124,21 @@ def _notice(author: Member) -> Notice:
         id=uuid4(),
         team_id=author.team_id,
         author_member_id=author.id,
-        recipient_member_id=None,
+        type="NOTICE",
         tag="공지",
         title="합성 공지",
-        body="합성 본문",
+        body="<p>합성 본문</p>",
         image_storage_key="team/secret-object-key.png",
         image_alt=None,
         published_at=NOW,
         due_at=None,
         due_text=None,
+        display_start_date=NOW.date(),
+        display_end_date=None,
+        is_hidden=False,
+        sort_order=0,
+        updated_at=NOW,
+        deleted_at=None,
     )
 
 
