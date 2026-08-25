@@ -57,6 +57,16 @@
   상품 목록(`GET /api/products`)은 발주·영업 화면이 함께 쓰므로 팀원에게도 그대로 열려 있고,
   쓰기(`POST /api/products`, 사진 업로드)만 팀장으로 제한합니다.
 
+- `20260825_0005_notice_management.sql`: 공지·지시사항을 팀장이 직접 관리하게 합니다.
+  `notice`에 `type`(NOTICE/DIRECTIVE), `display_start_date`·`display_end_date`(date, 양끝 포함),
+  `is_hidden`, `sort_order`, `updated_at`, `deleted_at`을 더하고 **`recipient_member_id`를 뗍니다.**
+  수신자는 지시 하나에 여러 명이 붙을 수 있으므로 `notice_target` 매핑 테이블로 옮깁니다.
+  기존 행은 수신자 유무로 `type`을, 게시 시각의 서울 날짜로 `display_start_date`를 백필하고
+  종료일은 비워 무기한으로 둡니다. 본문(`body`)은 이제 편집기가 만든 HTML이며
+  `app/services/html_sanitize.py`가 허용한 태그만 남깁니다. 본문에 넣은 사진은
+  `notice_image`가 가리키는 저장소 객체이고, 본문에는 `/notice-images/{id}`만 박힙니다.
+  `storage_key`는 `notice.image_storage_key`와 같은 뜻이며 API 응답에 나가지 않습니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -70,6 +80,7 @@
 | 2026-08-24 | 개발 | `20260824_0003_customer_contact_assignees.sql` | session pooler | 성공. customer_company +1컬럼 / customer_contact +1컬럼 / customer_contact_assignee 신설(RLS on). 기존 고객 2건의 등록자·담당자를 owner_member_id 로 백필 |
 | 2026-08-24 | 개발 | `20260824_0004_customer_contact_visited.sql` | session pooler | 성공. customer_contact +1컬럼(`visited` boolean NOT NULL DEFAULT false). 기존 고객 2건 모두 기본값대로 미방문 |
 | 2026-08-24 | 개발 | `20260824_0004_product_fields.sql` | session pooler | 성공. product 4→9컬럼(`category_code`, `unit_price`, `shelf_life_months`, `memo`, `image_storage_key`). 기존 product 행이 0건이라 백필 대상 없음. `tests/test_models.py` 통과 |
+| 2026-08-25 | 개발 | `20260825_0005_notice_management.sql` | session pooler | 성공. notice 12→18컬럼(`recipient_member_id` 제거, `type`·`display_start_date`·`display_end_date`·`is_hidden`·`sort_order`·`updated_at`·`deleted_at` 추가) / notice_target·notice_image 신설(RLS on) / `notice_team_recipient_published_idx` 를 `notice_team_type_order_idx`·`notice_visible_idx` 로 교체. 기존 notice 행이 0건이라 백필 대상 없음 |
 
 ## 개발 DB 재구축 런북
 
@@ -103,6 +114,8 @@ DROP TABLE IF EXISTS
     public.sales_target,
     public.support_response,
     public.support_request,
+    public.notice_image,
+    public.notice_target,
     public.notice,
     public.activity_companion,
     public.activity,
