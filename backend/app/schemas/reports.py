@@ -153,6 +153,9 @@ class ReportPageParams(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     author_member_id: list[UUID] | None = None
+    # "이 일정으로 쓴 보고서가 이미 있는가" 를 묻는 조회에 쓴다. 목록을 통째로 받아 뒤지면
+    # 페이지 밖에 있는 보고서를 못 찾고 같은 일정에 보고서를 또 만든다.
+    source_activity_id: UUID | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=100)
 
