@@ -57,7 +57,7 @@ GENERATE_BRIEFING_SYSTEM_PROMPT = f"""너는 B2B 영업·계약관리를 보조�
 
 {_RISK_RULES}
 
-이 호출은 사용자가 승인한 일정이 등록된 뒤 자동으로 수행된다. 승인된 일정, 계약·딜 현황,
+이 호출은 사용자가 승인한 일정이 등록된 뒤 실행된다. 승인된 일정, 계약·딜 현황,
 RAG로 조회된 자료를 근거로 회사와 계약의 최신 상황을 요약한 브리핑을 작성하라. 승인된 일정이나
 조회된 자료가 없어도 브리핑 자체는 작성하되, 근거가 없는 항목은 채우지 말고 missing_information 에
 남겨라. 브리핑 본문이 RAG 자료를 근거로 쓴 부분이 있으면 최상위 source_refs 에 type="document" 로
@@ -241,7 +241,7 @@ async def propose_next_meeting(snapshot: dict[str, Any]) -> NextMeetingProposalO
 
 
 async def generate_briefing(snapshot: dict[str, Any]) -> ContractBriefingOutput:
-    """일정 등록 후 자동 실행: 승인된 일정과 RAG 자료로 브리핑을 생성한다."""
+    """일정 등록 후 실행: 승인된 일정과 RAG 자료로 브리핑을 생성한다."""
     llm_input = _BriefingLLMInput(
         customer_company=snapshot.get("customer_company"),
         sales_deals=snapshot.get("sales_deals") or [],
