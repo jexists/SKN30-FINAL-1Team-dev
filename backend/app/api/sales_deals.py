@@ -570,7 +570,14 @@ async def list_products(
 ) -> ProductPage:
     scope = [Product.team_id == member.team_id, Product.active.is_(True)]
     if page.q is not None:
-        scope.append(Product.name.ilike(_contains(page.q), escape="\\"))
+        pattern = _contains(page.q)
+        matches = [
+            Product.name.ilike(pattern, escape="\\"),
+            Product.memo.ilike(pattern, escape="\\"),
+        ]
+        if page.q_category_code is not None:
+            matches.append(Product.category_code.in_(tuple(dict.fromkeys(page.q_category_code))))
+        scope.append(or_(*matches))
     total_result = await db.execute(select(func.count(Product.id)).where(*scope))
     total = total_result.scalar_one()
     products_result = await db.execute(

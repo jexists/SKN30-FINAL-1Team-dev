@@ -1,9 +1,10 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import { PlusIcon, ProductIcon, SearchIcon } from '@/components/icons'
+import Pagination from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import { wonFull } from '@/utils/format'
@@ -31,30 +32,32 @@ export default function Products() {
   const query = params.get('q') ?? ''
   const deferredQuery = useDeferredValue(query)
   const [adding, setAdding] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(30)
 
-  const { products, loading, error, reload, addProduct } = useProducts()
+  const {
+    products: rows,
+    total,
+    loading,
+    error,
+    reload,
+    addProduct,
+  } = useProducts({ q: deferredQuery, skip: (page - 1) * pageSize, limit: pageSize })
 
-  const rows = useMemo(() => {
-    const needle = deferredQuery.trim().toLowerCase()
-    if (needle === '') return products
-    return products.filter((product) =>
-      [product.name, categoryLabel(product.category_code), product.memo ?? '']
-        .join(' ')
-        .toLowerCase()
-        .includes(needle),
-    )
-  }, [products, deferredQuery])
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
+  // 검색어가 바뀌면 결과가 줄어 지금 쪽수가 범위를 넘을 수 있습니다. 첫 쪽으로 돌립니다.
   const setQuery = (value: string) => {
     const next = new URLSearchParams(params)
     if (value === '') next.delete('q')
     else next.set('q', value)
     setParams(next, { replace: true })
+    setPage(1)
   }
 
   // 고객불만 목록과 같은 처리입니다. 첫 진입에서 툴바·표가 따로 들어오면
   // 화면이 두 번 들썩이므로 한 장을 통째로 자리표시자로 둡니다.
-  if (loading && products.length === 0 && !error) {
+  if (loading && rows.length === 0 && !error) {
     return (
       <section className={styles.page} aria-busy={loading}>
         <h1 className="sr-only">상품관리</h1>
@@ -83,7 +86,7 @@ export default function Products() {
         </div>
       </div>
 
-      {!error && loading && products.length > 0 && (
+      {!error && loading && rows.length > 0 && (
         <InlineLoader label="상품 목록을 새로고침하는 중입니다." />
       )}
 
@@ -151,6 +154,19 @@ export default function Products() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            total={total}
+            unit="개"
+            onPage={setPage}
+            onPageSize={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+          />
         </div>
       )}
 

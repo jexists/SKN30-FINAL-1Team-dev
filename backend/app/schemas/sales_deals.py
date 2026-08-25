@@ -142,6 +142,10 @@ class ProductPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     q: SearchQuery | None = None
+    # 검색어가 가리키는 분류 코드. 화면은 "소모품" 처럼 분류 이름으로도 찾는데, 그 이름은
+    # 화면(catalog.ts)만 알고 DB 에는 코드만 있다. 화면이 풀어서 보내고 서버는 q 와 OR 로
+    # 묶는다. 이름 표를 여기에 한 벌 더 두면 두 곳이 어긋난다.
+    q_category_code: list[OptionCode] | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=100)
 

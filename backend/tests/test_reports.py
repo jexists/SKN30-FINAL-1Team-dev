@@ -484,7 +484,7 @@ def test_write_failure_rolls_back_transaction():
 
 
 def test_source_activity_filter_reaches_the_query():
-    """"이 일정으로 쓴 보고서가 있는가" 를 서버가 직접 답해야 한다.
+    """이 일정으로 쓴 보고서가 있는지를 서버가 직접 답해야 한다.
 
     이 조건이 쿼리에 실리지 않으면 저장 화면이 목록 첫 페이지만 보고 없다고 판단해,
     이미 보고서가 있는 일정에 같은 보고서를 하나 더 만든다.
