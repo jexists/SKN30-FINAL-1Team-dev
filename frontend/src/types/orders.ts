@@ -48,6 +48,12 @@ export interface ApiPurchaseOrder extends PurchaseOrder {
   stageTone: ColumnTone
   stageOutcomeCode: OrderOutcomeCode
   stagePosition: number
+  requestDepartment: string
+  cooperationDepartment: string
+  createdByMemberId: string
+  createdBy: string
+  expectedCustomerCompanyId: string
+  expectedCustomerCompany: string
   items: ApiOrderLine[]
   createdAt: string
   updatedAt: string
@@ -90,6 +96,12 @@ export interface OrderResponse {
   ordered_on: string
   due_on: string
   expected_receipt_on: string
+  request_department: string
+  cooperation_department: string
+  created_by_member_id: string
+  created_by_display_name: string
+  expected_customer_company_id: string
+  expected_customer_company_name: string
   memo: string | null
   items: OrderItemResponse[]
   created_at: string
@@ -109,6 +121,9 @@ export interface OrderCreateRequest {
   ordered_on: string
   due_on: string
   expected_receipt_on: string
+  request_department: string
+  cooperation_department: string
+  expected_customer_company_id: string
   memo: string | null
   items: OrderItemRequest[]
 }

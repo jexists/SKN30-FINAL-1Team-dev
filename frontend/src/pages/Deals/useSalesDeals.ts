@@ -5,9 +5,14 @@ import { client } from '@/api/client'
 import { transportMessage } from '@/api/errorMessage'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
+  ColumnTone,
+  DocumentStatusResponse,
   PageResponse,
   SalesDealCreateRequest,
+  SalesDealDocumentFields,
+  SalesDealItemResponse,
   SalesDealMoveRequest,
+  SalesDealParticipantResponse,
   SalesDealPatchRequest,
   SalesDealResponse,
   TabbedPageResponse,
@@ -37,13 +42,34 @@ const REGION_LABEL: Record<string, string> = {
   chungnam: '충남',
 }
 
+/**
+ * 견적·계약 목록이 보는 국면입니다. 파이프라인 단계(phase_code)로 거르면 계약으로
+ * 넘어간 딜이 견적현황에서 사라지므로, 그 국면의 상태가 붙었는지로 거릅니다.
+ */
+export type DealDocumentKind = 'quote' | 'contract'
+
+const DOCUMENT_PARAMS: Record<DealDocumentKind, Record<string, unknown>> = {
+  quote: { has_quote: true, date_basis: 'quote_issued' },
+  contract: { has_contract: true, date_basis: 'contract_signed' },
+}
+
+/** 국면마다 상태 목록을 받는 곳이 다릅니다. */
+const STATUS_PATH: Record<DealDocumentKind, string> = {
+  quote: '/quote-statuses',
+  contract: '/contract-statuses',
+}
+
 export interface SalesDealSaveInput {
   customerCompanyId: string
   productId: string
+  /** 비우면 서버가 '회사명 제품명' 으로 채웁니다. */
+  title: string | null
   amount: number
   dealTypeCode: string
   date: string
   memo: string | null
+  /** 미팅 대상자. 고객사에 속한 사람만 넣을 수 있습니다. */
+  participantContactIds: string[]
 }
 
 export interface SalesDealColumn extends BoardColumn {
@@ -77,6 +103,27 @@ export interface SalesDeal extends BoardDeal {
   contractEndsOn: string | null
   warrantyTerms: string | null
   expectedDeliveryAt: string | null
+  quoteStatusId: string | null
+  quoteStatusCode: string | null
+  quoteStatusName: string | null
+  quoteStatusTone: ColumnTone | null
+  contractStatusId: string | null
+  contractStatusCode: string | null
+  contractStatusName: string | null
+  contractStatusTone: ColumnTone | null
+  quoteAmount: number | null
+  contractAmount: number | null
+  quoteDeliveryTerms: string | null
+  contractPaymentTerms: string | null
+  contractLateInterestTerms: string | null
+  teamCompanyName: string | null
+  teamBusinessNo: string | null
+  companyBusinessNo: string | null
+  items: SalesDealItemResponse[]
+  participants: SalesDealParticipantResponse[]
+  orderStatusCode: string | null
+  orderStatusName: string | null
+  orderStatusTone: ColumnTone | null
   createdAt: string
   updatedAt: string
 }
@@ -160,6 +207,27 @@ export function toSalesDeal(deal: SalesDealResponse): SalesDeal {
     contractEndsOn: deal.contract_ends_on,
     warrantyTerms: deal.warranty_terms,
     expectedDeliveryAt: deal.expected_delivery_at,
+    quoteStatusId: deal.quote_status_id,
+    quoteStatusCode: deal.quote_status_code,
+    quoteStatusName: deal.quote_status_name,
+    quoteStatusTone: deal.quote_status_tone,
+    contractStatusId: deal.contract_status_id,
+    contractStatusCode: deal.contract_status_code,
+    contractStatusName: deal.contract_status_name,
+    contractStatusTone: deal.contract_status_tone,
+    quoteAmount: deal.quote_amount,
+    contractAmount: deal.contract_amount,
+    quoteDeliveryTerms: deal.quote_delivery_terms,
+    contractPaymentTerms: deal.contract_payment_terms,
+    contractLateInterestTerms: deal.contract_late_interest_terms,
+    teamCompanyName: deal.team_company_name,
+    teamBusinessNo: deal.team_business_no,
+    companyBusinessNo: deal.customer_company_business_no,
+    items: [...deal.items].sort((a, b) => a.position - b.position),
+    participants: deal.participants,
+    orderStatusCode: deal.order_status_code,
+    orderStatusName: deal.order_status_name,
+    orderStatusTone: deal.order_status_tone,
     createdAt: deal.created_at,
     updatedAt: deal.updated_at,
   }
@@ -191,12 +259,12 @@ async function fetchAllPage<T>(
 async function fetchAllSalesDeals(
   signal?: AbortSignal,
   pipelineId?: string | null,
-  phaseCode?: SalesPipelinePhaseCode,
+  documentKind?: DealDocumentKind,
   ownerIds?: readonly string[],
 ): Promise<SalesDeal[]> {
   const params = {
     ...(pipelineId ? { sales_pipeline_id: pipelineId } : {}),
-    ...(phaseCode ? { phase_code: phaseCode } : {}),
+    ...(documentKind ? DOCUMENT_PARAMS[documentKind] : {}),
     ...(ownerIds ? { owner_member_id: ownerIds } : {}),
   }
   return (await fetchAllPage<SalesDealResponse>('/sales-deals', signal, params)).map(toSalesDeal)
@@ -223,20 +291,25 @@ interface SalesDealPageResult {
 async function fetchSalesDealPage(
   signal: AbortSignal,
   pipelineId: string | null | undefined,
-  phaseCode: SalesPipelinePhaseCode | undefined,
+  documentKind: DealDocumentKind | undefined,
   ownerIds: readonly string[] | undefined,
   query: SalesDealQuery,
 ): Promise<SalesDealPageResult> {
   const needle = query.q.trim()
+  const tab = query.stageId === '' ? undefined : query.stageId
   const { data } = await client.get<TabbedPageResponse<SalesDealResponse>>('/sales-deals', {
     params: {
       ...(pipelineId ? { sales_pipeline_id: pipelineId } : {}),
-      ...(phaseCode ? { phase_code: phaseCode } : {}),
+      ...(documentKind ? DOCUMENT_PARAMS[documentKind] : {}),
       // 담당자를 고르면 그 사람만, 아니면 보기 범위를 따릅니다.
       owner_member_id: query.ownerMemberId === '' ? ownerIds : [query.ownerMemberId],
       q: needle === '' ? undefined : needle.slice(0, 100),
+      // 견적·계약 탭은 그 국면의 상태입니다. 영업 목록만 파이프라인 단계로 거르고,
       // 파이프라인을 고르지 않으면 단계 탭이 뜨지 않으므로 단계도 걸지 않습니다.
-      sales_pipeline_stage_id: pipelineId && query.stageId !== '' ? query.stageId : undefined,
+      sales_pipeline_stage_id:
+        documentKind === undefined && pipelineId && tab !== undefined ? tab : undefined,
+      quote_status_id: documentKind === 'quote' ? tab : undefined,
+      contract_status_id: documentKind === 'contract' ? tab : undefined,
       start_date: query.fromISO ?? undefined,
       skip: query.skip,
       limit: query.limit,
@@ -261,6 +334,8 @@ function toCreateRequest(
     deal_amount: input.amount,
     opened_on: input.date,
     memo: input.memo,
+    ...(input.title === null ? {} : { title: input.title }),
+    participant_contact_ids: input.participantContactIds,
   }
 }
 
@@ -279,6 +354,8 @@ function toPatchRequest(
     deal_amount: input.amount,
     opened_on: input.date,
     memo: input.memo,
+    ...(input.title === null ? {} : { title: input.title }),
+    participant_contact_ids: input.participantContactIds,
   }
 }
 
@@ -292,7 +369,7 @@ export default function useSalesDeals(
   openId: string | null,
   requestedPipelineId: string | null,
   mode: 'list' | 'board',
-  phaseCode?: SalesPipelinePhaseCode,
+  documentKind?: DealDocumentKind,
   query?: SalesDealQuery,
 ) {
   const [pipelines, setPipelines] = useState<SalesPipelineResponse[]>([])
@@ -303,6 +380,10 @@ export default function useSalesDeals(
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [dealTypes, setDealTypes] = useState<SalesDealTypeResponse[]>([])
+  // 견적·계약 상태. 이름과 색은 서버가 정합니다. 목록의 탭과 딜 상세의 서류 칸이
+  // 함께 쓰므로 어느 화면이든 둘 다 받아 둡니다. 팀마다 다섯 줄씩이라 가볍습니다.
+  const [quoteStatuses, setQuoteStatuses] = useState<DocumentStatusResponse[]>([])
+  const [contractStatuses, setContractStatuses] = useState<DocumentStatusResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -348,23 +429,33 @@ export default function useSalesDeals(
         const stagePipeline = requested ?? fallback
         const filteredPipelineId = mode === 'board' ? stagePipeline?.id : requested?.id
 
-        const [stageItems, dealItems, dealTypeItems] = await Promise.all([
-          stagePipeline
-            ? client
-                .get<SalesPipelineStageResponse[]>(`/sales-pipelines/${stagePipeline.id}/stages`, {
-                  signal: controller.signal,
-                })
-                .then((response) => response.data)
-            : Promise.resolve([]),
-          // 조회 조건을 받은 목록 화면은 아래 효과가 한 쪽만 받습니다. 여기서 전건을
-          // 받는 것은 칸반과 매출 요약처럼 전건 집계가 필요한 쪽뿐입니다.
-          paging
-            ? Promise.resolve([])
-            : fetchAllSalesDeals(controller.signal, filteredPipelineId, phaseCode, ownerIds),
-          client
-            .get<SalesDealTypeResponse[]>('/sales-deal-types', { signal: controller.signal })
-            .then((response) => response.data),
-        ])
+        const [stageItems, dealItems, dealTypeItems, quoteStatusItems, contractStatusItems] =
+          await Promise.all([
+            stagePipeline
+              ? client
+                  .get<SalesPipelineStageResponse[]>(
+                    `/sales-pipelines/${stagePipeline.id}/stages`,
+                    {
+                      signal: controller.signal,
+                    },
+                  )
+                  .then((response) => response.data)
+              : Promise.resolve([]),
+            // 조회 조건을 받은 목록 화면은 아래 효과가 한 쪽만 받습니다. 여기서 전건을
+            // 받는 것은 칸반과 매출 요약처럼 전건 집계가 필요한 쪽뿐입니다.
+            paging
+              ? Promise.resolve([])
+              : fetchAllSalesDeals(controller.signal, filteredPipelineId, documentKind, ownerIds),
+            client
+              .get<SalesDealTypeResponse[]>('/sales-deal-types', { signal: controller.signal })
+              .then((response) => response.data),
+            client
+              .get<DocumentStatusResponse[]>(STATUS_PATH.quote, { signal: controller.signal })
+              .then((response) => response.data),
+            client
+              .get<DocumentStatusResponse[]>(STATUS_PATH.contract, { signal: controller.signal })
+              .then((response) => response.data),
+          ])
 
         if (controller.signal.aborted) return
         setPipelines(pipelineItems)
@@ -373,6 +464,8 @@ export default function useSalesDeals(
         setColumns(stageItems.map(toColumn))
         if (!paging) setCards(dealItems)
         setDealTypes(dealTypeItems)
+        setQuoteStatuses(quoteStatusItems)
+        setContractStatuses(contractStatusItems)
         setOptionsReady(true)
       })
       .catch((caught: unknown) => {
@@ -383,7 +476,7 @@ export default function useSalesDeals(
       })
 
     return () => controller.abort()
-  }, [mode, phaseCode, reloadKey, requestedPipelineId, ownerIds, paging])
+  }, [mode, documentKind, reloadKey, requestedPipelineId, ownerIds, paging])
 
   // 목록 한 쪽. 파이프라인을 정한 뒤에 부릅니다. 정하기 전에 부르면 전체 파이프라인의
   // 딜이 잠깐 보였다가 바뀝니다.
@@ -393,7 +486,7 @@ export default function useSalesDeals(
     setLoading(true)
     setError(null)
 
-    void fetchSalesDealPage(controller.signal, dealPipelineId, phaseCode, ownerIds, {
+    void fetchSalesDealPage(controller.signal, dealPipelineId, documentKind, ownerIds, {
       q: queryText,
       stageId: queryStageId,
       ownerMemberId: queryOwnerId,
@@ -419,7 +512,7 @@ export default function useSalesDeals(
     paging,
     optionsReady,
     dealPipelineId,
-    phaseCode,
+    documentKind,
     ownerIds,
     reloadKey,
     queryText,
@@ -465,11 +558,11 @@ export default function useSalesDeals(
   const syncSalesDeals = useCallback(async () => {
     try {
       // 범위를 빠뜨리면 고치자마자 화면이 조용히 팀 전체로 되돌아갑니다.
-      setCards(await fetchAllSalesDeals(undefined, dealPipelineId, phaseCode, ownerIds))
+      setCards(await fetchAllSalesDeals(undefined, dealPipelineId, documentKind, ownerIds))
     } catch {
       setMutationError('변경은 저장됐지만 최신 목록을 불러오지 못했습니다. 새로고침해 주세요.')
     }
-  }, [dealPipelineId, phaseCode, ownerIds])
+  }, [dealPipelineId, documentKind, ownerIds])
 
   const runMutation = useCallback(
     async <T>(key: string, action: string, request: () => Promise<T>): Promise<T> => {
@@ -530,6 +623,22 @@ export default function useSalesDeals(
     [cards, runMutation, syncSalesDeals],
   )
 
+  /**
+   * 견적·계약 값을 저장합니다. 둘 다 딜의 컬럼이라 딜 수정과 같은 곳으로 갑니다.
+   * 상태를 처음 넣으면 서버가 딜을 그 국면의 첫 단계로 옮깁니다.
+   */
+  const saveDealDocument = useCallback(
+    (id: string, fields: SalesDealDocumentFields, action: string) =>
+      runMutation(id, action, async () => {
+        const { data } = await client.patch<SalesDealResponse>('/sales-deals/' + id, fields)
+        const updated = toSalesDeal(data)
+        setCards((previous) => previous.map((card) => (card.id === id ? updated : card)))
+        setDetail((previous) => (previous?.id === id ? updated : previous))
+        return updated
+      }),
+    [runMutation],
+  )
+
   const deleteSalesDeal = useCallback(
     (id: string) =>
       runMutation(id, '영업 딜을 삭제', async () => {
@@ -587,8 +696,18 @@ export default function useSalesDeals(
     canCreate: activePipeline?.status_code === 'published' && columns.length > 0,
     isCreating: pendingKeys.has('create'),
     isPending,
+    quoteStatuses,
+    contractStatuses,
+    // 이 화면이 보는 국면의 상태. 탭이 씁니다.
+    documentStatuses:
+      documentKind === 'quote'
+        ? quoteStatuses
+        : documentKind === 'contract'
+          ? contractStatuses
+          : [],
     createSalesDeal,
     updateSalesDeal,
+    saveDealDocument,
     deleteSalesDeal,
     moveSalesDeal,
   }
