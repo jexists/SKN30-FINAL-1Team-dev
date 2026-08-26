@@ -9,11 +9,13 @@ import { EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import { orderPath } from '@/constants/routes'
 import { endTime, statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
+import { RISK_LABEL } from '@/shared/riskLabels'
 import type { AgendaItem } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import { useRelatedDeal } from '../../useDashboard'
+import useAiBriefing from '../../useAiBriefing'
 
 import styles from './RecordDrawer.module.scss'
 
@@ -38,6 +40,12 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     reload: onRetryRelated,
   } = useRelatedDeal(item.salesDealId ?? null)
   const done = item.done
+  const isMeeting = item.activityType === 'meeting'
+  const {
+    briefing,
+    loading: briefingLoading,
+    error: briefingError,
+  } = useAiBriefing({ activityId: item.id, eligible: isMeeting && !!item.customerContactId })
   const [menuOpen, setMenuOpen] = useState(false)
   // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
   const reportState = useAgendaReportLink(item)
@@ -229,6 +237,51 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
               </section>
             )}
           </>
+        )}
+
+        {isMeeting && (
+          <section className={`${styles.block} ${styles.full}`}>
+            <h3>🤖 AI 브리핑</h3>
+            {!item.customerContactId ? (
+              <p className={styles.note}>
+                담당자 연락처가 연결되지 않아 AI 브리핑을 만들 수 없습니다.
+              </p>
+            ) : briefingError ? (
+              <p className={styles.note} role="alert">
+                {briefingError}
+              </p>
+            ) : briefingLoading ? (
+              <Skeleton height={72} radius="var(--r-md)" />
+            ) : briefing === null ? (
+              <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
+            ) : briefing.status === 'failed' ? (
+              <p className={styles.note} role="alert">
+                브리핑 생성에 실패했습니다{briefing.error ? `: ${briefing.error}` : ''}
+              </p>
+            ) : briefing.status !== 'completed' || !briefing.content ? (
+              <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
+            ) : (
+              <>
+                <p className={styles.note}>{briefing.content.contract_summary}</p>
+                {briefing.content.risks.length > 0 && (
+                  <div className={styles.pills}>
+                    {briefing.content.risks.map((risk, index) => (
+                      <i key={`${risk.code}-${index}`} className={styles.pill}>
+                        {RISK_LABEL[risk.code]}
+                      </i>
+                    ))}
+                  </div>
+                )}
+                {briefing.content.recommended_actions.length > 0 && (
+                  <ul className={styles.actions}>
+                    {briefing.content.recommended_actions.map((action, index) => (
+                      <li key={index}>{action}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </section>
         )}
 
         {item.brief && (
