@@ -5,18 +5,16 @@
 // 여러 제품이 들어가는 일이 흔해서 한 줄로 고정할 수 없습니다.
 import type { ReactNode } from 'react'
 
+import FormField from '@/components/FormField'
+import ItemRows, { type ItemState } from '@/components/ItemRows'
 import RecordPicker from '@/components/RecordPicker'
-import { TrashIcon } from '@/components/icons'
-import type { ProductResponse, PurchaseOrderStatusResponse, SalesDealResponse } from '@/types'
-import { wonFull } from '@/utils/format'
+import type {
+  CustomerCompanyResponse,
+  PurchaseOrderStatusResponse,
+  SalesDealResponse,
+} from '@/types'
 
-import {
-  emptyItem,
-  totalOf,
-  type FormErrors,
-  type FormState,
-  type ItemState,
-} from '../../orderForm'
+import { type FormErrors, type FormState } from '../../orderForm'
 import styles from './OrderFields.module.scss'
 
 interface Props {
@@ -30,6 +28,8 @@ interface Props {
   disabled?: boolean
   showStatus?: boolean
   lockSalesDeal?: boolean
+  /** 작성자. 서버가 로그인한 사람으로 채우므로 여기서는 보여 주기만 합니다. */
+  createdBy: string
   /** 메모 앞에 들어갈 추가 항목 */
   children?: ReactNode
 }
@@ -45,17 +45,9 @@ export default function OrderFields({
   disabled = false,
   showStatus = true,
   lockSalesDeal = false,
+  createdBy,
   children,
 }: Props) {
-  const setItem = (index: number, key: keyof ItemState, value: string) =>
-    onItemsChange(form.items.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
-
-  /** 제품은 id 와 이름을 함께 갈아 끼웁니다. 둘이 어긋나면 칸에 남는 글자가 거짓말을 합니다. */
-  const setItemProduct = (index: number, productId: string, productName: string) =>
-    onItemsChange(
-      form.items.map((item, i) => (i === index ? { ...item, productId, productName } : item)),
-    )
-
   return (
     <div className={styles.grid}>
       <Field label="영업 딜" required error={errors.salesDealId}>
@@ -79,9 +71,14 @@ export default function OrderFields({
             label: row.deal_no,
             note: row.customer_company_name,
           })}
-          onChange={(next) => {
+          onChange={(next, row) => {
             onChange('salesDealId', next?.id ?? '')
             onChange('salesDealLabel', next?.label ?? '')
+            // 납품처는 거의 늘 딜의 고객사입니다. 채워 두고 다르면 고치게 합니다.
+            if (row) {
+              onChange('expectedCompanyId', row.customer_company_id)
+              onChange('expectedCompanyLabel', row.customer_company_name)
+            }
           }}
         />
       </Field>
@@ -146,91 +143,62 @@ export default function OrderFields({
         />
       </Field>
 
+      <Field label="요청부서" required error={errors.requestDepartment}>
+        <input
+          value={form.requestDepartment}
+          disabled={disabled}
+          maxLength={254}
+          onChange={(e) => onChange('requestDepartment', e.target.value)}
+        />
+      </Field>
+
+      <Field label="협조부서" required error={errors.cooperationDepartment}>
+        <input
+          value={form.cooperationDepartment}
+          disabled={disabled}
+          maxLength={254}
+          onChange={(e) => onChange('cooperationDepartment', e.target.value)}
+        />
+      </Field>
+
+      <Field label="납품예상 거래처" required error={errors.expectedCompanyId}>
+        <RecordPicker<CustomerCompanyResponse>
+          path="/customer-companies"
+          label="납품예상 거래처"
+          placeholder="회사 이름으로 검색"
+          emptyText="일치하는 거래처가 없습니다."
+          loadingText="거래처를 불러오는 중입니다."
+          fallback="거래처를 불러오지 못했습니다."
+          value={
+            form.expectedCompanyId === ''
+              ? null
+              : { id: form.expectedCompanyId, label: form.expectedCompanyLabel }
+          }
+          disabled={disabled}
+          invalid={errors.expectedCompanyId !== undefined}
+          toOption={(row) => ({ id: row.id, label: row.name })}
+          onChange={(next) => {
+            onChange('expectedCompanyId', next?.id ?? '')
+            onChange('expectedCompanyLabel', next?.label ?? '')
+          }}
+        />
+      </Field>
+
+      <Field label="작성자">
+        {/* 서버가 로그인한 사람으로 채웁니다. 고를 수 있는 값이 아닙니다. */}
+        <input value={createdBy} readOnly disabled aria-label="작성자" />
+      </Field>
+
       {children}
 
-      <div className={`${styles.field} ${styles.isWide}`}>
-        <div className={styles.itemsHead}>
-          <span className={styles.label}>
-            품목
-            <b aria-hidden="true">*</b>
-          </span>
-          <span className={`${styles.total} tnum`}>{wonFull(totalOf(form))}</span>
-        </div>
-
-        <ul className={styles.items}>
-          {form.items.map((item, index) => {
-            const row = errors.itemRows?.[index]
-            return (
-              // 줄에는 고유한 값이 없어 자리로 셉니다. 입력값이 전부 state 에 있어
-              // 줄을 지워도 남은 줄이 제 값을 그대로 들고 있습니다.
-              <li key={index} className={styles.item}>
-                <div className={styles.itemRow}>
-                  <div className={styles.product}>
-                    <RecordPicker<ProductResponse>
-                      path="/products"
-                      label={`품목 ${index + 1} 제품`}
-                      placeholder="제품 검색"
-                      emptyText="일치하는 제품이 없습니다."
-                      loadingText="제품을 불러오는 중입니다."
-                      fallback="제품을 불러오지 못했습니다."
-                      value={
-                        item.productId === ''
-                          ? null
-                          : { id: item.productId, label: item.productName }
-                      }
-                      disabled={disabled}
-                      invalid={errors.itemRows?.[index]?.productId !== undefined}
-                      toOption={(row) => ({ id: row.id, label: row.name })}
-                      onChange={(next) => setItemProduct(index, next?.id ?? '', next?.label ?? '')}
-                    />
-                  </div>
-                  <input
-                    className={styles.qty}
-                    inputMode="numeric"
-                    value={item.qty}
-                    disabled={disabled}
-                    placeholder="수량"
-                    aria-label={`품목 ${index + 1} 수량`}
-                    onChange={(e) => setItem(index, 'qty', e.target.value)}
-                  />
-                  <input
-                    className={styles.price}
-                    inputMode="numeric"
-                    value={item.price}
-                    disabled={disabled}
-                    placeholder="단가"
-                    aria-label={`품목 ${index + 1} 단가`}
-                    onChange={(e) => setItem(index, 'price', e.target.value)}
-                  />
-                  {/* 마지막 한 줄은 지우지 않습니다. 품목 없는 발주는 없습니다. */}
-                  <button
-                    type="button"
-                    className={styles.remove}
-                    aria-label={`품목 ${index + 1} 삭제`}
-                    disabled={disabled || form.items.length === 1}
-                    onClick={() => onItemsChange(form.items.filter((_, i) => i !== index))}
-                  >
-                    <TrashIcon width={14} height={14} />
-                  </button>
-                </div>
-                {row && (
-                  <span className={styles.error}>{row.productId ?? row.qty ?? row.price}</span>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-
-        <button
-          type="button"
-          className={styles.addItem}
-          disabled={disabled || form.items.length >= 100}
-          onClick={() => onItemsChange([...form.items, emptyItem()])}
-        >
-          + 품목 추가
-        </button>
-
-        {errors.items && <span className={styles.error}>{errors.items}</span>}
+      <div className={styles.isWide}>
+        <ItemRows
+          items={form.items}
+          error={errors.items}
+          rows={errors.itemRows}
+          disabled={disabled}
+          onChange={onItemsChange}
+        />
       </div>
 
       <Field label="메모" wide>
@@ -247,23 +215,5 @@ export default function OrderFields({
   )
 }
 
-interface FieldProps {
-  label: string
-  required?: boolean
-  error?: string
-  wide?: boolean
-  children: ReactNode
-}
-
-export function Field({ label, required, error, wide, children }: FieldProps) {
-  return (
-    <label className={[styles.field, wide ? styles.isWide : ''].filter(Boolean).join(' ')}>
-      <span className={styles.label}>
-        {label}
-        {required && <b aria-hidden="true">*</b>}
-      </span>
-      {children}
-      {error && <span className={styles.error}>{error}</span>}
-    </label>
-  )
-}
+/** 발주 화면 밖에서도 쓰던 이름이라 그대로 둡니다. 알맹이는 공용 FormField 입니다. */
+export const Field = FormField
