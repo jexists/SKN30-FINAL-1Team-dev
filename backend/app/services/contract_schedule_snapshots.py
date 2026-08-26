@@ -443,10 +443,21 @@ async def build_schedule_snapshot(
         duration_minutes = suggestion.get("duration_minutes", 60)
         reason = suggestion.get("reason")
 
+    now = datetime.now(UTC)
+    if preferred_starts_at is not None and preferred_ends_at is not None:
+        # 상위 제안(계약관리 1차 실행)이 이미 지난 날짜를 줬을 수 있다 — LLM이 현재
+        # 시각을 잘못 가늠했을 때의 방어선이다.
+        parsed_start = datetime.fromisoformat(preferred_starts_at)
+        parsed_end = datetime.fromisoformat(preferred_ends_at)
+        if parsed_end <= now:
+            preferred_starts_at = None
+            preferred_ends_at = None
+        elif parsed_start < now:
+            preferred_starts_at = now.isoformat()
+
     if preferred_starts_at is None or preferred_ends_at is None:
         # 계약관리 제안에 구체적인 선호 시간대가 없으면(예: 근거만 있고 날짜 미정),
         # 오늘부터 일주일을 기본 탐색 범위로 둔다.
-        now = datetime.now(UTC)
         window_start = now
         window_end = now + timedelta(days=_DEFAULT_PREFERRED_WINDOW_DAYS)
     else:

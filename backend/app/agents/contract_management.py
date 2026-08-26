@@ -12,11 +12,20 @@
 """
 
 import json
+from datetime import datetime
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.llm import generate_structured
+
+_SEOUL = ZoneInfo("Asia/Seoul")
+
+
+def _now() -> datetime:
+    return datetime.now(_SEOUL)
+
 
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
@@ -54,6 +63,10 @@ PROPOSE_NEXT_MEETING_SYSTEM_PROMPT = f"""너는 B2B 영업·계약관리를 보�
 스냅샷에 없는 사실을 추측하지 말고, 확인되지 않은 항목은 missing_information 에 남겨라.
 
 {_RISK_RULES}
+
+입력의 current_date는 지금 시각(Asia/Seoul)이다. next_meeting_suggestion을 채울 때
+preferred_starts_at·preferred_ends_at은 반드시 current_date 이후여야 한다 — 이미 지난
+날짜를 제안하지 마라.
 
 이 호출은 1차 실행이다. 위험 판정과 다음 미팅 제안만 만들고, 회사·계약 현황을 요약하는
 브리핑 문장은 만들지 마라. 계약이나 업무 데이터를 이미 변경했다고 표현하지 마라.
@@ -194,6 +207,8 @@ class _NextMeetingLLMInput(BaseModel):
     sales_deals: list[dict[str, Any]] = Field(default_factory=list)
     risk_signals: list[dict[str, Any]] = Field(default_factory=list)
     recent_approved_reports: list[dict[str, Any]] = Field(default_factory=list)
+    # LLM이 과거 날짜를 제안하지 않도록 기준점을 함께 보낸다.
+    current_date: str
 
 
 class _BriefingLLMInput(BaseModel):
@@ -241,6 +256,7 @@ async def propose_next_meeting(snapshot: dict[str, Any]) -> NextMeetingProposalO
         sales_deals=snapshot.get("sales_deals") or [],
         risk_signals=snapshot.get("risk_signals") or [],
         recent_approved_reports=snapshot.get("recent_approved_reports") or [],
+        current_date=_now().isoformat(),
     )
     return await generate_structured(
         instructions=PROPOSE_NEXT_MEETING_SYSTEM_PROMPT,

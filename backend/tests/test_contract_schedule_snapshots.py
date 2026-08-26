@@ -421,3 +421,75 @@ async def test_build_schedule_snapshot_without_parent_uses_request_preferred_win
     assert snapshot["preferred_starts_at"] == "2026-09-01T00:00:00+09:00"
     assert snapshot["duration_minutes"] == 30
     assert snapshot["reason"] is None
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_falls_back_when_parent_window_fully_past():
+    """상위 제안(계약관리 1차 실행)이 이미 끝난 날짜를 줬으면(LLM이 현재 시각을 잘못
+    가늠했을 때) 기본 탐색 범위(오늘부터 일주일)로 대체한다."""
+    member = _member()
+    deal = _deal(member)
+    now = datetime.now(UTC)
+    parent = AgentRun(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code="contract_management_next_meeting",
+        status_code="completed",
+        output_snapshot={
+            "next_meeting_suggestion": {
+                "sales_deal_id": str(deal.id),
+                "reason": "계약 갱신 협의",
+                "preferred_starts_at": (now - timedelta(days=10)).isoformat(),
+                "preferred_ends_at": (now - timedelta(days=4)).isoformat(),
+                "duration_minutes": 45,
+            }
+        },
+    )
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db, member, deal.id, parent, None, None, None
+    )
+
+    # 이미 끝난 선호 기간은 통째로 버린다 — "선호 기간 없음"과 같은 취급으로, 일정관리
+    # 에이전트가 자체 기본 범위(오늘부터 일주일)와 current_date로 다시 판단하게 한다.
+    assert snapshot["preferred_starts_at"] is None
+    assert snapshot["preferred_ends_at"] is None
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_clamps_partially_past_parent_window():
+    """상위 제안의 시작만 이미 지났고 끝은 아직 미래면, 끝은 그대로 두고 시작만 지금으로
+    당긴다 — 마감(quote_valid_until 등) 의도는 살리면서 과거 시각은 검색 범위에서 뺀다."""
+    member = _member()
+    deal = _deal(member)
+    now = datetime.now(UTC)
+    parent = AgentRun(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code="contract_management_next_meeting",
+        status_code="completed",
+        output_snapshot={
+            "next_meeting_suggestion": {
+                "sales_deal_id": str(deal.id),
+                "reason": "계약 갱신 협의",
+                "preferred_starts_at": (now - timedelta(days=4)).isoformat(),
+                "preferred_ends_at": (now + timedelta(days=3)).isoformat(),
+                "duration_minutes": 45,
+            }
+        },
+    )
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db, member, deal.id, parent, None, None, None
+    )
+
+    assert datetime.fromisoformat(snapshot["preferred_starts_at"]) >= now
+    assert snapshot["preferred_ends_at"] == (now + timedelta(days=3)).isoformat()

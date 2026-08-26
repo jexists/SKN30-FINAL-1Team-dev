@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 import pytest
 from pydantic import ValidationError
@@ -169,6 +170,8 @@ async def test_select_next_meeting_candidates_drops_unknown_deal_ids(monkeypatch
 
 @pytest.mark.anyio
 async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(monkeypatch):
+    fixed_now = datetime(2026, 8, 26, 9, 0, tzinfo=contract_management._SEOUL)
+    monkeypatch.setattr(contract_management, "_now", lambda: fixed_now)
     captured = {}
     expected = contract_management.NextMeetingProposalOutput(
         risks=[
@@ -213,6 +216,7 @@ async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(mo
         "sales_deals": [],
         "risk_signals": risk_signals,
         "recent_approved_reports": [],
+        "current_date": fixed_now.isoformat(),
     }
 
 

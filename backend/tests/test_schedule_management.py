@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 import pytest
 from pydantic import ValidationError
@@ -47,11 +48,13 @@ def test_candidate_contract_rejects_invalid_activity_type_and_priority():
 @pytest.mark.parametrize(
     ("starts_at", "ends_at", "expected"),
     [
-        ("2026-08-25T09:00:00+09:00", "2026-08-25T18:00:00+09:00", True),
+        ("2026-08-25T09:00:00+09:00", "2026-08-25T18:00:00+09:00", True),  # 화요일
         ("2026-08-25T08:59:00+09:00", "2026-08-25T10:00:00+09:00", False),
         ("2026-08-25T17:30:00+09:00", "2026-08-25T18:01:00+09:00", False),
         ("2026-08-25T10:00:00+09:00", "2026-08-25T10:00:00+09:00", False),
         ("not-a-date", "2026-08-25T10:00:00+09:00", False),
+        ("2026-08-22T09:00:00+09:00", "2026-08-22T10:00:00+09:00", False),  # 토요일
+        ("2026-08-23T09:00:00+09:00", "2026-08-23T10:00:00+09:00", False),  # 일요일
     ],
 )
 def test_candidate_must_be_valid_and_within_business_hours(starts_at, ends_at, expected):
@@ -122,7 +125,12 @@ def test_conflicts_for_marks_invalid_time_without_raising():
     assert by_id["valid-overlap"].reason == "time_overlap"
 
 
-def test_postprocess_removes_out_of_hours_and_conflicting_candidates():
+def test_postprocess_removes_out_of_hours_and_conflicting_candidates(monkeypatch):
+    monkeypatch.setattr(
+        schedule_management,
+        "_now",
+        lambda: datetime(2026, 8, 25, 0, 0, tzinfo=schedule_management._SEOUL),
+    )
     output = schedule_management.ScheduleManagementOutput(
         schedule_candidates=[
             _candidate(candidate_id="kept"),
@@ -156,8 +164,37 @@ def test_postprocess_removes_out_of_hours_and_conflicting_candidates():
     assert [item.activity_id for item in result.conflicts] == ["activity-1"]
 
 
+def test_postprocess_drops_candidates_already_in_the_past(monkeypatch):
+    """프롬프트로 지침을 줘도 LLM이 과거 날짜를 제안할 수 있다 — 여기서 결정적으로 막는다."""
+    monkeypatch.setattr(
+        schedule_management,
+        "_now",
+        lambda: datetime(2026, 8, 25, 12, 0, tzinfo=schedule_management._SEOUL),
+    )
+    output = schedule_management.ScheduleManagementOutput(
+        schedule_candidates=[
+            _candidate(
+                candidate_id="past",
+                starts_at="2026-08-25T09:00:00+09:00",
+                ends_at="2026-08-25T10:00:00+09:00",
+            ),
+            _candidate(
+                candidate_id="future",
+                starts_at="2026-08-25T14:00:00+09:00",
+                ends_at="2026-08-25T15:00:00+09:00",
+            ),
+        ]
+    )
+
+    result = schedule_management._postprocess(output, snapshot={"activities": []})
+
+    assert [item.candidate_id for item in result.schedule_candidates] == ["future"]
+
+
 @pytest.mark.anyio
 async def test_run_uses_schedule_prompt_schema_and_postprocesses(monkeypatch):
+    fixed_now = datetime(2026, 8, 25, 8, 0, tzinfo=schedule_management._SEOUL)
+    monkeypatch.setattr(schedule_management, "_now", lambda: fixed_now)
     captured = {}
     generated = schedule_management.ScheduleManagementOutput(
         schedule_candidates=[
@@ -208,6 +245,7 @@ async def test_run_uses_schedule_prompt_schema_and_postprocesses(monkeypatch):
                 "all_day": False,
             }
         ],
+        "current_date": fixed_now.isoformat(),
     }
     # 담당자(개인정보)는 로컬 충돌 계산에만 쓰고 LLM 프롬프트에는 보내지 않는다.
     assert "owner_member_id" not in captured["input_text"]
