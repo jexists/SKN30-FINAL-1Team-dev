@@ -75,7 +75,7 @@ export default function Compose() {
   const pickId = params.get('pick') ?? undefined
 
   const draft = useDailyDraft(dateISO, kind, { pickId })
-  const { submitReport, saveDraft, pending, error, reload } = useDailyReports()
+  const { submitReport, saveDraft, pending, error } = useDailyReports()
   const loadError = draft.error ?? error
 
   const [confirm, setConfirm] = useState<Confirm>(null)
@@ -249,13 +249,7 @@ export default function Compose() {
         </div>
       </header>
 
-      <ErrorToast
-        message={loadError}
-        onRetry={() => {
-          draft.reload()
-          reload()
-        }}
-      />
+      <ErrorToast message={loadError} onRetry={draft.reload} />
 
       {saved && <p className={styles.saved}>임시저장했습니다. 목록에서 이어서 쓸 수 있습니다.</p>}
 

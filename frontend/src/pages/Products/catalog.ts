@@ -13,6 +13,18 @@ export function categoryLabel(code: string): string {
   return LABEL_BY_CODE.get(code as ProductCategoryCode) ?? code
 }
 
+/**
+ * 검색어가 가리키는 분류 코드. 분류 이름은 화면만 알고 DB 에는 코드만 있어서, 이름으로
+ * 찾으려면 화면이 코드로 풀어 보내야 합니다.
+ */
+export function categoryCodesMatching(needle: string): ProductCategoryCode[] {
+  const lowered = needle.trim().toLowerCase()
+  if (lowered === '') return []
+  return CATEGORIES.filter(({ label }) => label.toLowerCase().includes(lowered)).map(
+    ({ code }) => code,
+  )
+}
+
 export function shelfLifeLabel(months: number | null): string {
   return months === null ? '-' : `${months}개월`
 }

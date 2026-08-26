@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
@@ -99,7 +99,7 @@ const STATUS_BY_ACTION_TAG = Object.fromEntries(
 const MINUTE = 60_000
 const DAY = 86_400_000
 const KST_OFFSET = 9 * 60 * MINUTE
-const PAGE_LIMIT = 100
+const PAGE_LIMIT = 30
 
 function kstIso(value: number | Date): string {
   const time = typeof value === 'number' ? value : value.getTime()
@@ -237,6 +237,22 @@ export function removeAgenda(id: string) {
   commit(items.filter((item) => item.id !== id))
 }
 
+/**
+ * 대시보드가 첫 응답으로 받아 온 하루치를 스토어에 그대로 심습니다.
+ *
+ * 심어 두지 않으면 하루 목록을 보는 쪽이 같은 날을 한 번 더 받아 옵니다. 조회한 것과
+ * 같은 자리에 같은 키로 넣어야 그 재조회가 캐시에 걸립니다.
+ */
+export function seedAgenda(dateISO: string, seeded: AgendaItem[]) {
+  const key = `${getScopeKey()}|${dateISO}:${dateISO}`
+  // 다른 날을 펼쳐 둔 채로 대시보드를 새로 고칠 수 있습니다. 그때 오늘치로 덮으면
+  // 보고 있던 목록이 통째로 바뀝니다. 그 날짜는 자기 조회가 채우게 둡니다.
+  if (loadedKey !== null && loadedKey !== key) return
+  loadedKey = key
+  loadError = null
+  commit(seeded)
+}
+
 async function fetchAgenda(
   startDate: string,
   endDate: string,
@@ -335,14 +351,6 @@ export function agendaById(id: string): AgendaItem | undefined {
 const DEFAULT_START_DATE = '2000-01-01'
 const DEFAULT_END_DATE = '2099-12-31'
 
-export function useAgenda(): AgendaItem[] {
-  const scopeKey = useScopeKey()
-  useEffect(() => {
-    void loadAgenda(DEFAULT_START_DATE, DEFAULT_END_DATE)
-  }, [scopeKey])
-  return useSyncExternalStore(subscribeAgenda, agendaSnapshot, agendaSnapshot)
-}
-
 /**
  * `ownScopeOnly` 는 보기 범위를 무시하고 본인 일정만 봅니다.
  *
@@ -371,8 +379,58 @@ export function useAgendaState(
   }
 }
 
+/**
+ * 활동 하나만 받아 옵니다. 보고서 작성 화면이 주소의 활동 번호로 바로 들어올 때 씁니다.
+ *
+ * 목록에서 찾으면 그 활동이 언제 것인지 모르는 채로 전 기간을 받아야 합니다. 번호를 아는
+ * 조회이므로 단건으로 받습니다.
+ */
+export function useAgendaItem(id: string) {
+  const [item, setItem] = useState<AgendaItem | undefined>(undefined)
+  const [loading, setLoading] = useState(id !== '')
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const scopeKey = useScopeKey()
+
+  useEffect(() => {
+    if (id === '') {
+      setItem(undefined)
+      setLoading(false)
+      setError(null)
+      return
+    }
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+    client
+      .get<ActivityRead>(`/activities/${id}`, { signal: controller.signal })
+      .then(({ data }) => {
+        const next = activityToAgenda(data)
+        // 보고는 본인이 한 일을 적습니다. 주소를 직접 고쳐 남의 일정으로 들어오면 비웁니다.
+        // 팀장이 아니면 서버가 이미 본인 것만 주므로 그대로 받습니다.
+        const own = getOwnMemberIds()
+        const mine =
+          own === undefined ||
+          (next.ownerMemberId !== undefined && own.includes(next.ownerMemberId))
+        setItem(mine ? next : undefined)
+        setLoading(false)
+      })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        setError(errorMessage(cause, '일정을 불러오지 못했습니다.'))
+        setLoading(false)
+      })
+    return () => controller.abort()
+  }, [id, reloadKey, scopeKey])
+
+  return { item, loading, error, reload: () => setReloadKey((key) => key + 1) }
+}
+
+/**
+ * 하루치만 받아 옵니다. 대시보드가 첫 응답으로 심어 둔 날은 캐시에 걸려 다시 받지 않습니다.
+ */
 export function useAgendaFor(dateISO: string): AgendaItem[] {
-  useAgenda()
+  useAgendaState(dateISO, dateISO)
   const snapshot = useCallback(() => agendaFor(dateISO), [dateISO])
   return useSyncExternalStore(subscribeAgenda, snapshot, snapshot)
 }

@@ -3,6 +3,7 @@
 import type { FC } from 'react'
 
 import {
+  BellIcon,
   CalendarIcon,
   ComplaintIcon,
   ContractIcon,
@@ -85,6 +86,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: '관리',
     managerOnly: true,
     items: [
+      { to: ROUTES.NOTICES, label: '공지관리', icon: BellIcon },
       { to: ROUTES.PRODUCTS, label: '상품관리', icon: ProductIcon },
       { to: ROUTES.TEAM, label: '팀 관리', icon: TeamIcon },
     ],
@@ -100,7 +102,9 @@ const NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items)
  * breadcrumb 에는 제 이름이 나와야 합니다.
  */
 const OFF_MENU_LABELS: { to: Route; label: string }[] = [
+  // 작성 화면이 상세보다 뒤에 와도 됩니다. findNavLabel 이 긴 경로부터 봅니다.
   { to: ROUTES.MEETINGS, label: '미팅보고서' },
+  { to: ROUTES.MEETINGS_NEW, label: '미팅보고서 작성' },
   { to: ROUTES.NOTIFICATIONS, label: '알림' },
   { to: ROUTES.MYPAGE, label: '마이페이지' },
   { to: ROUTES.TERMS, label: '이용약관' },

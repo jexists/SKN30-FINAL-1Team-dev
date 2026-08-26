@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
-import { fallbackMeetingReports } from '@/mocks/meetings'
 import { reportTemplateFromSnapshot } from '@/shared/reports'
+import { useReportQuery } from '@/shared/reportQuery'
 import type {
   MeetingReport,
   PageResponse,
@@ -15,7 +15,8 @@ import type {
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
-const PAGE_LIMIT = 100
+import { reviewOf } from './reviewStatus'
+
 const DAY = 86_400_000
 
 function record(value: unknown): Record<string, unknown> {
@@ -42,7 +43,7 @@ function statusOf(code: ReportResponse['status_code']): ReportStatus {
   return '확정'
 }
 
-function toReport(item: ReportResponse): MeetingReport {
+export function toMeetingReport(item: ReportResponse): MeetingReport {
   const content = record(item.content)
   return {
     id: item.id,
@@ -59,6 +60,7 @@ function toReport(item: ReportResponse): MeetingReport {
     place: text(content.place),
     title: text(content.title),
     status: statusOf(item.status_code),
+    review: reviewOf(item.status_code, content.on_hold === true),
     transcript: item.transcript ?? '',
     values: valuesOf(content.values ?? item.content),
     attachments: Array.isArray(content.attachments)
@@ -69,22 +71,6 @@ function toReport(item: ReportResponse): MeetingReport {
     aiEvidence: text(content.ai_evidence) || undefined,
     aiGeneratedAt: text(content.ai_generated_at) || undefined,
   }
-}
-
-async function fetchReports(signal: AbortSignal): Promise<ReportResponse[]> {
-  const result: ReportResponse[] = []
-  let skip = 0
-  while (!signal.aborted) {
-    const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
-      params: { report_kind: 'meeting', skip, limit: PAGE_LIMIT },
-      signal,
-    })
-    result.push(...data.items)
-    if (!data.has_more || data.next_skip === null) return result
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-  return result
 }
 
 export interface MeetingDraftPayload {
@@ -106,6 +92,23 @@ export interface MeetingDraftPayload {
   aiValues: Record<string, string>
   aiEvidence?: string
   aiGeneratedAt?: string
+}
+
+/**
+ * 이 일정으로 이미 쓴 보고서의 번호. 저장할 때 새로 만들지 고칠지를 이걸로 가릅니다.
+ *
+ * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 일정에 보고서를 하나 더
+ * 만듭니다. 서버에 직접 물어야 합니다.
+ */
+export async function savedForAgenda(
+  agendaId: string,
+  signal?: AbortSignal,
+): Promise<ReportResponse | undefined> {
+  const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
+    params: { report_kind: 'meeting', source_activity_id: agendaId, limit: 1 },
+    signal,
+  })
+  return data.items[0]
 }
 
 function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
@@ -138,94 +141,66 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
   }
 }
 
+/** 그 날 쓴 미팅보고서들. 하루치라 한 쪽에 다 들어옵니다. */
+export function useMeetingReportsOn(dateISO: string, enabled = true) {
+  const { items, loading, error, reload } = useReportQuery(
+    enabled ? { report_kind: 'meeting', start_date: dateISO, end_date: dateISO } : null,
+    '미팅보고서를 불러오지 못했습니다.',
+  )
+  const reports = useMemo(() => items.map(toMeetingReport), [items])
+  return { reports, loading, error, reload }
+}
+
+/** 그 일정으로 쓴 미팅보고서 한 건. 없으면 undefined 입니다. */
+export function useMeetingReportOfAgenda(agendaId: string) {
+  const { items, loading, error, reload } = useReportQuery(
+    agendaId === '' ? null : { report_kind: 'meeting', source_activity_id: agendaId, limit: 1 },
+    '미팅보고서를 불러오지 못했습니다.',
+  )
+  const report = items[0] ? toMeetingReport(items[0]) : undefined
+  return { report, loading, error, reload }
+}
+
 export default function useMeetingReports() {
-  const [reports, setReports] = useState<MeetingReport[]>([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0)
 
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true)
+  const save = useCallback(async (draft: MeetingDraftPayload, submit: boolean) => {
+    setPending(true)
     setError(null)
-    void fetchReports(controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setReports(items.map(toReport))
-      })
-      // 목록을 못 받아 오면 화면을 에러로 덮지 않고 시연 데이터로 채웁니다.
-      // 저장 실패는 아래 save 에서 그대로 알립니다.
-      .catch(() => {
-        if (!controller.signal.aborted) setReports(fallbackMeetingReports)
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-    return () => controller.abort()
-  }, [reloadKey])
-
-  const byDate = useMemo(() => {
-    const map = new Map<string, MeetingReport[]>()
-    for (const report of reports) {
-      const found = map.get(report.date)
-      if (found) found.push(report)
-      else map.set(report.date, [report])
-    }
-    return map
-  }, [reports])
-
-  const findReport = useCallback(
-    (id: string) => reports.find((report) => report.id === id),
-    [reports],
-  )
-  const findByAgenda = useCallback(
-    (agendaId: string) => reports.find((report) => report.agendaId === agendaId),
-    [reports],
-  )
-
-  const save = useCallback(
-    async (draft: MeetingDraftPayload, submit: boolean) => {
-      setPending(true)
-      setError(null)
-      try {
-        const existing = findByAgenda(draft.agendaId)
-        const request = requestOf(draft)
-        const { report_kind: _kind, source_activity_id: _source, ...patch } = request
-        const saved = existing
-          ? await client.patch<ReportResponse>(`/reports/${existing.id}`, patch)
-          : await client.post<ReportResponse>('/reports', request)
-        const response = submit
+    try {
+      const existing = await savedForAgenda(draft.agendaId)
+      const request = requestOf(draft)
+      const { report_kind: _kind, source_activity_id: _source, ...patch } = request
+      const saved = existing
+        ? await client.patch<ReportResponse>(`/reports/${existing.id}`, patch)
+        : await client.post<ReportResponse>('/reports', request)
+      // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
+      // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
+      const from = existing?.status_code ?? 'draft'
+      const response =
+        submit && (from === 'draft' || from === 'rejected')
           ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
-              expected_status_code: 'draft',
+              expected_status_code: from,
             })
           : saved
-        const report = toReport(response.data)
-        setReports((current) => [report, ...current.filter((item) => item.id !== report.id)])
-        return report
-      } catch (reason: unknown) {
-        setError(
-          errorMessage(
-            reason,
-            submit ? '미팅 기록을 확정하지 못했습니다.' : '임시저장하지 못했습니다.',
-          ),
-        )
-        throw reason
-      } finally {
-        setPending(false)
-      }
-    },
-    [findByAgenda],
-  )
+      return toMeetingReport(response.data)
+    } catch (reason: unknown) {
+      setError(
+        errorMessage(
+          reason,
+          submit ? '미팅 기록을 확정하지 못했습니다.' : '임시저장하지 못했습니다.',
+        ),
+      )
+      throw reason
+    } finally {
+      setPending(false)
+    }
+  }, [])
 
   return {
-    reports,
-    byDate,
-    findReport,
-    findByAgenda,
-    loading,
     error,
     pending,
-    reload: () => setReloadKey((value) => value + 1),
     saveReport: (draft: MeetingDraftPayload) => save(draft, true),
     saveDraft: (draft: MeetingDraftPayload) => save(draft, false),
   }

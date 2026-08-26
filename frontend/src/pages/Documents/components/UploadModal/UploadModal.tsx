@@ -8,9 +8,17 @@
 import { useRef, useState } from 'react'
 
 import Button from '@/components/Button'
-import { TrashIcon, UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import type { DocumentCategory, DocumentLink, SalesDocument } from '@/types'
+import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import { TrashIcon, UploadIcon } from '@/components/icons'
+import type {
+  CustomerCompanyResponse,
+  DocumentCategory,
+  DocumentLink,
+  OrderResponse,
+  SalesDealResponse,
+  SalesDocument,
+} from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 
 import { DOCUMENT_CATEGORIES, guessCategory, latestOf, LINK_KINDS } from '../../catalog'
@@ -60,7 +68,7 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
   const [picked, setPicked] = useState<Picked[]>([])
   const [dragging, setDragging] = useState(false)
   const [linkKind, setLinkKind] = useState<DocumentLink['kind']>(target?.link.kind ?? 'none')
-  const [linkLabel, setLinkLabel] = useState(target?.link.label ?? '')
+  const [linkTarget, setLinkTarget] = useState<RecordOption | null>(null)
   const [description, setDescription] = useState(target?.description ?? '')
   const [tags, setTags] = useState(target?.tags.join(', ') ?? '')
   const [note, setNote] = useState('')
@@ -81,9 +89,9 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
     }
 
     const link: DocumentLink =
-      linkKind === 'none' || linkLabel.trim() === ''
-        ? { kind: 'none', label: '' }
-        : { kind: linkKind, label: linkLabel.trim() }
+      linkKind === 'none' || linkTarget === null
+        ? { kind: 'none', id: '', label: '' }
+        : { kind: linkKind, id: linkTarget.id, label: linkTarget.label }
 
     const tagList = tags
       .split(',')
@@ -220,7 +228,11 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
             <Field label="연결 대상">
               <select
                 value={linkKind}
-                onChange={(event) => setLinkKind(event.target.value as DocumentLink['kind'])}
+                onChange={(event) => {
+                  setLinkKind(event.target.value as DocumentLink['kind'])
+                  // 종류가 바뀌면 앞서 고른 것은 다른 목록의 것입니다.
+                  setLinkTarget(null)
+                }}
               >
                 {LINK_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
@@ -231,12 +243,54 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
             </Field>
 
             <Field label="연결 번호·이름">
-              <input
-                value={linkLabel}
-                disabled={linkKind === 'none'}
-                placeholder="FM-CT-2026-0059"
-                onChange={(event) => setLinkLabel(event.target.value)}
-              />
+              {linkKind === '고객사' ? (
+                <RecordPicker<CustomerCompanyResponse>
+                  path="/customer-companies"
+                  label="연결할 고객사"
+                  placeholder="회사 이름으로 검색"
+                  emptyText="일치하는 고객사가 없습니다."
+                  loadingText="고객사를 불러오는 중입니다."
+                  fallback="고객사를 불러오지 못했습니다."
+                  value={linkTarget}
+                  toOption={(row) => ({ id: row.id, label: row.name })}
+                  onChange={setLinkTarget}
+                />
+              ) : linkKind === '계약' ? (
+                <RecordPicker<SalesDealResponse>
+                  path="/sales-deals"
+                  label="연결할 계약 딜"
+                  placeholder="계약 번호나 고객사로 검색"
+                  emptyText="일치하는 계약 딜이 없습니다."
+                  loadingText="계약 딜을 불러오는 중입니다."
+                  fallback="계약 딜을 불러오지 못했습니다."
+                  params={{ phase_code: 'contract' }}
+                  value={linkTarget}
+                  toOption={(row) => ({
+                    id: row.id,
+                    label: row.contract_no ?? row.deal_no,
+                    note: row.customer_company_name,
+                  })}
+                  onChange={setLinkTarget}
+                />
+              ) : linkKind === '발주' ? (
+                <RecordPicker<OrderResponse>
+                  path="/orders"
+                  label="연결할 발주"
+                  placeholder="발주 번호나 공급처로 검색"
+                  emptyText="일치하는 발주가 없습니다."
+                  loadingText="발주를 불러오는 중입니다."
+                  fallback="발주를 불러오지 못했습니다."
+                  value={linkTarget}
+                  toOption={(row) => ({
+                    id: row.id,
+                    label: row.order_no,
+                    note: row.supplier_name,
+                  })}
+                  onChange={setLinkTarget}
+                />
+              ) : (
+                <input value="" disabled placeholder="연결 대상을 먼저 고르세요" readOnly />
+              )}
             </Field>
 
             <Field label="설명" wide>

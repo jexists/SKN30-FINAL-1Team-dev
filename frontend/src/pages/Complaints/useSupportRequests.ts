@@ -5,44 +5,13 @@ import { client } from '@/api/client'
 import { transportMessage } from '@/api/errorMessage'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
-  CustomerContactResponse,
-  PageResponse,
+  TabbedPageResponse,
   SupportRequestCreateRequest,
   SupportRequestResponse,
   SupportResponseResponse,
   SupportStatusCode,
   SupportTransitionRequest,
 } from '@/types'
-
-const PAGE_LIMIT = 100
-
-export interface ContactOption {
-  id: string
-  label: string
-}
-
-async function fetchAll<T>(
-  path: string,
-  signal: AbortSignal,
-  extraParams?: Record<string, unknown>,
-): Promise<T[]> {
-  // ponytail: 탭 건수는 전건 기준입니다. 데이터가 커지면 서버 집계 API로 바꿉니다.
-  const items: T[] = []
-  let skip = 0
-
-  while (!signal.aborted) {
-    const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT, ...extraParams },
-      signal,
-    })
-    items.push(...data.items)
-    if (!data.has_more || data.next_skip === null) break
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-
-  return items
-}
 
 function loadErrorMessage(error: unknown, detail = false): string {
   const fallback = `고객불만 ${detail ? '상세를' : '목록을'} 불러오지 못했습니다.`
@@ -67,9 +36,18 @@ export function mutationErrorMessage(error: unknown, action: string): string {
   return transportMessage(error) ?? fallback
 }
 
-export default function useSupportRequests(openId: string | null) {
+export interface SupportQuery {
+  q: string
+  /** 고른 탭. 빈 문자열이면 전체입니다. */
+  status: SupportStatusCode | ''
+  skip: number
+  limit: number
+}
+
+export default function useSupportRequests(openId: string | null, query: SupportQuery) {
   const [requests, setRequests] = useState<SupportRequestResponse[]>([])
-  const [contacts, setContacts] = useState<ContactOption[]>([])
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -89,23 +67,23 @@ export default function useSupportRequests(openId: string | null) {
     setLoading(true)
     setError(null)
 
-    void Promise.all([
-      fetchAll<SupportRequestResponse>('/support-requests', controller.signal, {
-        assignee_member_id: assigneeIds,
-      }),
-      // 고객은 불만을 등록할 때 고르는 목록입니다. 보기 범위로 좁히면 팀원이 맡은
-      // 고객의 불만을 접수할 수 없게 됩니다.
-      fetchAll<CustomerContactResponse>('/customer-contacts', controller.signal),
-    ])
-      .then(([requestItems, contactItems]) => {
+    const needle = query.q.trim()
+    void client
+      .get<TabbedPageResponse<SupportRequestResponse>>('/support-requests', {
+        params: {
+          q: needle === '' ? undefined : needle.slice(0, 100),
+          status_code: query.status === '' ? undefined : query.status,
+          assignee_member_id: assigneeIds,
+          skip: query.skip,
+          limit: query.limit,
+        },
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
         if (controller.signal.aborted) return
-        setRequests(requestItems)
-        setContacts(
-          contactItems.map((contact) => ({
-            id: contact.id,
-            label: `${contact.company_name} · ${contact.name}`,
-          })),
-        )
+        setRequests(data.items)
+        setTotal(data.total)
+        setCounts(data.counts)
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) setError(loadErrorMessage(caught))
@@ -115,7 +93,7 @@ export default function useSupportRequests(openId: string | null) {
       })
 
     return () => controller.abort()
-  }, [reloadKey, assigneeIds])
+  }, [reloadKey, assigneeIds, query.q, query.status, query.skip, query.limit])
 
   useEffect(() => {
     setDetail(null)
@@ -144,7 +122,9 @@ export default function useSupportRequests(openId: string | null) {
 
   const createRequest = useCallback(async (payload: SupportRequestCreateRequest) => {
     const { data } = await client.post<SupportRequestResponse>('/support-requests', payload)
-    setRequests((previous) => [data, ...previous])
+    // 새 불만이 이 쪽 첫 줄에 오는지는 발생 시각 순서가 정합니다. 목록에 끼워 넣지 않고
+    // 다시 받아 서버가 놓는 자리를 따릅니다.
+    setReloadKey((value) => value + 1)
     return data
   }, [])
 
@@ -206,7 +186,8 @@ export default function useSupportRequests(openId: string | null) {
 
   return {
     requests,
-    contacts,
+    total,
+    counts,
     loading,
     error,
     reload: () => setReloadKey((value) => value + 1),

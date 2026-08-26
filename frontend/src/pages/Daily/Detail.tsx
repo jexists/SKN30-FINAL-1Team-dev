@@ -2,24 +2,29 @@ import { Link, useParams } from 'react-router'
 
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button from '@/components/Button'
-import { ChevronLeftIcon } from '@/components/icons'
 import ReportFields from '@/components/ReportFields'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
+import { useReportDetail } from '@/shared/reportQuery'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import ActivityList from './components/ActivityList'
+import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
+import { kindToPeriod } from './periods'
 import { activityLink } from './sources'
-import useDailyReports from './useDailyReports'
+import { toReport } from './useDailyReports'
 
 import styles from './Detail.module.scss'
 
 export default function Detail() {
   const { reportId } = useParams()
-  const { findReport, loading, error, reload } = useDailyReports()
+  const { item, loading, error, reload } = useReportDetail(
+    reportId,
+    '보고서를 불러오지 못했습니다.',
+  )
 
-  const report = reportId ? findReport(reportId) : undefined
+  const report = item ? toReport(item) : undefined
 
   if (loading)
     return (
@@ -57,10 +62,6 @@ export default function Detail() {
       <h1 className="sr-only">{report.kind}업무보고 상세</h1>
 
       <header className={styles.head}>
-        <Link className={styles.back} to={ROUTES.DAILY}>
-          <ChevronLeftIcon />
-          업무 보고
-        </Link>
         <p className={styles.date}>{report.period ?? fmtDot(parseISO(report.date))}</p>
         <ReportStatusBadge status={report.status} />
         <span className={styles.approver}>보고 대상 {report.approver}</span>
@@ -70,6 +71,9 @@ export default function Detail() {
             수정해서 다시 제출
           </Link>
         )}
+
+        {/* 이 보고서가 놓인 탭으로 돌아갑니다. */}
+        <DailyListLink tab={kindToPeriod(report.kind)} />
       </header>
 
       <div className={styles.panels}>

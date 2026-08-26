@@ -135,6 +135,7 @@ def _activity_read(
         starts_at=_seoul(activity.starts_at),
         ends_at=_seoul(activity.ends_at),
         all_day=activity.all_day,
+        due_at=_seoul(activity.due_at),
         location=activity.location,
         activity_action_tag_id=None if action_tag is None else action_tag.id,
         activity_action_tag_name=None if action_tag is None else action_tag.name,
@@ -368,15 +369,28 @@ async def list_activities(
     db: DbSession,
 ) -> ActivityPage:
     owner_ids = await owner_scope(db, member, page.owner_member_id)
-    start_at = datetime.combine(page.start_date, time.min, _SEOUL)
-    end_at = datetime.combine(page.end_date or page.start_date, time.min, _SEOUL) + timedelta(
-        days=1
+    scope = [*_scope(member, owner_ids)]
+    if page.start_date is not None:
+        start_at = datetime.combine(page.start_date, time.min, _SEOUL)
+        end_at = datetime.combine(page.end_date or page.start_date, time.min, _SEOUL) + timedelta(
+            days=1
+        )
+        scope += [Activity.starts_at >= start_at, Activity.starts_at < end_at]
+    if page.activity_type is not None:
+        scope.append(Activity.activity_type.in_(page.activity_type))
+    if page.completed is not None:
+        # 대시보드 후속업무 카드가 세는 조건과 글자 그대로 같아야 카드 숫자와 목록 총계가
+        # 맞는다. 한쪽만 고치면 눌러서 나온 목록이 타일과 어긋난다.
+        scope.append(
+            Activity.completed_at.is_not(None)
+            if page.completed
+            else Activity.completed_at.is_(None)
+        )
+    order = (
+        (Activity.due_at, Activity.id)
+        if page.sort == "due_at"
+        else (Activity.starts_at, Activity.id)
     )
-    scope = [
-        *_scope(member, owner_ids),
-        Activity.starts_at >= start_at,
-        Activity.starts_at < end_at,
-    ]
     total_result = await db.execute(_joined_select(func.count(Activity.id)).where(*scope))
     total = total_result.scalar_one()
     rows_result = await db.execute(
@@ -391,7 +405,7 @@ async def list_activities(
             _activity_action_tag,
         )
         .where(*scope)
-        .order_by(Activity.starts_at, Activity.id)
+        .order_by(*order)
         .offset(page.skip)
         .limit(page.limit)
     )

@@ -285,12 +285,12 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 파이프라인 | `GET /api/sales-pipelines`, `GET /api/sales-pipelines/{sales_pipeline_id}/stages` | published와 archived 조회; default 우선, 단계는 `position` 순 |
 | 딜 유형 | `GET /api/sales-deal-types` | active 팀 설정만 |
 | 상품 | `GET /api/products` | active 상품; `q,skip,limit` |
-| 영업 딜 | `GET/POST /api/sales-deals`, `GET/PATCH/DELETE /api/sales-deals/{sales_deal_id}` | 목록은 `q,start_date,end_date,owner_member_id,sales_pipeline_id,sales_pipeline_stage_id,phase_code,skip,limit` |
+| 영업 딜 | `GET/POST /api/sales-deals`, `GET/PATCH/DELETE /api/sales-deals/{sales_deal_id}` | 목록은 `q,start_date,end_date,owner_member_id,customer_company_id,sales_pipeline_id,sales_pipeline_stage_id,phase_code,skip,limit` |
 | 딜 이동 | `POST /api/sales-deals/{sales_deal_id}/move` | `expected_sales_pipeline_stage_id`, 목표 `sales_pipeline_stage_id`, `stage_position` |
 | 발주 상태 | `GET /api/purchase-order-statuses` | active 팀 설정과 고정 `outcome_code` |
 | 발주 | `GET/POST /api/orders`, `GET/PATCH/DELETE /api/orders/{purchase_order_id}` | 목록은 `q,supplier_name,stage_code,start_date,end_date,owner_member_id,skip,limit`; 생성 시 딜과 1개 이상 품목 필수 |
 | 발주 이동 | `POST /api/orders/{purchase_order_id}/move` | `expected_stage_code`, 목표 `stage_code` |
-| C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,skip,limit`; 상태 `in_progress|completed` |
+| C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,assignee_member_id,skip,limit`; 상태 `received|diagnosing|in_progress|completed`; 생성 시 고객사와 계약건(`sales_deal_id`) 필수이며 둘이 어긋나면 `409 company_deal_mismatch` |
 | C/S 전이·답변 | `POST /api/support-requests/{request_id}/transition`, `POST /api/support-requests/{request_id}/responses` | expected 상태 비교; 답변 생성 `201` |
 | 일정 완료 | `POST /api/activities/{activity_id}/complete` | 본문 없음; 완료 시각은 서버가 정함 |
 | 보고서 | `GET/POST /api/reports`, `GET/PATCH/DELETE /api/reports/{report_id}` | 목록은 `q,report_kind,status_code,start_date,end_date,author_member_id,skip,limit` |

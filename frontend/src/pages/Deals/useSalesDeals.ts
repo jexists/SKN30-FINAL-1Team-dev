@@ -5,13 +5,12 @@ import { client } from '@/api/client'
 import { transportMessage } from '@/api/errorMessage'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
-  CustomerCompanyResponse,
   PageResponse,
-  ProductResponse,
   SalesDealCreateRequest,
   SalesDealMoveRequest,
   SalesDealPatchRequest,
   SalesDealResponse,
+  TabbedPageResponse,
   SalesDealStatus,
   SalesDealTypeResponse,
   SalesPipelineOutcomeCode,
@@ -23,7 +22,7 @@ import { parseISO, TODAY } from '@/utils/date'
 
 import type { BoardColumn, BoardDeal } from './board'
 
-const PAGE_LIMIT = 100
+const PAGE_LIMIT = 30
 
 const STATUS_BY_OUTCOME: Record<SalesPipelineOutcomeCode, SalesDealStatus> = {
   in_progress: '진행중',
@@ -36,11 +35,6 @@ const REGION_LABEL: Record<string, string> = {
   gyeonggi: '경기',
   incheon: '인천',
   chungnam: '충남',
-}
-
-export interface SalesDealOption {
-  id: string
-  name: string
 }
 
 export interface SalesDealSaveInput {
@@ -125,7 +119,7 @@ function regionLabel(code: string | null): string {
   return REGION_LABEL[code] ?? code
 }
 
-function toSalesDeal(deal: SalesDealResponse): SalesDeal {
+export function toSalesDeal(deal: SalesDealResponse): SalesDeal {
   return {
     id: deal.id,
     no: deal.deal_no,
@@ -208,6 +202,50 @@ async function fetchAllSalesDeals(
   return (await fetchAllPage<SalesDealResponse>('/sales-deals', signal, params)).map(toSalesDeal)
 }
 
+export interface SalesDealQuery {
+  q: string
+  /** 고른 단계 탭. 빈 문자열이면 전체입니다. */
+  stageId: string
+  /** 담당자. 빈 문자열이면 전체입니다. */
+  ownerMemberId: string
+  /** 시작일 하한. null 이면 제한 없음입니다. */
+  fromISO: string | null
+  skip: number
+  limit: number
+}
+
+interface SalesDealPageResult {
+  cards: SalesDeal[]
+  total: number
+  counts: Record<string, number>
+}
+
+async function fetchSalesDealPage(
+  signal: AbortSignal,
+  pipelineId: string | null | undefined,
+  phaseCode: SalesPipelinePhaseCode | undefined,
+  ownerIds: readonly string[] | undefined,
+  query: SalesDealQuery,
+): Promise<SalesDealPageResult> {
+  const needle = query.q.trim()
+  const { data } = await client.get<TabbedPageResponse<SalesDealResponse>>('/sales-deals', {
+    params: {
+      ...(pipelineId ? { sales_pipeline_id: pipelineId } : {}),
+      ...(phaseCode ? { phase_code: phaseCode } : {}),
+      // 담당자를 고르면 그 사람만, 아니면 보기 범위를 따릅니다.
+      owner_member_id: query.ownerMemberId === '' ? ownerIds : [query.ownerMemberId],
+      q: needle === '' ? undefined : needle.slice(0, 100),
+      // 파이프라인을 고르지 않으면 단계 탭이 뜨지 않으므로 단계도 걸지 않습니다.
+      sales_pipeline_stage_id: pipelineId && query.stageId !== '' ? query.stageId : undefined,
+      start_date: query.fromISO ?? undefined,
+      skip: query.skip,
+      limit: query.limit,
+    },
+    signal,
+  })
+  return { cards: data.items.map(toSalesDeal), total: data.total, counts: data.counts }
+}
+
 function toCreateRequest(
   input: SalesDealSaveInput,
   pipelineId: string,
@@ -244,19 +282,26 @@ function toPatchRequest(
   }
 }
 
+/**
+ * `query` 를 주면 목록을 한 쪽씩 받습니다. 주지 않으면 전건을 받습니다.
+ *
+ * 칸반과 매출 요약은 열 머리의 합계·기간별 집계를 전건 위에서 계산하므로 아직 전건이
+ * 필요합니다. 목록 화면만 쪽으로 끊습니다.
+ */
 export default function useSalesDeals(
   openId: string | null,
   requestedPipelineId: string | null,
   mode: 'list' | 'board',
   phaseCode?: SalesPipelinePhaseCode,
+  query?: SalesDealQuery,
 ) {
   const [pipelines, setPipelines] = useState<SalesPipelineResponse[]>([])
   const [dealPipelineId, setDealPipelineId] = useState<string | null>(null)
   const [stagePipelineId, setStagePipelineId] = useState<string | null>(null)
   const [columns, setColumns] = useState<SalesDealColumn[]>([])
   const [cards, setCards] = useState<SalesDeal[]>([])
-  const [companies, setCompanies] = useState<SalesDealOption[]>([])
-  const [products, setProducts] = useState<SalesDealOption[]>([])
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState<Record<string, number>>({})
   const [dealTypes, setDealTypes] = useState<SalesDealTypeResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -271,6 +316,19 @@ export default function useSalesDeals(
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(() => new Set())
   const [mutationError, setMutationError] = useState<string | null>(null)
   const ownerIds = useScopeOwnerIds()
+  const [optionsReady, setOptionsReady] = useState(false)
+
+  // 조회 조건을 낱개로 펼쳐 둡니다. 아래 효과가 객체가 아니라 값 하나하나를 보게 해야,
+  // 화면이 조건 객체를 새로 만들 때마다 다시 받지 않습니다.
+  const paging = query !== undefined
+  const {
+    q: queryText = '',
+    stageId: queryStageId = '',
+    ownerMemberId: queryOwnerId = '',
+    fromISO: queryFrom = null,
+    skip: querySkip = 0,
+    limit: queryLimit = 30,
+  } = query ?? {}
 
   useEffect(() => {
     const controller = new AbortController()
@@ -290,34 +348,32 @@ export default function useSalesDeals(
         const stagePipeline = requested ?? fallback
         const filteredPipelineId = mode === 'board' ? stagePipeline?.id : requested?.id
 
-        const [stageItems, dealItems, companyItems, productItems, dealTypeItems] =
-          await Promise.all([
-            stagePipeline
-              ? client
-                  .get<SalesPipelineStageResponse[]>(
-                    `/sales-pipelines/${stagePipeline.id}/stages`,
-                    { signal: controller.signal },
-                  )
-                  .then((response) => response.data)
-              : Promise.resolve([]),
-            fetchAllSalesDeals(controller.signal, filteredPipelineId, phaseCode, ownerIds),
-            // 고객사와 제품은 딜을 등록할 때 고르는 참조 목록이라 범위로 좁히지 않습니다.
-            fetchAllPage<CustomerCompanyResponse>('/customer-companies', controller.signal),
-            fetchAllPage<ProductResponse>('/products', controller.signal),
-            client
-              .get<SalesDealTypeResponse[]>('/sales-deal-types', { signal: controller.signal })
-              .then((response) => response.data),
-          ])
+        const [stageItems, dealItems, dealTypeItems] = await Promise.all([
+          stagePipeline
+            ? client
+                .get<SalesPipelineStageResponse[]>(`/sales-pipelines/${stagePipeline.id}/stages`, {
+                  signal: controller.signal,
+                })
+                .then((response) => response.data)
+            : Promise.resolve([]),
+          // 조회 조건을 받은 목록 화면은 아래 효과가 한 쪽만 받습니다. 여기서 전건을
+          // 받는 것은 칸반과 매출 요약처럼 전건 집계가 필요한 쪽뿐입니다.
+          paging
+            ? Promise.resolve([])
+            : fetchAllSalesDeals(controller.signal, filteredPipelineId, phaseCode, ownerIds),
+          client
+            .get<SalesDealTypeResponse[]>('/sales-deal-types', { signal: controller.signal })
+            .then((response) => response.data),
+        ])
 
         if (controller.signal.aborted) return
         setPipelines(pipelineItems)
         setDealPipelineId(filteredPipelineId ?? null)
         setStagePipelineId(stagePipeline?.id ?? null)
         setColumns(stageItems.map(toColumn))
-        setCards(dealItems)
-        setCompanies(companyItems.map(({ id, name }) => ({ id, name })))
-        setProducts(productItems.map(({ id, name }) => ({ id, name })))
+        if (!paging) setCards(dealItems)
         setDealTypes(dealTypeItems)
+        setOptionsReady(true)
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) setError(requestErrorMessage(caught, '목록'))
@@ -327,7 +383,52 @@ export default function useSalesDeals(
       })
 
     return () => controller.abort()
-  }, [mode, phaseCode, reloadKey, requestedPipelineId, ownerIds])
+  }, [mode, phaseCode, reloadKey, requestedPipelineId, ownerIds, paging])
+
+  // 목록 한 쪽. 파이프라인을 정한 뒤에 부릅니다. 정하기 전에 부르면 전체 파이프라인의
+  // 딜이 잠깐 보였다가 바뀝니다.
+  useEffect(() => {
+    if (!paging || !optionsReady) return
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+
+    void fetchSalesDealPage(controller.signal, dealPipelineId, phaseCode, ownerIds, {
+      q: queryText,
+      stageId: queryStageId,
+      ownerMemberId: queryOwnerId,
+      fromISO: queryFrom,
+      skip: querySkip,
+      limit: queryLimit,
+    })
+      .then(({ cards: pageCards, total: pageTotal, counts: pageCounts }) => {
+        if (controller.signal.aborted) return
+        setCards(pageCards)
+        setTotal(pageTotal)
+        setCounts(pageCounts)
+      })
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) setError(requestErrorMessage(caught, '목록'))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [
+    paging,
+    optionsReady,
+    dealPipelineId,
+    phaseCode,
+    ownerIds,
+    reloadKey,
+    queryText,
+    queryStageId,
+    queryOwnerId,
+    queryFrom,
+    querySkip,
+    queryLimit,
+  ])
 
   useEffect(() => {
     if (openId === null) {
@@ -471,8 +572,8 @@ export default function useSalesDeals(
     activePipeline,
     columns,
     cards,
-    companies,
-    products,
+    total,
+    counts,
     dealTypes,
     loading,
     error,

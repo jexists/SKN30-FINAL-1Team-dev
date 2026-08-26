@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import Text, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -15,6 +15,8 @@ from app.models.workspace import Member
 from app.schemas.reports import (
     ReportActivityRead,
     ReportCreate,
+    ReportFilterOptionParams,
+    ReportFilterOptions,
     ReportPage,
     ReportPageParams,
     ReportPatch,
@@ -71,6 +73,16 @@ def _scope(member: Member, author_ids: tuple[UUID, ...] | None = None):
 
 def _read_entities():
     return (Report, _author.display_name, _recipient.display_name)
+
+
+# 보고 대상은 결재선을 지정했으면 그 사람 이름, 아니면 작성 화면에 적어 둔 글자다.
+# 화면이 둘을 이 순서로 골라 보여 주므로 거를 때도 같은 값을 봐야 한다.
+def _approver_expr():
+    return func.coalesce(_recipient.display_name, Report.content["approver"].astext)
+
+
+def _hospital_expr():
+    return Report.content["hospital"].astext
 
 
 def _report_read(
@@ -234,6 +246,30 @@ async def _detail(db: AsyncSession, member: Member, report_id: UUID) -> ReportRe
     return _report_read(*row, activities[report_id])
 
 
+@router.get("/report-filter-options", response_model=ReportFilterOptions)
+async def list_report_filter_options(
+    page: Annotated[ReportFilterOptionParams, Query()],
+    member: CurrentMember,
+    db: DbSession,
+) -> ReportFilterOptions:
+    author_ids = await owner_scope(db, member, page.author_member_id)
+    scope = _scope(member, author_ids)
+
+    async def distinct(expression) -> list[str]:
+        result = await db.execute(
+            _joined_select(expression)
+            .where(*scope, expression.is_not(None), expression != "")
+            .distinct()
+            .order_by(expression)
+        )
+        return list(result.scalars().all())
+
+    return ReportFilterOptions(
+        approvers=await distinct(_approver_expr()),
+        hospitals=await distinct(_hospital_expr()),
+    )
+
+
 @router.get("/reports", response_model=ReportPage)
 async def list_reports(
     page: Annotated[ReportPageParams, Query()],
@@ -250,6 +286,12 @@ async def list_reports(
         scope.append(Report.report_date >= page.start_date)
     if page.end_date is not None:
         scope.append(Report.report_date <= page.end_date)
+    if page.source_activity_id is not None:
+        scope.append(Report.source_activity_id == page.source_activity_id)
+    if page.approver is not None:
+        scope.append(_approver_expr().in_(tuple(dict.fromkeys(page.approver))))
+    if page.hospital is not None:
+        scope.append(_hospital_expr().in_(tuple(dict.fromkeys(page.hospital))))
     if page.q is not None:
         pattern = _contains(page.q)
         scope.append(
@@ -257,6 +299,9 @@ async def list_reports(
                 Report.note.ilike(pattern, escape="\\"),
                 Report.transcript.ilike(pattern, escape="\\"),
                 _author.display_name.ilike(pattern, escape="\\"),
+                # 보고 본문은 content 안에 있다. 여기를 빼면 제목도 고객사도 못 찾아
+                # 검색이 사실상 메모 검색이 된다.
+                Report.content.cast(Text).ilike(pattern, escape="\\"),
             )
         )
 

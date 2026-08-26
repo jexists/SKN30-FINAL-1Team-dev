@@ -212,6 +212,41 @@ async def invite_user(*, email: str, redirect_to: str) -> UUID:
     if response.status_code >= 400:
         raise AuthUnavailable(f"auth_invite_failed:{response.status_code}")
 
+    return _created_user_id(response)
+
+
+async def create_confirmed_user(*, email: str, password: str) -> UUID:
+    """메일 없이 비밀번호가 정해진 사용자를 바로 만든다. 로컬에서만 쓴다.
+
+    email_confirm 으로 확인 절차를 건너뛰므로 발급 직후 바로 로그인된다.
+    비밀번호가 호출부에 드러나므로 배포 환경에서는 부르지 않는다. api/admin.py 를 본다.
+    """
+    _require_admin_config()
+    url = _endpoint("admin/users")
+    body = {"email": email, "password": password, "email_confirm": True}
+    try:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.post(url, headers=_admin_headers(), json=body)
+    except httpx.HTTPError as error:
+        raise AuthUnavailable(f"auth_request_failed:{type(error).__name__}") from error
+
+    if response.status_code == 429:
+        raise AuthRateLimited("auth_rate_limited")
+    if response.status_code >= 500:
+        raise AuthUnavailable(f"auth_upstream_failed:{response.status_code}")
+    if response.status_code >= 400:
+        # 422 를 통째로 "이미 있는 이메일" 로 접지 않는다. 아무 주소나 쓰라고 열어둔
+        # 경로인데 형식 거절이 중복으로 보이면 로컬에서 원인을 찾을 수가 없다.
+        code = _error_code(response)
+        if "exist" in code:
+            raise EmailAlreadyExists("email_already_exists")
+        raise AuthUnavailable(f"auth_create_user_failed:{response.status_code}:{code}")
+
+    return _created_user_id(response)
+
+
+def _created_user_id(response: httpx.Response) -> UUID:
+    """사용자를 만든 응답에서 id 를 꺼낸다. 이 값이 곧 public.member.id 가 된다."""
     try:
         user_id = response.json()["id"]
     except (ValueError, KeyError, TypeError) as error:

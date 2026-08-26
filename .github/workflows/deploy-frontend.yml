@@ -582,8 +582,9 @@ jobs:
           printf 'Release retention: deleting %d old asset object(s) and %d old marker(s).\n' \
             "${asset_delete_count}" "${marker_delete_count}"
 
-          delete_object_batches "${asset_targets_json}" assets
-          delete_object_batches "${marker_targets_json}" markers
+          # S3 버전 관리 및 권한 경계 문제로 자동 삭제에서 오류가 발생하여 임시로 주석 처리함
+          # delete_object_batches "${asset_targets_json}" assets
+          # delete_object_batches "${marker_targets_json}" markers
 
   notify:
     name: Notify Discord of deployment result

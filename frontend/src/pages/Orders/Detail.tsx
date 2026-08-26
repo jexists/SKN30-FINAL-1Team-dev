@@ -22,9 +22,7 @@ export default function OrderDetail() {
   const navigate = useNavigate()
   const {
     orders,
-    salesDeals,
     statuses,
-    products,
     suppliers,
     loading,
     error,
@@ -220,9 +218,7 @@ export default function OrderDetail() {
       {editing && (
         <OrderForm
           order={order}
-          salesDeals={salesDeals}
           statuses={statuses}
-          products={products}
           suppliers={suppliers}
           optionsLoading={loading}
           onClose={() => setEditing(false)}

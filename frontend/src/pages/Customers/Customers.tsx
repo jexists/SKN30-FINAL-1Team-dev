@@ -5,7 +5,7 @@ import { client } from '@/api/client'
 import { errorMessage, transportMessage } from '@/api/errorMessage'
 import { useCurrentUser } from '@/auth/sessionContext'
 import ErrorToast from '@/components/ErrorToast'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
@@ -44,7 +44,6 @@ export default function Customers() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [dialog, setDialog] = useState<OpenDialog>(null)
   const [cardDraft, setCardDraft] = useState<BusinessCardDraft | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -85,8 +84,8 @@ export default function Customers() {
       .get<PageResponse<CustomerContactResponse>>('/customer-contacts', {
         params: {
           q: needle === '' ? undefined : needle.slice(0, 100),
-          skip: (page - 1) * pageSize,
-          limit: pageSize,
+          skip: (page - 1) * PAGE_SIZE,
+          limit: PAGE_SIZE,
           owner_member_id: ownerIds,
         },
         signal: controller.signal,
@@ -107,14 +106,13 @@ export default function Customers() {
       })
 
     return () => controller.abort()
-  }, [deferredQuery, page, pageSize, reloadKey, ownerIds])
+  }, [deferredQuery, page, reloadKey, ownerIds])
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const openCustomer = useMemo(() => rows.find((row) => row.id === openId) ?? null, [rows, openId])
   const resetPage = useCallback(() => setPage(1), [])
 
-  // 서버가 페이지를 나눠 주는 유일한 화면입니다. 팀 전체의 3페이지가 한 사람의 3페이지일
-  // 리 없으므로 범위가 바뀌면 첫 장으로 돌아갑니다.
+  // 팀 전체의 3페이지가 한 사람의 3페이지일 리 없으므로 범위가 바뀌면 첫 장으로 돌아갑니다.
   useEffect(() => {
     resetPage()
   }, [ownerIds, resetPage])
@@ -280,17 +278,7 @@ export default function Customers() {
       />
 
       {!loadError && total > 0 && (
-        <Pagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={total}
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            resetPage()
-          }}
-        />
+        <Pagination page={page} pageCount={pageCount} total={total} onPage={setPage} />
       )}
 
       {dialog === 'create' && (

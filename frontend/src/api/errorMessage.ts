@@ -40,6 +40,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   email_already_exists: '이미 등록된 이메일입니다.',
   team_name_already_exists: '같은 이름의 팀이 이미 있습니다.',
   team_not_found: '고른 팀을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
+  team_manager_exists: '이 팀에는 이미 팀장이 있습니다. 팀장은 팀당 한 명입니다.',
   password_rejected: '비밀번호가 정책에 맞지 않습니다. 더 길고 복잡하게 정해 주세요.',
   // 고객 (/customers)
   manager_required: '이 작업은 팀장만 할 수 있습니다.',
@@ -59,6 +60,9 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   empty_file: '빈 파일은 올릴 수 없습니다.',
   file_too_large: '파일 용량이 너무 큽니다.',
   storage_not_configured: '파일 저장소 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  // 음성 변환 (/transcriptions)
+  stt_not_configured: '음성 변환 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  stt_unavailable: '음성 변환 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
 }
 
 /**

@@ -13,17 +13,22 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tinymce/tinymce-react": "^6.3.0",
     "axios": "^1.19.0",
+    "marked": "^18.0.11",
     "react": "^19.2.8",
     "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.8",
     "react-router": "^8.3.0",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "tinymce": "^8.8.2",
+    "turndown": "^7.2.4"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/turndown": "^5.0.6",
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
     "prettier": "^3.9.6",

@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { client } from '@/api/client'
-import { useScopeOwnerIds } from '@/shared/scope'
 import { errorMessage } from '@/api/errorMessage'
-import { fallbackDailyReports } from '@/mocks/reports'
 import { reportTemplateFromSnapshot } from '@/shared/reports'
+import { useReportQuery } from '@/shared/reportQuery'
 import type {
   ApiReportKind,
   ApiReportStatus,
@@ -22,7 +21,6 @@ import { parseISO, TODAY } from '@/utils/date'
 
 import { periodLabelFor, periodRange, periodStart } from './periods'
 
-const PAGE_LIMIT = 100
 const DAY = 86_400_000
 const API_KIND: Record<ReportKind, ApiReportKind> = {
   일일: 'daily',
@@ -72,7 +70,7 @@ function attachmentsOf(value: unknown): ReportAttachment[] {
   return Array.isArray(value) ? (value as ReportAttachment[]) : []
 }
 
-function toReport(item: ReportResponse): DailyReport {
+export function toReport(item: ReportResponse): DailyReport {
   const kind = KIND_BY_API[item.report_kind as Exclude<ApiReportKind, 'meeting'>]
   const content = record(item.content)
   return {
@@ -94,30 +92,6 @@ function toReport(item: ReportResponse): DailyReport {
   }
 }
 
-async function fetchReports(
-  signal: AbortSignal,
-  authorIds?: readonly string[],
-): Promise<ReportResponse[]> {
-  const result: ReportResponse[] = []
-  let skip = 0
-  while (!signal.aborted) {
-    const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
-      params: {
-        report_kind: ['daily', 'weekly', 'monthly'],
-        author_member_id: authorIds,
-        skip,
-        limit: PAGE_LIMIT,
-      },
-      signal,
-    })
-    result.push(...data.items)
-    if (!data.has_more || data.next_skip === null) return result
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-  return result
-}
-
 export interface DraftPayload {
   date: string
   kind: ReportKind
@@ -126,6 +100,25 @@ export interface DraftPayload {
   values: Record<string, string>
   activities: DailyReport['activities']
   attachments: DailyReport['attachments']
+}
+
+/**
+ * 이 기간에 이미 쓴 보고서의 번호. 저장할 때 새로 만들지 고칠지를 이걸로 가릅니다.
+ *
+ * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 기간에 보고서를 하나 더
+ * 만듭니다. 기간 전체를 서버에 물어야 합니다. 기간 안 어느 날짜든 같은 기간으로 접힙니다.
+ */
+export async function savedIdForPeriod(
+  kind: ReportKind,
+  dateISO: string,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const [from, to] = periodRange(kind, dateISO)
+  const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
+    params: { report_kind: API_KIND[kind], start_date: from, end_date: to, limit: 1 },
+    signal,
+  })
+  return data.items[0]?.id
 }
 
 function requestOf(draft: DraftPayload): ReportWriteRequest {
@@ -156,108 +149,73 @@ function requestOf(draft: DraftPayload): ReportWriteRequest {
   }
 }
 
+/**
+ * 그 기간에 쓴 보고서 한 건. 없으면 undefined 입니다.
+ *
+ * 이어서 쓸 원본을 찾는 자리들이 씁니다. 기간 안 어느 날짜를 넣어도 같은 기간으로
+ * 접히므로 서버가 그 기간 하나만 돌려줍니다.
+ */
+export function useReportOfPeriod(kind: ReportKind, dateISO: string) {
+  const [from, to] = periodRange(kind, dateISO)
+  const { items, loading, error, reload } = useReportQuery(
+    { report_kind: API_KIND[kind], start_date: from, end_date: to, limit: 1 },
+    '업무보고를 불러오지 못했습니다.',
+  )
+  const report = items[0] ? toReport(items[0]) : undefined
+  return { report, loading, error, reload }
+}
+
+/**
+ * 상위 보고서가 모아 올릴 아래 보고서들. 주간은 그 주의 일일을, 월간은 그 달의 주간을
+ * 봅니다. 자리 수가 정해져 있어(한 주 7 칸, 한 달 5 칸 남짓) 한 쪽에 다 들어옵니다.
+ */
+export function useChildReports(kind: ReportKind, dateISO: string, enabled: boolean) {
+  const childKind: ReportKind = kind === '월간' ? '주간' : '일일'
+  const [from, to] = periodRange(kind, dateISO)
+  const { items, loading, error, reload } = useReportQuery(
+    enabled ? { report_kind: API_KIND[childKind], start_date: from, end_date: to } : null,
+    '업무보고를 불러오지 못했습니다.',
+  )
+  const reports = useMemo(() => items.map(toReport), [items])
+  return { reports, loading, error, reload }
+}
+
 export default function useDailyReports() {
-  const [reports, setReports] = useState<DailyReport[]>([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0)
-  const authorIds = useScopeOwnerIds()
 
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true)
+  const save = useCallback(async (draft: DraftPayload, submit: boolean) => {
+    setPending(true)
     setError(null)
-    void fetchReports(controller.signal, authorIds)
-      .then((items) => {
-        if (!controller.signal.aborted) setReports(items.map(toReport))
-      })
-      // 목록을 못 받아 오면 화면을 에러로 덮지 않고 시연 데이터로 채웁니다.
-      // 저장·제출 실패는 아래 save 에서 그대로 알립니다.
-      // 이 시연 데이터는 보기 범위를 따르지 않습니다. 원래도 서버 없이 화면을 띄우기
-      // 위한 것이라 그대로 둡니다.
-      .catch(() => {
-        if (!controller.signal.aborted) setReports(fallbackDailyReports)
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-    return () => controller.abort()
-  }, [reloadKey, authorIds])
-
-  const byDate = useMemo(() => {
-    const map = new Map<string, DailyReport[]>()
-    for (const report of reports) {
-      const found = map.get(report.date)
-      if (found) found.push(report)
-      else map.set(report.date, [report])
-    }
-    return map
-  }, [reports])
-
-  const findReport = useCallback(
-    (id: string) => reports.find((report) => report.id === id),
-    [reports],
-  )
-  const findByDate = useCallback(
-    (dateISO: string, kind: ReportKind) =>
-      byDate.get(dateISO)?.find((report) => report.kind === kind),
-    [byDate],
-  )
-  const findByPeriod = useCallback(
-    (kind: ReportKind, dateISO: string) => {
-      const key = periodStart(kind, dateISO)
-      return reports.find(
-        (report) => report.kind === kind && periodStart(report.kind, report.date) === key,
+    try {
+      const existingId = await savedIdForPeriod(draft.kind, draft.date)
+      const request = requestOf(draft)
+      const { report_kind: _kind, source_activity_id: _source, ...patch } = request
+      const saved = existingId
+        ? await client.patch<ReportResponse>(`/reports/${existingId}`, patch)
+        : await client.post<ReportResponse>('/reports', request)
+      const response = submit
+        ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
+            expected_status_code: 'draft',
+          })
+        : saved
+      return toReport(response.data)
+    } catch (reason: unknown) {
+      setError(
+        errorMessage(
+          reason,
+          submit ? '업무보고를 제출하지 못했습니다.' : '임시저장하지 못했습니다.',
+        ),
       )
-    },
-    [reports],
-  )
-
-  const save = useCallback(
-    async (draft: DraftPayload, submit: boolean) => {
-      setPending(true)
-      setError(null)
-      try {
-        const existing = findByPeriod(draft.kind, draft.date)
-        const request = requestOf(draft)
-        const { report_kind: _kind, source_activity_id: _source, ...patch } = request
-        const saved = existing
-          ? await client.patch<ReportResponse>(`/reports/${existing.id}`, patch)
-          : await client.post<ReportResponse>('/reports', request)
-        const response = submit
-          ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
-              expected_status_code: 'draft',
-            })
-          : saved
-        const report = toReport(response.data)
-        setReports((current) => [report, ...current.filter((item) => item.id !== report.id)])
-        return report
-      } catch (reason: unknown) {
-        setError(
-          errorMessage(
-            reason,
-            submit ? '업무보고를 제출하지 못했습니다.' : '임시저장하지 못했습니다.',
-          ),
-        )
-        throw reason
-      } finally {
-        setPending(false)
-      }
-    },
-    [findByPeriod],
-  )
+      throw reason
+    } finally {
+      setPending(false)
+    }
+  }, [])
 
   return {
-    reports,
-    byDate,
-    findReport,
-    findByDate,
-    findByPeriod,
-    loading,
     error,
     pending,
-    reload: () => setReloadKey((value) => value + 1),
     submitReport: (draft: DraftPayload) => save(draft, true),
     saveDraft: (draft: DraftPayload) => save(draft, false),
   }

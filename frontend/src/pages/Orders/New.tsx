@@ -23,17 +23,7 @@ import useOrderList from './useOrderList'
 import styles from './New.module.scss'
 
 export default function New() {
-  const {
-    salesDeals,
-    statuses,
-    products,
-    suppliers,
-    loading,
-    error,
-    reload,
-    isCreating,
-    addOrder,
-  } = useOrderList()
+  const { statuses, suppliers, loading, error, reload, isCreating, addOrder } = useOrderList()
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
@@ -101,9 +91,7 @@ export default function New() {
         <OrderFields
           form={form}
           errors={errors}
-          salesDeals={salesDeals}
           statuses={statuses}
-          products={products}
           suppliers={suppliers}
           optionsLoading={loading}
           disabled={isCreating}
@@ -124,14 +112,7 @@ export default function New() {
           </Button>
           <Button
             type="submit"
-            disabled={
-              isCreating ||
-              loading ||
-              error !== null ||
-              salesDeals.length === 0 ||
-              statuses.length === 0 ||
-              products.length === 0
-            }
+            disabled={isCreating || loading || error !== null || statuses.length === 0}
           >
             {isCreating ? '등록 중…' : '발주 추가'}
           </Button>

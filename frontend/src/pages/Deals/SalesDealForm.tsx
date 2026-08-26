@@ -2,18 +2,18 @@ import { useRef, useState, type ReactNode } from 'react'
 
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import type { SalesDealTypeResponse } from '@/types'
+import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import type { CustomerCompanyResponse, ProductResponse, SalesDealTypeResponse } from '@/types'
+import { formatBusinessNo } from '@/utils/format'
 import { TODAY_ISO } from '@/utils/date'
 
-import type { SalesDeal, SalesDealSaveInput, SalesDealOption } from './useSalesDeals'
+import type { SalesDeal, SalesDealSaveInput } from './useSalesDeals'
 
 import styles from './SalesDealForm.module.scss'
 
 interface Props {
   deal?: SalesDeal
   stageName?: string
-  companies: SalesDealOption[]
-  products: SalesDealOption[]
   dealTypes: SalesDealTypeResponse[]
   optionsLoading?: boolean
   onSubmit: (input: SalesDealSaveInput) => Promise<void>
@@ -21,8 +21,8 @@ interface Props {
 }
 
 interface FormState {
-  customerCompanyId: string
-  productId: string
+  company: RecordOption | null
+  product: RecordOption | null
   amount: string
   dealTypeCode: string
   date: string
@@ -34,16 +34,15 @@ type Errors = Partial<Record<keyof FormState, string>>
 export default function SalesDealForm({
   deal,
   stageName,
-  companies,
-  products,
   dealTypes,
   optionsLoading = false,
   onSubmit,
   onClose,
 }: Props) {
   const [form, setForm] = useState<FormState>(() => ({
-    customerCompanyId: deal?.customerCompanyId ?? '',
-    productId: deal?.productId ?? '',
+    // 수정 화면은 이미 이름을 들고 있어 한 건을 다시 물어볼 필요가 없습니다.
+    company: deal ? { id: deal.customerCompanyId, label: deal.org } : null,
+    product: deal?.productId ? { id: deal.productId, label: deal.product } : null,
     amount: deal ? String(deal.amount) : '',
     dealTypeCode: deal?.dealTypeCode ?? dealTypes[0]?.code ?? '',
     date: deal?.date ?? TODAY_ISO,
@@ -67,12 +66,8 @@ export default function SalesDealForm({
     if (submittingRef.current) return
 
     const found: Errors = {}
-    if (!companies.some(({ id }) => id === form.customerCompanyId)) {
-      found.customerCompanyId = '고객사를 선택해 주세요.'
-    }
-    if (!products.some(({ id }) => id === form.productId) && form.productId !== deal?.productId) {
-      found.productId = '제품을 선택해 주세요.'
-    }
+    if (form.company === null) found.company = '고객사를 선택해 주세요.'
+    if (form.product === null) found.product = '제품을 선택해 주세요.'
     if (
       !dealTypes.some(({ code }) => code === form.dealTypeCode) &&
       form.dealTypeCode !== deal?.dealTypeCode
@@ -88,15 +83,15 @@ export default function SalesDealForm({
     if (form.memo.length > 5000) found.memo = '메모는 5,000자까지 입력할 수 있습니다.'
 
     setErrors(found)
-    if (Object.keys(found).length > 0) return
+    if (form.company === null || form.product === null || Object.keys(found).length > 0) return
 
     submittingRef.current = true
     setSubmitting(true)
     setSubmitError(null)
     try {
       await onSubmit({
-        customerCompanyId: form.customerCompanyId,
-        productId: form.productId,
+        customerCompanyId: form.company.id,
+        productId: form.product.id,
         amount,
         dealTypeCode: form.dealTypeCode,
         date: form.date,
@@ -111,8 +106,6 @@ export default function SalesDealForm({
   }
 
   const editing = deal !== undefined
-  const noCompanies = !optionsLoading && companies.length === 0
-  const noProducts = !optionsLoading && products.length === 0 && !deal?.productId
   const noDealTypes = !optionsLoading && dealTypes.length === 0 && !deal?.dealTypeCode
 
   return (
@@ -130,59 +123,47 @@ export default function SalesDealForm({
           <Button type="button" variant="outline" disabled={submitting} onClick={close}>
             취소
           </Button>
-          <Button
-            type="submit"
-            disabled={submitting || optionsLoading || noCompanies || noProducts || noDealTypes}
-          >
+          <Button type="submit" disabled={submitting || optionsLoading || noDealTypes}>
             {submitting ? '저장 중…' : editing ? '저장' : '영업 딜 추가'}
           </Button>
         </>
       }
     >
       <div className={styles.grid}>
-        <Field label="고객사" required error={errors.customerCompanyId}>
-          <select
-            value={form.customerCompanyId}
-            disabled={submitting || optionsLoading || noCompanies}
-            onChange={(event) => set('customerCompanyId', event.target.value)}
-          >
-            <option value="">
-              {optionsLoading
-                ? '고객사를 불러오는 중…'
-                : noCompanies
-                  ? '등록된 고객사가 없습니다'
-                  : '고객사를 선택하세요'}
-            </option>
-            {companies.map((company) => (
-              <option key={company.id} value={company.id}>
-                {company.name}
-              </option>
-            ))}
-          </select>
+        <Field label="고객사" required error={errors.company}>
+          <RecordPicker<CustomerCompanyResponse>
+            path="/customer-companies"
+            label="고객사"
+            placeholder="회사 이름으로 검색"
+            emptyText="일치하는 고객사가 없습니다."
+            loadingText="고객사를 불러오는 중입니다."
+            fallback="고객사를 불러오지 못했습니다."
+            value={form.company}
+            disabled={submitting}
+            invalid={errors.company !== undefined}
+            toOption={(row) => ({
+              id: row.id,
+              label: row.name,
+              note: formatBusinessNo(row.business_no) ?? undefined,
+            })}
+            onChange={(next) => set('company', next)}
+          />
         </Field>
 
-        <Field label="제품" required error={errors.productId}>
-          <select
-            value={form.productId}
-            disabled={submitting || optionsLoading || noProducts}
-            onChange={(event) => set('productId', event.target.value)}
-          >
-            <option value="">
-              {optionsLoading
-                ? '제품을 불러오는 중…'
-                : noProducts
-                  ? '등록된 제품이 없습니다'
-                  : '제품을 선택하세요'}
-            </option>
-            {deal?.productId && !products.some(({ id }) => id === deal.productId) && (
-              <option value={deal.productId}>{deal.product} (기존값)</option>
-            )}
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name}
-              </option>
-            ))}
-          </select>
+        <Field label="제품" required error={errors.product}>
+          <RecordPicker<ProductResponse>
+            path="/products"
+            label="제품"
+            placeholder="제품 이름으로 검색"
+            emptyText="일치하는 제품이 없습니다."
+            loadingText="제품을 불러오는 중입니다."
+            fallback="제품을 불러오지 못했습니다."
+            value={form.product}
+            disabled={submitting}
+            invalid={errors.product !== undefined}
+            toOption={(row) => ({ id: row.id, label: row.name })}
+            onChange={(next) => set('product', next)}
+          />
         </Field>
 
         <Field label="금액 (원)" required error={errors.amount}>
@@ -235,9 +216,9 @@ export default function SalesDealForm({
         </Field>
       </div>
 
-      {(noCompanies || noProducts || noDealTypes) && (
+      {noDealTypes && (
         <p className={styles.notice} role="status">
-          {`영업 딜을 ${editing ? '수정' : '추가'}하려면 고객사·제품·영업 유형이 하나 이상 필요합니다.`}
+          {`영업 딜을 ${editing ? '수정' : '추가'}하려면 영업 유형이 하나 이상 필요합니다.`}
         </p>
       )}
       {submitError && (

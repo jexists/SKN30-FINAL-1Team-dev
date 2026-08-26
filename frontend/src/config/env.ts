@@ -9,6 +9,9 @@
  */
 export const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
+  // vite 개발 서버로 띄웠는지. 문구를 고르는 데만 씁니다.
+  // 계정 발급이 초대 메일을 보낼지 말지는 백엔드의 APP_ENV 가 정합니다.
+  isDev: import.meta.env.DEV,
 } as const
 
 if (!env.apiBaseUrl) {

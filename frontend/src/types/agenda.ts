@@ -139,6 +139,8 @@ export interface ActivityRead {
   starts_at: string
   ends_at: string | null
   all_day: boolean
+  /** 후속업무의 마감. 미팅에는 대개 비어 있습니다. */
+  due_at: string | null
   location: string | null
   action_tag: ActivityActionTagCode | null
   completed_at: string | null

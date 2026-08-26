@@ -14,14 +14,12 @@ import {
   type FormState,
   type ItemState,
 } from '../../orderForm'
-import type { OrderSalesDealOption, OrderDraft, OrderOption } from '../../useOrderList'
+import type { OrderDraft } from '../../useOrderList'
 import OrderFields from '../OrderFields'
 
 interface Props {
   order: ApiPurchaseOrder
-  salesDeals: OrderSalesDealOption[]
   statuses: PurchaseOrderStatusResponse[]
-  products: OrderOption[]
   suppliers: string[]
   optionsLoading?: boolean
   onClose: () => void
@@ -30,24 +28,12 @@ interface Props {
 
 export default function OrderForm({
   order,
-  salesDeals,
   statuses,
-  products,
   suppliers,
   optionsLoading = false,
   onClose,
   onSubmit,
 }: Props) {
-  const dealOptions = salesDeals.some(({ id }) => id === order.salesDealId)
-    ? salesDeals
-    : [
-        {
-          id: order.salesDealId,
-          no: order.salesDeal,
-          customerCompanyName: order.hospital,
-        },
-        ...salesDeals,
-      ]
   const [form, setForm] = useState<FormState>(() => initialState(order))
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -93,12 +79,7 @@ export default function OrderForm({
           <Button type="button" variant="outline" disabled={submitting} onClick={close}>
             취소
           </Button>
-          <Button
-            type="submit"
-            disabled={
-              submitting || optionsLoading || dealOptions.length === 0 || products.length === 0
-            }
-          >
+          <Button type="submit" disabled={submitting || optionsLoading}>
             {submitting ? '저장 중…' : '저장'}
           </Button>
         </>
@@ -107,9 +88,7 @@ export default function OrderForm({
       <OrderFields
         form={form}
         errors={errors}
-        salesDeals={dealOptions}
         statuses={statuses}
-        products={products}
         suppliers={suppliers}
         optionsLoading={optionsLoading}
         disabled={submitting}

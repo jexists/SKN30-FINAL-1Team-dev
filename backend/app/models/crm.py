@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import ForeignKey, ForeignKeyConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -99,15 +99,35 @@ class ActivityCompanion(Base):
 
 class SupportRequest(Base):
     __tablename__ = "support_request"
+    __table_args__ = (
+        # 불만의 고객사가 그 딜의 고객사와 다를 수 없게 하는 복합 외래키다. 두 컬럼을
+        # 따로 검증하지 않고 DB 가 한 제약으로 보장한다. sales_deal 이
+        # sales_pipeline_stage 를 참조하는 방식과 같다.
+        ForeignKeyConstraint(
+            ["sales_deal_id", "customer_company_id"],
+            ["public.sales_deal.id", "public.sales_deal.customer_company_id"],
+            name="support_request_sales_deal_company_membership_fkey",
+            onupdate="CASCADE",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
-    customer_contact_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_contact.id"))
+    # 두 컬럼은 __table_args__ 의 복합 외래키 하나로 sales_deal 을 가리킨다.
+    # customer_company.id 나 sales_deal.id 로 가는 단일 외래키는 그 제약에 이미 포함되므로
+    # 중복해서 두지 않는다. sales_deal 이 sales_pipeline_id 를 다루는 방식과 같다.
+    customer_company_id: Mapped[UUID]
+    # 불만이 걸린 계약건. 관련 제품과 워런티는 이 딜의 product_id·warranty_terms 다.
+    sales_deal_id: Mapped[UUID]
+    # 불만을 등록한 사람. 등록 시점의 로그인 구성원이며 그대로 처리 담당자를 겸한다.
     assignee_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     title: Mapped[str]
     body: Mapped[str]
     is_urgent: Mapped[bool] = mapped_column(server_default=text("false"))
+    # received 접수 / diagnosing 원인파악 / in_progress 처리중 / completed 처리완료
     status_code: Mapped[str]
+    # 불만이 일어난 시각. 접수자가 직접 넣는다. registered_at(등록 시각)과 다르다.
+    occurred_at: Mapped[datetime]
     registered_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 

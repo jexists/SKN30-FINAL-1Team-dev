@@ -2,12 +2,8 @@ import { Link } from 'react-router'
 
 import { ArrowDownIcon } from '@/components/icons'
 import { ROUTES } from '@/constants/routes'
-import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
-import { agendaFor, useAgenda } from '@/shared/agenda'
-import { followUps, salesGoal } from '@/shared/counters'
-import { monthlyTotal } from '@/shared/salesTargets'
-import type { SupportRequestResponse } from '@/types'
-import { addDays, ddayLabel, endOfMonth, iso, startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
+import type { DashboardResponse } from '@/types'
+import { ddayLabel, endOfMonth, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import type { KpiListKey } from '../../drawerLists'
@@ -42,49 +38,34 @@ function Tile({ label, delta, value, sub, onOpen }: TileProps) {
 }
 
 interface Props {
-  requests: SupportRequestResponse[]
-  deals: SalesDeal[]
+  data: DashboardResponse
   onJumpToToday: () => void
   onOpenList: (key: KpiListKey) => void
 }
 
-export default function SummaryBand({ requests, deals, onJumpToToday, onOpenList }: Props) {
-  useAgenda()
-  const todayList = agendaFor(TODAY_ISO)
-  const external = todayList.filter((item) => item.kind !== 'internal')
-  const visits = new Set(external.map((item) => item.hospital).filter(Boolean)).size
-  const urgent = requests.filter((request) => request.is_urgent).length
-  const working = requests.filter((request) => request.status_code === 'in_progress').length
-  const renewalEnd = iso(addDays(TODAY, 30))
-  const renewals = deals.filter(
-    (deal) =>
-      deal.contractEndsOn !== null &&
-      deal.status !== '취소' &&
-      deal.contractEndsOn >= TODAY_ISO &&
-      deal.contractEndsOn <= renewalEnd,
-  )
-  const monthStart = iso(startOfMonth(TODAY))
-  const monthEnd = iso(endOfMonth(TODAY))
-  const achieved = deals.reduce((sum, deal) => {
-    const date = deal.contractSignedOn ?? deal.closedOn
-    return deal.status === '확정' && date && date >= monthStart && date <= monthEnd
-      ? sum + deal.amount
-      : sum
-  }, 0)
-  const lateFollowUps = followUps.filter((item) => item.dueOff < 0).length
-  const weekFollowUps = followUps.filter((item) => item.dueOff >= 0 && item.dueOff <= 7).length
-  // 목표는 조직이 회사별로 정해 둔 값의 합이고, 아직 아무도 정하지 않았으면 0 입니다.
-  const target = monthlyTotal
-  const hasTarget = target > 0
+/**
+ * 타일의 숫자는 전부 서버가 셉니다.
+ *
+ * 예전에는 목록 전건을 받아 여기서 다시 셌습니다. 그러면 세는 조건이 두 벌이 되어,
+ * 타일을 눌러 나온 목록과 타일의 숫자가 어긋날 수 있습니다.
+ */
+export default function SummaryBand({ data, onJumpToToday, onOpenList }: Props) {
+  const { visited_companies, activities, follow_ups, support_requests } = data
+  const renewals = data.contract_renewals
+  const goal = data.sales_target
+  const target = goal.target_amount
+  const achieved = goal.confirmed_amount
+  // 목표가 없으면 0% 가 아니라 "미설정" 입니다. 서버가 달성률을 null 로 구분해 줍니다.
+  const hasTarget = goal.achievement_rate !== null
   const month = TODAY.getMonth() + 1
   // 이 달 말일까지 남은 일수. 말일이면 0 이고 ddayLabel 이 '오늘'로 읽습니다.
   const daysLeft = endOfMonth(TODAY).getDate() - TODAY.getDate()
-  const percent = hasTarget ? (achieved / target) * 100 : 0
-  const over = hasTarget && achieved >= target
+  const percent = goal.achievement_rate ?? 0
+  const over = hasTarget && target !== null && achieved >= target
   // 목표를 넘기면 트랙이 100%가 아니라 달성률 전체를 담습니다. 그래야 막대가 잘리지 않고
   // 100% 눈금이 트랙 안쪽에 남아 "얼마나 넘었는지"가 길이로 읽힙니다.
   const trackMax = Math.max(percent, 100)
-  const surplus = hasTarget ? achieved - target : 0
+  const surplus = target === null ? 0 : achieved - target
 
   return (
     <div className={styles.summary}>
@@ -92,37 +73,38 @@ export default function SummaryBand({ requests, deals, onJumpToToday, onOpenList
         <span className={styles.top}>
           <span>오늘 방문 회사</span>
         </span>
-        <strong className="tnum">{visits}</strong>
+        <strong className="tnum">{visited_companies.count}</strong>
         <span className={styles.foot}>
-          <small>오늘 일정 {todayList.length}건</small>
+          <small>오늘 일정 {activities.count}건</small>
           <ArrowDownIcon className={styles.cue} width={14} height={14} />
         </span>
       </button>
 
       <Tile
         label="미완료 후속업무"
-        delta={{ text: `${lateFollowUps} 지연`, tone: 'warn' }}
-        value={followUps.length}
-        sub={`이번 주 마감 ${weekFollowUps}건`}
+        delta={{ text: `${follow_ups.overdue} 지연`, tone: 'warn' }}
+        value={follow_ups.total}
+        sub={`이번 주 마감 ${follow_ups.due_within_7_days}건`}
         onOpen={() => onOpenList('followUp')}
       />
       <Tile
         label="C/S 대응요청"
-        delta={{ text: `긴급 ${urgent}건`, tone: 'danger' }}
-        value={requests.length}
-        sub={`처리중 ${working}건`}
+        delta={{ text: `긴급 ${support_requests.urgent}건`, tone: 'danger' }}
+        value={support_requests.total}
+        sub={`처리중 ${support_requests.in_progress}건`}
         onOpen={() => onOpenList('cs')}
       />
       <Tile
         label="계약갱신 예정"
-        delta={{ text: '30일 이내', tone: 'warn' }}
-        value={renewals.length}
+        delta={{ text: `${renewals.within_days ?? 30}일 이내`, tone: 'warn' }}
+        value={renewals.count}
+        // "외 N곳" 은 화면이 만듭니다. 서버는 앞자리 회사 이름과 개수만 줍니다.
         sub={
-          renewals.length === 0
+          renewals.lead_company_name === null
             ? '—'
-            : renewals.length === 1
-              ? renewals[0].org
-              : `${renewals[0].org} 외 ${renewals.length - 1}곳`
+            : renewals.count <= 1
+              ? renewals.lead_company_name
+              : `${renewals.lead_company_name} 외 ${renewals.count - 1}곳`
         }
         onOpen={() => onOpenList('renewal')}
       />
@@ -142,7 +124,7 @@ export default function SummaryBand({ requests, deals, onJumpToToday, onOpenList
         {/* 목표가 없으면 견줄 기준이 없습니다. 0을 목표로 적으면 달성률 0%가 부진으로
             읽히므로, 실적 대신 아직 정해지지 않았다는 사실을 그대로 말합니다. */}
         <p className={`${styles.goalValue} tnum`}>
-          {hasTarget ? (
+          {hasTarget && target !== null ? (
             <>
               {won(achieved)} <em>/ {won(target)}</em>
             </>
@@ -165,7 +147,7 @@ export default function SummaryBand({ requests, deals, onJumpToToday, onOpenList
           <i />
         </div>
         <div className={styles.goalFoot}>
-          <span>{salesGoal.teamName}</span>
+          <span>{goal.target_month}</span>
           <span className={`tnum ${surplus > 0 ? styles.surplus : ''}`}>
             {/* 딱 맞춰 달성한 경우엔 초과분 대신 남은 기간을 그대로 둡니다.
                 '초과 +₩0' 은 읽는 사람에게 아무것도 알려 주지 않습니다. */}

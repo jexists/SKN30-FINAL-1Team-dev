@@ -67,6 +67,9 @@ class AccountCreate(BaseModel):
     role_code: RoleCode
     team_id: UUID | None = None
     team: TeamCreate | None = None
+    # 메일 없이 고정 비밀번호로 바로 발급한다. 로컬에서만 받는다. api/admin.py 를 본다.
+    # 기본값이 False 라서 아무 것도 보내지 않으면 지금까지처럼 초대 메일이 나간다.
+    instant: bool = False
 
     @model_validator(mode="after")
     def exactly_one_team(self) -> "AccountCreate":

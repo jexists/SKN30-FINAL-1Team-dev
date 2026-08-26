@@ -18,6 +18,7 @@ from app.schemas.customers import (
     CustomerCompanyPatch,
     CustomerContactCreate,
     CustomerContactPatch,
+    CustomerContactRead,
     CustomerPageParams,
 )
 
@@ -959,3 +960,52 @@ def test_manager_contact_owner_filter_accepts_the_manager_themselves():
 
     assert response.status_code == 200
     assert [manager.id, teammate.id] in db.statements[1].compile().params.values()
+
+
+def _contact_read_payload(**overrides):
+    payload = {
+        "id": uuid4(),
+        "company_id": uuid4(),
+        "owner_member_id": uuid4(),
+        "name": "김담당",
+        "department": None,
+        "job_title": None,
+        "email": None,
+        "phone": "010-0000-0000",
+        "customer_contact_status_id": None,
+        "customer_contact_status_name": None,
+        "customer_contact_status_tone": None,
+        "status_code": None,
+        "source_code": None,
+        "memo": None,
+        "visited": False,
+        "registered_at": NOW,
+        "company_name": "한빛대학교병원",
+        "company_region_code": None,
+        "owner_display_name": "박영업",
+        "created_by_member_id": uuid4(),
+        "created_by_display_name": "박영업",
+        "assignees": [],
+    }
+    return payload | overrides
+
+
+def test_unknown_source_code_does_not_break_the_list():
+    """컬럼이 자유 문자열이라 이 앱이 쓰지 않은 값이 들어 있을 수 있다.
+
+    내보내는 쪽을 Literal 로 묶으면 그런 행 하나 때문에 목록 전체가 500 이 된다.
+    한 사람 몫이 안 보이는 것과 목록이 통째로 안 열리는 것은 무게가 다르다.
+    """
+    read = CustomerContactRead(**_contact_read_payload(source_code="manual"))
+    assert read.source_code == "manual"
+
+
+def test_write_still_rejects_an_unknown_source_code():
+    """읽기를 열어 준 것이지 아무 값이나 받아 준다는 뜻은 아니다."""
+    with pytest.raises(ValidationError):
+        CustomerContactCreate(
+            company_id=uuid4(),
+            name="김담당",
+            phone="010-0000-0000",
+            source_code="manual",
+        )

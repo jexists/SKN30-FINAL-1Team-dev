@@ -156,7 +156,9 @@ class CustomerContactRead(BaseModel):
     customer_contact_status_name: str | None
     customer_contact_status_tone: str | None
     status_code: OptionCode | None
-    source_code: CustomerSource | None
+    # 예전에 들어온 코드도 그대로 읽어야 하므로 목록을 고정하지 않는다.
+    # 쓰기는 CustomerSource 로 막는다.
+    source_code: OptionCode | None
     memo: str | None
     visited: bool
     registered_at: datetime
@@ -191,8 +193,8 @@ class CustomerPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     q: SearchQuery | None = None
-    skip: int = Field(default=0, ge=0)
-    limit: int = Field(default=30, ge=1, le=100)
+    skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
+    limit: int = Field(default=30, ge=1, le=30)
 
 
 class CustomerContactPageParams(CustomerPageParams):

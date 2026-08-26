@@ -3,20 +3,25 @@ import { useCallback, useEffect, useState } from 'react'
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import type {
-  CustomerCompanyResponse,
   DocumentCategory,
   DocumentResponse,
   DocumentSummaryResponse,
   DocumentVersion,
-  OrderResponse,
-  PageResponse,
-  SalesDealResponse,
+  TabbedPageResponse,
   SalesDocument,
 } from '@/types'
 
 import { kindOfFile } from './catalog'
 
-const PAGE_LIMIT = 100
+/** 등록자 고르는 칸에 세울 사람. 최신 버전을 올린 사람 기준입니다. */
+export interface DocumentUploader {
+  id: string
+  name: string
+}
+
+interface DocumentPageResponse extends TabbedPageResponse<DocumentResponse> {
+  uploaders: { member_id: string; display_name: string }[]
+}
 const CATEGORY_CODE: Record<DocumentCategory, string> = {
   계약서: 'contract',
   발주서: 'purchase_order',
@@ -66,12 +71,16 @@ function toDocument(item: DocumentResponse): SalesDocument {
     category: CATEGORY_BY_CODE[item.category_code] ?? '기타',
     kind: kindOfFile({ name: latest?.fileName ?? '' }),
     link: item.customer_company_id
-      ? { kind: '고객사', label: item.customer_company_name ?? item.customer_company_id }
+      ? {
+          kind: '고객사',
+          id: item.customer_company_id,
+          label: item.customer_company_name ?? item.customer_company_id,
+        }
       : item.purchase_order_id
-        ? { kind: '발주', label: item.purchase_order_id }
+        ? { kind: '발주', id: item.purchase_order_id, label: item.purchase_order_id }
         : item.sales_deal_id
-          ? { kind: '계약', label: item.sales_deal_id }
-          : { kind: 'none', label: '' },
+          ? { kind: '계약', id: item.sales_deal_id, label: item.sales_deal_id }
+          : { kind: 'none', id: '', label: '' },
     description: item.description ?? '',
     tags: item.tags,
     versions:
@@ -91,57 +100,23 @@ function toDocument(item: DocumentResponse): SalesDocument {
   }
 }
 
-async function fetchAll<T>(path: string, signal?: AbortSignal): Promise<T[]> {
-  const result: T[] = []
-  let skip = 0
-  while (!signal?.aborted) {
-    const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT },
-      signal,
-    })
-    result.push(...data.items)
-    if (!data.has_more || data.next_skip === null) return result
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-  return result
-}
-
-async function resolveLink(link: SalesDocument['link']) {
+/**
+ * 고른 연결 대상을 저장할 칸으로 폅니다.
+ *
+ * 예전에는 사용자가 친 글자를 검색해 그 결과에서 정확히 맞는 것을 골라 냈습니다. q 는
+ * 부분 일치라, 같은 글자가 들어간 후보가 한 쪽을 넘으면 있는데도 못 찾았습니다. 이제는
+ * 고르는 순간 id 를 들고 오므로 되물을 것이 없습니다.
+ */
+function linkFields(link: SalesDocument['link']) {
   const empty = {
-    customer_company_id: null,
-    sales_deal_id: null,
-    purchase_order_id: null,
+    customer_company_id: null as string | null,
+    sales_deal_id: null as string | null,
+    purchase_order_id: null as string | null,
   }
-  if (link.kind === 'none' || link.label.trim() === '') return empty
-
-  const q = link.label.trim()
-  if (link.kind === '고객사') {
-    const { data } = await client.get<PageResponse<CustomerCompanyResponse>>(
-      '/customer-companies',
-      {
-        params: { q, skip: 0, limit: PAGE_LIMIT },
-      },
-    )
-    const found = data.items.find((item) => item.id === q || item.name === q)
-    if (!found) throw new Error('연결할 고객사를 찾을 수 없습니다.')
-    return { ...empty, customer_company_id: found.id }
-  }
-  if (link.kind === '계약') {
-    const { data } = await client.get<PageResponse<SalesDealResponse>>('/sales-deals', {
-      params: { q, phase_code: 'contract', skip: 0, limit: PAGE_LIMIT },
-    })
-    const found = data.items.find((item) => item.id === q || item.deal_no === q)
-    if (!found) throw new Error('연결할 계약 딜을 찾을 수 없습니다.')
-    return { ...empty, sales_deal_id: found.id }
-  }
-
-  const { data } = await client.get<PageResponse<OrderResponse>>('/orders', {
-    params: { q, skip: 0, limit: PAGE_LIMIT },
-  })
-  const found = data.items.find((item) => item.id === q || item.order_no === q)
-  if (!found) throw new Error('연결할 발주를 찾을 수 없습니다.')
-  return { ...empty, purchase_order_id: found.id }
+  if (link.kind === 'none' || link.id === '') return empty
+  if (link.kind === '고객사') return { ...empty, customer_company_id: link.id }
+  if (link.kind === '계약') return { ...empty, sales_deal_id: link.id }
+  return { ...empty, purchase_order_id: link.id }
 }
 
 async function uploadFile(documentId: string, file: File, note: string) {
@@ -156,20 +131,67 @@ function mutationMessage(reason: unknown, fallback: string): string {
   return errorMessage(reason, fallback)
 }
 
-export default function useDocuments() {
+export interface DocumentQuery {
+  q: string
+  /** 고른 분류 탭. 빈 문자열이면 전체입니다. */
+  category: DocumentCategory | ''
+  /** 최신 버전을 올린 사람. 빈 문자열이면 전체입니다. */
+  uploaderMemberId: string
+  /** 최신 버전을 올린 날짜의 하한. null 이면 제한 없음입니다. */
+  fromISO: string | null
+  skip: number
+  limit: number
+}
+
+export default function useDocuments(query?: DocumentQuery) {
   const [documents, setDocuments] = useState<SalesDocument[]>([])
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [uploaders, setUploaders] = useState<DocumentUploader[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
+  // 조회 조건을 낱개로 펼쳐 둡니다. 효과가 객체가 아니라 값 하나하나를 보게 해야, 화면이
+  // 조건 객체를 새로 만들 때마다 다시 받지 않습니다.
+  const {
+    q: queryText = '',
+    category: queryCategory = '',
+    uploaderMemberId: queryUploader = '',
+    fromISO: queryFrom = null,
+    skip: querySkip = 0,
+    limit: queryLimit = 30,
+  } = query ?? {}
+
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    void fetchAll<DocumentResponse>('/documents', controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setDocuments(items.map(toDocument))
+    const needle = queryText.trim()
+    void client
+      .get<DocumentPageResponse>('/documents', {
+        params: {
+          q: needle === '' ? undefined : needle.slice(0, 100),
+          category_code: queryCategory === '' ? undefined : CATEGORY_CODE[queryCategory],
+          latest_uploader_member_id: queryUploader === '' ? undefined : queryUploader,
+          latest_uploaded_from: queryFrom === null ? undefined : `${queryFrom}T00:00:00+09:00`,
+          skip: querySkip,
+          limit: queryLimit,
+        },
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return
+        setDocuments(data.items.map(toDocument))
+        setTotal(data.total)
+        setCounts(data.counts)
+        setUploaders(
+          data.uploaders.map(({ member_id, display_name }) => ({
+            id: member_id,
+            name: display_name,
+          })),
+        )
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -181,7 +203,7 @@ export default function useDocuments() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [reloadKey])
+  }, [reloadKey, queryText, queryCategory, queryUploader, queryFrom, querySkip, queryLimit])
 
   const findDocument = useCallback(
     (id: string) => documents.find((document) => document.id === id),
@@ -192,7 +214,7 @@ export default function useDocuments() {
     setPending(true)
     setError(null)
     try {
-      const links = await resolveLink(draft.link)
+      const links = linkFields(draft.link)
       const { data: created } = await client.post<DocumentResponse>('/documents', {
         category_code: CATEGORY_CODE[draft.category],
         title: draft.title,
@@ -238,7 +260,7 @@ export default function useDocuments() {
         const current = documents.find((document) => document.id === id)
         if (!current) throw new Error('자료를 찾을 수 없습니다.')
         const next = { ...current, ...meta }
-        const links = await resolveLink(next.link)
+        const links = linkFields(next.link)
         const { data } = await client.patch<DocumentResponse>(`/documents/${id}`, {
           category_code: CATEGORY_CODE[next.category],
           title: next.title,
@@ -277,6 +299,9 @@ export default function useDocuments() {
 
   return {
     documents,
+    total,
+    counts,
+    uploaders,
     findDocument,
     loading,
     error,

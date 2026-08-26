@@ -1,24 +1,31 @@
-// 확정한 미팅 기록을 읽는 화면입니다. 작성 화면과 같은 컴포넌트를 읽기 모드로 씁니다.
+// 제출한 미팅 기록을 읽는 화면입니다. 작성 화면과 같은 컴포넌트를 읽기 모드로 씁니다.
 import { Link, useParams } from 'react-router'
 
 import AttachmentPanel from '@/components/AttachmentPanel'
-import Button from '@/components/Button'
-import { ChevronLeftIcon } from '@/components/icons'
+import Button, { buttonClass } from '@/components/Button'
+import { EditIcon } from '@/components/icons'
 import ReportFields from '@/components/ReportFields'
 import { SkeletonDetail } from '@/components/Skeleton'
+import StatusBadge from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
+import DailyListLink from '@/pages/Daily/components/DailyListLink'
+import { useReportDetail } from '@/shared/reportQuery'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import MeetingFacts from './components/MeetingFacts'
-import useMeetingReports from './useMeetingReports'
+import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
+import { toMeetingReport } from './useMeetingReports'
 
 import styles from './Detail.module.scss'
 
 export default function Detail() {
   const { reportId } = useParams()
-  const { findReport, loading, error, reload } = useMeetingReports()
+  const { item, loading, error, reload } = useReportDetail(
+    reportId,
+    '미팅보고서를 불러오지 못했습니다.',
+  )
 
-  const report = reportId ? findReport(reportId) : undefined
+  const report = item ? toMeetingReport(item) : undefined
 
   if (loading)
     return (
@@ -57,61 +64,111 @@ export default function Detail() {
         {report.hospital} {report.title} 미팅보고서
       </h1>
 
+      {/*
+        머리말은 어느 회사의 언제 기록인지와 지금 어디까지 왔는지만 말합니다.
+        미팅 제목은 오른쪽 보고서의 머리글이 이미 크게 달고 있어 여기서 뺐습니다.
+      */}
       <header className={styles.head}>
-        <Link className={styles.back} to={ROUTES.DASHBOARD}>
-          <ChevronLeftIcon />
-          대시보드
-        </Link>
+        <div className={styles.heading}>
+          <p className={styles.title}>
+            {report.hospital}
+            <StatusBadge label={REVIEW_LABEL[report.review]} tone={REVIEW_TONE[report.review]} />
+          </p>
 
-        <p className={styles.title}>
-          {report.hospital}
-          <span className={styles.subject}>{report.title}</span>
-        </p>
+          <p className={styles.meta}>
+            <span className={styles.when}>
+              {fmtDay(parseISO(report.date))} {report.time}
+            </span>
+            <span className={styles.dot} aria-hidden="true">
+              ·
+            </span>
+            <span>작성자 {report.owner}</span>
+          </p>
+        </div>
 
-        <span className={styles.when}>
-          {fmtDay(parseISO(report.date))} {report.time}
-        </span>
-
-        {/* 확정이 기본이라 그때는 굳이 말하지 않고, 아직 쓰는 중일 때만 알립니다. */}
-        {report.status !== '확정' && <span className={styles.status}>{report.status}</span>}
-
-        <Link className={styles.rewrite} to={meetingComposePath(report.agendaId)}>
-          기록 수정
-        </Link>
+        {/*
+          머리말은 어디로 갈 수 있는지를, 시트 아래는 이 문서에 무엇을 할 수 있는지를
+          맡습니다. 미팅 기록에서 나가므로 목록도 미팅보고서 탭으로 엽니다.
+        */}
+        <DailyListLink tab="meeting" className={styles.toDaily} />
       </header>
 
-      <div className={styles.panels}>
-        <article className={styles.panel}>
-          <h2>미팅 정보</h2>
-          <MeetingFacts
-            dept={report.dept}
-            contact={report.contact}
-            product={report.product}
-            place={report.place}
-          />
-        </article>
+      {/*
+        결과물이 먼저입니다. 자료를 왼쪽에 놓는 것은 grid-template-areas 가 하고,
+        DOM 순서는 건드리지 않습니다. 좁은 화면에서 한 열로 접힐 때 긴 미팅 내용
+        아래에 보고서가 묻히면 안 되고, 키보드 순서도 두 폭에서 같아야 합니다.
+      */}
+      <div className={styles.layout}>
+        <div className={styles.report}>
+          <article className={styles.sheet}>
+            <h2 className={styles.docTitle}>{report.title}</h2>
+            <p className={styles.docWhen}>
+              {fmtDay(parseISO(report.date))} {report.time}
+            </p>
 
-        <article className={styles.panel}>
-          <h2>구조화 결과</h2>
-          {report.template.fields.length === 0 ? (
-            <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
-          ) : (
-            <ReportFields template={report.template} values={report.values} readOnly />
-          )}
-          {report.evidence && <p className={styles.evidence}>{report.evidence}</p>}
-        </article>
-
-        {report.transcript && (
-          <article className={styles.panel}>
-            <h2>미팅 내용</h2>
-            <p className={styles.transcript}>{report.transcript}</p>
+            {report.template.fields.length === 0 ? (
+              <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
+            ) : (
+              <ReportFields template={report.template} values={report.values} readOnly />
+            )}
+            {report.evidence && <p className={styles.evidence}>{report.evidence}</p>}
           </article>
-        )}
 
-        <article className={styles.panel}>
-          <h2>첨부 자료</h2>
-          <AttachmentPanel attachments={report.attachments} readOnly />
-        </article>
+          {/*
+            고치는 것은 다 읽은 다음의 일입니다. 머리말에서 먼저 소리치지 않고
+            보고서 끝에서 기다립니다. 작성 화면도 제출 버튼이 시트 아래에 있습니다.
+          */}
+          <div className={styles.docActions}>
+            {/* 작성 화면과 같은 자리, 같은 버튼입니다. 인쇄가 곧 PDF 입니다. */}
+            <Button variant="outline" type="button" onClick={() => window.print()}>
+              PDF 다운로드
+            </Button>
+
+            {report.review === 'approved' ? (
+              <span className={`${styles.sealed} ${styles.trailing}`}>
+                팀장 확인이 끝나 수정할 수 없습니다
+              </span>
+            ) : (
+              <Link
+                className={buttonClass({}, styles.trailing)}
+                to={meetingComposePath(report.agendaId)}
+              >
+                <EditIcon width={15} height={15} />
+                수정하기
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* 보고서를 쓸 때 낸 것들. 짧은 것부터 두고, 길이가 정해지지 않은 미팅 내용이 끝입니다. */}
+        <aside className={styles.materials}>
+          <section>
+            <h2 className={styles.materialHead}>미팅 정보</h2>
+            <MeetingFacts
+              dept={report.dept}
+              contact={report.contact}
+              product={report.product}
+              place={report.place}
+            />
+          </section>
+
+          <section>
+            <h2 className={styles.materialHead}>
+              첨부 자료
+              {report.attachments.length > 0 && (
+                <span className={styles.count}>{report.attachments.length}건</span>
+              )}
+            </h2>
+            <AttachmentPanel attachments={report.attachments} readOnly />
+          </section>
+
+          {report.transcript && (
+            <section>
+              <h2 className={styles.materialHead}>미팅 내용</h2>
+              <p className={styles.transcript}>{report.transcript}</p>
+            </section>
+          )}
+        </aside>
       </div>
     </section>
   )

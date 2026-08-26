@@ -20,6 +20,10 @@ from app.services import supabase_auth
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+# 로컬 개발용 고정 비밀번호. 받을 수 있는 메일 주소 없이 테스트 계정을 만들려고 둔다.
+# APP_ENV=local 에서만 쓰이므로 test/production 에는 닿지 않는다.
+LOCAL_DEV_PASSWORD = "12341234"
+
 
 @router.get("/teams", response_model=list[TeamRead])
 async def list_teams(_admin: CurrentAdmin, db: DbSession) -> list[dict]:
@@ -62,14 +66,31 @@ async def create_account(
 
     순서를 되돌릴 수 있게 잡는다. member.id 는 auth 사용자 id 와 같아야 하므로
     초대가 먼저고, 그 뒤 DB 쓰기가 실패하면 만든 사용자를 지워 되돌린다.
+
+    payload.instant 이면 초대 대신 LOCAL_DEV_PASSWORD 로 확인된 사용자를 바로 만든다.
+    로컬에서만 받는다.
     """
+    if payload.instant and settings.app_env != "local":
+        # 조용히 초대로 넘기지 않는다. 메일이 안 나갈 줄 알고 실주소를 넣었을 수도 있다.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="instant_local_only",
+        )
+
     team = await _resolve_team(payload, db)
 
     try:
-        member_id = await supabase_auth.invite_user(
-            email=payload.email,
-            redirect_to=f"{settings.frontend_base_url.rstrip('/')}/set-password",
-        )
+        if payload.instant:
+            # 메일을 받을 곳이 없을 때 쓴다. 확인된 사용자를 바로 만들고 비밀번호를 고정한다.
+            member_id = await supabase_auth.create_confirmed_user(
+                email=payload.email,
+                password=LOCAL_DEV_PASSWORD,
+            )
+        else:
+            member_id = await supabase_auth.invite_user(
+                email=payload.email,
+                redirect_to=f"{settings.frontend_base_url.rstrip('/')}/set-password",
+            )
     except supabase_auth.EmailAlreadyExists as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

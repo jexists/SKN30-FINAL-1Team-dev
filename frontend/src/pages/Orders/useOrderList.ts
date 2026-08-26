@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
@@ -9,26 +9,12 @@ import type {
   OrderCreateRequest,
   OrderMoveRequest,
   OrderPatchRequest,
+  OrderPageResponse,
   OrderResponse,
   PageResponse,
-  ProductResponse,
   PurchaseOrderStatusResponse,
-  SalesDealResponse,
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
-
-const PAGE_LIMIT = 100
-
-export interface OrderOption {
-  id: string
-  name: string
-}
-
-export interface OrderSalesDealOption {
-  id: string
-  no: string
-  customerCompanyName: string
-}
 
 export interface OrderDraftItem {
   productId: string
@@ -50,7 +36,7 @@ export interface OrderDraft {
 const offsetOf = (dateISO: string) =>
   Math.round((parseISO(dateISO).getTime() - TODAY.getTime()) / 86_400_000)
 
-function toOrder(order: OrderResponse): ApiPurchaseOrder {
+export function toOrder(order: OrderResponse): ApiPurchaseOrder {
   return {
     id: order.id,
     no: order.order_no,
@@ -88,39 +74,6 @@ function toOrder(order: OrderResponse): ApiPurchaseOrder {
     createdAt: order.created_at,
     updatedAt: order.updated_at,
   }
-}
-
-async function fetchAllPage<T>(
-  path: string,
-  signal?: AbortSignal,
-  extraParams?: Record<string, unknown>,
-): Promise<T[]> {
-  // ponytail: 현재 화면의 필터·탭 건수는 전건 기준입니다. 데이터가 커지면 서버 집계로 바꿉니다.
-  const items: T[] = []
-  let skip = 0
-
-  while (!signal?.aborted) {
-    const { data } = await client.get<PageResponse<T>>(path, {
-      params: { skip, limit: PAGE_LIMIT, ...extraParams },
-      signal,
-    })
-    items.push(...data.items)
-    if (!data.has_more || data.next_skip === null) break
-    if (data.next_skip <= skip) throw new Error('invalid_pagination')
-    skip = data.next_skip
-  }
-
-  return items
-}
-
-async function fetchAllOrders(
-  signal?: AbortSignal,
-  ownerIds?: readonly string[],
-): Promise<ApiPurchaseOrder[]> {
-  // 발주에는 담당자 칸이 따로 없어 서버가 딜의 담당자로 거릅니다.
-  return (await fetchAllPage<OrderResponse>('/orders', signal, { owner_member_id: ownerIds })).map(
-    toOrder,
-  )
 }
 
 function toWriteRequest(draft: OrderDraft): OrderPatchRequest {
@@ -161,10 +114,23 @@ function mutationErrorMessage(error: unknown, action: string): string {
   return transportMessage(error) ?? fallback
 }
 
-export default function useOrderList(detailNo?: string) {
+export interface OrderQuery {
+  q: string
+  /** 고른 공급처. 빈 문자열이면 전체입니다. */
+  supplier: string
+  /** 발주일 하한. null 이면 제한 없음입니다. */
+  fromISO: string | null
+  /** 고른 상태 탭. 빈 문자열이면 전체입니다. */
+  status: string
+  skip: number
+  limit: number
+}
+
+export default function useOrderList(detailNo?: string, query?: OrderQuery) {
   const [orders, setOrders] = useState<ApiPurchaseOrder[]>([])
-  const [products, setProducts] = useState<OrderOption[]>([])
-  const [salesDeals, setSalesDeals] = useState<OrderSalesDealOption[]>([])
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [suppliers, setSuppliers] = useState<string[]>([])
   const [statuses, setStatuses] = useState<PurchaseOrderStatusResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -180,36 +146,29 @@ export default function useOrderList(detailNo?: string) {
   const [mutationError, setMutationError] = useState<string | null>(null)
   const ownerIds = useScopeOwnerIds()
 
+  // 조회 조건을 낱개로 펼쳐 둡니다. 아래 목록 효과가 객체가 아니라 값 하나하나를 보게
+  // 해야, 화면이 조건 객체를 새로 만들 때마다 다시 받지 않습니다.
+  const listing = query !== undefined
+  const {
+    q: queryText = '',
+    supplier: querySupplier = '',
+    status: queryStatus = '',
+    fromISO: queryFrom = null,
+    skip: querySkip = 0,
+    limit: queryLimit = 30,
+  } = query ?? {}
+
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
 
-    void Promise.all([
-      fetchAllOrders(controller.signal, ownerIds),
-      // 제품과 딜은 발주를 등록할 때 고르는 목록입니다. 보기 범위로 좁히면 팀원이 맡은
-      // 딜의 발주를 넣을 수 없게 됩니다.
-      fetchAllPage<ProductResponse>('/products', controller.signal),
-      fetchAllPage<SalesDealResponse>('/sales-deals', controller.signal),
-      client
-        .get<PurchaseOrderStatusResponse[]>('/purchase-order-statuses', {
-          signal: controller.signal,
-        })
-        .then((response) => response.data),
-    ])
-      .then(([orderItems, productItems, dealItems, statusItems]) => {
+    void client
+      .get<PurchaseOrderStatusResponse[]>('/purchase-order-statuses', {
+        signal: controller.signal,
+      })
+      .then(({ data: statusItems }) => {
         if (controller.signal.aborted) return
-        setOrders(orderItems)
-        setProducts(productItems.map(({ id, name }) => ({ id, name })))
-        setSalesDeals(
-          dealItems
-            .filter((salesDeal) => salesDeal.sales_pipeline_status_code === 'published')
-            .map((salesDeal) => ({
-              id: salesDeal.id,
-              no: salesDeal.deal_no,
-              customerCompanyName: salesDeal.customer_company_name,
-            })),
-        )
         setStatuses(statusItems)
       })
       .catch((caught: unknown) => {
@@ -220,18 +179,64 @@ export default function useOrderList(detailNo?: string) {
       })
 
     return () => controller.abort()
-  }, [reloadKey, ownerIds])
+  }, [reloadKey])
 
+  // 목록은 조건이 바뀔 때마다 한 쪽씩 받습니다. 위의 선택지 목록과 나눠 두어야 검색어를
+  // 한 글자 칠 때마다 제품·딜을 다시 받지 않습니다.
+  useEffect(() => {
+    if (!listing) return
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+
+    const needle = queryText.trim()
+    void client
+      .get<OrderPageResponse>('/orders', {
+        params: {
+          q: needle === '' ? undefined : needle.slice(0, 100),
+          supplier_name: querySupplier === '' ? undefined : querySupplier,
+          stage_code: queryStatus === '' ? undefined : queryStatus,
+          start_date: queryFrom ?? undefined,
+          // 발주에는 담당자 칸이 따로 없어 서버가 딜의 담당자로 거릅니다.
+          owner_member_id: ownerIds,
+          skip: querySkip,
+          limit: queryLimit,
+        },
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return
+        setOrders(data.items.map(toOrder))
+        setTotal(data.total)
+        setCounts(data.counts)
+        setSuppliers(data.suppliers)
+      })
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) setError(requestErrorMessage(caught, '목록'))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [
+    reloadKey,
+    ownerIds,
+    listing,
+    queryText,
+    querySupplier,
+    queryStatus,
+    queryFrom,
+    querySkip,
+    queryLimit,
+  ])
+
+  // 번호로 서버에 직접 묻습니다. 목록에서 찾으면 그 발주가 현재 페이지 밖일 때 상세가
+  // 열리지 않습니다. 목록과 상세가 같은 모델이라 이 한 번으로 상세까지 받습니다.
   useEffect(() => {
     setDetail(null)
     setDetailError(null)
-    if (detailNo === undefined || loading) {
-      setDetailLoading(detailNo !== undefined && loading)
-      return
-    }
-
-    const summary = orders.find((order) => order.no === detailNo)
-    if (!summary) {
+    if (detailNo === undefined) {
       setDetailLoading(false)
       return
     }
@@ -239,9 +244,12 @@ export default function useOrderList(detailNo?: string) {
     const controller = new AbortController()
     setDetailLoading(true)
     void client
-      .get<OrderResponse>(`/orders/${summary.id}`, { signal: controller.signal })
+      .get<PageResponse<OrderResponse>>('/orders', {
+        params: { order_no: detailNo, limit: 1 },
+        signal: controller.signal,
+      })
       .then(({ data }) => {
-        if (!controller.signal.aborted) setDetail(toOrder(data))
+        if (!controller.signal.aborted) setDetail(data.items[0] ? toOrder(data.items[0]) : null)
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) setDetailError(requestErrorMessage(caught, '상세'))
@@ -251,7 +259,7 @@ export default function useOrderList(detailNo?: string) {
       })
 
     return () => controller.abort()
-  }, [detailNo, detailReloadKey, loading, orders])
+  }, [detailNo, detailReloadKey])
 
   const reload = useCallback(() => setReloadKey((value) => value + 1), [])
   const reloadDetail = useCallback(() => setDetailReloadKey((value) => value + 1), [])
@@ -330,10 +338,6 @@ export default function useOrderList(detailNo?: string) {
     [runMutation],
   )
 
-  const suppliers = useMemo(
-    () => [...new Set(orders.map((order) => order.supplier))].sort(),
-    [orders],
-  )
   const findOrderById = useCallback(
     (id: string) => orders.find((order) => order.id === id),
     [orders],
@@ -346,8 +350,8 @@ export default function useOrderList(detailNo?: string) {
 
   return {
     orders,
-    products,
-    salesDeals,
+    total,
+    counts,
     statuses,
     suppliers,
     loading,

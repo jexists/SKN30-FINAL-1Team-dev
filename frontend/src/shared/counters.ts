@@ -2,7 +2,6 @@ import type { CsRequest, CsState, FollowUp, Renewal } from '@/types'
 
 export const followUps: FollowUp[] = []
 export const renewals: Renewal[] = []
-export const salesGoal = { achieved: 0, teamName: '' }
 
 const items: CsRequest[] = []
 

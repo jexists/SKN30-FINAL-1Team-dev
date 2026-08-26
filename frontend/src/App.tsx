@@ -23,6 +23,7 @@ import MyPage from '@/pages/MyPage'
 import NotFound from '@/pages/NotFound'
 import Notifications from '@/pages/Notifications'
 import Orders, { OrderDetail, OrderNew } from '@/pages/Orders'
+import Notices from '@/pages/Notices'
 import Products from '@/pages/Products'
 import Quotes from '@/pages/Quotes'
 import Sales from '@/pages/Sales'
@@ -53,6 +54,7 @@ export default function App() {
               {/* 팀장만 들어갈 수 있는 화면. 팀원이 주소를 직접 치면 대시보드로 돌아갑니다. */}
               <Route element={<ManagerRoute />}>
                 <Route path={ROUTES.TEAM} element={<Team />} />
+                <Route path={ROUTES.NOTICES} element={<Notices />} />
                 <Route path={ROUTES.PRODUCTS} element={<Products />} />
               </Route>
 
