@@ -93,3 +93,20 @@
   color: var(--muted);
   font-size: 11px;
 }
+
+/* 보내지 않는 줄과 실패한 줄. 몇 번째 줄인지가 먼저 읽혀야 파일에서 찾습니다. */
+.problems {
+  margin-bottom: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+  font-size: 12px;
+  line-height: 1.7;
+  list-style: none;
+
+  b {
+    margin-right: var(--s2);
+    font-weight: 700;
+  }
+}

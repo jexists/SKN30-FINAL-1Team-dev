@@ -1,6 +1,14 @@
 import type { ReportAttachment, ReportStatus, ReportTemplate } from './reports'
 
 /**
+ * 미팅보고서를 팀장이 어디까지 봤는지.
+ *
+ * 서버 status_code 네 가지에 보류 하나를 더한 것입니다. 이름표와 색은
+ * pages/Meetings/reviewStatus.ts 가 붙입니다.
+ */
+export type MeetingReview = 'writing' | 'submitted' | 'approved' | 'needsMore' | 'hold'
+
+/**
  * 미팅 한 건의 기록. 캘린더 일정(AgendaItem) 하나에 붙습니다.
  *
  * 병원·담당자 같은 값은 일정에서 그대로 복사해 둡니다. 나중에 일정이 바뀌어도
@@ -22,7 +30,10 @@ export interface MeetingReportSeed {
   place: string
   /** 일정 제목이 그대로 미팅 제목이 됩니다. */
   title: string
+  /** 보고 흐름상의 상태. 일일보고가 이 값으로 활동을 끌어올릴지 가립니다. */
   status: ReportStatus
+  /** 팀장 확인 단계. 상세 화면 배지와 수정 잠금이 이 값만 봅니다. */
+  review: MeetingReview
   /** 직접 입력한 미팅 내용. 나중에 STT 결과가 들어올 자리입니다. */
   transcript: string
   /** ReportFieldDef.id → 입력값 */
@@ -30,6 +41,16 @@ export interface MeetingReportSeed {
   attachments: ReportAttachment[]
   /** AI 가 어디를 보고 채웠는지 한 줄 */
   evidence?: string
+  /**
+   * AI 가 최초로 만든 원본. values 와 따로 둡니다.
+   *
+   * 사용자가 values 를 아무리 고쳐도 이 값은 바뀌지 않아야 "AI 는 뭐라고 썼더라" 를
+   * 되짚을 수 있습니다. 한 벌로 관리하면 첫 수정에서 원본이 사라집니다.
+   */
+  aiValues?: Record<string, string>
+  aiEvidence?: string
+  /** 원본을 만든 시각. ISO 8601 */
+  aiGeneratedAt?: string
 }
 
 /** 실제 날짜가 붙은 미팅보고서. date 는 미팅한 날입니다. */

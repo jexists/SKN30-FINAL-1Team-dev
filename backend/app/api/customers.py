@@ -259,6 +259,7 @@ def _contact_read(
         status_code=None if contact_status is None else contact_status.code,
         source_code=contact.source_code,
         memo=contact.memo,
+        visited=contact.visited,
         registered_at=contact.registered_at,
         company_name=company_name,
         company_region_code=company_region_code,
@@ -425,6 +426,8 @@ async def list_customer_contacts(
     # 범위를 먼저 검증한다. 거절이면 데이터 쿼리가 한 건도 나가지 않아야 한다.
     owner_ids = await owner_scope(db, member, page.owner_member_id)
     scope = _contact_scope(member, owner_ids)
+    if page.company_id is not None:
+        scope.append(CustomerContact.company_id == page.company_id)
     if page.q is not None:
         pattern = _contains(page.q)
         scope.append(

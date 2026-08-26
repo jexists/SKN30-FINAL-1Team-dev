@@ -16,6 +16,19 @@ export function EmailCell({ email }: { email: string }) {
   )
 }
 
+/**
+ * 방문 여부. 대부분의 줄이 미방문이라 둘 다 배지로 만들면 표가 배지밭이 됩니다.
+ * 뜻이 있는 쪽만 색을 갖고, 미방문은 빈 고리와 흐린 글자로 물러섭니다.
+ */
+export function VisitCell({ visited }: { visited: boolean }) {
+  return (
+    <span className={visited ? styles.visitOn : styles.visitOff}>
+      <i className={styles.visitDot} aria-hidden="true" />
+      {visited ? '방문' : '미방문'}
+    </span>
+  )
+}
+
 export function PlainNumber({ value }: { value: string }) {
   return <span className="tnum">{value}</span>
 }

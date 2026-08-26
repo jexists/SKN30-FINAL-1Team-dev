@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -5,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.api import documents as documents_api
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
@@ -156,7 +158,7 @@ def test_document_request_rejects_unsafe_values():
     with pytest.raises(ValidationError):
         DocumentCreate(category_code="proposal", title="")
     with pytest.raises(ValidationError):
-        DocumentPageParams(limit=101)
+        DocumentPageParams(limit=31)
 
 
 def test_upload_requires_storage_configuration(storage_missing):
@@ -273,3 +275,45 @@ def test_other_team_document_is_hidden():
     assert response.status_code == 404
     assert response.json() == {"detail": "document_not_found"}
     assert member.team_id in db.statements[0].compile().params.values()
+
+
+def test_uploader_and_date_filters_look_at_the_latest_version_only():
+    """담당자·올린 날짜 필터는 최신 버전 파일을 본다.
+
+    화면의 표가 최신 버전의 올린 사람과 날짜를 보여 주므로 필터도 같은 파일을 봐야 한다.
+    아무 버전이나 맞으면 되게 하면, 예전 버전을 올린 사람으로 걸러도 문서가 나온다.
+    """
+    member = _member()
+    db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]), _Result(rows=[]))
+
+    page = asyncio.run(
+        documents_api.list_documents(
+            DocumentPageParams(
+                latest_uploader_member_id=[member.id],
+                latest_uploaded_from=datetime(2026, 3, 1, tzinfo=UTC),
+                category_code=["proposal"],
+                q="합성",
+            ),
+            member,
+            db,
+        )
+    )
+
+    assert page.counts == {}
+    count_sql = str(db.statements[0])
+    counts_sql = str(db.statements[2])
+
+    # 최신 한 건만 보도록 상관 서브쿼리로 좁힌다. 별칭 번호는 쿼리마다 달라 이름만 본다.
+    assert "version_no DESC" in count_sql
+    assert "LIMIT" in count_sql
+    assert "document_id = public.document.id" in count_sql
+    assert "uploaded_by_member_id IN" in count_sql
+    assert "uploaded_at >=" in count_sql
+    # 검색은 태그와 최신 파일 이름까지 훑는다.
+    assert "document.tags" in count_sql
+    assert "file_name" in count_sql
+
+    # 분류 탭 옆 건수는 분류만 빼고 나머지는 그대로 둔다.
+    assert "document.category_code IN" in count_sql
+    assert "document.category_code IN" not in counts_sql
+    assert "uploaded_by_member_id IN" in counts_sql

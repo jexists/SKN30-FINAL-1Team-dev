@@ -1,80 +1,41 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
+import { errorMessage, transportMessage } from '@/api/errorMessage'
 import { useCurrentUser } from '@/auth/sessionContext'
-import Button from '@/components/Button'
-import Pagination from '@/components/Pagination'
+import ErrorToast from '@/components/ErrorToast'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import { useScopeOwnerIds } from '@/shared/scope'
-import type {
-  Customer,
-  CustomerContactResponse,
-  CustomerSource,
-  CustomerSourceCode,
-  CustomerStatus,
-  CustomerStatusCode,
-  PageResponse,
-} from '@/types'
+import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
 
+import type { BusinessCardDraft } from './businessCard'
 import { COLUMN_BY_ID } from './columns'
+import { toCustomer } from './contact'
+import { exportCustomers, TooManyCustomersError } from './exportCustomers'
 import useColumnPrefs from './useColumnPrefs'
+import BusinessCardModal from './components/BusinessCardModal'
 import CustomerDrawer from './components/CustomerDrawer'
 import CustomerFormModal from './components/CustomerFormModal'
 import CustomerTable from './components/CustomerTable'
+import ImportModal from './components/ImportModal'
 import SelectionBar from './components/SelectionBar'
 import TableToolbar from './components/TableToolbar'
 
+import styles from './Customers.module.scss'
+
 export type SortState = { id: string; dir: 'asc' | 'desc' } | null
 
-const STATUS_LABEL: Record<CustomerStatusCode, CustomerStatus> = {
-  new: '신규',
-  proposal: '제안',
-  negotiation: '협의',
-  contracted: '계약',
-  on_hold: '보류',
-}
-
-const SOURCE_LABEL: Record<CustomerSourceCode, CustomerSource> = {
-  referral: '소개',
-  exhibition: '박람회',
-  website: '홈페이지',
-  cold_call: '콜드콜',
-  existing_customer: '기존 거래',
-}
-
-function toCustomer(contact: CustomerContactResponse): Customer {
-  return {
-    id: contact.id,
-    name: contact.name,
-    org: contact.company_name,
-    dept: contact.department ?? '',
-    title: contact.job_title ?? '',
-    email: contact.email ?? '',
-    phone: contact.phone,
-    owner: contact.owner_display_name,
-    source: contact.source_code === null ? '미지정' : SOURCE_LABEL[contact.source_code],
-    status: contact.status_code === null ? '미지정' : STATUS_LABEL[contact.status_code],
-    memo: contact.memo ?? '',
-    last: null,
-    next: null,
-    created: contact.registered_at.slice(0, 10),
-    overdue: false,
-    companyId: contact.company_id,
-    ownerMemberId: contact.owner_member_id,
-    owners: contact.assignees.map((assignee) => ({
-      id: assignee.id,
-      name: assignee.display_name,
-    })),
-    regionCode: contact.company_region_code,
-  }
-}
+/** 한 번에 하나만 열립니다. 명함으로 읽은 값은 그대로 등록 폼으로 넘어갑니다. */
+type OpenDialog = 'create' | 'import' | 'card' | null
 
 function loadErrorMessage(error: unknown): string {
-  if (!isAxiosError(error)) return '고객 목록을 불러오지 못했습니다.'
+  const fallback = '고객 목록을 불러오지 못했습니다.'
+  if (!isAxiosError(error)) return fallback
   if (error.response?.status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
   if (error.response?.status === 422) return '고객 검색 조건을 처리하지 못했습니다.'
-  return '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+  return transportMessage(error) ?? fallback
 }
 
 export default function Customers() {
@@ -83,12 +44,14 @@ export default function Customers() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
-  const [createOpen, setCreateOpen] = useState(false)
+  const [dialog, setDialog] = useState<OpenDialog>(null)
+  const [cardDraft, setCardDraft] = useState<BusinessCardDraft | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [exporting, setExporting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const { prefs, toggleColumn, moveColumn, setWidth, reset } = useColumnPrefs()
   // 팀원에게는 자기가 담당인 고객만 보여, 담당자 칸이 늘 자기 이름입니다. 아예 감춥니다.
@@ -121,8 +84,8 @@ export default function Customers() {
       .get<PageResponse<CustomerContactResponse>>('/customer-contacts', {
         params: {
           q: needle === '' ? undefined : needle.slice(0, 100),
-          skip: (page - 1) * pageSize,
-          limit: pageSize,
+          skip: (page - 1) * PAGE_SIZE,
+          limit: PAGE_SIZE,
           owner_member_id: ownerIds,
         },
         signal: controller.signal,
@@ -143,14 +106,13 @@ export default function Customers() {
       })
 
     return () => controller.abort()
-  }, [deferredQuery, page, pageSize, reloadKey, ownerIds])
+  }, [deferredQuery, page, reloadKey, ownerIds])
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const openCustomer = useMemo(() => rows.find((row) => row.id === openId) ?? null, [rows, openId])
   const resetPage = useCallback(() => setPage(1), [])
 
-  // 서버가 페이지를 나눠 주는 유일한 화면입니다. 팀 전체의 3페이지가 한 사람의 3페이지일
-  // 리 없으므로 범위가 바뀌면 첫 장으로 돌아갑니다.
+  // 팀 전체의 3페이지가 한 사람의 3페이지일 리 없으므로 범위가 바뀌면 첫 장으로 돌아갑니다.
   useEffect(() => {
     resetPage()
   }, [ownerIds, resetPage])
@@ -188,12 +150,62 @@ export default function Customers() {
   const clearSelection = useCallback(() => setSelected(new Set()), [])
   const ignoreSort = useCallback(() => undefined, [])
 
-  const onCreated = useCallback(() => {
-    setCreateOpen(false)
+  const closeDialog = useCallback(() => {
+    setDialog(null)
+    setCardDraft(null)
+  }, [])
+
+  /** 목록을 처음부터 다시 받습니다. 방금 넣은 고객이 검색어에 걸리지 않을 수 있습니다. */
+  const reload = useCallback(() => {
+    closeDialog()
+    setNotice(null)
     setQuery('')
     setPage(1)
     setReloadKey((value) => value + 1)
+  }, [closeDialog])
+
+  const onImported = useCallback(
+    (added: number) => {
+      reload()
+      setNotice(`${added}명을 등록했습니다.`)
+    },
+    [reload],
+  )
+
+  // 명함에서 읽은 값은 바로 저장하지 않습니다. 사람이 등록 폼에서 확인하고 고칩니다.
+  const onRecognized = useCallback((draft: BusinessCardDraft) => {
+    setCardDraft(draft)
+    setDialog('create')
   }, [])
+
+  // 내보내기는 화면 밖의 줄까지 모두 모읍니다. 페이지 한 장만 담으면 파일이 거짓말을 합니다.
+  const exportRef = useRef<AbortController | null>(null)
+  useEffect(() => () => exportRef.current?.abort(), [])
+
+  const onExport = useCallback(() => {
+    if (exporting) return
+    const controller = new AbortController()
+    exportRef.current = controller
+
+    setExporting(true)
+    setNotice(null)
+
+    void exportCustomers({ query, ownerIds, columns, signal: controller.signal })
+      .then((count) => {
+        if (!controller.signal.aborted) setNotice(`${count}명을 파일로 내려받았습니다.`)
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setNotice(
+          error instanceof TooManyCustomersError
+            ? `${error.message} 검색으로 범위를 좁힌 뒤 다시 받아 주세요.`
+            : errorMessage(error, '고객 목록을 내보내지 못했습니다.'),
+        )
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setExporting(false)
+      })
+  }, [columns, exporting, ownerIds, query])
 
   // 첫 진입입니다. 툴바·탭·표가 차례로 나타나면 화면이 두세 번 들썩이므로
   // 화면 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
@@ -218,57 +230,78 @@ export default function Customers() {
         onMoveColumn={moveColumn}
         onResetColumns={reset}
         hiddenColumns={hiddenColumns}
-        onCreate={() => setCreateOpen(true)}
+        onCreate={() => setDialog('create')}
+        onImport={() => setDialog('import')}
+        onScanCard={() => setDialog('card')}
+        onExport={onExport}
+        exporting={exporting}
+        canExport={total > 0}
       />
 
       {selected.size > 0 && <SelectionBar count={selected.size} onClear={clearSelection} />}
+
+      {notice && (
+        <p className={styles.notice} role="status">
+          {notice}
+        </p>
+      )}
 
       {!loadError && loading && rows.length > 0 && (
         <InlineLoader label="고객 목록을 새로고침하는 중입니다." />
       )}
 
-      {loadError ? (
-        <div role="alert">
-          <p>{loadError}</p>
-          <Button variant="outline" onClick={() => setReloadKey((value) => value + 1)}>
-            다시 시도
-          </Button>
-        </div>
-      ) : (
-        <CustomerTable
-          columns={columns}
-          widths={prefs.widths}
-          onResize={setWidth}
-          rows={rows}
-          sort={null}
-          onSort={ignoreSort}
-          selected={selected}
-          onToggleRow={toggleRow}
-          onTogglePage={togglePage}
-          onOpen={setOpenId}
-          isFiltered={query.trim() !== ''}
-          hasAnyData={total > 0}
-          onClearFilters={clearQuery}
-          onCreate={() => setCreateOpen(true)}
-        />
-      )}
+      <ErrorToast message={loadError} onRetry={() => setReloadKey((value) => value + 1)} />
+
+      <CustomerTable
+        columns={columns}
+        widths={prefs.widths}
+        onResize={setWidth}
+        rows={rows}
+        sort={null}
+        onSort={ignoreSort}
+        selected={selected}
+        onToggleRow={toggleRow}
+        onTogglePage={togglePage}
+        onOpen={setOpenId}
+        isFiltered={query.trim() !== ''}
+        hasAnyData={total > 0}
+        onClearFilters={clearQuery}
+        onCreate={() => setDialog('create')}
+      />
 
       {!loadError && total > 0 && (
-        <Pagination
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={total}
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            resetPage()
-          }}
+        <Pagination page={page} pageCount={pageCount} total={total} onPage={setPage} />
+      )}
+
+      {dialog === 'create' && (
+        <CustomerFormModal
+          onClose={closeDialog}
+          onCreated={reload}
+          initial={
+            cardDraft === null
+              ? undefined
+              : {
+                  name: cardDraft.name,
+                  dept: cardDraft.dept,
+                  title: cardDraft.title,
+                  email: cardDraft.email,
+                  phone: cardDraft.phone,
+                }
+          }
+          initialCompany={
+            cardDraft?.org.trim() ? { kind: 'new', name: cardDraft.org.trim() } : undefined
+          }
         />
       )}
 
-      {createOpen && (
-        <CustomerFormModal onClose={() => setCreateOpen(false)} onCreated={onCreated} />
+      {dialog === 'import' && <ImportModal onClose={closeDialog} onImported={onImported} />}
+
+      {dialog === 'card' && (
+        <BusinessCardModal
+          onClose={closeDialog}
+          onRecognized={onRecognized}
+          onManual={() => setDialog('create')}
+        />
       )}
 
       {openCustomer && <CustomerDrawer customer={openCustomer} onClose={() => setOpenId(null)} />}

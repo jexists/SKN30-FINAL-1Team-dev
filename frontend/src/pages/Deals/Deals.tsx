@@ -4,11 +4,12 @@ import { useSearchParams } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
-import DataTable, { compareBy, type SortState } from '@/components/DataTable'
+import DataTable from '@/components/DataTable'
+import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { VisitIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import StageChip from '@/components/StageChip'
@@ -37,30 +38,6 @@ export default function Deals() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
   const requestedPipelineId = params.get('pipeline') ?? ''
-  const {
-    pipelines,
-    dealPipelineId,
-    columns,
-    cards,
-    companies,
-    products,
-    dealTypes,
-    loading,
-    error,
-    reload,
-    detail,
-    detailLoading,
-    detailError,
-    reloadDetail,
-    mutationError,
-    clearMutationError,
-    canCreate,
-    isCreating,
-    isPending,
-    createSalesDeal,
-    updateSalesDeal,
-    deleteSalesDeal,
-  } = useSalesDeals(openId, requestedPipelineId || null, 'list')
   const { isManager } = useCurrentUser()
   // 팀원은 서버가 본인 데이터로 제한하므로 담당자 스코프를 요청에 싣지 않습니다.
   const showOwner = isManager
@@ -70,29 +47,11 @@ export default function Deals() {
   const stage = params.get('stage') ?? ''
   const deferredQuery = useDeferredValue(query)
 
-  const [sort, setSort] = useState<SortState>(null)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'range' | null>(null)
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  const tableColumns = useMemo(
-    () => dealColumns(columns).filter((column) => column.id !== 'owner' || showOwner),
-    [columns, showOwner],
-  )
-
-  const pipelineOptions = useMemo(
-    () => [
-      { value: '', label: '파이프라인 전체' },
-      ...pipelines.map((pipeline) => ({
-        value: pipeline.id,
-        label: pipeline.name + (pipeline.status_code === 'archived' ? ' (보관)' : ''),
-      })),
-    ],
-    [pipelines],
-  )
 
   const setParam = useCallback(
     (key: string, value: string, fallback = '') => {
@@ -123,48 +82,71 @@ export default function Deals() {
     return iso(addDays(TODAY, -Math.round(months * 30.4)))
   }, [range])
 
-  const beforeStage = useMemo(() => {
-    const needle = deferredQuery.trim().toLowerCase()
-    return cards.filter((card) => {
-      if (fromISO !== null && card.date < fromISO) return false
-      if (needle === '') return true
-      return [card.no, card.org, card.product, card.owner, card.memo ?? '']
-        .join(' ')
-        .toLowerCase()
-        .includes(needle)
-    })
-  }, [cards, deferredQuery, fromISO])
-
-  const stageCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const card of beforeStage) counts.set(card.stageId, (counts.get(card.stageId) ?? 0) + 1)
-    return counts
-  }, [beforeStage])
-
-  const matched = useMemo(() => {
-    const activeStage = dealPipelineId ? stage : ''
-    const rows =
-      activeStage === '' ? beforeStage : beforeStage.filter((card) => card.stageId === activeStage)
-    if (!sort) return rows
-    const sign = sort.dir === 'asc' ? 1 : -1
-    const compare = compareBy(tableColumns, sort.id)
-    return [...rows].sort((a, b) => sign * compare(a, b))
-  }, [beforeStage, dealPipelineId, sort, stage, tableColumns])
-
-  const pageCount = Math.max(1, Math.ceil(matched.length / pageSize))
-  const safePage = Math.min(page, pageCount)
-  const pageRows = useMemo(
-    () => matched.slice((safePage - 1) * pageSize, safePage * pageSize),
-    [matched, pageSize, safePage],
+  const dealQuery = useMemo(
+    () => ({
+      q: deferredQuery,
+      stageId: stage,
+      // 이 화면에는 담당자 칸이 없습니다. 서버가 보기 범위로 좁힙니다.
+      ownerMemberId: '',
+      fromISO,
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
+    }),
+    [deferredQuery, stage, fromISO, page],
   )
 
-  const onSort = useCallback((id: string) => {
-    setSort((previous) => {
-      if (previous?.id !== id) return { id, dir: 'asc' }
-      if (previous.dir === 'asc') return { id, dir: 'desc' }
-      return null
-    })
-  }, [])
+  const {
+    pipelines,
+    dealPipelineId,
+    columns,
+    cards: pageRows,
+    total,
+    counts,
+    dealTypes,
+    loading,
+    error,
+    reload,
+    detail,
+    detailLoading,
+    detailError,
+    reloadDetail,
+    mutationError,
+    clearMutationError,
+    canCreate,
+    isCreating,
+    isPending,
+    createSalesDeal,
+    updateSalesDeal,
+    deleteSalesDeal,
+  } = useSalesDeals(openId, requestedPipelineId || null, 'list', undefined, dealQuery)
+
+  const pipelineOptions = useMemo(
+    () => [
+      { value: '', label: '파이프라인 전체' },
+      ...pipelines.map((pipeline) => ({
+        value: pipeline.id,
+        label: pipeline.name + (pipeline.status_code === 'archived' ? ' (보관)' : ''),
+      })),
+    ],
+    [pipelines],
+  )
+
+  const tableColumns = useMemo(
+    () => dealColumns(columns).filter((column) => column.id !== 'owner' || showOwner),
+    [columns, showOwner],
+  )
+
+  // 단계 탭 옆 건수는 서버가 셉니다. 고른 단계는 빼고 센 값입니다.
+  const stageCounts = useMemo(() => new Map(Object.entries(counts)), [counts])
+  const stageTotal = useMemo(
+    () => [...stageCounts.values()].reduce((sum, count) => sum + count, 0),
+    [stageCounts],
+  )
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // 헤더 정렬을 끄므로 누를 일이 없습니다. 고객 목록과 같은 처리입니다.
+  const ignoreSort = useCallback(() => undefined, [])
 
   const clearFilters = useCallback(() => {
     setParams(new URLSearchParams(), { replace: true })
@@ -178,10 +160,10 @@ export default function Deals() {
       tone: card.stageTone,
       outcome: card.status,
     }
-  const selectedDeal = detail ?? cards.find((card) => card.id === openId) ?? null
+  const selectedDeal = detail ?? pageRows.find((card) => card.id === openId) ?? null
   const selectedStage = selectedDeal ? stageOf(selectedDeal) : undefined
-  const editingDeal = cards.find((card) => card.id === editingId)
-  const deletingDeal = cards.find((card) => card.id === deletingId)
+  const editingDeal = pageRows.find((card) => card.id === editingId)
+  const deletingDeal = pageRows.find((card) => card.id === deletingId)
   const addingColumn = columns.find((column) => column.id === addingTo)
   const defaultColumn = columns.find((column) => column.id === stage) ?? columns[0]
   const isDeleting = deletingDeal ? isPending(deletingDeal.id) : false
@@ -190,7 +172,7 @@ export default function Deals() {
 
   // 첫 진입입니다. 툴바·탭·표가 차례로 나타나면 화면이 두세 번 들썩이므로
   // 화면 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
-  if (loading && cards.length === 0 && !error) {
+  if (loading && pageRows.length === 0 && !error) {
     return (
       <section className={styles.page} aria-busy={loading}>
         <h1 className="sr-only">영업 현황</h1>
@@ -252,7 +234,7 @@ export default function Deals() {
           label="영업 단계"
           value={stage}
           countOf={(id) => stageCounts.get(id) ?? 0}
-          total={beforeStage.length}
+          total={stageTotal}
           onChange={(next) => setParam('stage', next)}
         />
       )}
@@ -272,81 +254,63 @@ export default function Deals() {
         </div>
       )}
 
-      {!error && loading && cards.length > 0 && (
+      {!error && loading && pageRows.length > 0 && (
         <InlineLoader label="목록을 새로고침하는 중입니다." />
       )}
 
-      {error ? (
-        <div role="alert">
-          <p>{error}</p>
-          <Button variant="outline" onClick={reload}>
-            다시 시도
-          </Button>
-        </div>
-      ) : (
-        <DataTable
-          rows={pageRows}
-          columns={tableColumns}
-          rowKey={(card) => card.id}
-          handleColumn="org"
-          sort={sort}
-          onSort={onSort}
-          onOpen={(card) => setOpenId(card.id)}
-          caption="영업 현황 목록. 헤더를 눌러 정렬할 수 있습니다."
-          renderCell={(id, card) => {
-            if (id !== 'stage') return undefined
-            const found = stageOf(card)
-            return found ? <StageChip tone={found.tone}>{found.name}</StageChip> : null
-          }}
-          mini={(card) => {
-            const found = stageOf(card)
-            return {
-              title: card.org,
-              badge: found ? <StageChip tone={found.tone}>{found.name}</StageChip> : undefined,
-              sub: card.product + ' · ' + card.kind,
-              meta: [
-                <span key="m1" className="tnum">
-                  {won(card.amount)}
-                </span>,
-                <span key="m2" className="tnum">
-                  {fmtDot(parseISO(card.date))}
-                </span>,
-                ...(showOwner ? [card.owner] : []),
-              ],
-            }
-          }}
-          empty={
-            isFiltered ? (
-              <>
-                <SearchIcon width={34} height={34} strokeWidth={1.5} />
-                <p>조건에 맞는 영업 딜이 없습니다.</p>
-                <Button variant="outline" onClick={clearFilters}>
-                  검색·필터 초기화
-                </Button>
-              </>
-            ) : (
-              <>
-                <VisitIcon width={34} height={34} strokeWidth={1.5} />
-                <p>아직 등록한 영업 딜이 없습니다.</p>
-              </>
-            )
-          }
-        />
-      )}
+      <ErrorToast message={error} onRetry={reload} />
 
-      {!error && !loading && matched.length > 0 && (
-        <Pagination
-          page={safePage}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={matched.length}
-          unit="건"
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
+      <DataTable
+        rows={pageRows}
+        columns={tableColumns}
+        rowKey={(card) => card.id}
+        handleColumn="org"
+        sort={null}
+        onSort={ignoreSort}
+        onOpen={(card) => setOpenId(card.id)}
+        caption="영업 현황 목록. 헤더를 눌러 정렬할 수 있습니다."
+        renderCell={(id, card) => {
+          if (id !== 'stage') return undefined
+          const found = stageOf(card)
+          return found ? <StageChip tone={found.tone}>{found.name}</StageChip> : null
+        }}
+        mini={(card) => {
+          const found = stageOf(card)
+          return {
+            title: card.org,
+            badge: found ? <StageChip tone={found.tone}>{found.name}</StageChip> : undefined,
+            sub: card.product + ' · ' + card.kind,
+            meta: [
+              <span key="m1" className="tnum">
+                {won(card.amount)}
+              </span>,
+              <span key="m2" className="tnum">
+                {fmtDot(parseISO(card.date))}
+              </span>,
+              ...(showOwner ? [card.owner] : []),
+            ],
+          }
+        }}
+        empty={
+          isFiltered ? (
+            <>
+              <SearchIcon width={34} height={34} strokeWidth={1.5} />
+              <p>조건에 맞는 영업 딜이 없습니다.</p>
+              <Button variant="outline" onClick={clearFilters}>
+                검색·필터 초기화
+              </Button>
+            </>
+          ) : (
+            <>
+              <VisitIcon width={34} height={34} strokeWidth={1.5} />
+              <p>아직 등록한 영업 딜이 없습니다.</p>
+            </>
+          )
+        }
+      />
+
+      {!error && !loading && pageRows.length > 0 && (
+        <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
       )}
 
       {openId && (
@@ -375,8 +339,6 @@ export default function Deals() {
       {addingColumn && (
         <SalesDealForm
           stageName={addingColumn.name}
-          companies={companies}
-          products={products}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setAddingTo(null)}
@@ -390,8 +352,6 @@ export default function Deals() {
       {editingDeal && (
         <SalesDealForm
           deal={editingDeal}
-          companies={companies}
-          products={products}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setEditingId(null)}

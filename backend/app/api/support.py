@@ -3,12 +3,13 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
-from app.models.crm import CustomerCompany, CustomerContact, SupportRequest, SupportResponse
+from app.models.crm import CustomerCompany, SupportRequest, SupportResponse
+from app.models.sales import Product, SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.schemas.support import (
     SupportRequestCreate,
@@ -24,10 +25,13 @@ router = APIRouter(tags=["support"])
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 _assignee = aliased(Member)
-_contact = aliased(CustomerContact)
-_contact_owner = aliased(Member)
 _company = aliased(CustomerCompany)
+_deal = aliased(SalesDeal)
+_product = aliased(Product)
 _responder = aliased(Member)
+
+# 불만을 걸 수 있는 딜의 단계. 계약이 실제로 맺어진 뒤의 건만 후보다.
+_COMPLAINT_PHASES = ("contract", "order", "closed")
 
 
 def _contains(value: str) -> str:
@@ -40,9 +44,9 @@ def _joined_select(*entities):
         select(*entities)
         .select_from(SupportRequest)
         .join(_assignee, SupportRequest.assignee_member_id == _assignee.id)
-        .join(_contact, SupportRequest.customer_contact_id == _contact.id)
-        .join(_company, _contact.company_id == _company.id)
-        .join(_contact_owner, _contact.owner_member_id == _contact_owner.id)
+        .join(_company, SupportRequest.customer_company_id == _company.id)
+        .join(_deal, SupportRequest.sales_deal_id == _deal.id)
+        .outerjoin(_product, _deal.product_id == _product.id)
     )
 
 
@@ -53,9 +57,8 @@ def _scope(member: Member, assignee_ids: tuple[UUID, ...] | None = None):
         _assignee.active.is_(True),
         _assignee.role_code.in_(("member", "manager")),
         _company.team_id == member.team_id,
-        _contact_owner.team_id == member.team_id,
-        _contact_owner.active.is_(True),
-        _contact_owner.role_code.in_(("member", "manager")),
+        _deal.team_id == member.team_id,
+        _deal.deleted_at.is_(None),
     ]
     if member.role_code == "member":
         conditions.append(SupportRequest.assignee_member_id == member.id)
@@ -67,9 +70,12 @@ def _scope(member: Member, assignee_ids: tuple[UUID, ...] | None = None):
 def _read_entities():
     return (
         SupportRequest,
-        _contact.name,
-        _company.id,
         _company.name,
+        _deal.deal_no,
+        _deal.contract_no,
+        _deal.title,
+        _product.name,
+        _deal.warranty_terms,
         _assignee.display_name,
     )
 
@@ -87,24 +93,32 @@ def _response_read(response: SupportResponse, responder_display_name: str) -> Su
 
 def _request_read(
     request: SupportRequest,
-    contact_name: str,
-    company_id: UUID,
     company_name: str,
+    deal_no: str,
+    contract_no: str | None,
+    deal_title: str,
+    product_name: str | None,
+    warranty_terms: str | None,
     assignee_display_name: str,
     responses: list[SupportResponseRead],
 ) -> SupportRequestRead:
     return SupportRequestRead(
         id=request.id,
-        customer_contact_id=request.customer_contact_id,
-        customer_contact_name=contact_name,
-        customer_company_id=company_id,
+        customer_company_id=request.customer_company_id,
         customer_company_name=company_name,
+        sales_deal_id=request.sales_deal_id,
+        deal_no=deal_no,
+        contract_no=contract_no,
+        deal_title=deal_title,
+        product_name=product_name,
+        warranty_terms=warranty_terms,
         assignee_member_id=request.assignee_member_id,
         assignee_display_name=assignee_display_name,
         title=request.title,
         body=request.body,
         is_urgent=request.is_urgent,
         status_code=request.status_code,
+        occurred_at=request.occurred_at.astimezone(_SEOUL),
         registered_at=request.registered_at.astimezone(_SEOUL),
         responses=responses,
     )
@@ -168,31 +182,39 @@ async def _locked_request(
     return request
 
 
-async def _visible_contact(
-    db: AsyncSession,
-    member: Member,
-    contact_id: UUID,
-) -> tuple[CustomerContact, CustomerCompany]:
+async def _visible_deal(db: AsyncSession, member: Member, deal_id: UUID):
+    """불만을 걸 수 있는 딜인지 확인하고 화면이 보여줄 값까지 함께 가져온다.
+
+    화면이 보낸 딜 id 를 그대로 믿으면 팀 경계가 요청 본문 하나로 뚫린다. 팀원은
+    자기 딜에만 걸 수 있고, 계약 전 단계의 딜에는 아직 불만이 생길 수 없다.
+    """
     conditions = [
-        CustomerContact.id == contact_id,
+        SalesDeal.id == deal_id,
+        SalesDeal.team_id == member.team_id,
+        SalesDeal.deleted_at.is_(None),
         CustomerCompany.team_id == member.team_id,
-        Member.team_id == member.team_id,
-        Member.active.is_(True),
-        Member.role_code.in_(("member", "manager")),
+        SalesPipelineStage.phase_code.in_(_COMPLAINT_PHASES),
     ]
     if member.role_code == "member":
-        conditions.append(CustomerContact.owner_member_id == member.id)
+        conditions.append(SalesDeal.owner_member_id == member.id)
     result = await db.execute(
-        select(CustomerContact, CustomerCompany)
-        .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
-        .join(Member, CustomerContact.owner_member_id == Member.id)
+        select(SalesDeal, CustomerCompany.name, Product.name)
+        .join(CustomerCompany, SalesDeal.customer_company_id == CustomerCompany.id)
+        .join(
+            SalesPipelineStage,
+            and_(
+                SalesDeal.sales_pipeline_id == SalesPipelineStage.sales_pipeline_id,
+                SalesDeal.sales_pipeline_stage_id == SalesPipelineStage.id,
+            ),
+        )
+        .outerjoin(Product, SalesDeal.product_id == Product.id)
         .where(*conditions)
     )
     row = result.one_or_none()
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="customer_contact_not_found",
+            detail="sales_deal_not_found",
         )
     return row
 
@@ -205,31 +227,45 @@ async def list_support_requests(
 ) -> SupportRequestPage:
     # 범위를 먼저 검증한다. 거절이면 데이터 쿼리가 한 건도 나가지 않아야 한다.
     assignee_ids = await owner_scope(db, member, page.assignee_member_id)
-    scope = _scope(member, assignee_ids)
-    if page.status_code is not None:
-        scope.append(SupportRequest.status_code.in_(tuple(dict.fromkeys(page.status_code))))
+    # 상태를 뺀 나머지 조건. 탭 건수가 이 범위를 센다.
+    shared = _scope(member, assignee_ids)
     if page.q is not None:
         pattern = _contains(page.q)
-        scope.append(
+        shared.append(
             or_(
                 SupportRequest.title.ilike(pattern, escape="\\"),
                 SupportRequest.body.ilike(pattern, escape="\\"),
-                _contact.name.ilike(pattern, escape="\\"),
                 _company.name.ilike(pattern, escape="\\"),
+                _deal.deal_no.ilike(pattern, escape="\\"),
+                _deal.contract_no.ilike(pattern, escape="\\"),
                 _assignee.display_name.ilike(pattern, escape="\\"),
             )
         )
+
+    scope = [*shared]
+    if page.status_code is not None:
+        scope.append(SupportRequest.status_code.in_(tuple(dict.fromkeys(page.status_code))))
 
     total_result = await db.execute(_joined_select(func.count(SupportRequest.id)).where(*scope))
     total = total_result.scalar_one()
     rows_result = await db.execute(
         _joined_select(*_read_entities())
         .where(*scope)
-        .order_by(SupportRequest.registered_at.desc(), SupportRequest.id)
+        # 목록이 보여 주는 날짜가 발생일시다. 등록 순으로 놓으면 눈에 보이는 칸이
+        # 정렬돼 있지 않은 것처럼 읽힌다.
+        .order_by(SupportRequest.occurred_at.desc(), SupportRequest.id)
         .offset(page.skip)
         .limit(page.limit)
     )
     rows = rows_result.all()
+    # 탭 옆 건수. 고른 상태는 빼고 센다. 상태까지 적용하면 고른 탭만 숫자가 남고 나머지가
+    # 0 이 되어, 다른 탭에 무엇이 얼마나 있는지 알 수 없다.
+    counts_result = await db.execute(
+        _joined_select(SupportRequest.status_code, func.count(SupportRequest.id))
+        .where(*shared)
+        .group_by(SupportRequest.status_code)
+    )
+    counts = {code: count for code, count in counts_result.all()}
     response_map = await _responses_by_request_ids(db, member, [row[0].id for row in rows])
     items = [_request_read(*row, response_map[row[0].id]) for row in rows]
     has_more = page.skip + len(items) < total
@@ -240,6 +276,7 @@ async def list_support_requests(
         total=total,
         has_more=has_more,
         next_skip=page.skip + len(items) if has_more else None,
+        counts=counts,
     )
 
 
@@ -266,24 +303,36 @@ async def create_support_request(
     db: DbSession,
 ) -> SupportRequestRead:
     try:
-        contact, company = await _visible_contact(db, member, payload.customer_contact_id)
+        deal, company_name, product_name = await _visible_deal(db, member, payload.sales_deal_id)
+        # 회사와 딜이 어긋나면 복합 외래키가 막지만, 그대로 두면 500 으로 새어 나간다.
+        # 화면이 회사를 바꾸고 딜을 비우지 않은 경우이므로 앱이 먼저 뜻이 보이는 4xx 를 낸다.
+        if deal.customer_company_id != payload.customer_company_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="company_deal_mismatch",
+            )
         request = SupportRequest(
             id=uuid4(),
             team_id=member.team_id,
-            customer_contact_id=contact.id,
+            customer_company_id=deal.customer_company_id,
+            sales_deal_id=deal.id,
             assignee_member_id=member.id,
             title=payload.title,
             body=payload.body,
             is_urgent=payload.is_urgent,
             status_code=payload.status_code,
+            occurred_at=payload.occurred_at,
         )
         db.add(request)
         await db.flush()
         read = _request_read(
             request,
-            contact.name,
-            company.id,
-            company.name,
+            company_name,
+            deal.deal_no,
+            deal.contract_no,
+            deal.title,
+            product_name,
+            deal.warranty_terms,
             member.display_name,
             [],
         )

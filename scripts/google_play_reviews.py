@@ -20,12 +20,83 @@ from urllib.request import Request, urlopen
 RPC_ID = "UsvDTd"
 ENDPOINT = "https://play.google.com/_/PlayStoreUi/data/batchexecute"
 LANGUAGE_STREAMS = (
-    "en", "af", "am", "ar", "as", "az", "be", "bg", "bn", "bs", "ca", "cs", "da",
-    "de", "el", "es", "et", "eu", "fa", "fi", "fil", "fr", "gl", "gsw", "gu", "he",
-    "hi", "hr", "hu", "hy", "id", "is", "it", "ja", "ka", "kk", "km", "kn", "ko",
-    "ky", "ln", "lo", "lt", "lv", "mk", "ml", "mn", "mr", "ms", "my", "ne", "nl",
-    "no", "or", "pa", "pl", "pt", "ro", "ru", "si", "sk", "sl", "sq", "sr", "sv",
-    "sw", "ta", "te", "th", "tr", "uk", "ur", "uz", "vi", "zh-CN", "zh-TW", "zu",
+    "en",
+    "af",
+    "am",
+    "ar",
+    "as",
+    "az",
+    "be",
+    "bg",
+    "bn",
+    "bs",
+    "ca",
+    "cs",
+    "da",
+    "de",
+    "el",
+    "es",
+    "et",
+    "eu",
+    "fa",
+    "fi",
+    "fil",
+    "fr",
+    "gl",
+    "gsw",
+    "gu",
+    "he",
+    "hi",
+    "hr",
+    "hu",
+    "hy",
+    "id",
+    "is",
+    "it",
+    "ja",
+    "ka",
+    "kk",
+    "km",
+    "kn",
+    "ko",
+    "ky",
+    "ln",
+    "lo",
+    "lt",
+    "lv",
+    "mk",
+    "ml",
+    "mn",
+    "mr",
+    "ms",
+    "my",
+    "ne",
+    "nl",
+    "no",
+    "or",
+    "pa",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "si",
+    "sk",
+    "sl",
+    "sq",
+    "sr",
+    "sv",
+    "sw",
+    "ta",
+    "te",
+    "th",
+    "tr",
+    "uk",
+    "ur",
+    "uz",
+    "vi",
+    "zh-CN",
+    "zh-TW",
+    "zu",
 )
 THEMES = {
     "reliability_performance": re.compile(
@@ -71,7 +142,9 @@ THEMES = {
         r"\bdocuments?\b",
         re.I,
     ),
-    "notifications": re.compile(r"\bnotifications?\b|\balerts?\b|\breminders?\b|push notification", re.I),
+    "notifications": re.compile(
+        r"\bnotifications?\b|\balerts?\b|\breminders?\b|push notification", re.I
+    ),
     "update_regression": re.compile(
         r"latest update|last update|recent update|after (?:the )?update|since (?:the )?update|new version|"
         r"used to work|worked before|update (?:has )?(?:broke|broken|ruined)|update.*not (?:work|load)",
@@ -85,8 +158,16 @@ THEMES = {
     ),
 }
 AGGREGATE_FIELDS = (
-    "section", "segment", "metric", "value", "unit", "denominator", "period_start_utc",
-    "period_end_utc", "note", "source_sha256",
+    "section",
+    "segment",
+    "metric",
+    "value",
+    "unit",
+    "denominator",
+    "period_start_utc",
+    "period_end_utc",
+    "note",
+    "source_sha256",
 )
 
 
@@ -94,7 +175,9 @@ def utc_iso(timestamp: list[int] | None) -> str | None:
     if not timestamp:
         return None
     seconds, nanos = timestamp
-    return datetime.fromtimestamp(seconds + nanos / 1_000_000_000, timezone.utc).isoformat()
+    return datetime.fromtimestamp(
+        seconds + nanos / 1_000_000_000, timezone.utc
+    ).isoformat()
 
 
 def parse_review(item: list, language: str, app_id: str, collected_at: str) -> dict:
@@ -126,7 +209,13 @@ def parse_rpc_response(text: str) -> tuple[list[list], str | None]:
         text = text.split("\n", 1)[1].lstrip()
     envelope = json.loads(text)
     row = next(
-        (value for value in envelope if isinstance(value, list) and len(value) > 2 and value[:2] == ["wrb.fr", RPC_ID]),
+        (
+            value
+            for value in envelope
+            if isinstance(value, list)
+            and len(value) > 2
+            and value[:2] == ["wrb.fr", RPC_ID]
+        ),
         None,
     )
     if not row or not row[2]:
@@ -134,13 +223,26 @@ def parse_rpc_response(text: str) -> tuple[list[list], str | None]:
     payload = json.loads(row[2])
     if not isinstance(payload, list) or not payload or not isinstance(payload[0], list):
         raise ValueError("unexpected Google Play response")
-    token = payload[1][1] if len(payload) > 1 and payload[1] and len(payload[1]) > 1 else None
+    token = (
+        payload[1][1]
+        if len(payload) > 1 and payload[1] and len(payload[1]) > 1
+        else None
+    )
     return payload[0], token
 
 
-def fetch_page(app_id: str, language: str, token: str | None, page_size: int, timeout: int, retries: int) -> tuple[list[list], str | None]:
+def fetch_page(
+    app_id: str,
+    language: str,
+    token: str | None,
+    page_size: int,
+    timeout: int,
+    retries: int,
+) -> tuple[list[list], str | None]:
     argument = [None, None, [2, 2, [page_size, None, token], None, []], [app_id, 7]]
-    envelope = [[[RPC_ID, json.dumps(argument, separators=(",", ":")), None, "generic"]]]
+    envelope = [
+        [[RPC_ID, json.dumps(argument, separators=(",", ":")), None, "generic"]]
+    ]
     query = urlencode({"rpcids": RPC_ID, "hl": language, "gl": "US"})
     request = Request(
         f"{ENDPOINT}?{query}",
@@ -155,22 +257,32 @@ def fetch_page(app_id: str, language: str, token: str | None, page_size: int, ti
         try:
             with urlopen(request, timeout=timeout) as response:
                 return parse_rpc_response(response.read().decode())
-        except Exception as exc:  # Network and private-RPC failures share the same bounded retry path.
+        except (
+            Exception
+        ) as exc:  # Network and private-RPC failures share the same bounded retry path.
             error = exc
             if attempt + 1 < retries:
                 time.sleep(2**attempt)
-    raise RuntimeError(f"review request failed for {language}: {type(error).__name__}") from error
+    raise RuntimeError(
+        f"review request failed for {language}: {type(error).__name__}"
+    ) from error
 
 
 def spreadsheet_safe(value: object) -> str:
     text = "" if value is None else str(value)
-    return "'" + text if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")) else text
+    return (
+        "'" + text
+        if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r"))
+        else text
+    )
 
 
 def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     temporary.replace(path)
 
 
@@ -179,15 +291,22 @@ def write_review_files(jsonl_path: Path, csv_path: Path, rows: list[dict]) -> No
     temporary = jsonl_path.with_name(f".{jsonl_path.name}.tmp")
     with temporary.open("w", encoding="utf-8") as file:
         for row in rows:
-            file.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+            file.write(
+                json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
+            )
     temporary.replace(jsonl_path)
 
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = csv_path.with_name(f".{csv_path.name}.tmp")
     with temporary.open("w", encoding="utf-8-sig", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=("리뷰내용", "별점"), lineterminator="\n")
+        writer = csv.DictWriter(
+            file, fieldnames=("리뷰내용", "별점"), lineterminator="\n"
+        )
         writer.writeheader()
-        writer.writerows({"리뷰내용": spreadsheet_safe(row["content"]), "별점": row["score"]} for row in rows)
+        writer.writerows(
+            {"리뷰내용": spreadsheet_safe(row["content"]), "별점": row["score"]}
+            for row in rows
+        )
     temporary.replace(csv_path)
 
 
@@ -216,7 +335,12 @@ def crawl(args: argparse.Namespace) -> None:
             pages = returned = 0
             while True:
                 batch, next_token = fetch_page(
-                    args.app_id, language, token, args.page_size, args.timeout, args.retries
+                    args.app_id,
+                    language,
+                    token,
+                    args.page_size,
+                    args.timeout,
+                    args.retries,
                 )
                 pages += 1
                 returned += len(batch)
@@ -230,7 +354,11 @@ def crawl(args: argparse.Namespace) -> None:
                     else:
                         reviews[review["reviewId"]] = review
                 if not next_token:
-                    stream_stats[language] = {"pages": pages, "returned": returned, "terminated": True}
+                    stream_stats[language] = {
+                        "pages": pages,
+                        "returned": returned,
+                        "terminated": True,
+                    }
                     break
                 if next_token in seen_tokens:
                     raise RuntimeError(f"repeated continuation token for {language}")
@@ -243,7 +371,11 @@ def crawl(args: argparse.Namespace) -> None:
         write_json(args.manifest_output, manifest)
         raise
 
-    rows = sorted(reviews.values(), key=lambda row: (row["reviewedAt"] or "", row["reviewId"]), reverse=True)
+    rows = sorted(
+        reviews.values(),
+        key=lambda row: (row["reviewedAt"] or "", row["reviewId"]),
+        reverse=True,
+    )
     manifest.update(
         {
             "rawReviewAssignments": raw_assignments,
@@ -255,7 +387,12 @@ def crawl(args: argparse.Namespace) -> None:
     )
     write_review_files(args.jsonl_output, args.csv_output, rows)
     write_json(args.manifest_output, manifest)
-    print(json.dumps({"uniqueReviewCount": len(rows), "rawReviewAssignments": raw_assignments}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"uniqueReviewCount": len(rows), "rawReviewAssignments": raw_assignments},
+            ensure_ascii=False,
+        )
+    )
 
 
 def parse_iso(value: str) -> datetime:
@@ -271,7 +408,9 @@ def segment_summary(rows: list[dict]) -> dict[str, float | int]:
     positive = sum(row["score"] >= 4 for row in rows)
     return {
         "review_count": count,
-        "mean_rating": round(sum(row["score"] for row in rows) / count, 4) if count else 0,
+        "mean_rating": round(sum(row["score"] for row in rows) / count, 4)
+        if count
+        else 0,
         "low_review_count": low,
         "low_review_share": round(low * 100 / count, 4) if count else 0,
         "positive_review_count": positive,
@@ -279,81 +418,253 @@ def segment_summary(rows: list[dict]) -> dict[str, float | int]:
     }
 
 
-def aggregate(rows: list[dict], source_sha256: str, as_of: date, min_segment_size: int) -> list[dict]:
+def aggregate(
+    rows: list[dict], source_sha256: str, as_of: date, min_segment_size: int
+) -> list[dict]:
     if len(rows) != len({row.get("reviewId") for row in rows}):
         raise ValueError("reviewId values must be unique")
     for row in rows:
-        if row.get("score") not in range(1, 6) or not isinstance(row.get("thumbsUpCount", 0), int) or row.get("thumbsUpCount", 0) < 0:
+        if (
+            row.get("score") not in range(1, 6)
+            or not isinstance(row.get("thumbsUpCount", 0), int)
+            or row.get("thumbsUpCount", 0) < 0
+        ):
             raise ValueError("invalid rating or thumbs-up count")
         parse_iso(row["reviewedAt"])
 
     result: list[dict] = []
 
-    def add(section: str, segment: str, metric: str, value: object, unit: str, denominator: object = "", start: str = "", end: str = "", note: str = "") -> None:
-        result.append(dict(zip(AGGREGATE_FIELDS, (section, segment, metric, value, unit, denominator, start, end, note, source_sha256))))
+    def add(
+        section: str,
+        segment: str,
+        metric: str,
+        value: object,
+        unit: str,
+        denominator: object = "",
+        start: str = "",
+        end: str = "",
+        note: str = "",
+    ) -> None:
+        result.append(
+            dict(
+                zip(
+                    AGGREGATE_FIELDS,
+                    (
+                        section,
+                        segment,
+                        metric,
+                        value,
+                        unit,
+                        denominator,
+                        start,
+                        end,
+                        note,
+                        source_sha256,
+                    ),
+                )
+            )
+        )
 
     timestamps = [parse_iso(row["reviewedAt"]) for row in rows]
     add("scope", "snapshot", "review_count", len(rows), "count")
-    add("scope", "snapshot", "substantive_text_count", sum(bool((row.get("content") or "").strip()) for row in rows), "count", len(rows))
-    add("scope", "snapshot", "reviewed_at_start", min(timestamps).isoformat(), "timestamp")
-    add("scope", "snapshot", "reviewed_at_end", max(timestamps).isoformat(), "timestamp")
-    add("scope", "snapshot", "nonempty_language_stream_count", len({language for row in rows for language in row.get("languageStreams", [])}), "count")
+    add(
+        "scope",
+        "snapshot",
+        "substantive_text_count",
+        sum(bool((row.get("content") or "").strip()) for row in rows),
+        "count",
+        len(rows),
+    )
+    add(
+        "scope",
+        "snapshot",
+        "reviewed_at_start",
+        min(timestamps).isoformat(),
+        "timestamp",
+    )
+    add(
+        "scope", "snapshot", "reviewed_at_end", max(timestamps).isoformat(), "timestamp"
+    )
+    add(
+        "scope",
+        "snapshot",
+        "nonempty_language_stream_count",
+        len({language for row in rows for language in row.get("languageStreams", [])}),
+        "count",
+    )
     assignments = sum(len(row.get("languageStreams", [])) for row in rows)
     add("scope", "snapshot", "language_stream_assignments", assignments, "count")
-    add("scope", "snapshot", "duplicate_stream_assignments", assignments - len(rows), "count")
-    replies = sum(bool(row.get("hasDeveloperReply") or row.get("replyContent")) for row in rows)
+    add(
+        "scope",
+        "snapshot",
+        "duplicate_stream_assignments",
+        assignments - len(rows),
+        "count",
+    )
+    replies = sum(
+        bool(row.get("hasDeveloperReply") or row.get("replyContent")) for row in rows
+    )
     add("engagement", "all", "developer_reply_count", replies, "count", len(rows))
-    add("engagement", "all", "developer_reply_share", round(replies * 100 / len(rows), 4), "percent", len(rows))
+    add(
+        "engagement",
+        "all",
+        "developer_reply_share",
+        round(replies * 100 / len(rows), 4),
+        "percent",
+        len(rows),
+    )
     thumbs = [row.get("thumbsUpCount", 0) for row in rows]
     add("engagement", "all", "thumbs_up_total", sum(thumbs), "count")
-    add("engagement", "all", "reviews_with_thumbs_up", sum(value > 0 for value in thumbs), "count", len(rows))
+    add(
+        "engagement",
+        "all",
+        "reviews_with_thumbs_up",
+        sum(value > 0 for value in thumbs),
+        "count",
+        len(rows),
+    )
 
     overall = segment_summary(rows)
     for metric, value in overall.items():
-        add("overall", "all", metric, value, "percent" if metric.endswith("share") else "stars" if metric == "mean_rating" else "count", len(rows) if metric.endswith("share") else "")
+        add(
+            "overall",
+            "all",
+            metric,
+            value,
+            "percent"
+            if metric.endswith("share")
+            else "stars"
+            if metric == "mean_rating"
+            else "count",
+            len(rows) if metric.endswith("share") else "",
+        )
 
     ratings = Counter(row["score"] for row in rows)
     for score in range(1, 6):
         add("rating", str(score), "review_count", ratings[score], "count", len(rows))
-        add("rating", str(score), "review_share", round(ratings[score] * 100 / len(rows), 4), "percent", len(rows))
+        add(
+            "rating",
+            str(score),
+            "review_share",
+            round(ratings[score] * 100 / len(rows), 4),
+            "percent",
+            len(rows),
+        )
 
     as_of_utc = datetime.combine(as_of, datetime_time.min, timezone.utc)
     periods = {
         "recent_90_days": (as_of_utc - timedelta(days=90), as_of_utc),
-        "previous_90_days": (as_of_utc - timedelta(days=180), as_of_utc - timedelta(days=90)),
+        "previous_90_days": (
+            as_of_utc - timedelta(days=180),
+            as_of_utc - timedelta(days=90),
+        ),
     }
     for name, (start, end) in periods.items():
         subset = [row for row in rows if start <= parse_iso(row["reviewedAt"]) < end]
         for metric, value in segment_summary(subset).items():
-            add("period", name, metric, value, "percent" if metric.endswith("share") else "stars" if metric == "mean_rating" else "count", len(subset) if metric.endswith("share") else "", start.isoformat(), end.isoformat())
+            add(
+                "period",
+                name,
+                metric,
+                value,
+                "percent"
+                if metric.endswith("share")
+                else "stars"
+                if metric == "mean_rating"
+                else "count",
+                len(subset) if metric.endswith("share") else "",
+                start.isoformat(),
+                end.isoformat(),
+            )
 
     by_language: dict[str, list[dict]] = {}
     for row in rows:
         for language in row.get("languageStreams", []):
-            if not isinstance(language, str) or not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z]{2})?", language):
+            if not isinstance(language, str) or not re.fullmatch(
+                r"[A-Za-z]{2,3}(?:-[A-Za-z]{2})?", language
+            ):
                 raise ValueError("invalid language stream")
             by_language.setdefault(language, []).append(row)
-    suppressed = [language for language, subset in by_language.items() if len(subset) < min_segment_size]
-    for language, subset in sorted(by_language.items(), key=lambda item: (-len(item[1]), item[0])):
+    suppressed = [
+        language
+        for language, subset in by_language.items()
+        if len(subset) < min_segment_size
+    ]
+    for language, subset in sorted(
+        by_language.items(), key=lambda item: (-len(item[1]), item[0])
+    ):
         if len(subset) < min_segment_size:
             continue
         for metric, value in segment_summary(subset).items():
-            add("language_stream", language, metric, value, "percent" if metric.endswith("share") else "stars" if metric == "mean_rating" else "count", len(subset) if metric.endswith("share") else "", note="queried locale; not detected review language")
-    add("language_stream", "suppressed", "stream_count", len(suppressed), "count", note=f"streams with fewer than {min_segment_size} reviews")
+            add(
+                "language_stream",
+                language,
+                metric,
+                value,
+                "percent"
+                if metric.endswith("share")
+                else "stars"
+                if metric == "mean_rating"
+                else "count",
+                len(subset) if metric.endswith("share") else "",
+                note="queried locale; not detected review language",
+            )
+    add(
+        "language_stream",
+        "suppressed",
+        "stream_count",
+        len(suppressed),
+        "count",
+        note=f"streams with fewer than {min_segment_size} reviews",
+    )
 
-    low_english = [row for row in rows if row["score"] <= 2 and "en" in row.get("languageStreams", [])]
-    add("low_review_theme", "english_stream", "denominator", len(low_english), "count", note="1-2 stars; multi-label keyword matching")
+    low_english = [
+        row
+        for row in rows
+        if row["score"] <= 2 and "en" in row.get("languageStreams", [])
+    ]
+    add(
+        "low_review_theme",
+        "english_stream",
+        "denominator",
+        len(low_english),
+        "count",
+        note="1-2 stars; multi-label keyword matching",
+    )
     for name, pattern in THEMES.items():
-        matched = sum(bool(pattern.search(row.get("content") or "")) for row in low_english)
-        add("low_review_theme", name, "matched_count", matched, "count", len(low_english), note="English stream; multi-label keyword matching")
-        add("low_review_theme", name, "matched_share", round(matched * 100 / len(low_english), 4) if low_english else 0, "percent", len(low_english), note="English stream; multi-label keyword matching")
+        matched = sum(
+            bool(pattern.search(row.get("content") or "")) for row in low_english
+        )
+        add(
+            "low_review_theme",
+            name,
+            "matched_count",
+            matched,
+            "count",
+            len(low_english),
+            note="English stream; multi-label keyword matching",
+        )
+        add(
+            "low_review_theme",
+            name,
+            "matched_share",
+            round(matched * 100 / len(low_english), 4) if low_english else 0,
+            "percent",
+            len(low_english),
+            note="English stream; multi-label keyword matching",
+        )
     return result
 
 
 def summarize(args: argparse.Namespace) -> None:
     raw = args.input.read_bytes()
     rows = [json.loads(line) for line in raw.decode().splitlines() if line]
-    output = aggregate(rows, hashlib.sha256(raw).hexdigest(), date.fromisoformat(args.as_of), args.min_segment_size)
+    output = aggregate(
+        rows,
+        hashlib.sha256(raw).hexdigest(),
+        date.fromisoformat(args.as_of),
+        args.min_segment_size,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_name(f".{args.output.name}.tmp")
     with temporary.open("w", encoding="utf-8-sig", newline="") as file:
@@ -361,24 +672,61 @@ def summarize(args: argparse.Namespace) -> None:
         writer.writeheader()
         writer.writerows(output)
     temporary.replace(args.output)
-    print(json.dumps({"aggregateRows": len(output), "sourceReviews": len(rows)}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"aggregateRows": len(output), "sourceReviews": len(rows)},
+            ensure_ascii=False,
+        )
+    )
 
 
 def self_test(_: argparse.Namespace) -> None:
     raw_review = [
-        "review-id", ["ignored user", [None, 2, None, [None, None, "ignored image"]]], 1, None,
-        "slow login", [1_700_000_000, 0], 2, ["developer", "ignored reply", [1_700_000_100, 0]],
-        None, [], "1.0", None, None, None, None, None, 1,
+        "review-id",
+        ["ignored user", [None, 2, None, [None, None, "ignored image"]]],
+        1,
+        None,
+        "slow login",
+        [1_700_000_000, 0],
+        2,
+        ["developer", "ignored reply", [1_700_000_100, 0]],
+        None,
+        [],
+        "1.0",
+        None,
+        None,
+        None,
+        None,
+        None,
+        1,
     ]
     parsed = parse_review(raw_review, "en", "example.app", "2026-08-11T00:00:00+00:00")
-    assert "userName" not in parsed and "replyContent" not in parsed and parsed["score"] == 1
+    assert (
+        "userName" not in parsed
+        and "replyContent" not in parsed
+        and parsed["score"] == 1
+    )
     assert spreadsheet_safe("=formula") == "'=formula"
-    rows = [parsed, {**parsed, "reviewId": "review-id-2", "content": "works", "score": 5}]
+    rows = [
+        parsed,
+        {**parsed, "reviewId": "review-id-2", "content": "works", "score": 5},
+    ]
     result = aggregate(rows, "0" * 64, date(2026, 8, 11), 1)
-    assert any(row["section"] == "low_review_theme" and row["segment"] == "reliability_performance" and row["metric"] == "matched_count" and row["value"] == 1 for row in result)
-    assert not ({"reviewId", "userName", "userImage", "content", "replyContent"} & set(AGGREGATE_FIELDS))
+    assert any(
+        row["section"] == "low_review_theme"
+        and row["segment"] == "reliability_performance"
+        and row["metric"] == "matched_count"
+        and row["value"] == 1
+        for row in result
+    )
+    assert not (
+        {"reviewId", "userName", "userImage", "content", "replyContent"}
+        & set(AGGREGATE_FIELDS)
+    )
     with TemporaryDirectory() as directory:
-        write_review_files(Path(directory) / "reviews.jsonl", Path(directory) / "reviews.csv", rows)
+        write_review_files(
+            Path(directory) / "reviews.jsonl", Path(directory) / "reviews.csv", rows
+        )
         with (Path(directory) / "reviews.csv").open(encoding="utf-8-sig") as file:
             assert next(csv.reader(file)) == ["리뷰내용", "별점"]
     print("self-test: ok")
@@ -387,26 +735,46 @@ def self_test(_: argparse.Namespace) -> None:
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
-    crawl_parser = commands.add_parser("crawl", help="crawl public review streams into ignored local data files")
+    crawl_parser = commands.add_parser(
+        "crawl", help="crawl public review streams into ignored local data files"
+    )
     crawl_parser.add_argument("--app-id", default="com.salesforce.chatter")
     crawl_parser.add_argument("--languages", nargs="+", default=list(LANGUAGE_STREAMS))
     crawl_parser.add_argument("--page-size", type=int, default=4500)
     crawl_parser.add_argument("--delay", type=float, default=0.25)
     crawl_parser.add_argument("--timeout", type=int, default=30)
     crawl_parser.add_argument("--retries", type=int, default=3)
-    crawl_parser.add_argument("--jsonl-output", type=Path, default=Path("data/raw/salesforce_chatter_google_play_reviews.jsonl"))
-    crawl_parser.add_argument("--csv-output", type=Path, default=Path("data/processed/salesforce_reviews_content_rating.csv"))
-    crawl_parser.add_argument("--manifest-output", type=Path, default=Path("data/processed/salesforce_reviews_manifest.json"))
+    crawl_parser.add_argument(
+        "--jsonl-output",
+        type=Path,
+        default=Path("data/raw/salesforce_chatter_google_play_reviews.jsonl"),
+    )
+    crawl_parser.add_argument(
+        "--csv-output",
+        type=Path,
+        default=Path("data/processed/salesforce_reviews_content_rating.csv"),
+    )
+    crawl_parser.add_argument(
+        "--manifest-output",
+        type=Path,
+        default=Path("data/processed/salesforce_reviews_manifest.json"),
+    )
     crawl_parser.set_defaults(run=crawl)
 
-    summary_parser = commands.add_parser("summarize", help="write a privacy-safe aggregate CSV")
+    summary_parser = commands.add_parser(
+        "summarize", help="write a privacy-safe aggregate CSV"
+    )
     summary_parser.add_argument("input", type=Path)
     summary_parser.add_argument("--output", type=Path, required=True)
-    summary_parser.add_argument("--as-of", default=datetime.now(timezone.utc).date().isoformat())
+    summary_parser.add_argument(
+        "--as-of", default=datetime.now(timezone.utc).date().isoformat()
+    )
     summary_parser.add_argument("--min-segment-size", type=int, default=10)
     summary_parser.set_defaults(run=summarize)
 
-    test_parser = commands.add_parser("self-test", help="run deterministic parser and aggregation checks")
+    test_parser = commands.add_parser(
+        "self-test", help="run deterministic parser and aggregation checks"
+    )
     test_parser.set_defaults(run=self_test)
     return root
 

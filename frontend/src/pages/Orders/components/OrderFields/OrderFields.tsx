@@ -5,8 +5,9 @@
 // 여러 제품이 들어가는 일이 흔해서 한 줄로 고정할 수 없습니다.
 import type { ReactNode } from 'react'
 
+import RecordPicker from '@/components/RecordPicker'
 import { TrashIcon } from '@/components/icons'
-import type { PurchaseOrderStatusResponse } from '@/types'
+import type { ProductResponse, PurchaseOrderStatusResponse, SalesDealResponse } from '@/types'
 import { wonFull } from '@/utils/format'
 
 import {
@@ -16,8 +17,6 @@ import {
   type FormState,
   type ItemState,
 } from '../../orderForm'
-import type { OrderSalesDealOption, OrderOption } from '../../useOrderList'
-
 import styles from './OrderFields.module.scss'
 
 interface Props {
@@ -25,9 +24,7 @@ interface Props {
   errors: FormErrors
   onChange: (key: Exclude<keyof FormState, 'items'>, value: string) => void
   onItemsChange: (items: ItemState[]) => void
-  salesDeals: OrderSalesDealOption[]
   statuses: PurchaseOrderStatusResponse[]
-  products: OrderOption[]
   suppliers: string[]
   optionsLoading?: boolean
   disabled?: boolean
@@ -42,9 +39,7 @@ export default function OrderFields({
   errors,
   onChange,
   onItemsChange,
-  salesDeals,
   statuses,
-  products,
   suppliers,
   optionsLoading = false,
   disabled = false,
@@ -55,27 +50,40 @@ export default function OrderFields({
   const setItem = (index: number, key: keyof ItemState, value: string) =>
     onItemsChange(form.items.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
 
+  /** 제품은 id 와 이름을 함께 갈아 끼웁니다. 둘이 어긋나면 칸에 남는 글자가 거짓말을 합니다. */
+  const setItemProduct = (index: number, productId: string, productName: string) =>
+    onItemsChange(
+      form.items.map((item, i) => (i === index ? { ...item, productId, productName } : item)),
+    )
+
   return (
     <div className={styles.grid}>
       <Field label="영업 딜" required error={errors.salesDealId}>
-        <select
-          value={form.salesDealId}
-          disabled={disabled || lockSalesDeal || optionsLoading || salesDeals.length === 0}
-          onChange={(event) => onChange('salesDealId', event.target.value)}
-        >
-          <option value="">
-            {optionsLoading
-              ? '영업 딜을 불러오는 중…'
-              : salesDeals.length === 0
-                ? '선택할 영업 딜이 없습니다'
-                : '영업 딜을 선택하세요'}
-          </option>
-          {salesDeals.map((salesDeal) => (
-            <option key={salesDeal.id} value={salesDeal.id}>
-              {salesDeal.no} · {salesDeal.customerCompanyName}
-            </option>
-          ))}
-        </select>
+        <RecordPicker<SalesDealResponse>
+          path="/sales-deals"
+          label="영업 딜"
+          placeholder="딜 번호나 고객사로 검색"
+          // 보관된 파이프라인의 딜에는 새 발주를 붙이지 않습니다. 예전에는 전건을 받아
+          // 화면에서 걸렀는데, 쪽으로 끊는 지금은 서버가 걸러야 첫 쪽이 맞습니다.
+          params={{ sales_pipeline_status_code: ['published'] }}
+          emptyText="일치하는 영업 딜이 없습니다."
+          loadingText="영업 딜을 불러오는 중입니다."
+          fallback="영업 딜을 불러오지 못했습니다."
+          value={
+            form.salesDealId === '' ? null : { id: form.salesDealId, label: form.salesDealLabel }
+          }
+          disabled={disabled || lockSalesDeal}
+          invalid={errors.salesDealId !== undefined}
+          toOption={(row) => ({
+            id: row.id,
+            label: row.deal_no,
+            note: row.customer_company_name,
+          })}
+          onChange={(next) => {
+            onChange('salesDealId', next?.id ?? '')
+            onChange('salesDealLabel', next?.label ?? '')
+          }}
+        />
       </Field>
 
       <Field label="공급처" required error={errors.supplier}>
@@ -157,26 +165,25 @@ export default function OrderFields({
               // 줄을 지워도 남은 줄이 제 값을 그대로 들고 있습니다.
               <li key={index} className={styles.item}>
                 <div className={styles.itemRow}>
-                  <select
-                    className={styles.product}
-                    value={item.productId}
-                    disabled={disabled || optionsLoading || products.length === 0}
-                    aria-label={`품목 ${index + 1} 제품`}
-                    onChange={(e) => setItem(index, 'productId', e.target.value)}
-                  >
-                    <option value="">
-                      {optionsLoading
-                        ? '제품을 불러오는 중…'
-                        : products.length === 0
-                          ? '등록된 제품이 없습니다'
-                          : '제품 선택'}
-                    </option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className={styles.product}>
+                    <RecordPicker<ProductResponse>
+                      path="/products"
+                      label={`품목 ${index + 1} 제품`}
+                      placeholder="제품 검색"
+                      emptyText="일치하는 제품이 없습니다."
+                      loadingText="제품을 불러오는 중입니다."
+                      fallback="제품을 불러오지 못했습니다."
+                      value={
+                        item.productId === ''
+                          ? null
+                          : { id: item.productId, label: item.productName }
+                      }
+                      disabled={disabled}
+                      invalid={errors.itemRows?.[index]?.productId !== undefined}
+                      toOption={(row) => ({ id: row.id, label: row.name })}
+                      onChange={(next) => setItemProduct(index, next?.id ?? '', next?.label ?? '')}
+                    />
+                  </div>
                   <input
                     className={styles.qty}
                     inputMode="numeric"
@@ -217,7 +224,7 @@ export default function OrderFields({
         <button
           type="button"
           className={styles.addItem}
-          disabled={disabled || optionsLoading || products.length === 0 || form.items.length >= 100}
+          disabled={disabled || form.items.length >= 100}
           onClick={() => onItemsChange([...form.items, emptyItem()])}
         >
           + 품목 추가

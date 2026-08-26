@@ -14,7 +14,13 @@
       "Bash(uv sync:*)",
       "Bash(uv add:*)",
       "Bash(bash scripts/dev.sh)",
-      "Bash(bash scripts/setup.sh)"
+      "Bash(bash scripts/setup.sh)",
+      "Bash(npx prettier:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh api user:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(git rev-parse:*)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -22,6 +28,20 @@
       "Read(**/.env.production)",
       "Read(**/*.pem)",
       "Read(**/*.key)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/format-frontend.sh",
+            "statusMessage": "prettier"
+          }
+        ]
+      }
     ]
   }
 }

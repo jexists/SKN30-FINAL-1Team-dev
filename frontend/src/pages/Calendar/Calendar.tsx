@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-import Button from '@/components/Button'
+import ErrorToast from '@/components/ErrorToast'
 import usePointerDrag from '@/hooks/usePointerDrag'
 import useOrderList from '@/pages/Orders/useOrderList'
 import type { CalendarEvent } from '@/types'
@@ -124,14 +124,7 @@ export default function Calendar() {
     <section aria-busy={loading}>
       <h1 className="sr-only">캘린더</h1>
 
-      {error && (
-        <div role="alert">
-          <span>{error}</span>{' '}
-          <Button variant="outline" size="sm" onClick={reload}>
-            다시 시도
-          </Button>
-        </div>
-      )}
+      <ErrorToast message={error} onRetry={reload} />
       <div className={styles.layout}>
         <MonthGrid
           cursor={cursor}

@@ -29,7 +29,8 @@ export interface CsRequest {
   note: string
 }
 
-export type SupportStatusCode = 'in_progress' | 'completed'
+/** 접수 → 원인파악 → 처리중 → 처리완료 */
+export type SupportStatusCode = 'received' | 'diagnosing' | 'in_progress' | 'completed'
 
 export interface SupportResponseResponse {
   id: string
@@ -42,26 +43,34 @@ export interface SupportResponseResponse {
 
 export interface SupportRequestResponse {
   id: string
-  customer_contact_id: string
-  customer_contact_name: string
   customer_company_id: string
   customer_company_name: string
+  sales_deal_id: string
+  deal_no: string
+  contract_no: string | null
+  deal_title: string
+  /** 관련 제품과 워런티는 계약건이 들고 있는 값입니다. */
+  product_name: string | null
+  warranty_terms: string | null
   assignee_member_id: string
   assignee_display_name: string
   title: string
   body: string
   is_urgent: boolean
   status_code: SupportStatusCode
+  occurred_at: string
   registered_at: string
   responses: SupportResponseResponse[]
 }
 
 export interface SupportRequestCreateRequest {
-  customer_contact_id: string
+  customer_company_id: string
+  sales_deal_id: string
   title: string
   body: string
   is_urgent: boolean
   status_code: SupportStatusCode
+  occurred_at: string
 }
 
 export interface SupportTransitionRequest {

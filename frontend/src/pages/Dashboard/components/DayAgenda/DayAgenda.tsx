@@ -21,9 +21,7 @@ import styles from './DayAgenda.module.scss'
 
 interface Props {
   dateISO: string
-  /** 완료 표시한 일정 id. 메모리에만 있고 저장하지 않습니다. */
-  doneIds: ReadonlySet<string>
-  onToggleDone: (id: string) => void
+  onToggleDone: (item: AgendaItem) => void
   onOpen: (item: AgendaItem) => void
   onAddSchedule: () => void
   /** 줄 메뉴의 '수정'. 일정 폼을 엽니다. */
@@ -38,7 +36,7 @@ const DAY = 86_400_000
 const RELATIVE: Record<string, string> = { '-1': '어제', '0': '오늘', '1': '내일' }
 
 const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
-  { dateISO, doneIds, onToggleDone, onOpen, onAddSchedule, onEdit, onDelete, flash },
+  { dateISO, onToggleDone, onOpen, onAddSchedule, onEdit, onDelete, flash },
   ref,
 ) {
   const list = useAgendaFor(dateISO)
@@ -50,13 +48,13 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   const tasks = list.filter((it) => it.kind === 'internal')
   // 보고서로 가는 길은 RecordDrawer 와 같은 곳을 봅니다. AgendaItem.reported 는
   // 목업 시드의 고정값이라 이 자리에서 쓴 기록을 따라오지 못합니다.
-  const reportState = useAgendaReportLink()
+  // 이 길은 펴 둔 메뉴 안에만 서므로 메뉴를 열 때 그 줄만 물어봅니다.
+  const reportState = useAgendaReportLink(list.find((it) => it.id === menuId) ?? null)
   const date = parseISO(dateISO)
   const relative = RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
   /** groupStart 는 업무 묶음의 첫 줄입니다. 미팅과의 경계를 선 하나로 긋습니다. */
   const renderItem = (it: AgendaItem, groupStart = false) => {
-    const done = doneIds.has(it.id)
-    const report = reportState.resolve(it)
+    const done = it.done
     // 업무는 고객이 없어 회사·담당자 자리가 비고, 대신 언제까지 어디서 하는지가 남습니다.
     const task = it.kind === 'internal'
     const until = task ? endTime(it.time, it.dur) : ''
@@ -78,11 +76,11 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
           aria-label={done ? `${it.title} 완료 취소` : `${it.title} 완료로 표시`}
           onClick={(event) => {
             event.stopPropagation()
-            onToggleDone(it.id)
+            onToggleDone(it)
           }}
         >
           {done && <CheckIcon width={13} height={13} />}
-          완료
+          {done ? '완료' : '미완료'}
         </button>
 
         <div className={styles.rail}>
@@ -124,12 +122,20 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
                 }
               >
                 <div className={styles.menu}>
-                  {/* '작성' 이라고 서 있으면 아직 안 쓴 것, '열기' 면 이미 쓴 것입니다. */}
-                  {!reportState.loading && !reportState.error && (
-                    <Link to={report.to} onClick={() => setMenuId(null)}>
+                  {/* '작성' 이라고 서 있으면 아직 안 쓴 것, '열기' 면 이미 쓴 것입니다.
+                      메뉴를 연 뒤에 물어보므로 답을 받기 전까지는 이 자리가 비어 있습니다. */}
+                  {reportState.error ? (
+                    <button type="button" onClick={reportState.reload}>
                       <DailyReportIcon width={15} height={15} />
-                      {report.label}
+                      보고서 다시 조회
+                    </button>
+                  ) : reportState.link ? (
+                    <Link to={reportState.link.to} onClick={() => setMenuId(null)}>
+                      <DailyReportIcon width={15} height={15} />
+                      {reportState.link.label}
                     </Link>
+                  ) : (
+                    <InlineLoader label="보고서 연결을 확인하는 중입니다." />
                   )}
                   <button
                     type="button"
@@ -200,18 +206,6 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
           일정 추가
         </Button>
       </div>
-
-      {reportState.error && (
-        <p role="alert">
-          {reportState.error}{' '}
-          <Button variant="outline" size="sm" onClick={reportState.reload}>
-            다시 시도
-          </Button>
-        </p>
-      )}
-      {!reportState.error && reportState.loading && list.length > 0 && (
-        <InlineLoader label="보고서 연결을 확인하는 중입니다." />
-      )}
 
       {list.length === 0 ? (
         <div className={styles.empty}>

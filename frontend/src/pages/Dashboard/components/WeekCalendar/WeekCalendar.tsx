@@ -1,12 +1,16 @@
 import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import WeekStrip from '@/components/WeekStrip'
-import { agendaFor, useAgenda } from '@/shared/agenda'
-import { addDays, iso, TODAY, weekRangeLabel } from '@/utils/date'
+import type { WeeklyBand } from '@/types'
+import { addDays, iso, weekRangeLabel } from '@/utils/date'
+
+import { weekStart } from '../../useDashboard'
 
 import styles from './WeekCalendar.module.scss'
 
 interface Props {
+  /** 날짜별 건수. 아직 받아 오지 않은 주의 점도 맞게 찍히도록 서버가 셉니다. */
+  weekly: WeeklyBand
   weekOffset: number
   selectedISO: string
   onSelect: (dateISO: string) => void
@@ -23,39 +27,38 @@ interface Props {
  */
 const MAX_MARKS = 5
 
-// 오늘을 왼쪽에서 셋째 칸에 두어 지난 이틀과 앞으로의 나흘이 함께 보이게 합니다.
-const rangeStart = (offset: number) => addDays(TODAY, -2 + offset * 7)
 const rangeDays = (offset: number) =>
-  Array.from({ length: 7 }, (_, i) => addDays(rangeStart(offset), i))
+  Array.from({ length: 7 }, (_, i) => addDays(weekStart(offset), i))
 
 export default function WeekCalendar({
+  weekly,
   weekOffset,
   selectedISO,
   onSelect,
   onWeekChange,
   onToday,
 }: Props) {
-  // 일정이 늘거나 줄면 날짜 아래 점이 따라 움직여야 합니다.
-  useAgenda()
   const days = rangeDays(weekOffset)
+  const countByDate = new Map(weekly.days.map((day) => [day.date, day]))
 
   // 선택 칸은 배경이 파랗게 차므로 점 색을 뒤집습니다.
   const renderMarks = (dateISO: string, isSelected: boolean) => {
     // 점은 아래 하루 목록과 같은 것을 셉니다. 사내 일정이 업무, 나머지가 미팅입니다.
-    const day = agendaFor(dateISO)
-    const meetings = day.filter((it) => it.kind !== 'internal').length
-    const deliveries = day.length - meetings
+    const day = countByDate.get(dateISO)
+    const meetings = day?.meeting_count ?? 0
+    const deliveries = day?.task_count ?? 0
+    const total = meetings + deliveries
     const meetingCls = `${styles.dotMeeting} ${isSelected ? styles.isOnBlue : ''}`
     const deliveryCls = `${styles.dotDelivery} ${isSelected ? styles.isOnBlue : ''}`
 
     // 넘치는 날은 '+N' 이 한 자리를 가져갑니다.
-    const slots = day.length > MAX_MARKS ? MAX_MARKS - 1 : MAX_MARKS
+    const slots = total > MAX_MARKS ? MAX_MARKS - 1 : MAX_MARKS
     // 업무가 있는 날은 마지막 한 자리를 업무에 남깁니다. 미팅으로만 채우면
     // 그날 사내 일이 있다는 사실이 통째로 사라집니다. 반대로 한쪽이 없는 날은
     // 남은 자리를 다른 쪽이 모두 씁니다.
     const shownMeetings = Math.min(meetings, deliveries > 0 ? slots - 1 : slots)
     const shownDeliveries = Math.min(deliveries, slots - shownMeetings)
-    const hidden = day.length - shownMeetings - shownDeliveries
+    const hidden = total - shownMeetings - shownDeliveries
 
     return (
       <>

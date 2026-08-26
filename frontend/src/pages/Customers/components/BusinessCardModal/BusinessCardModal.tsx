@@ -1,0 +1,163 @@
+import { useEffect, useRef, useState } from 'react'
+
+import Button from '@/components/Button'
+import { CardIcon } from '@/components/icons'
+import Modal from '@/components/Modal'
+import { sizeLabel } from '@/utils/attachment'
+
+import {
+  BusinessCardUnavailableError,
+  MAX_IMAGE_BYTES,
+  recognizeBusinessCard,
+  type BusinessCardDraft,
+} from '../../businessCard'
+
+import styles from './BusinessCardModal.module.scss'
+
+interface BusinessCardModalProps {
+  onClose: () => void
+  /** 읽어 낸 값. 사람이 확인하고 고칠 수 있게 등록 폼으로 넘깁니다. */
+  onRecognized: (draft: BusinessCardDraft) => void
+  /** 인식을 건너뛰고 빈 등록 폼으로 갑니다. */
+  onManual: () => void
+}
+
+export default function BusinessCardModal({
+  onClose,
+  onRecognized,
+  onManual,
+}: BusinessCardModalProps) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [image, setImage] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
+  const [reading, setReading] = useState(false)
+
+  // 미리보기 주소는 붙잡고 있으면 사진이 메모리에 그대로 남습니다.
+  useEffect(() => {
+    if (image === null) {
+      setPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(image)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [image])
+
+  const pick = (file: File) => {
+    setError(null)
+    setUnavailable(false)
+
+    if (!file.type.startsWith('image/')) {
+      setError('명함을 찍은 사진을 넣어 주세요. 이미지 파일만 읽습니다.')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError(
+        `사진이 ${sizeLabel(file.size)} 입니다. ${sizeLabel(MAX_IMAGE_BYTES)} 까지 넣을 수 있습니다.`,
+      )
+      return
+    }
+    setImage(file)
+  }
+
+  const read = async () => {
+    if (image === null || reading) return
+
+    setReading(true)
+    setError(null)
+    setUnavailable(false)
+
+    try {
+      onRecognized(await recognizeBusinessCard(image))
+    } catch (caught: unknown) {
+      if (caught instanceof BusinessCardUnavailableError) setUnavailable(true)
+      else setError('명함을 읽지 못했습니다. 사진이 흐리면 다시 찍어 주세요.')
+      setReading(false)
+    }
+  }
+
+  const close = () => {
+    if (!reading) onClose()
+  }
+
+  return (
+    <Modal
+      title="명함으로 고객 등록"
+      description="명함을 찍은 사진을 넣으면 이름·회사·연락처를 읽어 등록 폼에 채웁니다."
+      onClose={close}
+      footer={
+        <>
+          <Button type="button" variant="outline" disabled={reading} onClick={close}>
+            취소
+          </Button>
+          <Button type="button" disabled={image === null || reading} onClick={read}>
+            {reading ? '읽는 중…' : '명함 읽기'}
+          </Button>
+        </>
+      }
+    >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        // 폰에서는 파일을 고르는 대신 바로 뒷면 카메라가 뜹니다.
+        capture="environment"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) pick(file)
+          event.target.value = ''
+        }}
+      />
+
+      {/* 명함 비율(91×55) 그대로입니다. 무엇을 넣는 자리인지 글자보다 먼저 보입니다. */}
+      <button
+        type="button"
+        className={styles.drop}
+        disabled={reading}
+        onClick={() => fileRef.current?.click()}
+      >
+        {preview === null ? (
+          <span className={styles.empty}>
+            <CardIcon width={30} height={30} strokeWidth={1.4} />
+            <strong>명함 사진 선택</strong>
+            <span>화면에 꽉 차게, 글자가 또렷하게 찍어 주세요.</span>
+          </span>
+        ) : (
+          <img
+            className={styles.shot}
+            src={preview}
+            alt={`선택한 명함 사진 ${image?.name ?? ''}`}
+          />
+        )}
+      </button>
+
+      {image && (
+        <p className={styles.file}>
+          {image.name} · <span className="tnum">{sizeLabel(image.size)}</span> · 다시 고르려면
+          사진을 누르세요.
+        </p>
+      )}
+
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+
+      {unavailable && (
+        <div className={styles.notice} role="alert">
+          <p>
+            명함 인식은 아직 연결되지 않았습니다. 지금은 등록 폼에 직접 입력해 주세요. 인식이 붙으면
+            이 자리에서 바로 칸이 채워집니다.
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={onManual}>
+            직접 입력으로 등록
+          </Button>
+        </div>
+      )}
+    </Modal>
+  )
+}

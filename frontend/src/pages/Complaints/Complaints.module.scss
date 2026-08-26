@@ -131,12 +131,23 @@
   @include tag-pill;
 }
 
-.working {
+// 상태 배지 네 갈래. 클래스 이름이 곧 상태 코드라 StateBadge 가 styles[state] 로 씁니다.
+.received {
+  background: var(--fill-2);
+  color: var(--muted);
+}
+
+.diagnosing {
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+}
+
+.in_progress {
   background: var(--blue-tint);
   color: var(--blue);
 }
 
-.done {
+.completed {
   background: var(--green-tint);
   color: var(--green-ink);
 }
@@ -317,75 +328,58 @@
   @include form-field;
 }
 
-// 고르는 값이 둘뿐이라 라디오를 태그 모양으로 입힙니다.
-// 동그라미는 눈에서만 감춥니다 — 키보드와 스크린리더는 그대로 씁니다.
-//
-// 높이는 숫자로 맞추지 않습니다. 같은 그리드 줄의 상태 칸이 줄 높이를 정하므로
-// 남은 자리를 그대로 채우면 옆 select 와 아래위가 어긋날 수 없습니다.
-.tags {
-  display: flex;
-  align-items: stretch;
-  flex: 1;
-  gap: var(--s2);
+// 긴급도는 켜고 끄는 값 하나뿐이라 체크박스로 받습니다.
+// 라벨 자리를 다른 칸과 맞추려고 form-field 위에 얹습니다.
+.urgentField {
+  justify-content: flex-start;
 }
 
-.tag {
-  position: relative;
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 100%;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 
   input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-  }
-
-  // 모서리·테두리는 옆의 select 와 같은 값을 씁니다(form-field 믹스인의 입력 규칙).
-  // 높이는 줄에서 받아 오므로 세로 패딩 대신 늘어나게 둡니다.
-  span {
-    display: flex;
-    align-items: center;
-    height: 100%;
-    padding: 0 var(--s4);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 600;
-    transition:
-      border-color var(--t-fast) var(--ease-out),
-      background var(--t-fast) var(--ease-out),
-      color var(--t-fast) var(--ease-out);
-  }
-
-  &:hover span {
-    border-color: var(--ink-2);
-  }
-
-  // 고른 쪽은 목록 배지와 같은 색으로 찹니다. 테두리까지 같은 색이라 눌린 것이 분명합니다.
-  input:checked + span {
-    border-color: var(--blue);
-    background: var(--blue-tint);
-    color: var(--blue);
-  }
-
-  input:focus-visible + span {
-    outline: 3px solid var(--blue-ring);
-    outline-offset: 2px;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--orange-ink);
+    cursor: pointer;
   }
 }
 
-// 긴급만 목록 배지와 같은 주황으로 찹니다.
-.urgentTag {
-  &:hover span {
-    border-color: var(--orange-ink);
+// 고른 계약건의 제품·워런티. 값을 바꾸는 칸이 아니라 확인용 한 줄입니다.
+.dealHint {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+// 드로어 바닥의 상태 바꾸기.
+.stateChange {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+
+  span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
   }
 
-  input:checked + span {
-    border-color: var(--orange-ink);
-    background: var(--orange-tint);
-    color: var(--orange-ink);
+  select {
+    padding: 7px var(--s3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    font-size: 13px;
+    cursor: pointer;
   }
 }
 

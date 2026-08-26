@@ -26,3 +26,8 @@
     transform: translateY(-3px);
   }
 }
+
+// 목록 끝 표식. 여기가 보이면 다음 쪽을 받습니다. 받는 동안만 자리를 차지합니다.
+.sentinel {
+  min-height: 1px;
+}

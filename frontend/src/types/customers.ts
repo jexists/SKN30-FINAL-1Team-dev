@@ -9,28 +9,6 @@ export type CustomerStatusCode = 'new' | 'proposal' | 'negotiation' | 'contracte
 export type CustomerSourceCode =
   'referral' | 'exhibition' | 'website' | 'cold_call' | 'existing_customer'
 
-export interface CustomerSeed {
-  id: string
-  name: string
-  /** 소속 고객사·기관 */
-  org: string
-  dept: string
-  /** 직함 */
-  title: string
-  email: string
-  phone: string
-  /** 담당 영업 */
-  owner: string
-  source: CustomerSource
-  status: CustomerStatus
-  /** 최근 접촉. 과거이므로 음수입니다. */
-  lastOff: number
-  /** 다음 일정. null 이면 아직 잡지 않았다는 뜻입니다. */
-  nextOff: number | null
-  createdOff: number
-  memo: string
-}
-
 /** 화면에 표시하는 고객. 목업과 API 응답이 같은 표시 모델을 쓸 수 있게 둡니다. */
 export interface Customer {
   id: string
@@ -47,6 +25,8 @@ export interface Customer {
   source: CustomerSource
   status: CustomerStatus
   memo: string
+  /** 방문 여부. 등록 직후에는 아직 만나기 전이므로 false 입니다. */
+  visited: boolean
   /** 최근 접촉. 활동 API가 없는 고객은 null 입니다. */
   last: string | null
   next: string | null
@@ -76,9 +56,11 @@ export interface CustomerContactResponse {
   job_title: string | null
   email: string | null
   phone: string
-  status_code: CustomerStatusCode | null
-  source_code: CustomerSourceCode | null
+  /** 예전 데이터에는 아래 목록 밖의 코드도 있어 문자열을 그대로 받습니다. */
+  status_code: CustomerStatusCode | string | null
+  source_code: CustomerSourceCode | string | null
   memo: string | null
+  visited: boolean
   registered_at: string
   company_name: string
   company_region_code: string | null
@@ -120,6 +102,7 @@ export interface CustomerContactCreateRequest {
   status_code: CustomerStatusCode | null
   source_code: CustomerSourceCode | null
   memo: string | null
+  visited: boolean
   /** 팀장만 보낼 수 있습니다. 비우면 등록한 사람이 담당자가 됩니다. */
   assignee_member_ids?: string[]
 }
@@ -131,4 +114,12 @@ export interface PageResponse<T> {
   total: number
   has_more: boolean
   next_skip: number | null
+}
+
+/**
+ * 탭이 있는 목록의 한 쪽. `counts` 는 {탭 코드: 건수}이고, 고른 탭은 빼고 센 값이라
+ * `total` 과 다릅니다. 탭까지 적용해 세면 고른 탭만 숫자가 남고 나머지가 0 이 됩니다.
+ */
+export interface TabbedPageResponse<T> extends PageResponse<T> {
+  counts: Record<string, number>
 }

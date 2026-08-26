@@ -38,3 +38,15 @@
     padding: var(--s4) var(--s4) var(--s6);
   }
 }
+
+// 인쇄(= 화면의 'PDF 다운로드')에서는 껍데기를 걷어내고 본문만 남깁니다.
+@media print {
+  .main {
+    margin-left: 0;
+  }
+
+  .content {
+    max-width: none;
+    padding: 0;
+  }
+}

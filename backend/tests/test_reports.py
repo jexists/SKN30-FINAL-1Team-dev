@@ -196,6 +196,15 @@ def test_report_request_rejects_unsafe_values():
         )
 
     with pytest.raises(ValidationError):
+        # 월간도 기간을 덮으므로 주간과 같은 규칙을 받는다.
+        ReportCreate(
+            report_kind="monthly",
+            report_date="2026-08-31",
+            template_snapshot=TEMPLATE,
+            content=CONTENT,
+        )
+
+    with pytest.raises(ValidationError):
         # 끝이 시작보다 빠를 수 없다.
         ReportCreate(
             report_kind="weekly",
@@ -246,6 +255,13 @@ def test_report_request_rejects_unsafe_values():
     assert ReportPatch(note=None).model_dump(exclude_unset=True) == {"note": None}
     with pytest.raises(ValidationError):
         ReportPageParams(start_date="2026-08-17", end_date="2026-08-10")
+
+    # 업무보고 목록 화면이 실제로 보내는 조합이다. monthly 가 빠지면 여기서 422 가 난다.
+    assert ReportPageParams(report_kind=["daily", "weekly", "monthly"]).report_kind == [
+        "daily",
+        "weekly",
+        "monthly",
+    ]
 
 
 class _CreateDb(_Db):
@@ -465,3 +481,93 @@ def test_write_failure_rolls_back_transaction():
 
     assert db.commit_count == 0
     assert db.rollback_count == 1
+
+
+def test_source_activity_filter_reaches_the_query():
+    """이 일정으로 쓴 보고서가 있는지를 서버가 직접 답해야 한다.
+
+    이 조건이 쿼리에 실리지 않으면 저장 화면이 목록 첫 페이지만 보고 없다고 판단해,
+    이미 보고서가 있는 일정에 같은 보고서를 하나 더 만든다.
+    """
+    member = _member()
+    activity_id = uuid4()
+    db = _Db(_Result(scalar=0), _Result(rows=[]))
+
+    with _client(db, member) as client:
+        response = client.get(
+            "/api/reports",
+            params={
+                "report_kind": "meeting",
+                "source_activity_id": str(activity_id),
+                "limit": 1,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
+    # 개수 쿼리와 행 쿼리 모두 같은 조건으로 좁혀야 총계와 목록이 어긋나지 않는다.
+    for statement in db.statements:
+        assert "report.source_activity_id = " in str(statement)
+
+
+def test_approver_and_hospital_filters_reach_the_query():
+    """보고 대상과 고객사는 컬럼이 아니라 content 안에 있다.
+
+    예전에는 전건을 받아 화면에서 걸렀다. 한 쪽만 받는 지금 이 조건이 쿼리에 실리지
+    않으면 첫 쪽에 없는 일치 항목이 통째로 빠진다.
+    """
+    member = _member(role="manager")
+    db = _Db(_Result(scalar=0), _Result(rows=[]))
+
+    with _client(db, member) as client:
+        response = client.get(
+            "/api/reports",
+            params={"approver": "김팀장", "hospital": "한빛대학교병원"},
+        )
+
+    assert response.status_code == 200
+    # 개수 쿼리와 행 쿼리 모두 같은 조건으로 좁혀야 총계와 목록이 어긋나지 않는다.
+    for statement in db.statements:
+        text = str(statement)
+        assert "coalesce" in text.lower()
+        assert "report.content -> " in text or "report.content ->> " in text
+
+
+def test_search_also_looks_inside_the_report_body():
+    """보고 본문은 content 에 있다. 여기를 빼면 검색이 메모 검색이 되어 버린다."""
+    member = _member(role="manager")
+    db = _Db(_Result(scalar=0), _Result(rows=[]))
+
+    with _client(db, member) as client:
+        response = client.get("/api/reports", params={"q": "한빛"})
+
+    assert response.status_code == 200
+    for statement in db.statements:
+        assert "CAST(public.report.content AS TEXT)) LIKE" in str(statement)
+
+
+def test_filter_options_only_count_values_in_scope():
+    """선택지는 목록에 실제로 있는 값만 내놓아야 고르고도 0 건이 되지 않는다."""
+    member = _member(role="manager")
+    db = _Db(
+        _Result(scalar_values=["김팀장", "박이사"]),
+        _Result(scalar_values=["한빛대학교병원"]),
+    )
+
+    with _client(db, member) as client:
+        response = client.get("/api/report-filter-options")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "approvers": ["김팀장", "박이사"],
+        "hospitals": ["한빛대학교병원"],
+    }
+    # 목록과 같은 범위를 봐야 한다. 범위 밖 작성자의 값이 선택지에 서면 고르고도 0 건이다.
+    for statement in db.statements:
+        assert "report.team_id = " in str(statement)
+
+
+def test_unknown_report_filter_is_rejected():
+    """오타 난 조건이 조용히 무시되면 화면은 걸렀다고 믿고 전건을 보여 준다."""
+    with pytest.raises(ValidationError):
+        ReportPageParams(hospitals=["한빛대학교병원"])

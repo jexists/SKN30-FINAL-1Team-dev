@@ -3,11 +3,16 @@
 //
 // 비밀번호 입력란이 없습니다. 초대 메일을 받은 사람이 직접 정하므로 발급하는 쪽이
 // 비밀번호를 알 방법도, 전달할 이유도 없습니다.
+//
+// 로컬에서만 "바로 만들기"를 고를 수 있습니다. 메일을 받을 곳이 없을 때 쓰라고
+// 서버가 초대를 건너뛰고 비밀번호를 LOCAL_DEV_PASSWORD 로 고정합니다
+// (backend/app/api/admin.py). 고르지 않으면 로컬에서도 초대 메일이 나갑니다.
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
+import { env } from '@/config/env'
 
 import styles from './Admin.module.scss'
 
@@ -32,6 +37,9 @@ interface AdminTeam {
 /** 팀 선택란의 "새 팀 만들기" 항목. 실제 팀 id 와 섞이지 않는 값을 씁니다. */
 const NEW_TEAM = 'new'
 
+/** 로컬에서 서버가 고정으로 넣는 비밀번호. backend/app/api/admin.py 의 값과 같아야 합니다. */
+const LOCAL_DEV_PASSWORD = '12341234'
+
 /** 표시용으로만 하이픈을 넣습니다. 서버에는 숫자 10자리로 저장됩니다. */
 function formatBusinessNo(value: string | null): string {
   if (value === null || value.length !== 10) return value ?? '-'
@@ -51,6 +59,8 @@ export default function Admin() {
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [roleCode, setRoleCode] = useState<'member' | 'manager'>('member')
+  // 로컬에서만 고를 수 있습니다. 서버도 local 이 아니면 instant 를 거절합니다.
+  const [instant, setInstant] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -71,6 +81,8 @@ export default function Admin() {
   }, [loadTeams])
 
   const creatingTeam = teamChoice === NEW_TEAM
+  // 발급 방식을 고르는 칸은 로컬에서만 그리므로 배포본에서는 항상 초대 메일입니다.
+  const issuingInstantly = env.isDev && instant
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -82,6 +94,7 @@ export default function Admin() {
       email: email.trim(),
       display_name: displayName.trim(),
       role_code: roleCode,
+      instant: issuingInstantly,
       ...(creatingTeam
         ? {
             team: {
@@ -96,7 +109,11 @@ export default function Admin() {
 
     try {
       await client.post('/admin/accounts', payload)
-      setNotice(`${email.trim()} 으로 초대 메일을 보냈습니다.`)
+      setNotice(
+        issuingInstantly
+          ? `${email.trim()} 계정을 만들었습니다. 비밀번호는 ${LOCAL_DEV_PASSWORD} 입니다.`
+          : `${email.trim()} 으로 초대 메일을 보냈습니다.`,
+      )
       // 방금 만든 계정이 목록에 뜨는 것으로 발급을 확인시킵니다.
       await loadTeams()
       setEmail('')
@@ -253,6 +270,36 @@ export default function Admin() {
               </label>
             </div>
           </div>
+
+          {env.isDev && (
+            <div className={styles.field}>
+              <span className={styles.label}>발급 방식</span>
+              <div className={styles.choices}>
+                <label className={styles.choice}>
+                  <input
+                    type="radio"
+                    name="issue"
+                    value="invite"
+                    checked={!instant}
+                    onChange={() => setInstant(false)}
+                    disabled={submitting}
+                  />
+                  초대 메일로 만들기
+                </label>
+                <label className={styles.choice}>
+                  <input
+                    type="radio"
+                    name="issue"
+                    value="instant"
+                    checked={instant}
+                    onChange={() => setInstant(true)}
+                    disabled={submitting}
+                  />
+                  바로 만들기 (비밀번호 {LOCAL_DEV_PASSWORD})
+                </label>
+              </div>
+            </div>
+          )}
         </fieldset>
 
         {error && (
@@ -270,7 +317,9 @@ export default function Admin() {
           {submitting ? '발급 중…' : '계정 발급'}
         </Button>
         <p className={styles.hint}>
-          비밀번호는 여기서 정하지 않습니다. 초대 메일을 받은 사람이 직접 정합니다.
+          {issuingInstantly
+            ? `메일 없이 비밀번호 ${LOCAL_DEV_PASSWORD} 로 바로 만듭니다. 로컬에서만 됩니다.`
+            : '비밀번호는 여기서 정하지 않습니다. 초대 메일을 받은 사람이 직접 정합니다.'}
         </p>
       </form>
 

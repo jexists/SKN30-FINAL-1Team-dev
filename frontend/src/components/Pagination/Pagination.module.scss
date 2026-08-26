@@ -17,22 +17,6 @@
   font-size: 12px;
 }
 
-.controls {
-  display: flex;
-  align-items: center;
-  gap: var(--s4);
-
-  @include sm {
-    justify-content: space-between;
-  }
-}
-
-.size {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .pager {
   display: inline-flex;
   align-items: center;

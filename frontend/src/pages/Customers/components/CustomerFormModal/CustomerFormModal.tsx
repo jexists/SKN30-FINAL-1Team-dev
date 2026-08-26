@@ -19,7 +19,12 @@ import styles from './CustomerFormModal.module.scss'
 
 interface CustomerFormModalProps {
   onClose: () => void
-  onCreated: () => void
+  /** 방금 만든 고객. 부른 쪽이 그대로 골라 둘 수 있게 넘깁니다. */
+  onCreated: (contact: CustomerContactResponse) => void
+  /** 명함에서 읽어 온 값. 사람이 확인하고 고칠 수 있게 칸만 채워 둡니다. */
+  initial?: Partial<Draft>
+  /** 부른 쪽에서 이미 정해진 회사. 검색창에 미리 올려 둡니다. */
+  initialCompany?: CompanySelection
 }
 
 const EMPTY = {
@@ -73,12 +78,23 @@ async function resolveCompanyId(company: CompanySelection, businessNo: string): 
   return data.id
 }
 
-export default function CustomerFormModal({ onClose, onCreated }: CustomerFormModalProps) {
+export default function CustomerFormModal({
+  onClose,
+  onCreated,
+  initial,
+  initialCompany,
+}: CustomerFormModalProps) {
   const { isManager, memberId } = useCurrentUser()
 
-  const [draft, setDraft] = useState<Draft>(EMPTY)
-  const [company, setCompany] = useState<CompanySelection | null>(null)
-  const [businessNo, setBusinessNo] = useState('')
+  const [draft, setDraft] = useState<Draft>({ ...EMPTY, ...initial })
+  // 아직 만나기 전입니다. 방문은 담당자가 다녀온 뒤에 직접 켭니다.
+  const [visited, setVisited] = useState(false)
+  const [company, setCompany] = useState<CompanySelection | null>(initialCompany ?? null)
+  const [businessNo, setBusinessNo] = useState(() =>
+    initialCompany?.kind === 'existing'
+      ? (formatBusinessNo(initialCompany.company.business_no) ?? '')
+      : '',
+  )
   const [assigneeIds, setAssigneeIds] = useState<string[]>([memberId])
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -125,12 +141,13 @@ export default function CustomerFormModal({ onClose, onCreated }: CustomerFormMo
         status_code: 'new',
         source_code: null,
         memo: optional(draft.memo),
+        visited,
         // 팀원은 담당자를 고를 수 없습니다. 백엔드가 등록한 사람으로 채웁니다.
         ...(isManager ? { assignee_member_ids: assigneeIds } : {}),
       }
-      await client.post<CustomerContactResponse>('/customer-contacts', payload)
+      const { data } = await client.post<CustomerContactResponse>('/customer-contacts', payload)
       setSubmitting(false)
-      onCreated()
+      onCreated(data)
     } catch (error: unknown) {
       setSubmitError(errorMessage(error, '고객을 등록하지 못했습니다.'))
       setSubmitting(false)
@@ -249,6 +266,24 @@ export default function CustomerFormModal({ onClose, onCreated }: CustomerFormMo
             />
           </Field>
         )}
+
+        <Field label="방문여부" htmlFor={false}>
+          <div className={styles.choice} role="radiogroup" aria-label="방문여부">
+            {[false, true].map((value) => (
+              <label key={String(value)} className={styles.choiceItem}>
+                <input
+                  type="radio"
+                  name="visited"
+                  className="sr-only"
+                  checked={visited === value}
+                  disabled={submitting}
+                  onChange={() => setVisited(value)}
+                />
+                <span>{value ? '방문' : '미방문'}</span>
+              </label>
+            ))}
+          </div>
+        </Field>
 
         <Field label="메모" wide>
           <textarea

@@ -7,10 +7,10 @@
   inset: 0 auto 0 0;
   z-index: var(--z-sidebar);
   width: var(--sidebar-w);
-  padding: var(--s5) var(--s3) var(--s4);
+  padding: 0 var(--s3) var(--s4);
   display: flex;
   flex-direction: column;
-  gap: var(--s5);
+  gap: var(--s2);
   overflow-x: hidden;
   overflow-y: auto;
   // 스크롤 막대를 감춥니다. 레일 폭이 68px 뿐이라 막대가 자리를 차지하면
@@ -37,9 +37,13 @@
 
 /* ---- 브랜드 ---- */
 .brand {
+  // 화면이 낮아도 줄어들지 않습니다. 줄어들면 로고 위 여백부터 사라져
+  // 로고가 사이드바 맨 위에 달라붙습니다.
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s3);
+  height: var(--topbar-h); // 톱바와 같은 높이라 로고와 페이지 이름이 한 줄에 섭니다
   padding: 0 var(--s2);
 }
 
@@ -442,5 +446,11 @@
 
   .drawerClose {
     display: grid;
+  }
+}
+
+@media print {
+  .sidebar {
+    display: none;
   }
 }

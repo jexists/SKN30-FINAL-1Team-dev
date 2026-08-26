@@ -46,6 +46,9 @@
   기존 행은 `owner_member_id`로 등록자와 담당자를 백필합니다.
   `customer_company`에는 `business_no`(하이픈 없는 10자리)를 더해 같은 이름의 고객사를 구분합니다.
 
+<!-- - `20260824_0004_customer_contact_visited.sql`: `customer_contact`에 `visited`(boolean, 기본 false)를
+  더합니다. 고객 목록에서 방문·미방문을 한눈에 가르기 위한 값이며 담당자가 직접 바꿉니다.
+  활동 기록에서 자동으로 갱신하지 않습니다. 기존 행은 기본값대로 전부 미방문이 됩니다. -->
 - `20260824_0004_product_fields.sql`: 상품 등록 화면(`/products`, 팀장 전용)이 받는 항목을
   `product`에 더합니다. `category_code`(system/probe/consumable), `unit_price`(원 단위 정수),
   `shelf_life_months`(유효기간 개월), `memo`, `image_storage_key`입니다. 기존 행은 백필용
@@ -53,6 +56,37 @@
   `image_storage_key`는 `notice.image_storage_key`와 같은 뜻이며 API 응답에 나가지 않습니다.
   상품 목록(`GET /api/products`)은 발주·영업 화면이 함께 쓰므로 팀원에게도 그대로 열려 있고,
   쓰기(`POST /api/products`, 사진 업로드)만 팀장으로 제한합니다.
+- `20260825_0005_one_manager_per_team.sql`: `member(team_id)`에 `role_code = 'manager' AND active`
+  조건의 부분 유일 인덱스를 걸어 팀당 활성 팀장을 한 명으로 제한합니다. `/admin` 계정 발급도
+  발급 전에 같은 조건으로 막고 409 `team_manager_exists`를 냅니다. 앱 검사는 안내용이고
+  동시 요청까지 막는 근거는 이 인덱스입니다. 물러난 팀장(`active = false`)은 세지 않습니다.
+
+- `20260825_0005_notice_management.sql`: 공지·지시사항을 팀장이 직접 관리하게 합니다.
+  `notice`에 `type`(NOTICE/DIRECTIVE), `display_start_date`·`display_end_date`(date, 양끝 포함),
+  `is_hidden`, `sort_order`, `updated_at`, `deleted_at`을 더하고 **`recipient_member_id`를 뗍니다.**
+  수신자는 지시 하나에 여러 명이 붙을 수 있으므로 `notice_target` 매핑 테이블로 옮깁니다.
+  기존 행은 수신자 유무로 `type`을, 게시 시각의 서울 날짜로 `display_start_date`를 백필하고
+  종료일은 비워 무기한으로 둡니다. 본문(`body`)은 이제 편집기가 만든 HTML이며
+  `app/services/html_sanitize.py`가 허용한 태그만 남깁니다. 본문에 넣은 사진은
+  `notice_image`가 가리키는 저장소 객체이고, 본문에는 `/notice-images/{id}`만 박힙니다.
+  `storage_key`는 `notice.image_storage_key`와 같은 뜻이며 API 응답에 나가지 않습니다.
+
+- `20260825_0006_support_request_deal_link.sql`: 고객불만을 담당자 대신 고객사와 계약건에 맵니다.
+  `support_request`에서 **`customer_contact_id`를 떼고** `customer_company_id`·`sales_deal_id`·
+  `occurred_at`을 더합니다. 불만은 담당자 개인이 아니라 고객사가 산 물건에 대해 생기고,
+  "어느 계약의 어느 제품인가"를 물어볼 데가 필요했습니다. 관련 제품과 워런티는 컬럼을 따로
+  두지 않고 연결된 딜의 `product_id`·`warranty_terms`를 봅니다.
+  회사와 딜은 각각 단일 외래키를 두지 않고 **복합 외래키 하나**
+  (`(sales_deal_id, customer_company_id) → sales_deal(id, customer_company_id)`, `ON UPDATE CASCADE`)로
+  묶어, 불만의 고객사가 그 딜의 고객사와 다를 수 없게 DB가 보장합니다. `sales_deal`이
+  `sales_pipeline_stage`를 참조하는 방식과 같습니다. 참조 대상을 만들기 위해 `sales_deal(id,
+  customer_company_id)`에 유일 제약 `sales_deal_id_customer_company_key`를 겁니다.
+  `ON UPDATE CASCADE`를 안 걸면 불만이 붙은 딜은 고객사를 고칠 수 없게 막힙니다.
+  `status_code`는 두 가지에서 네 가지(`received` 접수 / `diagnosing` 원인파악 /
+  `in_progress` 처리중 / `completed` 처리완료)로 늘고, 지금까지 Pydantic 에만 있던 값 검사를
+  DB의 CHECK 로도 겁니다. `occurred_at`은 접수자가 넣는 발생 시각이라 시스템이 찍는
+  `registered_at`과 다르며 DEFAULT 를 두지 않습니다.
+  기존 행은 어느 딜에 속하는지 알 근거가 없어 `support_response`와 함께 지우고 시작합니다.
 
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
@@ -65,6 +99,10 @@
 | 2026-08-19 | 개발 | `20260819_0001_baseline_schema.sql` | session pooler | 성공. 26테이블 / 264컬럼 / FK 65 / RLS 26 |
 | 2026-08-23 | 개발 | `20260823_0002_admin_account_provisioning.sql` | session pooler | 성공. team +3컬럼 / member +1컬럼 / 부분 유일 인덱스 1. 기존 1팀 2명 그대로 |
 | 2026-08-24 | 개발 | `20260824_0003_customer_contact_assignees.sql` | session pooler | 성공. customer_company +1컬럼 / customer_contact +1컬럼 / customer_contact_assignee 신설(RLS on). 기존 고객 2건의 등록자·담당자를 owner_member_id 로 백필 |
+| 2026-08-24 | 개발 | `20260824_0004_customer_contact_visited.sql` | session pooler | 성공. customer_contact +1컬럼(`visited` boolean NOT NULL DEFAULT false). 기존 고객 2건 모두 기본값대로 미방문 |
+| 2026-08-24 | 개발 | `20260824_0004_product_fields.sql` | session pooler | 성공. product 4→9컬럼(`category_code`, `unit_price`, `shelf_life_months`, `memo`, `image_storage_key`). 기존 product 행이 0건이라 백필 대상 없음. `tests/test_models.py` 통과 |
+| 2026-08-25 | 개발 | `20260825_0005_notice_management.sql` | session pooler | 성공. notice 12→18컬럼(`recipient_member_id` 제거, `type`·`display_start_date`·`display_end_date`·`is_hidden`·`sort_order`·`updated_at`·`deleted_at` 추가) / notice_target·notice_image 신설(RLS on) / `notice_team_recipient_published_idx` 를 `notice_team_type_order_idx`·`notice_visible_idx` 로 교체. 기존 notice 행이 0건이라 백필 대상 없음 |
+| 2026-08-25 | 개발 | `20260825_0006_support_request_deal_link.sql` | session pooler | 성공. support_request 9→11컬럼(`customer_contact_id` 제거, `customer_company_id`·`sales_deal_id`·`occurred_at` 추가) / 복합 FK `support_request_sales_deal_company_membership_fkey`(ON UPDATE CASCADE)와 `sales_deal_id_customer_company_key` 신설 / `support_request_status_code_check` 를 값 목록 검사로 교체 / 인덱스 `support_request_sales_deal_company_idx`·`support_request_team_company_idx` 추가. support_request·support_response 행이 0건이라 삭제 대상 없음. 회사·딜 불일치 INSERT 와 없는 상태값 INSERT 가 각각 FK·CHECK 로 거절되는 것까지 확인 |
 
 ## 개발 DB 재구축 런북
 
@@ -98,6 +136,8 @@ DROP TABLE IF EXISTS
     public.sales_target,
     public.support_response,
     public.support_request,
+    public.notice_image,
+    public.notice_target,
     public.notice,
     public.activity_companion,
     public.activity,

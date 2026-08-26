@@ -5,6 +5,7 @@ import ManagerRoute from '@/auth/ManagerRoute'
 import ProtectedRoute from '@/auth/ProtectedRoute'
 import SessionProvider from '@/auth/SessionProvider'
 import ConnectionAlert from '@/components/ConnectionAlert'
+import ToastHost from '@/components/Toast'
 import AppShell from '@/components/layout/AppShell'
 import { ROUTES } from '@/constants/routes'
 import Calendar from '@/pages/Calendar'
@@ -22,6 +23,7 @@ import MyPage from '@/pages/MyPage'
 import NotFound from '@/pages/NotFound'
 import Notifications from '@/pages/Notifications'
 import Orders, { OrderDetail, OrderNew } from '@/pages/Orders'
+import Notices from '@/pages/Notices'
 import Products from '@/pages/Products'
 import Quotes from '@/pages/Quotes'
 import Sales from '@/pages/Sales'
@@ -35,6 +37,8 @@ export default function App() {
       <SessionProvider>
         {/* 라우트와 형제로 둡니다. 앱 화면을 대체하지 않고 위에만 얹힙니다. */}
         <ConnectionAlert />
+        {/* 등록·저장을 알리는 자리. 화면이 바뀌어도 안내가 살아남게 셸 밖입니다. */}
+        <ToastHost />
         <Routes>
           <Route path={ROUTES.LOGIN} element={<Login />} />
           {/* 초대 메일이 착지하는 곳. 아직 비밀번호가 없는 사람이 여는 화면이라 셸 밖입니다. */}
@@ -50,6 +54,7 @@ export default function App() {
               {/* 팀장만 들어갈 수 있는 화면. 팀원이 주소를 직접 치면 대시보드로 돌아갑니다. */}
               <Route element={<ManagerRoute />}>
                 <Route path={ROUTES.TEAM} element={<Team />} />
+                <Route path={ROUTES.NOTICES} element={<Notices />} />
                 <Route path={ROUTES.PRODUCTS} element={<Products />} />
               </Route>
 

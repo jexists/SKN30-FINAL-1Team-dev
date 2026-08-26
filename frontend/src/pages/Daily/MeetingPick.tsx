@@ -5,19 +5,22 @@
 //
 // 사내 업무는 일정마다 보고서를 따로 내지 않습니다. 그날 하루를 묶는 일일업무보고로
 // 보내되 그 업무가 미리 체크된 채로 열리게 합니다.
+import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
-import Button, { buttonClass } from '@/components/Button'
-import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import { buttonClass } from '@/components/Button'
+import ErrorToast from '@/components/ErrorToast'
+import { ChevronRightIcon } from '@/components/icons'
 import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
 import { KIND_LABEL, useAgendaState } from '@/shared/agenda'
-import useMeetingReports from '@/pages/Meetings/useMeetingReports'
+import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
+import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { meetingLinkFor, type SourceMeta } from './sources'
-import useDailyReports from './useDailyReports'
+import { useReportOfPeriod } from './useDailyReports'
 
 import styles from './MeetingPick.module.scss'
 
@@ -36,27 +39,31 @@ export default function MeetingPick() {
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState(undefined, undefined, true)
+  } = useAgendaState(dateISO, dateISO, true)
   const agenda = items.filter((item) => item.date === dateISO)
+  // 이 날 것만 봅니다. 하루치라 한 쪽에 다 들어옵니다.
   const {
-    findByAgenda,
+    reports: meetings,
     loading: meetingLoading,
     error: meetingError,
     reload: reloadMeetings,
-  } = useMeetingReports()
+  } = useMeetingReportsOn(dateISO)
+  const byAgenda = useMemo(
+    () => new Map(meetings.map((report) => [report.agendaId, report])),
+    [meetings],
+  )
   const {
-    findByDate,
+    report: daily,
     loading: dailyLoading,
     error: dailyError,
     reload: reloadDaily,
-  } = useDailyReports()
+  } = useReportOfPeriod('일일', dateISO)
 
   /**
    * 사내 업무가 가는 곳. 단건 보고서를 만들지 않고 그날 일일업무보고로 묶습니다.
    * 이미 제출한 날이면 그 보고서를, 아니면 이 업무가 체크된 작성 화면을 엽니다.
    */
   const internalLink = (agendaId: string): SourceMeta => {
-    const daily = findByDate(dateISO, '일일')
     const status = daily?.status ?? null
     if (daily && (status === '검토 대기' || status === '확정')) {
       return { status, to: dailyReportPath(daily.id), label: '일일업무보고서 열기' }
@@ -85,11 +92,6 @@ export default function MeetingPick() {
       <h1 className="sr-only">미팅/업무보고서 작성</h1>
 
       <header className={styles.head}>
-        <Link className={styles.back} to={ROUTES.DAILY}>
-          <ChevronLeftIcon />
-          업무 보고
-        </Link>
-
         <h2 className={styles.title}>미팅/업무보고서 작성</h2>
 
         <label className={styles.dateField}>
@@ -101,27 +103,23 @@ export default function MeetingPick() {
             onChange={(event) => changeDate(event.target.value)}
           />
         </label>
+
+        {/* 미팅과 사내 업무를 함께 고르는 화면이라 목록도 '전체' 로 엽니다. */}
+        <DailyListLink />
       </header>
 
       <p className={styles.note}>
         {fmtDot(parseISO(dateISO))}의 미팅과 사내 업무입니다. 기록할 일정을 고르세요.
       </p>
 
-      {(agendaError || meetingError || dailyError) && (
-        <div className={styles.empty} role="alert">
-          <p>{agendaError ?? meetingError ?? dailyError}</p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              reloadAgenda()
-              reloadMeetings()
-              reloadDaily()
-            }}
-          >
-            다시 시도
-          </Button>
-        </div>
-      )}
+      <ErrorToast
+        message={agendaError ?? meetingError ?? dailyError}
+        onRetry={() => {
+          reloadAgenda()
+          reloadMeetings()
+          reloadDaily()
+        }}
+      />
       {!agendaError &&
         !meetingError &&
         !dailyError &&
@@ -156,7 +154,7 @@ export default function MeetingPick() {
               const internal = item.kind === 'internal'
               const link = internal
                 ? internalLink(item.id)
-                : meetingLinkFor(item.id, findByAgenda(item.id))
+                : meetingLinkFor(item.id, byAgenda.get(item.id))
 
               return (
                 <li key={item.id} className={styles.row}>

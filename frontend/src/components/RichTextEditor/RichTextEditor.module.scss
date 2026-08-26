@@ -1,0 +1,22 @@
+// 편집기는 iframe 안에서 그려집니다. 여기서는 테두리와 툴바 색만 화면에 맞춥니다.
+.root {
+  :global(.tox-tinymce) {
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+  }
+
+  :global(.tox .tox-toolbar__primary) {
+    background: var(--surface-2);
+  }
+
+  :global(.tox .tox-editor-header) {
+    box-shadow: none;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+.error {
+  margin-top: var(--s1);
+  color: var(--red-ink);
+  font-size: 11px;
+}

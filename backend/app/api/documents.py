@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import Text, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -22,6 +22,7 @@ from app.schemas.documents import (
     DocumentPageParams,
     DocumentPatch,
     DocumentRead,
+    DocumentUploaderRead,
     DownloadRead,
 )
 from app.services import storage
@@ -114,6 +115,42 @@ def _document_read(
         files=files,
         latest_version_no=max((f.version_no for f in files), default=None),
     )
+
+
+def _latest_file_id():
+    """문서의 최신 버전 파일 id. 화면이 version_no 가 가장 큰 파일을 최신으로 봅니다."""
+    latest = aliased(FileRow)
+    return (
+        select(latest.id)
+        .where(latest.document_id == Document.id)
+        .order_by(latest.version_no.desc(), latest.uploaded_at.desc(), latest.id.desc())
+        .limit(1)
+        .correlate(Document)
+        .scalar_subquery()
+    )
+
+
+def _latest_file_is(*conditions):
+    """최신 버전 파일이 조건에 맞는 문서인지.
+
+    화면의 담당자·올린 날짜 필터가 최신 버전 파일을 봅니다. 아무 버전이나 맞으면 되게
+    하면 예전 버전을 올린 사람이나 예전 날짜로도 걸립니다.
+    """
+    match = aliased(FileRow)
+    return (
+        select(1)
+        .select_from(match)
+        .where(match.id == _latest_file_id(), *[condition(match) for condition in conditions])
+        .exists()
+    )
+
+
+def _latest_uploader_is(member_ids: tuple[UUID, ...]):
+    return _latest_file_is(lambda match: match.uploaded_by_member_id.in_(member_ids))
+
+
+def _latest_uploaded_from(moment: datetime):
+    return _latest_file_is(lambda match: match.uploaded_at >= moment)
 
 
 async def _files_by_document_ids(
@@ -214,23 +251,38 @@ async def list_documents(
         if page.created_by_member_id is None
         else tuple(dict.fromkeys(page.created_by_member_id))
     )
-    scope = _scope(member, creator_ids)
-    if page.category_code is not None:
-        scope.append(Document.category_code.in_(tuple(dict.fromkeys(page.category_code))))
+    # 분류를 뺀 나머지 조건. 분류 탭 옆 건수와 담당자 선택지가 이 범위를 본다.
+    shared = _scope(member, creator_ids)
     if page.customer_company_id is not None:
-        scope.append(Document.customer_company_id == page.customer_company_id)
+        shared.append(Document.customer_company_id == page.customer_company_id)
     if page.sales_deal_id is not None:
-        scope.append(Document.sales_deal_id == page.sales_deal_id)
+        shared.append(Document.sales_deal_id == page.sales_deal_id)
+    if page.latest_uploader_member_id is not None:
+        shared.append(_latest_uploader_is(tuple(dict.fromkeys(page.latest_uploader_member_id))))
+    if page.latest_uploaded_from is not None:
+        shared.append(_latest_uploaded_from(page.latest_uploaded_from))
     if page.q is not None:
         pattern = _contains(page.q)
-        scope.append(
+        shared.append(
             or_(
                 Document.title.ilike(pattern, escape="\\"),
                 Document.description.ilike(pattern, escape="\\"),
                 Document.document_no.ilike(pattern, escape="\\"),
                 _company.name.ilike(pattern, escape="\\"),
+                # 화면 검색은 표에 안 보이는 값까지 훑는다. 태그와 최신 버전 파일 이름으로도
+                # 찾을 수 있어야 예전과 같은 결과가 나온다. 태그는 JSONB 배열이라 통째로
+                # 글자로 바꿔 훑는다.
+                cast(Document.tags, Text).ilike(pattern, escape="\\"),
+                _latest_file_is(lambda match: match.file_name.ilike(pattern, escape="\\")),
             )
         )
+
+    by_category = (
+        []
+        if page.category_code is None
+        else [Document.category_code.in_(tuple(dict.fromkeys(page.category_code)))]
+    )
+    scope = [*shared, *by_category]
 
     total = (await db.execute(_joined_select(func.count(Document.id)).where(*scope))).scalar_one()
     rows = (
@@ -242,6 +294,33 @@ async def list_documents(
             .limit(page.limit)
         )
     ).all()
+    # 분류 탭 옆 건수. 고른 분류만 빼고 센다.
+    counts = {
+        code: count
+        for code, count in (
+            await db.execute(
+                _joined_select(Document.category_code, func.count(Document.id))
+                .where(*shared)
+                .group_by(Document.category_code)
+            )
+        ).all()
+    }
+    # 담당자 선택지. 최신 버전을 올린 사람 기준이다.
+    _option = aliased(Member)
+    _option_file = aliased(FileRow)
+    uploaders = [
+        DocumentUploaderRead(member_id=member_id, display_name=display_name)
+        for member_id, display_name in (
+            await db.execute(
+                _joined_select(_option.id, _option.display_name)
+                .join(_option_file, _option_file.id == _latest_file_id())
+                .join(_option, _option_file.uploaded_by_member_id == _option.id)
+                .where(*shared)
+                .group_by(_option.id, _option.display_name)
+                .order_by(_option.display_name)
+            )
+        ).all()
+    ]
     file_map = await _files_by_document_ids(db, [row[0].id for row in rows])
     items = [_document_read(*row, file_map[row[0].id]) for row in rows]
     has_more = page.skip + len(items) < total
@@ -252,6 +331,8 @@ async def list_documents(
         total=total,
         has_more=has_more,
         next_skip=page.skip + len(items) if has_more else None,
+        counts=counts,
+        uploaders=uploaders,
     )
 
 

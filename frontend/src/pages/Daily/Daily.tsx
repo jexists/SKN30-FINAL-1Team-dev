@@ -3,16 +3,16 @@
 //
 // 미팅보고서도 여기서 함께 봅니다. 목록에는 두 종류가 섞이므로 rows.ts 가 한 모양으로
 // 정리한 뒤 넘깁니다. 조건(tab·q·status·approver·hospital·range)은 주소에 둡니다.
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import Button, { buttonClass } from '@/components/Button'
+import ErrorToast from '@/components/ErrorToast'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import Skeleton from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import WeekStrip from '@/components/WeekStrip'
 import { dailyComposePath, meetingPickPath } from '@/constants/routes'
-import useMeetingReports from '@/pages/Meetings/useMeetingReports'
 import {
   addDays,
   addMonths,
@@ -33,9 +33,9 @@ import ReportDrawer from './components/ReportDrawer'
 import ReportKindMenu, { type ComposeKind } from './components/ReportKindMenu'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { countFilters, parseFilters, writeFilters, type HistoryFilters } from './historyFilters'
-import { PERIOD_KIND, PERIOD_LABEL, PERIODS, showsDaily, showsMeetings, toPeriod } from './periods'
-import { byDateDesc, fromDailyReport, fromMeetingReport, type ListRow } from './rows'
-import useDailyReports from './useDailyReports'
+import { PERIOD_KIND, PERIOD_LABEL, PERIODS, toPeriod } from './periods'
+import { type ListRow } from './rows'
+import { useReportFilterOptions, useReportList, useReportMarks } from './useReportHistory'
 
 import styles from './Daily.module.scss'
 
@@ -58,14 +58,6 @@ const weekDays = (offset: number) => {
  */
 type OpenPanel = { by: 'date'; dateISO: string } | { by: 'row'; row: ListRow }
 
-/** 기간 필터의 시작일. 'all' 이면 자르지 않습니다. */
-function rangeStartISO(range: HistoryFilters['range']): string | null {
-  if (range === 'week') return iso(startOfWeek(TODAY))
-  if (range === 'month') return iso(startOfMonth(TODAY))
-  if (range === 'quarter') return iso(addMonths(TODAY, -3))
-  return null
-}
-
 export default function Daily() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -83,11 +75,6 @@ export default function Daily() {
         ? dailyComposePath(TODAY_ISO, kind)
         : null
 
-  const { reports, loading: dailyLoading } = useDailyReports()
-  const { reports: meetings, loading: meetingLoading } = useMeetingReports()
-  // 두 종류를 한 목록에 섞으므로 둘 중 하나라도 오는 중이면 아직 기다리는 중입니다.
-  const loading = dailyLoading || meetingLoading
-
   const [weekOffset, setWeekOffset] = useState(0)
   const [showMonth, setShowMonth] = useState(false)
   const [cursor, setCursor] = useState(() => startOfMonth(TODAY))
@@ -98,53 +85,28 @@ export default function Daily() {
   const query = params.get('q') ?? ''
   const filters = useMemo(() => parseFilters(params), [params])
 
-  // 타이핑이 목록 계산에 막히지 않게 검색어만 뒤로 미룹니다.
-  const deferredQuery = useDeferredValue(query)
-
   const days = weekDays(weekOffset)
 
-  // 탭이 고른 것만 한 모양으로 폅니다. 달력과 리스트가 같은 목록에서 출발합니다.
-  const rows = useMemo(() => {
-    const picked: ListRow[] = []
-    if (showsDaily(period)) {
-      for (const report of reports) {
-        if (kind && report.kind !== kind) continue
-        picked.push(fromDailyReport(report))
-      }
-    }
-    if (showsMeetings(period)) {
-      for (const meeting of meetings) picked.push(fromMeetingReport(meeting))
-    }
-    return picked.sort(byDateDesc)
-  }, [reports, meetings, period, kind])
+  // 목록은 조건을 다 걸어 서버가 좁혀 준 것을 그대로 그립니다. 예전에는 전건을 받아
+  // 여기서 걸렀는데, 한 쪽만 받는 지금 그러면 첫 쪽에 없는 일치 항목이 통째로 빠집니다.
+  const {
+    rows: visible,
+    total,
+    loading,
+    loadingMore,
+    loadError,
+    hasMore,
+    loadMore,
+    reload,
+    ready,
+  } = useReportList(period, query, filters)
 
-  // 달력은 그 달에 무엇이 있었는지가 목적이라 검색어·필터를 걸지 않습니다.
-  const inKind = useMemo(() => {
-    const map = new Map<string, ListRow[]>()
-    for (const row of rows) {
-      const found = map.get(row.date)
-      if (found) found.push(row)
-      else map.set(row.date, [row])
-    }
-    return map
-  }, [rows])
-
-  // 리스트는 검색어와 필터까지 겁니다.
-  const visible = useMemo(() => {
-    const from = rangeStartISO(filters.range)
-    const needle = deferredQuery.trim().toLowerCase()
-
-    return rows.filter((row) => {
-      if (filters.status.length > 0 && !filters.status.includes(row.status)) return false
-      // 보고 대상과 고객사는 그 값을 가진 종류에만 겁니다.
-      if (filters.approver.length > 0 && !filters.approver.includes(row.aside)) return false
-      if (filters.hospital.length > 0 && !filters.hospital.includes(row.hospital ?? ''))
-        return false
-      if (from && row.date < from) return false
-      // haystack 은 보고 본문까지 담고 있습니다. 제목만으로는 찾을 수 있는 게 거의 없습니다.
-      return needle === '' || row.haystack.includes(needle)
-    })
-  }, [rows, filters, deferredQuery])
+  // 달력은 그 달에 무엇이 있었는지가 목적이라 검색어·필터를 걸지 않고 보이는 구간만
+  // 따로 묻습니다. 한 달 달력은 앞뒤로 옆 달 칸까지 그리므로 한 주씩 넉넉히 봅니다.
+  const [markFrom, markTo] = showMonth
+    ? [iso(addDays(cursor, -7)), iso(addDays(addMonths(cursor, 1), 6))]
+    : [iso(days[0]), iso(days[6])]
+  const inKind = useReportMarks(period, markFrom, markTo)
 
   const filterCount = countFilters(filters)
   const narrowed = filterCount > 0 || query.trim().length > 0
@@ -192,15 +154,8 @@ export default function Daily() {
     setParams(query, { replace: true })
   }
 
-  /** 미팅 탭의 고객사 선택지. 목록에 있는 값만 내놓아야 고르고도 0건이 되지 않습니다. */
-  const hospitals = useMemo(
-    () => [...new Set(meetings.map((meeting) => meeting.hospital))].sort(),
-    [meetings],
-  )
-  const approvers = useMemo(
-    () => [...new Set(reports.map((report) => report.approver).filter(Boolean))].sort(),
-    [reports],
-  )
+  /** 필터 선택지. 목록에 있는 값만 내놓아야 고르고도 0건이 되지 않습니다. */
+  const { approvers, hospitals } = useReportFilterOptions()
 
   // 칸마다 점 하나. 평일인데 지나갔고 일일보고가 비었으면 미작성 표시입니다.
   const renderMark = (dateISO: string, isSelected: boolean) => {
@@ -224,7 +179,7 @@ export default function Daily() {
 
   // 첫 진입입니다. 탭·달력·리스트가 차례로 나타나면 화면이 여러 번 들썩이므로
   // 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
-  if (loading && rows.length === 0) {
+  if (!ready) {
     return (
       <section aria-busy>
         <h1 className="sr-only">업무 보고</h1>
@@ -353,6 +308,8 @@ export default function Daily() {
         <h2 className={styles.listTitle}>작성 리스트</h2>
       </div>
 
+      <ErrorToast message={loadError} onRetry={reload} />
+
       <HistoryToolbar
         query={query}
         onQueryChange={setQuery}
@@ -402,11 +359,25 @@ export default function Daily() {
               <ReportStatusBadge status={row.status} />
             </li>
           ))}
+
+          {/* 한 쪽씩 이어 받습니다. 다 받으면 이 줄이 사라집니다. */}
+          {hasMore && (
+            <li>
+              <button
+                type="button"
+                className={styles.loadMore}
+                disabled={loadingMore}
+                onClick={loadMore}
+              >
+                {loadingMore ? '불러오는 중…' : `${total - visible.length}건 더 보기`}
+              </button>
+            </li>
+          )}
         </ul>
       )}
 
       <p className={styles.count}>
-        전체 {rows.length}건 중 <b className="tnum">{visible.length}</b>건
+        전체 <b className="tnum">{total}</b>건 중 {visible.length}건 표시
       </p>
 
       {open !== null && (

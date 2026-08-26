@@ -8,6 +8,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
+import ErrorToast from '@/components/ErrorToast'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
@@ -74,7 +75,7 @@ export default function Compose() {
   const pickId = params.get('pick') ?? undefined
 
   const draft = useDailyDraft(dateISO, kind, { pickId })
-  const { submitReport, saveDraft, pending, error, reload } = useDailyReports()
+  const { submitReport, saveDraft, pending, error } = useDailyReports()
   const loadError = draft.error ?? error
 
   const [confirm, setConfirm] = useState<Confirm>(null)
@@ -248,21 +249,7 @@ export default function Compose() {
         </div>
       </header>
 
-      {loadError && (
-        <p className={styles.locked} role="alert">
-          {loadError}{' '}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              draft.reload()
-              reload()
-            }}
-          >
-            다시 시도
-          </Button>
-        </p>
-      )}
+      <ErrorToast message={loadError} onRetry={draft.reload} />
 
       {saved && <p className={styles.saved}>임시저장했습니다. 목록에서 이어서 쓸 수 있습니다.</p>}
 

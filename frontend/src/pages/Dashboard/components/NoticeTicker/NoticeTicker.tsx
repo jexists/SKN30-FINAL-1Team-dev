@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
-import { postedLabel } from '@/shared/notices'
+import { postedLabel, recipientLabel } from '@/shared/notices'
 import type { Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
@@ -67,10 +67,14 @@ export default function NoticeTicker({ label = '공지', items: notices = [], on
 
       <ul className={styles.list} aria-live="polite">
         {current.map((n) => (
-          <li key={n.text}>
+          <li key={n.id ?? n.text}>
             <button type="button" onClick={() => onOpen(n)}>
               <p>{n.text}</p>
-              <small>{postedLabel(n)}</small>
+              {/* 팀장은 남에게 간 지시도 봅니다. 누구에게 간 것인지 시각 앞에 세웁니다. */}
+              <small>
+                {n.recipients ? `${recipientLabel(n.recipients)} · ` : ''}
+                {postedLabel(n)}
+              </small>
             </button>
           </li>
         ))}

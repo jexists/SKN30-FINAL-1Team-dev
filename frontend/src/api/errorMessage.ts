@@ -40,6 +40,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   email_already_exists: '이미 등록된 이메일입니다.',
   team_name_already_exists: '같은 이름의 팀이 이미 있습니다.',
   team_not_found: '고른 팀을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
+  team_manager_exists: '이 팀에는 이미 팀장이 있습니다. 팀장은 팀당 한 명입니다.',
   password_rejected: '비밀번호가 정책에 맞지 않습니다. 더 길고 복잡하게 정해 주세요.',
   // 고객 (/customers)
   manager_required: '이 작업은 팀장만 할 수 있습니다.',
@@ -59,6 +60,29 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   empty_file: '빈 파일은 올릴 수 없습니다.',
   file_too_large: '파일 용량이 너무 큽니다.',
   storage_not_configured: '파일 저장소 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  // 음성 변환 (/transcriptions)
+  stt_not_configured: '음성 변환 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  stt_unavailable: '음성 변환 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+}
+
+/**
+ * 통신 계층의 실패를 문구로 바꿉니다. 업무 오류가 아니면 여기서 걸립니다.
+ *
+ * 응답이 없으면 요청이 서버까지 못 간 것(네트워크 끊김·timeout·DNS 실패)이고,
+ * 5xx 는 서버에 닿았지만 서버가 실패한 것입니다. 둘은 사용자가 할 일이 달라서
+ * 같은 문구로 뭉뚱그리면 안 됩니다.
+ *
+ * 502·503·504 를 따로 나누지 않습니다. "잠시 후 다시 시도" 가 그 경우에도 맞는
+ * 안내라 분기를 늘릴 이유가 없습니다.
+ *
+ * @returns 통신 실패가 아니면 null. 호출부가 상태별 업무 문구로 이어 갑니다.
+ */
+export function transportMessage(error: unknown): string | null {
+  if (!isAxiosError(error)) return null
+  const status = error.response?.status
+  if (status === undefined) return '서버에 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.'
+  if (status >= 500) return '서버에서 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+  return null
 }
 
 const MESSAGE_BY_STATUS: Record<number, string> = {

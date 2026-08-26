@@ -2,7 +2,7 @@
 // 왼쪽은 계약을 회사별·지역별로 접은 리스트, 오른쪽은 목표선과 견준 이 기간 매출입니다.
 import { useSearchParams } from 'react-router'
 
-import Button from '@/components/Button'
+import ErrorToast from '@/components/ErrorToast'
 import Skeleton, { InlineLoader } from '@/components/Skeleton'
 import useSalesDeals from '@/pages/Deals/useSalesDeals'
 
@@ -111,23 +111,16 @@ export default function Sales() {
         onExport={exportCsv}
       />
 
-      {error ? (
-        <div role="alert">
-          <p>{error}</p>
-          <Button variant="outline" onClick={reload}>
-            다시 시도
-          </Button>
-        </div>
-      ) : (
-        <div className={styles.split}>
-          <GroupTable
-            by={by}
-            onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
-            summary={grouped}
-          />
-          <TargetGauge range={range} summary={byOrg} />
-        </div>
-      )}
+      <ErrorToast message={error} onRetry={reload} />
+
+      <div className={styles.split}>
+        <GroupTable
+          by={by}
+          onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
+          summary={grouped}
+        />
+        <TargetGauge range={range} summary={byOrg} />
+      </div>
       {!error && loading && cards.length > 0 && (
         <InlineLoader label="매출 데이터를 새로고침하는 중입니다." />
       )}

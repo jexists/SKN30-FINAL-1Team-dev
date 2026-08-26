@@ -49,11 +49,15 @@ function ownsItsErrorSurface(url: string | undefined): boolean {
   return OWN_ERROR_SURFACE_PATHS.some((path) => url === path || url.endsWith(path))
 }
 
-/** 응답이 아예 없으면 네트워크·timeout 이고, 5xx 는 서버가 답을 못 준 경우입니다. */
+/**
+ * 응답이 아예 없을 때만 연결 실패입니다. 네트워크·timeout·DNS 실패가 여기 듭니다.
+ *
+ * 5xx 는 서버에 닿았고 답까지 받은 것이라 연결 문제가 아닙니다. 이것까지 연결 실패로
+ * 치면 서버가 멀쩡히 500 을 돌려준 상황에도 "연결할 수 없습니다" 가 떠서 원인 파악을
+ * 늦춥니다. 5xx 의 안내는 화면 쪽 transportMessage 가 맡습니다.
+ */
 function isUnreachable(error: AxiosError): boolean {
-  const status = error.response?.status
-  if (status === undefined) return true
-  return status >= 500
+  return error.response === undefined
 }
 
 let refreshInFlight: Promise<void> | null = null

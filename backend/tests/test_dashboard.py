@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -8,7 +8,8 @@ from pydantic import ValidationError
 from app.api.deps import get_current_member
 from app.db.session import get_db
 from app.main import app
-from app.models.sales import SalesDeal
+from app.models.configuration import ActivityCategory
+from app.models.crm import Activity
 from app.models.workspace import Member, Notice
 from app.schemas.dashboard import DashboardParams
 
@@ -26,12 +27,18 @@ class _Result:
         assert self.scalar is not _MISSING
         return self.scalar
 
+    def scalar_one_or_none(self):
+        return None if self.scalar is _MISSING else self.scalar
+
     def one(self):
         assert self.row is not None
         return self.row
 
     def all(self):
         return self.rows
+
+    def scalars(self):
+        return self
 
 
 class _Db:
@@ -51,6 +58,10 @@ class _Db:
 
     @staticmethod
     def _key(sql: str) -> str:
+        # 수신자 조회는 notice_target 에서 시작한다. 지시 조회 SQL 안에도 notice_target 이
+        # EXISTS 로 들어가므로 FROM 절 모양으로 갈라야 본 쿼리와 섞이지 않는다.
+        if "public.notice_target join public.member" in sql:
+            return "notice_targets"
         # sales_target 과 purchase_order 를 sales_deal 보다 먼저 본다. join 으로 겹친다.
         if "public.sales_target" in sql:
             return "target_sum"
@@ -63,9 +74,17 @@ class _Db:
         if "public.activity" in sql:
             if "group by" in sql:
                 return "weekly_activities"
-            return "today" if "distinct" in sql else "follow_ups"
+            if "distinct" in sql:
+                return "today"
+            # 후속업무는 집계 세 개, 오늘 목록은 행 조회다.
+            return "follow_ups" if "count(" in sql else "today_rows"
         if "public.sales_deal" in sql:
-            return "deal_sums" if "sum(" in sql else "renewals"
+            if "sum(" in sql:
+                return "deal_sums"
+            return "renewal_count" if "count(" in sql else "renewal_lead"
+        # deps.owner_scope 가 고른 담당자가 같은 팀의 활성 구성원인지 확인하는 쿼리다.
+        if "public.member" in sql:
+            return "member_ids"
         raise AssertionError(f"예상하지 못한 쿼리: {sql[:120]}")
 
     @staticmethod
@@ -73,10 +92,14 @@ class _Db:
         return {
             "notice_count": _Result(scalar=0),
             "notice_rows": _Result(rows=[]),
+            "notice_targets": _Result(rows=[]),
+            "member_ids": _Result(rows=[]),
             "today": _Result(row=(0, 0)),
+            "today_rows": _Result(rows=[]),
             "follow_ups": _Result(row=(0, 0, 0)),
             "support": _Result(row=(0, 0, 0)),
-            "renewals": _Result(rows=[]),
+            "renewal_count": _Result(scalar=0),
+            "renewal_lead": _Result(scalar=None),
             "target_sum": _Result(scalar=None),
             "deal_sums": _Result(row=(None, None)),
             "weekly_activities": _Result(rows=[]),
@@ -108,54 +131,71 @@ def _member(*, role: str = "member") -> Member:
     )
 
 
-def _notice(author: Member) -> Notice:
+def _notice(author: Member, *, type: str = "NOTICE") -> Notice:
     return Notice(
         id=uuid4(),
         team_id=author.team_id,
         author_member_id=author.id,
-        recipient_member_id=None,
+        type=type,
         tag="공지",
         title="합성 공지",
-        body="합성 본문",
+        body="<p>합성 본문</p>",
         image_storage_key="team/secret-object-key.png",
         image_alt=None,
         published_at=NOW,
         due_at=None,
         due_text=None,
+        display_start_date=NOW.date(),
+        display_end_date=None,
+        is_hidden=False,
+        sort_order=0,
+        updated_at=NOW,
+        deleted_at=None,
     )
 
 
-def _deal(member: Member) -> SalesDeal:
-    return SalesDeal(
+def _category(team_id) -> ActivityCategory:
+    return ActivityCategory(
         id=uuid4(),
-        team_id=member.team_id,
-        deal_no="SL-DL-2026-0001",
-        customer_company_id=uuid4(),
-        customer_contact_id=None,
-        owner_member_id=member.id,
-        product_id=None,
-        sales_pipeline_id=uuid4(),
-        sales_pipeline_stage_id=uuid4(),
-        sales_deal_type_id=uuid4(),
-        title="합성 딜",
-        description=None,
-        deal_amount=98_000_000,
-        opened_on=date(2026, 1, 5),
-        closed_on=None,
-        quote_no=None,
-        quote_issued_on=None,
-        quote_valid_until=None,
-        contract_no="FM-CT-2026-0001",
-        contract_signed_on=date(2026, 2, 1),
-        contract_ends_on=date(2026, 9, 1),
-        warranty_terms=None,
-        expected_delivery_at=None,
-        memo=None,
-        stage_position=0,
+        team_id=team_id,
+        code="visit",
+        name="방문",
+        tone="blue",
+        position=1,
         deleted_at=None,
         created_at=NOW,
         updated_at=NOW,
+        activity_type="meeting",
     )
+
+
+def _activity_row(member: Member, *, hour: int, title: str):
+    """오늘 목록 한 줄. 회사·고객·상품이 없는 최소 형태로 둔다."""
+    activity = Activity(
+        id=uuid4(),
+        team_id=member.team_id,
+        owner_member_id=member.id,
+        customer_contact_id=None,
+        end_user_contact_id=None,
+        activity_type="meeting",
+        activity_category_id=uuid4(),
+        title=title,
+        starts_at=datetime(2026, 8, 18, hour, tzinfo=UTC),
+        ends_at=None,
+        all_day=False,
+        due_at=None,
+        location=None,
+        activity_action_tag_id=None,
+        completed_at=None,
+        note=None,
+        deleted_at=None,
+        created_at=NOW,
+        updated_at=NOW,
+        product_id=None,
+        sales_deal_id=None,
+        purchase_order_id=None,
+    )
+    return (activity, member.display_name, None, None, None, None, _category(member.team_id), None)
 
 
 def _client(db: _Db, member: Member) -> TestClient:
@@ -215,7 +255,6 @@ def test_manager_cannot_use_other_team_owner():
 
 def test_cards_and_weekly_band_shape():
     member = _member()
-    deal = _deal(member)
     db = _Db(
         notice_count=_Result(scalar=5),
         notice_rows=_Result(rows=[(_notice(member), member.display_name)]),
@@ -223,7 +262,8 @@ def test_cards_and_weekly_band_shape():
         today=_Result(row=(1, 2)),
         follow_ups=_Result(row=(4, 1, 2)),
         support=_Result(row=(3, 2, 1)),
-        renewals=_Result(rows=[(deal, "새봄정형외과")]),
+        renewal_count=_Result(scalar=1),
+        renewal_lead=_Result(scalar="새봄정형외과"),
         deal_sums=_Result(row=(98_000_000, 30_000_000)),
     )
 
@@ -242,9 +282,9 @@ def test_cards_and_weekly_band_shape():
     # 서버가 기준 일수를 정하지 않는다. 요청이 준 값을 그대로 되돌려 준다.
     assert renewal["within_days"] == 30
     assert renewal["count"] == 1
-    assert renewal["items"][0]["contract_no"] == "FM-CT-2026-0001"
-    assert renewal["items"][0]["contract_ends_on"] == "2026-09-01"
-    assert renewal["items"][0]["customer_company_name"] == "새봄정형외과"
+    # 목록 전체는 카드를 눌렀을 때 /api/sales-deals 가 준다. 여기는 앞자리 하나만.
+    assert renewal["lead_company_name"] == "새봄정형외과"
+    assert "items" not in renewal
     # 표시 문구는 서버가 만들지 않는다.
     assert "외 1곳" not in response.text
 
@@ -290,7 +330,7 @@ def test_renewal_window_is_caller_supplied():
 
     assert body["contract_renewals"]["within_days"] is None
     # 생략하면 기준일 이후 만료 예정 전체를 보므로 상한 조건이 붙지 않는다.
-    sql = db.sql_for("renewals")
+    sql = db.sql_for("renewal_count")
     assert "contract_ends_on >=" in sql
     assert "contract_ends_on <=" not in sql
 
@@ -309,8 +349,12 @@ def test_missing_target_gives_null_rate_not_zero():
     assert target["target_month"] == "2026-08"
 
 
-def test_notice_queries_ignore_owner_scope():
-    """공지와 지시는 팀 공개 범위다. 담당자 조건이 섞이면 안 된다."""
+def test_notice_queries_do_not_use_the_owner_column():
+    """공지와 지시는 담당자(owner_member_id)가 없는 글이다.
+
+    지시를 담당자로 좁히는 일은 수신자 표(notice_target)가 하지, 업무 집계처럼
+    owner_member_id 로 하지 않는다.
+    """
     member = _member()
     db = _Db()
     with _client(db, member) as client:
@@ -322,3 +366,98 @@ def test_notice_queries_ignore_owner_scope():
 
     # 반대로 업무 집계에는 담당자 조건이 들어간다.
     assert "activity.owner_member_id" in db.sql_for("today")
+
+
+def test_today_activities_come_with_the_card_number():
+    """오늘 일정은 진입하자마자 화면에 선다. 카드 숫자와 목록 길이가 같아야 한다."""
+    member = _member()
+    db = _Db(
+        today=_Result(row=(1, 2)),
+        today_rows=_Result(
+            rows=[
+                _activity_row(member, hour=1, title="합성 오전 미팅"),
+                _activity_row(member, hour=5, title="합성 오후 미팅"),
+            ]
+        ),
+    )
+    with _client(db, member) as client:
+        body = client.get("/api/dashboard?date=2026-08-18").json()
+
+    assert body["activities"]["count"] == 2
+    assert len(body["today_activities"]) == 2
+    assert [item["title"] for item in body["today_activities"]] == [
+        "합성 오전 미팅",
+        "합성 오후 미팅",
+    ]
+    # 목록도 카드와 같은 하루 경계·같은 담당자 범위를 쓴다. 한쪽만 넓으면 숫자가 어긋난다.
+    sql = db.sql_for("today_rows")
+    assert "activity.owner_member_id" in sql
+    assert "activity.starts_at >=" in sql
+    assert "activity.starts_at <" in sql
+
+
+def test_weekly_start_date_is_caller_supplied():
+    """화면이 오늘을 셋째 칸에 두는 7일을 세우므로 시작일을 요청이 정한다."""
+    member = _member()
+    db = _Db()
+    with _client(db, member) as client:
+        # 2026-08-17 은 월요일이다. 일요일로 되감기지 않아야 한다.
+        weekly = client.get("/api/dashboard?date=2026-08-18&weekly_start_date=2026-08-17").json()[
+            "weekly"
+        ]
+
+    assert weekly["start_date"] == "2026-08-17"
+    assert weekly["end_date"] == "2026-08-23"
+    assert weekly["days"][0]["date"] == "2026-08-17"
+    assert len(weekly["days"]) == 7
+
+
+def test_notice_items_omit_the_body():
+    """티커는 제목만 세운다. 본문은 눌렀을 때 /api/notices/{id} 가 준다."""
+    member = _member()
+    db = _Db(
+        notice_count=_Result(scalar=5),
+        notice_rows=_Result(rows=[(_notice(member), member.display_name)]),
+    )
+    with _client(db, member) as client:
+        response = client.get("/api/dashboard?date=2026-08-18")
+
+    item = response.json()["notices"]["items"][0]
+    assert item["title"] == "합성 공지"
+    assert item["author_display_name"] == member.display_name
+    assert "body" not in item
+    assert "합성 본문" not in response.text
+
+
+def test_manager_directives_follow_the_owner_scope():
+    """스위처가 고른 담당자에게 간 지시만 카드에 선다."""
+    manager = _member(role="manager")
+    teammate_id = uuid4()
+    db = _Db(member_ids=_Result(rows=[teammate_id]))
+
+    with _client(db, manager) as client:
+        response = client.get(f"/api/dashboard?date=2026-08-18&owner_member_id={teammate_id}")
+
+    assert response.status_code == 200
+    # 지시를 훑는 쿼리는 모두 고른 담당자로 좁혀져야 한다. 공지는 수신자가 없어 이 조건이 없다.
+    directive_sqls = [sql for sql in db.statements if "public.notice_target" in sql]
+    assert directive_sqls, "지시 조회가 실행되지 않았습니다."
+    assert all("public.notice_target.member_id in" in sql for sql in directive_sqls)
+
+
+def test_directive_items_carry_their_recipients():
+    """팀장은 남에게 간 지시도 본다. 누구에게 간 것인지 함께 세운다."""
+    manager = _member(role="manager")
+    directive = _notice(manager, type="DIRECTIVE")
+    db = _Db(
+        notice_count=_Result(scalar=1),
+        notice_rows=_Result(rows=[(directive, manager.display_name)]),
+        notice_targets=_Result(rows=[(directive.id, uuid4(), "김지훈")]),
+    )
+
+    with _client(db, manager) as client:
+        response = client.get("/api/dashboard?date=2026-08-18")
+
+    assert response.status_code == 200
+    item = response.json()["directives"]["items"][0]
+    assert [target["display_name"] for target in item["targets"]] == ["김지훈"]

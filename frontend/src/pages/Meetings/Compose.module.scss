@@ -1,70 +1,15 @@
+/* 나가는 길 하나만 있는 머리말입니다. 오른쪽 끝, 상세 화면과 같은 자리입니다. */
 .head {
   display: flex;
-  align-items: center;
-  gap: var(--s3);
-  flex-wrap: wrap;
-  margin-bottom: var(--s4);
+  justify-content: flex-end;
+  margin-bottom: var(--s3);
 }
 
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-
-  &:hover {
-    color: var(--blue);
-  }
-}
-
-.title {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s2);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.016em;
-}
-
-.subject {
-  color: var(--ink-2);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.when {
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.headActions {
-  display: flex;
-  gap: var(--s2);
-  margin-left: auto;
-
-  @include md {
-    margin-left: 0;
-    width: 100%;
-  }
-}
-
-.savedNote,
 .locked {
   margin-bottom: var(--s3);
   padding: var(--s3) var(--s4);
   border-radius: var(--r-md);
   font-size: 13px;
-}
-
-.savedNote {
-  background: var(--green-tint);
-  color: var(--green-ink);
-}
-
-.locked {
   background: var(--orange-tint);
   color: var(--orange-ink);
 
@@ -88,46 +33,50 @@
   }
 }
 
-/* 왼쪽 = 들은 것, 오른쪽 = 정리한 것. */
+/* 왼쪽 = 참고 자료, 오른쪽 = 최종 작업 영역. */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--s4);
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  gap: var(--s5);
   align-items: start;
 
-  @include md {
+  @include lg {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
   }
 }
 
-.col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
+/*
+ * 참고 열. 흰 면이되 바닥에 붙어 있습니다 — 테두리만 있고 그림자가 없습니다.
+ * 오른쪽 보고서만 그림자로 떠 있어서, 흰 면이 둘이어도 어느 쪽을 고치는 중인지
+ * 한눈에 갈립니다. 참고판은 놓여 있고 문서는 들려 있습니다.
+ */
+.reference {
   min-width: 0;
-}
-
-.panel {
-  @include card;
-
   padding: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 
   @include md {
     padding: var(--s4);
   }
 }
 
-.panelHead {
+/* 패널의 머리. 탭이든 제목이든 같은 자리에 같은 높이로 섭니다. */
+.refHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s3);
+  min-height: var(--control-h);
+  margin-bottom: var(--s5);
+}
 
-  h2 {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
+.refTitle {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .pill {
@@ -136,103 +85,43 @@
   font-size: 11px;
 }
 
-.panelNote {
-  margin: var(--s2) 0 var(--s3);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-/* 미팅 브리핑. 사실 목록 아래에 한 문단으로 깝니다. */
-.brief {
-  margin-top: var(--s3);
-  padding-top: var(--s3);
-  border-top: 1px solid var(--line);
-  color: var(--ink-2);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.transcript {
-  width: 100%;
-  padding: var(--s3);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.7;
-  resize: vertical;
-  outline: none;
-
-  &:focus {
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--blue-ring);
+/*
+ * 인쇄가 곧 PDF 입니다. 참고 열과 조작부를 걷어내고 보고서 한 장만 남깁니다.
+ * 입력칸은 테두리를 지우고 스크롤 대신 내용만큼 펴야 잘리지 않습니다.
+ */
+@media print {
+  // 클래스를 겹쳐 씁니다. 화면용 규칙과 특정도가 같으면 파일이 붙는 순서에 좌우돼
+  // 개발 서버에서 무엇이 이길지 달라집니다.
+  .head.head,
+  .locked.locked,
+  .reference.reference {
+    display: none;
   }
-}
 
-/* 구조화 버튼 — 이 화면에서 상태를 바꾸는 유일한 자리라 따로 세웁니다. */
-.generate {
-  @include card;
+  .layout.layout {
+    display: block;
+  }
 
-  padding: var(--s5);
-  text-align: center;
-  border-color: rgba(0, 122, 255, 0.28);
-}
+  .page {
+    :global(input),
+    :global(textarea),
+    :global(select) {
+      height: auto !important;
+      padding: 0 !important;
+      border: 0 !important;
+      background: none !important;
+      box-shadow: none !important;
+      overflow: visible !important;
+      resize: none;
+      // 줄 수가 아니라 내용만큼만 차지하게 합니다. rows 로 잡힌 높이를 그대로 두면
+      // 한 줄짜리 답 아래에 빈 칸 세 줄이 인쇄됩니다.
+      field-sizing: content;
+    }
 
-.basis {
-  margin-top: var(--s2);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.hint {
-  margin-top: var(--s1);
-  color: var(--orange-ink);
-  font-size: 12px;
-}
-
-.blank {
-  padding: var(--s8) var(--s4);
-  text-align: center;
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-md);
-  color: var(--ink-2);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.blankSub {
-  margin-top: var(--s1);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-/* 어디를 보고 채웠는지. 값 아래에 붙어야 대조가 됩니다. */
-.evidence {
-  margin-top: var(--s4);
-  padding: var(--s3);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.missing,
-.okay {
-  margin-bottom: var(--s3);
-  font-size: 12px;
-}
-
-.missing {
-  color: var(--orange-ink);
-}
-
-.okay {
-  color: var(--green-ink);
-}
-
-.submit {
-  width: 100%;
+    // 빈 칸의 안내 문구는 종이에 남길 내용이 아닙니다.
+    :global(input::placeholder),
+    :global(textarea::placeholder) {
+      color: transparent;
+    }
+  }
 }

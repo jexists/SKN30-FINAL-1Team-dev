@@ -31,3 +31,46 @@
   color: var(--red-ink);
   font-size: 11px;
 }
+
+/*
+ * 두 값 중 하나. 체크박스는 켜진 쪽만 이름이 있어 "끄면 무엇인가"를 말하지 못합니다.
+ * 미방문도 엄연한 상태라 두 칸을 나란히 두고 이름을 둘 다 적습니다.
+ */
+.choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  height: var(--control-h);
+  padding: 3px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.choiceItem {
+  @include flex-center;
+
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+
+  &:has(input:checked) {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--sh-1);
+  }
+
+  // 글자가 없는 라디오라 초점 테두리를 칸 전체가 대신 받습니다.
+  &:has(input:focus-visible) {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  &:has(input:disabled) {
+    cursor: default;
+  }
+}

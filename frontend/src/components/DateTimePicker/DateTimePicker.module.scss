@@ -1,0 +1,98 @@
+.cell {
+  min-width: 0;
+}
+
+// 피커의 입력칸. 라이브러리가 감싼 껍데기가 아니라 이 칸이 다른 입력과
+// 같은 모양이어야 폼이 한 벌로 읽힙니다.
+.input {
+  width: 100%;
+  padding: 9px var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
+
+  &:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+}
+
+.isInvalid {
+  border-color: var(--red);
+}
+
+// react-datepicker 의 기본 스킨은 이 앱과 다른 시대의 것이라, 팝업만
+// 프로젝트 토큰으로 다시 칠합니다. 라이브러리 클래스라 :global 로 잡습니다.
+.cell :global {
+  .react-datepicker-wrapper {
+    display: block;
+  }
+
+  .react-datepicker {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--sh-pop);
+    background: var(--surface);
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--ink);
+  }
+
+  .react-datepicker__header {
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+    padding-top: 10px;
+  }
+
+  .react-datepicker__current-month,
+  .react-datepicker-time__header {
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .react-datepicker__day-name,
+  .react-datepicker__day,
+  .react-datepicker__time-list-item {
+    color: var(--ink-2);
+  }
+
+  .react-datepicker__day:hover,
+  .react-datepicker__time-list-item:hover {
+    border-radius: var(--r-sm);
+    background: var(--fill);
+  }
+
+  .react-datepicker__day--selected,
+  .react-datepicker__day--keyboard-selected,
+  .react-datepicker__time-list-item--selected {
+    border-radius: var(--r-sm);
+    background: var(--blue) !important;
+    color: #fff !important;
+    font-weight: 600;
+  }
+
+  .react-datepicker__day--today {
+    color: var(--blue-press);
+    font-weight: 700;
+  }
+
+  .react-datepicker__day--outside-month {
+    color: var(--muted-2);
+  }
+
+  .react-datepicker__triangle {
+    display: none;
+  }
+
+  // 팝업은 모달 안에서 떠야 합니다. 모달의 쌓임 맥락 위로 올립니다.
+  .react-datepicker-popper {
+    z-index: 5;
+  }
+}

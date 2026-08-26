@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from app.api.admin import LOCAL_DEV_PASSWORD
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
@@ -87,16 +88,23 @@ class _CountResult:
 
 
 class _SupabaseSpy:
-    """invite / delete 호출을 기록한다. 되돌리기가 실제로 일어났는지 보려고 둔다."""
+    """invite / create / delete 호출을 기록한다. 되돌리기가 실제로 일어났는지 보려고 둔다."""
 
     def __init__(self, *, invite: UUID | Exception = INVITED_ID):
         self.invite_outcome = invite
         self.invited: list[str] = []
+        self.created: list[tuple[str, str]] = []
         self.deleted: list[UUID] = []
 
     async def invite_user(self, *, email: str, redirect_to: str) -> UUID:
         self.invited.append(email)
         self.redirect_to = redirect_to
+        if isinstance(self.invite_outcome, Exception):
+            raise self.invite_outcome
+        return self.invite_outcome
+
+    async def create_confirmed_user(self, *, email: str, password: str) -> UUID:
+        self.created.append((email, password))
         if isinstance(self.invite_outcome, Exception):
             raise self.invite_outcome
         return self.invite_outcome
@@ -118,6 +126,9 @@ def _member(member_id: UUID) -> Member:
 
 @pytest.fixture(autouse=True)
 def admin_environment(monkeypatch):
+    # local 이면 초대 대신 고정 비밀번호 경로를 탄다. 개발자 .env 가 APP_ENV=local 이라
+    # 여기서 못박지 않으면 초대 흐름 테스트가 조용히 다른 경로를 보게 된다.
+    monkeypatch.setattr(settings, "app_env", "test")
     monkeypatch.setattr(settings, "supabase_url", "https://project.supabase.test")
     monkeypatch.setattr(settings, "supabase_secret_key", SecretStr("secret-test-key"))
     monkeypatch.setattr(settings, "admin_user_ids", str(ADMIN_ID))
@@ -129,6 +140,7 @@ def admin_environment(monkeypatch):
 
 def _client(*, signed_in_as: UUID | None, db: _Db, spy: _SupabaseSpy, monkeypatch) -> TestClient:
     monkeypatch.setattr(supabase_auth, "invite_user", spy.invite_user)
+    monkeypatch.setattr(supabase_auth, "create_confirmed_user", spy.create_confirmed_user)
     monkeypatch.setattr(supabase_auth, "delete_user", spy.delete_user)
 
     async def override_db():
@@ -197,6 +209,55 @@ def test_admin_creates_team_and_member_and_sends_one_invite(monkeypatch):
     assert team.company_name == "세일즈러브"
     assert member.team_id == team.id
     assert member.role_code == "member"
+
+
+def test_instant_skips_the_invite_and_fixes_the_password(monkeypatch):
+    """메일을 받을 곳이 없을 때 쓰는 경로. 메일 대신 고정 비밀번호로 계정이 서야 한다."""
+    monkeypatch.setattr(settings, "app_env", "local")
+    spy = _SupabaseSpy()
+    db = _Db()
+    client = _client(signed_in_as=ADMIN_ID, db=db, spy=spy, monkeypatch=monkeypatch)
+
+    with client:
+        response = _post(client, _payload(email="아무거나@test.test", instant=True))
+
+    assert response.status_code == 201
+    assert spy.invited == []
+    assert spy.created == [("아무거나@test.test", LOCAL_DEV_PASSWORD)]
+    assert db.committed and not db.rolled_back
+
+    member = next(entity for entity in db.added if isinstance(entity, Member))
+    assert member.id == INVITED_ID
+    assert member.email == "아무거나@test.test"
+
+
+def test_local_still_invites_when_instant_is_not_asked_for(monkeypatch):
+    """로컬이어도 고르는 쪽이 정한다. local 이라는 이유만으로 메일을 건너뛰지 않는다."""
+    monkeypatch.setattr(settings, "app_env", "local")
+    spy = _SupabaseSpy()
+    client = _client(signed_in_as=ADMIN_ID, db=_Db(), spy=spy, monkeypatch=monkeypatch)
+
+    with client:
+        response = _post(client, _payload())
+
+    assert response.status_code == 201
+    assert spy.created == []
+    assert spy.invited == ["new.member@salesluv.test"]
+
+
+def test_instant_is_refused_outside_local_and_writes_nothing(monkeypatch):
+    """배포 환경에서는 조용히 초대로 넘기지 않고 거절한다."""
+    spy = _SupabaseSpy()
+    db = _Db()
+    client = _client(signed_in_as=ADMIN_ID, db=db, spy=spy, monkeypatch=monkeypatch)
+
+    with client:
+        response = _post(client, _payload(instant=True))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "instant_local_only"
+    assert spy.created == [] and spy.invited == []
+    assert db.added == [] and not db.committed
 
 
 def test_db_failure_removes_the_invited_supabase_user(monkeypatch):

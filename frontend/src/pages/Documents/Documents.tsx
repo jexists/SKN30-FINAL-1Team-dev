@@ -8,16 +8,15 @@ import { useSearchParams } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
+import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { UploadIcon } from '@/components/icons'
-import Pagination from '@/components/Pagination'
+import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import type { DocumentCategory } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
-import { latestOf } from './catalog'
-import { compareBy, linkLabel, type SortState } from './columns'
 import CategoryTabs from './components/CategoryTabs'
 import DocumentDrawer from './components/DocumentDrawer'
 import DocumentTable from './components/DocumentTable'
@@ -38,8 +37,6 @@ const RANGES = [
 const DEFAULT_RANGE = '12'
 
 export default function Documents() {
-  const { documents, findDocument, loading, error, pending, reload, addDocument, addVersion } =
-    useDocuments()
   // 자료를 올리는 것은 팀장 몫입니다. 팀원은 받아 보기만 합니다.
   const { profile, isManager } = useCurrentUser()
   const showOwner = isManager
@@ -49,21 +46,12 @@ export default function Documents() {
   const owner = showOwner ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
 
-  const ownerOptions = useMemo(() => {
-    const names = [...new Set(documents.map((doc) => latestOf(doc).owner))].sort()
-    return [
-      { value: '', label: '등록자 전체' },
-      ...names.map((name) => ({ value: name, label: name })),
-    ]
-  }, [documents])
   const category = params.get('category') ?? ''
 
   // 타이핑 중에도 입력이 밀리지 않도록 목록 계산만 한 박자 늦춥니다.
   const deferredQuery = useDeferredValue(query)
 
-  const [sort, setSort] = useState<SortState>(null)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [openId, setOpenId] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
   /** 업로드 모달. 'new' 는 새 문서, 문서 id 면 그 문서의 새 버전입니다. */
@@ -88,54 +76,51 @@ export default function Documents() {
     return iso(addDays(TODAY, -Math.round(months * 30.4)))
   }, [range])
 
-  // 분류를 뺀 나머지 조건까지만 거른 목록입니다. 탭의 건수를 여기서 셉니다.
-  const beforeCategory = useMemo(() => {
-    const needle = deferredQuery.trim().toLowerCase()
-    return documents.filter((doc) => {
-      const latest = latestOf(doc)
-      if (owner !== '' && latest.owner !== owner) return false
-      if (fromISO !== null && latest.uploaded < fromISO) return false
-      if (needle === '') return true
-      // 숨은 값(설명·태그·파일명)까지 봅니다. 표에 안 보여도 사람은 그 낱말로 찾습니다.
-      return [doc.title, doc.description, latest.fileName, latest.owner, linkLabel(doc)]
-        .concat(doc.tags)
-        .join(' ')
-        .toLowerCase()
-        .includes(needle)
-    })
-  }, [documents, owner, fromISO, deferredQuery])
-
-  const categoryCounts = useMemo(() => {
-    const map = new Map<DocumentCategory, number>()
-    for (const doc of beforeCategory) map.set(doc.category, (map.get(doc.category) ?? 0) + 1)
-    return map
-  }, [beforeCategory])
-
-  const matched = useMemo(() => {
-    const rows =
-      category === '' ? beforeCategory : beforeCategory.filter((doc) => doc.category === category)
-    if (!sort) return rows
-    const sign = sort.dir === 'asc' ? 1 : -1
-    const compare = compareBy(sort.id)
-    return [...rows].sort((a, b) => sign * compare(a, b))
-  }, [beforeCategory, category, sort])
-
-  // 결과가 줄어들어 현재 페이지가 사라졌으면 마지막 페이지로 당겨 옵니다.
-  const pageCount = Math.max(1, Math.ceil(matched.length / pageSize))
-  const safePage = Math.min(page, pageCount)
-  const pageRows = useMemo(
-    () => matched.slice((safePage - 1) * pageSize, safePage * pageSize),
-    [matched, safePage, pageSize],
+  const documentQuery = useMemo(
+    () => ({
+      q: deferredQuery,
+      category: category as DocumentCategory | '',
+      uploaderMemberId: owner,
+      fromISO,
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
+    }),
+    [deferredQuery, category, owner, fromISO, page],
   )
 
-  const onSort = useCallback((id: string) => {
-    // 오름 → 내림 → 해제. 원래 순서로 되돌릴 방법이 있어야 합니다.
-    setSort((prev) => {
-      if (prev?.id !== id) return { id, dir: 'asc' }
-      if (prev.dir === 'asc') return { id, dir: 'desc' }
-      return null
-    })
-  }, [])
+  const {
+    documents: pageRows,
+    total,
+    counts,
+    uploaders,
+    findDocument,
+    loading,
+    error,
+    pending,
+    reload,
+    addDocument,
+    addVersion,
+  } = useDocuments(documentQuery)
+
+  // 분류 탭 옆 건수는 서버가 셉니다. 고른 분류는 빼고 센 값입니다.
+  const categoryCounts = useMemo(() => new Map(Object.entries(counts)), [counts])
+  const categoryTotal = useMemo(
+    () => [...categoryCounts.values()].reduce((sum, count) => sum + count, 0),
+    [categoryCounts],
+  )
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // 등록자 선택지. 받아 둔 목록에서 뽑으면 지금 쪽에 있는 사람만 나옵니다.
+  const ownerOptions = useMemo(
+    () => [
+      { value: '', label: '등록자 전체' },
+      ...uploaders.map((item) => ({ value: item.id, label: item.name })),
+    ],
+    [uploaders],
+  )
+
+  // 헤더 정렬을 끄므로 누를 일이 없습니다. 고객 목록과 같은 처리입니다.
+  const ignoreSort = useCallback(() => undefined, [])
 
   const clearFilters = useCallback(() => {
     setParams(new URLSearchParams(), { replace: true })
@@ -175,7 +160,7 @@ export default function Documents() {
 
   // 첫 진입입니다. 툴바·탭·표가 차례로 나타나면 화면이 두세 번 들썩이므로
   // 화면 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
-  if (loading && documents.length === 0 && !error) {
+  if (loading && pageRows.length === 0 && !error) {
     return (
       <section className={styles.page} aria-busy={loading || pending}>
         {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
@@ -190,14 +175,7 @@ export default function Documents() {
       {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
       <h1 className="sr-only">자료실</h1>
 
-      {error && (
-        <div className={styles.state} role="alert">
-          <span>{error}</span>
-          <Button variant="outline" size="sm" onClick={reload}>
-            다시 시도
-          </Button>
-        </div>
-      )}
+      <ErrorToast message={error} onRetry={reload} />
 
       <div className={styles.toolbar}>
         <SearchInput
@@ -241,18 +219,18 @@ export default function Documents() {
       <CategoryTabs
         value={category}
         countOf={(id) => categoryCounts.get(id) ?? 0}
-        total={beforeCategory.length}
+        total={categoryTotal}
         onChange={(next) => setParam('category', next)}
       />
 
-      {!error && loading && documents.length > 0 && (
+      {!error && loading && pageRows.length > 0 && (
         <InlineLoader label="자료 목록을 새로고침하는 중입니다." />
       )}
 
       <DocumentTable
         rows={pageRows}
-        sort={sort}
-        onSort={onSort}
+        sort={null}
+        onSort={ignoreSort}
         onOpen={setOpenId}
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
@@ -261,19 +239,8 @@ export default function Documents() {
         onUpload={() => setUploading('new')}
       />
 
-      {matched.length > 0 && (
-        <Pagination
-          page={safePage}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          total={matched.length}
-          unit="건"
-          onPage={setPage}
-          onPageSize={(size) => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
+      {pageRows.length > 0 && (
+        <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
       )}
 
       {openDoc && (
