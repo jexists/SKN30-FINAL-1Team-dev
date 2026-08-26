@@ -88,17 +88,8 @@ export const dealBoardPath = () => `${ROUTES.DEALS}/board`
  */
 export const quoteNewPath = () => `${ROUTES.QUOTES}?new=1`
 
-/** 계약 추가. 견적과 같은 방식입니다. */
+/** 계약 추가. 견적과 같은 방식입니다. 캘린더의 일정 등록이 이 문으로 들어옵니다. */
 export const contractCreatePath = () => `${ROUTES.CONTRACTS}?new=1`
-
-/** 계약 상세. 계약번호(FM-CT-2026-0039)를 그대로 씁니다. */
-export const contractPath = (no: string) => `${ROUTES.CONTRACTS}/${no}`
-
-/** 계약 추가 화면. stageId 를 주면 그 단계로 시작합니다. */
-export const contractNewPath = (stageId?: string) =>
-  stageId
-    ? `${ROUTES.CONTRACTS}/new?stage=${encodeURIComponent(stageId)}`
-    : `${ROUTES.CONTRACTS}/new`
 
 /** 발주 상세. 발주번호(FM-PO-2026-0021)를 그대로 씁니다. */
 export const orderPath = (no: string) => `${ROUTES.ORDERS}/${no}`
