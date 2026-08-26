@@ -57,6 +57,15 @@
   상품 목록(`GET /api/products`)은 발주·영업 화면이 함께 쓰므로 팀원에게도 그대로 열려 있고,
   쓰기(`POST /api/products`, 사진 업로드)만 팀장으로 제한합니다.
 
+- `20260825_0005_document_summary.sql`: 자료요약 Agent가 사용하는 문서 추출·요약 결과 컬럼과
+  `document_chunk` RAG 테이블·인덱스를 추가합니다. `20260819_0001`부터 기존 후속 migration을
+  먼저 적용한 뒤 실행해야 합니다. 현재 저장소에는 파일만 추가되어 있으며 실제 적용 여부는
+  대상 Supabase에서 확인해야 합니다.
+- `20260825_0006_business_card_archive.sql`: 명함 원본을 등록된 고객 담당자와 연결할 수 있도록
+  `document.customer_contact_id`와 팀 범위 인덱스를 추가합니다.
+- `20260825_0007_runtime_schema_alignment.sql`: 기존 Supabase에 누락된 `notice.recipient_member_id`를
+  추가하고, API enum에 없는 기존 `customer_contact.source_code='manual'`을 NULL로 정리합니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -70,6 +79,9 @@
 | 2026-08-24 | 개발 | `20260824_0003_customer_contact_assignees.sql` | session pooler | 성공. customer_company +1컬럼 / customer_contact +1컬럼 / customer_contact_assignee 신설(RLS on). 기존 고객 2건의 등록자·담당자를 owner_member_id 로 백필 |
 | 2026-08-24 | 개발 | `20260824_0004_customer_contact_visited.sql` | session pooler | 성공. customer_contact +1컬럼(`visited` boolean NOT NULL DEFAULT false). 기존 고객 2건 모두 기본값대로 미방문 |
 | 2026-08-24 | 개발 | `20260824_0004_product_fields.sql` | session pooler | 성공. product 4→9컬럼(`category_code`, `unit_price`, `shelf_life_months`, `memo`, `image_storage_key`). 기존 product 행이 0건이라 백필 대상 없음. `tests/test_models.py` 통과 |
+| 2026-08-25 | 개발 | `20260825_0005_document_summary.sql` | session pooler | 성공. file 추출·요약 컬럼과 `document_chunk` RAG 테이블 확인 |
+| 2026-08-25 | 개발 | `20260825_0006_business_card_archive.sql` | session pooler | 성공. document에 `customer_contact_id`와 명함 원본 연결 인덱스 추가 확인 |
+| 2026-08-25 | 개발 | `20260825_0007_runtime_schema_alignment.sql` | session pooler | 성공. notice 수신자 컬럼·인덱스 추가 및 비표준 source_code 1건 NULL 정리 확인 |
 
 ## 개발 DB 재구축 런북
 
