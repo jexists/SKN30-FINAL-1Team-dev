@@ -1,3 +1,5 @@
+import type { ContractBriefingOutput } from './contractAgent'
+
 /** 일정 종류. 배지 색이 여기에 묶여 있습니다. */
 export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth' | 'internal'
 
@@ -83,6 +85,8 @@ export interface AgendaItem extends AgendaSeed {
   startsAt?: string
   endsAt?: string | null
   allDay?: boolean
+  /** AI 추천 일정을 승인해 만든 활동에서, 브리핑 큐잉이 실패했을 때만 채워짐 */
+  briefingQueueWarning?: string | null
 }
 
 /**
@@ -117,6 +121,9 @@ export interface CalendarEvent {
   startsAt?: string
   endsAt?: string | null
   allDay?: boolean
+  /** AI 추천 일정을 승인할 때만 채운다 — schedule_management 실행 id. 있으면 서버가 등록
+   * 커밋 직후 브리핑 실행을 자동으로 큐잉한다. */
+  scheduleManagementRunId?: string | null
 }
 
 export interface ActivityRead {
@@ -147,6 +154,20 @@ export interface ActivityRead {
   note: string | null
   created_at: string
   updated_at: string
+  /** schedule_management_run_id로 브리핑을 큐잉하려다 실패했을 때만 채워짐 */
+  briefing_queue_warning?: string | null
+  /** 이 활동에 연결된 최신 브리핑 실행. 실행 기록 자체가 없으면(한 번도 요청 안 했으면) null */
+  ai_briefing?: AiBriefing | null
+}
+
+export type AiBriefingStatus = 'queued' | 'running' | 'completed' | 'failed'
+
+export interface AiBriefing {
+  run_id: string
+  status: AiBriefingStatus
+  content: ContractBriefingOutput | null
+  error: string | null
+  generated_at: string | null
 }
 
 export interface ActivityCreateRequest {
@@ -162,6 +183,8 @@ export interface ActivityCreateRequest {
   location?: string | null
   action_tag?: ActivityActionTagCode | null
   note?: string | null
+  /** AI가 추천한 일정 후보를 승인해서 등록할 때만 채운다 */
+  schedule_management_run_id?: string | null
 }
 
 export type ActivityPatchRequest = Partial<ActivityCreateRequest>

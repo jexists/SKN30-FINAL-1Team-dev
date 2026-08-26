@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
 from pydantic import (
@@ -71,6 +71,9 @@ class ActivityCreate(_WriteModel):
     location: ShortText | None = None
     action_tag: OptionCode | None = None
     note: Note | None = None
+    # AI가 추천한 일정 후보를 승인해서 등록하는 경우에만 채운다. 값이 있으면 등록 성공 후
+    # 브리핑 실행(contract_management_briefing)을 자동으로 큐에 넣는다.
+    schedule_management_run_id: UUID | None = None
 
     @model_validator(mode="after")
     def ends_after_start(self) -> Self:
@@ -148,6 +151,11 @@ class ActivityRead(BaseModel):
     note: str | None
     created_at: datetime
     updated_at: datetime
+    # 확정 미팅과 연결된 계약 에이전트 브리핑. 목록에서는 생략하고 상세 조회에서 채운다.
+    ai_briefing: dict[str, Any] | None = None
+    # schedule_management_run_id로 브리핑을 큐잉하려다 실패했을 때만 채운다 (등록 자체는
+    # 이미 성공한 뒤라 되돌리지 않는다). 성공하면 이 필드는 계속 비어 있다.
+    briefing_queue_warning: str | None = None
 
 
 class ActivityOptionRead(BaseModel):

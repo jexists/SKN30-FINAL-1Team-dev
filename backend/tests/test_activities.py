@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,6 +15,8 @@ from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product
 from app.models.workspace import Member
 from app.schemas.activities import ActivityCreate, ActivityPageParams, ActivityPatch
+from app.services import agent_runs as agent_run_service
+from app.services import contract_schedule_snapshots
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, tzinfo=UTC)
@@ -608,7 +611,10 @@ def test_detail_and_patch_share_scope_and_patch_revalidates_range():
     activity = _activity(member)
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
-    detail_db = _Db(_Result(rows=[_row(activity, member)]))
+    detail_db = _Db(
+        _Result(rows=[_row(activity, member)]),
+        _Result(scalar=None),  # 연결된 AI 브리핑 없음
+    )
     with _client(detail_db, member) as client:
         detail = client.get(f"/api/activities/{activity.id}")
     assert detail.status_code == 200
@@ -700,6 +706,95 @@ def test_write_failure_rolls_back_transaction():
         )
 
     assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkeypatch):
+    """AI 추천 후보를 승인해서 등록하면 등록 성공 뒤 브리핑 실행이 자동으로 큐잉된다."""
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+    scheduled: list[UUID] = []
+
+    async def _fake_execute(run_id: UUID) -> None:
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    async def _fake_build_briefing_snapshot(db, member, activity_id):
+        return {"customer_company": {"id": "company-1", "name": "합성 고객사"}}
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots, "build_briefing_snapshot", _fake_build_briefing_snapshot
+    )
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    parent_run = SimpleNamespace(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code="schedule_management",
+        status_code="completed",
+    )
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
+        _Result(scalar=parent_run),  # _parent_run_or_409
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "activity_type": "meeting",
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(parent_run.id),
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["briefing_queue_warning"] is None
+    assert len(db.added) == 2
+    briefing_run = db.added[1]
+    assert briefing_run.agent_code == "contract_management_briefing"
+    assert briefing_run.parent_run_id == parent_run.id
+    assert briefing_run.source_refs["activity_id"] == str(db.added[0].id)
+    assert scheduled == [briefing_run.id]
+    assert db.commit_count == 2
+    assert db.rollback_count == 0
+
+
+def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(monkeypatch):
+    """브리핑 큐잉이 실패해도 이미 커밋된 일정 등록은 되돌리지 않고 경고만 응답에 싣는다."""
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    missing_run_id = uuid4()
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
+        _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "activity_type": "meeting",
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(missing_run_id),
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["briefing_queue_warning"] == "parent_run_not_found"
+    assert len(db.added) == 1
+    assert db.commit_count == 1
     assert db.rollback_count == 1
 
 

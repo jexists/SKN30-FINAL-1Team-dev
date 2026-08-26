@@ -1,14 +1,15 @@
 from datetime import UTC, datetime, time, timedelta
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.models.agent import AgentRun
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product, SalesDeal
@@ -22,10 +23,15 @@ from app.schemas.activities import (
     ActivityRead,
     ActivityType,
 )
+from app.schemas.agent_runs import AgentRunCreate
+from app.services import agent_runs as agent_run_service
 
 router = APIRouter(tags=["activities"])
 
 _SEOUL = ZoneInfo("Asia/Seoul")
+# activity 하나당 브리핑 실행이 최대 한 번만 큐잉되도록 activity_id로 결정적 idempotency_key를
+# 만든다. 같은 activity_id로 다시 호출돼도 agent_runs.create()의 기존 멱등 로직이 중복을 막는다.
+_BRIEFING_IDEMPOTENCY_NAMESPACE = uuid5(NAMESPACE_URL, "urn:salesluv:contract_management_briefing")
 _owner = aliased(Member)
 _contact = aliased(CustomerContact)
 _contact_owner = aliased(Member)
@@ -112,6 +118,7 @@ def _activity_read(
     product_name: str | None,
     category: ActivityCategory,
     action_tag: ActivityActionTag | None,
+    ai_briefing: dict | None = None,
 ) -> ActivityRead:
     return ActivityRead(
         id=activity.id,
@@ -145,7 +152,34 @@ def _activity_read(
         note=activity.note,
         created_at=_seoul(activity.created_at),
         updated_at=_seoul(activity.updated_at),
+        ai_briefing=ai_briefing,
     )
+
+
+async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID) -> dict | None:
+    """일정에 연결된 단발성 브리핑의 최신 저장 결과를 돌려준다."""
+    run = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.team_id == member.team_id,
+                AgentRun.agent_code == "contract_management_briefing",
+                AgentRun.status_code.in_(("queued", "running", "completed", "failed")),
+                AgentRun.source_refs["activity_id"].as_string() == str(activity_id),
+            )
+            .order_by(AgentRun.finished_at.desc().nullsfirst(), AgentRun.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if run is None:
+        return None
+    return {
+        "run_id": str(run.id),
+        "status": run.status_code,
+        "content": run.output_snapshot,
+        "error": run.error_message,
+        "generated_at": _seoul(run.finished_at).isoformat() if run.finished_at else None,
+    }
 
 
 async def _activity_row(
@@ -427,7 +461,11 @@ async def get_activity(
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityRead:
-    return _activity_read(*await _activity_row(db, member, activity_id))
+    row = await _activity_row(db, member, activity_id)
+    briefing = None
+    if row[0].activity_type == "meeting":
+        briefing = await _activity_briefing(db, member, activity_id)
+    return _activity_read(*row, ai_briefing=briefing)
 
 
 @router.post(
@@ -438,6 +476,7 @@ async def get_activity(
 async def create_activity(
     payload: ActivityCreate,
     response: Response,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityRead:
@@ -473,6 +512,7 @@ async def create_activity(
         values = payload.model_dump()
         values.pop("category_code")
         values.pop("action_tag")
+        schedule_management_run_id = values.pop("schedule_management_run_id")
         activity = Activity(
             id=uuid4(),
             team_id=member.team_id,
@@ -497,6 +537,26 @@ async def create_activity(
     except Exception:
         await db.rollback()
         raise
+
+    # 일정 등록은 이미 커밋됐다 — 이 아래에서 브리핑 큐잉이 실패해도 등록 자체는 되돌리지
+    # 않고, 실패 사유만 응답에 경고로 실어 보낸다.
+    if schedule_management_run_id is not None:
+        try:
+            _, briefing_run_id = await agent_run_service.create(
+                AgentRunCreate(
+                    agent_code="contract_management_briefing",
+                    activity_id=activity.id,
+                    parent_run_id=schedule_management_run_id,
+                    idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity.id)),
+                ),
+                member,
+                db,
+            )
+            if briefing_run_id is not None:
+                background.add_task(agent_run_service.execute, briefing_run_id)
+        except HTTPException as error:
+            read.briefing_queue_warning = str(error.detail)
+
     response.headers["Location"] = f"/api/activities/{activity.id}"
     return read
 

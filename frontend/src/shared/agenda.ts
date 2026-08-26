@@ -106,7 +106,7 @@ function kstIso(value: number | Date): string {
   return `${new Date(time + KST_OFFSET).toISOString().slice(0, 19)}+09:00`
 }
 
-function kstParts(value: string): { date: string; time: string } {
+export function kstParts(value: string): { date: string; time: string } {
   const shifted = new Date(new Date(value).getTime() + KST_OFFSET).toISOString()
   return { date: shifted.slice(0, 10), time: shifted.slice(11, 16) }
 }
@@ -118,7 +118,7 @@ function durationMinutes(label: string): number | null {
   return total > 0 ? total : null
 }
 
-function durationLabel(start: string, end: string): string {
+export function durationLabel(start: string, end: string): string {
   const minutes = Math.round((new Date(end).getTime() - new Date(start).getTime()) / MINUTE)
   if (minutes <= 0) return ''
   const hours = Math.floor(minutes / 60)
@@ -164,6 +164,7 @@ export function activityToAgenda(activity: ActivityRead): AgendaItem {
     startsAt: kstIso(new Date(activity.starts_at)),
     endsAt: activity.ends_at ? kstIso(new Date(activity.ends_at)) : null,
     allDay: activity.all_day,
+    briefingQueueWarning: activity.briefing_queue_warning ?? null,
   }
 }
 
@@ -190,6 +191,7 @@ export function agendaToActivity(event: CalendarEvent): ActivityCreateRequest {
     location: nullableText(event.place),
     action_tag: event.stage ? ACTION_TAG_BY_STATUS[event.stage] : null,
     note: nullableText(event.brief),
+    schedule_management_run_id: event.scheduleManagementRunId ?? null,
   }
 }
 

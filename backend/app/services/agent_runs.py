@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -6,13 +7,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents import meeting_analysis, report_writing
+from app.agents import contract_management, meeting_analysis, report_writing, schedule_management
 from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
 from app.models.content import Report
 from app.models.workspace import Member
 from app.schemas.agent_runs import AgentRunCreate, AgentRunRead
+from app.services import contract_schedule_snapshots
 from app.services.llm import LLMError
 
 _SEOUL = ZoneInfo("Asia/Seoul")
@@ -71,6 +73,131 @@ async def _draft_source(db: AsyncSession, member: Member, report_id: UUID) -> Re
     return report
 
 
+async def _parent_run_or_409(
+    db: AsyncSession, member: Member, parent_run_id: UUID, *, expected_agent_code: str
+) -> AgentRun:
+    """다른 실행을 이어받을 때, 같은 팀의 완료된 실행인지 확인한다."""
+    parent = (
+        await db.execute(
+            select(AgentRun).where(
+                AgentRun.id == parent_run_id,
+                AgentRun.team_id == member.team_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if parent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="parent_run_not_found",
+        )
+    if parent.agent_code != expected_agent_code or parent.status_code != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="parent_run_not_usable",
+        )
+    return parent
+
+
+async def _build_run_input(
+    payload: AgentRunCreate, member: Member, db: AsyncSession
+) -> tuple[str, dict[str, Any], dict[str, Any], UUID | None]:
+    """agent_code 별로 prompt_version, input_snapshot, source_refs, parent_run_id 를 만든다."""
+    if payload.agent_code in ("report_writing", "meeting_analysis"):
+        report = await _draft_source(db, member, payload.report_id)
+        if payload.agent_code == "report_writing":
+            return (
+                report_writing.PROMPT_VERSION,
+                report_writing.input_snapshot(report, payload.guidance),
+                {"report_id": str(report.id)},
+                None,
+            )
+        try:
+            input_snapshot = meeting_analysis.input_snapshot(report.transcript)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(error),
+            ) from error
+        return (
+            meeting_analysis.PROMPT_VERSION,
+            input_snapshot,
+            {"report_id": str(report.id)},
+            None,
+        )
+
+    if payload.agent_code == "contract_management_select_candidates":
+        input_snapshot = await contract_schedule_snapshots.build_candidate_selection_snapshot(
+            db, member
+        )
+        return (
+            contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+            input_snapshot,
+            {},
+            None,
+        )
+
+    if payload.agent_code == "contract_management_next_meeting":
+        input_snapshot = await contract_schedule_snapshots.build_next_meeting_snapshot(
+            db, member, payload.customer_company_id
+        )
+        return (
+            contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+            input_snapshot,
+            {"customer_company_id": str(payload.customer_company_id)},
+            None,
+        )
+
+    if payload.agent_code == "contract_management_briefing":
+        # AI 제안(일정관리 실행)을 승인해서 만든 일정만 parent_run_id가 있다. 캘린더 직접
+        # 입력이나 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은 부모 없이 진행한다.
+        parent_id: UUID | None = None
+        source_refs = {"activity_id": str(payload.activity_id)}
+        if payload.parent_run_id is not None:
+            parent = await _parent_run_or_409(
+                db, member, payload.parent_run_id, expected_agent_code="schedule_management"
+            )
+            parent_id = parent.id
+            source_refs["parent_run_id"] = str(parent.id)
+        input_snapshot = await contract_schedule_snapshots.build_briefing_snapshot(
+            db, member, payload.activity_id
+        )
+        source_refs["customer_company_id"] = input_snapshot["customer_company"]["id"]
+        return (
+            contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+            input_snapshot,
+            source_refs,
+            parent_id,
+        )
+
+    # schedule_management. 계약관리 제안이 없어도(parent_run_id 없이) 실행할 수 있다.
+    parent = None
+    if payload.parent_run_id is not None:
+        parent = await _parent_run_or_409(
+            db,
+            member,
+            payload.parent_run_id,
+            expected_agent_code="contract_management_next_meeting",
+        )
+    input_snapshot = await contract_schedule_snapshots.build_schedule_snapshot(
+        db,
+        member,
+        payload.sales_deal_id,
+        parent,
+        payload.preferred_starts_at,
+        payload.preferred_ends_at,
+        payload.duration_minutes,
+    )
+    source_refs: dict[str, Any] = {"sales_deal_id": str(payload.sales_deal_id)}
+    if parent is not None:
+        source_refs["parent_run_id"] = str(parent.id)
+    return (
+        schedule_management.PROMPT_VERSION,
+        input_snapshot,
+        source_refs,
+        parent.id if parent is not None else None,
+    )
+
+
 async def create(
     payload: AgentRunCreate,
     member: Member,
@@ -97,24 +224,14 @@ async def create(
         return _run_read(existing), None
 
     try:
-        report = await _draft_source(db, member, payload.report_id)
-        if payload.agent_code == "report_writing":
-            prompt_version = report_writing.PROMPT_VERSION
-            input_snapshot = report_writing.input_snapshot(report, payload.guidance)
-        else:
-            try:
-                input_snapshot = meeting_analysis.input_snapshot(report.transcript)
-            except ValueError as error:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=str(error),
-                ) from error
-            prompt_version = meeting_analysis.PROMPT_VERSION
+        prompt_version, input_snapshot, source_refs, parent_run_id = await _build_run_input(
+            payload, member, db
+        )
 
         run = AgentRun(
             id=uuid4(),
             team_id=member.team_id,
-            parent_run_id=None,
+            parent_run_id=parent_run_id,
             requested_by_member_id=member.id,
             agent_code=payload.agent_code,
             trigger_code="user",
@@ -123,8 +240,8 @@ async def create(
             status_code="queued",
             llm_model_name=settings.llm_model,
             prompt_version=prompt_version,
-            source_refs={"report_id": str(report.id)},
-            # 실행 시점 입력을 저장한다. 보고서가 바뀌어도 이 실행에 사용한 입력은 남는다.
+            source_refs=source_refs,
+            # 실행 시점 입력을 저장한다. 원본 데이터가 바뀌어도 이 실행에 쓴 입력은 남는다.
             input_snapshot=input_snapshot,
             output_snapshot=None,
             evidence=None,
@@ -162,7 +279,15 @@ async def execute(run_id: UUID) -> None:
         agent_code = run.agent_code
         input_snapshot = run.input_snapshot
 
-    output: report_writing.ReportDraftOutput | meeting_analysis.MeetingAnalysisOutput | None = None
+    output: (
+        report_writing.ReportDraftOutput
+        | meeting_analysis.MeetingAnalysisOutput
+        | contract_management.SelectNextMeetingCandidatesOutput
+        | contract_management.NextMeetingProposalOutput
+        | contract_management.ContractBriefingOutput
+        | schedule_management.ScheduleManagementOutput
+        | None
+    ) = None
     error: str | None = None
     # 2) LLM 호출. 느린 구간이라 DB 커넥션을 쥐지 않은 채로 돈다.
     try:
@@ -170,6 +295,14 @@ async def execute(run_id: UUID) -> None:
             output = await report_writing.run(input_snapshot)
         elif agent_code == "meeting_analysis":
             output = await meeting_analysis.run(input_snapshot)
+        elif agent_code == "contract_management_select_candidates":
+            output = await contract_management.select_next_meeting_candidates(input_snapshot)
+        elif agent_code == "contract_management_next_meeting":
+            output = await contract_management.propose_next_meeting(input_snapshot)
+        elif agent_code == "contract_management_briefing":
+            output = await contract_management.generate_briefing(input_snapshot)
+        elif agent_code == "schedule_management":
+            output = await schedule_management.run(input_snapshot)
         else:
             error = "unsupported_agent"
     except LLMError as caught:
@@ -198,10 +331,30 @@ async def execute(run_id: UUID) -> None:
                     "prompt_version": report_writing.PROMPT_VERSION,
                     "summary": output.summary,
                 }
-            else:
+            elif run.agent_code == "meeting_analysis":
                 run.evidence = {
                     "prompt_version": meeting_analysis.PROMPT_VERSION,
                     "model_version": output.deal_assessment.model_version,
+                }
+            elif run.agent_code == "contract_management_select_candidates":
+                run.evidence = {
+                    "prompt_version": contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+                    "candidate_count": len(output.candidates),
+                }
+            elif run.agent_code == "contract_management_next_meeting":
+                run.evidence = {
+                    "prompt_version": contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+                    "risk_count": len(output.risks),
+                }
+            elif run.agent_code == "contract_management_briefing":
+                run.evidence = {
+                    "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+                    "risk_count": len(output.risks),
+                }
+            else:  # schedule_management
+                run.evidence = {
+                    "prompt_version": schedule_management.PROMPT_VERSION,
+                    "candidate_count": len(output.schedule_candidates),
                 }
         await session.commit()
 
