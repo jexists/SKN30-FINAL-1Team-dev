@@ -109,6 +109,7 @@ async def test_select_next_meeting_candidates_uses_dedicated_prompt_schema_and_s
             "customer_company_name": "테스트 병원",
             "sales_deal_id": "deal-1",
             "sales_deal_title": "테스트 딜",
+            "stage_code": "contract_review",
             "stage_phase_code": "contract",
             "risk_signals": [{"code": "contract_expiring", "severity": "high"}],
         }
@@ -154,6 +155,7 @@ async def test_select_next_meeting_candidates_drops_unknown_deal_ids(monkeypatch
                 "customer_company_name": "테스트 병원",
                 "sales_deal_id": "deal-1",
                 "sales_deal_title": "테스트 딜",
+                "stage_code": "contract_review",
                 "stage_phase_code": "contract",
                 "risk_signals": [{"code": "contract_expiring", "severity": "high"}],
             }

@@ -22,6 +22,8 @@ from app.models.workspace import Member
 _CONTRACT_EXPIRING_WITHIN_DAYS = 30
 _QUOTE_EXPIRING_WITHIN_DAYS = 14
 _FOLLOW_UP_OVERDUE_AFTER_DAYS = 30
+_CONTRACT_REVISIT_DUE_AFTER_DAYS = 7
+_CONTRACT_REVISIT_URGENT_AFTER_DAYS = 14
 _SCHEDULE_SEARCH_PADDING_DAYS = 7
 _DEFAULT_PREFERRED_WINDOW_DAYS = 7
 
@@ -112,13 +114,11 @@ async def _last_activity_by_deal(
 async def _unresolved_support_signals(
     db: AsyncSession, member: Member, customer_company_id: UUID
 ) -> list[dict[str, Any]]:
-    """이 회사 담당자에게 걸린, 아직 처리 중인 C/S 요청."""
+    """이 회사에 걸린, 아직 처리 중인 C/S 요청."""
     result = await db.execute(
-        select(SupportRequest)
-        .join(CustomerContact, CustomerContact.id == SupportRequest.customer_contact_id)
-        .where(
+        select(SupportRequest).where(
             SupportRequest.team_id == member.team_id,
-            CustomerContact.company_id == customer_company_id,
+            SupportRequest.customer_company_id == customer_company_id,
             SupportRequest.status_code == "in_progress",
         )
     )
@@ -128,7 +128,7 @@ async def _unresolved_support_signals(
             {
                 "code": "unresolved_support",
                 "severity": "high" if request.is_urgent else "medium",
-                "sales_deal_id": None,
+                "sales_deal_id": str(request.sales_deal_id),
                 "source_refs": [{"type": "support_request", "id": str(request.id)}],
                 "detail": request.title,
             }
@@ -200,6 +200,25 @@ def _deal_risk_signals(
                 "detail": f"days_since_contact={days_since_contact}",
             }
         )
+
+    if deal.contract_signed_on is not None:
+        days_since_signed = (today - deal.contract_signed_on).days
+        if days_since_signed >= _CONTRACT_REVISIT_URGENT_AFTER_DAYS:
+            revisit_severity = "high"
+        elif days_since_signed >= _CONTRACT_REVISIT_DUE_AFTER_DAYS:
+            revisit_severity = "medium"
+        else:
+            revisit_severity = None
+        if revisit_severity is not None:
+            signals.append(
+                {
+                    "code": "contract_revisit_due",
+                    "severity": revisit_severity,
+                    "sales_deal_id": str(deal.id),
+                    "source_refs": ref,
+                    "detail": f"contract_signed_on={deal.contract_signed_on.isoformat()}",
+                }
+            )
 
     if stage.phase_code == "contract" and (deal.contract_no is None or not deal.deal_amount):
         signals.append(
@@ -282,6 +301,7 @@ async def build_candidate_selection_snapshot(db: AsyncSession, member: Member) -
                 "customer_company_name": company.name,
                 "sales_deal_id": str(deal.id),
                 "sales_deal_title": deal.title,
+                "stage_code": stage.stage_code,
                 "stage_phase_code": stage.phase_code,
                 "risk_signals": risk_signals,
             }
@@ -408,16 +428,20 @@ async def build_schedule_snapshot(
 
     padding = timedelta(days=_SCHEDULE_SEARCH_PADDING_DAYS)
     activities = (
-        await db.execute(
-            select(Activity).where(
-                Activity.team_id == member.team_id,
-                Activity.owner_member_id == deal.owner_member_id,
-                Activity.deleted_at.is_(None),
-                Activity.starts_at >= window_start - padding,
-                Activity.starts_at <= window_end + padding,
+        (
+            await db.execute(
+                select(Activity).where(
+                    Activity.team_id == member.team_id,
+                    Activity.owner_member_id == deal.owner_member_id,
+                    Activity.deleted_at.is_(None),
+                    Activity.starts_at >= window_start - padding,
+                    Activity.starts_at <= window_end + padding,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     return {
         "sales_deal_id": str(deal.id),

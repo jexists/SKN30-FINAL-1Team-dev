@@ -21,6 +21,7 @@ def _standalone_candidate_selection_input() -> dict:
                 "customer_company_name": "긴급 병원",
                 "sales_deal_id": "deal-urgent-1",
                 "sales_deal_title": "긴급 병원 계약 갱신",
+                "stage_code": "contract_review",
                 "stage_phase_code": "contract",
                 "risk_signals": [
                     {
@@ -44,6 +45,7 @@ def _standalone_candidate_selection_input() -> dict:
                 "customer_company_name": "여유 병원",
                 "sales_deal_id": "deal-mild-1",
                 "sales_deal_title": "여유 병원 후속 미팅",
+                "stage_code": "product_demo",
                 "stage_phase_code": "negotiation",
                 "risk_signals": [
                     {
@@ -60,6 +62,7 @@ def _standalone_candidate_selection_input() -> dict:
                 "customer_company_name": "견적 병원",
                 "sales_deal_id": "deal-quote-1",
                 "sales_deal_title": "견적 병원 견적 만료 임박",
+                "stage_code": "quote_sent",
                 "stage_phase_code": "quotation",
                 "risk_signals": [
                     {
@@ -259,13 +262,9 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
 
     schedule_input = {
         "sales_deal_id": suggestion.sales_deal_id if suggestion else "deal-demo-1",
-        "preferred_starts_at": (
-            suggestion.preferred_starts_at if suggestion else None
-        )
+        "preferred_starts_at": (suggestion.preferred_starts_at if suggestion else None)
         or "2026-09-01T09:00:00+09:00",
-        "preferred_ends_at": (
-            suggestion.preferred_ends_at if suggestion else None
-        )
+        "preferred_ends_at": (suggestion.preferred_ends_at if suggestion else None)
         or "2026-09-05T18:00:00+09:00",
         "duration_minutes": suggestion.duration_minutes if suggestion else 60,
         "reason": (

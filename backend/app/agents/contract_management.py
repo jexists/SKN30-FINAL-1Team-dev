@@ -20,7 +20,7 @@ from app.services.llm import generate_structured
 
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
-SELECT_CANDIDATES_PROMPT_VERSION = "contract_management.select_candidates.v1"
+SELECT_CANDIDATES_PROMPT_VERSION = "contract_management.select_candidates.v2"
 PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v1"
 GENERATE_BRIEFING_PROMPT_VERSION = "contract_management.generate_briefing.v1"
 
@@ -32,6 +32,14 @@ SELECT_CANDIDATES_SYSTEM_PROMPT = """너는 B2B 영업·계약관리를 보조�
 입력에도 없다. 이 중에서 지금 담당자에게 다음 미팅 제안을 보여줘야 하는 딜을 우선순위로
 선별하라. 위험이 여러 개 겹치거나 심각도(severity)가 높거나 마감이 임박한 딜을 우선한다.
 입력에 있는 sales_deal_id 만 선택할 수 있다. 확신이 서지 않는 딜은 후보에서 빼라.
+
+각 딜의 stage_code는 다음 순서로 갈수록(뒤로 갈수록) 더 중요하다: needs_validation <
+product_demo < quote_sent < contract_sent < contract_review < contract_completed. 이 목록에
+없는 stage_code(예: order_in_progress, order_delivered)는 이 순서를 적용하지 말고, 위험
+심각도·신호 개수·마감 임박 같은 다른 기준으로만 판단하라.
+
+risk_signals에 code="contract_revisit_due"가 있는 딜은 다른 조건이 비슷하면 그 신호가 없는
+딜보다 우선한다. severity="high"인 contract_revisit_due는 "medium"인 것보다 더 우선한다.
 
 priority 는 1이 가장 시급하다는 뜻이다. 숫자가 클수록 덜 시급하다. 가장 시급한 딜부터
 1, 2, 3 순으로 매겨라. JSON 만 출력한다."""
@@ -65,7 +73,7 @@ RAG로 조회된 자료를 근거로 회사와 계약의 최신 상황을 요약
 남겨라. 계약이나 업무 데이터를 이미 변경했다고 표현하지 마라. 이 에이전트는 제안만 한다.
 JSON 만 출력한다."""
 
-# 화면·알림·테스트가 이 값에 의존하므로 자유 문구 대신 여섯 가지로 고정한다.
+# 화면·알림·테스트가 이 값에 의존하므로 자유 문구 대신 일곱 가지로 고정한다.
 RiskCode = Literal[
     "contract_expiring",
     "quote_expiring",
@@ -73,6 +81,7 @@ RiskCode = Literal[
     "unresolved_support",
     "follow_up_overdue",
     "missing_contract_information",
+    "contract_revisit_due",
 ]
 
 
@@ -163,6 +172,7 @@ class _CandidateDealInput(BaseModel):
     customer_company_name: str
     sales_deal_id: str
     sales_deal_title: str
+    stage_code: str
     stage_phase_code: str
     risk_signals: list[dict[str, Any]] = Field(default_factory=list)
 

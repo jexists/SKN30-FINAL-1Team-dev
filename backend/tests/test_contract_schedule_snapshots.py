@@ -68,6 +68,7 @@ def _deal(member: Member, **overrides) -> SalesDeal:
         deal_amount=1_000_000,
         opened_on=date(2026, 1, 1),
         contract_no=None,
+        contract_signed_on=None,
         contract_ends_on=None,
         quote_valid_until=None,
         expected_delivery_at=None,
@@ -175,6 +176,56 @@ def test_missing_contract_information_only_flagged_in_contract_phase():
     )
 
 
+def test_contract_revisit_due_absent_before_seven_days():
+    today = date(2026, 8, 24)
+    member = _member()
+    deal = _deal(member, contract_signed_on=today - timedelta(days=6))
+    stage = _stage(phase_code="negotiation")
+    recent_activity = datetime(2026, 8, 24, tzinfo=UTC)
+
+    signals = snapshots._deal_risk_signals(deal, stage, recent_activity, today)
+
+    assert not any(s["code"] == "contract_revisit_due" for s in signals)
+
+
+def test_contract_revisit_due_medium_after_seven_days():
+    today = date(2026, 8, 24)
+    member = _member()
+    deal = _deal(member, contract_signed_on=today - timedelta(days=7))
+    stage = _stage(phase_code="negotiation")
+    recent_activity = datetime(2026, 8, 24, tzinfo=UTC)
+
+    signals = snapshots._deal_risk_signals(deal, stage, recent_activity, today)
+
+    revisit = next(s for s in signals if s["code"] == "contract_revisit_due")
+    assert revisit["severity"] == "medium"
+
+
+def test_contract_revisit_due_high_after_fourteen_days():
+    today = date(2026, 8, 24)
+    member = _member()
+    deal = _deal(member, contract_signed_on=today - timedelta(days=14))
+    stage = _stage(phase_code="negotiation")
+    recent_activity = datetime(2026, 8, 24, tzinfo=UTC)
+
+    signals = snapshots._deal_risk_signals(deal, stage, recent_activity, today)
+
+    revisit = next(s for s in signals if s["code"] == "contract_revisit_due")
+    assert revisit["severity"] == "high"
+
+
+def test_contract_revisit_due_absent_without_signed_date():
+    today = date(2026, 8, 24)
+    member = _member()
+    deal = _deal(member, contract_signed_on=None)
+    stage = _stage(phase_code="negotiation")
+    recent_activity = datetime(2026, 8, 24, tzinfo=UTC)
+
+    signals = snapshots._deal_risk_signals(deal, stage, recent_activity, today)
+
+    assert not any(s["code"] == "contract_revisit_due" for s in signals)
+
+
 # ---- 빌더 함수: DB 조회 결합 확인 ----
 
 
@@ -221,8 +272,32 @@ async def test_build_candidate_selection_snapshot_filters_deals_without_risk_sig
     assert candidate["customer_company_id"] == str(company.id)
     assert candidate["customer_company_name"] == "테스트 병원"
     assert candidate["sales_deal_title"] == "위험 딜"
+    assert candidate["stage_code"] == "negotiation"
     assert candidate["stage_phase_code"] == "negotiation"
     assert any(s["code"] == "contract_expiring" for s in candidate["risk_signals"])
+
+
+@pytest.mark.anyio
+async def test_build_candidate_selection_snapshot_exposes_stage_code():
+    """0차 선별 프롬프트의 단계별 중요도 기준은 stage_code로 판단한다 — phase_code와
+    다른 값이어도 stage_code가 그대로 전달돼야 한다."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    stage = _stage(stage_code="contract_completed", phase_code="contract")
+    today = date.today()
+
+    deal = _deal(member, contract_ends_on=today + timedelta(days=5))
+
+    db = _Db(
+        _Result(rows=[(deal, stage, company)]),
+        _Result(rows=[]),  # _last_activity_by_deal
+    )
+
+    snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
+
+    candidate = snapshot["candidates"][0]
+    assert candidate["stage_code"] == "contract_completed"
+    assert candidate["stage_phase_code"] == "contract"
 
 
 @pytest.mark.anyio
