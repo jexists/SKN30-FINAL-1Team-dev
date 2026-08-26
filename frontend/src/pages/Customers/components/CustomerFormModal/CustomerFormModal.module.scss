@@ -8,6 +8,29 @@
   }
 }
 
+.duplicateNotice {
+  margin-bottom: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--orange);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  background: var(--orange-tint);
+  font-size: 12px;
+
+  strong {
+    color: var(--ink);
+  }
+
+  ul {
+    margin: var(--s2) 0;
+    padding-left: 18px;
+  }
+
+  span {
+    color: var(--muted);
+  }
+}
+
 .field {
   @include form-field;
 }
