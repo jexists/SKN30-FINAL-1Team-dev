@@ -38,10 +38,40 @@ class Settings(BaseSettings):
     refresh_cookie_max_age_seconds: int = Field(default=30 * 86_400, ge=3_600, le=90 * 86_400)
 
     # LLM 공급자. API key 는 서버 프로세스 안에서만 쓰고 응답이나 로그에 남기지 않는다.
+    llm_provider: Literal["external", "ollama"] = "external"
     llm_api_url: str = ""
     llm_api_key: SecretStr = SecretStr("")
+    # OpenAI를 직접 사용할 때의 관용적인 이름도 지원한다. LLM_API_KEY가
+    # 있으면 그것을 우선하고, 비어 있을 때만 OPENAI_API_KEY를 사용한다.
+    openai_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
     llm_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+
+    # 문서 청크 임베딩. 비워 두면 RAG는 출처 보존 키워드 검색으로 동작한다.
+    embedding_provider: Literal["none", "external", "local"] = "none"
+    embedding_api_url: str = ""
+    embedding_api_key: SecretStr = SecretStr("")
+    embedding_model: str = ""
+    embedding_local_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+
+    # 스캔 PDF·이미지 OCR. Runpod Serverless, Azure 또는 선택적 로컬 엔진을 지원한다.
+    ocr_provider: Literal["none", "runpod", "azure", "local"] = "none"
+    ocr_local_language: str = "korean"
+    ocr_api_url: str = ""
+    ocr_api_key: SecretStr = SecretStr("")
+    ocr_timeout_seconds: float = Field(default=90.0, gt=0, le=300)
+    ocr_runpod_wait_seconds: int = Field(default=120, ge=1, le=300)
+    ocr_runpod_inline_max_bytes: int = Field(default=14 * 1024 * 1024, gt=0, le=20 * 1024 * 1024)
+    ocr_runpod_signed_url_expires_seconds: int = Field(default=300, ge=60, le=3_600)
+    business_card_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0, le=50 * 1024 * 1024)
+    pdf_inspector_model_directory: str = ""
+    paddlex_cache_home: str = ""
+
+    # HWP5 추출기 경로. 비워 두면 PATH에서 hwp5txt 또는 hwp5txt.exe를 찾는다.
+    hwp5txt_path: str = ""
+    # hwp5txt가 없을 때 사용할 LibreOffice 실행 파일 경로.
+    soffice_path: str = ""
 
     # 미팅 음성은 저장하지 않고 OpenAI 전사 API 로 바로 보낸다.
     stt_api_key: SecretStr = SecretStr("")
@@ -115,7 +145,38 @@ class Settings(BaseSettings):
     @property
     def llm_configured(self) -> bool:
         """LLM 호출에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""
-        return bool(self.llm_api_url and self.llm_api_key.get_secret_value() and self.llm_model)
+        if self.llm_provider == "ollama":
+            return bool(self.llm_api_url and self.llm_model)
+        return bool(self.llm_api_url and self.effective_llm_api_key and self.llm_model)
+
+    @property
+    def effective_llm_api_key(self) -> str:
+        """LLM_API_KEY를 우선하고 없을 때 OPENAI_API_KEY를 사용한다."""
+        return self.llm_api_key.get_secret_value() or self.openai_api_key.get_secret_value()
+
+    @property
+    def embedding_configured(self) -> bool:
+        """임베딩 호출에 필요한 값이 모두 있는지 확인한다."""
+        if self.embedding_provider == "local":
+            return bool(self.embedding_local_model)
+        if self.embedding_provider == "none":
+            return False
+        return bool(
+            self.embedding_api_url
+            and self.embedding_api_key.get_secret_value()
+            and self.embedding_model
+        )
+
+    @property
+    def ocr_configured(self) -> bool:
+        """OCR 제공자 호출에 필요한 값이 모두 있는지 확인한다."""
+        if self.ocr_provider == "local":
+            return True
+        if self.ocr_provider == "runpod" and _contains_endpoint_placeholder(self.ocr_api_url):
+            return False
+        return bool(
+            self.ocr_provider != "none" and self.ocr_api_url and self.ocr_api_key.get_secret_value()
+        )
 
     @property
     def stt_configured(self) -> bool:
@@ -177,6 +238,11 @@ def _with_driver(url: str, driver: str) -> str:
     if "+" in parts.scheme:
         return url
     return urlunsplit(parts._replace(scheme=driver))
+
+
+def _contains_endpoint_placeholder(url: str) -> bool:
+    """문서에 적힌 Runpod URL 템플릿을 실제 엔드포인트로 오인하지 않는다."""
+    return any(marker in url for marker in ("{ENDPOINT_ID}", "<ENDPOINT_ID>"))
 
 
 settings = Settings()

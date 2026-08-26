@@ -1,0 +1,6 @@
+runpod>=1.7.0
+pdf-inspector>=1.17.0
+pypdfium2>=5.13.0
+Pillow>=12.3.0
+numpy>=2.0.0
+paddleocr>=3.0.0

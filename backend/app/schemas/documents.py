@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -39,6 +39,7 @@ class DocumentCreate(_WriteModel):
     title: Text
     description: LongText | None = None
     customer_company_id: UUID | None = None
+    customer_contact_id: UUID | None = None
     sales_deal_id: UUID | None = None
     purchase_order_id: UUID | None = None
     tags: list[Text] = Field(default_factory=list, max_length=20)
@@ -49,6 +50,7 @@ class DocumentPatch(_WriteModel):
     title: Text | None = None
     description: LongText | None = None
     customer_company_id: UUID | None = None
+    customer_contact_id: UUID | None = None
     sales_deal_id: UUID | None = None
     purchase_order_id: UUID | None = None
     tags: list[Text] | None = Field(default=None, max_length=20)
@@ -63,10 +65,71 @@ class DocumentFileRead(BaseModel):
     media_type: str | None
     byte_size: int
     processing_status: ProcessingStatus
+    processing_error: str | None = None
     uploaded_by_member_id: UUID
     uploaded_by_display_name: str
     note: str | None
     uploaded_at: datetime
+
+
+class DocumentSummaryRead(BaseModel):
+    file_id: UUID
+    file_name: str
+    processing_status: ProcessingStatus
+    processing_error: str | None
+    extracted_text: str | None
+    extracted_markdown: str | None
+    extracted_payload: dict[str, Any] | None
+    summary_markdown: str | None
+    summary_payload: dict[str, Any] | None
+    processed_at: datetime | None
+
+
+class DocumentChunkRead(BaseModel):
+    chunk_id: UUID
+    document_id: UUID
+    file_id: UUID
+    chunk_no: int
+    page_start: int | None
+    page_end: int | None
+    section: str | None
+    content: str
+    score: float
+    metadata: dict[str, Any]
+
+
+class DocumentBriefingSourceRead(BaseModel):
+    """영업·계약관리 Agent가 브리핑 근거로 사용할 RAG 검색 결과."""
+
+    chunk_id: UUID
+    document_id: UUID
+    file_id: UUID
+    file_name: str
+    chunk_no: int
+    page_start: int | None = None
+    page_end: int | None = None
+    section: str | None
+    content: str
+    score: float
+    metadata: dict[str, Any]
+
+
+class DocumentBriefingSummaryRead(BaseModel):
+    """검색된 자료에 저장된 구조화 요약."""
+
+    file_id: UUID
+    document_id: UUID
+    file_name: str
+    summary_markdown: str
+    summary_payload: dict[str, Any] | None
+
+
+class DocumentBriefingContextRead(BaseModel):
+    """브리핑 생성 Agent가 한 번에 소비할 자료요약·RAG 묶음."""
+
+    query: str
+    summaries: list[DocumentBriefingSummaryRead]
+    sources: list[DocumentBriefingSourceRead]
 
 
 class DocumentRead(BaseModel):
@@ -77,6 +140,7 @@ class DocumentRead(BaseModel):
     description: str | None
     customer_company_id: UUID | None
     customer_company_name: str | None
+    customer_contact_id: UUID | None
     sales_deal_id: UUID | None
     purchase_order_id: UUID | None
     tags: list[str]

@@ -22,7 +22,10 @@ defaults:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     env:
       APP_ENV: test
       DEBUG: 'false'
@@ -47,6 +50,13 @@ jobs:
 
       - name: 테스트 (pytest)
         run: uv run pytest
+
+      - name: Windows 로컬 OCR 실제 실행
+        if: matrix.os == 'windows-latest'
+        env:
+          PADDLE_PDX_CACHE_HOME: ${{ runner.temp }}/paddlex
+          PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: 'true'
+        run: uv run python -m scripts.windows_ocr_smoke
 
       - name: 배포 스크립트 검증
         working-directory: .

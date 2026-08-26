@@ -12,8 +12,9 @@ from app.main import app
 from app.models.content import Document
 from app.models.content import File as FileRow
 from app.models.workspace import Member
+from app.schemas.business_cards import BusinessCardDraft, BusinessCardFields
 from app.schemas.documents import DocumentCreate, DocumentPageParams
-from app.services import storage
+from app.services import business_cards, sales_context, storage
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
@@ -263,6 +264,166 @@ def test_download_never_exposes_storage_key(storage_ready, monkeypatch):
     assert row.storage_key not in response.text
     assert response.json()["expires_in"] == 60
     assert response.json()["file_name"] == "제안서.pdf"
+
+
+@pytest.mark.parametrize("artifact", ["txt", "md", "json", "summary"])
+def test_document_artifact_download_returns_processed_result(artifact):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    row.extracted_text = "계약기간: 1년"
+    row.extracted_markdown = "# 계약서\n\n계약기간: 1년"
+    row.extracted_payload = {"source_type": "pdf", "pages": []}
+    row.summary_markdown = "# 문서 요약\n\n- 계약기간: 1년"
+    row.summary_payload = {"summary": "계약기간은 1년이다."}
+    row.processing_status = "completed"
+
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+    with _client(db, member) as client:
+        response = client.get(
+            f"/api/documents/{document.id}/files/{row.id}/artifacts/{artifact}",
+        )
+
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+    if artifact == "json":
+        assert response.json()["source_type"] == "pdf"
+    else:
+        assert "계약기간" in response.text
+
+
+def test_process_route_marks_file_processing_and_schedules_summary(monkeypatch):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    scheduled: list[object] = []
+
+    async def _execute(file_id):
+        scheduled.append(file_id)
+
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+    monkeypatch.setattr("app.services.document_processing.execute", _execute)
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/documents/{document.id}/files/{row.id}/process",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 202
+    assert response.json()["processing_status"] == "processing"
+    assert row.processing_status == "processing"
+    assert scheduled == [row.id]
+    assert db.commit_count == 1
+
+
+def test_business_card_draft_route_returns_confirmation_payload(monkeypatch):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    row.file_name = "business-card.jpeg"
+    row.media_type = "image/jpeg"
+    row.processing_status = "completed"
+    row.extracted_text = "합성 담당자\n합성 회사\n010-0000-0000"
+
+    async def _extract(**kwargs):
+        assert kwargs["ocr_text"] == row.extracted_text
+        return BusinessCardDraft(
+            fields=BusinessCardFields(
+                name="합성 담당자",
+                company_name="합성 회사",
+                phone="010-0000-0000",
+            ),
+            ready_for_contact_registration=True,
+        )
+
+    monkeypatch.setattr(business_cards, "extract", _extract)
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/documents/{document.id}/files/{row.id}/business-card-draft",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["ready_for_contact_registration"] is True
+    assert response.json()["fields"]["company_name"] == "합성 회사"
+
+
+def test_briefing_context_route_returns_rag_sources_and_summaries(monkeypatch):
+    member = _member()
+    sales_deal_id = uuid4()
+    expected = {
+        "query": "계약기간",
+        "summaries": [
+            {
+                "file_id": str(uuid4()),
+                "document_id": str(uuid4()),
+                "file_name": "계약서.docx",
+                "summary_markdown": "# 문서 요약\n\n계약기간은 1년이다.",
+                "summary_payload": {"summary": "계약기간은 1년이다."},
+            }
+        ],
+        "sources": [
+            {
+                "chunk_id": str(uuid4()),
+                "document_id": str(uuid4()),
+                "file_id": str(uuid4()),
+                "file_name": "계약서.docx",
+                "chunk_no": 0,
+                "section": "계약 조건",
+                "content": "계약기간은 1년으로 한다.",
+                "score": 0.9,
+                "metadata": {"source_type": "docx"},
+            }
+        ],
+    }
+
+    async def _context(_db, **kwargs):
+        assert kwargs["team_id"] == member.team_id
+        assert kwargs["query"] == "계약기간"
+        assert kwargs["sales_deal_id"] == sales_deal_id
+        return expected
+
+    monkeypatch.setattr(sales_context, "retrieve_briefing_context", _context)
+    with _client(_Db(), member) as client:
+        response = client.get(
+            f"/api/documents/briefing-context?q=계약기간&limit=5&sales_deal_id={sales_deal_id}"
+        )
+
+    assert response.status_code == 200
+    assert response.json()["summaries"][0]["file_name"] == "계약서.docx"
+    assert response.json()["sources"][0]["content"] == "계약기간은 1년으로 한다."
+
+
+@pytest.mark.parametrize("artifact", ["text", "txt"])
+def test_document_artifact_text_alias_returns_extracted_text(artifact):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    row.processing_status = "completed"
+    row.extracted_text = "OCR 평문 결과"
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+
+    with _client(db, member) as client:
+        response = client.get(f"/api/documents/{document.id}/files/{row.id}/artifacts/{artifact}")
+
+    assert response.status_code == 200
+    assert response.text == "OCR 평문 결과"
+    assert "text/plain" in response.headers["content-type"]
 
 
 def test_other_team_document_is_hidden():

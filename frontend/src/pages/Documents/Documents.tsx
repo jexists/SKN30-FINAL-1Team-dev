@@ -39,8 +39,17 @@ const RANGES = [
 const DEFAULT_RANGE = '12'
 
 export default function Documents() {
-  const { documents, findDocument, loading, error, pending, reload, addDocument, addVersion } =
-    useDocuments()
+  const {
+    documents,
+    findDocument,
+    loading,
+    error,
+    pending,
+    reload,
+    addDocument,
+    addVersion,
+    summarizeVersion,
+  } = useDocuments()
   // 자료를 올리는 것은 팀장 몫입니다. 팀원은 받아 보기만 합니다.
   const { profile, isManager } = useCurrentUser()
   const showOwner = isManager
@@ -276,6 +285,7 @@ export default function Documents() {
           onClose={() => setOpenId(null)}
           canUpload={isManager}
           onNewVersion={() => setUploading(openDoc.id)}
+          onSummarize={(fileId) => summarizeVersion(openDoc.id, fileId)}
         />
       )}
 

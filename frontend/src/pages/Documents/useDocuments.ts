@@ -6,6 +6,7 @@ import type {
   CustomerCompanyResponse,
   DocumentCategory,
   DocumentResponse,
+  DocumentSummaryResponse,
   DocumentVersion,
   OrderResponse,
   PageResponse,
@@ -48,6 +49,8 @@ function versionOf(documentId: string, file: DocumentResponse['files'][number]):
     owner: file.uploaded_by_display_name,
     uploaded: file.uploaded_at.slice(0, 10),
     note: file.note ?? '',
+    processingStatus: file.processing_status,
+    processingError: file.processing_error,
   }
 }
 
@@ -255,6 +258,23 @@ export default function useDocuments() {
     [documents],
   )
 
+  const summarizeVersion = useCallback(
+    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
+      await client.post(`/documents/${documentId}/files/${fileId}/process`)
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        const { data } = await client.get<DocumentSummaryResponse>(
+          `/documents/${documentId}/files/${fileId}/summary`,
+        )
+        if (data.processing_status !== 'processing') return data
+        await new Promise((resolve) => window.setTimeout(resolve, 1000))
+      }
+      return client
+        .get<DocumentSummaryResponse>(`/documents/${documentId}/files/${fileId}/summary`)
+        .then(({ data }) => data)
+    },
+    [],
+  )
+
   return {
     documents,
     findDocument,
@@ -265,5 +285,6 @@ export default function useDocuments() {
     addDocument,
     addVersion,
     updateDocument,
+    summarizeVersion,
   }
 }

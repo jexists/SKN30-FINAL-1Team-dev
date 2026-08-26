@@ -1,13 +1,16 @@
+import { useState } from 'react'
+
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import { DownloadIcon, UploadIcon } from '@/components/icons'
 import type { SalesDocument } from '@/types'
+import type { DocumentSummaryResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import { KIND_LABEL, latestOf } from '../../catalog'
 import { linkLabel } from '../../columns'
-import { downloadVersion } from '../../download'
+import { downloadArtifact, downloadVersion, type DocumentArtifact } from '../../download'
 
 import styles from './DocumentDrawer.module.scss'
 
@@ -16,9 +19,14 @@ interface Props {
   onClose: () => void
   canUpload: boolean
   onNewVersion: () => void
+  onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
 }
 
-export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion }: Props) {
+export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion, onSummarize }: Props) {
+  const [summary, setSummary] = useState<DocumentSummaryResponse | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [artifactLoading, setArtifactLoading] = useState<DocumentArtifact | null>(null)
   const latest = latestOf(doc)
   const rows: [string, string][] = [
     ['설명', doc.description || '—'],
@@ -29,6 +37,16 @@ export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion }
     ['등록일', fmtDay(parseISO(latest.uploaded))],
   ]
   const history = [...doc.versions].reverse()
+
+  async function handleArtifact(artifact: DocumentArtifact) {
+    if (!latest.id) return
+    setArtifactLoading(artifact)
+    try {
+      await downloadArtifact(doc.id, latest.id, artifact)
+    } finally {
+      setArtifactLoading(null)
+    }
+  }
 
   return (
     <Drawer
@@ -75,14 +93,33 @@ export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion }
               <strong className="tnum">v{version.version}</strong>
               <span className={styles.fileName}>{version.fileName}</span>
               {version.id ? (
-                <button
-                  type="button"
-                  className={styles.download}
-                  onClick={() => void downloadVersion(version)}
-                >
-                  <DownloadIcon width={14} height={14} />
-                  내려받기
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className={styles.download}
+                    onClick={() => void downloadVersion(version)}
+                  >
+                    <DownloadIcon width={14} height={14} />
+                    내려받기
+                  </button>
+                  {version.id === latest.id && (
+                    <button
+                      type="button"
+                      className={styles.summarize}
+                      disabled={summaryLoading}
+                      onClick={() => {
+                        setSummaryLoading(true)
+                        setSummaryError(null)
+                        void onSummarize(version.id!)
+                          .then(setSummary)
+                          .catch(() => setSummaryError('문서 요약을 생성하지 못했습니다.'))
+                          .finally(() => setSummaryLoading(false))
+                      }}
+                    >
+                      {summaryLoading ? '요약 중…' : 'AI 요약'}
+                    </button>
+                  )}
+                </>
               ) : (
                 <span>파일 없음</span>
               )}
@@ -96,6 +133,42 @@ export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion }
           </li>
         ))}
       </ul>
+
+      {(summaryError || summary?.summary_markdown) && (
+        <section className={styles.summary}>
+          <h3 className={styles.sectionTitle}>AI 문서 요약</h3>
+          {summaryError ? (
+            <p className={styles.summaryError}>{summaryError}</p>
+          ) : (
+            <>
+              <pre>{summary?.summary_markdown}</pre>
+              {summary?.processing_status === 'completed' && (
+                <div className={styles.artifactActions}>
+                  {(
+                    [
+                      ['text', 'TEXT'],
+                      ['txt', 'TXT'],
+                      ['md', 'Markdown'],
+                      ['json', 'JSON'],
+                      ['summary', '요약 MD'],
+                    ] as [DocumentArtifact, string][]
+                  ).map(([artifact, label]) => (
+                    <button
+                      key={artifact}
+                      type="button"
+                      className={styles.artifactDownload}
+                      disabled={artifactLoading !== null}
+                      onClick={() => void handleArtifact(artifact)}
+                    >
+                      {artifactLoading === artifact ? '준비 중…' : `${label} 다운로드`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
     </Drawer>
   )
 }

@@ -1,9 +1,21 @@
 from datetime import datetime
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Path,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -12,19 +24,24 @@ from app.api.deps import CurrentMember, DbSession
 from app.core.config import settings
 from app.models.content import Document
 from app.models.content import File as FileRow
-from app.models.crm import CustomerCompany
+from app.models.crm import CustomerCompany, CustomerContact
 from app.models.sales import PurchaseOrder, SalesDeal
 from app.models.workspace import Member, Team
+from app.schemas.business_cards import BusinessCardDraft
 from app.schemas.documents import (
+    DocumentBriefingContextRead,
+    DocumentChunkRead,
     DocumentCreate,
     DocumentFileRead,
     DocumentPage,
     DocumentPageParams,
     DocumentPatch,
     DocumentRead,
+    DocumentSummaryRead,
     DownloadRead,
 )
-from app.services import storage
+from app.services import business_cards, document_processing, sales_context, storage
+from app.services.llm import LLMError
 from app.services.storage import StorageError
 from app.services.upload_guard import UploadRejected, check_size, check_upload
 
@@ -84,6 +101,7 @@ def _file_read(row: FileRow, uploader_display_name: str) -> DocumentFileRead:
         media_type=row.media_type,
         byte_size=row.byte_size,
         processing_status=row.processing_status,
+        processing_error=row.processing_error,
         uploaded_by_member_id=row.uploaded_by_member_id,
         uploaded_by_display_name=uploader_display_name,
         note=row.note,
@@ -105,6 +123,7 @@ def _document_read(
         description=document.description,
         customer_company_id=document.customer_company_id,
         customer_company_name=company_name,
+        customer_contact_id=document.customer_contact_id,
         sales_deal_id=document.sales_deal_id,
         purchase_order_id=document.purchase_order_id,
         tags=list(document.tags or ()),
@@ -155,6 +174,26 @@ async def _detail(db: AsyncSession, member: Member, document_id: UUID) -> Docume
     return _document_read(*row, files[document_id])
 
 
+async def _file_row(
+    db: AsyncSession,
+    member: Member,
+    document_id: UUID,
+    file_id: UUID,
+) -> FileRow:
+    await _document_row(db, member, document_id)
+    row = (
+        await db.execute(
+            select(FileRow).where(
+                FileRow.id == file_id,
+                FileRow.document_id == document_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="file_not_found")
+    return row
+
+
 async def _validate_links(db: AsyncSession, member: Member, values: dict) -> None:
     """다른 팀 FK 를 붙이지 못하게 막는다. 존재 여부는 404 로 숨긴다."""
     checks = (
@@ -173,6 +212,24 @@ async def _validate_links(db: AsyncSession, member: Member, values: dict) -> Non
         ).scalar_one_or_none()
         if found is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+    contact_id = values.get("customer_contact_id")
+    if contact_id is not None:
+        found = (
+            await db.execute(
+                select(CustomerContact.id)
+                .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
+                .where(
+                    CustomerContact.id == contact_id,
+                    CustomerCompany.team_id == member.team_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if found is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="customer_contact_not_found",
+            )
 
 
 async def _next_document_no(db: AsyncSession, member: Member, year: int) -> str:
@@ -255,6 +312,65 @@ async def list_documents(
     )
 
 
+@router.get("/documents/rag-search", response_model=list[DocumentChunkRead])
+async def search_document_chunks(
+    q: Annotated[str, Query(min_length=1, max_length=500)],
+    member: CurrentMember,
+    db: DbSession,
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+    document_id: UUID | None = None,
+    sales_deal_id: UUID | None = None,
+) -> list[DocumentChunkRead]:
+    """영업·계약관리 Agent가 자료요약 결과를 조회하는 RAG 접점."""
+    results = await document_processing.search_chunks(
+        db,
+        team_id=member.team_id,
+        query=q,
+        limit=limit,
+        document_id=document_id,
+        sales_deal_id=sales_deal_id,
+    )
+    return [
+        DocumentChunkRead(
+            chunk_id=row.id,
+            document_id=row.document_id,
+            file_id=row.file_id,
+            chunk_no=row.chunk_no,
+            page_start=row.page_start,
+            page_end=row.page_end,
+            section=row.section,
+            content=row.content,
+            score=score,
+            metadata=dict(row.metadata_json or {}),
+        )
+        for row, score in results
+    ]
+
+
+@router.get(
+    "/documents/briefing-context",
+    response_model=DocumentBriefingContextRead,
+)
+async def get_briefing_context(
+    q: Annotated[str, Query(min_length=1, max_length=500)],
+    member: CurrentMember,
+    db: DbSession,
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+    document_id: UUID | None = None,
+    sales_deal_id: UUID | None = None,
+) -> DocumentBriefingContextRead:
+    """영업·계약관리 Agent가 브리핑에 사용할 요약·RAG 문맥을 반환한다."""
+    context = await sales_context.retrieve_briefing_context(
+        db,
+        team_id=member.team_id,
+        query=q,
+        limit=limit,
+        document_id=document_id,
+        sales_deal_id=sales_deal_id,
+    )
+    return DocumentBriefingContextRead.model_validate(context)
+
+
 @router.get("/documents/{document_id}", response_model=DocumentRead)
 async def get_document(
     document_id: UUID,
@@ -283,6 +399,7 @@ async def create_document(
             title=payload.title,
             description=payload.description,
             customer_company_id=payload.customer_company_id,
+            customer_contact_id=payload.customer_contact_id,
             sales_deal_id=payload.sales_deal_id,
             purchase_order_id=payload.purchase_order_id,
             tags=payload.tags,
@@ -415,6 +532,129 @@ async def upload_document_file(
         await storage.remove(storage_key=storage_key)
         raise
     return read
+
+
+@router.post(
+    "/documents/{document_id}/files/{file_id}/process",
+    response_model=DocumentFileRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def process_document_file(
+    document_id: UUID,
+    file_id: UUID,
+    background: BackgroundTasks,
+    member: CurrentMember,
+    db: DbSession,
+) -> DocumentFileRead:
+    """업로드된 문서를 자료요약 Agent에 전달한다."""
+    if not settings.llm_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_not_configured",
+        )
+    row = await _file_row(db, member, document_id, file_id)
+    if row.processing_status == "processing":
+        return _file_read(row, member.display_name)
+    row.processing_status = "processing"
+    row.processing_error = None
+    await db.commit()
+    background.add_task(document_processing.execute, row.id)
+    return _file_read(row, member.display_name)
+
+
+@router.get(
+    "/documents/{document_id}/files/{file_id}/summary",
+    response_model=DocumentSummaryRead,
+)
+async def get_document_summary(
+    document_id: UUID,
+    file_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> DocumentSummaryRead:
+    row = await _file_row(db, member, document_id, file_id)
+    return DocumentSummaryRead(
+        file_id=row.id,
+        file_name=row.file_name,
+        processing_status=row.processing_status,
+        processing_error=row.processing_error,
+        extracted_text=row.extracted_text,
+        extracted_markdown=row.extracted_markdown,
+        extracted_payload=row.extracted_payload,
+        summary_markdown=row.summary_markdown,
+        summary_payload=row.summary_payload,
+        processed_at=_seoul(row.processed_at) if row.processed_at else None,
+    )
+
+
+@router.post(
+    "/documents/{document_id}/files/{file_id}/business-card-draft",
+    response_model=BusinessCardDraft,
+)
+async def create_business_card_draft(
+    document_id: UUID,
+    file_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> BusinessCardDraft:
+    """OCR 원문을 명함 등록 초안으로 구조화한다. 자동으로 고객을 저장하지 않는다."""
+    row = await _file_row(db, member, document_id, file_id)
+    if row.processing_status != "completed" or not row.extracted_text:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="document_not_processed",
+        )
+    try:
+        return await business_cards.extract(
+            ocr_text=row.extracted_text,
+            file_name=row.file_name,
+        )
+    except LLMError as error:
+        detail = (
+            "llm_not_configured"
+            if str(error) == "llm_not_configured"
+            else "business_card_extraction_failed"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=detail,
+        ) from error
+
+
+@router.get("/documents/{document_id}/files/{file_id}/artifacts/{artifact}")
+async def download_document_artifact(
+    document_id: UUID,
+    file_id: UUID,
+    artifact: Annotated[str, Path(pattern="^(text|txt|md|json|summary)$")],
+    member: CurrentMember,
+    db: DbSession,
+) -> Response:
+    """OCR 결과를 text·txt·md·json 파일 형태로 내려준다."""
+    from fastapi.responses import JSONResponse, PlainTextResponse
+
+    row = await _file_row(db, member, document_id, file_id)
+    values: dict[str, object | None] = {
+        "text": row.extracted_text,
+        "txt": row.extracted_text,
+        "md": row.extracted_markdown,
+        "json": row.extracted_payload,
+        "summary": row.summary_markdown,
+    }
+    value = values[artifact]
+    if value is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="artifact_not_ready")
+    filename = f"{row.file_name.rsplit('.', 1)[0]}.{artifact if artifact != 'summary' else 'md'}"
+    # HTTP 헤더의 기본 filename은 ASCII fallback으로 두고, 실제 파일명은 RFC 5987로
+    # UTF-8 인코딩한다. 한국어 원본 파일명도 Starlette 응답에서 안전하게 내려간다.
+    ascii_filename = f"document.{artifact if artifact != 'summary' else 'md'}"
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    if artifact == "json":
+        return JSONResponse(content=value, headers=headers)
+    return PlainTextResponse(content=str(value), headers=headers)
 
 
 @router.get("/documents/{document_id}/files/{file_id}/download", response_model=DownloadRead)

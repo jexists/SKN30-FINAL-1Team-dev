@@ -109,6 +109,70 @@
   }
 }
 
+.summarize {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--purple, var(--blue));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+}
+
+.summary {
+  margin-top: var(--s4);
+
+  pre {
+    max-height: 320px;
+    overflow: auto;
+    padding: var(--s3);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+}
+
+.summaryError {
+  color: var(--red-ink);
+  font-size: 12px;
+}
+
+.artifactActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.artifactDownload {
+  padding: 5px var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+}
+
 .demo {
   flex: none;
   color: var(--muted);

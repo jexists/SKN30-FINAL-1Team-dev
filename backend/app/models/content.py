@@ -56,6 +56,9 @@ class Document(Base):
     customer_company_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_company.id")
     )
+    customer_contact_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("public.customer_contact.id", ondelete="SET NULL")
+    )
     sales_deal_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.sales_deal.id"))
     purchase_order_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.purchase_order.id"))
     tags: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
@@ -75,6 +78,33 @@ class File(Base):
     byte_size: Mapped[int] = mapped_column(BigInteger)
     processing_status: Mapped[str]
     extracted_text: Mapped[str | None]
+    extracted_markdown: Mapped[str | None]
+    extracted_payload: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    summary_markdown: Mapped[str | None]
+    summary_payload: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    processing_error: Mapped[str | None]
+    processed_at: Mapped[datetime | None]
     uploaded_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     note: Mapped[str | None]
     uploaded_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class DocumentChunk(Base):
+    """자료요약 Agent가 RAG에 넣는 출처 보존 청크."""
+
+    __tablename__ = "document_chunk"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
+    document_id: Mapped[UUID] = mapped_column(ForeignKey("public.document.id", ondelete="CASCADE"))
+    file_id: Mapped[UUID] = mapped_column(ForeignKey("public.file.id", ondelete="CASCADE"))
+    chunk_no: Mapped[int]
+    page_start: Mapped[int | None]
+    page_end: Mapped[int | None]
+    section: Mapped[str | None]
+    content: Mapped[str]
+    metadata_json: Mapped[Any] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    embedding: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

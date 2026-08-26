@@ -349,7 +349,10 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 - 자료실은 팀 공유물이다. 같은 팀이면 팀원도 문서를 모두 조회한다.
 - 업로드는 `multipart/form-data`만 받는다. JSON base64 업로드는 없다.
 - 확장자, 선언 MIME, 실제 파일 signature 셋을 함께 검사한다. 하나라도 어긋나면 거절한다.
-- 허용 형식은 멀티에이전트 운영 플로우의 자료실 입력인 `.pdf`, `.docx`, `.pptx`다. 실행 파일, 압축 파일과 HTML 은 받지 않는다.
+- 허용 형식은 `.pdf`, `.docx`, `.pptx`, `.html`, `.htm`, `.txt`, `.md`, `.markdown`, `.hwp`다.
+  HTML은 저장 후 실행하지 않고 태그·스크립트·스타일을 제거한 텍스트로만 추출한다. HWP는
+  서버에 `hwp5txt`/`hwp5txt.exe` 또는 LibreOffice `soffice`가 설치되어 있어야 처리된다.
+  `hwp5txt`를 우선 사용하고 없으면 `soffice` headless 변환으로 fallback한다. 실행 파일과 압축 파일은 받지 않는다.
 - 형식 위반은 `415`, 크기 초과는 `413`, 빈 파일과 잘못된 파일명은 `422`다.
 - 저장 경로는 서버가 만든다. 원본 파일명을 경로에 쓰지 않고 표시용으로만 보관한다.
 - `storage_key`는 어떤 응답에도 넣지 않는다. 다운로드는 매 요청마다 팀 권한을 검사한 뒤 짧게 사는 서명 URL을 발급한다.

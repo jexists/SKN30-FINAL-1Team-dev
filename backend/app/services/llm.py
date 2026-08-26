@@ -60,30 +60,44 @@ async def generate_structured[Schema: BaseModel](
     if not settings.llm_configured:
         raise LLMNotConfigured("llm_not_configured")
 
-    body = {
-        "model": settings.llm_model,
-        "input": [
-            {"role": "system", "content": instructions},
-            {"role": "user", "content": input_text},
-        ],
-        "text": {
-            "format": {
-                "type": "json_schema",
-                "name": schema_name,
-                "schema": schema.model_json_schema(),
-                "strict": False,
-            }
-        },
-    }
+    if settings.llm_provider == "ollama":
+        body = {
+            "model": settings.llm_model,
+            "messages": [
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": input_text},
+            ],
+            "stream": False,
+            "format": schema.model_json_schema(),
+            "options": {"temperature": 0},
+        }
+        headers = {"Content-Type": "application/json"}
+    else:
+        body = {
+            "model": settings.llm_model,
+            "input": [
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": input_text},
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": schema_name,
+                    "schema": schema.model_json_schema(),
+                    "strict": False,
+                }
+            },
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.effective_llm_api_key}",
+            "Content-Type": "application/json",
+        }
 
     try:
         async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
             response = await client.post(
                 settings.llm_api_url,
-                headers={
-                    "Authorization": f"Bearer {settings.llm_api_key.get_secret_value()}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
                 json=body,
             )
     except httpx.HTTPError as error:

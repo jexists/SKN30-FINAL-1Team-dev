@@ -7,12 +7,24 @@ dependencies = [
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "pydantic-settings>=2.14.2",
+    "pypdf>=5.0.0",
     "pyjwt[crypto]>=2.10.1",
     "python-multipart>=0.0.32",
     "scikit-learn>=1.9.0",
     "sqlalchemy[asyncio]>=2.0.51",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
+]
+
+[project.optional-dependencies]
+local = [
+    "pdf-inspector>=1.17.0",
+    "onnxruntime>=1.29.0",
+    "paddleocr>=3.7.0",
+    "paddlepaddle>=3.3.1",
+    "pillow>=12.3.0",
+    "pypdfium2>=5.13.0",
+    "sentence-transformers>=6.0.0",
 ]
 
 [dependency-groups]

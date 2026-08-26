@@ -90,7 +90,7 @@ erDiagram
 | `sales_target` | 2 | `owner_member_id → member.id`; `customer_company_id → customer_company.id` |
 | `report` | 5 | `team_id → team.id`; `author_member_id,recipient_member_id,reviewed_by_member_id → member.id`; `source_activity_id → activity.id` |
 | `report_activity` | 2 | `report_id → report.id`; `activity_id → activity.id` |
-| `document` | 5 | `team_id → team.id`; `created_by_member_id → member.id`; `customer_company_id → customer_company.id`; `sales_deal_id → sales_deal.id`; `purchase_order_id → purchase_order.id` |
+| `document` | 6 | `team_id → team.id`; `created_by_member_id → member.id`; `customer_company_id → customer_company.id`; `customer_contact_id → customer_contact.id`; `sales_deal_id → sales_deal.id`; `purchase_order_id → purchase_order.id` |
 | `file` | 3 | `report_id → report.id`; `document_id → document.id`; `uploaded_by_member_id → member.id` |
 | `agent_run` | 3 | `team_id → team.id`; `parent_run_id → agent_run.id`; `requested_by_member_id → member.id` |
 | **합계** | **64** | 복합 FK는 컬럼이 두 개여도 제약조건 하나로 계산 |
@@ -493,7 +493,7 @@ UQ는 `(owner_member_id, customer_company_id, target_month)`다.
 | `report_id` | `uuid` | NN | PK/FK → `report.id`, `ON DELETE CASCADE` |
 | `activity_id` | `uuid` | NN | PK/FK → `activity.id` |
 
-#### `document` — 12컬럼
+#### `document` — 13컬럼
 
 | 컬럼 | 타입 | NULL | 키·기본값·검사 |
 |---|---|---|---|
@@ -505,12 +505,13 @@ UQ는 `(owner_member_id, customer_company_id, target_month)`다.
 | `title` | `text` | NN | 비어 있지 않음 |
 | `description` | `text` | NULL | 값이 있으면 비어 있지 않음 |
 | `customer_company_id` | `uuid` | NULL | FK → `customer_company.id` |
+| `customer_contact_id` | `uuid` | NULL | FK → `customer_contact.id` ON DELETE SET NULL |
 | `sales_deal_id` | `uuid` | NULL | FK → `sales_deal.id` |
 | `purchase_order_id` | `uuid` | NULL | FK → `purchase_order.id` |
 | `tags` | `jsonb` | NN | `DEFAULT '[]'::jsonb`, JSON 배열만 허용 |
 | `created_at` | `timestamptz` | NN | `DEFAULT now()` |
 
-#### `file` — 13컬럼
+#### `file` — 19컬럼
 
 | 컬럼 | 타입 | NULL | 키·기본값·검사 |
 |---|---|---|---|
@@ -524,6 +525,12 @@ UQ는 `(owner_member_id, customer_company_id, target_month)`다.
 | `byte_size` | `bigint` | NN | `>= 0` |
 | `processing_status` | `text` | NN | `uploaded \| processing \| completed \| failed` |
 | `extracted_text` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `extracted_markdown` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `extracted_payload` | `jsonb` | NULL | 추출기 공통 구조화 결과 |
+| `summary_markdown` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `summary_payload` | `jsonb` | NULL | 구조화 요약 결과 |
+| `processing_error` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `processed_at` | `timestamptz` | NULL | 처리 완료 시각 |
 | `uploaded_by_member_id` | `uuid` | NN | FK → `member.id` |
 | `note` | `text` | NULL | 값이 있으면 비어 있지 않음 |
 | `uploaded_at` | `timestamptz` | NN | `DEFAULT now()` |
