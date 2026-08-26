@@ -258,11 +258,48 @@ async def propose_next_meeting(snapshot: dict[str, Any]) -> NextMeetingProposalO
         recent_approved_reports=snapshot.get("recent_approved_reports") or [],
         current_date=_now().isoformat(),
     )
-    return await generate_structured(
+    output = await generate_structured(
         instructions=PROPOSE_NEXT_MEETING_SYSTEM_PROMPT,
         input_text=json.dumps(llm_input.model_dump(), ensure_ascii=False, default=str),
         schema=NextMeetingProposalOutput,
         schema_name="contract_management_propose_next_meeting",
+    )
+    return _drop_stale_preferred_window(output)
+
+
+def _is_valid_future(value: str | None, now: datetime) -> bool:
+    """비어 있으면 통과(날짜 미정인 제안일 수 있다). 파싱 실패·과거면 거절."""
+    if value is None:
+        return True
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_SEOUL)
+    return parsed >= now
+
+
+def _drop_stale_preferred_window(output: NextMeetingProposalOutput) -> NextMeetingProposalOutput:
+    """프롬프트 지침을 LLM이 어기고 과거 날짜를 제안했으면 날짜만 비운다.
+
+    위험 판정·추천 행동 자체는 여전히 유효하므로 제안 전체를 버리지 않는다 —
+    build_schedule_snapshot()이 그렇듯, 날짜가 비면 호출 쪽이 기본 탐색 범위로 대체한다.
+    """
+    suggestion = output.next_meeting_suggestion
+    if suggestion is None:
+        return output
+    now = _now()
+    if _is_valid_future(suggestion.preferred_starts_at, now) and _is_valid_future(
+        suggestion.preferred_ends_at, now
+    ):
+        return output
+    return output.model_copy(
+        update={
+            "next_meeting_suggestion": suggestion.model_copy(
+                update={"preferred_starts_at": None, "preferred_ends_at": None}
+            )
+        }
     )
 
 

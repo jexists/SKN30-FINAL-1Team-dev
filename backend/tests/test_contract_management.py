@@ -221,6 +221,63 @@ async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(mo
 
 
 @pytest.mark.anyio
+async def test_propose_next_meeting_drops_stale_preferred_window(monkeypatch):
+    """프롬프트로 current_date 이후만 제안하라고 일러도 LLM이 어길 수 있다 — 과거 날짜가
+    나오면 날짜만 비우고 위험 판정·추천 행동은 그대로 살린다."""
+    fixed_now = datetime(2026, 8, 26, 9, 0, tzinfo=contract_management._SEOUL)
+    monkeypatch.setattr(contract_management, "_now", lambda: fixed_now)
+
+    async def fake_generate_structured(**kwargs):
+        return contract_management.NextMeetingProposalOutput(
+            risks=[],
+            missing_information=[],
+            recommended_actions=["과거 날짜를 제안한 경우"],
+            next_meeting_suggestion=contract_management.NextMeetingSuggestion(
+                sales_deal_id="deal-1",
+                reason="계약 갱신 협의",
+                preferred_starts_at="2026-08-20T09:00:00+09:00",  # current_date보다 과거
+                preferred_ends_at="2026-08-20T10:00:00+09:00",
+            ),
+        )
+
+    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+
+    result = await contract_management.propose_next_meeting({})
+
+    assert result.recommended_actions == ["과거 날짜를 제안한 경우"]
+    assert result.next_meeting_suggestion is not None
+    assert result.next_meeting_suggestion.sales_deal_id == "deal-1"
+    assert result.next_meeting_suggestion.preferred_starts_at is None
+    assert result.next_meeting_suggestion.preferred_ends_at is None
+
+
+@pytest.mark.anyio
+async def test_propose_next_meeting_keeps_valid_future_preferred_window(monkeypatch):
+    fixed_now = datetime(2026, 8, 26, 9, 0, tzinfo=contract_management._SEOUL)
+    monkeypatch.setattr(contract_management, "_now", lambda: fixed_now)
+
+    async def fake_generate_structured(**kwargs):
+        return contract_management.NextMeetingProposalOutput(
+            risks=[],
+            missing_information=[],
+            recommended_actions=[],
+            next_meeting_suggestion=contract_management.NextMeetingSuggestion(
+                sales_deal_id="deal-1",
+                reason="계약 갱신 협의",
+                preferred_starts_at="2026-09-01T09:00:00+09:00",
+                preferred_ends_at="2026-09-01T10:00:00+09:00",
+            ),
+        )
+
+    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+
+    result = await contract_management.propose_next_meeting({})
+
+    assert result.next_meeting_suggestion.preferred_starts_at == "2026-09-01T09:00:00+09:00"
+    assert result.next_meeting_suggestion.preferred_ends_at == "2026-09-01T10:00:00+09:00"
+
+
+@pytest.mark.anyio
 async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monkeypatch):
     captured = {}
     expected = contract_management.ContractBriefingOutput(

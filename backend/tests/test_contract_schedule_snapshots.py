@@ -493,3 +493,74 @@ async def test_build_schedule_snapshot_clamps_partially_past_parent_window():
 
     assert datetime.fromisoformat(snapshot["preferred_starts_at"]) >= now
     assert snapshot["preferred_ends_at"] == (now + timedelta(days=3)).isoformat()
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_clamps_naive_but_parseable_parent_window():
+    """둘 다 offset 없이(naive) 파싱은 되는 경우 — UTC로 보고 aware한 now와 비교해도
+    죽지 않고, 지난 시작만 정상적으로 당겨야 한다."""
+    member = _member()
+    deal = _deal(member)
+    now = datetime.now(UTC)
+    naive_start = (now - timedelta(days=1)).replace(tzinfo=None).isoformat()
+    naive_end = (now + timedelta(days=3)).replace(tzinfo=None).isoformat()
+    parent = AgentRun(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code="contract_management_next_meeting",
+        status_code="completed",
+        output_snapshot={
+            "next_meeting_suggestion": {
+                "sales_deal_id": str(deal.id),
+                "reason": "계약 갱신 협의",
+                "preferred_starts_at": naive_start,
+                "preferred_ends_at": naive_end,
+                "duration_minutes": 45,
+            }
+        },
+    )
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db, member, deal.id, parent, None, None, None
+    )
+
+    assert datetime.fromisoformat(snapshot["preferred_starts_at"]) >= now
+    assert snapshot["preferred_ends_at"] == naive_end
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_falls_back_on_naive_or_malformed_parent_window():
+    """preferred_starts_at/ends_at은 LLM 출력이라 offset 없는(naive) 문자열이거나 형식이
+    깨졌을 수 있다 — 그래도 낙관적 기본 범위로 대체할 뿐 TypeError/ValueError로 죽지 않는다."""
+    member = _member()
+    deal = _deal(member)
+    parent = AgentRun(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code="contract_management_next_meeting",
+        status_code="completed",
+        output_snapshot={
+            "next_meeting_suggestion": {
+                "sales_deal_id": str(deal.id),
+                "reason": "계약 갱신 협의",
+                "preferred_starts_at": "2026-09-01T09:00:00",  # offset 없음(naive)
+                "preferred_ends_at": "not-a-date",  # 형식 깨짐
+                "duration_minutes": 45,
+            }
+        },
+    )
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db, member, deal.id, parent, None, None, None
+    )
+
+    assert snapshot["preferred_starts_at"] is None
+    assert snapshot["preferred_ends_at"] is None

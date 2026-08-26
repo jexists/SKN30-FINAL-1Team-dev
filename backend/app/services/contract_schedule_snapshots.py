@@ -28,6 +28,20 @@ _SCHEDULE_SEARCH_PADDING_DAYS = 7
 _DEFAULT_PREFERRED_WINDOW_DAYS = 7
 
 
+def _parse_aware_or_none(value: str) -> datetime | None:
+    """ISO 문자열을 tz-aware datetime으로 파싱한다. 형식이 깨졌으면 None.
+
+    LLM 출력이나 클라이언트 요청값은 offset이 없을(naive) 수 있다 — 그런 값은 UTC로 본다.
+    """
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
 async def _company_or_404(
     db: AsyncSession, member: Member, customer_company_id: UUID
 ) -> CustomerCompany:
@@ -446,10 +460,12 @@ async def build_schedule_snapshot(
     now = datetime.now(UTC)
     if preferred_starts_at is not None and preferred_ends_at is not None:
         # 상위 제안(계약관리 1차 실행)이 이미 지난 날짜를 줬을 수 있다 — LLM이 현재
-        # 시각을 잘못 가늠했을 때의 방어선이다.
-        parsed_start = datetime.fromisoformat(preferred_starts_at)
-        parsed_end = datetime.fromisoformat(preferred_ends_at)
-        if parsed_end <= now:
+        # 시각을 잘못 가늠했을 때의 방어선이다. preferred_starts_at/ends_at은 LLM 출력이나
+        # 클라이언트 요청값을 그대로 받은 문자열이라 형식이 깨졌거나(파싱 실패) offset이
+        # 없을(naive) 수 있다 — 둘 다 방어한다.
+        parsed_start = _parse_aware_or_none(preferred_starts_at)
+        parsed_end = _parse_aware_or_none(preferred_ends_at)
+        if parsed_start is None or parsed_end is None or parsed_end <= now:
             preferred_starts_at = None
             preferred_ends_at = None
         elif parsed_start < now:
