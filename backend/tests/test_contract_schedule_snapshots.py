@@ -263,6 +263,7 @@ async def test_build_candidate_selection_snapshot_filters_deals_without_risk_sig
     db = _Db(
         _Result(rows=[(risky_deal, stage, company), (safe_deal, stage, company)]),
         _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[]),  # _deal_ids_with_upcoming_activity
     )
 
     snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
@@ -291,6 +292,7 @@ async def test_build_candidate_selection_snapshot_exposes_stage_code():
     db = _Db(
         _Result(rows=[(deal, stage, company)]),
         _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[]),  # _deal_ids_with_upcoming_activity
     )
 
     snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
@@ -298,6 +300,33 @@ async def test_build_candidate_selection_snapshot_exposes_stage_code():
     candidate = snapshot["candidates"][0]
     assert candidate["stage_code"] == "contract_completed"
     assert candidate["stage_phase_code"] == "contract"
+
+
+@pytest.mark.anyio
+async def test_build_candidate_selection_snapshot_excludes_deals_with_upcoming_activity():
+    """계약 만료일처럼 딜 속성만으로 계산되는 위험 신호는 미팅을 잡아도 안 사라진다 —
+    그래서 앞으로 예정된 활동이 이미 있는 딜은 위험 신호가 남아 있어도 후보에서 뺀다."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    stage = _stage(phase_code="negotiation")
+    today = date.today()
+
+    scheduled_deal = _deal(
+        member, title="이미 미팅 잡음", contract_ends_on=today + timedelta(days=5)
+    )
+    unscheduled_deal = _deal(
+        member, title="아직 미팅 없음", contract_ends_on=today + timedelta(days=5)
+    )
+
+    db = _Db(
+        _Result(rows=[(scheduled_deal, stage, company), (unscheduled_deal, stage, company)]),
+        _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[(scheduled_deal.id,)]),  # _deal_ids_with_upcoming_activity
+    )
+
+    snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
+
+    assert [c["sales_deal_id"] for c in snapshot["candidates"]] == [str(unscheduled_deal.id)]
 
 
 @pytest.mark.anyio

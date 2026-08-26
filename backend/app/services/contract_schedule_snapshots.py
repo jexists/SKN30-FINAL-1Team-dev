@@ -111,6 +111,27 @@ async def _last_activity_by_deal(
     return {deal_id: last_start for deal_id, last_start in result.all()}
 
 
+async def _deal_ids_with_upcoming_activity(
+    db: AsyncSession, member: Member, deal_ids: list[UUID]
+) -> set[UUID]:
+    """앞으로 예정된(starts_at > now) 활동이 이미 있는 딜 id 집합.
+
+    이미 뭔가(미팅이든 후속 작업이든) 잡혀 있으면 0차 선별에서 "다음 미팅 필요"로 다시
+    올리지 않는다 — 활동 종류는 가리지 않는다.
+    """
+    if not deal_ids:
+        return set()
+    result = await db.execute(
+        select(Activity.sales_deal_id).where(
+            Activity.team_id == member.team_id,
+            Activity.sales_deal_id.in_(deal_ids),
+            Activity.deleted_at.is_(None),
+            Activity.starts_at > datetime.now(UTC),
+        )
+    )
+    return {deal_id for (deal_id,) in result.all()}
+
+
 async def _unresolved_support_signals(
     db: AsyncSession, member: Member, customer_company_id: UUID
 ) -> list[dict[str, Any]]:
@@ -284,14 +305,20 @@ async def build_candidate_selection_snapshot(db: AsyncSession, member: Member) -
     결정적 규칙(_deal_risk_signals)을 그대로 쓴다 — 신호가 하나도 없는 딜은 애초에 후보에
     올리지 않아 프롬프트 크기와 LLM 호출 비용을 줄인다. 그 신호들 중 지금 다음 미팅 제안을
     보여줄 딜을 최종 선별하는 것만 LLM에 맡긴다.
+
+    계약 만료일처럼 딜 속성만으로 계산되는 위험 신호는 미팅을 잡아도 사라지지 않는다 —
+    그래서 앞으로 예정된 활동이 이미 있는 딜은 위험 신호가 남아 있어도 후보에서 뺀다.
     """
     deals = await _member_open_deals(db, member)
     deal_ids = [deal.id for deal, _stage, _company in deals]
     last_activity = await _last_activity_by_deal(db, member, deal_ids)
+    upcoming = await _deal_ids_with_upcoming_activity(db, member, deal_ids)
     today = datetime.now(UTC).date()
 
     candidates: list[dict[str, Any]] = []
     for deal, stage, company in deals:
+        if deal.id in upcoming:
+            continue
         risk_signals = _deal_risk_signals(deal, stage, last_activity.get(deal.id), today)
         if not risk_signals:
             continue
