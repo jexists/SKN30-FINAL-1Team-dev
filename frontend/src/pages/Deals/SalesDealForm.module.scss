@@ -85,3 +85,50 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+/* ---- 딜 상세의 서류 흐름(견적 → 계약 → 발주) ---- */
+
+.drawerSection {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.drawerSectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+
+  h3 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  // 단추는 오른쪽 끝으로 밀어 둡니다. 상태 칩과 붙어 있으면 잘못 누릅니다.
+  button {
+    margin-left: auto;
+  }
+}
+
+.drawerItems {
+  display: grid;
+  gap: var(--s1);
+  margin-top: var(--s3);
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--s3);
+    color: var(--ink-2);
+    font-size: 12px;
+  }
+}
+
+.drawerLink {
+  color: var(--blue);
+  font-size: 13px;
+  text-decoration: underline;
+}

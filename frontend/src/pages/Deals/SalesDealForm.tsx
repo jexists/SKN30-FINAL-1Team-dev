@@ -1,11 +1,13 @@
 import { useRef, useState, type ReactNode } from 'react'
 
 import Button from '@/components/Button'
+import ContactPicker from '@/components/ContactPicker'
+import type { ContactOption } from '@/components/ContactPicker/contactOption'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
 import type { CustomerCompanyResponse, ProductResponse, SalesDealTypeResponse } from '@/types'
 import { formatBusinessNo } from '@/utils/format'
-import { TODAY_ISO } from '@/utils/date'
+import { addDays, iso, TODAY } from '@/utils/date'
 
 import type { SalesDeal, SalesDealSaveInput } from './useSalesDeals'
 
@@ -23,11 +25,20 @@ interface Props {
 interface FormState {
   company: RecordOption | null
   product: RecordOption | null
+  title: string
   amount: string
   dealTypeCode: string
   date: string
   memo: string
+  /** 미팅 대상자. 고객사를 바꾸면 다른 회사 사람이 남지 않게 비웁니다. */
+  participants: ContactOption[]
 }
+
+/**
+ * 새 딜의 영업 시작일 기본값. 딜을 넣는 날은 대개 다음 만남을 잡는 날이라
+ * 오늘이 아니라 내일에서 시작합니다.
+ */
+const DEFAULT_OPENED_ON = iso(addDays(TODAY, 1))
 
 type Errors = Partial<Record<keyof FormState, string>>
 
@@ -43,10 +54,20 @@ export default function SalesDealForm({
     // 수정 화면은 이미 이름을 들고 있어 한 건을 다시 물어볼 필요가 없습니다.
     company: deal ? { id: deal.customerCompanyId, label: deal.org } : null,
     product: deal?.productId ? { id: deal.productId, label: deal.product } : null,
+    title: deal?.title ?? '',
     amount: deal ? String(deal.amount) : '',
     dealTypeCode: deal?.dealTypeCode ?? dealTypes[0]?.code ?? '',
-    date: deal?.date ?? TODAY_ISO,
+    date: deal?.date ?? DEFAULT_OPENED_ON,
     memo: deal?.memo ?? '',
+    // 상세가 준 것은 id 와 이름뿐입니다. 칩에 적을 것은 그것으로 충분합니다.
+    participants: (deal?.participants ?? []).map((participant) => ({
+      id: participant.customer_contact_id,
+      name: participant.customer_contact_name,
+      companyId: deal?.customerCompanyId ?? '',
+      org: deal?.org ?? '',
+      dept: '',
+      title: '',
+    })),
   }))
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -80,6 +101,7 @@ export default function SalesDealForm({
       found.amount = '0 이상의 정수로 입력해 주세요.'
     }
     if (!form.date) found.date = '영업 시작일을 선택해 주세요.'
+    if (form.title.length > 254) found.title = '제목은 254자까지 입력할 수 있습니다.'
     if (form.memo.length > 5000) found.memo = '메모는 5,000자까지 입력할 수 있습니다.'
 
     setErrors(found)
@@ -92,10 +114,12 @@ export default function SalesDealForm({
       await onSubmit({
         customerCompanyId: form.company.id,
         productId: form.product.id,
+        title: form.title.trim() || null,
         amount,
         dealTypeCode: form.dealTypeCode,
         date: form.date,
         memo: form.memo.trim() || null,
+        participantContactIds: form.participants.map((participant) => participant.id),
       })
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '영업 딜을 저장하지 못했습니다.')
@@ -146,7 +170,11 @@ export default function SalesDealForm({
               label: row.name,
               note: formatBusinessNo(row.business_no) ?? undefined,
             })}
-            onChange={(next) => set('company', next)}
+            onChange={(next) => {
+              set('company', next)
+              // 대상자는 고객사에 속한 사람입니다. 회사가 바뀌면 남겨 둘 수 없습니다.
+              if (next?.id !== form.company?.id) set('participants', [])
+            }}
           />
         </Field>
 
@@ -163,6 +191,16 @@ export default function SalesDealForm({
             invalid={errors.product !== undefined}
             toOption={(row) => ({ id: row.id, label: row.name })}
             onChange={(next) => set('product', next)}
+          />
+        </Field>
+
+        <Field label="제목" error={errors.title} wide>
+          <input
+            value={form.title}
+            disabled={submitting}
+            maxLength={254}
+            placeholder="비우면 '고객사 제품' 으로 채웁니다"
+            onChange={(event) => set('title', event.target.value)}
           />
         </Field>
 
@@ -201,6 +239,18 @@ export default function SalesDealForm({
             value={form.date}
             disabled={submitting}
             onChange={(event) => set('date', event.target.value)}
+          />
+        </Field>
+
+        <Field label="미팅 대상자" wide>
+          <ContactPicker
+            multiple
+            companyId={form.company?.id ?? null}
+            label="미팅 대상자"
+            placeholder="이름으로 검색"
+            disabled={submitting}
+            value={form.participants}
+            onChange={(next) => set('participants', next)}
           />
         </Field>
 

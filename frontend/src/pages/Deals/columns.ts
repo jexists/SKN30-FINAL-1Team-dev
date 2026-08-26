@@ -6,10 +6,11 @@ import type { DataColumn } from '@/components/DataTable'
 import { fmtDot, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
-import type { BoardColumn, BoardDeal } from './board'
+import type { BoardColumn } from './board'
+import type { SalesDeal } from './useSalesDeals'
 
 /** 단계까지 봐야 정렬 순서를 알 수 있어 컬럼 목록을 받아 만듭니다. */
-export function dealColumns(stages: BoardColumn[]): DataColumn<BoardDeal>[] {
+export function dealColumns(stages: BoardColumn[]): DataColumn<SalesDeal>[] {
   return [
     { id: 'no', header: '영업번호', width: 132, numeric: true, sortable: true, text: (c) => c.no },
     { id: 'org', header: '고객사', width: 172, sortable: true, text: (c) => c.org },
@@ -20,7 +21,7 @@ export function dealColumns(stages: BoardColumn[]): DataColumn<BoardDeal>[] {
       header: '파이프라인',
       width: 120,
       sortable: true,
-      text: (c) => ('pipelineName' in c ? String(c.pipelineName) : ''),
+      text: (c) => c.pipelineName,
     },
     {
       id: 'amount',
@@ -49,13 +50,34 @@ export function dealColumns(stages: BoardColumn[]): DataColumn<BoardDeal>[] {
       // '제품 시연 평가' 배지가 그대로 들어가야 해서 다른 열보다 넓습니다.
       width: 132,
       sortable: true,
-      text: (c) =>
-        stages.find((col) => col.id === c.stageId)?.name ??
-        ('stageName' in c ? String(c.stageName) : ''),
-      sortValue: (c) =>
-        'stageOrder' in c
-          ? `${'pipelineName' in c ? String(c.pipelineName) : ''}\0${String(c.stageOrder).padStart(10, '0')}`
-          : stages.findIndex((col) => col.id === c.stageId),
+      text: (c) => stages.find((col) => col.id === c.stageId)?.name ?? c.stageName,
+      sortValue: (c) => `${c.pipelineName}\0${String(c.stageOrder).padStart(10, '0')}`,
+    },
+    // 서류 세 칸. 딜 하나가 어디까지 갔는지를 목록에서 바로 보려는 것이라 값이
+    // 없으면 아직 그 단계가 아니라는 뜻입니다. 이름과 색은 서버가 준 것을 씁니다.
+    {
+      id: 'quoteStatus',
+      header: '견적',
+      width: 104,
+      sortable: true,
+      text: (c) => c.quoteStatusName ?? '-',
+      sortValue: (c) => c.quoteStatusName ?? '',
+    },
+    {
+      id: 'contractStatus',
+      header: '계약',
+      width: 104,
+      sortable: true,
+      text: (c) => c.contractStatusName ?? '-',
+      sortValue: (c) => c.contractStatusName ?? '',
+    },
+    {
+      id: 'orderStatus',
+      header: '발주',
+      width: 120,
+      sortable: true,
+      text: (c) => c.orderStatusName ?? '-',
+      sortValue: (c) => c.orderStatusName ?? '',
     },
   ]
 }
