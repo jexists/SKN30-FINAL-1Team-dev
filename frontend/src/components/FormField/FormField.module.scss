@@ -1,0 +1,23 @@
+.field {
+  @include form-field;
+}
+
+.isWide {
+  grid-column: 1 / -1;
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+
+  b {
+    margin-left: 3px;
+    color: var(--red);
+  }
+}
+
+.error {
+  color: var(--red-ink);
+  font-size: 11px;
+}
