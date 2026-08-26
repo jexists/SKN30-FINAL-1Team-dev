@@ -148,21 +148,25 @@ async def _build_run_input(
         )
 
     if payload.agent_code == "contract_management_briefing":
-        parent = await _parent_run_or_409(
-            db, member, payload.parent_run_id, expected_agent_code="schedule_management"
-        )
+        # AI 제안(일정관리 실행)을 승인해서 만든 일정만 parent_run_id가 있다. 캘린더 직접
+        # 입력이나 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은 부모 없이 진행한다.
+        parent_id: UUID | None = None
+        source_refs = {"activity_id": str(payload.activity_id)}
+        if payload.parent_run_id is not None:
+            parent = await _parent_run_or_409(
+                db, member, payload.parent_run_id, expected_agent_code="schedule_management"
+            )
+            parent_id = parent.id
+            source_refs["parent_run_id"] = str(parent.id)
         input_snapshot = await contract_schedule_snapshots.build_briefing_snapshot(
             db, member, payload.activity_id
         )
+        source_refs["customer_company_id"] = input_snapshot["customer_company"]["id"]
         return (
             contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
             input_snapshot,
-            {
-                "activity_id": str(payload.activity_id),
-                "customer_company_id": input_snapshot["customer_company"]["id"],
-                "parent_run_id": str(parent.id),
-            },
-            parent.id,
+            source_refs,
+            parent_id,
         )
 
     # schedule_management. 계약관리 제안이 없어도(parent_run_id 없이) 실행할 수 있다.

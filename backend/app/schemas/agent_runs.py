@@ -29,10 +29,13 @@ _REQUIRED_FIELDS: dict[str, set[str]] = {
     # 로그인한 담당자의 전체 포트폴리오를 대상으로 돈다 — 특정 대상을 지정하지 않는다.
     "contract_management_select_candidates": set(),
     "contract_management_next_meeting": {"customer_company_id"},
-    "contract_management_briefing": {"activity_id", "parent_run_id"},
+    "contract_management_briefing": {"activity_id"},
     "schedule_management": {"sales_deal_id"},
 }
 _OPTIONAL_FIELDS: dict[str, set[str]] = {
+    # AI 제안(일정관리 실행)을 승인해서 만든 일정만 부모를 기록한다. 캘린더 직접 입력이나
+    # 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은 부모 없이 activity_id만으로 만든다.
+    "contract_management_briefing": {"parent_run_id"},
     "schedule_management": {
         "parent_run_id",
         "preferred_starts_at",

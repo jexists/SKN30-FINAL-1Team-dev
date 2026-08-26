@@ -488,9 +488,7 @@ async def test_schema_mismatch_is_rejected(llm_ready, monkeypatch):
         )
 
 
-def test_contract_management_select_candidates_run_uses_portfolio_snapshot(
-    llm_ready, monkeypatch
-):
+def test_contract_management_select_candidates_run_uses_portfolio_snapshot(llm_ready, monkeypatch):
     scheduled: list[UUID] = []
 
     async def _fake_execute(run_id: UUID) -> None:
@@ -609,6 +607,56 @@ def test_contract_management_briefing_requires_completed_schedule_parent(llm_rea
 
     assert response.status_code == 409
     assert response.json() == {"detail": "parent_run_not_usable"}
+
+
+def test_contract_management_briefing_without_parent_run(llm_ready, monkeypatch):
+    """AI 제안을 거치지 않은 일정(캘린더 직접 입력, 팀장 대리 입력 등)도 parent_run_id 없이
+    브리핑을 만들 수 있다 — activity_id만으로 충분하다."""
+    scheduled: list[UUID] = []
+
+    async def _fake_execute(run_id: UUID) -> None:
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    fixed_snapshot = {
+        "customer_company": {"id": "company-1"},
+        "sales_deals": [],
+        "approved_next_meeting": None,
+        "document_summaries": [],
+    }
+
+    async def _fake_build_briefing_snapshot(db, member, activity_id):
+        return fixed_snapshot
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots, "build_briefing_snapshot", _fake_build_briefing_snapshot
+    )
+
+    member = _member()
+    activity_id = uuid4()
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "contract_management_briefing",
+                "activity_id": str(activity_id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    created = db.added[0]
+    assert created.agent_code == "contract_management_briefing"
+    assert created.parent_run_id is None
+    assert created.source_refs == {
+        "activity_id": str(activity_id),
+        "customer_company_id": "company-1",
+    }
+    assert scheduled == [created.id]
 
 
 def test_schedule_management_run_uses_parent_next_meeting_suggestion(llm_ready, monkeypatch):
