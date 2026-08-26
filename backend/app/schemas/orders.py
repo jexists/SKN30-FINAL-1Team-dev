@@ -62,6 +62,9 @@ class OrderCreate(_WriteModel):
     ordered_on: date
     due_on: date
     expected_receipt_on: date
+    request_department: Text | None = None
+    cooperation_department: Text | None = None
+    expected_customer_company_id: UUID | None = None
     memo: LongText | None = None
     items: OrderItems
 
@@ -78,6 +81,9 @@ class OrderPatch(_WriteModel):
     ordered_on: date | None = None
     due_on: date | None = None
     expected_receipt_on: date | None = None
+    request_department: Text | None = None
+    cooperation_department: Text | None = None
+    expected_customer_company_id: UUID | None = None
     memo: LongText | None = None
     items: OrderItems | None = None
 
@@ -89,6 +95,9 @@ class OrderPatch(_WriteModel):
             "ordered_on",
             "due_on",
             "expected_receipt_on",
+            "request_department",
+            "cooperation_department",
+            "expected_customer_company_id",
             "items",
         ):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
@@ -129,6 +138,12 @@ class OrderRead(BaseModel):
     ordered_on: date
     due_on: date
     expected_receipt_on: date
+    request_department: str
+    cooperation_department: str
+    created_by_member_id: UUID
+    created_by_display_name: str
+    expected_customer_company_id: UUID
+    expected_customer_company_name: str
     memo: str | None
     items: list[OrderItemRead]
     created_at: datetime

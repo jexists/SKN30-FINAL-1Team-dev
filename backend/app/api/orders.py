@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.api.sales_deals import _move_deal_to_first_stage_of_phase
 from app.models.configuration import PurchaseOrderStatus
 from app.models.crm import CustomerCompany
 from app.models.sales import (
@@ -38,6 +39,8 @@ router = APIRouter(tags=["orders"])
 _SEOUL = ZoneInfo("Asia/Seoul")
 _owner = aliased(Member)
 _company = aliased(CustomerCompany)
+_creator = aliased(Member)
+_expected_company = aliased(CustomerCompany)
 _sales_deal = aliased(SalesDeal)
 _sales_stage = aliased(SalesPipelineStage)
 _order_status = aliased(PurchaseOrderStatus)
@@ -63,6 +66,11 @@ def _joined_select(*entities):
         .join(_owner, _sales_deal.owner_member_id == _owner.id)
         .join(_company, _sales_deal.customer_company_id == _company.id)
         .join(_order_status, PurchaseOrder.purchase_order_status_id == _order_status.id)
+        .join(_creator, PurchaseOrder.created_by_member_id == _creator.id)
+        .join(
+            _expected_company,
+            PurchaseOrder.expected_customer_company_id == _expected_company.id,
+        )
     )
 
 
@@ -93,6 +101,8 @@ def _scope(member: Member, owner_ids: tuple[UUID, ...] | None = None):
         _owner.role_code.in_(("member", "manager")),
         _company.team_id == member.team_id,
         _order_status.team_id == member.team_id,
+        _creator.team_id == member.team_id,
+        _expected_company.team_id == member.team_id,
         _items_are_team_scoped(member.team_id),
     ]
     if member.role_code == "member":
@@ -115,6 +125,8 @@ def _read_entities():
         _order_status.tone,
         _order_status.outcome_code,
         _order_status.position,
+        _creator.display_name,
+        _expected_company.name,
     )
 
 
@@ -130,6 +142,8 @@ def _order_read(
     stage_tone: str,
     stage_outcome_code: str,
     stage_position: int,
+    created_by_display_name: str,
+    expected_customer_company_name: str,
     items: list[OrderItemRead],
 ) -> OrderRead:
     return OrderRead(
@@ -151,6 +165,12 @@ def _order_read(
         ordered_on=order.ordered_on,
         due_on=order.due_on,
         expected_receipt_on=order.expected_receipt_on,
+        request_department=order.request_department,
+        cooperation_department=order.cooperation_department,
+        created_by_member_id=order.created_by_member_id,
+        created_by_display_name=created_by_display_name,
+        expected_customer_company_id=order.expected_customer_company_id,
+        expected_customer_company_name=expected_customer_company_name,
         memo=order.memo,
         items=items,
         created_at=_seoul(order.created_at),
@@ -298,6 +318,20 @@ async def _team_sales_deal(
     return row
 
 
+async def _team_company(db: AsyncSession, member: Member, company_id: UUID) -> None:
+    result = await db.execute(
+        select(CustomerCompany.id).where(
+            CustomerCompany.id == company_id,
+            CustomerCompany.team_id == member.team_id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="customer_company_not_found",
+        )
+
+
 async def _active_order_status(
     db: AsyncSession,
     member: Member,
@@ -336,69 +370,6 @@ async def _team_products(
     if set(products) != set(product_ids):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_not_found")
     return products
-
-
-async def _move_deal_to_first_order_stage(
-    db: AsyncSession,
-    member: Member,
-    sales_deal: SalesDeal,
-    current_phase_code: str,
-) -> None:
-    if current_phase_code == "order":
-        return
-    target_result = await db.execute(
-        select(SalesPipelineStage)
-        .where(
-            SalesPipelineStage.sales_pipeline_id == sales_deal.sales_pipeline_id,
-            SalesPipelineStage.phase_code == "order",
-        )
-        .order_by(SalesPipelineStage.position, SalesPipelineStage.id)
-        .limit(1)
-    )
-    target_stage = target_result.scalar_one_or_none()
-    if target_stage is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="sales_pipeline_order_stage_not_found",
-        )
-
-    # ponytail: 작은 보드는 단계 전체를 재번호한다. 느려지면 sparse rank로 바꾼다.
-    stage_ids = (sales_deal.sales_pipeline_stage_id, target_stage.id)
-    conditions = [
-        SalesDeal.team_id == member.team_id,
-        SalesDeal.sales_pipeline_stage_id.in_(stage_ids),
-        SalesDeal.deleted_at.is_(None),
-    ]
-    if member.role_code == "member":
-        conditions.append(SalesDeal.owner_member_id == member.id)
-    result = await db.execute(
-        select(SalesDeal)
-        .where(*conditions)
-        .order_by(
-            SalesDeal.sales_pipeline_stage_id,
-            SalesDeal.stage_position,
-            SalesDeal.id,
-        )
-        .with_for_update(of=SalesDeal)
-    )
-    deals = list(result.scalars().all())
-    source = [
-        item
-        for item in deals
-        if item.sales_pipeline_stage_id == sales_deal.sales_pipeline_stage_id
-        and item.id != sales_deal.id
-    ]
-    target = [item for item in deals if item.sales_pipeline_stage_id == target_stage.id]
-    target.insert(0, sales_deal)
-    now = datetime.now(UTC)
-    for position, item in enumerate(source):
-        item.stage_position = position
-        item.updated_at = now
-    for position, item in enumerate(target):
-        item.sales_pipeline_stage_id = target_stage.id
-        item.stage_position = position
-        item.updated_at = now
-    sales_deal.closed_on = None
 
 
 async def _next_order_no(db: AsyncSession, member: Member, year: int) -> str:
@@ -586,7 +557,9 @@ async def create_order(
         )
         order_status = await _active_order_status(db, member, payload.stage_code)
         products = await _team_products(db, member, payload.items)
-        await _move_deal_to_first_order_stage(db, member, sales_deal, phase_code)
+        await _move_deal_to_first_stage_of_phase(db, member, sales_deal, phase_code, "order")
+        expected_company_id = payload.expected_customer_company_id or sales_deal.customer_company_id
+        await _team_company(db, member, expected_company_id)
         order_no = await _next_order_no(db, member, payload.ordered_on.year)
         order = PurchaseOrder(
             id=uuid4(),
@@ -598,8 +571,15 @@ async def create_order(
             ordered_on=payload.ordered_on,
             due_on=payload.due_on,
             expected_receipt_on=payload.expected_receipt_on,
+            created_by_member_id=member.id,
+            expected_customer_company_id=expected_company_id,
             memo=payload.memo,
             deleted_at=None,
+            **{
+                name: value
+                for name in ("request_department", "cooperation_department")
+                if (value := getattr(payload, name)) is not None
+            },
         )
         _validate_order_dates(order)
         order_items = _new_items(order.id, payload.items)
@@ -651,6 +631,8 @@ async def update_order(
                 values["sales_deal_id"],
             )
             values["sales_deal_id"] = sales_deal.id
+        if values.get("expected_customer_company_id") is not None:
+            await _team_company(db, member, values["expected_customer_company_id"])
 
         for field_name, value in values.items():
             setattr(order, field_name, value)
