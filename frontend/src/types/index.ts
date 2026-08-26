@@ -1,6 +1,7 @@
 // 도메인 타입을 한 곳에서 다시 내보냅니다.
 
 export type * from './agenda'
+export type * from './contractAgent'
 export type * from './contracts'
 export type * from './deals'
 export type * from './counters'

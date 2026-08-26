@@ -4,7 +4,7 @@ import Button from '@/components/Button'
 import { CloseIcon, InfoIcon, RefreshIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import { KIND_LABEL } from '@/shared/agenda'
-import type { AiSuggestion } from '@/types'
+import type { AiSuggestion, AiSuggestionReady } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import type { PointerEvent as ReactPointerEvent } from 'react'
@@ -13,12 +13,14 @@ import styles from './SuggestionPanel.module.scss'
 
 interface Props {
   suggestions: AiSuggestion[]
-  /** 미리보기 중인 추천. 그 날짜 칸에 고스트 칩이 떠 있습니다. */
+  /** 미리보기 중인 추천. 그 카드에 강조 테두리가 뜹니다. */
   previewId: string | null
   onPreview: (id: string | null) => void
-  onAccept: (suggestion: AiSuggestion) => void
+  /** 접힌 카드를 펼쳐 실제 날짜/시간을 계산합니다(1차 제안 + 일정 후보 호출). */
+  onExpand: (id: string) => void
+  onAccept: (suggestion: AiSuggestionReady) => void
   onDismiss: (id: string) => void
-  onGrab: (pointer: ReactPointerEvent, suggestion: AiSuggestion) => void
+  onGrab: (pointer: ReactPointerEvent, suggestion: AiSuggestionReady) => void
   /** 추천을 다시 받아 옵니다. */
   onRefresh: () => void
   /** 다시 받아 오는 중. 아이콘이 돌고 버튼은 잠깁니다. */
@@ -29,6 +31,7 @@ export default function SuggestionPanel({
   suggestions,
   previewId,
   onPreview,
+  onExpand,
   onAccept,
   onDismiss,
   onGrab,
@@ -68,8 +71,9 @@ export default function SuggestionPanel({
             }
           >
             <p className={styles.sub}>
-              후속 조치 기한과 계약 만료일을 보고 고른 일정입니다. 카드를 끌어 원하는 날짜에 놓거나,
-              추천한 날짜에 그대로 넣으세요.
+              후속 조치 기한과 계약 만료일을 보고 고른 딜입니다. "일정 확인"을 누르면 실제
+              날짜·시간을 계산합니다. 카드를 끌어 원하는 날짜에 놓거나, 추천한 날짜에 그대로
+              넣으세요.
             </p>
           </Popover>
         </div>
@@ -101,17 +105,25 @@ export default function SuggestionPanel({
             <li
               key={s.id}
               className={`${styles.card} ${previewId === s.id ? styles.isPreview : ''}`}
-              onPointerDown={(pointer) => onGrab(pointer, s)}
+              onPointerDown={(pointer) => {
+                if (s.status === 'ready') onGrab(pointer, s)
+              }}
               onMouseEnter={() => onPreview(s.id)}
               onMouseLeave={() => onPreview(null)}
               onFocus={() => onPreview(s.id)}
               onBlur={() => onPreview(null)}
             >
               <div className={styles.when}>
-                <span className="tnum">{fmtDay(parseISO(s.date))}</span>
-                <span className={`${styles.time} tnum`}>
-                  {s.time} · {s.dur}
-                </span>
+                {s.status === 'ready' ? (
+                  <>
+                    <span className="tnum">{fmtDay(parseISO(s.date))}</span>
+                    <span className={`${styles.time} tnum`}>
+                      {s.time} · {s.dur}
+                    </span>
+                  </>
+                ) : (
+                  <span className="tnum">우선순위 {s.priority}</span>
+                )}
                 <button
                   type="button"
                   className={styles.dismiss}
@@ -124,25 +136,40 @@ export default function SuggestionPanel({
 
               <h3 className={styles.org}>
                 {s.hospital}
-                <span className={styles.who}>
-                  {s.dept} · {s.contact}
-                </span>
+                <span className={styles.who}>{s.contact}</span>
               </h3>
               <p className={styles.title}>{s.title}</p>
-              <p className={styles.reason}>{s.reason}</p>
+              <p className={styles.reason}>{s.status === 'ready' ? s.proposalReason : s.reason}</p>
+              {s.status === 'error' && <p className={styles.reason}>{s.error}</p>}
 
-              <div className={styles.basis}>
-                <i className={styles.kind}>{KIND_LABEL[s.kind]}</i>
-                {s.basis.map((b) => (
-                  <i key={b} className={styles.tag}>
-                    {b}
-                  </i>
-                ))}
-              </div>
+              {s.status === 'ready' && (
+                <div className={styles.basis}>
+                  <i className={styles.kind}>{KIND_LABEL[s.kind]}</i>
+                  {s.basis.map((b) => (
+                    <i key={b} className={styles.tag}>
+                      {b}
+                    </i>
+                  ))}
+                </div>
+              )}
 
-              <Button className={styles.accept} onClick={() => onAccept(s)}>
-                추천일에 넣기
-              </Button>
+              {s.status === 'ready' ? (
+                <Button className={styles.accept} onClick={() => onAccept(s)}>
+                  추천일에 넣기
+                </Button>
+              ) : (
+                <Button
+                  className={styles.accept}
+                  onClick={() => onExpand(s.id)}
+                  disabled={s.status === 'loading'}
+                >
+                  {s.status === 'loading'
+                    ? '일정 확인 중…'
+                    : s.status === 'error'
+                      ? '다시 시도'
+                      : '일정 확인'}
+                </Button>
+              )}
             </li>
           ))}
         </ul>
