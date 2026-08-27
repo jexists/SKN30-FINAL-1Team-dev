@@ -34,7 +34,6 @@ import ReportKindMenu, { type ComposeKind } from './components/ReportKindMenu'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { countFilters, parseFilters, writeFilters, type HistoryFilters } from './historyFilters'
 import { PERIOD_KIND, PERIOD_LABEL, PERIODS, toPeriod } from './periods'
-import { type ListRow } from './rows'
 import { useReportFilterOptions, useReportList, useReportMarks } from './useReportHistory'
 
 import styles from './Daily.module.scss'
@@ -49,14 +48,6 @@ const weekDays = (offset: number) => {
   const first = addDays(startOfWeek(TODAY), offset * 7)
   return Array.from({ length: 7 }, (_, i) => addDays(first, i))
 }
-
-/**
- * 열려 있는 요약 패널. 여는 길이 둘입니다.
- *
- * 달력은 그날 낸 것을 통째로 펴고, 작성 리스트는 고른 보고서 하나만 폅니다.
- * 어느 쪽이든 그 날짜가 달력에서 선택으로 보입니다.
- */
-type OpenPanel = { by: 'date'; dateISO: string } | { by: 'row'; row: ListRow }
 
 export default function Daily() {
   const [params, setParams] = useSearchParams()
@@ -78,9 +69,9 @@ export default function Daily() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [showMonth, setShowMonth] = useState(false)
   const [cursor, setCursor] = useState(() => startOfMonth(TODAY))
-  // drawer 가 열려 있는 동안에만 값이 있습니다.
-  const [open, setOpen] = useState<OpenPanel | null>(null)
-  const openISO = open === null ? '' : open.by === 'date' ? open.dateISO : open.row.date
+  // 달력에서 고른 날짜. 요약 패널이 열려 있는 동안에만 값이 있습니다.
+  // 작성 리스트는 패널 없이 곧장 전문으로 갑니다.
+  const [openISO, setOpenISO] = useState('')
 
   const query = params.get('q') ?? ''
   const filters = useMemo(() => parseFilters(params), [params])
@@ -270,14 +261,14 @@ export default function Daily() {
             cursor={cursor}
             byDate={inKind}
             selectedISO={openISO}
-            onSelect={(dateISO) => setOpen({ by: 'date', dateISO })}
+            onSelect={setOpenISO}
           />
         ) : (
           <div className={styles.strip}>
             <WeekStrip
               days={days}
               selectedISO={openISO}
-              onSelect={(dateISO) => setOpen({ by: 'date', dateISO })}
+              onSelect={setOpenISO}
               onOutOfRange={(next) => setWeekOffset(weekOffset + (next < iso(days[0]) ? -1 : 1))}
               renderMarks={renderMark}
               label="제출 이력 주간 달력"
@@ -332,24 +323,21 @@ export default function Daily() {
       ) : (
         <ul className={styles.rows}>
           {visible.map((row) => (
-            // 줄 어디를 눌러도 요약이 섭니다. 전문으로는 그 안의 '전체 보기' 로 넘어갑니다.
-            <li key={row.id} className={styles.row} onClick={() => setOpen({ by: 'row', row })}>
+            // 줄 어디를 눌러도 그 보고서 전문으로 넘어갑니다.
+            <li key={row.id} className={styles.row} onClick={() => navigate(row.to)}>
               <span className={styles.type}>{row.kindLabel}</span>
 
               <div className={styles.rowBody}>
                 {/* 줄 전체를 누르지만 li 는 키보드로 못 잡습니다. 제목이 그
                     손잡이이고, 하는 일은 줄을 누른 것과 같습니다. */}
                 <strong>
-                  <button
-                    type="button"
+                  <Link
                     className={styles.openButton}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setOpen({ by: 'row', row })
-                    }}
+                    to={row.to}
+                    onClick={(event) => event.stopPropagation()}
                   >
                     {row.title}
-                  </button>
+                  </Link>
                 </strong>
                 <span>{row.meta}</span>
               </div>
@@ -380,13 +368,13 @@ export default function Daily() {
         전체 <b className="tnum">{total}</b>건 중 {visible.length}건 표시
       </p>
 
-      {open !== null && (
+      {openISO !== '' && (
         <ReportDrawer
           dateISO={openISO}
-          rows={open.by === 'row' ? [open.row] : (inKind.get(openISO) ?? [])}
+          rows={inKind.get(openISO) ?? []}
           // '전체' 탭은 종류를 고르지 않았으므로 머리말 CTA 와 같이 일일로 봅니다.
           kind={kind ?? '일일'}
-          onClose={() => setOpen(null)}
+          onClose={() => setOpenISO('')}
         />
       )}
     </section>
