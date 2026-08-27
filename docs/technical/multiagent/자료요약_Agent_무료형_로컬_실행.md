@@ -81,13 +81,25 @@ EMBEDDING_LOCAL_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v
 Windows·Mac에서 로컬 이미지 OCR만 빠르게 확인할 때는 백엔드 디렉터리에서 다음 명령을 사용한다.
 파일을 생략하면 개인정보 없는 합성 이미지로 런타임만 검사하고, `--file`을 지정하면 실제
 사용자 제공 이미지의 OCR 경로까지 검사한다.
+저장소의 백엔드 CI도 Windows runner에서 `OCR_PROVIDER=local`을 명시해 동일한 합성 OCR
+smoke test를 `business_card` 경량 프로필로 실행한다. 일반 `document` 프로필은 방향분류·
+문서보정 모델 캐시가 추가로 필요하므로 실제 문서 검증 시 별도로 실행한다.
 
 ```bash
 python -m scripts.windows_ocr_smoke
-python -m scripts.windows_ocr_smoke --file /absolute/path/to/business-card.jpeg
+python -m scripts.windows_ocr_smoke --profile business_card \
+  --file /absolute/path/to/business-card.jpeg
 # 같은 방식으로 직접 실행해도 된다.
-python scripts/windows_ocr_smoke.py --file /absolute/path/to/business-card.jpeg
+python scripts/windows_ocr_smoke.py --profile business_card \
+  --file /absolute/path/to/business-card.jpeg
 ```
+
+`business_card` 프로필은 명함용 경량 OCR 엔진과 이미지 보정 variant를 사용한다.
+고해상도 사진은 `BUSINESS_CARD_MAX_SIDE` 기준으로 축소한 뒤 처리하며, 기본값은
+`2400`이다. 메모리가 부족한 Windows 환경에서는 실행 전에 `BUSINESS_CARD_MAX_SIDE=1200`
+처럼 낮춰 단계적으로 확인할 수 있다.
+로컬 OCR도 `OCR_TIMEOUT_SECONDS`를 적용하므로, CPU 추론이 제한 시간을 넘으면 결과를
+저장하지 않고 `local_ocr_timeout` 오류로 반환한다.
 
 실제 문서의 로컬 추출·페이지 보존·청크 구조를 외부 API 없이 점검할 때는 다음 명령을
 사용한다. 결과에는 파일명과 품질 지표만 출력하며 원문은 출력하지 않는다.
@@ -102,6 +114,18 @@ python scripts/document_quality_smoke.py --ocr-local /absolute/path/to/document-
 ```bash
 python scripts/document_summary_e2e.py --send-to-llm \
   /absolute/path/to/contract.pdf /absolute/path/to/contract.docx
+```
+
+실제 명함의 고객 등록·원본 보관 E2E는 테스트용 계정과 테스트용 이미지 경로를 현재
+터미널 세션의 환경변수로만 넣은 뒤 실행한다. 이 과정은 회사·고객·문서 데이터를
+생성하므로 [가정] 테스트용 팀과 계정이 준비되어 있어야 하며, 운영 계정으로 바로
+실행하지 않는다.
+
+```bash
+export SALESLUV_E2E_EMAIL='테스트 계정 이메일'
+export SALESLUV_E2E_PASSWORD='테스트 계정 비밀번호'
+export SALESLUV_E2E_CARD_PATH='/absolute/path/to/business-card.jpeg'
+python scripts/business_card_e2e.py
 ```
 
 HWP는 `hwp5txt`/`hwp5txt.exe`를 우선 사용하고, 없으면 LibreOffice의 `soffice`를
@@ -128,3 +152,33 @@ headless로 사용한다. PATH에 없으면 `.env`의 `HWP5TXT_PATH` 또는 `SOF
 - Mac·Windows에서 같은 모델·패키지 버전과 같은 입력 샘플을 사용해 재현성을 확인한다.
 - OCR·요약·임베딩 모델의 버전과 다운로드 경로를 기록한다.
 - 실제 운영 전에는 Azure·CLOVA를 fallback으로 둘지, 외부 전송을 허용하지 않을지 팀 정책으로 결정한다.
+
+## 현재 로컬 검증 결과
+
+[검증] 사용자 제공 취업규칙 PDF는 로컬 `pdf-inspector` OCR로 35페이지를 처리했고, 페이지 번호
+검증과 비어 있지 않은 RAG 청크 생성을 통과했다.
+
+[검증] 사용자 제공 계약서 DOCX는 로컬 문서 추출로 1페이지를 처리했고, 페이지 번호 검증과
+비어 있지 않은 RAG 청크 생성을 통과했다.
+
+[검증] 실제 명함 이미지는 로컬 PaddleOCR에서 텍스트와 전화번호 패턴을 인식했다. 이메일은
+기호 주변 공백 또는 OCR 기호 변형을 포함한 별도 정규화·재검증이 필요하다.
+
+[검증] 개인정보가 없는 합성 문서로 OpenAI 구조화 요약 호출을 실행했고, `DocumentSummaryOutput`
+스키마 검증과 요약·핵심 항목·추출 필드 반환을 통과했다. 실제 사용자 문서와 명함 원문은 외부
+API로 전송하지 않았다.
+
+[검증] 개인정보가 없는 합성 문장 3개로 로컬 SentenceTransformers 임베딩과 코사인 유사도
+검색을 실행했고, 벡터 생성과 관련 문장 우선 검색을 통과했다.
+모델 캐시가 준비된 환경에서는 `HF_HUB_OFFLINE=1`로 외부 모델 저장소 연결 없이도 임베딩을
+생성했다.
+
+[검증] Supabase 연결과 문서 관련 테이블 확인은 통과했지만, 현재 환경의 문서·파일·청크·임베딩
+건수는 모두 0건이다. 따라서 실제 Supabase 데이터로 수행하는 RAG 검색 E2E는 아직 실행할
+대상 데이터가 없다.
+
+[검증] 개인정보 없는 합성 문서를 Supabase 트랜잭션에 임시 저장해 로컬 임베딩 검색, 페이지
+참조 보존, 저장 요약의 브리핑 문맥 결합을 확인한 뒤 롤백했다. 롤백 후 문서·파일·청크 건수는
+모두 0건으로 돌아왔다.
+
+[미완료] Windows에서 같은 문서·명함 입력으로 로컬 OCR을 실행하고 Mac 결과와 비교한다.

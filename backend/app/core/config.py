@@ -57,14 +57,18 @@ class Settings(BaseSettings):
 
     # 스캔 PDF·이미지 OCR. Runpod Serverless, Azure 또는 선택적 로컬 엔진을 지원한다.
     ocr_provider: Literal["none", "runpod", "azure", "local"] = "none"
+    # Runpod 자체 워커 또는 공개 MinerU 워커의 입출력 계약을 선택한다.
+    ocr_runpod_contract: Literal["salesluv", "mineru"] = "salesluv"
     ocr_local_language: str = "korean"
     ocr_api_url: str = ""
     ocr_api_key: SecretStr = SecretStr("")
-    ocr_timeout_seconds: float = Field(default=90.0, gt=0, le=300)
+    # runsync 대기시간보다 여유 있게 잡아 클라이언트가 먼저 연결을 끊지 않도록 한다.
+    ocr_timeout_seconds: float = Field(default=150.0, gt=0, le=300)
     ocr_runpod_wait_seconds: int = Field(default=120, ge=1, le=300)
     ocr_runpod_inline_max_bytes: int = Field(default=14 * 1024 * 1024, gt=0, le=20 * 1024 * 1024)
     ocr_runpod_signed_url_expires_seconds: int = Field(default=300, ge=60, le=3_600)
     business_card_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0, le=50 * 1024 * 1024)
+    business_card_max_side: int = Field(default=2_400, ge=640, le=6_000)
     pdf_inspector_model_directory: str = ""
     paddlex_cache_home: str = ""
 

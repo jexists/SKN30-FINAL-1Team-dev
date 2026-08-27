@@ -35,6 +35,12 @@ async def main() -> None:
         type=Path,
         help="실제 이미지 경로. 생략하면 개인정보 없는 합성 이미지를 사용한다.",
     )
+    parser.add_argument(
+        "--profile",
+        choices=("document", "business_card"),
+        default="document",
+        help="OCR 프로필. 명함 실측 시 business_card를 지정한다.",
+    )
     args = parser.parse_args()
     if args.file is None:
         file_name = "windows-ocr-smoke.png"
@@ -48,6 +54,7 @@ async def main() -> None:
         file_name=file_name,
         media_type=media_type,
         content=content,
+        profile=args.profile,
     )
     if result.payload.get("ocr_provider") != "paddleocr_local":
         raise RuntimeError("local_ocr_provider_not_used")

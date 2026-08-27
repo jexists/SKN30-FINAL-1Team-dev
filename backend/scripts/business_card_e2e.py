@@ -11,9 +11,13 @@ from pathlib import Path
 import httpx
 
 BASE_URL = os.getenv("SALESLUV_E2E_BASE_URL", "http://127.0.0.1:8000/api")
-EMAIL = os.environ["SALESLUV_E2E_EMAIL"]
-PASSWORD = os.environ["SALESLUV_E2E_PASSWORD"]
-CARD_PATH = Path(os.environ["SALESLUV_E2E_CARD_PATH"])
+
+
+def _required_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise SystemExit(f"필수 환경변수가 없습니다: {name}")
+    return value
 
 
 def require(response: httpx.Response, endpoint: str) -> None:
@@ -22,19 +26,25 @@ def require(response: httpx.Response, endpoint: str) -> None:
 
 
 def main() -> None:
+    email = _required_env("SALESLUV_E2E_EMAIL")
+    password = _required_env("SALESLUV_E2E_PASSWORD")
+    card_path = Path(_required_env("SALESLUV_E2E_CARD_PATH"))
+    if not card_path.is_file():
+        raise SystemExit("SALESLUV_E2E_CARD_PATH가 파일을 가리키지 않습니다.")
+
     with httpx.Client(
         base_url=BASE_URL,
         timeout=httpx.Timeout(180.0, connect=15.0),
     ) as client:
-        login = client.post("/auth/login", json={"email": EMAIL, "password": PASSWORD})
+        login = client.post("/auth/login", json={"email": email, "password": password})
         require(login, "login")
         session = login.json()
         print({"login_status": login.status_code, "session_received": bool(session.get("id"))})
 
-        with CARD_PATH.open("rb") as image:
+        with card_path.open("rb") as image:
             scan = client.post(
                 "/business-cards/scan",
-                files={"image": (CARD_PATH.name, image, "image/jpeg")},
+                files={"image": (card_path.name, image, "image/jpeg")},
             )
         require(scan, "business_card_scan")
         draft = scan.json()
@@ -91,11 +101,11 @@ def main() -> None:
         require(customer_response, "create_customer")
         customer = customer_response.json()
 
-        with CARD_PATH.open("rb") as image:
+        with card_path.open("rb") as image:
             archive = client.post(
                 "/business-cards/archive",
                 data={"contact_id": customer["id"]},
-                files={"image": (CARD_PATH.name, image, "image/jpeg")},
+                files={"image": (card_path.name, image, "image/jpeg")},
             )
         require(archive, "archive_business_card")
         archived = archive.json()

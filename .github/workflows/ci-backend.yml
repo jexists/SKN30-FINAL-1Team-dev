@@ -54,9 +54,12 @@ jobs:
       - name: Windows 로컬 OCR 실제 실행
         if: matrix.os == 'windows-latest'
         env:
+          OCR_PROVIDER: local
+          OCR_LOCAL_LANGUAGE: korean
+          OCR_TIMEOUT_SECONDS: '150'
           PADDLE_PDX_CACHE_HOME: ${{ runner.temp }}/paddlex
           PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: 'true'
-        run: uv run python -m scripts.windows_ocr_smoke
+        run: uv run python -m scripts.windows_ocr_smoke --profile business_card
 
       - name: 배포 스크립트 검증
         working-directory: .

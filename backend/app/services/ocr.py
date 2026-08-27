@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import re
 import tempfile
 from functools import lru_cache
 from io import BytesIO
@@ -32,22 +33,31 @@ async def extract_document(
     media_type: str | None,
     content: bytes,
     source_url: str | None = None,
+    profile: str = "document",
 ) -> ExtractedDocument:
     if not settings.ocr_configured:
         raise OcrError("ocr_provider_not_configured")
     if settings.ocr_provider == "local":
-        return await asyncio.to_thread(
-            _local,
-            file_name=file_name,
-            media_type=media_type,
-            content=content,
-        )
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    _local,
+                    file_name=file_name,
+                    media_type=media_type,
+                    content=content,
+                    profile=profile,
+                ),
+                timeout=settings.ocr_timeout_seconds,
+            )
+        except TimeoutError as error:
+            raise OcrError("local_ocr_timeout") from error
     if settings.ocr_provider == "runpod":
         return await _runpod(
             file_name=file_name,
             media_type=media_type,
             content=content,
             source_url=source_url,
+            profile=profile,
         )
     if settings.ocr_provider != "azure":
         raise OcrError("ocr_provider_unsupported")
@@ -60,19 +70,30 @@ async def _runpod(
     media_type: str | None,
     content: bytes,
     source_url: str | None,
+    profile: str,
 ) -> ExtractedDocument:
     """Runpod Serverless OCR 워커를 동기 호출한다."""
     input_payload: dict[str, Any] = {
         "file_name": file_name,
         "media_type": media_type or "application/octet-stream",
         "language": settings.ocr_local_language,
+        "profile": profile,
     }
     if source_url:
-        input_payload["source_url"] = source_url
+        source_key = "file_url" if settings.ocr_runpod_contract == "mineru" else "source_url"
+        input_payload[source_key] = source_url
     else:
         if len(content) > settings.ocr_runpod_inline_max_bytes:
             raise OcrError("runpod_source_url_required_for_large_file")
-        input_payload["content_base64"] = base64.b64encode(content).decode("ascii")
+        content_key = (
+            "file_b64" if settings.ocr_runpod_contract == "mineru" else "content_base64"
+        )
+        input_payload[content_key] = base64.b64encode(content).decode("ascii")
+
+    if settings.ocr_runpod_contract == "mineru":
+        input_payload.update(
+            {"transport": "inline", "formats": ["markdown", "content_list", "middle"]}
+        )
 
     endpoint = _runpod_runsync_url(settings.ocr_api_url, settings.ocr_runpod_wait_seconds)
     try:
@@ -119,35 +140,65 @@ def _runpod_result(payload: dict[str, Any], *, file_name: str) -> ExtractedDocum
     if output.get("error"):
         raise OcrError("runpod_worker_error")
 
-    pages = output.get("pages")
-    if not isinstance(pages, list) or not pages:
-        raise OcrError("runpod_empty_result")
     common_extra = {
         "ocr_provider": "runpod",
         "source_file": file_name,
         "runpod_job_id": payload.get("id"),
         "runpod_status": payload.get("status"),
     }
-    if all(isinstance(page, dict) and "markdown" in page for page in pages):
+    pages = output.get("pages")
+    if isinstance(pages, list) and pages:
+        if all(isinstance(page, dict) and "markdown" in page for page in pages):
+            return from_page_markdown(
+                pages=pages,
+                source_type="runpod_ocr",
+                payload_extra=common_extra,
+            )
+        if all(isinstance(page, dict) and "lines" in page for page in pages):
+            extracted = from_ocr_blocks(
+                pages=pages,
+                tables=output.get("tables") if isinstance(output.get("tables"), list) else [],
+                source_type="runpod_ocr",
+            )
+            payload_copy = dict(extracted.payload)
+            payload_copy.update(common_extra)
+            return ExtractedDocument(
+                plain_text=extracted.plain_text,
+                markdown=extracted.markdown,
+                payload=payload_copy,
+            )
+        raise OcrError("runpod_page_schema_invalid")
+    if settings.ocr_runpod_contract == "mineru":
+        return _mineru_result(output, common_extra=common_extra)
+    raise OcrError("runpod_empty_result")
+
+
+def _mineru_result(output: dict[str, Any], *, common_extra: dict[str, Any]) -> ExtractedDocument:
+    """MinerU results[] 또는 단일 markdown 응답을 페이지 계약으로 정규화한다."""
+    direct_markdown = output.get("markdown")
+    if isinstance(direct_markdown, str) and direct_markdown.strip():
         return from_page_markdown(
-            pages=pages,
-            source_type="runpod_ocr",
-            payload_extra=common_extra,
+            pages=[{"page_number": 1, "markdown": direct_markdown, "source": "mineru"}],
+            source_type="runpod_mineru",
+            payload_extra={**common_extra, "runpod_engine": "mineru"},
         )
-    if all(isinstance(page, dict) and "lines" in page for page in pages):
-        extracted = from_ocr_blocks(
-            pages=pages,
-            tables=output.get("tables") if isinstance(output.get("tables"), list) else [],
-            source_type="runpod_ocr",
-        )
-        payload_copy = dict(extracted.payload)
-        payload_copy.update(common_extra)
-        return ExtractedDocument(
-            plain_text=extracted.plain_text,
-            markdown=extracted.markdown,
-            payload=payload_copy,
-        )
-    raise OcrError("runpod_page_schema_invalid")
+    results = output.get("results")
+    if not isinstance(results, list) or not results:
+        raise OcrError("runpod_empty_result")
+    pages: list[dict[str, Any]] = []
+    for index, item in enumerate(results, start=1):
+        if not isinstance(item, dict):
+            continue
+        markdown = item.get("markdown")
+        if isinstance(markdown, str) and markdown.strip():
+            pages.append({"page_number": index, "markdown": markdown, "source": "mineru"})
+    if not pages:
+        raise OcrError("runpod_empty_result")
+    return from_page_markdown(
+        pages=pages,
+        source_type="runpod_mineru",
+        payload_extra={**common_extra, "runpod_engine": "mineru"},
+    )
 
 
 async def _azure(*, file_name: str, media_type: str | None, content: bytes) -> ExtractedDocument:
@@ -231,20 +282,42 @@ def _paddle_engine():
     try:
         return PaddleOCR(
             lang=settings.ocr_local_language,
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
+            use_doc_orientation_classify=True,
+            use_doc_unwarping=True,
+            use_textline_orientation=True,
         )
     except TypeError:
         # PaddleOCR 2.x 호환용 옵션. 최신 버전의 옵션이 없는 설치를 지원한다.
         return PaddleOCR(lang=settings.ocr_local_language, use_angle_cls=True)
 
 
-def _local(*, file_name: str, media_type: str | None, content: bytes) -> ExtractedDocument:
+@lru_cache(maxsize=1)
+def _paddle_business_card_engine():
+    """명함용 경량 엔진. 이미 보정한 사진에는 문서 전처리를 반복하지 않는다."""
+    _configure_paddlex_cache()
+    try:
+        from paddleocr import PaddleOCR
+    except ImportError as error:
+        raise OcrError("local_ocr_dependency_missing:paddleocr") from error
+    try:
+        return PaddleOCR(
+            lang=settings.ocr_local_language,
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+        )
+    except TypeError:
+        # PaddleOCR 2.x 호환용: 명함 사진은 각도 보정 없이 이미 전처리한다.
+        return PaddleOCR(lang=settings.ocr_local_language, use_angle_cls=False)
+
+
+def _local(
+    *, file_name: str, media_type: str | None, content: bytes, profile: str = "document"
+) -> ExtractedDocument:
     suffix = Path(file_name).suffix.lower()
     if suffix == ".pdf" or media_type == "application/pdf":
         return _local_pdf(content=content, file_name=file_name)
-    return _local_image(content=content, file_name=file_name)
+    return _local_image(content=content, file_name=file_name, profile=profile)
 
 
 def _local_pdf(*, content: bytes, file_name: str) -> ExtractedDocument:
@@ -401,25 +474,38 @@ def _configure_paddlex_cache() -> None:
     os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
 
-def _local_image(*, content: bytes, file_name: str) -> ExtractedDocument:
+def _local_image(
+    *, content: bytes, file_name: str, profile: str = "document"
+) -> ExtractedDocument:
     try:
         import numpy as np
         from PIL import Image
     except ImportError as error:
         raise OcrError("local_ocr_dependency_missing:pillow-numpy") from error
     try:
-        image = np.asarray(Image.open(BytesIO(content)).convert("RGB"))
-        engine = _paddle_engine()
-        try:
-            results = engine.predict(input=image)
-        except AttributeError:
-            results = engine.ocr(image, cls=True)
+        images = (
+            _business_card_variants(content)
+            if profile == "business_card"
+            else [np.asarray(Image.open(BytesIO(content)).convert("RGB"))]
+        )
+        engine = (
+            _paddle_business_card_engine()
+            if profile == "business_card"
+            else _paddle_engine()
+        )
+        line_groups = []
+        for image in images:
+            try:
+                results = engine.predict(input=image)
+            except AttributeError:
+                results = engine.ocr(image, cls=True)
+            line_groups.append(_paddle_lines(results))
     except OcrError:
         raise
     except Exception as error:
         raise OcrError(f"local_ocr_failed:{type(error).__name__}") from error
 
-    lines = _paddle_lines(results)
+    lines = _merge_ocr_lines(line_groups) if profile == "business_card" else line_groups[0]
     if not lines:
         raise OcrError("local_ocr_empty_result")
     extracted = from_ocr_blocks(
@@ -432,6 +518,8 @@ def _local_image(*, content: bytes, file_name: str) -> ExtractedDocument:
             "ocr_provider": "paddleocr_local",
             "source_file": file_name,
             "local_ocr": True,
+            "ocr_profile": profile,
+            "ocr_variant_count": len(images),
         }
     )
     return ExtractedDocument(
@@ -439,6 +527,139 @@ def _local_image(*, content: bytes, file_name: str) -> ExtractedDocument:
         markdown=extracted.markdown,
         payload=payload,
     )
+
+
+def _business_card_variants(content: bytes) -> list[Any]:
+    """명함 사진을 보정한 OCR 입력을 만든다.
+
+    OpenCV가 설치된 환경에서는 사각형 검출·원근 보정을 먼저 시도하고,
+    설치되지 않은 환경에서도 Pillow 기반 대비 보정은 계속 제공한다.
+    """
+    import numpy as np
+    from PIL import Image, ImageEnhance, ImageOps
+
+    image = ImageOps.exif_transpose(Image.open(BytesIO(content))).convert("RGB")
+    base = np.asarray(image)
+    rectified = _rectify_card(base)
+    if rectified is not None:
+        base = rectified
+
+    max_side = settings.business_card_max_side
+    height, width = base.shape[:2]
+    longest_side = max(height, width)
+    if longest_side > max_side:
+        scale = max_side / longest_side
+        resized = Image.fromarray(base).resize(
+            (max(1, round(width * scale)), max(1, round(height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+        base = np.asarray(resized)
+
+    gray = ImageOps.grayscale(Image.fromarray(base))
+    enhanced = ImageEnhance.Contrast(ImageOps.autocontrast(gray)).enhance(1.35)
+    variants = [base, np.asarray(enhanced.convert("RGB"))]
+
+    try:
+        import cv2
+
+        gray_array = np.asarray(enhanced)
+        threshold = cv2.adaptiveThreshold(
+            gray_array,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            31,
+            11,
+        )
+        variants.append(np.repeat(threshold[:, :, None], 3, axis=2))
+    except ImportError:
+        pass
+    return variants
+
+
+def _rectify_card(image: Any) -> Any | None:
+    """사진 속 명함 외곽선을 찾아 원근을 보정한다. 실패하면 원본을 유지한다."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return None
+
+    height, width = image.shape[:2]
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 30, 120)
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True)[:10]:
+        area = cv2.contourArea(contour)
+        if area < height * width * 0.20:
+            continue
+        perimeter = cv2.arcLength(contour, True)
+        polygon = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
+        if len(polygon) != 4:
+            continue
+        points = _order_quad(polygon.reshape(4, 2))
+        top_left, top_right, bottom_right, bottom_left = points
+        target_width = max(
+            int(np.linalg.norm(top_right - top_left)),
+            int(np.linalg.norm(bottom_right - bottom_left)),
+        )
+        target_height = max(
+            int(np.linalg.norm(bottom_left - top_left)),
+            int(np.linalg.norm(bottom_right - top_right)),
+        )
+        if target_width < 100 or target_height < 60:
+            continue
+        destination = np.array(
+            [
+                [0, 0],
+                [target_width - 1, 0],
+                [target_width - 1, target_height - 1],
+                [0, target_height - 1],
+            ],
+            dtype=np.float32,
+        )
+        transform = cv2.getPerspectiveTransform(points.astype(np.float32), destination)
+        return cv2.warpPerspective(image, transform, (target_width, target_height))
+    return None
+
+
+def _order_quad(points: Any) -> Any:
+    import numpy as np
+
+    ordered = np.zeros((4, 2), dtype=np.float32)
+    sums = points.sum(axis=1)
+    differences = np.diff(points, axis=1).ravel()
+    ordered[0] = points[np.argmin(sums)]
+    ordered[2] = points[np.argmax(sums)]
+    ordered[1] = points[np.argmin(differences)]
+    ordered[3] = points[np.argmax(differences)]
+    return ordered
+
+
+def _merge_ocr_lines(line_groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """보정 variant 결과를 중복 제거하고 confidence가 높은 값을 남긴다."""
+    merged: list[dict[str, Any]] = []
+    positions: dict[str, int] = {}
+    for lines in line_groups:
+        for line in lines:
+            content = str(line.get("content", "")).strip()
+            if not content:
+                continue
+            key = re.sub(r"\s+", " ", content).casefold()
+            candidate = {"content": content, "confidence": line.get("confidence")}
+            if key not in positions:
+                positions[key] = len(merged)
+                merged.append(candidate)
+                continue
+            index = positions[key]
+            current = merged[index].get("confidence")
+            incoming = candidate.get("confidence")
+            if isinstance(incoming, (int, float)) and (
+                not isinstance(current, (int, float)) or incoming > current
+            ):
+                merged[index] = candidate
+    return merged
 
 
 def _value(value: Any, key: str) -> Any:
@@ -463,10 +684,18 @@ def _paddle_lines(results: Any) -> list[dict[str, Any]]:
                 data = json.loads(json_data)
             except ValueError:
                 pass
+        elif isinstance(json_data, dict):
+            data = json_data
+        # PaddleOCR 3.x의 Result.json()은 {"res": {...}} 형태를 반환할 수
+        # 있다. 이 경우 rec_texts가 한 단계 안쪽에 있으므로 펼친다.
+        nested = _value(data, "res")
+        if nested is not None:
+            data = nested
         texts = _value(data, "rec_texts") or _value(data, "texts")
         scores = _value(data, "rec_scores") or _value(data, "scores")
-        if isinstance(texts, list):
-            for index, text in enumerate(texts):
+        text_values = _as_sequence(texts)
+        if text_values is not None:
+            for index, text in enumerate(text_values):
                 value = str(text).strip()
                 if value:
                     lines.append(
@@ -492,7 +721,21 @@ def _paddle_lines(results: Any) -> list[dict[str, Any]]:
     return lines
 
 
+def _as_sequence(value: Any) -> list[Any] | tuple[Any, ...] | None:
+    """numpy 배열 등 PaddleOCR 결과 컨테이너를 안전하게 순회한다."""
+    if isinstance(value, (list, tuple)):
+        return value
+    if value is None or isinstance(value, (str, bytes, dict)):
+        return None
+    try:
+        converted = value.tolist()
+    except AttributeError:
+        return None
+    return converted if isinstance(converted, (list, tuple)) else None
+
+
 def _at(values: Any, index: int) -> Any:
-    if isinstance(values, (list, tuple)) and index < len(values):
+    values = _as_sequence(values)
+    if values is not None and index < len(values):
         return values[index]
     return None

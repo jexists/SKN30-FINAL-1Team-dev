@@ -30,7 +30,10 @@ async def extract(*, ocr_text: str, file_name: str = "business-card") -> Busines
         )
     fields = await generate_structured(
         instructions=SYSTEM_PROMPT,
-        input_text=(f"파일명: {file_name}\n<ocr_text>\n{cleaned[:20_000]}\n</ocr_text>"),
+        input_text=(
+            f"파일명: {file_name}\n<ocr_text>\n"
+            f"{normalize_ocr_contact_text(cleaned[:20_000])}\n</ocr_text>"
+        ),
         schema=BusinessCardFields,
         schema_name="business_card_fields",
     )
@@ -66,6 +69,15 @@ def contact_memo(fields: BusinessCardFields) -> str | None:
 def normalize_phone(value: str) -> str:
     """전화번호의 공백만 정리한다. 숫자 추정이나 국가번호 변환은 하지 않는다."""
     return re.sub(r"[ \t]+", " ", value).strip()
+
+
+def normalize_ocr_contact_text(value: str) -> str:
+    """명함 필드 분석 전에 연락처 기호 주변의 OCR 공백만 정리한다."""
+    normalized = value.replace("＠", "@").replace("ⓐ", "@").replace("。", ".")
+    normalized = re.sub(r"\s*@\s*", "@", normalized)
+    normalized = re.sub(r"(?<=[A-Za-z0-9])\s*\.\s*(?=[A-Za-z0-9])", ".", normalized)
+    normalized = re.sub(r"(?<=[A-Za-z0-9])\s*/\s*(?=[A-Za-z0-9])", "/", normalized)
+    return normalized
 
 
 async def find_matches(

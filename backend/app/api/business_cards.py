@@ -68,6 +68,7 @@ async def scan_business_card(
             file_name=image.filename or "business-card",
             media_type=allowed.media_type,
             content=content,
+            profile="business_card",
         )
         return await business_cards.extract(
             ocr_text=extracted.plain_text,

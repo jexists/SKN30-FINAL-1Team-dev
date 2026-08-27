@@ -1,3 +1,7 @@
+import time
+
+import pytest
+
 from app.core.config import Settings
 from app.services import ocr
 from app.services.ocr import _azure_result, _runpod_result, _runpod_runsync_url
@@ -93,6 +97,37 @@ def test_runpod_result_accepts_line_based_worker_output():
     assert result.payload["source_type"] == "runpod_ocr"
 
 
+def test_runpod_mineru_result_is_normalized(monkeypatch):
+    monkeypatch.setattr(ocr.settings, "ocr_runpod_contract", "mineru")
+    result = _runpod_result(
+        {
+            "id": "mineru-job",
+            "status": "COMPLETED",
+            "output": {"results": [{"markdown": "# 견적서\n합계"}]},
+        },
+        file_name="quote.pdf",
+    )
+
+    assert result.payload["source_type"] == "runpod_mineru"
+    assert result.payload["runpod_engine"] == "mineru"
+    assert result.payload["pages"][0]["page_number"] == 1
+    assert "합계" in result.markdown
+
+
+def test_runpod_mineru_single_markdown_result_is_normalized(monkeypatch):
+    monkeypatch.setattr(ocr.settings, "ocr_runpod_contract", "mineru")
+    result = _runpod_result(
+        {
+            "status": "COMPLETED",
+            "output": {"markdown": "Dummy PDF file"},
+        },
+        file_name="dummy.pdf",
+    )
+
+    assert result.payload["pages"][0]["page_number"] == 1
+    assert result.plain_text == "Dummy PDF file"
+
+
 def test_pdf_inspector_model_directory_uses_configured_path(monkeypatch):
     monkeypatch.setattr(ocr.settings, "pdf_inspector_model_directory", "~/salesluv-models")
 
@@ -158,3 +193,160 @@ def test_paddlex_cache_sets_library_environment(monkeypatch):
 
     assert ocr.os.environ["PADDLE_PDX_CACHE_HOME"] == "/tmp/salesluv-paddlex"
     assert ocr.os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] == "True"
+
+
+def test_business_card_ocr_lines_are_deduplicated_by_highest_confidence():
+    result = ocr._merge_ocr_lines(
+        [
+            [
+                {"content": "홍길동", "confidence": 0.81},
+                {"content": "sales@example.com", "confidence": 0.90},
+            ],
+            [
+                {"content": "홍길동", "confidence": 0.97},
+                {"content": "영업팀", "confidence": 0.88},
+            ],
+        ]
+    )
+
+    assert result == [
+        {"content": "홍길동", "confidence": 0.97},
+        {"content": "sales@example.com", "confidence": 0.90},
+        {"content": "영업팀", "confidence": 0.88},
+    ]
+
+
+def test_business_card_variants_cap_large_input_side(monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    image = Image.new("RGB", (4_032, 3_024), "white")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+    monkeypatch.setattr(ocr.settings, "business_card_max_side", 2_400)
+    monkeypatch.setattr(ocr, "_rectify_card", lambda value: None)
+
+    variants = ocr._business_card_variants(buffer.getvalue())
+
+    assert variants
+    assert all(max(item.shape[:2]) <= 2_400 for item in variants)
+
+
+def test_business_card_uses_lightweight_paddle_engine(monkeypatch):
+    calls = []
+
+    class FakePaddleOCR:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    fake_module = type("Module", (), {"PaddleOCR": FakePaddleOCR})
+    monkeypatch.setitem(__import__("sys").modules, "paddleocr", fake_module)
+    ocr._paddle_business_card_engine.cache_clear()
+    monkeypatch.setattr(ocr, "_configure_paddlex_cache", lambda: None)
+
+    ocr._paddle_business_card_engine()
+
+    assert calls == [
+        {
+            "lang": ocr.settings.ocr_local_language,
+            "use_doc_orientation_classify": False,
+            "use_doc_unwarping": False,
+            "use_textline_orientation": False,
+        }
+    ]
+    ocr._paddle_business_card_engine.cache_clear()
+
+
+def test_paddle_lines_reads_paddlex_nested_json_result():
+    results = [
+        {
+            "json": (
+                '{"res":{"rec_texts":["오현미","010-1234-5678"],'
+                '"rec_scores":[0.98,0.91]}}'
+            )
+        }
+    ]
+
+    assert ocr._paddle_lines(results) == [
+        {"content": "오현미", "confidence": 0.98},
+        {"content": "010-1234-5678", "confidence": 0.91},
+    ]
+
+
+def test_paddle_lines_reads_paddlex_dict_json_result():
+    results = [
+        {
+            "json": {
+                "res": {
+                    "rec_texts": ["제주한농부"],
+                    "rec_scores": [0.97],
+                }
+            }
+        }
+    ]
+
+    assert ocr._paddle_lines(results) == [
+        {"content": "제주한농부", "confidence": 0.97}
+    ]
+
+
+def test_paddle_engine_enables_card_orientation_and_unwarping(monkeypatch):
+    calls = []
+
+    class _PaddleOCR:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    module = type("Module", (), {"PaddleOCR": _PaddleOCR})
+    monkeypatch.setitem(__import__("sys").modules, "paddleocr", module)
+    ocr._paddle_engine.cache_clear()
+    try:
+        ocr._paddle_engine()
+    finally:
+        ocr._paddle_engine.cache_clear()
+
+    assert calls[0]["use_doc_orientation_classify"] is True
+    assert calls[0]["use_doc_unwarping"] is True
+    assert calls[0]["use_textline_orientation"] is True
+
+
+@pytest.mark.anyio
+async def test_extract_document_passes_business_card_profile_to_local(monkeypatch):
+    captured = {}
+
+    def _local(**kwargs):
+        captured.update(kwargs)
+        return "local-result"
+
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "local")
+    monkeypatch.setattr(ocr, "_local", _local)
+
+    result = await ocr.extract_document(
+        file_name="card.jpg",
+        media_type="image/jpeg",
+        content=b"image",
+        profile="business_card",
+    )
+
+    assert result == "local-result"
+    assert captured["profile"] == "business_card"
+
+
+@pytest.mark.anyio
+async def test_extract_document_times_out_slow_local_ocr(monkeypatch):
+    def _slow_local(**_kwargs):
+        time.sleep(0.05)
+        return "local-result"
+
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "local")
+    monkeypatch.setattr(ocr.settings, "ocr_timeout_seconds", 0.001)
+    monkeypatch.setattr(ocr, "_local", _slow_local)
+
+    with pytest.raises(ocr.OcrError, match="local_ocr_timeout"):
+        await ocr.extract_document(
+            file_name="slow-card.jpg",
+            media_type="image/jpeg",
+            content=b"image",
+            profile="business_card",
+        )
