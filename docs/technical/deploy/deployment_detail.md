@@ -263,7 +263,7 @@ gh workflow run deploy-backend.yml --ref develop
     - JSON log `10 MB × 3`
     - 버전 고정 딜 모델 디렉터리를 읽기 전용 bind mount
 12. 후보 슬롯에서 `/api/health`와 `/api/health/db`를 각각 확인한다. 최대 30회, 2초 간격, 요청 timeout 5초다.
-13. 후보 컨테이너 안에서 딜 모델의 해시·계약·기준 16건 추론을 검증한다.
+13. 후보 컨테이너 안에서 딜 모델의 해시·계약·기준 16건 추론을 최대 300초 동안 검증한다.
 14. 세 점검이 모두 성공해야 Nginx upstream 파일의 포트를 원자 교체한다.
 15. `nginx -t` 후 reload하고, 실제 upstream이 새 포트인지 다시 검사한다.
 16. 이전 슬롯은 10초 drain한 뒤 최대 30초를 주고 중지·삭제한다.

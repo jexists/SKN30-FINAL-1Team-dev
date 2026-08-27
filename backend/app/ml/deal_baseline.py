@@ -14,7 +14,7 @@ from app.core.config import settings
 
 MODEL_VERSION = "deal-stacking-lr-v1"
 METADATA_FILENAME = f"{MODEL_VERSION}.json"
-METADATA_SHA256 = "7592e3188d52b1a42f4df19ddf793909708cdf51f94a461c43c5a3cc72b8325a"
+METADATA_SHA256 = "71a39c37ae2f2d63d86c5adf9af7863bf8b51d032e35d18712d0a750726a0d42"
 
 FEATURE_NAMES = (
     "Authority",
@@ -98,6 +98,25 @@ def _verified_artifact_path(artifact_dir: Path, file_info: dict[str, Any]) -> Pa
     return path
 
 
+def _validate_tabicl_artifact(tabicl: Any) -> None:
+    """원본 학습 행 없이 CPU 표현 캐시만 담긴 TabICL 산출물인지 검증한다."""
+    generator = tabicl.ensemble_generator_
+    if (
+        tabicl.device != "cpu"
+        or tabicl.device_.type != "cpu"
+        or tabicl.kv_cache != "repr"
+        or tabicl.cache_mode_ != "repr"
+        or tabicl.model_kv_cache_ is None
+        or generator.X_ is not None
+        or generator.y_ is not None
+        or any(
+            preprocessor.X_transformed_ is not None
+            for preprocessor in generator.preprocessors_.values()
+        )
+    ):
+        raise ValueError("tabicl_persistence_invalid")
+
+
 def _category_contract(raw: object) -> dict[str, tuple[str, ...]]:
     """메타데이터의 범주 목록을 비교 가능한 튜플 계약으로 변환한다."""
     if not isinstance(raw, dict):
@@ -163,6 +182,8 @@ def _load_models() -> tuple[dict[str, Any], Any, float]:
             or metadata["target"] != {"Lost": 0, "Won": 1}
             or metadata["classification_threshold"] != 0.5
             or metadata["serialization_device"] != {"tabicl": "cpu"}
+            or metadata["persistence"]
+            != {"tabicl": {"training_data_included": False, "kv_cache": "repr"}}
         ):
             raise ValueError("metadata_contract_invalid")
 
@@ -180,10 +201,9 @@ def _load_models() -> tuple[dict[str, Any], Any, float]:
         ):
             raise ValueError("model_contract_invalid")
 
-        models = {
-            **bundle["base_models"],
-            "TabICL": TabICLClassifier.load(tabicl_path, device="cpu"),
-        }
+        tabicl = TabICLClassifier.load(tabicl_path, device="cpu")
+        _validate_tabicl_artifact(tabicl)
+        models = {**bundle["base_models"], "TabICL": tabicl}
         stacking_model = bundle["stacking_model"]
         for model in (*models.values(), stacking_model):
             if 0 not in model.classes_ or 1 not in model.classes_:

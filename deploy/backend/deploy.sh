@@ -17,8 +17,8 @@ readonly DEAL_MODEL_HOST_DIR="/opt/salesluv-models/${DEAL_MODEL_VERSION}"
 readonly DEAL_MODEL_CONTAINER_DIR="/app/pipeline/artifacts"
 readonly -a DEAL_MODEL_ARTIFACTS=(
     "deal-stacking-lr-v1-models.joblib:78a56a3bcc6a69da94fde8366c228036103f5c42b48d668fec2d1051cdbd4a6f"
-    "deal-stacking-lr-v1-tabicl.pkl:9f80192d53d5c4d7c25af50d01f3f99f1c2cda7c3d7492a99832176b6b1cfec8"
-    "deal-stacking-lr-v1.json:7592e3188d52b1a42f4df19ddf793909708cdf51f94a461c43c5a3cc72b8325a"
+    "deal-stacking-lr-v1-tabicl.pkl:4d6de1c7724cb004b7901a7523e727061f7e9a944e7419114291fb859870f45c"
+    "deal-stacking-lr-v1.json:71a39c37ae2f2d63d86c5adf9af7863bf8b51d032e35d18712d0a750726a0d42"
 )
 
 readonly IMAGE_REPOSITORY="salesluv-backend"
@@ -39,6 +39,7 @@ readonly CONTAINER_STOP_TIMEOUT_SECONDS="30"
 readonly HEALTH_ATTEMPTS="30"
 readonly HEALTH_DELAY_SECONDS="2"
 readonly HEALTH_TIMEOUT_SECONDS="5"
+readonly DEAL_MODEL_VALIDATION_TIMEOUT_SECONDS="300"
 
 readonly DOTENV_KEY_MISSING_STATUS="10"
 readonly DOTENV_KEY_DUPLICATE_STATUS="11"
@@ -645,7 +646,9 @@ start_production() {
 validate_deal_model_runtime() {
     local container_name="$1"
 
-    docker exec "${container_name}" \
+    timeout --foreground --signal=TERM --kill-after=10s \
+        "${DEAL_MODEL_VALIDATION_TIMEOUT_SECONDS}s" \
+        docker exec "${container_name}" \
         /app/.venv/bin/python -c \
         'from app.ml.deal_baseline import _load_models; _load_models()'
 }
@@ -748,6 +751,7 @@ require_command git
 require_command grep
 require_command nginx
 require_command sha256sum
+require_command timeout
 
 [[ -d "${REPO_DIR}/.git" ]] \
     || die "Git repository not found: ${REPO_DIR}"

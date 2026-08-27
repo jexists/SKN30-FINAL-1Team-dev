@@ -166,17 +166,35 @@ docker_run_args=" ${DOCKER_RUN_ARGS[*]} "
     || fail "deal model directory was not mounted read-only"
 unset -f docker
 
+TIMEOUT_ARGS=()
+timeout() {
+    TIMEOUT_ARGS=("$@")
+    shift 4
+    "$@"
+}
 DOCKER_EXEC_ARGS=()
+DOCKER_EXEC_STATUS=0
 docker() {
     DOCKER_EXEC_ARGS=("$@")
+    return "${DOCKER_EXEC_STATUS}"
 }
 validate_deal_model_runtime test-container
-[[ "${DOCKER_EXEC_ARGS[0]}" == "exec" \
+[[ "${TIMEOUT_ARGS[0]}" == "--foreground" \
+    && "${TIMEOUT_ARGS[1]}" == "--signal=TERM" \
+    && "${TIMEOUT_ARGS[2]}" == "--kill-after=10s" \
+    && "${TIMEOUT_ARGS[3]}" == "${DEAL_MODEL_VALIDATION_TIMEOUT_SECONDS}s" \
+    && "${TIMEOUT_ARGS[4]}" == "docker" \
+    && "${DOCKER_EXEC_ARGS[0]}" == "exec" \
     && "${DOCKER_EXEC_ARGS[1]}" == "test-container" \
     && "${DOCKER_EXEC_ARGS[2]}" == "/app/.venv/bin/python" \
     && "${DOCKER_EXEC_ARGS[3]}" == "-c" \
     && "${DOCKER_EXEC_ARGS[4]}" == *"_load_models()"* ]] \
     || fail "candidate deal model validation command was not executed"
+DOCKER_EXEC_STATUS=1
+if validate_deal_model_runtime test-container; then
+    fail "candidate deal model validation failure was swallowed"
+fi
+unset -f timeout
 unset -f docker
 
 upstream_file="$(write_environment upstream $'upstream salesluv_backend {\n    server 127.0.0.1:8000;\n}\n')"

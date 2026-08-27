@@ -133,8 +133,8 @@ backend/pipeline/artifacts/
 | 파일 | 역할 | 크기 | SHA-256 |
 |---|---|---:|---|
 | `deal-stacking-lr-v1-models.joblib` | LR·NB·ExtraTrees·CatBoost·Stacking 메타모델·입력 스키마 | 1,316,965 bytes | `78a56a3bcc6a69da94fde8366c228036103f5c42b48d668fec2d1051cdbd4a6f` |
-| `deal-stacking-lr-v1-tabicl.pkl` | CPU 직렬화한 TabICL 가중치와 전체 학습 문맥 | 111,436,319 bytes | `9f80192d53d5c4d7c25af50d01f3f99f1c2cda7c3d7492a99832176b6b1cfec8` |
-| `deal-stacking-lr-v1.json` | 모델·스키마·평가·환경·해시·기준 확률 메타데이터 | 10,801 bytes | `7592e3188d52b1a42f4df19ddf793909708cdf51f94a461c43c5a3cc72b8325a` |
+| `deal-stacking-lr-v1-tabicl.pkl` | CPU 직렬화한 TabICL 가중치와 표현 캐시(원본 학습 행 제외) | 237,348,751 bytes | `4d6de1c7724cb004b7901a7523e727061f7e9a944e7419114291fb859870f45c` |
+| `deal-stacking-lr-v1.json` | 모델·스키마·평가·환경·해시·합성 기준 입력 확률 메타데이터 | 11,273 bytes | `71a39c37ae2f2d63d86c5adf9af7863bf8b51d032e35d18712d0a750726a0d42` |
 
 joblib과 pickle 계열 파일은 로드 과정에서 코드를 실행할 수 있다. 신뢰할 수 있는 릴리스의 파일만 사용하고 로드 전에 SHA-256을 확인한다.
 
@@ -144,9 +144,10 @@ joblib과 pickle 계열 파일은 로드 과정에서 코드를 실행할 수 �
 |---|---|
 | 현재 프로세스 재로드 | 통과 |
 | 현재 프로세스 최대 확률 차이 | `0` |
-| 교체 전후 최대 확률 차이 | `0` |
+| 교체 전후 최대 확률 차이 | `2.850419115185687e-07` |
 | 저장된 TabICL 장치 | `cpu` |
-| 기존 기준 확률 대비 최대 차이 | `1.0451534443456367e-06` |
+| TabICL 원본 학습 행 포함 | 없음 (`repr` 캐시 사용) |
+| 기존 기준 확률 대비 최대 차이 | `1.3301953558642055e-06` |
 | 초기 파일 Linux amd64 CPU 컨테이너 | MPS 오류 재현 |
 | CPU 직렬화 파일 Linux amd64 CPU 컨테이너 | 통과 (`torch 2.13.0+cpu`, CUDA/MPS 비활성) |
 | 허용오차 | `rtol=1e-5`, `atol=1e-6` |

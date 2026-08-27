@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -76,3 +77,26 @@ def test_artifact_path_must_be_local_and_match_hash(tmp_path: Path):
             tmp_path,
             {**file_info, "sha256": "0" * 64},
         )
+
+
+def test_tabicl_artifact_excludes_training_rows_and_uses_repr_cache():
+    """배포용 TabICL에 원본 학습 행이 남거나 표현 캐시가 없으면 거부한다."""
+    generator = SimpleNamespace(
+        X_=None,
+        y_=None,
+        preprocessors_={"none": SimpleNamespace(X_transformed_=None)},
+    )
+    tabicl = SimpleNamespace(
+        device="cpu",
+        device_=SimpleNamespace(type="cpu"),
+        kv_cache="repr",
+        cache_mode_="repr",
+        model_kv_cache_={"none": object()},
+        ensemble_generator_=generator,
+    )
+
+    deal_baseline._validate_tabicl_artifact(tabicl)
+
+    generator.X_ = object()
+    with pytest.raises(ValueError, match="tabicl_persistence_invalid"):
+        deal_baseline._validate_tabicl_artifact(tabicl)
