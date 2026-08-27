@@ -14,7 +14,7 @@ import {
 import type { ActivityPatchRequest, ActivityRead, CalendarEvent } from '@/types'
 import { iso, monthMatrix } from '@/utils/date'
 
-export const DEFAULTS = { time: '09:00', dur: '1시간', kind: 'internal', done: false } as const
+export const DEFAULTS = { time: '09:00', dur: '1시간', kind: 'visit', done: false } as const
 
 const DAY = 86_400_000
 const KST_OFFSET = 9 * 60 * 60_000

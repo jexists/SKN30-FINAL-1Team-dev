@@ -133,7 +133,7 @@ export default function useAiSuggestions(addEvent: AddEvent) {
         const ready: AiSuggestionReady = {
           ...pickBase(target),
           status: 'ready',
-          kind: best.activity_type === 'task' ? 'internal' : 'visit',
+          kind: 'visit',
           date: start.date,
           time: start.time,
           dur: durationLabel(best.starts_at, best.ends_at),

@@ -60,7 +60,6 @@ export interface NextMeetingProposalOutput {
 export interface ScheduleCandidate {
   candidate_id: string
   title: string
-  activity_type: 'meeting' | 'task'
   starts_at: string
   ends_at: string
   priority: number

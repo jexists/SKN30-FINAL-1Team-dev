@@ -33,7 +33,6 @@ class ActivityCategory(Base):
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    activity_type: Mapped[str]
 
 
 class ActivityActionTag(Base):
@@ -48,7 +47,6 @@ class ActivityActionTag(Base):
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    activity_type: Mapped[str]
 
 
 class SalesDealType(Base):

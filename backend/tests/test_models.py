@@ -30,9 +30,10 @@ EXPECTED_COLUMN_COUNTS = {
     "notice": 18,
     "notice_target": 3,
     "notice_image": 6,
-    "activity": 22,
-    "activity_category": 10,
-    "activity_action_tag": 10,
+    # 20260827_0010 으로 세 표에서 activity_type 이 빠졌다. 활동은 늘 미팅이다.
+    "activity": 21,
+    "activity_category": 9,
+    "activity_action_tag": 9,
     "activity_companion": 2,
     # 20260825_0006 으로 support_request 에 customer_company_id/sales_deal_id/occurred_at 이
     # 늘고 customer_contact_id 가 빠졌다. 불만은 담당자 대신 회사와 계약건에 맨다.
@@ -69,7 +70,7 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 339
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 336
 
     foreign_key_constraints = [
         foreign_key

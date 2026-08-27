@@ -101,7 +101,6 @@ export type ApiReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
 export interface ReportActivityResponse {
   activity_id: string
   title: string
-  activity_type: string
   starts_at: string
 }
 

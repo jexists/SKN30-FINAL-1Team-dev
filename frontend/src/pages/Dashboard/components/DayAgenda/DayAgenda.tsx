@@ -12,7 +12,7 @@ import {
 } from '@/components/icons'
 import Popover from '@/components/Popover'
 import { InlineLoader } from '@/components/Skeleton'
-import { endTime, useAgendaFor } from '@/shared/agenda'
+import { useAgendaFor } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import type { AgendaItem } from '@/types'
 import { fmtDay, parseISO, TODAY } from '@/utils/date'
@@ -48,13 +48,8 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   const reportState = useAgendaReportLink(list.find((it) => it.id === menuId) ?? null)
   const date = parseISO(dateISO)
   const relative = RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
-  // 하루는 시각 하나로 읽습니다. 미팅과 사내 업무를 갈라 놓으면 오전 업무가
-  // 오후 미팅 아래로 내려가, 순서대로 훑을 수 없습니다.
   const renderItem = (it: AgendaItem) => {
     const done = it.done
-    // 업무는 고객이 없어 회사·담당자 자리가 비고, 대신 언제까지 어디서 하는지가 남습니다.
-    const task = it.kind === 'internal'
-    const until = task ? endTime(it.time, it.dur) : ''
 
     return (
       // 줄 어디를 눌러도 상세가 열립니다. 안쪽 버튼들은 각자 할 일이
@@ -66,7 +61,6 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
       >
         <div className={styles.rail}>
           <span className={`${styles.time} tnum`}>{it.time}</span>
-          {until && <span className={`${styles.until} tnum`}>~{until}</span>}
         </div>
 
         <div className={styles.body}>
@@ -147,8 +141,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
           </div>
 
           {/* 마우스는 줄 전체를 누르지만 키보드는 잡을 곳이 있어야 합니다.
-              회사 이름이 그 자리이고, 하는 일은 줄을 누른 것과 같습니다.
-              사내 업무는 회사가 없어 제목이 그 자리를, 장소가 담당자 자리를 대신합니다. */}
+              회사 이름이 그 자리이고, 하는 일은 줄을 누른 것과 같습니다. */}
           <h3 className={styles.org}>
             <button
               type="button"
@@ -160,13 +153,11 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
             >
               {it.hospital || it.title}
             </button>
-            {task
-              ? it.place && <span className={styles.who}>{it.place}</span>
-              : (it.dept || it.contact) && (
-                  <span className={styles.who}>
-                    {[it.dept, it.contact].filter(Boolean).join(' · ')}
-                  </span>
-                )}
+            {(it.dept || it.contact) && (
+              <span className={styles.who}>
+                {[it.dept, it.contact].filter(Boolean).join(' · ')}
+              </span>
+            )}
           </h3>
 
           {it.hospital && <p className={styles.title}>{it.title}</p>}

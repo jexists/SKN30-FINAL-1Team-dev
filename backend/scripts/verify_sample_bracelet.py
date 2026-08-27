@@ -242,9 +242,7 @@ REPORTS: tuple[tuple[str, str], ...] = (
         """
         select m.display_name as 담당자,
                (select count(*) from public.activity a
-                where a.owner_member_id = m.id and a.activity_type = 'meeting')::text as 미팅,
-               (select count(*) from public.activity a
-                where a.owner_member_id = m.id and a.activity_type = 'task')::text as 업무,
+                where a.owner_member_id = m.id)::text as 미팅,
                (select count(*) from public.report r
                 where r.author_member_id = m.id)::text as 보고서,
                (select count(*) from public.customer_contact k

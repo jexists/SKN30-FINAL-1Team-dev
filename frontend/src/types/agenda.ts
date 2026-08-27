@@ -1,12 +1,10 @@
 import type { ContractBriefingOutput } from './contractAgent'
 
 /** 일정 종류. 배지 색이 여기에 묶여 있습니다. */
-export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth' | 'internal'
-
-export type ActivityTypeCode = 'meeting' | 'task'
+export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth'
 
 export type ActivityCategoryCode =
-  'visit' | 'demo' | 'education' | 'call' | 'delivery' | 'conference' | 'internal'
+  'visit' | 'demo' | 'education' | 'call' | 'delivery' | 'conference'
 
 export type ActivityActionTagCode =
   | 'first_call'
@@ -19,11 +17,7 @@ export type ActivityActionTagCode =
   | 'product_training'
   | 'delivery_completed'
   | 'internal_meeting'
-  | 'weekly_review'
-  | 'monthly_review'
-  | 'quarterly_review'
   | 'conference'
-  | 'ojt'
 
 /** 고객을 만나서 하는 일. 영업이 어디까지 갔는지를 말합니다. */
 export type ExternalStatus =
@@ -37,8 +31,8 @@ export type ExternalStatus =
   | '제품교육'
   | '납품완료'
 
-/** 사내에서 하는 일. 영업 단계와 무관하게 반복됩니다. */
-export type InternalStatus = '내부회의' | '주간점검' | '월간점검' | '분기점검' | '컨퍼런스' | 'OJT'
+/** 고객을 만나지 않고 사내에서 소화하는 일정. 영업 단계와 무관합니다. */
+export type InternalStatus = '내부회의' | '컨퍼런스'
 
 /** 일정의 상태. 외부·내부 두 계열로 나뉘고 태그 색이 계열을 따릅니다. */
 export type ScheduleStatus = ExternalStatus | InternalStatus
@@ -61,7 +55,7 @@ export interface AgendaSeed {
   dept: string
   contact: string
   product: string
-  /** 사내 업무처럼 영업 단계에 걸리지 않는 일정은 비어 있습니다. */
+  /** 영업 단계에 걸리지 않는 일정은 비어 있습니다. */
   stage?: ScheduleStatus
   place: string
   title: string
@@ -76,7 +70,6 @@ export interface AgendaSeed {
 /** 실제 날짜 키가 붙은 일정 */
 export interface AgendaItem extends AgendaSeed {
   date: string
-  activityType?: ActivityTypeCode
   customerContactId?: string | null
   customerContactName?: string
   salesDealId?: string | null
@@ -111,7 +104,6 @@ export interface CalendarEvent {
   place?: string
   brief?: string
   done: boolean
-  activityType?: ActivityTypeCode
   customerContactId?: string | null
   customerContactName?: string
   salesDealId?: string | null
@@ -140,13 +132,12 @@ export interface ActivityRead {
   purchase_order_id: string | null
   product_id: string | null
   product_name: string | null
-  activity_type: ActivityTypeCode
   category_code: ActivityCategoryCode
   title: string
   starts_at: string
   ends_at: string | null
   all_day: boolean
-  /** 후속업무의 마감. 미팅에는 대개 비어 있습니다. */
+  /** 후속업무의 마감. 대개는 비어 있습니다. */
   due_at: string | null
   location: string | null
   action_tag: ActivityActionTagCode | null
@@ -174,7 +165,6 @@ export interface ActivityCreateRequest {
   customer_contact_id?: string | null
   sales_deal_id?: string | null
   product_id?: string | null
-  activity_type: ActivityTypeCode
   category_code: ActivityCategoryCode
   title: string
   starts_at: string

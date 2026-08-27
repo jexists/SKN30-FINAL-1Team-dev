@@ -105,7 +105,6 @@ class ReportSubmit(_WriteModel):
 class ReportActivityRead(BaseModel):
     activity_id: UUID
     title: str
-    activity_type: str
     starts_at: datetime
 
 

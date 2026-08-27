@@ -128,6 +128,20 @@
   보여 줍니다. `postcode`·`address`는 우편번호 서비스가 주는 값이고 `address_detail`은
   층·호수처럼 사람이 직접 적는 부분입니다. 기존 행은 채울 근거가 없어 NULL로 둡니다.
 
+- `20260827_0010_drop_activity_type.sql`: 활동에서 '업무'(task)를 없앱니다. 일정 등록 화면이
+  단순해진 뒤 새 활동은 전부 미팅으로만 만들어지는데, 만들 수 없는 타입이 조회·집계에만 남아
+  목록에는 옛 업무가 섞이고 미팅만 세는 카드와 전 타입을 세는 카드가 어긋났습니다.
+  `activity`·`activity_category`·`activity_action_tag`에서 `activity_type`을 각각 떼어
+  22→21 / 10→9 / 10→9컬럼이 되고, 인라인 CHECK도 컬럼과 함께 사라집니다.
+  **삭제가 있습니다.** 업무 활동 전체와 그 카테고리(`internal` 내부업무), 액션태그 네 개
+  (`weekly_review`·`monthly_review`·`quarterly_review`·`ojt`)를 지웁니다. 붙일 카테고리가
+  사라지므로 업무 행을 남겨 둘 수 없습니다. `activity`를 가리키는 세 곳 중 cascade 는
+  `activity_companion` 하나뿐이라 `report_activity` 행은 먼저 지우고
+  `report.source_activity_id`는 NULL로 끊습니다. 보고서 자체는 지우지 않습니다.
+  미팅 타입인 `internal_meeting`·`conference` 태그는 그대로 둡니다.
+  **백엔드·프론트 배포가 DB 적용보다 먼저입니다** — 이전 코드는 INSERT에
+  `activity_type`을 넣으므로 컬럼이 없으면 일정 등록이 깨집니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 

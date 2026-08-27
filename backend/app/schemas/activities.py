@@ -20,7 +20,6 @@ def _seoul_offset(value: datetime) -> datetime:
     return value
 
 
-ActivityType = Literal["meeting", "task"]
 OptionCode = Annotated[
     str,
     StringConstraints(
@@ -62,7 +61,6 @@ class ActivityCreate(_WriteModel):
     customer_contact_id: UUID | None = None
     product_id: UUID | None = None
     sales_deal_id: UUID | None = None
-    activity_type: ActivityType
     category_code: OptionCode
     title: Title
     starts_at: SafeDateTime
@@ -86,7 +84,6 @@ class ActivityPatch(_WriteModel):
     customer_contact_id: UUID | None = None
     product_id: UUID | None = None
     sales_deal_id: UUID | None = None
-    activity_type: ActivityType | None = None
     category_code: OptionCode | None = None
     title: Title | None = None
     starts_at: SafeDateTime | None = None
@@ -99,7 +96,6 @@ class ActivityPatch(_WriteModel):
     @model_validator(mode="after")
     def validate_patch(self) -> Self:
         for field_name in (
-            "activity_type",
             "category_code",
             "title",
             "starts_at",
@@ -131,7 +127,6 @@ class ActivityRead(BaseModel):
     product_id: UUID | None
     product_name: str | None
     sales_deal_id: UUID | None
-    activity_type: ActivityType
     activity_category_id: UUID
     activity_category_name: str
     activity_category_tone: str
@@ -140,7 +135,7 @@ class ActivityRead(BaseModel):
     starts_at: datetime
     ends_at: datetime | None
     all_day: bool
-    # 후속업무 목록이 지연과 마감을 이 값으로 읽는다. 미팅에는 대개 비어 있다.
+    # 후속업무 목록이 지연과 마감을 이 값으로 읽는다. 대개는 비어 있다.
     due_at: datetime | None
     location: str | None
     activity_action_tag_id: UUID | None
@@ -166,7 +161,6 @@ class ActivityOptionRead(BaseModel):
     name: str
     tone: str
     position: int
-    activity_type: ActivityType
 
 
 class ActivityPage(BaseModel):
@@ -185,7 +179,6 @@ class ActivityPageParams(BaseModel):
     # 그런 조회는 날짜를 비우고 아래 필터만 쓴다.
     start_date: CalendarDate | None = None
     end_date: CalendarDate | None = None
-    activity_type: list[ActivityType] | None = None
     completed: bool | None = None
     owner_member_id: list[UUID] | None = None
     # 후속업무는 시작 시각이 아니라 마감이 급한 순으로 읽는다. 페이지로 끊어 받으므로

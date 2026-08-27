@@ -21,7 +21,6 @@ from app.schemas.activities import (
     ActivityPageParams,
     ActivityPatch,
     ActivityRead,
-    ActivityType,
 )
 from app.schemas.agent_runs import AgentRunCreate
 from app.services import agent_runs as agent_run_service
@@ -133,7 +132,6 @@ def _activity_read(
         product_id=activity.product_id,
         product_name=product_name,
         sales_deal_id=activity.sales_deal_id,
-        activity_type=activity.activity_type,
         activity_category_id=category.id,
         activity_category_name=category.name,
         activity_category_tone=category.tone,
@@ -310,13 +308,11 @@ async def _active_activity_category(
     db: AsyncSession,
     member: Member,
     code: str,
-    activity_type: str,
 ) -> ActivityCategory:
     result = await db.execute(
         select(ActivityCategory).where(
             ActivityCategory.team_id == member.team_id,
             ActivityCategory.code == code,
-            ActivityCategory.activity_type == activity_type,
             ActivityCategory.deleted_at.is_(None),
         )
     )
@@ -333,13 +329,11 @@ async def _active_activity_action_tag(
     db: AsyncSession,
     member: Member,
     code: str,
-    activity_type: str,
 ) -> ActivityActionTag:
     result = await db.execute(
         select(ActivityActionTag).where(
             ActivityActionTag.team_id == member.team_id,
             ActivityActionTag.code == code,
-            ActivityActionTag.activity_type == activity_type,
             ActivityActionTag.deleted_at.is_(None),
         )
     )
@@ -362,7 +356,6 @@ def _validate_range(starts_at: datetime, ends_at: datetime | None) -> None:
 
 @router.get("/activity-categories", response_model=list[ActivityOptionRead])
 async def list_activity_categories(
-    activity_type: Annotated[ActivityType, Query()],
     member: CurrentMember,
     db: DbSession,
 ) -> list[ActivityCategory]:
@@ -370,7 +363,6 @@ async def list_activity_categories(
         select(ActivityCategory)
         .where(
             ActivityCategory.team_id == member.team_id,
-            ActivityCategory.activity_type == activity_type,
             ActivityCategory.deleted_at.is_(None),
         )
         .order_by(ActivityCategory.position, ActivityCategory.id)
@@ -380,7 +372,6 @@ async def list_activity_categories(
 
 @router.get("/activity-action-tags", response_model=list[ActivityOptionRead])
 async def list_activity_action_tags(
-    activity_type: Annotated[ActivityType, Query()],
     member: CurrentMember,
     db: DbSession,
 ) -> list[ActivityActionTag]:
@@ -388,7 +379,6 @@ async def list_activity_action_tags(
         select(ActivityActionTag)
         .where(
             ActivityActionTag.team_id == member.team_id,
-            ActivityActionTag.activity_type == activity_type,
             ActivityActionTag.deleted_at.is_(None),
         )
         .order_by(ActivityActionTag.position, ActivityActionTag.id)
@@ -410,8 +400,6 @@ async def list_activities(
             days=1
         )
         scope += [Activity.starts_at >= start_at, Activity.starts_at < end_at]
-    if page.activity_type is not None:
-        scope.append(Activity.activity_type.in_(page.activity_type))
     if page.completed is not None:
         # 대시보드 후속업무 카드가 세는 조건과 글자 그대로 같아야 카드 숫자와 목록 총계가
         # 맞는다. 한쪽만 고치면 눌러서 나온 목록이 타일과 어긋난다.
@@ -462,9 +450,7 @@ async def get_activity(
     db: DbSession,
 ) -> ActivityRead:
     row = await _activity_row(db, member, activity_id)
-    briefing = None
-    if row[0].activity_type == "meeting":
-        briefing = await _activity_briefing(db, member, activity_id)
+    briefing = await _activity_briefing(db, member, activity_id)
     return _activity_read(*row, ai_briefing=briefing)
 
 
@@ -493,21 +479,11 @@ async def create_activity(
         )
         if payload.sales_deal_id is not None:
             await _team_sales_deal(db, member, payload.sales_deal_id)
-        category = await _active_activity_category(
-            db,
-            member,
-            payload.category_code,
-            payload.activity_type,
-        )
+        category = await _active_activity_category(db, member, payload.category_code)
         action_tag = (
             None
             if payload.action_tag is None
-            else await _active_activity_action_tag(
-                db,
-                member,
-                payload.action_tag,
-                payload.activity_type,
-            )
+            else await _active_activity_action_tag(db, member, payload.action_tag)
         )
         values = payload.model_dump()
         values.pop("category_code")
@@ -571,21 +547,6 @@ async def update_activity(
     try:
         activity = await _locked_activity(db, member, activity_id)
         values = payload.model_dump(exclude_unset=True)
-        activity_type = values.get("activity_type", activity.activity_type)
-        if "activity_type" in values and "category_code" not in values:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="category_code_required_with_activity_type",
-            )
-        if (
-            "activity_type" in values
-            and activity.activity_action_tag_id is not None
-            and "action_tag" not in values
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="action_tag_required_with_activity_type",
-            )
         if values.get("customer_contact_id") is not None:
             await _contact_info(db, member, values["customer_contact_id"])
         if values.get("product_id") is not None:
@@ -594,26 +555,14 @@ async def update_activity(
             await _team_sales_deal(db, member, values["sales_deal_id"])
         if "category_code" in values:
             category_code = values.pop("category_code")
-            category = await _active_activity_category(
-                db,
-                member,
-                category_code,
-                activity_type,
-            )
+            category = await _active_activity_category(db, member, category_code)
             activity.activity_category_id = category.id
         if "action_tag" in values:
             action_tag = values.pop("action_tag")
             activity.activity_action_tag_id = (
                 None
                 if action_tag is None
-                else (
-                    await _active_activity_action_tag(
-                        db,
-                        member,
-                        action_tag,
-                        activity_type,
-                    )
-                ).id
+                else (await _active_activity_action_tag(db, member, action_tag)).id
             )
         _validate_range(
             values.get("starts_at", activity.starts_at),

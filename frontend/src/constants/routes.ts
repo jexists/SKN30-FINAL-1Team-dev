@@ -47,7 +47,7 @@ const KIND_PARAM: Record<ReportKind, string> = { 일일: 'daily', 주간: 'weekl
  * 업무보고 작성 화면. dateISO 를 주면 그 기간 보고서를, kind 를 주면 그 종류를 씁니다.
  * 밀린 날짜를 소급 작성하는 경로도 이 하나를 씁니다.
  *
- * pickId 는 미리 골라 둘 자료 하나입니다. 사내 업무 일정에서 넘어올 때 그 업무가
+ * pickId 는 미리 골라 둘 자료 하나입니다. 특정 일정에서 넘어올 때 그 일정이
  * 체크된 채로 열리라고 씁니다. 주지 않으면 종류별 기본 선택 그대로입니다.
  */
 export const dailyComposePath = (dateISO?: string, kind: ReportKind = '일일', pickId?: string) => {

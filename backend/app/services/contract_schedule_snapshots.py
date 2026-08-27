@@ -351,7 +351,6 @@ async def build_briefing_snapshot(
             .where(
                 Activity.id == activity_id,
                 Activity.team_id == member.team_id,
-                Activity.activity_type == "meeting",
                 Activity.deleted_at.is_(None),
                 CustomerCompany.team_id == member.team_id,
             )

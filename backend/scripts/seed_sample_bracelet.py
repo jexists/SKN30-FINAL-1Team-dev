@@ -1849,28 +1849,6 @@ MEETING_NOTES = {
     ),
 }
 
-# 팀원이 스스로 잡는 후속 업무. 지난 것과 다가오는 것을 섞어 팔로업 카드가 살아 있게 한다.
-FOLLOW_UPS = (
-    ("김팀원", "주간 영업현황 정리", "weekly_review", _d(8, 21), _d(8, 21), True),
-    ("김팀원", "다온메디병원 견적 회신 확인", "weekly_review", _d(8, 18), _d(8, 20), False),
-    ("김팀원", "루미나메디병원 설명회 자료 준비", "weekly_review", _d(8, 24), _d(8, 27), False),
-    ("김팀원", "8월 소모품 단가표 갱신", "monthly_review", _d(8, 25), _d(8, 31), False),
-    ("김팀원", "한빛메디병원 재방문 일정 조율", "weekly_review", _d(8, 25), _d(8, 28), False),
-    ("박팀투", "주간 파이프라인 점검", "weekly_review", _d(8, 21), _d(8, 21), True),
-    ("박팀투", "강남메디병원 법무 검토 회신 독촉", "weekly_review", _d(8, 14), _d(8, 19), False),
-    ("박팀투", "대구메디병원 계약 조건 재정리", "weekly_review", _d(8, 24), _d(8, 26), False),
-    ("박팀투", "서울메디병원 2차 발주 협의 준비", "monthly_review", _d(8, 25), _d(8, 29), False),
-    ("이팀삼", "발주 입고일 공급사 확인", "weekly_review", _d(8, 20), _d(8, 22), False),
-    ("이팀삼", "광주메디병원 계약 후속 서류 정리", "weekly_review", _d(8, 18), _d(8, 21), True),
-    ("이팀삼", "대전메디병원 데모 장비 회수", "weekly_review", _d(8, 25), _d(8, 27), False),
-    ("이팀삼", "3분기 실적 자료 취합", "quarterly_review", _d(8, 25), _d(9, 1), False),
-    ("이팀삼", "경기메디병원 종료 사유 정리", "weekly_review", _d(8, 12), _d(8, 14), True),
-    ("정주애", "팀 주간보고 취합", "weekly_review", _d(8, 24), _d(8, 28), False),
-    ("정주애", "8월 목표 대비 진척 점검", "monthly_review", _d(8, 25), _d(8, 31), False),
-    ("정주애", "신규 담당자 OJT 자료 정리", "ojt", _d(8, 19), _d(8, 21), True),
-    ("정주애", "제주메디병원 증설 계약 후속", "weekly_review", _d(8, 25), _d(8, 26), False),
-)
-
 # 오늘(2026-08-25) 잡혀 있는 일정. 대시보드의 "오늘 일정" 카드가 비지 않게 한다.
 TODAY_MEETINGS = (
     ("김팀원", "C25", "D31", "visit", "meeting", "한빛메디병원 소모품 단가 재협의", 10),
@@ -2186,7 +2164,6 @@ class Seeder:
                 "owner_member_id": self.members[owner],
                 "customer_contact_id": self.contact_ids[contact_key],
                 "end_user_contact_id": None,
-                "activity_type": "meeting",
                 "activity_category_id": self.category[category],
                 "title": title,
                 "starts_at": starts,
@@ -2259,39 +2236,6 @@ class Seeder:
                 contact_key,
                 deal_key,
             )
-
-        for index, (owner, title, tag, day, due, done) in enumerate(FOLLOW_UPS, start=1):
-            starts = at(day, 9)
-            await upsert(
-                self.db,
-                Activity,
-                {
-                    "id": self.sid("activity", f"TASK-{index:02d}"),
-                    "team_id": self.team_id,
-                    "owner_member_id": self.members[owner],
-                    "customer_contact_id": None,
-                    "end_user_contact_id": None,
-                    "activity_type": "task",
-                    "activity_category_id": self.category["internal"],
-                    "title": title,
-                    "starts_at": starts,
-                    "ends_at": None,
-                    "all_day": False,
-                    "due_at": at(due, 18),
-                    "location": None,
-                    "activity_action_tag_id": self.tag[tag],
-                    "completed_at": at(due, 17) if done else None,
-                    "note": None,
-                    "deleted_at": None,
-                    "created_at": starts,
-                    "updated_at": starts,
-                    "product_id": None,
-                    "sales_deal_id": None,
-                    "purchase_order_id": None,
-                },
-            )
-            self.bump("activity")
-            self.bump("task")
 
     # ------------------------------------------------------------ 보고서
 

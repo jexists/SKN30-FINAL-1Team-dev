@@ -67,8 +67,7 @@ class SalesTargetCard(BaseModel):
 
 class WeeklyDay(BaseModel):
     date: Date
-    meeting_count: int
-    task_count: int
+    activity_count: int
     due_count: int
 
 

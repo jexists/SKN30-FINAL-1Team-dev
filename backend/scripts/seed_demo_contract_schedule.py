@@ -288,7 +288,6 @@ async def _seed(session: AsyncSession) -> None:
                 owner_member_id=row["owner"],
                 customer_contact_id=None,
                 end_user_contact_id=None,
-                activity_type="meeting",
                 activity_category_id=ACTIVITY_CATEGORY[category],
                 title=f"{row['company']} {category}",
                 starts_at=_dt(starts_at),

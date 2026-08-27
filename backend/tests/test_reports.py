@@ -148,7 +148,6 @@ def _activity(member: Member) -> Activity:
         owner_member_id=member.id,
         customer_contact_id=None,
         end_user_contact_id=None,
-        activity_type="meeting",
         activity_category_id=uuid4(),
         title="합성 미팅",
         starts_at=START,

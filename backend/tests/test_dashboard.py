@@ -163,7 +163,6 @@ def _category(team_id) -> ActivityCategory:
         deleted_at=None,
         created_at=NOW,
         updated_at=NOW,
-        activity_type="meeting",
     )
 
 
@@ -175,7 +174,6 @@ def _activity_row(member: Member, *, hour: int, title: str):
         owner_member_id=member.id,
         customer_contact_id=None,
         end_user_contact_id=None,
-        activity_type="meeting",
         activity_category_id=uuid4(),
         title=title,
         starts_at=datetime(2026, 8, 18, hour, tzinfo=UTC),

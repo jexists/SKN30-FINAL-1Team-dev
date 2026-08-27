@@ -72,7 +72,6 @@ class Activity(Base):
     end_user_contact_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_contact.id")
     )
-    activity_type: Mapped[str]
     activity_category_id: Mapped[UUID] = mapped_column(ForeignKey("public.activity_category.id"))
     title: Mapped[str]
     starts_at: Mapped[datetime]

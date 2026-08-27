@@ -28,7 +28,7 @@ const emptyValues = (template: ReportTemplate) =>
   Object.fromEntries(template.fields.map((f) => [f.id, '']))
 
 interface DraftOptions {
-  /** 미리 켜 둘 자료의 원본 id. 사내 업무 일정에서 넘어올 때 씁니다. */
+  /** 미리 켜 둘 자료의 원본 id. 특정 일정에서 넘어올 때 씁니다. */
   pickId?: string
 }
 

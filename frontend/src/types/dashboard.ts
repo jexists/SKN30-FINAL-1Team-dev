@@ -49,8 +49,7 @@ export interface SalesTargetCard {
 
 export interface WeeklyDay {
   date: string
-  meeting_count: number
-  task_count: number
+  activity_count: number
   due_count: number
 }
 

@@ -43,10 +43,9 @@ export default function WeekCalendar({
 
   // 선택 칸은 배경이 파랗게 차므로 점 색을 뒤집습니다.
   const renderMarks = (dateISO: string, isSelected: boolean) => {
-    // 점은 아래 하루 목록과 같은 것을 셉니다. 미팅인지 사내 업무인지는 가르지
-    // 않습니다. 칸이 말해 주는 것은 "그날 몇 건인가" 하나입니다.
-    const day = countByDate.get(dateISO)
-    const total = (day?.meeting_count ?? 0) + (day?.task_count ?? 0)
+    // 점은 아래 하루 목록과 같은 것을 셉니다. 칸이 말해 주는 것은 "그날 몇 건인가"
+    // 하나입니다.
+    const total = countByDate.get(dateISO)?.activity_count ?? 0
     // 넘치는 날은 '+N' 이 한 자리를 가져갑니다.
     const shown = Math.min(total, total > MAX_MARKS ? MAX_MARKS - 1 : MAX_MARKS)
     const hidden = total - shown

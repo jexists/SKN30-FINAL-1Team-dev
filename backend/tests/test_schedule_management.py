@@ -15,29 +15,17 @@ def _candidate(
     return schedule_management.ScheduleCandidate(
         candidate_id=candidate_id,
         title="계약 조건 협의",
-        activity_type="meeting",
         starts_at=starts_at,
         ends_at=ends_at,
         priority=1,
     )
 
 
-def test_candidate_contract_rejects_invalid_activity_type_and_priority():
+def test_candidate_contract_rejects_invalid_priority():
     with pytest.raises(ValidationError):
         schedule_management.ScheduleCandidate(
             candidate_id="candidate-1",
             title="계약 조건 협의",
-            activity_type="call",
-            starts_at="2026-08-25T09:00:00+09:00",
-            ends_at="2026-08-25T10:00:00+09:00",
-            priority=1,
-        )
-
-    with pytest.raises(ValidationError):
-        schedule_management.ScheduleCandidate(
-            candidate_id="candidate-1",
-            title="계약 조건 협의",
-            activity_type="meeting",
             starts_at="2026-08-25T09:00:00+09:00",
             ends_at="2026-08-25T10:00:00+09:00",
             priority=0,

@@ -341,7 +341,6 @@ async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
         id=uuid4(),
         team_id=member.team_id,
         owner_member_id=deal.owner_member_id,
-        activity_type="meeting",
         title="기존 미팅",
         starts_at=datetime(2026, 8, 26, 9, tzinfo=UTC),
         ends_at=datetime(2026, 8, 26, 10, tzinfo=UTC),

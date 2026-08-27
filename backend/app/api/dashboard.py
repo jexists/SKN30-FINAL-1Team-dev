@@ -114,13 +114,12 @@ async def _activity_cards(
     start, end = _day_bounds(day)
     today = and_(Activity.starts_at >= start, Activity.starts_at < end)
 
-    # 오늘 카드 두 개는 같은 범위라 한 번에 센다.
+    # 오늘 카드 두 개는 같은 범위라 한 번에 센다. 회사가 걸리지 않은 일정은 방문 회사에
+    # 잡히지 않으므로 두 숫자가 늘 같지는 않다.
     visited, total = (
         await db.execute(
             activities_api._joined_select(
-                func.count(func.distinct(activities_api._company.id)).filter(
-                    Activity.activity_type == "meeting"
-                ),
+                func.count(func.distinct(activities_api._company.id)),
                 func.count(Activity.id),
             ).where(*scope, today)
         )
@@ -288,8 +287,7 @@ async def _weekly_band(
         await db.execute(
             activities_api._joined_select(
                 activity_day,
-                func.count(Activity.id).filter(Activity.activity_type == "meeting"),
-                func.count(Activity.id).filter(Activity.activity_type == "task"),
+                func.count(Activity.id),
             )
             .where(
                 *activities_api._scope(member, owner_ids),
@@ -299,7 +297,7 @@ async def _weekly_band(
             .group_by(activity_day)
         )
     ).all()
-    by_day = {row[0]: (row[1], row[2]) for row in activity_rows}
+    by_day = {row[0]: row[1] for row in activity_rows}
 
     # 납기는 발주의 입고 예정일 기준이다.
     due_rows = (
@@ -321,12 +319,10 @@ async def _weekly_band(
     days = []
     for offset in range(_WEEK_DAYS):
         current = start_date + timedelta(days=offset)
-        meeting_count, task_count = by_day.get(current, (0, 0))
         days.append(
             WeeklyDay(
                 date=current,
-                meeting_count=meeting_count,
-                task_count=task_count,
+                activity_count=by_day.get(current, 0),
                 due_count=due_by_day.get(current, 0),
             )
         )

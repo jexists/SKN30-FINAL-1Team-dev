@@ -220,14 +220,6 @@
   text-align: right;
 }
 
-// 업무는 언제까지 하는 일인지가 함께 붙습니다. 시작 시각보다 한 단 낮게 둡니다.
-.until {
-  display: block;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .time {
   font-size: 13px;
   font-weight: 600;

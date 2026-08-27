@@ -27,7 +27,6 @@ export const KIND_LABEL: Record<AgendaKind, string> = {
   call: '전화',
   delivery: '납품',
   booth: '학회',
-  internal: '내부',
 }
 
 export const EXTERNAL_STATUSES: readonly ExternalStatus[] = [
@@ -42,14 +41,7 @@ export const EXTERNAL_STATUSES: readonly ExternalStatus[] = [
   '납품완료',
 ]
 
-export const INTERNAL_STATUSES: readonly InternalStatus[] = [
-  '내부회의',
-  '주간점검',
-  '월간점검',
-  '분기점검',
-  '컨퍼런스',
-  'OJT',
-]
+export const INTERNAL_STATUSES: readonly InternalStatus[] = ['내부회의', '컨퍼런스']
 
 export function statusScope(status: ScheduleStatus): '내부' | '외부' {
   return (INTERNAL_STATUSES as readonly ScheduleStatus[]).includes(status) ? '내부' : '외부'
@@ -62,7 +54,6 @@ const CATEGORY_BY_KIND: Record<AgendaKind, ActivityCategoryCode> = {
   call: 'call',
   delivery: 'delivery',
   booth: 'conference',
-  internal: 'internal',
 }
 
 const KIND_BY_CATEGORY: Record<ActivityCategoryCode, AgendaKind> = {
@@ -72,7 +63,6 @@ const KIND_BY_CATEGORY: Record<ActivityCategoryCode, AgendaKind> = {
   call: 'call',
   delivery: 'delivery',
   conference: 'booth',
-  internal: 'internal',
 }
 
 const ACTION_TAG_BY_STATUS: Record<ScheduleStatus, ActivityActionTagCode> = {
@@ -86,11 +76,7 @@ const ACTION_TAG_BY_STATUS: Record<ScheduleStatus, ActivityActionTagCode> = {
   제품교육: 'product_training',
   납품완료: 'delivery_completed',
   내부회의: 'internal_meeting',
-  주간점검: 'weekly_review',
-  월간점검: 'monthly_review',
-  분기점검: 'quarterly_review',
   컨퍼런스: 'conference',
-  OJT: 'ojt',
 }
 
 const STATUS_BY_ACTION_TAG = Object.fromEntries(
@@ -156,7 +142,6 @@ export function activityToAgenda(activity: ActivityRead): AgendaItem {
     tags: [],
     done: activity.completed_at !== null,
     reported: false,
-    activityType: activity.activity_type,
     customerContactId: activity.customer_contact_id,
     customerContactName: activity.customer_contact_name ?? '',
     salesDealId: activity.sales_deal_id,
@@ -183,7 +168,6 @@ export function agendaToActivity(event: CalendarEvent): ActivityCreateRequest {
     customer_contact_id: event.customerContactId ?? null,
     sales_deal_id: event.salesDealId ?? null,
     product_id: event.productId ?? null,
-    activity_type: event.activityType ?? (event.kind === 'internal' ? 'task' : 'meeting'),
     category_code: CATEGORY_BY_KIND[event.kind],
     title: event.title.trim(),
     starts_at: kstIso(start),

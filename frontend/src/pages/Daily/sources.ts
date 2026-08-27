@@ -35,7 +35,7 @@ export interface SourceMeta {
   /** 원본 보고서의 상태. null 이면 아직 쓰지 않았습니다. */
   status: ReportStatus | null
   /**
-   * 보고서가 따로 나는 자료인지. 사내 업무·문서·후속은 그 자체로 보고서가 없어
+   * 보고서가 따로 나는 자료인지. 문서·후속은 그 자체로 보고서가 없어
    * '미작성' 이라고 말할 것이 없습니다. 배지는 이 값이 참일 때만 답니다.
    */
   tracked?: boolean
@@ -110,21 +110,6 @@ function dailySources(
   for (const item of agendaItems.filter((entry) => entry.date === dateISO)) {
     const report = byAgenda.get(item.id)
 
-    // 사내 업무는 일정 하나로 보고서를 따로 내지 않습니다. 일정 정보가 그대로 자료입니다.
-    if (item.kind === 'internal') {
-      activities.push({
-        id: `cal-${item.id}`,
-        source: '캘린더',
-        title: `${item.time} ${item.hospital} ${item.title}`,
-        desc: [item.contact, item.stage].filter(Boolean).join(' · '),
-        // 이미 끝난 일정만 기본으로 켭니다. 안 한 일이 보고서에 실리면 안 됩니다.
-        included: item.done,
-        refId: item.id,
-      })
-      meta.set(`cal-${item.id}`, { status: null })
-      continue
-    }
-
     if (report?.status === '확정') {
       used.add(report.id)
       activities.push({
@@ -149,6 +134,7 @@ function dailySources(
       source: '캘린더',
       title: `${item.time} ${item.hospital} ${item.title}`,
       desc: [item.contact, item.stage].filter(Boolean).join(' · '),
+      // 이미 끝난 일정만 기본으로 켭니다. 안 한 일이 보고서에 실리면 안 됩니다.
       included: item.done,
       refId: item.id,
     })

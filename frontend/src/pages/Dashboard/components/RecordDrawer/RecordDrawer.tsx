@@ -7,7 +7,7 @@ import Popover from '@/components/Popover'
 import Skeleton, { InlineLoader } from '@/components/Skeleton'
 import { EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import { orderPath } from '@/constants/routes'
-import { endTime, statusScope } from '@/shared/agenda'
+import { statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { RISK_LABEL } from '@/shared/riskLabels'
 import type { AgendaItem } from '@/types'
@@ -40,17 +40,14 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     reload: onRetryRelated,
   } = useRelatedDeal(item.salesDealId ?? null)
   const done = item.done
-  const isMeeting = item.activityType === 'meeting'
   const {
     briefing,
     loading: briefingLoading,
     error: briefingError,
-  } = useAiBriefing({ activityId: item.id, eligible: isMeeting && !!item.customerContactId })
+  } = useAiBriefing({ activityId: item.id, eligible: !!item.customerContactId })
   const [menuOpen, setMenuOpen] = useState(false)
   // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
   const reportState = useAgendaReportLink(item)
-  const task = item.kind === 'internal'
-  const until = task ? endTime(item.time, item.dur) : ''
   const at = item.contact.lastIndexOf(' ')
   const facts: [string, string][] = (
     [
@@ -66,19 +63,12 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
       wide
       title={item.hospital || item.title}
       sub={
-        task ? (
+        <>
+          {item.title}
           <span className={styles.when}>
-            {fmtDay(parseISO(item.date))} {item.time}
-            {until && ` – ${until}`}
+            · {fmtDay(parseISO(item.date))} {item.time}
           </span>
-        ) : (
-          <>
-            {item.title}
-            <span className={styles.when}>
-              · {fmtDay(parseISO(item.date))} {item.time}
-            </span>
-          </>
-        )
+        </>
       }
       onClose={onClose}
       actions={
@@ -120,7 +110,6 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
       }
       meta={
         <>
-          {task && <i className={`${styles.pill} ${styles.taskTag}`}>업무</i>}
           {item.stage && (
             <i
               className={`${styles.pill} ${statusScope(item.stage) === '외부' ? styles.scopeExternal : ''}`}
@@ -239,54 +228,52 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
           </>
         )}
 
-        {isMeeting && (
-          <section className={`${styles.block} ${styles.full}`}>
-            <h3>🤖 AI 브리핑</h3>
-            {!item.customerContactId ? (
-              <p className={styles.note}>
-                담당자 연락처가 연결되지 않아 AI 브리핑을 만들 수 없습니다.
-              </p>
-            ) : briefingError ? (
-              <p className={styles.note} role="alert">
-                {briefingError}
-              </p>
-            ) : briefingLoading ? (
-              <Skeleton height={72} radius="var(--r-md)" />
-            ) : briefing === null ? (
-              <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
-            ) : briefing.status === 'failed' ? (
-              <p className={styles.note} role="alert">
-                브리핑 생성에 실패했습니다{briefing.error ? `: ${briefing.error}` : ''}
-              </p>
-            ) : briefing.status !== 'completed' || !briefing.content ? (
-              <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
-            ) : (
-              <>
-                <p className={styles.note}>{briefing.content.contract_summary}</p>
-                {briefing.content.risks.length > 0 && (
-                  <div className={styles.pills}>
-                    {briefing.content.risks.map((risk, index) => (
-                      <i key={`${risk.code}-${index}`} className={styles.pill}>
-                        {RISK_LABEL[risk.code]}
-                      </i>
-                    ))}
-                  </div>
-                )}
-                {briefing.content.recommended_actions.length > 0 && (
-                  <ul className={styles.actions}>
-                    {briefing.content.recommended_actions.map((action, index) => (
-                      <li key={index}>{action}</li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </section>
-        )}
+        <section className={`${styles.block} ${styles.full}`}>
+          <h3>🤖 AI 브리핑</h3>
+          {!item.customerContactId ? (
+            <p className={styles.note}>
+              담당자 연락처가 연결되지 않아 AI 브리핑을 만들 수 없습니다.
+            </p>
+          ) : briefingError ? (
+            <p className={styles.note} role="alert">
+              {briefingError}
+            </p>
+          ) : briefingLoading ? (
+            <Skeleton height={72} radius="var(--r-md)" />
+          ) : briefing === null ? (
+            <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
+          ) : briefing.status === 'failed' ? (
+            <p className={styles.note} role="alert">
+              브리핑 생성에 실패했습니다{briefing.error ? `: ${briefing.error}` : ''}
+            </p>
+          ) : briefing.status !== 'completed' || !briefing.content ? (
+            <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
+          ) : (
+            <>
+              <p className={styles.note}>{briefing.content.contract_summary}</p>
+              {briefing.content.risks.length > 0 && (
+                <div className={styles.pills}>
+                  {briefing.content.risks.map((risk, index) => (
+                    <i key={`${risk.code}-${index}`} className={styles.pill}>
+                      {RISK_LABEL[risk.code]}
+                    </i>
+                  ))}
+                </div>
+              )}
+              {briefing.content.recommended_actions.length > 0 && (
+                <ul className={styles.actions}>
+                  {briefing.content.recommended_actions.map((action, index) => (
+                    <li key={index}>{action}</li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </section>
 
         {item.brief && (
           <section className={`${styles.block} ${styles.full}`}>
-            <h3>{task ? '메모' : '미팅 메모'}</h3>
+            <h3>미팅 메모</h3>
             <p className={styles.note}>{item.brief}</p>
           </section>
         )}

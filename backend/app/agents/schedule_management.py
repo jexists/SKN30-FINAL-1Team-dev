@@ -49,7 +49,6 @@ class ScheduleCandidate(BaseModel):
 
     candidate_id: str = Field(min_length=1, max_length=128)
     title: str = Field(min_length=1, max_length=200)
-    activity_type: Literal["meeting", "task"]
     starts_at: str
     ends_at: str
     # 1이 가장 추천하는 후보다. 숫자가 클수록 덜 추천한다 — 프롬프트에도 같은 방향을 못박아 둔다.
