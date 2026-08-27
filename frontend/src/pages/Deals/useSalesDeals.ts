@@ -359,6 +359,9 @@ function toPatchRequest(
   }
 }
 
+/** 파이프라인 칸의 기본값. 실제 기본 파이프라인 하나로 좁혀 봅니다. */
+export const DEFAULT_PIPELINE = 'default'
+
 /**
  * `query` 를 주면 목록을 한 쪽씩 받습니다. 주지 않으면 전건을 받습니다.
  *
@@ -427,7 +430,11 @@ export default function useSalesDeals(
           pipelineItems.find(({ status_code }) => status_code === 'published') ??
           pipelineItems[0]
         const stagePipeline = requested ?? fallback
-        const filteredPipelineId = mode === 'board' ? stagePipeline?.id : requested?.id
+        // 파이프라인을 고르지 않은 목록은 기본 파이프라인을 봅니다. 전체는 골라야 봅니다.
+        const filteredPipelineId =
+          mode === 'board' || requestedPipelineId === DEFAULT_PIPELINE
+            ? stagePipeline?.id
+            : requested?.id
 
         const [stageItems, dealItems, dealTypeItems, quoteStatusItems, contractStatusItems] =
           await Promise.all([
