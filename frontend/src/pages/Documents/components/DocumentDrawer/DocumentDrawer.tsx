@@ -14,11 +14,10 @@ import styles from './DocumentDrawer.module.scss'
 interface Props {
   doc: SalesDocument
   onClose: () => void
-  canUpload: boolean
   onNewVersion: () => void
 }
 
-export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion }: Props) {
+export default function DocumentDrawer({ doc, onClose, onNewVersion }: Props) {
   const latest = latestOf(doc)
   const rows: [string, string][] = [
     ['설명', doc.description || '—'],
@@ -43,11 +42,9 @@ export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion }
         </>
       }
       footer={
-        canUpload && (
-          <Button variant="outline" onClick={onNewVersion}>
-            <UploadIcon width={14} height={14} />새 버전 올리기
-          </Button>
-        )
+        <Button variant="outline" onClick={onNewVersion}>
+          <UploadIcon width={14} height={14} />새 버전 올리기
+        </Button>
       }
     >
       <dl className={styles.rows}>

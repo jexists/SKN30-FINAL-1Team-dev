@@ -37,7 +37,7 @@ const RANGES = [
 const DEFAULT_RANGE = '12'
 
 export default function Documents() {
-  // 자료를 올리는 것은 팀장 몫입니다. 팀원은 받아 보기만 합니다.
+  // 자료는 팀원도 올립니다. 등록자 필터·열은 팀장에게만 보입니다.
   const { profile, isManager } = useCurrentUser()
   const showOwner = isManager
 
@@ -206,14 +206,12 @@ export default function Documents() {
           onChange={(value) => setParam('range', value, DEFAULT_RANGE)}
         />
 
-        {isManager && (
-          <div className={styles.actions}>
-            <Button disabled={pending} onClick={() => setUploading('new')}>
-              <UploadIcon width={15} height={15} />
-              파일 업로드
-            </Button>
-          </div>
-        )}
+        <div className={styles.actions}>
+          <Button disabled={pending} onClick={() => setUploading('new')}>
+            <UploadIcon width={15} height={15} />
+            파일 업로드
+          </Button>
+        </div>
       </div>
 
       <CategoryTabs
@@ -234,7 +232,6 @@ export default function Documents() {
         onOpen={setOpenId}
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
-        canUpload={isManager}
         showOwner={showOwner}
         onUpload={() => setUploading('new')}
       />
@@ -247,7 +244,6 @@ export default function Documents() {
         <DocumentDrawer
           doc={openDoc}
           onClose={() => setOpenId(null)}
-          canUpload={isManager}
           onNewVersion={() => setUploading(openDoc.id)}
         />
       )}
