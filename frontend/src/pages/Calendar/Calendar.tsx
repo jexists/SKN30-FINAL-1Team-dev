@@ -227,7 +227,7 @@ export default function Calendar() {
 
       {creating && (
         <EventModal
-          draft={{ ...DEFAULTS, id: '', date: creating, title: '' }}
+          draft={{ ...DEFAULTS, kind: 'visit', id: '', date: creating, title: '' }}
           mode="create"
           onClose={() => setCreating(null)}
           onSave={create}
