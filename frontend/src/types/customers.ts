@@ -83,6 +83,11 @@ export interface CustomerCompanyResponse {
   region_code: string | null
   /** 하이픈 없는 10자리. 화면에 보일 하이픈은 프론트가 붙입니다. */
   business_no: string | null
+  /** 우편번호 5자리 */
+  postcode: string | null
+  address: string | null
+  /** 층·호수처럼 사람이 직접 적는 부분 */
+  address_detail: string | null
   created_at: string
 }
 
@@ -90,6 +95,9 @@ export interface CustomerCompanyCreateRequest {
   name: string
   region_code: string | null
   business_no: string | null
+  postcode: string | null
+  address: string | null
+  address_detail: string | null
 }
 
 export interface CustomerContactCreateRequest {

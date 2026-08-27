@@ -56,6 +56,9 @@ PipelineStatus = Literal["published", "archived"]
 StageTone = Literal["gray", "blue", "purple", "orange", "green", "red"]
 SalesPhase = Literal["sales", "quote", "contract", "order", "closed"]
 SalesOutcome = Literal["in_progress", "confirmed", "cancelled"]
+# 견적·계약 상태의 결과 코드. 파이프라인 단계의 SalesOutcome 과 값이 달라 따로 둔다.
+# purchase_order_status 와 같은 값이다.
+DocumentOutcome = Literal["in_progress", "completed", "cancelled"]
 
 
 class _WriteModel(BaseModel):
@@ -93,6 +96,28 @@ class SalesDealTypeRead(BaseModel):
     id: UUID
     code: OptionCode
     name: str
+    position: int
+
+
+class QuoteStatusRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: OptionCode
+    name: str
+    tone: StageTone
+    outcome_code: DocumentOutcome
+    position: int
+
+
+class ContractStatusRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: OptionCode
+    name: str
+    tone: StageTone
+    outcome_code: DocumentOutcome
     position: int
 
 
@@ -150,6 +175,29 @@ class ProductPageParams(BaseModel):
     limit: int = Field(default=30, ge=1, le=30)
 
 
+class SalesDealItemWrite(_WriteModel):
+    product_id: UUID
+    quantity: Annotated[StrictInt, Field(ge=1, le=2_147_483_647)]
+    unit_price: Money
+
+
+SalesDealItems = Annotated[list[SalesDealItemWrite], Field(min_length=1, max_length=100)]
+
+
+class SalesDealItemRead(BaseModel):
+    id: UUID
+    product_id: UUID
+    product_name: str
+    quantity: int
+    unit_price: int
+    position: int
+
+
+class SalesDealParticipantRead(BaseModel):
+    customer_contact_id: UUID
+    customer_contact_name: str
+
+
 class SalesDealCreate(_WriteModel):
     customer_company_id: UUID
     customer_contact_id: UUID | None = None
@@ -170,6 +218,15 @@ class SalesDealCreate(_WriteModel):
     warranty_terms: LongText | None = None
     expected_delivery_at: SafeDateTime | None = None
     memo: LongText | None = None
+    quote_status_code: OptionCode | None = None
+    contract_status_code: OptionCode | None = None
+    quote_amount: Money | None = None
+    contract_amount: Money | None = None
+    quote_delivery_terms: Text | None = None
+    contract_payment_terms: Text | None = None
+    contract_late_interest_terms: Text | None = None
+    items: SalesDealItems | None = None
+    participant_contact_ids: list[UUID] | None = None
 
     @model_validator(mode="after")
     def validate_write(self) -> Self:
@@ -208,6 +265,15 @@ class SalesDealPatch(_WriteModel):
     warranty_terms: LongText | None = None
     expected_delivery_at: SafeDateTime | None = None
     memo: LongText | None = None
+    quote_status_code: OptionCode | None = None
+    contract_status_code: OptionCode | None = None
+    quote_amount: Money | None = None
+    contract_amount: Money | None = None
+    quote_delivery_terms: Text | None = None
+    contract_payment_terms: Text | None = None
+    contract_late_interest_terms: Text | None = None
+    items: SalesDealItems | None = None
+    participant_contact_ids: list[UUID] | None = None
 
     @model_validator(mode="after")
     def required_fields_cannot_be_null(self) -> Self:
@@ -270,6 +336,30 @@ class SalesDealRead(BaseModel):
     warranty_terms: str | None
     expected_delivery_at: datetime | None
     memo: str | None
+    quote_status_id: UUID | None
+    quote_status_code: OptionCode | None
+    quote_status_name: str | None
+    quote_status_tone: StageTone | None
+    contract_status_id: UUID | None
+    contract_status_code: OptionCode | None
+    contract_status_name: str | None
+    contract_status_tone: StageTone | None
+    quote_amount: int | None
+    contract_amount: int | None
+    quote_delivery_terms: str | None
+    contract_payment_terms: str | None
+    contract_late_interest_terms: str | None
+    # 계약서의 계약자정보(갑)(을). 을은 팀, 갑은 딜의 고객사다. 딜이 이미 들고 있는 것에서
+    # 유도하므로 계약이 따로 적어 두지 않는다. 사업자번호는 하이픈 없는 10자리다.
+    team_company_name: str | None
+    team_business_no: str | None
+    customer_company_business_no: str | None
+    items: list[SalesDealItemRead]
+    participants: list[SalesDealParticipantRead]
+    # 이 딜에 걸린 발주 중 가장 최근 것의 상태. 발주가 없으면 전부 None 이다.
+    order_status_code: OptionCode | None
+    order_status_name: str | None
+    order_status_tone: StageTone | None
     stage_position: int
     created_at: datetime
     updated_at: datetime
@@ -311,6 +401,13 @@ class SalesDealPageParams(BaseModel):
     # 이름을 따로 둔다.
     contract_ends_from: date | None = None
     contract_ends_to: date | None = None
+    # 견적현황·계약현황 목록이 쓴다. 상태가 있다는 것 자체가 그 국면에 들어갔다는 뜻이라
+    # phase_code 로 거르지 않고 이 조건으로 거른다. phase_code 는 계약으로 넘어가면
+    # 딜을 그 목록에서 빼 버린다.
+    has_quote: bool | None = None
+    has_contract: bool | None = None
+    quote_status_id: list[UUID] | None = None
+    contract_status_id: list[UUID] | None = None
     skip: int = Field(default=0, ge=0, le=9_223_372_036_854_775_807)
     limit: int = Field(default=30, ge=1, le=30)
 

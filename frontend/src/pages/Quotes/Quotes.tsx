@@ -7,11 +7,11 @@ import Button from '@/components/Button'
 import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
-import { QuoteIcon, SearchIcon } from '@/components/icons'
+import { PlusIcon, QuoteIcon, SearchIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
-import StageChip from '@/components/StageChip'
+import { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import SalesDealDrawer from '@/pages/Deals/SalesDealDrawer'
 import useSalesDeals, { type SalesDeal } from '@/pages/Deals/useSalesDeals'
@@ -34,6 +34,8 @@ const DEFAULT_RANGE = '6'
 
 export default function Quotes() {
   const [openId, setOpenId] = useState<string | null>(null)
+  // 드로어에서 연 견적 수정. 목록의 '견적 작성'(createOpen)과 달리 딜이 정해져 있습니다.
+  const [editingQuote, setEditingQuote] = useState<SalesDeal | null>(null)
   const [params, setParams] = useSearchParams()
 
   // 일정 등록에서 '견적서 작성 화면으로 이동' 을 고르면 이 표를 달고 옵니다.
@@ -115,12 +117,9 @@ export default function Quotes() {
     detailLoading,
     detailError,
     reloadDetail,
+    documentStatuses,
+    saveDealDocument,
   } = useSalesDeals(openId, requestedPipelineId || null, 'list', 'quote', dealQuery)
-
-  const quoteStages = useMemo(
-    () => pipelineStages.filter((item) => item.phase === 'quote'),
-    [pipelineStages],
-  )
   // 정렬 API가 붙기 전에 현재 쪽만 정렬하면 전체 순서를 오해하게 됩니다.
   const columns = useMemo(
     () =>
@@ -236,12 +235,20 @@ export default function Quotes() {
           onOpenChange={(open) => setOpenFilter(open ? 'range' : null)}
           onChange={(value) => setParam('range', value, DEFAULT_RANGE)}
         />
+
+        <div className={styles.actions}>
+          <Button disabled={loading} onClick={() => setParam('new', '1')}>
+            <PlusIcon width={15} height={15} />
+            견적 작성
+          </Button>
+        </div>
       </div>
 
-      {dealPipelineId && (
+      {/* 견적 상태는 파이프라인과 무관한 팀 설정이라 파이프라인을 고르지 않아도 뜹니다. */}
+      {documentStatuses.length > 0 && (
         <StageTabs
-          stages={quoteStages}
-          label="견적 단계"
+          stages={documentStatuses}
+          label="견적 상태"
           value={stage}
           countOf={(id) => stageCounts.get(id) ?? 0}
           total={stageTotal}
@@ -265,10 +272,7 @@ export default function Quotes() {
         onOpen={(quote) => setOpenId(quote.id)}
         caption="견적 목록. 헤더를 눌러 정렬할 수 있습니다."
         renderCell={(id, quote) => {
-          if (id === 'stage') {
-            const found = stageOf(quote)
-            return <StageChip tone={found.tone}>{found.name}</StageChip>
-          }
+          if (id === 'stage') return chipOr(quote.quoteStatusTone, quote.quoteStatusName)
           if (id !== 'validUntil' || !quote.quoteValidUntil || quote.quoteValidUntil >= TODAY_ISO)
             return undefined
           return (
@@ -279,15 +283,14 @@ export default function Quotes() {
           )
         }}
         mini={(quote) => {
-          const found = stageOf(quote)
           const expired = !!quote.quoteValidUntil && quote.quoteValidUntil < TODAY_ISO
           return {
             title: quote.org,
-            badge: <StageChip tone={found.tone}>{found.name}</StageChip>,
-            sub: quote.product + ' · ' + quote.kind,
+            badge: chipOr(quote.quoteStatusTone, quote.quoteStatusName),
+            sub: quote.title,
             meta: [
               <span key="m1" className="tnum">
-                {won(quote.amount)}
+                {quote.quoteAmount === null ? '견적금액 미정' : won(quote.quoteAmount)}
               </span>,
               <span key="m2" className="tnum">
                 {quote.quoteIssuedOn ? fmtDot(parseISO(quote.quoteIssuedOn)) : '견적일 미정'}
@@ -318,7 +321,8 @@ export default function Quotes() {
           ) : (
             <>
               <QuoteIcon width={34} height={34} strokeWidth={1.5} />
-              <p>현재 견적 단계인 영업 딜이 없습니다.</p>
+              <p>아직 견적을 작성한 영업 딜이 없습니다.</p>
+              <Button onClick={() => setParam('new', '1')}>견적 작성</Button>
             </>
           )
         }
@@ -336,10 +340,37 @@ export default function Quotes() {
           error={detailError}
           onRetry={reloadDetail}
           onClose={() => setOpenId(null)}
+          onEditQuote={() => {
+            if (!selectedQuote) return
+            setEditingQuote(selectedQuote)
+            setOpenId(null)
+          }}
         />
       )}
 
-      {createOpen && <QuoteForm onClose={closeCreate} onSubmit={closeCreate} />}
+      {editingQuote && (
+        <QuoteForm
+          deal={editingQuote}
+          statuses={documentStatuses}
+          onClose={() => setEditingQuote(null)}
+          onSubmit={async (dealId, fields) => {
+            await saveDealDocument(dealId, fields, '견적을 저장')
+            setEditingQuote(null)
+          }}
+        />
+      )}
+
+      {createOpen && (
+        <QuoteForm
+          statuses={documentStatuses}
+          onClose={closeCreate}
+          onSubmit={async (dealId, fields) => {
+            await saveDealDocument(dealId, fields, '견적을 저장')
+            closeCreate()
+            reload()
+          }}
+        />
+      )}
     </section>
   )
 }

@@ -159,6 +159,22 @@ export default function OrderDetail() {
           </dd>
         </div>
         <div>
+          <dt>요청부서</dt>
+          <dd>{order.requestDepartment}</dd>
+        </div>
+        <div>
+          <dt>협조부서</dt>
+          <dd>{order.cooperationDepartment}</dd>
+        </div>
+        <div>
+          <dt>작성자</dt>
+          <dd>{order.createdBy}</dd>
+        </div>
+        <div>
+          <dt>납품예상 거래처</dt>
+          <dd>{order.expectedCustomerCompany}</dd>
+        </div>
+        <div>
           <dt>발주일</dt>
           <dd className="tnum">{fmtDot(parseISO(order.ordered))}</dd>
         </div>

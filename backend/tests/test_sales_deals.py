@@ -9,10 +9,17 @@ from pydantic import ValidationError
 from app.api import sales_deals as api
 from app.models.configuration import SalesDealType
 from app.models.crm import CustomerCompany
-from app.models.sales import Product, SalesDeal, SalesPipeline, SalesPipelineStage
+from app.models.sales import (
+    Product,
+    SalesDeal,
+    SalesDealItem,
+    SalesPipeline,
+    SalesPipelineStage,
+)
 from app.models.workspace import Member
 from app.schemas.sales_deals import (
     SalesDealCreate,
+    SalesDealItemWrite,
     SalesDealMove,
     SalesDealPageParams,
     SalesDealPatch,
@@ -59,6 +66,7 @@ class _Db:
     def __init__(self, *results: _Result):
         self.results = list(results)
         self.statements = []
+        self.added = []
         self.flush_count = 0
         self.commit_count = 0
         self.rollback_count = 0
@@ -67,6 +75,9 @@ class _Db:
         self.statements.append(statement)
         assert self.results
         return self.results.pop(0)
+
+    def add(self, instance):
+        self.added.append(instance)
 
     async def flush(self):
         self.flush_count += 1
@@ -183,6 +194,11 @@ def _deal(
         contract_no=None,
         contract_signed_on=None,
         contract_ends_on=None,
+        quote_status_id=None,
+        contract_status_id=None,
+        quote_amount=None,
+        contract_amount=None,
+        quote_delivery_terms=None,
         warranty_terms=None,
         expected_delivery_at=None,
         memo=None,
@@ -191,6 +207,13 @@ def _deal(
         created_at=NOW,
         updated_at=NOW,
     )
+
+
+def _deal_statements(db):
+    """딜을 훑는 쿼리만. 품목·미팅 대상자·발주 상태는 다른 표에서 따로 가져온다."""
+    return [
+        statement for statement in db.statements if "FROM public.sales_deal JOIN" in str(statement)
+    ]
 
 
 def _row(
@@ -220,6 +243,15 @@ def _row(
         stage.position,
         deal_type.code,
         deal_type.name,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        "성문메디컬",
+        "1234567890",
+        company.business_no,
     )
 
 
@@ -323,6 +355,10 @@ def test_sales_deal_list_exposes_pipeline_stage_type_and_phase_filter():
     db = _Db(
         _Result(scalar=1),
         _Result(rows=[_row(deal, member, pipeline, stage, deal_type, company, product)]),
+        # 품목·미팅 대상자·최근 발주 상태는 쪽에 담긴 딜만 따로 훑는다.
+        _Result(rows=[]),
+        _Result(rows=[]),
+        _Result(rows=[]),
         _Result(rows=[(stage.id, 1)]),
     )
 
@@ -339,11 +375,85 @@ def test_sales_deal_list_exposes_pipeline_stage_type_and_phase_filter():
     assert item.sales_pipeline_stage_code == "quote_sent"
     assert item.sales_pipeline_stage_phase_code == "quote"
     assert item.deal_type_code == deal_type.code
-    for statement in db.statements:
+    for statement in _deal_statements(db):
         sql = str(statement)
         assert "sales_deal.deleted_at IS NULL" in sql
         assert "sales_deal_type" in sql
         assert "%합성%" in statement.compile().params.values()
+
+
+def test_quote_list_filters_by_status_and_counts_by_the_same_column():
+    """견적현황은 파이프라인 단계가 아니라 견적 상태로 거르고 센다.
+
+    phase_code 로 거르면 계약으로 넘어간 딜이 견적번호를 그대로 들고 있는데도 목록에서
+    사라진다. 그래서 has_quote(상태가 붙었는가)로 거른다. 탭 옆 건수는 고른 탭 자신을
+    범위에서 빼고 세야 나머지 탭 숫자가 0 으로 죽지 않는다.
+    """
+    member = _member()
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline, code="quote_sent", phase="quote", position=2)
+    deal_type = _deal_type(member)
+    company = _company(member)
+    product = _product(member)
+    deal = _deal(member, pipeline, stage, deal_type, company, product)
+    quote_status_id = uuid4()
+    db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[_row(deal, member, pipeline, stage, deal_type, company, product)]),
+        _Result(rows=[]),
+        _Result(rows=[]),
+        _Result(rows=[]),
+        _Result(rows=[(quote_status_id, 1)]),
+    )
+
+    page = asyncio.run(
+        api.list_sales_deals(
+            SalesDealPageParams(has_quote=True, quote_status_id=[quote_status_id]),
+            member,
+            db,
+        )
+    )
+
+    assert page.counts == {str(quote_status_id): 1}
+
+    rows_sql = str(db.statements[1])
+    counts_sql = str(db.statements[-1])
+    # 두 쿼리 모두 "견적이 붙은 딜" 로 좁힌다. 단계(phase_code)는 조건이 아니다.
+    assert "sales_deal.quote_status_id IS NOT NULL" in rows_sql
+    assert "sales_deal.quote_status_id IS NOT NULL" in counts_sql
+    # 고른 탭은 목록에만 걸리고 건수에는 걸리지 않는다.
+    assert "sales_deal.quote_status_id IN" in rows_sql
+    assert "sales_deal.quote_status_id IN" not in counts_sql
+    assert "GROUP BY public.sales_deal.quote_status_id" in counts_sql
+
+
+def test_quote_amount_is_the_sum_of_items_not_what_the_client_sent():
+    """견적금액은 품목의 합이 정답이다. 화면이 보낸 값과 어긋나면 합계가 이긴다."""
+    member = _member()
+    company = _company(member)
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline)
+    deal_type = _deal_type(member)
+    product = _product(member)
+    deal = _deal(member, pipeline, stage, deal_type, company, product)
+    deal.quote_amount = 999
+
+    db = _Db(_Result(scalar_values=[product]), _Result())
+    values = [
+        SalesDealItemWrite(product_id=product.id, quantity=2, unit_price=1_500),
+        SalesDealItemWrite(product_id=product.id, quantity=1, unit_price=4_000),
+    ]
+
+    asyncio.run(api._replace_items(db, member, deal, values))
+
+    assert deal.quote_amount == 2 * 1_500 + 4_000
+    # 줄은 통째로 갈아 끼운다. 남은 줄이 섞이면 합계와 표가 어긋난다.
+    assert "DELETE FROM public.sales_deal_item" in str(db.statements[1])
+    assert [(item.quantity, item.unit_price, item.position) for item in db.added] == [
+        (2, 1_500, 0),
+        (1, 4_000, 1),
+    ]
+    assert all(isinstance(item, SalesDealItem) for item in db.added)
 
 
 def test_new_deal_number_ignores_legacy_numbers():
@@ -377,7 +487,8 @@ def test_move_sets_contract_signed_date_only_for_confirmed_contract(monkeypatch)
     company = _company(member)
     product = _product(member)
     deal = _deal(member, pipeline, source_stage, deal_type, company, product)
-    db = _Db()
+    # 옮길 때마다 품목·미팅 대상자·최근 발주 상태를 딸려 읽는다. 이 시험은 두 번 옮긴다.
+    db = _Db(*[_Result(rows=[]) for _ in range(6)])
 
     async def team_stage(*_args):
         return target_stage
@@ -491,6 +602,10 @@ def test_renewal_filters_match_the_dashboard_card():
     db = _Db(
         _Result(scalar=1),
         _Result(rows=[_row(deal, member, pipeline, stage, deal_type, company, product)]),
+        # 품목·미팅 대상자·최근 발주 상태는 쪽에 담긴 딜만 따로 훑는다.
+        _Result(rows=[]),
+        _Result(rows=[]),
+        _Result(rows=[]),
         _Result(rows=[(stage.id, 1)]),
     )
 
@@ -507,7 +622,7 @@ def test_renewal_filters_match_the_dashboard_card():
     )
 
     assert page.total == 1
-    for statement in db.statements:
+    for statement in _deal_statements(db):
         sql = str(statement)
         assert "outcome_code IN" in sql
         assert "sales_deal.contract_ends_on >=" in sql

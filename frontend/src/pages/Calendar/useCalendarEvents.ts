@@ -6,6 +6,7 @@ import {
   activityToAgenda,
   addAgenda,
   agendaToActivity,
+  agendaToActivityPatch,
   removeAgenda,
   updateAgenda,
   useAgendaState,
@@ -62,7 +63,7 @@ export function useAgendaMutations() {
       run(async () => {
         const { data } = await client.patch<ActivityRead>(
           `/activities/${next.id}`,
-          agendaToActivity(next),
+          agendaToActivityPatch(next),
         )
         const updated = activityToAgenda(data)
         updateAgenda(updated)

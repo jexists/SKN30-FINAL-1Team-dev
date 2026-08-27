@@ -219,6 +219,9 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
         "name": "합성 고객사",
         "region_code": "seoul",
         "business_no": None,
+        "postcode": None,
+        "address": None,
+        "address_detail": None,
     }
     assert contact.name == "합성 고객"
     assert contact.email == "customer@demo.test"

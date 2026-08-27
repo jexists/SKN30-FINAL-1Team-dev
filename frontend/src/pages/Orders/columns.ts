@@ -21,6 +21,20 @@ export const ORDER_COLUMNS: DataColumn<ApiPurchaseOrder>[] = [
     text: (o) => o.owner,
   },
   {
+    id: 'requestDepartment',
+    header: '요청부서',
+    width: 96,
+    sortable: true,
+    text: (o) => o.requestDepartment,
+  },
+  {
+    id: 'createdBy',
+    header: '작성자',
+    width: 88,
+    sortable: true,
+    text: (o) => o.createdBy,
+  },
+  {
     id: 'amount',
     header: '금액',
     width: 110,

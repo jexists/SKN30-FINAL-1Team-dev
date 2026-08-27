@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import { useCurrentUser } from '@/auth/sessionContext'
+import AddressField, { type AddressValue } from '@/components/AddressField'
 import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
@@ -64,14 +65,32 @@ function validate({ draft, company, businessNo, assigneeIds }: Form): Errors {
 
 const optional = (value: string): string | null => value.trim() || null
 
+const EMPTY_ADDRESS: AddressValue = { postcode: '', address: '', addressDetail: '' }
+
+/** 이미 있는 회사의 주소를 입력칸 모양으로 바꿉니다. */
+function companyAddress(company: CustomerCompanyResponse): AddressValue {
+  return {
+    postcode: company.postcode ?? '',
+    address: company.address ?? '',
+    addressDetail: company.address_detail ?? '',
+  }
+}
+
 /** 고른 회사의 id. 새로 등록하기로 한 회사는 이 시점에 만듭니다. */
-async function resolveCompanyId(company: CompanySelection, businessNo: string): Promise<string> {
+async function resolveCompanyId(
+  company: CompanySelection,
+  businessNo: string,
+  address: AddressValue,
+): Promise<string> {
   if (company.kind === 'existing') return company.company.id
 
   const payload: CustomerCompanyCreateRequest = {
     name: company.name,
     region_code: null,
     business_no: businessNoDigits(businessNo) || null,
+    postcode: optional(address.postcode),
+    address: optional(address.address),
+    address_detail: optional(address.addressDetail),
   }
   // 그 사이 남이 같은 이름을 만들었으면 백엔드가 기존 행을 돌려줍니다.
   const { data } = await client.post<CustomerCompanyResponse>('/customer-companies', payload)
@@ -95,6 +114,9 @@ export default function CustomerFormModal({
       ? (formatBusinessNo(initialCompany.company.business_no) ?? '')
       : '',
   )
+  const [address, setAddress] = useState<AddressValue>(() =>
+    initialCompany?.kind === 'existing' ? companyAddress(initialCompany.company) : EMPTY_ADDRESS,
+  )
   const [assigneeIds, setAssigneeIds] = useState<string[]>([memberId])
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -116,6 +138,8 @@ export default function CustomerFormModal({
     setBusinessNo(
       selection?.kind === 'existing' ? (formatBusinessNo(selection.company.business_no) ?? '') : '',
     )
+    // 주소도 회사의 것입니다. 회사가 바뀌면 함께 갈아 끼웁니다.
+    setAddress(selection?.kind === 'existing' ? companyAddress(selection.company) : EMPTY_ADDRESS)
     clearError('company')
     clearError('businessNo')
   }
@@ -132,7 +156,7 @@ export default function CustomerFormModal({
 
     try {
       const payload: CustomerContactCreateRequest = {
-        company_id: await resolveCompanyId(company, businessNo),
+        company_id: await resolveCompanyId(company, businessNo, address),
         name: draft.name.trim(),
         department: optional(draft.dept),
         job_title: optional(draft.title),
@@ -200,6 +224,16 @@ export default function CustomerFormModal({
           />
         </Field>
 
+        {/* 주소는 회사에 붙는 값입니다. 이미 있는 회사면 그 회사의 주소를 보여 주기만 합니다. */}
+        <Field label="주소" wide htmlFor={false}>
+          <AddressField
+            value={address}
+            onChange={setAddress}
+            readOnly={company?.kind === 'existing'}
+            disabled={submitting || company === null}
+          />
+        </Field>
+
         <Field label="이름" required error={errors.name}>
           <input
             value={draft.name}
@@ -251,22 +285,6 @@ export default function CustomerFormModal({
           />
         </Field>
 
-        {/* 담당자를 정할 수 있는 건 팀장뿐입니다. 팀원이 등록하면 본인이 담당자가 됩니다. */}
-        {isManager && (
-          <Field label="담당자" required error={errors.assignees} htmlFor={false}>
-            <MemberMultiSelect
-              value={assigneeIds}
-              onChange={(next) => {
-                setAssigneeIds(next)
-                clearError('assignees')
-              }}
-              disabled={submitting}
-              invalid={errors.assignees !== undefined}
-              firstChipHint="첫 번째 담당자가 대표 담당자입니다."
-            />
-          </Field>
-        )}
-
         <Field label="방문여부" htmlFor={false}>
           <div className={styles.choice} role="radiogroup" aria-label="방문여부">
             {[false, true].map((value) => (
@@ -284,6 +302,25 @@ export default function CustomerFormModal({
             ))}
           </div>
         </Field>
+
+        {/*
+         * 담당자를 정할 수 있는 건 팀장뿐입니다. 팀원이 등록하면 본인이 담당자가 됩니다.
+         * 칩이 늘면 칸이 세로로 자라 옆 칸과 어긋나므로 한 줄을 통째로 씁니다.
+         */}
+        {isManager && (
+          <Field label="담당자" required error={errors.assignees} wide htmlFor={false}>
+            <MemberMultiSelect
+              value={assigneeIds}
+              onChange={(next) => {
+                setAssigneeIds(next)
+                clearError('assignees')
+              }}
+              disabled={submitting}
+              invalid={errors.assignees !== undefined}
+              firstChipHint="첫 번째 담당자가 대표 담당자입니다."
+            />
+          </Field>
+        )}
 
         <Field label="메모" wide>
           <textarea

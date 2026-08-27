@@ -179,6 +179,10 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
       name,
       region_code: null,
       business_no: businessNoDigits(businessNo) || null,
+      // 엑셀에는 주소 열이 없습니다. 회사 화면에서 나중에 채웁니다.
+      postcode: null,
+      address: null,
+      address_detail: null,
     }
     // 이미 있는 이름이면 백엔드가 기존 회사를 그대로 돌려줍니다.
     const { data } = await client.post<CustomerCompanyResponse>('/customer-companies', payload)

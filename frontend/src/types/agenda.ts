@@ -187,4 +187,6 @@ export interface ActivityCreateRequest {
   schedule_management_run_id?: string | null
 }
 
-export type ActivityPatchRequest = Partial<ActivityCreateRequest>
+export type ActivityPatchRequest = Partial<
+  Omit<ActivityCreateRequest, 'schedule_management_run_id'>
+>

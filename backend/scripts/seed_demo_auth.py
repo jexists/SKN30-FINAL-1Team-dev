@@ -22,8 +22,10 @@ from app.db.session import get_sessionmaker
 from app.models.configuration import (
     ActivityActionTag,
     ActivityCategory,
+    ContractStatus,
     CustomerContactStatus,
     PurchaseOrderStatus,
+    QuoteStatus,
     SalesDealType,
 )
 from app.models.sales import SalesPipeline, SalesPipelineStage
@@ -141,7 +143,35 @@ LOOKUP_DEFAULTS = (
                 ("in_production", "생산중", "orange", 2, "in_progress"),
                 ("stock_received", "입고 완료", "blue", 3, "in_progress"),
                 ("delivered", "납품 완료", "green", 4, "completed"),
-                ("cancelled", "취소", "red", 5, "cancelled"),
+                ("cancelled", "발주취소", "red", 5, "cancelled"),
+            ),
+        ),
+    ),
+    (
+        QuoteStatus,
+        "quote_status",
+        rows(
+            ("code", "name", "tone", "position", "outcome_code"),
+            (
+                ("drafting", "견적작성", "gray", 0, "in_progress"),
+                ("reviewing", "견적검토", "blue", 1, "in_progress"),
+                ("sent", "고객발송", "purple", 2, "in_progress"),
+                ("negotiating", "조건협의", "orange", 3, "in_progress"),
+                ("completed", "견적완료", "green", 4, "completed"),
+            ),
+        ),
+    ),
+    (
+        ContractStatus,
+        "contract_status",
+        rows(
+            ("code", "name", "tone", "position", "outcome_code"),
+            (
+                ("drafting", "초안작성", "gray", 0, "in_progress"),
+                ("reviewing", "계약검토", "blue", 1, "in_progress"),
+                ("negotiating", "고객협의", "orange", 2, "in_progress"),
+                ("signed", "고객서명", "purple", 3, "in_progress"),
+                ("completed", "계약완료", "green", 4, "completed"),
             ),
         ),
     ),

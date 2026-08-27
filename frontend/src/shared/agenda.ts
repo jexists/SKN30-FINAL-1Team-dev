@@ -6,6 +6,7 @@ import type {
   ActivityActionTagCode,
   ActivityCategoryCode,
   ActivityCreateRequest,
+  ActivityPatchRequest,
   ActivityRead,
   AgendaItem,
   AgendaKind,
@@ -193,6 +194,12 @@ export function agendaToActivity(event: CalendarEvent): ActivityCreateRequest {
     note: nullableText(event.brief),
     schedule_management_run_id: event.scheduleManagementRunId ?? null,
   }
+}
+
+/** 수정은 등록과 달리 schedule_management_run_id를 받지 않는다. */
+export function agendaToActivityPatch(event: CalendarEvent): ActivityPatchRequest {
+  const { schedule_management_run_id: _runId, ...patch } = agendaToActivity(event)
+  return patch
 }
 
 let items: AgendaItem[] = []

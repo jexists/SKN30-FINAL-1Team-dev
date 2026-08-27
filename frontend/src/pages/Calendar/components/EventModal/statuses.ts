@@ -20,12 +20,22 @@ export interface ScheduleStatusOption {
  * '영업미팅'→'미팅', '제품 시연 평가'→'데모 진행' 은 가장 가까운 기존 값으로
  * 옮겨 적은 것이고, '휴가' 는 대응하는 태그가 없어 비워 둡니다. 서버에 태그가
  * 생기면 이 표만 고치면 됩니다.
+ *
+ * 서버 태그는 하나도 빠뜨리지 않습니다. 목록에 없는 태그가 붙은 일정을 수정으로
+ * 열면 scheduleStatusLabel 이 기본값으로 되돌려, 그대로 저장할 때 원래 태그가
+ * '미팅' 으로 덮어써지기 때문입니다.
  */
 export const SCHEDULE_STATUSES: readonly ScheduleStatusOption[] = [
   { label: '영업미팅', stage: '미팅', kind: 'visit' },
+  { label: '첫 전화', stage: '첫 전화', kind: 'call' },
+  { label: '데모 요청', stage: '데모 요청', kind: 'demo' },
   { label: '제품 시연 평가', stage: '데모 진행', kind: 'demo' },
+  { label: '데모 완료', stage: '데모 완료', kind: 'demo' },
+  { label: '견적완료', stage: '견적완료', kind: 'visit' },
+  { label: '계약완료', stage: '계약완료', kind: 'visit' },
   { label: 'OJT', stage: 'OJT', kind: 'internal' },
   { label: '제품교육', stage: '제품교육', kind: 'edu' },
+  { label: '납품완료', stage: '납품완료', kind: 'delivery' },
   { label: '내부회의', stage: '내부회의', kind: 'internal' },
   { label: '주간점검', stage: '주간점검', kind: 'internal' },
   { label: '월간점검', stage: '월간점검', kind: 'internal' },

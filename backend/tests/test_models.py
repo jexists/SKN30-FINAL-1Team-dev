@@ -15,7 +15,8 @@ EXPECTED_COLUMN_COUNTS = {
     "member": 8,
     # 20260824_0003 으로 customer_company 에 business_no,
     # customer_contact 에 created_by_member_id 가 늘고 customer_contact_assignee 가 생겼다.
-    "customer_company": 6,
+    # 20260826_0009 로 customer_company 에 postcode/address/address_detail 이 늘었다.
+    "customer_company": 9,
     # 20260824_0004 로 customer_contact 에 visited 가 늘었다.
     "customer_contact": 14,
     "customer_contact_assignee": 3,
@@ -40,9 +41,17 @@ EXPECTED_COLUMN_COUNTS = {
     "sales_pipeline": 10,
     "sales_pipeline_stage": 10,
     "sales_deal_type": 8,
-    "sales_deal": 28,
+    # 20260826_0007 로 sales_deal 에 견적·계약의 자기 값(상태 2, 금액 2, 납품문구 1)이,
+    # purchase_order 에 요청·협조부서와 작성자·납품예상 거래처가 늘었다.
+    # 견적/계약 상태 룩업과 견적 품목·미팅 대상자 표도 이때 생겼다.
+    # 20260826_0008 이 계약서 양식의 물품대금 지급기일·대금연체 이자율을 더했다.
+    "sales_deal": 35,
+    "sales_deal_item": 6,
+    "sales_deal_participant": 3,
+    "quote_status": 10,
+    "contract_status": 10,
     "purchase_order_status": 10,
-    "purchase_order": 13,
+    "purchase_order": 17,
     "purchase_order_item": 6,
     "sales_target": 5,
     "report": 20,
@@ -60,14 +69,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 296
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 339
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 70
+    assert len(foreign_key_constraints) == 80
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

@@ -72,12 +72,18 @@ export default function CompanyAutocomplete({
   const trimmed = query.trim()
   const hasExactMatch = matches.some((company) => company.name === trimmed)
   const creatable = allowCreate && trimmed !== '' && !hasExactMatch && !loading && !loadError
-  // 같은 이름이 여럿일 때만 사업자등록번호로 구분합니다. 아니면 목록이 한 줄씩이라 읽기 쉽습니다.
   const duplicated = new Set(
     matches
       .map((company) => company.name)
       .filter((name, index, names) => names.indexOf(name) !== index),
   )
+  // 회사명 옆 회색 한 마디. 주소가 어느 회사인지 가장 빨리 알려 주고, 주소가 없을 때만
+  // 같은 이름을 사업자등록번호로 가릅니다. 어느 쪽이든 줄은 하나입니다.
+  const hint = (company: CustomerCompanyResponse): string | null => {
+    if (company.address !== null) return company.address
+    if (!duplicated.has(company.name)) return null
+    return formatBusinessNo(company.business_no) ?? '사업자번호 없음'
+  }
   const options: (CustomerCompanyResponse | 'create')[] = creatable
     ? [...matches, 'create']
     : matches
@@ -242,9 +248,7 @@ export default function CompanyAutocomplete({
               <b>
                 <HighlightedText text={company.name} query={trimmed} />
               </b>
-              {duplicated.has(company.name) && (
-                <span>{formatBusinessNo(company.business_no) ?? '사업자번호 없음'}</span>
-              )}
+              {hint(company) !== null && <span>{hint(company)}</span>}
             </button>
           ))}
         </ComboMenu>

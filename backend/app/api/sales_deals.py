@@ -4,27 +4,45 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.core.config import settings
-from app.models.configuration import SalesDealType
+from app.models.configuration import (
+    ContractStatus,
+    PurchaseOrderStatus,
+    QuoteStatus,
+    SalesDealType,
+)
 from app.models.crm import CustomerCompany, CustomerContact
-from app.models.sales import Product, SalesDeal, SalesPipeline, SalesPipelineStage
+from app.models.sales import (
+    Product,
+    PurchaseOrder,
+    SalesDeal,
+    SalesDealItem,
+    SalesDealParticipant,
+    SalesPipeline,
+    SalesPipelineStage,
+)
 from app.models.workspace import Member, Team
 from app.schemas.sales_deals import (
+    ContractStatusRead,
     ProductCreate,
     ProductImageRead,
     ProductPage,
     ProductPageParams,
     ProductRead,
+    QuoteStatusRead,
     SalesDealCreate,
+    SalesDealItemRead,
+    SalesDealItemWrite,
     SalesDealMove,
     SalesDealPage,
     SalesDealPageParams,
+    SalesDealParticipantRead,
     SalesDealPatch,
     SalesDealRead,
     SalesDealTypeRead,
@@ -50,6 +68,9 @@ _product = aliased(Product)
 _pipeline = aliased(SalesPipeline)
 _stage = aliased(SalesPipelineStage)
 _deal_type = aliased(SalesDealType)
+_quote_status = aliased(QuoteStatus)
+_contract_status = aliased(ContractStatus)
+_team = aliased(Team)
 
 
 def _contains(value: str) -> str:
@@ -79,6 +100,10 @@ def _joined_select(*entities):
             ),
         )
         .join(_deal_type, SalesDeal.sales_deal_type_id == _deal_type.id)
+        .outerjoin(_quote_status, SalesDeal.quote_status_id == _quote_status.id)
+        .outerjoin(_contract_status, SalesDeal.contract_status_id == _contract_status.id)
+        # 견적서를 내는 쪽(자사) 이름. 딜마다 같은 값이지만 견적 화면이 보여 줘야 한다.
+        .join(_team, SalesDeal.team_id == _team.id)
     )
 
 
@@ -94,6 +119,8 @@ def _scope(member: Member, owner_ids: tuple[UUID, ...] | None = None):
         _pipeline.status_code.in_(("published", "archived")),
         _deal_type.team_id == member.team_id,
         or_(SalesDeal.product_id.is_(None), _product.team_id == member.team_id),
+        or_(SalesDeal.quote_status_id.is_(None), _quote_status.team_id == member.team_id),
+        or_(SalesDeal.contract_status_id.is_(None), _contract_status.team_id == member.team_id),
         or_(
             SalesDeal.customer_contact_id.is_(None),
             and_(
@@ -135,6 +162,15 @@ def _read_entities():
         _stage.position,
         _deal_type.code,
         _deal_type.name,
+        _quote_status.code,
+        _quote_status.name,
+        _quote_status.tone,
+        _contract_status.code,
+        _contract_status.name,
+        _contract_status.tone,
+        _team.company_name,
+        _team.business_no,
+        _company.business_no,
     )
 
 
@@ -156,6 +192,18 @@ def _sales_deal_read(
     stage_position: int,
     deal_type_code: str,
     deal_type_name: str,
+    quote_status_code: str | None,
+    quote_status_name: str | None,
+    quote_status_tone: str | None,
+    contract_status_code: str | None,
+    contract_status_name: str | None,
+    contract_status_tone: str | None,
+    team_company_name: str | None,
+    team_business_no: str | None,
+    company_business_no: str | None,
+    items: list[SalesDealItemRead] | None = None,
+    order_status: tuple[str, str, str] | None = None,
+    participants: list[SalesDealParticipantRead] | None = None,
 ) -> SalesDealRead:
     return SalesDealRead(
         id=sales_deal.id,
@@ -197,6 +245,27 @@ def _sales_deal_read(
         warranty_terms=sales_deal.warranty_terms,
         expected_delivery_at=_seoul(sales_deal.expected_delivery_at),
         memo=sales_deal.memo,
+        quote_status_id=sales_deal.quote_status_id,
+        quote_status_code=quote_status_code,
+        quote_status_name=quote_status_name,
+        quote_status_tone=quote_status_tone,
+        contract_status_id=sales_deal.contract_status_id,
+        contract_status_code=contract_status_code,
+        contract_status_name=contract_status_name,
+        contract_status_tone=contract_status_tone,
+        quote_amount=sales_deal.quote_amount,
+        contract_amount=sales_deal.contract_amount,
+        quote_delivery_terms=sales_deal.quote_delivery_terms,
+        contract_payment_terms=sales_deal.contract_payment_terms,
+        contract_late_interest_terms=sales_deal.contract_late_interest_terms,
+        team_company_name=team_company_name,
+        team_business_no=team_business_no,
+        customer_company_business_no=company_business_no,
+        items=items or [],
+        participants=participants or [],
+        order_status_code=None if order_status is None else order_status[0],
+        order_status_name=None if order_status is None else order_status[1],
+        order_status_tone=None if order_status is None else order_status[2],
         stage_position=sales_deal.stage_position,
         created_at=_seoul(sales_deal.created_at),
         updated_at=_seoul(sales_deal.updated_at),
@@ -458,6 +527,310 @@ async def _team_contact(
     return contact
 
 
+async def _team_quote_status(db: AsyncSession, member: Member, code: str) -> QuoteStatus:
+    result = await db.execute(
+        select(QuoteStatus).where(
+            QuoteStatus.team_id == member.team_id,
+            QuoteStatus.code == code,
+            QuoteStatus.deleted_at.is_(None),
+        )
+    )
+    quote_status = result.scalar_one_or_none()
+    if quote_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="quote_status_code_not_found",
+        )
+    return quote_status
+
+
+async def _team_contract_status(db: AsyncSession, member: Member, code: str) -> ContractStatus:
+    result = await db.execute(
+        select(ContractStatus).where(
+            ContractStatus.team_id == member.team_id,
+            ContractStatus.code == code,
+            ContractStatus.deleted_at.is_(None),
+        )
+    )
+    contract_status = result.scalar_one_or_none()
+    if contract_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="contract_status_code_not_found",
+        )
+    return contract_status
+
+
+async def _team_products(
+    db: AsyncSession,
+    member: Member,
+    items: list[SalesDealItemWrite],
+) -> dict[UUID, Product]:
+    product_ids = tuple(dict.fromkeys(item.product_id for item in items))
+    result = await db.execute(
+        select(Product).where(
+            Product.id.in_(product_ids),
+            Product.team_id == member.team_id,
+            Product.active.is_(True),
+        )
+    )
+    products = {product.id: product for product in result.scalars().all()}
+    if set(products) != set(product_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_not_found")
+    return products
+
+
+async def _team_participants(
+    db: AsyncSession,
+    member: Member,
+    contact_ids: list[UUID],
+    company_id: UUID,
+) -> None:
+    """미팅 대상자는 그 딜의 고객사 사람이어야 한다. 담당자와 달리 소유자는 따지지 않는다."""
+    unique_ids = tuple(dict.fromkeys(contact_ids))
+    if not unique_ids:
+        return
+    result = await db.execute(
+        select(CustomerContact.id)
+        .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
+        .where(
+            CustomerContact.id.in_(unique_ids),
+            CustomerContact.company_id == company_id,
+            CustomerCompany.team_id == member.team_id,
+        )
+    )
+    if set(result.scalars().all()) != set(unique_ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="customer_contact_not_found",
+        )
+
+
+def _new_items(sales_deal_id: UUID, values: list[SalesDealItemWrite]) -> list[SalesDealItem]:
+    return [
+        SalesDealItem(
+            id=uuid4(),
+            sales_deal_id=sales_deal_id,
+            product_id=value.product_id,
+            quantity=value.quantity,
+            unit_price=value.unit_price,
+            position=position,
+        )
+        for position, value in enumerate(values)
+    ]
+
+
+async def _items_by_deal_ids(
+    db: AsyncSession,
+    member: Member,
+    deal_ids: list[UUID],
+) -> dict[UUID, list[SalesDealItemRead]]:
+    items_by_deal: dict[UUID, list[SalesDealItemRead]] = {
+        sales_deal_id: [] for sales_deal_id in deal_ids
+    }
+    if not deal_ids:
+        return items_by_deal
+    result = await db.execute(
+        select(SalesDealItem, Product.name)
+        .join(Product, SalesDealItem.product_id == Product.id)
+        .where(
+            SalesDealItem.sales_deal_id.in_(deal_ids),
+            Product.team_id == member.team_id,
+        )
+        .order_by(SalesDealItem.sales_deal_id, SalesDealItem.position, SalesDealItem.id)
+    )
+    for item, product_name in result.all():
+        items_by_deal[item.sales_deal_id].append(
+            SalesDealItemRead(
+                id=item.id,
+                product_id=item.product_id,
+                product_name=product_name,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                position=item.position,
+            )
+        )
+    return items_by_deal
+
+
+async def _participants_by_deal_ids(
+    db: AsyncSession,
+    member: Member,
+    deal_ids: list[UUID],
+) -> dict[UUID, list[SalesDealParticipantRead]]:
+    by_deal: dict[UUID, list[SalesDealParticipantRead]] = {
+        sales_deal_id: [] for sales_deal_id in deal_ids
+    }
+    if not deal_ids:
+        return by_deal
+    result = await db.execute(
+        select(SalesDealParticipant.sales_deal_id, CustomerContact.id, CustomerContact.name)
+        .join(CustomerContact, SalesDealParticipant.customer_contact_id == CustomerContact.id)
+        .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
+        .where(
+            SalesDealParticipant.sales_deal_id.in_(deal_ids),
+            CustomerCompany.team_id == member.team_id,
+        )
+        .order_by(SalesDealParticipant.sales_deal_id, CustomerContact.name, CustomerContact.id)
+    )
+    for sales_deal_id, contact_id, contact_name in result.all():
+        by_deal[sales_deal_id].append(
+            SalesDealParticipantRead(
+                customer_contact_id=contact_id,
+                customer_contact_name=contact_name,
+            )
+        )
+    return by_deal
+
+
+async def _order_statuses_by_deal_ids(
+    db: AsyncSession,
+    member: Member,
+    deal_ids: list[UUID],
+) -> dict[UUID, tuple[str, str, str]]:
+    """딜마다 가장 최근 발주의 상태. join 으로 붙이면 발주 수만큼 딜이 불어난다."""
+    if not deal_ids:
+        return {}
+    result = await db.execute(
+        select(
+            PurchaseOrder.sales_deal_id,
+            PurchaseOrderStatus.code,
+            PurchaseOrderStatus.name,
+            PurchaseOrderStatus.tone,
+        )
+        .join(
+            PurchaseOrderStatus,
+            PurchaseOrder.purchase_order_status_id == PurchaseOrderStatus.id,
+        )
+        .where(
+            PurchaseOrder.sales_deal_id.in_(deal_ids),
+            PurchaseOrder.team_id == member.team_id,
+            PurchaseOrder.deleted_at.is_(None),
+            PurchaseOrderStatus.team_id == member.team_id,
+        )
+        .order_by(
+            PurchaseOrder.sales_deal_id,
+            PurchaseOrder.ordered_on.desc(),
+            PurchaseOrder.id.desc(),
+        )
+    )
+    latest: dict[UUID, tuple[str, str, str]] = {}
+    for sales_deal_id, code, name, tone in result.all():
+        latest.setdefault(sales_deal_id, (code, name, tone))
+    return latest
+
+
+async def _read_one(db: AsyncSession, member: Member, sales_deal_id: UUID) -> SalesDealRead:
+    row = await _sales_deal_row(db, member, sales_deal_id)
+    items = await _items_by_deal_ids(db, member, [sales_deal_id])
+    participants = await _participants_by_deal_ids(db, member, [sales_deal_id])
+    order_statuses = await _order_statuses_by_deal_ids(db, member, [sales_deal_id])
+    return _sales_deal_read(
+        *row,
+        items=items[sales_deal_id],
+        participants=participants[sales_deal_id],
+        order_status=order_statuses.get(sales_deal_id),
+    )
+
+
+async def _replace_items(
+    db: AsyncSession,
+    member: Member,
+    sales_deal: SalesDeal,
+    values: list[SalesDealItemWrite],
+) -> None:
+    await _team_products(db, member, values)
+    await db.execute(delete(SalesDealItem).where(SalesDealItem.sales_deal_id == sales_deal.id))
+    for item in _new_items(sales_deal.id, values):
+        db.add(item)
+    # 견적금액은 품목의 합이 정답이다. 화면이 보낸 값과 어긋나면 합계를 이긴다.
+    sales_deal.quote_amount = sum(value.quantity * value.unit_price for value in values)
+
+
+async def _replace_participants(
+    db: AsyncSession,
+    member: Member,
+    sales_deal: SalesDeal,
+    contact_ids: list[UUID],
+) -> None:
+    await _team_participants(db, member, contact_ids, sales_deal.customer_company_id)
+    await db.execute(
+        delete(SalesDealParticipant).where(SalesDealParticipant.sales_deal_id == sales_deal.id)
+    )
+    for contact_id in dict.fromkeys(contact_ids):
+        db.add(
+            SalesDealParticipant(
+                sales_deal_id=sales_deal.id,
+                customer_contact_id=contact_id,
+            )
+        )
+
+
+async def _move_deal_to_first_stage_of_phase(
+    db: AsyncSession,
+    member: Member,
+    sales_deal: SalesDeal,
+    current_phase_code: str,
+    target_phase_code: str,
+) -> None:
+    """딜을 그 국면의 첫 단계로 옮긴다. 이미 그 국면이면 아무것도 하지 않는다."""
+    if current_phase_code == target_phase_code:
+        return
+    target_result = await db.execute(
+        select(SalesPipelineStage)
+        .where(
+            SalesPipelineStage.sales_pipeline_id == sales_deal.sales_pipeline_id,
+            SalesPipelineStage.phase_code == target_phase_code,
+        )
+        .order_by(SalesPipelineStage.position, SalesPipelineStage.id)
+        .limit(1)
+    )
+    target_stage = target_result.scalar_one_or_none()
+    if target_stage is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"sales_pipeline_{target_phase_code}_stage_not_found",
+        )
+
+    # ponytail: 작은 보드는 단계 전체를 재번호한다. 느려지면 sparse rank로 바꾼다.
+    stage_ids = (sales_deal.sales_pipeline_stage_id, target_stage.id)
+    conditions = [
+        SalesDeal.team_id == member.team_id,
+        SalesDeal.sales_pipeline_stage_id.in_(stage_ids),
+        SalesDeal.deleted_at.is_(None),
+    ]
+    if member.role_code == "member":
+        conditions.append(SalesDeal.owner_member_id == member.id)
+    result = await db.execute(
+        select(SalesDeal)
+        .where(*conditions)
+        .order_by(
+            SalesDeal.sales_pipeline_stage_id,
+            SalesDeal.stage_position,
+            SalesDeal.id,
+        )
+        .with_for_update(of=SalesDeal)
+    )
+    deals = list(result.scalars().all())
+    source = [
+        item
+        for item in deals
+        if item.sales_pipeline_stage_id == sales_deal.sales_pipeline_stage_id
+        and item.id != sales_deal.id
+    ]
+    target = [item for item in deals if item.sales_pipeline_stage_id == target_stage.id]
+    target.insert(0, sales_deal)
+    now = datetime.now(UTC)
+    for position, item in enumerate(source):
+        item.stage_position = position
+        item.updated_at = now
+    for position, item in enumerate(target):
+        item.sales_pipeline_stage_id = target_stage.id
+        item.stage_position = position
+        item.updated_at = now
+    sales_deal.closed_on = None
+
+
 async def _stage_sales_deals(
     db: AsyncSession,
     member: Member,
@@ -558,6 +931,32 @@ async def list_sales_deal_types(
             SalesDealType.deleted_at.is_(None),
         )
         .order_by(SalesDealType.position, SalesDealType.id)
+    )
+    return list(result.scalars().all())
+
+
+@router.get("/quote-statuses", response_model=list[QuoteStatusRead])
+async def list_quote_statuses(
+    member: CurrentMember,
+    db: DbSession,
+) -> list[QuoteStatus]:
+    result = await db.execute(
+        select(QuoteStatus)
+        .where(QuoteStatus.team_id == member.team_id, QuoteStatus.deleted_at.is_(None))
+        .order_by(QuoteStatus.position, QuoteStatus.id)
+    )
+    return list(result.scalars().all())
+
+
+@router.get("/contract-statuses", response_model=list[ContractStatusRead])
+async def list_contract_statuses(
+    member: CurrentMember,
+    db: DbSession,
+) -> list[ContractStatus]:
+    result = await db.execute(
+        select(ContractStatus)
+        .where(ContractStatus.team_id == member.team_id, ContractStatus.deleted_at.is_(None))
+        .order_by(ContractStatus.position, ContractStatus.id)
     )
     return list(result.scalars().all())
 
@@ -768,6 +1167,20 @@ async def list_sales_deals(
         scope.append(_stage.phase_code.in_(tuple(dict.fromkeys(page.phase_code))))
     if page.outcome_code is not None:
         scope.append(_stage.outcome_code.in_(tuple(dict.fromkeys(page.outcome_code))))
+    # 견적·계약이 붙었는지로 거른다. phase_code 로 거르면 계약으로 넘어간 딜이 견적번호를
+    # 그대로 들고 있는데도 견적현황에서 사라진다.
+    if page.has_quote is not None:
+        scope.append(
+            SalesDeal.quote_status_id.isnot(None)
+            if page.has_quote
+            else SalesDeal.quote_status_id.is_(None)
+        )
+    if page.has_contract is not None:
+        scope.append(
+            SalesDeal.contract_status_id.isnot(None)
+            if page.has_contract
+            else SalesDeal.contract_status_id.is_(None)
+        )
     # 계약 종료일 범위. 대시보드 계약갱신 카드가 세는 조건과 같아야 타일 숫자와 목록
     # 총계가 맞는다. 종료일이 없는 딜은 이 비교에서 스스로 빠진다.
     if page.contract_ends_from is not None:
@@ -804,8 +1217,33 @@ async def list_sales_deals(
             )
         )
 
+    # 탭으로 고른 조건과, 탭 옆 건수를 셀 열. 견적·계약 목록은 파이프라인 단계가 아니라
+    # 그 국면의 상태로 탭을 세운다. 고른 탭 자신만 세는 범위에서 빼야 나머지 탭 숫자가
+    # 0 으로 죽지 않는다.
     by_stage = [] if stage_ids is None else [SalesDeal.sales_pipeline_stage_id.in_(stage_ids)]
-    rows_scope = [*scope, *by_stage]
+    by_quote_status = (
+        []
+        if page.quote_status_id is None
+        else [SalesDeal.quote_status_id.in_(tuple(dict.fromkeys(page.quote_status_id)))]
+    )
+    by_contract_status = (
+        []
+        if page.contract_status_id is None
+        else [SalesDeal.contract_status_id.in_(tuple(dict.fromkeys(page.contract_status_id)))]
+    )
+    if page.has_quote:
+        counts_column = SalesDeal.quote_status_id
+        by_tab = by_quote_status
+        scope = [*scope, *by_stage, *by_contract_status]
+    elif page.has_contract:
+        counts_column = SalesDeal.contract_status_id
+        by_tab = by_contract_status
+        scope = [*scope, *by_stage, *by_quote_status]
+    else:
+        counts_column = SalesDeal.sales_pipeline_stage_id
+        by_tab = by_stage
+        scope = [*scope, *by_quote_status, *by_contract_status]
+    rows_scope = [*scope, *by_tab]
 
     total_result = await db.execute(_joined_select(func.count(SalesDeal.id)).where(*rows_scope))
     total = total_result.scalar_one()
@@ -816,14 +1254,27 @@ async def list_sales_deals(
         .offset(page.skip)
         .limit(page.limit)
     )
-    items = [_sales_deal_read(*row) for row in rows_result.all()]
-    # 단계 탭 옆 건수. 고른 단계만 빼고 센다.
+    rows = rows_result.all()
+    deal_ids = [row[0].id for row in rows]
+    items_by_deal = await _items_by_deal_ids(db, member, deal_ids)
+    participants_by_deal = await _participants_by_deal_ids(db, member, deal_ids)
+    order_statuses = await _order_statuses_by_deal_ids(db, member, deal_ids)
+    items = [
+        _sales_deal_read(
+            *row,
+            items=items_by_deal[row[0].id],
+            participants=participants_by_deal[row[0].id],
+            order_status=order_statuses.get(row[0].id),
+        )
+        for row in rows
+    ]
+    # 탭 옆 건수. 고른 탭만 빼고 센다.
     counts_result = await db.execute(
-        _joined_select(SalesDeal.sales_pipeline_stage_id, func.count(SalesDeal.id))
+        _joined_select(counts_column, func.count(SalesDeal.id))
         .where(*scope)
-        .group_by(SalesDeal.sales_pipeline_stage_id)
+        .group_by(counts_column)
     )
-    counts = {str(stage_id): count for stage_id, count in counts_result.all()}
+    counts = {str(key): count for key, count in counts_result.all()}
     has_more = page.skip + len(items) < total
     return SalesDealPage(
         items=items,
@@ -842,7 +1293,7 @@ async def get_sales_deal(
     member: CurrentMember,
     db: DbSession,
 ) -> SalesDealRead:
-    return _sales_deal_read(*await _sales_deal_row(db, member, sales_deal_id))
+    return await _read_one(db, member, sales_deal_id)
 
 
 @router.post(
@@ -880,6 +1331,18 @@ async def create_sales_deal(
                 company.id,
                 member.id,
             )
+        quote_status = (
+            None
+            if payload.quote_status_code is None
+            else await _team_quote_status(db, member, payload.quote_status_code)
+        )
+        contract_status = (
+            None
+            if payload.contract_status_code is None
+            else await _team_contract_status(db, member, payload.contract_status_code)
+        )
+        if payload.participant_contact_ids is not None:
+            await _team_participants(db, member, payload.participant_contact_ids, company.id)
         deal_no = await _next_deal_no(db, member, payload.opened_on.year)
 
         now = datetime.now(UTC)
@@ -888,8 +1351,19 @@ async def create_sales_deal(
             existing.updated_at = now
 
         values = payload.model_dump(
-            exclude={"title", "deal_type_code", "sales_pipeline_id", "sales_pipeline_stage_id"}
+            exclude={
+                "title",
+                "deal_type_code",
+                "sales_pipeline_id",
+                "sales_pipeline_stage_id",
+                "quote_status_code",
+                "contract_status_code",
+                "items",
+                "participant_contact_ids",
+            }
         )
+        if payload.items is not None:
+            values["quote_amount"] = sum(item.quantity * item.unit_price for item in payload.items)
         sales_deal = SalesDeal(
             id=uuid4(),
             team_id=member.team_id,
@@ -898,6 +1372,8 @@ async def create_sales_deal(
             sales_pipeline_id=pipeline.id,
             sales_pipeline_stage_id=stage.id,
             sales_deal_type_id=deal_type.id,
+            quote_status_id=None if quote_status is None else quote_status.id,
+            contract_status_id=None if contract_status is None else contract_status.id,
             title=payload.title or f"{company.name} {product.name}",
             closed_on=datetime.now(_SEOUL).date() if stage.phase_code == "closed" else None,
             stage_position=0,
@@ -907,7 +1383,19 @@ async def create_sales_deal(
         _validate_sales_deal_dates(sales_deal)
         db.add(sales_deal)
         await db.flush()
-        read = _sales_deal_read(*await _sales_deal_row(db, member, sales_deal.id))
+        if payload.items is not None:
+            for item in _new_items(sales_deal.id, payload.items):
+                db.add(item)
+        if payload.participant_contact_ids is not None:
+            for contact_id in dict.fromkeys(payload.participant_contact_ids):
+                db.add(
+                    SalesDealParticipant(
+                        sales_deal_id=sales_deal.id,
+                        customer_contact_id=contact_id,
+                    )
+                )
+        await db.flush()
+        read = await _read_one(db, member, sales_deal.id)
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -931,7 +1419,18 @@ async def update_sales_deal(
 ) -> SalesDealRead:
     try:
         sales_deal = await _locked_sales_deal(db, member, sales_deal_id)
-        values = payload.model_dump(exclude_unset=True, exclude={"deal_type_code"})
+        values = payload.model_dump(
+            exclude_unset=True,
+            exclude={
+                "deal_type_code",
+                "quote_status_code",
+                "contract_status_code",
+                "items",
+                "participant_contact_ids",
+            },
+        )
+        had_quote = sales_deal.quote_status_id is not None
+        had_contract = sales_deal.contract_status_id is not None
         company_id = values.get("customer_company_id", sales_deal.customer_company_id)
         customer_contact_id = values.get("customer_contact_id", sales_deal.customer_contact_id)
         relation_changed = "customer_company_id" in values or "product_id" in values
@@ -957,6 +1456,18 @@ async def update_sales_deal(
             assert payload.deal_type_code is not None
             deal_type = await _team_deal_type(db, member, payload.deal_type_code)
             values["sales_deal_type_id"] = deal_type.id
+        if "quote_status_code" in payload.model_fields_set:
+            values["quote_status_id"] = (
+                None
+                if payload.quote_status_code is None
+                else (await _team_quote_status(db, member, payload.quote_status_code)).id
+            )
+        if "contract_status_code" in payload.model_fields_set:
+            values["contract_status_id"] = (
+                None
+                if payload.contract_status_code is None
+                else (await _team_contract_status(db, member, payload.contract_status_code)).id
+            )
         if old_row is not None and "title" not in values:
             old_company_name = old_row[2]
             old_product_name = old_row[5]
@@ -971,10 +1482,44 @@ async def update_sales_deal(
 
         for field_name, value in values.items():
             setattr(sales_deal, field_name, value)
+
+        if "items" in payload.model_fields_set:
+            assert payload.items is not None
+            await _replace_items(db, member, sales_deal, payload.items)
+        if "participant_contact_ids" in payload.model_fields_set:
+            assert payload.participant_contact_ids is not None
+            await _replace_participants(db, member, sales_deal, payload.participant_contact_ids)
+        elif "customer_company_id" in values:
+            # 고객사를 바꾸면 남아 있던 대상자는 다른 회사 사람이다. 대표 담당자를
+            # 비우는 것과 같은 이유로 여기서 지운다.
+            await db.execute(
+                delete(SalesDealParticipant).where(
+                    SalesDealParticipant.sales_deal_id == sales_deal.id
+                )
+            )
+
+        # 견적·계약을 처음 걸면 딜도 그 국면으로 옮긴다. 서류만 앞서 나가고 파이프라인이
+        # 영업 단계에 남아 있으면 칸반과 목록이 서로 다른 얘기를 한다. 둘이 같이 걸리면
+        # 더 나아간 계약 쪽으로 간다.
+        target_phase = None
+        if not had_quote and sales_deal.quote_status_id is not None:
+            target_phase = "quote"
+        if not had_contract and sales_deal.contract_status_id is not None:
+            target_phase = "contract"
+        if target_phase is not None:
+            phase_result = await db.execute(
+                select(SalesPipelineStage.phase_code).where(
+                    SalesPipelineStage.id == sales_deal.sales_pipeline_stage_id
+                )
+            )
+            await _move_deal_to_first_stage_of_phase(
+                db, member, sales_deal, phase_result.scalar_one(), target_phase
+            )
+
         sales_deal.updated_at = datetime.now(UTC)
         _validate_sales_deal_dates(sales_deal)
         await db.flush()
-        read = _sales_deal_read(*await _sales_deal_row(db, member, sales_deal_id))
+        read = await _read_one(db, member, sales_deal_id)
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -1049,7 +1594,7 @@ async def move_sales_deal(
 
         _validate_sales_deal_dates(sales_deal)
         await db.flush()
-        read = _sales_deal_read(*await _sales_deal_row(db, member, sales_deal_id))
+        read = await _read_one(db, member, sales_deal_id)
         await db.commit()
     except Exception:
         await db.rollback()

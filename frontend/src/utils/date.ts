@@ -33,6 +33,29 @@ export function addMonths(d: Date, n: number): Date {
 }
 
 /**
+ * 날짜를 지키면서 달을 더합니다. 견적 유효기간처럼 "그날로부터 N개월" 을 셀 때 씁니다.
+ * 달을 옮기고 나면 없는 날짜가 되는 경우가 있어(1/31 + 1개월) 그 달 말일로 깎습니다.
+ *
+ * 달력을 넘기는 addMonths 와 다릅니다. 그쪽은 늘 그 달 1일을 돌려줍니다.
+ */
+export function addMonthsKeepingDay(d: Date, n: number): Date {
+  const day = d.getDate()
+  const moved = new Date(d.getFullYear(), d.getMonth() + n, 1)
+  const lastDay = new Date(moved.getFullYear(), moved.getMonth() + 1, 0).getDate()
+  return new Date(moved.getFullYear(), moved.getMonth(), Math.min(day, lastDay))
+}
+
+/**
+ * `from` 에서 `to` 까지가 정확히 몇 개월인지. 딱 떨어지지 않으면 null 입니다.
+ * 저장된 유효기한을 다시 열 때 기간 선택으로 되돌릴 수 있는지 가리는 데 씁니다.
+ */
+export function wholeMonthsBetween(from: Date, to: Date): number | null {
+  const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth())
+  if (months <= 0) return null
+  return iso(addMonthsKeepingDay(from, months)) === iso(to) ? months : null
+}
+
+/**
  * 그 달을 덮는 6주 × 7일 = 42칸. 앞뒤 달의 날짜가 앞뒤에 섞여 들어옵니다.
  * 칸 수를 항상 42로 고정해야 달을 넘길 때 그리드 높이가 출렁이지 않습니다.
  */
