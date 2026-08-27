@@ -26,7 +26,7 @@ EXPECTED_COLUMN_COUNTS = {
     # 20260825_0005 로 notice 에 type/display_start_date/display_end_date/is_hidden/
     # sort_order/updated_at/deleted_at 이 늘고 recipient_member_id 가 빠졌다.
     # 수신자는 notice_target 으로 옮겼고, 본문 사진은 notice_image 가 가리킨다.
-    "notice": 18,
+    "notice": 19,
     "notice_target": 3,
     "notice_image": 6,
     "activity": 22,
@@ -40,10 +40,14 @@ EXPECTED_COLUMN_COUNTS = {
     "sales_pipeline": 10,
     "sales_pipeline_stage": 10,
     "sales_deal_type": 8,
-    "sales_deal": 28,
+    "sales_deal": 33,
     "purchase_order_status": 10,
-    "purchase_order": 13,
+    "purchase_order": 17,
     "purchase_order_item": 6,
+    "sales_deal_item": 6,
+    "sales_deal_participant": 3,
+    "contract_status": 10,
+    "quote_status": 10,
     "sales_target": 5,
     "report": 20,
     "report_activity": 2,
@@ -62,14 +66,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 315
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 354
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 74
+    assert len(foreign_key_constraints) == 85
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

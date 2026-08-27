@@ -108,6 +108,13 @@ class SalesDeal(Base):
     quote_valid_until: Mapped[date | None]
     contract_no: Mapped[str | None]
     contract_signed_on: Mapped[date | None]
+    quote_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.quote_status.id"))
+    contract_status_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("public.contract_status.id")
+    )
+    quote_amount: Mapped[int | None] = mapped_column(BigInteger)
+    contract_amount: Mapped[int | None] = mapped_column(BigInteger)
+    quote_delivery_terms: Mapped[str | None]
     contract_ends_on: Mapped[date | None]
     warranty_terms: Mapped[str | None]
     expected_delivery_at: Mapped[datetime | None]
@@ -116,6 +123,31 @@ class SalesDeal(Base):
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class SalesDealItem(Base):
+    __tablename__ = "sales_deal_item"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    sales_deal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.sales_deal.id", ondelete="CASCADE")
+    )
+    product_id: Mapped[UUID] = mapped_column(ForeignKey("public.product.id"))
+    quantity: Mapped[int]
+    unit_price: Mapped[int] = mapped_column(BigInteger)
+    position: Mapped[int]
+
+
+class SalesDealParticipant(Base):
+    __tablename__ = "sales_deal_participant"
+
+    sales_deal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.sales_deal.id", ondelete="CASCADE"), primary_key=True
+    )
+    customer_contact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.customer_contact.id"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
 class PurchaseOrder(Base):
@@ -133,6 +165,12 @@ class PurchaseOrder(Base):
     due_on: Mapped[date]
     expected_receipt_on: Mapped[date]
     memo: Mapped[str | None]
+    request_department: Mapped[str] = mapped_column(server_default=text("'영업팀'::text"))
+    cooperation_department: Mapped[str] = mapped_column(server_default=text("'생산팀'::text"))
+    created_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    expected_customer_company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.customer_company.id")
+    )
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

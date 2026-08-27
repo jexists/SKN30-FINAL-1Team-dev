@@ -41,6 +41,8 @@ class Notice(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     author_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    # 구버전 Supabase에 남아 있는 호환 컬럼. 최신 수신자 흐름은 notice_target을 사용한다.
+    recipient_member_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.member.id"))
     # NOTICE 는 팀 전체가 보고, DIRECTIVE 는 NoticeTarget 이 가리키는 사람만 본다.
     type: Mapped[str]
     tag: Mapped[str | None]
