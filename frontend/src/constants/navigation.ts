@@ -16,7 +16,7 @@ import {
   TeamIcon,
   VisitIcon,
 } from '@/components/icons'
-import { ROUTES, type Route } from '@/constants/routes'
+import { kindFromParam, ROUTES, type Route } from '@/constants/routes'
 
 export interface NavItem {
   to: Route
@@ -105,11 +105,16 @@ const OFF_MENU_LABELS: { to: Route; label: string }[] = [
 /**
  * 경로에 해당하는 화면 이름. 정의되지 않은 경로면 undefined.
  *
- * 하위 경로(예: /daily/new)는 부모 메뉴의 이름을 물려받습니다. 가장 긴 것부터 보므로
+ * 하위 경로는 부모 메뉴의 이름을 물려받습니다. 가장 긴 것부터 보므로
  * 나중에 /daily 아래 별도 메뉴가 생겨도 그쪽이 먼저 잡힙니다.
  * '/' 는 모든 경로의 접두사라 완전일치일 때만 씁니다.
  */
-export function findNavLabel(pathname: string): string | undefined {
+export function findNavLabel(pathname: string, search = ''): string | undefined {
+  // 업무보고 작성만 한 경로로 세 종류를 씁니다. 지금 무엇을 쓰는 중인지는 ?kind= 에만 있습니다.
+  if (pathname === `${ROUTES.DAILY}/new`) {
+    return `${kindFromParam(new URLSearchParams(search).get('kind'))}보고서 작성`
+  }
+
   return [...NAV_ITEMS, ...OFF_MENU_LABELS]
     .sort((a, b) => b.to.length - a.to.length)
     .find((item) => item.to === pathname || (item.to !== '/' && pathname.startsWith(`${item.to}/`)))

@@ -21,6 +21,8 @@ interface Props {
   generating: boolean
   /** 이미 한 번 만든 뒤인지. 다시 만드는 일은 보고서 아래 액션 바가 맡습니다. */
   hasAiOriginal: boolean
+  /** 내용 칸의 이름. 업무보고(일일·주간·월간)는 미팅이 아니라 그 기간을 적습니다. */
+  contentLabel?: string
   disabled: boolean
   onGenerate: () => void
 }
@@ -35,6 +37,7 @@ export default function MeetingInputPanel({
   canGenerate,
   generating,
   hasAiOriginal,
+  contentLabel = '미팅 내용 (선택)',
   disabled,
   onGenerate,
 }: Props) {
@@ -52,7 +55,7 @@ export default function MeetingInputPanel({
         <AttachmentPanel
           attachments={attachments}
           readOnly={disabled}
-          note="음성·사진·PDF를 넣을 수 있습니다. 음성은 글로 바꿔 미팅 내용에 채웁니다."
+          note=""
           onAttach={onAttach}
           onRemove={onRemoveAttachment}
         />
@@ -66,11 +69,11 @@ export default function MeetingInputPanel({
 
       <section className={styles.block}>
         <div className={styles.blockHead}>
-          <h2>미팅 내용 (선택)</h2>
+          <h2>{contentLabel}</h2>
         </div>
 
         <label className="sr-only" htmlFor="transcript">
-          미팅 내용 직접 입력
+          {contentLabel} 직접 입력
         </label>
         <textarea
           id="transcript"

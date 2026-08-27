@@ -82,6 +82,8 @@ export interface DailyReportSeed {
   values: Record<string, string>
   activities: ReportActivity[]
   attachments: ReportAttachment[]
+  /** 자료에 없는 것을 직접 적은 내용. AI 가 자료와 함께 읽습니다. */
+  transcript?: string
   /** 이력 목록에 한 줄로 붙는 설명 */
   note: string
   /** 주간·월간이 덮는 기간. 목록 제목에 붙습니다. 일일은 date 로 충분해 비어 있습니다. */

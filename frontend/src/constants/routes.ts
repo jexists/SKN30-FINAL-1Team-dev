@@ -43,6 +43,10 @@ export type Route = (typeof ROUTES)[keyof typeof ROUTES]
 // 쿼리에 쓰는 종류 값. 기간 탭(?tab=)과 같은 어휘를 씁니다.
 const KIND_PARAM: Record<ReportKind, string> = { 일일: 'daily', 주간: 'weekly', 월간: 'monthly' }
 
+/** ?kind= 값이 가리키는 종류. 주소만 보고 화면 이름을 짓는 머리말이 씁니다. */
+export const kindFromParam = (value: string | null): ReportKind =>
+  (Object.entries(KIND_PARAM).find(([, param]) => param === value)?.[0] as ReportKind) ?? '일일'
+
 /**
  * 업무보고 작성 화면. dateISO 를 주면 그 기간 보고서를, kind 를 주면 그 종류를 씁니다.
  * 밀린 날짜를 소급 작성하는 경로도 이 하나를 씁니다.

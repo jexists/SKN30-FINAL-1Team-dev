@@ -17,7 +17,7 @@ import type {
   ReportStatus,
   ReportWriteRequest,
 } from '@/types'
-import { parseISO, TODAY } from '@/utils/date'
+import { iso, parseISO, startOfWeek, TODAY } from '@/utils/date'
 
 import { periodLabelFor, periodRange, periodStart } from './periods'
 
@@ -88,6 +88,7 @@ export function toReport(item: ReportResponse): DailyReport {
     values: valuesOf(content.values ?? item.content),
     activities: activitiesOf(item),
     attachments: attachmentsOf(content.attachments),
+    transcript: item.transcript ?? '',
     note: item.note ?? '',
   }
 }
@@ -100,6 +101,8 @@ export interface DraftPayload {
   values: Record<string, string>
   activities: DailyReport['activities']
   attachments: DailyReport['attachments']
+  /** 자료에 없는 것을 직접 적은 내용. 에이전트가 자료와 함께 읽습니다. */
+  transcript: string
 }
 
 /**
@@ -138,7 +141,7 @@ function requestOf(draft: DraftPayload): ReportWriteRequest {
       activities: draft.activities,
       attachments: draft.attachments,
     },
-    transcript: null,
+    transcript: draft.transcript.trim() || null,
     note:
       draft.attachments.length > 0
         ? `활동 ${included.length}건 · 첨부 ${draft.attachments.length}건`
@@ -172,8 +175,11 @@ export function useReportOfPeriod(kind: ReportKind, dateISO: string) {
 export function useChildReports(kind: ReportKind, dateISO: string, enabled: boolean) {
   const childKind: ReportKind = kind === '월간' ? '주간' : '일일'
   const [from, to] = periodRange(kind, dateISO)
+  // 월간이 걸친 첫 주는 전달에서 시작할 수 있습니다. 그 주의 주간보고서도 이 달 것이라
+  // 조회 시작을 주의 첫날까지 당깁니다. 여기서 안 받아 오면 sources 가 세울 수 없습니다.
+  const start = kind === '월간' ? iso(startOfWeek(parseISO(from))) : from
   const { items, loading, error, reload } = useReportQuery(
-    enabled ? { report_kind: API_KIND[childKind], start_date: from, end_date: to } : null,
+    enabled ? { report_kind: API_KIND[childKind], start_date: start, end_date: to } : null,
     '업무보고를 불러오지 못했습니다.',
   )
   const reports = useMemo(() => items.map(toReport), [items])

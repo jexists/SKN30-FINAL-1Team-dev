@@ -25,6 +25,15 @@
   }
 }
 
+// 고를 것이 없는 목록. 첫 칸에 세울 것이 없으니 칸도 잡지 않습니다.
+.item.bare {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
 // 체크를 풀면 보고서에서 빠집니다. 지운 게 아니라 뺀 것이라 흐리게만 둡니다.
 .isOff {
   .title,
@@ -121,70 +130,8 @@
   }
 }
 
-.remove {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: var(--r-xs);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-
-  &:hover {
-    background: var(--red-tint);
-    color: var(--red-ink);
-  }
-}
-
 .empty {
   padding: var(--s5) 0;
   color: var(--muted);
   font-size: 13px;
-}
-
-.add {
-  display: flex;
-  gap: var(--s2);
-  margin-top: var(--s3);
-  padding-top: var(--s3);
-  border-top: 1px solid var(--line);
-
-  input {
-    flex: 1;
-    min-width: 0;
-    padding: 9px var(--s3);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    font-size: 13px;
-    outline: none;
-    transition:
-      border-color var(--t-fast) var(--ease-out),
-      box-shadow var(--t-fast) var(--ease-out);
-
-    &:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px var(--blue-ring);
-    }
-  }
-
-  button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0 var(--s3);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: var(--fill-2);
-    }
-  }
 }

@@ -6,16 +6,16 @@ import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
+import DayHeader from '@/components/DayHeader'
 import ErrorToast from '@/components/ErrorToast'
 import { ChevronRightIcon } from '@/components/icons'
 import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
-import { KIND_LABEL, useAgendaState } from '@/shared/agenda'
+import { useAgendaState } from '@/shared/agenda'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
-import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
+import { TODAY_ISO } from '@/utils/date'
 
 import DailyListLink from './components/DailyListLink'
-import ReportStatusBadge from './components/ReportStatusBadge'
 import { meetingLinkFor } from './sources'
 
 import styles from './MeetingPick.module.scss'
@@ -59,89 +59,80 @@ export default function MeetingPick() {
     <section>
       <h1 className="sr-only">업무보고서 작성</h1>
 
-      <header className={styles.head}>
-        <h2 className={styles.title}>업무보고서 작성</h2>
+      {/* 하루의 일정을 모두 고르는 화면이라 목록도 '전체' 로 엽니다. */}
+      <DailyListLink back tab="meeting" className={styles.back} />
 
-        <label className={styles.dateField}>
-          <span>기준 날짜</span>
-          <input
-            type="date"
-            value={dateISO}
-            max={TODAY_ISO}
-            onChange={(event) => changeDate(event.target.value)}
-          />
-        </label>
+      <div className={styles.card}>
+        {/* 날짜가 이 카드의 머리말입니다. 눌러 바꿀 수 있고 달력은 브라우저 것을 씁니다. */}
+        <DayHeader dateISO={dateISO} maxISO={TODAY_ISO} onDateChange={changeDate} />
 
-        {/* 하루의 일정을 모두 고르는 화면이라 목록도 '전체' 로 엽니다. */}
-        <DailyListLink />
-      </header>
-
-      <p className={styles.note}>
-        {fmtDot(parseISO(dateISO))}의 일정입니다. 기록할 일정을 고르세요.
-      </p>
-
-      <ErrorToast
-        message={agendaError ?? meetingError}
-        onRetry={() => {
-          reloadAgenda()
-          reloadMeetings()
-        }}
-      />
-      {!agendaError && !meetingError && (agendaLoading || meetingLoading) && (
-        <div role="status">
-          <span className="sr-only">일정과 보고서를 불러오는 중입니다.</span>
-          <Skeleton height={LIST_H} radius="var(--r-lg)" />
-        </div>
-      )}
-
-      {!agendaLoading &&
-        !meetingLoading &&
-        !agendaError &&
-        !meetingError &&
-        (agenda.length === 0 ? (
-          <div className={styles.empty}>
-            <p>이 날짜에 등록된 일정이 없습니다.</p>
-            <Link
-              className={buttonClass({ variant: 'outline' }, styles.emptyCta)}
-              to={ROUTES.CALENDAR}
-            >
-              캘린더에서 일정 등록하기
-              <ChevronRightIcon />
-            </Link>
+        <ErrorToast
+          message={agendaError ?? meetingError}
+          onRetry={() => {
+            reloadAgenda()
+            reloadMeetings()
+          }}
+        />
+        {!agendaError && !meetingError && (agendaLoading || meetingLoading) && (
+          <div role="status" className={styles.loading}>
+            <span className="sr-only">일정과 보고서를 불러오는 중입니다.</span>
+            <Skeleton height={LIST_H} radius="var(--r-lg)" />
           </div>
-        ) : (
-          <ul className={styles.rows}>
-            {agenda.map((item) => {
-              const link = meetingLinkFor(item.id, byAgenda.get(item.id))
+        )}
 
-              return (
-                <li key={item.id} className={styles.row}>
-                  <span className={styles.kind}>{KIND_LABEL[item.kind]}</span>
-                  <span className={`${styles.time} tnum`}>{item.time}</span>
+        {!agendaLoading &&
+          !meetingLoading &&
+          !agendaError &&
+          !meetingError &&
+          (agenda.length === 0 ? (
+            <div className={styles.empty}>
+              <p>이 날짜에 등록된 일정이 없습니다.</p>
+              <Link
+                className={buttonClass({ variant: 'outline' }, styles.emptyCta)}
+                to={ROUTES.CALENDAR}
+              >
+                캘린더에서 일정 등록하기
+                <ChevronRightIcon />
+              </Link>
+            </div>
+          ) : (
+            <ul className={styles.rows}>
+              {agenda.map((item) => {
+                const link = meetingLinkFor(item.id, byAgenda.get(item.id))
 
-                  <div className={styles.body}>
-                    <strong>{item.hospital || item.title}</strong>
-                    <span>{item.hospital ? item.title : item.place}</span>
-                  </div>
+                return (
+                  <li key={item.id}>
+                    {/* 이 화면은 보고서를 쓰러 온 곳이라 줄 전체가 그 보고서로 가는 길입니다.
+                        이미 쓴 줄은 같은 자리에서 그 보고서로 갑니다. */}
+                    <Link
+                      className={`${styles.row} ${item.done ? styles.isDone : ''}`}
+                      to={link.to ?? dailyComposePath(dateISO, '일일')}
+                      aria-label={`${item.hospital || item.title} ${link.label}`}
+                    >
+                      <div className={styles.rail}>
+                        <span className={`${styles.time} tnum`}>{item.time}</span>
+                      </div>
 
-                  <span className={item.done ? styles.done : styles.todo}>
-                    {item.done ? '완료' : '예정'}
-                  </span>
+                      <div className={styles.body}>
+                        <h3 className={styles.org}>
+                          {item.hospital || item.title}
+                          {(item.dept || item.contact) && (
+                            <span className={styles.who}>
+                              {[item.dept, item.contact].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
+                        </h3>
 
-                  {/* 상태는 실제 보고서에서 봅니다. 일정의 reported 값은 믿지 않습니다. */}
-                  <ReportStatusBadge status={link.status} />
-
-                  <Link
-                    className={buttonClass({ variant: 'outline', size: 'sm' }, styles.action)}
-                    to={link.to ?? dailyComposePath(dateISO, '일일')}
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        ))}
+                        {item.hospital && <p className={styles.title}>{item.title}</p>}
+                        {item.brief && <p className={styles.brief}>{item.brief}</p>}
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          ))}
+      </div>
     </section>
   )
 }
