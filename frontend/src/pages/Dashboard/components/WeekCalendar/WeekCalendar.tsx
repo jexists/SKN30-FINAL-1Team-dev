@@ -43,30 +43,18 @@ export default function WeekCalendar({
 
   // 선택 칸은 배경이 파랗게 차므로 점 색을 뒤집습니다.
   const renderMarks = (dateISO: string, isSelected: boolean) => {
-    // 점은 아래 하루 목록과 같은 것을 셉니다. 사내 일정이 업무, 나머지가 미팅입니다.
+    // 점은 아래 하루 목록과 같은 것을 셉니다. 미팅인지 사내 업무인지는 가르지
+    // 않습니다. 칸이 말해 주는 것은 "그날 몇 건인가" 하나입니다.
     const day = countByDate.get(dateISO)
-    const meetings = day?.meeting_count ?? 0
-    const deliveries = day?.task_count ?? 0
-    const total = meetings + deliveries
-    const meetingCls = `${styles.dotMeeting} ${isSelected ? styles.isOnBlue : ''}`
-    const deliveryCls = `${styles.dotDelivery} ${isSelected ? styles.isOnBlue : ''}`
-
+    const total = (day?.meeting_count ?? 0) + (day?.task_count ?? 0)
     // 넘치는 날은 '+N' 이 한 자리를 가져갑니다.
-    const slots = total > MAX_MARKS ? MAX_MARKS - 1 : MAX_MARKS
-    // 업무가 있는 날은 마지막 한 자리를 업무에 남깁니다. 미팅으로만 채우면
-    // 그날 사내 일이 있다는 사실이 통째로 사라집니다. 반대로 한쪽이 없는 날은
-    // 남은 자리를 다른 쪽이 모두 씁니다.
-    const shownMeetings = Math.min(meetings, deliveries > 0 ? slots - 1 : slots)
-    const shownDeliveries = Math.min(deliveries, slots - shownMeetings)
-    const hidden = total - shownMeetings - shownDeliveries
+    const shown = Math.min(total, total > MAX_MARKS ? MAX_MARKS - 1 : MAX_MARKS)
+    const hidden = total - shown
 
     return (
       <>
-        {Array.from({ length: shownMeetings }, (_, i) => (
-          <i key={`m${i}`} className={meetingCls} />
-        ))}
-        {Array.from({ length: shownDeliveries }, (_, i) => (
-          <i key={`d${i}`} className={deliveryCls} />
+        {Array.from({ length: shown }, (_, i) => (
+          <i key={i} className={`${styles.dot} ${isSelected ? styles.isOnBlue : ''}`} />
         ))}
         {hidden > 0 && (
           <span className={`${styles.more} ${isSelected ? styles.isOnBlue : ''} tnum`}>
@@ -86,14 +74,6 @@ export default function WeekCalendar({
         </div>
 
         <div className={styles.tools}>
-          <span className={styles.legend}>
-            <span>
-              <i className={styles.dotMeeting} /> 미팅
-            </span>
-            <span>
-              <i className={styles.dotDelivery} /> 업무
-            </span>
-          </span>
           <Button
             variant="outline"
             iconOnly
