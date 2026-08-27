@@ -43,7 +43,7 @@ const ALL_PIPELINES = 'all'
 export default function Deals() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
-  const requestedPipelineId = params.get('pipeline') ?? DEFAULT_PIPELINE
+  const requestedPipelineId = params.get('pipeline') || DEFAULT_PIPELINE
   const { isManager } = useCurrentUser()
   // 팀원은 서버가 본인 데이터로 제한하므로 담당자 스코프를 요청에 싣지 않습니다.
   const showOwner = isManager

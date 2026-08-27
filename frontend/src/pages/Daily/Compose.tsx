@@ -322,6 +322,7 @@ export default function Compose() {
                   template={draft.template}
                   values={draft.values}
                   aiFilledIds={draft.aiFilledIds}
+                  readOnly={locked}
                   onChange={draft.setValue}
                 />
 

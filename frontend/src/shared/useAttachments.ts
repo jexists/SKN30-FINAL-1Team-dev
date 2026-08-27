@@ -35,6 +35,10 @@ export default function useAttachments(onTranscribed: (text: string) => void) {
   const notify = useRef(onTranscribed)
   notify.current = onTranscribed
 
+  // 지금 화면에 있는 첨부. 변환을 기다리는 동안 목록이 바뀌었는지 보는 데 씁니다.
+  const current = useRef(attachments)
+  current.current = attachments
+
   /**
    * 고른 파일을 첨부 목록에 넣습니다.
    *
@@ -70,6 +74,9 @@ export default function useAttachments(onTranscribed: (text: string) => void) {
       if (attachment.kind !== 'audio') continue
       try {
         const text = await transcribeAudio(file)
+        // 기다리는 동안 그 첨부가 지워졌거나 다른 초안이 올라왔으면 흘려 보냅니다.
+        // 뒤늦은 결과를 내용 칸에 붙이면 지금 보고 있는 글에 남의 것이 섞입니다.
+        if (!current.current.some((one) => one.id === attachment.id)) continue
         setAttachments((prev) =>
           prev.map((one) =>
             one.id === attachment.id ? { ...one, state: 'done', extract: text } : one,

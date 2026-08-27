@@ -81,6 +81,8 @@ export default function DayHeader({
         <input
           ref={pickerRef}
           className={styles.picker}
+          // 보이지 않는 칸이라 탭으로 걸리면 갈 곳 없는 정거장이 됩니다.
+          tabIndex={-1}
           type={pickerType}
           aria-label={month ? '기준 월' : '기준 날짜'}
           value={month ? dateISO.slice(0, 7) : dateISO}
