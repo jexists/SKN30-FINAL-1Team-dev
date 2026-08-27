@@ -64,6 +64,9 @@ export default function Detail() {
         {report.hospital} {report.title} 업무보고서
       </h1>
 
+      {/* 미팅 기록에서 나가므로 목록도 업무보고서 탭으로 엽니다. */}
+      <DailyListLink back tab="meeting" className={styles.toDaily} />
+
       {/*
         머리말은 어느 회사의 언제 기록인지와 지금 어디까지 왔는지만 말합니다.
         미팅 제목은 오른쪽 보고서의 머리글이 이미 크게 달고 있어 여기서 뺐습니다.
@@ -85,12 +88,6 @@ export default function Detail() {
             <span>작성자 {report.owner}</span>
           </p>
         </div>
-
-        {/*
-          머리말은 어디로 갈 수 있는지를, 시트 아래는 이 문서에 무엇을 할 수 있는지를
-          맡습니다. 미팅 기록에서 나가므로 목록도 업무보고서 탭으로 엽니다.
-        */}
-        <DailyListLink tab="meeting" className={styles.toDaily} />
       </header>
 
       {/*

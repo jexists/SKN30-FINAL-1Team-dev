@@ -36,8 +36,7 @@ interface Props {
   hasAiOriginal: boolean
   onStartManual: () => void
   onRegenerate: () => void
-  onPrint: () => void
-  onSubmit: () => void
+  onSave: () => void
 }
 
 export default function ReportSheet({
@@ -60,8 +59,7 @@ export default function ReportSheet({
   hasAiOriginal,
   onStartManual,
   onRegenerate,
-  onPrint,
-  onSubmit,
+  onSave,
 }: Props) {
   const empty = phase === 'idle'
   const broken = sectionIssues.length > 0
@@ -143,17 +141,13 @@ export default function ReportSheet({
           </Button>
         )}
 
-        <Button variant="outline" type="button" disabled={empty} onClick={onPrint}>
-          PDF 다운로드
-        </Button>
-
         <Button
           type="button"
           className={styles.submit}
           disabled={locked || saving || empty || broken}
-          onClick={onSubmit}
+          onClick={onSave}
         >
-          보고서 제출
+          저장
         </Button>
       </div>
 

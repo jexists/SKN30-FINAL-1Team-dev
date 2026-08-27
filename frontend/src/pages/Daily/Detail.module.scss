@@ -1,3 +1,8 @@
+// 목록 위로 빠져나가는 길입니다. 되돌아가기처럼 왼쪽에 섭니다.
+.back {
+  margin-bottom: var(--s3);
+}
+
 .head {
   display: flex;
   align-items: center;
@@ -14,8 +19,7 @@
 }
 
 /*
- * 여기서 남은 자리를 다 먹어 뒤따르는 것들(반려 시 수정 버튼, 목록 링크)을
- * 오른쪽 끝에 한 덩어리로 모읍니다. 미는 지점이 하나여야 둘 사이가 벌어지지 않습니다.
+ * 여기서 남은 자리를 다 먹어 뒤따르는 반려 시 수정 버튼을 오른쪽 끝으로 보냅니다.
  */
 .approver {
   margin-right: auto;
@@ -23,7 +27,6 @@
   font-size: 12px;
 }
 
-/* 미는 것은 위 .approver 가 합니다. 여기에도 auto 를 두면 둘 사이가 벌어집니다. */
 .rewrite {
   padding: 6px var(--s4);
   border-radius: var(--r-pill);

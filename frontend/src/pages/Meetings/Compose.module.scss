@@ -1,8 +1,16 @@
-/* 나가는 길 하나만 있는 머리말입니다. 오른쪽 끝, 상세 화면과 같은 자리입니다. */
+/* 머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 PDF 입니다. 상세 화면과 같은 자리입니다. */
 .head {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
   margin-bottom: var(--s3);
+}
+
+/* 화살표가 글자 앞에 서므로 줄이는 여백도 왼쪽입니다. */
+.back {
+  padding-right: var(--s4);
+  padding-left: var(--s3);
 }
 
 .locked {

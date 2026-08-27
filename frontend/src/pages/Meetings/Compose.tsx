@@ -7,12 +7,12 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
-import Button from '@/components/Button'
+import Button, { buttonClass } from '@/components/Button'
+import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
-import { meetingReportPath, ROUTES } from '@/constants/routes'
-import DailyListLink from '@/pages/Daily/components/DailyListLink'
+import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { useAgendaItem } from '@/shared/agenda'
 import { showToast } from '@/shared/toast'
 import { fmtDot, parseISO } from '@/utils/date'
@@ -31,8 +31,8 @@ import useMeetingReports, {
 
 import styles from './Compose.module.scss'
 
-/** 되돌릴 수 없는 세 갈래. 각각 먼저 묻습니다. */
-type Confirm = { kind: 'apply' } | { kind: 'save' } | null
+/** 되돌릴 수 없는 자리. 먼저 묻습니다. */
+type Confirm = { kind: 'apply' } | null
 
 /** 왼쪽 참고 열에서 무엇을 보고 있는지. */
 type Reference = 'info' | 'ai'
@@ -50,7 +50,7 @@ export default function Compose() {
   } = useAgendaItem(agendaId)
 
   const { report: saved, loading, error: loadError, reload } = useMeetingReportOfAgenda(agendaId)
-  const { saveReport, saveDraft, error: saveError, pending } = useMeetingReports()
+  const { saveDraft, error: saveError, pending } = useMeetingReports()
   const error = loadError ?? saveError
   // 팀장 확인이 끝나기 전까지는 다시 열어 고칠 수 있습니다.
   const locked = saved?.review === 'approved'
@@ -155,11 +155,10 @@ export default function Compose() {
     }
   }
 
-  const onSubmit = async () => {
+  const onSave = async () => {
     if (locked) return
     try {
-      const report = await saveReport(payload)
-      setConfirm(null)
+      const report = await saveDraft(payload)
       navigate(meetingReportPath(report.id))
     } catch {
       // 훅이 같은 화면에 오류를 표시합니다.
@@ -191,12 +190,31 @@ export default function Compose() {
       </h1>
 
       {/*
-        누가·언제인지는 왼쪽 미팅 정보가 이미 말합니다. 머리말이 맡는 것은
-        여기서 나가는 길 하나뿐이라 버튼만 오른쪽 끝에 둡니다.
+        누가·언제인지는 왼쪽 미팅 정보가 이미 말합니다. 여기서 맡는 것은 나가는 길과
+        PDF 뿐이라 각각 줄의 양 끝에 둡니다.
+
+        들어온 길은 그날 일정을 고르는 화면이라 되돌아가는 곳도 거기입니다.
+        목록으로 나가면 방금 고르던 하루가 사라집니다.
       */}
-      <header className={styles.head}>
-        <DailyListLink tab="meeting" />
-      </header>
+      <div className={styles.head}>
+        <Link
+          className={buttonClass({ variant: 'outline' }, styles.back)}
+          to={meetingPickPath(item.date)}
+        >
+          <ChevronLeftIcon width={15} height={15} />
+          일정 고르기
+        </Link>
+
+        {/* 이 문서를 종이로 뽑는 길. 나가는 길과 같은 줄 반대쪽입니다. */}
+        <Button
+          variant="outline"
+          type="button"
+          disabled={draft.phase === 'idle'}
+          onClick={() => window.print()}
+        >
+          PDF 다운로드
+        </Button>
+      </div>
 
       {locked && saved && (
         <p className={styles.locked}>
@@ -291,8 +309,7 @@ export default function Compose() {
             hasAiOriginal={draft.hasAiOriginal}
             onStartManual={draft.startManual}
             onRegenerate={() => void onGenerate()}
-            onPrint={() => window.print()}
-            onSubmit={() => setConfirm({ kind: 'save' })}
+            onSave={() => void onSave()}
           />
         </div>
       </div>
@@ -322,29 +339,6 @@ export default function Compose() {
           }
         >
           <p>적용하지 않고 원본만 참고하면서 오른쪽을 직접 고쳐도 됩니다.</p>
-        </Modal>
-      )}
-
-      {confirm?.kind === 'save' && (
-        <Modal
-          title="업무 보고서를 제출할까요?"
-          description="제출하면 고객 히스토리와 그날 업무보고의 활동 내역에 반영됩니다."
-          onClose={() => setConfirm(null)}
-          footer={
-            <>
-              <Button variant="outline" type="button" onClick={() => setConfirm(null)}>
-                취소
-              </Button>
-              <Button type="button" disabled={pending} onClick={() => void onSubmit()}>
-                {pending ? '제출 중…' : '제출'}
-              </Button>
-            </>
-          }
-        >
-          <p>
-            {item.hospital} · {fmtDot(parseISO(item.date))} {item.time} · 첨부{' '}
-            {draft.attachments.length}건
-          </p>
         </Modal>
       )}
     </section>

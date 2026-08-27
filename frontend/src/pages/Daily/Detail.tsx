@@ -61,6 +61,9 @@ export default function Detail() {
     <section>
       <h1 className="sr-only">{report.kind}업무보고 상세</h1>
 
+      {/* 이 보고서가 놓인 탭으로 돌아갑니다. */}
+      <DailyListLink back tab={kindToPeriod(report.kind)} className={styles.back} />
+
       <header className={styles.head}>
         <p className={styles.date}>{report.period ?? fmtDot(parseISO(report.date))}</p>
         <ReportStatusBadge status={report.status} />
@@ -71,9 +74,6 @@ export default function Detail() {
             수정해서 다시 제출
           </Link>
         )}
-
-        {/* 이 보고서가 놓인 탭으로 돌아갑니다. */}
-        <DailyListLink tab={kindToPeriod(report.kind)} />
       </header>
 
       <div className={styles.panels}>
