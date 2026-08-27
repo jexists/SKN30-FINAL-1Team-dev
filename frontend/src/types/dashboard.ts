@@ -25,12 +25,6 @@ export interface CountCard {
   count: number
 }
 
-export interface FollowUpCard {
-  total: number
-  overdue: number
-  due_within_7_days: number
-}
-
 export interface SupportCard {
   total: number
   in_progress: number
@@ -74,7 +68,6 @@ export interface DashboardResponse {
   visited_companies: CountCard
   activities: CountCard
   today_activities: ActivityRead[]
-  follow_ups: FollowUpCard
   support_requests: SupportCard
   contract_renewals: RenewalCard
   sales_target: SalesTargetCard

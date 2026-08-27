@@ -13,23 +13,22 @@
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 300px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 300px;
   gap: var(--s3);
   margin-bottom: var(--s4);
 
+  // 목표 카드도 KPI 와 같은 줄에 남깁니다. 아래로 내려보내면 밴드가 두 배로
+  // 길어져 주간 달력과 오늘 일정이 첫 화면 밖으로 밀립니다. 대신 고정 300px 을
+  // 놓아주고 넷이 같은 폭을 나눠 갖습니다.
   @include xl {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-
-    .goal {
-      grid-column: 1 / -1;
-    }
   }
 
   @include lg {
     gap: var(--s2);
   }
 
-  // 폰에서는 넷이 들어가지 않아 둘씩 접힙니다.
+  // 폰에서는 셋이 들어가지 않아 둘씩 접힙니다.
   @include sm {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

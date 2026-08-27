@@ -18,13 +18,8 @@ import NoticeTicker from './components/NoticeTicker'
 import RecordDrawer from './components/RecordDrawer'
 import SummaryBand from './components/SummaryBand'
 import WeekCalendar from './components/WeekCalendar'
-import { csList, followUpList, renewalList, type KpiListKey } from './drawerLists'
-import useDashboard, {
-  useFollowUpList,
-  useRenewalList,
-  useSupportList,
-  weekStart,
-} from './useDashboard'
+import { csList, renewalList, type KpiListKey } from './drawerLists'
+import useDashboard, { useRenewalList, useSupportList, weekStart } from './useDashboard'
 
 import styles from './Dashboard.module.scss'
 
@@ -50,7 +45,6 @@ export default function Dashboard() {
 
   // 드로어는 눌러야 열립니다. 열린 것만 자기 목록을 받아 옵니다.
   const kpiKey = open?.type === 'kpi' ? open.key : null
-  const followUps = useFollowUpList(kpiKey === 'followUp')
   const support = useSupportList(kpiKey === 'cs')
   const renewals = useRenewalList(kpiKey === 'renewal', data?.date ?? TODAY_ISO)
 
@@ -69,7 +63,7 @@ export default function Dashboard() {
 
   const toggleDone = useCallback(
     (item: AgendaItem) => {
-      // 타일의 오늘 일정 수는 완료 여부와 무관하지만, 후속업무 수는 따라 움직입니다.
+      // 타일의 오늘 일정 수는 완료 여부와 무관하지만, 주간 줄의 마감 수는 따라 움직입니다.
       void toggleComplete(item.id, item.done)
         .then(reload)
         .catch(() => undefined)
@@ -211,18 +205,6 @@ export default function Dashboard() {
 
       {open?.type === 'record' && <RecordDrawer item={open.item} onClose={closeDrawer} />}
 
-      {kpiKey === 'followUp' && data !== null && (
-        <ListDrawer
-          list={followUpList(followUps.items, data.follow_ups)}
-          loading={followUps.loading}
-          error={followUps.error}
-          onRetry={followUps.reload}
-          remaining={followUps.total - followUps.items.length}
-          loadingMore={followUps.loadingMore}
-          onLoadMore={followUps.loadMore}
-          onClose={closeDrawer}
-        />
-      )}
       {kpiKey === 'cs' && (
         <ListDrawer
           list={csList(support.items)}

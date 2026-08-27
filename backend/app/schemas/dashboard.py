@@ -35,14 +35,6 @@ class CountCard(BaseModel):
     count: int
 
 
-class FollowUpCard(BaseModel):
-    """숫자만 준다. 목록은 카드를 눌렀을 때 /api/activities 가 같은 조건으로 준다."""
-
-    total: int
-    overdue: int
-    due_within_7_days: int
-
-
 class SupportCard(BaseModel):
     total: int
     in_progress: int
@@ -96,7 +88,6 @@ class DashboardRead(BaseModel):
     # 오늘 목록은 진입하자마자 화면에 선다. 눌러야 열리는 드로어 목록들과 달리
     # 여기 담아 첫 응답 한 번으로 끝낸다.
     today_activities: list[ActivityRead]
-    follow_ups: FollowUpCard
     support_requests: SupportCard
     contract_renewals: RenewalCard
     sales_target: SalesTargetCard

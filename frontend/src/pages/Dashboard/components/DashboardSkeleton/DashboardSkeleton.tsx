@@ -1,6 +1,6 @@
 // 대시보드 한 장이 자리를 잡는 동안 세우는 자리표시자입니다.
 //
-// 카드 한 장이 덩어리 하나입니다. 공지 둘 → KPI 넷과 목표 하나 → 주간 달력 → 오늘 일정
+// 카드 한 장이 덩어리 하나입니다. 공지 둘 → KPI 셋과 목표 하나 → 주간 달력 → 오늘 일정
 // 순서와 칸 나눔은 실제 화면과 같습니다. 다섯 군데에서 따로 받아 오지만 여기서 한 번에
 // 걷어내므로, 자료가 도착하는 동안 화면이 여러 번 들썩이지 않습니다.
 import Skeleton from '@/components/Skeleton'
@@ -24,7 +24,7 @@ export default function DashboardSkeleton() {
       </div>
 
       <div className={styles.summary}>
-        {[0, 1, 2, 3].map((at) => (
+        {[0, 1, 2].map((at) => (
           <Skeleton key={at} height={TILE_H} radius="var(--r-lg)" />
         ))}
         <Skeleton className={styles.goal} height={TILE_H} radius="var(--r-lg)" />

@@ -28,7 +28,6 @@ from app.schemas.dashboard import (
     CountCard,
     DashboardParams,
     DashboardRead,
-    FollowUpCard,
     NoticeBrief,
     NoticeSummary,
     RenewalCard,
@@ -110,8 +109,7 @@ async def _activity_cards(
     member: Member,
     owner_ids: tuple[UUID, ...] | None,
     day: date,
-    as_of: datetime,
-) -> tuple[CountCard, CountCard, FollowUpCard]:
+) -> tuple[CountCard, CountCard]:
     scope = activities_api._scope(member, owner_ids)
     start, end = _day_bounds(day)
     today = and_(Activity.starts_at >= start, Activity.starts_at < end)
@@ -128,28 +126,7 @@ async def _activity_cards(
         )
     ).one()
 
-    horizon = as_of + timedelta(days=7)
-    follow_total, overdue, due_soon = (
-        await db.execute(
-            activities_api._joined_select(
-                func.count(Activity.id),
-                func.count(Activity.id).filter(Activity.due_at < as_of),
-                func.count(Activity.id).filter(
-                    and_(Activity.due_at >= as_of, Activity.due_at < horizon)
-                ),
-            ).where(
-                *scope,
-                Activity.activity_type == "task",
-                Activity.completed_at.is_(None),
-            )
-        )
-    ).one()
-
-    return (
-        CountCard(count=visited),
-        CountCard(count=total),
-        FollowUpCard(total=follow_total, overdue=overdue, due_within_7_days=due_soon),
-    )
+    return CountCard(count=visited), CountCard(count=total)
 
 
 async def _today_activities(
@@ -367,7 +344,7 @@ async def read_dashboard(
     day = params.date or as_of.date()
     owner_ids = await owner_scope(db, member, params.owner_member_id)
 
-    visited, activity_total, follow_ups = await _activity_cards(db, member, owner_ids, day, as_of)
+    visited, activity_total = await _activity_cards(db, member, owner_ids, day)
     return DashboardRead(
         as_of=as_of,
         date=day,
@@ -376,7 +353,6 @@ async def read_dashboard(
         visited_companies=visited,
         activities=activity_total,
         today_activities=await _today_activities(db, member, owner_ids, day),
-        follow_ups=follow_ups,
         support_requests=await _support_card(db, member, owner_ids),
         contract_renewals=await _renewal_card(
             db, member, owner_ids, day, params.renewal_within_days
