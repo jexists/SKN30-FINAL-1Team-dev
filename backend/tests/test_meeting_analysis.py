@@ -8,6 +8,7 @@ UNKNOWN_FEATURES = {name: "Unknown" for name in deal_baseline.FEATURE_NAMES}
 
 
 def test_feature_contract_uses_unknown_instead_of_guessing():
+    """미확인 특성은 추측하지 않고 Unknown으로 유지하는지 검증한다."""
     output = meeting_analysis.MeetingFeatureOutput(
         features=UNKNOWN_FEATURES,
     )
@@ -26,6 +27,7 @@ def test_feature_contract_uses_unknown_instead_of_guessing():
 
 
 def test_input_snapshot_rejects_empty_or_oversized_transcript():
+    """빈 원문과 길이 제한을 넘긴 원문이 거부되는지 검증한다."""
     with pytest.raises(ValueError, match="transcript_required"):
         meeting_analysis.input_snapshot("  ")
     with pytest.raises(ValueError, match="transcript_too_long"):
@@ -34,16 +36,19 @@ def test_input_snapshot_rejects_empty_or_oversized_transcript():
 
 @pytest.mark.anyio
 async def test_run_uses_structured_llm_output_as_model_input(monkeypatch):
+    """LLM의 구조화 결과가 그대로 딜 모델 입력으로 전달되는지 검증한다."""
     extracted = meeting_analysis.MeetingFeatureOutput(
         features=UNKNOWN_FEATURES,
     )
     captured = {}
 
     async def fake_generate_structured(**kwargs):
+        """LLM 호출 인자를 기록하고 고정된 구조화 결과를 반환한다."""
         captured.update(kwargs)
         return extracted
 
     def fake_predict(features):
+        """모델 입력 계약을 확인하고 고정된 예측을 반환한다."""
         assert features == UNKNOWN_FEATURES
         return deal_baseline.DealPrediction(
             label="watch",

@@ -7,6 +7,7 @@ import sys
 
 
 async def check() -> None:
+    """실제 미팅 분석 경계를 호출하고 모델 출력 계약을 검증한다."""
     os.environ["DEBUG"] = "false"
 
     from app.agents import meeting_analysis
@@ -40,6 +41,7 @@ async def check() -> None:
 
 
 def main() -> int:
+    """검증을 실행하고 성공 여부를 프로세스 종료 코드로 반환한다."""
     try:
         asyncio.run(check())
     except Exception as error:

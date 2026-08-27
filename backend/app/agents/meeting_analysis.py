@@ -93,6 +93,7 @@ class MeetingAnalysisOutput(BaseModel):
 
 
 def _validated_transcript(value: object) -> str:
+    """미팅 원문이 비어 있지 않고 허용 길이 안인지 검증한다."""
     if not isinstance(value, str) or not value.strip():
         raise ValueError("transcript_required")
     transcript = value.strip()
@@ -107,6 +108,7 @@ def input_snapshot(transcript: str) -> dict[str, str]:
 
 
 def _prompt_input(snapshot: dict[str, Any]) -> str:
+    """검증된 원문을 데이터 경계 태그로 감싸 LLM 입력을 만든다."""
     transcript = _validated_transcript(snapshot.get("transcript"))
     return f"<meeting_transcript>\n{transcript}\n</meeting_transcript>"
 

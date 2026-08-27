@@ -323,6 +323,7 @@ def test_meeting_analysis_requires_transcript(llm_ready):
 
 @pytest.mark.anyio
 async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch):
+    """미팅 분석 결과와 모델 버전이 실행 이력에 저장되는지 검증한다."""
     member = _member()
     run = _run(member)
     run.agent_code = "meeting_analysis"
@@ -346,6 +347,7 @@ async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch)
     }
 
     async def fake_run(snapshot):
+        """입력 스냅샷을 확인하고 고정된 미팅 분석 결과를 반환한다."""
         assert snapshot == run.input_snapshot
         return SimpleNamespace(
             deal_assessment=SimpleNamespace(model_version="test-deal-model-v1"),
@@ -368,6 +370,7 @@ async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch)
 
 @pytest.mark.anyio
 async def test_execute_records_model_failure_separately_from_llm_failure(monkeypatch):
+    """모델 로드 실패가 LLM 오류와 구분되어 기록되는지 검증한다."""
     member = _member()
     run = _run(member)
     run.agent_code = "meeting_analysis"
@@ -381,6 +384,7 @@ async def test_execute_records_model_failure_separately_from_llm_failure(monkeyp
     )
 
     async def fake_run(_snapshot):
+        """모델을 사용할 수 없는 상황을 재현한다."""
         raise DealModelError("deal_model_unavailable")
 
     monkeypatch.setattr(meeting_analysis, "run", fake_run)

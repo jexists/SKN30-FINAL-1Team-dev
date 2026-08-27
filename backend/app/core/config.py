@@ -138,6 +138,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
+        """쉼표로 구분된 CORS origin 설정을 정리된 목록으로 반환한다."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
@@ -153,6 +154,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_security(self) -> Self:
+        """운영 환경의 필수 보안 설정과 URL 계약을 검증한다."""
         if self.app_env != "production":
             return self
         if self.debug:

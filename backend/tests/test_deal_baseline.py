@@ -8,18 +8,21 @@ from app.ml import deal_baseline
 
 class _Model:
     def __init__(self, classes, probabilities):
+        """테스트에 사용할 클래스 순서와 고정 확률을 저장한다."""
         self.classes_ = np.asarray(classes)
         self.probabilities = np.asarray(probabilities)
         self.columns = None
         self.inputs = None
 
     def predict_proba(self, frame):
+        """입력 모양을 기록하고 행마다 고정 확률을 반환한다."""
         self.columns = tuple(frame.columns) if hasattr(frame, "columns") else None
         self.inputs = np.asarray(frame)
         return np.tile(self.probabilities, (len(frame), 1))
 
 
 def test_stacking_uses_ordered_base_probabilities_and_threshold(monkeypatch):
+    """베이스 모델 순서와 Stacking 임계값 적용을 검증한다."""
     models = {
         "LogisticRegression": _Model([0, 1], [0.2, 0.8]),
         "MultinomialNB": _Model([1, 0], [0.7, 0.3]),
@@ -53,6 +56,7 @@ def test_stacking_uses_ordered_base_probabilities_and_threshold(monkeypatch):
 
 
 def test_artifact_path_must_be_local_and_match_hash(tmp_path: Path):
+    """산출물 경로 이탈과 해시 불일치가 거부되는지 검증한다."""
     artifact = tmp_path / "model.bin"
     artifact.write_bytes(b"verified model")
     file_info = {

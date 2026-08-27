@@ -78,6 +78,7 @@ class DealPrediction:
 
 
 def _sha256(path: Path) -> str:
+    """파일을 청크 단위로 읽어 SHA-256 해시를 반환한다."""
     digest = hashlib.sha256()
     with path.open("rb") as file:
         for chunk in iter(lambda: file.read(1024 * 1024), b""):
@@ -86,6 +87,7 @@ def _sha256(path: Path) -> str:
 
 
 def _verified_artifact_path(artifact_dir: Path, file_info: dict[str, Any]) -> Path:
+    """안전한 파일명과 SHA-256이 확인된 산출물 경로를 반환한다."""
     filename = file_info["path"]
     if not isinstance(filename, str) or Path(filename).name != filename:
         raise ValueError("artifact_path_invalid")
@@ -97,12 +99,14 @@ def _verified_artifact_path(artifact_dir: Path, file_info: dict[str, Any]) -> Pa
 
 
 def _category_contract(raw: object) -> dict[str, tuple[str, ...]]:
+    """메타데이터의 범주 목록을 비교 가능한 튜플 계약으로 변환한다."""
     if not isinstance(raw, dict):
         raise ValueError("category_contract_invalid")
     return {name: tuple(values) for name, values in raw.items() if isinstance(values, list)}
 
 
 def _frame(records: list[Mapping[str, str]]) -> Any:
+    """입력 레코드를 학습 시점과 동일한 범주형 DataFrame으로 만든다."""
     import pandas as pd
 
     frame = pd.DataFrame(records, columns=FEATURE_NAMES)
@@ -112,6 +116,7 @@ def _frame(records: list[Mapping[str, str]]) -> Any:
 
 
 def _won_probabilities(model: Any, inputs: Any) -> Any:
+    """모델 출력에서 유효한 Won 클래스 확률만 추출한다."""
     import numpy as np
 
     won_index = list(model.classes_).index(1)
@@ -125,6 +130,7 @@ def _won_probabilities(model: Any, inputs: Any) -> Any:
 
 
 def _stacked_probabilities(models: dict[str, Any], stacking_model: Any, frame: Any) -> Any:
+    """고정 순서의 베이스 확률을 Stacking 메타모델에 전달한다."""
     import numpy as np
 
     base_probabilities = np.column_stack(
@@ -196,6 +202,7 @@ def _load_models() -> tuple[dict[str, Any], Any, float]:
 
 
 def _normalized_features(features: Mapping[str, str]) -> dict[str, str]:
+    """13개 특성의 이름과 허용 범주를 검증하고 빈 값을 Unknown으로 바꾼다."""
     if set(features) != set(FEATURE_NAMES):
         raise ValueError("deal_features_invalid")
 
