@@ -6,15 +6,12 @@ import {
   BellIcon,
   CalendarIcon,
   ComplaintIcon,
-  ContractIcon,
   CustomersIcon,
   DailyReportIcon,
   DashboardIcon,
   DocumentsIcon,
   type IconProps,
-  OrdersIcon,
   ProductIcon,
-  QuoteIcon,
   SalesReportIcon,
   TeamIcon,
   VisitIcon,
@@ -59,18 +56,8 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: ROUTES.CALENDAR, label: '캘린더', icon: CalendarIcon },
       { to: ROUTES.DAILY, label: '업무보고', icon: DailyReportIcon },
-      { to: ROUTES.SALES, label: '매출분석', icon: SalesReportIcon },
-    ],
-  },
-  {
-    id: 'deals',
-    title: '딜상세관리',
-    shortTitle: '딜',
-    items: [
       { to: ROUTES.DEALS, label: '영업현황', icon: VisitIcon },
-      { to: ROUTES.QUOTES, label: '견적현황', icon: QuoteIcon },
-      { to: ROUTES.CONTRACTS, label: '계약현황', icon: ContractIcon },
-      { to: ROUTES.ORDERS, label: '발주현황', icon: OrdersIcon },
+      { to: ROUTES.SALES, label: '매출분석', icon: SalesReportIcon },
     ],
   },
   {
@@ -98,13 +85,16 @@ export const NAV_SECTIONS: NavSection[] = [
 const NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items)
 
 /**
- * 사이드바에 없는 화면의 이름. 미팅보고서처럼 다른 화면에서만 들어가는 곳도
+ * 사이드바에 없는 화면의 이름. 업무보고서처럼 다른 화면에서만 들어가는 곳도
  * breadcrumb 에는 제 이름이 나와야 합니다.
  */
 const OFF_MENU_LABELS: { to: Route; label: string }[] = [
   // 작성 화면이 상세보다 뒤에 와도 됩니다. findNavLabel 이 긴 경로부터 봅니다.
-  { to: ROUTES.MEETINGS, label: '미팅보고서' },
-  { to: ROUTES.MEETINGS_NEW, label: '미팅보고서 작성' },
+  { to: ROUTES.QUOTES, label: '견적현황' },
+  { to: ROUTES.CONTRACTS, label: '계약현황' },
+  { to: ROUTES.ORDERS, label: '발주현황' },
+  { to: ROUTES.MEETINGS, label: '업무보고서' },
+  { to: ROUTES.MEETINGS_NEW, label: '업무보고서 작성' },
   { to: ROUTES.NOTIFICATIONS, label: '알림' },
   { to: ROUTES.MYPAGE, label: '마이페이지' },
   { to: ROUTES.TERMS, label: '이용약관' },
