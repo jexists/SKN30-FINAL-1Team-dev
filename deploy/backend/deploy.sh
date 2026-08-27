@@ -11,6 +11,16 @@ readonly SSM_PARAMETER="/salesluv/production/backend/env"
 readonly AWS_REGION="ap-northeast-2"
 readonly LOCK_FILE="/var/lock/salesluv-backend-deploy.lock"
 
+readonly DEAL_MODEL_VERSION="deal-stacking-lr-v1"
+# ponytail: 단일 EC2의 버전 고정 디렉터리다. 호스트가 여러 대가 되면 S3 동기화로 바꾼다.
+readonly DEAL_MODEL_HOST_DIR="/opt/salesluv-models/${DEAL_MODEL_VERSION}"
+readonly DEAL_MODEL_CONTAINER_DIR="/app/pipeline/artifacts"
+readonly -a DEAL_MODEL_ARTIFACTS=(
+    "deal-stacking-lr-v1-models.joblib:78a56a3bcc6a69da94fde8366c228036103f5c42b48d668fec2d1051cdbd4a6f"
+    "deal-stacking-lr-v1-tabicl.pkl:eb462256069cf27f2a572c0b230dbb06eb1eeb9295e0d03fb5f0255ef72c6ffb"
+    "deal-stacking-lr-v1.json:1e48bb2217db9795a129e67acb520ea0ef79e7a7c50b9e42f5b8e91dc375db65"
+)
+
 readonly IMAGE_REPOSITORY="salesluv-backend"
 readonly LEGACY_PRODUCTION_CONTAINER="salesluv-backend"
 readonly LEGACY_CANDIDATE_CONTAINER="salesluv-backend-candidate"
@@ -258,6 +268,34 @@ validate_runtime_environment() {
         deployment_prerequisite_value \
             "${dotenv_file}" "${feature_key}" "deployed-feature" >/dev/null \
             || return 1
+    done
+}
+
+validate_model_artifact() {
+    local artifact_dir="$1"
+    local filename="$2"
+    local expected_sha256="$3"
+    local artifact_path="${artifact_dir}/${filename}"
+    local actual_sha256
+
+    [[ -f "${artifact_path}" ]] \
+        || die "deal model artifact is missing: ${artifact_path}"
+    actual_sha256="$(sha256sum "${artifact_path}")" \
+        || die "unable to hash deal model artifact: ${artifact_path}"
+    actual_sha256="${actual_sha256%%[[:space:]]*}"
+    [[ "${actual_sha256}" == "${expected_sha256}" ]] \
+        || die "deal model artifact hash mismatch: ${artifact_path}"
+}
+
+validate_deal_model_artifacts() {
+    local artifact
+    local filename
+    local expected_sha256
+
+    for artifact in "${DEAL_MODEL_ARTIFACTS[@]}"; do
+        IFS=: read -r filename expected_sha256 <<<"${artifact}"
+        validate_model_artifact \
+            "${DEAL_MODEL_HOST_DIR}" "${filename}" "${expected_sha256}"
     done
 }
 
@@ -598,6 +636,8 @@ start_production() {
         --log-opt max-size=10m \
         --log-opt max-file=3 \
         --env-file "${ENV_FILE}" \
+        --env "DEAL_MODEL_DIR=${DEAL_MODEL_CONTAINER_DIR}" \
+        --mount "type=bind,source=${DEAL_MODEL_HOST_DIR},target=${DEAL_MODEL_CONTAINER_DIR},readonly" \
         --publish "127.0.0.1:${host_port}:8000" \
         "${image}" >/dev/null
 }
@@ -699,6 +739,7 @@ require_command flock
 require_command git
 require_command grep
 require_command nginx
+require_command sha256sum
 
 [[ -d "${REPO_DIR}/.git" ]] \
     || die "Git repository not found: ${REPO_DIR}"
@@ -744,6 +785,9 @@ if ! git -C "${REPO_DIR}" archive "${DEPLOY_SHA}" backend \
 fi
 [[ -f "${BACKEND_CONTEXT}/Dockerfile" ]] \
     || die "backend Dockerfile not found in commit ${DEPLOY_SHA}"
+
+printf 'Validating deal model artifacts in %s.\n' "${DEAL_MODEL_HOST_DIR}"
+validate_deal_model_artifacts
 
 printf 'Refreshing the backend runtime environment.\n'
 if [[ -f "${ENV_FILE}" ]]; then

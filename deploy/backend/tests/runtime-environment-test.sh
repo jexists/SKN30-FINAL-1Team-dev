@@ -142,6 +142,30 @@ raw_value="$(dotenv_value "${raw_file}" RAW_VALUE)"
 [[ "${raw_value}" == '  literal # text = preserved  ' ]] \
     || fail "dotenv_value changed the raw value"
 
+model_dir="${TEST_TMP_DIR}/model"
+mkdir -p "${model_dir}"
+printf 'model-bytes' >"${model_dir}/model.bin"
+model_sha256="$(sha256sum "${model_dir}/model.bin")"
+model_sha256="${model_sha256%%[[:space:]]*}"
+validate_model_artifact "${model_dir}" model.bin "${model_sha256}" \
+    || fail "valid model artifact was rejected"
+if (validate_model_artifact "${model_dir}" model.bin wrong-sha) >/dev/null 2>&1; then
+    fail "model artifact with the wrong hash was accepted"
+fi
+
+DOCKER_RUN_ARGS=()
+docker() {
+    DOCKER_RUN_ARGS=("$@")
+    printf 'container-id\n'
+}
+start_production test-image test-container 18000
+docker_run_args=" ${DOCKER_RUN_ARGS[*]} "
+[[ "${docker_run_args}" == *" --env DEAL_MODEL_DIR=${DEAL_MODEL_CONTAINER_DIR} "* ]] \
+    || fail "deal model container directory was not configured"
+[[ "${docker_run_args}" == *" --mount type=bind,source=${DEAL_MODEL_HOST_DIR},target=${DEAL_MODEL_CONTAINER_DIR},readonly "* ]] \
+    || fail "deal model directory was not mounted read-only"
+unset -f docker
+
 upstream_file="$(write_environment upstream $'upstream salesluv_backend {\n    server 127.0.0.1:8000;\n}\n')"
 [[ "$(read_backend_upstream_port "${upstream_file}")" == "8000" ]] \
     || fail "active Nginx upstream port was not parsed"

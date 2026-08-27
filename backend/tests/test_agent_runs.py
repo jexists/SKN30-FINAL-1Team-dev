@@ -15,6 +15,7 @@ from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
+from app.ml.deal_baseline import DealModelError
 from app.models.agent import AgentRun
 from app.models.content import Report
 from app.models.workspace import Member
@@ -340,14 +341,14 @@ async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch)
             "features": {},
             "label": "watch",
             "high_probability": 0.5,
-            "model_version": "deal-dummy-uniform-v0",
+            "model_version": "test-deal-model-v1",
         }
     }
 
     async def fake_run(snapshot):
         assert snapshot == run.input_snapshot
         return SimpleNamespace(
-            deal_assessment=SimpleNamespace(model_version="deal-dummy-uniform-v0"),
+            deal_assessment=SimpleNamespace(model_version="test-deal-model-v1"),
             model_dump=lambda: output_snapshot,
         )
 
@@ -359,10 +360,35 @@ async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch)
     assert run.output_snapshot == output_snapshot
     assert run.evidence == {
         "prompt_version": meeting_analysis.PROMPT_VERSION,
-        "model_version": "deal-dummy-uniform-v0",
+        "model_version": "test-deal-model-v1",
     }
     assert first.commit_count == 1
     assert second.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_execute_records_model_failure_separately_from_llm_failure(monkeypatch):
+    member = _member()
+    run = _run(member)
+    run.agent_code = "meeting_analysis"
+    first = _Db(_Result(scalar=run))
+    second = _Db(_Result(scalar=run))
+    sessions = iter((first, second))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(next(sessions)),
+    )
+
+    async def fake_run(_snapshot):
+        raise DealModelError("deal_model_unavailable")
+
+    monkeypatch.setattr(meeting_analysis, "run", fake_run)
+
+    await agent_run_service.execute(run.id)
+
+    assert run.status_code == "failed"
+    assert run.error_message == "deal_model_unavailable"
 
 
 def test_same_idempotency_key_returns_existing_run(llm_ready):

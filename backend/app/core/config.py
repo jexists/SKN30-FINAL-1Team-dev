@@ -4,6 +4,7 @@
 코드 다른 곳에서 os.getenv 를 직접 호출하지 마세요.
 """
 
+from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
@@ -48,6 +49,9 @@ class Settings(BaseSettings):
     stt_model: str = "gpt-4o-transcribe"
     stt_timeout_seconds: float = Field(default=120.0, gt=0, le=300)
     stt_max_bytes: int = Field(default=25 * 1024 * 1024, gt=0, le=25 * 1024 * 1024)
+
+    # 모델 산출물은 Git에 넣지 않고 배포 환경에서 이 디렉터리에 읽기 전용으로 주입한다.
+    deal_model_dir: Path = Path(__file__).resolve().parents[2] / "pipeline" / "artifacts"
 
     # Supabase Auth. password login 은 secret 이 아니라 publishable 키를 씁니다.
     # 두 키 모두 서버 프로세스 안에서만 쓰고 브라우저로 보내지 않습니다.

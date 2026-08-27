@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import contract_management, meeting_analysis, report_writing, schedule_management
 from app.core.config import settings
 from app.db.session import get_sessionmaker
+from app.ml.deal_baseline import DealModelError
 from app.models.agent import AgentRun
 from app.models.content import Report
 from app.models.workspace import Member
@@ -306,6 +307,8 @@ async def execute(run_id: UUID) -> None:
         else:
             error = "unsupported_agent"
     except LLMError as caught:
+        error = str(caught)
+    except DealModelError as caught:
         error = str(caught)
     except Exception:
         # 공급자 예외 원문에 URL 이나 key 가 섞일 수 있어 코드만 남긴다.

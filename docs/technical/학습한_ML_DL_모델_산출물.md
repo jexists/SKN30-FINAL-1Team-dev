@@ -132,9 +132,9 @@ backend/pipeline/artifacts/
 
 | 파일 | 역할 | 크기 | SHA-256 |
 |---|---|---:|---|
-| `deal-stacking-lr-v1-models.joblib` | LR·NB·ExtraTrees·CatBoost·Stacking 메타모델·입력 스키마 | 1,316,974 bytes | `97d363b2f3f628ea4b5f0a9fa3946bd420d94677172e6f09e5e7a4cecfdb8db5` |
-| `deal-stacking-lr-v1-tabicl.pkl` | TabICL 가중치와 전체 학습 문맥 | 111,436,285 bytes | `6de049ae1fa14cd347fb2cc743014b7b7ede45a646b8aaeaa605ced461e0f90c` |
-| `deal-stacking-lr-v1.json` | 모델·스키마·평가·환경·해시·기준 확률 메타데이터 | 11,510 bytes | `46238930b660e8e7bd497fab0a25feabdea6801d52cc18f8793ad49593cbba8a` |
+| `deal-stacking-lr-v1-models.joblib` | LR·NB·ExtraTrees·CatBoost·Stacking 메타모델·입력 스키마 | 1,316,965 bytes | `78a56a3bcc6a69da94fde8366c228036103f5c42b48d668fec2d1051cdbd4a6f` |
+| `deal-stacking-lr-v1-tabicl.pkl` | TabICL 가중치와 전체 학습 문맥 | 111,436,285 bytes | `eb462256069cf27f2a572c0b230dbb06eb1eeb9295e0d03fb5f0255ef72c6ffb` |
+| `deal-stacking-lr-v1.json` | 모델·스키마·평가·환경·해시·기준 확률 메타데이터 | 10,748 bytes | `1e48bb2217db9795a129e67acb520ea0ef79e7a7c50b9e42f5b8e91dc375db65` |
 
 joblib과 pickle 계열 파일은 로드 과정에서 코드를 실행할 수 있다. 신뢰할 수 있는 릴리스의 파일만 사용하고 로드 전에 SHA-256을 확인한다.
 

@@ -7,14 +7,28 @@ dependencies = [
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "nh3>=0.3.1",
+    "catboost==1.2.10",
+    "joblib==1.5.3",
+    "numpy==2.5.2",
+    "pandas==3.0.5",
     "pydantic-settings>=2.14.2",
     "pyjwt[crypto]>=2.10.1",
     "python-multipart>=0.0.32",
-    "scikit-learn>=1.9.0",
+    "scikit-learn==1.9.0",
     "sqlalchemy[asyncio]>=2.0.51",
+    "tabicl==2.1.1",
+    "torch==2.13.0",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
 ]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu", marker = "sys_platform == 'linux'" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [
