@@ -42,8 +42,10 @@ def get_engine() -> AsyncEngine:
         settings.async_database_url,
         echo=settings.debug,
         pool_pre_ping=True,
-        pool_size=2,
-        max_overflow=0,
+        pool_size=10,        # 기본으로 유지할 커넥션 수 (기본값 보통 5)
+        max_overflow=20,     # 풀이 꽉 찼을 때 추가로 허용할 임시 커넥션 수
+        pool_timeout=30,     # 커넥션을 기다리는 최대 시간(초)
+        pool_recycle=1800,   # 오래된 커넥션을 재접속하는 주기(초)
     )
 
 
