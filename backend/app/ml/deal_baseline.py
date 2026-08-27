@@ -14,7 +14,7 @@ from app.core.config import settings
 
 MODEL_VERSION = "deal-stacking-lr-v1"
 METADATA_FILENAME = f"{MODEL_VERSION}.json"
-METADATA_SHA256 = "1e48bb2217db9795a129e67acb520ea0ef79e7a7c50b9e42f5b8e91dc375db65"
+METADATA_SHA256 = "7592e3188d52b1a42f4df19ddf793909708cdf51f94a461c43c5a3cc72b8325a"
 
 FEATURE_NAMES = (
     "Authority",
@@ -162,6 +162,7 @@ def _load_models() -> tuple[dict[str, Any], Any, float]:
             or _category_contract(metadata["category_values"]) != CATEGORY_VALUES
             or metadata["target"] != {"Lost": 0, "Won": 1}
             or metadata["classification_threshold"] != 0.5
+            or metadata["serialization_device"] != {"tabicl": "cpu"}
         ):
             raise ValueError("metadata_contract_invalid")
 

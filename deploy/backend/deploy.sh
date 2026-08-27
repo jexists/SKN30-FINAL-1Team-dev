@@ -17,8 +17,8 @@ readonly DEAL_MODEL_HOST_DIR="/opt/salesluv-models/${DEAL_MODEL_VERSION}"
 readonly DEAL_MODEL_CONTAINER_DIR="/app/pipeline/artifacts"
 readonly -a DEAL_MODEL_ARTIFACTS=(
     "deal-stacking-lr-v1-models.joblib:78a56a3bcc6a69da94fde8366c228036103f5c42b48d668fec2d1051cdbd4a6f"
-    "deal-stacking-lr-v1-tabicl.pkl:eb462256069cf27f2a572c0b230dbb06eb1eeb9295e0d03fb5f0255ef72c6ffb"
-    "deal-stacking-lr-v1.json:1e48bb2217db9795a129e67acb520ea0ef79e7a7c50b9e42f5b8e91dc375db65"
+    "deal-stacking-lr-v1-tabicl.pkl:9f80192d53d5c4d7c25af50d01f3f99f1c2cda7c3d7492a99832176b6b1cfec8"
+    "deal-stacking-lr-v1.json:7592e3188d52b1a42f4df19ddf793909708cdf51f94a461c43c5a3cc72b8325a"
 )
 
 readonly IMAGE_REPOSITORY="salesluv-backend"
@@ -642,6 +642,14 @@ start_production() {
         "${image}" >/dev/null
 }
 
+validate_deal_model_runtime() {
+    local container_name="$1"
+
+    docker exec "${container_name}" \
+        /app/.venv/bin/python -c \
+        'from app.ml.deal_baseline import _load_models; _load_models()'
+}
+
 rollback_production() {
     ROLLBACK_ATTEMPTED="true"
     printf 'Production promotion was interrupted; starting rollback.\n' >&2
@@ -839,6 +847,10 @@ fi
 
 if ! wait_for_backend "${NEW_PORT}"; then
     die "candidate validation failed; the production upstream was not changed"
+fi
+printf 'Validating the deal model in backend slot %s.\n' "${NEW_CONTAINER}"
+if ! validate_deal_model_runtime "${NEW_CONTAINER}"; then
+    die "deal model validation failed; the production upstream was not changed"
 fi
 
 PROMOTION_STARTED="true"

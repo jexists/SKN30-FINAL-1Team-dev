@@ -9,8 +9,8 @@
 | 모델 유형 | 5개 기본 분류기 + LogisticRegression 메타모델 |
 | 입력 | 13개 범주형 컬럼 |
 | 분류 임계값 | `0.50` |
-| 작성 기준일 | 2026-08-26 |
-| 산출물 상태 | 전체 재학습·저장·해시·CPU 재로드 검증 완료, 백엔드 연결 전 |
+| 작성 기준일 | 2026-08-27 |
+| 산출물 상태 | 기존 예측을 유지하며 TabICL을 CPU 이식 가능하게 재패키징, 배포 전 |
 
 ## 1. 모델 카드
 
@@ -133,8 +133,8 @@ backend/pipeline/artifacts/
 | 파일 | 역할 | 크기 | SHA-256 |
 |---|---|---:|---|
 | `deal-stacking-lr-v1-models.joblib` | LR·NB·ExtraTrees·CatBoost·Stacking 메타모델·입력 스키마 | 1,316,965 bytes | `78a56a3bcc6a69da94fde8366c228036103f5c42b48d668fec2d1051cdbd4a6f` |
-| `deal-stacking-lr-v1-tabicl.pkl` | TabICL 가중치와 전체 학습 문맥 | 111,436,285 bytes | `eb462256069cf27f2a572c0b230dbb06eb1eeb9295e0d03fb5f0255ef72c6ffb` |
-| `deal-stacking-lr-v1.json` | 모델·스키마·평가·환경·해시·기준 확률 메타데이터 | 10,748 bytes | `1e48bb2217db9795a129e67acb520ea0ef79e7a7c50b9e42f5b8e91dc375db65` |
+| `deal-stacking-lr-v1-tabicl.pkl` | CPU 직렬화한 TabICL 가중치와 전체 학습 문맥 | 111,436,319 bytes | `9f80192d53d5c4d7c25af50d01f3f99f1c2cda7c3d7492a99832176b6b1cfec8` |
+| `deal-stacking-lr-v1.json` | 모델·스키마·평가·환경·해시·기준 확률 메타데이터 | 10,801 bytes | `7592e3188d52b1a42f4df19ddf793909708cdf51f94a461c43c5a3cc72b8325a` |
 
 joblib과 pickle 계열 파일은 로드 과정에서 코드를 실행할 수 있다. 신뢰할 수 있는 릴리스의 파일만 사용하고 로드 전에 SHA-256을 확인한다.
 
@@ -144,12 +144,15 @@ joblib과 pickle 계열 파일은 로드 과정에서 코드를 실행할 수 �
 |---|---|
 | 현재 프로세스 재로드 | 통과 |
 | 현재 프로세스 최대 확률 차이 | `0` |
-| 새 CPU 프로세스 재로드 | 통과 |
-| 새 CPU 프로세스 최대 확률 차이 | `1.0451534443456367e-06` |
+| 교체 전후 최대 확률 차이 | `0` |
+| 저장된 TabICL 장치 | `cpu` |
+| 기존 기준 확률 대비 최대 차이 | `1.0451534443456367e-06` |
+| 초기 파일 Linux amd64 CPU 컨테이너 | MPS 오류 재현 |
+| CPU 직렬화 파일 Linux amd64 CPU 컨테이너 | 통과 (`torch 2.13.0+cpu`, CUDA/MPS 비활성) |
 | 허용오차 | `rtol=1e-5`, `atol=1e-6` |
 | 모델 파일 SHA-256 | 메타데이터와 일치 |
 
-재로드 검사는 메타데이터에 저장된 범주형 기준 입력 16건으로 수행했다.
+재로드 검사는 메타데이터에 저장된 범주형 기준 입력 16건으로 수행했다. Linux 검사는 운영과 같은 백엔드 Dockerfile로 이미지를 빌드하고 실제 `_load_models()`와 `predict()`를 호출했다.
 
 ## 7. 재현 환경과 파일
 
@@ -174,7 +177,7 @@ backend/notebooks/pyproject.toml
 backend/notebooks/uv.lock
 ```
 
-TabICL 최종 학습에는 MPS를 사용했고 새 프로세스 검증에는 CPU를 사용했다.
+TabICL 최종 학습에는 MPS를 사용했다. 배포 파일은 학습 결과를 바꾸지 않고 직렬화 장치만 CPU로 고정해 Linux CPU 환경에서도 MPS를 먼저 찾지 않도록 했다.
 
 ## 8. 백엔드 연결 체크리스트
 

@@ -166,6 +166,19 @@ docker_run_args=" ${DOCKER_RUN_ARGS[*]} "
     || fail "deal model directory was not mounted read-only"
 unset -f docker
 
+DOCKER_EXEC_ARGS=()
+docker() {
+    DOCKER_EXEC_ARGS=("$@")
+}
+validate_deal_model_runtime test-container
+[[ "${DOCKER_EXEC_ARGS[0]}" == "exec" \
+    && "${DOCKER_EXEC_ARGS[1]}" == "test-container" \
+    && "${DOCKER_EXEC_ARGS[2]}" == "/app/.venv/bin/python" \
+    && "${DOCKER_EXEC_ARGS[3]}" == "-c" \
+    && "${DOCKER_EXEC_ARGS[4]}" == *"_load_models()"* ]] \
+    || fail "candidate deal model validation command was not executed"
+unset -f docker
+
 upstream_file="$(write_environment upstream $'upstream salesluv_backend {\n    server 127.0.0.1:8000;\n}\n')"
 [[ "$(read_backend_upstream_port "${upstream_file}")" == "8000" ]] \
     || fail "active Nginx upstream port was not parsed"

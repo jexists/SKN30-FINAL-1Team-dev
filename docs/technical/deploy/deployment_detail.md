@@ -261,14 +261,15 @@ gh workflow run deploy-backend.yml --ref develop
     - `--restart unless-stopped`
     - host loopback에만 publish
     - JSON log `10 MB × 3`
-    - volume 없음
+    - 버전 고정 딜 모델 디렉터리를 읽기 전용 bind mount
 12. 후보 슬롯에서 `/api/health`와 `/api/health/db`를 각각 확인한다. 최대 30회, 2초 간격, 요청 timeout 5초다.
-13. 두 점검이 모두 성공해야 Nginx upstream 파일의 포트를 원자 교체한다.
-14. `nginx -t` 후 reload하고, 실제 upstream이 새 포트인지 다시 검사한다.
-15. 이전 슬롯은 10초 drain한 뒤 최대 30초를 주고 중지·삭제한다.
-16. 현재 이미지와 직전 이미지 ID만 남기고 더 오래된 SHA 이미지를 best effort로 정리한다.
-17. SSM 상태가 `Success`이고 response code가 `0`일 때만 Actions가 성공한다.
-18. 성공·실패 결과를 Discord에 보낸다. 알림 실패는 배포 결과를 바꾸지 않는다.
+13. 후보 컨테이너 안에서 딜 모델의 해시·계약·기준 16건 추론을 검증한다.
+14. 세 점검이 모두 성공해야 Nginx upstream 파일의 포트를 원자 교체한다.
+15. `nginx -t` 후 reload하고, 실제 upstream이 새 포트인지 다시 검사한다.
+16. 이전 슬롯은 10초 drain한 뒤 최대 30초를 주고 중지·삭제한다.
+17. 현재 이미지와 직전 이미지 ID만 남기고 더 오래된 SHA 이미지를 best effort로 정리한다.
+18. SSM 상태가 `Success`이고 response code가 `0`일 때만 Actions가 성공한다.
+19. 성공·실패 결과를 Discord에 보낸다. 알림 실패는 배포 결과를 바꾸지 않는다.
 
 Actions는 SSM 명령 실행 2,100초, 전달 60초, polling 2,250초, 취소 확인 60초 제한을 둔다. Actions가 중단되면 끝나지 않은 SSM 명령의 취소를 요청한다.
 
@@ -281,7 +282,7 @@ curl -fsS https://d3m90og33enu6v.cloudfront.net/api/health
 curl -fsS https://d3m90og33enu6v.cloudfront.net/api/health/db
 ```
 
-그다음 실제 브라우저에서 로그인과 변경된 API 한 건을 확인한다. 기본 health는 DB의 `select 1`만 확인하므로 스키마, RLS, Auth, Storage, LLM, STT 정상까지 의미하지 않는다.
+그다음 실제 브라우저에서 로그인과 변경된 API 한 건을 확인한다. 배포 과정은 딜 모델까지 별도로 검증하지만, 기본 health는 DB의 `select 1`만 확인하므로 스키마, RLS, Auth, Storage, LLM, STT 정상까지 의미하지 않는다.
 
 ### 6.4 프론트엔드 배포 버튼 실행
 
