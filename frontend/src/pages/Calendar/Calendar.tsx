@@ -6,10 +6,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 
+import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
+import Modal from '@/components/Modal'
 import usePointerDrag from '@/hooks/usePointerDrag'
+import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import useOrderList from '@/pages/Orders/useOrderList'
-import type { AiSuggestionReady, CalendarEvent } from '@/types'
+import { agendaById } from '@/shared/agenda'
+import type { AgendaItem, AiSuggestionReady, CalendarEvent } from '@/types'
 import { startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 
 import CalendarSkeleton from './components/CalendarSkeleton'
@@ -41,6 +45,10 @@ export default function Calendar() {
     reload: reloadOrders,
   } = useOrderList()
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
+  // 상세는 번호만 들고 스토어에서 다시 찾습니다. 수정하면 그 자리에서 최신으로 바뀌고
+  // 삭제하면 스스로 닫힙니다.
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<AgendaItem | null>(null)
   const [editing, setEditing] = useState<CalendarEvent | null>(null)
   const [creating, setCreating] = useState<string | null>(null)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
@@ -164,6 +172,8 @@ export default function Calendar() {
     [removeEvent],
   )
 
+  const viewing = viewingId === null ? undefined : agendaById(viewingId)
+
   const loading = eventsLoading || ordersLoading
   const error = eventsError ?? ordersError
   const reload = () => {
@@ -199,7 +209,7 @@ export default function Calendar() {
           dropISO={dropISO}
           onCursorChange={setCursor}
           onSelect={setSelectedISO}
-          onOpenEvent={setEditing}
+          onOpenEvent={(event) => setViewingId(event.id)}
           onCreate={setCreating}
           onGrabEvent={grabEvent}
         />
@@ -223,6 +233,49 @@ export default function Calendar() {
         <div className={styles.dragChip} style={{ left: point.x, top: point.y }} aria-hidden="true">
           {dragging.label}
         </div>
+      )}
+
+      {viewing && (
+        <RecordDrawer
+          item={viewing}
+          onClose={() => setViewingId(null)}
+          onEdit={(item) => {
+            setViewingId(null)
+            setEditing(item)
+          }}
+          onDelete={() => {
+            setViewingId(null)
+            setDeleting(viewing)
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal
+          title="일정을 삭제할까요?"
+          description="되돌릴 수 없습니다."
+          onClose={() => setDeleting(null)}
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setDeleting(null)}>
+                취소
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void removeEvent(deleting.id).catch(() => undefined)
+                  setDeleting(null)
+                }}
+              >
+                삭제
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>
+            {deleting.time} · {deleting.hospital || deleting.title}
+          </p>
+        </Modal>
       )}
 
       {creating && (
