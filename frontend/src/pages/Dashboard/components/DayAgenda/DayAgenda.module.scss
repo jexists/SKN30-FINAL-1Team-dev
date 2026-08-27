@@ -46,7 +46,7 @@
   color: var(--blue);
 }
 
-// 회사 이름 줄 오른쪽 끝. 완료 토글과 '...' 메뉴가 나란히 섭니다.
+// 회사 이름 줄 오른쪽 끝. '보고서 작성' 과 '...' 메뉴가 나란히 섭니다.
 .actions {
   grid-column: 2;
   grid-row: 1;
@@ -165,54 +165,45 @@
   }
 }
 
-// 완료를 정하는 자리입니다. '...' 메뉴 왼쪽에 붙어 이 줄이 끝났는지도 함께
-// 보여 줍니다. 체크가 들고 나도 메뉴 자리가 밀리지 않게 너비를 고정합니다.
-// 톤은 드로어의 완료 버튼과 같습니다. 같은 일을 하는 버튼이기 때문입니다.
-.doneBtn {
+// 아직 보고서를 안 쓴 줄에만 서는 길입니다. '...' 메뉴 왼쪽에 붙어 이 줄에 남은
+// 일이 무엇인지 알립니다. 톤은 메뉴 버튼과 맞추되, 할 일이라 글자를 세워 둡니다.
+.reportBtn {
   flex: none;
-  width: 62px;
   height: 26px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
+  gap: 4px;
+  padding: 0 10px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
   background: var(--surface);
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background var(--t-fast) var(--ease-out),
     border-color var(--t-fast) var(--ease-out),
     color var(--t-fast) var(--ease-out);
 
-  // 누르면 어떤 색이 되는지 hover 에서 미리 보여 줍니다.
+  svg {
+    flex: none;
+    color: var(--muted);
+  }
+
   &:hover {
-    border-color: var(--green);
-    color: var(--green-ink);
+    border-color: var(--blue);
+    background: var(--blue-tint);
+    color: var(--blue);
+
+    svg {
+      color: currentcolor;
+    }
   }
 
   &:active {
     transform: translateY(1px);
-  }
-
-  // 끝난 뒤에도 테두리를 남깁니다. 옅은 초록 바탕만으로는 흐린 줄(.isDone)
-  // 안에서 알약의 윤곽이 뭉개져 눌린 것인지 잘 드러나지 않습니다.
-  &[aria-pressed='true'] {
-    border-color: var(--green);
-    background: var(--green-tint);
-    color: var(--green-ink);
-
-    // 되돌릴 수 있다는 것만 알리고 색은 그대로 둡니다.
-    &:hover {
-      border-color: var(--green-ink);
-    }
-  }
-
-  @include md {
-    width: 58px;
   }
 }
 
@@ -300,8 +291,8 @@
 
 // 끝낸 줄은 훑을 때 바로 걸러져야 합니다. 흐리게만 하면 차이가 약해
 // 줄 전체에 옅은 바탕을 깔아 남은 일과 갈라 놓습니다.
-// 완료 버튼과 배지 줄은 흐리지 않습니다. 끝냈다는 사실과 보고서를 썼는지가
-// 이 줄에서 마지막까지 남는 정보이기 때문입니다.
+// 보고서 줄은 흐리지 않습니다. 보고서를 썼는지가 이 줄에서 마지막까지 남는
+// 정보이기 때문입니다.
 // .who 는 .org 안에 있어 따로 흐리면 두 번 겹칩니다.
 .isDone {
   background: var(--surface-2);

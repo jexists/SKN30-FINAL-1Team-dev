@@ -1,0 +1,71 @@
+.root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 참고 열과 같이 제목과 여백으로만 묶습니다. 실선을 더 그으면 조각이 늘어납니다. */
+.block {
+  padding-bottom: var(--s6);
+
+  &:last-of-type {
+    padding-bottom: 0;
+  }
+}
+
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+
+  h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+}
+
+.transcript {
+  width: 100%;
+  padding: var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+  outline: none;
+
+  &:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  &:disabled {
+    background: var(--fill);
+    color: var(--muted);
+  }
+}
+
+/* 넓은 열이라 버튼을 가로로 늘리면 눌러야 할 곳이 흐려집니다. 오른쪽 끝에 섭니다. */
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s3);
+  padding-top: var(--s4);
+}
+
+.generate {
+  min-width: 160px;
+}
+
+.error {
+  margin-top: var(--s2);
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.6;
+}
+

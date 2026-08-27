@@ -72,6 +72,8 @@ export interface AgendaItem extends AgendaSeed {
   date: string
   customerContactId?: string | null
   customerContactName?: string
+  /** 이 일정의 고객사. 회사에 걸린 영업 현황을 찾을 때 씁니다. */
+  customerCompanyId?: string | null
   salesDealId?: string | null
   productId?: string | null
   ownerMemberId?: string

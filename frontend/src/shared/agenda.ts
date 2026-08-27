@@ -144,6 +144,7 @@ export function activityToAgenda(activity: ActivityRead): AgendaItem {
     reported: false,
     customerContactId: activity.customer_contact_id,
     customerContactName: activity.customer_contact_name ?? '',
+    customerCompanyId: activity.customer_company_id,
     salesDealId: activity.sales_deal_id,
     productId: activity.product_id,
     ownerMemberId: activity.owner_member_id,

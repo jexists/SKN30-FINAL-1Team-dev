@@ -41,7 +41,7 @@ export default function Dashboard() {
 
   const { data, loading, error: loadError, reload } = useDashboard(weekOffset)
   // 일정 목록은 하루씩 받아 옵니다. 오늘치는 위 응답이 이미 심어 두어 다시 받지 않습니다.
-  const { mutationError, addEvent, updateEvent, removeEvent, toggleComplete } = useAgendaMutations()
+  const { mutationError, addEvent, updateEvent, removeEvent } = useAgendaMutations()
 
   // 드로어는 눌러야 열립니다. 열린 것만 자기 목록을 받아 옵니다.
   const kpiKey = open?.type === 'kpi' ? open.key : null
@@ -60,16 +60,6 @@ export default function Dashboard() {
     setWeekOffset(0)
     setSelectedISO(TODAY_ISO)
   }, [])
-
-  const toggleDone = useCallback(
-    (item: AgendaItem) => {
-      // 타일의 오늘 일정 수는 완료 여부와 무관하지만, 주간 줄의 마감 수는 따라 움직입니다.
-      void toggleComplete(item.id, item.done)
-        .then(reload)
-        .catch(() => undefined)
-    },
-    [reload, toggleComplete],
-  )
 
   const closeDrawer = useCallback(() => setOpen(null), [])
 
@@ -126,7 +116,6 @@ export default function Dashboard() {
           <DayAgenda
             ref={agendaRef}
             dateISO={selectedISO}
-            onToggleDone={toggleDone}
             onOpen={(item) => setOpen({ type: 'record', item })}
             onAddSchedule={() => setOpen({ type: 'addEvent' })}
             onEdit={setEditing}

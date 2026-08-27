@@ -1,12 +1,21 @@
 import type { ReportAttachment, ReportStatus, ReportTemplate } from './reports'
 
 /**
- * 미팅보고서를 팀장이 어디까지 봤는지.
+ * 업무보고서를 팀장이 어디까지 봤는지.
  *
  * 서버 status_code 네 가지에 보류 하나를 더한 것입니다. 이름표와 색은
  * pages/Meetings/reviewStatus.ts 가 붙입니다.
  */
 export type MeetingReview = 'writing' | 'submitted' | 'approved' | 'needsMore' | 'hold'
+
+/** 미팅에 연결한 영업 현황 한 건. 고를 때 본 이름표를 그대로 남깁니다. */
+export interface MeetingDealRef {
+  id: string
+  /** 딜 번호처럼 사람이 부르는 이름 */
+  label: string
+  /** 제목·단계처럼 딜을 가리는 데 필요한 곁말 */
+  note?: string
+}
 
 /**
  * 미팅 한 건의 기록. 캘린더 일정(AgendaItem) 하나에 붙습니다.
@@ -39,6 +48,14 @@ export interface MeetingReportSeed {
   /** ReportFieldDef.id → 입력값 */
   values: Record<string, string>
   attachments: ReportAttachment[]
+  /**
+   * 이 미팅이 어느 영업 현황에 대한 것인지. 여러 건일 수 있습니다.
+   *
+   * 딜은 계속 움직이므로 id 만 두면 나중에 무엇을 골랐는지 읽을 수 없습니다.
+   * 고를 때 본 이름표를 salesDeals 에 함께 박아 둡니다.
+   */
+  salesDealIds?: string[]
+  salesDeals?: MeetingDealRef[]
   /** AI 가 어디를 보고 채웠는지 한 줄 */
   evidence?: string
   /**
@@ -53,7 +70,7 @@ export interface MeetingReportSeed {
   aiGeneratedAt?: string
 }
 
-/** 실제 날짜가 붙은 미팅보고서. date 는 미팅한 날입니다. */
+/** 실제 날짜가 붙은 업무보고서. date 는 미팅한 날입니다. */
 export interface MeetingReport extends MeetingReportSeed {
   /** YYYY-MM-DD */
   date: string

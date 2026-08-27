@@ -1,19 +1,12 @@
-import { forwardRef, useState } from 'react'
+import { forwardRef, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import Button from '@/components/Button'
-import {
-  CalendarIcon,
-  CheckIcon,
-  DailyReportIcon,
-  EditIcon,
-  MoreIcon,
-  TrashIcon,
-} from '@/components/icons'
+import { CalendarIcon, DailyReportIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
-import { InlineLoader } from '@/components/Skeleton'
+import { meetingComposePath } from '@/constants/routes'
+import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { useAgendaFor } from '@/shared/agenda'
-import { useAgendaReportLink } from '@/shared/agendaReport'
 import type { AgendaItem } from '@/types'
 import { fmtDay, parseISO, TODAY } from '@/utils/date'
 
@@ -21,7 +14,6 @@ import styles from './DayAgenda.module.scss'
 
 interface Props {
   dateISO: string
-  onToggleDone: (item: AgendaItem) => void
   onOpen: (item: AgendaItem) => void
   onAddSchedule: () => void
   /** 줄 메뉴의 '수정'. 일정 폼을 엽니다. */
@@ -36,20 +28,26 @@ const DAY = 86_400_000
 const RELATIVE: Record<string, string> = { '-1': '어제', '0': '오늘', '1': '내일' }
 
 const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
-  { dateISO, onToggleDone, onOpen, onAddSchedule, onEdit, onDelete, flash },
+  { dateISO, onOpen, onAddSchedule, onEdit, onDelete, flash },
   ref,
 ) {
   const list = useAgendaFor(dateISO)
   /** 메뉴를 펴 둔 줄. 한 번에 한 줄만 폅니다. */
   const [menuId, setMenuId] = useState<string | null>(null)
-  // 보고서로 가는 길은 RecordDrawer 와 같은 곳을 봅니다. AgendaItem.reported 는
-  // 목업 시드의 고정값이라 이 자리에서 쓴 기록을 따라오지 못합니다.
-  // 이 길은 펴 둔 메뉴 안에만 서므로 메뉴를 열 때 그 줄만 물어봅니다.
-  const reportState = useAgendaReportLink(list.find((it) => it.id === menuId) ?? null)
+  // 아직 보고서를 안 쓴 줄에만 '보고서 작성' 을 세웁니다. 줄마다 따로 물으면 요청이
+  // 줄 수만큼 늘어나므로 그 날 쓴 보고서를 한 번에 받아 일정 번호로 맞춰 봅니다.
+  const { reports, loading: reportsLoading } = useMeetingReportsOn(dateISO)
+  const writtenIds = useMemo(
+    () => new Set(reports.map((report) => report.agendaId).filter(Boolean)),
+    [reports],
+  )
   const date = parseISO(dateISO)
   const relative = RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
   const renderItem = (it: AgendaItem) => {
     const done = it.done
+    // 아직 안 쓴 줄에만 세웁니다. 답을 받기 전에도 세우지 않습니다.
+    // 세웠다가 거두면 이미 쓴 줄에서 깜빡입니다.
+    const needsReport = !reportsLoading && !writtenIds.has(it.id)
 
     return (
       // 줄 어디를 눌러도 상세가 열립니다. 안쪽 버튼들은 각자 할 일이
@@ -64,22 +62,21 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
         </div>
 
         <div className={styles.body}>
-          {/* 이 줄에 대고 할 수 있는 일을 오른쪽 끝에 모읍니다. 완료 토글이 앞에,
-              보고서·수정·삭제는 '...' 하나에 접어 그 뒤에 섭니다. 각자 버튼으로
-              서면 줄마다 넷이 늘어서 회사와 제목보다 먼저 보입니다.
+          {/* 이 줄에 대고 할 수 있는 일을 오른쪽 끝에 모읍니다. 아직 안 쓴 보고서가
+              앞에, 수정·삭제는 '...' 하나에 접어 그 뒤에 섭니다.
               줄 전체는 상세를 열므로 이 안의 클릭은 여기서 끊습니다. */}
           <div className={styles.actions} onClick={(event) => event.stopPropagation()}>
-            {/* 목록을 훑다가 바로 끝낼 수 있게 상세를 열지 않고 여기서 토글합니다. */}
-            <button
-              type="button"
-              className={styles.doneBtn}
-              aria-pressed={done}
-              aria-label={done ? `${it.title} 완료 취소` : `${it.title} 완료로 표시`}
-              onClick={() => onToggleDone(it)}
-            >
-              {done && <CheckIcon width={13} height={13} />}
-              {done ? '완료' : '미완료'}
-            </button>
+            {/* 아직 보고서가 없는 줄에만 섭니다. 누르면 그 일정으로 작성 화면이 열립니다. */}
+            {needsReport && (
+              <Link
+                to={meetingComposePath(it.id)}
+                className={styles.reportBtn}
+                aria-label={`${it.title} 업무보고서 작성`}
+              >
+                <DailyReportIcon width={13} height={13} />
+                보고서 작성
+              </Link>
+            )}
 
             <Popover
               open={menuId === it.id}
@@ -100,21 +97,6 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
               }
             >
               <div className={styles.menu}>
-                {/* '작성' 이라고 서 있으면 아직 안 쓴 것, '열기' 면 이미 쓴 것입니다.
-                      메뉴를 연 뒤에 물어보므로 답을 받기 전까지는 이 자리가 비어 있습니다. */}
-                {reportState.error ? (
-                  <button type="button" onClick={reportState.reload}>
-                    <DailyReportIcon width={15} height={15} />
-                    보고서 다시 조회
-                  </button>
-                ) : reportState.link ? (
-                  <Link to={reportState.link.to} onClick={() => setMenuId(null)}>
-                    <DailyReportIcon width={15} height={15} />
-                    {reportState.link.label}
-                  </Link>
-                ) : (
-                  <InlineLoader label="보고서 연결을 확인하는 중입니다." />
-                )}
                 <button
                   type="button"
                   onClick={() => {

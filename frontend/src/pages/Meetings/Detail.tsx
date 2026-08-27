@@ -22,7 +22,7 @@ export default function Detail() {
   const { reportId } = useParams()
   const { item, loading, error, reload } = useReportDetail(
     reportId,
-    '미팅보고서를 불러오지 못했습니다.',
+    '업무보고서를 불러오지 못했습니다.',
   )
 
   const report = item ? toMeetingReport(item) : undefined
@@ -30,7 +30,7 @@ export default function Detail() {
   if (loading)
     return (
       <section>
-        <SkeletonDetail label="미팅보고서를 불러오는 중입니다." title height={420} />
+        <SkeletonDetail label="업무보고서를 불러오는 중입니다." title height={420} />
       </section>
     )
 
@@ -50,9 +50,9 @@ export default function Detail() {
   if (!report) {
     return (
       <section>
-        <h1 className="sr-only">미팅보고서를 찾을 수 없음</h1>
+        <h1 className="sr-only">업무보고서를 찾을 수 없음</h1>
         <p className={styles.missing}>
-          미팅보고서를 찾을 수 없습니다. <Link to={ROUTES.DASHBOARD}>대시보드로 돌아가기</Link>
+          업무보고서를 찾을 수 없습니다. <Link to={ROUTES.DASHBOARD}>대시보드로 돌아가기</Link>
         </p>
       </section>
     )
@@ -61,7 +61,7 @@ export default function Detail() {
   return (
     <section>
       <h1 className="sr-only">
-        {report.hospital} {report.title} 미팅보고서
+        {report.hospital} {report.title} 업무보고서
       </h1>
 
       {/*
@@ -88,7 +88,7 @@ export default function Detail() {
 
         {/*
           머리말은 어디로 갈 수 있는지를, 시트 아래는 이 문서에 무엇을 할 수 있는지를
-          맡습니다. 미팅 기록에서 나가므로 목록도 미팅보고서 탭으로 엽니다.
+          맡습니다. 미팅 기록에서 나가므로 목록도 업무보고서 탭으로 엽니다.
         */}
         <DailyListLink tab="meeting" className={styles.toDaily} />
       </header>
@@ -144,12 +144,7 @@ export default function Detail() {
         <aside className={styles.materials}>
           <section>
             <h2 className={styles.materialHead}>미팅 정보</h2>
-            <MeetingFacts
-              dept={report.dept}
-              contact={report.contact}
-              product={report.product}
-              place={report.place}
-            />
+            <MeetingFacts dept={report.dept} contact={report.contact} place={report.place} />
           </section>
 
           <section>

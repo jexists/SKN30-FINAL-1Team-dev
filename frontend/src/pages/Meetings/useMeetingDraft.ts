@@ -1,4 +1,4 @@
-// 미팅보고서 작성 화면의 상태를 전부 담습니다. 화면은 배치만 하고 규칙은 여기 있습니다.
+// 업무보고서 작성 화면의 상태를 전부 담습니다. 화면은 배치만 하고 규칙은 여기 있습니다.
 //
 // 이 파일의 핵심은 두 벌을 따로 두는 것입니다.
 //
@@ -15,6 +15,7 @@ import { transcribeAudio } from '@/api/transcriptions'
 import { meetingTemplate } from '@/shared/meetings'
 import type {
   AgendaItem,
+  AgentRunStatus,
   AttachmentKind,
   MeetingReport,
   ReportAttachment,
@@ -54,6 +55,8 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
   const [title, setTitle] = useState('')
   const [transcript, setTranscript] = useState('')
   const [attachments, setAttachments] = useState<ReportAttachment[]>([])
+  /** 이 미팅이 어느 영업 현황에 대한 것인지. 여러 건일 수 있습니다. */
+  const [salesDealIds, setSalesDealIds] = useState<string[]>([])
 
   // 최종 보고서 — 저장되는 값입니다. 화면에서는 문서 한 편으로 보이지만 저장되는
   // 모양은 그대로 항목별 값입니다. 오가는 변환은 reportDocument.ts 가 맡습니다.
@@ -88,6 +91,9 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
     setTitle(saved?.title ?? item?.title ?? '')
     setTranscript(saved?.transcript ?? '')
     setAttachments(saved?.attachments ?? [])
+    // 쓰던 것이 있으면 그대로, 아니면 일정에 이미 걸린 딜 한 건을 미리 골라 둡니다.
+    // 대개 그 딜에 대한 미팅이라 매번 같은 것을 다시 고르게 할 이유가 없습니다.
+    setSalesDealIds(saved?.salesDealIds ?? (item?.salesDealId ? [item.salesDealId] : []))
     setValues(next)
     setTouched(false)
     setSectionIssues([])
@@ -103,7 +109,7 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
     setPhase(isBlank(template, next) ? 'idle' : 'ready')
     // item 전체가 아니라 여기서 실제로 읽는 값만 봅니다. 일정 목록이 다시 그려질 때마다
     // 객체가 새로 오면 reset 이 새로 만들어져 effect 가 끝없이 돕니다.
-  }, [saved, item?.title, template])
+  }, [saved, item?.title, item?.salesDealId, template])
 
   useEffect(() => {
     reset()
@@ -185,6 +191,12 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
     setAttachments((prev) => prev.filter((one) => one.id !== id))
   }, [])
 
+  const toggleSalesDeal = useCallback((id: string) => {
+    setSalesDealIds((prev) =>
+      prev.includes(id) ? prev.filter((one) => one !== id) : [...prev, id],
+    )
+  }, [])
+
   /**
    * AI 원본을 최종 보고서로 옮깁니다. 원본을 그대로 베끼므로 부분 병합이 아닙니다.
    * 사람이 고친 값을 지우는 일이라 부르는 쪽이 먼저 묻습니다.
@@ -208,15 +220,16 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
   /** 들은 것이 있어야 정리할 수 있습니다. 적은 내용이든 첨부든 하나는 있어야 합니다. */
   const canGenerate = transcript.trim().length > 0 || attachments.length > 0
 
+  /** @returns 원본을 만들었는지. 부르는 쪽이 성공했을 때만 화면을 옮기게 합니다. */
   const generate = useCallback(
-    async (reportId: string) => {
-      if (!canGenerate || !item) return
+    async (reportId: string, onStatus?: (status: AgentRunStatus) => void) => {
+      if (!canGenerate || !item) return false
       const wasBlank = !touched && isBlank(template, values)
       setPhase('generating')
       setGenerationError(null)
 
       try {
-        const result = await generateReportDraft(reportId)
+        const result = await generateReportDraft(reportId, onStatus)
         setAiValues(result.values)
         setAiEvidence(result.evidence)
         setAiGeneratedAt(new Date().toISOString())
@@ -236,16 +249,18 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
           setPendingAi(false)
           setDocKey((key) => key + 1)
           setPhase('ready')
-          return
+          return true
         }
 
         // 이미 쓴 것이 있으면 최종 보고서를 건드리지 않습니다. 옮길지는 사람이 정합니다.
         setPendingAi(true)
         setPhase('ready')
+        return true
       } catch (reason: unknown) {
-        setGenerationError(errorMessage(reason, '미팅 보고서를 만들지 못했습니다.'))
+        setGenerationError(errorMessage(reason, '업무 보고서를 만들지 못했습니다.'))
         // 실패했는데 편집 화면을 펼치면 빈 폼만 남습니다. 있던 자리로 돌립니다.
         setPhase(wasBlank ? 'idle' : 'ready')
+        return false
       }
     },
     [canGenerate, item, touched, template, values],
@@ -262,6 +277,8 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
     addAttachments,
     removeAttachment,
     attachmentError,
+    salesDealIds,
+    toggleSalesDeal,
     values,
     applyDocument,
     restoreSections,

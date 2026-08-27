@@ -1,0 +1,92 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--blue);
+}
+
+/* InlineLoader 와 같은 회전입니다. 화면에서 도는 것은 언제나 같은 속도로 돕니다. */
+.spin {
+  flex: none;
+  animation: spin 0.9s linear infinite;
+}
+
+.headline {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * 단계 목록. 지나온 것·지금·남은 것을 한눈에 갈라 놓습니다. 진행 막대나 퍼센트는
+ * 두지 않습니다 — 서버가 진행률을 주지 않아 숫자를 만들면 거짓말이 됩니다.
+ */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border-radius: var(--r-md);
+  background: var(--fill);
+  font-size: 13px;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+  }
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+
+  /* 아직 오지 않은 단계는 점 하나로만 자리를 잡아 둡니다. */
+  i {
+    width: 5px;
+    height: 5px;
+    border-radius: var(--r-pill);
+    background: currentcolor;
+  }
+}
+
+.done {
+  color: var(--muted);
+}
+
+.now {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.todo {
+  color: var(--muted-2);
+}
+
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
