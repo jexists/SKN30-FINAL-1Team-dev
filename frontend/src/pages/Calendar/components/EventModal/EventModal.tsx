@@ -21,7 +21,8 @@ interface Props {
   /** 새로 만드는 중이면 지울 것이 아직 없어 삭제를 감춥니다. */
   mode?: 'edit' | 'create'
   onClose: () => void
-  onSave: (event: CalendarEvent) => void | Promise<void>
+  /** 저장이 끝나야 모달이 닫힙니다. 실패는 반드시 reject 로 돌려주세요. */
+  onSave: (event: CalendarEvent) => Promise<void>
   onDelete?: (id: string) => void | Promise<void>
 }
 

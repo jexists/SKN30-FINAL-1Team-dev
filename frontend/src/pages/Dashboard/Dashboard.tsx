@@ -149,13 +149,13 @@ export default function Dashboard() {
             } satisfies CalendarEvent
           }
           onClose={closeDrawer}
-          // 닫는 일은 모달이 합니다. 등록한 뒤 결과를 보여 줄 자리가 있어야 해서입니다.
-          onSave={(event) => {
+          // 닫는 일은 모달이 합니다. 등록이 끝나야 닫으므로 여기서 기다렸다가 넘깁니다.
+          // 실패를 여기서 삼키면 모달은 '등록되었습니다' 를 띄우고 닫힙니다.
+          onSave={async (event) => {
             const { id: _id, ...draft } = event
-            void addEvent(draft)
-              .then(reload)
-              .catch(() => undefined)
+            await addEvent(draft)
             setSelectedISO(draft.date)
+            reload()
           }}
         />
       )}
@@ -164,11 +164,10 @@ export default function Dashboard() {
         <EventModal
           draft={editing}
           onClose={() => setEditing(null)}
-          onSave={(event) => {
-            void updateEvent(event)
-              .then(reload)
-              .catch(() => undefined)
+          onSave={async (event) => {
+            await updateEvent(event)
             setSelectedISO(event.date)
+            reload()
           }}
         />
       )}
