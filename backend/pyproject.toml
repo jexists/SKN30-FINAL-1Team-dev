@@ -16,8 +16,8 @@ dependencies = [
     "python-multipart>=0.0.32",
     "scikit-learn==1.9.0",
     "sqlalchemy[asyncio]>=2.0.51",
-    "tabicl==2.1.1",
-    "torch==2.13.0",
+    "tabicl==2.1.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch==2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
 ]
