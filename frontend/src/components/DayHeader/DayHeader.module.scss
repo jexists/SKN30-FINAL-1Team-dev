@@ -1,0 +1,64 @@
+// demo/layout_v3.html §12
+.head {
+  // 열린 달력이 날짜 바로 아래에서 뜨도록 숨긴 입력칸의 기준이 됩니다.
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.014em;
+  }
+}
+
+// 날짜를 바꿀 수 있는 화면에서만 섭니다. 제목처럼 보여야 해서 글자는 그대로 물려받습니다.
+.dateBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+
+  svg {
+    color: var(--muted);
+  }
+
+  &:hover svg {
+    color: var(--ink);
+  }
+}
+
+// 브라우저 달력이 열릴 자리만 잡아 둡니다.
+// display: none 이면 showPicker 가 열리지 않아 보이지 않게만 둡니다.
+.picker {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pill {
+  @include tag-pill;
+}
+
+.now {
+  background: var(--blue-tint);
+  color: var(--blue);
+}

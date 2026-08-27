@@ -20,32 +20,6 @@
     0 0 0 3px var(--blue-ring);
 }
 
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s4);
-  flex-wrap: wrap;
-
-  h2 {
-    display: flex;
-    align-items: center;
-    gap: var(--s2);
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: -0.014em;
-  }
-}
-
-.pill {
-  @include tag-pill;
-}
-
-.now {
-  background: var(--blue-tint);
-  color: var(--blue);
-}
-
 // 회사 이름 줄 오른쪽 끝. '보고서 작성' 과 '...' 메뉴가 나란히 섭니다.
 .actions {
   grid-column: 2;

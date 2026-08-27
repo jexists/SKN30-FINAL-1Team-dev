@@ -2,13 +2,13 @@ import { forwardRef, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import Button from '@/components/Button'
+import DayHeader from '@/components/DayHeader'
 import { CalendarIcon, DailyReportIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import { meetingComposePath } from '@/constants/routes'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { useAgendaFor } from '@/shared/agenda'
 import type { AgendaItem } from '@/types'
-import { fmtDay, parseISO, TODAY } from '@/utils/date'
 
 import styles from './DayAgenda.module.scss'
 
@@ -24,9 +24,6 @@ interface Props {
   flash?: boolean
 }
 
-const DAY = 86_400_000
-const RELATIVE: Record<string, string> = { '-1': '어제', '0': '오늘', '1': '내일' }
-
 const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   { dateISO, onOpen, onAddSchedule, onEdit, onDelete, flash },
   ref,
@@ -41,8 +38,6 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
     () => new Set(reports.map((report) => report.agendaId).filter(Boolean)),
     [reports],
   )
-  const date = parseISO(dateISO)
-  const relative = RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
   const renderItem = (it: AgendaItem) => {
     const done = it.done
     // 아직 안 쓴 줄에만 세웁니다. 답을 받기 전에도 세우지 않습니다.
@@ -151,17 +146,11 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
 
   return (
     <article ref={ref} className={`${styles.agenda} ${flash ? styles.isFlash : ''}`}>
-      <div className={styles.head}>
-        <h2>
-          {fmtDay(date)}
-          {relative && (
-            <i className={`${styles.pill} ${relative === '오늘' ? styles.now : ''}`}>{relative}</i>
-          )}
-        </h2>
+      <DayHeader dateISO={dateISO}>
         <Button variant="outline" onClick={onAddSchedule}>
           일정 추가
         </Button>
-      </div>
+      </DayHeader>
 
       {list.length === 0 ? (
         <div className={styles.empty}>
