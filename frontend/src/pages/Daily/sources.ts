@@ -1,8 +1,8 @@
 // 보고서 종류마다 "무엇을 자료로 쓰는지"를 정하는 곳입니다.
 //
 // 보고는 아래에서 위로 쌓입니다.
-//   일정/미팅보고서 → 일일업무보고 → 주간업무보고 → 월간업무보고
-// 그래서 일일은 그날 일정과 미팅보고서를, 주간은 그 주의 일일보고서를, 월간은
+//   일정/업무보고서 → 일일업무보고 → 주간업무보고 → 월간업무보고
+// 그래서 일일은 그날 일정과 업무보고서를, 주간은 그 주의 일일보고서를, 월간은
 // 그 달의 주간보고서를 모읍니다. 작성 화면은 여기서 나온 목록만 그립니다.
 import {
   dailyComposePath,
@@ -77,7 +77,7 @@ function actionFor(status: ReportStatus | null): string {
   return '보고서 열기'
 }
 
-/** 이 일정에서 갈 곳. 이미 쓴 미팅보고서가 있으면 그 보고서로, 없으면 작성 화면으로 갑니다. */
+/** 이 일정에서 갈 곳. 이미 쓴 업무보고서가 있으면 그 보고서로, 없으면 작성 화면으로 갑니다. */
 export function meetingLinkFor(agendaId: string, report: MeetingReport | undefined): SourceMeta {
   const status = report?.status ?? null
   const opens = status === '검토 대기' || status === '확정'
@@ -85,15 +85,15 @@ export function meetingLinkFor(agendaId: string, report: MeetingReport | undefin
     status,
     tracked: true,
     to: opens && report ? meetingReportPath(report.id) : meetingComposePath(agendaId),
-    label: status === null ? '미팅보고서 작성' : actionFor(status),
+    label: status === null ? '업무보고서 작성' : actionFor(status),
   }
 }
 
 /**
- * 일일보고의 자료. 그날 일정과 그날 확정한 미팅보고서입니다.
+ * 일일보고의 자료. 그날 일정과 그날 확정한 업무보고서입니다.
  *
- * 같은 일정이 두 줄이 되지 않게, 확정된 미팅보고서가 있으면 일정 원본 대신
- * 미팅보고서를 싣습니다. 기록한 내용이 일정 제목보다 정확합니다.
+ * 같은 일정이 두 줄이 되지 않게, 확정된 업무보고서가 있으면 일정 원본 대신
+ * 업무보고서를 싣습니다. 기록한 내용이 일정 제목보다 정확합니다.
  */
 function dailySources(
   dateISO: string,
@@ -114,7 +114,7 @@ function dailySources(
       used.add(report.id)
       activities.push({
         id: `meet-${report.id}`,
-        source: '미팅보고서',
+        source: '업무보고서',
         title: `${report.hospital} ${report.title}`,
         desc: report.values.decision?.split('\n')[0] || '미팅 기록 확정',
         included: true,
@@ -146,7 +146,7 @@ function dailySources(
     if (report.status !== '확정' || used.has(report.id)) continue
     activities.push({
       id: `meet-${report.id}`,
-      source: '미팅보고서',
+      source: '업무보고서',
       title: `${report.hospital} ${report.title}`,
       desc: report.values.decision?.split('\n')[0] || '미팅 기록 확정',
       included: true,
@@ -279,7 +279,7 @@ export function sourcesFor(
 /** 제출한 뒤 활동에서 원본으로 되돌아가는 길. 근거를 남기지 못한 활동은 null 입니다. */
 export function activityLink(activity: ReportActivity): string | null {
   if (!activity.refId) return null
-  if (activity.source === '미팅보고서') return meetingReportPath(activity.refId)
+  if (activity.source === '업무보고서') return meetingReportPath(activity.refId)
   if (activity.source === '일일보고서' || activity.source === '주간보고서')
     return dailyReportPath(activity.refId)
   return null

@@ -2,7 +2,7 @@
 // 상태·보고 대상·고객사·기간은 Popover 안에 접어 둡니다. (Customers 의 도구 줄과 같은 방식)
 //
 // 보고 대상과 고객사는 서로 다른 탭의 값이라 한 번에 하나만 뜹니다.
-// 업무 보고에는 고객사가 없고 미팅보고서에는 결재선이 없습니다.
+// 업무 보고에는 고객사가 없고 업무보고서에는 결재선이 없습니다.
 import { useState } from 'react'
 
 import Button from '@/components/Button'

@@ -1,7 +1,7 @@
 // 업무 보고 한 화면. 위에서부터 기간 탭 → 제출 이력 달력 → 작성 리스트입니다.
 // 작성만 별도 화면(/daily/new)으로 나갑니다.
 //
-// 미팅보고서도 여기서 함께 봅니다. 목록에는 두 종류가 섞이므로 rows.ts 가 한 모양으로
+// 업무보고서도 여기서 함께 봅니다. 목록에는 두 종류가 섞이므로 rows.ts 가 한 모양으로
 // 정리한 뒤 넘깁니다. 조건(tab·q·status·approver·hospital·range)은 주소에 둡니다.
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'

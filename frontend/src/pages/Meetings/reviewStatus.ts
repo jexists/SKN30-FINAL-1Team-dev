@@ -1,4 +1,4 @@
-// 미팅보고서를 팀장이 어디까지 봤는지. 화면에 배지로 나오고 수정 잠금도 이걸로 가릅니다.
+// 업무보고서를 팀장이 어디까지 봤는지. 화면에 배지로 나오고 수정 잠금도 이걸로 가릅니다.
 //
 // 서버 status_code(draft/submitted/approved/rejected)에 content.on_hold 를 더해 다섯 단계로
 // 폅니다. MeetingReport.status(ReportStatus)는 일일보고 집계가 '확정' 여부로 읽으므로

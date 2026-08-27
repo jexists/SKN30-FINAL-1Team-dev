@@ -71,7 +71,7 @@ export default function App() {
 
               <Route path={ROUTES.CALENDAR} element={<Calendar />} />
 
-              {/* 미팅보고서는 일정 하나를 기록하는 화면이라 목록이 없습니다.
+              {/* 업무보고서는 일정 하나를 기록하는 화면이라 목록이 없습니다.
                   진입은 대시보드 일정 드로어에서 합니다. */}
               <Route path={ROUTES.MEETINGS}>
                 <Route path="new" element={<MeetingCompose />} />
@@ -83,7 +83,7 @@ export default function App() {
               <Route path={ROUTES.DAILY}>
                 <Route index element={<Daily />} />
                 <Route path="new" element={<DailyCompose />} />
-                {/* 미팅보고서는 일정 하나에 붙습니다. 어느 일정인지 여기서 고릅니다. */}
+                {/* 업무보고서는 일정 하나에 붙습니다. 어느 일정인지 여기서 고릅니다. */}
                 <Route path="pick" element={<DailyMeetingPick />} />
                 {/* 이력은 목록 화면으로 합쳤습니다. 예전 링크만 받아 넘깁니다. */}
                 <Route path="history" element={<Navigate to={ROUTES.DAILY} replace />} />

@@ -28,7 +28,7 @@ SearchQuery = Annotated[
 ]
 
 # 유스케이스의 업무 보고는 미팅·일자별·주간·월간 네 가지다.
-# 미팅보고서는 일정 하나에 붙고, 주간과 월간은 기간을 덮는다.
+# 업무보고서는 일정 하나에 붙고, 주간과 월간은 기간을 덮는다.
 # 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 자료로 쓴다.
 ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
 # 유스케이스 RPT-004 의 검토 결과는 확인·반려·수정 요청 세 가지다.
@@ -69,7 +69,7 @@ class ReportCreate(_WriteModel):
     @model_validator(mode="after")
     def _validate(self) -> Self:
         _check_period(self.report_kind, self.period_start, self.period_end)
-        # 미팅보고서는 근거 일정이 곧 보고 대상이라 반드시 있어야 합니다.
+        # 업무보고서는 근거 일정이 곧 보고 대상이라 반드시 있어야 합니다.
         if self.report_kind == "meeting" and self.source_activity_id is None:
             raise ValueError("source_activity_required")
         if len(set(self.activity_ids)) != len(self.activity_ids):

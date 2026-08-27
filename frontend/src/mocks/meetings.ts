@@ -1,4 +1,4 @@
-// 미팅보고서 목록이 API 로 채워지지 않을 때 쓰는 시연용 합성 데이터입니다.
+// 업무보고서 목록이 API 로 채워지지 않을 때 쓰는 시연용 합성 데이터입니다.
 import { meetingTemplate } from '@/shared/meetings'
 import type { MeetingReport, MeetingReportSeed } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'

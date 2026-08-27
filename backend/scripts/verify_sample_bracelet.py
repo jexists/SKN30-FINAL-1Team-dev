@@ -81,7 +81,7 @@ CHECKS: tuple[tuple[str, str, int | None], ...] = (
         0,
     ),
     (
-        "미팅보고서에 근거 일정이 없음",
+        "업무보고서에 근거 일정이 없음",
         """
         select count(*) from public.report r
         where r.team_id = :team and r.report_kind = 'meeting' and r.source_activity_id is null

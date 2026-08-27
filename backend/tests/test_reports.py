@@ -215,7 +215,7 @@ def test_report_request_rejects_unsafe_values():
         )
 
     with pytest.raises(ValidationError):
-        # 미팅보고서는 근거 일정이 있어야 한다.
+        # 업무보고서는 근거 일정이 있어야 한다.
         ReportCreate(
             report_kind="meeting",
             report_date="2026-08-17",

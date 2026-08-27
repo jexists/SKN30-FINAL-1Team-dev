@@ -17,7 +17,7 @@ export const ROUTES = {
   COMPLAINTS: '/complaints', // 고객 불만 관리
   NOTIFICATIONS: '/notifications', // 알림. 진입은 헤더 벨에서 합니다.
   CALENDAR: '/calendar',
-  MEETINGS: '/meetings', // 미팅보고서. 진입은 대시보드 일정에서 합니다.
+  MEETINGS: '/meetings', // 업무보고서. 진입은 대시보드 일정에서 합니다.
   // 작성 화면. 머리말 이름이 상세와 달라야 해서 경로를 따로 둡니다.
   MEETINGS_NEW: '/meetings/new',
   DAILY: '/daily', // 업무 보고
@@ -60,8 +60,8 @@ export const dailyComposePath = (dateISO?: string, kind: ReportKind = '일일', 
 }
 
 /**
- * 미팅/업무보고서를 쓰기 전에 기준 날짜와 일정을 고르는 화면.
- * 미팅보고서는 일정 하나에 붙으므로 빈 폼으로 열 수 없습니다.
+ * 업무보고서를 쓰기 전에 기준 날짜와 일정을 고르는 화면.
+ * 업무보고서는 일정 하나에 붙으므로 빈 폼으로 열 수 없습니다.
  */
 export const meetingPickPath = (dateISO?: string) =>
   dateISO ? `${ROUTES.DAILY}/pick?date=${dateISO}` : `${ROUTES.DAILY}/pick`
@@ -70,13 +70,13 @@ export const meetingPickPath = (dateISO?: string) =>
 export const dailyReportPath = (id: string) => `${ROUTES.DAILY}/${id}`
 
 /**
- * 미팅보고서 작성 화면. 일정 하나를 기록하므로 그 일정 id 를 달고 갑니다.
+ * 업무보고서 작성 화면. 일정 하나를 기록하므로 그 일정 id 를 달고 갑니다.
  * 이미 쓴 기록을 고칠 때도 같은 경로를 씁니다.
  */
 export const meetingComposePath = (agendaId?: string) =>
   agendaId ? `${ROUTES.MEETINGS_NEW}?agenda=${encodeURIComponent(agendaId)}` : ROUTES.MEETINGS_NEW
 
-/** 확정한 미팅보고서 상세 */
+/** 확정한 업무보고서 상세 */
 export const meetingReportPath = (id: string) => `${ROUTES.MEETINGS}/${id}`
 
 /** 영업 보드. 목록과 같은 데이터를 단계별 칸으로 봅니다. */

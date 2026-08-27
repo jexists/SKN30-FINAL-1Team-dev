@@ -1,7 +1,7 @@
 // 일정 하나에서 보고서로 가는 길. 하루 목록(DayAgenda)과 상세 드로어(RecordDrawer)가
 // 같은 곳을 가리켜야 하므로 문구를 여기 한 곳에 둡니다.
 //
-// 일정 하나가 곧 미팅보고서 하나입니다.
+// 일정 하나가 곧 업무보고서 하나입니다.
 //
 // 물어볼 일정을 인자로 받습니다. 이 길이 화면에 나타나는 자리는 눌러야 열리는 메뉴
 // 한 줄과 드로어 푸터뿐이라, 열기 전에는 아무것도 부르지 않습니다. 대시보드에 들어서자마자
@@ -45,8 +45,8 @@ export function useAgendaReportLink(item: AgendaItem | null) {
         if (controller.signal.aborted) return
         setLink(
           row
-            ? { to: meetingReportPath(row.id), label: '미팅보고서 열기', written: true }
-            : { to: meetingComposePath(id), label: '미팅보고서 작성', written: false },
+            ? { to: meetingReportPath(row.id), label: '업무보고서 열기', written: true }
+            : { to: meetingComposePath(id), label: '업무보고서 작성', written: false },
         )
       })
       .catch((reason: unknown) => {

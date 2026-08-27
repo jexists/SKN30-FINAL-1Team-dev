@@ -1,6 +1,6 @@
-// 미팅보고서를 쓰기 전에 기준 날짜와 일정을 고르는 화면입니다.
+// 업무보고서를 쓰기 전에 기준 날짜와 일정을 고르는 화면입니다.
 //
-// 미팅보고서는 일정 하나에 붙는 기록이라 빈 폼으로 열 수 없습니다. 그래서 종류를
+// 업무보고서는 일정 하나에 붙는 기록이라 빈 폼으로 열 수 없습니다. 그래서 종류를
 // 고른 다음 바로 작성으로 보내지 않고 여기서 어느 일정인지 먼저 정합니다.
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router'
@@ -57,10 +57,10 @@ export default function MeetingPick() {
 
   return (
     <section>
-      <h1 className="sr-only">미팅보고서 작성</h1>
+      <h1 className="sr-only">업무보고서 작성</h1>
 
       <header className={styles.head}>
-        <h2 className={styles.title}>미팅보고서 작성</h2>
+        <h2 className={styles.title}>업무보고서 작성</h2>
 
         <label className={styles.dateField}>
           <span>기준 날짜</span>

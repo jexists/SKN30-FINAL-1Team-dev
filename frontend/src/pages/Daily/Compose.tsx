@@ -1,7 +1,7 @@
 // 업무보고 작성 화면. 일일·주간·월간이 한 화면을 나눠 씁니다.
 //
 // 왼쪽은 "무엇을 근거로 쓰는지", 오른쪽은 "무엇을 낼지"입니다. 왼쪽에 오는 자료가
-// 종류마다 다릅니다. 일일은 그날 일정과 미팅보고서, 주간은 그 주의 일일보고서,
+// 종류마다 다릅니다. 일일은 그날 일정과 업무보고서, 주간은 그 주의 일일보고서,
 // 월간은 그 달의 주간보고서입니다(useDailyDraft → sources.ts).
 import { useCallback, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
@@ -40,7 +40,7 @@ const COPY: Record<
   일일: {
     dateLabel: '보고 일자',
     panel: '활동 내역',
-    note: '그날 일정과 확정한 미팅보고서를 모았습니다. 체크를 풀면 보고서에서 빠집니다.',
+    note: '그날 일정과 확정한 업무보고서를 모았습니다. 체크를 풀면 보고서에서 빠집니다.',
     empty: '이 날짜에는 일정도 미팅 기록도 없습니다.',
     cta: '캘린더에서 일정 보기',
     to: ROUTES.CALENDAR,

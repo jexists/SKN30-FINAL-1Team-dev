@@ -1,7 +1,7 @@
 // 작성 화면의 상태를 전부 담습니다. 화면은 배치만 하고 규칙은 여기 있습니다.
 //
 // 자료를 어디서 모으는지는 종류마다 다릅니다(sources.ts). 일일은 그날 일정과
-// 미팅보고서를, 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 씁니다.
+// 업무보고서를, 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 씁니다.
 //
 // 초안은 임시저장된 보고서를 백엔드 agent-runs API에 전달해 받습니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -45,7 +45,7 @@ export default function useDailyDraft(
     error: agendaError,
     reload: reloadAgenda,
   } = useAgendaState(dateISO, dateISO, true)
-  // 일일은 그날 미팅보고서를, 주간·월간은 아래 기간의 보고서를 자료로 씁니다.
+  // 일일은 그날 업무보고서를, 주간·월간은 아래 기간의 보고서를 자료로 씁니다.
   // 쓰지 않는 쪽은 부르지도 않습니다.
   const {
     reports: meetings,
