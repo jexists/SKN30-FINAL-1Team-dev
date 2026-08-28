@@ -9,7 +9,7 @@ import {
 import ErrorToast from '@/components/ErrorToast'
 import usePointerDrag from '@/hooks/usePointerDrag'
 import useOrderList from '@/pages/Orders/useOrderList'
-import type { AiSuggestionReady, CalendarEvent } from '@/types'
+import type { AiSuggestion, CalendarEvent } from '@/types'
 import { startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 
 import CalendarSkeleton from './components/CalendarSkeleton'
@@ -48,9 +48,7 @@ export default function Calendar() {
     suggestions,
     previewId,
     setPreviewId,
-    refreshing: suggestionsRefreshing,
     refresh: refreshSuggestions,
-    expand: expandSuggestion,
     accept: acceptSuggestion,
     dismiss: dismissSuggestion,
   } = useAiSuggestions(addEvent)
@@ -84,12 +82,11 @@ export default function Calendar() {
     [moveEvent],
   )
 
-  // 캘린더 칸에 놓인 AI 추천 카드를 그 날짜로 승인한다. ready 상태가 아니면(아직 날짜를
-  // 계산하지 못했으면) 끌어다 놓을 수 없다 — SuggestionPanel이 onGrab을 그때만 연결한다.
+  // 캘린더 칸에 놓인 AI 추천 카드를 그 날짜로 승인한다.
   const dropSuggestion = useCallback(
     async (id: string, dateISO: string) => {
       const suggestion = suggestions.find((s) => s.id === id)
-      if (!suggestion || suggestion.status !== 'ready') return
+      if (!suggestion) return
       try {
         const added = await acceptSuggestion(suggestion, dateISO)
         setSelectedISO(dateISO)
@@ -118,7 +115,7 @@ export default function Calendar() {
   )
 
   const grabSuggestion = useCallback(
-    (pointer: ReactPointerEvent, suggestion: AiSuggestionReady) =>
+    (pointer: ReactPointerEvent, suggestion: AiSuggestion) =>
       start(pointer, {
         kind: 'suggestion',
         id: suggestion.id,
@@ -128,7 +125,7 @@ export default function Calendar() {
   )
 
   const acceptSuggestionToCalendar = useCallback(
-    async (suggestion: AiSuggestionReady) => {
+    async (suggestion: AiSuggestion) => {
       try {
         const added = await acceptSuggestion(suggestion)
         setSelectedISO(added.date)
@@ -209,12 +206,9 @@ export default function Calendar() {
             suggestions={suggestions}
             previewId={previewId}
             onPreview={setPreviewId}
-            onExpand={expandSuggestion}
             onAccept={acceptSuggestionToCalendar}
             onDismiss={dismissSuggestion}
             onGrab={grabSuggestion}
-            onRefresh={refreshSuggestions}
-            refreshing={suggestionsRefreshing}
           />
         </div>
       </div>

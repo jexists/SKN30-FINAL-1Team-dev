@@ -77,3 +77,27 @@ export interface ContractBriefingOutput {
   missing_information: string[]
   recommended_actions: string[]
 }
+
+/**
+ * `GET /contract-next-meeting-suggestions` 한 건. 트리거(보고서 승인 등)로 서버가 미리
+ * "다음 미팅 제안 → 일정 후보"까지 계산해 저장해 둔 결과다 — LLM을 다시 부르지 않는다.
+ * backend/app/schemas/contract_suggestions.py 의 ContractNextMeetingSuggestionRead 를 옮긴다.
+ */
+export interface ContractNextMeetingSuggestion {
+  id: string
+  sales_deal_id: string
+  customer_company_id: string
+  customer_company_name: string
+  customer_contact_id: string | null
+  customer_contact_name: string | null
+  owner_member_id: string
+  owner_display_name: string
+  sales_deal_title: string
+  reason: string
+  risks: ContractRisk[]
+  schedule_management_run_id: string
+  schedule_candidates: ScheduleCandidate[]
+  status_code: 'pending' | 'dismissed' | 'accepted'
+  created_at: string
+  updated_at: string
+}
