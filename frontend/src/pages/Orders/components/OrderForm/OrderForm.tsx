@@ -94,6 +94,7 @@ export default function OrderForm({
         disabled={submitting}
         showStatus={false}
         lockSalesDeal
+        createdBy={order.createdBy}
         onChange={set}
         onItemsChange={setItems}
       />

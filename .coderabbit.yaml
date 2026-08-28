@@ -92,7 +92,7 @@ reviews:
         mode: warning
         instructions: |
           모든 커밋 메시지가 다음 형식을 따르는지 확인하세요:
-          '<type>[(scope)][!]: <한글 요약>' (예: feat: 미팅 보고서 초안 생성을 추가)
+          '<type>[(scope)][!]: <한글 요약>' (예: feat: 업무 보고서 초안 생성을 추가)
           허용 타입: feat, fix, docs, refactor, test, perf, build, ci, chore
           영문 요약이거나 type prefix 가 없는 커밋이 있으면 경고하세요.
 

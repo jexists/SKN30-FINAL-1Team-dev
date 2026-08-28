@@ -1,14 +1,102 @@
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
 import pytest
 
 from app.ml import deal_baseline
 
 
-def test_uniform_baseline_returns_neutral_probability_and_safe_tie_label():
-    prediction = deal_baseline.predict({name: "Unknown" for name in deal_baseline.FEATURE_NAMES})
+class _Model:
+    def __init__(self, classes, probabilities):
+        """테스트에 사용할 클래스 순서와 고정 확률을 저장한다."""
+        self.classes_ = np.asarray(classes)
+        self.probabilities = np.asarray(probabilities)
+        self.columns = None
+        self.inputs = None
 
-    assert prediction.label == "watch"
-    assert prediction.high_probability == 0.5
-    assert prediction.model_version == "deal-dummy-uniform-v0"
+    def predict_proba(self, frame):
+        """입력 모양을 기록하고 행마다 고정 확률을 반환한다."""
+        self.columns = tuple(frame.columns) if hasattr(frame, "columns") else None
+        self.inputs = np.asarray(frame)
+        return np.tile(self.probabilities, (len(frame), 1))
+
+
+def test_stacking_uses_ordered_base_probabilities_and_threshold(monkeypatch):
+    """베이스 모델 순서와 Stacking 임계값 적용을 검증한다."""
+    models = {
+        "LogisticRegression": _Model([0, 1], [0.2, 0.8]),
+        "MultinomialNB": _Model([1, 0], [0.7, 0.3]),
+        "ExtraTrees": _Model([0, 1], [0.4, 0.6]),
+        "CatBoost": _Model([0, 1], [0.5, 0.5]),
+        "TabICL": _Model([0, 1], [0.9, 0.1]),
+    }
+    stacking = _Model([0, 1], [0.3, 0.7])
+    monkeypatch.setattr(
+        deal_baseline,
+        "_load_models",
+        lambda: (models, stacking, 0.5),
+    )
+
+    features = {name: "Unknown" for name in deal_baseline.FEATURE_NAMES}
+    prediction = deal_baseline.predict(features)
+
+    assert prediction.label == "high"
+    assert prediction.high_probability == pytest.approx(0.7)
+    assert prediction.model_version == "deal-stacking-lr-v1"
+    assert all(model.columns == deal_baseline.FEATURE_NAMES for model in models.values())
+    np.testing.assert_allclose(stacking.inputs, [[0.8, 0.7, 0.6, 0.5, 0.1]])
 
     with pytest.raises(ValueError, match="deal_features_invalid"):
         deal_baseline.predict({"Authority": "Unknown"})
+    with pytest.raises(ValueError, match="deal_features_invalid"):
+        deal_baseline.predict({**features, "Authority": "Maybe"})
+    assert deal_baseline._normalized_features({**features, "Authority": " "})["Authority"] == (
+        "Unknown"
+    )
+
+
+def test_artifact_path_must_be_local_and_match_hash(tmp_path: Path):
+    """산출물 경로 이탈과 해시 불일치가 거부되는지 검증한다."""
+    artifact = tmp_path / "model.bin"
+    artifact.write_bytes(b"verified model")
+    file_info = {
+        "path": artifact.name,
+        "sha256": deal_baseline._sha256(artifact),
+    }
+
+    assert deal_baseline._verified_artifact_path(tmp_path, file_info) == artifact
+
+    with pytest.raises(ValueError, match="artifact_path_invalid"):
+        deal_baseline._verified_artifact_path(
+            tmp_path,
+            {**file_info, "path": "../model.bin"},
+        )
+    with pytest.raises(ValueError, match="artifact_hash_mismatch"):
+        deal_baseline._verified_artifact_path(
+            tmp_path,
+            {**file_info, "sha256": "0" * 64},
+        )
+
+
+def test_tabicl_artifact_excludes_training_rows_and_uses_repr_cache():
+    """배포용 TabICL에 원본 학습 행이 남거나 표현 캐시가 없으면 거부한다."""
+    generator = SimpleNamespace(
+        X_=None,
+        y_=None,
+        preprocessors_={"none": SimpleNamespace(X_transformed_=None)},
+    )
+    tabicl = SimpleNamespace(
+        device="cpu",
+        device_=SimpleNamespace(type="cpu"),
+        kv_cache="repr",
+        cache_mode_="repr",
+        model_kv_cache_={"none": object()},
+        ensemble_generator_=generator,
+    )
+
+    deal_baseline._validate_tabicl_artifact(tabicl)
+
+    generator.X_ = object()
+    with pytest.raises(ValueError, match="tabicl_persistence_invalid"):
+        deal_baseline._validate_tabicl_artifact(tabicl)

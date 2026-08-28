@@ -33,7 +33,6 @@ class ActivityCategory(Base):
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    activity_type: Mapped[str]
 
 
 class ActivityActionTag(Base):
@@ -48,7 +47,6 @@ class ActivityActionTag(Base):
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    activity_type: Mapped[str]
 
 
 class SalesDealType(Base):
@@ -80,6 +78,8 @@ class PurchaseOrderStatus(Base):
 
 
 class ContractStatus(Base):
+    """계약서 한 장의 진행 상태."""
+
     __tablename__ = "contract_status"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -95,6 +95,7 @@ class ContractStatus(Base):
 
 
 class QuoteStatus(Base):
+    """견적서 한 장의 진행 상태. 파이프라인 단계와는 다른 축이다."""
     __tablename__ = "quote_status"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)

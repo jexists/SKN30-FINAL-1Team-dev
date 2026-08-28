@@ -9,12 +9,6 @@
   color: var(--blue);
 }
 
-// 목록의 업무 태그와 같은 색입니다.
-.taskTag {
-  background: var(--orange-tint);
-  color: var(--orange-ink);
-}
-
 .needsReport {
   background: var(--orange-tint);
   color: var(--orange-ink);
@@ -233,6 +227,24 @@
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.7;
+}
+
+// AI 브리핑의 위험 배지 줄.
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: var(--s3);
+}
+
+// AI 브리핑의 추천 행동 목록.
+.actions {
+  margin-top: var(--s3);
+  padding-left: 1.1em;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.7;
+  list-style: disc;
 }
 
 // 왼쪽 선 하나로 지난 접촉을 시간순으로 세웁니다.

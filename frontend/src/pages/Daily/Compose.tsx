@@ -1,26 +1,31 @@
 // 업무보고 작성 화면. 일일·주간·월간이 한 화면을 나눠 씁니다.
 //
-// 왼쪽은 "무엇을 근거로 쓰는지", 오른쪽은 "무엇을 낼지"입니다. 왼쪽에 오는 자료가
-// 종류마다 다릅니다. 일일은 그날 일정과 미팅보고서, 주간은 그 주의 일일보고서,
-// 월간은 그 달의 주간보고서입니다(useDailyDraft → sources.ts).
+// 뼈대는 업무보고서 작성 화면(pages/Meetings/Compose.tsx)과 같습니다. 왼쪽은 "무엇을
+// 근거로 쓰는지"라 놓여 있고, 오른쪽 보고서 시트만 떠 있습니다. 어느 쪽이 결과인지
+// 두 화면이 같은 방식으로 말합니다.
+//
+// 갈리는 것은 왼쪽에 오는 자료뿐입니다. 일일은 그날 일정과 업무보고서를 체크해서 고르고,
+// 주간·월간은 그 기간에 실제로 쓴 아래 보고서가 자동으로 섭니다(useDailyDraft → sources.ts).
 import { useCallback, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
-import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
+import DayHeader from '@/components/DayHeader'
 import ErrorToast from '@/components/ErrorToast'
-import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import { ChevronRightIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
 import Skeleton from '@/components/Skeleton'
-import { APPROVERS } from '@/shared/reports'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
+import MeetingInputPanel from '@/pages/Meetings/components/MeetingInputPanel'
+
 import ActivityList from './components/ActivityList'
+import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
-import { PERIOD_KIND, periodLabelFor, periodStart, toPeriod } from './periods'
+import { kindToPeriod, PERIOD_KIND, periodLabelFor, periodStart, toPeriod } from './periods'
 import useDailyDraft from './useDailyDraft'
 import useDailyReports from './useDailyReports'
 
@@ -32,31 +37,22 @@ const SOURCE_LIST_H = 240
 /** 확인이 필요한 세 갈래. 셋 다 "쓰던 걸 버려도 되나"를 묻습니다. */
 type Confirm = { kind: 'regenerate' } | { kind: 'date'; next: string } | { kind: 'submit' } | null
 
-/** 종류마다 무엇을 고르는 화면인지. 문구가 갈리는 자리를 여기 모읍니다. */
-const COPY: Record<
-  ReportKind,
-  { dateLabel: string; panel: string; note: string; empty: string; cta: string; to: string }
-> = {
+/** 종류마다 무엇을 자료로 쓰는 화면인지. 문구가 갈리는 자리를 여기 모읍니다. */
+const COPY: Record<ReportKind, { dateLabel: string; empty: string; cta: string; to: string }> = {
   일일: {
     dateLabel: '보고 일자',
-    panel: '활동 내역',
-    note: '그날 일정과 확정한 미팅보고서를 모았습니다. 체크를 풀면 보고서에서 빠집니다.',
     empty: '이 날짜에는 일정도 미팅 기록도 없습니다.',
     cta: '캘린더에서 일정 보기',
     to: ROUTES.CALENDAR,
   },
   주간: {
     dateLabel: '기준 주',
-    panel: '일일업무보고서',
-    note: '제출한 일일보고서만 고를 수 있습니다. 고른 것만 초안과 보고서에 들어갑니다.',
     empty: '이 주에 제출된 일일업무보고서가 없습니다.',
     cta: '일일업무보고서 작성하기',
     to: dailyComposePath(TODAY_ISO, '일일'),
   },
   월간: {
     dateLabel: '기준 월',
-    panel: '주간업무보고서',
-    note: '제출한 주간보고서만 고를 수 있습니다. 고른 것만 초안과 보고서에 들어갑니다.',
     empty: '이 달에 제출된 주간업무보고서가 없습니다.',
     cta: '주간업무보고서 작성하기',
     to: dailyComposePath(TODAY_ISO, '주간'),
@@ -79,7 +75,6 @@ export default function Compose() {
   const loadError = draft.error ?? error
 
   const [confirm, setConfirm] = useState<Confirm>(null)
-  const [saved, setSaved] = useState(false)
 
   const copy = COPY[kind]
   const periodLabel = periodLabelFor(kind, dateISO)
@@ -87,6 +82,8 @@ export default function Compose() {
   const locked = existing?.status === '검토 대기' || existing?.status === '확정'
   // 아직 오지 않은 기간은 쓸 것이 없습니다. 주소를 직접 쳐도 막습니다.
   const isFuture = dateISO > TODAY_ISO
+  // 일일만 체크해서 고릅니다. 주간·월간은 쓴 보고서가 그대로 섭니다.
+  const picks = kind === '일일'
 
   const hasWork = draft.phase !== 'idle' || draft.dirtyIds.size > 0
 
@@ -98,6 +95,7 @@ export default function Compose() {
     activities: draft.activities,
     template: draft.template,
     attachments: draft.attachments,
+    transcript: draft.transcript,
   }
 
   // 기간만 바꿉니다. 종류(?kind=)는 그대로 두어야 양식이 바뀌지 않습니다.
@@ -151,28 +149,13 @@ export default function Compose() {
     }
   }
 
-  const generateLabel =
-    draft.phase === 'generating'
-      ? '초안 만드는 중…'
-      : draft.phase === 'ready'
-        ? '다시 작성'
-        : 'AI로 보고서 작성'
-
-  const basis =
-    draft.attachments.length > 0
-      ? `자료 ${draft.includedCount}건 · 첨부 ${draft.attachments.length}건 기준`
-      : `자료 ${draft.includedCount}건 기준`
-
   if (isFuture) {
     return (
       <section>
         <h1 className="sr-only">{kind}업무보고 작성</h1>
-        <header className={styles.head}>
-          <Link className={styles.back} to={ROUTES.DAILY}>
-            <ChevronLeftIcon />
-            업무 보고
-          </Link>
-        </header>
+        <div className={styles.head}>
+          <DailyListLink back tab={kindToPeriod(kind)} className={styles.back} />
+        </div>
         <div className={styles.blank}>
           <p>아직 오지 않은 기간입니다. 지난 기간의 보고서만 쓸 수 있습니다.</p>
           <Link
@@ -188,70 +171,27 @@ export default function Compose() {
   }
 
   return (
-    <section>
+    <section className={styles.page}>
       <h1 className="sr-only">{kind}업무보고 작성</h1>
 
-      <header className={styles.head}>
-        <Link className={styles.back} to={ROUTES.DAILY}>
-          <ChevronLeftIcon />
-          업무 보고
-        </Link>
+      {/*
+        머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 이 문서를 종이로 뽑는 길입니다.
+        업무보고서 작성 화면과 같은 자리, 같은 모양입니다.
+      */}
+      <div className={styles.head}>
+        <DailyListLink back tab={kindToPeriod(kind)} className={styles.back} />
 
-        <label className={styles.dateField}>
-          <span>{copy.dateLabel}</span>
-          {kind === '월간' ? (
-            <input
-              type="month"
-              value={dateISO.slice(0, 7)}
-              max={TODAY_ISO.slice(0, 7)}
-              onChange={(event) => event.target.value && onDateInput(`${event.target.value}-01`)}
-            />
-          ) : (
-            <input
-              type="date"
-              value={dateISO}
-              max={TODAY_ISO}
-              onChange={(event) => onDateInput(event.target.value)}
-            />
-          )}
-        </label>
-
-        {periodLabel && <p className={styles.period}>{periodLabel}</p>}
-
-        <p className={styles.template}>{draft.template.name}</p>
-
-        <div className={styles.headActions}>
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => {
-              draft.reset()
-              setSaved(false)
-            }}
-          >
-            초안 다시 불러오기
-          </Button>
-          <Button
-            variant="outline"
-            type="button"
-            disabled={pending}
-            onClick={async () => {
-              try {
-                await saveDraft(payload)
-                setSaved(true)
-              } catch {
-                setSaved(false)
-              }
-            }}
-          >
-            {pending ? '저장 중…' : '임시저장'}
-          </Button>
-        </div>
-      </header>
+        <Button
+          variant="outline"
+          type="button"
+          disabled={draft.phase === 'idle'}
+          onClick={() => window.print()}
+        >
+          PDF 다운로드
+        </Button>
+      </div>
 
       <ErrorToast message={loadError} onRetry={draft.reload} />
-
-      {saved && <p className={styles.saved}>임시저장했습니다. 목록에서 이어서 쓸 수 있습니다.</p>}
 
       {/* 이미 있는 보고서는 덮어쓰지 않고 이어서 씁니다. 낸 뒤라면 잠급니다. */}
       {existing && !locked && (
@@ -268,13 +208,23 @@ export default function Compose() {
       )}
 
       <div className={styles.layout}>
-        <div className={styles.col}>
-          <article className={styles.panel}>
-            <div className={styles.panelHead}>
-              <h2>{copy.panel}</h2>
-              <span className={styles.pill}>{draft.includedCount}건 선택</span>
-            </div>
-            <p className={styles.panelNote}>{copy.note}</p>
+        <div className={styles.side}>
+          <article className={styles.reference}>
+            {/*
+              날짜가 이 카드의 머리말입니다. 주간·월간은 하루가 아니라 덮는 기간을 세우고,
+              누르면 그 단위의 달력(주는 날짜, 월은 월)이 열립니다.
+            */}
+            <DayHeader
+              dateISO={dateISO}
+              label={periodLabel}
+              pickerType={kind === '월간' ? 'month' : 'date'}
+              maxISO={TODAY_ISO}
+              onDateChange={onDateInput}
+            >
+              <span className={styles.pill}>
+                {picks ? `${draft.includedCount}건 선택` : `${draft.activities.length}건`}
+              </span>
+            </DayHeader>
 
             {draft.loading ? (
               // 아직 자료를 받아 오는 중입니다. 여기서 .blank 를 먼저 보여 주면
@@ -294,8 +244,10 @@ export default function Compose() {
             ) : (
               <ActivityList
                 activities={draft.activities}
-                // 주간·월간은 제출된 보고서만 자료로 씁니다. 직접 적을 것이 없습니다.
-                canAdd={kind === '일일'}
+                // 주간·월간은 제출된 보고서가 그대로 실립니다. 고를 것도,
+                // 그래서 체크 모양도 없습니다.
+                readOnly={!picks}
+                showMark={picks}
                 renderAside={(item) => {
                   const meta = draft.meta.get(item.id)
                   if (!meta) return null
@@ -307,124 +259,91 @@ export default function Compose() {
                   )
                 }}
                 onToggle={draft.toggleActivity}
-                onRemove={draft.removeActivity}
-                onAdd={draft.addManual}
               />
             )}
-
-            {/* 아직 고를 수 없는 자리. 왜 목록이 짧은지 여기서 읽힙니다. */}
-            {draft.pending.length > 0 && (
-              <div className={styles.pending}>
-                <h3>고를 수 없는 자료 {draft.pending.length}건</h3>
-                <ul>
-                  {draft.pending.map((item) => (
-                    <li key={item.key}>
-                      <span className={styles.pendingTitle}>{item.title}</span>
-                      <ReportStatusBadge status={item.status} />
-                      <Link to={item.to}>{item.action}</Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </article>
 
-          <article className={styles.panel}>
-            <div className={styles.panelHead}>
-              <h2>첨부 자료</h2>
-              <span className={styles.pill}>선택 사항</span>
-            </div>
-
-            <AttachmentPanel attachments={draft.attachments} readOnly />
-          </article>
-
-          {/* AI 가 채우는 항목이 없는 양식에서는 초안 생성이 없습니다. */}
+          {/*
+            넣는 것을 모은 면. 업무보고서 작성 화면과 같은 판을 그대로 씁니다 —
+            첨부도, 직접 적는 칸도, 누르는 버튼도 두 화면에서 같은 것이어야 합니다.
+            AI 가 채우는 항목이 없는 양식에서는 초안 생성이 없어 판도 서지 않습니다.
+          */}
           {draft.hasAiFields && (
-            <div className={styles.generate}>
-              <Button
-                type="button"
-                onClick={onGenerate}
-                disabled={pending || locked || !draft.canGenerate || draft.phase === 'generating'}
-              >
-                {generateLabel}
-              </Button>
-              <p className={styles.basis}>
-                {draft.canGenerate ? basis : '자료를 1건 이상 선택하세요.'}
-              </p>
-              {draft.generationError && (
-                <p className={styles.missing} role="alert">
-                  {draft.generationError}
-                </p>
-              )}
+            <div className={styles.input}>
+              <MeetingInputPanel
+                attachments={draft.attachments}
+                onAttach={(files) => void draft.addAttachments(files)}
+                onRemoveAttachment={draft.removeAttachment}
+                attachmentError={draft.attachmentError}
+                transcript={draft.transcript}
+                onTranscriptChange={draft.setTranscript}
+                contentLabel={`${kind}보고 내용 (선택)`}
+                canGenerate={draft.canGenerate}
+                generating={draft.phase === 'generating'}
+                // 다시 만드는 버튼이 따로 없습니다. 이 자리 하나로 처음도 다시도 누릅니다.
+                hasAiOriginal={false}
+                disabled={locked || pending}
+                onGenerate={onGenerate}
+              />
             </div>
           )}
         </div>
 
-        <div className={styles.col}>
-          <article className={styles.panel}>
-            <div className={styles.panelHead}>
-              <h2>보고 내용</h2>
-            </div>
-            <p className={styles.panelNote}>
-              {draft.template.owner ? `${draft.template.owner} 지정` : '기본 화면'} 양식 · 항목{' '}
-              {draft.template.fields.length}개
-            </p>
-
-            {draft.hasAiFields && draft.phase === 'idle' && (
-              <div className={styles.blank}>
-                <p>왼쪽 자료를 확인한 뒤 “AI로 보고서 작성”을 누르세요.</p>
-                <p className={styles.blankSub}>
-                  {kind === '일일'
-                    ? '첨부가 없어도 캘린더 일정만으로 초안이 만들어집니다.'
-                    : '고른 보고서에 적힌 내용만 모읍니다.'}
-                </p>
-              </div>
+        {/* 화면에서 유일하게 떠 있는 면. 그것만으로 "내는 것은 여기" 가 전달됩니다. */}
+        <div className={styles.work}>
+          <article className={styles.sheet}>
+            {/* 만들지 못했을 때. 결과가 나왔어야 할 자리에서 이유를 알립니다. */}
+            {draft.generationError && draft.phase !== 'generating' && (
+              <p className={styles.failed} role="alert">
+                {draft.generationError}
+              </p>
             )}
 
-            {draft.phase === 'generating' && (
-              <div className={styles.blank}>
+            {draft.hasAiFields && draft.phase === 'idle' ? (
+              <div className={styles.sheetBlank}>
+                <h2>아직 보고서가 작성되지 않았습니다</h2>
+                <p>왼쪽 자료를 확인한 뒤 ‘AI 보고서 작성’을 누르세요. 직접 써도 됩니다.</p>
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={locked}
+                  onClick={() => draft.setPhase('ready')}
+                >
+                  직접 작성하기
+                </Button>
+              </div>
+            ) : draft.phase === 'generating' ? (
+              <div className={styles.sheetBlank}>
                 <p>고른 자료를 정리하고 있습니다…</p>
               </div>
-            )}
+            ) : (
+              <>
+                <ReportFields
+                  template={draft.template}
+                  values={draft.values}
+                  aiFilledIds={draft.aiFilledIds}
+                  readOnly={locked}
+                  onChange={draft.setValue}
+                />
 
-            {(!draft.hasAiFields || draft.phase === 'ready' || draft.phase === 'submitted') && (
-              <ReportFields
-                template={draft.template}
-                values={draft.values}
-                aiFilledIds={draft.aiFilledIds}
-                onChange={draft.setValue}
-              />
+                {/* 제출을 막는 이유만 답니다. 낼 수 있을 때는 버튼이 스스로 말합니다. */}
+                {draft.missing.length > 0 && (
+                  <p className={styles.missing}>제출 전 확인: {draft.missing.join(', ')}</p>
+                )}
+              </>
             )}
           </article>
 
-          <article className={styles.panel}>
-            <label className={styles.approverField}>
-              <span>보고 대상</span>
-              <select
-                value={draft.approver}
-                onChange={(event) => draft.setApprover(event.target.value)}
-              >
-                {APPROVERS.map((name) => (
-                  <option key={name}>{name}</option>
-                ))}
-              </select>
-            </label>
-
-            <p className={draft.missing.length > 0 ? styles.missing : styles.okay}>
-              {draft.missing.length > 0
-                ? `제출 전 확인: ${draft.missing.join(', ')}`
-                : `제출 가능 · 자료 ${draft.includedCount}건 포함`}
-            </p>
-
+          <div className={styles.actions}>
             <Button
               type="button"
               className={styles.submit}
-              disabled={draft.missing.length > 0 || locked}
+              disabled={draft.missing.length > 0 || locked || draft.phase === 'idle'}
               onClick={() => setConfirm({ kind: 'submit' })}
             >
-              팀장에게 제출
+              보고서 제출
             </Button>
-          </article>
+          </div>
         </div>
       </div>
 
@@ -503,8 +422,7 @@ export default function Compose() {
           }
         >
           <p>
-            {periodLabel ?? fmtDot(parseISO(dateISO))} · 자료 {draft.includedCount}건 · 보고 대상{' '}
-            {draft.approver}
+            {periodLabel ?? fmtDot(parseISO(dateISO))} · 자료 {draft.includedCount}건
           </p>
         </Modal>
       )}

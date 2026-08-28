@@ -25,8 +25,6 @@ interface Props {
   onOpen: (id: string) => void
   isFiltered: boolean
   onClearFilters: () => void
-  /** 팀원에게는 업로드가 없어 빈 화면의 권유도 함께 빠집니다. */
-  canUpload: boolean
   showOwner: boolean
   onUpload: () => void
 }
@@ -38,7 +36,6 @@ export default function DocumentTable({
   onOpen,
   isFiltered,
   onClearFilters,
-  canUpload,
   showOwner,
   onUpload,
 }: Props) {
@@ -67,7 +64,7 @@ export default function DocumentTable({
             <>
               <DocumentsIcon width={34} height={34} strokeWidth={1.5} />
               <p>아직 올린 자료가 없습니다.</p>
-              {canUpload && <Button onClick={onUpload}>파일 업로드</Button>}
+              <Button onClick={onUpload}>파일 업로드</Button>
             </>
           )}
         </div>

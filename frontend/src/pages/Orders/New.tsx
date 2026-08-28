@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import { ChevronLeftIcon } from '@/components/icons'
@@ -26,6 +27,7 @@ export default function New() {
   const { statuses, suppliers, loading, error, reload, isCreating, addOrder } = useOrderList()
   const navigate = useNavigate()
   const [params] = useSearchParams()
+  const { profile } = useCurrentUser()
 
   const [form, setForm] = useState<FormState>(initialState)
   const [errors, setErrors] = useState<FormErrors>({})
@@ -95,6 +97,7 @@ export default function New() {
           suppliers={suppliers}
           optionsLoading={loading}
           disabled={isCreating}
+          createdBy={profile.name}
           onChange={set}
           onItemsChange={setItems}
         />

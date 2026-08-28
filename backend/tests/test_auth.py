@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 from pydantic import SecretStr, ValidationError
 
-from app.api.auth import _login_attempts, _reserve_login_attempt
+from app.api.auth import _login_limiter, _reserve_login_attempt
 from app.core.config import Settings, settings
 from app.db.session import get_db
 from app.main import app
@@ -128,11 +128,11 @@ def auth_environment(monkeypatch):
     monkeypatch.setattr(settings, "supabase_url", "https://project.supabase.test")
     monkeypatch.setattr(settings, "supabase_publishable_key", SecretStr("publishable-test-key"))
     supabase_auth.reset_jwks_cache()
-    _login_attempts.clear()
+    _login_limiter.clear()
     app.dependency_overrides.clear()
     yield
     supabase_auth.reset_jwks_cache()
-    _login_attempts.clear()
+    _login_limiter.clear()
     app.dependency_overrides.clear()
 
 
@@ -216,7 +216,7 @@ def test_login_sets_token_cookies_and_a_readable_session_hint(monkeypatch):
     assert "Path=/;" in hint or hint.endswith("Path=/")
     assert "salesluv_signed_in=1" in hint
     assert response.headers["cache-control"] == "no-store"
-    assert not _login_attempts
+    assert not len(_login_limiter)
 
 
 def test_invalid_credentials_are_rejected_with_401(monkeypatch):
@@ -334,7 +334,7 @@ def test_unknown_signing_key_is_a_server_problem_not_a_wrong_password(monkeypatc
     assert response.json() == {"detail": "auth_unavailable"}
     assert not response.headers.get_list("set-cookie")
     # 서버 잘못으로 로그인 시도 슬롯을 채우지 않는다.
-    assert not _login_attempts
+    assert not len(_login_limiter)
 
 
 def test_verified_token_resolves_the_linked_member(monkeypatch):

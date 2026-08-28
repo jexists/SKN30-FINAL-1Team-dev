@@ -29,6 +29,10 @@ export interface OrderDraft {
   ordered: string
   due: string
   expect: string
+  requestDepartment: string
+  cooperationDepartment: string
+  /** 납품예상 거래처. 딜의 고객사와 다를 수 있어 따로 받습니다. */
+  expectedCustomerCompanyId: string
   memo: string | null
   items: OrderDraftItem[]
 }
@@ -68,6 +72,12 @@ export function toOrder(order: OrderResponse): ApiPurchaseOrder {
     ordered: order.ordered_on,
     due: order.due_on,
     expect: order.expected_receipt_on,
+    requestDepartment: order.request_department,
+    cooperationDepartment: order.cooperation_department,
+    createdByMemberId: order.created_by_member_id,
+    createdBy: order.created_by_display_name,
+    expectedCustomerCompanyId: order.expected_customer_company_id,
+    expectedCustomerCompany: order.expected_customer_company_name,
     orderedOff: offsetOf(order.ordered_on),
     dueOff: offsetOf(order.due_on),
     expectOff: offsetOf(order.expected_receipt_on),
@@ -83,6 +93,9 @@ function toWriteRequest(draft: OrderDraft): OrderPatchRequest {
     ordered_on: draft.ordered,
     due_on: draft.due,
     expected_receipt_on: draft.expect,
+    request_department: draft.requestDepartment,
+    cooperation_department: draft.cooperationDepartment,
+    expected_customer_company_id: draft.expectedCustomerCompanyId,
     memo: draft.memo,
     items: draft.items.map((item) => ({
       product_id: item.productId,

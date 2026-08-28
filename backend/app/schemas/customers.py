@@ -38,6 +38,10 @@ BusinessNo = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, pattern=r"^[0-9]{10}$"),
 ]
+Postcode = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, pattern=r"^[0-9]{5}$"),
+]
 OptionCode = Annotated[
     str,
     StringConstraints(
@@ -65,12 +69,18 @@ class CustomerCompanyCreate(_WriteModel):
     name: Text
     region_code: RegionCode | None = None
     business_no: BusinessNo | None = None
+    postcode: Postcode | None = None
+    address: Text | None = None
+    address_detail: Text | None = None
 
 
 class CustomerCompanyPatch(_WriteModel):
     name: Text | None = None
     region_code: RegionCode | None = None
     business_no: BusinessNo | None = None
+    postcode: Postcode | None = None
+    address: Text | None = None
+    address_detail: Text | None = None
 
     @model_validator(mode="after")
     def name_cannot_be_null(self) -> Self:
@@ -87,6 +97,9 @@ class CustomerCompanyRead(BaseModel):
     name: str
     region_code: str | None
     business_no: str | None
+    postcode: str | None
+    address: str | None
+    address_detail: str | None
     created_at: datetime
 
 

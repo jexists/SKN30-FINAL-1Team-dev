@@ -16,6 +16,11 @@ class CustomerCompany(Base):
     region_code: Mapped[str | None]
     # 하이픈 없는 10자리. 화면에 보일 하이픈은 프론트가 붙인다.
     business_no: Mapped[str | None]
+    # 우편번호 5자리와 주소. 다음 우편번호 서비스가 돌려주는 값을 그대로 담는다.
+    postcode: Mapped[str | None]
+    address: Mapped[str | None]
+    # 층·호수처럼 사람이 직접 적는 부분.
+    address_detail: Mapped[str | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
@@ -67,7 +72,6 @@ class Activity(Base):
     end_user_contact_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_contact.id")
     )
-    activity_type: Mapped[str]
     activity_category_id: Mapped[UUID] = mapped_column(ForeignKey("public.activity_category.id"))
     title: Mapped[str]
     starts_at: Mapped[datetime]

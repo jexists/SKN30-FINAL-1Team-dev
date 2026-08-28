@@ -28,7 +28,6 @@ from app.schemas.dashboard import (
     CountCard,
     DashboardParams,
     DashboardRead,
-    FollowUpCard,
     NoticeBrief,
     NoticeSummary,
     RenewalCard,
@@ -110,46 +109,23 @@ async def _activity_cards(
     member: Member,
     owner_ids: tuple[UUID, ...] | None,
     day: date,
-    as_of: datetime,
-) -> tuple[CountCard, CountCard, FollowUpCard]:
+) -> tuple[CountCard, CountCard]:
     scope = activities_api._scope(member, owner_ids)
     start, end = _day_bounds(day)
     today = and_(Activity.starts_at >= start, Activity.starts_at < end)
 
-    # 오늘 카드 두 개는 같은 범위라 한 번에 센다.
+    # 오늘 카드 두 개는 같은 범위라 한 번에 센다. 회사가 걸리지 않은 일정은 방문 회사에
+    # 잡히지 않으므로 두 숫자가 늘 같지는 않다.
     visited, total = (
         await db.execute(
             activities_api._joined_select(
-                func.count(func.distinct(activities_api._company.id)).filter(
-                    Activity.activity_type == "meeting"
-                ),
+                func.count(func.distinct(activities_api._company.id)),
                 func.count(Activity.id),
             ).where(*scope, today)
         )
     ).one()
 
-    horizon = as_of + timedelta(days=7)
-    follow_total, overdue, due_soon = (
-        await db.execute(
-            activities_api._joined_select(
-                func.count(Activity.id),
-                func.count(Activity.id).filter(Activity.due_at < as_of),
-                func.count(Activity.id).filter(
-                    and_(Activity.due_at >= as_of, Activity.due_at < horizon)
-                ),
-            ).where(
-                *scope,
-                Activity.activity_type == "task",
-                Activity.completed_at.is_(None),
-            )
-        )
-    ).one()
-
-    return (
-        CountCard(count=visited),
-        CountCard(count=total),
-        FollowUpCard(total=follow_total, overdue=overdue, due_within_7_days=due_soon),
-    )
+    return CountCard(count=visited), CountCard(count=total)
 
 
 async def _today_activities(
@@ -311,8 +287,7 @@ async def _weekly_band(
         await db.execute(
             activities_api._joined_select(
                 activity_day,
-                func.count(Activity.id).filter(Activity.activity_type == "meeting"),
-                func.count(Activity.id).filter(Activity.activity_type == "task"),
+                func.count(Activity.id),
             )
             .where(
                 *activities_api._scope(member, owner_ids),
@@ -322,7 +297,7 @@ async def _weekly_band(
             .group_by(activity_day)
         )
     ).all()
-    by_day = {row[0]: (row[1], row[2]) for row in activity_rows}
+    by_day = {row[0]: row[1] for row in activity_rows}
 
     # 납기는 발주의 입고 예정일 기준이다.
     due_rows = (
@@ -344,12 +319,10 @@ async def _weekly_band(
     days = []
     for offset in range(_WEEK_DAYS):
         current = start_date + timedelta(days=offset)
-        meeting_count, task_count = by_day.get(current, (0, 0))
         days.append(
             WeeklyDay(
                 date=current,
-                meeting_count=meeting_count,
-                task_count=task_count,
+                activity_count=by_day.get(current, 0),
                 due_count=due_by_day.get(current, 0),
             )
         )
@@ -367,7 +340,7 @@ async def read_dashboard(
     day = params.date or as_of.date()
     owner_ids = await owner_scope(db, member, params.owner_member_id)
 
-    visited, activity_total, follow_ups = await _activity_cards(db, member, owner_ids, day, as_of)
+    visited, activity_total = await _activity_cards(db, member, owner_ids, day)
     return DashboardRead(
         as_of=as_of,
         date=day,
@@ -376,7 +349,6 @@ async def read_dashboard(
         visited_companies=visited,
         activities=activity_total,
         today_activities=await _today_activities(db, member, owner_ids, day),
-        follow_ups=follow_ups,
         support_requests=await _support_card(db, member, owner_ids),
         contract_renewals=await _renewal_card(
             db, member, owner_ids, day, params.renewal_within_days

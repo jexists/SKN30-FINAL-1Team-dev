@@ -1,9 +1,19 @@
-import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 
+import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
+import Modal from '@/components/Modal'
 import usePointerDrag from '@/hooks/usePointerDrag'
+import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import useOrderList from '@/pages/Orders/useOrderList'
-import type { CalendarEvent } from '@/types'
+import { agendaById } from '@/shared/agenda'
+import type { AgendaItem, AiSuggestionReady, CalendarEvent } from '@/types'
 import { startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 
 import CalendarSkeleton from './components/CalendarSkeleton'
@@ -11,6 +21,7 @@ import EventModal from './components/EventModal'
 import MonthGrid from './components/MonthGrid'
 import SuggestionPanel from './components/SuggestionPanel'
 import { CELL_ATTR, type Dragging } from './dragging'
+import useAiSuggestions from './useAiSuggestions'
 import useCalendarEvents, { DEFAULTS } from './useCalendarEvents'
 
 import styles from './Calendar.module.scss'
@@ -34,9 +45,27 @@ export default function Calendar() {
     reload: reloadOrders,
   } = useOrderList()
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
+  // 상세는 번호만 들고 스토어에서 다시 찾습니다. 수정하면 그 자리에서 최신으로 바뀌고
+  // 삭제하면 스스로 닫힙니다.
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<AgendaItem | null>(null)
   const [editing, setEditing] = useState<CalendarEvent | null>(null)
   const [creating, setCreating] = useState<string | null>(null)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
+  const {
+    suggestions,
+    previewId,
+    setPreviewId,
+    refreshing: suggestionsRefreshing,
+    refresh: refreshSuggestions,
+    expand: expandSuggestion,
+    accept: acceptSuggestion,
+    dismiss: dismissSuggestion,
+  } = useAiSuggestions(addEvent)
+
+  useEffect(() => {
+    void refreshSuggestions()
+  }, [refreshSuggestions])
 
   const deliveriesByDate = useMemo(
     () =>
@@ -63,11 +92,29 @@ export default function Calendar() {
     [moveEvent],
   )
 
+  // 캘린더 칸에 놓인 AI 추천 카드를 그 날짜로 승인한다. ready 상태가 아니면(아직 날짜를
+  // 계산하지 못했으면) 끌어다 놓을 수 없다 — SuggestionPanel이 onGrab을 그때만 연결한다.
+  const dropSuggestion = useCallback(
+    async (id: string, dateISO: string) => {
+      const suggestion = suggestions.find((s) => s.id === id)
+      if (!suggestion || suggestion.status !== 'ready') return
+      try {
+        const added = await acceptSuggestion(suggestion, dateISO)
+        setSelectedISO(dateISO)
+        setJustAddedId(added.id)
+      } catch {
+        return
+      }
+    },
+    [suggestions, acceptSuggestion],
+  )
+
   const drop = useCallback(
     (dragged: Dragging, dateISO: string) => {
       if (dragged.kind === 'event') void move(dragged.id, dateISO)
+      else void dropSuggestion(dragged.id, dateISO)
     },
-    [move],
+    [move, dropSuggestion],
   )
 
   const { dragging, dropKey: dropISO, point, start } = usePointerDrag<Dragging>(CELL_ATTR, drop)
@@ -76,6 +123,29 @@ export default function Calendar() {
     (pointer: ReactPointerEvent, event: CalendarEvent) =>
       start(pointer, { kind: 'event', id: event.id, label: `${event.time} ${event.title}` }),
     [start],
+  )
+
+  const grabSuggestion = useCallback(
+    (pointer: ReactPointerEvent, suggestion: AiSuggestionReady) =>
+      start(pointer, {
+        kind: 'suggestion',
+        id: suggestion.id,
+        label: `${suggestion.time} ${suggestion.hospital}`,
+      }),
+    [start],
+  )
+
+  const acceptSuggestionToCalendar = useCallback(
+    async (suggestion: AiSuggestionReady) => {
+      try {
+        const added = await acceptSuggestion(suggestion)
+        setSelectedISO(added.date)
+        setJustAddedId(added.id)
+      } catch {
+        return
+      }
+    },
+    [acceptSuggestion],
   )
 
   // 닫는 일은 모달이 합니다. 등록한 뒤 결과를 보여 줄 자리가 있어야 해서입니다.
@@ -101,6 +171,8 @@ export default function Calendar() {
     },
     [removeEvent],
   )
+
+  const viewing = viewingId === null ? undefined : agendaById(viewingId)
 
   const loading = eventsLoading || ordersLoading
   const error = eventsError ?? ordersError
@@ -137,20 +209,22 @@ export default function Calendar() {
           dropISO={dropISO}
           onCursorChange={setCursor}
           onSelect={setSelectedISO}
-          onOpenEvent={setEditing}
+          onOpenEvent={(event) => setViewingId(event.id)}
           onCreate={setCreating}
           onGrabEvent={grabEvent}
         />
 
         <div className={styles.side}>
           <SuggestionPanel
-            suggestions={[]}
-            previewId={null}
-            onPreview={() => undefined}
-            onAccept={() => undefined}
-            onDismiss={() => undefined}
-            onGrab={() => undefined}
-            onRefresh={() => undefined}
+            suggestions={suggestions}
+            previewId={previewId}
+            onPreview={setPreviewId}
+            onExpand={expandSuggestion}
+            onAccept={acceptSuggestionToCalendar}
+            onDismiss={dismissSuggestion}
+            onGrab={grabSuggestion}
+            onRefresh={refreshSuggestions}
+            refreshing={suggestionsRefreshing}
           />
         </div>
       </div>
@@ -161,9 +235,52 @@ export default function Calendar() {
         </div>
       )}
 
+      {viewing && (
+        <RecordDrawer
+          item={viewing}
+          onClose={() => setViewingId(null)}
+          onEdit={(item) => {
+            setViewingId(null)
+            setEditing(item)
+          }}
+          onDelete={() => {
+            setViewingId(null)
+            setDeleting(viewing)
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal
+          title="일정을 삭제할까요?"
+          description="되돌릴 수 없습니다."
+          onClose={() => setDeleting(null)}
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setDeleting(null)}>
+                취소
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void removeEvent(deleting.id).catch(() => undefined)
+                  setDeleting(null)
+                }}
+              >
+                삭제
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>
+            {deleting.time} · {deleting.hospital || deleting.title}
+          </p>
+        </Modal>
+      )}
+
       {creating && (
         <EventModal
-          draft={{ ...DEFAULTS, id: '', date: creating, title: '' }}
+          draft={{ ...DEFAULTS, kind: 'visit', id: '', date: creating, title: '' }}
           mode="create"
           onClose={() => setCreating(null)}
           onSave={create}

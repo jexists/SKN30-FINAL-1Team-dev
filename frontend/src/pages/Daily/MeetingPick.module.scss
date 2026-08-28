@@ -1,141 +1,125 @@
-.head {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  flex-wrap: wrap;
+// 목록 위로 빠져나가는 길입니다. 되돌아가기처럼 왼쪽에 섭니다.
+.back {
   margin-bottom: var(--s3);
 }
 
-.title {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.dateField {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  margin-left: auto;
-
-  @include sm {
-    margin-left: 0;
-  }
-
-  span {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  input {
-    padding: 6px var(--s2);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-    outline: none;
-
-    &:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px var(--blue-ring);
-    }
-  }
-}
-
-.note {
-  margin-bottom: var(--s3);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.rows {
+// 날짜 머리말부터 일정 줄까지 대시보드 하루 카드처럼 한 상자에 담깁니다.
+.card {
   @include card;
 
-  display: flex;
-  flex-direction: column;
+  padding: var(--s5);
+
+  @include md {
+    padding: var(--s4);
+  }
 }
 
+// 목록이 들어설 자리라 목록과 같은 만큼 머리말에서 떨어집니다.
+.loading,
+.rows {
+  margin-top: var(--s4);
+}
+
+// 대시보드 하루 카드의 줄과 같은 모양입니다. 왼쪽에 시간, 그 옆에 회사와 하는 일.
+// 줄 전체가 보고서로 가는 길이라 통째로 눌립니다.
 .row {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
-  align-items: center;
+  grid-template-columns: 52px minmax(0, 1fr);
   gap: var(--s3);
-  padding: var(--s3) var(--s4);
+  padding: var(--s4) var(--s3);
+  margin: 0 calc(var(--s3) * -1);
+  border-radius: var(--r-lg);
+  color: inherit;
+  transition: background var(--t-fast) var(--ease-out);
 
-  & + .row {
-    border-top: 1px solid var(--line);
+  &:hover {
+    background: var(--fill-2);
   }
 
-  // 좁은 화면에서는 한 줄에 다 세울 수 없습니다. 제목이 한 줄을 차지하고
-  // 나머지 표식과 버튼이 그 아래로 내려옵니다.
-  @include md {
-    grid-template-columns: auto auto minmax(0, 1fr);
+  &:active {
+    transform: translateY(1px);
+  }
 
-    .body {
-      grid-column: 1 / -1;
-      order: -1;
+  @include md {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: var(--s2);
+  }
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+
+    .rail {
+      text-align: left;
     }
 
-    .action {
-      grid-column: 1 / -1;
+    .org {
+      font-size: 16px;
     }
   }
 }
 
-.kind {
-  @include tag-pill;
-
-  font-size: 11px;
+.rail {
+  text-align: right;
 }
 
 .time {
-  color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .body {
   min-width: 0;
+}
+
+// 스캔할 때 먼저 찾는 것이 회사라 회사가 앞에 섭니다.
+// 부서와 담당자는 줄을 따로 차지하지 않고 옆에 붙습니다.
+.org {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-
-  strong {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: -0.008em;
-  }
-
-  span {
-    color: var(--muted);
-    font-size: 12px;
-  }
+  align-items: baseline;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.016em;
 }
 
-.done,
-.todo {
+.who {
   font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.done {
-  color: var(--green-ink);
-}
-
-.todo {
+  font-weight: 400;
+  letter-spacing: normal;
   color: var(--muted);
 }
 
-.action {
-  white-space: nowrap;
+.title {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+}
+
+.brief {
+  margin-top: var(--s2);
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+
+  @include md {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+}
+
+// 끝낸 일정은 훑을 때 걸러집니다.
+.isDone {
+  opacity: 0.45;
 }
 
 .empty {
-  @include card;
-
   padding: var(--s8) var(--s4);
   text-align: center;
   color: var(--ink-2);

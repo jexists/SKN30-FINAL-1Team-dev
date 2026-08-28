@@ -12,7 +12,6 @@ import { toOrder } from '@/pages/Orders/useOrderList'
 import { activityToAgenda, seedAgenda } from '@/shared/agenda'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
-  ActivityRead,
   ApiPurchaseOrder,
   DashboardResponse,
   NoticeResponse,
@@ -100,7 +99,7 @@ export default function useDashboard(weekOffset: number) {
 }
 
 /**
- * 드로어가 열릴 때만 부르는 조회. 셋 다 모양이 같아 한 훅으로 둡니다.
+ * 드로어가 열릴 때만 부르는 조회. 둘 다 모양이 같아 한 훅으로 둡니다.
  *
  * `enabled` 가 거짓이면 아무것도 부르지 않습니다. 드로어를 닫아 두는 동안이 그렇습니다.
  */
@@ -169,22 +168,6 @@ function useDrawerList<T>(
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), [])
   return { items, total, loading, loadingMore, error, hasMore: nextSkip !== null, loadMore, reload }
-}
-
-/** 미완료 후속업무. 대시보드 카드가 세는 조건과 같아야 숫자와 목록이 맞습니다. */
-export function useFollowUpList(enabled: boolean) {
-  const ownerIds = useScopeOwnerIds()
-  return useDrawerList<ActivityRead>(
-    enabled,
-    (signal, skip) =>
-      fetchPage<ActivityRead>('/activities', signal, skip, {
-        activity_type: 'task',
-        completed: false,
-        sort: 'due_at',
-        owner_member_id: ownerIds,
-      }),
-    '후속업무를 불러오지 못했습니다.',
-  )
 }
 
 export function useSupportList(enabled: boolean) {

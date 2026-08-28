@@ -1,3 +1,7 @@
+// 견적 목록 표의 열입니다.
+//
+// 금액은 deal_amount 가 아니라 quote_amount 를 봅니다. 셋(영업·견적·계약)이 한 행에
+// 나란히 남아야 계약으로 넘어간 뒤에도 견적가가 그대로 보입니다.
 import type { DataColumn } from '@/components/DataTable'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import { fmtDot, fmtDotShort, parseISO } from '@/utils/date'
@@ -12,18 +16,31 @@ export const QUOTE_COLUMNS: DataColumn<SalesDeal>[] = [
     sortable: true,
     text: (q) => q.quoteNo ?? q.no,
   },
-  { id: 'org', header: '고객사', width: 160, sortable: true, text: (q) => q.org },
-  { id: 'product', header: '제품', width: 150, sortable: true, text: (q) => q.product },
-  { id: 'kind', header: '유형', width: 92, sortable: true, text: (q) => q.kind },
+  { id: 'title', header: '딜 제목', width: 180, sortable: true, text: (q) => q.title },
+  { id: 'org', header: '고객사', width: 150, sortable: true, text: (q) => q.org },
+  {
+    id: 'issuer',
+    header: '견적업체명',
+    width: 132,
+    sortable: true,
+    text: (q) => q.teamCompanyName ?? '-',
+  },
   {
     id: 'amount',
-    header: '금액',
-    width: 112,
+    header: '견적금액',
+    width: 116,
     align: 'right',
     numeric: true,
     sortable: true,
-    text: (q) => won(q.amount),
-    sortValue: (q) => q.amount,
+    text: (q) => (q.quoteAmount === null ? '-' : won(q.quoteAmount)),
+    sortValue: (q) => q.quoteAmount ?? 0,
+  },
+  {
+    id: 'delivery',
+    header: '납품예상일자',
+    width: 150,
+    sortable: true,
+    text: (q) => q.quoteDeliveryTerms ?? '-',
   },
   { id: 'owner', header: '담당 영업', width: 92, sortable: true, text: (q) => q.owner },
   {
@@ -47,10 +64,10 @@ export const QUOTE_COLUMNS: DataColumn<SalesDeal>[] = [
   },
   {
     id: 'stage',
-    header: '단계',
+    header: '견적상태',
     width: 112,
     sortable: true,
-    text: (q) => q.stageName,
-    sortValue: (q) => q.stageOrder,
+    text: (q) => q.quoteStatusName ?? '-',
+    sortValue: (q) => q.quoteStatusName ?? '',
   },
 ]

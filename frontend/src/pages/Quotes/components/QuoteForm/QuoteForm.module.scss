@@ -8,3 +8,19 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+// 고른 기간이 며칠까지인지. 입력칸 아래에 조용히 붙습니다.
+.hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.submitError {
+  margin-top: var(--s3);
+  color: var(--red-ink);
+  font-size: 12px;
+}

@@ -1,6 +1,6 @@
 // 본문 한 덩어리를 그대로 쓰는 편집기. TinyMCE 는 자체 호스팅(GPL) 으로 씁니다.
 //
-// 미팅보고서(pages/Meetings/components/ReportDocument)와 같은 라이브러리를 쓰지만 목적이
+// 업무보고서(pages/Meetings/components/ReportDocument)와 같은 라이브러리를 쓰지만 목적이
 // 다릅니다. 저쪽은 항목 제목이 잠긴 문서를 고치고 결과를 항목별 값으로 쪼갭니다. 여기는
 // HTML 한 덩어리를 그대로 주고받습니다. 두 화면을 한 컴포넌트로 묶으면 서로의 회귀 원인이
 // 되므로 나눠 둡니다.

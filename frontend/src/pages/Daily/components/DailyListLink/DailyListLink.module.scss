@@ -2,3 +2,9 @@
 .root {
   padding-right: var(--s3);
 }
+
+/* 되돌아가기 모양에서는 화살표가 앞으로 오므로 줄이는 쪽도 뒤집습니다. */
+.back {
+  padding-right: var(--s4);
+  padding-left: var(--s3);
+}

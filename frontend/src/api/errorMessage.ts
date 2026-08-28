@@ -42,6 +42,10 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   team_not_found: '고른 팀을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   team_manager_exists: '이 팀에는 이미 팀장이 있습니다. 팀장은 팀당 한 명입니다.',
   password_rejected: '비밀번호가 정책에 맞지 않습니다. 더 길고 복잡하게 정해 주세요.',
+  // 계정 요청 (/signup)
+  signup_rate_limited: '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.',
+  signup_not_configured: '계정 요청 접수 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  signup_unavailable: '요청을 접수하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   // 고객 (/customers)
   manager_required: '이 작업은 팀장만 할 수 있습니다.',
   assignee_required: '담당자를 한 명 이상 정해 주세요.',

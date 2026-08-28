@@ -1,6 +1,6 @@
 // "보고서 작성하기" 버튼에 붙는 드롭다운입니다.
 //
-// 보고는 아래에서 위로 쌓입니다. 일정을 미팅보고서로 남기고, 하루를 일일보고로 묶고,
+// 보고는 아래에서 위로 쌓입니다. 일정을 업무보고서로 남기고, 하루를 일일보고로 묶고,
 // 한 주를 주간으로, 한 달을 월간으로 올립니다. 종류마다 자료가 다르므로 무엇을 쓸지
 // 고르면 그에 맞는 자료 선택 화면으로 보냅니다.
 //
@@ -14,7 +14,7 @@ import type { ReportKind } from '@/types'
 
 import styles from './ReportKindMenu.module.scss'
 
-/** 미팅보고서는 ReportKind 가 아니라 일정 하나에 붙는 별도 모델입니다. */
+/** 업무보고서는 ReportKind 가 아니라 일정 하나에 붙는 별도 모델입니다. */
 export type ComposeKind = ReportKind | '미팅'
 
 interface Option {
@@ -24,7 +24,7 @@ interface Option {
 }
 
 const OPTIONS: Option[] = [
-  { kind: '미팅', title: '미팅/업무보고서', desc: '일정 1건을 선택해 기록합니다.' },
+  { kind: '미팅', title: '업무보고서', desc: '일정 1건을 선택해 기록합니다.' },
   { kind: '일일', title: '일일업무', desc: '오늘의 일정과 미팅 결과를 모아 작성합니다.' },
   { kind: '주간', title: '주간업무', desc: '제출된 일일업무보고서를 모아 작성합니다.' },
   { kind: '월간', title: '월간업무', desc: '제출된 주간업무보고서를 모아 작성합니다.' },

@@ -33,17 +33,21 @@ def get_engine() -> AsyncEngine:
     # SQLAlchemy 기본값(pool_size 5 + max_overflow 10)이면 프로세스 하나가 그 15 를
     # 혼자 다 가져갈 수 있어, 다른 누군가가 붙는 순간 EMAXCONNSESSION 이 난다.
     #
-    # max_overflow 를 0 으로 두어 한도를 넘기는 대신 기다리게 한다. 밖에서 거절당하는
-    # 것보다 안에서 줄 서는 편이 낫다.
+    # 그래서 한 프로세스가 쥘 수 있는 최대(pool_size + max_overflow)를 10 으로 묶는다.
+    # blue/green 교체 중에는 컨테이너 둘이 잠깐 겹치지만, async 라 커넥션을 실제로
+    # 붙잡는 시간은 짧아 둘이 동시에 상한까지 차는 일은 드물다. 그래도 넘치면 밖에서
+    # 거절당하는 대신 pool_timeout 만큼 안에서 줄 선다.
     #
-    # ponytail: 2 는 프로젝트 한도 15 를 참여자 수로 나눈 값이다. uvicorn worker 를
-    # 늘리거나 참여자가 늘면 pool_size × 프로세스 수가 15 를 넘지 않는지 다시 계산한다.
+    # ponytail: uvicorn worker 를 늘리거나 슬롯이 늘면
+    # (pool_size + max_overflow) × 프로세스 수가 15 를 넘지 않는지 다시 계산한다.
     return create_async_engine(
         settings.async_database_url,
         echo=settings.debug,
         pool_pre_ping=True,
-        pool_size=2,
-        max_overflow=0,
+        pool_size=5,  # 기본으로 유지할 커넥션 수
+        max_overflow=5,  # 풀이 꽉 찼을 때 추가로 허용할 임시 커넥션 수 (합쳐 10)
+        pool_timeout=30,  # 커넥션을 기다리는 최대 시간(초)
+        pool_recycle=1800,  # 오래된 커넥션을 재접속하는 주기(초)
     )
 
 

@@ -1,9 +1,9 @@
-// KPI 타일을 누르면 열리는 목록 세 가지. 셋 다 같은 드로어 한 벌에 담깁니다.
+// KPI 타일을 누르면 열리는 목록 두 가지. 둘 다 같은 드로어 한 벌에 담깁니다.
 //
 // 어느 목록이든 서버가 준 것을 그리기만 합니다. 거르고 정렬하는 일은 카드 숫자를 만든
 // 조건과 같아야 해서 서버에 두었습니다. 여기서 다시 거르면 타일과 목록이 어긋납니다.
 import { STATUS_LABEL as SUPPORT_STATUS_LABEL } from '@/pages/Complaints/statuses'
-import type { ActivityRead, FollowUpCard, SalesDealResponse, SupportRequestResponse } from '@/types'
+import type { SalesDealResponse, SupportRequestResponse } from '@/types'
 import { ddayLabel, fmtDay, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
 
@@ -31,7 +31,7 @@ export interface DrawerList {
   empty?: string
 }
 
-export type KpiListKey = 'followUp' | 'cs' | 'renewal'
+export type KpiListKey = 'cs' | 'renewal'
 
 const DAY = 86_400_000
 const daysUntil = (dateISO: string) =>
@@ -95,36 +95,5 @@ export function renewalList(deals: SalesDealResponse[]): DrawerList {
       }
     }),
     empty: '30일 이내 종료 예정인 계약이 없습니다.',
-  }
-}
-
-export function followUpList(items: ActivityRead[], card: FollowUpCard): DrawerList {
-  return {
-    title: '미완료 후속업무',
-    // 지연과 이번 주 마감은 타일과 같은 숫자여야 합니다. 서버가 센 값을 그대로 씁니다.
-    sub: `지연 ${card.overdue}건 · 이번 주 마감 ${card.due_within_7_days}건`,
-    rows: items.map((item) => {
-      const dueISO = item.due_at?.slice(0, 10) ?? null
-      const remaining = dueISO === null ? null : daysUntil(dueISO)
-      const late = remaining !== null && remaining < 0
-      return {
-        key: item.id,
-        title: item.title,
-        titleNote: [item.customer_company_name, item.customer_contact_name]
-          .filter(Boolean)
-          .join(' · '),
-        note: item.note ?? '등록된 메모가 없습니다.',
-        tags: [
-          ...(late ? [{ text: '지연', tone: 'risk' as const }] : []),
-          { text: dueISO === null ? '마감 미정' : `마감 ${fmtDay(parseISO(dueISO))}` },
-        ],
-        side: {
-          strong: remaining === null ? '마감 미정' : ddayLabel(remaining),
-          late,
-          numeric: remaining !== null,
-        },
-      }
-    }),
-    empty: '미완료 후속업무가 없습니다.',
   }
 }

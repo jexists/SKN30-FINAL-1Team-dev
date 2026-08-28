@@ -1,0 +1,117 @@
+.root {
+  @include form-field;
+}
+
+// 합계는 제목 줄 오른쪽에 둡니다. 줄을 고칠 때마다 바로 옆에서 바뀌어야 합니다.
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+
+  b {
+    margin-left: 3px;
+    color: var(--red);
+  }
+}
+
+.total {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.error {
+  color: var(--red-ink);
+  font-size: 11px;
+}
+
+.items {
+  display: grid;
+  gap: var(--s2);
+}
+
+.item {
+  display: grid;
+  gap: 4px;
+}
+
+.itemRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 116px 116px 32px;
+  align-items: center;
+  gap: var(--s2);
+
+  @include sm {
+    // 폰에서는 제품이 한 줄을 다 쓰고 수량·단가·금액·삭제가 아래로 내려옵니다.
+    grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr) 32px;
+  }
+}
+
+.product {
+  @include sm {
+    grid-column: 1 / -1;
+  }
+}
+
+.qty,
+.price {
+  text-align: right;
+}
+
+// 입력칸이 아니라 계산 결과라 배경 없이 숫자만 오른쪽에 붙입니다.
+.amount {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--red-tint);
+    background: var(--red-tint);
+    color: var(--red-ink);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.addItem {
+  justify-self: start;
+  padding: 6px var(--s3);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}

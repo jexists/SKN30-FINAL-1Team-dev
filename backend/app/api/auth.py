@@ -5,14 +5,12 @@ Supabase 가 발급한 토큰을 HttpOnly 쿠키로만 보관한다.
 자체 토큰을 만들지 않으므로 만료·회전·폐기는 Supabase 가 관리한다.
 """
 
-import math
-import time
-
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from app.api.deps import CurrentMember, DbSession, active_member
 from app.core.config import settings
+from app.core.rate_limit import AttemptLimiter
 from app.models.workspace import Member
 from app.schemas.auth import LoginRequest, SessionRead, SetPasswordRequest
 from app.services import supabase_auth
@@ -34,41 +32,20 @@ REFRESH_COOKIE_PATH = "/api/auth"
 # 표시는 어느 화면에서든 읽어야 하므로 경로를 좁히지 않는다.
 SIGNED_IN_COOKIE_PATH = "/"
 
-# ponytail: 단일 프로세스용 고정 구간 제한기. 다중 worker 배포 시 공유 저장소로 교체한다.
 # 계정 단위 버킷은 두지 않는다. Supabase 쿼터를 소진시키는 무차별 시도만 IP 로 막는다.
-_login_attempts: dict[str, tuple[int, float]] = {}
-_max_login_buckets = 10_000
+_login_limiter = AttemptLimiter()
 
 
 def _reserve_login_attempt(client_host: str) -> int | None:
-    now = time.monotonic()
-    expired_keys = [
-        key
-        for key, (_, started_at) in _login_attempts.items()
-        if now - started_at >= settings.login_window_seconds
-    ]
-    for key in expired_keys:
-        _login_attempts.pop(key, None)
-
-    count, started_at = _login_attempts.get(client_host, (0, now))
-    if count >= settings.login_max_attempts:
-        return max(1, math.ceil(settings.login_window_seconds - (now - started_at)))
-    if client_host not in _login_attempts and len(_login_attempts) + 1 > _max_login_buckets:
-        return settings.login_window_seconds
-
-    _login_attempts[client_host] = (count + 1, started_at)
-    return None
+    return _login_limiter.reserve(
+        client_host,
+        max_attempts=settings.login_max_attempts,
+        window_seconds=settings.login_window_seconds,
+    )
 
 
 def _release_login_attempt(client_host: str) -> None:
-    attempt = _login_attempts.get(client_host)
-    if attempt is None:
-        return
-    count, started_at = attempt
-    if count == 1:
-        _login_attempts.pop(client_host)
-    else:
-        _login_attempts[client_host] = (count - 1, started_at)
+    _login_limiter.release(client_host)
 
 
 def _session_read(member: Member) -> SessionRead:

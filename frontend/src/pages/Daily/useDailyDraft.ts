@@ -1,7 +1,7 @@
 // 작성 화면의 상태를 전부 담습니다. 화면은 배치만 하고 규칙은 여기 있습니다.
 //
 // 자료를 어디서 모으는지는 종류마다 다릅니다(sources.ts). 일일은 그날 일정과
-// 미팅보고서를, 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 씁니다.
+// 업무보고서를, 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 씁니다.
 //
 // 초안은 임시저장된 보고서를 백엔드 agent-runs API에 전달해 받습니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -10,13 +10,8 @@ import { errorMessage } from '@/api/errorMessage'
 import { generateReportDraft } from '@/api/reportAgent'
 import { useAgendaState } from '@/shared/agenda'
 import { APPROVERS, templateFor } from '@/shared/reports'
-import type {
-  DailyReport,
-  ReportActivity,
-  ReportAttachment,
-  ReportKind,
-  ReportTemplate,
-} from '@/types'
+import useAttachments from '@/shared/useAttachments'
+import type { DailyReport, ReportActivity, ReportKind, ReportTemplate } from '@/types'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 
 import { sourcesFor } from './sources'
@@ -28,7 +23,7 @@ const emptyValues = (template: ReportTemplate) =>
   Object.fromEntries(template.fields.map((f) => [f.id, '']))
 
 interface DraftOptions {
-  /** 미리 켜 둘 자료의 원본 id. 사내 업무 일정에서 넘어올 때 씁니다. */
+  /** 미리 켜 둘 자료의 원본 id. 특정 일정에서 넘어올 때 씁니다. */
   pickId?: string
 }
 
@@ -45,7 +40,7 @@ export default function useDailyDraft(
     error: agendaError,
     reload: reloadAgenda,
   } = useAgendaState(dateISO, dateISO, true)
-  // 일일은 그날 미팅보고서를, 주간·월간은 아래 기간의 보고서를 자료로 씁니다.
+  // 일일은 그날 업무보고서를, 주간·월간은 아래 기간의 보고서를 자료로 씁니다.
   // 쓰지 않는 쪽은 부르지도 않습니다.
   const {
     reports: meetings,
@@ -92,7 +87,13 @@ export default function useDailyDraft(
 
   const [phase, setPhase] = useState<DraftPhase>('idle')
   const [activities, setActivities] = useState<ReportActivity[]>(() => sources.activities)
-  const [attachments, setAttachments] = useState<ReportAttachment[]>([])
+  /** 자료에 없는 것을 직접 적는 칸. AI 가 이것도 함께 읽습니다. */
+  const [transcript, setTranscript] = useState('')
+  // 음성에서 뽑은 글은 사람이 쓴 것을 덮지 않습니다. 있으면 아래에 붙입니다.
+  const files = useAttachments((text) =>
+    setTranscript((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text)),
+  )
+  const { setAttachments, setAttachmentError } = files
   const [values, setValues] = useState<Record<string, string>>(() => emptyValues(template))
   const [approver, setApprover] = useState<string>(APPROVERS[0] ?? '')
   const [aiFilledIds, setAiFilledIds] = useState<ReadonlySet<string>>(new Set())
@@ -122,6 +123,8 @@ export default function useDailyDraft(
       })),
     )
     setAttachments(saved?.attachments ?? [])
+    setAttachmentError(null)
+    setTranscript(saved?.transcript ?? '')
     setValues(saved ? { ...emptyValues(template), ...saved.values } : emptyValues(template))
     setApprover(saved?.approver ?? APPROVERS[0] ?? '')
     setAiFilledIds(new Set())
@@ -129,7 +132,7 @@ export default function useDailyDraft(
     setGenerationError(null)
     // 이어 쓰는 보고서는 이미 쓴 내용이 있으므로 입력칸을 바로 펴 줍니다.
     setPhase(saved ? 'ready' : 'idle')
-  }, [kind, dateISO, template, pickId])
+  }, [kind, dateISO, template, pickId, setAttachments, setAttachmentError])
 
   useEffect(() => {
     reset()
@@ -137,23 +140,6 @@ export default function useDailyDraft(
 
   const toggleActivity = useCallback((id: string) => {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, included: !a.included } : a)))
-  }, [])
-
-  const addManual = useCallback((title: string) => {
-    setActivities((prev) => [
-      ...prev,
-      {
-        id: `manual-${Date.now()}`,
-        source: '수기',
-        title,
-        desc: '직접 입력한 항목',
-        included: true,
-      },
-    ])
-  }, [])
-
-  const removeActivity = useCallback((id: string) => {
-    setActivities((prev) => prev.filter((a) => a.id !== id))
   }, [])
 
   const setValue = useCallback((id: string, value: string) => {
@@ -166,8 +152,13 @@ export default function useDailyDraft(
   /** AI 가 채우는 항목이 있는 양식에서만 초안 생성이 의미가 있습니다. */
   const hasAiFields = useMemo(() => template.fields.some((f) => f.aiFilled), [template])
 
-  /** 자료를 1건이라도 골라야 합니다. 첨부는 조건이 아닙니다. */
-  const canGenerate = hasAiFields && included.length > 0
+  /**
+   * 정리할 것이 하나는 있어야 합니다. 고른 자료든, 직접 적은 내용이든, 첨부든
+   * 무엇이든 하나입니다 — 자료가 없는 기간이라도 적어서 쓸 수 있어야 합니다.
+   */
+  const canGenerate =
+    hasAiFields &&
+    (included.length > 0 || transcript.trim().length > 0 || files.attachments.length > 0)
 
   const generate = useCallback(
     async (reportId: string) => {
@@ -204,16 +195,22 @@ export default function useDailyDraft(
     [canGenerate, dirtyIds, template],
   )
 
-  /** 제출을 막는 이유들. 버튼 비활성과 안내 문구가 같은 값을 씁니다. */
+  /**
+   * 제출을 막는 이유들. 버튼 비활성과 안내 문구가 같은 값을 씁니다.
+   *
+   * 근거가 무엇이든 하나는 있어야 합니다 — canGenerate 와 같은 기준입니다. 자료가
+   * 없는 기간을 직접 적어 만들어 놓고 낼 수 없으면 그 화면이 막다른 길이 됩니다.
+   */
   const missing = useMemo(() => {
     const reasons: string[] = []
-    if (included.length === 0) reasons.push('자료 1건 이상')
-    if (approver.trim() === '') reasons.push('보고 대상')
+    if (included.length === 0 && transcript.trim() === '' && files.attachments.length === 0) {
+      reasons.push('자료 1건 이상')
+    }
     for (const field of template.fields) {
       if (field.required && !values[field.id]?.trim()) reasons.push(field.label)
     }
     return reasons
-  }, [approver, included, values, template])
+  }, [included, transcript, files.attachments, values, template])
 
   return {
     phase,
@@ -223,13 +220,14 @@ export default function useDailyDraft(
     activities,
     /** activity.id → 원본 상태와 바로가기 */
     meta: sources.meta,
-    /** 아직 고를 수 없는 자료들. 목록 아래에 상태로 보여 줍니다. */
-    pending: sources.pending,
     includedCount: included.length,
     toggleActivity,
-    addManual,
-    removeActivity,
-    attachments,
+    transcript,
+    setTranscript,
+    attachments: files.attachments,
+    addAttachments: files.addAttachments,
+    removeAttachment: files.removeAttachment,
+    attachmentError: files.attachmentError,
     values,
     setValue,
     approver,

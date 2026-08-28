@@ -7,6 +7,7 @@ import sys
 
 
 async def check() -> None:
+    """실제 미팅 분석 경계를 호출하고 모델 출력 계약을 검증한다."""
     os.environ["DEBUG"] = "false"
 
     from app.agents import meeting_analysis
@@ -28,23 +29,25 @@ async def check() -> None:
 
     assessment = output.deal_assessment
     features = assessment.features.model_dump()
-    if len(features) != len(deal_baseline.FEATURE_NAMES) or len(features) != 10:
-        raise ValueError(f"딜 특성 개수가 10개가 아닙니다: {len(features)}")
-    if set(features) != set(deal_baseline.FEATURE_NAMES):
-        raise ValueError(f"딜 특성 10개가 일치하지 않습니다: {list(features)}")
-    actual = (assessment.label, assessment.high_probability, assessment.model_version)
-    expected = ("watch", 0.5, deal_baseline.MODEL_VERSION)
-    if actual != expected:
-        raise ValueError(f"기준 분류 결과가 다릅니다: {actual}")
+    if tuple(features) != deal_baseline.FEATURE_NAMES:
+        raise ValueError(f"딜 특성 13개의 순서가 일치하지 않습니다: {list(features)}")
+    if not 0 <= assessment.high_probability <= 1:
+        raise ValueError(f"성사 확률 범위가 잘못되었습니다: {assessment.high_probability}")
+    expected_label = "high" if assessment.high_probability >= 0.5 else "watch"
+    if assessment.label != expected_label:
+        raise ValueError(f"임계값과 라벨이 일치하지 않습니다: {assessment.label}")
+    if assessment.model_version != deal_baseline.MODEL_VERSION:
+        raise ValueError(f"모델 버전이 일치하지 않습니다: {assessment.model_version}")
 
 
 def main() -> int:
+    """검증을 실행하고 성공 여부를 프로세스 종료 코드로 반환한다."""
     try:
         asyncio.run(check())
     except Exception as error:
         print(f"[실패] {type(error).__name__}: {error}", file=sys.stderr)
         return 1
-    print("[성공] 실제 미팅분석 에이전트와 기준 분류기 검증 통과")
+    print("[성공] 실제 미팅분석 에이전트와 최종 앙상블 모델 검증 통과")
     return 0
 
 

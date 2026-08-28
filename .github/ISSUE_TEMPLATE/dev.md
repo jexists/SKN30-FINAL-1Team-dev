@@ -1,0 +1,22 @@
+name: "🔨 개발"
+description: "개발할 작업을 간단하게 작성합니다."
+labels: ["feat"]
+body:
+  - type: textarea
+    attributes:
+      label: 📄 개발 내용
+      description: 이번에 개발할 내용을 간단하게 작성해 주세요.
+      placeholder: 예) 딜 상세 조회 API 연동 및 화면 적용
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: ✅ 작업 항목
+      description: 개발할 작업을 간단하게 작성해 주세요.
+      placeholder: |
+        - [ ] API 연동
+        - [ ] 화면 적용
+        - [ ] 테스트
+    validations:
+      required: true

@@ -3,16 +3,24 @@ name: Discord 알림
 on:
   pull_request:
     types: [opened, closed]
+
   push:
     branches: [develop]
+
+  issues:
+    types: [opened]
+
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
 
 jobs:
   notify-pr-opened:
-    if: github.event.action == 'opened' && github.event.pull_request.base.ref == 'develop'
+    if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-latest
+
     steps:
       - name: Discord 알림 (새 PR → develop)
         env:
@@ -49,8 +57,9 @@ jobs:
               -d @-
 
   notify-main-merged:
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
+
     steps:
       - name: Discord 알림 (main 머지)
         env:
@@ -89,6 +98,7 @@ jobs:
   notify-develop-push:
     if: github.event_name == 'push' && github.event.head_commit != null
     runs-on: ubuntu-latest
+
     steps:
       - name: Discord 알림 (develop 푸시)
         env:
@@ -113,6 +123,83 @@ jobs:
                 fields: [
                   { name: "푸시한 사람", value: $pusher, inline: true },
                   { name: "변경 비교", value: $compare, inline: false }
+                ]
+              }]
+            }' \
+          | curl --fail-with-body --show-error \
+              --retry 3 --retry-all-errors \
+              --connect-timeout 10 --max-time 30 \
+              -s -X POST "$DISCORD_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d @-
+
+  notify-issue-opened:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Discord 알림 (새 Issue)
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          jq -n \
+            --arg title "📋 새로운 Issue가 생성됐어요" \
+            --arg url "$ISSUE_URL" \
+            --arg description "$ISSUE_TITLE" \
+            --arg author "$ISSUE_AUTHOR" \
+            --arg number "#$ISSUE_NUMBER" \
+            '{
+              embeds: [{
+                title: $title,
+                url: $url,
+                description: $description,
+                color: 15158332,
+                fields: [
+                  { name: "작성자", value: $author, inline: true },
+                  { name: "Issue", value: $number, inline: true }
+                ]
+              }]
+            }' \
+          | curl --fail-with-body --show-error \
+              --retry 3 --retry-all-errors \
+              --connect-timeout 10 --max-time 30 \
+              -s -X POST "$DISCORD_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d @-
+
+  notify-issue-comment:
+    if: github.event_name == 'issue_comment' && github.event.action == 'created' && github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Discord 알림 (Issue 댓글)
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_AUTHOR: ${{ github.event.comment.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          jq -n \
+            --arg title "💬 Issue에 새로운 댓글이 달렸어요" \
+            --arg url "$ISSUE_URL" \
+            --arg description "$COMMENT_BODY" \
+            --arg author "$ISSUE_AUTHOR" \
+            --arg issue "#$ISSUE_NUMBER $ISSUE_TITLE" \
+            '{
+              embeds: [{
+                title: $title,
+                url: $url,
+                description: $description,
+                color: 3447003,
+                fields: [
+                  { name: "작성자", value: $author, inline: true },
+                  { name: "Issue", value: $issue, inline: false }
                 ]
               }]
             }' \

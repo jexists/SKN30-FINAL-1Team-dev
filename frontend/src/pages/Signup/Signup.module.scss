@@ -1,0 +1,49 @@
+// 껍데기는 components/layout/AuthLayout 이 갖습니다. 여기에는 카드 안쪽만 둡니다.
+@include auth-form;
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.lead {
+  margin: 10px 0 30px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+// 완료 화면은 주소가 바로 아래 붙으므로 문단 아래 여백을 줄입니다.
+.leadTight {
+  margin-bottom: 12px;
+}
+
+// 접수된 주소. 오타를 여기서 발견하라고 눈에 띄게 둡니다.
+.sentTo {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--r-sm);
+  background: var(--fill-2);
+  color: var(--ink);
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.footnote {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+
+  a {
+    color: var(--blue);
+    font-weight: 600;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

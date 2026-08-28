@@ -2,26 +2,18 @@ import pytest
 from pydantic import ValidationError
 
 from app.agents import meeting_analysis
+from app.ml import deal_baseline
 
-UNKNOWN_FEATURES = {
-    "Authority": "Unknown",
-    "Competitors": "Unknown",
-    "Purch_dept": "Unknown",
-    "Budgt_alloc": "Unknown",
-    "Forml_tend": "Unknown",
-    "RFI": "Unknown",
-    "RFP": "Unknown",
-    "Posit_statm": "Unknown",
-    "Scope": "Unknown",
-    "Needs_def": "Unknown",
-}
+UNKNOWN_FEATURES = {name: "Unknown" for name in deal_baseline.FEATURE_NAMES}
 
 
 def test_feature_contract_uses_unknown_instead_of_guessing():
+    """미확인 특성은 추측하지 않고 Unknown으로 유지하는지 검증한다."""
     output = meeting_analysis.MeetingFeatureOutput(
         features=UNKNOWN_FEATURES,
     )
     assert output.features.model_dump() == UNKNOWN_FEATURES
+    assert tuple(output.features.model_dump()) == deal_baseline.FEATURE_NAMES
 
     with pytest.raises(ValidationError):
         meeting_analysis.MeetingFeatureOutput(
@@ -35,6 +27,7 @@ def test_feature_contract_uses_unknown_instead_of_guessing():
 
 
 def test_input_snapshot_rejects_empty_or_oversized_transcript():
+    """빈 원문과 길이 제한을 넘긴 원문이 거부되는지 검증한다."""
     with pytest.raises(ValueError, match="transcript_required"):
         meeting_analysis.input_snapshot("  ")
     with pytest.raises(ValueError, match="transcript_too_long"):
@@ -42,17 +35,29 @@ def test_input_snapshot_rejects_empty_or_oversized_transcript():
 
 
 @pytest.mark.anyio
-async def test_run_uses_common_structured_llm_boundary(monkeypatch):
+async def test_run_uses_structured_llm_output_as_model_input(monkeypatch):
+    """LLM의 구조화 결과가 그대로 딜 모델 입력으로 전달되는지 검증한다."""
     extracted = meeting_analysis.MeetingFeatureOutput(
         features=UNKNOWN_FEATURES,
     )
     captured = {}
 
     async def fake_generate_structured(**kwargs):
+        """LLM 호출 인자를 기록하고 고정된 구조화 결과를 반환한다."""
         captured.update(kwargs)
         return extracted
 
+    def fake_predict(features):
+        """모델 입력 계약을 확인하고 고정된 예측을 반환한다."""
+        assert features == UNKNOWN_FEATURES
+        return deal_baseline.DealPrediction(
+            label="watch",
+            high_probability=0.31,
+            model_version=deal_baseline.MODEL_VERSION,
+        )
+
     monkeypatch.setattr(meeting_analysis, "generate_structured", fake_generate_structured)
+    monkeypatch.setattr(deal_baseline, "predict", fake_predict)
 
     result = await meeting_analysis.run(
         meeting_analysis.input_snapshot("고객이 다음 주까지 수정 견적서를 요청했습니다.")
@@ -60,8 +65,8 @@ async def test_run_uses_common_structured_llm_boundary(monkeypatch):
 
     assert result.deal_assessment.features.model_dump() == UNKNOWN_FEATURES
     assert result.deal_assessment.label == "watch"
-    assert result.deal_assessment.high_probability == 0.5
-    assert result.deal_assessment.model_version == "deal-dummy-uniform-v0"
+    assert result.deal_assessment.high_probability == 0.31
+    assert result.deal_assessment.model_version == deal_baseline.MODEL_VERSION
     assert captured["instructions"] == meeting_analysis.SYSTEM_PROMPT
     assert captured["schema"] is meeting_analysis.MeetingFeatureOutput
     assert captured["schema_name"] == "meeting_features"

@@ -15,7 +15,7 @@ import styles from './Topbar.module.scss'
 export default function Topbar() {
   const { mobileOpen, openMobile } = useSidebar()
   const { profile } = useCurrentUser()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
 
   const hamburgerRef = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)
@@ -26,7 +26,7 @@ export default function Topbar() {
     wasOpen.current = mobileOpen
   }, [mobileOpen])
 
-  const pageLabel = findNavLabel(pathname) ?? '페이지를 찾을 수 없음'
+  const pageLabel = findNavLabel(pathname, search) ?? '페이지를 찾을 수 없음'
 
   return (
     <header className={styles.topbar}>

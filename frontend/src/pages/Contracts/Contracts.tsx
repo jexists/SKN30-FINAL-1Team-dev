@@ -8,11 +8,11 @@ import ContractForm from '@/components/ContractForm'
 import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
-import { ContractIcon, SearchIcon } from '@/components/icons'
+import { ContractIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
-import StageChip from '@/components/StageChip'
+import { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import SalesDealDrawer from '@/pages/Deals/SalesDealDrawer'
 import useSalesDeals, { type SalesDeal } from '@/pages/Deals/useSalesDeals'
@@ -34,6 +34,8 @@ const DEFAULT_RANGE = '6'
 
 export default function Contracts() {
   const [openId, setOpenId] = useState<string | null>(null)
+  // 드로어에서 연 계약 수정. 목록의 '계약 작성'(createOpen)과 달리 딜이 정해져 있습니다.
+  const [editingContract, setEditingContract] = useState<SalesDeal | null>(null)
   const [params, setParams] = useSearchParams()
 
   // 일정 등록에서 '계약서 작성 화면으로 이동' 을 고르면 이 표를 달고 옵니다.
@@ -115,12 +117,9 @@ export default function Contracts() {
     detailLoading,
     detailError,
     reloadDetail,
+    documentStatuses,
+    saveDealDocument,
   } = useSalesDeals(openId, requestedPipelineId || null, 'list', 'contract', dealQuery)
-
-  const contractStages = useMemo(
-    () => pipelineStages.filter((item) => item.phase === 'contract'),
-    [pipelineStages],
-  )
   // 정렬 API가 붙기 전에 현재 쪽만 정렬하면 전체 순서를 오해하게 됩니다.
   const columns = useMemo(
     () =>
@@ -236,12 +235,20 @@ export default function Contracts() {
           onOpenChange={(open) => setOpenFilter(open ? 'range' : null)}
           onChange={(value) => setParam('range', value, DEFAULT_RANGE)}
         />
+
+        <div className={styles.actions}>
+          <Button disabled={loading} onClick={() => setParam('new', '1')}>
+            <PlusIcon width={15} height={15} />
+            계약 작성
+          </Button>
+        </div>
       </div>
 
-      {dealPipelineId && (
+      {/* 계약 상태는 파이프라인과 무관한 팀 설정이라 파이프라인을 고르지 않아도 뜹니다. */}
+      {documentStatuses.length > 0 && (
         <StageTabs
-          stages={contractStages}
-          label="계약 단계"
+          stages={documentStatuses}
+          label="계약 상태"
           value={stage}
           countOf={(id) => stageCounts.get(id) ?? 0}
           total={stageTotal}
@@ -264,20 +271,19 @@ export default function Contracts() {
         onSort={ignoreSort}
         onOpen={(contract) => setOpenId(contract.id)}
         caption="계약 목록. 헤더를 눌러 정렬할 수 있습니다."
-        renderCell={(id, contract) => {
-          if (id !== 'stage') return undefined
-          const found = stageOf(contract)
-          return <StageChip tone={found.tone}>{found.name}</StageChip>
-        }}
+        renderCell={(id, contract) =>
+          id === 'stage'
+            ? chipOr(contract.contractStatusTone, contract.contractStatusName)
+            : undefined
+        }
         mini={(contract) => {
-          const found = stageOf(contract)
           return {
             title: contract.org,
-            badge: <StageChip tone={found.tone}>{found.name}</StageChip>,
-            sub: contract.product + ' · ' + contract.kind,
+            badge: chipOr(contract.contractStatusTone, contract.contractStatusName),
+            sub: contract.title,
             meta: [
               <span key="m1" className="tnum">
-                {won(contract.amount)}
+                {contract.contractAmount === null ? '계약금액 미정' : won(contract.contractAmount)}
               </span>,
               <span key="m2" className="tnum">
                 {contract.contractSignedOn
@@ -300,7 +306,8 @@ export default function Contracts() {
           ) : (
             <>
               <ContractIcon width={34} height={34} strokeWidth={1.5} />
-              <p>현재 계약 단계인 영업 딜이 없습니다.</p>
+              <p>아직 계약을 작성한 영업 딜이 없습니다.</p>
+              <Button onClick={() => setParam('new', '1')}>계약 작성</Button>
             </>
           )
         }
@@ -318,10 +325,37 @@ export default function Contracts() {
           error={detailError}
           onRetry={reloadDetail}
           onClose={() => setOpenId(null)}
+          onEditContract={() => {
+            if (!selectedContract) return
+            setEditingContract(selectedContract)
+            setOpenId(null)
+          }}
         />
       )}
 
-      {createOpen && <ContractForm onClose={closeCreate} onSubmit={closeCreate} />}
+      {editingContract && (
+        <ContractForm
+          deal={editingContract}
+          statuses={documentStatuses}
+          onClose={() => setEditingContract(null)}
+          onSubmit={async (dealId, fields) => {
+            await saveDealDocument(dealId, fields, '계약을 저장')
+            setEditingContract(null)
+          }}
+        />
+      )}
+
+      {createOpen && (
+        <ContractForm
+          statuses={documentStatuses}
+          onClose={closeCreate}
+          onSubmit={async (dealId, fields) => {
+            await saveDealDocument(dealId, fields, '계약을 저장')
+            closeCreate()
+            reload()
+          }}
+        />
+      )}
     </section>
   )
 }

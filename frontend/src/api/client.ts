@@ -39,10 +39,10 @@ function skipsRefresh(url: string | undefined): boolean {
 /**
  * 실패를 스스로 설명하는 화면이 있어서 전역 안내가 겹치면 곤란한 경로입니다.
  *
- * 로그인 폼은 어떤 실패든 입력란 아래에 문구를 띄웁니다. 같은 내용을 모달로
- * 한 번 더 말하면 중복이라 여기서만 빼 둡니다.
+ * 로그인 폼과 계정 요청 폼은 어떤 실패든 입력란 아래에 문구를 띄웁니다. 같은
+ * 내용을 모달로 한 번 더 말하면 중복이라 여기서만 빼 둡니다.
  */
-const OWN_ERROR_SURFACE_PATHS = ['/auth/login']
+const OWN_ERROR_SURFACE_PATHS = ['/auth/login', '/signup/request']
 
 function ownsItsErrorSurface(url: string | undefined): boolean {
   if (!url) return false

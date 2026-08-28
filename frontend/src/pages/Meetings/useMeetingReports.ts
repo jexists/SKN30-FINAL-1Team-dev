@@ -5,6 +5,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { reportTemplateFromSnapshot } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
+  MeetingDealRef,
   MeetingReport,
   PageResponse,
   ReportAttachment,
@@ -37,6 +38,22 @@ function valuesOf(value: unknown): Record<string, string> {
   )
 }
 
+function textList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string') : []
+}
+
+/** 저장해 둔 딜 이름표. 모양이 어긋난 항목은 버립니다. */
+function dealsOf(value: unknown): MeetingDealRef[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((one) => {
+    const row = record(one)
+    if (typeof row.id !== 'string' || typeof row.label !== 'string') return []
+    return [
+      { id: row.id, label: row.label, ...(typeof row.note === 'string' ? { note: row.note } : {}) },
+    ]
+  })
+}
+
 function statusOf(code: ReportResponse['status_code']): ReportStatus {
   if (code === 'draft') return '작성중'
   if (code === 'rejected') return '반려'
@@ -66,6 +83,8 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     attachments: Array.isArray(content.attachments)
       ? (content.attachments as ReportAttachment[])
       : [],
+    salesDealIds: textList(content.sales_deal_ids),
+    salesDeals: dealsOf(content.sales_deals),
     evidence: text(content.evidence) || undefined,
     aiValues: valuesOf(content.ai_values),
     aiEvidence: text(content.ai_evidence) || undefined,
@@ -87,6 +106,9 @@ export interface MeetingDraftPayload {
   transcript: string
   values: Record<string, string>
   attachments: ReportAttachment[]
+  /** 이 미팅에 연결한 영업 현황. id 와 이름표를 함께 남깁니다. */
+  salesDealIds: string[]
+  salesDeals: MeetingDealRef[]
   evidence?: string
   /** AI 원본. 최종본(values)과 나란히 저장해 두 벌을 다 복원합니다. */
   aiValues: Record<string, string>
@@ -130,6 +152,9 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
       title: draft.title,
       values: draft.values,
       attachments: draft.attachments,
+      // 에이전트가 content 전체를 프롬프트에 싣습니다. 고른 딜이 그대로 작성 근거가 됩니다.
+      sales_deal_ids: draft.salesDealIds,
+      sales_deals: draft.salesDeals,
       evidence: draft.evidence ?? null,
       ai_values: draft.aiValues,
       ai_evidence: draft.aiEvidence ?? null,
@@ -141,23 +166,25 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
   }
 }
 
-/** 그 날 쓴 미팅보고서들. 하루치라 한 쪽에 다 들어옵니다. */
+/** 그 날 쓴 업무보고서들. 하루치라 한 쪽에 다 들어옵니다. */
 export function useMeetingReportsOn(dateISO: string, enabled = true) {
   const { items, loading, error, reload } = useReportQuery(
     enabled ? { report_kind: 'meeting', start_date: dateISO, end_date: dateISO } : null,
-    '미팅보고서를 불러오지 못했습니다.',
+    '업무보고서를 불러오지 못했습니다.',
   )
   const reports = useMemo(() => items.map(toMeetingReport), [items])
   return { reports, loading, error, reload }
 }
 
-/** 그 일정으로 쓴 미팅보고서 한 건. 없으면 undefined 입니다. */
+/** 그 일정으로 쓴 업무보고서 한 건. 없으면 undefined 입니다. */
 export function useMeetingReportOfAgenda(agendaId: string) {
   const { items, loading, error, reload } = useReportQuery(
     agendaId === '' ? null : { report_kind: 'meeting', source_activity_id: agendaId, limit: 1 },
-    '미팅보고서를 불러오지 못했습니다.',
+    '업무보고서를 불러오지 못했습니다.',
   )
-  const report = items[0] ? toMeetingReport(items[0]) : undefined
+  // 렌더마다 새 객체를 만들면 이 값을 의존성으로 쓰는 작성 화면의 초기화 effect 가
+  // 끝없이 돕니다. 실제로 받아 온 것이 바뀔 때만 새로 만듭니다.
+  const report = useMemo(() => (items[0] ? toMeetingReport(items[0]) : undefined), [items])
   return { report, loading, error, reload }
 }
 

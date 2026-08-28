@@ -148,7 +148,6 @@ def _activity(member: Member) -> Activity:
         owner_member_id=member.id,
         customer_contact_id=None,
         end_user_contact_id=None,
-        activity_type="meeting",
         activity_category_id=uuid4(),
         title="합성 미팅",
         starts_at=START,
@@ -216,7 +215,7 @@ def test_report_request_rejects_unsafe_values():
         )
 
     with pytest.raises(ValidationError):
-        # 미팅보고서는 근거 일정이 있어야 한다.
+        # 업무보고서는 근거 일정이 있어야 한다.
         ReportCreate(
             report_kind="meeting",
             report_date="2026-08-17",

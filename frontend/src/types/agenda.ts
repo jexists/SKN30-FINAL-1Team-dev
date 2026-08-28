@@ -1,10 +1,10 @@
-/** 일정 종류. 배지 색이 여기에 묶여 있습니다. */
-export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth' | 'internal'
+import type { ContractBriefingOutput } from './contractAgent'
 
-export type ActivityTypeCode = 'meeting' | 'task'
+/** 일정 종류. 배지 색이 여기에 묶여 있습니다. */
+export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth'
 
 export type ActivityCategoryCode =
-  'visit' | 'demo' | 'education' | 'call' | 'delivery' | 'conference' | 'internal'
+  'visit' | 'demo' | 'education' | 'call' | 'delivery' | 'conference'
 
 export type ActivityActionTagCode =
   | 'first_call'
@@ -17,11 +17,7 @@ export type ActivityActionTagCode =
   | 'product_training'
   | 'delivery_completed'
   | 'internal_meeting'
-  | 'weekly_review'
-  | 'monthly_review'
-  | 'quarterly_review'
   | 'conference'
-  | 'ojt'
 
 /** 고객을 만나서 하는 일. 영업이 어디까지 갔는지를 말합니다. */
 export type ExternalStatus =
@@ -35,8 +31,8 @@ export type ExternalStatus =
   | '제품교육'
   | '납품완료'
 
-/** 사내에서 하는 일. 영업 단계와 무관하게 반복됩니다. */
-export type InternalStatus = '내부회의' | '주간점검' | '월간점검' | '분기점검' | '컨퍼런스' | 'OJT'
+/** 고객을 만나지 않고 사내에서 소화하는 일정. 영업 단계와 무관합니다. */
+export type InternalStatus = '내부회의' | '컨퍼런스'
 
 /** 일정의 상태. 외부·내부 두 계열로 나뉘고 태그 색이 계열을 따릅니다. */
 export type ScheduleStatus = ExternalStatus | InternalStatus
@@ -59,7 +55,7 @@ export interface AgendaSeed {
   dept: string
   contact: string
   product: string
-  /** 사내 업무처럼 영업 단계에 걸리지 않는 일정은 비어 있습니다. */
+  /** 영업 단계에 걸리지 않는 일정은 비어 있습니다. */
   stage?: ScheduleStatus
   place: string
   title: string
@@ -74,15 +70,18 @@ export interface AgendaSeed {
 /** 실제 날짜 키가 붙은 일정 */
 export interface AgendaItem extends AgendaSeed {
   date: string
-  activityType?: ActivityTypeCode
   customerContactId?: string | null
   customerContactName?: string
+  /** 이 일정의 고객사. 회사에 걸린 영업 현황을 찾을 때 씁니다. */
+  customerCompanyId?: string | null
   salesDealId?: string | null
   productId?: string | null
   ownerMemberId?: string
   startsAt?: string
   endsAt?: string | null
   allDay?: boolean
+  /** AI 추천 일정을 승인해 만든 활동에서, 브리핑 큐잉이 실패했을 때만 채워짐 */
+  briefingQueueWarning?: string | null
 }
 
 /**
@@ -107,7 +106,6 @@ export interface CalendarEvent {
   place?: string
   brief?: string
   done: boolean
-  activityType?: ActivityTypeCode
   customerContactId?: string | null
   customerContactName?: string
   salesDealId?: string | null
@@ -117,6 +115,9 @@ export interface CalendarEvent {
   startsAt?: string
   endsAt?: string | null
   allDay?: boolean
+  /** AI 추천 일정을 승인할 때만 채운다 — schedule_management 실행 id. 있으면 서버가 등록
+   * 커밋 직후 브리핑 실행을 자동으로 큐잉한다. */
+  scheduleManagementRunId?: string | null
 }
 
 export interface ActivityRead {
@@ -133,13 +134,12 @@ export interface ActivityRead {
   purchase_order_id: string | null
   product_id: string | null
   product_name: string | null
-  activity_type: ActivityTypeCode
   category_code: ActivityCategoryCode
   title: string
   starts_at: string
   ends_at: string | null
   all_day: boolean
-  /** 후속업무의 마감. 미팅에는 대개 비어 있습니다. */
+  /** 후속업무의 마감. 대개는 비어 있습니다. */
   due_at: string | null
   location: string | null
   action_tag: ActivityActionTagCode | null
@@ -147,13 +147,26 @@ export interface ActivityRead {
   note: string | null
   created_at: string
   updated_at: string
+  /** schedule_management_run_id로 브리핑을 큐잉하려다 실패했을 때만 채워짐 */
+  briefing_queue_warning?: string | null
+  /** 이 활동에 연결된 최신 브리핑 실행. 실행 기록 자체가 없으면(한 번도 요청 안 했으면) null */
+  ai_briefing?: AiBriefing | null
+}
+
+export type AiBriefingStatus = 'queued' | 'running' | 'completed' | 'failed'
+
+export interface AiBriefing {
+  run_id: string
+  status: AiBriefingStatus
+  content: ContractBriefingOutput | null
+  error: string | null
+  generated_at: string | null
 }
 
 export interface ActivityCreateRequest {
   customer_contact_id?: string | null
   sales_deal_id?: string | null
   product_id?: string | null
-  activity_type: ActivityTypeCode
   category_code: ActivityCategoryCode
   title: string
   starts_at: string
@@ -162,6 +175,10 @@ export interface ActivityCreateRequest {
   location?: string | null
   action_tag?: ActivityActionTagCode | null
   note?: string | null
+  /** AI가 추천한 일정 후보를 승인해서 등록할 때만 채운다 */
+  schedule_management_run_id?: string | null
 }
 
-export type ActivityPatchRequest = Partial<ActivityCreateRequest>
+export type ActivityPatchRequest = Partial<
+  Omit<ActivityCreateRequest, 'schedule_management_run_id'>
+>

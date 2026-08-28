@@ -1,0 +1,21 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  gap: var(--s2);
+}
+
+// 우편번호는 5자리라 나머지 자리를 버튼에 내줍니다.
+.postcode {
+  flex: 0 1 120px;
+}
+
+.error {
+  color: var(--red-ink);
+  font-size: 11px;
+}

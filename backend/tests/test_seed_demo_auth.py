@@ -43,10 +43,12 @@ class FakeSession:
 def test_demo_auth_configuration_matches_the_fixed_defaults():
     assert [(table_name, len(rows)) for _model, table_name, rows in LOOKUP_DEFAULTS] == [
         ("customer_contact_status", 5),
-        ("activity_category", 7),
-        ("activity_action_tag", 15),
+        ("activity_category", 6),
+        ("activity_action_tag", 11),
         ("sales_deal_type", 5),
         ("purchase_order_status", 6),
+        ("quote_status", 5),
+        ("contract_status", 5),
     ]
     for _model, _table_name, rows in LOOKUP_DEFAULTS:
         assert len({row["code"] for row in rows}) == len(rows)
@@ -139,7 +141,7 @@ def test_existing_configuration_is_validated_without_being_overwritten():
 
     asyncio.run(seed_team_configuration(session, team_id))
 
-    assert len(session.statements) == 7
+    assert len(session.statements) == 9
 
 
 def test_configuration_id_collision_stops_before_any_write():

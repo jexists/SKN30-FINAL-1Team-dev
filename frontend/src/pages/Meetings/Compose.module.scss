@@ -1,8 +1,16 @@
-/* 나가는 길 하나만 있는 머리말입니다. 오른쪽 끝, 상세 화면과 같은 자리입니다. */
+/* 머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 PDF 입니다. 상세 화면과 같은 자리입니다. */
 .head {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
   margin-bottom: var(--s3);
+}
+
+/* 화살표가 글자 앞에 서므로 줄이는 여백도 왼쪽입니다. */
+.back {
+  padding-right: var(--s4);
+  padding-left: var(--s3);
 }
 
 .locked {
@@ -33,7 +41,7 @@
   }
 }
 
-/* 왼쪽 = 참고 자료, 오른쪽 = 최종 작업 영역. */
+/* 왼쪽 = 참고 자료와 입력, 오른쪽 = 최종 보고서. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
@@ -46,6 +54,18 @@
   }
 }
 
+/* 왼쪽 열. 위는 참고 자료, 아래는 입력판입니다. */
+.side {
+  display: grid;
+  gap: var(--s5);
+  min-width: 0;
+  align-content: start;
+
+  @include lg {
+    gap: var(--s4);
+  }
+}
+
 /*
  * 참고 열. 흰 면이되 바닥에 붙어 있습니다 — 테두리만 있고 그림자가 없습니다.
  * 오른쪽 보고서만 그림자로 떠 있어서, 흰 면이 둘이어도 어느 쪽을 고치는 중인지
@@ -53,6 +73,29 @@
  */
 .reference {
   min-width: 0;
+  padding: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+
+  @include md {
+    padding: var(--s4);
+  }
+}
+
+/* 오른쪽 작업 열. 나오는 것(보고서)만 섭니다. */
+.work {
+  display: grid;
+  gap: var(--s5);
+  min-width: 0;
+  align-content: start;
+}
+
+/*
+ * 입력판. 참고판과 같은 열에 놓여 있는 면입니다 — 테두리만 있고 그림자가 없습니다.
+ * 떠 있는 면은 오른쪽 보고서 하나뿐이어야 어느 쪽이 결과인지 헷갈리지 않습니다.
+ */
+.input {
   padding: var(--s5);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
@@ -94,7 +137,8 @@
   // 개발 서버에서 무엇이 이길지 달라집니다.
   .head.head,
   .locked.locked,
-  .reference.reference {
+  .reference.reference,
+  .input.input {
     display: none;
   }
 

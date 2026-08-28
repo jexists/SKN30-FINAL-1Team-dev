@@ -11,6 +11,7 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
+import { LOCAL_DEV_PASSWORD } from '@/auth/devAccounts'
 import Button from '@/components/Button'
 import { env } from '@/config/env'
 
@@ -36,9 +37,6 @@ interface AdminTeam {
 
 /** 팀 선택란의 "새 팀 만들기" 항목. 실제 팀 id 와 섞이지 않는 값을 씁니다. */
 const NEW_TEAM = 'new'
-
-/** 로컬에서 서버가 고정으로 넣는 비밀번호. backend/app/api/admin.py 의 값과 같아야 합니다. */
-const LOCAL_DEV_PASSWORD = '12341234'
 
 /** 표시용으로만 하이픈을 넣습니다. 서버에는 숫자 10자리로 저장됩니다. */
 function formatBusinessNo(value: string | null): string {

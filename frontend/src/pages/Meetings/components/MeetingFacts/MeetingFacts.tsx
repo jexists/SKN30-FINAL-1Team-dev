@@ -5,7 +5,6 @@ import styles from './MeetingFacts.module.scss'
 interface Props {
   dept: string
   contact: string
-  product: string
   place: string
   /**
    * 작성 화면은 머리말에서 회사·일시를 빼고 여기서 한 번만 보여 줍니다.
@@ -18,12 +17,11 @@ interface Props {
   when?: string
 }
 
-export default function MeetingFacts({ dept, contact, product, place, hospital, when }: Props) {
+export default function MeetingFacts({ dept, contact, place, hospital, when }: Props) {
   const facts: [string, string][] = [
     ...(hospital === undefined ? [] : ([['회사', hospital]] as [string, string][])),
     ['부서', dept],
     ['담당자', contact],
-    ['제품', product],
     ['장소', place],
     ...(when === undefined ? [] : ([['일시', when]] as [string, string][])),
   ]

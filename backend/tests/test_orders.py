@@ -167,6 +167,11 @@ def _deal(
         contract_no=None,
         contract_signed_on=None,
         contract_ends_on=None,
+        quote_status_id=None,
+        contract_status_id=None,
+        quote_amount=None,
+        contract_amount=None,
+        quote_delivery_terms=None,
         warranty_terms=None,
         expected_delivery_at=None,
         memo=None,
@@ -207,6 +212,10 @@ def _order(member: Member, deal: SalesDeal, order_status: PurchaseOrderStatus) -
         ordered_on=date(2026, 8, 17),
         due_on=date(2026, 8, 31),
         expected_receipt_on=date(2026, 8, 30),
+        request_department="영업팀",
+        cooperation_department="생산팀",
+        created_by_member_id=member.id,
+        expected_customer_company_id=deal.customer_company_id,
         memo="합성 메모",
         deleted_at=None,
         created_at=NOW,
@@ -244,6 +253,8 @@ def _row(
         order_status.tone,
         order_status.outcome_code,
         order_status.position,
+        member.display_name,
+        company.name,
     )
 
 
@@ -354,7 +365,7 @@ def test_order_creation_move_uses_first_order_stage_and_reorders_atomically():
         _Result(scalar_values=[source_first, moving, target_first]),
     )
 
-    asyncio.run(api._move_deal_to_first_order_stage(db, member, moving, "contract"))
+    asyncio.run(api._move_deal_to_first_stage_of_phase(db, member, moving, "contract", "order"))
 
     assert moving.sales_pipeline_stage_id == order_stage.id
     assert moving.stage_position == 0
@@ -373,7 +384,7 @@ def test_order_creation_fails_when_pipeline_has_no_order_stage():
     db = _Db(_Result(scalar=None))
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(api._move_deal_to_first_order_stage(db, member, deal, "contract"))
+        asyncio.run(api._move_deal_to_first_stage_of_phase(db, member, deal, "contract", "order"))
 
     assert exc.value.status_code == 409
     assert exc.value.detail == "sales_pipeline_order_stage_not_found"

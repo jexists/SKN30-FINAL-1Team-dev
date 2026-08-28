@@ -50,7 +50,7 @@ interface Props {
  * 타일을 눌러 나온 목록과 타일의 숫자가 어긋날 수 있습니다.
  */
 export default function SummaryBand({ data, onJumpToToday, onOpenList }: Props) {
-  const { visited_companies, activities, follow_ups, support_requests } = data
+  const { visited_companies, activities, support_requests } = data
   const renewals = data.contract_renewals
   const goal = data.sales_target
   const target = goal.target_amount
@@ -80,13 +80,6 @@ export default function SummaryBand({ data, onJumpToToday, onOpenList }: Props) 
         </span>
       </button>
 
-      <Tile
-        label="미완료 후속업무"
-        delta={{ text: `${follow_ups.overdue} 지연`, tone: 'warn' }}
-        value={follow_ups.total}
-        sub={`이번 주 마감 ${follow_ups.due_within_7_days}건`}
-        onOpen={() => onOpenList('followUp')}
-      />
       <Tile
         label="C/S 대응요청"
         delta={{ text: `긴급 ${support_requests.urgent}건`, tone: 'danger' }}

@@ -1517,7 +1517,7 @@
         </section>
 
         <section class="page" data-page="daily">
-          <div class="page-header"><div><p class="eyebrow" id="reportTabEyebrow">Daily report</p><h1 id="reportTabTitle">일일업무 분석</h1><p id="reportTabDesc">당일 확정된 미팅보고서와 일정을 모아 일일보고서 초안을 구성합니다. 제출 전까지 수정할 수 있습니다.</p></div><div class="page-actions" id="dailyPanelActions"><button class="btn btn-outline" id="dailyReload">↻ 초안 다시 불러오기</button><button class="btn btn-primary" id="dailySubmit">보고서 제출</button></div></div>
+          <div class="page-header"><div><p class="eyebrow" id="reportTabEyebrow">Daily report</p><h1 id="reportTabTitle">일일업무 분석</h1><p id="reportTabDesc">당일 확정된 업무보고서와 일정을 모아 일일보고서 초안을 구성합니다. 제출 전까지 수정할 수 있습니다.</p></div><div class="page-actions" id="dailyPanelActions"><button class="btn btn-outline" id="dailyReload">↻ 초안 다시 불러오기</button><button class="btn btn-primary" id="dailySubmit">보고서 제출</button></div></div>
 
           <div class="section-tabs report-tabs" role="tablist" aria-label="업무보고 기간 선택">
             <button class="section-tab active" data-report-tab="daily" role="tab" aria-selected="true">일간업무 분석</button>
@@ -1529,7 +1529,7 @@
           <div class="daily-strip">
             <div class="metric"><p class="eyebrow">보고 일자</p><strong>2026.08.05</strong><span>수요일 · 마감 18:00</span></div>
             <div class="metric"><p class="eyebrow">오늘 일정</p><strong id="dailyScheduleCount">0건</strong><span>캘린더 연동</span></div>
-            <div class="metric"><p class="eyebrow">확정 미팅보고서</p><strong id="dailyMeetingCount">0건</strong><span>초안에 자동 통합</span></div>
+            <div class="metric"><p class="eyebrow">확정 업무보고서</p><strong id="dailyMeetingCount">0건</strong><span>초안에 자동 통합</span></div>
             <div class="metric"><p class="eyebrow">제출 상태</p><strong id="dailyStatus">미제출</strong><span id="dailyStatusSub">초안 작성 중</span></div>
           </div>
 
@@ -1537,7 +1537,7 @@
             <article class="card">
               <div class="card-head"><div><p class="eyebrow">Auto-collected</p><h2>오늘 활동 내역</h2></div><span class="tag-pill" id="dailyActivityTag">자동 수집</span></div>
               <div class="card-body">
-                <div class="draft-note">● 아래 항목은 캘린더·미팅보고서에서 자동으로 불러온 값입니다. 체크를 해제하면 보고서에서 제외됩니다.</div>
+                <div class="draft-note">● 아래 항목은 캘린더·업무보고서에서 자동으로 불러온 값입니다. 체크를 해제하면 보고서에서 제외됩니다.</div>
                 <div class="daily-activity" id="dailyActivityList"></div>
                 <div class="section-title" style="margin-top:20px"><h3>수기 추가 항목</h3><button class="link-btn" id="dailyAddManual">＋ 항목 추가</button></div>
                 <div class="daily-activity" id="dailyManualList"></div>
@@ -1636,8 +1636,8 @@
             <div class="doc-row" data-doc-type="report" data-search="한빛테크 박서준 주간보고"><span class="doc-type">WK</span><span class="doc-title"><strong>8월 1주차 주간업무 분석</strong><span>확정 일일보고서 5건 통합</span></span><span>영업 1팀</span><span>2026.08.05</span><span class="status draft">검토 대기</span><button class="btn btn-small btn-secondary preview-doc">열기</button></div>
             <div class="doc-row" data-doc-type="quote" data-search="한빛테크 SalesFlow 견적서"><span class="doc-type">QT</span><span class="doc-title"><strong>SalesFlow Enterprise 제품 견적서</strong><span>SL-QT-2026-0812</span></span><span>한빛테크</span><span>2026.08.04</span><span class="status">확정</span><button class="btn btn-small btn-secondary preview-doc">원본·PDF</button></div>
             <div class="doc-row" data-doc-type="contract" data-search="새봄솔루션 WorkSync 계약서"><span class="doc-type">CT</span><span class="doc-title"><strong>WorkSync Pro 공급계약서</strong><span>SL-CT-2026-0038</span></span><span>새봄솔루션</span><span>2026.08.03</span><span class="status signing">전자서명 중</span><button class="btn btn-small btn-secondary preview-doc">상태</button></div>
-            <div class="doc-row" data-doc-type="report" data-search="서림커머스 윤가영 미팅보고서"><span class="doc-type">MT</span><span class="doc-title"><strong>서림커머스 미팅보고서</strong><span>14:00 사용 교육 협의</span></span><span>윤가영 운영팀장</span><span>2026.08.03</span><span class="status">확정</span><button class="btn btn-small btn-secondary preview-doc">열기</button></div>
-            <div class="doc-row" data-doc-type="report" data-search="8월 4일 일일보고서"><span class="doc-type">DY</span><span class="doc-title"><strong>2026년 8월 4일 일일보고서</strong><span>확정 미팅보고서 3건 통합</span></span><span>김지훈</span><span>2026.08.04</span><span class="status">확정</span><button class="btn btn-small btn-secondary preview-doc">열기</button></div>
+            <div class="doc-row" data-doc-type="report" data-search="서림커머스 윤가영 업무보고서"><span class="doc-type">MT</span><span class="doc-title"><strong>서림커머스 업무보고서</strong><span>14:00 사용 교육 협의</span></span><span>윤가영 운영팀장</span><span>2026.08.03</span><span class="status">확정</span><button class="btn btn-small btn-secondary preview-doc">열기</button></div>
+            <div class="doc-row" data-doc-type="report" data-search="8월 4일 일일보고서"><span class="doc-type">DY</span><span class="doc-title"><strong>2026년 8월 4일 일일보고서</strong><span>확정 업무보고서 3건 통합</span></span><span>김지훈</span><span>2026.08.04</span><span class="status">확정</span><button class="btn btn-small btn-secondary preview-doc">열기</button></div>
           </article>
         </section>
 
@@ -1873,14 +1873,14 @@
           </div>
 
           <div class="manager-panel active" data-manager-panel="reports">
-            <div class="manager-banner"><span class="lock">✓</span><div><strong>팀원의 업무보고 제출과 핵심 활동을 한눈에 확인합니다.</strong><br><span>확정된 미팅보고서를 기준으로 일일보고서를 취합하고 미제출·미확정 항목을 표시합니다.</span></div></div>
+            <div class="manager-banner"><span class="lock">✓</span><div><strong>팀원의 업무보고 제출과 핵심 활동을 한눈에 확인합니다.</strong><br><span>확정된 업무보고서를 기준으로 일일보고서를 취합하고 미제출·미확정 항목을 표시합니다.</span></div></div>
             <div class="issue-summary">
               <div class="card"><span>오늘 업무보고</span><strong>2 / 4</strong><small class="muted">제출 완료 / 전체 팀원</small></div>
-              <div class="card"><span>확정 미팅보고서</span><strong>8 / 10</strong><small class="muted">확정 / 오늘 미팅</small></div>
+              <div class="card"><span>확정 업무보고서</span><strong>8 / 10</strong><small class="muted">확정 / 오늘 미팅</small></div>
               <div class="card"><span>핵심 목표 달성</span><strong id="issueKpiGoal">68%</strong><small class="muted">확정 보고서 기준</small></div>
               <div class="card"><span>확인 필요</span><strong class="warning" id="issueWatchCount">2건</strong><small class="muted">미제출·재작성 요청</small></div>
             </div>
-            <div class="toolbar"><button class="chip active" data-issue-filter="all">전체 팀원</button><button class="chip" data-issue-filter="submitted">제출 완료</button><button class="chip" data-issue-filter="pending">확인 필요</button><span class="muted" style="font-size:8px">확정된 미팅보고서만 업무보고 집계에 반영</span></div>
+            <div class="toolbar"><button class="chip active" data-issue-filter="all">전체 팀원</button><button class="chip" data-issue-filter="submitted">제출 완료</button><button class="chip" data-issue-filter="pending">확인 필요</button><span class="muted" style="font-size:8px">확정된 업무보고서만 업무보고 집계에 반영</span></div>
             <article class="card member-issue-table" id="memberIssueTable">
               <div class="member-issue-row header"><span>팀원</span><span>업무보고</span><span>확정 미팅</span><span>핵심 목표</span><span>주요 내용·이슈</span><span>검토</span></div>
               <div class="member-issue-row" data-issue-status="submitted" data-issue-member="김지훈"><div class="member-issue-name"><span class="avatar">김</span><div><strong>김지훈</strong><span>동부 권역</span></div></div><strong class="positive">제출 완료</strong><strong>2 / 3건</strong><div class="mini-progress"><strong id="jihoonGoalRate">50%</strong><div class="progress-bar"><span id="jihoonGoalBar" style="width:50%;background:var(--orange)"></span></div></div><div class="attention-note" id="jihoonStatus">한빛테크 구매 승인 담당자 미확인</div><button class="btn btn-small btn-secondary issue-detail">보고서</button></div>
@@ -2242,7 +2242,7 @@
     <div id="notificationMessages">
       <div class="notification-message new"><div class="notification-meta"><span>방금</span></div><h3>한빛테크 방문 1시간 전</h3><p>구매팀 담당자와 예산 편성 시기가 아직 확인되지 않았습니다. 유지보수 비용 비교표를 준비하세요.</p><div class="notification-actions"><button class="btn btn-small btn-primary" data-open="briefingDialog">브리핑 열기</button></div></div>
       <div class="notification-message"><div class="notification-meta"><span>09:10</span></div><h3>후속 방문 일정이 누락됐습니다</h3><p>새봄솔루션의 견적 검토 회신일이 2일 지났습니다.</p><div class="notification-actions"><button class="btn btn-small btn-primary" data-open="scheduleDialog">일정 등록</button></div></div>
-      <div class="notification-message"><div class="notification-meta"><span>어제</span></div><h3>일일보고서 초안이 생성됐습니다</h3><p>확정된 미팅보고서 3건을 통합했습니다. 검토 후 확정해 주세요.</p><div class="notification-actions"><button class="btn btn-small btn-primary" data-route="reports">보고서 검토</button></div></div>
+      <div class="notification-message"><div class="notification-meta"><span>어제</span></div><h3>일일보고서 초안이 생성됐습니다</h3><p>확정된 업무보고서 3건을 통합했습니다. 검토 후 확정해 주세요.</p><div class="notification-actions"><button class="btn btn-small btn-primary" data-route="reports">보고서 검토</button></div></div>
     </div>
   </aside>
 
@@ -2619,7 +2619,7 @@
     // Daily report
     let dailyActivities = [
       { id: "a1", source: "캘린더", title: "10:30 한빛테크 방문", desc: "박서준 부장 · 제품 테스트 결과 확인", on: true },
-      { id: "a2", source: "미팅보고서", title: "한빛테크 미팅 기록 확정", desc: "필수 목표 5개 중 4개 달성 · 유지보수 조건 추가 설명 요청", on: true },
+      { id: "a2", source: "업무보고서", title: "한빛테크 미팅 기록 확정", desc: "필수 목표 5개 중 4개 달성 · 유지보수 조건 추가 설명 요청", on: true },
       { id: "a3", source: "캘린더", title: "14:00 서림커머스 방문", desc: "윤가영 운영팀장 · 사용 교육 일정 협의", on: true },
       { id: "a4", source: "문서", title: "SalesFlow Enterprise 견적서 발송", desc: "SL-QT-2026-0812 · 총액 50,160,000원", on: true },
       { id: "a5", source: "후속", title: "새봄솔루션 후속 방문 미등록", desc: "견적 검토 회신 예정일 2일 경과", on: false }
@@ -2627,8 +2627,8 @@
     let dailyManual = [];
     let dailySubmitted = false;
     const dailyHistory = [
-      { date: "2026.08.04", target: "김서현 영업팀장", status: "확정", note: "확정 미팅보고서 3건 통합" },
-      { date: "2026.08.03", target: "김서현 영업팀장", status: "확정", note: "확정 미팅보고서 2건 통합" },
+      { date: "2026.08.04", target: "김서현 영업팀장", status: "확정", note: "확정 업무보고서 3건 통합" },
+      { date: "2026.08.03", target: "김서현 영업팀장", status: "확정", note: "확정 업무보고서 2건 통합" },
       { date: "2026.08.01", target: "김서현 영업팀장", status: "확정", note: "방문 1건 · 견적 1건" }
     ];
 
@@ -2645,7 +2645,7 @@
       $("#dailyManualList").innerHTML = dailyManual.length ? dailyManual.map(item => dailyItemHtml(item, true)).join("") : `<p class="daily-empty">수기로 추가한 항목이 없습니다.</p>`;
       const selected = [...dailyActivities, ...dailyManual].filter(item => item.on);
       $("#dailyScheduleCount").textContent = `${schedules.filter(item => item.day === 5 && item.type !== "leave").length}건`;
-      $("#dailyMeetingCount").textContent = `${dailyActivities.filter(item => item.source === "미팅보고서").length}건`;
+      $("#dailyMeetingCount").textContent = `${dailyActivities.filter(item => item.source === "업무보고서").length}건`;
       $("#dailyActivityTag").textContent = `${selected.length}건 선택`;
       $("#dailyStatus").textContent = dailySubmitted ? "제출 완료" : "미제출";
       $("#dailyStatusSub").textContent = dailySubmitted ? "팀장 확인 대기" : "초안 작성 중";
@@ -2695,7 +2695,7 @@
       $("#dailyNext").value = "새봄솔루션 후속 방문 일정 등록, 한빛테크 유지보수 조건 자료 회신";
       dailySubmitted = false;
       renderDaily();
-      toast("캘린더와 확정 미팅보고서에서 초안을 다시 불러왔습니다.");
+      toast("캘린더와 확정 업무보고서에서 초안을 다시 불러왔습니다.");
     });
 
     $("#dailySubmit").addEventListener("click", () => {
@@ -2718,7 +2718,7 @@
 
     // Report tabs (일간 / 주간 / 월간)
     const reportTabCopy = {
-      daily: { title: "일일업무 분석", eyebrow: "Daily report", desc: "당일 확정된 미팅보고서와 일정을 모아 일일보고서 초안을 구성합니다. 제출 전까지 수정할 수 있습니다." },
+      daily: { title: "일일업무 분석", eyebrow: "Daily report", desc: "당일 확정된 업무보고서와 일정을 모아 일일보고서 초안을 구성합니다. 제출 전까지 수정할 수 있습니다." },
       weekly: { title: "주간업무 분석", eyebrow: "Weekly report", desc: "일일업무보고로 제출된 내용을 자동으로 모아 이번 주 실적을 보여줍니다." },
       monthly: { title: "월간업무 분석", eyebrow: "Monthly report", desc: "주간업무 분석 결과를 자동으로 모아 이번 달 실적을 보여줍니다." }
     };
@@ -2903,12 +2903,12 @@
       renderMemberDashboard();
       renderHospitals();
       renderHospitalDetail();
-      addDocument("report", "한빛테크 미팅보고서", "박서준 부장");
+      addDocument("report", "한빛테크 업무보고서", "박서준 부장");
       closeDialog($("#meetingDialog"));
       $("#meetingResult").classList.remove("show");
       $("#confirmMeeting").disabled = true;
       const achievedCount = activeGoals.length - analyzedOpenGoalCount;
-      addNotification("미팅보고서가 확정됐습니다", `필수 목표 ${activeGoals.length}개 중 ${achievedCount}개를 달성했습니다. 미완료 ${analyzedOpenGoalCount}개는 다음 미팅 지시 초안으로 이월했습니다.`);
+      addNotification("업무보고서가 확정됐습니다", `필수 목표 ${activeGoals.length}개 중 ${achievedCount}개를 달성했습니다. 미완료 ${analyzedOpenGoalCount}개는 다음 미팅 지시 초안으로 이월했습니다.`);
       toast("업무보고서를 확정하고 오늘 일정을 완료했습니다.");
     });
 

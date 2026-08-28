@@ -1,0 +1,201 @@
+// demo/layout_v3.html §5 를 옮긴 것입니다.
+// 껍데기만 여기 있습니다. 카드 안쪽 폼은 쓰는 화면의 *.module.scss 가 갖습니다.
+.shell {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(390px, 0.85fr);
+  background: linear-gradient(145deg, #0a84ff 0%, #0066d6 58%, #004a9f 100%);
+  color: #fff;
+  overflow: hidden;
+
+  @include lg {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- 왼쪽: 소개 ---- */
+.story {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  padding: clamp(36px, 6vw, 84px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  @include lg {
+    min-height: auto;
+  }
+
+  // 좁은 화면에서는 소개를 아예 걷어냅니다. 폼이 첫 화면에 있어야 합니다.
+  @include md {
+    display: none;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(circle at 20% 22%, rgba(255, 255, 255, 0.22), transparent 22rem),
+      linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size:
+      auto,
+      42px 42px,
+      42px 42px;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    width: 440px;
+    height: 440px;
+    right: -150px;
+    bottom: -110px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 70px rgba(255, 255, 255, 0.035),
+      0 0 0 140px rgba(255, 255, 255, 0.02);
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandMark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px 11px 11px 3px;
+  background: #fff;
+  color: var(--blue);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.brandName {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.copy {
+  max-width: 720px;
+  margin: 50px 0;
+
+  h1 {
+    max-width: 650px;
+    font-size: clamp(42px, 6vw, 78px);
+    line-height: 0.98;
+    letter-spacing: -0.065em;
+    font-weight: 700;
+
+    span {
+      color: #d9ebff;
+    }
+  }
+
+  p {
+    max-width: 560px;
+    margin-top: 26px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 16px;
+    line-height: 1.75;
+  }
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.pulseDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.14);
+}
+
+.proof {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+
+  div {
+    min-width: 132px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  strong {
+    display: block;
+    color: #d9ebff;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  small {
+    color: rgba(255, 255, 255, 0.72);
+  }
+}
+
+/* ---- 오른쪽: 폼 ---- */
+.panel {
+  margin: 20px;
+  padding: clamp(30px, 5vw, 66px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  border-radius: 28px;
+  box-shadow: -22px 0 80px rgba(0, 42, 100, 0.2);
+
+  h2 {
+    font-size: 30px;
+    letter-spacing: -0.04em;
+  }
+
+  @include md {
+    // 소개가 사라지는 폭입니다. 카드가 아니라 화면 그 자체가 됩니다.
+    margin: 0;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+}
+
+// 소개가 사라지는 폭에서만 나타나는 브랜드 락업.
+// 소개와 함께 브랜드까지 사라지면 어느 서비스인지 알 수 없습니다.
+.panelBrand {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+  color: var(--ink);
+
+  .brandMark {
+    background: var(--blue);
+    color: #fff;
+  }
+
+  @include md {
+    display: flex;
+  }
+}

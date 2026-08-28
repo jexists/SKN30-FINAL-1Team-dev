@@ -76,8 +76,7 @@ class _Db:
                 return "weekly_activities"
             if "distinct" in sql:
                 return "today"
-            # 후속업무는 집계 세 개, 오늘 목록은 행 조회다.
-            return "follow_ups" if "count(" in sql else "today_rows"
+            return "today_rows"
         if "public.sales_deal" in sql:
             if "sum(" in sql:
                 return "deal_sums"
@@ -96,7 +95,6 @@ class _Db:
             "member_ids": _Result(rows=[]),
             "today": _Result(row=(0, 0)),
             "today_rows": _Result(rows=[]),
-            "follow_ups": _Result(row=(0, 0, 0)),
             "support": _Result(row=(0, 0, 0)),
             "renewal_count": _Result(scalar=0),
             "renewal_lead": _Result(scalar=None),
@@ -165,7 +163,6 @@ def _category(team_id) -> ActivityCategory:
         deleted_at=None,
         created_at=NOW,
         updated_at=NOW,
-        activity_type="meeting",
     )
 
 
@@ -177,7 +174,6 @@ def _activity_row(member: Member, *, hour: int, title: str):
         owner_member_id=member.id,
         customer_contact_id=None,
         end_user_contact_id=None,
-        activity_type="meeting",
         activity_category_id=uuid4(),
         title=title,
         starts_at=datetime(2026, 8, 18, hour, tzinfo=UTC),
@@ -260,7 +256,6 @@ def test_cards_and_weekly_band_shape():
         notice_rows=_Result(rows=[(_notice(member), member.display_name)]),
         # 같은 회사를 두 번 방문해도 회사 수는 1이다. DISTINCT 결과를 그대로 받는다.
         today=_Result(row=(1, 2)),
-        follow_ups=_Result(row=(4, 1, 2)),
         support=_Result(row=(3, 2, 1)),
         renewal_count=_Result(scalar=1),
         renewal_lead=_Result(scalar="새봄정형외과"),
@@ -275,7 +270,6 @@ def test_cards_and_weekly_band_shape():
     assert body["date"] == "2026-08-18"
     assert body["visited_companies"]["count"] == 1
     assert body["activities"]["count"] == 2
-    assert body["follow_ups"] == {"total": 4, "overdue": 1, "due_within_7_days": 2}
     assert body["support_requests"] == {"total": 3, "in_progress": 2, "urgent": 1}
 
     renewal = body["contract_renewals"]

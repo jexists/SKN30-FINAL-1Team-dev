@@ -6,6 +6,7 @@ import type {
   ActivityActionTagCode,
   ActivityCategoryCode,
   ActivityCreateRequest,
+  ActivityPatchRequest,
   ActivityRead,
   AgendaItem,
   AgendaKind,
@@ -26,7 +27,6 @@ export const KIND_LABEL: Record<AgendaKind, string> = {
   call: '전화',
   delivery: '납품',
   booth: '학회',
-  internal: '내부',
 }
 
 export const EXTERNAL_STATUSES: readonly ExternalStatus[] = [
@@ -41,14 +41,7 @@ export const EXTERNAL_STATUSES: readonly ExternalStatus[] = [
   '납품완료',
 ]
 
-export const INTERNAL_STATUSES: readonly InternalStatus[] = [
-  '내부회의',
-  '주간점검',
-  '월간점검',
-  '분기점검',
-  '컨퍼런스',
-  'OJT',
-]
+export const INTERNAL_STATUSES: readonly InternalStatus[] = ['내부회의', '컨퍼런스']
 
 export function statusScope(status: ScheduleStatus): '내부' | '외부' {
   return (INTERNAL_STATUSES as readonly ScheduleStatus[]).includes(status) ? '내부' : '외부'
@@ -61,7 +54,6 @@ const CATEGORY_BY_KIND: Record<AgendaKind, ActivityCategoryCode> = {
   call: 'call',
   delivery: 'delivery',
   booth: 'conference',
-  internal: 'internal',
 }
 
 const KIND_BY_CATEGORY: Record<ActivityCategoryCode, AgendaKind> = {
@@ -71,7 +63,6 @@ const KIND_BY_CATEGORY: Record<ActivityCategoryCode, AgendaKind> = {
   call: 'call',
   delivery: 'delivery',
   conference: 'booth',
-  internal: 'internal',
 }
 
 const ACTION_TAG_BY_STATUS: Record<ScheduleStatus, ActivityActionTagCode> = {
@@ -85,11 +76,7 @@ const ACTION_TAG_BY_STATUS: Record<ScheduleStatus, ActivityActionTagCode> = {
   제품교육: 'product_training',
   납품완료: 'delivery_completed',
   내부회의: 'internal_meeting',
-  주간점검: 'weekly_review',
-  월간점검: 'monthly_review',
-  분기점검: 'quarterly_review',
   컨퍼런스: 'conference',
-  OJT: 'ojt',
 }
 
 const STATUS_BY_ACTION_TAG = Object.fromEntries(
@@ -106,7 +93,7 @@ function kstIso(value: number | Date): string {
   return `${new Date(time + KST_OFFSET).toISOString().slice(0, 19)}+09:00`
 }
 
-function kstParts(value: string): { date: string; time: string } {
+export function kstParts(value: string): { date: string; time: string } {
   const shifted = new Date(new Date(value).getTime() + KST_OFFSET).toISOString()
   return { date: shifted.slice(0, 10), time: shifted.slice(11, 16) }
 }
@@ -118,7 +105,7 @@ function durationMinutes(label: string): number | null {
   return total > 0 ? total : null
 }
 
-function durationLabel(start: string, end: string): string {
+export function durationLabel(start: string, end: string): string {
   const minutes = Math.round((new Date(end).getTime() - new Date(start).getTime()) / MINUTE)
   if (minutes <= 0) return ''
   const hours = Math.floor(minutes / 60)
@@ -155,15 +142,16 @@ export function activityToAgenda(activity: ActivityRead): AgendaItem {
     tags: [],
     done: activity.completed_at !== null,
     reported: false,
-    activityType: activity.activity_type,
     customerContactId: activity.customer_contact_id,
     customerContactName: activity.customer_contact_name ?? '',
+    customerCompanyId: activity.customer_company_id,
     salesDealId: activity.sales_deal_id,
     productId: activity.product_id,
     ownerMemberId: activity.owner_member_id,
     startsAt: kstIso(new Date(activity.starts_at)),
     endsAt: activity.ends_at ? kstIso(new Date(activity.ends_at)) : null,
     allDay: activity.all_day,
+    briefingQueueWarning: activity.briefing_queue_warning ?? null,
   }
 }
 
@@ -181,7 +169,6 @@ export function agendaToActivity(event: CalendarEvent): ActivityCreateRequest {
     customer_contact_id: event.customerContactId ?? null,
     sales_deal_id: event.salesDealId ?? null,
     product_id: event.productId ?? null,
-    activity_type: event.activityType ?? (event.kind === 'internal' ? 'task' : 'meeting'),
     category_code: CATEGORY_BY_KIND[event.kind],
     title: event.title.trim(),
     starts_at: kstIso(start),
@@ -190,7 +177,14 @@ export function agendaToActivity(event: CalendarEvent): ActivityCreateRequest {
     location: nullableText(event.place),
     action_tag: event.stage ? ACTION_TAG_BY_STATUS[event.stage] : null,
     note: nullableText(event.brief),
+    schedule_management_run_id: event.scheduleManagementRunId ?? null,
   }
+}
+
+/** 수정은 등록과 달리 schedule_management_run_id를 받지 않는다. */
+export function agendaToActivityPatch(event: CalendarEvent): ActivityPatchRequest {
+  const { schedule_management_run_id: _runId, ...patch } = agendaToActivity(event)
+  return patch
 }
 
 let items: AgendaItem[] = []

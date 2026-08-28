@@ -16,46 +16,9 @@
   grid-column: 1 / -1;
 }
 
-// 유형은 태그처럼 내용만큼만 차지합니다. 폼 맨 위에서 한눈에 들어오되
-// 제목·일정보다 시선을 먼저 끌면 안 되기 때문입니다.
-.typeToggle {
-  display: flex;
-  gap: var(--s2);
-}
-
-.typeBtn {
-  padding: 5px 14px;
-  border: 1px solid var(--line-2);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color var(--t-fast) var(--ease-out),
-    background var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out);
-
-  &:hover {
-    border-color: var(--blue);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--blue-ring);
-  }
-}
-
-.isOn {
-  border-color: var(--blue);
-  background: var(--blue-tint);
-  color: var(--blue-press);
-}
-
 // 시작과 끝은 한 줄에 붙어 하나의 기간으로 읽혀야 합니다.
 //
-// 칸 나눗셈은 바깥 그리드(상태·장소 줄)와 똑같아야 아래위 줄이 맞습니다.
+// 칸 나눗셈은 바깥 그리드와 똑같아야 아래위 줄이 맞습니다.
 // 그래서 대시를 칸으로 세지 않고 두 칸 사이에 겹쳐 그립니다.
 .range {
   position: relative;
@@ -74,25 +37,6 @@
     transform: translate(-50%, -50%);
     background: var(--muted-2);
   }
-}
-
-// 갈래와 단계는 한 벌로 고르는 값이라 한 줄에 나란히 둡니다.
-.statusPair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s3);
-
-  @include sm {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-// 등록을 마치고 뜨는 알림. 문장 두 줄뿐이라 폼 그리드를 쓰지 않습니다.
-.saved {
-  display: grid;
-  gap: var(--s2);
-  color: var(--ink);
-  font-size: 14px;
 }
 
 .label {

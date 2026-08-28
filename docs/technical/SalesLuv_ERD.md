@@ -169,7 +169,7 @@ erDiagram
 | `memo` | `text` | NULL | 값이 있으면 비어 있지 않음 |
 | `registered_at` | `timestamptz` | NN | `DEFAULT now()` |
 
-#### `activity_category` — 10컬럼
+#### `activity_category` — 9컬럼
 
 | 컬럼 | 타입 | NULL | 키·기본값·검사 |
 |---|---|---|---|
@@ -182,11 +182,10 @@ erDiagram
 | `deleted_at` | `timestamptz` | NULL | soft delete |
 | `created_at` | `timestamptz` | NN | `DEFAULT now()` |
 | `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
-| `activity_type` | `text` | NN | `meeting \| task` |
 
-기본값은 `visit`, `demo`, `education`, `call`, `delivery`, `conference`(`meeting`)와 `internal`(`task`)이다.
+기본값은 `visit`, `demo`, `education`, `call`, `delivery`, `conference`다.
 
-#### `activity_action_tag` — 10컬럼
+#### `activity_action_tag` — 9컬럼
 
 | 컬럼 | 타입 | NULL | 키·기본값·검사 |
 |---|---|---|---|
@@ -199,11 +198,10 @@ erDiagram
 | `deleted_at` | `timestamptz` | NULL | soft delete |
 | `created_at` | `timestamptz` | NN | `DEFAULT now()` |
 | `updated_at` | `timestamptz` | NN | `DEFAULT now()` |
-| `activity_type` | `text` | NN | `meeting \| task` |
 
-기본 코드는 `first_call`, `meeting`, `demo_requested`, `demo_in_progress`, `demo_completed`, `quote_completed`, `contract_completed`, `product_training`, `delivery_completed`, `internal_meeting`, `weekly_review`, `monthly_review`, `quarterly_review`, `conference`, `ojt`다. 각 행의 `activity_type`은 바뀌지 않는 시스템 의미다.
+기본 코드는 `first_call`, `meeting`, `demo_requested`, `demo_in_progress`, `demo_completed`, `quote_completed`, `contract_completed`, `product_training`, `delivery_completed`, `internal_meeting`, `conference`다.
 
-#### `activity` — 22컬럼
+#### `activity` — 21컬럼
 
 | 컬럼 | 타입 | NULL | 키·기본값·검사 |
 |---|---|---|---|
@@ -212,7 +210,6 @@ erDiagram
 | `owner_member_id` | `uuid` | NN | FK → `member.id` |
 | `customer_contact_id` | `uuid` | NULL | FK → `customer_contact.id` |
 | `end_user_contact_id` | `uuid` | NULL | FK → `customer_contact.id` |
-| `activity_type` | `text` | NN | `meeting \| task` |
 | `activity_category_id` | `uuid` | NN | FK → `activity_category.id` |
 | `title` | `text` | NN | 비어 있지 않음 |
 | `starts_at` | `timestamptz` | NN |  |
@@ -230,7 +227,7 @@ erDiagram
 | `sales_deal_id` | `uuid` | NULL | FK → `sales_deal.id` |
 | `purchase_order_id` | `uuid` | NULL | FK → `purchase_order.id` |
 
-`activity_type`과 선택한 category/action tag의 `activity_type` 일치는 API가 검사한다.
+category/action tag 가 같은 팀 것인지, 지워지지 않았는지는 API 가 검사한다.
 
 #### `activity_companion` — 2컬럼
 

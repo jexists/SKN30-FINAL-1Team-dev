@@ -1,19 +1,14 @@
 // demo/layout_v3.html §10
 .summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 300px;
+  // 목표 카드는 숫자·금액·막대·바닥 줄을 다 담으므로 30% 를 주고, 남은 70% 를
+  // KPI 셋이 나눠 갖습니다. 아래로 내려보내면 밴드가 두 배로 길어져 주간 달력과
+  // 오늘 일정이 첫 화면 밖으로 밀립니다.
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 30%;
   gap: var(--s3);
   margin-bottom: var(--s4);
 
-  @include xl {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-
-    .goal {
-      grid-column: 1 / -1;
-    }
-  }
-
-  // 태블릿·큰 폰에서도 KPI 는 한 줄에 넷을 유지합니다. 둘씩 접으면 폭이
+  // 태블릿·큰 폰에서도 카드는 한 줄에 넷을 유지합니다. 둘씩 접으면 폭이
   // 남는데도 밴드가 두 배로 길어져 아래 카드가 첫 화면 밖으로 밀립니다.
   // 대신 칸이 좁아지는 만큼 타일 안쪽을 같이 줄입니다.
   @include lg {
@@ -41,14 +36,18 @@
     }
   }
 
-  // 폰에서는 넷이 들어가지 않습니다. 라벨이 석 줄로 접히면 라벨이 숫자보다
-  // 커져 타일이 읽히지 않습니다.
+  // 폰에서는 KPI 셋을 한 줄에 두고 목표 카드만 그 아래 한 줄을 다 씁니다.
+  // 목표 카드는 좁은 칸에서 금액이 두 줄로 접혀 옆 타일과 높이가 어긋납니다.
   @include sm {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    .goal {
+      grid-column: 1 / -1;
+    }
   }
 }
 
-// 타일은 전부 버튼입니다. 셋은 목록 드로어를 열고, '오늘 방문 회사'만
+// 타일은 전부 버튼입니다. 둘은 목록 드로어를 열고, '오늘 방문 회사'만
 // 아젠다로 내려보냅니다.
 .kpi {
   @include card;

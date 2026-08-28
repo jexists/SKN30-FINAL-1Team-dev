@@ -1,14 +1,15 @@
 from datetime import UTC, datetime, time, timedelta
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.models.agent import AgentRun
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product, SalesDeal
@@ -20,12 +21,16 @@ from app.schemas.activities import (
     ActivityPageParams,
     ActivityPatch,
     ActivityRead,
-    ActivityType,
 )
+from app.schemas.agent_runs import AgentRunCreate
+from app.services import agent_runs as agent_run_service
 
 router = APIRouter(tags=["activities"])
 
 _SEOUL = ZoneInfo("Asia/Seoul")
+# activity 하나당 브리핑 실행이 최대 한 번만 큐잉되도록 activity_id로 결정적 idempotency_key를
+# 만든다. 같은 activity_id로 다시 호출돼도 agent_runs.create()의 기존 멱등 로직이 중복을 막는다.
+_BRIEFING_IDEMPOTENCY_NAMESPACE = uuid5(NAMESPACE_URL, "urn:salesluv:contract_management_briefing")
 _owner = aliased(Member)
 _contact = aliased(CustomerContact)
 _contact_owner = aliased(Member)
@@ -112,6 +117,7 @@ def _activity_read(
     product_name: str | None,
     category: ActivityCategory,
     action_tag: ActivityActionTag | None,
+    ai_briefing: dict | None = None,
 ) -> ActivityRead:
     return ActivityRead(
         id=activity.id,
@@ -126,7 +132,6 @@ def _activity_read(
         product_id=activity.product_id,
         product_name=product_name,
         sales_deal_id=activity.sales_deal_id,
-        activity_type=activity.activity_type,
         activity_category_id=category.id,
         activity_category_name=category.name,
         activity_category_tone=category.tone,
@@ -145,7 +150,34 @@ def _activity_read(
         note=activity.note,
         created_at=_seoul(activity.created_at),
         updated_at=_seoul(activity.updated_at),
+        ai_briefing=ai_briefing,
     )
+
+
+async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID) -> dict | None:
+    """일정에 연결된 단발성 브리핑의 최신 저장 결과를 돌려준다."""
+    run = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.team_id == member.team_id,
+                AgentRun.agent_code == "contract_management_briefing",
+                AgentRun.status_code.in_(("queued", "running", "completed", "failed")),
+                AgentRun.source_refs["activity_id"].as_string() == str(activity_id),
+            )
+            .order_by(AgentRun.finished_at.desc().nullsfirst(), AgentRun.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if run is None:
+        return None
+    return {
+        "run_id": str(run.id),
+        "status": run.status_code,
+        "content": run.output_snapshot,
+        "error": run.error_message,
+        "generated_at": _seoul(run.finished_at).isoformat() if run.finished_at else None,
+    }
 
 
 async def _activity_row(
@@ -276,13 +308,11 @@ async def _active_activity_category(
     db: AsyncSession,
     member: Member,
     code: str,
-    activity_type: str,
 ) -> ActivityCategory:
     result = await db.execute(
         select(ActivityCategory).where(
             ActivityCategory.team_id == member.team_id,
             ActivityCategory.code == code,
-            ActivityCategory.activity_type == activity_type,
             ActivityCategory.deleted_at.is_(None),
         )
     )
@@ -299,13 +329,11 @@ async def _active_activity_action_tag(
     db: AsyncSession,
     member: Member,
     code: str,
-    activity_type: str,
 ) -> ActivityActionTag:
     result = await db.execute(
         select(ActivityActionTag).where(
             ActivityActionTag.team_id == member.team_id,
             ActivityActionTag.code == code,
-            ActivityActionTag.activity_type == activity_type,
             ActivityActionTag.deleted_at.is_(None),
         )
     )
@@ -328,7 +356,6 @@ def _validate_range(starts_at: datetime, ends_at: datetime | None) -> None:
 
 @router.get("/activity-categories", response_model=list[ActivityOptionRead])
 async def list_activity_categories(
-    activity_type: Annotated[ActivityType, Query()],
     member: CurrentMember,
     db: DbSession,
 ) -> list[ActivityCategory]:
@@ -336,7 +363,6 @@ async def list_activity_categories(
         select(ActivityCategory)
         .where(
             ActivityCategory.team_id == member.team_id,
-            ActivityCategory.activity_type == activity_type,
             ActivityCategory.deleted_at.is_(None),
         )
         .order_by(ActivityCategory.position, ActivityCategory.id)
@@ -346,7 +372,6 @@ async def list_activity_categories(
 
 @router.get("/activity-action-tags", response_model=list[ActivityOptionRead])
 async def list_activity_action_tags(
-    activity_type: Annotated[ActivityType, Query()],
     member: CurrentMember,
     db: DbSession,
 ) -> list[ActivityActionTag]:
@@ -354,7 +379,6 @@ async def list_activity_action_tags(
         select(ActivityActionTag)
         .where(
             ActivityActionTag.team_id == member.team_id,
-            ActivityActionTag.activity_type == activity_type,
             ActivityActionTag.deleted_at.is_(None),
         )
         .order_by(ActivityActionTag.position, ActivityActionTag.id)
@@ -376,8 +400,6 @@ async def list_activities(
             days=1
         )
         scope += [Activity.starts_at >= start_at, Activity.starts_at < end_at]
-    if page.activity_type is not None:
-        scope.append(Activity.activity_type.in_(page.activity_type))
     if page.completed is not None:
         # 대시보드 후속업무 카드가 세는 조건과 글자 그대로 같아야 카드 숫자와 목록 총계가
         # 맞는다. 한쪽만 고치면 눌러서 나온 목록이 타일과 어긋난다.
@@ -427,7 +449,9 @@ async def get_activity(
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityRead:
-    return _activity_read(*await _activity_row(db, member, activity_id))
+    row = await _activity_row(db, member, activity_id)
+    briefing = await _activity_briefing(db, member, activity_id)
+    return _activity_read(*row, ai_briefing=briefing)
 
 
 @router.post(
@@ -438,6 +462,7 @@ async def get_activity(
 async def create_activity(
     payload: ActivityCreate,
     response: Response,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityRead:
@@ -454,25 +479,16 @@ async def create_activity(
         )
         if payload.sales_deal_id is not None:
             await _team_sales_deal(db, member, payload.sales_deal_id)
-        category = await _active_activity_category(
-            db,
-            member,
-            payload.category_code,
-            payload.activity_type,
-        )
+        category = await _active_activity_category(db, member, payload.category_code)
         action_tag = (
             None
             if payload.action_tag is None
-            else await _active_activity_action_tag(
-                db,
-                member,
-                payload.action_tag,
-                payload.activity_type,
-            )
+            else await _active_activity_action_tag(db, member, payload.action_tag)
         )
         values = payload.model_dump()
         values.pop("category_code")
         values.pop("action_tag")
+        schedule_management_run_id = values.pop("schedule_management_run_id")
         activity = Activity(
             id=uuid4(),
             team_id=member.team_id,
@@ -497,6 +513,26 @@ async def create_activity(
     except Exception:
         await db.rollback()
         raise
+
+    # 일정 등록은 이미 커밋됐다 — 이 아래에서 브리핑 큐잉이 실패해도 등록 자체는 되돌리지
+    # 않고, 실패 사유만 응답에 경고로 실어 보낸다.
+    if schedule_management_run_id is not None:
+        try:
+            _, briefing_run_id = await agent_run_service.create(
+                AgentRunCreate(
+                    agent_code="contract_management_briefing",
+                    activity_id=activity.id,
+                    parent_run_id=schedule_management_run_id,
+                    idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity.id)),
+                ),
+                member,
+                db,
+            )
+            if briefing_run_id is not None:
+                background.add_task(agent_run_service.execute, briefing_run_id)
+        except HTTPException as error:
+            read.briefing_queue_warning = str(error.detail)
+
     response.headers["Location"] = f"/api/activities/{activity.id}"
     return read
 
@@ -511,21 +547,6 @@ async def update_activity(
     try:
         activity = await _locked_activity(db, member, activity_id)
         values = payload.model_dump(exclude_unset=True)
-        activity_type = values.get("activity_type", activity.activity_type)
-        if "activity_type" in values and "category_code" not in values:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="category_code_required_with_activity_type",
-            )
-        if (
-            "activity_type" in values
-            and activity.activity_action_tag_id is not None
-            and "action_tag" not in values
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="action_tag_required_with_activity_type",
-            )
         if values.get("customer_contact_id") is not None:
             await _contact_info(db, member, values["customer_contact_id"])
         if values.get("product_id") is not None:
@@ -534,26 +555,14 @@ async def update_activity(
             await _team_sales_deal(db, member, values["sales_deal_id"])
         if "category_code" in values:
             category_code = values.pop("category_code")
-            category = await _active_activity_category(
-                db,
-                member,
-                category_code,
-                activity_type,
-            )
+            category = await _active_activity_category(db, member, category_code)
             activity.activity_category_id = category.id
         if "action_tag" in values:
             action_tag = values.pop("action_tag")
             activity.activity_action_tag_id = (
                 None
                 if action_tag is None
-                else (
-                    await _active_activity_action_tag(
-                        db,
-                        member,
-                        action_tag,
-                        activity_type,
-                    )
-                ).id
+                else (await _active_activity_action_tag(db, member, action_tag)).id
             )
         _validate_range(
             values.get("starts_at", activity.starts_at),

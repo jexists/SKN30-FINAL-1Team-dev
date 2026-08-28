@@ -1,0 +1,91 @@
+/*
+ * 참고 열 안의 목록이라 카드로 띄우지 않습니다. 고른 줄만 배경으로 표시합니다.
+ * 딜이 많은 회사에서도 참고 열이 보고서보다 길어지지 않게 높이를 묶습니다.
+ */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill);
+  }
+
+  &:has(input:checked) {
+    background: var(--blue-tint);
+  }
+
+  &:has(input:focus-visible) {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  &:has(input:disabled) {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.check {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  accent-color: var(--blue);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.no {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.title {
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.amount {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.6;
+}

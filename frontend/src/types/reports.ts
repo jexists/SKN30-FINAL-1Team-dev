@@ -28,11 +28,11 @@ export interface ReportTemplate {
 /**
  * 활동을 어디서 주워 왔는지. 배지로 나옵니다.
  *
- * 보고는 일정/미팅보고서 → 일일 → 주간 → 월간 순으로 쌓입니다. 주간·월간은
+ * 보고는 일정/업무보고서 → 일일 → 주간 → 월간 순으로 쌓입니다. 주간·월간은
  * 한 단계 아래 보고서를 자료로 삼으므로 그 둘도 출처가 됩니다.
  */
 export type ActivitySource =
-  '캘린더' | '미팅보고서' | '문서' | '후속' | '수기' | '일일보고서' | '주간보고서'
+  '캘린더' | '업무보고서' | '문서' | '후속' | '수기' | '일일보고서' | '주간보고서'
 
 /** 보고서에 넣을 후보 활동 한 건 */
 export interface ReportActivity {
@@ -43,7 +43,7 @@ export interface ReportActivity {
   /** 체크를 풀면 보고서와 AI 입력에서 함께 빠집니다. */
   included: boolean
   /**
-   * 이 활동이 나온 원본의 id. 미팅보고서·일일보고서·주간보고서면 그 보고서 id,
+   * 이 활동이 나온 원본의 id. 업무보고서·일일보고서·주간보고서면 그 보고서 id,
    * 캘린더면 일정 id 입니다. 제출한 뒤에도 무엇을 근거로 썼는지 되짚을 수 있게 남깁니다.
    */
   refId?: string
@@ -82,6 +82,8 @@ export interface DailyReportSeed {
   values: Record<string, string>
   activities: ReportActivity[]
   attachments: ReportAttachment[]
+  /** 자료에 없는 것을 직접 적은 내용. AI 가 자료와 함께 읽습니다. */
+  transcript?: string
   /** 이력 목록에 한 줄로 붙는 설명 */
   note: string
   /** 주간·월간이 덮는 기간. 목록 제목에 붙습니다. 일일은 date 로 충분해 비어 있습니다. */
@@ -101,7 +103,6 @@ export type ApiReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
 export interface ReportActivityResponse {
   activity_id: string
   title: string
-  activity_type: string
   starts_at: string
 }
 

@@ -4,6 +4,7 @@
 코드 다른 곳에서 os.getenv 를 직접 호출하지 마세요.
 """
 
+from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
@@ -83,6 +84,9 @@ class Settings(BaseSettings):
     stt_timeout_seconds: float = Field(default=120.0, gt=0, le=300)
     stt_max_bytes: int = Field(default=25 * 1024 * 1024, gt=0, le=25 * 1024 * 1024)
 
+    # 모델 산출물은 Git에 넣지 않고 배포 환경에서 이 디렉터리에 읽기 전용으로 주입한다.
+    deal_model_dir: Path = Path(__file__).resolve().parents[2] / "pipeline" / "artifacts"
+
     # Supabase Auth. password login 은 secret 이 아니라 publishable 키를 씁니다.
     # 두 키 모두 서버 프로세스 안에서만 쓰고 브라우저로 보내지 않습니다.
     supabase_publishable_key: SecretStr = SecretStr("")
@@ -93,6 +97,11 @@ class Settings(BaseSettings):
 
     # 초대 메일이 착지할 프론트 주소. Supabase Dashboard 의 Redirect URLs 에도 같은 값을 등록한다.
     frontend_base_url: str = "http://localhost:5173"
+
+    # 계정 요청(/signup)이 도착하는 팀 Discord 채널의 웹훅.
+    # URL 자체가 곧 채널에 글을 쓸 권한이라 비밀값으로 다룬다.
+    discord_webhook_url: SecretStr = SecretStr("")
+    discord_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
 
     # Supabase Storage. secret 키는 RLS 를 우회하므로 서버에서만 쓴다.
     supabase_secret_key: SecretStr = SecretStr("")
@@ -188,7 +197,13 @@ class Settings(BaseSettings):
         return bool(self.stt_api_key.get_secret_value() and self.stt_model)
 
     @property
+    def discord_configured(self) -> bool:
+        """계정 요청 알림에 필요한 값이 있는지. 없으면 기능을 503 으로 막는다."""
+        return bool(self.discord_webhook_url.get_secret_value())
+
+    @property
     def cors_origin_list(self) -> list[str]:
+        """쉼표로 구분된 CORS origin 설정을 정리된 목록으로 반환한다."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
@@ -204,6 +219,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_security(self) -> Self:
+        """운영 환경의 필수 보안 설정과 URL 계약을 검증한다."""
         if self.app_env != "production":
             return self
         if self.debug:

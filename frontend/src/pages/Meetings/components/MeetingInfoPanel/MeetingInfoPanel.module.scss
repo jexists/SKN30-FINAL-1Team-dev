@@ -29,82 +29,16 @@
   }
 }
 
+.count {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* 미팅 브리핑. 사실 목록 아래에 한 문단으로 깝니다. */
 .brief {
   margin-top: var(--s3);
   color: var(--ink-2);
   font-size: 12px;
   line-height: 1.7;
-}
-
-.transcript {
-  width: 100%;
-  padding: var(--s3);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.7;
-  resize: vertical;
-  outline: none;
-
-  &:focus {
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--blue-ring);
-  }
-
-  &:disabled {
-    background: var(--fill);
-    color: var(--muted);
-  }
-}
-
-.foot {
-  padding-top: var(--s4);
-  text-align: center;
-}
-
-.generate {
-  width: 100%;
-}
-
-.basis {
-  margin-top: var(--s2);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.error {
-  margin-top: var(--s2);
-  color: var(--red);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-/* 되돌릴 수 없는 조작이라 버튼 모양을 주지 않습니다. */
-.reset {
-  margin-top: var(--s4);
-
-  // 'AI 보고서 작성' 이 사라진 뒤 혼자 남으면 위 여백이 두 겹이 됩니다.
-  &:only-child {
-    margin-top: 0;
-  }
-
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font-size: 12px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    color: var(--red);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
 }

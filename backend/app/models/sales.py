@@ -116,6 +116,16 @@ class SalesDeal(Base):
     contract_amount: Mapped[int | None] = mapped_column(BigInteger)
     quote_delivery_terms: Mapped[str | None]
     contract_ends_on: Mapped[date | None]
+    # 견적·계약의 자기 값. 상태가 NULL 이면 아직 그 국면에 들어가지 않았다는 뜻이라
+    # 견적현황·계약현황 목록이 그것으로 갈린다. 금액은 deal_amount(영업 예상금액)와 별개다.
+    quote_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.quote_status.id"))
+    contract_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.contract_status.id"))
+    quote_amount: Mapped[int | None] = mapped_column(BigInteger)
+    contract_amount: Mapped[int | None] = mapped_column(BigInteger)
+    quote_delivery_terms: Mapped[str | None]
+    # 계약서 양식의 나머지 두 항목. 금액이나 날짜로 표현할 수 없는 문구다.
+    contract_payment_terms: Mapped[str | None]
+    contract_late_interest_terms: Mapped[str | None]
     warranty_terms: Mapped[str | None]
     expected_delivery_at: Mapped[datetime | None]
     memo: Mapped[str | None]
@@ -123,31 +133,6 @@ class SalesDeal(Base):
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-
-
-class SalesDealItem(Base):
-    __tablename__ = "sales_deal_item"
-
-    id: Mapped[UUID] = mapped_column(primary_key=True)
-    sales_deal_id: Mapped[UUID] = mapped_column(
-        ForeignKey("public.sales_deal.id", ondelete="CASCADE")
-    )
-    product_id: Mapped[UUID] = mapped_column(ForeignKey("public.product.id"))
-    quantity: Mapped[int]
-    unit_price: Mapped[int] = mapped_column(BigInteger)
-    position: Mapped[int]
-
-
-class SalesDealParticipant(Base):
-    __tablename__ = "sales_deal_participant"
-
-    sales_deal_id: Mapped[UUID] = mapped_column(
-        ForeignKey("public.sales_deal.id", ondelete="CASCADE"), primary_key=True
-    )
-    customer_contact_id: Mapped[UUID] = mapped_column(
-        ForeignKey("public.customer_contact.id"), primary_key=True
-    )
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
 class PurchaseOrder(Base):
@@ -164,13 +149,13 @@ class PurchaseOrder(Base):
     ordered_on: Mapped[date]
     due_on: Mapped[date]
     expected_receipt_on: Mapped[date]
-    memo: Mapped[str | None]
     request_department: Mapped[str] = mapped_column(server_default=text("'영업팀'::text"))
     cooperation_department: Mapped[str] = mapped_column(server_default=text("'생산팀'::text"))
     created_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     expected_customer_company_id: Mapped[UUID] = mapped_column(
         ForeignKey("public.customer_company.id")
     )
+    memo: Mapped[str | None]
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
@@ -187,6 +172,35 @@ class PurchaseOrderItem(Base):
     quantity: Mapped[int]
     unit_price: Mapped[int] = mapped_column(BigInteger)
     position: Mapped[int]
+
+
+class SalesDealItem(Base):
+    """견적 품목. 딜:견적이 1:1 이라 견적 부모 없이 딜에 직접 매단다."""
+
+    __tablename__ = "sales_deal_item"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    sales_deal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.sales_deal.id", ondelete="CASCADE")
+    )
+    product_id: Mapped[UUID] = mapped_column(ForeignKey("public.product.id"))
+    quantity: Mapped[int]
+    unit_price: Mapped[int] = mapped_column(BigInteger)
+    position: Mapped[int]
+
+
+class SalesDealParticipant(Base):
+    """미팅 대상자. 대표 담당자(sales_deal.customer_contact_id)와는 별개의 목록이다."""
+
+    __tablename__ = "sales_deal_participant"
+
+    sales_deal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.sales_deal.id", ondelete="CASCADE"), primary_key=True
+    )
+    customer_contact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.customer_contact.id"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
 class SalesTarget(Base):

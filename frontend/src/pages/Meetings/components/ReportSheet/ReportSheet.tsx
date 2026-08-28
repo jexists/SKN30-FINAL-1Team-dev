@@ -3,10 +3,10 @@
 // 화면에서 유일하게 떠 있는 흰 면입니다. 그것만으로 "지금 고치는 것은 여기" 가
 // 전달되므로 안내 문구를 덧붙이지 않습니다.
 import Button from '@/components/Button'
-import { SkeletonBlocks } from '@/components/Skeleton'
 import type { ReportTemplate } from '@/types'
 
 import type { MeetingPhase } from '../../useMeetingDraft'
+import GenerationProgress from '../GenerationProgress'
 import ReportDocument from '../ReportDocument'
 
 import styles from './ReportSheet.module.scss'
@@ -26,13 +26,17 @@ interface Props {
   sectionIssues: string[]
   onRestoreSections: () => void
   evidence?: string
+  /** 지금 몇 번째 단계인지. phase 가 generating 일 때만 씁니다. */
+  generationStep: number
+  /** 만들지 못한 이유. 눌러 본 자리 옆에서 보여야 무엇이 실패한 것인지 압니다. */
+  generationError: string | null
+  onRetryGenerate: () => void
   locked: boolean
   saving: boolean
   hasAiOriginal: boolean
   onStartManual: () => void
   onRegenerate: () => void
-  onPrint: () => void
-  onSubmit: () => void
+  onSave: () => void
 }
 
 export default function ReportSheet({
@@ -47,13 +51,15 @@ export default function ReportSheet({
   sectionIssues,
   onRestoreSections,
   evidence,
+  generationStep,
+  generationError,
+  onRetryGenerate,
   locked,
   saving,
   hasAiOriginal,
   onStartManual,
   onRegenerate,
-  onPrint,
-  onSubmit,
+  onSave,
 }: Props) {
   const empty = phase === 'idle'
   const broken = sectionIssues.length > 0
@@ -61,10 +67,29 @@ export default function ReportSheet({
   return (
     <div className={styles.root}>
       <article className={styles.sheet}>
+        {/*
+          실패는 눌러 본 자리 옆이 아니라 결과가 나왔어야 할 자리에서 알립니다.
+          참고 열 구석의 작은 글씨는 기다리다 지친 사람의 눈에 들어오지 않습니다.
+        */}
+        {generationError && phase !== 'generating' && (
+          <div className={styles.failed} role="alert">
+            <p>{generationError}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={locked || saving}
+              onClick={onRetryGenerate}
+            >
+              다시 시도
+            </Button>
+          </div>
+        )}
+
         {empty ? (
           <div className={styles.blank}>
-            <h2>아직 보고서가 없습니다</h2>
-            <p>왼쪽에 미팅 내용을 입력한 뒤 ‘AI 보고서 작성’을 누르세요. 직접 써도 됩니다.</p>
+            <h2>아직 보고서가 작성되지 않았습니다</h2>
+            <p>위에 미팅 내용을 입력한 뒤 ‘AI 보고서 작성’을 누르세요. 직접 써도 됩니다.</p>
             <Button variant="outline" type="button" disabled={locked} onClick={onStartManual}>
               직접 작성하기
             </Button>
@@ -87,13 +112,7 @@ export default function ReportSheet({
             </div>
 
             {phase === 'generating' ? (
-              <SkeletonBlocks
-                label="AI가 보고서를 작성하는 중입니다."
-                count={template.fields.length}
-                height={76}
-                radius="var(--r-sm)"
-                gap={20}
-              />
+              <GenerationProgress step={generationStep} fieldCount={template.fields.length} />
             ) : (
               <>
                 <ReportDocument
@@ -122,17 +141,13 @@ export default function ReportSheet({
           </Button>
         )}
 
-        <Button variant="outline" type="button" disabled={empty} onClick={onPrint}>
-          PDF 다운로드
-        </Button>
-
         <Button
           type="button"
           className={styles.submit}
           disabled={locked || saving || empty || broken}
-          onClick={onSubmit}
+          onClick={onSave}
         >
-          보고서 제출
+          저장
         </Button>
       </div>
 

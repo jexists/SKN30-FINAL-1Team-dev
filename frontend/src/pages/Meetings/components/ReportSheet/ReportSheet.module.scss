@@ -162,6 +162,27 @@
   }
 }
 
+/*
+ * AI 가 보고서를 만들지 못했을 때. 결과가 나왔어야 할 자리에서 이유와 다시 할 길을
+ * 함께 냅니다. 진행 중과 헷갈리지 않게 색을 확실히 갈라 놓습니다.
+ */
+.failed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s5);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+
+  p {
+    color: var(--red-ink);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
 /* 문서 뼈대가 깨졌을 때. 저장을 막는 이유와 되돌릴 길을 한자리에 둡니다. */
 .broken {
   display: flex;

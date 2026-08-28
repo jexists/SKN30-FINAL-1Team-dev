@@ -1,0 +1,83 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// 견적이 넣어 둔 품목. 고칠 것이 아니라 확인할 것이라 입력칸이 아닙니다.
+.items {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--s2);
+}
+
+.itemsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.itemsLabel {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.itemsTotal {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.itemsEmpty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.itemRows {
+  display: grid;
+  gap: var(--s1);
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 56px 116px 116px;
+    gap: var(--s2);
+    align-items: baseline;
+    color: var(--ink-2);
+    font-size: 12px;
+
+    // 수량·단가·금액은 오른쪽에 맞춰야 자릿수가 눈에 들어옵니다.
+    span:not(:first-child) {
+      text-align: right;
+    }
+
+    span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  @include sm {
+    li {
+      grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr);
+
+      // 폰에서는 줄당 금액을 접습니다. 총액이 위에 있어 아쉽지 않습니다.
+      span:last-child {
+        display: none;
+      }
+    }
+  }
+}
+
+.submitError {
+  margin-top: var(--s3);
+  color: var(--red-ink);
+  font-size: 12px;
+}

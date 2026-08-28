@@ -173,19 +173,17 @@ async def _activities_by_report_ids(
             ReportActivity.report_id,
             Activity.id,
             Activity.title,
-            Activity.activity_type,
             Activity.starts_at,
         )
         .join(Activity, ReportActivity.activity_id == Activity.id)
         .where(ReportActivity.report_id.in_(report_ids))
         .order_by(Activity.starts_at, Activity.id)
     )
-    for report_id, activity_id, title, activity_type, starts_at in result.all():
+    for report_id, activity_id, title, starts_at in result.all():
         grouped[report_id].append(
             ReportActivityRead(
                 activity_id=activity_id,
                 title=title,
-                activity_type=activity_type,
                 starts_at=_seoul(starts_at),
             )
         )

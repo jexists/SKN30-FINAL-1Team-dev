@@ -7,12 +7,19 @@ dependencies = [
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "nh3>=0.3.1",
+    "catboost==1.2.10",
+    "joblib==1.5.3",
+    # PaddleOCR/PaddleX currently requires NumPy < 2.4.
+    "numpy==2.3.5",
+    "pandas==3.0.5",
     "pydantic-settings>=2.14.2",
     "pypdf>=5.0.0",
     "pyjwt[crypto]>=2.10.1",
     "python-multipart>=0.0.32",
-    "scikit-learn>=1.9.0",
+    "scikit-learn==1.9.0",
     "sqlalchemy[asyncio]>=2.0.51",
+    "tabicl==2.1.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch==2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
 ]
@@ -28,6 +35,14 @@ local = [
     "pypdfium2>=5.13.0",
     "sentence-transformers>=6.0.0",
 ]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu", marker = "sys_platform == 'linux'" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [

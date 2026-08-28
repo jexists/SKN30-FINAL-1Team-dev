@@ -108,6 +108,66 @@
 }
 
 /**
+ * 로그인 전 화면(/login, /signup)의 폼 한 벌.
+ *
+ * form-field 와 따로 두는 이유는 높이입니다. 저쪽은 --control-h(36px) 로 툴바
+ * 한 줄에 서지만, 여기 입력은 화면에서 혼자 서므로 44px 로 한 단계 큽니다.
+ * 쓰는 쪽은 .field / .input / .mainBtn / .error 를 그대로 씁니다.
+ */
+@mixin auth-form {
+  .field {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+
+    label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-2);
+    }
+  }
+
+  // 주 버튼(.mainBtn)과 같은 높이·모서리로 세로줄을 맞춥니다.
+  .input {
+    width: 100%;
+    height: 44px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    padding: 0 14px;
+    transition:
+      border-color var(--t-fast),
+      box-shadow var(--t-fast);
+
+    &:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px var(--blue-ring);
+    }
+  }
+
+  // 로그인 전 화면의 주 버튼은 다른 조작부와 나란히 서지 않아 한 단계 크게 둡니다.
+  .mainBtn {
+    width: 100%;
+    height: 44px;
+    margin-top: 4px;
+  }
+
+  // 실패는 폼 안에서 유일한 안내라 눈에 확실히 들어와야 합니다.
+  .error {
+    margin-top: -4px;
+    margin-bottom: 16px;
+    border-radius: var(--r-sm);
+    border-left: 3px solid var(--red);
+    background: var(--red-tint);
+    padding: 10px 12px;
+    color: var(--red-ink);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+/**
  * 검색해서 고르는 입력의 껍데기. form-field 의 input 과 같은 테두리·높이를 씁니다.
  *
  * 칩이 여러 개면 세로로 자라야 하므로 height 가 아니라 min-height 입니다. 칩이 없을 때의

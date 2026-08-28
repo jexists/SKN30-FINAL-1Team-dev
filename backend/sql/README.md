@@ -96,6 +96,59 @@
   `document.customer_contact_id`와 팀 범위 인덱스를 추가합니다.
 - `20260825_0007_runtime_schema_alignment.sql`: 기존 Supabase에 누락된 `notice.recipient_member_id`를
   추가하고, API enum에 없는 기존 `customer_contact.source_code='manual'`을 NULL로 정리합니다.
+- `20260826_0007_deal_quote_contract_order.sql`: 견적과 계약이 딜과 구분되어 자기 데이터를
+  갖게 합니다. 지금까지 견적현황·계약현황은 `sales_deal`을 `phase_code`로만 거른 뷰였고, 세
+  화면의 금액이 전부 `deal_amount` 하나를 읽어 견적가를 적으면 영업 예상금액이 덮였습니다.
+  딜:견적:계약 = 1:1 이므로 표를 떼지 않고 `sales_deal`에 컬럼을 더합니다. **`deal_amount`는
+  건드리지 않습니다** — 대시보드의 월매출·확정금액과 칸반 카드가 이미 읽고 있어 뜻을 바꾸면
+  숫자가 조용히 달라집니다.
+  `sales_deal` 28→33컬럼: `quote_status_id`, `contract_status_id`, `quote_amount`,
+  `contract_amount`, `quote_delivery_terms`. 상태가 NULL 이면 아직 그 국면에 들어가지
+  않았다는 뜻이고 견적현황·계약현황 목록이 이 조건(`has_quote`/`has_contract`)으로 갈립니다.
+  `phase_code`로 거르면 계약으로 넘어간 딜이 견적번호를 들고 있는데도 견적현황에서 사라집니다.
+  견적·계약 상태는 파이프라인 9단계와 다른 축이라 `purchase_order_status`와 같은 모양의
+  팀별 룩업 `quote_status`·`contract_status`(각 10컬럼)를 새로 만듭니다.
+  컬럼으로 표현할 수 없는 것만 표로 뗍니다. `sales_deal_item`(6컬럼, 견적 품목,
+  `purchase_order_item`과 같은 모양. `quote_amount`는 이 줄들의 수량×단가 합)과
+  `sales_deal_participant`(3컬럼, 미팅 대상자, `customer_contact_assignee`와 같은 모양)입니다.
+  기존 `sales_deal.customer_contact_id`는 대표 담당자로 남습니다. 조회 스코프가 그 컬럼을 봅니다.
+  `purchase_order` 13→17컬럼: `request_department`(기본 '영업팀')·`cooperation_department`
+  (기본 '생산팀')·`created_by_member_id`·`expected_customer_company_id`. 뒤 둘은 NOT NULL 이며
+  기존 발주는 걸린 딜의 `owner_member_id`·`customer_company_id`로 백필한 뒤 NOT NULL 을 겁니다.
+  `purchase_order_status`는 라벨 하나만 고칩니다(`cancelled`의 이름 `취소` → `발주취소`).
+  삭제·초기화는 없고 새 컬럼은 전부 NULL 허용이거나 기본값이 있어 적용 뒤에도 이전 백엔드가
+  그대로 돕니다. **DB 적용이 백엔드 배포보다 먼저입니다.**
+
+- `20260826_0008_contract_terms.sql`: 계약서 양식의 남은 두 항목에 자리를 만듭니다.
+  `sales_deal` 33→35컬럼(`contract_payment_terms` 물품대금 지급기일,
+  `contract_late_interest_terms` 대금연체 이자율). 둘 다 "납품 후 30일 이내",
+  "상법 연이자 6%" 처럼 금액·날짜로 표현할 수 없는 문구라 `quote_delivery_terms`와 같은
+  모양의 NULL 허용 text 입니다. 계약서 필수항목의 나머지는 컬럼을 더하지 않습니다 —
+  계약자정보(갑)(을)은 딜의 고객사와 `team`의 회사명·사업자등록번호에서 유도하고,
+  납품예상일자와 품목·수량·단가·금액은 딜:견적:계약이 1:1 이라 견적이 넣어 둔
+  `quote_delivery_terms`·`sales_deal_item`이 같은 행에 그대로 있습니다. 보증기간은
+  기존 `warranty_terms`입니다. 백필할 근거가 없어 기존 행은 NULL 이고 삭제도 없습니다.
+
+- `20260826_0009_customer_company_address.sql`: `customer_company`에 `postcode`(5자리),
+  `address`, `address_detail`을 더합니다. 고객 등록 화면이 다음(카카오) 우편번호 서비스로
+  주소를 찾아 넣습니다. 주소는 사람이 아니라 회사에 붙는 값이라 `customer_contact`가 아니라
+  여기에 둡니다. 회사 검색 목록도 같은 이름을 구분할 때 `business_no` 대신 이 주소를 먼저
+  보여 줍니다. `postcode`·`address`는 우편번호 서비스가 주는 값이고 `address_detail`은
+  층·호수처럼 사람이 직접 적는 부분입니다. 기존 행은 채울 근거가 없어 NULL로 둡니다.
+
+- `20260827_0010_drop_activity_type.sql`: 활동에서 '업무'(task)를 없앱니다. 일정 등록 화면이
+  단순해진 뒤 새 활동은 전부 미팅으로만 만들어지는데, 만들 수 없는 타입이 조회·집계에만 남아
+  목록에는 옛 업무가 섞이고 미팅만 세는 카드와 전 타입을 세는 카드가 어긋났습니다.
+  `activity`·`activity_category`·`activity_action_tag`에서 `activity_type`을 각각 떼어
+  22→21 / 10→9 / 10→9컬럼이 되고, 인라인 CHECK도 컬럼과 함께 사라집니다.
+  **삭제가 있습니다.** 업무 활동 전체와 그 카테고리(`internal` 내부업무), 액션태그 네 개
+  (`weekly_review`·`monthly_review`·`quarterly_review`·`ojt`)를 지웁니다. 붙일 카테고리가
+  사라지므로 업무 행을 남겨 둘 수 없습니다. `activity`를 가리키는 세 곳 중 cascade 는
+  `activity_companion` 하나뿐이라 `report_activity` 행은 먼저 지우고
+  `report.source_activity_id`는 NULL로 끊습니다. 보고서 자체는 지우지 않습니다.
+  미팅 타입인 `internal_meeting`·`conference` 태그는 그대로 둡니다.
+  **백엔드·프론트 배포가 DB 적용보다 먼저입니다** — 이전 코드는 INSERT에
+  `activity_type`을 넣으므로 컬럼이 없으면 일정 등록이 깨집니다.
 
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
@@ -117,6 +170,10 @@
 | 2026-08-25 | 개발 | `20260825_0006_business_card_archive.sql` | session pooler | 성공. document에 `customer_contact_id`와 명함 원본 연결 인덱스 추가 확인 |
 | 2026-08-25 | 개발 | `20260825_0007_runtime_schema_alignment.sql` | session pooler | 성공. 기존 데이터의 비표준 source_code 정리 확인. notice 구조는 후속 정합성 migration을 함께 적용 |
 | 2026-08-25 | 개발 | `20260825_0008_notice_schema_alignment.sql` | session pooler | 대기. notice 관리 구조와 runtime 정합성 migration의 충돌 컬럼·인덱스 정리 |
+| 2026-08-25 | 개발 | `20260825_0006_support_request_deal_link.sql` | session pooler | 성공. support_request 9→11컬럼(`customer_contact_id` 제거, `customer_company_id`·`sales_deal_id`·`occurred_at` 추가) / 복합 FK `support_request_sales_deal_company_membership_fkey`(ON UPDATE CASCADE)와 `sales_deal_id_customer_company_key` 신설 / `support_request_status_code_check` 를 값 목록 검사로 교체 / 인덱스 `support_request_sales_deal_company_idx`·`support_request_team_company_idx` 추가. support_request·support_response 행이 0건이라 삭제 대상 없음. 회사·딜 불일치 INSERT 와 없는 상태값 INSERT 가 각각 FK·CHECK 로 거절되는 것까지 확인 |
+| 2026-08-26 | 개발 | `20260826_0007_deal_quote_contract_order.sql` | session pooler | 성공. quote_status·contract_status(각 10컬럼)·sales_deal_item(6컬럼)·sales_deal_participant(3컬럼) 신설(RLS on) / sales_deal 28→33컬럼 / purchase_order 13→17컬럼. 기존 발주 9건 모두 걸린 딜의 owner_member_id·customer_company_id 로 백필한 뒤 NOT NULL 적용(NULL 0건). 부서 두 칸은 DEFAULT 대로 '영업팀'/'생산팀'. purchase_order_status 의 `cancelled` 라벨 2행을 '취소'→'발주취소' 로 변경. 기존 딜 52건의 신규 컬럼은 전부 NULL(아직 견적·계약 없음). `tests/test_models.py` 의 신규 4표·컬럼 수 대조 통과 |
+| 2026-08-26 | 개발 | `20260826_0008_contract_terms.sql` | session pooler | 성공. sales_deal 33→35컬럼(`contract_payment_terms`·`contract_late_interest_terms`). 둘 다 NULL 허용이라 기존 딜 52건은 NULL 그대로이고 백필 대상이 없습니다. `tests/test_models.py` 의 물리 스키마 대조 통과 |
+| 2026-08-26 | 개발 | `20260826_0009_customer_company_address.sql` | session pooler | 성공. customer_company 6→9컬럼(`postcode`·`address`·`address_detail`, 전부 nullable). 기존 36행은 백필 없이 NULL. `tests/test_models.py` 의 컬럼 수 대조 통과 |
 
 ## 개발 DB 재구축 런북
 
@@ -205,6 +262,15 @@ DEBUG=false uv run python -m scripts.seed_demo_auth \
 실행합니다. UUID 형식 오류나 두 역할에 같은 UUID를 준 경우에는 DB를 건드리기 전에 중단하며,
 같은 인자로 여러 번 실행해도 결과는 같습니다. `auth.users`에 없는 UID를 주면 외래키에 막혀
 어떤 UID가 문제인지 함께 안내합니다.
+
+> **팀별 룩업은 팀마다 따로 넣어야 합니다 (2026-08-26).** 이 스크립트는 데모 팀
+> (`6d0f1b76…`) 하나만 봅니다. `20260826_0007`로 생긴 `quote_status`·`contract_status`도
+> 마찬가지라, 다른 팀 계정으로 로그인하면 견적현황·계약현황 탭이 비고 작성 폼의 저장이
+> 잠깁니다(`statuses.length === 0`). 개발 DB의 `테스트1`(`a71b1b30…`)은 딜 41건·발주 9건을
+> 들고 있어 같은 날 두 표에 5행씩을 따로 넣었습니다. ID는 이 스크립트와 같은
+> `configuration_id(team_id, table_name, code)` 규칙을 써서 나중에 seed를 그 팀에 돌려도
+> 중복되지 않습니다. `seed_team_configuration`을 통째로 다른 팀에 돌리지는 않았습니다 —
+> 그 팀은 이미 자기 파이프라인으로 딜을 굴리고 있어 파이프라인·단계까지 건드리게 됩니다.
 
 ### 6단계. 검증
 

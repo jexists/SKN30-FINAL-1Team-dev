@@ -1,4 +1,4 @@
-// 미팅보고서 작성 화면의 상태를 전부 담습니다. 화면은 배치만 하고 규칙은 여기 있습니다.
+// 업무보고서 작성 화면의 상태를 전부 담습니다. 화면은 배치만 하고 규칙은 여기 있습니다.
 //
 // 이 파일의 핵심은 두 벌을 따로 두는 것입니다.
 //
@@ -11,31 +11,11 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
 import { generateReportDraft } from '@/api/reportAgent'
-import { transcribeAudio } from '@/api/transcriptions'
 import { meetingTemplate } from '@/shared/meetings'
-import type {
-  AgendaItem,
-  AttachmentKind,
-  MeetingReport,
-  ReportAttachment,
-  ReportTemplate,
-} from '@/types'
-import { sizeLabel } from '@/utils/attachment'
+import useAttachments from '@/shared/useAttachments'
+import type { AgendaItem, AgentRunStatus, MeetingReport, ReportTemplate } from '@/types'
 
 export type MeetingPhase = 'idle' | 'generating' | 'ready'
-
-/**
- * 이 화면이 받는 세 가지. 그 밖의 형식은 골라도 목록에 넣지 않습니다.
- *
- * 파일 자체를 보관하는 자리는 아직 없습니다. 음성만 글로 바꿔 미팅 내용에 남기고,
- * 사진·PDF 는 무엇을 보고 썼는지 알 수 있게 이름만 목록에 남깁니다.
- */
-const kindOf = (file: File): AttachmentKind | null => {
-  if (file.type.startsWith('audio/')) return 'audio'
-  if (file.type.startsWith('image/')) return 'image'
-  if (file.type === 'application/pdf') return 'pdf'
-  return null
-}
 
 const emptyValues = (template: ReportTemplate) =>
   Object.fromEntries(template.fields.map((field) => [field.id, '']))
@@ -53,7 +33,12 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
   const [phase, setPhase] = useState<MeetingPhase>('idle')
   const [title, setTitle] = useState('')
   const [transcript, setTranscript] = useState('')
-  const [attachments, setAttachments] = useState<ReportAttachment[]>([])
+  // 음성에서 뽑은 글은 사람이 쓴 것을 덮지 않습니다. 있으면 아래에 붙입니다.
+  const files = useAttachments((text) =>
+    setTranscript((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text)),
+  )
+  /** 이 미팅이 어느 영업 현황에 대한 것인지. 여러 건일 수 있습니다. */
+  const [salesDealIds, setSalesDealIds] = useState<string[]>([])
 
   // 최종 보고서 — 저장되는 값입니다. 화면에서는 문서 한 편으로 보이지만 저장되는
   // 모양은 그대로 항목별 값입니다. 오가는 변환은 reportDocument.ts 가 맡습니다.
@@ -79,8 +64,8 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
   const [pendingAi, setPendingAi] = useState(false)
 
   const [generationError, setGenerationError] = useState<string | null>(null)
-  /** 첨부를 받지 못했거나 음성 변환이 실패한 이유. */
-  const [attachmentError, setAttachmentError] = useState<string | null>(null)
+
+  const { setAttachments, setAttachmentError } = files
 
   // 이미 쓴 기록이 있으면 그것으로, 없으면 빈 화면으로 시작합니다.
   const reset = useCallback(() => {
@@ -88,6 +73,9 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
     setTitle(saved?.title ?? item?.title ?? '')
     setTranscript(saved?.transcript ?? '')
     setAttachments(saved?.attachments ?? [])
+    // 쓰던 것이 있으면 그대로, 아니면 일정에 이미 걸린 딜 한 건을 미리 골라 둡니다.
+    // 대개 그 딜에 대한 미팅이라 매번 같은 것을 다시 고르게 할 이유가 없습니다.
+    setSalesDealIds(saved?.salesDealIds ?? (item?.salesDealId ? [item.salesDealId] : []))
     setValues(next)
     setTouched(false)
     setSectionIssues([])
@@ -103,7 +91,7 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
     setPhase(isBlank(template, next) ? 'idle' : 'ready')
     // item 전체가 아니라 여기서 실제로 읽는 값만 봅니다. 일정 목록이 다시 그려질 때마다
     // 객체가 새로 오면 reset 이 새로 만들어져 effect 가 끝없이 돕니다.
-  }, [saved, item?.title, template])
+  }, [saved, item?.title, item?.salesDealId, template, setAttachments, setAttachmentError])
 
   useEffect(() => {
     reset()
@@ -129,60 +117,10 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
   /** AI 없이 직접 쓰겠다고 고른 경우. 빈 폼을 펼칩니다. */
   const startManual = useCallback(() => setPhase('ready'), [])
 
-  /**
-   * 고른 파일을 첨부 목록에 넣습니다.
-   *
-   * 음성은 넣자마자 글로 바꿔 미팅 내용에 이어 붙입니다. 녹음을 넣은 사람이 그
-   * 내용을 다시 타이핑할 이유가 없고, AI 는 미팅 내용을 보고 씁니다.
-   * 사진·PDF 는 읽어 줄 곳이 아직 없어 목록에만 남습니다.
-   */
-  const addAttachments = useCallback(async (files: FileList | File[]) => {
-    const picked = Array.from(files)
-      .map((file) => ({ file, kind: kindOf(file) }))
-      .filter((entry): entry is { file: File; kind: AttachmentKind } => entry.kind !== null)
-
-    if (picked.length === 0) {
-      setAttachmentError('음성·사진·PDF 만 넣을 수 있습니다.')
-      return
-    }
-    setAttachmentError(null)
-
-    const added = picked.map(({ file, kind }) => ({
-      file,
-      item: {
-        id: crypto.randomUUID(),
-        kind,
-        name: file.name,
-        size: sizeLabel(file.size),
-        // 음성만 변환을 기다립니다. 나머지는 넣은 순간 끝입니다.
-        state: kind === 'audio' ? ('analyzing' as const) : ('done' as const),
-      },
-    }))
-
-    setAttachments((prev) => [...prev, ...added.map((entry) => entry.item)])
-
-    for (const { file, item: attachment } of added) {
-      if (attachment.kind !== 'audio') continue
-      try {
-        const text = await transcribeAudio(file)
-        setAttachments((prev) =>
-          prev.map((one) =>
-            one.id === attachment.id ? { ...one, state: 'done', extract: text } : one,
-          ),
-        )
-        // 사람이 쓴 글을 덮지 않습니다. 있으면 아래에 붙입니다.
-        setTranscript((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text))
-      } catch (reason: unknown) {
-        setAttachments((prev) =>
-          prev.map((one) => (one.id === attachment.id ? { ...one, state: 'failed' } : one)),
-        )
-        setAttachmentError(errorMessage(reason, `${file.name} 을(를) 글로 바꾸지 못했습니다.`))
-      }
-    }
-  }, [])
-
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((one) => one.id !== id))
+  const toggleSalesDeal = useCallback((id: string) => {
+    setSalesDealIds((prev) =>
+      prev.includes(id) ? prev.filter((one) => one !== id) : [...prev, id],
+    )
   }, [])
 
   /**
@@ -206,17 +144,18 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
   }, [aiValues, aiEvidence, template])
 
   /** 들은 것이 있어야 정리할 수 있습니다. 적은 내용이든 첨부든 하나는 있어야 합니다. */
-  const canGenerate = transcript.trim().length > 0 || attachments.length > 0
+  const canGenerate = transcript.trim().length > 0 || files.attachments.length > 0
 
+  /** @returns 원본을 만들었는지. 부르는 쪽이 성공했을 때만 화면을 옮기게 합니다. */
   const generate = useCallback(
-    async (reportId: string) => {
-      if (!canGenerate || !item) return
+    async (reportId: string, onStatus?: (status: AgentRunStatus) => void) => {
+      if (!canGenerate || !item) return false
       const wasBlank = !touched && isBlank(template, values)
       setPhase('generating')
       setGenerationError(null)
 
       try {
-        const result = await generateReportDraft(reportId)
+        const result = await generateReportDraft(reportId, onStatus)
         setAiValues(result.values)
         setAiEvidence(result.evidence)
         setAiGeneratedAt(new Date().toISOString())
@@ -236,16 +175,18 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
           setPendingAi(false)
           setDocKey((key) => key + 1)
           setPhase('ready')
-          return
+          return true
         }
 
         // 이미 쓴 것이 있으면 최종 보고서를 건드리지 않습니다. 옮길지는 사람이 정합니다.
         setPendingAi(true)
         setPhase('ready')
+        return true
       } catch (reason: unknown) {
-        setGenerationError(errorMessage(reason, '미팅 보고서를 만들지 못했습니다.'))
+        setGenerationError(errorMessage(reason, '업무 보고서를 만들지 못했습니다.'))
         // 실패했는데 편집 화면을 펼치면 빈 폼만 남습니다. 있던 자리로 돌립니다.
         setPhase(wasBlank ? 'idle' : 'ready')
+        return false
       }
     },
     [canGenerate, item, touched, template, values],
@@ -258,10 +199,12 @@ export default function useMeetingDraft(item?: AgendaItem, saved?: MeetingReport
     setTitle,
     transcript,
     setTranscript,
-    attachments,
-    addAttachments,
-    removeAttachment,
-    attachmentError,
+    attachments: files.attachments,
+    addAttachments: files.addAttachments,
+    removeAttachment: files.removeAttachment,
+    attachmentError: files.attachmentError,
+    salesDealIds,
+    toggleSalesDeal,
     values,
     applyDocument,
     restoreSections,

@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,6 +15,8 @@ from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product
 from app.models.workspace import Member
 from app.schemas.activities import ActivityCreate, ActivityPageParams, ActivityPatch
+from app.services import agent_runs as agent_run_service
+from app.services import contract_schedule_snapshots
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, tzinfo=UTC)
@@ -145,7 +148,6 @@ def _activity(member: Member, *, contact_id: UUID | None = None, product_id: UUI
         owner_member_id=member.id,
         customer_contact_id=contact_id,
         end_user_contact_id=None,
-        activity_type="meeting",
         activity_category_id=uuid4(),
         title="합성 미팅",
         starts_at=START,
@@ -169,7 +171,6 @@ def _category(
     team_id: UUID,
     *,
     code: str = "visit",
-    activity_type: str = "meeting",
     deleted_at: datetime | None = None,
 ) -> ActivityCategory:
     return ActivityCategory(
@@ -182,7 +183,6 @@ def _category(
         deleted_at=deleted_at,
         created_at=NOW,
         updated_at=NOW,
-        activity_type=activity_type,
     )
 
 
@@ -190,7 +190,6 @@ def _action_tag(
     team_id: UUID,
     *,
     code: str = "meeting",
-    activity_type: str = "meeting",
     deleted_at: datetime | None = None,
 ) -> ActivityActionTag:
     return ActivityActionTag(
@@ -203,7 +202,6 @@ def _action_tag(
         deleted_at=deleted_at,
         created_at=NOW,
         updated_at=NOW,
-        activity_type=activity_type,
     )
 
 
@@ -245,7 +243,6 @@ def _client(db: _Db, member: Member) -> TestClient:
 
 def test_activity_request_sales_deal_rejects_unsafe_values():
     payload = ActivityCreate(
-        activity_type="meeting",
         category_code="education",
         title="  합성 미팅  ",
         starts_at="2026-08-17T10:00:00+09:00",
@@ -256,7 +253,6 @@ def test_activity_request_sales_deal_rejects_unsafe_values():
     assert payload.title == "합성 미팅"
     assert (
         ActivityCreate(
-            activity_type="meeting",
             category_code="custom_category",
             title="합성 미팅",
             starts_at="2026-08-17T10:00:00+09:00",
@@ -278,7 +274,6 @@ def test_activity_request_sales_deal_rejects_unsafe_values():
         {"ends_at": "2026-08-17T09:00:00+09:00"},
     )
     base = {
-        "activity_type": "meeting",
         "category_code": "visit",
         "title": "합성 미팅",
         "starts_at": "2026-08-17T10:00:00+09:00",
@@ -310,7 +305,6 @@ def test_member_cannot_link_another_owners_customer_contact():
             headers={"Origin": ORIGIN},
             json={
                 "customer_contact_id": str(contact.id),
-                "activity_type": "meeting",
                 "category_code": "visit",
                 "title": "다른 담당자의 고객 일정",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -439,7 +433,6 @@ def test_create_uses_authenticated_owner_and_same_team_references():
             json={
                 "customer_contact_id": str(contact.id),
                 "product_id": str(product.id),
-                "activity_type": "meeting",
                 "category_code": "demo",
                 "title": "  합성 데모  ",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -474,7 +467,6 @@ def test_create_uses_authenticated_owner_and_same_team_references():
             headers={"Origin": ORIGIN},
             json={
                 "customer_contact_id": str(uuid4()),
-                "activity_type": "meeting",
                 "category_code": "visit",
                 "title": "타팀 고객 일정",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -486,7 +478,7 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     assert not hidden_db.added
 
 
-def test_activity_options_reject_other_team_deleted_or_wrong_type_lookups():
+def test_activity_options_reject_other_team_or_deleted_lookups():
     member = _member()
     category_db = _Db(_Result(scalar=None))
     with _client(category_db, member) as client:
@@ -494,7 +486,6 @@ def test_activity_options_reject_other_team_deleted_or_wrong_type_lookups():
             "/api/activities",
             headers={"Origin": ORIGIN},
             json={
-                "activity_type": "meeting",
                 "category_code": "other_team_category",
                 "title": "합성 미팅",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -507,7 +498,6 @@ def test_activity_options_reject_other_team_deleted_or_wrong_type_lookups():
             "/api/activities",
             headers={"Origin": ORIGIN},
             json={
-                "activity_type": "meeting",
                 "category_code": "visit",
                 "action_tag": "deleted_action",
                 "title": "합성 미팅",
@@ -544,7 +534,6 @@ def test_activity_options_reject_other_team_deleted_or_wrong_type_lookups():
         assert f"{table}.deleted_at IS NULL" in sql
         assert member.team_id in values
         assert code in values
-        assert "meeting" in values
 
 
 def test_member_cannot_link_another_owners_sales_deal():
@@ -558,7 +547,6 @@ def test_member_cannot_link_another_owners_sales_deal():
             headers={"Origin": ORIGIN},
             json={
                 "sales_deal_id": str(sales_deal_id),
-                "activity_type": "meeting",
                 "category_code": "visit",
                 "title": "합성 미팅",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -574,7 +562,7 @@ def test_member_cannot_link_another_owners_sales_deal():
     assert db.rollback_count == 1
 
 
-def test_activity_options_are_active_same_team_type_and_ordered():
+def test_activity_options_are_active_same_team_and_ordered():
     member = _member()
     category = _category(member.team_id, code="custom_category")
     action_tag = _action_tag(member.team_id, code="custom_action")
@@ -584,8 +572,8 @@ def test_activity_options_are_active_same_team_type_and_ordered():
     )
 
     with _client(db, member) as client:
-        categories = client.get("/api/activity-categories", params={"activity_type": "meeting"})
-        action_tags = client.get("/api/activity-action-tags", params={"activity_type": "meeting"})
+        categories = client.get("/api/activity-categories")
+        action_tags = client.get("/api/activity-action-tags")
 
     assert categories.status_code == action_tags.status_code == 200
     assert categories.json()[0]["code"] == category.code
@@ -600,7 +588,6 @@ def test_activity_options_are_active_same_team_type_and_ordered():
         assert f"{table}.deleted_at IS NULL" in sql
         assert f"ORDER BY public.{table}.position" in sql
         assert member.team_id in values
-        assert "meeting" in values
 
 
 def test_detail_and_patch_share_scope_and_patch_revalidates_range():
@@ -608,7 +595,10 @@ def test_detail_and_patch_share_scope_and_patch_revalidates_range():
     activity = _activity(member)
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
-    detail_db = _Db(_Result(rows=[_row(activity, member)]))
+    detail_db = _Db(
+        _Result(rows=[_row(activity, member)]),
+        _Result(scalar=None),  # 연결된 AI 브리핑 없음
+    )
     with _client(detail_db, member) as client:
         detail = client.get(f"/api/activities/{activity.id}")
     assert detail.status_code == 200
@@ -683,7 +673,7 @@ def test_cross_team_activity_is_hidden_and_delete_is_soft():
 def test_write_failure_rolls_back_transaction():
     member = _member()
     db = _Db(
-        _Result(scalar=_category(member.team_id, code="internal", activity_type="task")),
+        _Result(scalar=_category(member.team_id)),
         flush_error=RuntimeError("synthetic failure"),
     )
 
@@ -692,14 +682,100 @@ def test_write_failure_rolls_back_transaction():
             "/api/activities",
             headers={"Origin": ORIGIN},
             json={
-                "activity_type": "task",
-                "category_code": "internal",
-                "title": "합성 업무",
+                "category_code": "visit",
+                "title": "합성 일정",
                 "starts_at": "2026-08-17T10:00:00+09:00",
             },
         )
 
     assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkeypatch):
+    """AI 추천 후보를 승인해서 등록하면 등록 성공 뒤 브리핑 실행이 자동으로 큐잉된다."""
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+    scheduled: list[UUID] = []
+
+    async def _fake_execute(run_id: UUID) -> None:
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    async def _fake_build_briefing_snapshot(db, member, activity_id):
+        return {"customer_company": {"id": "company-1", "name": "합성 고객사"}}
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots, "build_briefing_snapshot", _fake_build_briefing_snapshot
+    )
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    parent_run = SimpleNamespace(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code="schedule_management",
+        status_code="completed",
+    )
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
+        _Result(scalar=parent_run),  # _parent_run_or_409
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(parent_run.id),
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["briefing_queue_warning"] is None
+    assert len(db.added) == 2
+    briefing_run = db.added[1]
+    assert briefing_run.agent_code == "contract_management_briefing"
+    assert briefing_run.parent_run_id == parent_run.id
+    assert briefing_run.source_refs["activity_id"] == str(db.added[0].id)
+    assert scheduled == [briefing_run.id]
+    assert db.commit_count == 2
+    assert db.rollback_count == 0
+
+
+def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(monkeypatch):
+    """브리핑 큐잉이 실패해도 이미 커밋된 일정 등록은 되돌리지 않고 경고만 응답에 싣는다."""
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    missing_run_id = uuid4()
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
+        _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(missing_run_id),
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["briefing_queue_warning"] == "parent_run_not_found"
+    assert len(db.added) == 1
+    assert db.commit_count == 1
     assert db.rollback_count == 1
 
 
@@ -800,7 +876,6 @@ def test_follow_up_filters_drop_the_date_range_and_sort_by_due():
         response = client.get(
             "/api/activities",
             params=[
-                ("activity_type", "task"),
                 ("completed", "false"),
                 ("sort", "due_at"),
             ],
@@ -809,7 +884,6 @@ def test_follow_up_filters_drop_the_date_range_and_sort_by_due():
     assert response.status_code == 200
     assert response.json()["total"] == 1
     sql = str(db.statements[-1])
-    assert "activity.activity_type IN" in sql
     # 대시보드 후속업무 카드가 세는 조건과 글자 그대로 같아야 한다.
     assert "activity.completed_at IS NULL" in sql
     assert "activity.starts_at >=" not in sql

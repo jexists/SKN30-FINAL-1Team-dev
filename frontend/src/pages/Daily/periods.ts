@@ -19,7 +19,7 @@ export type Period = (typeof PERIODS)[number]
 
 export const PERIOD_LABEL: Record<Period, string> = {
   all: '전체',
-  meeting: '미팅보고서',
+  meeting: '업무보고서',
   daily: '일일업무',
   weekly: '주간업무',
   monthly: '월간업무',
@@ -40,7 +40,7 @@ export const PERIOD_KIND: Record<Period, ReportKind | null> = {
 /** 업무 보고(일일·주간·월간)를 목록에 넣는 탭인지 */
 export const showsDaily = (period: Period) => period !== 'meeting'
 
-/** 미팅보고서를 목록에 넣는 탭인지. '전체' 는 둘 다 봅니다. */
+/** 업무보고서를 목록에 넣는 탭인지. '전체' 는 둘 다 봅니다. */
 export const showsMeetings = (period: Period) => period === 'all' || period === 'meeting'
 
 export function toPeriod(value: string | null): Period {
@@ -50,7 +50,7 @@ export function toPeriod(value: string | null): Period {
 /**
  * 업무보고 목록으로 가는 길. 탭을 주면 그 탭이 열린 채로 갑니다.
  *
- * 어디서 눌렀는지가 어느 탭을 볼지를 정합니다. 미팅 기록에서 왔으면 미팅보고서 탭이
+ * 어디서 눌렀는지가 어느 탭을 볼지를 정합니다. 미팅 기록에서 왔으면 업무보고서 탭이
  * 열려야 방금 보던 것이 목록 어디에 있는지 바로 보입니다.
  * 'all' 은 기본값이라 주소에 붙이지 않습니다.
  */

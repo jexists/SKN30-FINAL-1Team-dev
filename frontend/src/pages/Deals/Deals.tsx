@@ -12,16 +12,19 @@ import Modal from '@/components/Modal'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
-import StageChip from '@/components/StageChip'
+import StageChip, { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { addDays, fmtDot, iso, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
+
+import ContractForm from '@/components/ContractForm'
+import QuoteForm from '@/pages/Quotes/components/QuoteForm'
 
 import { dealColumns } from './columns'
 import ViewToggle from './components/ViewToggle'
 import SalesDealDrawer from './SalesDealDrawer'
 import SalesDealForm from './SalesDealForm'
-import useSalesDeals, { type SalesDeal } from './useSalesDeals'
+import useSalesDeals, { DEFAULT_PIPELINE, type SalesDeal } from './useSalesDeals'
 
 import styles from '@/pages/listPage.module.scss'
 
@@ -34,10 +37,13 @@ const RANGES = [
 
 const DEFAULT_RANGE = '6'
 
+// 파이프라인 칸에서 '전체'를 고른 상태. 비우면 기본 파이프라인으로 돌아갑니다.
+const ALL_PIPELINES = 'all'
+
 export default function Deals() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
-  const requestedPipelineId = params.get('pipeline') ?? ''
+  const requestedPipelineId = params.get('pipeline') || DEFAULT_PIPELINE
   const { isManager } = useCurrentUser()
   // 팀원은 서버가 본인 데이터로 제한하므로 담당자 스코프를 요청에 싣지 않습니다.
   const showOwner = isManager
@@ -52,6 +58,11 @@ export default function Deals() {
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // 딜 상세에서 여는 견적·계약 모달. 어느 딜인지는 드로어가 정해 줍니다.
+  const [documentDeal, setDocumentDeal] = useState<{
+    deal: SalesDeal
+    kind: 'quote' | 'contract'
+  } | null>(null)
 
   const setParam = useCallback(
     (key: string, value: string, fallback = '') => {
@@ -67,7 +78,7 @@ export default function Deals() {
   const setPipeline = useCallback(
     (value: string) => {
       const next = new URLSearchParams(params)
-      if (value === '') next.delete('pipeline')
+      if (value === DEFAULT_PIPELINE) next.delete('pipeline')
       else next.set('pipeline', value)
       next.delete('stage')
       setParams(next, { replace: true })
@@ -118,11 +129,14 @@ export default function Deals() {
     createSalesDeal,
     updateSalesDeal,
     deleteSalesDeal,
-  } = useSalesDeals(openId, requestedPipelineId || null, 'list', undefined, dealQuery)
+    quoteStatuses,
+    contractStatuses,
+    saveDealDocument,
+  } = useSalesDeals(openId, requestedPipelineId, 'list', undefined, dealQuery)
 
   const pipelineOptions = useMemo(
     () => [
-      { value: '', label: '파이프라인 전체' },
+      { value: ALL_PIPELINES, label: '파이프라인 전체' },
       ...pipelines.map((pipeline) => ({
         value: pipeline.id,
         label: pipeline.name + (pipeline.status_code === 'archived' ? ' (보관)' : ''),
@@ -168,7 +182,10 @@ export default function Deals() {
   const defaultColumn = columns.find((column) => column.id === stage) ?? columns[0]
   const isDeleting = deletingDeal ? isPending(deletingDeal.id) : false
   const isFiltered =
-    query.trim() !== '' || requestedPipelineId !== '' || stage !== '' || range !== DEFAULT_RANGE
+    query.trim() !== '' ||
+    requestedPipelineId !== DEFAULT_PIPELINE ||
+    stage !== '' ||
+    range !== DEFAULT_RANGE
 
   // 첫 진입입니다. 툴바·탭·표가 차례로 나타나면 화면이 두세 번 들썩이므로
   // 화면 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
@@ -196,7 +213,7 @@ export default function Deals() {
 
         <FilterSelect
           label="파이프라인"
-          value={dealPipelineId ?? ''}
+          value={dealPipelineId ?? requestedPipelineId}
           options={pipelineOptions}
           open={openFilter === 'pipeline'}
           onOpenChange={(open) => setOpenFilter(open ? 'pipeline' : null)}
@@ -270,9 +287,15 @@ export default function Deals() {
         onOpen={(card) => setOpenId(card.id)}
         caption="영업 현황 목록. 헤더를 눌러 정렬할 수 있습니다."
         renderCell={(id, card) => {
-          if (id !== 'stage') return undefined
-          const found = stageOf(card)
-          return found ? <StageChip tone={found.tone}>{found.name}</StageChip> : null
+          if (id === 'stage') {
+            const found = stageOf(card)
+            return found ? <StageChip tone={found.tone}>{found.name}</StageChip> : null
+          }
+          if (id === 'quoteStatus') return chipOr(card.quoteStatusTone, card.quoteStatusName)
+          if (id === 'contractStatus')
+            return chipOr(card.contractStatusTone, card.contractStatusName)
+          if (id === 'orderStatus') return chipOr(card.orderStatusTone, card.orderStatusName)
+          return undefined
         }}
         mini={(card) => {
           const found = stageOf(card)
@@ -332,6 +355,44 @@ export default function Deals() {
             clearMutationError()
             setDeletingId(selectedDeal.id)
             setOpenId(null)
+          }}
+          onEditQuote={() => {
+            if (!selectedDeal) return
+            clearMutationError()
+            setDocumentDeal({ deal: selectedDeal, kind: 'quote' })
+            setOpenId(null)
+          }}
+          onEditContract={() => {
+            if (!selectedDeal) return
+            clearMutationError()
+            setDocumentDeal({ deal: selectedDeal, kind: 'contract' })
+            setOpenId(null)
+          }}
+        />
+      )}
+
+      {documentDeal?.kind === 'quote' && (
+        <QuoteForm
+          deal={documentDeal.deal}
+          statuses={quoteStatuses}
+          onClose={() => setDocumentDeal(null)}
+          onSubmit={async (dealId, fields) => {
+            await saveDealDocument(dealId, fields, '견적을 저장')
+            setDocumentDeal(null)
+            reload()
+          }}
+        />
+      )}
+
+      {documentDeal?.kind === 'contract' && (
+        <ContractForm
+          deal={documentDeal.deal}
+          statuses={contractStatuses}
+          onClose={() => setDocumentDeal(null)}
+          onSubmit={async (dealId, fields) => {
+            await saveDealDocument(dealId, fields, '계약을 저장')
+            setDocumentDeal(null)
+            reload()
           }}
         />
       )}

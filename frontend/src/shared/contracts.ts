@@ -1,10 +1,6 @@
-import type { Contract, ContractKind } from '@/types'
+import type { Contract } from '@/types'
 
 export const contracts: Contract[] = []
-export const KINDS: ContractKind[] = ['신규 도입', '증설', '갱신', '유지보수', '소모품 공급']
-export const OWNERS: string[] = []
-export const ORGS: string[] = []
-export const PRODUCTS: string[] = []
 
 export function contractsIn(fromISO: string, toISO: string): Contract[] {
   return contracts.filter((contract) => contract.date >= fromISO && contract.date <= toISO)

@@ -12,7 +12,7 @@ export type RangeFilter = 'all' | 'week' | 'month' | 'quarter'
 export interface HistoryFilters {
   status: ReportStatus[]
   approver: string[]
-  /** 미팅보고서의 고객사. 업무 보고에는 없는 값이라 미팅 탭에서만 씁니다. */
+  /** 업무보고서의 고객사. 업무 보고에는 없는 값이라 미팅 탭에서만 씁니다. */
   hospital: string[]
   range: RangeFilter
 }

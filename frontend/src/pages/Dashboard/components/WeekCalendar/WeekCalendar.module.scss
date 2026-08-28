@@ -40,25 +40,11 @@
   gap: var(--s2);
 }
 
-.legend {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  font-size: 11px;
-  color: var(--muted);
-
-  span {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-}
-
 .strip {
   margin-top: var(--s4);
 }
 
-.dotMeeting {
+.dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -66,17 +52,6 @@
 
   &.isOnBlue {
     background: #fff;
-  }
-}
-
-.dotDelivery {
-  width: 5px;
-  height: 5px;
-  background: var(--orange);
-  transform: rotate(45deg);
-
-  &.isOnBlue {
-    background: #ffd79a;
   }
 }
 

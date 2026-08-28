@@ -1,117 +1,16 @@
+/* 머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 PDF 입니다. */
 .head {
   display: flex;
   align-items: center;
-  gap: var(--s3);
-  flex-wrap: wrap;
-  margin-bottom: var(--s4);
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
 }
 
+/* 화살표가 글자 앞에 서므로 줄이는 여백도 왼쪽입니다. */
 .back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-
-  &:hover {
-    color: var(--blue);
-  }
-}
-
-.dateField {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-
-  span {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  input {
-    padding: 6px var(--s2);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-    outline: none;
-
-    &:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px var(--blue-ring);
-    }
-  }
-}
-
-.template {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-/* 주간·월간이 덮는 기간. 날짜 하나만으로는 어디까지인지 알 수 없습니다. */
-.period {
-  @include tag-pill;
-
-  font-size: 12px;
-}
-
-/* 아직 고를 수 없는 자료. 목록이 아니라 상태 안내라 흐린 톤으로 둡니다. */
-.pending {
-  margin-top: var(--s4);
-  padding-top: var(--s3);
-  border-top: 1px solid var(--line);
-
-  h3 {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  ul {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s2);
-    margin-top: var(--s2);
-  }
-
-  li {
-    display: flex;
-    align-items: center;
-    gap: var(--s2);
-    flex-wrap: wrap;
-    font-size: 12px;
-  }
-
-  a {
-    color: var(--blue);
-    font-weight: 600;
-    white-space: nowrap;
-
-    &:hover {
-      text-decoration: underline;
-      text-underline-offset: 3px;
-    }
-  }
-}
-
-.pendingTitle {
-  flex: 1;
-  min-width: 120px;
-  color: var(--ink-2);
-}
-
-.headActions {
-  display: flex;
-  gap: var(--s2);
-  margin-left: auto;
-
-  @include md {
-    margin-left: 0;
-    width: 100%;
-  }
+  padding-right: var(--s4);
+  padding-left: var(--s3);
 }
 
 .saved,
@@ -138,45 +37,54 @@
   }
 }
 
-/* 왼쪽 = 무엇을 근거로 쓰는지, 오른쪽 = 무엇을 낼지. */
+/* 왼쪽 = 무엇을 근거로 쓰는지, 오른쪽 = 무엇을 낼지. 업무보고서 작성 화면과 같은 비율입니다. */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--s4);
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  gap: var(--s5);
   align-items: start;
 
-  @include md {
+  @include lg {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
   }
 }
 
-.col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
+/* 왼쪽 열. 위는 자료, 아래는 넣는 것입니다. */
+.side {
+  display: grid;
+  gap: var(--s5);
   min-width: 0;
+  align-content: start;
+
+  @include lg {
+    gap: var(--s4);
+  }
 }
 
-.panel {
-  @include card;
+/* 오른쪽 작업 열. 나오는 것(보고서)만 섭니다. */
+.work {
+  display: grid;
+  gap: var(--s5);
+  min-width: 0;
+  align-content: start;
+}
 
+/*
+ * 자료 열. 흰 면이되 바닥에 붙어 있습니다 — 테두리만 있고 그림자가 없습니다.
+ * 오른쪽 보고서만 그림자로 떠 있어서, 흰 면이 둘이어도 어느 쪽을 고치는 중인지
+ * 한눈에 갈립니다. 자료판은 놓여 있고 문서는 들려 있습니다.
+ */
+.reference,
+.input {
+  min-width: 0;
   padding: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 
   @include md {
     padding: var(--s4);
-  }
-}
-
-.panelHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-
-  h2 {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
   }
 }
 
@@ -186,34 +94,97 @@
   font-size: 11px;
 }
 
-.panelNote {
-  margin: var(--s2) 0 var(--s3);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.6;
+/* 목록은 날짜 머리말에서 한 칸 떨어져 섭니다. */
+.reference > :not(:first-child) {
+  margin-top: var(--s4);
 }
 
-/* 작성 버튼 — 이 화면에서 상태를 바꾸는 유일한 자리라 따로 세웁니다. */
-.generate {
-  @include card;
+/*
+ * 오른쪽 문서. 왼쪽 자료판과 같은 흰 면이지만 이쪽만 떠 있습니다 — 그림자 한 겹과
+ * 넉넉한 여백이 그 차이를 혼자 짊어집니다. 업무보고서 작성 화면의 시트와 같은 값입니다.
+ */
+.sheet {
+  padding: var(--s7) var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
 
-  padding: var(--s5);
+  @include md {
+    padding: var(--s5) var(--s4);
+  }
+}
+
+/*
+ * AI 가 보고서를 만들지 못했을 때. 결과가 나왔어야 할 자리에서 이유를 냅니다.
+ * 왼쪽 구석의 작은 글씨는 기다리다 지친 사람의 눈에 들어오지 않습니다.
+ */
+.failed {
+  margin-bottom: var(--s5);
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  color: var(--red-ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/*
+ * 아직 쓸 것이 없는 상태. 종이 크기의 빈 사각형을 띄우면 무엇이 잘못된 것처럼
+ * 보입니다. 시트는 안내에 필요한 만큼만 서고, 내용이 생기면 그때 자랍니다.
+ */
+.sheetBlank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s6) 0;
   text-align: center;
-  border-color: rgba(0, 122, 255, 0.28);
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  p {
+    max-width: 34ch;
+    margin-bottom: var(--s3);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
 }
 
-.basis {
-  margin-top: var(--s2);
-  color: var(--muted);
-  font-size: 12px;
+/*
+ * 이 화면의 저장 지점입니다. 머리말에는 저장 버튼을 두지 않습니다.
+ * 시트 아래에 붙어 따라오되, 화면 전체를 가로지르지 않아 본문을 가리지 않습니다.
+ */
+.actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  background: linear-gradient(to top, var(--paper) 72%, transparent);
+
+  @include sm {
+    flex-wrap: wrap;
+  }
 }
 
-.hint {
-  margin-top: var(--s1);
-  color: var(--orange-ink);
-  font-size: 12px;
+.submit {
+  margin-left: auto;
+
+  @include sm {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
+/* 자료가 없을 때. 아직 오지 않은 기간도 이 면을 씁니다. */
 .blank {
   padding: var(--s8) var(--s4);
   text-align: center;
@@ -224,58 +195,64 @@
   line-height: 1.7;
 }
 
-.blankSub {
-  margin-top: var(--s1);
-  color: var(--muted);
-  font-size: 12px;
-}
-
 /* 자료가 없을 때 무엇을 먼저 해야 하는지 가리킵니다. */
 .blankCta {
   margin-top: var(--s3);
 }
 
-.approverField {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-
-  span {
-    color: var(--ink-2);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  select {
-    width: 100%;
-    padding: 9px var(--s3);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    font-size: 13px;
-    outline: none;
-
-    &:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px var(--blue-ring);
-    }
-  }
-}
-
-.missing,
-.okay {
-  margin: var(--s3) 0;
+.missing {
+  margin-top: var(--s5);
+  color: var(--orange-ink);
   font-size: 12px;
 }
 
-.missing {
-  color: var(--orange-ink);
-}
+/*
+ * 인쇄가 곧 PDF 입니다. 자료 열과 조작부를 걷어내고 보고서 한 장만 남깁니다.
+ * 입력칸은 테두리를 지우고 스크롤 대신 내용만큼 펴야 잘리지 않습니다.
+ */
+@media print {
+  // 클래스를 겹쳐 씁니다. 화면용 규칙과 특정도가 같으면 파일이 붙는 순서에 좌우돼
+  // 개발 서버에서 무엇이 이길지 달라집니다.
+  .head.head,
+  .saved.saved,
+  .locked.locked,
+  .reference.reference,
+  .input.input,
+  .actions.actions,
+  .missing.missing {
+    display: none;
+  }
 
-.okay {
-  color: var(--green-ink);
-}
+  .layout.layout {
+    display: block;
+  }
 
-.submit {
-  width: 100%;
+  .sheet.sheet {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .page {
+    :global(input),
+    :global(textarea),
+    :global(select) {
+      height: auto !important;
+      padding: 0 !important;
+      border: 0 !important;
+      background: none !important;
+      box-shadow: none !important;
+      overflow: visible !important;
+      resize: none;
+      // 줄 수가 아니라 내용만큼만 차지하게 합니다. rows 로 잡힌 높이를 그대로 두면
+      // 한 줄짜리 답 아래에 빈 칸 세 줄이 인쇄됩니다.
+      field-sizing: content;
+    }
+
+    // 빈 칸의 안내 문구는 종이에 남길 내용이 아닙니다.
+    :global(input::placeholder),
+    :global(textarea::placeholder) {
+      color: transparent;
+    }
+  }
 }

@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
 from pydantic import (
@@ -20,7 +20,6 @@ def _seoul_offset(value: datetime) -> datetime:
     return value
 
 
-ActivityType = Literal["meeting", "task"]
 OptionCode = Annotated[
     str,
     StringConstraints(
@@ -62,7 +61,6 @@ class ActivityCreate(_WriteModel):
     customer_contact_id: UUID | None = None
     product_id: UUID | None = None
     sales_deal_id: UUID | None = None
-    activity_type: ActivityType
     category_code: OptionCode
     title: Title
     starts_at: SafeDateTime
@@ -71,6 +69,9 @@ class ActivityCreate(_WriteModel):
     location: ShortText | None = None
     action_tag: OptionCode | None = None
     note: Note | None = None
+    # AI가 추천한 일정 후보를 승인해서 등록하는 경우에만 채운다. 값이 있으면 등록 성공 후
+    # 브리핑 실행(contract_management_briefing)을 자동으로 큐에 넣는다.
+    schedule_management_run_id: UUID | None = None
 
     @model_validator(mode="after")
     def ends_after_start(self) -> Self:
@@ -83,7 +84,6 @@ class ActivityPatch(_WriteModel):
     customer_contact_id: UUID | None = None
     product_id: UUID | None = None
     sales_deal_id: UUID | None = None
-    activity_type: ActivityType | None = None
     category_code: OptionCode | None = None
     title: Title | None = None
     starts_at: SafeDateTime | None = None
@@ -96,7 +96,6 @@ class ActivityPatch(_WriteModel):
     @model_validator(mode="after")
     def validate_patch(self) -> Self:
         for field_name in (
-            "activity_type",
             "category_code",
             "title",
             "starts_at",
@@ -128,7 +127,6 @@ class ActivityRead(BaseModel):
     product_id: UUID | None
     product_name: str | None
     sales_deal_id: UUID | None
-    activity_type: ActivityType
     activity_category_id: UUID
     activity_category_name: str
     activity_category_tone: str
@@ -137,7 +135,7 @@ class ActivityRead(BaseModel):
     starts_at: datetime
     ends_at: datetime | None
     all_day: bool
-    # 후속업무 목록이 지연과 마감을 이 값으로 읽는다. 미팅에는 대개 비어 있다.
+    # 후속업무 목록이 지연과 마감을 이 값으로 읽는다. 대개는 비어 있다.
     due_at: datetime | None
     location: str | None
     activity_action_tag_id: UUID | None
@@ -148,6 +146,11 @@ class ActivityRead(BaseModel):
     note: str | None
     created_at: datetime
     updated_at: datetime
+    # 확정 미팅과 연결된 계약 에이전트 브리핑. 목록에서는 생략하고 상세 조회에서 채운다.
+    ai_briefing: dict[str, Any] | None = None
+    # schedule_management_run_id로 브리핑을 큐잉하려다 실패했을 때만 채운다 (등록 자체는
+    # 이미 성공한 뒤라 되돌리지 않는다). 성공하면 이 필드는 계속 비어 있다.
+    briefing_queue_warning: str | None = None
 
 
 class ActivityOptionRead(BaseModel):
@@ -158,7 +161,6 @@ class ActivityOptionRead(BaseModel):
     name: str
     tone: str
     position: int
-    activity_type: ActivityType
 
 
 class ActivityPage(BaseModel):
@@ -177,7 +179,6 @@ class ActivityPageParams(BaseModel):
     # 그런 조회는 날짜를 비우고 아래 필터만 쓴다.
     start_date: CalendarDate | None = None
     end_date: CalendarDate | None = None
-    activity_type: list[ActivityType] | None = None
     completed: bool | None = None
     owner_member_id: list[UUID] | None = None
     # 후속업무는 시작 시각이 아니라 마감이 급한 순으로 읽는다. 페이지로 끊어 받으므로

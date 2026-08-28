@@ -15,6 +15,7 @@ from app.api import (
     orders,
     reports,
     sales_deals,
+    signup,
     support,
     transcriptions,
 )
@@ -22,6 +23,7 @@ from app.api import (
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
+api_router.include_router(signup.router)
 api_router.include_router(customers.router)
 api_router.include_router(members.router)
 api_router.include_router(activities.router)
