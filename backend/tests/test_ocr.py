@@ -154,6 +154,7 @@ def test_pdf_inspector_model_directory_uses_configured_path(monkeypatch):
 
 def test_pdf_inspector_model_directory_defaults_to_temp(monkeypatch):
     monkeypatch.setattr(ocr.settings, "pdf_inspector_model_directory", "")
+    monkeypatch.setattr(ocr.tempfile, "gettempdir", lambda: "/tmp")
 
     assert ocr._pdf_inspector_model_directory().endswith("salesluv-pdf-inspector-models")
 
