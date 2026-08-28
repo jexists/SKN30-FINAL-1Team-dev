@@ -62,6 +62,19 @@ jobs:
           PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: 'true'
         run: uv run python -m scripts.windows_ocr_smoke --profile business_card
 
+      - name: Windows 스캔 PDF OCR 실제 실행
+        if: matrix.os == 'windows-latest'
+        env:
+          OCR_PROVIDER: local
+          OCR_LOCAL_LANGUAGE: korean
+          OCR_TIMEOUT_SECONDS: '150'
+          PDF_INSPECTOR_MODEL_DIRECTORY: ${{ runner.temp }}/pdf-inspector
+          PADDLE_PDX_CACHE_HOME: ${{ runner.temp }}/paddlex
+          PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: 'true'
+        run: >-
+          uv run python scripts/document_quality_smoke.py --ocr-local
+          "data/sanitized_docs/(주)온케어메딕 사업자등록증_2017.04.19.pdf"
+
       - name: 배포 스크립트 검증
         working-directory: .
         run: |
