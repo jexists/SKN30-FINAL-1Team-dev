@@ -141,3 +141,5 @@ API 키는 저장소·로그·프론트엔드에 기록하지 않는다.
 15. [검증] 위 Runpod OCR 결과를 OpenAI Responses API의 `gpt-5.6-luna` 구조화 요약으로 전달해 요약 결과 객체 생성을 확인. 원문과 요약 본문은 출력하거나 저장하지 않음
 16. [검증] `onnxruntime==1.23.2`와 공유 라이브러리 경로 보강 이미지로 합성 PDF OCR을 `COMPLETED` 재검증. 백엔드 비동기 상태 폴링의 HTTP 세션 유지도 확인
 17. [미완료] 처리시간·실패율·콜드스타트·GPU 비용을 여러 표본으로 기록
+18. [검증] 현재 endpoint(`5jtfroqhrxwgq9`)는 `version 11`, RTX A5000 `IDLE` 워커 1개,
+`unhealthy 0` 상태이며, 개인정보 없는 합성 명함·PDF의 백엔드 OCR 스모크를 모두 통과했다.
