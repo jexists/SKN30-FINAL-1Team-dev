@@ -76,10 +76,12 @@ KNOWN_LEGACY_DATABASE_COLUMNS = {
     "activity_category": {"activity_type"},
     "activity_action_tag": {"activity_type"},
     "document": {"product_id"},
+    "report": {"sales_deal_id"},
     "sales_deal": {"source_code"},
 }
 KNOWN_LEGACY_DATABASE_FOREIGN_KEYS = {
     "document": {("product_id", "public", "product", "id", None)},
+    "report": {("sales_deal_id", "public", "sales_deal", "id", None)},
 }
 
 

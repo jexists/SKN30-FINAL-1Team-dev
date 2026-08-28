@@ -339,7 +339,7 @@ def _paddle_engine():
 
 @lru_cache(maxsize=1)
 def _paddle_business_card_engine():
-    """명함용 경량 엔진. 이미 보정한 사진에는 문서 전처리를 반복하지 않는다."""
+    """명함용 CPU 경량 엔진. 이미 보정한 사진에는 문서 전처리를 반복하지 않는다."""
     _configure_paddlex_cache()
     try:
         from paddleocr import PaddleOCR
@@ -348,6 +348,8 @@ def _paddle_business_card_engine():
     try:
         return PaddleOCR(
             lang=settings.ocr_local_language,
+            text_detection_model_name="PP-OCRv5_mobile_det",
+            text_recognition_model_name="korean_PP-OCRv5_mobile_rec",
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
@@ -602,20 +604,14 @@ def _business_card_variants(content: bytes) -> list[Any]:
 
     image = ImageOps.exif_transpose(Image.open(BytesIO(content))).convert("RGB")
     base = np.asarray(image)
+
+    # 원본 사진을 먼저 줄인 뒤 외곽선·원근 보정을 한다. 4K 휴대폰 사진을
+    # 원본 크기 그대로 OpenCV에 넣으면 카드 검출 단계부터 CPU 시간이 크게 늘어난다.
+    base = _resize_longest_side(base, settings.business_card_max_side)
     rectified = _rectify_card(base)
     if rectified is not None:
         base = rectified
-
-    max_side = settings.business_card_max_side
-    height, width = base.shape[:2]
-    longest_side = max(height, width)
-    if longest_side > max_side:
-        scale = max_side / longest_side
-        resized = Image.fromarray(base).resize(
-            (max(1, round(width * scale)), max(1, round(height * scale))),
-            Image.Resampling.LANCZOS,
-        )
-        base = np.asarray(resized)
+    base = _resize_longest_side(base, settings.business_card_max_side)
 
     gray = ImageOps.grayscale(Image.fromarray(base))
     enhanced = ImageEnhance.Contrast(ImageOps.autocontrast(gray)).enhance(1.35)
@@ -637,6 +633,23 @@ def _business_card_variants(content: bytes) -> list[Any]:
     except ImportError:
         pass
     return variants
+
+
+def _resize_longest_side(image: Any, max_side: int) -> Any:
+    """이미지의 긴 변만 제한해 OCR 입력 크기를 안정적으로 유지한다."""
+    import numpy as np
+    from PIL import Image
+
+    height, width = image.shape[:2]
+    longest_side = max(height, width)
+    if longest_side <= max_side:
+        return image
+    scale = max_side / longest_side
+    resized = Image.fromarray(image).resize(
+        (max(1, round(width * scale)), max(1, round(height * scale))),
+        Image.Resampling.LANCZOS,
+    )
+    return np.asarray(resized)
 
 
 def _rectify_card(image: Any) -> Any | None:
