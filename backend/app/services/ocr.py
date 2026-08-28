@@ -384,11 +384,16 @@ def _local_pdf(*, content: bytes, file_name: str) -> ExtractedDocument:
         model_directory = _pdf_inspector_model_directory()
         offline = _pdf_inspector_model_available(model_directory)
         try:
-            result = pdf_inspector.process_pdf_with_ocr_bytes(
-                content,
-                model_directory=model_directory,
-                offline=offline,
-            )
+            if offline:
+                result = pdf_inspector.process_pdf_with_ocr_bytes(
+                    content,
+                    model_directory=model_directory,
+                    offline=True,
+                )
+            else:
+                # 모델 디렉터리를 명시하면 pdf-inspector 일부 버전이
+                # 자동 다운로드 대신 "incomplete directory"로 중단한다.
+                result = pdf_inspector.process_pdf_with_ocr_bytes(content)
         except TypeError:
             result = pdf_inspector.process_pdf_with_ocr_bytes(content)
     except ValueError as error:

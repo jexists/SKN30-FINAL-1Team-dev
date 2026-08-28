@@ -183,7 +183,7 @@ def test_pdf_inspector_model_cache_sets_library_environment(monkeypatch):
     assert ocr.os.environ["PDF_INSPECTOR_MODEL_CACHE"] == "/tmp/salesluv-models"
 
 
-def test_pdf_inspector_uses_local_model_directory_and_download_mode(monkeypatch):
+def test_pdf_inspector_uses_default_download_mode_without_model(monkeypatch):
     calls = []
 
     class _Inspector:
@@ -204,7 +204,7 @@ def test_pdf_inspector_uses_local_model_directory_and_download_mode(monkeypatch)
     assert calls == [
         (
             b"pdf",
-            {"model_directory": "/tmp/pdf-models", "offline": False},
+            {},
         )
     ]
 
