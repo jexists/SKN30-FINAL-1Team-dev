@@ -12,7 +12,7 @@ import { mutationErrorMessage } from '../useSupportRequests'
 
 import styles from '../Complaints.module.scss'
 
-// 불만을 걸 수 있는 계약건. 계약이 실제로 맺어진 뒤의 딜만 후보입니다.
+// 불만을 걸 수 있는 딜. 계약이 실제로 맺어진 뒤의 딜만 후보입니다.
 // 서버의 support.py `_COMPLAINT_PHASES` 와 같아야 합니다.
 const COMPLAINT_PHASES = ['contract', 'order', 'closed']
 
@@ -26,7 +26,7 @@ type Errors = Partial<Record<'company' | 'deal' | 'title' | 'body', string>>
 export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
   const [company, setCompany] = useState<CompanySelection | null>(null)
   const [deal, setDeal] = useState<RecordOption | null>(null)
-  // 고른 계약건의 제품·워런티. RecordPicker 는 id 와 이름만 주므로 행을 따로 붙듭니다.
+  // 고른 딜의 제품·워런티. RecordPicker 는 id 와 이름만 주므로 행을 따로 붙듭니다.
   const [dealRow, setDealRow] = useState<SalesDealResponse | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -45,7 +45,7 @@ export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
 
     const found: Errors = {}
     if (companyId === '') found.company = '회사를 선택하세요.'
-    if (deal === null) found.deal = '계약건을 선택하세요.'
+    if (deal === null) found.deal = '딜을 선택하세요.'
     if (title.trim() === '') found.title = '제목을 입력하세요.'
     if (body.trim() === '') found.body = '내용을 입력하세요.'
     setErrors(found)
@@ -75,7 +75,7 @@ export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
 
   return (
     <Modal
-      title="불만 등록"
+      title="고객불만 등록"
       onClose={close}
       onSubmit={submit}
       footer={
@@ -99,7 +99,7 @@ export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
             invalid={errors.company !== undefined}
             onChange={(next) => {
               setCompany(next)
-              // 회사가 바뀌면 고른 계약건은 남의 회사 것이 됩니다. 함께 비웁니다.
+              // 회사가 바뀌면 고른 딜은 남의 회사 것이 됩니다. 함께 비웁니다.
               setDeal(null)
               setDealRow(null)
               setErrors((previous) => ({ ...previous, company: undefined }))
@@ -107,14 +107,14 @@ export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
           />
         </Field>
 
-        <Field label="계약건" required error={errors.deal} wide>
+        <Field label="딜선택" required error={errors.deal} wide>
           <RecordPicker<SalesDealResponse>
             path="/sales-deals"
-            label="계약건"
+            label="딜"
             placeholder={companyId === '' ? '회사를 먼저 선택하세요' : '계약번호나 제목으로 검색'}
-            emptyText="일치하는 계약건이 없습니다."
-            loadingText="계약건을 불러오는 중입니다."
-            fallback="계약건을 불러오지 못했습니다."
+            emptyText="일치하는 딜이 없습니다."
+            loadingText="딜을 불러오는 중입니다."
+            fallback="딜을 불러오지 못했습니다."
             // 회사와 단계는 서버가 거릅니다. 전건을 받아 화면에서 거르면 첫 쪽이
             // 30건으로 끊기지 않습니다.
             params={{ customer_company_id: companyId, phase_code: COMPLAINT_PHASES }}

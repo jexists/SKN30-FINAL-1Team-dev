@@ -33,10 +33,7 @@ const CATEGORY_BY_CODE = Object.fromEntries(
   Object.entries(CATEGORY_CODE).map(([label, code]) => [code, label]),
 ) as Record<string, DocumentCategory>
 
-export type DocumentMeta = Pick<
-  SalesDocument,
-  'title' | 'category' | 'link' | 'description' | 'tags'
->
+export type DocumentMeta = Pick<SalesDocument, 'title' | 'category' | 'link' | 'description'>
 
 export interface DocumentDraft extends DocumentMeta {
   file: File
@@ -70,19 +67,20 @@ function toDocument(item: DocumentResponse): SalesDocument {
     title: item.title,
     category: CATEGORY_BY_CODE[item.category_code] ?? '기타',
     kind: kindOfFile({ name: latest?.fileName ?? '' }),
-    link: item.customer_company_id
-      ? {
-          kind: '고객사',
-          id: item.customer_company_id,
-          label: item.customer_company_name ?? item.customer_company_id,
-        }
-      : item.purchase_order_id
-        ? { kind: '발주', id: item.purchase_order_id, label: item.purchase_order_id }
-        : item.sales_deal_id
-          ? { kind: '계약', id: item.sales_deal_id, label: item.sales_deal_id }
-          : { kind: 'none', id: '', label: '' },
+    link: item.product_id
+      ? { kind: '상품', id: item.product_id, label: item.product_name ?? item.product_id }
+      : item.sales_deal_id
+        ? { kind: '딜', id: item.sales_deal_id, label: item.sales_deal_no ?? item.sales_deal_id }
+        : item.customer_company_id
+          ? {
+              kind: '고객사',
+              id: item.customer_company_id,
+              label: item.customer_company_name ?? item.customer_company_id,
+            }
+          : item.purchase_order_id
+            ? { kind: '발주', id: item.purchase_order_id, label: item.purchase_order_id }
+            : { kind: 'none', id: '', label: '' },
     description: item.description ?? '',
-    tags: item.tags,
     versions:
       versions.length > 0
         ? versions
@@ -112,10 +110,13 @@ function linkFields(link: SalesDocument['link']) {
     customer_company_id: null as string | null,
     sales_deal_id: null as string | null,
     purchase_order_id: null as string | null,
+    product_id: null as string | null,
   }
   if (link.kind === 'none' || link.id === '') return empty
+  if (link.kind === '상품') return { ...empty, product_id: link.id }
+  if (link.kind === '딜') return { ...empty, sales_deal_id: link.id }
+  // 고객사와 발주는 새로 고를 수 없지만, 예전 자료를 수정할 때 연결이 날아가면 안 됩니다.
   if (link.kind === '고객사') return { ...empty, customer_company_id: link.id }
-  if (link.kind === '계약') return { ...empty, sales_deal_id: link.id }
   return { ...empty, purchase_order_id: link.id }
 }
 
@@ -220,7 +221,6 @@ export default function useDocuments(query?: DocumentQuery) {
         title: draft.title,
         description: draft.description || null,
         ...links,
-        tags: draft.tags,
       })
       await uploadFile(created.id, draft.file, draft.note)
       const { data } = await client.get<DocumentResponse>(`/documents/${created.id}`)
@@ -266,7 +266,6 @@ export default function useDocuments(query?: DocumentQuery) {
           title: next.title,
           description: next.description || null,
           ...links,
-          tags: next.tags,
         })
         const updated = toDocument(data)
         setDocuments((items) => items.map((document) => (document.id === id ? updated : document)))

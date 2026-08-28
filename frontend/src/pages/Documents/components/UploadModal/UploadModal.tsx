@@ -12,10 +12,9 @@ import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
 import { TrashIcon, UploadIcon } from '@/components/icons'
 import type {
-  CustomerCompanyResponse,
   DocumentCategory,
   DocumentLink,
-  OrderResponse,
+  ProductResponse,
   SalesDealResponse,
   SalesDocument,
 } from '@/types'
@@ -39,7 +38,6 @@ export interface UploadResult {
   title: string
   link: DocumentLink
   description: string
-  tags: string[]
   note: string
 }
 
@@ -70,7 +68,6 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
   const [linkKind, setLinkKind] = useState<DocumentLink['kind']>(target?.link.kind ?? 'none')
   const [linkTarget, setLinkTarget] = useState<RecordOption | null>(null)
   const [description, setDescription] = useState(target?.description ?? '')
-  const [tags, setTags] = useState(target?.tags.join(', ') ?? '')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
 
@@ -93,11 +90,6 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
         ? { kind: 'none', id: '', label: '' }
         : { kind: linkKind, id: linkTarget.id, label: linkTarget.label }
 
-    const tagList = tags
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-
     onSubmit(
       picked.map(({ file, category }) => ({
         file,
@@ -105,7 +97,6 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
         title: target?.title ?? titleOf(file.name),
         link,
         description: description.trim(),
-        tags: tagList,
         note: note.trim(),
       })),
     )
@@ -225,66 +216,54 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
           </Field>
         ) : (
           <>
-            <Field label="연결 대상">
-              <select
-                value={linkKind}
-                onChange={(event) => {
-                  setLinkKind(event.target.value as DocumentLink['kind'])
-                  // 종류가 바뀌면 앞서 고른 것은 다른 목록의 것입니다.
-                  setLinkTarget(null)
-                }}
-              >
+            <Field label="연결 대상" htmlFor={false}>
+              <div className={styles.choice} role="radiogroup" aria-label="연결 대상">
                 {LINK_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {kind === 'none' ? '연결 안 함' : kind}
-                  </option>
+                  <label key={kind} className={styles.choiceItem}>
+                    <input
+                      type="radio"
+                      name="linkKind"
+                      className="sr-only"
+                      value={kind}
+                      checked={linkKind === kind}
+                      onChange={() => {
+                        setLinkKind(kind)
+                        // 종류가 바뀌면 앞서 고른 것은 다른 목록의 것입니다.
+                        setLinkTarget(null)
+                      }}
+                    />
+                    <span>{kind === 'none' ? '연결 안 함' : `${kind} 연결`}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             </Field>
 
-            <Field label="연결 번호·이름">
-              {linkKind === '고객사' ? (
-                <RecordPicker<CustomerCompanyResponse>
-                  path="/customer-companies"
-                  label="연결할 고객사"
-                  placeholder="회사 이름으로 검색"
-                  emptyText="일치하는 고객사가 없습니다."
-                  loadingText="고객사를 불러오는 중입니다."
-                  fallback="고객사를 불러오지 못했습니다."
+            <Field label={linkKind === 'none' ? '연결 번호·이름' : linkKind}>
+              {linkKind === '상품' ? (
+                <RecordPicker<ProductResponse>
+                  path="/products"
+                  label="연결할 상품"
+                  placeholder="제품 이름으로 검색"
+                  emptyText="일치하는 상품이 없습니다."
+                  loadingText="상품을 불러오는 중입니다."
+                  fallback="상품을 불러오지 못했습니다."
                   value={linkTarget}
                   toOption={(row) => ({ id: row.id, label: row.name })}
                   onChange={setLinkTarget}
                 />
-              ) : linkKind === '계약' ? (
+              ) : linkKind === '딜' ? (
                 <RecordPicker<SalesDealResponse>
                   path="/sales-deals"
-                  label="연결할 계약 딜"
-                  placeholder="계약 번호나 고객사로 검색"
-                  emptyText="일치하는 계약 딜이 없습니다."
-                  loadingText="계약 딜을 불러오는 중입니다."
-                  fallback="계약 딜을 불러오지 못했습니다."
-                  params={{ phase_code: 'contract' }}
+                  label="연결할 딜"
+                  placeholder="영업번호나 고객사로 검색"
+                  emptyText="일치하는 딜이 없습니다."
+                  loadingText="딜을 불러오는 중입니다."
+                  fallback="딜을 불러오지 못했습니다."
                   value={linkTarget}
                   toOption={(row) => ({
                     id: row.id,
-                    label: row.contract_no ?? row.deal_no,
-                    note: row.customer_company_name,
-                  })}
-                  onChange={setLinkTarget}
-                />
-              ) : linkKind === '발주' ? (
-                <RecordPicker<OrderResponse>
-                  path="/orders"
-                  label="연결할 발주"
-                  placeholder="발주 번호나 공급처로 검색"
-                  emptyText="일치하는 발주가 없습니다."
-                  loadingText="발주를 불러오는 중입니다."
-                  fallback="발주를 불러오지 못했습니다."
-                  value={linkTarget}
-                  toOption={(row) => ({
-                    id: row.id,
-                    label: row.order_no,
-                    note: row.supplier_name,
+                    label: row.deal_no,
+                    note: `${row.customer_company_name} · ${row.title}`,
                   })}
                   onChange={setLinkTarget}
                 />
@@ -293,19 +272,11 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
               )}
             </Field>
 
-            <Field label="설명" wide>
+            <Field label="메모" wide>
               <input
                 value={description}
                 placeholder="목록에서 이 자료가 무엇인지 알아볼 한 줄"
                 onChange={(event) => setDescription(event.target.value)}
-              />
-            </Field>
-
-            <Field label="태그" hint="쉼표로 구분합니다." wide>
-              <input
-                value={tags}
-                placeholder="유지보수, 연간계약"
-                onChange={(event) => setTags(event.target.value)}
               />
             </Field>
           </>
@@ -319,17 +290,20 @@ interface FieldProps {
   label: string
   hint?: string
   wide?: boolean
+  /** 라디오 묶음처럼 칸 하나를 가리킬 수 없을 때는 label 대신 div 로 감쌉니다. */
+  htmlFor?: boolean
   children: React.ReactNode
 }
 
-function Field({ label, hint, wide, children }: FieldProps) {
+function Field({ label, hint, wide, htmlFor = true, children }: FieldProps) {
+  const Wrapper = htmlFor ? 'label' : 'div'
   return (
-    <label className={`${styles.field} ${wide ? styles.isWide : ''}`}>
+    <Wrapper className={`${styles.field} ${wide ? styles.isWide : ''}`}>
       <span className={styles.label}>
         {label}
         {hint && <i>{hint}</i>}
       </span>
       {children}
-    </label>
+    </Wrapper>
   )
 }

@@ -129,6 +129,7 @@ class SalesDeal(Base):
     warranty_terms: Mapped[str | None]
     expected_delivery_at: Mapped[datetime | None]
     memo: Mapped[str | None]
+    source_code: Mapped[str | None]
     stage_position: Mapped[int]
     deleted_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

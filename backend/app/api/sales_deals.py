@@ -245,6 +245,7 @@ def _sales_deal_read(
         warranty_terms=sales_deal.warranty_terms,
         expected_delivery_at=_seoul(sales_deal.expected_delivery_at),
         memo=sales_deal.memo,
+        source_code=sales_deal.source_code,
         quote_status_id=sales_deal.quote_status_id,
         quote_status_code=quote_status_code,
         quote_status_name=quote_status_name,

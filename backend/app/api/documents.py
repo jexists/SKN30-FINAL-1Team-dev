@@ -16,7 +16,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import Text, cast, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -25,7 +25,7 @@ from app.core.config import settings
 from app.models.content import Document
 from app.models.content import File as FileRow
 from app.models.crm import CustomerCompany, CustomerContact
-from app.models.sales import PurchaseOrder, SalesDeal
+from app.models.sales import Product, PurchaseOrder, SalesDeal
 from app.models.workspace import Member, Team
 from app.schemas.business_cards import BusinessCardDraft
 from app.schemas.documents import (
@@ -51,7 +51,12 @@ router = APIRouter(tags=["documents"])
 _SEOUL = ZoneInfo("Asia/Seoul")
 _creator = aliased(Member)
 _company = aliased(CustomerCompany)
+_deal = aliased(SalesDeal)
+_product = aliased(Product)
 _uploader = aliased(Member)
+
+# 문서 한 줄을 읽을 때 늘 함께 가져오는 칸들. _document_read 인자 순서와 같습니다.
+_READ_COLUMNS = (Document, _creator.display_name, _company.name, _deal.deal_no, _product.name)
 
 DOWNLOAD_EXPIRES_IN = 60
 
@@ -79,6 +84,8 @@ def _joined_select(*entities):
         .select_from(Document)
         .join(_creator, Document.created_by_member_id == _creator.id)
         .outerjoin(_company, Document.customer_company_id == _company.id)
+        .outerjoin(_deal, Document.sales_deal_id == _deal.id)
+        .outerjoin(_product, Document.product_id == _product.id)
     )
 
 
@@ -114,6 +121,8 @@ def _document_read(
     document: Document,
     created_by_display_name: str,
     company_name: str | None,
+    deal_no: str | None,
+    product_name: str | None,
     files: list[DocumentFileRead],
 ) -> DocumentRead:
     return DocumentRead(
@@ -126,8 +135,10 @@ def _document_read(
         customer_company_name=company_name,
         customer_contact_id=document.customer_contact_id,
         sales_deal_id=document.sales_deal_id,
+        sales_deal_no=deal_no,
         purchase_order_id=document.purchase_order_id,
-        tags=list(document.tags or ()),
+        product_id=document.product_id,
+        product_name=product_name,
         created_by_member_id=document.created_by_member_id,
         created_by_display_name=created_by_display_name,
         created_at=_seoul(document.created_at),
@@ -192,9 +203,7 @@ async def _files_by_document_ids(
 
 async def _document_row(db: AsyncSession, member: Member, document_id: UUID):
     result = await db.execute(
-        _joined_select(Document, _creator.display_name, _company.name).where(
-            Document.id == document_id, *_scope(member)
-        )
+        _joined_select(*_READ_COLUMNS).where(Document.id == document_id, *_scope(member))
     )
     row = result.one_or_none()
     if row is None:
@@ -237,6 +246,7 @@ async def _validate_links(db: AsyncSession, member: Member, values: dict) -> Non
         ("customer_company_id", CustomerCompany, "customer_company_not_found"),
         ("sales_deal_id", SalesDeal, "sales_deal_not_found"),
         ("purchase_order_id", PurchaseOrder, "purchase_order_not_found"),
+        ("product_id", Product, "product_not_found"),
     )
     for field_name, model, detail in checks:
         target_id = values.get(field_name)
@@ -326,10 +336,8 @@ async def list_documents(
                 Document.description.ilike(pattern, escape="\\"),
                 Document.document_no.ilike(pattern, escape="\\"),
                 _company.name.ilike(pattern, escape="\\"),
-                # 화면 검색은 표에 안 보이는 값까지 훑는다. 태그와 최신 버전 파일 이름으로도
-                # 찾을 수 있어야 예전과 같은 결과가 나온다. 태그는 JSONB 배열이라 통째로
-                # 글자로 바꿔 훑는다.
-                cast(Document.tags, Text).ilike(pattern, escape="\\"),
+                _deal.deal_no.ilike(pattern, escape="\\"),
+                _product.name.ilike(pattern, escape="\\"),
                 _latest_file_is(lambda match: match.file_name.ilike(pattern, escape="\\")),
             )
         )
@@ -344,7 +352,7 @@ async def list_documents(
     total = (await db.execute(_joined_select(func.count(Document.id)).where(*scope))).scalar_one()
     rows = (
         await db.execute(
-            _joined_select(Document, _creator.display_name, _company.name)
+            _joined_select(*_READ_COLUMNS)
             .where(*scope)
             .order_by(Document.created_at.desc(), Document.id)
             .offset(page.skip)
@@ -483,7 +491,7 @@ async def create_document(
             customer_contact_id=payload.customer_contact_id,
             sales_deal_id=payload.sales_deal_id,
             purchase_order_id=payload.purchase_order_id,
-            tags=payload.tags,
+            product_id=payload.product_id,
         )
         db.add(document)
         await db.flush()

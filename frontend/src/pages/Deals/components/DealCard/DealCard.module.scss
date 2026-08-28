@@ -36,12 +36,17 @@
   opacity: 0.35;
 }
 
-.org {
+.title {
   // ⋯ 가 겹치는 자리를 비웁니다.
   padding-right: 24px;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.org {
+  color: var(--ink-2);
+  font-size: 13px;
 }
 
 /* ---- 카드의 ⋯ 메뉴 ---- */
@@ -122,33 +127,12 @@
   }
 }
 
-.product {
-  color: var(--ink-2);
-  font-size: 13px;
-}
-
-.amount {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s2);
-  margin-top: var(--s1);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.kind {
-  @include tag-pill;
-
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s2);
+  margin-top: var(--s1);
   color: var(--muted);
   font-size: 12px;
 }

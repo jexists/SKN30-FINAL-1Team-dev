@@ -6,6 +6,7 @@ import { transportMessage } from '@/api/errorMessage'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   ColumnTone,
+  CustomerSourceCode,
   DocumentStatusResponse,
   PageResponse,
   SalesDealCreateRequest,
@@ -68,6 +69,10 @@ export interface SalesDealSaveInput {
   dealTypeCode: string
   date: string
   memo: string | null
+  /** 유입경로. 모를 수 있는 값이라 비워 둘 수 있습니다. */
+  sourceCode: CustomerSourceCode | null
+  /** 딜을 넣을 파이프라인 단계. 수정에서는 쓰지 않습니다. */
+  stageId: string
   /** 미팅 대상자. 고객사에 속한 사람만 넣을 수 있습니다. */
   participantContactIds: string[]
 }
@@ -87,12 +92,12 @@ export interface SalesDeal extends BoardDeal {
   stagePhase: SalesPipelinePhaseCode
   stageOrder: number
   dealTypeCode: string
+  sourceCode: string | null
   customerCompanyId: string
   contactId: string | null
   contactName: string | null
   ownerMemberId: string
   productId: string | null
-  title: string
   description: string | null
   closedOn: string | null
   quoteNo: string | null
@@ -170,6 +175,7 @@ export function toSalesDeal(deal: SalesDealResponse): SalesDeal {
   return {
     id: deal.id,
     no: deal.deal_no,
+    title: deal.title,
     org: deal.customer_company_name,
     product: deal.product_name ?? '상품 미지정',
     amount: deal.deal_amount,
@@ -191,12 +197,12 @@ export function toSalesDeal(deal: SalesDealResponse): SalesDeal {
     stagePhase: deal.sales_pipeline_stage_phase_code,
     stageOrder: deal.sales_pipeline_stage_position,
     dealTypeCode: deal.deal_type_code,
+    sourceCode: deal.source_code,
     customerCompanyId: deal.customer_company_id,
     contactId: deal.customer_contact_id,
     contactName: deal.customer_contact_name,
     ownerMemberId: deal.owner_member_id,
     productId: deal.product_id,
-    title: deal.title,
     description: deal.description,
     closedOn: deal.closed_on,
     quoteNo: deal.quote_no,
@@ -319,21 +325,18 @@ async function fetchSalesDealPage(
   return { cards: data.items.map(toSalesDeal), total: data.total, counts: data.counts }
 }
 
-function toCreateRequest(
-  input: SalesDealSaveInput,
-  pipelineId: string,
-  stageId: string,
-): SalesDealCreateRequest {
+function toCreateRequest(input: SalesDealSaveInput, pipelineId: string): SalesDealCreateRequest {
   return {
     customer_company_id: input.customerCompanyId,
     customer_contact_id: null,
     product_id: input.productId,
     sales_pipeline_id: pipelineId,
-    sales_pipeline_stage_id: stageId,
+    sales_pipeline_stage_id: input.stageId,
     deal_type_code: input.dealTypeCode,
     deal_amount: input.amount,
     opened_on: input.date,
     memo: input.memo,
+    source_code: input.sourceCode,
     ...(input.title === null ? {} : { title: input.title }),
     participant_contact_ids: input.participantContactIds,
   }
@@ -354,6 +357,7 @@ function toPatchRequest(
     deal_amount: input.amount,
     opened_on: input.date,
     memo: input.memo,
+    source_code: input.sourceCode,
     ...(input.title === null ? {} : { title: input.title }),
     participant_contact_ids: input.participantContactIds,
   }
@@ -593,12 +597,12 @@ export default function useSalesDeals(
   )
 
   const createSalesDeal = useCallback(
-    (input: SalesDealSaveInput, stageId: string) =>
+    (input: SalesDealSaveInput) =>
       runMutation('create', '영업 딜을 등록', async () => {
         if (stagePipelineId === null) throw new Error('사용할 영업 파이프라인이 없습니다.')
         const { data } = await client.post<SalesDealResponse>(
           '/sales-deals',
-          toCreateRequest(input, stagePipelineId, stageId),
+          toCreateRequest(input, stagePipelineId),
         )
         const created = toSalesDeal(data)
         setCards((previous) => [created, ...previous])

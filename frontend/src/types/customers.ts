@@ -2,12 +2,21 @@
 export type CustomerStatus = '신규' | '제안' | '협의' | '계약' | '보류' | '미지정'
 
 /** 고객을 처음 만난 경로 */
-export type CustomerSource = '소개' | '박람회' | '홈페이지' | '콜드콜' | '기존 거래' | '미지정'
+export type CustomerSource =
+  | '소개'
+  | '행사·박람회'
+  | '온라인 문의'
+  | '기존 거래'
+  | '미디어'
+  | '기타'
+  /** 코드가 없거나 목록 밖의 값일 때 화면에 남기는 자리입니다. */
+  | '미지정'
 
 export type CustomerStatusCode = 'new' | 'proposal' | 'negotiation' | 'contracted' | 'on_hold'
 
+// 코드는 소문자 snake_case 입니다. 서버가 그 모양만 받습니다(OptionCode).
 export type CustomerSourceCode =
-  'referral' | 'exhibition' | 'website' | 'cold_call' | 'existing_customer'
+  'referral' | 'event' | 'online_form' | 'joint_past' | 'media' | 'other'
 
 /** 화면에 표시하는 고객. 목업과 API 응답이 같은 표시 모델을 쓸 수 있게 둡니다. */
 export interface Customer {

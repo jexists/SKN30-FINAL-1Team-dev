@@ -212,7 +212,7 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
         email="  customer@demo.test ",
         phone="  02-000-0000  ",
         status_code="new",
-        source_code="website",
+        source_code="online_form",
     )
 
     assert company.model_dump() == {

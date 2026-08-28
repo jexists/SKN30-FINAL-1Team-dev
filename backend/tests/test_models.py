@@ -46,7 +46,8 @@ EXPECTED_COLUMN_COUNTS = {
     # purchase_order 에 요청·협조부서와 작성자·납품예상 거래처가 늘었다.
     # 견적/계약 상태 룩업과 견적 품목·미팅 대상자 표도 이때 생겼다.
     # 20260826_0008 이 계약서 양식의 물품대금 지급기일·대금연체 이자율을 더했다.
-    "sales_deal": 35,
+    # 20260828_0011 로 sales_deal 에 유입경로(source_code)가 늘었다.
+    "sales_deal": 36,
     "sales_deal_item": 6,
     "sales_deal_participant": 3,
     "quote_status": 10,
@@ -58,7 +59,7 @@ EXPECTED_COLUMN_COUNTS = {
     "report": 20,
     "report_activity": 2,
     # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
-    "document": 13,
+    "document": 14,
     "file": 19,
     "document_chunk": 12,
     "agent_run": 17,
@@ -89,14 +90,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 356
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 358
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 85
+    assert len(foreign_key_constraints) == 86
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

@@ -54,10 +54,11 @@ OptionCode = Annotated[
 ]
 CustomerSource = Literal[
     "referral",
-    "exhibition",
-    "website",
-    "cold_call",
-    "existing_customer",
+    "event",
+    "online_form",
+    "joint_past",
+    "media",
+    "other",
 ]
 
 

@@ -22,6 +22,7 @@ export interface BoardColumn extends Stage {
 /** 보드가 다루는 영업 딜 표시 모델. */
 export interface BoardDeal {
   no: string
+  title: string
   org: string
   product: string
   amount: number

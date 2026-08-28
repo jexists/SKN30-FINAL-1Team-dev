@@ -71,7 +71,7 @@ export default function SummaryBand({ data, onJumpToToday, onOpenList }: Props) 
     <div className={styles.summary}>
       <button type="button" className={`${styles.kpi} ${styles.jump}`} onClick={onJumpToToday}>
         <span className={styles.top}>
-          <span>오늘 방문 회사</span>
+          <span>오늘 방문 거래처</span>
         </span>
         <strong className="tnum">{visited_companies.count}</strong>
         <span className={styles.foot}>

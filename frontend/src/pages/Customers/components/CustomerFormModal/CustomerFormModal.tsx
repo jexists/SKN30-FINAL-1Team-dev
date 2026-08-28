@@ -8,11 +8,13 @@ import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
+import { SOURCE_LABEL } from '@/pages/Customers/contact'
 import type {
   CustomerCompanyCreateRequest,
   CustomerCompanyResponse,
   CustomerContactCreateRequest,
   CustomerContactResponse,
+  CustomerSourceCode,
 } from '@/types'
 import { businessNoDigits, formatBusinessNo } from '@/utils/format'
 
@@ -115,6 +117,8 @@ export default function CustomerFormModal({
   const [draft, setDraft] = useState<Draft>({ ...EMPTY, ...initial })
   // 아직 만나기 전입니다. 방문은 담당자가 다녀온 뒤에 직접 켭니다.
   const [visited, setVisited] = useState(false)
+  // 유입경로. 빈 문자열은 미지정입니다.
+  const [sourceCode, setSourceCode] = useState<CustomerSourceCode | ''>('')
   const [company, setCompany] = useState<CompanySelection | null>(initialCompany ?? null)
   const [businessNo, setBusinessNo] = useState(() =>
     initialCompany?.kind === 'existing'
@@ -170,7 +174,7 @@ export default function CustomerFormModal({
         email: optional(draft.email),
         phone: draft.phone.trim(),
         status_code: 'new',
-        source_code: null,
+        source_code: sourceCode === '' ? null : sourceCode,
         memo: optional(draft.memo),
         visited,
         // 팀원은 담당자를 고를 수 없습니다. 백엔드가 등록한 사람으로 채웁니다.
@@ -333,6 +337,21 @@ export default function CustomerFormModal({
               </label>
             ))}
           </div>
+        </Field>
+
+        <Field label="유입경로">
+          <select
+            value={sourceCode}
+            disabled={submitting}
+            onChange={(event) => setSourceCode(event.target.value as CustomerSourceCode | '')}
+          >
+            <option value="">미지정</option>
+            {Object.entries(SOURCE_LABEL).map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
         </Field>
 
         {/*

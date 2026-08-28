@@ -20,7 +20,7 @@ interface Props {
   onEdit: (item: AgendaItem) => void
   /** 줄 메뉴의 '삭제'. 지우기 전 한 번 더 묻는 것은 호출부가 맡습니다. */
   onDelete: (item: AgendaItem) => void
-  /** 오늘 방문 회사 타일이 이 카드로 스크롤할 때 잠깐 켜집니다. */
+  /** 오늘 방문 거래처 타일이 이 카드로 스크롤할 때 잠깐 켜집니다. */
   flash?: boolean
 }
 

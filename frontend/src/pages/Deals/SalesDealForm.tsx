@@ -1,21 +1,28 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+import { client } from '@/api/client'
 import Button from '@/components/Button'
-import ContactPicker from '@/components/ContactPicker'
-import type { ContactOption } from '@/components/ContactPicker/contactOption'
+import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
-import type { CustomerCompanyResponse, ProductResponse, SalesDealTypeResponse } from '@/types'
-import { formatBusinessNo } from '@/utils/format'
+import type {
+  CustomerCompanyCreateRequest,
+  CustomerCompanyResponse,
+  CustomerSourceCode,
+  ProductResponse,
+  SalesDealTypeResponse,
+} from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
-import type { SalesDeal, SalesDealSaveInput } from './useSalesDeals'
+import type { SalesDeal, SalesDealColumn, SalesDealSaveInput } from './useSalesDeals'
 
 import styles from './SalesDealForm.module.scss'
 
 interface Props {
   deal?: SalesDeal
-  stageName?: string
+  columns: SalesDealColumn[]
+  /** 추가할 단계. 보드에서 + 를 누른 칸이며, 수정은 딜이 서 있는 단계입니다. */
+  stageId?: string
   dealTypes: SalesDealTypeResponse[]
   optionsLoading?: boolean
   onSubmit: (input: SalesDealSaveInput) => Promise<void>
@@ -23,15 +30,10 @@ interface Props {
 }
 
 interface FormState {
-  company: RecordOption | null
+  company: CompanySelection | null
   product: RecordOption | null
   title: string
-  amount: string
-  dealTypeCode: string
-  date: string
-  memo: string
-  /** 미팅 대상자. 고객사를 바꾸면 다른 회사 사람이 남지 않게 비웁니다. */
-  participants: ContactOption[]
+  stageId: string
 }
 
 /**
@@ -42,37 +44,65 @@ const DEFAULT_OPENED_ON = iso(addDays(TODAY, 1))
 
 type Errors = Partial<Record<keyof FormState, string>>
 
+/** 고른 회사의 id. 새로 등록하기로 한 회사는 이 시점에 만듭니다. */
+async function resolveCompanyId(company: CompanySelection): Promise<string> {
+  if (company.kind === 'existing') return company.company.id
+
+  // 이 화면은 회사 이름만 묻습니다. 사업자번호와 주소는 고객 등록에서 채웁니다.
+  const payload: CustomerCompanyCreateRequest = {
+    name: company.name,
+    region_code: null,
+    business_no: null,
+    postcode: null,
+    address: null,
+    address_detail: null,
+  }
+  // 그 사이 남이 같은 이름을 만들었으면 백엔드가 기존 행을 돌려줍니다.
+  const { data } = await client.post<CustomerCompanyResponse>('/customer-companies', payload)
+  return data.id
+}
+
 export default function SalesDealForm({
   deal,
-  stageName,
+  columns,
+  stageId,
   dealTypes,
   optionsLoading = false,
   onSubmit,
   onClose,
 }: Props) {
   const [form, setForm] = useState<FormState>(() => ({
-    // 수정 화면은 이미 이름을 들고 있어 한 건을 다시 물어볼 필요가 없습니다.
-    company: deal ? { id: deal.customerCompanyId, label: deal.org } : null,
+    // 딜은 회사 id 와 이름만 들고 있습니다. 아래에서 한 건을 읽어 채웁니다.
+    company: null,
     product: deal?.productId ? { id: deal.productId, label: deal.product } : null,
     title: deal?.title ?? '',
-    amount: deal ? String(deal.amount) : '',
-    dealTypeCode: deal?.dealTypeCode ?? dealTypes[0]?.code ?? '',
-    date: deal?.date ?? DEFAULT_OPENED_ON,
-    memo: deal?.memo ?? '',
-    // 상세가 준 것은 id 와 이름뿐입니다. 칩에 적을 것은 그것으로 충분합니다.
-    participants: (deal?.participants ?? []).map((participant) => ({
-      id: participant.customer_contact_id,
-      name: participant.customer_contact_name,
-      companyId: deal?.customerCompanyId ?? '',
-      org: deal?.org ?? '',
-      dept: '',
-      title: '',
-    })),
+    stageId: stageId ?? columns[0]?.id ?? '',
   }))
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
+
+  // 수정 화면의 고객사 칸이 빈칸으로 보이지 않게 지금 회사를 읽어 넣습니다.
+  // 못 읽으면 비어 있는 채로 두고, 사람이 다시 고르면 됩니다.
+  useEffect(() => {
+    if (deal === undefined) return
+    let live = true
+    void client
+      .get<CustomerCompanyResponse>(`/customer-companies/${deal.customerCompanyId}`)
+      .then(({ data }) => {
+        if (!live) return
+        setForm((current) =>
+          current.company === null
+            ? { ...current, company: { kind: 'existing', company: data } }
+            : current,
+        )
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [deal])
 
   const set = <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
     setForm((current) => ({ ...current, [key]: value }))
@@ -89,20 +119,8 @@ export default function SalesDealForm({
     const found: Errors = {}
     if (form.company === null) found.company = '고객사를 선택해 주세요.'
     if (form.product === null) found.product = '제품을 선택해 주세요.'
-    if (
-      !dealTypes.some(({ code }) => code === form.dealTypeCode) &&
-      form.dealTypeCode !== deal?.dealTypeCode
-    ) {
-      found.dealTypeCode = '영업 유형을 선택해 주세요.'
-    }
-
-    const amount = Number(form.amount)
-    if (!/^\d+$/.test(form.amount) || !Number.isSafeInteger(amount)) {
-      found.amount = '0 이상의 정수로 입력해 주세요.'
-    }
-    if (!form.date) found.date = '영업 시작일을 선택해 주세요.'
+    if (form.stageId === '') found.stageId = '파이프라인 단계를 선택해 주세요.'
     if (form.title.length > 254) found.title = '제목은 254자까지 입력할 수 있습니다.'
-    if (form.memo.length > 5000) found.memo = '메모는 5,000자까지 입력할 수 있습니다.'
 
     setErrors(found)
     if (form.company === null || form.product === null || Object.keys(found).length > 0) return
@@ -111,15 +129,20 @@ export default function SalesDealForm({
     setSubmitting(true)
     setSubmitError(null)
     try {
+      // 화면에서 묻지 않는 값입니다. 추가는 기본값으로, 수정은 원래 값 그대로 보냅니다.
       await onSubmit({
-        customerCompanyId: form.company.id,
+        customerCompanyId: await resolveCompanyId(form.company),
         productId: form.product.id,
         title: form.title.trim() || null,
-        amount,
-        dealTypeCode: form.dealTypeCode,
-        date: form.date,
-        memo: form.memo.trim() || null,
-        participantContactIds: form.participants.map((participant) => participant.id),
+        amount: deal?.amount ?? 0,
+        dealTypeCode: deal?.dealTypeCode ?? dealTypes[0]?.code ?? '',
+        date: deal?.date ?? DEFAULT_OPENED_ON,
+        memo: deal?.memo ?? null,
+        sourceCode: (deal?.sourceCode as CustomerSourceCode | null | undefined) ?? null,
+        stageId: form.stageId,
+        participantContactIds: (deal?.participants ?? []).map(
+          (participant) => participant.customer_contact_id,
+        ),
       })
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '영업 딜을 저장하지 못했습니다.')
@@ -135,11 +158,7 @@ export default function SalesDealForm({
   return (
     <Modal
       title={editing ? '영업 딜 수정' : '영업 딜 추가'}
-      description={
-        editing
-          ? `${deal.no} · 단계는 보드에서 카드를 옮겨 바꿉니다.`
-          : `${stageName ?? '선택한'} 단계에 추가됩니다. 영업번호는 자동으로 생성됩니다.`
-      }
+      description={editing ? `${deal.no} · 단계는 보드에서 카드를 옮겨 바꿉니다.` : undefined}
       onClose={close}
       onSubmit={() => void submit()}
       footer={
@@ -154,27 +173,25 @@ export default function SalesDealForm({
       }
     >
       <div className={styles.grid}>
+        <Field label="제목" error={errors.title} wide>
+          <input
+            value={form.title}
+            disabled={submitting}
+            maxLength={254}
+            placeholder="비우면 '고객사 제품' 으로 채웁니다"
+            onChange={(event) => set('title', event.target.value)}
+          />
+        </Field>
+
         <Field label="고객사" required error={errors.company}>
-          <RecordPicker<CustomerCompanyResponse>
-            path="/customer-companies"
+          <CompanyAutocomplete
+            allowCreate
             label="고객사"
             placeholder="회사 이름으로 검색"
-            emptyText="일치하는 고객사가 없습니다."
-            loadingText="고객사를 불러오는 중입니다."
-            fallback="고객사를 불러오지 못했습니다."
-            value={form.company}
             disabled={submitting}
             invalid={errors.company !== undefined}
-            toOption={(row) => ({
-              id: row.id,
-              label: row.name,
-              note: formatBusinessNo(row.business_no) ?? undefined,
-            })}
-            onChange={(next) => {
-              set('company', next)
-              // 대상자는 고객사에 속한 사람입니다. 회사가 바뀌면 남겨 둘 수 없습니다.
-              if (next?.id !== form.company?.id) set('participants', [])
-            }}
+            value={form.company}
+            onChange={(next) => set('company', next)}
           />
         </Field>
 
@@ -194,75 +211,19 @@ export default function SalesDealForm({
           />
         </Field>
 
-        <Field label="제목" error={errors.title} wide>
-          <input
-            value={form.title}
-            disabled={submitting}
-            maxLength={254}
-            placeholder="비우면 '고객사 제품' 으로 채웁니다"
-            onChange={(event) => set('title', event.target.value)}
-          />
-        </Field>
-
-        <Field label="금액 (원)" required error={errors.amount}>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={form.amount}
-            disabled={submitting}
-            placeholder="28400000"
-            onChange={(event) => set('amount', event.target.value)}
-          />
-        </Field>
-
-        <Field label="유형" required error={errors.dealTypeCode}>
+        <Field label="파이프라인" required error={errors.stageId}>
           <select
-            value={form.dealTypeCode}
-            disabled={submitting || optionsLoading || noDealTypes}
-            onChange={(event) => set('dealTypeCode', event.target.value)}
+            value={form.stageId}
+            // 수정에서 단계를 바꾸는 것은 카드 이동입니다. 여기서는 보여 주기만 합니다.
+            disabled={submitting || editing || optionsLoading}
+            onChange={(event) => set('stageId', event.target.value)}
           >
-            {deal && !dealTypes.some(({ code }) => code === deal.dealTypeCode) && (
-              <option value={deal.dealTypeCode}>{deal.kind} (기존값)</option>
-            )}
-            {dealTypes.map((dealType) => (
-              <option key={dealType.id} value={dealType.code}>
-                {dealType.name}
+            {columns.map((column) => (
+              <option key={column.id} value={column.id}>
+                {column.name}
               </option>
             ))}
           </select>
-        </Field>
-
-        <Field label="영업 시작일" required error={errors.date}>
-          <input
-            type="date"
-            value={form.date}
-            disabled={submitting}
-            onChange={(event) => set('date', event.target.value)}
-          />
-        </Field>
-
-        <Field label="미팅 대상자" wide>
-          <ContactPicker
-            multiple
-            companyId={form.company?.id ?? null}
-            label="미팅 대상자"
-            placeholder="이름으로 검색"
-            disabled={submitting}
-            value={form.participants}
-            onChange={(next) => set('participants', next)}
-          />
-        </Field>
-
-        <Field label="메모" error={errors.memo} wide>
-          <textarea
-            rows={4}
-            maxLength={5000}
-            value={form.memo}
-            disabled={submitting}
-            placeholder="다음에 확인할 것"
-            onChange={(event) => set('memo', event.target.value)}
-          />
         </Field>
       </div>
 

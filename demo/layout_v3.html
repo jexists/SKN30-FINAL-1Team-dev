@@ -774,7 +774,7 @@
     /* ============================================================
        12. Agenda timeline
        ============================================================ */
-    /* the 오늘 방문 회사 counter scrolls here instead of opening a panel —
+    /* the 오늘 방문 거래처 counter scrolls here instead of opening a panel —
        the answer is already on the page, so a flash is enough to point at it */
     .agenda {
       padding: var(--s5); margin-bottom: var(--s4);
@@ -1428,7 +1428,7 @@
         <!-- Summary band -->
         <div class="summary">
           <button class="card kpi is-jump" type="button" id="kpiVisits" data-kpi="visits">
-            <span class="kpi-top"><span>오늘 방문 회사</span><i class="delta">+1</i></span>
+            <span class="kpi-top"><span>오늘 방문 거래처</span><i class="delta">+1</i></span>
             <strong class="tnum" id="kpiVisitsNum">—</strong>
             <span class="tile-foot">
               <small id="kpiVisitsSub">—</small>
@@ -2333,7 +2333,7 @@
     if (openRecordId === id) { closeDrawer("recordDrawer"); openRecordId = null; }
     renderWeek();                 // the day's dot count changed
     renderAgenda(selectedISO);
-    renderSummary();              // and so did 오늘 방문 회사
+    renderSummary();              // and so did 오늘 방문 거래처
     toast("일정을 삭제했습니다.");
   }
 
@@ -2642,7 +2642,7 @@
 
     $("#kpiVisitsNum").textContent = orgs.length;
     $("#kpiVisitsSub").textContent = `오늘 일정 ${todayList.length}건 · 외부 ${external.length}건`;
-    $("#kpiVisits").setAttribute("aria-label", `오늘 방문 회사 ${orgs.length}곳 — 오늘 일정으로 이동`);
+    $("#kpiVisits").setAttribute("aria-label", `오늘 방문 거래처 ${orgs.length}곳 — 오늘 일정으로 이동`);
 
     const lateFollow = followUps.filter(f => f.dueOff < 0).length;
     $("#kpiFollowNum").textContent = followUps.length;

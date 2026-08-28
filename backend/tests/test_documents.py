@@ -115,6 +115,7 @@ def _document(member: Member) -> Document:
         customer_company_id=None,
         sales_deal_id=None,
         purchase_order_id=None,
+        product_id=None,
         tags=[],
         created_at=NOW,
     )
@@ -470,8 +471,8 @@ def test_uploader_and_date_filters_look_at_the_latest_version_only():
     assert "document_id = public.document.id" in count_sql
     assert "uploaded_by_member_id IN" in count_sql
     assert "uploaded_at >=" in count_sql
-    # 검색은 태그와 최신 파일 이름까지 훑는다.
-    assert "document.tags" in count_sql
+    # 검색은 연결한 딜·상품 이름과 최신 파일 이름까지 훑는다.
+    assert "deal_no" in count_sql
     assert "file_name" in count_sql
 
     # 분류 탭 옆 건수는 분류만 빼고 나머지는 그대로 둔다.

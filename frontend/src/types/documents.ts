@@ -4,12 +4,17 @@ export type DocumentCategory = '계약서' | '발주서' | '상품설명서' | '
 /** 파일 종류. 확장자를 이만큼으로 뭉쳐 배지 하나로 보여 줍니다. */
 export type DocumentFileKind = 'pdf' | 'doc' | 'sheet' | 'slide' | 'image' | 'etc'
 
-/** 문서가 붙어 있는 대상. 아무 데도 붙지 않은 문서는 kind 가 'none' 입니다. */
+/**
+ * 문서가 붙어 있는 대상. 아무 데도 붙지 않은 문서는 kind 가 'none' 입니다.
+ *
+ * 새로 고를 수 있는 것은 '상품' 과 '딜' 뿐입니다. '고객사' 와 '발주' 는 예전에 붙인
+ * 자료가 목록에서 연결을 잃지 않도록 읽기 쪽에만 남겨 둡니다.
+ */
 export interface DocumentLink {
-  kind: 'none' | '고객사' | '계약' | '발주'
+  kind: 'none' | '상품' | '딜' | '고객사' | '발주'
   /** 연결 대상의 id. 고르는 순간 손에 들어옵니다. kind 가 'none' 이면 빈 문자열입니다. */
   id: string
-  /** '한빛대학교병원' 또는 'FM-CT-2026-0038'. kind 가 'none' 이면 빈 문자열입니다. */
+  /** '초음파 진단기' 또는 'SL-DL-2026-0038'. kind 가 'none' 이면 빈 문자열입니다. */
   label: string
 }
 
@@ -43,8 +48,8 @@ export interface SalesDocumentSeed {
   category: DocumentCategory
   kind: DocumentFileKind
   link: DocumentLink
+  /** 화면의 '메모'. 목록에서 이 자료가 무엇인지 알아볼 한 줄입니다. */
   description: string
-  tags: string[]
   /** 오래된 것부터. 마지막이 현재 버전입니다. */
   versions: DocumentVersionSeed[]
 }
@@ -93,8 +98,10 @@ export interface DocumentResponse {
   customer_company_id: string | null
   customer_company_name: string | null
   sales_deal_id: string | null
+  sales_deal_no: string | null
   purchase_order_id: string | null
-  tags: string[]
+  product_id: string | null
+  product_name: string | null
   created_by_member_id: string
   created_by_display_name: string
   created_at: string

@@ -399,12 +399,13 @@ export default function Deals() {
 
       {addingColumn && (
         <SalesDealForm
-          stageName={addingColumn.name}
+          columns={columns}
+          stageId={addingColumn.id}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setAddingTo(null)}
           onSubmit={async (input) => {
-            await createSalesDeal(input, addingColumn.id)
+            await createSalesDeal(input)
             setAddingTo(null)
           }}
         />
@@ -413,6 +414,8 @@ export default function Deals() {
       {editingDeal && (
         <SalesDealForm
           deal={editingDeal}
+          columns={columns}
+          stageId={editingDeal.stageId}
           dealTypes={dealTypes}
           optionsLoading={loading}
           onClose={() => setEditingId(null)}

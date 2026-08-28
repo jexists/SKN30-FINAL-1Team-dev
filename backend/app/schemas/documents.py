@@ -37,12 +37,14 @@ class _WriteModel(BaseModel):
 class DocumentCreate(_WriteModel):
     category_code: OptionCode
     title: Text
+    # 화면에서는 '메모' 다. 자료가 무엇인지 적는 한 칸이라 컬럼은 그대로 쓴다.
     description: LongText | None = None
+    # 고객사와 발주는 새로 고를 수 없지만, 예전 자료가 들고 있어 쓰기는 열어 둔다.
     customer_company_id: UUID | None = None
     customer_contact_id: UUID | None = None
     sales_deal_id: UUID | None = None
     purchase_order_id: UUID | None = None
-    tags: list[Text] = Field(default_factory=list, max_length=20)
+    product_id: UUID | None = None
 
 
 class DocumentPatch(_WriteModel):
@@ -53,7 +55,7 @@ class DocumentPatch(_WriteModel):
     customer_contact_id: UUID | None = None
     sales_deal_id: UUID | None = None
     purchase_order_id: UUID | None = None
-    tags: list[Text] | None = Field(default=None, max_length=20)
+    product_id: UUID | None = None
 
 
 class DocumentFileRead(BaseModel):
@@ -142,8 +144,11 @@ class DocumentRead(BaseModel):
     customer_company_name: str | None
     customer_contact_id: UUID | None
     sales_deal_id: UUID | None
+    # 목록의 연결 칸이 id 대신 사람이 읽을 값을 보이게 이름을 함께 준다.
+    sales_deal_no: str | None
     purchase_order_id: UUID | None
-    tags: list[str]
+    product_id: UUID | None
+    product_name: str | None
     created_by_member_id: UUID
     created_by_display_name: str
     created_at: datetime

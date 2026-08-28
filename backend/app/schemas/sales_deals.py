@@ -13,6 +13,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.customers import CustomerSource
+
 
 def _seoul_offset(value: datetime) -> datetime:
     if value.utcoffset() != timedelta(hours=9):
@@ -218,6 +220,7 @@ class SalesDealCreate(_WriteModel):
     warranty_terms: LongText | None = None
     expected_delivery_at: SafeDateTime | None = None
     memo: LongText | None = None
+    source_code: CustomerSource | None = None
     quote_status_code: OptionCode | None = None
     contract_status_code: OptionCode | None = None
     quote_amount: Money | None = None
@@ -265,6 +268,7 @@ class SalesDealPatch(_WriteModel):
     warranty_terms: LongText | None = None
     expected_delivery_at: SafeDateTime | None = None
     memo: LongText | None = None
+    source_code: CustomerSource | None = None
     quote_status_code: OptionCode | None = None
     contract_status_code: OptionCode | None = None
     quote_amount: Money | None = None
@@ -336,6 +340,9 @@ class SalesDealRead(BaseModel):
     warranty_terms: str | None
     expected_delivery_at: datetime | None
     memo: str | None
+    # 예전에 들어온 코드도 그대로 읽어야 하므로 목록을 고정하지 않는다.
+    # 쓰기는 CustomerSource 로 막는다.
+    source_code: OptionCode | None
     quote_status_id: UUID | None
     quote_status_code: OptionCode | None
     quote_status_name: str | None

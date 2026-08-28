@@ -146,7 +146,6 @@ export default function Documents() {
             category: result.category,
             link: result.link,
             description: result.description,
-            tags: result.tags,
           })
         }
       }
@@ -182,7 +181,7 @@ export default function Documents() {
         <SearchInput
           className={styles.search}
           value={query}
-          placeholder="파일명·설명·태그 검색"
+          placeholder="파일명·메모·연결 검색"
           label="자료 검색"
           onChange={(next) => setParam('q', next)}
         />

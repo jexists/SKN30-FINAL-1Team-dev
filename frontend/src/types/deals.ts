@@ -1,3 +1,4 @@
+import type { CustomerSourceCode } from './customers'
 import type { OrderOutcomeCode } from './orders'
 import type { ColumnTone } from './stage'
 
@@ -130,6 +131,7 @@ export interface SalesDealCreateRequest extends SalesDealDocumentFields {
   deal_amount: number
   opened_on: string
   memo: string | null
+  source_code: CustomerSourceCode | null
 }
 
 export interface SalesDealPatchRequest extends SalesDealDocumentFields {
@@ -140,6 +142,7 @@ export interface SalesDealPatchRequest extends SalesDealDocumentFields {
   deal_amount: number
   opened_on: string
   memo: string | null
+  source_code: CustomerSourceCode | null
 }
 
 export interface SalesDealMoveRequest {
@@ -188,6 +191,8 @@ export interface SalesDealResponse {
   warranty_terms: string | null
   expected_delivery_at: string | null
   memo: string | null
+  /** 예전 데이터에는 아래 목록 밖의 코드도 있어 문자열을 그대로 받습니다. */
+  source_code: CustomerSourceCode | string | null
   quote_status_id: string | null
   quote_status_code: string | null
   quote_status_name: string | null

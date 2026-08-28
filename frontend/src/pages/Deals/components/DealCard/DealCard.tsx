@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 
 import type { BoardDeal } from '../../board'
 import { fmtDotShort, parseISO } from '@/utils/date'
-import { won } from '@/utils/format'
 
 import styles from './DealCard.module.scss'
 
@@ -50,16 +49,11 @@ export default function DealCard({
           onNudge(identity, event.key === '[' ? -1 : 1)
         }}
       >
+        <span className={styles.title}>{deal.title}</span>
         <span className={styles.org}>{deal.org}</span>
-        <span className={styles.product}>{deal.product}</span>
-
-        <span className={styles.amount}>
-          <span className="tnum">{won(deal.amount)}</span>
-          <span className={styles.kind}>{deal.kind}</span>
-        </span>
 
         <span className={styles.meta}>
-          <span>{deal.owner}</span>
+          <span>{deal.product}</span>
           <span className="tnum">{fmtDotShort(parseISO(deal.date))}</span>
         </span>
       </button>

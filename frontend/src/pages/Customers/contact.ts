@@ -18,12 +18,13 @@ const STATUS_LABEL: Record<CustomerStatusCode, CustomerStatus> = {
   on_hold: '보류',
 }
 
-const SOURCE_LABEL: Record<CustomerSourceCode, CustomerSource> = {
+export const SOURCE_LABEL: Record<CustomerSourceCode, CustomerSource> = {
   referral: '소개',
-  exhibition: '박람회',
-  website: '홈페이지',
-  cold_call: '콜드콜',
-  existing_customer: '기존 거래',
+  event: '행사·박람회',
+  online_form: '온라인 문의',
+  joint_past: '기존 거래',
+  media: '미디어',
+  other: '기타',
 }
 
 // 목록 밖의 코드가 오면 화면이 빈칸이 되지 않게 미지정으로 둡니다.

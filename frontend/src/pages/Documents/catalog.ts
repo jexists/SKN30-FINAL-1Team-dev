@@ -27,7 +27,8 @@ export const KIND_LABEL: Record<DocumentFileKind, string> = {
   etc: '파일',
 }
 
-export const LINK_KINDS = ['none', '고객사', '계약', '발주'] as const
+/** 업로드 화면에서 고를 수 있는 연결. '고객사'·'발주' 는 예전 자료에만 남습니다. */
+export const LINK_KINDS = ['none', '상품', '딜'] as const
 
 const EXT_KIND: Record<string, DocumentFileKind> = {
   pdf: 'pdf',

@@ -340,7 +340,7 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
           <textarea
             rows={3}
             value={form.brief ?? ''}
-            placeholder="이번 미팅에서 확인할 것"
+            placeholder="참고사항"
             onChange={(e) => set('brief', e.target.value)}
           />
         </Field>

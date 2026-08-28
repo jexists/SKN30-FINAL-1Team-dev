@@ -285,6 +285,33 @@ def test_sales_deal_writes_use_explicit_pipeline_and_dynamic_type_code():
         )
 
 
+def test_source_code_is_optional_and_limited_to_the_customer_source_set():
+    base = {
+        "customer_company_id": uuid4(),
+        "product_id": uuid4(),
+        "sales_pipeline_id": uuid4(),
+        "sales_pipeline_stage_id": uuid4(),
+        "deal_type_code": "new_installation",
+        "deal_amount": 1,
+        "opened_on": "2026-08-17",
+    }
+    assert SalesDealCreate(**base).source_code is None
+
+    payload = SalesDealCreate(**(base | {"source_code": "referral"}))
+    assert payload.source_code == "referral"
+    # 생성은 model_dump 를 그대로 SalesDeal 에 넘긴다. 빠지면 값이 조용히 사라진다.
+    assert "source_code" in payload.model_dump()
+
+    # 유입경로는 모를 수 있는 값이라 PATCH 로 비울 수 있어야 한다.
+    assert SalesDealPatch(source_code=None).model_dump(exclude_unset=True) == {"source_code": None}
+    assert SalesDealPatch(source_code="online_form").source_code == "online_form"
+
+    with pytest.raises(ValidationError):
+        SalesDealCreate(**(base | {"source_code": "exhibition"}))
+    with pytest.raises(ValidationError):
+        SalesDealPatch(source_code="Online form")
+
+
 def test_pipeline_stage_and_type_options_are_team_scoped_and_hide_drafts_or_deleted():
     member = _member()
     published = _pipeline(member)

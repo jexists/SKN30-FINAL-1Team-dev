@@ -22,7 +22,7 @@ import styles from './Complaints.module.scss'
 
 const COLUMNS = [
   { id: 'org', header: '회사', width: 140 },
-  { id: 'deal', header: '계약건', width: 120 },
+  { id: 'deal', header: '딜', width: 120 },
   { id: 'owner', header: '등록자', width: 90 },
   { id: 'issue', header: '제목', width: 210 },
   { id: 'note', header: '내용', width: 460 },
@@ -150,7 +150,7 @@ export default function Complaints() {
         <div className={styles.actions}>
           <Button disabled={loading} onClick={() => setAdding(true)}>
             <PlusIcon width={15} height={15} />
-            불만 등록
+            고객불만 등록
           </Button>
         </div>
       </div>
@@ -330,7 +330,7 @@ export default function Complaints() {
                   <dd>{detail.customer_company_name}</dd>
                 </div>
                 <div>
-                  <dt>계약건</dt>
+                  <dt>딜선택</dt>
                   <dd>
                     <span className="tnum">{dealLabel(detail)}</span> · {detail.deal_title}
                   </dd>
