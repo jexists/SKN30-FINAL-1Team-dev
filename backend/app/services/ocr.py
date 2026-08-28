@@ -381,14 +381,20 @@ def _local_pdf(*, content: bytes, file_name: str) -> ExtractedDocument:
         # pdf-inspector 1.17+는 모델 디렉터리와 offline 모드를 인자로 받는다.
         # 구버전 호환을 위해 해당 인자를 지원하지 않는 경우에만 기본 호출로
         # 재시도한다.
+        model_directory = _pdf_inspector_model_directory()
+        offline = _pdf_inspector_model_available(model_directory)
         try:
             result = pdf_inspector.process_pdf_with_ocr_bytes(
                 content,
-                model_directory=_pdf_inspector_model_directory(),
-                offline=True,
+                model_directory=model_directory,
+                offline=offline,
             )
         except TypeError:
             result = pdf_inspector.process_pdf_with_ocr_bytes(content)
+    except ValueError as error:
+        if not locals().get("offline", False):
+            raise OcrError("local_pdf_ocr_model_unavailable") from error
+        raise OcrError("local_pdf_ocr_failed:ValueError") from error
     except AttributeError as error:
         raise OcrError("local_pdf_ocr_api_unsupported") from error
     except Exception as error:
@@ -496,6 +502,11 @@ def _pdf_inspector_model_directory() -> str:
         if (candidate / "pp-ocrv6_small_det.onnx").is_file():
             return str(candidate)
     return str(base)
+
+
+def _pdf_inspector_model_available(model_directory: str) -> bool:
+    """모델 파일이 있으면 오프라인 모드로, 없으면 최초 다운로드 모드로 실행한다."""
+    return (Path(model_directory) / "pp-ocrv6_small_det.onnx").is_file()
 
 
 def _configure_pdf_inspector_model_cache() -> None:

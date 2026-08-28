@@ -167,6 +167,12 @@ def test_pdf_inspector_model_directory_finds_nested_downloaded_artifacts(tmp_pat
     assert ocr._pdf_inspector_model_directory() == str(nested)
 
 
+def test_pdf_inspector_model_availability_controls_offline_mode(tmp_path):
+    assert ocr._pdf_inspector_model_available(str(tmp_path)) is False
+    (tmp_path / "pp-ocrv6_small_det.onnx").write_bytes(b"model")
+    assert ocr._pdf_inspector_model_available(str(tmp_path)) is True
+
+
 def test_pdf_inspector_model_cache_sets_library_environment(monkeypatch):
     monkeypatch.delenv("PDF_INSPECTOR_MODEL_CACHE", raising=False)
     monkeypatch.setattr(ocr.settings, "pdf_inspector_model_directory", "/tmp/salesluv-models")
@@ -176,7 +182,7 @@ def test_pdf_inspector_model_cache_sets_library_environment(monkeypatch):
     assert ocr.os.environ["PDF_INSPECTOR_MODEL_CACHE"] == "/tmp/salesluv-models"
 
 
-def test_pdf_inspector_uses_local_model_directory_and_offline_mode(monkeypatch):
+def test_pdf_inspector_uses_local_model_directory_and_download_mode(monkeypatch):
     calls = []
 
     class _Inspector:
@@ -197,7 +203,7 @@ def test_pdf_inspector_uses_local_model_directory_and_offline_mode(monkeypatch):
     assert calls == [
         (
             b"pdf",
-            {"model_directory": "/tmp/pdf-models", "offline": True},
+            {"model_directory": "/tmp/pdf-models", "offline": False},
         )
     ]
 
