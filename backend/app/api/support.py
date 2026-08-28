@@ -2,7 +2,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -20,6 +20,7 @@ from app.schemas.support import (
     SupportResponseRead,
     SupportTransition,
 )
+from app.services import contract_next_meeting_pipeline
 
 router = APIRouter(tags=["support"])
 
@@ -351,6 +352,7 @@ async def create_support_request(
 async def transition_support_request(
     request_id: UUID,
     payload: SupportTransition,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> SupportRequestRead:
@@ -369,10 +371,17 @@ async def transition_support_request(
         row = await _request_row(db, member, request_id)
         response_map = await _responses_by_request_ids(db, member, [request_id])
         read = _request_read(*row, response_map[request_id])
+        sales_deal_id = request.sales_deal_id
         await db.commit()
     except Exception:
         await db.rollback()
         raise
+    # 처리중으로 넘어가는 순간이 신호다 — 스냅샷이 보는 조건(status_code=in_progress)과
+    # 맞춘다(계약에이전트_설계.md 3장).
+    if payload.status_code == "in_progress":
+        contract_next_meeting_pipeline.queue(
+            background, sales_deal_id, {"support_request_id": str(request_id)}
+        )
     return read
 
 

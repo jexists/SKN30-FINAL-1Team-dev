@@ -44,3 +44,13 @@ async def get_agent_run(
 ) -> AgentRunRead:
     """진행 상태와 완료된 초안을 확인하는 폴링 대상."""
     return await agent_run_service.get(agent_run_id, member, db)
+
+
+@router.get("/agent-runs", response_model=list[AgentRunRead])
+async def list_agent_runs(
+    sales_deal_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> list[AgentRunRead]:
+    """이 딜에 관한 에이전트 실행 이력 전체를 최신순으로 조회한다."""
+    return await agent_run_service.list_by_sales_deal(sales_deal_id, member, db)

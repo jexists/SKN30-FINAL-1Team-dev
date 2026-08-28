@@ -738,6 +738,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
+        _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
     )
 
     with _client(db, member) as client:
@@ -776,6 +777,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
+        _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
     )
 
     with _client(db, member) as client:

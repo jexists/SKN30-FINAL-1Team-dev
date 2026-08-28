@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
 from app.models.content import Report
+from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.agent_runs import AgentRunCreate, AgentRunRead
 from app.services import contract_schedule_snapshots
@@ -34,6 +35,7 @@ def _run_read(run: AgentRun) -> AgentRunRead:
         llm_model_name=run.llm_model_name,
         prompt_version=run.prompt_version,
         requested_by_member_id=run.requested_by_member_id,
+        sales_deal_id=run.sales_deal_id,
         source_refs=run.source_refs,
         output_snapshot=run.output_snapshot,
         evidence=run.evidence,
@@ -98,18 +100,34 @@ async def _parent_run_or_409(
     return parent
 
 
+async def _activity_sales_deal_id(db: AsyncSession, activity_id: UUID | None) -> UUID | None:
+    """보고서 원본 활동(activity)이 매인 딜을 찾는다. 활동이 없거나 딜이 안 걸려 있으면 None."""
+    if activity_id is None:
+        return None
+    return (
+        await db.execute(select(Activity.sales_deal_id).where(Activity.id == activity_id))
+    ).scalar_one_or_none()
+
+
 async def _build_run_input(
     payload: AgentRunCreate, member: Member, db: AsyncSession
-) -> tuple[str, dict[str, Any], dict[str, Any], UUID | None]:
-    """agent_code 별로 prompt_version, input_snapshot, source_refs, parent_run_id 를 만든다."""
+) -> tuple[str, dict[str, Any], dict[str, Any], UUID | None, UUID | None]:
+    """agent_code 별로 prompt_version, input_snapshot, source_refs, parent_run_id,
+
+    sales_deal_id 를 만든다. sales_deal_id 는 딜 하나로 좁혀지는 실행에만 채우고, 담당자
+    포트폴리오 전체나 회사 단위로 도는 실행은 None 으로 둔다(agent_run.sales_deal_id 컬럼
+    설명 참고).
+    """
     if payload.agent_code in ("report_writing", "meeting_analysis"):
         report = await _draft_source(db, member, payload.report_id)
+        sales_deal_id = await _activity_sales_deal_id(db, report.source_activity_id)
         if payload.agent_code == "report_writing":
             return (
                 report_writing.PROMPT_VERSION,
                 report_writing.input_snapshot(report, payload.guidance),
                 {"report_id": str(report.id)},
                 None,
+                sales_deal_id,
             )
         try:
             input_snapshot = meeting_analysis.input_snapshot(report.transcript)
@@ -123,6 +141,7 @@ async def _build_run_input(
             input_snapshot,
             {"report_id": str(report.id)},
             None,
+            sales_deal_id,
         )
 
     if payload.agent_code == "contract_management_select_candidates":
@@ -134,6 +153,7 @@ async def _build_run_input(
             input_snapshot,
             {},
             None,
+            None,
         )
 
     if payload.agent_code == "contract_management_next_meeting":
@@ -144,6 +164,7 @@ async def _build_run_input(
             contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
             input_snapshot,
             {"customer_company_id": str(payload.customer_company_id)},
+            None,
             None,
         )
 
@@ -162,11 +183,16 @@ async def _build_run_input(
             db, member, payload.activity_id
         )
         source_refs["customer_company_id"] = input_snapshot["customer_company"]["id"]
+        # build_briefing_snapshot 이 이미 activity 를 조회해 두므로 여기서 다시 조회하지
+        # 않는다 — approved_next_meeting.sales_deal_id 를 그대로 쓴다.
+        approved_next_meeting = input_snapshot.get("approved_next_meeting") or {}
+        deal_id_str = approved_next_meeting.get("sales_deal_id")
         return (
             contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
             input_snapshot,
             source_refs,
             parent_id,
+            UUID(deal_id_str) if deal_id_str else None,
         )
 
     # schedule_management. 계약관리 제안이 없어도(parent_run_id 없이) 실행할 수 있다.
@@ -195,6 +221,7 @@ async def _build_run_input(
         input_snapshot,
         source_refs,
         parent.id if parent is not None else None,
+        payload.sales_deal_id,
     )
 
 
@@ -224,15 +251,20 @@ async def create(
         return _run_read(existing), None
 
     try:
-        prompt_version, input_snapshot, source_refs, parent_run_id = await _build_run_input(
-            payload, member, db
-        )
+        (
+            prompt_version,
+            input_snapshot,
+            source_refs,
+            parent_run_id,
+            sales_deal_id,
+        ) = await _build_run_input(payload, member, db)
 
         run = AgentRun(
             id=uuid4(),
             team_id=member.team_id,
             parent_run_id=parent_run_id,
             requested_by_member_id=member.id,
+            sales_deal_id=sales_deal_id,
             agent_code=payload.agent_code,
             trigger_code="user",
             idempotency_key=payload.idempotency_key,
@@ -370,3 +402,21 @@ async def get(agent_run_id: UUID, member: Member, db: AsyncSession) -> AgentRunR
             detail="agent_run_not_found",
         )
     return _run_read(run)
+
+
+async def list_by_sales_deal(
+    sales_deal_id: UUID, member: Member, db: AsyncSession
+) -> list[AgentRunRead]:
+    """이 딜에 관한 실행 이력을 최신순으로 돌려준다(agent_run.sales_deal_id 인덱스 사용)."""
+    rows = (
+        (
+            await db.execute(
+                select(AgentRun)
+                .where(AgentRun.sales_deal_id == sales_deal_id, *_scope(member))
+                .order_by(AgentRun.started_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [_run_read(run) for run in rows]

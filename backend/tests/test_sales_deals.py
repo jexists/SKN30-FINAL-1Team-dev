@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from pydantic import ValidationError
 
 from app.api import sales_deals as api
@@ -404,6 +404,7 @@ def test_move_sets_contract_signed_date_only_for_confirmed_contract(monkeypatch)
                 sales_pipeline_stage_id=target_stage.id,
                 stage_position=0,
             ),
+            BackgroundTasks(),
             member,
             db,
         )
@@ -430,6 +431,7 @@ def test_move_sets_contract_signed_date_only_for_confirmed_contract(monkeypatch)
                 sales_pipeline_stage_id=target_stage.id,
                 stage_position=0,
             ),
+            BackgroundTasks(),
             member,
             db,
         )
@@ -468,6 +470,7 @@ def test_move_closes_only_closed_phase_and_rejects_another_pipeline(monkeypatch)
                     sales_pipeline_stage_id=target_stage.id,
                     stage_position=0,
                 ),
+                BackgroundTasks(),
                 member,
                 db,
             )

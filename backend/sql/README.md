@@ -88,6 +88,26 @@
   `registered_at`과 다르며 DEFAULT 를 두지 않습니다.
   기존 행은 어느 딜에 속하는지 알 근거가 없어 `support_response`와 함께 지우고 시작합니다.
 
+- `20260826_0007_contract_next_meeting_suggestion.sql`: 캘린더 "AI 추천 일정" 패널이 매번
+  LLM을 다시 부르지 않고 조회만 하도록 `contract_next_meeting_suggestion` 테이블을 새로 만듭니다.
+  `sales_deal_id`(UNIQUE), `schedule_management_run_id`, `status_code`(`pending`/`dismissed`/
+  `accepted`), `created_at`/`updated_at`뿐입니다 — 날짜·시간·사유 같은 실제 내용은 복제하지 않고
+  `schedule_management_run_id`로 `agent_run.output_snapshot`을 그대로 조회합니다. 영업 건당
+  활성 제안은 최대 1개이며, 트리거(보고서 승인·일정 수동 등록·영업 딜 생성/이동·CS 접수 처리
+  시작)가 같은 딜에 대해 다시 발생하면 기존 행을 덮어씁니다. 자세한 배경은
+  [계약에이전트_설계.md](../../docs/technical/multiagent/계약에이전트_설계.md) 3장·6장 참고.
+  2026-08-26 개발 DB에 적용 완료 — 아래 "적용 이력" 참고.
+
+- `20260827_0008_agent_run_sales_deal_id.sql`: `agent_run`에 `sales_deal_id`(nullable FK) 컬럼과
+  `(team_id, sales_deal_id, started_at DESC)` 인덱스를 추가합니다. 지금까지 어느 딜의 실행인지는
+  `source_refs`(JSONB) 안에 report_id/activity_id/customer_company_id로만 흩어져 있어 "이
+  딜의 히스토리 전체"를 인덱스로 조회할 방법이 없었습니다. `contract_management_select_candidates`
+  (포트폴리오 전체 실행)와 `contract_management_next_meeting`(회사 단위 실행)은 딜 하나로
+  안 좁혀지므로 NULL을 허용합니다. 기존 행은 백필하지 않습니다 — 개발 DB 데모 데이터라 정합성
+  보장 스크립트를 만들 가치가 없다고 판단했습니다.
+  **아직 개발 DB에 적용 안 함** — 이 저장소에서는 DB 연결 정보가 없어 파일만 작성했습니다.
+  적용 후 이 줄과 아래 "적용 이력"을 갱신해주세요.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -103,6 +123,7 @@
 | 2026-08-24 | 개발 | `20260824_0004_product_fields.sql` | session pooler | 성공. product 4→9컬럼(`category_code`, `unit_price`, `shelf_life_months`, `memo`, `image_storage_key`). 기존 product 행이 0건이라 백필 대상 없음. `tests/test_models.py` 통과 |
 | 2026-08-25 | 개발 | `20260825_0005_notice_management.sql` | session pooler | 성공. notice 12→18컬럼(`recipient_member_id` 제거, `type`·`display_start_date`·`display_end_date`·`is_hidden`·`sort_order`·`updated_at`·`deleted_at` 추가) / notice_target·notice_image 신설(RLS on) / `notice_team_recipient_published_idx` 를 `notice_team_type_order_idx`·`notice_visible_idx` 로 교체. 기존 notice 행이 0건이라 백필 대상 없음 |
 | 2026-08-25 | 개발 | `20260825_0006_support_request_deal_link.sql` | session pooler | 성공. support_request 9→11컬럼(`customer_contact_id` 제거, `customer_company_id`·`sales_deal_id`·`occurred_at` 추가) / 복합 FK `support_request_sales_deal_company_membership_fkey`(ON UPDATE CASCADE)와 `sales_deal_id_customer_company_key` 신설 / `support_request_status_code_check` 를 값 목록 검사로 교체 / 인덱스 `support_request_sales_deal_company_idx`·`support_request_team_company_idx` 추가. support_request·support_response 행이 0건이라 삭제 대상 없음. 회사·딜 불일치 INSERT 와 없는 상태값 INSERT 가 각각 FK·CHECK 로 거절되는 것까지 확인 |
+| 2026-08-26 | 개발 | `20260826_0007_contract_next_meeting_suggestion.sql` | session pooler (direct 연결 문자열이 따로 없어 대신 사용) | 성공. `contract_next_meeting_suggestion` 신설(7컬럼: id/team_id/sales_deal_id/schedule_management_run_id/status_code/created_at/updated_at) / UNIQUE(sales_deal_id) / 인덱스 `contract_next_meeting_suggestion_team_status_idx`(team_id, status_code) / RLS on(정책 없음, 다른 테이블과 동일). 기존 테이블은 손대지 않는 순수 추가라 백필 대상 없음. `tests/test_models.py::test_all_database_tables_are_mapped` 통과 확인 — `test_models_match_configured_database`는 이 저장소 모델에 없는 사전 존재 테이블 5개(`quote_status`, `sales_deal_item`, `document_chunk`, `contract_status`, `sales_deal_participant`, 이번 변경과 무관)때문에 계속 실패 |
 
 ## 개발 DB 재구축 런북
 

@@ -102,6 +102,10 @@ class ReportSubmit(_WriteModel):
     expected_status_code: SubmittableStatus
 
 
+class ReportApprove(_WriteModel):
+    expected_status_code: Literal["submitted"] = "submitted"
+
+
 class ReportActivityRead(BaseModel):
     activity_id: UUID
     title: str

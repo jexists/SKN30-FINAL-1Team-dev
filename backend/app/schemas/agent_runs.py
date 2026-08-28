@@ -124,6 +124,8 @@ class AgentRunRead(BaseModel):
     llm_model_name: str
     prompt_version: str
     requested_by_member_id: UUID | None
+    # 딜 하나로 좁혀지지 않는 실행(포트폴리오 전체·회사 단위)은 None.
+    sales_deal_id: UUID | None
     # 이 실행이 무엇을 참조했는지 (예: report_id)
     source_refs: dict[str, Any]
     # 완료 전에는 없다. 보고서에 자동 반영되지 않는 "제안" 초안이다.

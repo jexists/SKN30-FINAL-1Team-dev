@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 from sqlalchemy import Text, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -14,6 +14,7 @@ from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
     ReportActivityRead,
+    ReportApprove,
     ReportCreate,
     ReportFilterOptionParams,
     ReportFilterOptions,
@@ -23,6 +24,7 @@ from app.schemas.reports import (
     ReportRead,
     ReportSubmit,
 )
+from app.services import contract_next_meeting_pipeline
 
 router = APIRouter(tags=["reports"])
 
@@ -227,6 +229,21 @@ async def _locked_report(db: AsyncSession, member: Member, report_id: UUID) -> R
             status_code=status.HTTP_404_NOT_FOUND,
             detail="report_not_found",
         )
+    return report
+
+
+async def _locked_report_for_review(db: AsyncSession, member: Member, report_id: UUID) -> Report:
+    """검토(승인 등)는 팀장만 한다 — 유스케이스 RPT-004."""
+    if member.role_code != "manager":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="review_not_allowed")
+    result = await db.execute(
+        select(Report)
+        .where(Report.id == report_id, Report.team_id == member.team_id)
+        .with_for_update(of=Report)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="report_not_found")
     return report
 
 
@@ -461,6 +478,48 @@ async def submit_report(
     except Exception:
         await db.rollback()
         raise
+    return read
+
+
+@router.post("/reports/{report_id}/approve", response_model=ReportRead)
+async def approve_report(
+    report_id: UUID,
+    payload: ReportApprove,
+    background: BackgroundTasks,
+    member: CurrentMember,
+    db: DbSession,
+) -> ReportRead:
+    """보고서 승인은 계약관리·일정관리 에이전트 체인의 트리거다(계약에이전트_설계.md 3장).
+
+    승인 자체는 이 트랜잭션에서 끝낸다. 체이닝은 이미 커밋된 뒤 백그라운드로 미루므로
+    실패해도 보고서 승인 자체는 되돌리지 않는다.
+    """
+    try:
+        report = await _locked_report_for_review(db, member, report_id)
+        if report.status_code != payload.expected_status_code:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="invalid_state_transition",
+            )
+        report.status_code = "approved"
+        report.reviewed_by_member_id = member.id
+        report.reviewed_at = datetime.now(UTC)
+        await db.flush()
+        source_activity_id = report.source_activity_id
+        read = await _detail(db, member, report_id)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    if source_activity_id is not None:
+        activity = (
+            await db.execute(select(Activity).where(Activity.id == source_activity_id))
+        ).scalar_one_or_none()
+        if activity is not None and activity.sales_deal_id is not None:
+            contract_next_meeting_pipeline.queue(
+                background, activity.sales_deal_id, {"report_id": str(report_id)}
+            )
     return read
 
 

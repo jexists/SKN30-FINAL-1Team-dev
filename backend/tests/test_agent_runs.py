@@ -652,11 +652,59 @@ def test_contract_management_briefing_without_parent_run(llm_ready, monkeypatch)
     created = db.added[0]
     assert created.agent_code == "contract_management_briefing"
     assert created.parent_run_id is None
+    # approved_next_meeting 이 없으면(캘린더 직접 입력 등) 딜을 알 수 없다.
+    assert created.sales_deal_id is None
     assert created.source_refs == {
         "activity_id": str(activity_id),
         "customer_company_id": "company-1",
     }
     assert scheduled == [created.id]
+
+
+def test_contract_management_briefing_sets_sales_deal_id_from_snapshot(llm_ready, monkeypatch):
+    """approved_next_meeting.sales_deal_id 가 있으면 별도 조회 없이 그대로 딜 기준
+    히스토리 조회용 컬럼(agent_run.sales_deal_id)에 채운다."""
+
+    async def _fake_execute(run_id: UUID) -> None:
+        pass
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    sales_deal_id = uuid4()
+    activity_id = uuid4()
+    fixed_snapshot = {
+        "customer_company": {"id": "company-1"},
+        "sales_deals": [],
+        "approved_next_meeting": {
+            "activity_id": str(activity_id),
+            "sales_deal_id": str(sales_deal_id),
+        },
+        "document_summaries": [],
+    }
+
+    async def _fake_build_briefing_snapshot(db, member, activity_id):
+        return fixed_snapshot
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots, "build_briefing_snapshot", _fake_build_briefing_snapshot
+    )
+
+    member = _member()
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "contract_management_briefing",
+                "activity_id": str(activity_id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    assert db.added[0].sales_deal_id == sales_deal_id
 
 
 def test_schedule_management_run_uses_parent_next_meeting_suggestion(llm_ready, monkeypatch):
@@ -684,6 +732,7 @@ def test_schedule_management_run_uses_parent_next_meeting_suggestion(llm_ready, 
     parent = _run(member, status_code="completed")
     parent.agent_code = "contract_management_next_meeting"
     db = _Db(_Result(scalar=None), _Result(scalar=parent))
+    sales_deal_id = uuid4()
 
     with _client(db, member) as client:
         response = client.post(
@@ -691,7 +740,7 @@ def test_schedule_management_run_uses_parent_next_meeting_suggestion(llm_ready, 
             headers={"Origin": ORIGIN},
             json={
                 "agent_code": "schedule_management",
-                "sales_deal_id": str(uuid4()),
+                "sales_deal_id": str(sales_deal_id),
                 "parent_run_id": str(parent.id),
                 "idempotency_key": str(uuid4()),
             },
@@ -702,6 +751,9 @@ def test_schedule_management_run_uses_parent_next_meeting_suggestion(llm_ready, 
     assert created.prompt_version == schedule_management.PROMPT_VERSION
     assert created.input_snapshot == fixed_snapshot
     assert created.parent_run_id == parent.id
+    # 딜 기준 히스토리 조회(agent_run.sales_deal_id)가 채워지는지 — schedule_management 는
+    # payload.sales_deal_id 를 그대로 쓴다.
+    assert created.sales_deal_id == sales_deal_id
     assert scheduled == [created.id]
 
 
