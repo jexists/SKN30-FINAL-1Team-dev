@@ -98,6 +98,9 @@ python scripts/windows_ocr_smoke.py --profile business_card \
 고해상도 사진은 `BUSINESS_CARD_MAX_SIDE` 기준으로 축소한 뒤 처리하며, 기본값은
 `2400`이다. 메모리가 부족한 Windows 환경에서는 실행 전에 `BUSINESS_CARD_MAX_SIDE=1200`
 처럼 낮춰 단계적으로 확인할 수 있다.
+현재 명함용 PaddleOCR는 `PP-OCRv5_mobile_det`와
+`korean_PP-OCRv5_mobile_rec`를 사용한다. 원본 사진을 카드 보정 전에 먼저 축소해
+4K 사진의 CPU 처리시간을 줄이며, 기존 대비·이진화 후보 검사는 유지한다.
 로컬 OCR도 `OCR_TIMEOUT_SECONDS`를 적용하므로, CPU 추론이 제한 시간을 넘으면 결과를
 저장하지 않고 `local_ocr_timeout` 오류로 반환한다.
 
@@ -174,16 +177,25 @@ PDF도 Runpod OCR과 OpenAI 구조화 요약까지 통과했으며, 원문과 �
 생성했다.
 
 [검증] Mac 환경에서 `OCR_PROVIDER=local`로 개인정보 없는 합성 명함을
-`business_card` 프로필로 실행했고 `windows_ocr_smoke=passed`를 확인했다. 같은 검사는
-Windows CI의 `windows-latest`에서도 실행되도록 구성되어 있다.
+`business_card` 프로필로 실행했고 `windows_ocr_smoke=passed`를 확인했다. 실제 고해상도
+명함은 초기 설정에서 `local_ocr_timeout`이 발생했으나, 입력 사전 축소와 Mobile 모델
+적용 후 같은 경로가 `windows_ocr_smoke=passed`로 완료됐다. 같은 검사는 Windows CI의
+`windows-latest`에서도 실행되도록 구성되어 있다.
 
 [검증] 로컬 샘플 문서 5건(PDF 4건·DOCX 1건)을 추출·OCR·페이지 보존·청크 생성까지
 점검했고 모두 통과했다. 스캔 PDF는 `pdf_inspector_local_ocr`로 처리되며, 모델 캐시가
 없을 때는 최초 실행에서 모델을 준비하고 이후 캐시를 재사용한다.
 
-[검증] 기본 백엔드 테스트는 외부 연결 없이 `411 passed, 7 skipped`이며,
+[검증] 기본 백엔드 테스트는 외부 연결 없이 `412 passed, 7 skipped`이며,
 OpenAI 계약·일정·브리핑 합성 파이프라인은 실통합 테스트 1건을 통과했다. 외부 실통합
 테스트는 `RUN_INTEGRATION_TESTS=true`를 명시해야 실행된다.
+
+[검증] 개인정보 없는 합성 명함·PDF를 Runpod OCR endpoint에 전달해 각각 1페이지,
+페이지 번호, Markdown 결과를 확인했다. 명함은 11.4초, PDF는 2.69초에 완료됐다.
+
+[검증] Develop 통합 후 Supabase 헬스·모델 호환성 읽기 검사는 `4 passed`였다. DB의
+현재 모델 누락은 없었고, `report.sales_deal_id` 등 기존 레거시 컬럼은 검사 허용 목록으로
+분리했다. DB 스키마를 삭제하거나 변경하지는 않았다.
 
 [검증] Supabase 읽기 전용 확인에서 문서 2건·파일 2건·처리 완료 파일 2건·RAG 청크 233개·
 임베딩 233개를 확인했다. 실제 저장 데이터의 RAG 검색에서 출처 5건과 저장 요약 2건이 반환됐고,
@@ -194,3 +206,5 @@ OpenAI 계약·일정·브리핑 합성 파이프라인은 실통합 테스트 1
 
 [미완료] Windows 실제 환경에서 동일한 문서·명함 입력을 실행하고 Mac 결과와 정확도·처리시간을
 비교한다. 개인정보가 있는 원본은 로그에 출력하지 않고 필드별 결과만 비교한다.
+[미완료] OCR 필드 정답지와 요약·RAG 질의 정답지를 확정하지 않아 정확도 수치 자체는 아직
+산출하지 않았다. 평가 기준과 기록 양식은 `자료요약_Agent_정확도_평가_계획.md`에 정리한다.
