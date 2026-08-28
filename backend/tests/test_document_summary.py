@@ -52,6 +52,8 @@ def test_docx_extraction_preserves_table_rows():
     assert "항목" in result.plain_text
     assert "| 항목 | 내용 |" in result.markdown
     assert result.payload["source_type"] == "docx"
+    assert result.payload["pages"][0]["markdown"]
+    assert chunks(result.markdown, pages=result.payload["pages"])[0]["page_start"] == 1
 
 
 def test_pptx_extraction_creates_slide_source_pages():
@@ -67,6 +69,8 @@ def test_pptx_extraction_creates_slide_source_pages():
 
     assert "영업 전략" in result.plain_text
     assert result.payload["pages"][0]["page_number"] == 1
+    assert result.payload["pages"][0]["markdown"]
+    assert chunks(result.markdown, pages=result.payload["pages"])[0]["page_start"] == 1
     assert result.payload["page_count"] == 1
 
 

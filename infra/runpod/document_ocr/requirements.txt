@@ -1,5 +1,6 @@
 runpod>=1.7.0
 pdf-inspector>=1.17.0
+onnxruntime==1.23.2
 pypdfium2>=5.13.0
 Pillow>=12.3.0
 numpy>=2.0.0

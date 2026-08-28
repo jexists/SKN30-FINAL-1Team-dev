@@ -161,14 +161,23 @@ def _blocks_result(
     if not plain.strip():
         raise ExtractionError(f"empty_{source_type}")
     page_payload = pages or [{"page_number": 1, "blocks": blocks}]
+    normalized_pages: list[dict[str, Any]] = []
+    for index, page in enumerate(page_payload, start=1):
+        normalized_page = dict(page)
+        normalized_page.setdefault("page_number", index)
+        if not str(normalized_page.get("markdown", "")).strip():
+            normalized_page["markdown"] = _markdown_from_blocks(
+                list(normalized_page.get("blocks") or [])
+            )
+        normalized_pages.append(normalized_page)
     return ExtractedDocument(
         plain_text=_clean_text(plain),
         markdown=markdown,
         payload={
             "version": 1,
             "source_type": source_type,
-            "pages": page_payload,
-            "page_count": len(page_payload),
+            "pages": normalized_pages,
+            "page_count": len(normalized_pages),
         },
     )
 

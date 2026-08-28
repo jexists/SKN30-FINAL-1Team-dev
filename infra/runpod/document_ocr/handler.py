@@ -15,6 +15,9 @@ from io import BytesIO
 from urllib.request import Request, urlopen
 
 
+PDF_PAGE_BATCH_SIZE = 4
+
+
 def handler(job: dict) -> dict:
     try:
         input_data = job.get("input") if isinstance(job, dict) else None
@@ -58,21 +61,68 @@ def _read_content(input_data: dict) -> bytes:
 
 
 def _pdf_pages(content: bytes) -> list[dict]:
+    _configure_pdfium_library()
+    _configure_onnxruntime_library()
     import pdf_inspector
 
-    result = pdf_inspector.process_pdf_with_ocr_bytes(content)
     pages: list[dict] = []
-    for index, page in enumerate(_value(result, "pages") or [], start=1):
-        provenance = _value(page, "provenance")
-        pages.append(
-            {
-                "page_number": _value(page, "page_number") or index,
-                "markdown": str(_value(page, "markdown") or ""),
-                "source": _value(provenance, "source") or "pdf_inspector",
-                "ocr_confidence": _value(provenance, "ocr_confidence"),
-            }
-        )
+    classification = pdf_inspector.classify_pdf_bytes(content)
+    page_count = int(_value(classification, "page_count") or 0)
+    for start in range(1, page_count + 1, PDF_PAGE_BATCH_SIZE):
+        batch = list(range(start, min(start + PDF_PAGE_BATCH_SIZE, page_count + 1)))
+        result = pdf_inspector.process_pdf_with_ocr_bytes(content, page_numbers=batch)
+        for offset, page in enumerate(_value(result, "pages") or []):
+            provenance = _value(page, "provenance")
+            pages.append(
+                {
+                    "page_number": _value(page, "page_number") or batch[offset],
+                    "markdown": str(_value(page, "markdown") or ""),
+                    "source": _value(provenance, "source") or "pdf_inspector",
+                    "ocr_confidence": _value(provenance, "ocr_confidence"),
+                }
+            )
     return pages
+
+
+def _configure_pdfium_library() -> None:
+    """pdf-inspector가 pypdfium2의 플랫폼별 PDFium을 사용하게 한다."""
+    if os.getenv("PDFIUM_LIB_PATH"):
+        return
+    try:
+        import pypdfium2_raw
+    except ImportError:
+        return
+    root = os.path.dirname(pypdfium2_raw.__file__ or "")
+    candidates = sorted(
+        os.path.join(root, name)
+        for name in os.listdir(root)
+        if name.startswith("libpdfium")
+        and os.path.isfile(os.path.join(root, name))
+    )
+    if candidates:
+        os.environ["PDFIUM_LIB_PATH"] = candidates[0]
+
+
+def _configure_onnxruntime_library() -> None:
+    """pdf-inspector가 호환되는 ONNX Runtime 공유 라이브러리를 사용하게 한다."""
+    if os.getenv("ORT_DYLIB_PATH"):
+        return
+    try:
+        import onnxruntime
+    except ImportError:
+        return
+    root = os.path.join(os.path.dirname(onnxruntime.__file__ or ""), "capi")
+    candidates = [
+        os.path.join(root, name)
+        for name in os.listdir(root)
+        if (
+            name.startswith("libonnxruntime")
+            or name.startswith("onnxruntime")
+        )
+        and os.path.isfile(os.path.join(root, name))
+    ]
+    if candidates:
+        os.environ["ORT_DYLIB_PATH"] = sorted(candidates)[0]
 
 
 @lru_cache(maxsize=4)

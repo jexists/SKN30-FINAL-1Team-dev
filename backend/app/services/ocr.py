@@ -11,7 +11,7 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -106,20 +106,55 @@ async def _runpod(
                 },
                 json={"input": input_payload},
             )
+            if response.status_code >= 400:
+                raise OcrError(f"runpod_provider_error:{response.status_code}")
+            try:
+                payload = response.json()
+            except (ValueError, TypeError) as error:
+                raise OcrError("runpod_response_not_json") from error
+            if not isinstance(payload, dict):
+                raise OcrError("runpod_response_invalid")
+            status = str(payload.get("status", "")).upper()
+            if status in {"FAILED", "CANCELED", "CANCELLED", "TIMED_OUT"}:
+                raise OcrError("runpod_job_failed")
+            if status in {"IN_QUEUE", "IN_PROGRESS"}:
+                job_id = payload.get("id")
+                if not isinstance(job_id, str) or not job_id:
+                    raise OcrError("runpod_job_id_missing")
+                payload = await _poll_runpod(client, settings.ocr_api_url, job_id)
     except httpx.HTTPError as error:
         raise OcrError(f"runpod_request_failed:{type(error).__name__}") from error
-    if response.status_code >= 400:
-        raise OcrError(f"runpod_provider_error:{response.status_code}")
-    try:
-        payload = response.json()
-    except (ValueError, TypeError) as error:
-        raise OcrError("runpod_response_not_json") from error
-    if not isinstance(payload, dict):
-        raise OcrError("runpod_response_invalid")
-    status = str(payload.get("status", "")).upper()
-    if status in {"FAILED", "CANCELED", "CANCELLED", "TIMED_OUT"}:
-        raise OcrError("runpod_job_failed")
     return _runpod_result(payload, file_name=file_name)
+
+
+async def _poll_runpod(client: httpx.AsyncClient, api_url: str, job_id: str) -> dict[str, Any]:
+    """runsync가 먼저 반환한 비동기 job을 완료까지 확인한다."""
+    deadline = asyncio.get_running_loop().time() + settings.ocr_timeout_seconds
+    status_url = _runpod_status_url(api_url, job_id)
+    headers = {
+        "Authorization": f"Bearer {settings.ocr_api_key.get_secret_value()}",
+        "Content-Type": "application/json",
+    }
+    while asyncio.get_running_loop().time() < deadline:
+        try:
+            response = await client.get(status_url, headers=headers)
+        except httpx.HTTPError as error:
+            raise OcrError(f"runpod_poll_failed:{type(error).__name__}") from error
+        if response.status_code >= 400:
+            raise OcrError(f"runpod_poll_error:{response.status_code}")
+        try:
+            payload = response.json()
+        except (ValueError, TypeError) as error:
+            raise OcrError("runpod_response_not_json") from error
+        if not isinstance(payload, dict):
+            raise OcrError("runpod_response_invalid")
+        status = str(payload.get("status", "")).upper()
+        if status in {"COMPLETED", "FAILED", "CANCELED", "CANCELLED", "TIMED_OUT"}:
+            if status != "COMPLETED":
+                raise OcrError("runpod_job_failed")
+            return payload
+        await asyncio.sleep(0.5)
+    raise OcrError("runpod_poll_timeout")
 
 
 def _runpod_runsync_url(api_url: str, wait_seconds: int) -> str:
@@ -131,6 +166,17 @@ def _runpod_runsync_url(api_url: str, wait_seconds: int) -> str:
     query = dict(parse_qsl(split.query, keep_blank_values=True))
     query["wait"] = str(wait_seconds * 1000)
     return urlunsplit((split.scheme, split.netloc, split.path, urlencode(query), split.fragment))
+
+
+def _runpod_status_url(api_url: str, job_id: str) -> str:
+    """ENDPOINT_ID URL 또는 runsync URL에서 상태 조회 URL을 만든다."""
+    split = urlsplit(api_url.rstrip("/"))
+    path = split.path
+    if path.endswith("/runsync"):
+        path = path[: -len("/runsync")]
+    return urlunsplit(
+        (split.scheme, split.netloc, f"{path}/status/{quote(job_id, safe='')}", "", "")
+    )
 
 
 def _runpod_result(payload: dict[str, Any], *, file_name: str) -> ExtractedDocument:
