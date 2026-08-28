@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     app_env: Literal["local", "test", "production"]
     debug: bool = True
+    # 비용·외부 데이터가 발생하는 LLM/DB 실통합 테스트는 명시적으로 켭니다.
+    run_integration_tests: bool = False
 
     # 프론트 개발 서버 주소. 쉼표로 여러 개 지정 가능.
     cors_origins: str = "http://localhost:5173"

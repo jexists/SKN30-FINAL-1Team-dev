@@ -7,7 +7,13 @@ import pytest
 from app.agents import contract_management, schedule_management
 from app.core.config import settings
 
-pytestmark = pytest.mark.skipif(not settings.llm_configured, reason="LLM 미설정")
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not settings.run_integration_tests or not settings.llm_configured,
+        reason="실통합 테스트 비활성화 또는 LLM 미설정",
+    ),
+]
 
 
 def _print_json(title: str, value) -> None:

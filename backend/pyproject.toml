@@ -61,3 +61,6 @@ select = ["E", "W", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: 외부 LLM 또는 Supabase 연결이 필요한 실통합 테스트",
+]

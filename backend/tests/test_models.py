@@ -87,7 +87,10 @@ def test_all_database_tables_are_mapped():
     )
 
 
-@pytest.mark.skipif(not settings.database_url, reason="DATABASE_URL 미설정")
+@pytest.mark.skipif(
+    not settings.run_integration_tests or not settings.database_url,
+    reason="실통합 테스트 비활성화 또는 DATABASE_URL 미설정",
+)
 def test_models_match_configured_database():
     asyncio.run(_assert_models_match_database())
 
