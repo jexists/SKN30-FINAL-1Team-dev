@@ -18,6 +18,7 @@ from app.schemas.support import (
     SupportResponseCreate,
     SupportTransition,
 )
+from app.services import contract_next_meeting_pipeline
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
@@ -475,8 +476,14 @@ def test_create_narrows_deal_candidates_by_phase_and_owner():
     assert manager.id not in manager_db.statements[0].compile().params.values()
 
 
-def test_transition_walks_all_four_states():
-    """상태가 넷으로 늘어도 낙관적 잠금은 그대로다. 접수부터 완료까지 이어 밟는다."""
+def test_transition_walks_all_four_states(monkeypatch):
+    """상태가 넷으로 늘어도 낙관적 잠금은 그대로다. 접수부터 완료까지 이어 밟는다.
+
+    in_progress 로 넘어가는 순간 계약관리 파이프라인 트리거가 걸린다(support.py
+    transition_support_request) — 이 테스트는 그 트리거 자체를 검증하지 않으므로 실제
+    백그라운드 실행이 붙지 않게 큐잉만 무력화한다.
+    """
+    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_args, **_kwargs: None)
     member = _member()
     company = _company(member.team_id)
     deal = _deal(member, company)

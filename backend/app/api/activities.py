@@ -24,6 +24,7 @@ from app.schemas.activities import (
 )
 from app.schemas.agent_runs import AgentRunCreate
 from app.services import agent_runs as agent_run_service
+from app.services import contract_next_meeting_pipeline
 
 router = APIRouter(tags=["activities"])
 
@@ -532,6 +533,12 @@ async def create_activity(
                 background.add_task(agent_run_service.execute, briefing_run_id)
         except HTTPException as error:
             read.briefing_queue_warning = str(error.detail)
+    elif activity.sales_deal_id is not None:
+        # AI 추천을 거치지 않은 수동 등록이다 — 이 딜이 AI 추천 체인을 한 번도 안 거쳤을
+        # 수 있다는 신호로 보고 트리거한다(계약에이전트_설계.md 3장).
+        contract_next_meeting_pipeline.queue(
+            background, activity.sales_deal_id, {"activity_id": str(activity.id)}
+        )
 
     response.headers["Location"] = f"/api/activities/{activity.id}"
     return read

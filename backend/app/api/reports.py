@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 from sqlalchemy import Text, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -23,6 +23,7 @@ from app.schemas.reports import (
     ReportRead,
     ReportSubmit,
 )
+from app.services import contract_next_meeting_pipeline
 
 router = APIRouter(tags=["reports"])
 
@@ -436,9 +437,16 @@ async def update_report(
 async def submit_report(
     report_id: UUID,
     payload: ReportSubmit,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> ReportRead:
+    """작성자가 보고서를 확정하는 자리다. 계약관리·일정관리 에이전트 체인의 트리거이기도
+    하다(계약에이전트_설계.md 3장).
+
+    확정 자체는 이 트랜잭션에서 끝낸다. 체이닝은 이미 커밋된 뒤 백그라운드로 미루므로
+    실패해도 확정 자체는 되돌리지 않는다.
+    """
     try:
         report = await _locked_report(db, member, report_id)
         if report.status_code != payload.expected_status_code:
@@ -454,11 +462,24 @@ async def submit_report(
         report.status_code = "submitted"
         report.updated_at = datetime.now(UTC)
         await db.flush()
+        source_activity_id = report.source_activity_id
         read = await _detail(db, member, report_id)
         await db.commit()
     except Exception:
         await db.rollback()
         raise
+
+    # 미팅 보고서만 딜에 매인다. 기간 보고서(일일·주간·월간)는 원본 활동이 없어 넘어간다.
+    if source_activity_id is not None:
+        sales_deal_id = (
+            await db.execute(
+                select(Activity.sales_deal_id).where(Activity.id == source_activity_id)
+            )
+        ).scalar_one_or_none()
+        if sales_deal_id is not None:
+            contract_next_meeting_pipeline.queue(
+                background, sales_deal_id, {"report_id": str(report_id)}
+            )
     return read
 
 
