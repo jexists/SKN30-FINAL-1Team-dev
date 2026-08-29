@@ -1,0 +1,14 @@
+// 흐린 글씨가 아니라 알약입니다. 이 이름표가 서는 자리에는 이미 고객 쪽 정보가
+// 흐린 글씨로 앉아 있어, 같은 크기·같은 색을 하나 더 두면 구분되지 않습니다.
+// 옅은 바탕은 "이건 우리 쪽 사람" 이라는 다른 부류로 읽힙니다.
+.owner {
+  @include tag-pill;
+
+  flex: 0 0 auto;
+  max-width: 8em;
+  padding: 1px 7px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
