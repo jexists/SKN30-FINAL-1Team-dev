@@ -288,6 +288,12 @@ def _deal_summary(deal: SalesDeal, stage: SalesPipelineStage) -> dict[str, Any]:
 async def _recent_approved_reports(
     db: AsyncSession, member: Member, deal_ids: list[UUID]
 ) -> list[dict[str, Any]]:
+    """작성자가 확정한(submitted) 보고서까지 근거로 쓴다.
+
+    approved 는 팀장 검토까지 끝난 상태인데 그 검토 화면이 아직 없어, approved 만 보면
+    방금 확정한 보고서가 영영 입력에 들어오지 못한다. 보고서 확정이 곧 이 파이프라인의
+    트리거이기도 하므로(계약에이전트_설계.md 3장) 두 상태를 함께 본다.
+    """
     if not deal_ids:
         return []
     result = await db.execute(
@@ -295,7 +301,7 @@ async def _recent_approved_reports(
         .join(Activity, Activity.id == Report.source_activity_id)
         .where(
             Report.team_id == member.team_id,
-            Report.status_code == "approved",
+            Report.status_code.in_(("approved", "submitted")),
             Activity.sales_deal_id.in_(deal_ids),
         )
         .order_by(Report.report_date.desc())
