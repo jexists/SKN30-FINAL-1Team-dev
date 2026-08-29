@@ -6,6 +6,7 @@ import DayHeader from '@/components/DayHeader'
 import { CalendarIcon, DailyReportIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import OwnerName from '@/components/OwnerName'
 import Popover from '@/components/Popover'
+import { InlineLoader } from '@/components/Skeleton'
 import { useCurrentUser } from '@/auth/sessionContext'
 import { meetingComposePath } from '@/constants/routes'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
@@ -31,7 +32,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   { dateISO, onOpen, onAddSchedule, onEdit, onDelete, flash },
   ref,
 ) {
-  const list = useAgendaFor(dateISO)
+  const { items: list, loading } = useAgendaFor(dateISO)
   const showOwner = useShowOwner()
   const { memberId, isManager } = useCurrentUser()
   /** 메뉴를 펴 둔 줄. 한 번에 한 줄만 폅니다. */
@@ -164,7 +165,11 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
         </Button>
       </DayHeader>
 
-      {list.length === 0 ? (
+      {/* 아직 받아 오는 중이면 '없음' 을 세우지 않습니다. 세웠다가 목록으로 바뀌면
+          일정이 있는 날에도 없다는 문구가 한 번 스칩니다. */}
+      {loading ? (
+        <InlineLoader label="일정을 불러오는 중입니다." className={styles.loading} />
+      ) : list.length === 0 ? (
         <div className={styles.empty}>
           <CalendarIcon width={34} height={34} strokeWidth={1.5} />
           <p>이 날짜에는 등록된 일정이 없습니다.</p>

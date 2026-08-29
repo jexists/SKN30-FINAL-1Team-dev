@@ -440,8 +440,13 @@ export function useAgendaItem(id: string) {
 /**
  * 하루치만 받아 옵니다. 대시보드가 첫 응답으로 심어 둔 날은 캐시에 걸려 다시 받지 않습니다.
  */
-export function useAgendaFor(dateISO: string): AgendaItem[] {
-  useAgendaState(dateISO, dateISO)
+export function useAgendaFor(dateISO: string): { items: AgendaItem[]; loading: boolean } {
+  const { loading, error } = useAgendaState(dateISO, dateISO)
   const snapshot = useCallback(() => agendaFor(dateISO), [dateISO])
-  return useSyncExternalStore(subscribeAgenda, snapshot, snapshot)
+  const list = useSyncExternalStore(subscribeAgenda, snapshot, snapshot)
+  // 날짜가 바뀐 뒤 요청을 띄우는 것은 effect 라, 그 앞의 렌더에서는 아직 store 의
+  // loading 이 false 입니다. 그대로 두면 '일정 없음' 이 한 번 스쳤다가 목록으로
+  // 바뀝니다. 이 날짜를 실제로 받아 두었는지까지 함께 봅니다.
+  const settled = loadedKey === `${getScopeKey()}|${dateISO}:${dateISO}` || error !== null
+  return { items: list, loading: loading || !settled }
 }
