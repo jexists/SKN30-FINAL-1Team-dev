@@ -11,14 +11,15 @@ import Drawer from '@/components/Drawer'
 import { ChevronRightIcon, TrashIcon } from '@/components/icons'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
 import { useShowOwner } from '@/shared/scope'
-import type { PurchaseOrder } from '@/types'
+import type { ApiPurchaseOrder } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
 
 import styles from './OrderDrawer.module.scss'
 
 interface Props {
-  order: PurchaseOrder
+  /** 담당 영업을 세우려면 서버가 채워 주는 owner 가 있어야 해 API 형을 받습니다. */
+  order: ApiPurchaseOrder
   /** 목록에서 들어왔을 때만 있습니다. */
   onBack?: () => void
   onEdit?: () => void
