@@ -536,6 +536,7 @@ async def create_activity(
         # AI 추천 카드를 승인해서 만든 등록이다 — 캘린더 패널에서 이 제안을 내린다
         # (계약에이전트_설계.md 6장 "제안 상태 저장").
         await _mark_suggestion_accepted(db, schedule_management_run_id)
+        read.schedule_conflict_warning = await _conflict_warning(db, member, activity)
     elif activity.sales_deal_id is not None:
         # AI 추천을 거치지 않은 수동 등록이다 — 이 딜이 AI 추천 체인을 한 번도 안 거쳤을
         # 수 있다는 신호로 보고 트리거한다(계약에이전트_설계.md 3장).
@@ -545,6 +546,40 @@ async def create_activity(
 
     response.headers["Location"] = f"/api/activities/{activity.id}"
     return read
+
+
+async def _conflict_warning(db: AsyncSession, member: Member, activity: Activity) -> str | None:
+    """승인한 시간에 이 담당자의 다른 일정이 이미 있으면 안내 문구를 만든다.
+
+    제안은 트리거 시점에 미리 계산해 둔 값이라, 그때는 비어 있던 자리에 승인하기 전까지
+    다른 일정이 잡혔을 수 있다. 일정관리 에이전트가 겹침을 걸러 내는 것은 계산 시점 한
+    번뿐이므로 여기서 한 번 더 본다. 등록은 이미 커밋됐고 되돌리지 않는다 — 사람이 보고
+    옮기도록 알리기만 한다.
+    """
+    # 종료가 없는(하루 종일) 일정은 그날 전체를 차지한 것으로 본다.
+    starts_at = activity.starts_at
+    ends_at = activity.ends_at or starts_at + timedelta(days=1)
+    rows = (
+        await db.execute(
+            select(Activity.title, Activity.starts_at)
+            .where(
+                Activity.team_id == member.team_id,
+                Activity.owner_member_id == member.id,
+                Activity.id != activity.id,
+                Activity.deleted_at.is_(None),
+                Activity.starts_at < ends_at,
+                func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1))
+                > starts_at,
+            )
+            .order_by(Activity.starts_at)
+            .limit(1)
+        )
+    ).all()
+    if not rows:
+        return None
+    title, other_start = rows[0]
+    when = other_start.astimezone(_SEOUL).strftime("%m/%d %H:%M")
+    return f"이 시간에 이미 다른 일정이 있습니다: {when} {title}"
 
 
 async def _mark_suggestion_accepted(db: AsyncSession, schedule_management_run_id: UUID) -> None:

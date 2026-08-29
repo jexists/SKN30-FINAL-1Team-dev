@@ -152,6 +152,7 @@ export function activityToAgenda(activity: ActivityRead): AgendaItem {
     endsAt: activity.ends_at ? kstIso(new Date(activity.ends_at)) : null,
     allDay: activity.all_day,
     briefingQueueWarning: activity.briefing_queue_warning ?? null,
+    scheduleConflictWarning: activity.schedule_conflict_warning ?? null,
   }
 }
 

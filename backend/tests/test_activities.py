@@ -722,6 +722,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
         _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
+        _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
     with _client(db, member) as client:
@@ -748,6 +749,66 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
     assert db.rollback_count == 0
 
 
+def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch):
+    """제안은 미리 계산해 둔 값이라 승인할 때쯤 그 자리에 다른 일정이 생겼을 수 있다.
+
+    등록은 이미 커밋됐으므로 되돌리지 않고, 겹친 일정을 경고로만 알린다.
+    """
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+
+    async def _fake_execute(run_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(agent_run_service, "execute", _fake_execute)
+
+    async def _fake_build_briefing_snapshot(db, member, activity_id):
+        return {"customer_company": {"id": "company-1", "name": "합성 고객사"}}
+
+    monkeypatch.setattr(
+        contract_schedule_snapshots, "build_briefing_snapshot", _fake_build_briefing_snapshot
+    )
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    parent_run = SimpleNamespace(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code="schedule_management",
+        status_code="completed",
+    )
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
+        _Result(scalar=parent_run),  # _parent_run_or_409
+        _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
+        _Result(rows=[("기존 방문", datetime(2026, 8, 17, 1, tzinfo=UTC))]),  # 겹치는 일정
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(parent_run.id),
+            },
+        )
+
+    # 등록 자체는 성공한다 — 경고는 알림일 뿐 거절이 아니다.
+    assert response.status_code == 201
+    body = response.json()
+    assert "기존 방문" in body["schedule_conflict_warning"]
+    assert db.rollback_count == 0
+
+    sql = str(db.statements[-1])
+    # 같은 담당자의 미삭제 일정만, 자기 자신은 빼고 본다.
+    assert "activity.owner_member_id" in sql
+    assert "activity.deleted_at IS NULL" in sql
+    assert "activity.id !=" in sql
+
+
 def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(monkeypatch):
     """브리핑 큐잉이 실패해도 이미 커밋된 일정 등록은 되돌리지 않고 경고만 응답에 싣는다."""
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
@@ -760,6 +821,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
         _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
+        _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
     with _client(db, member) as client:

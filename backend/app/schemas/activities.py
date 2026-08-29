@@ -151,6 +151,10 @@ class ActivityRead(BaseModel):
     # schedule_management_run_id로 브리핑을 큐잉하려다 실패했을 때만 채운다 (등록 자체는
     # 이미 성공한 뒤라 되돌리지 않는다). 성공하면 이 필드는 계속 비어 있다.
     briefing_queue_warning: str | None = None
+    # AI 추천을 승인해 등록했는데 그 시간에 이미 다른 일정이 있을 때만 채운다. 제안은 미리
+    # 계산해 두는 값이라 계산 시점과 승인 시점 사이에 일정이 새로 잡힐 수 있다. 등록 자체는
+    # 막지 않고 알리기만 한다.
+    schedule_conflict_warning: str | None = None
 
 
 class ActivityOptionRead(BaseModel):

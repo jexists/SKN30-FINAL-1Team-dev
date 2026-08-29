@@ -26,6 +26,11 @@ import useCalendarEvents, { DEFAULTS } from './useCalendarEvents'
 
 import styles from './Calendar.module.scss'
 
+/** 등록은 성공했지만 사용자가 알아야 할 것. 없으면 null 입니다. */
+function warningOf(added: AgendaItem): string | null {
+  return added.scheduleConflictWarning ?? added.briefingQueueWarning ?? null
+}
+
 export default function Calendar() {
   const [cursor, setCursor] = useState(() => startOfMonth(TODAY))
   const {
@@ -52,6 +57,8 @@ export default function Calendar() {
   const [editing, setEditing] = useState<CalendarEvent | null>(null)
   const [creating, setCreating] = useState<string | null>(null)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
+  // 등록은 됐지만 알려 줄 것이 남은 경우입니다. 겹친 시간과 브리핑 큐잉 실패가 여기 옵니다.
+  const [approvalWarning, setApprovalWarning] = useState<string | null>(null)
   const {
     suggestions,
     previewId,
@@ -102,6 +109,7 @@ export default function Calendar() {
         const added = await acceptSuggestion(suggestion, dateISO)
         setSelectedISO(dateISO)
         setJustAddedId(added.id)
+        setApprovalWarning(warningOf(added))
       } catch {
         return
       }
@@ -141,6 +149,7 @@ export default function Calendar() {
         const added = await acceptSuggestion(suggestion)
         setSelectedISO(added.date)
         setJustAddedId(added.id)
+        setApprovalWarning(warningOf(added))
       } catch {
         return
       }
@@ -197,6 +206,7 @@ export default function Calendar() {
       <h1 className="sr-only">캘린더</h1>
 
       <ErrorToast message={error} onRetry={reload} />
+      <ErrorToast message={approvalWarning} />
       <div className={styles.layout}>
         <MonthGrid
           cursor={cursor}
