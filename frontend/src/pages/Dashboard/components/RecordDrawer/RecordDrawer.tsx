@@ -127,17 +127,18 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
           )}
         </>
       }
+      // 남이 한 일이고 아직 보고서도 없으면(blocked) 갈 곳이 없어 아무것도 세우지 않습니다.
       footer={
         reportState.error ? (
           <Button variant="outline" onClick={reportState.reload}>
             보고서 다시 조회
           </Button>
-        ) : reportState.link ? (
+        ) : !reportState.link ? (
+          <InlineLoader label="보고서 연결을 확인하는 중입니다." />
+        ) : reportState.link.blocked ? null : (
           <Link className={buttonClass()} to={reportState.link.to}>
             {reportState.link.label}
           </Link>
-        ) : (
-          <InlineLoader label="보고서 연결을 확인하는 중입니다." />
         )
       }
     >

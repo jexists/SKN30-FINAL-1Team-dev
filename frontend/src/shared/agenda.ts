@@ -374,6 +374,23 @@ export function useAgendaState(
 }
 
 /**
+ * 이 일정이 내가 한 일인지. '보고서 작성' 이 설 자리를 정합니다.
+ *
+ * ownerMemberId 가 비는 것은 서버를 거치지 않은 줄뿐입니다. 팀원 목록은 서버가 본인
+ * 것만 돌려주므로 비어 있어도 본인 일정으로 봅니다. 팀장은 남의 줄이 섞여 있어,
+ * 확인할 수 없으면 세우지 않습니다. 세웠다가 서버가 403 을 돌려주는 것보다
+ * 처음부터 없는 편이 낫습니다.
+ */
+export function isOwnAgendaItem(
+  item: Pick<AgendaItem, 'ownerMemberId'>,
+  memberId: string,
+  isManager: boolean,
+): boolean {
+  if (item.ownerMemberId !== undefined) return item.ownerMemberId === memberId
+  return !isManager
+}
+
+/**
  * 활동 하나만 받아 옵니다. 보고서 작성 화면이 주소의 활동 번호로 바로 들어올 때 씁니다.
  *
  * 목록에서 찾으면 그 활동이 언제 것인지 모르는 채로 전 기간을 받아야 합니다. 번호를 아는

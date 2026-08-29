@@ -6,9 +6,10 @@ import DayHeader from '@/components/DayHeader'
 import { CalendarIcon, DailyReportIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import OwnerName from '@/components/OwnerName'
 import Popover from '@/components/Popover'
+import { useCurrentUser } from '@/auth/sessionContext'
 import { meetingComposePath } from '@/constants/routes'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
-import { useAgendaFor } from '@/shared/agenda'
+import { isOwnAgendaItem, useAgendaFor } from '@/shared/agenda'
 import { useShowOwner } from '@/shared/scope'
 import type { AgendaItem } from '@/types'
 
@@ -32,6 +33,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
 ) {
   const list = useAgendaFor(dateISO)
   const showOwner = useShowOwner()
+  const { memberId, isManager } = useCurrentUser()
   /** 메뉴를 펴 둔 줄. 한 번에 한 줄만 폅니다. */
   const [menuId, setMenuId] = useState<string | null>(null)
   // 아직 보고서를 안 쓴 줄에만 '보고서 작성' 을 세웁니다. 줄마다 따로 물으면 요청이
@@ -45,7 +47,11 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
     const done = it.done
     // 아직 안 쓴 줄에만 세웁니다. 답을 받기 전에도 세우지 않습니다.
     // 세웠다가 거두면 이미 쓴 줄에서 깜빡입니다.
-    const needsReport = !reportsLoading && !writtenIds.has(it.id)
+    //
+    // 내가 한 일에만 섭니다. 보고는 남이 한 일을 대신 적는 문서가 아니라서,
+    // 팀 전체를 보고 있는 팀장에게도 팀원의 일정에는 이 길이 서지 않습니다.
+    const needsReport =
+      !reportsLoading && !writtenIds.has(it.id) && isOwnAgendaItem(it, memberId, isManager)
 
     return (
       // 줄 어디를 눌러도 상세가 열립니다. 안쪽 버튼들은 각자 할 일이

@@ -201,7 +201,9 @@ export default function Daily() {
           onChange={setPeriod}
         />
 
-        {/* 탭이 종류를 이미 골랐으면 한 번 더 묻지 않고 그 화면으로 바로 갑니다. */}
+        {/* 탭이 종류를 이미 골랐으면 한 번 더 묻지 않고 그 화면으로 바로 갑니다.
+            일정에 붙는 업무보고서와 달리 기간 보고서는 언제나 본인 것이라 소유를 따지지
+            않습니다. 서버도 작성자를 로그인한 사람으로 박습니다. */}
         {composeTo ? (
           <Link className={buttonClass()} to={composeTo}>
             보고서 작성하기
