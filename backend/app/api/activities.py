@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
-from app.models.agent import AgentRun
+from app.models.agent import AgentRun, ContractNextMeetingSuggestion
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product, SalesDeal
@@ -533,6 +533,9 @@ async def create_activity(
                 background.add_task(agent_run_service.execute, briefing_run_id)
         except HTTPException as error:
             read.briefing_queue_warning = str(error.detail)
+        # AI 추천 카드를 승인해서 만든 등록이다 — 캘린더 패널에서 이 제안을 내린다
+        # (계약에이전트_설계.md 6장 "제안 상태 저장").
+        await _mark_suggestion_accepted(db, schedule_management_run_id)
     elif activity.sales_deal_id is not None:
         # AI 추천을 거치지 않은 수동 등록이다 — 이 딜이 AI 추천 체인을 한 번도 안 거쳤을
         # 수 있다는 신호로 보고 트리거한다(계약에이전트_설계.md 3장).
@@ -542,6 +545,26 @@ async def create_activity(
 
     response.headers["Location"] = f"/api/activities/{activity.id}"
     return read
+
+
+async def _mark_suggestion_accepted(db: AsyncSession, schedule_management_run_id: UUID) -> None:
+    """브리핑 큐잉과 마찬가지로 일정 등록과 같은 트랜잭션이 아니다 — 실패해도 등록은 유지한다."""
+    try:
+        result = await db.execute(
+            select(ContractNextMeetingSuggestion).where(
+                ContractNextMeetingSuggestion.schedule_management_run_id
+                == schedule_management_run_id
+            )
+        )
+        suggestion = result.scalar_one_or_none()
+        if suggestion is None or suggestion.status_code != "pending":
+            return
+        suggestion.status_code = "accepted"
+        suggestion.updated_at = datetime.now(UTC)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
 
 @router.patch("/activities/{activity_id}", response_model=ActivityRead)
