@@ -142,6 +142,14 @@
   **백엔드·프론트 배포가 DB 적용보다 먼저입니다** — 이전 코드는 INSERT에
   `activity_type`을 넣으므로 컬럼이 없으면 일정 등록이 깨집니다.
 
+- `20260829_0013_contract_next_meeting_suggestion.sql`: 캘린더 "AI 추천 일정" 패널이 조회하는
+  `contract_next_meeting_suggestion`(7컬럼, RLS on)을 만듭니다. 딜 하나에 활성 제안은 하나라
+  `sales_deal_id` 에 UNIQUE 를 겁니다. 날짜·사유 같은 내용은 복제하지 않고
+  `schedule_management_run_id` 로 `agent_run.output_snapshot` 을 조회합니다.
+  **개발 DB 에는 이 표가 이미 있습니다** — 아카이브한 브랜치
+  (`archive/2026-08-28-contract-agent-fix`)를 시험하며 SQL 파일 없이 먼저 만든 것이라,
+  컬럼·제약이 같은 것을 확인하고 `CREATE TABLE IF NOT EXISTS` 로 두었습니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
