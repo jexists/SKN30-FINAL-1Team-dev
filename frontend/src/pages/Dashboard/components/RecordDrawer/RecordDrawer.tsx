@@ -52,7 +52,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
   const facts: [string, string][] = (
     [
       ['부서', item.dept],
-      ['담당자', at < 0 ? item.contact : item.contact.slice(0, at)],
+      ['고객 담당자', at < 0 ? item.contact : item.contact.slice(0, at)],
       ['직책', item.contact && at >= 0 ? item.contact.slice(at + 1) : ''],
       ['제품', item.product],
       ['장소', item.place],
