@@ -194,3 +194,38 @@
   font-size: 12px;
   color: var(--muted-2);
 }
+
+// 시간 후보. 고른 것 하나만 위의 날짜·시각 줄에 반영됩니다.
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.option {
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
+
+  &:hover {
+    border-color: rgba(0, 122, 255, 0.28);
+    color: var(--blue);
+  }
+}
+
+.isChosen {
+  border-color: var(--blue);
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-weight: 600;
+}

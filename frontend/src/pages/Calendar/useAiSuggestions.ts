@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { dismissNextMeetingSuggestion, listNextMeetingSuggestions } from '@/api/contractAgent'
 import { errorMessage } from '@/api/errorMessage'
@@ -7,26 +7,41 @@ import { RISK_LABEL } from '@/shared/riskLabels'
 import type {
   AgendaItem,
   AiSuggestion,
+  AiSuggestionOption,
   CalendarEvent,
   ContractNextMeetingSuggestion,
-  ScheduleCandidate,
 } from '@/types'
 
 type NewEvent = Partial<Omit<CalendarEvent, 'id'>> & { date: string; title: string }
 type AddEvent = (draft: NewEvent) => Promise<AgendaItem>
 
-/** priority 가 가장 작은(=가장 추천하는) 일정 후보를 고른다. */
-function bestCandidate(candidates: ScheduleCandidate[]): ScheduleCandidate | null {
-  return candidates.reduce<ScheduleCandidate | null>(
-    (best, candidate) => (best === null || candidate.priority < best.priority ? candidate : best),
-    null,
-  )
+/** priority 오름차순(1이 가장 추천)으로 고른 시간 후보. */
+function toOptions(item: ContractNextMeetingSuggestion): AiSuggestionOption[] {
+  return [...item.schedule_candidates]
+    .sort((a, b) => a.priority - b.priority)
+    .map((candidate) => {
+      const start = kstParts(candidate.starts_at)
+      return {
+        candidateId: candidate.candidate_id,
+        date: start.date,
+        time: start.time,
+        dur: durationLabel(candidate.starts_at, candidate.ends_at),
+        startsAt: candidate.starts_at,
+        endsAt: candidate.ends_at,
+        title: candidate.title,
+        priority: candidate.priority,
+      }
+    })
 }
 
-function toAiSuggestion(item: ContractNextMeetingSuggestion): AiSuggestion | null {
-  const best = bestCandidate(item.schedule_candidates)
-  if (!best) return null
-  const start = kstParts(best.starts_at)
+function toAiSuggestion(
+  item: ContractNextMeetingSuggestion,
+  selectedCandidateId: string | undefined,
+): AiSuggestion | null {
+  const options = toOptions(item)
+  if (options.length === 0) return null
+  // 고른 것이 없으면 가장 추천하는 후보를 쓴다.
+  const chosen = options.find((o) => o.candidateId === selectedCandidateId) ?? options[0]
   return {
     id: item.sales_deal_id,
     customerCompanyId: item.customer_company_id,
@@ -37,16 +52,18 @@ function toAiSuggestion(item: ContractNextMeetingSuggestion): AiSuggestion | nul
     contact: item.customer_contact_name ?? '',
     dept: '',
     kind: 'visit',
-    date: start.date,
-    time: start.time,
-    dur: durationLabel(best.starts_at, best.ends_at),
-    startsAt: best.starts_at,
-    endsAt: best.ends_at,
+    date: chosen.date,
+    time: chosen.time,
+    dur: chosen.dur,
+    startsAt: chosen.startsAt,
+    endsAt: chosen.endsAt,
     place: '',
-    activityTitle: best.title,
+    activityTitle: chosen.title,
     proposalReason: item.reason,
     basis: [...new Set(item.risks.map((risk) => RISK_LABEL[risk.code]))],
     scheduleRunId: item.schedule_management_run_id,
+    options,
+    selectedCandidateId: chosen.candidateId,
   }
 }
 
@@ -58,23 +75,39 @@ function toAiSuggestion(item: ContractNextMeetingSuggestion): AiSuggestion | nul
  * 자세한 배경은 docs/technical/multiagent/계약에이전트_설계.md 11장 참고.
  */
 export default function useAiSuggestions(addEvent: AddEvent) {
-  const [suggestions, setSuggestions] = useState<AiSuggestion[]>([])
+  // 서버에서 받은 원본을 그대로 들고, 선택은 따로 둔다. 후보를 바꿔 골라도 나머지 값은
+  // 다시 만들 필요가 없다.
+  const [items, setItems] = useState<ContractNextMeetingSuggestion[]>([])
+  const [selection, setSelection] = useState<Record<string, string>>({})
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const suggestions = useMemo(
+    () =>
+      items
+        .map((item) => toAiSuggestion(item, selection[item.sales_deal_id]))
+        .filter((item) => item !== null),
+    [items, selection],
+  )
 
   const reload = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const items = await listNextMeetingSuggestions()
-      setSuggestions(items.map(toAiSuggestion).filter((item) => item !== null))
+      setItems(await listNextMeetingSuggestions())
+      setSelection({})
     } catch (cause) {
       setError(errorMessage(cause, 'AI 추천을 불러오지 못했습니다.'))
-      setSuggestions([])
+      setItems([])
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  /** 카드에서 다른 시간 후보를 고른다. */
+  const selectOption = useCallback((suggestionId: string, candidateId: string) => {
+    setSelection((current) => ({ ...current, [suggestionId]: candidateId }))
   }, [])
 
   const accept = useCallback(
@@ -93,14 +126,14 @@ export default function useAiSuggestions(addEvent: AddEvent) {
         customerContactId: suggestion.customerContactId,
         scheduleManagementRunId: suggestion.scheduleRunId,
       })
-      setSuggestions((list) => list.filter((s) => s.id !== suggestion.id))
+      setItems((list) => list.filter((item) => item.sales_deal_id !== suggestion.id))
       return added
     },
     [addEvent],
   )
 
   const dismiss = useCallback((id: string) => {
-    setSuggestions((list) => list.filter((s) => s.id !== id))
+    setItems((list) => list.filter((item) => item.sales_deal_id !== id))
     // 서버 반영에 실패해도 화면은 이미 닫힌 채로 둔다 — 다음 조회에서 다시 나타날 뿐이다.
     void dismissNextMeetingSuggestion(id).catch(() => {})
   }, [])
@@ -112,6 +145,7 @@ export default function useAiSuggestions(addEvent: AddEvent) {
     loading,
     error,
     reload,
+    selectOption,
     accept,
     dismiss,
   }

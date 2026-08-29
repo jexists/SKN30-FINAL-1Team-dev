@@ -1,7 +1,20 @@
 import type { AgendaKind } from './agenda'
 
+/** 카드에서 고를 수 있는 시간 후보 하나. 일정관리 에이전트가 만든 것 그대로다. */
+export interface AiSuggestionOption {
+  candidateId: string
+  date: string
+  time: string
+  dur: string
+  startsAt: string
+  endsAt: string
+  title: string
+  /** 1이 가장 추천. 목록은 이 순서로 정렬돼 있다 */
+  priority: number
+}
+
 /**
- * "AI 추천 일정" 패널의 후보 한 건.
+ * "AI 추천 일정" 패널의 후보 한 건. 카드 하나가 영업 건 하나다.
  *
  * 트리거(보고서 확정·일정 수동 등록·영업 딜 생성/이동·CS 처리 시작)가 서버에서 미리
  * 계산해 저장해 둔 제안을 그대로 옮긴 값이라, 처음부터 날짜·시간까지 채워져 있다 —
@@ -34,4 +47,7 @@ export interface AiSuggestion {
   basis: string[]
   /** 승인 시 브리핑 실행을 이어붙이는 데 쓰는 일정관리 실행 id */
   scheduleRunId: string
+  /** 고를 수 있는 시간 후보 전체. 위의 date/time/dur 은 이 중 선택된 것의 값이다 */
+  options: AiSuggestionOption[]
+  selectedCandidateId: string
 }

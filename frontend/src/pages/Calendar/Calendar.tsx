@@ -59,6 +59,7 @@ export default function Calendar() {
     loading: suggestionsLoading,
     error: suggestionsError,
     reload: reloadSuggestions,
+    selectOption: selectSuggestionOption,
     accept: acceptSuggestion,
     dismiss: dismissSuggestion,
   } = useAiSuggestions(addEvent)
@@ -219,6 +220,7 @@ export default function Calendar() {
             previewId={previewId}
             onPreview={setPreviewId}
             onAccept={acceptSuggestionToCalendar}
+            onSelectOption={selectSuggestionOption}
             onDismiss={dismissSuggestion}
             onGrab={grabSuggestion}
             loading={suggestionsLoading}

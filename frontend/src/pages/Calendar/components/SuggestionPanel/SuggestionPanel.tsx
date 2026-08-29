@@ -18,6 +18,8 @@ interface Props {
   previewId: string | null
   onPreview: (id: string | null) => void
   onAccept: (suggestion: AiSuggestion) => void
+  /** 카드에서 다른 시간 후보를 고릅니다. */
+  onSelectOption: (suggestionId: string, candidateId: string) => void
   onDismiss: (id: string) => void
   onGrab: (pointer: ReactPointerEvent, suggestion: AiSuggestion) => void
   /** 저장된 추천을 읽어 오는 중. LLM을 기다리는 것이 아니라 조회 한 번입니다. */
@@ -30,6 +32,7 @@ export default function SuggestionPanel({
   previewId,
   onPreview,
   onAccept,
+  onSelectOption,
   onDismiss,
   onGrab,
   loading = false,
@@ -127,6 +130,30 @@ export default function SuggestionPanel({
               </h3>
               <p className={styles.title}>{s.title}</p>
               <p className={styles.reason}>{s.proposalReason}</p>
+
+              {/*
+                일정관리 에이전트가 겹치지 않는 시간을 여러 개 내놓습니다. 가장 추천하는
+                것을 위에 크게 두고, 나머지는 눌러서 바꿀 수 있게 칩으로 둡니다.
+              */}
+              {s.options.length > 1 && (
+                <div className={styles.options}>
+                  {s.options.map((option) => (
+                    <button
+                      key={option.candidateId}
+                      type="button"
+                      className={`${styles.option} ${
+                        option.candidateId === s.selectedCandidateId ? styles.isChosen : ''
+                      }`}
+                      aria-pressed={option.candidateId === s.selectedCandidateId}
+                      onClick={() => onSelectOption(s.id, option.candidateId)}
+                    >
+                      <span className="tnum">
+                        {fmtDay(parseISO(option.date))} {option.time}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className={styles.basis}>
                 <i className={styles.kind}>{KIND_LABEL[s.kind]}</i>
