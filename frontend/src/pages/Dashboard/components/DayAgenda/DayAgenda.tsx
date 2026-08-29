@@ -4,10 +4,12 @@ import { Link } from 'react-router'
 import Button from '@/components/Button'
 import DayHeader from '@/components/DayHeader'
 import { CalendarIcon, DailyReportIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Popover from '@/components/Popover'
 import { meetingComposePath } from '@/constants/routes'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { useAgendaFor } from '@/shared/agenda'
+import { useShowOwner } from '@/shared/scope'
 import type { AgendaItem } from '@/types'
 
 import styles from './DayAgenda.module.scss'
@@ -29,6 +31,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   ref,
 ) {
   const list = useAgendaFor(dateISO)
+  const showOwner = useShowOwner()
   /** 메뉴를 펴 둔 줄. 한 번에 한 줄만 폅니다. */
   const [menuId, setMenuId] = useState<string | null>(null)
   // 아직 보고서를 안 쓴 줄에만 '보고서 작성' 을 세웁니다. 줄마다 따로 물으면 요청이
@@ -130,6 +133,9 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
             >
               {it.hospital || it.title}
             </button>
+            {/* 여러 사람의 일정이 섞여 보일 때만 섭니다. 옆의 흐린 글씨는 고객 쪽
+                부서·담당자라, 우리 쪽 사람은 다른 모양으로 세워 구분합니다. */}
+            {showOwner && <OwnerName name={it.owner} />}
             {(it.dept || it.contact) && (
               <span className={styles.who}>
                 {[it.dept, it.contact].filter(Boolean).join(' · ')}
