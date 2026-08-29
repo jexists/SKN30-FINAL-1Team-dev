@@ -228,6 +228,53 @@ async def _locked_report(db: AsyncSession, member: Member, report_id: UUID) -> R
     return report
 
 
+async def _own_activity_ids(
+    db: AsyncSession,
+    member: Member,
+    activity_ids: list[UUID],
+) -> tuple[UUID, ...]:
+    """보고서에 묶을 일정이 모두 "내가 한 일"인지 확인한다.
+
+    보고는 남이 한 일을 대신 적는 문서가 아니다. 팀장이라도 팀원의 일정에 보고서를
+    달 수 없다.
+
+    이 저장소가 쓰기 권한에 404 를 쓰는 까닭은 볼 수 없는 줄의 존재를 알리지 않기
+    위해서인데, 팀장은 팀원의 일정을 이미 자기 목록에서 본다. 숨길 것이 없는 자리라
+    없는 척하지 않고 403 으로 이유를 말한다. 다른 팀이거나 지워진 일정은 그보다 먼저
+    404 로 끊으므로 남의 팀을 더듬어 볼 수는 없다.
+    """
+    if not activity_ids:
+        return ()
+    unique = tuple(dict.fromkeys(activity_ids))
+    result = await db.execute(
+        select(Activity.id, Activity.owner_member_id).where(
+            Activity.id.in_(unique),
+            Activity.team_id == member.team_id,
+            Activity.deleted_at.is_(None),
+        )
+    )
+    owners = {row[0]: row[1] for row in result.all()}
+    if set(owners) != set(unique):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="activity_not_found",
+        )
+    if any(owner_id != member.id for owner_id in owners.values()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="activity_not_owned",
+        )
+    return unique
+
+
+async def _linked_activity_ids(db: AsyncSession, report_id: UUID) -> set[UUID]:
+    """이미 이 보고서에 묶여 있는 일정."""
+    result = await db.execute(
+        select(ReportActivity.activity_id).where(ReportActivity.report_id == report_id)
+    )
+    return set(result.scalars().all())
+
+
 async def _replace_report_activities(
     db: AsyncSession,
     report_id: UUID,
@@ -349,8 +396,8 @@ async def create_report(
             else await _visible_recipient(db, member, payload.recipient_member_id)
         )
         if payload.source_activity_id is not None:
-            await _visible_activity_ids(db, member, [payload.source_activity_id])
-        activity_ids = await _visible_activity_ids(db, member, payload.activity_ids)
+            await _own_activity_ids(db, member, [payload.source_activity_id])
+        activity_ids = await _own_activity_ids(db, member, payload.activity_ids)
 
         report = Report(
             id=uuid4(),
@@ -421,6 +468,11 @@ async def update_report(
 
         if activity_ids is not None:
             visible = await _visible_activity_ids(db, member, activity_ids)
+            # 새로 묶는 일정에만 소유를 따진다. 규칙이 생기기 전에 팀장이 팀원의
+            # 일정으로 만들어 둔 보고서가 있고, 그것을 통째로 막으면 손댈 수 없는
+            # 문서가 된다. 이미 묶여 있던 일정은 그대로 둔다.
+            linked = await _linked_activity_ids(db, report.id)
+            await _own_activity_ids(db, member, [a for a in visible if a not in linked])
             await _replace_report_activities(db, report.id, visible)
 
         await db.flush()
