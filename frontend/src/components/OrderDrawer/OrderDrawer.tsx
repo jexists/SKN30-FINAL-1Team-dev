@@ -10,6 +10,7 @@ import Button, { buttonClass } from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import { ChevronRightIcon, TrashIcon } from '@/components/icons'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
+import { useShowOwner } from '@/shared/scope'
 import type { PurchaseOrder } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
@@ -29,8 +30,11 @@ interface Props {
 
 export default function OrderDrawer({ order, onBack, onEdit, onDelete, detailTo, onClose }: Props) {
   const late = isLate(order)
+  const showOwner = useShowOwner()
 
   const rows: [string, string][] = [
+    // 여러 사람의 발주가 섞여 보일 때만 누구 것인지 앞세웁니다.
+    ...(showOwner ? ([['담당 영업', order.owner]] as [string, string][]) : []),
     ['품목', orderItemLabel(order)],
     ['금액', wonFull(orderTotal(order))],
     ['공급처', order.supplier],

@@ -9,10 +9,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import Button, { buttonClass } from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Skeleton from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import WeekStrip from '@/components/WeekStrip'
 import { dailyComposePath, meetingPickPath } from '@/constants/routes'
+import { useShowOwner } from '@/shared/scope'
 import {
   addDays,
   addMonths,
@@ -53,6 +55,7 @@ export default function Daily() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const period = toPeriod(params.get('tab'))
+  const showOwner = useShowOwner()
   const kind = PERIOD_KIND[period]
 
   /**
@@ -339,7 +342,11 @@ export default function Daily() {
                     {row.title}
                   </Link>
                 </strong>
-                <span>{row.meta}</span>
+                <span className={styles.rowMeta}>
+                  {/* 여러 사람의 보고서가 섞여 보일 때만 누가 썼는지 세웁니다. */}
+                  {showOwner && <OwnerName name={row.author} />}
+                  {row.meta}
+                </span>
               </div>
 
               <span className={styles.approver}>{row.aside}</span>

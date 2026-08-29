@@ -3,6 +3,7 @@ import { useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { PlusIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import { KIND_LABEL } from '@/shared/agenda'
+import { useShowOwner } from '@/shared/scope'
 import type { AgendaKind, CalendarEvent } from '@/types'
 
 import { CELL_ATTR, type Dragging } from '../../dragging'
@@ -73,6 +74,7 @@ export default function DayCell({
   onGrabEvent,
 }: Props) {
   const [listOpen, setListOpen] = useState(false)
+  const showOwner = useShowOwner()
 
   const dow = date.getDay()
   const visible = events.slice(0, MAX_CHIPS)
@@ -131,6 +133,9 @@ export default function DayCell({
         onOpenEvent(event)
       }}
       onDoubleClick={(e) => e.stopPropagation()}
+      // 칸이 좁아 이름표를 세울 자리가 없습니다. 여러 사람이 섞여 보일 때만
+      // 마우스를 올려 누구 일정인지 확인할 수 있게 둡니다. 아래 '+N' 목록에는 글자로 섭니다.
+      title={showOwner && event.owner ? `${event.title} · ${event.owner}` : undefined}
     >
       <span className={`${styles.chipTime} tnum`}>{event.time}</span>
       <span className={styles.chipTitle}>{event.title}</span>
@@ -225,6 +230,7 @@ export default function DayCell({
                     <span>
                       {KIND_LABEL[event.kind]}
                       {event.hospital ? ` · ${event.hospital}` : ''}
+                      {showOwner && event.owner ? ` · ${event.owner}` : ''}
                     </span>
                   </span>
                 </button>

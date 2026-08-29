@@ -10,6 +10,7 @@ import { orderPath } from '@/constants/routes'
 import { statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { RISK_LABEL } from '@/shared/riskLabels'
+import { useShowOwner } from '@/shared/scope'
 import type { AgendaItem } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
@@ -46,11 +47,14 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     error: briefingError,
   } = useAiBriefing({ activityId: item.id, eligible: !!item.customerContactId })
   const [menuOpen, setMenuOpen] = useState(false)
+  const showOwner = useShowOwner()
   // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
   const reportState = useAgendaReportLink(item)
   const at = item.contact.lastIndexOf(' ')
   const facts: [string, string][] = (
     [
+      // 여러 사람의 일정이 섞여 보일 때만, 이것이 누구 일정인지 먼저 말합니다.
+      ...(showOwner ? ([['담당 영업', item.owner]] as [string, string][]) : []),
       ['부서', item.dept],
       ['고객 담당자', at < 0 ? item.contact : item.contact.slice(0, at)],
       ['직책', item.contact && at >= 0 ? item.contact.slice(at + 1) : ''],

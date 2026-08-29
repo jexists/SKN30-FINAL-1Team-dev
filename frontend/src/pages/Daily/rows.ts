@@ -30,6 +30,8 @@ export interface ListRow {
   haystack: string
   /** 미팅만 갖습니다. 고객사 필터가 봅니다. */
   hospital?: string
+  /** 이 보고서를 쓴 사람. 여러 사람이 섞여 보일 때만 화면에 섭니다. */
+  author: string
 }
 
 const lower = (parts: (string | undefined)[]) => parts.filter(Boolean).join(' ').toLowerCase()
@@ -51,12 +53,14 @@ export function fromDailyReport(report: DailyReport): ListRow {
         ? `활동 ${acts}건${files > 0 ? ` · 첨부 ${files}건` : ''}`
         : report.note,
     aside: report.approver,
+    author: report.owner,
     status: report.status,
     to: dailyReportPath(report.id),
     haystack: lower([
       reportTitle(report),
       report.note,
       report.approver,
+      report.owner,
       report.kind,
       ...Object.values(report.values),
     ]),
@@ -77,11 +81,13 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
       .filter(Boolean)
       .join(' · '),
     aside: report.hospital,
+    author: report.owner,
     status: report.status,
     to: meetingReportPath(report.id),
     haystack: lower([
       report.hospital,
       report.title,
+      report.owner,
       report.dept,
       report.contact,
       report.product,
