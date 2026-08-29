@@ -533,6 +533,61 @@ def test_update_keeps_activities_linked_before_the_ownership_rule():
     assert db.commit_count == 1
 
 
+def test_manager_cannot_edit_or_submit_a_teammate_report():
+    """보고서는 쓴 사람이 고치고 제출하고 지운다. 팀장도 대신 손대지 않는다.
+
+    팀장은 팀원의 보고서를 목록에서 보고 있으므로 404 가 아니라 403 으로 답한다.
+    """
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id)
+    report = _report(teammate)
+
+    for call in (
+        lambda client: client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"note": "팀장이 대신 고쳐 본다"},
+        ),
+        lambda client: client.post(
+            f"/api/reports/{report.id}/submit",
+            headers={"Origin": ORIGIN},
+            json={"expected_status_code": "draft"},
+        ),
+        lambda client: client.delete(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+        ),
+    ):
+        db = _Db(_Result(scalar=report))
+        with _client(db, manager) as client:
+            response = call(client)
+        assert response.status_code == 403
+        assert response.json() == {"detail": "report_not_owned"}
+        assert db.commit_count == 0
+        assert db.rollback_count == 1
+
+
+def test_manager_can_still_edit_own_report():
+    """자기가 쓴 보고서는 팀장도 그대로 고친다."""
+    manager = _member(role="manager")
+    report = _report(manager)
+
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, manager)]),
+        _Result(rows=[]),
+    )
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"note": "내가 쓴 보고서"},
+        )
+
+    assert response.status_code == 200
+    assert db.commit_count == 1
+
+
 def test_manager_author_filter_is_limited_to_same_team():
     member = _member(role="member")
     denied_db = _Db()

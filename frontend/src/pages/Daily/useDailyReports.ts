@@ -76,6 +76,7 @@ export function toReport(item: ReportResponse): DailyReport {
   return {
     id: item.id,
     owner: item.author_display_name,
+    ownerMemberId: item.author_member_id,
     off: Math.round((parseISO(item.report_date).getTime() - TODAY.getTime()) / DAY),
     date: item.report_date,
     kind,

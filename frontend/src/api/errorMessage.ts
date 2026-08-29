@@ -55,6 +55,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   customer_contact_status_code_not_found: '고객 상태 설정을 확인해 주세요.',
   // 보고서 (/reports)
   activity_not_owned: '본인이 진행한 일정에만 보고서를 쓸 수 있습니다.',
+  report_not_owned: '본인이 쓴 보고서만 고치거나 제출할 수 있습니다.',
   // 상품 (/products)
   product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   product_image_not_found: '등록된 사진이 없습니다.',

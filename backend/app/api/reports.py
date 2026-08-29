@@ -225,6 +225,15 @@ async def _locked_report(db: AsyncSession, member: Member, report_id: UUID) -> R
             status_code=status.HTTP_404_NOT_FOUND,
             detail="report_not_found",
         )
+    # 보고서는 쓴 사람이 고치고 제출하고 지운다. 팀장도 남의 보고서를 대신 손대지 않는다.
+    #
+    # 팀원에게는 위 조건이 이미 본인 것만 남기므로 여기까지 오지 않는다. 팀장은 팀원의
+    # 보고서를 목록에서 보고 있어, 없는 척(404)하지 않고 403 으로 이유를 말한다.
+    if report.author_member_id != member.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="report_not_owned",
+        )
     return report
 
 
