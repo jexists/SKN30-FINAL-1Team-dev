@@ -263,6 +263,7 @@ async def test_build_candidate_selection_snapshot_filters_deals_without_risk_sig
     db = _Db(
         _Result(rows=[(risky_deal, stage, company), (safe_deal, stage, company)]),
         _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[]),  # _deal_ids_with_upcoming_activity
     )
 
     snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
@@ -275,6 +276,37 @@ async def test_build_candidate_selection_snapshot_filters_deals_without_risk_sig
     assert candidate["stage_code"] == "negotiation"
     assert candidate["stage_phase_code"] == "negotiation"
     assert any(s["code"] == "contract_expiring" for s in candidate["risk_signals"])
+
+
+@pytest.mark.anyio
+async def test_build_candidate_selection_snapshot_skips_deals_with_upcoming_activity():
+    """계약 만료일 같은 신호는 미팅을 잡아도 사라지지 않는다 — 이미 앞으로 잡힌 일정이
+    있는 딜은 위험 신호가 남아 있어도 후보에서 뺀다."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    stage = _stage(phase_code="negotiation")
+    today = date.today()
+
+    booked_deal = _deal(
+        member,
+        title="이미 미팅 잡힌 딜",
+        contract_ends_on=today + timedelta(days=5),
+    )
+    open_deal = _deal(
+        member,
+        title="아직 안 잡힌 딜",
+        contract_ends_on=today + timedelta(days=5),
+    )
+
+    db = _Db(
+        _Result(rows=[(booked_deal, stage, company), (open_deal, stage, company)]),
+        _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[(booked_deal.id,)]),  # _deal_ids_with_upcoming_activity
+    )
+
+    snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
+
+    assert [c["sales_deal_id"] for c in snapshot["candidates"]] == [str(open_deal.id)]
 
 
 @pytest.mark.anyio
@@ -291,6 +323,7 @@ async def test_build_candidate_selection_snapshot_exposes_stage_code():
     db = _Db(
         _Result(rows=[(deal, stage, company)]),
         _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[]),  # _deal_ids_with_upcoming_activity
     )
 
     snapshot = await snapshots.build_candidate_selection_snapshot(db, member)

@@ -28,6 +28,20 @@ _SCHEDULE_SEARCH_PADDING_DAYS = 7
 _DEFAULT_PREFERRED_WINDOW_DAYS = 7
 
 
+def _parse_aware_or_none(value: str) -> datetime | None:
+    """ISO 문자열을 tz-aware datetime으로 파싱한다. 형식이 깨졌으면 None.
+
+    LLM 출력이나 클라이언트 요청값은 offset이 없을(naive) 수 있다 — 그런 값은 UTC로 본다.
+    """
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
 async def _company_or_404(
     db: AsyncSession, member: Member, customer_company_id: UUID
 ) -> CustomerCompany:
@@ -109,6 +123,26 @@ async def _last_activity_by_deal(
         .group_by(Activity.sales_deal_id)
     )
     return {deal_id: last_start for deal_id, last_start in result.all()}
+
+
+async def _deal_ids_with_upcoming_activity(
+    db: AsyncSession, member: Member, deal_ids: list[UUID]
+) -> set[UUID]:
+    """앞으로 예정된(starts_at > now) 활동이 이미 있는 딜 id 집합.
+
+    이미 뭔가 잡혀 있으면 0차 선별에서 "다음 미팅 필요"로 다시 올리지 않는다.
+    """
+    if not deal_ids:
+        return set()
+    result = await db.execute(
+        select(Activity.sales_deal_id).where(
+            Activity.team_id == member.team_id,
+            Activity.sales_deal_id.in_(deal_ids),
+            Activity.deleted_at.is_(None),
+            Activity.starts_at > datetime.now(UTC),
+        )
+    )
+    return {deal_id for (deal_id,) in result.all()}
 
 
 async def _unresolved_support_signals(
@@ -288,10 +322,13 @@ async def build_candidate_selection_snapshot(db: AsyncSession, member: Member) -
     deals = await _member_open_deals(db, member)
     deal_ids = [deal.id for deal, _stage, _company in deals]
     last_activity = await _last_activity_by_deal(db, member, deal_ids)
+    upcoming = await _deal_ids_with_upcoming_activity(db, member, deal_ids)
     today = datetime.now(UTC).date()
 
     candidates: list[dict[str, Any]] = []
     for deal, stage, company in deals:
+        if deal.id in upcoming:
+            continue
         risk_signals = _deal_risk_signals(deal, stage, last_activity.get(deal.id), today)
         if not risk_signals:
             continue
@@ -415,10 +452,23 @@ async def build_schedule_snapshot(
         duration_minutes = suggestion.get("duration_minutes", 60)
         reason = suggestion.get("reason")
 
+    now = datetime.now(UTC)
+    if preferred_starts_at is not None and preferred_ends_at is not None:
+        # 상위 제안(계약관리 1차 실행)이 이미 지난 날짜를 줬을 수 있다 — LLM이 현재
+        # 시각을 잘못 가늠했을 때의 방어선이다. preferred_starts_at/ends_at은 LLM 출력이나
+        # 클라이언트 요청값을 그대로 받은 문자열이라 형식이 깨졌거나(파싱 실패) offset이
+        # 없을(naive) 수 있다 — 둘 다 방어한다.
+        parsed_start = _parse_aware_or_none(preferred_starts_at)
+        parsed_end = _parse_aware_or_none(preferred_ends_at)
+        if parsed_start is None or parsed_end is None or parsed_end <= now:
+            preferred_starts_at = None
+            preferred_ends_at = None
+        elif parsed_start < now:
+            preferred_starts_at = now.isoformat()
+
     if preferred_starts_at is None or preferred_ends_at is None:
         # 계약관리 제안에 구체적인 선호 시간대가 없으면(예: 근거만 있고 날짜 미정),
         # 오늘부터 일주일을 기본 탐색 범위로 둔다.
-        now = datetime.now(UTC)
         window_start = now
         window_end = now + timedelta(days=_DEFAULT_PREFERRED_WINDOW_DAYS)
     else:
