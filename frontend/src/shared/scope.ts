@@ -43,6 +43,7 @@ let isManager = false
 // 돌려받아야 하므로 getSnapshot 안에서 새 배열을 만들면 안 됩니다.
 let ownerIds: readonly string[] | undefined
 let scopeKey = 'all'
+let ownerVisible = false
 
 const listeners = new Set<Listener>()
 
@@ -66,6 +67,18 @@ function computeOwnerIds(): readonly string[] | undefined {
 function computeScopeKey(): string {
   if (!isManager || ownMemberId === null) return 'all'
   return scope.mode === 'all' ? 'all' : `users:${scope.memberIds.join(',')}`
+}
+
+/**
+ * 줄마다 담당자 이름을 세울지입니다. 지금 화면에 여러 사람이 섞일 수 있을 때만 참입니다.
+ *
+ * 한 사람만 골라 두면 모든 줄이 같은 이름이라 자리만 차지합니다. 누구를 보고 있는지는
+ * 이미 Topbar 스위처가 이름으로 말하고 있어 줄마다 되풀이할 까닭이 없습니다.
+ * 팀원은 남의 줄을 받지 않으므로 언제나 거짓입니다.
+ */
+function computeOwnerVisible(): boolean {
+  if (!isManager || ownMemberId === null) return false
+  return scope.mode === 'all' || scope.memberIds.length > 1
 }
 
 function persist() {
@@ -100,6 +113,7 @@ function commit(next: Scope, { save = true } = {}) {
   scope = next
   ownerIds = computeOwnerIds()
   scopeKey = computeScopeKey()
+  ownerVisible = computeOwnerVisible()
   if (save) persist()
   for (const listener of listeners) listener()
 }
@@ -144,6 +158,10 @@ export function getScopeKey(): string {
   return scopeKey
 }
 
+export function getOwnerVisible(): boolean {
+  return ownerVisible
+}
+
 export function getOwnMemberIds(): readonly string[] | undefined {
   return isManager && ownMemberId !== null ? [ownMemberId] : undefined
 }
@@ -184,6 +202,16 @@ export function useScope(): Scope {
 /** 목록을 부르는 모든 훅이 쓰는 하나뿐인 입구입니다. */
 export function useScopeOwnerIds(): readonly string[] | undefined {
   return useSyncExternalStore(subscribeScope, getScopeOwnerIds, getScopeOwnerIds)
+}
+
+/**
+ * 목록·카드·드로어가 담당자 이름을 세울지 묻는 하나뿐인 자리입니다.
+ *
+ * 화면마다 `isManager` 로 판단하면 팀장이 한 명만 골라 둔 동안에도 같은 이름이
+ * 줄마다 되풀이됩니다. 역할이 아니라 지금 보는 범위가 정합니다.
+ */
+export function useShowOwner(): boolean {
+  return useSyncExternalStore(subscribeScope, getOwnerVisible, getOwnerVisible)
 }
 
 /**

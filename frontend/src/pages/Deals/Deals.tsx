@@ -2,7 +2,6 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
-import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
@@ -14,6 +13,7 @@ import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import StageChip, { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
+import { useShowOwner } from '@/shared/scope'
 import { addDays, fmtDot, iso, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
 
@@ -44,9 +44,9 @@ export default function Deals() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
   const requestedPipelineId = params.get('pipeline') || DEFAULT_PIPELINE
-  const { isManager } = useCurrentUser()
-  // 팀원은 서버가 본인 데이터로 제한하므로 담당자 스코프를 요청에 싣지 않습니다.
-  const showOwner = isManager
+  // 여러 사람이 섞여 보일 때만 담당 영업 칸을 세웁니다. 한 명만 보고 있으면 모든 줄이
+  // 같은 이름이고, 팀원은 서버가 본인 것만 돌려줍니다.
+  const showOwner = useShowOwner()
 
   const query = params.get('q') ?? ''
   const range = params.get('range') ?? DEFAULT_RANGE
