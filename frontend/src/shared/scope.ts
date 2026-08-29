@@ -176,10 +176,24 @@ export function setScopeAll() {
  * 어떤 집합이 되어야 하는지는 팀 명부를 아는 화면이 정합니다. 스토어는 명부를 들고
  * 있지 않아서 '팀 전체에서 한 명만 빼기' 같은 계산을 여기서 할 수 없습니다.
  * 빈 목록은 보여 줄 것이 없다는 뜻이라 팀 전체로 되돌립니다.
+ *
+ * 같은 선택이면 조용히 돌아섭니다. 커밋 한 번이 화면 전체를 다시 그리고 다시 요청하게
+ * 하므로(AppShell 의 Outlet key), 고른 것이 그대로인데 커밋하면 헛일이 큽니다.
  */
 export function setScopeMembers(memberIds: readonly string[]) {
   const next = [...new Set(memberIds)]
-  commit(next.length === 0 ? ALL : { mode: 'users', memberIds: next })
+  if (next.length === 0) {
+    setScopeAll()
+    return
+  }
+  if (
+    scope.mode === 'users' &&
+    scope.memberIds.length === next.length &&
+    next.every((id, index) => scope.memberIds[index] === id)
+  ) {
+    return
+  }
+  commit({ mode: 'users', memberIds: next })
 }
 
 /**
