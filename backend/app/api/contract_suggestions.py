@@ -94,9 +94,7 @@ async def list_contract_next_meeting_suggestions(
     schedule_run_ids = {suggestion.schedule_management_run_id for suggestion, _d, _c, _o in rows}
     schedule_runs = {
         run.id: run
-        for run in (
-            await db.execute(select(AgentRun).where(AgentRun.id.in_(schedule_run_ids)))
-        )
+        for run in (await db.execute(select(AgentRun).where(AgentRun.id.in_(schedule_run_ids))))
         .scalars()
         .all()
     }

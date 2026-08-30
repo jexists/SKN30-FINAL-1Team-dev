@@ -568,8 +568,7 @@ async def _conflict_warning(db: AsyncSession, member: Member, activity: Activity
                 Activity.id != activity.id,
                 Activity.deleted_at.is_(None),
                 Activity.starts_at < ends_at,
-                func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1))
-                > starts_at,
+                func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1)) > starts_at,
             )
             .order_by(Activity.starts_at)
             .limit(1)
