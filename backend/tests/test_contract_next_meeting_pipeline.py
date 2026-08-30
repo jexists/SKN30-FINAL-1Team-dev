@@ -154,3 +154,24 @@ def test_does_nothing_without_an_llm(monkeypatch):
 def test_cooldown_covers_the_declared_window(minutes):
     """쿨다운 값이 바뀌면 이 시험이 먼저 알린다."""
     assert timedelta(minutes=minutes) < pipeline._COOLDOWN
+
+
+def test_keeps_a_suggestion_about_the_triggering_deal():
+    """LLM 이 트리거 딜을 답했거나 딜 ID 를 비워 두면 그대로 이어 간다."""
+    sales_deal_id = uuid4()
+
+    assert pipeline._answers_this_deal({"sales_deal_id": str(sales_deal_id)}, sales_deal_id) is True
+    assert (
+        pipeline._answers_this_deal({"reason": "근거만 있고 딜 ID 는 없다"}, sales_deal_id) is True
+    )
+    assert pipeline._answers_this_deal({"sales_deal_id": None}, sales_deal_id) is True
+
+
+def test_drops_a_suggestion_about_another_deal():
+    """같은 고객사의 다른 딜을 답하면 버린다 — 트리거 딜 제안으로 저장되면 안 된다."""
+    sales_deal_id = uuid4()
+    other_deal_id = uuid4()
+
+    assert (
+        pipeline._answers_this_deal({"sales_deal_id": str(other_deal_id)}, sales_deal_id) is False
+    )

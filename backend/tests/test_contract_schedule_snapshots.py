@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
 from app.models.agent import AgentRun
 from app.models.crm import Activity, CustomerCompany
@@ -424,3 +425,72 @@ async def test_build_schedule_snapshot_without_parent_uses_request_preferred_win
     assert snapshot["preferred_starts_at"] == "2026-09-01T00:00:00+09:00"
     assert snapshot["duration_minutes"] == 30
     assert snapshot["reason"] is None
+
+
+# ---- build_next_meeting_snapshot: 딜 범위 한정 ----
+
+
+@pytest.mark.anyio
+async def test_next_meeting_snapshot_narrows_to_the_triggering_deal():
+    """같은 회사에 딜이 둘이면 트리거 딜만 넣는다.
+
+    둘 다 넣으면 LLM 이 다른 딜을 골라 답할 수 있고, 그 답이 트리거 딜의 제안으로
+    저장된다(contract_next_meeting_pipeline).
+    """
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    triggered = _deal(member, deal_no="D-1", customer_company_id=company.id, title="트리거 딜")
+    other = _deal(member, deal_no="D-2", customer_company_id=company.id, title="다른 딜")
+    stage = _stage(phase_code="negotiation")
+    db = _Db(
+        _Result(scalar=company),  # _company_or_404
+        _Result(rows=[(triggered, stage), (other, stage)]),  # _open_deals
+        _Result(rows=[]),  # _last_activity_by_deal
+        _Result(scalar_values=[]),  # _unresolved_support_signals
+        _Result(scalar_values=[]),  # _recent_approved_reports
+    )
+
+    snapshot = await snapshots.build_next_meeting_snapshot(db, member, company.id, triggered.id)
+
+    ids = [deal["id"] for deal in snapshot["sales_deals"]]
+    assert ids == [str(triggered.id)]
+    assert str(other.id) not in ids
+
+
+@pytest.mark.anyio
+async def test_next_meeting_snapshot_keeps_every_deal_without_a_deal_id():
+    """딜 id 를 주지 않는 기존 호출부(POST /agent-runs)는 회사 단위 그대로 돈다."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    first = _deal(member, deal_no="D-1", customer_company_id=company.id)
+    second = _deal(member, deal_no="D-2", customer_company_id=company.id)
+    stage = _stage(phase_code="negotiation")
+    db = _Db(
+        _Result(scalar=company),
+        _Result(rows=[(first, stage), (second, stage)]),
+        _Result(rows=[]),
+        _Result(scalar_values=[]),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_next_meeting_snapshot(db, member, company.id)
+
+    assert len(snapshot["sales_deals"]) == 2
+
+
+@pytest.mark.anyio
+async def test_next_meeting_snapshot_rejects_a_deal_outside_the_company():
+    """이 회사의 열린 딜이 아니면 빈 스냅샷 대신 404 로 끊는다 — LLM 이 지어내지 않게."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    open_deal = _deal(member, customer_company_id=company.id)
+    db = _Db(
+        _Result(scalar=company),
+        _Result(rows=[(open_deal, _stage(phase_code="negotiation"))]),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await snapshots.build_next_meeting_snapshot(db, member, company.id, uuid4())
+
+    assert error.value.status_code == 404
+    assert error.value.detail == "sales_deal_not_found"

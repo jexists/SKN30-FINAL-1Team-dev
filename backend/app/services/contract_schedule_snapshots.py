@@ -354,11 +354,32 @@ async def build_candidate_selection_snapshot(db: AsyncSession, member: Member) -
 
 
 async def build_next_meeting_snapshot(
-    db: AsyncSession, member: Member, customer_company_id: UUID
+    db: AsyncSession,
+    member: Member,
+    customer_company_id: UUID,
+    sales_deal_id: UUID | None = None,
 ) -> dict[str, Any]:
-    """계약관리 1차 실행(propose_next_meeting) 입력. 위험 판정 신호를 계산해 넣는다."""
+    """계약관리 1차 실행(propose_next_meeting) 입력. 위험 판정 신호를 계산해 넣는다.
+
+    sales_deal_id 를 주면 그 딜 하나로 좁힌다. 트리거 기반 파이프라인
+    (contract_next_meeting_pipeline)은 영업 건 하나를 가리키는 신호에서 출발하는데,
+    회사의 딜을 전부 넣으면 같은 고객사에 딜이 둘 이상일 때 LLM 이 다른 딜을 골라
+    답할 수 있다. 그 답을 트리거 딜의 제안으로 저장하면 카드에 이름과 내용이
+    어긋난 채 뜨고, 예외도 로그도 남지 않는다.
+
+    기본값이 None 인 것은 회사 단위로 도는 기존 호출부(POST /agent-runs 의 수동 실행,
+    agent_runs._build_input)를 그대로 두기 위해서다.
+    """
     company = await _company_or_404(db, member, customer_company_id)
     deals = await _open_deals(db, member, customer_company_id)
+    if sales_deal_id is not None:
+        deals = [(deal, stage) for deal, stage in deals if deal.id == sales_deal_id]
+        if not deals:
+            # 이 회사의 열린 딜이 아니다(닫혔거나 다른 회사). 빈 스냅샷을 넘기면 LLM 이
+            # 근거 없이 지어내므로 여기서 끊는다 — 파이프라인은 이 예외를 받고 종료한다.
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="sales_deal_not_found"
+            )
     deal_ids = [deal.id for deal, _stage in deals]
     last_activity = await _last_activity_by_deal(db, member, deal_ids)
     today = datetime.now(UTC).date()
@@ -366,6 +387,8 @@ async def build_next_meeting_snapshot(
     risk_signals: list[dict[str, Any]] = []
     for deal, stage in deals:
         risk_signals.extend(_deal_risk_signals(deal, stage, last_activity.get(deal.id), today))
+    # CS 미해결은 딜이 아니라 고객사에 붙는 신호라 딜을 좁혀도 그대로 넣는다. 어느 딜을
+    # 고를지 흔드는 값이 아니라, 고른 딜을 언제 만날지 판단하는 맥락이다.
     risk_signals.extend(await _unresolved_support_signals(db, member, customer_company_id))
 
     return {

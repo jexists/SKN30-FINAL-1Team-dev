@@ -53,7 +53,7 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
             return
         try:
             next_meeting_input = await contract_schedule_snapshots.build_next_meeting_snapshot(
-                session, owner, deal.customer_company_id
+                session, owner, deal.customer_company_id, sales_deal_id
             )
         except HTTPException:
             return
@@ -72,9 +72,8 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
                 status_code="queued",
                 llm_model_name=settings.llm_model,
                 prompt_version=contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
-                # 이 실행 자체는 회사 단위 스냅샷(build_next_meeting_snapshot)으로 돌지만,
-                # 트리거는 영업 건 하나를 가리킨다(파일 상단 docstring) — 쿨다운이 딜별로
-                # 직전 실행을 찾아야 해서 sales_deal_id 를 여기 남긴다.
+                # 스냅샷도 이 딜 하나로 좁혀서 넣는다(build_next_meeting_snapshot 의
+                # sales_deal_id). 쿨다운도 딜별로 직전 실행을 찾아야 해서 여기 남긴다.
                 source_refs={
                     **source_refs,
                     "customer_company_id": str(deal.customer_company_id),
@@ -98,6 +97,8 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
             return
         suggestion = (next_meeting_run.output_snapshot or {}).get("next_meeting_suggestion")
         if not suggestion:
+            return
+        if not _answers_this_deal(suggestion, sales_deal_id):
             return
 
         deal = await _open_deal(session, sales_deal_id)
@@ -151,6 +152,20 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
         if not candidates:
             return
         await _upsert_suggestion(session, team_id, sales_deal_id, schedule_run_id)
+
+
+def _answers_this_deal(suggestion: dict, sales_deal_id: UUID) -> bool:
+    """1차 실행의 제안이 트리거 딜에 대한 것인지 본다.
+
+    입력을 이 딜로 좁혀도(build_next_meeting_snapshot 의 sales_deal_id) LLM 이 다른 딜
+    ID 를 지어낼 수 있다. 그대로 두면 다른 딜의 사유와 선호 시간이 트리거 딜의 제안으로
+    저장되고, 카드에는 이름과 내용이 어긋난 채 뜬다 — 예외도 로그도 남지 않는다.
+
+    딜 ID 를 아예 주지 않는 출력은 통과시킨다. 프롬프트가 그 필드를 요구하지 않아 원래
+    비어 올 수 있고, 그 경우 어긋날 대상 자체가 없다.
+    """
+    answered = suggestion.get("sales_deal_id")
+    return answered is None or str(answered) == str(sales_deal_id)
 
 
 async def _ran_recently(session: AsyncSession, sales_deal_id: UUID) -> bool:
