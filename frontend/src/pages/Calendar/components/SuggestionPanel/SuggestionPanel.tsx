@@ -25,6 +25,14 @@ interface Props {
   /** 저장된 추천을 읽어 오는 중. LLM을 기다리는 것이 아니라 조회 한 번입니다. */
   loading?: boolean
   error?: string | null
+  /**
+   * 조회에 실패했을 때 추천 목록만 다시 읽습니다.
+   *
+   * 페이지 새로고침이 아닙니다. 캘린더 일정과 추천은 서로 다른 조회라, 페이지의
+   * 재시도는 추천을 다시 부르지 않습니다. 이것이 없으면 사용자는 캘린더를 나갔다
+   * 들어와야 추천을 다시 볼 수 있습니다.
+   */
+  onRetry?: () => void
 }
 
 export default function SuggestionPanel({
@@ -37,6 +45,7 @@ export default function SuggestionPanel({
   onGrab,
   loading = false,
   error = null,
+  onRetry,
 }: Props) {
   // 무엇을 보고 고른 추천인지는 한 번 읽으면 그만입니다. 카드보다 먼저 자리를
   // 차지하지 않도록 물음표 하나로 접어 두고 눌렀을 때만 폅니다.
@@ -91,6 +100,12 @@ export default function SuggestionPanel({
       ) : error ? (
         <div className={styles.empty} role="alert">
           <p>{error}</p>
+          {/* 이 버튼은 추천 목록만 다시 읽습니다 — 페이지 새로고침이 아닙니다. */}
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              다시 시도
+            </Button>
+          )}
         </div>
       ) : suggestions.length === 0 ? (
         <div className={styles.empty}>

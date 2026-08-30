@@ -240,6 +240,7 @@ export default function Calendar() {
             onGrab={grabSuggestion}
             loading={suggestionsLoading}
             error={suggestionsError}
+            onRetry={reloadSuggestions}
           />
         </div>
       </div>
