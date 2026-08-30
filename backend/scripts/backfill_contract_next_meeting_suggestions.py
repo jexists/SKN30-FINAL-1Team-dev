@@ -36,6 +36,38 @@ from app.services import contract_next_meeting_pipeline as pipeline  # noqa: E40
 from app.services import contract_schedule_snapshots  # noqa: E402
 
 
+def _positive_int(value: str) -> int:
+    """--limit 은 1 이상만 받는다.
+
+    _targets 는 후보를 담은 뒤에 개수를 세므로 0 이나 음수를 주면 멈추라는 뜻인데도 한 건이
+    처리된다. 그 값이 들어오지 못하게 여기서 끊는다.
+    """
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"정수가 아니다: {value}") from None
+    if parsed < 1:
+        raise argparse.ArgumentTypeError(f"1 이상이어야 한다: {value}")
+    return parsed
+
+
+def _members_named(members: list[Member], owner_name: str) -> list[Member]:
+    """--owner 로 고른 담당자 한 명. 이름이 겹치면 어느 쪽인지 물어보고 멈춘다.
+
+    member.display_name 에는 UNIQUE 제약이 없다. 동명이인을 그대로 통과시키면 남의 딜까지
+    백필하고 LLM 호출도 그만큼 늘어난다. id 로도 받아 애매할 때 지정할 수 있게 한다.
+    """
+    matched = [m for m in members if str(m.id) == owner_name or m.display_name == owner_name]
+    if not matched:
+        raise SystemExit(f"'{owner_name}' 담당자를 찾지 못했다.")
+    if len(matched) > 1:
+        lines = "\n".join(f"  {m.id}  {m.display_name}" for m in matched)
+        raise SystemExit(
+            f"'{owner_name}' 담당자가 {len(matched)}명이다. --owner 에 id 를 넣어라:\n{lines}"
+        )
+    return matched
+
+
 async def _targets(owner_name: str | None, limit: int | None) -> list[tuple[str, UUID]]:
     """(담당자 이름, 딜 id) 목록. 0차 선별과 같은 규칙으로 고른다.
 
@@ -47,9 +79,7 @@ async def _targets(owner_name: str | None, limit: int | None) -> list[tuple[str,
     async with sessionmaker() as session:
         members = (await session.execute(select(Member))).scalars().all()
         if owner_name is not None:
-            members = [m for m in members if m.display_name == owner_name]
-            if not members:
-                raise SystemExit(f"'{owner_name}' 담당자를 찾지 못했다.")
+            members = _members_named(members, owner_name)
         for member in members:
             snapshot = await contract_schedule_snapshots.build_candidate_selection_snapshot(
                 session, member
@@ -90,7 +120,7 @@ async def main(dry_run: bool, owner_name: str | None, limit: int | None) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="대상만 세고 실행하지 않는다")
-    parser.add_argument("--owner", help="이 담당자(표시 이름)의 딜만 채운다")
-    parser.add_argument("--limit", type=int, help="앞에서 N건만 채운다")
+    parser.add_argument("--owner", help="이 담당자(표시 이름 또는 id)의 딜만 채운다")
+    parser.add_argument("--limit", type=_positive_int, help="앞에서 N건만 채운다(1 이상)")
     args = parser.parse_args()
     raise SystemExit(asyncio.run(main(args.dry_run, args.owner, args.limit)))
