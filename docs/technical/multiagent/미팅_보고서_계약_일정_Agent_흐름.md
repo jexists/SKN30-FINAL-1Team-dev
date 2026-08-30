@@ -46,7 +46,7 @@
 - **Input**: 같은 draft 보고서의 양식(`template_snapshot`)·현재 작성값(`content`)·미팅 원문(`transcript`, 있으면)·작성자 요청(`guidance`, 있으면). 미팅분석 Agent의 출력(`deal_assessment`)은 입력으로 받지 않는다 — 둘 다 같은 `report_id`를 보고 각자 실행될 뿐, 한쪽 결과가 다른 쪽으로 전달되는 파이프는 없다.
 - **처리**: 양식의 각 입력칸(`field_id`)에 채울 값을 만든다. 근거가 없는 칸은 빈 문자열로 둔다.
 - **사람 확인 지점**: 작성자가 초안을 수정하고 "확정"을 눌러야(`POST /reports/{id}/submit`, 상태 `submitted`) 완성으로 취급된다. **`draft` 상태의 보고서는 계약관리 Agent 입력에 들어가지 않는다** — 계약관리 1차 제안은 `status_code`가 `submitted` 이거나 `approved`인 보고서만 다시 조회해서 쓴다(`backend/app/services/contract_schedule_snapshots.py`의 `_recent_approved_reports`). 이 확정이 곧 계약관리 파이프라인의 트리거이기도 하다.
-- **Output**: 승인된 보고서 → (DB에 저장된 상태로) 계약관리 Agent가 나중에 다시 조회하는 자료가 된다. Agent 출력이 직접 계약관리 Agent를 호출하는 구조는 아니다.
+- **Output**: 확정된 보고서(`submitted` 또는 `approved`) → (DB에 저장된 상태로) 계약관리 Agent가 나중에 다시 조회하는 자료가 된다. Agent 출력이 직접 계약관리 Agent를 호출하는 구조는 아니다.
 
 ### 3. 계약관리 Agent 0차 — 제안 대상 딜을 선별한다 (캘린더 경로에서는 쓰지 않는다)
 
