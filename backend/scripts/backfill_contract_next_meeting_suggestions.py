@@ -62,7 +62,9 @@ async def _targets(owner_name: str | None, limit: int | None) -> list[tuple[str,
 
 
 async def main(dry_run: bool, owner_name: str | None, limit: int | None) -> int:
-    if not settings.llm_configured:
+    # --dry-run 은 대상만 세고 LLM 을 부르지 않는다. 여기서 설정을 요구하면 키가 없는
+    # 개발 환경에서 대상 확인 자체가 막혀, 이 파일 상단이 권하는 순서를 밟을 수 없다.
+    if not dry_run and not settings.llm_configured:
         print("LLM 설정이 없어 아무것도 하지 않는다. .env 의 LLM_* 값을 확인하라.")
         return 1
 
