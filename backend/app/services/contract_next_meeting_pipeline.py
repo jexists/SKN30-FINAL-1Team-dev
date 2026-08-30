@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import BackgroundTasks, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,7 +43,7 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
     sessionmaker = get_sessionmaker()
 
     async with sessionmaker() as session:
-        if await _ran_recently(session, sales_deal_id):
+        if not await _reserve(session, sales_deal_id):
             return
         deal = await _open_deal(session, sales_deal_id)
         if deal is None:
@@ -166,6 +166,24 @@ def _answers_this_deal(suggestion: dict, sales_deal_id: UUID) -> bool:
     """
     answered = suggestion.get("sales_deal_id")
     return answered is None or str(answered) == str(sales_deal_id)
+
+
+async def _reserve(session: AsyncSession, sales_deal_id: UUID) -> bool:
+    """이 딜의 실행 자리를 잡는다. 이미 남이 잡고 있으면 False.
+
+    확인(_ran_recently)과 기록(queued AgentRun) 사이에 틈이 있으면 트리거가 겹쳤을 때
+    백그라운드 작업 둘이 모두 "최근 실행 없음"으로 판단하고 각자 LLM 을 두 번씩 태운다.
+    중복 자체는 제안 저장의 UNIQUE 제약이 걸러 내지만, 그 시점은 비용이 이미 나간 뒤다.
+
+    그래서 확인 앞에 딜 단위 잠금을 세워 확인과 기록을 한 번에 통과시킨다. 표를 새로
+    만들지 않아도 되도록 PostgreSQL 의 advisory lock 을 쓴다. 잠금은 이 세션이 커밋하거나
+    닫힐 때 저절로 풀리고, LLM 실행은 그 바깥에서 돈다.
+    """
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {"key": f"contract_next_meeting:{sales_deal_id}"},
+    )
+    return not await _ran_recently(session, sales_deal_id)
 
 
 async def _ran_recently(session: AsyncSession, sales_deal_id: UUID) -> bool:

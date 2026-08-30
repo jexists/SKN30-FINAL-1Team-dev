@@ -34,10 +34,12 @@ class _Db:
     def __init__(self, *results: _Result):
         self.results = list(results)
         self.statements = []
+        self.parameters = []
         self.commit_count = 0
 
-    async def execute(self, statement):
+    async def execute(self, statement, parameters=None):
         self.statements.append(statement)
+        self.parameters.append(parameters)
         assert self.results, "예상보다 많은 쿼리가 실행됐습니다."
         return self.results.pop(0)
 
@@ -107,6 +109,24 @@ def test_queue_defers_the_chain_to_the_background():
     pipeline.queue(background, sales_deal_id, {"report_id": "r-1"})
 
     assert background.tasks == [(pipeline._run_pipeline, (sales_deal_id, {"report_id": "r-1"}))]
+
+
+def test_reserve_locks_the_deal_before_looking():
+    """잠금이 조회보다 먼저 걸려야 한다 — 순서가 뒤집히면 막지 못하는 틈이 그대로 남는다."""
+    sales_deal_id = uuid4()
+    db = _Db(_Result(), _Result(scalar=None))
+
+    assert asyncio.run(pipeline._reserve(db, sales_deal_id)) is True
+    assert "pg_advisory_xact_lock" in str(db.statements[0])
+    # 잠금은 딜 단위다 — 키가 고정이면 서로 다른 딜까지 줄을 세운다.
+    assert str(sales_deal_id) in db.parameters[0]["key"]
+
+
+def test_reserve_gives_up_when_another_run_holds_the_deal():
+    """다른 실행이 이미 자리를 잡고 있으면 LLM 을 부르기 전에 물러난다."""
+    db = _Db(_Result(), _Result(scalar=uuid4()))
+
+    assert asyncio.run(pipeline._reserve(db, uuid4())) is False
 
 
 def test_skips_a_deal_that_just_ran():
