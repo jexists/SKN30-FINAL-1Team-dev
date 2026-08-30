@@ -12,6 +12,11 @@
 
     uv run python scripts/backfill_contract_next_meeting_suggestions.py --dry-run
     uv run python scripts/backfill_contract_next_meeting_suggestions.py
+
+화면을 확인하거나 데모를 준비할 때는 전체를 돌릴 필요가 없다. 카드는 로그인한 사람 소유의
+딜만 뜨므로 그 계정으로 몇 건만 채운다.
+
+    uv run python scripts/backfill_contract_next_meeting_suggestions.py --owner 김팀원 --limit 3
 """
 
 import argparse
@@ -31,27 +36,37 @@ from app.services import contract_next_meeting_pipeline as pipeline  # noqa: E40
 from app.services import contract_schedule_snapshots  # noqa: E402
 
 
-async def _targets() -> list[tuple[str, UUID]]:
-    """(담당자 이름, 딜 id) 목록. 0차 선별과 같은 규칙으로 고른다."""
+async def _targets(owner_name: str | None, limit: int | None) -> list[tuple[str, UUID]]:
+    """(담당자 이름, 딜 id) 목록. 0차 선별과 같은 규칙으로 고른다.
+
+    카드는 로그인한 사람 소유의 딜만 뜨므로(팀원 기준), 화면을 확인할 때는 --owner 로 그
+    계정만 좁히고 --limit 로 몇 건만 채우는 것으로 충분하다.
+    """
     sessionmaker = get_sessionmaker()
     targets: list[tuple[str, UUID]] = []
     async with sessionmaker() as session:
         members = (await session.execute(select(Member))).scalars().all()
+        if owner_name is not None:
+            members = [m for m in members if m.display_name == owner_name]
+            if not members:
+                raise SystemExit(f"'{owner_name}' 담당자를 찾지 못했다.")
         for member in members:
             snapshot = await contract_schedule_snapshots.build_candidate_selection_snapshot(
                 session, member
             )
             for candidate in snapshot.get("candidates") or []:
                 targets.append((member.display_name, UUID(candidate["sales_deal_id"])))
+                if limit is not None and len(targets) >= limit:
+                    return targets
     return targets
 
 
-async def main(dry_run: bool) -> int:
+async def main(dry_run: bool, owner_name: str | None, limit: int | None) -> int:
     if not settings.llm_configured:
         print("LLM 설정이 없어 아무것도 하지 않는다. .env 의 LLM_* 값을 확인하라.")
         return 1
 
-    targets = await _targets()
+    targets = await _targets(owner_name, limit)
     print(f"대상 딜 {len(targets)}건 (LLM 호출 예상 {len(targets) * 2}회)")
     for owner, sales_deal_id in targets:
         print(f"  {owner} · {sales_deal_id}")
@@ -73,5 +88,7 @@ async def main(dry_run: bool) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="대상만 세고 실행하지 않는다")
+    parser.add_argument("--owner", help="이 담당자(표시 이름)의 딜만 채운다")
+    parser.add_argument("--limit", type=int, help="앞에서 N건만 채운다")
     args = parser.parse_args()
-    raise SystemExit(asyncio.run(main(args.dry_run)))
+    raise SystemExit(asyncio.run(main(args.dry_run, args.owner, args.limit)))
