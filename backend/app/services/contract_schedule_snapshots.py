@@ -492,8 +492,14 @@ async def build_schedule_snapshot(
         if parsed_start is None or parsed_end is None or parsed_end <= now:
             preferred_starts_at = None
             preferred_ends_at = None
-        elif parsed_start < now:
-            preferred_starts_at = now.isoformat()
+        else:
+            # 파싱해서 시간대를 붙인 값을 되돌려 담는다. 아래에서 원본 문자열을 다시
+            # 파싱하는데 datetime.fromisoformat 은 naive 를 naive 그대로 통과시켜,
+            # offset 없는 입력이 여기서는 UTC, contract_management 에서는 Asia/Seoul 로
+            # 갈린다 — 같은 글자가 9시간 다르게 읽힌다.
+            # max 는 "시작이 이미 지났으면 지금으로 당긴다"를 분기 없이 처리한다.
+            preferred_starts_at = max(parsed_start, now).isoformat()
+            preferred_ends_at = parsed_end.isoformat()
 
     if preferred_starts_at is None or preferred_ends_at is None:
         # 계약관리 제안에 구체적인 선호 시간대가 없으면(예: 근거만 있고 날짜 미정),

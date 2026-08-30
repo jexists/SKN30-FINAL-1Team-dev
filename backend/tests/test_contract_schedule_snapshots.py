@@ -427,6 +427,64 @@ async def test_build_schedule_snapshot_without_parent_uses_request_preferred_win
     assert snapshot["reason"] is None
 
 
+@pytest.mark.anyio
+async def test_schedule_snapshot_normalizes_naive_preferred_window():
+    """시간대 없는 입력은 UTC 로 못 박아 내보낸다.
+
+    원본 문자열을 그대로 흘려보내면 이 단계는 UTC 로, contract_management 는
+    Asia/Seoul 로 읽어 같은 글자가 9시간 다르게 해석된다.
+    """
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2026-12-01T09:00:00",  # offset 없음
+        "2026-12-03T18:00:00",
+        60,
+    )
+
+    start = datetime.fromisoformat(snapshot["preferred_starts_at"])
+    end = datetime.fromisoformat(snapshot["preferred_ends_at"])
+    assert start.tzinfo is not None
+    assert end.tzinfo is not None
+    assert start.utcoffset() == timedelta(0)
+    assert start == datetime(2026, 12, 1, 9, tzinfo=UTC)
+
+
+@pytest.mark.anyio
+async def test_schedule_snapshot_pulls_a_past_start_up_to_now():
+    """시작이 이미 지났으면 지금으로 당긴다 — 끝이 미래면 창 자체는 살린다."""
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+    before = datetime.now(UTC)
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2020-01-01T00:00:00+00:00",  # 한참 과거
+        "2026-12-03T18:00:00+00:00",  # 끝은 미래
+        60,
+    )
+
+    start = datetime.fromisoformat(snapshot["preferred_starts_at"])
+    assert start >= before
+    assert start <= datetime.now(UTC)
+
+
 # ---- build_next_meeting_snapshot: 딜 범위 한정 ----
 
 
