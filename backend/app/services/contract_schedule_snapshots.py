@@ -285,7 +285,7 @@ def _deal_summary(deal: SalesDeal, stage: SalesPipelineStage) -> dict[str, Any]:
     }
 
 
-async def _recent_approved_reports(
+async def _recent_finalized_reports(
     db: AsyncSession, member: Member, deal_ids: list[UUID]
 ) -> list[dict[str, Any]]:
     """작성자가 확정한(submitted) 보고서까지 근거로 쓴다.
@@ -395,7 +395,10 @@ async def build_next_meeting_snapshot(
         "customer_company": {"id": str(company.id), "name": company.name},
         "sales_deals": [_deal_summary(deal, stage) for deal, stage in deals],
         "risk_signals": risk_signals,
-        "recent_approved_reports": await _recent_approved_reports(db, member, deal_ids),
+        # 키 이름은 그대로 둔다 — 이 스냅샷은 그대로 LLM 입력 JSON 이 되므로
+        # (contract_management._NextMeetingLLMInput) 바꾸려면 프롬프트 버전을
+        # 올려야 한다. 함수 이름만 실제 동작(submitted + approved)에 맞춘다.
+        "recent_approved_reports": await _recent_finalized_reports(db, member, deal_ids),
     }
 
 

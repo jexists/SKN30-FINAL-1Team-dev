@@ -505,7 +505,7 @@ async def test_next_meeting_snapshot_narrows_to_the_triggering_deal():
         _Result(rows=[(triggered, stage), (other, stage)]),  # _open_deals
         _Result(rows=[]),  # _last_activity_by_deal
         _Result(scalar_values=[]),  # _unresolved_support_signals
-        _Result(scalar_values=[]),  # _recent_approved_reports
+        _Result(scalar_values=[]),  # _recent_finalized_reports
     )
 
     snapshot = await snapshots.build_next_meeting_snapshot(db, member, company.id, triggered.id)
