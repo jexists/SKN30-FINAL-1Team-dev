@@ -10,6 +10,7 @@ from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
+from app.models.agent import ContractNextMeetingSuggestion
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product
@@ -719,9 +720,9 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
     )
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
-        _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
         _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
@@ -778,9 +779,9 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
     )
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
-        _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
         _Result(rows=[("기존 방문", datetime(2026, 8, 17, 1, tzinfo=UTC))]),  # 겹치는 일정
     )
 
@@ -818,9 +819,9 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
     missing_run_id = uuid4()
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
-        _Result(scalar=None),  # contract_next_meeting_suggestion 조회: 해당 없음
         _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
@@ -840,6 +841,86 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
     assert response.json()["briefing_queue_warning"] == "parent_run_not_found"
     assert len(db.added) == 1
     assert db.commit_count == 1
+    assert db.rollback_count == 1
+
+
+def _pending_suggestion(member: Member, schedule_run_id: UUID) -> ContractNextMeetingSuggestion:
+    return ContractNextMeetingSuggestion(
+        id=uuid4(),
+        team_id=member.team_id,
+        sales_deal_id=uuid4(),
+        schedule_management_run_id=schedule_run_id,
+        status_code="pending",
+        created_at=datetime(2026, 8, 17, tzinfo=UTC),
+        updated_at=datetime(2026, 8, 17, tzinfo=UTC),
+    )
+
+
+def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeypatch):
+    """승인하면 제안이 등록과 같은 트랜잭션에서 accepted 로 넘어간다."""
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    schedule_run_id = uuid4()
+    suggestion = _pending_suggestion(member, schedule_run_id)
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=suggestion),  # _claim_suggestion: 아직 pending
+        _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
+        _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
+        _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(schedule_run_id),
+            },
+        )
+
+    assert response.status_code == 201
+    assert suggestion.status_code == "accepted"
+    # 선점이 등록보다 먼저다 — 커밋 한 번에 둘이 함께 저장된다.
+    assert len(db.added) == 1
+    assert db.commit_count == 1
+
+
+def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
+    """같은 추천을 두 번 승인하면 두 번째는 409 다 — 일정이 두 개 생기면 안 된다."""
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    schedule_run_id = uuid4()
+    suggestion = _pending_suggestion(member, schedule_run_id)
+    suggestion.status_code = "accepted"  # 먼저 온 요청이 이미 가져갔다
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=suggestion),  # _claim_suggestion: 이미 accepted
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(schedule_run_id),
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "suggestion_already_processed"
+    assert db.added == []
+    assert db.commit_count == 0
     assert db.rollback_count == 1
 
 

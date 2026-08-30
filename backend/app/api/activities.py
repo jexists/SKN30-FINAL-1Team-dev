@@ -490,6 +490,10 @@ async def create_activity(
         values.pop("category_code")
         values.pop("action_tag")
         schedule_management_run_id = values.pop("schedule_management_run_id")
+        if schedule_management_run_id is not None:
+            # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
+            # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
+            await _claim_suggestion(db, schedule_management_run_id)
         activity = Activity(
             id=uuid4(),
             team_id=member.team_id,
@@ -533,9 +537,6 @@ async def create_activity(
                 background.add_task(agent_run_service.execute, briefing_run_id)
         except HTTPException as error:
             read.briefing_queue_warning = str(error.detail)
-        # AI 추천 카드를 승인해서 만든 등록이다 — 캘린더 패널에서 이 제안을 내린다
-        # (계약에이전트_설계.md 6장 "제안 상태 저장").
-        await _mark_suggestion_accepted(db, schedule_management_run_id)
         read.schedule_conflict_warning = await _conflict_warning(db, member, activity)
     elif activity.sales_deal_id is not None:
         # AI 추천을 거치지 않은 수동 등록이다 — 이 딜이 AI 추천 체인을 한 번도 안 거쳤을
@@ -581,24 +582,38 @@ async def _conflict_warning(db: AsyncSession, member: Member, activity: Activity
     return f"이 시간에 이미 다른 일정이 있습니다: {when} {title}"
 
 
-async def _mark_suggestion_accepted(db: AsyncSession, schedule_management_run_id: UUID) -> None:
-    """브리핑 큐잉과 마찬가지로 일정 등록과 같은 트랜잭션이 아니다 — 실패해도 등록은 유지한다."""
-    try:
-        result = await db.execute(
-            select(ContractNextMeetingSuggestion).where(
+async def _claim_suggestion(db: AsyncSession, schedule_management_run_id: UUID) -> None:
+    """AI 추천 카드를 승인해서 만든 등록이다 — 그 제안을 이 요청의 것으로 선점한다.
+
+    승인 버튼을 연달아 누르거나 두 탭에서 함께 누르면 요청이 겹친다. 제안을 읽기만 하고
+    등록을 커밋한 뒤에 상태를 바꾸면 두 요청 모두 pending 을 보게 되어, 하나의 추천에서
+    같은 미팅이 두 번 등록된다. 그래서 등록보다 먼저, 같은 트랜잭션 안에서 잠근다
+    (계약에이전트_설계.md 6장 "제안 상태 저장").
+
+    with_for_update 는 이 줄을 커밋할 때까지 붙잡는다. 뒤늦게 들어온 요청은 여기서
+    기다렸다가 바뀐 상태를 읽고 409 로 끝난다.
+
+    제안이 아예 없으면 그대로 진행한다. 캘린더 카드를 거치지 않고 일정관리 실행 ID 만
+    들고 온 등록이라 막을 근거가 없다.
+    """
+    suggestion = (
+        await db.execute(
+            select(ContractNextMeetingSuggestion)
+            .where(
                 ContractNextMeetingSuggestion.schedule_management_run_id
                 == schedule_management_run_id
             )
+            .with_for_update()
         )
-        suggestion = result.scalar_one_or_none()
-        if suggestion is None or suggestion.status_code != "pending":
-            return
-        suggestion.status_code = "accepted"
-        suggestion.updated_at = datetime.now(UTC)
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        raise
+    ).scalar_one_or_none()
+    if suggestion is None:
+        return
+    if suggestion.status_code != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="suggestion_already_processed"
+        )
+    suggestion.status_code = "accepted"
+    suggestion.updated_at = datetime.now(UTC)
 
 
 @router.patch("/activities/{activity_id}", response_model=ActivityRead)

@@ -6,6 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 
+import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import Modal from '@/components/Modal'
@@ -110,11 +111,14 @@ export default function Calendar() {
         setSelectedISO(dateISO)
         setJustAddedId(added.id)
         setApprovalWarning(warningOf(added))
-      } catch {
-        return
+      } catch (cause) {
+        // 다른 요청이 이 추천을 먼저 승인했을 수 있습니다. 서버 상태를 다시 읽어
+        // 카드가 남아야 하는지 서버가 정하게 합니다.
+        setApprovalWarning(errorMessage(cause, '추천을 등록하지 못했습니다.'))
+        void reloadSuggestions()
       }
     },
-    [suggestions, acceptSuggestion],
+    [suggestions, acceptSuggestion, reloadSuggestions],
   )
 
   const drop = useCallback(
@@ -150,11 +154,12 @@ export default function Calendar() {
         setSelectedISO(added.date)
         setJustAddedId(added.id)
         setApprovalWarning(warningOf(added))
-      } catch {
-        return
+      } catch (cause) {
+        setApprovalWarning(errorMessage(cause, '추천을 등록하지 못했습니다.'))
+        void reloadSuggestions()
       }
     },
-    [acceptSuggestion],
+    [acceptSuggestion, reloadSuggestions],
   )
 
   // 닫는 일은 모달이 합니다. 등록한 뒤 결과를 보여 줄 자리가 있어야 해서입니다.

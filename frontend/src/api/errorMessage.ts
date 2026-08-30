@@ -67,6 +67,8 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   // 음성 변환 (/transcriptions)
   stt_not_configured: '음성 변환 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
   stt_unavailable: '음성 변환 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+  // AI 추천 승인 (/activities)
+  suggestion_already_processed: '이미 처리된 추천입니다. 목록을 새로 불러옵니다.',
 }
 
 /**
