@@ -891,6 +891,42 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
     assert db.commit_count == 1
 
 
+def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
+    """실행 ID 만 보면 그 값을 아는 사람이 남의 제안을 내려 버릴 수 있다."""
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+
+    member = _member()
+    category = _category(member.team_id, code="demo")
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=None),  # _claim_suggestion: 범위 안에 없음
+        _Result(scalar=None),  # agent_runs 멱등키 조회
+        _Result(scalar=None),  # _parent_run_or_409
+        _Result(rows=[]),  # 겹침 확인
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "AI 추천 일정 승인",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+                "schedule_management_run_id": str(uuid4()),
+            },
+        )
+
+    # 범위 밖이면 남의 제안을 건드리지 않고 등록만 진행한다.
+    assert response.status_code == 201
+    claim_sql = str(db.statements[1])
+    assert "contract_next_meeting_suggestion.team_id" in claim_sql
+    assert "sales_deal.owner_member_id" in claim_sql  # role_code == "member"
+    # of= 로 지정한 대상은 PostgreSQL 방언에서만 "OF ..." 로 붙어, 기본 컴파일에는
+    # FOR UPDATE 까지만 나온다. 잠금을 걸었다는 것만 여기서 확인한다.
+    assert "FOR UPDATE" in claim_sql
+
+
 def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
     """같은 추천을 두 번 승인하면 두 번째는 409 다 — 일정이 두 개 생기면 안 된다."""
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))

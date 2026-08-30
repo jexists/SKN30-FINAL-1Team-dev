@@ -493,7 +493,7 @@ async def create_activity(
         if schedule_management_run_id is not None:
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
-            await _claim_suggestion(db, schedule_management_run_id)
+            await _claim_suggestion(db, member, schedule_management_run_id)
         activity = Activity(
             id=uuid4(),
             team_id=member.team_id,
@@ -582,7 +582,9 @@ async def _conflict_warning(db: AsyncSession, member: Member, activity: Activity
     return f"이 시간에 이미 다른 일정이 있습니다: {when} {title}"
 
 
-async def _claim_suggestion(db: AsyncSession, schedule_management_run_id: UUID) -> None:
+async def _claim_suggestion(
+    db: AsyncSession, member: Member, schedule_management_run_id: UUID
+) -> None:
     """AI 추천 카드를 승인해서 만든 등록이다 — 그 제안을 이 요청의 것으로 선점한다.
 
     승인 버튼을 연달아 누르거나 두 탭에서 함께 누르면 요청이 겹친다. 제안을 읽기만 하고
@@ -593,17 +595,27 @@ async def _claim_suggestion(db: AsyncSession, schedule_management_run_id: UUID) 
     with_for_update 는 이 줄을 커밋할 때까지 붙잡는다. 뒤늦게 들어온 요청은 여기서
     기다렸다가 바뀐 상태를 읽고 409 로 끝난다.
 
-    제안이 아예 없으면 그대로 진행한다. 캘린더 카드를 거치지 않고 일정관리 실행 ID 만
-    들고 온 등록이라 막을 근거가 없다.
+    잠금은 순서를 세울 뿐 권한을 보지 않는다. 조회 범위는 목록 조회
+    (contract_suggestions.list_contract_next_meeting_suggestions)와 같게 건다 — 실행 ID 만
+    보면 그 값을 아는 사람이 다른 팀이나 다른 담당자의 제안을 내려 버릴 수 있다.
+
+    범위 밖이거나 제안이 아예 없으면 그대로 진행한다. 캘린더 카드를 거치지 않고 일정관리
+    실행 ID 만 들고 온 등록이라 막을 근거가 없고, 남의 제안은 손대지 않은 채로 남는다.
     """
+    conditions = [
+        ContractNextMeetingSuggestion.schedule_management_run_id == schedule_management_run_id,
+        ContractNextMeetingSuggestion.team_id == member.team_id,
+    ]
+    if member.role_code == "member":
+        conditions.append(SalesDeal.owner_member_id == member.id)
+
     suggestion = (
         await db.execute(
             select(ContractNextMeetingSuggestion)
-            .where(
-                ContractNextMeetingSuggestion.schedule_management_run_id
-                == schedule_management_run_id
-            )
-            .with_for_update()
+            .join(SalesDeal, SalesDeal.id == ContractNextMeetingSuggestion.sales_deal_id)
+            .where(*conditions)
+            # 딜은 범위를 거는 데만 쓴다 — of 를 빼면 조인한 딜 행까지 함께 잠근다.
+            .with_for_update(of=ContractNextMeetingSuggestion)
         )
     ).scalar_one_or_none()
     if suggestion is None:
