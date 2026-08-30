@@ -492,7 +492,14 @@ async def build_schedule_snapshot(
         # 없을(naive) 수 있다 — 둘 다 방어한다.
         parsed_start = _parse_aware_or_none(preferred_starts_at)
         parsed_end = _parse_aware_or_none(preferred_ends_at)
-        if parsed_start is None or parsed_end is None or parsed_end <= now:
+        # 시작이 끝보다 늦으면(LLM 이 날짜를 거꾸로 답한 경우) 탐색 범위가 성립하지 않아
+        # 활동 조회도 일정 에이전트 입력도 무의미해진다 — 아래 기본 범위로 넘긴다.
+        inverted = (
+            parsed_start is not None
+            and parsed_end is not None
+            and max(parsed_start, now) >= parsed_end
+        )
+        if parsed_start is None or parsed_end is None or parsed_end <= now or inverted:
             preferred_starts_at = None
             preferred_ends_at = None
         else:

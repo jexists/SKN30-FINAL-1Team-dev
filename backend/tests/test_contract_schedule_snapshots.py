@@ -485,6 +485,30 @@ async def test_schedule_snapshot_pulls_a_past_start_up_to_now():
     assert start <= datetime.now(UTC)
 
 
+@pytest.mark.anyio
+async def test_schedule_snapshot_drops_an_inverted_preferred_window():
+    """시작이 끝보다 늦으면 탐색 범위가 성립하지 않는다 — 기본 범위로 넘긴다."""
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2026-12-05T09:00:00+00:00",  # 시작이
+        "2026-12-03T18:00:00+00:00",  # 끝보다 늦다
+        60,
+    )
+
+    assert snapshot["preferred_starts_at"] is None
+    assert snapshot["preferred_ends_at"] is None
+
+
 # ---- build_next_meeting_snapshot: 딜 범위 한정 ----
 
 
