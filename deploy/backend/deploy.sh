@@ -11,14 +11,12 @@ readonly SSM_PARAMETER="/salesluv/production/backend/env"
 readonly AWS_REGION="ap-northeast-2"
 readonly LOCK_FILE="/var/lock/salesluv-backend-deploy.lock"
 
-readonly DEAL_MODEL_VERSION="deal-stacking-lr-v1"
+readonly DEAL_MODEL_VERSION="deal-paper-rf-ensemble-v1"
 # ponytail: 단일 EC2의 버전 고정 디렉터리다. 호스트가 여러 대가 되면 S3 동기화로 바꾼다.
 readonly DEAL_MODEL_HOST_DIR="/opt/salesluv-models/${DEAL_MODEL_VERSION}"
 readonly DEAL_MODEL_CONTAINER_DIR="/app/pipeline/artifacts"
 readonly -a DEAL_MODEL_ARTIFACTS=(
-    "deal-stacking-lr-v1-models.joblib:78a56a3bcc6a69da94fde8366c228036103f5c42b48d668fec2d1051cdbd4a6f"
-    "deal-stacking-lr-v1-tabicl.pkl:4d6de1c7724cb004b7901a7523e727061f7e9a944e7419114291fb859870f45c"
-    "deal-stacking-lr-v1.json:71a39c37ae2f2d63d86c5adf9af7863bf8b51d032e35d18712d0a750726a0d42"
+    "deal-paper-rf-ensemble-v1.joblib:609c5d63b201fcb125cca9cddc2fcbe229f76d3ebf0a1417466d027248b17681"
 )
 
 readonly IMAGE_REPOSITORY="salesluv-backend"

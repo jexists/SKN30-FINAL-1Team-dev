@@ -1,7 +1,6 @@
 """검증된 Stacking 앙상블로 딜의 성사 확률을 계산한다."""
 
 import hashlib
-import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -12,9 +11,11 @@ from typing import Any, Literal
 
 from app.core.config import settings
 
-MODEL_VERSION = "deal-stacking-lr-v1"
-METADATA_FILENAME = f"{MODEL_VERSION}.json"
-METADATA_SHA256 = "71a39c37ae2f2d63d86c5adf9af7863bf8b51d032e35d18712d0a750726a0d42"
+MODEL_VERSION = "deal-paper-rf-ensemble-v1"
+MODEL_FILENAME = f"{MODEL_VERSION}.joblib"
+MODEL_SHA256 = "609c5d63b201fcb125cca9cddc2fcbe229f76d3ebf0a1417466d027248b17681"
+# 고정된 합성 입력 3개의 기대값이다. 실제 고객 데이터나 성능 평가값이 아니다.
+SELF_CHECK_WON_PROBABILITIES = (0.5625386746948857, 0.3512072797418429, 0.567269464941283)
 
 FEATURE_NAMES = (
     "Authority",
@@ -56,11 +57,10 @@ CATEGORY_VALUES = {
     "Needs_def": ("Info gathering", "No", "Poor", "Unknown", "Yes"),
 }
 BASE_MODEL_ORDER = (
+    "RandomForest_tuned",
     "LogisticRegression",
-    "MultinomialNB",
     "ExtraTrees",
     "CatBoost",
-    "TabICL",
 )
 
 _PREDICT_LOCK = Lock()
@@ -98,25 +98,6 @@ def _verified_artifact_path(artifact_dir: Path, file_info: dict[str, Any]) -> Pa
     return path
 
 
-def _validate_tabicl_artifact(tabicl: Any) -> None:
-    """원본 학습 행 없이 CPU 표현 캐시만 담긴 TabICL 산출물인지 검증한다."""
-    generator = tabicl.ensemble_generator_
-    if (
-        tabicl.device != "cpu"
-        or tabicl.device_.type != "cpu"
-        or tabicl.kv_cache != "repr"
-        or tabicl.cache_mode_ != "repr"
-        or tabicl.model_kv_cache_ is None
-        or generator.X_ is not None
-        or generator.y_ is not None
-        or any(
-            preprocessor.X_transformed_ is not None
-            for preprocessor in generator.preprocessors_.values()
-        )
-    ):
-        raise ValueError("tabicl_persistence_invalid")
-
-
 def _category_contract(raw: object) -> dict[str, tuple[str, ...]]:
     """메타데이터의 범주 목록을 비교 가능한 튜플 계약으로 변환한다."""
     if not isinstance(raw, dict):
@@ -138,86 +119,72 @@ def _won_probabilities(model: Any, inputs: Any) -> Any:
     """모델 출력에서 유효한 Won 클래스 확률만 추출한다."""
     import numpy as np
 
-    won_index = list(model.classes_).index(1)
-    probabilities = np.asarray(model.predict_proba(inputs), dtype=float)[:, won_index]
+    classes = list(model.classes_)
+    if len(classes) != 2 or set(classes) != {0, 1}:
+        raise ValueError("model_classes_invalid")
+    probabilities = np.asarray(model.predict_proba(inputs), dtype=float)
     if (
-        not np.isfinite(probabilities).all()
+        probabilities.shape != (len(inputs), 2)
+        or not np.isfinite(probabilities).all()
         or not ((0 <= probabilities) & (probabilities <= 1)).all()
+        or not np.allclose(probabilities.sum(axis=1), 1, rtol=1e-7, atol=1e-9)
     ):
         raise ValueError("model_probability_invalid")
-    return probabilities
-
-
-def _stacked_probabilities(models: dict[str, Any], stacking_model: Any, frame: Any) -> Any:
-    """고정 순서의 베이스 확률을 Stacking 메타모델에 전달한다."""
-    import numpy as np
-
-    base_probabilities = np.column_stack(
-        [_won_probabilities(models[name], frame) for name in BASE_MODEL_ORDER]
-    )
-    return _won_probabilities(stacking_model, base_probabilities)
+    return probabilities[:, classes.index(1)]
 
 
 @lru_cache(maxsize=1)
-def _load_models() -> tuple[dict[str, Any], Any, float]:
+def _load_models() -> tuple[Any, float]:
     """해시와 계약을 검증한 산출물을 최초 추론 시 한 번만 메모리에 올린다."""
     try:
         import joblib
         import numpy as np
-        from tabicl import TabICLClassifier
 
-        artifact_dir = settings.deal_model_dir
-        metadata_path = artifact_dir / METADATA_FILENAME
-        if _sha256(metadata_path) != METADATA_SHA256:
-            raise ValueError("metadata_hash_mismatch")
-
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        if (
-            metadata["schema_version"] != 1
-            or metadata["model_version"] != MODEL_VERSION
-            or metadata["selected_model"] != "Stacking_LR"
-            or tuple(metadata["base_model_order"]) != BASE_MODEL_ORDER
-            or tuple(metadata["model_feature_names"]) != FEATURE_NAMES
-            or _category_contract(metadata["category_values"]) != CATEGORY_VALUES
-            or metadata["target"] != {"Lost": 0, "Won": 1}
-            or metadata["classification_threshold"] != 0.5
-            or metadata["serialization_device"] != {"tabicl": "cpu"}
-            or metadata["persistence"]
-            != {"tabicl": {"training_data_included": False, "kv_cache": "repr"}}
-        ):
-            raise ValueError("metadata_contract_invalid")
-
-        bundle_path = _verified_artifact_path(artifact_dir, metadata["files"]["models"])
-        tabicl_path = _verified_artifact_path(artifact_dir, metadata["files"]["tabicl"])
+        # joblib은 역직렬화 중 코드를 실행할 수 있어 반드시 먼저 고정 해시를 검사한다.
+        bundle_path = _verified_artifact_path(
+            settings.deal_model_dir, {"path": MODEL_FILENAME, "sha256": MODEL_SHA256}
+        )
         bundle = joblib.load(bundle_path)
         if (
             bundle["schema_version"] != 1
             or bundle["model_version"] != MODEL_VERSION
-            or tuple(bundle["base_model_order"]) != BASE_MODEL_ORDER
+            or bundle["selected_candidate"] != "Stacking_LR"
             or tuple(bundle["model_feature_names"]) != FEATURE_NAMES
             or _category_contract(bundle["category_values"]) != CATEGORY_VALUES
-            or bundle["classification_threshold"] != metadata["classification_threshold"]
-            or set(bundle["base_models"]) != set(BASE_MODEL_ORDER[:-1])
+            or bundle["target"] != {"Lost": 0, "Won": 1}
+            or bundle["classification_threshold"] != 0.5
         ):
             raise ValueError("model_contract_invalid")
 
-        tabicl = TabICLClassifier.load(tabicl_path, device="cpu")
-        _validate_tabicl_artifact(tabicl)
-        models = {**bundle["base_models"], "TabICL": tabicl}
-        stacking_model = bundle["stacking_model"]
-        for model in (*models.values(), stacking_model):
-            if 0 not in model.classes_ or 1 not in model.classes_:
+        model = bundle["model"]
+        if (
+            tuple(model.feature_names_in_) != FEATURE_NAMES
+            or tuple(model.named_estimators_) != BASE_MODEL_ORDER
+        ):
+            raise ValueError("model_contract_invalid")
+        for estimator in (model, *model.named_estimators_.values(), model.final_estimator_):
+            if len(estimator.classes_) != 2 or set(estimator.classes_) != {0, 1}:
                 raise ValueError("model_classes_invalid")
 
-        self_check = metadata["self_check"]
-        actual = _stacked_probabilities(models, stacking_model, _frame(self_check["records"]))
+        # 학습 가중치는 그대로 쓰고 서버 내 병렬 작업 확산만 제한한다.
+        model.n_jobs = 1
+        known = {
+            name: next(value for value in CATEGORY_VALUES[name] if value != "Unknown")
+            for name in FEATURE_NAMES
+        }
+        records = [
+            known,
+            {**known, **dict.fromkeys(FEATURE_NAMES[:4], "Unknown")},
+            dict.fromkeys(FEATURE_NAMES, "Unknown"),
+        ]
+        actual = _won_probabilities(model, _frame(records))
         np.testing.assert_allclose(
             actual,
-            np.asarray(self_check["won_probabilities"], dtype=float),
-            rtol=self_check["rtol"],
-            atol=self_check["atol"],
+            SELF_CHECK_WON_PROBABILITIES,
+            rtol=1e-7,
+            atol=1e-8,
         )
-        return models, stacking_model, metadata["classification_threshold"]
+        return model, bundle["classification_threshold"]
     except Exception as error:
         raise DealModelError("deal_model_unavailable") from error
 
@@ -244,8 +211,8 @@ def predict(features: Mapping[str, str]) -> DealPrediction:
     frame = _frame([_normalized_features(features)])
     try:
         with _PREDICT_LOCK:
-            models, stacking_model, threshold = _load_models()
-            high_probability = float(_stacked_probabilities(models, stacking_model, frame)[0])
+            model, threshold = _load_models()
+            high_probability = float(_won_probabilities(model, frame)[0])
     except DealModelError:
         raise
     except Exception as error:

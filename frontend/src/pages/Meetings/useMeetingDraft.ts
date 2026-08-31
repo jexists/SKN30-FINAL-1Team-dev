@@ -183,21 +183,15 @@ export default function useMeetingDraft(item?: AgendaItem, savedReports: Meeting
 
   const applyAi = useCallback(
     (dealId: string) =>
-      updateDeal(dealId, (draft) => {
-        const values = { ...draft.values }
-        for (const field of template.fields) {
-          if (field.aiFilled) values[field.id] = draft.aiValues[field.id] ?? ''
-        }
-        return {
-          ...draft,
-          values,
-          evidence: draft.aiEvidence,
-          sectionIssues: [],
-          docKey: draft.docKey + 1,
-          pendingAi: false,
-          phase: 'ready',
-        }
-      }),
+      updateDeal(dealId, (draft) => ({
+        ...draft,
+        values: mergeGeneratedValues(template.fields, draft.values, draft.aiValues, true),
+        evidence: draft.aiEvidence,
+        sectionIssues: [],
+        docKey: draft.docKey + 1,
+        pendingAi: false,
+        phase: 'ready',
+      })),
     [template, updateDeal],
   )
 

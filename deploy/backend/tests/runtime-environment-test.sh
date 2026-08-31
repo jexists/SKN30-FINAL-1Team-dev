@@ -142,6 +142,12 @@ raw_value="$(dotenv_value "${raw_file}" RAW_VALUE)"
 [[ "${raw_value}" == '  literal # text = preserved  ' ]] \
     || fail "dotenv_value changed the raw value"
 
+[[ "${DEAL_MODEL_VERSION}" == "deal-paper-rf-ensemble-v1" \
+    && "${DEAL_MODEL_HOST_DIR}" == "/opt/salesluv-models/deal-paper-rf-ensemble-v1" \
+    && "${#DEAL_MODEL_ARTIFACTS[@]}" == "1" \
+    && "${DEAL_MODEL_ARTIFACTS[0]}" == "deal-paper-rf-ensemble-v1.joblib:609c5d63b201fcb125cca9cddc2fcbe229f76d3ebf0a1417466d027248b17681" ]] \
+    || fail "deployment must use the verified single-file RF ensemble"
+
 model_dir="${TEST_TMP_DIR}/model"
 mkdir -p "${model_dir}"
 printf 'model-bytes' >"${model_dir}/model.bin"

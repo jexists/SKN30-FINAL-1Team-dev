@@ -16,19 +16,9 @@ dependencies = [
     "python-multipart>=0.0.32",
     "scikit-learn==1.9.0",
     "sqlalchemy[asyncio]>=2.0.51",
-    "tabicl==2.1.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-    "torch==2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
 ]
-
-[tool.uv.sources]
-torch = { index = "pytorch-cpu", marker = "sys_platform == 'linux'" }
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
 
 [dependency-groups]
 dev = [

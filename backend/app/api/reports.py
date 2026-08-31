@@ -574,10 +574,18 @@ async def submit_report(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="invalid_state_transition",
             )
+        sales_deal_id = report.sales_deal_id if report.report_kind == "meeting" else None
+        if sales_deal_id is not None:
+            if report.source_activity_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="activity_not_found",
+                )
+            # 저장 후 달라진 접근 권한·고객사 연결은 확정 전에 다시 확인한다.
+            await _validate_meeting_deal(db, member, report.source_activity_id, sales_deal_id)
         report.status_code = "submitted"
         report.updated_at = datetime.now(UTC)
         await db.flush()
-        sales_deal_id = report.sales_deal_id if report.report_kind == "meeting" else None
         read = await _detail(db, member, report_id)
         await db.commit()
     except Exception:
