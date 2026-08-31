@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SalesLuv Database ERD</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #fbfbfc;
+  --border: #dfe3e8;
+  --border-strong: #c3cad3;
+  --text: #1b1f24;
+  --text-dim: #626b76;
+  --text-faint: #8b939d;
+  --accent: #2f6fd0;
+  --accent-soft: #e6effc;
+  --edge: #b6bec8;
+  --edge-hl: #2f6fd0;
+  --shadow: 0 1px 2px rgba(16,20,26,.06), 0 6px 20px rgba(16,20,26,.08);
+  --g-workspace: #4b7bec;
+  --g-crm: #26a69a;
+  --g-sales: #e08c2a;
+  --g-content: #8e6ad4;
+  --g-agent: #d3556f;
+  --g-config: #7a8695;
+  --g-external: #9aa3ad;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171b;
+    --panel: #1c2026;
+    --panel-2: #232830;
+    --border: #333a44;
+    --border-strong: #4a535f;
+    --text: #e6e9ed;
+    --text-dim: #a3acb8;
+    --text-faint: #78818d;
+    --accent: #6ba4f0;
+    --accent-soft: #1e2c40;
+    --edge: #454e5a;
+    --edge-hl: #6ba4f0;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --g-workspace: #6b95f5;
+    --g-crm: #45bfb2;
+    --g-sales: #eba653;
+    --g-content: #a98ae4;
+    --g-agent: #e5798e;
+    --g-config: #94a0af;
+    --g-external: #8b949f;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic",
+        "Apple SD Gothic Neo", "Noto Sans KR", Roboto, sans-serif;
+  overflow: hidden;
+}
+code, .mono { font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas,
+        "Liberation Mono", monospace; }
+
+/* ------------------------------------------------------------------ header */
+header {
+  position: absolute; inset: 0 0 auto 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+h1 { font-size: 14px; margin: 0 6px 0 0; font-weight: 650; letter-spacing: -.01em; }
+.stat { color: var(--text-faint); font-size: 12px; }
+.spacer { flex: 1 1 auto; }
+.search {
+  position: relative; display: flex; align-items: center;
+}
+.search input {
+  width: 210px; padding: 6px 26px 6px 10px;
+  border: 1px solid var(--border-strong); border-radius: 7px;
+  background: var(--panel); color: var(--text); font: inherit;
+}
+.search input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.search .count {
+  position: absolute; right: 8px; font-size: 11px; color: var(--text-faint);
+  pointer-events: none;
+}
+button {
+  padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 7px;
+  background: var(--panel); color: var(--text); font: inherit; cursor: pointer;
+}
+button:hover { background: var(--panel-2); border-color: var(--accent); }
+button:active { transform: translateY(1px); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 9px; border-radius: 999px; cursor: pointer; user-select: none;
+  border: 1px solid var(--border); background: var(--panel);
+  font-size: 12px; color: var(--text-dim);
+}
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.chip[aria-pressed="false"] { opacity: .42; }
+.chip:hover { border-color: var(--border-strong); }
+
+/* ------------------------------------------------------------------ canvas */
+#canvas { position: absolute; inset: 0; }
+#svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+#svg.panning { cursor: grabbing; }
+
+.edge { fill: none; stroke: var(--edge); stroke-width: 1.4px; }
+.edge.self { stroke-dasharray: 3 3; }
+#svg.focus .edge { opacity: .1; }
+#svg.focus .edge.hl { opacity: 1; stroke: var(--edge-hl); stroke-width: 2.2px; }
+#svg.searching .edge { opacity: .12; }
+
+.node { cursor: pointer; }
+.node rect.box {
+  fill: var(--panel); stroke: var(--border-strong); stroke-width: 1px; rx: 9;
+}
+.node rect.stripe { rx: 2; }
+.node .tname { font-size: 13px; font-weight: 640; fill: var(--text); }
+.node .tdesc { font-size: 10.5px; fill: var(--text-dim); }
+.node .tcnt  { font-size: 10px; fill: var(--text-faint); }
+.node:hover rect.box { stroke: var(--accent); }
+#svg.focus .node { opacity: .22; }
+#svg.focus .node.sel, #svg.focus .node.adj { opacity: 1; }
+.node.sel rect.box { stroke: var(--accent); stroke-width: 2.4px; }
+.node.adj rect.box { stroke: var(--accent); stroke-width: 1.6px; }
+#svg.searching .node { opacity: .18; }
+#svg.searching .node.match { opacity: 1; }
+#svg.searching .node.match rect.box { stroke: var(--accent); stroke-width: 2px; }
+.node.hidden { display: none; }
+
+/* ------------------------------------------------------------------ drawer */
+#drawer {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(480px, 100%);
+  background: var(--panel); border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transform: translateX(100%); transition: transform .16s ease;
+  display: flex; flex-direction: column; z-index: 10;
+}
+#drawer.open { transform: none; }
+.dhead {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 14px 14px 12px; border-bottom: 1px solid var(--border);
+}
+.dhead h2 { margin: 0; font-size: 16px; font-weight: 660; }
+.dhead .grp {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 5px;
+  font-size: 11px; color: var(--text-dim);
+}
+.dhead .grp .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.dhead p { margin: 7px 0 0; color: var(--text-dim); font-size: 12.5px; }
+.dclose {
+  margin-left: auto; padding: 3px 8px; line-height: 1.3; font-size: 15px;
+}
+.dbody { overflow: auto; padding: 0 14px 24px; }
+.dbody h3 {
+  margin: 18px 0 8px; font-size: 11px; font-weight: 660; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+td.c-name { font-family: ui-monospace, Consolas, monospace; white-space: nowrap; }
+td.c-type { color: var(--text-dim); font-family: ui-monospace, Consolas, monospace; font-size: 11px; white-space: nowrap; }
+.tw { overflow-x: auto; }
+.reltable td.c-type { white-space: normal; word-break: break-word; }
+.reltable td:first-child { white-space: nowrap; }
+.tag {
+  display: inline-block; padding: 1px 5px; border-radius: 4px; font-size: 10px;
+  font-weight: 600; margin-right: 3px; white-space: nowrap;
+}
+.tag.pk { background: var(--accent-soft); color: var(--accent); }
+.tag.uq { background: color-mix(in srgb, var(--g-crm) 18%, transparent); color: var(--g-crm); }
+.tag.fk { background: color-mix(in srgb, var(--g-sales) 18%, transparent); color: var(--g-sales); }
+.tag.nn { background: color-mix(in srgb, var(--text-faint) 15%, transparent); color: var(--text-dim); }
+.meta { color: var(--text-faint); font-size: 11px; }
+.reltable a, .link {
+  color: var(--accent); text-decoration: none; cursor: pointer; font-weight: 600;
+}
+.reltable a:hover { text-decoration: underline; }
+.card {
+  border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px;
+  margin-bottom: 6px; background: var(--panel-2);
+}
+.card .cname { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; font-weight: 600; }
+.card .cdef {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--text-dim);
+  margin-top: 3px; word-break: break-word; white-space: pre-wrap;
+}
+.empty { color: var(--text-faint); font-size: 12px; }
+.col {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px;
+  padding: 7px 2px; border-bottom: 1px solid var(--border);
+}
+.col .cn {
+  font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; font-weight: 600;
+  word-break: break-all;
+}
+.col .ct {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+  color: var(--text-dim); text-align: right; white-space: nowrap;
+}
+.col .cx { grid-column: 1 / -1; font-size: 11px; color: var(--text-faint); }
+.col .cx .ref { font-family: ui-monospace, Consolas, monospace; }
+.col .cd { grid-column: 1 / -1; font-size: 12px; color: var(--text-dim); }
+
+/* ------------------------------------------------------------------ hint */
+#hint {
+  position: absolute; left: 14px; bottom: 12px; z-index: 4;
+  font-size: 11px; color: var(--text-faint);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px;
+  pointer-events: none;
+}
+#hint b { color: var(--text-dim); font-weight: 600; }
+@media (max-width: 720px) {
+  .chips { display: none; }
+  #hint { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SalesLuv Database</h1>
+  <span class="stat" id="stat"></span>
+  <div class="chips" id="chips"></div>
+  <span class="spacer"></span>
+  <label class="search">
+    <input id="q" type="search" placeholder="테이블 검색" autocomplete="off" spellcheck="false">
+    <span class="count" id="qcount"></span>
+  </label>
+  <button id="btn-layout" title="자동 배치로 되돌린다">자동 정렬</button>
+  <button id="btn-fit" title="화면에 맞춘다">맞춤</button>
+  <button id="btn-in" title="확대">＋</button>
+  <button id="btn-out" title="축소">－</button>
+</header>
+
+<div id="canvas">
+  <svg id="svg">
+    <defs>
+      <marker id="m-one" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+        <path d="M6 1 V11" stroke="var(--edge)" stroke-width="1.6" fill="none"/>
+      </marker>
+      <marker id="m-many" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+        <path d="M11 1 L1 6 L11 11 M1 6 H11" stroke="var(--edge)" stroke-width="1.4" fill="none"/>
+      </marker>
+      <marker id="m-one-hl" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+        <path d="M6 1 V11" stroke="var(--edge-hl)" stroke-width="1.8" fill="none"/>
+      </marker>
+      <marker id="m-many-hl" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+        <path d="M11 1 L1 6 L11 11 M1 6 H11" stroke="var(--edge-hl)" stroke-width="1.6" fill="none"/>
+      </marker>
+    </defs>
+    <g id="viewport">
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </g>
+  </svg>
+</div>
+
+<div id="hint">
+  <b>휠</b> 확대 · <b>빈 곳 드래그</b> 이동 · <b>테이블 클릭</b> 상세 · <b>테이블 드래그</b> 이동 · <b>Esc</b> 해제
+</div>
+
+<aside id="drawer" aria-hidden="true">
+  <div class="dhead">
+    <div style="min-width:0">
+      <h2 id="d-name"></h2>
+      <span class="grp" id="d-group"></span>
+      <p id="d-desc"></p>
+    </div>
+    <button class="dclose" id="d-close" title="닫기 (Esc)">✕</button>
+  </div>
+  <div class="dbody" id="d-body"></div>
+</aside>
+
+<script>
+const SCHEMA = {"generatedFrom":"live Supabase PostgreSQL (information_schema / pg_catalog)","tableCount":36,"columnCount":379,"fkCount":96,"tables":[{"name":"activity","group":"crm","description":"고객 미팅 일정과 진행 결과를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"owner_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"담당 구성원 ID"},{"name":"customer_contact_id","type":"UUID","keys":["FK → customer_contact.id"],"pk":false,"fk":"customer_contact.id","unique":false,"nullable":true,"default":null,"description":"고객 담당자 ID"},{"name":"end_user_contact_id","type":"UUID","keys":["FK → customer_contact.id"],"pk":false,"fk":"customer_contact.id","unique":false,"nullable":true,"default":null,"description":"실사용자 담당자 ID"},{"name":"title","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"일정 제목"},{"name":"starts_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"시작 시각"},{"name":"ends_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"종료 시각"},{"name":"all_day","type":"BOOLEAN","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"false","description":"종일 일정 여부"},{"name":"due_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"기한 시각"},{"name":"location","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"장소"},{"name":"completed_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"완료 처리 시각"},{"name":"note","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"미팅 메모"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"product_id","type":"UUID","keys":["FK → product.id"],"pk":false,"fk":"product.id","unique":false,"nullable":true,"default":null,"description":"관련 제품 ID"},{"name":"sales_deal_id","type":"UUID","keys":["FK → sales_deal.id"],"pk":false,"fk":"sales_deal.id","unique":false,"nullable":true,"default":null,"description":"관련 거래 ID"},{"name":"purchase_order_id","type":"UUID","keys":["FK → purchase_order.id"],"pk":false,"fk":"purchase_order.id","unique":false,"nullable":true,"default":null,"description":"관련 발주 ID"},{"name":"activity_category_id","type":"UUID","keys":["FK → activity_category.id"],"pk":false,"fk":"activity_category.id","unique":false,"nullable":false,"default":null,"description":"미팅 분류 ID"},{"name":"activity_action_tag_id","type":"UUID","keys":["FK → activity_action_tag.id"],"pk":false,"fk":"activity_action_tag.id","unique":false,"nullable":true,"default":null,"description":"후속 조치 태그 ID"}],"constraints":[{"kind":"CHECK","name":"activity_ends_after_start","detail":"CHECK (((ends_at IS NULL) OR (ends_at > starts_at)))"},{"kind":"CHECK","name":"activity_location_check","detail":"CHECK (((location IS NULL) OR (btrim(location) <> ''::text)))"},{"kind":"CHECK","name":"activity_note_check","detail":"CHECK (((note IS NULL) OR (btrim(note) <> ''::text)))"},{"kind":"CHECK","name":"activity_title_check","detail":"CHECK ((btrim(title) <> ''::text))"},{"kind":"INDEX","name":"activity_customer_contact_idx","detail":"CREATE INDEX activity_customer_contact_idx ON public.activity USING btree (customer_contact_id) WHERE ((customer_contact_id IS NOT NULL) AND (deleted_at IS NULL))"},{"kind":"INDEX","name":"activity_product_idx","detail":"CREATE INDEX activity_product_idx ON public.activity USING btree (product_id) WHERE ((product_id IS NOT NULL) AND (deleted_at IS NULL))"},{"kind":"INDEX","name":"activity_purchase_order_idx","detail":"CREATE INDEX activity_purchase_order_idx ON public.activity USING btree (purchase_order_id) WHERE ((purchase_order_id IS NOT NULL) AND (deleted_at IS NULL))"},{"kind":"INDEX","name":"activity_sales_deal_idx","detail":"CREATE INDEX activity_sales_deal_idx ON public.activity USING btree (sales_deal_id) WHERE ((sales_deal_id IS NOT NULL) AND (deleted_at IS NULL))"},{"kind":"INDEX","name":"activity_team_owner_starts_idx","detail":"CREATE INDEX activity_team_owner_starts_idx ON public.activity USING btree (team_id, owner_member_id, starts_at) WHERE (deleted_at IS NULL)"},{"kind":"INDEX","name":"activity_team_starts_idx","detail":"CREATE INDEX activity_team_starts_idx ON public.activity USING btree (team_id, starts_at) WHERE (deleted_at IS NULL)"}]},{"name":"activity_action_tag","group":"config","description":"팀별 미팅 후속 조치 태그 항목을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 안에서 항목을 구분하는 코드"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 이름"},{"name":"tone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 색상"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"}],"constraints":[{"kind":"UNIQUE","name":"activity_action_tag_team_id_code_key","detail":"UNIQUE (team_id, code)"},{"kind":"CHECK","name":"activity_action_tag_code_check","detail":"CHECK ((btrim(code) <> ''::text))"},{"kind":"CHECK","name":"activity_action_tag_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"activity_action_tag_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"activity_action_tag_tone_check","detail":"CHECK ((tone = ANY (ARRAY['gray'::text, 'blue'::text, 'purple'::text, 'orange'::text, 'green'::text, 'red'::text])))"},{"kind":"INDEX","name":"activity_action_tag_team_position_idx","detail":"CREATE INDEX activity_action_tag_team_position_idx ON public.activity_action_tag USING btree (team_id, \"position\") WHERE (deleted_at IS NULL)"}]},{"name":"activity_category","group":"config","description":"팀별 미팅 분류 표시 항목을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 안에서 항목을 구분하는 코드"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 이름"},{"name":"tone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 색상"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"}],"constraints":[{"kind":"UNIQUE","name":"activity_category_team_id_code_key","detail":"UNIQUE (team_id, code)"},{"kind":"CHECK","name":"activity_category_code_check","detail":"CHECK ((btrim(code) <> ''::text))"},{"kind":"CHECK","name":"activity_category_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"activity_category_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"activity_category_tone_check","detail":"CHECK ((tone = ANY (ARRAY['gray'::text, 'blue'::text, 'purple'::text, 'orange'::text, 'green'::text, 'red'::text])))"},{"kind":"INDEX","name":"activity_category_team_position_idx","detail":"CREATE INDEX activity_category_team_position_idx ON public.activity_category USING btree (team_id, \"position\") WHERE (deleted_at IS NULL)"}]},{"name":"activity_companion","group":"crm","description":"미팅에 동행한 내부 구성원을 연결","pk":["activity_id","member_id"],"columns":[{"name":"activity_id","type":"UUID","keys":["PK","FK → activity.id"],"pk":true,"fk":"activity.id","unique":false,"nullable":false,"default":null,"description":"미팅 일정 ID"},{"name":"member_id","type":"UUID","keys":["PK","FK → member.id"],"pk":true,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"동행 구성원 ID"}],"constraints":[{"kind":"INDEX","name":"activity_companion_member_idx","detail":"CREATE INDEX activity_companion_member_idx ON public.activity_companion USING btree (member_id)"}]},{"name":"agent_run","group":"agent","description":"AI 에이전트 실행의 입출력과 근거를 남기는 감사 로그","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"parent_run_id","type":"UUID","keys":["FK → agent_run.id"],"pk":false,"fk":"agent_run.id","unique":false,"nullable":true,"default":null,"description":"이 실행을 부른 상위 실행 ID"},{"name":"requested_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":true,"default":null,"description":"실행을 요청한 구성원 ID"},{"name":"agent_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"실행한 에이전트 코드"},{"name":"trigger_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"실행을 일으킨 트리거 코드"},{"name":"idempotency_key","type":"UUID","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"중복 실행 방지 키"},{"name":"status_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"실행 상태 (queued / running / completed / failed)"},{"name":"llm_model_name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"사용한 LLM 모델 이름"},{"name":"prompt_version","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"사용한 프롬프트 버전"},{"name":"source_refs","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"입력이 참조한 레코드 목록"},{"name":"input_snapshot","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"실행 시점 입력 스냅샷"},{"name":"output_snapshot","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"실행 결과 출력"},{"name":"evidence","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"결과의 근거 정보"},{"name":"error_message","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"실패 사유"},{"name":"started_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"실행 시작 시각"},{"name":"finished_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"실행 종료 시각"}],"constraints":[{"kind":"UNIQUE","name":"agent_run_requested_by_member_id_idempotency_key_key","detail":"UNIQUE (requested_by_member_id, idempotency_key)"},{"kind":"CHECK","name":"agent_run_agent_code_check","detail":"CHECK ((btrim(agent_code) <> ''::text))"},{"kind":"CHECK","name":"agent_run_error_message_check","detail":"CHECK (((error_message IS NULL) OR (btrim(error_message) <> ''::text)))"},{"kind":"CHECK","name":"agent_run_idempotency_requester","detail":"CHECK (((idempotency_key IS NULL) OR (requested_by_member_id IS NOT NULL)))"},{"kind":"CHECK","name":"agent_run_llm_model_name_check","detail":"CHECK ((btrim(llm_model_name) <> ''::text))"},{"kind":"CHECK","name":"agent_run_not_own_parent","detail":"CHECK (((parent_run_id IS NULL) OR (parent_run_id <> id)))"},{"kind":"CHECK","name":"agent_run_prompt_version_check","detail":"CHECK ((btrim(prompt_version) <> ''::text))"},{"kind":"CHECK","name":"agent_run_status_code_check","detail":"CHECK ((status_code = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'failed'::text])))"},{"kind":"CHECK","name":"agent_run_trigger_code_check","detail":"CHECK ((btrim(trigger_code) <> ''::text))"},{"kind":"INDEX","name":"agent_run_parent_idx","detail":"CREATE INDEX agent_run_parent_idx ON public.agent_run USING btree (parent_run_id) WHERE (parent_run_id IS NOT NULL)"},{"kind":"INDEX","name":"agent_run_team_status_idx","detail":"CREATE INDEX agent_run_team_status_idx ON public.agent_run USING btree (team_id, status_code)"}]},{"name":"contract_next_meeting_suggestion","group":"agent","description":"거래별 AI 다음 미팅 제안의 현재 상태를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"sales_deal_id","type":"UUID","keys":["FK → sales_deal.id","UNIQUE"],"pk":false,"fk":"sales_deal.id","unique":true,"nullable":false,"default":null,"description":"제안 대상 거래 ID (거래당 1건)"},{"name":"schedule_management_run_id","type":"UUID","keys":["FK → agent_run.id"],"pk":false,"fk":"agent_run.id","unique":false,"nullable":false,"default":null,"description":"제안 내용을 담은 일정관리 실행 ID"},{"name":"status_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"제안 처리 상태 (pending / dismissed / accepted)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"}],"constraints":[{"kind":"CHECK","name":"contract_next_meeting_suggestion_status_code_check","detail":"CHECK ((status_code = ANY (ARRAY['pending'::text, 'dismissed'::text, 'accepted'::text])))"},{"kind":"INDEX","name":"contract_next_meeting_suggestion_team_status_idx","detail":"CREATE INDEX contract_next_meeting_suggestion_team_status_idx ON public.contract_next_meeting_suggestion USING btree (team_id, status_code)"}]},{"name":"contract_status","group":"config","description":"팀별 계약서 상태 표시 항목을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 안에서 항목을 구분하는 코드"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 이름"},{"name":"tone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 색상"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"outcome_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"상태가 뜻하는 결과 구분"}],"constraints":[{"kind":"UNIQUE","name":"contract_status_team_id_code_key","detail":"UNIQUE (team_id, code)"},{"kind":"CHECK","name":"contract_status_code_check","detail":"CHECK ((btrim(code) <> ''::text))"},{"kind":"CHECK","name":"contract_status_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"contract_status_outcome_code_check","detail":"CHECK ((outcome_code = ANY (ARRAY['in_progress'::text, 'completed'::text, 'cancelled'::text])))"},{"kind":"CHECK","name":"contract_status_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"contract_status_tone_check","detail":"CHECK ((tone = ANY (ARRAY['gray'::text, 'blue'::text, 'purple'::text, 'orange'::text, 'green'::text, 'red'::text])))"},{"kind":"INDEX","name":"contract_status_team_position_idx","detail":"CREATE INDEX contract_status_team_position_idx ON public.contract_status USING btree (team_id, \"position\") WHERE (deleted_at IS NULL)"}]},{"name":"customer_company","group":"crm","description":"영업 대상 고객 회사의 기본 정보와 주소를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"고객사 이름"},{"name":"region_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"지역 코드"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"business_no","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"사업자등록번호 (하이픈 없는 10자리)"},{"name":"postcode","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"우편번호 (5자리)"},{"name":"address","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"기본 주소"},{"name":"address_detail","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"상세 주소"}],"constraints":[{"kind":"CHECK","name":"customer_company_business_no_check","detail":"CHECK (((business_no IS NULL) OR (business_no ~ '^[0-9]{10}$'::text)))"},{"kind":"CHECK","name":"customer_company_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"customer_company_postcode_check","detail":"CHECK (((postcode IS NULL) OR (postcode ~ '^[0-9]{5}$'::text)))"},{"kind":"CHECK","name":"customer_company_region_code_check","detail":"CHECK (((region_code IS NULL) OR (btrim(region_code) <> ''::text)))"},{"kind":"INDEX","name":"customer_company_team_name_idx","detail":"CREATE INDEX customer_company_team_name_idx ON public.customer_company USING btree (team_id, name)"},{"kind":"INDEX","name":"customer_company_team_name_uq","detail":"CREATE UNIQUE INDEX customer_company_team_name_uq ON public.customer_company USING btree (team_id, name)"}]},{"name":"customer_contact","group":"crm","description":"고객 회사에 소속된 담당자 정보를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"company_id","type":"UUID","keys":["FK → customer_company.id"],"pk":false,"fk":"customer_company.id","unique":false,"nullable":false,"default":null,"description":"소속 고객사 ID"},{"name":"owner_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"주담당 구성원 ID"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"담당자 이름"},{"name":"department","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"담당자 부서"},{"name":"job_title","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"담당자 직함"},{"name":"email","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"담당자 이메일"},{"name":"phone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"담당자 연락처"},{"name":"source_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"유입 경로 코드"},{"name":"memo","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"메모"},{"name":"registered_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"등록 시각"},{"name":"customer_contact_status_id","type":"UUID","keys":["FK → customer_contact_status.id"],"pk":false,"fk":"customer_contact_status.id","unique":false,"nullable":true,"default":null,"description":"담당자 상태 ID"},{"name":"created_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"등록한 구성원 ID (등록 후 변경 없음)"},{"name":"visited","type":"BOOLEAN","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"false","description":"방문 여부 (수동 표시)"}],"constraints":[{"kind":"CHECK","name":"customer_contact_department_check","detail":"CHECK (((department IS NULL) OR (btrim(department) <> ''::text)))"},{"kind":"CHECK","name":"customer_contact_email_check","detail":"CHECK (((email IS NULL) OR (btrim(email) <> ''::text)))"},{"kind":"CHECK","name":"customer_contact_job_title_check","detail":"CHECK (((job_title IS NULL) OR (btrim(job_title) <> ''::text)))"},{"kind":"CHECK","name":"customer_contact_memo_check","detail":"CHECK (((memo IS NULL) OR (btrim(memo) <> ''::text)))"},{"kind":"CHECK","name":"customer_contact_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"customer_contact_phone_check","detail":"CHECK ((btrim(phone) <> ''::text))"},{"kind":"CHECK","name":"customer_contact_source_code_check","detail":"CHECK (((source_code IS NULL) OR (btrim(source_code) <> ''::text)))"},{"kind":"INDEX","name":"customer_contact_company_name_idx","detail":"CREATE INDEX customer_contact_company_name_idx ON public.customer_contact USING btree (company_id, name)"},{"kind":"INDEX","name":"customer_contact_owner_idx","detail":"CREATE INDEX customer_contact_owner_idx ON public.customer_contact USING btree (owner_member_id)"}]},{"name":"customer_contact_assignee","group":"crm","description":"고객 담당자를 맡은 내부 구성원을 연결","pk":["customer_contact_id","member_id"],"columns":[{"name":"customer_contact_id","type":"UUID","keys":["PK","FK → customer_contact.id"],"pk":true,"fk":"customer_contact.id","unique":false,"nullable":false,"default":null,"description":"고객 담당자 ID"},{"name":"member_id","type":"UUID","keys":["PK","FK → member.id"],"pk":true,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"담당 구성원 ID (주담당도 포함)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"지정 시각"}],"constraints":[{"kind":"INDEX","name":"customer_contact_assignee_member_idx","detail":"CREATE INDEX customer_contact_assignee_member_idx ON public.customer_contact_assignee USING btree (member_id)"}]},{"name":"customer_contact_status","group":"config","description":"팀별 고객 담당자 상태 표시 항목을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 안에서 항목을 구분하는 코드"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 이름"},{"name":"tone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 색상"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"}],"constraints":[{"kind":"UNIQUE","name":"customer_contact_status_team_id_code_key","detail":"UNIQUE (team_id, code)"},{"kind":"CHECK","name":"customer_contact_status_code_check","detail":"CHECK ((btrim(code) <> ''::text))"},{"kind":"CHECK","name":"customer_contact_status_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"customer_contact_status_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"customer_contact_status_tone_check","detail":"CHECK ((tone = ANY (ARRAY['gray'::text, 'blue'::text, 'purple'::text, 'orange'::text, 'green'::text, 'red'::text])))"},{"kind":"INDEX","name":"customer_contact_status_team_position_idx","detail":"CREATE INDEX customer_contact_status_team_position_idx ON public.customer_contact_status USING btree (team_id, \"position\") WHERE (deleted_at IS NULL)"}]},{"name":"document","group":"content","description":"팀이 보관하는 자료의 분류와 연결 대상을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"created_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"등록한 구성원 ID"},{"name":"document_no","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"자료 번호"},{"name":"category_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"자료 분류 코드"},{"name":"title","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"자료 제목"},{"name":"description","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"자료 설명"},{"name":"customer_company_id","type":"UUID","keys":["FK → customer_company.id"],"pk":false,"fk":"customer_company.id","unique":false,"nullable":true,"default":null,"description":"연결된 고객사 ID"},{"name":"sales_deal_id","type":"UUID","keys":["FK → sales_deal.id"],"pk":false,"fk":"sales_deal.id","unique":false,"nullable":true,"default":null,"description":"연결된 거래 ID"},{"name":"purchase_order_id","type":"UUID","keys":["FK → purchase_order.id"],"pk":false,"fk":"purchase_order.id","unique":false,"nullable":true,"default":null,"description":"연결된 발주 ID"},{"name":"tags","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"'[]'","description":"자료 태그 목록"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"customer_contact_id","type":"UUID","keys":["FK → customer_contact.id"],"pk":false,"fk":"customer_contact.id","unique":false,"nullable":true,"default":null,"description":"연결된 고객 담당자 ID (ORM 미매핑, CHANGELOG 참고)"},{"name":"product_id","type":"UUID","keys":["FK → product.id"],"pk":false,"fk":"product.id","unique":false,"nullable":true,"default":null,"description":"연결된 제품 ID"}],"constraints":[{"kind":"CHECK","name":"document_category_code_check","detail":"CHECK ((btrim(category_code) <> ''::text))"},{"kind":"CHECK","name":"document_description_check","detail":"CHECK (((description IS NULL) OR (btrim(description) <> ''::text)))"},{"kind":"CHECK","name":"document_document_no_check","detail":"CHECK ((btrim(document_no) <> ''::text))"},{"kind":"CHECK","name":"document_product_or_deal_check","detail":"CHECK ((NOT ((product_id IS NOT NULL) AND (sales_deal_id IS NOT NULL))))"},{"kind":"CHECK","name":"document_tags_check","detail":"CHECK ((jsonb_typeof(tags) = 'array'::text))"},{"kind":"CHECK","name":"document_title_check","detail":"CHECK ((btrim(title) <> ''::text))"},{"kind":"INDEX","name":"document_customer_company_idx","detail":"CREATE INDEX document_customer_company_idx ON public.document USING btree (customer_company_id) WHERE (customer_company_id IS NOT NULL)"},{"kind":"INDEX","name":"document_customer_contact_idx","detail":"CREATE INDEX document_customer_contact_idx ON public.document USING btree (customer_contact_id) WHERE (customer_contact_id IS NOT NULL)"},{"kind":"INDEX","name":"document_product_idx","detail":"CREATE INDEX document_product_idx ON public.document USING btree (product_id) WHERE (product_id IS NOT NULL)"},{"kind":"INDEX","name":"document_team_created_idx","detail":"CREATE INDEX document_team_created_idx ON public.document USING btree (team_id, created_at DESC)"}]},{"name":"document_chunk","group":"content","description":"자료 파일에서 추출한 검색용 텍스트 조각을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"document_id","type":"UUID","keys":["FK → document.id"],"pk":false,"fk":"document.id","unique":false,"nullable":false,"default":null,"description":"원본 자료 ID"},{"name":"file_id","type":"UUID","keys":["FK → file.id"],"pk":false,"fk":"file.id","unique":false,"nullable":false,"default":null,"description":"원본 파일 ID"},{"name":"chunk_no","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"파일 안에서의 조각 순번"},{"name":"page_start","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"조각 시작 페이지"},{"name":"page_end","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"조각 종료 페이지"},{"name":"section","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"조각이 속한 절 제목"},{"name":"content","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"조각 본문"},{"name":"metadata","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"'{}'","description":"조각 부가 정보"},{"name":"embedding","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"조각 임베딩 벡터"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"}],"constraints":[{"kind":"UNIQUE","name":"document_chunk_file_id_chunk_no_key","detail":"UNIQUE (file_id, chunk_no)"},{"kind":"CHECK","name":"document_chunk_chunk_no_check","detail":"CHECK ((chunk_no >= 0))"},{"kind":"CHECK","name":"document_chunk_content_check","detail":"CHECK ((btrim(content) <> ''::text))"},{"kind":"CHECK","name":"document_chunk_page_end_check","detail":"CHECK (((page_end IS NULL) OR (page_end >= 1)))"},{"kind":"CHECK","name":"document_chunk_page_start_check","detail":"CHECK (((page_start IS NULL) OR (page_start >= 1)))"},{"kind":"CHECK","name":"document_chunk_section_check","detail":"CHECK (((section IS NULL) OR (btrim(section) <> ''::text)))"},{"kind":"INDEX","name":"document_chunk_document_idx","detail":"CREATE INDEX document_chunk_document_idx ON public.document_chunk USING btree (document_id)"},{"kind":"INDEX","name":"document_chunk_file_idx","detail":"CREATE INDEX document_chunk_file_idx ON public.document_chunk USING btree (file_id)"},{"kind":"INDEX","name":"document_chunk_team_idx","detail":"CREATE INDEX document_chunk_team_idx ON public.document_chunk USING btree (team_id)"}]},{"name":"document_file_audit","group":"content","description":"자료 파일의 업로드와 요약 승인 이력을 기록","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"document_id","type":"UUID","keys":["FK → document.id"],"pk":false,"fk":"document.id","unique":false,"nullable":false,"default":null,"description":"대상 자료 ID"},{"name":"file_id","type":"UUID","keys":["FK → file.id"],"pk":false,"fk":"file.id","unique":false,"nullable":false,"default":null,"description":"대상 파일 ID"},{"name":"action_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기록한 동작 (file_uploaded / summary_reprocess_requested / summary_approved)"},{"name":"actor_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"동작을 수행한 구성원 ID"},{"name":"before_snapshot","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"동작 전 상태 스냅샷"},{"name":"after_snapshot","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"동작 후 상태 스냅샷"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"}],"constraints":[{"kind":"CHECK","name":"document_file_audit_action_code_check","detail":"CHECK ((action_code = ANY (ARRAY['file_uploaded'::text, 'summary_reprocess_requested'::text, 'summary_approved'::text])))"},{"kind":"INDEX","name":"document_file_audit_file_created_idx","detail":"CREATE INDEX document_file_audit_file_created_idx ON public.document_file_audit USING btree (file_id, created_at DESC)"},{"kind":"INDEX","name":"document_file_audit_team_created_idx","detail":"CREATE INDEX document_file_audit_team_created_idx ON public.document_file_audit USING btree (team_id, created_at DESC)"}]},{"name":"file","group":"content","description":"보고서와 자료에 첨부된 파일과 추출 결과를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"report_id","type":"UUID","keys":["FK → report.id"],"pk":false,"fk":"report.id","unique":false,"nullable":true,"default":null,"description":"첨부된 보고서 ID"},{"name":"document_id","type":"UUID","keys":["FK → document.id"],"pk":false,"fk":"document.id","unique":false,"nullable":true,"default":null,"description":"첨부된 자료 ID"},{"name":"version_no","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"자료 안에서의 버전 번호"},{"name":"file_name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"원본 파일 이름"},{"name":"storage_key","type":"TEXT","keys":["UNIQUE"],"pk":false,"fk":null,"unique":true,"nullable":false,"default":null,"description":"스토리지 파일 키"},{"name":"media_type","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"파일 MIME 타입"},{"name":"byte_size","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"파일 크기 (바이트)"},{"name":"processing_status","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"처리 상태 (uploaded / processing / review_required / completed / failed)"},{"name":"extracted_text","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"추출한 평문 텍스트"},{"name":"uploaded_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"업로드한 구성원 ID"},{"name":"note","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"첨부 비고"},{"name":"uploaded_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"업로드 시각"},{"name":"extracted_markdown","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"추출한 마크다운 본문"},{"name":"extracted_payload","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"추출 원본 응답"},{"name":"summary_markdown","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"AI 요약 마크다운"},{"name":"summary_payload","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"AI 요약 원본 응답"},{"name":"processing_error","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"처리 실패 사유"},{"name":"processed_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"처리 완료 시각"},{"name":"review_expires_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"검토 기한 시각"},{"name":"unapproved_expires_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"미승인 상태 만료 시각"},{"name":"approved_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":true,"default":null,"description":"요약을 승인한 구성원 ID"},{"name":"approved_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"요약 승인 시각"}],"constraints":[{"kind":"UNIQUE","name":"file_document_id_version_no_key","detail":"UNIQUE (document_id, version_no)"},{"kind":"CHECK","name":"file_byte_size_check","detail":"CHECK ((byte_size >= 0))"},{"kind":"CHECK","name":"file_document_version","detail":"CHECK ((((document_id IS NOT NULL) AND (version_no IS NOT NULL) AND (version_no >= 1)) OR ((report_id IS NOT NULL) AND (version_no IS NULL))))"},{"kind":"CHECK","name":"file_exactly_one_parent","detail":"CHECK ((num_nonnulls(report_id, document_id) = 1))"},{"kind":"CHECK","name":"file_extracted_markdown_check","detail":"CHECK (((extracted_markdown IS NULL) OR (btrim(extracted_markdown) <> ''::text)))"},{"kind":"CHECK","name":"file_extracted_text_check","detail":"CHECK (((extracted_text IS NULL) OR (btrim(extracted_text) <> ''::text)))"},{"kind":"CHECK","name":"file_file_name_check","detail":"CHECK ((btrim(file_name) <> ''::text))"},{"kind":"CHECK","name":"file_media_type_check","detail":"CHECK (((media_type IS NULL) OR (btrim(media_type) <> ''::text)))"},{"kind":"CHECK","name":"file_note_check","detail":"CHECK (((note IS NULL) OR (btrim(note) <> ''::text)))"},{"kind":"CHECK","name":"file_processing_error_check","detail":"CHECK (((processing_error IS NULL) OR (btrim(processing_error) <> ''::text)))"},{"kind":"CHECK","name":"file_processing_status_check","detail":"CHECK ((processing_status = ANY (ARRAY['uploaded'::text, 'processing'::text, 'review_required'::text, 'completed'::text, 'failed'::text])))"},{"kind":"CHECK","name":"file_storage_key_check","detail":"CHECK ((btrim(storage_key) <> ''::text))"},{"kind":"CHECK","name":"file_summary_markdown_check","detail":"CHECK (((summary_markdown IS NULL) OR (btrim(summary_markdown) <> ''::text)))"},{"kind":"INDEX","name":"file_report_idx","detail":"CREATE INDEX file_report_idx ON public.file USING btree (report_id) WHERE (report_id IS NOT NULL)"},{"kind":"INDEX","name":"file_review_expiry_idx","detail":"CREATE INDEX file_review_expiry_idx ON public.file USING btree (review_expires_at) WHERE (processing_status = 'review_required'::text)"},{"kind":"INDEX","name":"file_unapproved_expiry_idx","detail":"CREATE INDEX file_unapproved_expiry_idx ON public.file USING btree (unapproved_expires_at) WHERE (processing_status <> 'completed'::text)"}]},{"name":"member","group":"workspace","description":"서비스에 등록된 내부 사용자와 소속 팀·권한을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK","FK → auth.users.id"],"pk":true,"fk":"auth.users.id","unique":false,"nullable":false,"default":null,"description":"사용자 ID (Supabase auth.users.id 와 같은 값)"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"display_name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"사용자 이름"},{"name":"role_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"사용자 권한 (member / manager)"},{"name":"job_title","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"직함"},{"name":"active","type":"BOOLEAN","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"true","description":"재직 여부"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"email","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"로그인 이메일"}],"constraints":[{"kind":"CHECK","name":"member_display_name_check","detail":"CHECK ((btrim(display_name) <> ''::text))"},{"kind":"CHECK","name":"member_email_check","detail":"CHECK (((email IS NULL) OR (btrim(email) <> ''::text)))"},{"kind":"CHECK","name":"member_job_title_check","detail":"CHECK (((job_title IS NULL) OR (btrim(job_title) <> ''::text)))"},{"kind":"CHECK","name":"member_role_code_check","detail":"CHECK ((role_code = ANY (ARRAY['member'::text, 'manager'::text])))"},{"kind":"INDEX","name":"member_email_uq","detail":"CREATE UNIQUE INDEX member_email_uq ON public.member USING btree (lower(email)) WHERE (email IS NOT NULL)"},{"kind":"INDEX","name":"member_team_active_idx","detail":"CREATE INDEX member_team_active_idx ON public.member USING btree (team_id, active)"}]},{"name":"notice","group":"workspace","description":"팀 전체 공지와 특정 구성원 지시사항을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"author_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"작성한 구성원 ID"},{"name":"tag","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"분류 태그"},{"name":"title","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"제목"},{"name":"body","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"본문 HTML (저장 전 sanitize)"},{"name":"image_storage_key","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"대표 이미지 스토리지 키"},{"name":"image_alt","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"대표 이미지 대체 텍스트"},{"name":"published_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"게시 시각"},{"name":"due_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"처리 기한 시각"},{"name":"due_text","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"기한 표시 문구"},{"name":"type","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"공지 구분 (NOTICE 전체 / DIRECTIVE 지정 수신)"},{"name":"display_start_date","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"게시 시작일 (Asia/Seoul, 당일 포함)"},{"name":"display_end_date","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"게시 종료일 (당일 포함)"},{"name":"is_hidden","type":"BOOLEAN","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"false","description":"숨김 여부"},{"name":"sort_order","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"0","description":"상단 고정 정렬 순서"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"recipient_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":true,"default":null,"description":"수신 구성원 ID (ORM 미매핑, CHANGELOG 참고)"}],"constraints":[{"kind":"CHECK","name":"notice_body_check","detail":"CHECK ((btrim(body) <> ''::text))"},{"kind":"CHECK","name":"notice_display_range_check","detail":"CHECK (((display_end_date IS NULL) OR (display_end_date >= display_start_date)))"},{"kind":"CHECK","name":"notice_due_text_check","detail":"CHECK (((due_text IS NULL) OR (btrim(due_text) <> ''::text)))"},{"kind":"CHECK","name":"notice_image_alt_check","detail":"CHECK (((image_alt IS NULL) OR (btrim(image_alt) <> ''::text)))"},{"kind":"CHECK","name":"notice_image_storage_key_check","detail":"CHECK (((image_storage_key IS NULL) OR (btrim(image_storage_key) <> ''::text)))"},{"kind":"CHECK","name":"notice_tag_check","detail":"CHECK (((tag IS NULL) OR (btrim(tag) <> ''::text)))"},{"kind":"CHECK","name":"notice_title_check","detail":"CHECK ((btrim(title) <> ''::text))"},{"kind":"CHECK","name":"notice_type_check","detail":"CHECK ((type = ANY (ARRAY['NOTICE'::text, 'DIRECTIVE'::text])))"},{"kind":"INDEX","name":"notice_team_recipient_published_idx","detail":"CREATE INDEX notice_team_recipient_published_idx ON public.notice USING btree (team_id, recipient_member_id, published_at DESC)"},{"kind":"INDEX","name":"notice_team_type_order_idx","detail":"CREATE INDEX notice_team_type_order_idx ON public.notice USING btree (team_id, type, sort_order, published_at DESC) WHERE (deleted_at IS NULL)"},{"kind":"INDEX","name":"notice_visible_idx","detail":"CREATE INDEX notice_visible_idx ON public.notice USING btree (team_id, type, display_start_date, display_end_date) WHERE ((deleted_at IS NULL) AND (is_hidden = false))"}]},{"name":"notice_image","group":"workspace","description":"공지 본문에 삽입한 이미지 파일을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"uploaded_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"업로드한 구성원 ID"},{"name":"storage_key","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"스토리지 파일 키"},{"name":"media_type","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"파일 MIME 타입"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"}],"constraints":[{"kind":"CHECK","name":"notice_image_media_type_check","detail":"CHECK ((btrim(media_type) <> ''::text))"},{"kind":"CHECK","name":"notice_image_storage_key_check1","detail":"CHECK ((btrim(storage_key) <> ''::text))"},{"kind":"INDEX","name":"notice_image_team_idx","detail":"CREATE INDEX notice_image_team_idx ON public.notice_image USING btree (team_id)"}]},{"name":"notice_target","group":"workspace","description":"지시사항(DIRECTIVE)을 받을 구성원을 연결","pk":["member_id","notice_id"],"columns":[{"name":"notice_id","type":"UUID","keys":["PK","FK → notice.id"],"pk":true,"fk":"notice.id","unique":false,"nullable":false,"default":null,"description":"공지 ID"},{"name":"member_id","type":"UUID","keys":["PK","FK → member.id"],"pk":true,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"구성원 ID"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"지정 시각 (표시 순서 기준)"}],"constraints":[{"kind":"INDEX","name":"notice_target_member_idx","detail":"CREATE INDEX notice_target_member_idx ON public.notice_target USING btree (member_id)"}]},{"name":"product","group":"sales","description":"팀이 판매하는 제품의 기본 정보와 단가를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"제품 이름"},{"name":"active","type":"BOOLEAN","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"true","description":"판매 여부"},{"name":"category_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"제품 분류 (system / probe / consumable)"},{"name":"unit_price","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"판매 단가 (원)"},{"name":"shelf_life_months","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"유효 기간 (개월)"},{"name":"memo","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"메모"},{"name":"image_storage_key","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"제품 이미지 스토리지 키"}],"constraints":[{"kind":"CHECK","name":"product_category_code_check","detail":"CHECK ((category_code = ANY (ARRAY['system'::text, 'probe'::text, 'consumable'::text])))"},{"kind":"CHECK","name":"product_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"product_shelf_life_months_check","detail":"CHECK (((shelf_life_months IS NULL) OR (shelf_life_months > 0)))"},{"kind":"CHECK","name":"product_unit_price_check","detail":"CHECK ((unit_price >= 0))"},{"kind":"INDEX","name":"product_team_active_idx","detail":"CREATE INDEX product_team_active_idx ON public.product USING btree (team_id, active)"}]},{"name":"purchase_order","group":"sales","description":"거래에 필요한 제품을 공급처에 넣은 발주를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"order_no","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"발주 번호"},{"name":"sales_deal_id","type":"UUID","keys":["FK → sales_deal.id"],"pk":false,"fk":"sales_deal.id","unique":false,"nullable":false,"default":null,"description":"발주 근거가 되는 거래 ID"},{"name":"supplier_name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"공급처 이름"},{"name":"ordered_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"발주일"},{"name":"due_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"납기일"},{"name":"expected_receipt_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"입고 예정일"},{"name":"memo","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"메모"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"purchase_order_status_id","type":"UUID","keys":["FK → purchase_order_status.id"],"pk":false,"fk":"purchase_order_status.id","unique":false,"nullable":false,"default":null,"description":"발주 상태 ID"},{"name":"request_department","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"'영업팀'","description":"요청 부서"},{"name":"cooperation_department","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"'생산팀'","description":"협조 부서"},{"name":"created_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"작성한 구성원 ID"},{"name":"expected_customer_company_id","type":"UUID","keys":["FK → customer_company.id"],"pk":false,"fk":"customer_company.id","unique":false,"nullable":false,"default":null,"description":"납품 예정 거래처 ID"}],"constraints":[{"kind":"UNIQUE","name":"purchase_order_team_id_order_no_key","detail":"UNIQUE (team_id, order_no)"},{"kind":"CHECK","name":"purchase_order_cooperation_department_check","detail":"CHECK ((btrim(cooperation_department) <> ''::text))"},{"kind":"CHECK","name":"purchase_order_due_on_order_check","detail":"CHECK ((due_on >= ordered_on))"},{"kind":"CHECK","name":"purchase_order_expected_receipt_on_order_check","detail":"CHECK ((expected_receipt_on >= ordered_on))"},{"kind":"CHECK","name":"purchase_order_memo_check","detail":"CHECK (((memo IS NULL) OR (btrim(memo) <> ''::text)))"},{"kind":"CHECK","name":"purchase_order_order_no_check","detail":"CHECK ((btrim(order_no) <> ''::text))"},{"kind":"CHECK","name":"purchase_order_request_department_check","detail":"CHECK ((btrim(request_department) <> ''::text))"},{"kind":"CHECK","name":"purchase_order_supplier_name_check","detail":"CHECK ((btrim(supplier_name) <> ''::text))"},{"kind":"INDEX","name":"purchase_order_expected_company_idx","detail":"CREATE INDEX purchase_order_expected_company_idx ON public.purchase_order USING btree (expected_customer_company_id) WHERE (deleted_at IS NULL)"},{"kind":"INDEX","name":"purchase_order_expected_receipt_idx","detail":"CREATE INDEX purchase_order_expected_receipt_idx ON public.purchase_order USING btree (expected_receipt_on) WHERE (deleted_at IS NULL)"},{"kind":"INDEX","name":"purchase_order_sales_deal_idx","detail":"CREATE INDEX purchase_order_sales_deal_idx ON public.purchase_order USING btree (sales_deal_id) WHERE (deleted_at IS NULL)"},{"kind":"INDEX","name":"purchase_order_team_due_idx","detail":"CREATE INDEX purchase_order_team_due_idx ON public.purchase_order USING btree (team_id, due_on) WHERE (deleted_at IS NULL)"}]},{"name":"purchase_order_item","group":"sales","description":"발주서에 포함된 제품 품목과 수량을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"purchase_order_id","type":"UUID","keys":["FK → purchase_order.id"],"pk":false,"fk":"purchase_order.id","unique":false,"nullable":false,"default":null,"description":"발주 ID"},{"name":"product_id","type":"UUID","keys":["FK → product.id"],"pk":false,"fk":"product.id","unique":false,"nullable":false,"default":null,"description":"제품 ID"},{"name":"quantity","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"수량"},{"name":"unit_price","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"단가 (원)"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"발주서 품목 순서"}],"constraints":[{"kind":"CHECK","name":"purchase_order_item_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"purchase_order_item_quantity_check","detail":"CHECK ((quantity > 0))"},{"kind":"CHECK","name":"purchase_order_item_unit_price_check","detail":"CHECK ((unit_price >= 0))"},{"kind":"INDEX","name":"purchase_order_item_purchase_order_position_idx","detail":"CREATE INDEX purchase_order_item_purchase_order_position_idx ON public.purchase_order_item USING btree (purchase_order_id, \"position\")"}]},{"name":"purchase_order_status","group":"config","description":"팀별 발주 상태 표시 항목을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 안에서 항목을 구분하는 코드"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 이름"},{"name":"tone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 색상"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"outcome_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"상태가 뜻하는 결과 구분"}],"constraints":[{"kind":"UNIQUE","name":"purchase_order_status_team_id_code_key","detail":"UNIQUE (team_id, code)"},{"kind":"CHECK","name":"purchase_order_status_code_check","detail":"CHECK ((btrim(code) <> ''::text))"},{"kind":"CHECK","name":"purchase_order_status_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"purchase_order_status_outcome_code_check","detail":"CHECK ((outcome_code = ANY (ARRAY['in_progress'::text, 'completed'::text, 'cancelled'::text])))"},{"kind":"CHECK","name":"purchase_order_status_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"purchase_order_status_tone_check","detail":"CHECK ((tone = ANY (ARRAY['gray'::text, 'blue'::text, 'purple'::text, 'orange'::text, 'green'::text, 'red'::text])))"},{"kind":"INDEX","name":"purchase_order_status_team_position_idx","detail":"CREATE INDEX purchase_order_status_team_position_idx ON public.purchase_order_status USING btree (team_id, \"position\") WHERE (deleted_at IS NULL)"}]},{"name":"quote_status","group":"config","description":"팀별 견적서 상태 표시 항목을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 안에서 항목을 구분하는 코드"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 이름"},{"name":"tone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 색상"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"outcome_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"상태가 뜻하는 결과 구분"}],"constraints":[{"kind":"UNIQUE","name":"quote_status_team_id_code_key","detail":"UNIQUE (team_id, code)"},{"kind":"CHECK","name":"quote_status_code_check","detail":"CHECK ((btrim(code) <> ''::text))"},{"kind":"CHECK","name":"quote_status_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"quote_status_outcome_code_check","detail":"CHECK ((outcome_code = ANY (ARRAY['in_progress'::text, 'completed'::text, 'cancelled'::text])))"},{"kind":"CHECK","name":"quote_status_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"quote_status_tone_check","detail":"CHECK ((tone = ANY (ARRAY['gray'::text, 'blue'::text, 'purple'::text, 'orange'::text, 'green'::text, 'red'::text])))"},{"kind":"INDEX","name":"quote_status_team_position_idx","detail":"CREATE INDEX quote_status_team_position_idx ON public.quote_status USING btree (team_id, \"position\") WHERE (deleted_at IS NULL)"}]},{"name":"report","group":"content","description":"미팅·업무 보고서의 본문과 검토 상태를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"author_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"작성한 구성원 ID"},{"name":"recipient_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":true,"default":null,"description":"보고 대상 구성원 ID"},{"name":"template_snapshot","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"작성 시점 보고서 서식 스냅샷"},{"name":"source_activity_id","type":"UUID","keys":["FK → activity.id"],"pk":false,"fk":"activity.id","unique":false,"nullable":true,"default":null,"description":"보고서의 근거 미팅 일정 ID"},{"name":"report_kind","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"보고서 종류"},{"name":"report_date","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"보고 기준일"},{"name":"period_start","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"보고 기간 시작일"},{"name":"period_end","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"보고 기간 종료일"},{"name":"status_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"작성·검토 상태"},{"name":"content","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"보고서 본문 (서식 필드별 값)"},{"name":"transcript","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"미팅 녹취 원문"},{"name":"source_snapshot","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"AI 입력에 쓴 원본 데이터 스냅샷"},{"name":"ai_evidence","type":"JSONB","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"AI 초안의 근거 정보"},{"name":"note","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"작성자 비고"},{"name":"reviewed_by_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":true,"default":null,"description":"검토한 구성원 ID"},{"name":"reviewed_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"검토 시각"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"sales_deal_id","type":"UUID","keys":["FK → sales_deal.id"],"pk":false,"fk":"sales_deal.id","unique":false,"nullable":true,"default":null,"description":"보고서가 다루는 거래 ID"}],"constraints":[{"kind":"CHECK","name":"report_note_check","detail":"CHECK (((note IS NULL) OR (btrim(note) <> ''::text)))"},{"kind":"CHECK","name":"report_period_order","detail":"CHECK (((period_start IS NULL) OR (period_end IS NULL) OR (period_end >= period_start)))"},{"kind":"CHECK","name":"report_report_kind_check","detail":"CHECK ((btrim(report_kind) <> ''::text))"},{"kind":"CHECK","name":"report_status_code_check","detail":"CHECK ((btrim(status_code) <> ''::text))"},{"kind":"CHECK","name":"report_transcript_check","detail":"CHECK (((transcript IS NULL) OR (btrim(transcript) <> ''::text)))"},{"kind":"INDEX","name":"report_sales_deal_date_idx","detail":"CREATE INDEX report_sales_deal_date_idx ON public.report USING btree (sales_deal_id, report_date DESC) WHERE (sales_deal_id IS NOT NULL)"},{"kind":"INDEX","name":"report_source_activity_idx","detail":"CREATE INDEX report_source_activity_idx ON public.report USING btree (source_activity_id) WHERE (source_activity_id IS NOT NULL)"},{"kind":"INDEX","name":"report_source_activity_sales_deal_key","detail":"CREATE UNIQUE INDEX report_source_activity_sales_deal_key ON public.report USING btree (source_activity_id, sales_deal_id) WHERE ((source_activity_id IS NOT NULL) AND (sales_deal_id IS NOT NULL))"},{"kind":"INDEX","name":"report_team_author_date_idx","detail":"CREATE INDEX report_team_author_date_idx ON public.report USING btree (team_id, author_member_id, report_date DESC)"},{"kind":"INDEX","name":"report_team_status_idx","detail":"CREATE INDEX report_team_status_idx ON public.report USING btree (team_id, status_code)"}]},{"name":"report_activity","group":"content","description":"보고서가 다루는 미팅 일정을 연결","pk":["activity_id","report_id"],"columns":[{"name":"report_id","type":"UUID","keys":["PK","FK → report.id"],"pk":true,"fk":"report.id","unique":false,"nullable":false,"default":null,"description":"보고서 ID"},{"name":"activity_id","type":"UUID","keys":["PK","FK → activity.id"],"pk":true,"fk":"activity.id","unique":false,"nullable":false,"default":null,"description":"포함된 미팅 일정 ID"}],"constraints":[{"kind":"INDEX","name":"report_activity_activity_idx","detail":"CREATE INDEX report_activity_activity_idx ON public.report_activity USING btree (activity_id)"}]},{"name":"sales_deal","group":"sales","description":"고객사와 진행하는 영업 거래와 견적·계약 정보를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"deal_no","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"거래 번호"},{"name":"customer_company_id","type":"UUID","keys":["FK → customer_company.id"],"pk":false,"fk":"customer_company.id","unique":false,"nullable":false,"default":null,"description":"고객사 ID"},{"name":"customer_contact_id","type":"UUID","keys":["FK → customer_contact.id"],"pk":false,"fk":"customer_contact.id","unique":false,"nullable":true,"default":null,"description":"주 고객 담당자 ID"},{"name":"owner_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"담당 구성원 ID"},{"name":"product_id","type":"UUID","keys":["FK → product.id"],"pk":false,"fk":"product.id","unique":false,"nullable":true,"default":null,"description":"대표 제품 ID"},{"name":"sales_pipeline_stage_id","type":"UUID","keys":["FK → sales_pipeline_stage (복합 FK)"],"pk":false,"fk":"sales_pipeline_stage (복합 FK)","unique":false,"nullable":false,"default":null,"description":"현재 단계 ID"},{"name":"title","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"거래 제목"},{"name":"description","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"설명"},{"name":"deal_amount","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"거래 예상 금액 (원)"},{"name":"opened_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"거래 시작일"},{"name":"contract_ends_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"계약 종료일"},{"name":"warranty_terms","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"보증 조건"},{"name":"expected_delivery_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"납품 예정 시각"},{"name":"memo","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"메모"},{"name":"stage_position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"단계 안 카드 정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"},{"name":"sales_pipeline_id","type":"UUID","keys":["FK → sales_pipeline_stage (복합 FK)"],"pk":false,"fk":"sales_pipeline_stage (복합 FK)","unique":false,"nullable":false,"default":null,"description":"적용 파이프라인 ID"},{"name":"sales_deal_type_id","type":"UUID","keys":["FK → sales_deal_type.id"],"pk":false,"fk":"sales_deal_type.id","unique":false,"nullable":false,"default":null,"description":"거래 유형 ID"},{"name":"closed_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"거래 종료일"},{"name":"quote_no","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"견적 번호"},{"name":"quote_issued_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"견적 발행일"},{"name":"quote_valid_until","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"견적 유효 기한"},{"name":"contract_no","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"계약 번호"},{"name":"contract_signed_on","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"계약 체결일"},{"name":"quote_status_id","type":"UUID","keys":["FK → quote_status.id"],"pk":false,"fk":"quote_status.id","unique":false,"nullable":true,"default":null,"description":"견적 상태 ID (NULL 이면 견적 미진입)"},{"name":"contract_status_id","type":"UUID","keys":["FK → contract_status.id"],"pk":false,"fk":"contract_status.id","unique":false,"nullable":true,"default":null,"description":"계약 상태 ID (NULL 이면 계약 미진입)"},{"name":"quote_amount","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"견적 금액 (원)"},{"name":"contract_amount","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"계약 금액 (원)"},{"name":"quote_delivery_terms","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"견적 납품 조건"},{"name":"contract_payment_terms","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"물품 대금 지급 기일"},{"name":"contract_late_interest_terms","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"대금 연체 이자율 조건"},{"name":"source_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"거래 유입 경로 코드"}],"constraints":[{"kind":"UNIQUE","name":"sales_deal_id_customer_company_key","detail":"UNIQUE (id, customer_company_id)"},{"kind":"UNIQUE","name":"sales_deal_team_id_contract_no_key","detail":"UNIQUE (team_id, contract_no)"},{"kind":"UNIQUE","name":"sales_deal_team_id_deal_no_key","detail":"UNIQUE (team_id, deal_no)"},{"kind":"UNIQUE","name":"sales_deal_team_id_quote_no_key","detail":"UNIQUE (team_id, quote_no)"},{"kind":"CHECK","name":"sales_deal_closed_on_order_check","detail":"CHECK (((closed_on IS NULL) OR (closed_on >= opened_on)))"},{"kind":"CHECK","name":"sales_deal_contract_amount_check","detail":"CHECK (((contract_amount IS NULL) OR (contract_amount >= 0)))"},{"kind":"CHECK","name":"sales_deal_contract_ends_on_order_check","detail":"CHECK (((contract_ends_on IS NULL) OR ((contract_signed_on IS NOT NULL) AND (contract_ends_on >= contract_signed_on))))"},{"kind":"CHECK","name":"sales_deal_contract_late_interest_terms_check","detail":"CHECK (((contract_late_interest_terms IS NULL) OR (btrim(contract_late_interest_terms) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_contract_no_check","detail":"CHECK (((contract_no IS NULL) OR (btrim(contract_no) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_contract_payment_terms_check","detail":"CHECK (((contract_payment_terms IS NULL) OR (btrim(contract_payment_terms) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_contract_signed_on_check","detail":"CHECK (((contract_signed_on IS NULL) OR (contract_signed_on >= opened_on)))"},{"kind":"CHECK","name":"sales_deal_deal_amount_check","detail":"CHECK ((deal_amount >= 0))"},{"kind":"CHECK","name":"sales_deal_deal_no_check","detail":"CHECK ((btrim(deal_no) <> ''::text))"},{"kind":"CHECK","name":"sales_deal_description_check","detail":"CHECK (((description IS NULL) OR (btrim(description) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_memo_check","detail":"CHECK (((memo IS NULL) OR (btrim(memo) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_quote_amount_check","detail":"CHECK (((quote_amount IS NULL) OR (quote_amount >= 0)))"},{"kind":"CHECK","name":"sales_deal_quote_delivery_terms_check","detail":"CHECK (((quote_delivery_terms IS NULL) OR (btrim(quote_delivery_terms) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_quote_issued_on_check","detail":"CHECK (((quote_issued_on IS NULL) OR (quote_issued_on >= opened_on)))"},{"kind":"CHECK","name":"sales_deal_quote_no_check","detail":"CHECK (((quote_no IS NULL) OR (btrim(quote_no) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_quote_valid_until_check","detail":"CHECK (((quote_valid_until IS NULL) OR ((quote_issued_on IS NOT NULL) AND (quote_valid_until >= quote_issued_on))))"},{"kind":"CHECK","name":"sales_deal_source_code_check","detail":"CHECK (((source_code IS NULL) OR (btrim(source_code) <> ''::text)))"},{"kind":"CHECK","name":"sales_deal_stage_position_check","detail":"CHECK ((stage_position >= 0))"},{"kind":"CHECK","name":"sales_deal_title_check","detail":"CHECK ((btrim(title) <> ''::text))"},{"kind":"CHECK","name":"sales_deal_warranty_terms_check","detail":"CHECK (((warranty_terms IS NULL) OR (btrim(warranty_terms) <> ''::text)))"},{"kind":"FOREIGN KEY","name":"sales_deal_sales_pipeline_stage_membership_fkey","detail":"FOREIGN KEY (sales_pipeline_id, sales_pipeline_stage_id) REFERENCES sales_pipeline_stage(sales_pipeline_id, id)"},{"kind":"INDEX","name":"sales_deal_contract_ends_on_idx","detail":"CREATE INDEX sales_deal_contract_ends_on_idx ON public.sales_deal USING btree (contract_ends_on) WHERE ((contract_ends_on IS NOT NULL) AND (deleted_at IS NULL))"},{"kind":"INDEX","name":"sales_deal_team_owner_opened_on_idx","detail":"CREATE INDEX sales_deal_team_owner_opened_on_idx ON public.sales_deal USING btree (team_id, owner_member_id, opened_on) WHERE (deleted_at IS NULL)"},{"kind":"INDEX","name":"sales_deal_team_pipeline_stage_position_idx","detail":"CREATE INDEX sales_deal_team_pipeline_stage_position_idx ON public.sales_deal USING btree (team_id, sales_pipeline_id, sales_pipeline_stage_id, stage_position) WHERE (deleted_at IS NULL)"}]},{"name":"sales_deal_item","group":"sales","description":"거래 견적에 포함된 제품 품목과 수량을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"sales_deal_id","type":"UUID","keys":["FK → sales_deal.id"],"pk":false,"fk":"sales_deal.id","unique":false,"nullable":false,"default":null,"description":"거래 ID"},{"name":"product_id","type":"UUID","keys":["FK → product.id"],"pk":false,"fk":"product.id","unique":false,"nullable":false,"default":null,"description":"제품 ID"},{"name":"quantity","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"수량"},{"name":"unit_price","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"단가 (원)"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"견적서 품목 순서"}],"constraints":[{"kind":"CHECK","name":"sales_deal_item_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"sales_deal_item_quantity_check","detail":"CHECK ((quantity > 0))"},{"kind":"CHECK","name":"sales_deal_item_unit_price_check","detail":"CHECK ((unit_price >= 0))"},{"kind":"INDEX","name":"sales_deal_item_sales_deal_position_idx","detail":"CREATE INDEX sales_deal_item_sales_deal_position_idx ON public.sales_deal_item USING btree (sales_deal_id, \"position\")"}]},{"name":"sales_deal_participant","group":"sales","description":"거래 미팅에 참석하는 고객 담당자를 연결","pk":["customer_contact_id","sales_deal_id"],"columns":[{"name":"sales_deal_id","type":"UUID","keys":["PK","FK → sales_deal.id"],"pk":true,"fk":"sales_deal.id","unique":false,"nullable":false,"default":null,"description":"거래 ID"},{"name":"customer_contact_id","type":"UUID","keys":["PK","FK → customer_contact.id"],"pk":true,"fk":"customer_contact.id","unique":false,"nullable":false,"default":null,"description":"참석 고객 담당자 ID"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"지정 시각"}],"constraints":[{"kind":"INDEX","name":"sales_deal_participant_contact_idx","detail":"CREATE INDEX sales_deal_participant_contact_idx ON public.sales_deal_participant USING btree (customer_contact_id)"}]},{"name":"sales_deal_type","group":"config","description":"팀별 거래 유형 표시 항목을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 안에서 항목을 구분하는 코드"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 이름"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"정렬 순서"},{"name":"deleted_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"삭제 시각 (NULL 이면 사용 중)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"}],"constraints":[{"kind":"UNIQUE","name":"sales_deal_type_team_id_code_key","detail":"UNIQUE (team_id, code)"},{"kind":"CHECK","name":"sales_deal_type_code_check","detail":"CHECK ((btrim(code) <> ''::text))"},{"kind":"CHECK","name":"sales_deal_type_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"sales_deal_type_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"INDEX","name":"sales_deal_type_team_position_idx","detail":"CREATE INDEX sales_deal_type_team_position_idx ON public.sales_deal_type USING btree (team_id, \"position\") WHERE (deleted_at IS NULL)"}]},{"name":"sales_pipeline","group":"sales","description":"팀이 사용하는 영업 파이프라인 버전을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"파이프라인 이름"},{"name":"description","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"설명"},{"name":"status_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"게시 상태 (draft / published / archived)"},{"name":"is_default","type":"BOOLEAN","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"false","description":"팀 기본 파이프라인 여부"},{"name":"published_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"게시 시각"},{"name":"archived_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"보관 시각"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"}],"constraints":[{"kind":"UNIQUE","name":"sales_pipeline_team_id_name_key","detail":"UNIQUE (team_id, name)"},{"kind":"CHECK","name":"sales_pipeline_default_check","detail":"CHECK (((NOT is_default) OR (status_code = 'published'::text)))"},{"kind":"CHECK","name":"sales_pipeline_description_check","detail":"CHECK (((description IS NULL) OR (btrim(description) <> ''::text)))"},{"kind":"CHECK","name":"sales_pipeline_lifecycle_check","detail":"CHECK ((((status_code = 'draft'::text) AND (published_at IS NULL) AND (archived_at IS NULL)) OR ((status_code = 'published'::text) AND (published_at IS NOT NULL) AND (archived_at IS NULL)) OR ((status_code = 'archived'::text) AND (published_at IS NOT NULL) AND (archived_at IS NOT NULL) AND (archived_at >= published_at))))"},{"kind":"CHECK","name":"sales_pipeline_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"sales_pipeline_status_code_check","detail":"CHECK ((status_code = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))"},{"kind":"INDEX","name":"sales_pipeline_team_published_default_uq","detail":"CREATE UNIQUE INDEX sales_pipeline_team_published_default_uq ON public.sales_pipeline USING btree (team_id) WHERE (is_default AND (status_code = 'published'::text))"},{"kind":"INDEX","name":"sales_pipeline_team_status_idx","detail":"CREATE INDEX sales_pipeline_team_status_idx ON public.sales_pipeline USING btree (team_id, status_code, created_at DESC)"}]},{"name":"sales_pipeline_stage","group":"sales","description":"파이프라인을 구성하는 단계와 순서를 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"단계 이름"},{"name":"tone","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"표시 색상"},{"name":"outcome_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"단계가 뜻하는 결과 (in_progress / confirmed / cancelled)"},{"name":"position","type":"INTEGER","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"파이프라인 안 단계 순서"},{"name":"sales_pipeline_id","type":"UUID","keys":["FK → sales_pipeline.id"],"pk":false,"fk":"sales_pipeline.id","unique":false,"nullable":false,"default":null,"description":"파이프라인 ID"},{"name":"stage_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"단계 코드"},{"name":"phase_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"단계가 속한 국면 (sales / quote / contract / order / closed)"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"updated_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"수정 시각"}],"constraints":[{"kind":"UNIQUE","name":"sales_pipeline_stage_sales_pipeline_id_id_key","detail":"UNIQUE (sales_pipeline_id, id)"},{"kind":"UNIQUE","name":"sales_pipeline_stage_sales_pipeline_id_position_key","detail":"UNIQUE (sales_pipeline_id, \"position\")"},{"kind":"UNIQUE","name":"sales_pipeline_stage_sales_pipeline_id_stage_code_key","detail":"UNIQUE (sales_pipeline_id, stage_code)"},{"kind":"CHECK","name":"sales_pipeline_stage_name_check","detail":"CHECK ((btrim(name) <> ''::text))"},{"kind":"CHECK","name":"sales_pipeline_stage_outcome_code_check","detail":"CHECK ((outcome_code = ANY (ARRAY['in_progress'::text, 'confirmed'::text, 'cancelled'::text])))"},{"kind":"CHECK","name":"sales_pipeline_stage_phase_code_check","detail":"CHECK ((phase_code = ANY (ARRAY['sales'::text, 'quote'::text, 'contract'::text, 'order'::text, 'closed'::text])))"},{"kind":"CHECK","name":"sales_pipeline_stage_position_check","detail":"CHECK ((\"position\" >= 0))"},{"kind":"CHECK","name":"sales_pipeline_stage_stage_code_check","detail":"CHECK ((btrim(stage_code) <> ''::text))"},{"kind":"CHECK","name":"sales_pipeline_stage_tone_check","detail":"CHECK ((tone = ANY (ARRAY['gray'::text, 'blue'::text, 'purple'::text, 'orange'::text, 'green'::text, 'red'::text])))"}]},{"name":"sales_target","group":"sales","description":"구성원별·고객사별 월 매출 목표 금액을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"owner_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"목표를 가진 구성원 ID"},{"name":"customer_company_id","type":"UUID","keys":["FK → customer_company.id"],"pk":false,"fk":"customer_company.id","unique":false,"nullable":false,"default":null,"description":"목표 대상 고객사 ID"},{"name":"target_month","type":"DATE","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"목표 월 (해당 월 1일)"},{"name":"target_amount","type":"BIGINT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"목표 금액 (원)"}],"constraints":[{"kind":"UNIQUE","name":"sales_target_owner_member_id_customer_company_id_target_mon_key","detail":"UNIQUE (owner_member_id, customer_company_id, target_month)"},{"kind":"CHECK","name":"sales_target_target_amount_check","detail":"CHECK ((target_amount >= 0))"},{"kind":"CHECK","name":"sales_target_target_month_check","detail":"CHECK ((EXTRACT(day FROM target_month) = (1)::numeric))"},{"kind":"INDEX","name":"sales_target_month_owner_idx","detail":"CREATE INDEX sales_target_month_owner_idx ON public.sales_target USING btree (target_month, owner_member_id)"}]},{"name":"support_request","group":"crm","description":"고객사가 제기한 불만·요청 접수 내용을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"team_id","type":"UUID","keys":["FK → team.id"],"pk":false,"fk":"team.id","unique":false,"nullable":false,"default":null,"description":"소속 팀 ID"},{"name":"assignee_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"처리 담당 구성원 ID"},{"name":"title","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"불만 제목"},{"name":"body","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"불만 내용"},{"name":"is_urgent","type":"BOOLEAN","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"false","description":"긴급 여부"},{"name":"status_code","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"처리 상태 (received / diagnosing / in_progress / completed)"},{"name":"registered_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"접수 시각"},{"name":"customer_company_id","type":"UUID","keys":["FK → sales_deal (복합 FK)"],"pk":false,"fk":"sales_deal (복합 FK)","unique":false,"nullable":false,"default":null,"description":"불만을 제기한 고객사 ID"},{"name":"sales_deal_id","type":"UUID","keys":["FK → sales_deal (복합 FK)"],"pk":false,"fk":"sales_deal (복합 FK)","unique":false,"nullable":false,"default":null,"description":"관련 거래 ID"},{"name":"occurred_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"불만 발생 시각"}],"constraints":[{"kind":"CHECK","name":"support_request_body_check","detail":"CHECK ((btrim(body) <> ''::text))"},{"kind":"CHECK","name":"support_request_status_code_check","detail":"CHECK ((status_code = ANY (ARRAY['received'::text, 'diagnosing'::text, 'in_progress'::text, 'completed'::text])))"},{"kind":"CHECK","name":"support_request_title_check","detail":"CHECK ((btrim(title) <> ''::text))"},{"kind":"FOREIGN KEY","name":"support_request_sales_deal_company_membership_fkey","detail":"FOREIGN KEY (sales_deal_id, customer_company_id) REFERENCES sales_deal(id, customer_company_id) ON UPDATE CASCADE"},{"kind":"INDEX","name":"support_request_sales_deal_company_idx","detail":"CREATE INDEX support_request_sales_deal_company_idx ON public.support_request USING btree (sales_deal_id, customer_company_id)"},{"kind":"INDEX","name":"support_request_team_assignee_status_idx","detail":"CREATE INDEX support_request_team_assignee_status_idx ON public.support_request USING btree (team_id, assignee_member_id, status_code)"},{"kind":"INDEX","name":"support_request_team_company_idx","detail":"CREATE INDEX support_request_team_company_idx ON public.support_request USING btree (team_id, customer_company_id)"}]},{"name":"support_response","group":"crm","description":"접수된 불만에 대한 담당자 응대 이력을 관리","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"support_request_id","type":"UUID","keys":["FK → support_request.id"],"pk":false,"fk":"support_request.id","unique":false,"nullable":false,"default":null,"description":"불만 접수 ID"},{"name":"responder_member_id","type":"UUID","keys":["FK → member.id"],"pk":false,"fk":"member.id","unique":false,"nullable":false,"default":null,"description":"응대한 구성원 ID"},{"name":"body","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"응대 내용"},{"name":"responded_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"응대 시각"}],"constraints":[{"kind":"CHECK","name":"support_response_body_check","detail":"CHECK ((btrim(body) <> ''::text))"},{"kind":"INDEX","name":"support_response_support_request_responded_idx","detail":"CREATE INDEX support_response_support_request_responded_idx ON public.support_response USING btree (support_request_id, responded_at)"}]},{"name":"team","group":"workspace","description":"CRM 을 사용하는 영업 조직 단위이자 모든 데이터의 소속 기준","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"기본 키"},{"name":"name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":null,"description":"팀 이름"},{"name":"created_at","type":"TIMESTAMPTZ","keys":[],"pk":false,"fk":null,"unique":false,"nullable":false,"default":"now()","description":"생성 시각"},{"name":"company_name","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"회사 이름"},{"name":"department","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"부서 이름"},{"name":"business_no","type":"TEXT","keys":[],"pk":false,"fk":null,"unique":false,"nullable":true,"default":null,"description":"사업자등록번호 (하이픈 없는 10자리)"}],"constraints":[{"kind":"CHECK","name":"team_business_no_check","detail":"CHECK (((business_no IS NULL) OR (business_no ~ '^[0-9]{10}$'::text)))"},{"kind":"CHECK","name":"team_company_name_check","detail":"CHECK (((company_name IS NULL) OR (btrim(company_name) <> ''::text)))"},{"kind":"CHECK","name":"team_department_check","detail":"CHECK (((department IS NULL) OR (btrim(department) <> ''::text)))"},{"kind":"CHECK","name":"team_name_check","detail":"CHECK ((btrim(name) <> ''::text))"}]},{"name":"auth.users","group":"external","description":"Supabase Auth 가 관리하는 로그인 계정 (public 스키마 밖)","pk":["id"],"columns":[{"name":"id","type":"UUID","keys":["PK"],"pk":true,"fk":null,"unique":false,"nullable":false,"default":null,"description":"로그인 계정 ID"}],"constraints":[],"external":true}],"relations":[{"name":"activity_activity_action_tag_id_fkey","from":"activity","fromColumns":["activity_action_tag_id"],"to":"activity_action_tag","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_activity_category_id_fkey","from":"activity","fromColumns":["activity_category_id"],"to":"activity_category","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_customer_contact_id_fkey","from":"activity","fromColumns":["customer_contact_id"],"to":"customer_contact","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_end_user_contact_id_fkey","from":"activity","fromColumns":["end_user_contact_id"],"to":"customer_contact","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_owner_member_id_fkey","from":"activity","fromColumns":["owner_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_product_id_fkey","from":"activity","fromColumns":["product_id"],"to":"product","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_purchase_order_id_fkey","from":"activity","fromColumns":["purchase_order_id"],"to":"purchase_order","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_sales_deal_id_fkey","from":"activity","fromColumns":["sales_deal_id"],"to":"sales_deal","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_team_id_fkey","from":"activity","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_action_tag_team_id_fkey","from":"activity_action_tag","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_category_team_id_fkey","from":"activity_category","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"activity_companion_activity_id_fkey","from":"activity_companion","fromColumns":["activity_id"],"to":"activity","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"activity_companion_member_id_fkey","from":"activity_companion","fromColumns":["member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"agent_run_parent_run_id_fkey","from":"agent_run","fromColumns":["parent_run_id"],"to":"agent_run","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"agent_run_requested_by_member_id_fkey","from":"agent_run","fromColumns":["requested_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"agent_run_team_id_fkey","from":"agent_run","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"contract_next_meeting_suggestio_schedule_management_run_id_fkey","from":"contract_next_meeting_suggestion","fromColumns":["schedule_management_run_id"],"to":"agent_run","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"contract_next_meeting_suggestion_sales_deal_id_fkey","from":"contract_next_meeting_suggestion","fromColumns":["sales_deal_id"],"to":"sales_deal","toColumns":["id"],"type":"1:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"contract_next_meeting_suggestion_team_id_fkey","from":"contract_next_meeting_suggestion","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"contract_status_team_id_fkey","from":"contract_status","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"customer_company_team_id_fkey","from":"customer_company","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"customer_contact_company_id_fkey","from":"customer_contact","fromColumns":["company_id"],"to":"customer_company","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"customer_contact_created_by_member_id_fkey","from":"customer_contact","fromColumns":["created_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"customer_contact_customer_contact_status_id_fkey","from":"customer_contact","fromColumns":["customer_contact_status_id"],"to":"customer_contact_status","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"customer_contact_owner_member_id_fkey","from":"customer_contact","fromColumns":["owner_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"customer_contact_assignee_customer_contact_id_fkey","from":"customer_contact_assignee","fromColumns":["customer_contact_id"],"to":"customer_contact","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"customer_contact_assignee_member_id_fkey","from":"customer_contact_assignee","fromColumns":["member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"customer_contact_status_team_id_fkey","from":"customer_contact_status","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_created_by_member_id_fkey","from":"document","fromColumns":["created_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_customer_company_id_fkey","from":"document","fromColumns":["customer_company_id"],"to":"customer_company","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_customer_contact_id_fkey","from":"document","fromColumns":["customer_contact_id"],"to":"customer_contact","toColumns":["id"],"type":"N:1","onDelete":"SET NULL","onUpdate":null,"composite":false},{"name":"document_product_id_fkey","from":"document","fromColumns":["product_id"],"to":"product","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_purchase_order_id_fkey","from":"document","fromColumns":["purchase_order_id"],"to":"purchase_order","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_sales_deal_id_fkey","from":"document","fromColumns":["sales_deal_id"],"to":"sales_deal","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_team_id_fkey","from":"document","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_chunk_document_id_fkey","from":"document_chunk","fromColumns":["document_id"],"to":"document","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"document_chunk_file_id_fkey","from":"document_chunk","fromColumns":["file_id"],"to":"file","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"document_chunk_team_id_fkey","from":"document_chunk","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_file_audit_actor_member_id_fkey","from":"document_file_audit","fromColumns":["actor_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"document_file_audit_document_id_fkey","from":"document_file_audit","fromColumns":["document_id"],"to":"document","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"document_file_audit_file_id_fkey","from":"document_file_audit","fromColumns":["file_id"],"to":"file","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"document_file_audit_team_id_fkey","from":"document_file_audit","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"file_approved_by_member_id_fkey","from":"file","fromColumns":["approved_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"file_document_id_fkey","from":"file","fromColumns":["document_id"],"to":"document","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"file_report_id_fkey","from":"file","fromColumns":["report_id"],"to":"report","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"file_uploaded_by_member_id_fkey","from":"file","fromColumns":["uploaded_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"member_id_fkey","from":"member","fromColumns":["id"],"to":"auth.users","toColumns":["id"],"type":"1:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"member_team_id_fkey","from":"member","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"notice_author_member_id_fkey","from":"notice","fromColumns":["author_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"notice_recipient_member_id_fkey","from":"notice","fromColumns":["recipient_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"notice_team_id_fkey","from":"notice","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"notice_image_team_id_fkey","from":"notice_image","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"notice_image_uploaded_by_member_id_fkey","from":"notice_image","fromColumns":["uploaded_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"notice_target_member_id_fkey","from":"notice_target","fromColumns":["member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"notice_target_notice_id_fkey","from":"notice_target","fromColumns":["notice_id"],"to":"notice","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"product_team_id_fkey","from":"product","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"purchase_order_created_by_member_id_fkey","from":"purchase_order","fromColumns":["created_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"purchase_order_expected_customer_company_id_fkey","from":"purchase_order","fromColumns":["expected_customer_company_id"],"to":"customer_company","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"purchase_order_purchase_order_status_id_fkey","from":"purchase_order","fromColumns":["purchase_order_status_id"],"to":"purchase_order_status","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"purchase_order_sales_deal_id_fkey","from":"purchase_order","fromColumns":["sales_deal_id"],"to":"sales_deal","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"purchase_order_team_id_fkey","from":"purchase_order","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"purchase_order_item_product_id_fkey","from":"purchase_order_item","fromColumns":["product_id"],"to":"product","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"purchase_order_item_purchase_order_id_fkey","from":"purchase_order_item","fromColumns":["purchase_order_id"],"to":"purchase_order","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"purchase_order_status_team_id_fkey","from":"purchase_order_status","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"quote_status_team_id_fkey","from":"quote_status","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_author_member_id_fkey","from":"report","fromColumns":["author_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_recipient_member_id_fkey","from":"report","fromColumns":["recipient_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_reviewed_by_member_id_fkey","from":"report","fromColumns":["reviewed_by_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_sales_deal_id_fkey","from":"report","fromColumns":["sales_deal_id"],"to":"sales_deal","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_source_activity_id_fkey","from":"report","fromColumns":["source_activity_id"],"to":"activity","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_team_id_fkey","from":"report","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_activity_activity_id_fkey","from":"report_activity","fromColumns":["activity_id"],"to":"activity","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"report_activity_report_id_fkey","from":"report_activity","fromColumns":["report_id"],"to":"report","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"sales_deal_contract_status_id_fkey","from":"sales_deal","fromColumns":["contract_status_id"],"to":"contract_status","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_customer_company_id_fkey","from":"sales_deal","fromColumns":["customer_company_id"],"to":"customer_company","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_customer_contact_id_fkey","from":"sales_deal","fromColumns":["customer_contact_id"],"to":"customer_contact","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_owner_member_id_fkey","from":"sales_deal","fromColumns":["owner_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_product_id_fkey","from":"sales_deal","fromColumns":["product_id"],"to":"product","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_quote_status_id_fkey","from":"sales_deal","fromColumns":["quote_status_id"],"to":"quote_status","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_sales_deal_type_id_fkey","from":"sales_deal","fromColumns":["sales_deal_type_id"],"to":"sales_deal_type","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_sales_pipeline_stage_membership_fkey","from":"sales_deal","fromColumns":["sales_pipeline_id","sales_pipeline_stage_id"],"to":"sales_pipeline_stage","toColumns":["sales_pipeline_id","id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":true},{"name":"sales_deal_team_id_fkey","from":"sales_deal","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_item_product_id_fkey","from":"sales_deal_item","fromColumns":["product_id"],"to":"product","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_item_sales_deal_id_fkey","from":"sales_deal_item","fromColumns":["sales_deal_id"],"to":"sales_deal","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"sales_deal_participant_customer_contact_id_fkey","from":"sales_deal_participant","fromColumns":["customer_contact_id"],"to":"customer_contact","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_deal_participant_sales_deal_id_fkey","from":"sales_deal_participant","fromColumns":["sales_deal_id"],"to":"sales_deal","toColumns":["id"],"type":"N:1","onDelete":"CASCADE","onUpdate":null,"composite":false},{"name":"sales_deal_type_team_id_fkey","from":"sales_deal_type","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_pipeline_team_id_fkey","from":"sales_pipeline","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_pipeline_stage_sales_pipeline_id_fkey","from":"sales_pipeline_stage","fromColumns":["sales_pipeline_id"],"to":"sales_pipeline","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_target_customer_company_id_fkey","from":"sales_target","fromColumns":["customer_company_id"],"to":"customer_company","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"sales_target_owner_member_id_fkey","from":"sales_target","fromColumns":["owner_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"support_request_assignee_member_id_fkey","from":"support_request","fromColumns":["assignee_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"support_request_sales_deal_company_membership_fkey","from":"support_request","fromColumns":["sales_deal_id","customer_company_id"],"to":"sales_deal","toColumns":["id","customer_company_id"],"type":"N:1","onDelete":null,"onUpdate":"CASCADE","composite":true},{"name":"support_request_team_id_fkey","from":"support_request","fromColumns":["team_id"],"to":"team","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"support_response_responder_member_id_fkey","from":"support_response","fromColumns":["responder_member_id"],"to":"member","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false},{"name":"support_response_support_request_id_fkey","from":"support_response","fromColumns":["support_request_id"],"to":"support_request","toColumns":["id"],"type":"N:1","onDelete":null,"onUpdate":null,"composite":false}]};
+</script>
+<script>
+"use strict";
+
+const GROUPS = {
+  workspace: "조직·사용자·공지",
+  crm: "고객·미팅·불만",
+  sales: "제품·파이프라인·거래·발주",
+  content: "보고서·자료·파일",
+  agent: "AI 에이전트",
+  config: "팀별 표시 설정",
+  external: "외부 스키마",
+};
+const NODE_W = 208, NODE_H = 62, COL_GAP = 132, ROW_GAP = 26;
+const STORE_KEY = "salesluv-erd-positions-v1";
+
+const tables = SCHEMA.tables;
+const byName = new Map(tables.map(t => [t.name, t]));
+const relations = SCHEMA.relations;
+
+// 인접 관계
+const adj = new Map(tables.map(t => [t.name, new Set()]));
+const edgesOf = new Map(tables.map(t => [t.name, []]));
+relations.forEach((r, i) => {
+  r._i = i;
+  if (adj.has(r.from) && adj.has(r.to)) {
+    adj.get(r.from).add(r.to);
+    adj.get(r.to).add(r.from);
+  }
+  edgesOf.get(r.from)?.push(r);
+  if (r.to !== r.from) edgesOf.get(r.to)?.push(r);
+});
+
+const pos = new Map();          // name -> {x, y}
+const hiddenGroups = new Set();
+let selected = null;
+let view = { x: 0, y: 0, k: 1 };
+
+const svg = document.getElementById("svg");
+const gViewport = document.getElementById("viewport");
+const gNodes = document.getElementById("nodes");
+const gEdges = document.getElementById("edges");
+const drawer = document.getElementById("drawer");
+
+/* ----------------------------------------------------------- 자동 레이아웃 */
+function autoLayout() {
+  // 부모(참조 대상)를 왼쪽에 두는 레이어 배치
+  const layer = new Map(tables.map(t => [t.name, 0]));
+  const parents = new Map(tables.map(t => [t.name, []]));
+  relations.forEach(r => {
+    if (r.from !== r.to && byName.has(r.to)) parents.get(r.from).push(r.to);
+  });
+  for (let pass = 0; pass < tables.length; pass++) {
+    let moved = false;
+    for (const t of tables) {
+      const ps = parents.get(t.name);
+      if (!ps.length) continue;
+      const want = Math.max(...ps.map(p => layer.get(p))) + 1;
+      if (want > layer.get(t.name)) { layer.set(t.name, want); moved = true; }
+    }
+    if (!moved) break;
+  }
+
+  const cols = new Map();
+  for (const t of tables) {
+    const l = layer.get(t.name);
+    if (!cols.has(l)) cols.set(l, []);
+    cols.get(l).push(t);
+  }
+
+  // 한 열이 너무 길면 두 갈래로 나눈다
+  const lanes = [];
+  [...cols.keys()].sort((a, b) => a - b).forEach(l => {
+    const list = cols.get(l).sort((a, b) =>
+      a.group === b.group ? a.name.localeCompare(b.name)
+                          : Object.keys(GROUPS).indexOf(a.group) - Object.keys(GROUPS).indexOf(b.group));
+    const parts = list.length > 11 ? 2 : 1;
+    const size = Math.ceil(list.length / parts);
+    for (let p = 0; p < parts; p++) lanes.push(list.slice(p * size, (p + 1) * size));
+  });
+
+  const tallest = Math.max(...lanes.map(l => l.length));
+  const height = tallest * (NODE_H + ROW_GAP);
+  lanes.forEach((lane, i) => {
+    const laneH = lane.length * (NODE_H + ROW_GAP);
+    const top = (height - laneH) / 2;
+    lane.forEach((t, j) => {
+      pos.set(t.name, {
+        x: i * (NODE_W + COL_GAP),
+        y: top + j * (NODE_H + ROW_GAP),
+      });
+    });
+  });
+}
+
+function loadPositions() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (saved && typeof saved === "object") {
+      for (const [k, v] of Object.entries(saved)) {
+        if (pos.has(k) && v && typeof v.x === "number" && typeof v.y === "number") pos.set(k, v);
+      }
+    }
+  } catch (e) { /* 저장소를 못 읽어도 기본 배치로 돈다 */ }
+}
+function savePositions() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(pos))); }
+  catch (e) { /* 무시 */ }
+}
+function clearPositions() {
+  try { localStorage.removeItem(STORE_KEY); } catch (e) { /* 무시 */ }
+}
+
+/* ------------------------------------------------------------------ 렌더 */
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, text) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+function clip(s, n) { return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+const nodeEls = new Map();
+const edgeEls = [];
+
+function renderNodes() {
+  gNodes.textContent = "";
+  nodeEls.clear();
+  for (const t of tables) {
+    const g = el("g", { class: "node", "data-name": t.name, tabindex: "0" });
+    g.appendChild(el("rect", { class: "box", width: NODE_W, height: NODE_H }));
+    g.appendChild(el("rect", {
+      class: "stripe", x: 1, y: 10, width: 4, height: NODE_H - 20,
+      fill: `var(--g-${t.group})`,
+    }));
+    g.appendChild(el("text", { class: "tname", x: 16, y: 24 }, t.name));
+    g.appendChild(el("text", { class: "tdesc", x: 16, y: 41 }, clip(t.description, 30)));
+    g.appendChild(el("text", { class: "tcnt", x: 16, y: 54 },
+      `${t.columns.length} columns · ${t.group}`));
+    g.appendChild(el("title", {}, `${t.name} — ${t.description}`));
+    gNodes.appendChild(g);
+    nodeEls.set(t.name, g);
+  }
+  placeNodes();
+}
+
+function placeNodes() {
+  for (const [name, g] of nodeEls) {
+    const p = pos.get(name);
+    g.setAttribute("transform", `translate(${p.x},${p.y})`);
+  }
+}
+
+function anchors(a, b) {
+  // 두 사각형에서 가장 가까운 변의 중점을 잡는다
+  const ac = { x: a.x + NODE_W / 2, y: a.y + NODE_H / 2 };
+  const bc = { x: b.x + NODE_W / 2, y: b.y + NODE_H / 2 };
+  const dx = bc.x - ac.x, dy = bc.y - ac.y;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const s = dx >= 0 ? 1 : -1;
+    return [
+      { x: ac.x + s * NODE_W / 2, y: ac.y, h: true, s },
+      { x: bc.x - s * NODE_W / 2, y: bc.y, h: true, s: -s },
+    ];
+  }
+  const s = dy >= 0 ? 1 : -1;
+  return [
+    { x: ac.x, y: ac.y + s * NODE_H / 2, h: false, s },
+    { x: bc.x, y: bc.y - s * NODE_H / 2, h: false, s: -s },
+  ];
+}
+
+function edgePath(r) {
+  const a = pos.get(r.to), b = pos.get(r.from);   // 부모 → 자식
+  if (!a || !b) return "";
+  if (r.from === r.to) {
+    const x = a.x + NODE_W, y = a.y + NODE_H / 2;
+    return `M${x},${y - 10} C${x + 46},${y - 26} ${x + 46},${y + 26} ${x},${y + 10}`;
+  }
+  const [p, q] = anchors(a, b);
+  if (p.h) {
+    const m = (p.x + q.x) / 2;
+    return `M${p.x},${p.y} C${m},${p.y} ${m},${q.y} ${q.x},${q.y}`;
+  }
+  const m = (p.y + q.y) / 2;
+  return `M${p.x},${p.y} C${p.x},${m} ${q.x},${m} ${q.x},${q.y}`;
+}
+
+function setMarkers(p, r, hl) {
+  const sfx = hl ? "-hl" : "";
+  p.setAttribute("marker-start", `url(#m-one${sfx})`);
+  p.setAttribute("marker-end", `url(#m-${r.type === "1:1" ? "one" : "many"}${sfx})`);
+}
+
+function renderEdges() {
+  gEdges.textContent = "";
+  edgeEls.length = 0;
+  for (const r of relations) {
+    if (!pos.has(r.from) || !pos.has(r.to)) continue;
+    const p = el("path", {
+      class: "edge" + (r.from === r.to ? " self" : ""),
+      d: edgePath(r),
+    });
+    setMarkers(p, r, false);
+    p.appendChild(el("title", {}, `${r.from}.${r.fromColumns.join(", ")} → ${r.to}.${r.toColumns.join(", ")} (${r.type})`));
+    gEdges.appendChild(p);
+    edgeEls.push({ r, el: p });
+  }
+}
+
+function updateEdges() {
+  for (const { r, el: p } of edgeEls) p.setAttribute("d", edgePath(r));
+}
+
+/* ------------------------------------------------------------- 확대·이동 */
+function applyView() {
+  gViewport.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+}
+function zoomAt(cx, cy, factor) {
+  const k = Math.min(3, Math.max(0.15, view.k * factor));
+  const f = k / view.k;
+  view.x = cx - (cx - view.x) * f;
+  view.y = cy - (cy - view.y) * f;
+  view.k = k;
+  applyView();
+}
+function fit() {
+  const visible = tables.filter(t => !hiddenGroups.has(t.group));
+  if (!visible.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const t of visible) {
+    const p = pos.get(t.name);
+    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x + NODE_W); y1 = Math.max(y1, p.y + NODE_H);
+  }
+  const pad = 60, top = 58;
+  const w = svg.clientWidth, h = svg.clientHeight - top;
+  const k = Math.min(3, Math.max(0.15, Math.min(w / (x1 - x0 + pad * 2), h / (y1 - y0 + pad * 2))));
+  view.k = k;
+  view.x = (w - (x1 - x0) * k) / 2 - x0 * k;
+  view.y = top + (h - (y1 - y0) * k) / 2 - y0 * k;
+  applyView();
+}
+function centerOn(name) {
+  const p = pos.get(name);
+  if (!p) return;
+  const free = svg.clientWidth - (drawer.classList.contains("open") ? drawer.offsetWidth : 0);
+  view.x = free / 2 - (p.x + NODE_W / 2) * view.k;
+  view.y = (svg.clientHeight + 58) / 2 - (p.y + NODE_H / 2) * view.k;
+  applyView();
+}
+
+svg.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = svg.getBoundingClientRect();
+  zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, { passive: false });
+
+let drag = null;
+svg.addEventListener("pointerdown", e => {
+  const node = e.target.closest(".node");
+  if (node) {
+    drag = {
+      kind: "node", name: node.dataset.name, moved: false,
+      sx: e.clientX, sy: e.clientY, orig: { ...pos.get(node.dataset.name) },
+    };
+  } else {
+    drag = { kind: "pan", sx: e.clientX, sy: e.clientY, ox: view.x, oy: view.y };
+    svg.classList.add("panning");
+  }
+  try { svg.setPointerCapture(e.pointerId); } catch (err) { /* 포인터가 이미 놓인 경우 */ }
+});
+svg.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (drag.kind === "pan") {
+    view.x = drag.ox + dx; view.y = drag.oy + dy;
+    applyView();
+  } else {
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    pos.set(drag.name, { x: drag.orig.x + dx / view.k, y: drag.orig.y + dy / view.k });
+    nodeEls.get(drag.name).setAttribute("transform",
+      `translate(${pos.get(drag.name).x},${pos.get(drag.name).y})`);
+    updateEdges();
+  }
+});
+svg.addEventListener("pointerup", e => {
+  svg.classList.remove("panning");
+  if (drag && drag.kind === "node") {
+    if (drag.moved) savePositions();
+    else select(drag.name);
+  }
+  drag = null;
+  try { svg.releasePointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
+});
+
+/* ---------------------------------------------------------------- 선택 */
+function select(name) {
+  selected = name;
+  const near = adj.get(name) || new Set();
+  for (const [n, g] of nodeEls) {
+    g.classList.toggle("sel", n === name);
+    g.classList.toggle("adj", near.has(n));
+  }
+  for (const { r, el: p } of edgeEls) {
+    const on = r.from === name || r.to === name;
+    p.classList.toggle("hl", on);
+    setMarkers(p, r, on);
+  }
+  svg.classList.add("focus");
+  openDrawer(byName.get(name));
+}
+function deselect() {
+  selected = null;
+  svg.classList.remove("focus");
+  for (const g of nodeEls.values()) g.classList.remove("sel", "adj");
+  for (const { r, el: p } of edgeEls) { p.classList.remove("hl"); setMarkers(p, r, false); }
+  drawer.classList.remove("open");
+  drawer.setAttribute("aria-hidden", "true");
+}
+
+/* --------------------------------------------------------------- 드로어 */
+function h(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    if (k === "class") n.className = attrs[k];
+    else if (k === "onclick") n.onclick = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    n.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return n;
+}
+
+function openDrawer(t) {
+  document.getElementById("d-name").textContent = t.name;
+  const grp = document.getElementById("d-group");
+  grp.innerHTML = "";
+  grp.style.setProperty("--c", `var(--g-${t.group})`);
+  grp.append(h("span", { class: "dot" }), `${t.group} — ${GROUPS[t.group] || ""}`);
+  document.getElementById("d-desc").textContent = t.description;
+
+  const body = document.getElementById("d-body");
+  body.textContent = "";
+
+  // Columns
+  body.append(h("h3", {}, `Columns (${t.columns.length})`));
+  body.append(...t.columns.map(c => h("div", { class: "col" },
+    h("div", { class: "cn" },
+      c.name,
+      c.pk ? h("span", { class: "tag pk", style: "margin-left:6px" }, "PK") : null,
+      c.unique ? h("span", { class: "tag uq", style: "margin-left:4px" }, "UNIQUE") : null,
+      c.fk ? h("span", { class: "tag fk", style: "margin-left:4px" }, "FK") : null),
+    h("div", { class: "ct" },
+      c.type,
+      c.nullable ? null : h("span", { class: "tag nn", style: "margin-left:6px" }, "NOT NULL")),
+    (c.fk || c.default)
+      ? h("div", { class: "cx" },
+          c.fk ? h("span", { class: "ref" }, "→ " + c.fk) : null,
+          (c.fk && c.default) ? " · " : null,
+          c.default ? h("span", { class: "ref" }, "기본값 " + c.default) : null)
+      : null,
+    h("div", { class: "cd" }, c.description))));
+
+  // Relations
+  const outs = relations.filter(r => r.from === t.name);
+  const ins = relations.filter(r => r.to === t.name && r.from !== t.name);
+  body.append(h("h3", {}, `Relations (${outs.length + ins.length})`));
+  if (!outs.length && !ins.length) {
+    body.append(h("div", { class: "empty" }, "연결된 외래 키가 없다."));
+  } else {
+    const relRow = (other, type, detail) => h("tr", {},
+      h("td", {}, byName.has(other)
+        ? h("a", { onclick: () => { select(other); centerOn(other); } }, other)
+        : other),
+      h("td", {}, type),
+      h("td", { class: "c-type" }, detail));
+    body.append(h("div", { class: "tw" }, h("table", { class: "reltable" },
+      h("thead", {}, h("tr", {},
+        h("th", {}, "상대 테이블"), h("th", {}, "관계"), h("th", {}, "FK"))),
+      h("tbody", {},
+        outs.map(r => relRow(r.to, r.type,
+          `${t.name}.${r.fromColumns.join(", ")} → ${r.to}.${r.toColumns.join(", ")}`)),
+        ins.map(r => relRow(r.from, r.type === "1:1" ? "1:1" : "1:N",
+          `${r.from}.${r.fromColumns.join(", ")} → ${t.name}.${r.toColumns.join(", ")}`))))));
+  }
+
+  // Constraints / Indexes
+  const cons = t.constraints.filter(c => c.kind !== "INDEX");
+  const idx = t.constraints.filter(c => c.kind === "INDEX");
+  if (cons.length) {
+    body.append(h("h3", {}, `Constraints (${cons.length})`));
+    body.append(...cons.map(c => h("div", { class: "card" },
+      h("div", { class: "cname" }, `${c.kind} · ${c.name}`),
+      h("div", { class: "cdef" }, c.detail))));
+  }
+  if (idx.length) {
+    body.append(h("h3", {}, `Indexes (${idx.length})`));
+    body.append(...idx.map(c => h("div", { class: "card" },
+      h("div", { class: "cname" }, c.name),
+      h("div", { class: "cdef" }, c.detail.split(" USING ").pop()))));
+  }
+
+  body.scrollTop = 0;
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+}
+
+document.getElementById("d-close").onclick = deselect;
+
+/* ---------------------------------------------------------------- 검색 */
+const q = document.getElementById("q");
+const qcount = document.getElementById("qcount");
+let matches = [];
+q.addEventListener("input", () => {
+  const v = q.value.trim().toLowerCase();
+  matches = [];
+  if (!v) {
+    svg.classList.remove("searching");
+    for (const g of nodeEls.values()) g.classList.remove("match");
+    qcount.textContent = "";
+    return;
+  }
+  for (const t of tables) {
+    const hit = t.name.toLowerCase().includes(v) || t.description.toLowerCase().includes(v);
+    nodeEls.get(t.name).classList.toggle("match", hit);
+    if (hit) matches.push(t.name);
+  }
+  svg.classList.add("searching");
+  qcount.textContent = matches.length ? String(matches.length) : "0";
+});
+q.addEventListener("keydown", e => {
+  if (e.key === "Enter" && matches.length) {
+    e.preventDefault();
+    const name = matches[0];
+    select(name);
+    centerOn(name);
+  }
+  if (e.key === "Escape") { q.value = ""; q.dispatchEvent(new Event("input")); q.blur(); }
+});
+
+/* ------------------------------------------------------------ 그룹 필터 */
+const chips = document.getElementById("chips");
+for (const [key, label] of Object.entries(GROUPS)) {
+  const n = tables.filter(t => t.group === key).length;
+  if (!n) continue;
+  const b = document.createElement("button");
+  b.className = "chip";
+  b.setAttribute("aria-pressed", "true");
+  b.style.setProperty("--c", `var(--g-${key})`);
+  b.innerHTML = `<span class="dot"></span>${key} <span class="meta">${n}</span>`;
+  b.title = label;
+  b.onclick = () => {
+    const on = b.getAttribute("aria-pressed") === "true";
+    b.setAttribute("aria-pressed", String(!on));
+    if (on) hiddenGroups.add(key); else hiddenGroups.delete(key);
+    applyGroupFilter();
+  };
+  chips.appendChild(b);
+}
+function applyGroupFilter() {
+  for (const t of tables) {
+    nodeEls.get(t.name).classList.toggle("hidden", hiddenGroups.has(t.group));
+  }
+  for (const { r, el: p } of edgeEls) {
+    const off = hiddenGroups.has(byName.get(r.from)?.group) || hiddenGroups.has(byName.get(r.to)?.group);
+    p.style.display = off ? "none" : "";
+  }
+}
+
+/* ---------------------------------------------------------------- 버튼 */
+document.getElementById("btn-in").onclick = () => zoomAt(svg.clientWidth / 2, svg.clientHeight / 2, 1.25);
+document.getElementById("btn-out").onclick = () => zoomAt(svg.clientWidth / 2, svg.clientHeight / 2, 1 / 1.25);
+document.getElementById("btn-fit").onclick = fit;
+document.getElementById("btn-layout").onclick = () => {
+  autoLayout(); clearPositions(); placeNodes(); updateEdges(); fit();
+};
+
+document.addEventListener("keydown", e => {
+  if (e.target === q) return;
+  if (e.key === "Escape") deselect();
+  if (e.key === "/") { e.preventDefault(); q.focus(); q.select(); }
+  const step = 60;
+  if (e.key === "ArrowLeft")  { view.x += step; applyView(); }
+  if (e.key === "ArrowRight") { view.x -= step; applyView(); }
+  if (e.key === "ArrowUp")    { view.y += step; applyView(); }
+  if (e.key === "ArrowDown")  { view.y -= step; applyView(); }
+  if (e.key === "0" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); fit(); }
+});
+
+/* ---------------------------------------------------------------- 시작 */
+document.getElementById("stat").textContent =
+  `${SCHEMA.tableCount}개 테이블 · ${SCHEMA.columnCount}개 컬럼 · 외래 키 ${SCHEMA.fkCount}개`;
+
+autoLayout();
+loadPositions();
+renderNodes();
+renderEdges();
+applyGroupFilter();
+fit();
+window.addEventListener("resize", () => applyView());
+</script>
+</body>
+</html>
