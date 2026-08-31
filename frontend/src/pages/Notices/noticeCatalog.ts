@@ -12,7 +12,13 @@ export function typeLabel(type: NoticeType): string {
   return type === 'DIRECTIVE' ? '팀장 지시사항' : '공지사항'
 }
 
-export const COLUMNS = [
+export interface NoticeColumn {
+  id: string
+  header: string
+  width: number
+}
+
+const BASE_COLUMNS: NoticeColumn[] = [
   { id: 'sortOrder', header: '순서', width: 64 },
   { id: 'title', header: '제목', width: 300 },
   { id: 'tag', header: '태그', width: 96 },
@@ -23,7 +29,26 @@ export const COLUMNS = [
   { id: 'actions', header: '관리', width: 150 },
 ]
 
-export const TABLE_WIDTH = COLUMNS.reduce((sum, column) => sum + column.width, 0)
+/**
+ * 탭마다 다른 열 구성.
+ *
+ * 이행 현황은 지시사항에만 있습니다. 공지는 수신자가 없어 이행이라는 것도 없고, 빈 칸만
+ * 늘어나면 표만 넓어집니다. 수신자 바로 뒤에 두어 "누구에게 갔고 그들이 했는가" 가 나란히
+ * 읽히게 합니다.
+ */
+export function columnsFor(type: NoticeType): NoticeColumn[] {
+  if (type !== 'DIRECTIVE') return BASE_COLUMNS
+  const at = BASE_COLUMNS.findIndex((column) => column.id === 'targets') + 1
+  return [
+    ...BASE_COLUMNS.slice(0, at),
+    { id: 'progress', header: '이행 현황', width: 140 },
+    ...BASE_COLUMNS.slice(at),
+  ]
+}
+
+export function tableWidth(columns: NoticeColumn[]): number {
+  return columns.reduce((sum, column) => sum + column.width, 0)
+}
 
 export interface NoticeState {
   label: string

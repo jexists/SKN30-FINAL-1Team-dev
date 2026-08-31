@@ -20,6 +20,53 @@
   font-size: 12px;
 }
 
+// 지시사항의 머리 정보. 언제까지 무엇을 해야 하는지 본문보다 먼저 보여야 합니다.
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s4);
+  margin: var(--s3) 0 0;
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+}
+
+// 지난 미이행 사유. 팀장이 왜 못 했는지 묻기 전에 여기서 읽습니다.
+.reason {
+  margin: var(--s3) 0 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  color: var(--red-ink);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 520px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 // 본문은 HTML 한 덩어리입니다. 편집기가 낼 수 있는 태그(RichTextEditor.valid_elements)에
 // 맞춰 자식 요소의 여백과 크기를 여기서 정합니다.
 .detail {

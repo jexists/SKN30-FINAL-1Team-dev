@@ -18,6 +18,8 @@ export interface Notice {
   due?: string
   /** 지시를 받은 사람들의 이름. 팀장이 남에게 간 지시를 볼 때 채워집니다. */
   recipients?: string[]
+  /** 내가 수신자인 지시일 때만 있습니다. 이행 배지와 이행/미이행 버튼이 이 값을 봅니다. */
+  myStatus?: NoticeStatusResponse
 }
 
 /** 공지는 팀 전체가, 지시는 지정된 팀원만 봅니다. */
@@ -38,11 +40,29 @@ export interface NoticeResponse {
   published_at: string
   due_at: string | null
   due_text: string | null
+  /** 지시사항이고 내가 수신자일 때만 값이 있습니다. 공지에는 언제나 null 입니다. */
+  my_status: NoticeStatusResponse | null
 }
 
-export interface NoticeTargetResponse {
+/** 지시 이행 여부. pending 은 담당자가 아직 손대지 않은 상태입니다. */
+export type NoticeTargetStatus = 'pending' | 'done' | 'not_done'
+
+export interface NoticeStatusResponse {
+  status_code: NoticeTargetStatus
+  /** 미이행일 때만 채워집니다. */
+  status_reason: string | null
+  status_changed_at: string | null
+}
+
+export interface NoticeTargetResponse extends NoticeStatusResponse {
   id: string
   display_name: string
+}
+
+/** 담당자가 자기 몫의 이행 여부를 남깁니다. 미이행이면 사유가 필요합니다. */
+export interface NoticeStatusRequest {
+  status_code: 'done' | 'not_done'
+  reason: string | null
 }
 
 /**

@@ -83,7 +83,10 @@ async def _notice_summary(
     ).all()
     # 팀장은 남에게 간 지시도 보므로 누구에게 간 것인지 함께 세운다. 공지는 수신자가 없어
     # 빈 목록이다.
-    targets = await notices_api._load_targets(db, [notice for notice, _ in rows])
+    notices = [notice for notice, _ in rows]
+    targets = await notices_api._load_targets(db, notices)
+    # 팀원은 티커에서 바로 이행 여부를 보고 처리한다. 자기 몫만 싣는다.
+    my_statuses = await notices_api._my_statuses(db, member, notices)
     # 티커는 제목과 게시 시각만 세운다. 본문과 이미지는 눌렀을 때 /api/notices/{id} 가 준다.
     return NoticeSummary(
         total=total,
@@ -98,6 +101,7 @@ async def _notice_summary(
                 published_at=notices_api._seoul(notice.published_at),
                 due_at=notices_api._seoul(notice.due_at),
                 due_text=notice.due_text,
+                my_status=my_statuses.get(notice.id),
             )
             for notice, author_display_name in rows
         ],

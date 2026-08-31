@@ -124,10 +124,24 @@ export interface ReportResponse {
   template_snapshot: Record<string, unknown>
   content: Record<string, unknown>
   transcript: string | null
+  /** AI 가 어느 근거로 채웠는지. 보고서 상세가 그대로 펼쳐 보여 줍니다. */
+  ai_evidence: Record<string, unknown> | null
+  /** 작성자의 메모. 일일보고서는 여기에 '활동 3건' 같은 제 요약을 넣습니다. */
   note: string | null
+  /** 팀장이 반려하며 남긴 사유. 확정하면 비워집니다. 작성자의 note 와 칸이 다릅니다. */
+  review_note: string | null
+  reviewed_by_member_id: string | null
+  reviewed_at: string | null
   activities: ReportActivityResponse[]
   created_at: string
   updated_at: string
+}
+
+/** 팀장의 검토 결과. 반려는 changes_requested 로 가서 팀원이 다시 고칠 수 있습니다. */
+export interface ReportReviewRequest {
+  decision: 'approve' | 'reject'
+  reason: string | null
+  expected_status_code: 'submitted'
 }
 
 export interface ReportWriteRequest {

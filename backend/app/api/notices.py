@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -30,10 +30,12 @@ from app.schemas.notices import (
     NoticeManagePage,
     NoticeManagePageParams,
     NoticeManageRead,
+    NoticeMyStatusRead,
     NoticePage,
     NoticePageParams,
     NoticePatch,
     NoticeRead,
+    NoticeStatusWrite,
     NoticeTargetRead,
 )
 from app.services import storage
@@ -233,14 +235,63 @@ async def _load_targets(
         return grouped
 
     result = await db.execute(
-        select(NoticeTarget.notice_id, Member.id, Member.display_name)
+        select(
+            NoticeTarget.notice_id,
+            Member.id,
+            Member.display_name,
+            NoticeTarget.status_code,
+            NoticeTarget.status_reason,
+            NoticeTarget.status_changed_at,
+        )
         .join(Member, NoticeTarget.member_id == Member.id)
         .where(NoticeTarget.notice_id.in_(directive_ids))
         .order_by(NoticeTarget.created_at, Member.display_name, Member.id)
     )
-    for notice_id, member_id, display_name in result.all():
-        grouped[notice_id].append(NoticeTargetRead(id=member_id, display_name=display_name))
+    for notice_id, member_id, display_name, status_code, reason, changed_at in result.all():
+        grouped[notice_id].append(
+            NoticeTargetRead(
+                id=member_id,
+                display_name=display_name,
+                status_code=status_code,
+                status_reason=reason,
+                status_changed_at=_seoul(changed_at),
+            )
+        )
     return grouped
+
+
+async def _my_statuses(
+    db: AsyncSession,
+    member: Member,
+    notices: list[Notice],
+) -> dict[UUID, NoticeMyStatusRead]:
+    """지금 보는 사람에게 온 지시의 이행 여부를 한 번에 읽는다.
+
+    _load_targets 가 이미 수신자를 다 읽지만 그쪽은 팀장 화면의 것이다. 팀원이 보는
+    목록에서는 남의 이행 여부까지 내보내지 않으므로 자기 행만 따로 고른다.
+    """
+    directive_ids = [notice.id for notice in notices if notice.type == "DIRECTIVE"]
+    if not directive_ids:
+        return {}
+    result = await db.execute(
+        select(
+            NoticeTarget.notice_id,
+            NoticeTarget.status_code,
+            NoticeTarget.status_reason,
+            NoticeTarget.status_changed_at,
+        ).where(
+            NoticeTarget.notice_id.in_(directive_ids),
+            NoticeTarget.member_id == member.id,
+        )
+    )
+    return {
+        notice_id: NoticeMyStatusRead(
+            status_code=status_code,
+            status_reason=reason,
+            status_changed_at=_seoul(changed_at),
+        )
+        for notice_id, status_code, reason, changed_at in result.all()
+    }
 
 
 async def _resolve_targets(
@@ -297,6 +348,7 @@ def _notice_read(
     author_display_name: str,
     targets: list[NoticeTargetRead],
     body: str,
+    my_status: NoticeMyStatusRead | None = None,
 ) -> NoticeRead:
     return NoticeRead(
         id=notice.id,
@@ -312,6 +364,7 @@ def _notice_read(
         published_at=_seoul(notice.published_at),
         due_at=_seoul(notice.due_at),
         due_text=notice.due_text,
+        my_status=my_status,
     )
 
 
@@ -440,13 +493,16 @@ async def list_notices(
         .limit(page.limit)
     )
     rows = rows_result.all()
-    targets = await _load_targets(db, [notice for notice, _ in rows])
+    notices = [notice for notice, _ in rows]
+    targets = await _load_targets(db, notices)
+    my_statuses = await _my_statuses(db, member, notices)
     items = [
         _notice_read(
             notice,
             author_display_name,
             targets[notice.id],
             await _render_body(db, member, notice.body),
+            my_statuses.get(notice.id),
         )
         for notice, author_display_name in rows
     ]
@@ -603,7 +659,8 @@ async def get_notice(
     notice, author_display_name = await _notice_row(db, member, notice_id)
     targets = (await _load_targets(db, [notice]))[notice.id]
     body = await _render_body(db, member, notice.body)
-    return _notice_read(notice, author_display_name, targets, body)
+    my_status = (await _my_statuses(db, member, [notice])).get(notice.id)
+    return _notice_read(notice, author_display_name, targets, body, my_status)
 
 
 @router.post("/notices", response_model=NoticeManageRead, status_code=status.HTTP_201_CREATED)
@@ -654,7 +711,17 @@ async def create_notice(
     return _manage_read(
         notice,
         member.display_name,
-        [NoticeTargetRead(id=target.id, display_name=target.display_name) for target in targets],
+        [
+            # 방금 만든 지시라 아무도 손대지 않았다.
+            NoticeTargetRead(
+                id=target.id,
+                display_name=target.display_name,
+                status_code="pending",
+                status_reason=None,
+                status_changed_at=None,
+            )
+            for target in targets
+        ],
         await _render_body(db, member, notice.body),
     )
 
@@ -711,10 +778,27 @@ async def update_notice(
         notice.updated_at = datetime.now(UTC)
 
         if requested_targets is not None:
-            # 수신자는 통째로 갈아 끼운다. 지운 뒤 고른 순서대로 다시 넣는다.
-            await db.execute(delete(NoticeTarget).where(NoticeTarget.notice_id == notice.id))
+            # 수신자는 통째로 갈아 끼운다. 다만 그대로 남는 사람의 행은 지우지 않는다.
+            # 지우고 다시 넣으면 이미 이행으로 표시해 둔 기록이 명단을 손볼 때마다 사라진다.
+            keep = {target.id for target in resolved}
+            await db.execute(
+                delete(NoticeTarget).where(
+                    NoticeTarget.notice_id == notice.id,
+                    NoticeTarget.member_id.notin_(keep) if keep else true(),
+                )
+            )
+            existing = set(
+                (
+                    await db.execute(
+                        select(NoticeTarget.member_id).where(NoticeTarget.notice_id == notice.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             for target in resolved:
-                db.add(NoticeTarget(notice_id=notice.id, member_id=target.id))
+                if target.id not in existing:
+                    db.add(NoticeTarget(notice_id=notice.id, member_id=target.id))
 
         await db.flush()
         await db.commit()
@@ -726,6 +810,58 @@ async def update_notice(
     targets = (await _load_targets(db, [notice]))[notice.id]
     body = await _render_body(db, member, notice.body)
     return _manage_read(notice, author_display_name, targets, body)
+
+
+@router.post("/notices/{notice_id}/status", response_model=NoticeRead)
+async def set_notice_status(
+    notice_id: UUID,
+    payload: NoticeStatusWrite,
+    member: CurrentMember,
+    db: DbSession,
+) -> NoticeRead:
+    """지시를 받은 사람이 자기 몫의 이행 여부를 남긴다.
+
+    남의 몫은 바꿀 수 없다. 팀장도 팀원 대신 이행 처리하지 않는다. 팀장은 관리 화면에서
+    누가 어떻게 했는지 보기만 한다.
+    """
+    try:
+        notice, _ = await _notice_row(db, member, notice_id)
+        if notice.type != "DIRECTIVE":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="not_a_directive")
+
+        target = (
+            await db.execute(
+                select(NoticeTarget)
+                .where(
+                    NoticeTarget.notice_id == notice_id,
+                    NoticeTarget.member_id == member.id,
+                )
+                .with_for_update(of=NoticeTarget)
+            )
+        ).scalar_one_or_none()
+        if target is None:
+            # 팀장은 자기가 보낸 지시를 관리 목록에서 보지만 수신자는 아니다.
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="notice_target_not_found",
+            )
+
+        target.status_code = payload.status_code
+        # 이행으로 돌리면 지난 미이행 사유를 남겨 두지 않는다.
+        target.status_reason = payload.reason if payload.status_code == "not_done" else None
+        target.status_changed_at = datetime.now(UTC)
+        target.status_changed_by_member_id = member.id
+        await db.flush()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    notice, author_display_name = await _notice_row(db, member, notice_id)
+    targets = (await _load_targets(db, [notice]))[notice.id]
+    body = await _render_body(db, member, notice.body)
+    my_status = (await _my_statuses(db, member, [notice])).get(notice.id)
+    return _notice_read(notice, author_display_name, targets, body, my_status)
 
 
 @router.delete("/notices/{notice_id}", status_code=status.HTTP_204_NO_CONTENT)

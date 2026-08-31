@@ -801,7 +801,8 @@ def test_source_activity_and_sales_deal_filters_reach_the_query():
     # 개수 쿼리와 행 쿼리 모두 같은 조건으로 좁혀야 총계와 목록이 어긋나지 않는다.
     for statement in db.statements:
         sql = str(statement)
-        assert "report.source_activity_id = " in sql
+        # 일정은 여러 개를 받을 수 있어 IN 으로 나간다.
+        assert "report.source_activity_id IN " in sql
         assert "report.sales_deal_id = " in sql
 
 
