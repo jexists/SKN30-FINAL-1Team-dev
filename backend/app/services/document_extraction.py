@@ -130,9 +130,7 @@ def _pptx(content: bytes) -> ExtractedDocument:
             # 실제 슬라이드 번호로 해석해 출처 페이지와 본문 순서를 맞춘다.
             names.sort(
                 key=lambda name: (
-                    int(match.group(1))
-                    if (match := re.search(r"slide(\d+)\.xml$", name))
-                    else 0,
+                    int(match.group(1)) if (match := re.search(r"slide(\d+)\.xml$", name)) else 0,
                     name,
                 )
             )

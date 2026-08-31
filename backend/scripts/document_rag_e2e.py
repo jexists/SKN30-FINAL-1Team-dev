@@ -163,11 +163,7 @@ async def run() -> dict[str, object]:
                 document_id=document_id,
             )
             return {
-                "status": "passed"
-                if auto_saved
-                and chunks
-                and matches
-                else "failed",
+                "status": "passed" if auto_saved and chunks and matches else "failed",
                 "auto_saved": auto_saved,
                 "chunk_count": len(chunks),
                 "embedding_present": bool(chunks and isinstance(chunks[0].embedding, list)),
