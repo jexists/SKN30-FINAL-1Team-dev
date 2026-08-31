@@ -69,6 +69,9 @@ export function fromDailyReport(report: DailyReport): ListRow {
 export function fromMeetingReport(report: MeetingReport): ListRow {
   const files = report.attachments.length
   const deal = report.salesDeal?.label
+  const templateSummary = report.template.fields
+    .map((field) => report.values[field.id]?.trim())
+    .find(Boolean)
 
   return {
     id: report.id,
@@ -77,6 +80,7 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     // 미팅 제목은 그 자리에서 정한 말이라 어느 병원인지가 붙어야 알아봅니다.
     title: [report.hospital, deal, report.title].filter(Boolean).join(' · '),
     summary:
+      templateSummary ||
       report.values.body?.trim() ||
       report.values.reaction?.trim() ||
       report.values.note?.trim() ||

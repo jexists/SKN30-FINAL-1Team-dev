@@ -520,7 +520,7 @@ def test_structural_feedback_can_repair_after_three_reviews_and_accept_source_ab
         )
     )
     assert feedback["review_kind"] == "structural"
-    assert feedback["remaining_reviews"] == 9
+    assert feedback["remaining_reviews"] == writer.MAX_REVIEWS - 1
     assert {issue["code"] for issue in feedback["issues"]} >= {
         "report_deal_evidence_mismatch",
         "report_unassigned_evidence_missing",
@@ -545,7 +545,8 @@ def test_structural_feedback_can_repair_after_three_reviews_and_accept_source_ab
     summary = next(item for item in progress if item["stage"] == "report_writing.summary")
     assert summary["call_count"] == 6
     assert summary["review_attempt"] == 5 and summary["semantic_review_count"] == 1
-    assert summary["timeout_seconds"] == 900 and summary["outcome"] == "completed"
+    assert summary["timeout_seconds"] == writer.RUN_TIMEOUT_SECONDS
+    assert summary["outcome"] == "completed"
     assert "그거 다시 보내달래" not in caplog.text
 
 

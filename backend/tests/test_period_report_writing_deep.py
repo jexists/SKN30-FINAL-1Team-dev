@@ -489,6 +489,14 @@ def test_read_one_selected_report_keeps_only_its_sources(kind):
         ("weekly", {"report_id": str(UUID(int=999))}),
         ("monthly", {"report_id": str(UUID(int=999))}),
     ],
+    ids=[
+        "daily-both-filters-rejected",
+        "weekly-activity-not-selected",
+        "monthly-activity-not-selected",
+        "daily-report-not-selected",
+        "weekly-report-not-selected",
+        "monthly-report-not-selected",
+    ],
 )
 def test_conflicting_or_unselected_source_filters_do_not_expose_reports(kind, filters):
     source = sample() if kind == "daily" else period_sample(kind)

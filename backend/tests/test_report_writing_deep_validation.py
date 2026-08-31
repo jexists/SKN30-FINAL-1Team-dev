@@ -239,10 +239,10 @@ def test_model_config_preserves_api_base_without_endpoint_suffix(
 
 
 def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
-    monkeypatch.setattr(agent.settings, "llm_timeout_seconds", 420.0)
+    monkeypatch.setattr(agent.settings, "llm_timeout_seconds", 240.0)
     model = agent._configured_model()
-    assert model.request_timeout.read == 420.0
-    assert model.stream_chunk_timeout == 420.0
+    assert model.request_timeout.read == 240.0
+    assert model.stream_chunk_timeout == 240.0
     assert model.request_timeout.connect == 10.0
 
 

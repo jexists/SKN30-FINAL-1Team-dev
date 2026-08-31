@@ -112,7 +112,7 @@ def log_agent_error(error: BaseException, *, stage: str, error_code: str | None 
         **{
             key: value
             for key, value in {**(_context.get() or {}), **fields}.items()
-            if key in _fields
+            if key in _fields and isinstance(value, (str, int, float, bool))
         },
     }
     request_id = record.pop("request_id", None)

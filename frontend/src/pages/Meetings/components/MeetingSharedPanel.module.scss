@@ -38,9 +38,10 @@
 .section {
   margin-top: var(--s4);
 
-  > label {
+  > label,
+  > h3 {
     display: block;
-    margin-bottom: var(--s2);
+    margin: 0 0 var(--s2);
     font-size: 12px;
     font-weight: 600;
   }

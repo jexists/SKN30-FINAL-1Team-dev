@@ -38,6 +38,7 @@ _recipient = aliased(Member)
 _EDITABLE_STATUSES = ("draft", "changes_requested")
 _INITIAL_STATUS = "draft"
 _MEETING_DEAL_UNIQUE_INDEX = "report_source_activity_sales_deal_key"
+_SERVER_OWNED_CONTENT_KEYS = ("ai_values", "ai_evidence", "ai_generated_at", "meeting_shared")
 
 
 def _contains(value: str) -> str:
@@ -517,10 +518,11 @@ async def update_report(
         values = payload.model_dump(exclude_unset=True)
         activity_ids = values.pop("activity_ids", None)
         if isinstance(values.get("content"), dict):
-            # 미팅 공통 편집본은 전용 API가 그룹 전체를 원자적으로 갱신한다.
-            values["content"].pop("meeting_shared", None)
-            if isinstance(report.content, dict) and "meeting_shared" in report.content:
-                values["content"]["meeting_shared"] = report.content["meeting_shared"]
+            # AI 원본은 서버 값을 유지한다. 공통 편집본은 전용 API에서만 갱신한다.
+            for key in _SERVER_OWNED_CONTENT_KEYS:
+                values["content"].pop(key, None)
+                if isinstance(report.content, dict) and key in report.content:
+                    values["content"][key] = report.content[key]
 
         if "recipient_member_id" in values and values["recipient_member_id"] is not None:
             await _visible_recipient(db, member, values["recipient_member_id"])

@@ -357,11 +357,21 @@ async def apply(db: AsyncSession, member: Member, run_id: UUID):
                 field_id = (
                     "body"
                     if any(f.get("id") == "body" for f in fields)
-                    else (fields[-1]["id"] if fields else "body")
+                    else next(
+                        (
+                            f["id"]
+                            for f in fields
+                            if f.get("type") == "textarea" and f.get("aiFilled") is not False
+                        ),
+                        None,
+                    )
+                    or next((f["id"] for f in fields if f.get("aiFilled") is True), None)
                 )
-                generated = {field_id: draft.body}
+                generated = {field_id or "body": draft.body}
                 current = content.get("values", {})
-                if not any(isinstance(value, str) and value.strip() for value in current.values()):
+                if field_id is not None and not any(
+                    isinstance(value, str) and value.strip() for value in current.values()
+                ):
                     content["values"] = generated
                 content.update(
                     ai_values=generated,

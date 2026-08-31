@@ -138,6 +138,7 @@ class MeetingNotesPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     expected_revision: UUID
+    # 두 본문을 함께 교체하므로 모두 필수다. null은 해당 본문 삭제를 뜻한다.
     common_body: str | None = Field(max_length=100_000)
     unassigned_body: str | None = Field(max_length=100_000)
 

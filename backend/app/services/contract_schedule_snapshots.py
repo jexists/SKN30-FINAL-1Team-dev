@@ -308,6 +308,7 @@ async def _recent_finalized_reports(
         .limit(5)
     )
     output = []
+    shared_by_activity = {}
     for report in result.scalars().all():
         if not isinstance(report.content, dict):
             raise HTTPException(422, "report_source_content_invalid")
@@ -321,6 +322,10 @@ async def _recent_finalized_reports(
                 "common_report": _shared_body(shared.get("common_report")),
                 "unassigned_report": _shared_body(shared.get("unassigned_report")),
             }
+            previous = shared_by_activity.get(report.source_activity_id)
+            if previous is not None and previous != content["meeting_shared"]:
+                raise HTTPException(409, "report_source_shared_conflict")
+            shared_by_activity[report.source_activity_id] = content["meeting_shared"]
         output.append(
             {
                 "id": str(report.id),

@@ -7,9 +7,10 @@ import re
 
 import httpx
 import openai
+import pytest
 from pydantic import ValidationError
 
-from app.services.agent_logging import agent_log_context, log_agent_error
+from app.services.agent_logging import agent_log_context, log_agent_error, log_agent_event
 
 
 def _events(caplog):
@@ -133,8 +134,6 @@ def test_source_and_cause_chain_keeps_validation_types_not_values_locations_or_m
 
 
 def test_progress_records_actual_counts_timing_tokens_not_source(caplog):
-    from app.services.agent_logging import log_agent_event
-
     caplog.set_level(logging.INFO, logger="app.services.agent_logging")
     with agent_log_context(run_id="test-run"):
         log_agent_event(
@@ -156,4 +155,27 @@ def test_progress_records_actual_counts_timing_tokens_not_source(caplog):
     assert event["run_id"] == "test-run" and event["call_count"] == 4
     assert event["elapsed_ms"] == 45_200 and event["total_tokens"] == 195
     assert event["review_attempt"] == 2 and event["review_limit"] == 10
+    assert "PRIVATE_" not in caplog.text
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_logs_drop_nested_or_unserializable_allowed_fields(caplog, failure):
+    caplog.set_level(logging.INFO, logger="app.services.agent_logging")
+    with agent_log_context(run_id="safe-run", model={"private": "PRIVATE_CONTEXT"}):
+        fields = {
+            "attempt": 2,
+            "elapsed_ms": 1.5,
+            "outcome": True,
+            "reason_code": {"private": "PRIVATE_NESTED"},
+            "before_deal_ids": ["PRIVATE_LIST"],
+            "after_deal_ids": object(),
+        }
+        if failure:
+            log_agent_error(RuntimeError("PRIVATE_ERROR"), stage="test", **fields)
+        else:
+            log_agent_event("test", **fields)
+    event = json.loads(caplog.records[-1].getMessage().split(" ", 1)[1])
+    assert event["run_id"] == "safe-run"
+    assert event["attempt"] == 2 and event["elapsed_ms"] == 1.5 and event["outcome"] is True
+    assert not {"model", "reason_code", "before_deal_ids", "after_deal_ids"} & event.keys()
     assert "PRIVATE_" not in caplog.text

@@ -899,7 +899,7 @@ async def test_sdk_calls_log_actual_usage_and_safe_start_finish_progress(monkeyp
     assert [stage for stage, _ in progress] == ["content_analysis", "content_analysis"]
     assert progress[0][1]["call_count"] == 0
     assert progress[1][1]["call_count"] == 4
-    assert progress[1][1]["call_limit"] == 24
+    assert progress[1][1]["call_limit"] == meeting_content_analysis.MAX_MODEL_CALLS
     assert "합성회사" not in caplog.text
     assert "지난번 보여준" not in caplog.text
 

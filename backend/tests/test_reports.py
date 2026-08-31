@@ -377,7 +377,7 @@ def test_create_cannot_inject_server_owned_meeting_shared(monkeypatch, kind):
 
 
 @pytest.mark.parametrize(
-    "has_server_shared,attack",
+    "has_server_value,attack",
     [
         (False, "replace"),
         (True, "replace"),
@@ -385,23 +385,30 @@ def test_create_cannot_inject_server_owned_meeting_shared(monkeypatch, kind):
         (True, "null"),
     ],
 )
-def test_patch_cannot_create_replace_or_remove_server_meeting_shared(has_server_shared, attack):
+@pytest.mark.parametrize("key", ["ai_values", "ai_evidence", "ai_generated_at", "meeting_shared"])
+def test_patch_cannot_create_replace_or_remove_server_content(key, has_server_value, attack):
     member = _member()
     report = _report(member, kind="meeting")
     report.source_activity_id, report.sales_deal_id = uuid4(), uuid4()
-    shared = {
-        "run_id": str(uuid4()),
-        "common_report": {"body": "서버가 저장한 공통 내용", "evidence_ids": ["S0001"]},
-        "unassigned_report": {"body": "딜 미지정 · 확인 필요", "evidence_ids": ["S0002"]},
+    server_values = {
+        "ai_values": {"body": "서버가 저장한 AI 초안"},
+        "ai_evidence": "S0001",
+        "ai_generated_at": NOW.isoformat(),
+        "meeting_shared": {
+            "run_id": str(uuid4()),
+            "common_report": {"body": "서버가 저장한 공통 내용", "evidence_ids": ["S0001"]},
+            "unassigned_report": {"body": "딜 미지정 · 확인 필요", "evidence_ids": ["S0002"]},
+        },
     }
     report.content = {"values": {"body": "기존 딜 내용"}}
-    if has_server_shared:
-        report.content["meeting_shared"] = shared
+    if has_server_value:
+        report.content[key] = server_values[key]
+    report.ai_evidence = {"deal_assessment": {"label": "high"}}
     replacement = {"values": {"body": "사용자가 수정한 딜 내용"}}
     if attack == "replace":
-        replacement["meeting_shared"] = {"common_report": {"body": "위조"}}
+        replacement[key] = "클라이언트가 보낸 위조 값"
     elif attack == "null":
-        replacement["meeting_shared"] = None
+        replacement[key] = None
     db = _Db(
         _Result(scalar=report),
         _Result(rows=[_row(report, member)]),
@@ -417,10 +424,11 @@ def test_patch_cannot_create_replace_or_remove_server_meeting_shared(has_server_
 
     assert response.status_code == 200
     expected = {"values": replacement["values"]}
-    if has_server_shared:
-        expected["meeting_shared"] = shared
+    if has_server_value:
+        expected[key] = server_values[key]
     assert report.content == expected
     assert response.json()["content"] == expected
+    assert response.json()["ai_evidence"] == {"deal_assessment": {"label": "high"}}
     assert db.commit_count == 1 and db.rollback_count == 0
 
 

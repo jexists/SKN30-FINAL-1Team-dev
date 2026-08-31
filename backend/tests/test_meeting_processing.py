@@ -285,6 +285,61 @@ def test_apply_is_atomic_idempotent_and_does_not_overwrite_human_text(monkeypatc
     assert reports[0].content["values"]["body"] == "저장 후 다시 편집"
 
 
+@pytest.mark.parametrize(
+    "fields,expected_field",
+    [
+        ([{"id": "reaction", "type": "textarea"}, {"id": "body"}], "body"),
+        (
+            [
+                {"id": "attendees", "type": "text", "aiFilled": True},
+                {"id": "reaction", "type": "textarea", "aiFilled": True},
+                {"id": "decision", "type": "textarea", "aiFilled": True},
+                {"id": "next", "type": "textarea", "aiFilled": True},
+                {"id": "note", "type": "textarea", "aiFilled": False},
+            ],
+            "reaction",
+        ),
+        (
+            [
+                {"id": "summary", "type": "text", "aiFilled": True},
+                {"id": "note", "type": "text", "aiFilled": False},
+            ],
+            "summary",
+        ),
+        ([{"id": "note", "type": "text", "aiFilled": False}], None),
+        ([{"id": "note", "type": "textarea", "aiFilled": False}], None),
+        ([], None),
+    ],
+)
+def test_apply_selects_suitable_field_or_keeps_draft_as_suggestion(
+    monkeypatch, fields, expected_field
+):
+    member, reports, run, db = storage(monkeypatch)
+    for report in reports:
+        report.template_snapshot = {"fields": fields}
+        report.content["values"] = {field["id"]: "" for field in fields}
+    reports[1].content["values"] = {"note": "사람이 작성한 내용"}
+    original_values = [copy.deepcopy(report.content["values"]) for report in reports]
+
+    asyncio.run(service.apply(db, member, run.id))
+
+    for index, report in enumerate(reports):
+        expected_draft = next(
+            item
+            for item in run.output_snapshot["reports"]["deal_reports"]
+            if item["sales_deal_id"] == str(report.sales_deal_id)
+        )
+        generated = {expected_field or "body": expected_draft["body"]}
+        assert report.content["values"] == (
+            generated if index == 0 and expected_field is not None else original_values[index]
+        )
+        assert report.content["ai_values"] == generated
+        assert report.content["ai_evidence"] == " · ".join(expected_draft["evidence_ids"])
+        assert report.content["ai_generated_at"]
+        assert report.source_snapshot["meeting_run_id"] == str(run.id)
+        assert report.source_snapshot["evidence"] == run.output_snapshot["evidence"]
+
+
 def test_apply_rejects_concurrent_edits_before_any_report_write(monkeypatch):
     member, reports, run, db = storage(monkeypatch)
     original = copy.deepcopy(reports[0].content)
@@ -391,11 +446,33 @@ async def test_workflow_deadline_preserves_completed_report_and_deal_results(
     member, reports, run, expected = case()
     cancelled = set()
     previous_tasks = asyncio.all_tasks()
+    writer_started, deals_started = asyncio.Event(), asyncio.Event()
+    started_deals = set()
+    timeout_contexts = []
+    real_timeout_at, real_wait = asyncio.timeout_at, asyncio.wait
+
+    def record_timeout(deadline):
+        context = real_timeout_at(deadline)
+        timeout_contexts.append(context)
+        return context
+
+    async def expire_after_branches_start(tasks, *, timeout):
+        await asyncio.wait_for(
+            asyncio.gather(writer_started.wait(), deals_started.wait()), timeout=5
+        )
+        assert len(timeout_contexts) == 2
+        assert timeout_contexts[0].when() == timeout_contexts[1].when()
+        assert 0 < timeout < service.RUN_TIMEOUT_SECONDS
+        if slow_writer:
+            # 실제 Timeout 취소를 쓰되, 빠른 분기 완료 후 만료시켜 CI 속도에 의존하지 않는다.
+            timeout_contexts[1].reschedule(asyncio.get_running_loop().time())
+        return await real_wait(tasks, timeout=0)
 
     async def analyze(snapshot, *, lookup):
         return expected.evidence
 
     async def write(source):
+        writer_started.set()
         if slow_writer:
             try:
                 await asyncio.Event().wait()
@@ -404,8 +481,15 @@ async def test_workflow_deadline_preserves_completed_report_and_deal_results(
         return expected.reports
 
     async def generate(**kwargs):
-        payload = json.loads(kwargs["input_text"].split("\n", 1)[1].rsplit("\n", 1)[0])
-        if slow_deal and payload["sales_deal_id"] == str(reports[1].sales_deal_id):
+        deal_id = next(
+            report.sales_deal_id
+            for report in reports
+            if str(report.sales_deal_id) in kwargs["input_text"]
+        )
+        started_deals.add(deal_id)
+        if len(started_deals) == len(reports):
+            deals_started.set()
+        if slow_deal and deal_id == reports[1].sales_deal_id:
             try:
                 await asyncio.Event().wait()
             finally:
@@ -419,7 +503,9 @@ async def test_workflow_deadline_preserves_completed_report_and_deal_results(
             label="watch", high_probability=0.3, model_version="mock"
         )
 
-    monkeypatch.setattr(service, "RUN_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(service, "RUN_TIMEOUT_SECONDS", 60)
+    monkeypatch.setattr(service.asyncio, "timeout_at", record_timeout)
+    monkeypatch.setattr(meeting_analysis.asyncio, "wait", expire_after_branches_start)
     monkeypatch.setattr(service.meeting_content_analysis, "run", analyze)
     monkeypatch.setattr(service.report_writing_deep, "run", write)
     monkeypatch.setattr(meeting_analysis, "generate_structured", generate)
@@ -448,7 +534,7 @@ async def test_workflow_passes_only_remaining_total_budget_to_deal_analysis(monk
     remaining = []
 
     async def analyze(snapshot, *, lookup):
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0)
         return expected.evidence
 
     async def write(source):
@@ -458,14 +544,14 @@ async def test_workflow_passes_only_remaining_total_budget_to_deal_analysis(monk
         remaining.append(timeout)
         return expected.analyses
 
-    monkeypatch.setattr(service, "RUN_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(service, "RUN_TIMEOUT_SECONDS", 60)
     monkeypatch.setattr(service.meeting_content_analysis, "run", analyze)
     monkeypatch.setattr(service.report_writing_deep, "run", write)
     monkeypatch.setattr(service.meeting_analysis, "run_for_deals", features)
     result = await service.run(run.input_snapshot, member.id)
 
     assert result.reports == expected.reports
-    assert len(remaining) == 1 and 0 < remaining[0] < 0.195
+    assert len(remaining) == 1 and 0 < remaining[0] < service.RUN_TIMEOUT_SECONDS
 
 
 @pytest.mark.anyio

@@ -120,6 +120,7 @@ async def test_period_reports_use_deep_agent_and_legacy_meeting_keeps_existing_p
         assert calls == ["structured"]
         assert captured["schema"] is report_writing.ReportDraftOutput
         assert "사용자가 쓰던 내용" in captured["input_text"]
-        assert "보안 승인 후 다음 주 도입 검토 예정" in captured["input_text"]
-        assert "딜 미지정 · 확인 필요" in captured["input_text"]
+        assert "보안 승인 후 다음 주 도입 검토 예정" not in captured["input_text"]
+        assert "딜 미지정 · 확인 필요" not in captured["input_text"]
+        assert "연결 보고서 자료" not in captured["instructions"]
         assert captured["instructions"] == report_writing.SYSTEM_PROMPT

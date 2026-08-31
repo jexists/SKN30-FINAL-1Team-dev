@@ -107,9 +107,9 @@ export default function MeetingSharedPanel({
         .filter((part) => part.report)
         .map((part) => (
           <div className={styles.section} key={part.key}>
-            <label htmlFor={onSave ? id + part.key : undefined}>{part.title}</label>
             {onSave ? (
               <>
+                <label htmlFor={id + part.key}>{part.title}</label>
                 <textarea
                   id={id + part.key}
                   rows={4}
@@ -121,7 +121,10 @@ export default function MeetingSharedPanel({
                 <p className={styles.printText}>{part.value || '기록된 내용 없음'}</p>
               </>
             ) : (
-              <p className={styles.text}>{part.value}</p>
+              <>
+                <h3>{part.title}</h3>
+                <p className={styles.text}>{part.value}</p>
+              </>
             )}
             {onSave && part.report?.ai_body && part.report.ai_body !== part.report.body && (
               <details className={styles.proposal}>

@@ -456,6 +456,66 @@ async def test_contract_report_context_includes_shared_bodies_without_ml_or_ai(m
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
+    "changed_body,same_activity,conflict",
+    [
+        ("common_report", True, True),
+        ("unassigned_report", True, True),
+        (None, True, False),
+        ("common_report", False, False),
+        ("unassigned_report", False, False),
+    ],
+)
+async def test_contract_report_context_checks_shared_body_consistency(
+    changed_body, same_activity, conflict
+):
+    member = _member()
+    activity_id = uuid4()
+    reports = [
+        SimpleNamespace(
+            id=uuid4(),
+            sales_deal_id=uuid4(),
+            source_activity_id=activity_id if index == 0 or same_activity else uuid4(),
+            report_date=date(2026, 8, 17),
+            content={
+                "values": {"body": f"딜 {index + 1}의 확정 본문"},
+                "meeting_shared": {
+                    "run_id": str(uuid4()),
+                    "common_report": {
+                        "body": "공통 본문",
+                        "evidence_ids": [f"S000{index + 1}"],
+                    },
+                    "unassigned_report": {"body": "미지정 본문", "edited": bool(index)},
+                },
+            },
+        )
+        for index in range(2)
+    ]
+    if changed_body is not None:
+        reports[1].content["meeting_shared"][changed_body]["body"] = "서로 다른 본문"
+    originals = copy.deepcopy([report.content for report in reports])
+    db = _Db(_Result(scalar_values=reports))
+    deal_ids = [report.sales_deal_id for report in reports]
+
+    if conflict:
+        with pytest.raises(HTTPException) as error:
+            await snapshots._recent_finalized_reports(db, member, deal_ids)
+        assert error.value.status_code == 409
+        assert error.value.detail == "report_source_shared_conflict"
+    else:
+        recent = await snapshots._recent_finalized_reports(db, member, deal_ids)
+        assert len(recent) == 2
+        for source, result in zip(reports, recent, strict=True):
+            assert result["sales_deal_id"] == str(source.sales_deal_id)
+            assert result["content"]["values"] == source.content["values"]
+            assert result["content"]["meeting_shared"] == {
+                name: {"body": source.content["meeting_shared"][name]["body"]}
+                for name in ("common_report", "unassigned_report")
+            }
+    assert [report.content for report in reports] == originals
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
     "content,has_activity,detail",
     [
         (None, True, "report_source_content_invalid"),

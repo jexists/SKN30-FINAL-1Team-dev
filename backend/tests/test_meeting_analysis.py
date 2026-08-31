@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 from uuid import uuid4
 
@@ -121,7 +122,15 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
     deal_a, deal_b, company, other_company = (uuid4() for _ in range(4))
     crm = {
         "company": {"id": str(company), "name": "합성회사"},
-        "contact": {"source_code": "event"},
+        "contact": {
+            "id": "private-contact-id",
+            "name": "private-contact-name",
+            "department": "구매부",
+            "job_title": "부장",
+            "source_code": "event",
+            "owner_member_id": "private-owner-id",
+            "memo": "private-contact-memo",
+        },
         "deals": [
             {"sales_deal_id": str(deal_a), "title": "A 거래"},
             {"id": str(deal_b), "title": "B 거래"},
@@ -145,6 +154,7 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
         ],
         "unrelated": "루트 비밀",
     }
+    original = copy.deepcopy(crm)
     seen = {}
 
     async def generate(**kwargs):
@@ -160,6 +170,7 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
 
     assert [item.sales_deal_id for item in result] == [deal_a, deal_b]
     assert all(item.features.Source == "Event" and item.error is None for item in result)
+    assert crm == original
     for index, deal_id in enumerate([deal_a, deal_b]):
         payload = seen[str(deal_id)]
         text = json.dumps(payload, ensure_ascii=False)
@@ -173,6 +184,8 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
         other = "B" if index == 0 else "A"
         assert f"{other} 거래" not in text and f"{other} 이전 보고서" not in text
         assert payload["source_value"] == "Event"
+        assert payload["crm_context"]["contact"] == {"department": "구매부", "job_title": "부장"}
+        assert "private-" not in text
 
 
 @pytest.mark.anyio
@@ -270,10 +283,20 @@ async def test_timeout_preserves_completed_deals_and_features_before_slow_ml(mon
     deal_a, deal_b, deal_c = (uuid4() for _ in range(3))
     cancelled = set()
     previous_tasks = asyncio.all_tasks()
+    completed, waiting_features, waiting_prediction = (asyncio.Event() for _ in range(3))
+    real_wait = asyncio.wait
+
+    async def expire_after_deals_are_ready(tasks, *, timeout):
+        assert timeout == 60
+        await asyncio.wait_for(
+            asyncio.gather(completed.wait(), waiting_features.wait(), waiting_prediction.wait()),
+            timeout=5,
+        )
+        return await real_wait(tasks, timeout=0)
 
     async def generate(**kwargs):
-        deal_id = _payload(kwargs)["sales_deal_id"]
-        if deal_id == str(deal_c):
+        if str(deal_c) in kwargs["input_text"]:
+            waiting_features.set()
             try:
                 await asyncio.Event().wait()
             finally:
@@ -281,23 +304,24 @@ async def test_timeout_preserves_completed_deals_and_features_before_slow_ml(mon
         return meeting_analysis.MeetingFeatureOutput(
             features={
                 **UNKNOWN_FEATURES,
-                "Authority": "High" if deal_id == str(deal_b) else "Unknown",
+                "Authority": "High" if str(deal_b) in kwargs["input_text"] else "Unknown",
             }
         )
 
     async def predict_in_thread(function, features):
         if features["Authority"] == "High":
+            waiting_prediction.set()
             try:
                 await asyncio.Event().wait()
             finally:
                 cancelled.add("prediction")
+        completed.set()
         return _prediction(features)
 
     monkeypatch.setattr(meeting_analysis, "generate_structured", generate)
     monkeypatch.setattr(meeting_analysis.asyncio, "to_thread", predict_in_thread)
-    result = await meeting_analysis.run_for_deals(
-        _ledger([deal_a, deal_b, deal_c]), {}, timeout=0.02
-    )
+    monkeypatch.setattr(meeting_analysis.asyncio, "wait", expire_after_deals_are_ready)
+    result = await meeting_analysis.run_for_deals(_ledger([deal_a, deal_b, deal_c]), {}, timeout=60)
 
     assert [item.sales_deal_id for item in result] == [deal_a, deal_b, deal_c]
     assert result[0].error is None and result[0].assessment is not None

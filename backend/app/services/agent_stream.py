@@ -11,6 +11,7 @@ from uuid import UUID
 _states: OrderedDict[str, dict[str, Any]] = OrderedDict()
 _current: ContextVar[dict[str, Any] | None] = ContextVar("agent_progress", default=None)
 MAX_LIVE_PREVIEWS = 32
+MAX_PREVIEW_SECTIONS = 102  # 선택 딜 최대 100개 + 공통 + 미지정
 MAX_PREVIEW_CHARACTERS = 500_000
 _STAGES = {
     "starting",
@@ -81,7 +82,7 @@ def publish_progress(stage: str | None = None, *, preview: dict | None = None, *
         prior = state["previews"].get(key)
         if prior is not None and revision < prior["revision"]:
             return
-        if prior is None and len(state["previews"]) >= 102:
+        if prior is None and len(state["previews"]) >= MAX_PREVIEW_SECTIONS:
             return
         size = sum(len(item["body"]) for item in state["previews"].values())
         if size - len(prior["body"] if prior else "") + len(body) > MAX_PREVIEW_CHARACTERS:

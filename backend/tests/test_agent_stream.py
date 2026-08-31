@@ -220,3 +220,49 @@ def test_stream_stops_when_current_access_is_revoked(monkeypatch):
     chunks = asyncio.run(read())
     assert chunks[-1].startswith("event: error") and "member_not_linked" in chunks[-1]
     assert not any(chunk.startswith("event: done") for chunk in chunks)
+
+
+@pytest.mark.parametrize("timed_out", [False, True], ids=["recheck-unavailable", "deadline"])
+def test_stream_failure_or_deadline_ends_without_done(monkeypatch, timed_out):
+    member = _member()
+    run = _run(member, status_code="running")
+    errors = []
+
+    async def broken(request, session):
+        raise RuntimeError("db_gone")
+
+    async def connected():
+        return False
+
+    ticks = iter([0, 0, 25 * 60 + 1])
+    monkeypatch.setattr(api, "monotonic", lambda: next(ticks) if timed_out else 0)
+    monkeypatch.setattr(api, "get_current_member", broken)
+    monkeypatch.setattr(api, "get_sessionmaker", lambda: lambda: _SessionContext(_Db()))
+    monkeypatch.setattr(api, "RETRY_AFTER_SECONDS", 0)
+    monkeypatch.setattr(
+        api, "log_agent_error", lambda error, **fields: errors.append((error, fields))
+    )
+
+    async def read():
+        response = await api.stream_agent_run(
+            run.id,
+            SimpleNamespace(is_disconnected=connected),
+            member,
+            _Db(_Result(scalar=run)),
+        )
+        return [chunk async for chunk in response.body_iterator]
+
+    chunks = asyncio.run(read())
+    expected = "agent_stream_timeout" if timed_out else "agent_stream_unavailable"
+    assert chunks[-1].startswith("event: error")
+    assert json.loads(chunks[-1].split("data: ", 1)[1]) == {"detail": expected}
+    assert not any(chunk.startswith("event: done") for chunk in chunks)
+    if timed_out:
+        assert not errors
+    else:
+        assert len(errors) == 1 and isinstance(errors[0][0], RuntimeError)
+        assert errors[0][1] == {
+            "stage": "agent_stream",
+            "run_id": str(run.id),
+            "error_code": expected,
+        }
