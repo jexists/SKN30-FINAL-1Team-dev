@@ -36,6 +36,8 @@ from app.schemas.documents import (
     DocumentPage,
     DocumentPageParams,
     DocumentPatch,
+    DocumentProcessBatchRead,
+    DocumentProcessBatchRequest,
     DocumentRead,
     DocumentSummaryRead,
     DocumentUploaderRead,
@@ -472,6 +474,75 @@ async def get_briefing_context(
         sales_deal_id=sales_deal_id,
     )
     return DocumentBriefingContextRead.model_validate(context)
+
+
+@router.post(
+    "/documents/process-batch",
+    response_model=DocumentProcessBatchRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def process_document_batch(
+    payload: DocumentProcessBatchRequest,
+    background: BackgroundTasks,
+    member: CurrentMember,
+    db: DbSession,
+) -> DocumentProcessBatchRead:
+    """화면과 분리된 자료요약 배치를 접수한다.
+
+    파일 ID를 다시 팀 범위로 조회해 권한을 검증한 뒤, 현재 요청에서만
+    순차 작업을 시작한다. 서버 재시작 시 복구하는 영속 큐는 별도 범위다.
+    """
+    if not settings.llm_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_not_configured",
+        )
+
+    file_ids = list(dict.fromkeys(payload.file_ids))
+    rows = (
+        await db.execute(
+            select(FileRow, Member.display_name)
+            .join(Document, Document.id == FileRow.document_id)
+            .join(Member, Member.id == FileRow.uploaded_by_member_id)
+            .where(FileRow.id.in_(file_ids), Document.team_id == member.team_id)
+        )
+    ).all()
+    rows_by_id = {row.id: (row, display_name) for row, display_name in rows}
+    if len(rows_by_id) != len(file_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document_file_not_found")
+
+    queued: list[UUID] = []
+    reads: list[DocumentFileRead] = []
+    for file_id in file_ids:
+        row, display_name = rows_by_id[file_id]
+        if row.processing_status != "processing":
+            previous_status = row.processing_status
+            row.processing_status = "processing"
+            row.processing_error = None
+            row.review_expires_at = None
+            row.unapproved_expires_at = None
+            row.approved_by_member_id = None
+            row.approved_at = None
+            if previous_status == "completed":
+                db.add(
+                    DocumentFileAudit(
+                        id=uuid4(),
+                        team_id=member.team_id,
+                        document_id=row.document_id,
+                        file_id=row.id,
+                        action_code="summary_reprocess_requested",
+                        actor_member_id=member.id,
+                        before_snapshot={"processing_status": previous_status},
+                        after_snapshot={"processing_status": "processing"},
+                    )
+                )
+            queued.append(row.id)
+        reads.append(_file_read(row, display_name))
+
+    await db.commit()
+    if queued:
+        background.add_task(document_processing.execute_batch, queued)
+    return DocumentProcessBatchRead(files=reads)
 
 
 @router.get("/documents/{document_id}", response_model=DocumentRead)

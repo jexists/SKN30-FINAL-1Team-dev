@@ -104,6 +104,7 @@ export default function Documents() {
     reload,
     addDocument,
     addVersion,
+    queueSummaries,
     summarizeVersion,
     loadSummary,
     approveSummary,
@@ -159,11 +160,13 @@ export default function Documents() {
           nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
         }
       }
+      await queueSummaries(nextReviews)
       setUploading(null)
       setReviewQueue(nextReviews.reverse())
       if (nextReviews[0]) setOpenId(nextReviews[0].documentId)
     } catch {
-      // 훅이 화면에 오류를 표시하며, 모달은 입력값 보존을 위해 그대로 둡니다.
+      // 업로드 뒤 서버 배치 접수가 실패하면 훅의 오류 안내를 보여 줍니다.
+      // 서버가 접수한 뒤의 처리는 화면 수명과 무관합니다.
     }
   }
 

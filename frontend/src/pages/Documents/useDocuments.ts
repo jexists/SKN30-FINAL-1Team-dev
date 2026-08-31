@@ -310,6 +310,21 @@ export default function useDocuments(query?: DocumentQuery) {
     [],
   )
 
+  const queueSummaries = useCallback(
+    async (files: { documentId: string; fileId: string }[]): Promise<void> => {
+      if (files.length === 0) return
+      try {
+        await client.post('/documents/process-batch', {
+          file_ids: files.map(({ fileId }) => fileId),
+        })
+      } catch (reason: unknown) {
+        setError(errorMessage(reason, '문서 요약 작업을 서버에 등록하지 못했습니다.'))
+        throw reason
+      }
+    },
+    [],
+  )
+
   const loadSummary = useCallback(
     async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
       const { data } = await client.get<DocumentSummaryResponse>(
@@ -344,6 +359,7 @@ export default function useDocuments(query?: DocumentQuery) {
     addVersion,
     updateDocument,
     summarizeVersion,
+    queueSummaries,
     loadSummary,
     approveSummary,
   }

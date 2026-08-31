@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
+import ErrorToast from '@/components/ErrorToast'
 import { DownloadIcon, UploadIcon } from '@/components/icons'
 import type { SalesDocument } from '@/types'
 import type { DocumentSummaryResponse } from '@/types'
@@ -41,6 +42,8 @@ export default function DocumentDrawer({
   const [summary, setSummary] = useState<DocumentSummaryResponse | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryLoadError, setSummaryLoadError] = useState<string | null>(null)
+  const [summaryLoadRetry, setSummaryLoadRetry] = useState(0)
   const [artifactLoading, setArtifactLoading] = useState<DocumentArtifact | null>(null)
   const [approvalLoading, setApprovalLoading] = useState(false)
   const latest = latestOf(doc)
@@ -54,21 +57,34 @@ export default function DocumentDrawer({
   ]
   const history = [...doc.versions].reverse()
 
+  const loadSavedSummary = useCallback(
+    (fileId: string) => {
+      setSummaryLoadError(null)
+      void onLoadSummary(fileId)
+        .then((result) => {
+          // 아직 처리 전인 정상 응답은 오류가 아니다. 저장된 결과가 있을 때만 표시한다.
+          if (result.summary_markdown) setSummary(result)
+          else setSummary(null)
+        })
+        .catch((reason: unknown) => {
+          setSummaryLoadError(
+            errorMessage(reason, '저장된 요약을 불러오지 못했습니다. 다시 불러와 주세요.'),
+          )
+        })
+    },
+    [onLoadSummary],
+  )
+
   useEffect(() => {
     if (!latest.id) return
-    void onLoadSummary(latest.id)
-      .then((result) => {
-        if (result.summary_markdown) setSummary(result)
-      })
-      .catch(() => {
-        // 아직 처리 전인 파일은 빈 상태로 두고, 사용자가 다시 실행할 수 있게 한다.
-      })
-  }, [latest.id, onLoadSummary])
+    loadSavedSummary(latest.id)
+  }, [latest.id, loadSavedSummary])
 
   const requestSummary = useCallback(
     (fileId: string) => {
       setSummaryLoading(true)
       setSummaryError(null)
+      setSummaryLoadError(null)
       void onSummarize(fileId)
         .then((result) => {
           setSummary(result)
@@ -127,6 +143,15 @@ export default function DocumentDrawer({
         )
       }
     >
+      <ErrorToast
+        key={`${latest.id ?? 'empty'}-${summaryLoadRetry}`}
+        message={summaryLoadError}
+        onRetry={() => {
+          if (!latest.id) return
+          setSummaryLoadRetry((value) => value + 1)
+          loadSavedSummary(latest.id)
+        }}
+      />
       <dl className={styles.rows}>
         {rows.map(([label, value]) => (
           <div key={label}>

@@ -436,6 +436,40 @@ def test_process_route_reprocesses_completed_file_and_records_audit(monkeypatch)
     assert audits[0].action_code == "summary_reprocess_requested"
 
 
+def test_process_batch_route_queues_all_files_for_server_processing(monkeypatch):
+    member = _member()
+    document = _document(member)
+    first = _file(document, member)
+    second = _file(document, member)
+    second.id = uuid4()
+    second.version_no = 2
+    scheduled: list[list[object]] = []
+
+    async def _execute_batch(file_ids):
+        scheduled.append(file_ids)
+
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+    monkeypatch.setattr("app.services.document_processing.execute_batch", _execute_batch)
+    db = _Db(_Result(rows=[(first, member.display_name), (second, member.display_name)]))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/documents/process-batch",
+            json={"file_ids": [str(first.id), str(second.id)]},
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 202
+    assert [item["id"] for item in response.json()["files"]] == [
+        str(first.id),
+        str(second.id),
+    ]
+    assert first.processing_status == "processing"
+    assert second.processing_status == "processing"
+    assert scheduled == [[first.id, second.id]]
+    assert db.commit_count == 1
+
+
 def test_summary_route_exposes_review_draft(monkeypatch):
     member = _member()
     document = _document(member)

@@ -127,6 +127,29 @@ async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_execute_batch_continues_after_one_file_fails(monkeypatch):
+    first_id, second_id = uuid4(), uuid4()
+    executed = []
+    marked_failed = []
+
+    async def _execute(file_id):
+        executed.append(file_id)
+        if file_id == first_id:
+            raise RuntimeError("synthetic_failure")
+
+    async def _mark_failed(file_id, error):
+        marked_failed.append((file_id, str(error)))
+
+    monkeypatch.setattr(document_processing, "execute", _execute)
+    monkeypatch.setattr(document_processing, "_mark_failed", _mark_failed)
+
+    await document_processing.execute_batch([first_id, second_id])
+
+    assert executed == [first_id, second_id]
+    assert marked_failed == [(first_id, "synthetic_failure")]
+
+
+@pytest.mark.anyio
 async def test_execute_marks_file_failed_when_source_download_fails(monkeypatch):
     team_id = uuid4()
     row = FileRow(

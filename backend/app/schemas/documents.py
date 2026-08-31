@@ -74,6 +74,18 @@ class DocumentFileRead(BaseModel):
     uploaded_at: datetime
 
 
+class DocumentProcessBatchRequest(_WriteModel):
+    """자료실에서 서버 처리를 시작할 파일 목록."""
+
+    file_ids: list[UUID] = Field(min_length=1, max_length=50)
+
+
+class DocumentProcessBatchRead(BaseModel):
+    """서버가 처리를 접수한 파일별 현재 상태."""
+
+    files: list[DocumentFileRead]
+
+
 class DocumentSummaryRead(BaseModel):
     file_id: UUID
     file_name: str

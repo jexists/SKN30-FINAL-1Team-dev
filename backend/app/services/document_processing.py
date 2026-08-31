@@ -287,6 +287,21 @@ async def execute(file_id: UUID) -> None:
         await _mark_failed(file_id, error)
 
 
+async def execute_batch(file_ids: list[UUID]) -> None:
+    """접수된 파일을 서버에서 순차 처리하고 한 파일의 실패는 다음 파일로 넘긴다."""
+    for file_id in file_ids:
+        try:
+            await execute(file_id)
+        except Exception as error:
+            # execute는 예상 가능한 처리 오류를 자체 기록하지만, 세션 생성·DB
+            # 장애처럼 바깥으로 나온 오류도 큐 전체를 멈추지 않도록 보완한다.
+            try:
+                await _mark_failed(file_id, error)
+            except Exception:
+                # 다음 파일의 처리를 막지 않는 것이 배치 작업의 우선순위다.
+                continue
+
+
 async def approve_review(
     db: AsyncSession,
     *,
