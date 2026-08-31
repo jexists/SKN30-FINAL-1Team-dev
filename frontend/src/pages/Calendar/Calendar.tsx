@@ -6,6 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 
+import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import Modal from '@/components/Modal'
@@ -13,7 +14,7 @@ import usePointerDrag from '@/hooks/usePointerDrag'
 import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import useOrderList from '@/pages/Orders/useOrderList'
 import { agendaById } from '@/shared/agenda'
-import type { AgendaItem, AiSuggestionReady, CalendarEvent } from '@/types'
+import type { AgendaItem, AiSuggestion, CalendarEvent } from '@/types'
 import { startOfMonth, TODAY, TODAY_ISO } from '@/utils/date'
 
 import CalendarSkeleton from './components/CalendarSkeleton'
@@ -25,6 +26,11 @@ import useAiSuggestions from './useAiSuggestions'
 import useCalendarEvents, { DEFAULTS } from './useCalendarEvents'
 
 import styles from './Calendar.module.scss'
+
+/** 등록은 성공했지만 사용자가 알아야 할 것. 없으면 null 입니다. */
+function warningOf(added: AgendaItem): string | null {
+  return added.scheduleConflictWarning ?? added.briefingQueueWarning ?? null
+}
 
 export default function Calendar() {
   const [cursor, setCursor] = useState(() => startOfMonth(TODAY))
@@ -52,20 +58,23 @@ export default function Calendar() {
   const [editing, setEditing] = useState<CalendarEvent | null>(null)
   const [creating, setCreating] = useState<string | null>(null)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
+  // 등록은 됐지만 알려 줄 것이 남은 경우입니다. 겹친 시간과 브리핑 큐잉 실패가 여기 옵니다.
+  const [approvalWarning, setApprovalWarning] = useState<string | null>(null)
   const {
     suggestions,
     previewId,
     setPreviewId,
-    refreshing: suggestionsRefreshing,
-    refresh: refreshSuggestions,
-    expand: expandSuggestion,
+    loading: suggestionsLoading,
+    error: suggestionsError,
+    reload: reloadSuggestions,
+    selectOption: selectSuggestionOption,
     accept: acceptSuggestion,
     dismiss: dismissSuggestion,
   } = useAiSuggestions(addEvent)
 
   useEffect(() => {
-    void refreshSuggestions()
-  }, [refreshSuggestions])
+    void reloadSuggestions()
+  }, [reloadSuggestions])
 
   const deliveriesByDate = useMemo(
     () =>
@@ -92,21 +101,24 @@ export default function Calendar() {
     [moveEvent],
   )
 
-  // 캘린더 칸에 놓인 AI 추천 카드를 그 날짜로 승인한다. ready 상태가 아니면(아직 날짜를
-  // 계산하지 못했으면) 끌어다 놓을 수 없다 — SuggestionPanel이 onGrab을 그때만 연결한다.
+  // 캘린더 칸에 놓인 AI 추천 카드를 그 날짜로 승인한다.
   const dropSuggestion = useCallback(
     async (id: string, dateISO: string) => {
       const suggestion = suggestions.find((s) => s.id === id)
-      if (!suggestion || suggestion.status !== 'ready') return
+      if (!suggestion) return
       try {
         const added = await acceptSuggestion(suggestion, dateISO)
         setSelectedISO(dateISO)
         setJustAddedId(added.id)
-      } catch {
-        return
+        setApprovalWarning(warningOf(added))
+      } catch (cause) {
+        // 다른 요청이 이 추천을 먼저 승인했을 수 있습니다. 서버 상태를 다시 읽어
+        // 카드가 남아야 하는지 서버가 정하게 합니다.
+        setApprovalWarning(errorMessage(cause, '추천을 등록하지 못했습니다.'))
+        void reloadSuggestions()
       }
     },
-    [suggestions, acceptSuggestion],
+    [suggestions, acceptSuggestion, reloadSuggestions],
   )
 
   const drop = useCallback(
@@ -126,7 +138,7 @@ export default function Calendar() {
   )
 
   const grabSuggestion = useCallback(
-    (pointer: ReactPointerEvent, suggestion: AiSuggestionReady) =>
+    (pointer: ReactPointerEvent, suggestion: AiSuggestion) =>
       start(pointer, {
         kind: 'suggestion',
         id: suggestion.id,
@@ -136,16 +148,18 @@ export default function Calendar() {
   )
 
   const acceptSuggestionToCalendar = useCallback(
-    async (suggestion: AiSuggestionReady) => {
+    async (suggestion: AiSuggestion) => {
       try {
         const added = await acceptSuggestion(suggestion)
         setSelectedISO(added.date)
         setJustAddedId(added.id)
-      } catch {
-        return
+        setApprovalWarning(warningOf(added))
+      } catch (cause) {
+        setApprovalWarning(errorMessage(cause, '추천을 등록하지 못했습니다.'))
+        void reloadSuggestions()
       }
     },
-    [acceptSuggestion],
+    [acceptSuggestion, reloadSuggestions],
   )
 
   // 닫는 일은 모달이 합니다. 등록한 뒤 결과를 보여 줄 자리가 있어야 해서입니다.
@@ -197,6 +211,7 @@ export default function Calendar() {
       <h1 className="sr-only">캘린더</h1>
 
       <ErrorToast message={error} onRetry={reload} />
+      <ErrorToast message={approvalWarning} />
       <div className={styles.layout}>
         <MonthGrid
           cursor={cursor}
@@ -219,12 +234,13 @@ export default function Calendar() {
             suggestions={suggestions}
             previewId={previewId}
             onPreview={setPreviewId}
-            onExpand={expandSuggestion}
             onAccept={acceptSuggestionToCalendar}
+            onSelectOption={selectSuggestionOption}
             onDismiss={dismissSuggestion}
             onGrab={grabSuggestion}
-            onRefresh={refreshSuggestions}
-            refreshing={suggestionsRefreshing}
+            loading={suggestionsLoading}
+            error={suggestionsError}
+            onRetry={reloadSuggestions}
           />
         </div>
       </div>

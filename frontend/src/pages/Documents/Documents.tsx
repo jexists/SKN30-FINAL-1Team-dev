@@ -14,6 +14,7 @@ import { UploadIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { useShowOwner } from '@/shared/scope'
 import type { DocumentCategory } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
@@ -37,13 +38,14 @@ const RANGES = [
 const DEFAULT_RANGE = '12'
 
 export default function Documents() {
-  // 자료는 팀원도 올립니다. 등록자 필터·열은 팀장에게만 보입니다.
+  // 자료는 팀원도 올립니다. 등록자 칸은 여러 사람이 섞여 보일 때만 세웁니다.
+  // 등록자 필터는 보여 주는 것이 아니라 대상을 좁히는 조작이라 팀장에게 늘 둡니다.
   const { profile, isManager } = useCurrentUser()
-  const showOwner = isManager
+  const showOwner = useShowOwner()
 
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
-  const owner = showOwner ? (params.get('owner') ?? '') : ''
+  const owner = isManager ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
 
   const category = params.get('category') ?? ''
@@ -186,7 +188,7 @@ export default function Documents() {
           onChange={(next) => setParam('q', next)}
         />
 
-        {showOwner && (
+        {isManager && (
           <FilterSelect
             label="등록자"
             value={owner}

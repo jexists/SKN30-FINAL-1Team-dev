@@ -15,6 +15,8 @@ export interface DrawerListRow {
   titleNote?: string
   note: string
   tags: { text: string; tone?: DrawerListTone }[]
+  /** 이 건의 담당자. 여러 사람이 섞여 보일 때만 드로어가 세웁니다. */
+  owner?: string
   side: {
     strong: string
     late?: boolean
@@ -52,6 +54,7 @@ export function csList(requests: SupportRequestResponse[]): DrawerList {
         key: request.id,
         title: request.title,
         titleNote: `${request.customer_company_name} · ${request.contract_no ?? request.deal_no}`,
+        owner: request.assignee_display_name,
         note: request.body,
         tags: [
           ...(request.is_urgent ? [{ text: '긴급', tone: 'risk' as const }] : []),
@@ -80,7 +83,7 @@ export function renewalList(deals: SalesDealResponse[]): DrawerList {
       return {
         key: deal.id,
         title: deal.customer_company_name,
-        titleNote: deal.owner_display_name,
+        owner: deal.owner_display_name,
         note: deal.description ?? deal.memo ?? '등록된 메모가 없습니다.',
         tags: [
           { text: deal.deal_type_name },

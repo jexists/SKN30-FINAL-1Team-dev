@@ -283,6 +283,13 @@
   }
 }
 
+// 받아 오는 동안 아이콘 하나만 가운데에 둡니다. '없음' 과 같은 높이라 답이
+// 오는 순간 카드가 늘었다 줄지 않습니다.
+.loading {
+  justify-content: center;
+  padding: var(--s8) var(--s4);
+}
+
 .empty {
   padding: var(--s8) var(--s4);
   text-align: center;

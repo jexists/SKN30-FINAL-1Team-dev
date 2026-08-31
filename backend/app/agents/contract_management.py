@@ -12,16 +12,25 @@
 """
 
 import json
+from datetime import datetime
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.llm import generate_structured
 
+_SEOUL = ZoneInfo("Asia/Seoul")
+
+
+def _now() -> datetime:
+    return datetime.now(_SEOUL)
+
+
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
 SELECT_CANDIDATES_PROMPT_VERSION = "contract_management.select_candidates.v2"
-PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v1"
+PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v2"
 GENERATE_BRIEFING_PROMPT_VERSION = "contract_management.generate_briefing.v1"
 
 SELECT_CANDIDATES_SYSTEM_PROMPT = """너는 B2B 영업·계약관리를 보조하는 AI다.
@@ -54,6 +63,18 @@ PROPOSE_NEXT_MEETING_SYSTEM_PROMPT = f"""너는 B2B 영업·계약관리를 보�
 스냅샷에 없는 사실을 추측하지 말고, 확인되지 않은 항목은 missing_information 에 남겨라.
 
 {_RISK_RULES}
+
+입력의 current_date는 지금 시각(Asia/Seoul)이다. next_meeting_suggestion을 채울 때
+preferred_starts_at·preferred_ends_at은 반드시 current_date 이후여야 한다 — 이미 지난
+날짜를 제안하지 마라.
+
+preferred_starts_at ~ preferred_ends_at 은 일정관리가 후보를 찾아볼 "기간"이다. 미팅
+하나가 겨우 들어갈 폭으로 좁게 주지 마라 — 그 자리가 이미 차 있으면 후보가 하나도 나오지
+않는다. 급하면 이번 주, 여유가 있으면 2주 안처럼 넓게 잡아라.
+
+duration_minutes 는 습관적으로 같은 값을 쓰지 말고, reason 에 쓴 안건에 맞춰 정하라.
+"수락 여부만 확인"과 "요구사항을 처음부터 정리"는 필요한 시간이 다르다. 왜 그 시간이
+필요한지 판단이 서지 않으면 reason 을 다시 읽어라.
 
 이 호출은 1차 실행이다. 위험 판정과 다음 미팅 제안만 만들고, 회사·계약 현황을 요약하는
 브리핑 문장은 만들지 마라. 계약이나 업무 데이터를 이미 변경했다고 표현하지 마라.
@@ -113,9 +134,30 @@ class NextMeetingSuggestion(BaseModel):
 
     sales_deal_id: str
     reason: str = Field(min_length=1, max_length=1_000)
-    preferred_starts_at: str | None = None
-    preferred_ends_at: str | None = None
-    duration_minutes: int = Field(default=60, ge=5, le=480)
+    preferred_starts_at: str | None = Field(
+        default=None,
+        description=("일정을 찾아볼 기간의 시작. 미팅 자체의 시작 시각이 아니다."),
+    )
+    preferred_ends_at: str | None = Field(
+        default=None,
+        description=(
+            "일정을 찾아볼 기간의 끝. 일정관리가 후보를 여러 개 만들 수 있도록 "
+            "최소 3일, 되도록 1주일 이상 잡아라. 미팅 하나가 겨우 들어가는 폭으로 "
+            "주면 고를 여지가 없어진다."
+        ),
+    )
+    duration_minutes: int = Field(
+        default=60,
+        ge=5,
+        le=480,
+        description=(
+            "이 미팅에 필요한 시간(분). reason 에 쓴 안건을 보고 정한다. "
+            "확인·서명처럼 단순한 건 30분, 일반 상담·협의는 60분, "
+            "요구사항 정리나 쟁점이 여럿이면 90분 이상. "
+            "오래 끊겼다가 다시 만나는 자리는 상황을 다시 듣는 시간이 필요하므로 "
+            "60~90분으로 잡는다."
+        ),
+    )
 
 
 class NextMeetingProposalOutput(BaseModel):
@@ -194,6 +236,8 @@ class _NextMeetingLLMInput(BaseModel):
     sales_deals: list[dict[str, Any]] = Field(default_factory=list)
     risk_signals: list[dict[str, Any]] = Field(default_factory=list)
     recent_approved_reports: list[dict[str, Any]] = Field(default_factory=list)
+    # LLM이 과거 날짜를 제안하지 않도록 기준점을 함께 보낸다.
+    current_date: str
 
 
 class _BriefingLLMInput(BaseModel):
@@ -241,12 +285,50 @@ async def propose_next_meeting(snapshot: dict[str, Any]) -> NextMeetingProposalO
         sales_deals=snapshot.get("sales_deals") or [],
         risk_signals=snapshot.get("risk_signals") or [],
         recent_approved_reports=snapshot.get("recent_approved_reports") or [],
+        current_date=_now().isoformat(),
     )
-    return await generate_structured(
+    output = await generate_structured(
         instructions=PROPOSE_NEXT_MEETING_SYSTEM_PROMPT,
         input_text=json.dumps(llm_input.model_dump(), ensure_ascii=False, default=str),
         schema=NextMeetingProposalOutput,
         schema_name="contract_management_propose_next_meeting",
+    )
+    return _drop_stale_preferred_window(output)
+
+
+def _is_valid_future(value: str | None, now: datetime) -> bool:
+    """비어 있으면 통과(날짜 미정인 제안일 수 있다). 파싱 실패·과거면 거절."""
+    if value is None:
+        return True
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_SEOUL)
+    return parsed >= now
+
+
+def _drop_stale_preferred_window(output: NextMeetingProposalOutput) -> NextMeetingProposalOutput:
+    """프롬프트 지침을 LLM이 어기고 과거 날짜를 제안했으면 날짜만 비운다.
+
+    위험 판정·추천 행동 자체는 여전히 유효하므로 제안 전체를 버리지 않는다 —
+    build_schedule_snapshot()이 그렇듯, 날짜가 비면 호출 쪽이 기본 탐색 범위로 대체한다.
+    """
+    suggestion = output.next_meeting_suggestion
+    if suggestion is None:
+        return output
+    now = _now()
+    if _is_valid_future(suggestion.preferred_starts_at, now) and _is_valid_future(
+        suggestion.preferred_ends_at, now
+    ):
+        return output
+    return output.model_copy(
+        update={
+            "next_meeting_suggestion": suggestion.model_copy(
+                update={"preferred_starts_at": None, "preferred_ends_at": None}
+            )
+        }
     )
 
 

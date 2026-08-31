@@ -3,7 +3,16 @@ from typing import Annotated
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,7 +58,7 @@ from app.schemas.sales_deals import (
     SalesPipelineRead,
     SalesPipelineStageRead,
 )
-from app.services import storage
+from app.services import contract_next_meeting_pipeline, storage
 from app.services.storage import StorageError
 from app.services.upload_guard import UploadRejected, check_image_upload, check_size
 
@@ -1305,6 +1314,7 @@ async def get_sales_deal(
 async def create_sales_deal(
     payload: SalesDealCreate,
     response: Response,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> SalesDealRead:
@@ -1408,6 +1418,10 @@ async def create_sales_deal(
         await db.rollback()
         raise
     response.headers["Location"] = f"/api/sales-deals/{sales_deal.id}"
+    # 새 딜이 생겼다는 신호로 트리거한다(계약에이전트_설계.md 3장).
+    contract_next_meeting_pipeline.queue(
+        background, sales_deal.id, {"sales_deal_id": str(sales_deal.id)}
+    )
     return read
 
 
@@ -1538,6 +1552,7 @@ async def update_sales_deal(
 async def move_sales_deal(
     sales_deal_id: UUID,
     payload: SalesDealMove,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> SalesDealRead:
@@ -1600,6 +1615,11 @@ async def move_sales_deal(
     except Exception:
         await db.rollback()
         raise
+    # 단계 이동도 신호가 된다(계약에이전트_설계.md 3장). 칸반에서 연달아 옮겨도 파이프라인
+    # 쪽 쿨다운이 중복 실행을 막는다.
+    contract_next_meeting_pipeline.queue(
+        background, sales_deal_id, {"sales_deal_id": str(sales_deal_id)}
+    )
     return read
 
 

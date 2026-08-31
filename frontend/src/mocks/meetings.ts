@@ -58,7 +58,18 @@ export const meetingReportSeed: MeetingReportSeed[] = [
   },
 ]
 
+/** 시연용 구성원 번호입니다. 실제 계정과 이어지지 않고 이름끼리만 구분합니다. */
+const MEMBER_IDS: Record<string, string> = {
+  김지훈: 'mock-member-kim',
+  박도윤: 'mock-member-park',
+}
+
 /** offset 을 실제 날짜로 편 미팅 기록. 최근 것이 앞에 옵니다. */
 export const fallbackMeetingReports: MeetingReport[] = meetingReportSeed
-  .map((seed) => ({ ...seed, date: iso(addDays(TODAY, seed.off)), template: meetingTemplate }))
+  .map((seed) => ({
+    ...seed,
+    date: iso(addDays(TODAY, seed.off)),
+    ownerMemberId: MEMBER_IDS[seed.owner] ?? seed.owner,
+    template: meetingTemplate,
+  }))
   .sort((a, b) => b.date.localeCompare(a.date))

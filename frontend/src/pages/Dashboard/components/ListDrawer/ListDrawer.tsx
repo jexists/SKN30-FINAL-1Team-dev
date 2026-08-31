@@ -3,7 +3,9 @@
 // 발주 타일이면 위에 필터 칩을 달고 같은 표면을 씁니다.
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
+import OwnerName from '@/components/OwnerName'
 import { InlineLoader } from '@/components/Skeleton'
+import { useShowOwner } from '@/shared/scope'
 
 import type { DrawerList, DrawerListRow } from '../../drawerLists'
 import type { OrderFilterKey } from '../../orderFilters'
@@ -28,7 +30,7 @@ interface Props {
   onClose: () => void
 }
 
-function Row({ row }: { row: DrawerListRow }) {
+function Row({ row, showOwner }: { row: DrawerListRow; showOwner: boolean }) {
   return (
     <>
       <div className={styles.main}>
@@ -37,8 +39,9 @@ function Row({ row }: { row: DrawerListRow }) {
           {row.titleNote && <span>{row.titleNote}</span>}
         </h3>
         <p>{row.note}</p>
-        {row.tags.length > 0 && (
+        {(row.tags.length > 0 || (showOwner && row.owner)) && (
           <div className={styles.tags}>
+            {showOwner && <OwnerName name={row.owner} />}
             {row.tags.map((t) => (
               <i key={t.text} className={`${styles.pill} ${t.tone ? styles[t.tone] : ''}`}>
                 {t.text}
@@ -80,6 +83,8 @@ export default function ListDrawer({
   onOpenOrder,
   onClose,
 }: Props) {
+  const showOwner = useShowOwner()
+
   return (
     <Drawer
       wide
@@ -127,11 +132,11 @@ export default function ListDrawer({
                 className={`${styles.row} ${styles.clickable}`}
                 onClick={() => onOpenOrder(no)}
               >
-                <Row row={row} />
+                <Row row={row} showOwner={showOwner} />
               </button>
             ) : (
               <div key={row.key} className={styles.row}>
-                <Row row={row} />
+                <Row row={row} showOwner={showOwner} />
               </div>
             )
           })}

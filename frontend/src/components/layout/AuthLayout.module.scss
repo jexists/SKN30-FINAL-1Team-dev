@@ -1,10 +1,22 @@
-// demo/layout_v3.html §5 를 옮긴 것입니다.
 // 껍데기만 여기 있습니다. 카드 안쪽 폼은 쓰는 화면의 *.module.scss 가 갖습니다.
+//
+// 색은 이 화면에서만 쓰는 짙은 남색 계열이라 global.scss(앱 전체 토큰) 가 아니라
+// .shell 안에만 둡니다.
 .shell {
+  --auth-abyss: #04122e;
+  --auth-deep: #0a2a63;
+  --auth-blue: #1359c6;
+  --auth-beam: #2f8bff;
+  --auth-ice: #a9d4ff;
+  --auth-line: rgba(255, 255, 255, 0.14);
+
+  // 01/02/03 에만 쓰는 계기판용 글꼴.
+  --auth-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+
   min-height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(390px, 0.85fr);
-  background: linear-gradient(145deg, #0a84ff 0%, #0066d6 58%, #004a9f 100%);
+  background: linear-gradient(155deg, var(--auth-abyss) 0%, var(--auth-deep) 55%, var(--auth-blue) 100%);
   color: #fff;
   overflow: hidden;
 
@@ -18,13 +30,17 @@
   position: relative;
   isolation: isolate;
   min-height: 100vh;
-  padding: clamp(36px, 6vw, 84px);
+  padding: clamp(36px, 5.4vw, 76px);
+  padding-block: clamp(32px, 4vw, 56px);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  // 로고-제목-사이클이 한 화면에 들어와야 합니다. 스크롤로 밀리면 안 됩니다.
+  gap: clamp(18px, 2.2vw, 28px);
 
   @include lg {
     min-height: auto;
+    padding-block: clamp(48px, 8vw, 76px);
   }
 
   // 좁은 화면에서는 소개를 아예 걷어냅니다. 폼이 첫 화면에 있어야 합니다.
@@ -32,127 +48,188 @@
     display: none;
   }
 
+  // 좌상단 라디얼. 제목 쪽에 빛을 한 겹 얹어 배경이 평평해 보이지 않게 합니다.
   &::before {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
     z-index: -2;
-    background:
-      radial-gradient(circle at 20% 22%, rgba(255, 255, 255, 0.22), transparent 22rem),
-      linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-    background-size:
-      auto,
-      42px 42px,
-      42px 42px;
+    background: radial-gradient(circle at 18% 14%, rgba(47, 139, 255, 0.22), transparent 26rem);
   }
 
+  // 우하단에서 비스듬히 올라오는 광선.
   &::after {
-    content: '';
+    content: "";
     position: absolute;
     z-index: -1;
-    width: 440px;
-    height: 440px;
-    right: -150px;
-    bottom: -110px;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    border-radius: 50%;
-    box-shadow:
-      0 0 0 70px rgba(255, 255, 255, 0.035),
-      0 0 0 140px rgba(255, 255, 255, 0.02);
+    right: -18%;
+    bottom: -42%;
+    width: 78%;
+    height: 96%;
+    background: radial-gradient(ellipse at 70% 80%, rgba(47, 139, 255, 0.5), transparent 62%);
+    filter: blur(12px);
+    animation: beam 20s var(--ease-out) infinite;
   }
+}
+
+// 우하단 데이터 네트워크(AuthNetwork). 광선 위, 글자 아래에 놓이는 배경 그림입니다.
+.network {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  // 제목의 line-height 가 이미 위쪽 여백을 만들어서, .story 의 gap 을 그대로
+  // 두면 로고와 제목 사이만 유독 벌어져 보입니다.
+  margin-bottom: -18px;
+  animation: rise 0.55s var(--ease-out) var(--d, 0ms) both;
 }
 
-.brandMark {
+.brandFull {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px 11px 11px 3px;
-  background: #fff;
-  color: var(--blue);
-  font-size: 17px;
-  font-weight: 800;
+  width: auto;
+  height: 33px;
+  object-fit: contain;
 }
 
-.brandName {
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+// 진한 남색 소개 패널 위에서는 원래 색이 묻히므로 흰 실루엣으로 뒤집습니다.
+.brand .brandFull {
+  filter: brightness(0) invert(1);
 }
 
 .copy {
   max-width: 720px;
-  margin: 50px 0;
 
   h1 {
-    max-width: 650px;
-    font-size: clamp(42px, 6vw, 78px);
-    line-height: 0.98;
-    letter-spacing: -0.065em;
-    font-weight: 700;
+    max-width: 620px;
+    font-size: clamp(38px, 4.4vw, 62px);
+    line-height: 1.22;
+    letter-spacing: -0.055em;
+    font-weight: 800;
+    animation: rise 0.55s var(--ease-out) var(--d, 0ms) both;
 
     span {
-      color: #d9ebff;
+      color: var(--auth-ice);
     }
   }
 
   p {
-    max-width: 560px;
-    margin-top: 26px;
+    max-width: 520px;
+    margin-top: 22px;
     color: rgba(255, 255, 255, 0.72);
     font-size: 16px;
     line-height: 1.75;
+    animation: rise 0.55s var(--ease-out) var(--d, 0ms) both;
   }
 }
 
-.tag {
-  display: inline-flex;
+// 제목·문단과 아래 사이클을 가르는 강조선.
+.rule {
+  display: block;
+  width: 64px;
+  height: 2px;
+  margin-top: 26px;
+  background: linear-gradient(90deg, var(--auth-beam), transparent);
+  animation: rise 0.55s var(--ease-out) var(--d, 0ms) both;
+}
+
+/* ---- 방문 사이클 카드 3장 ---- */
+.steps {
+  display: grid;
+  max-width: 620px;
+  gap: 10px;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  margin-bottom: 24px;
-  padding: 8px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: var(--r-pill);
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.82);
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--auth-line);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.035);
+  animation: rise 0.55s var(--ease-out) var(--d, 0ms) both;
 }
 
-.pulseDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.14);
+.stepNo {
+  font-family: var(--auth-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--auth-ice);
 }
 
-.proof {
+.stepIcon {
   display: flex;
-  gap: 28px;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-xs);
+  background: rgba(47, 139, 255, 0.16);
+  color: var(--auth-ice);
+}
 
-  div {
-    min-width: 132px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.16);
-  }
+.stepText {
+  min-width: 0;
 
   strong {
     display: block;
-    color: #d9ebff;
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
   small {
-    color: rgba(255, 255, 255, 0.72);
+    display: block;
+    margin-top: 3px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes beam {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.75;
+  }
+
+  50% {
+    transform: translate3d(-4%, -5%, 0) scale(1.12);
+    opacity: 1;
+  }
+}
+
+// global.scss 의 가드는 duration 만 1ms 로 묶습니다. 지연은 남아 있어서
+// 진입이 시차를 두고 나타나므로 여기서 지연도 함께 지웁니다.
+@media (prefers-reduced-motion: reduce) {
+  .story *,
+  .story *::before,
+  .story *::after {
+    animation-delay: 0ms !important;
   }
 }
 
@@ -189,11 +266,6 @@
   gap: 12px;
   margin-bottom: 32px;
   color: var(--ink);
-
-  .brandMark {
-    background: var(--blue);
-    color: #fff;
-  }
 
   @include md {
     display: flex;

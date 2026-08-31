@@ -1,10 +1,11 @@
 import { useState } from 'react'
 
 import Button from '@/components/Button'
-import { CloseIcon, InfoIcon, RefreshIcon } from '@/components/icons'
+import { CloseIcon, InfoIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
+import Skeleton from '@/components/Skeleton'
 import { KIND_LABEL } from '@/shared/agenda'
-import type { AiSuggestion, AiSuggestionReady } from '@/types'
+import type { AiSuggestion } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import type { PointerEvent as ReactPointerEvent } from 'react'
@@ -16,27 +17,35 @@ interface Props {
   /** 미리보기 중인 추천. 그 카드에 강조 테두리가 뜹니다. */
   previewId: string | null
   onPreview: (id: string | null) => void
-  /** 접힌 카드를 펼쳐 실제 날짜/시간을 계산합니다(1차 제안 + 일정 후보 호출). */
-  onExpand: (id: string) => void
-  onAccept: (suggestion: AiSuggestionReady) => void
+  onAccept: (suggestion: AiSuggestion) => void
+  /** 카드에서 다른 시간 후보를 고릅니다. */
+  onSelectOption: (suggestionId: string, candidateId: string) => void
   onDismiss: (id: string) => void
-  onGrab: (pointer: ReactPointerEvent, suggestion: AiSuggestionReady) => void
-  /** 추천을 다시 받아 옵니다. */
-  onRefresh: () => void
-  /** 다시 받아 오는 중. 아이콘이 돌고 버튼은 잠깁니다. */
-  refreshing?: boolean
+  onGrab: (pointer: ReactPointerEvent, suggestion: AiSuggestion) => void
+  /** 저장된 추천을 읽어 오는 중. LLM을 기다리는 것이 아니라 조회 한 번입니다. */
+  loading?: boolean
+  error?: string | null
+  /**
+   * 조회에 실패했을 때 추천 목록만 다시 읽습니다.
+   *
+   * 페이지 새로고침이 아닙니다. 캘린더 일정과 추천은 서로 다른 조회라, 페이지의
+   * 재시도는 추천을 다시 부르지 않습니다. 이것이 없으면 사용자는 캘린더를 나갔다
+   * 들어와야 추천을 다시 볼 수 있습니다.
+   */
+  onRetry?: () => void
 }
 
 export default function SuggestionPanel({
   suggestions,
   previewId,
   onPreview,
-  onExpand,
   onAccept,
+  onSelectOption,
   onDismiss,
   onGrab,
-  onRefresh,
-  refreshing = false,
+  loading = false,
+  error = null,
+  onRetry,
 }: Props) {
   // 무엇을 보고 고른 추천인지는 한 번 읽으면 그만입니다. 카드보다 먼저 자리를
   // 차지하지 않도록 물음표 하나로 접어 두고 눌렀을 때만 폅니다.
@@ -71,28 +80,32 @@ export default function SuggestionPanel({
             }
           >
             <p className={styles.sub}>
-              후속 조치 기한과 계약 만료일을 보고 고른 딜입니다. "일정 확인"을 누르면 실제
-              날짜·시간을 계산합니다. 카드를 끌어 원하는 날짜에 놓거나, 추천한 날짜에 그대로
-              넣으세요.
+              후속 조치 기한과 계약 만료일을 보고 고른 딜입니다. 보고서를 확정하거나 딜을 옮기면
+              그때 다시 계산합니다. 카드를 끌어 원하는 날짜에 놓거나, 추천한 날짜에 그대로 넣으세요.
             </p>
           </Popover>
         </div>
-
-        <button
-          type="button"
-          className={`${styles.refresh} ${refreshing ? styles.isSpinning : ''}`}
-          onClick={onRefresh}
-          disabled={refreshing}
-          aria-label="AI 추천 새로고침"
-        >
-          <RefreshIcon width={15} height={15} />
-          새로고침
-        </button>
       </header>
 
-      {refreshing ? (
-        <div className={styles.empty}>
-          <p>추천을 새로 받는 중입니다.</p>
+      {/*
+        조회 한 번이라 금방 끝납니다. 그래도 그 사이에 "추천할 일정이 없습니다"를 보여 주면
+        없는 것과 아직 모르는 것이 같아 보이므로, 자리표시자로 덮어 둡니다.
+      */}
+      {loading ? (
+        <div className={styles.list} role="status">
+          <span className="sr-only">AI 추천을 불러오는 중입니다.</span>
+          <Skeleton height={168} radius="var(--r-md)" />
+          <Skeleton height={168} radius="var(--r-md)" />
+        </div>
+      ) : error ? (
+        <div className={styles.empty} role="alert">
+          <p>{error}</p>
+          {/* 이 버튼은 추천 목록만 다시 읽습니다 — 페이지 새로고침이 아닙니다. */}
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              다시 시도
+            </Button>
+          )}
         </div>
       ) : suggestions.length === 0 ? (
         <div className={styles.empty}>
@@ -105,25 +118,17 @@ export default function SuggestionPanel({
             <li
               key={s.id}
               className={`${styles.card} ${previewId === s.id ? styles.isPreview : ''}`}
-              onPointerDown={(pointer) => {
-                if (s.status === 'ready') onGrab(pointer, s)
-              }}
+              onPointerDown={(pointer) => onGrab(pointer, s)}
               onMouseEnter={() => onPreview(s.id)}
               onMouseLeave={() => onPreview(null)}
               onFocus={() => onPreview(s.id)}
               onBlur={() => onPreview(null)}
             >
               <div className={styles.when}>
-                {s.status === 'ready' ? (
-                  <>
-                    <span className="tnum">{fmtDay(parseISO(s.date))}</span>
-                    <span className={`${styles.time} tnum`}>
-                      {s.time} · {s.dur}
-                    </span>
-                  </>
-                ) : (
-                  <span className="tnum">우선순위 {s.priority}</span>
-                )}
+                <span className="tnum">{fmtDay(parseISO(s.date))}</span>
+                <span className={`${styles.time} tnum`}>
+                  {s.time} · {s.dur}
+                </span>
                 <button
                   type="button"
                   className={styles.dismiss}
@@ -139,37 +144,44 @@ export default function SuggestionPanel({
                 <span className={styles.who}>{s.contact}</span>
               </h3>
               <p className={styles.title}>{s.title}</p>
-              <p className={styles.reason}>{s.status === 'ready' ? s.proposalReason : s.reason}</p>
-              {s.status === 'error' && <p className={styles.reason}>{s.error}</p>}
+              <p className={styles.reason}>{s.proposalReason}</p>
 
-              {s.status === 'ready' && (
-                <div className={styles.basis}>
-                  <i className={styles.kind}>{KIND_LABEL[s.kind]}</i>
-                  {s.basis.map((b) => (
-                    <i key={b} className={styles.tag}>
-                      {b}
-                    </i>
+              {/*
+                일정관리 에이전트가 겹치지 않는 시간을 여러 개 내놓습니다. 가장 추천하는
+                것을 위에 크게 두고, 나머지는 눌러서 바꿀 수 있게 칩으로 둡니다.
+              */}
+              {s.options.length > 1 && (
+                <div className={styles.options}>
+                  {s.options.map((option) => (
+                    <button
+                      key={option.candidateId}
+                      type="button"
+                      className={`${styles.option} ${
+                        option.candidateId === s.selectedCandidateId ? styles.isChosen : ''
+                      }`}
+                      aria-pressed={option.candidateId === s.selectedCandidateId}
+                      onClick={() => onSelectOption(s.id, option.candidateId)}
+                    >
+                      <span className="tnum">
+                        {fmtDay(parseISO(option.date))} {option.time}
+                      </span>
+                    </button>
                   ))}
                 </div>
               )}
 
-              {s.status === 'ready' ? (
-                <Button className={styles.accept} onClick={() => onAccept(s)}>
-                  추천일에 넣기
-                </Button>
-              ) : (
-                <Button
-                  className={styles.accept}
-                  onClick={() => onExpand(s.id)}
-                  disabled={s.status === 'loading'}
-                >
-                  {s.status === 'loading'
-                    ? '일정 확인 중…'
-                    : s.status === 'error'
-                      ? '다시 시도'
-                      : '일정 확인'}
-                </Button>
-              )}
+              <div className={styles.basis}>
+                <i className={styles.kind}>{KIND_LABEL[s.kind]}</i>
+                {s.basis.map((b) => (
+                  <i key={b} className={styles.tag}>
+                    {b}
+                  </i>
+                ))}
+              </div>
+
+              <Button className={styles.accept} onClick={() => onAccept(s)}>
+                추천일에 넣기
+              </Button>
             </li>
           ))}
         </ul>

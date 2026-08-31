@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 
+import OwnerName from '@/components/OwnerName'
+
 import type { BoardDeal } from '../../board'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
@@ -17,6 +19,8 @@ interface Props {
   onNudge: (identity: string, delta: -1 | 1) => void
   onEdit: (identity: string) => void
   onDelete: (identity: string) => void
+  /** 여러 사람의 딜이 섞여 보일 때만 담당 영업을 세웁니다. 보드가 한 번 정해 내려 줍니다. */
+  showOwner?: boolean
   readOnly?: boolean
 }
 
@@ -29,6 +33,7 @@ export default function DealCard({
   onNudge,
   onEdit,
   onDelete,
+  showOwner = false,
   readOnly = false,
 }: Props) {
   return (
@@ -54,7 +59,10 @@ export default function DealCard({
 
         <span className={styles.meta}>
           <span>{deal.product}</span>
-          <span className="tnum">{fmtDotShort(parseISO(deal.date))}</span>
+          <span className={styles.metaEnd}>
+            {showOwner && <OwnerName name={deal.owner} />}
+            <span className="tnum">{fmtDotShort(parseISO(deal.date))}</span>
+          </span>
         </span>
       </button>
 

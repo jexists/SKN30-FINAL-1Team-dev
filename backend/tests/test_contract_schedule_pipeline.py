@@ -172,7 +172,9 @@ async def test_select_next_meeting_candidates_with_real_llm():
 @pytest.mark.anyio
 async def test_contract_next_meeting_with_real_llm():
     agent_input = _standalone_contract_input()
-    llm_input = contract_management._NextMeetingLLMInput(**agent_input).model_dump()
+    llm_input = contract_management._NextMeetingLLMInput(
+        **agent_input, current_date=contract_management._now().isoformat()
+    ).model_dump()
 
     _print_json("CONTRACT NEXT MEETING INPUT", llm_input)
     output = await contract_management.propose_next_meeting(agent_input)
@@ -194,6 +196,7 @@ async def test_schedule_management_with_real_llm():
             schedule_management._ActivityWindow.model_validate(activity)
             for activity in agent_input["activities"]
         ],
+        current_date=schedule_management._now().isoformat(),
     ).model_dump()
 
     _print_json("SCHEDULE MANAGEMENT INPUT", llm_input)
@@ -257,6 +260,7 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
         sales_deals=contract_input["sales_deals"],
         risk_signals=contract_input["risk_signals"],
         recent_approved_reports=contract_input["recent_approved_reports"],
+        current_date=contract_management._now().isoformat(),
     ).model_dump()
     _print_json("1. CONTRACT NEXT MEETING INPUT", contract_llm_input)
     proposal = await contract_management.propose_next_meeting(contract_input)
@@ -301,6 +305,7 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
             schedule_management._ActivityWindow.model_validate(activity)
             for activity in schedule_input["activities"]
         ],
+        current_date=schedule_management._now().isoformat(),
     ).model_dump()
     _print_json("2. SCHEDULE MANAGEMENT INPUT", schedule_llm_input)
     schedule = await schedule_management.run(schedule_input)

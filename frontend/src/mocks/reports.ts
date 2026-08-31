@@ -164,11 +164,15 @@ export const reportSeed: DailyReportSeed[] = [
   },
 ]
 
+/** 시연용 구성원 번호입니다. 실제 계정과 이어지지 않고 이름끼리만 구분합니다. */
+const MEMBER_IDS: Record<string, string> = { 김지훈: 'mock-member-kim' }
+
 /** offset 을 실제 날짜로 편 제출 이력. 최근 것이 앞에 옵니다. */
 export const fallbackDailyReports: DailyReport[] = reportSeed
   .map((seed) => ({
     ...seed,
     date: iso(addDays(TODAY, seed.off)),
+    ownerMemberId: MEMBER_IDS[seed.owner] ?? seed.owner,
     template: templateFor(seed.kind),
   }))
   .sort((a, b) => b.date.localeCompare(a.date))

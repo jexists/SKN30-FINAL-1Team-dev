@@ -14,6 +14,7 @@ import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
+import { useShowOwner } from '@/shared/scope'
 import SalesDealDrawer from '@/pages/Deals/SalesDealDrawer'
 import useSalesDeals, { type SalesDeal } from '@/pages/Deals/useSalesDeals'
 import { addDays, fmtDot, iso, parseISO, TODAY } from '@/utils/date'
@@ -50,6 +51,8 @@ export default function Contracts() {
 
   const requestedPipelineId = params.get('pipeline') ?? ''
   const { isManager } = useCurrentUser()
+  // 칸은 여러 사람이 섞일 때만 세웁니다. 아래 담당자 필터는 조작이라 팀장에게 늘 둡니다.
+  const showOwner = useShowOwner()
   // 담당자 선택지. 받아 둔 목록에서 뽑으면 지금 쪽에 있는 사람만 나옵니다.
   const { members: teamMembers } = useTeamMembers(isManager)
 
@@ -123,11 +126,11 @@ export default function Contracts() {
   // 정렬 API가 붙기 전에 현재 쪽만 정렬하면 전체 순서를 오해하게 됩니다.
   const columns = useMemo(
     () =>
-      CONTRACT_COLUMNS.filter((column) => column.id !== 'owner' || isManager).map((column) => ({
+      CONTRACT_COLUMNS.filter((column) => column.id !== 'owner' || showOwner).map((column) => ({
         ...column,
         sortable: false,
       })),
-    [isManager],
+    [showOwner],
   )
   const ownerOptions = useMemo(
     () => [
@@ -290,7 +293,7 @@ export default function Contracts() {
                   ? fmtDot(parseISO(contract.contractSignedOn))
                   : '계약일 미정'}
               </span>,
-              ...(isManager ? [contract.owner] : []),
+              ...(showOwner ? [contract.owner] : []),
             ],
           }
         }}

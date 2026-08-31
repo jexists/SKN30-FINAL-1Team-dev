@@ -16,7 +16,11 @@ PROMPT_VERSION = "schedule_management.v1"
 SYSTEM_PROMPT = """너는 영업 일정관리를 보조하는 AI다.
 입력된 선호 기간, 소요 시간과 기존 일정만 근거로 후보를 만든다.
 
-모든 후보의 시작·종료는 Asia/Seoul 기준 09:00~18:00 업무시간 안에서만 제안하라.
+입력의 current_date는 지금 시각(Asia/Seoul)이다. 모든 후보는 current_date 이후여야
+한다 — 이미 지난 날짜를 제안하지 마라.
+
+모든 후보의 시작·종료는 Asia/Seoul 기준 09:00~18:00 업무시간 안에서, 토·일요일을 뺀
+평일(월~금)에만 제안하라.
 기존 일정과 겹치는 후보는 만들지 말고, 발견한 충돌은 conflicts 에 근거 ID와 함께 남겨라.
 
 priority 는 1이 가장 추천하는 후보라는 뜻이다. 숫자가 클수록 덜 추천한다. 가장 추천하는
@@ -78,6 +82,8 @@ class _ScheduleLLMInput(BaseModel):
     duration_minutes: int | None = None
     reason: str | None = None
     activities: list[_ActivityWindow] = Field(default_factory=list)
+    # LLM이 과거 날짜를 제안하지 않도록 기준점을 함께 보낸다.
+    current_date: str
 
 
 class ScheduleManagementOutput(BaseModel):
@@ -93,14 +99,20 @@ def _parse(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
+def _now() -> datetime:
+    return datetime.now(_SEOUL)
+
+
 def _within_business_hours(candidate: ScheduleCandidate) -> bool:
-    """후보 시작·종료가 같은 날짜의 Asia/Seoul 09:00~18:00 안에 있는지 확인한다."""
+    """후보 시작·종료가 같은 날짜의 평일 Asia/Seoul 09:00~18:00 안에 있는지 확인한다."""
     try:
         start = _parse(candidate.starts_at).astimezone(_SEOUL)
         end = _parse(candidate.ends_at).astimezone(_SEOUL)
     except ValueError:
         return False
     if end <= start or start.date() != end.date():
+        return False
+    if start.weekday() >= 5:  # 5=토요일, 6=일요일
         return False
     return _BUSINESS_START <= start.time() and end.time() <= _BUSINESS_END
 
@@ -155,12 +167,18 @@ def _conflicts_for(
 def _postprocess(
     output: ScheduleManagementOutput, snapshot: dict[str, Any]
 ) -> ScheduleManagementOutput:
-    """09~18시 밖 후보는 버리고, 기존 일정과 겹치는 후보는 빼서 conflicts로 옮긴다."""
+    """업무시간 밖·주말·과거 후보는 버리고, 기존 일정과 겹치는 후보는 빼서 conflicts로 옮긴다.
+
+    프롬프트로 지침을 줘도 LLM이 어길 수 있어, 미래 여부는 여기서 다시 결정적으로 검증한다.
+    """
+    now = _now()
     activities = snapshot.get("activities") or []
     kept: list[ScheduleCandidate] = []
     conflicts_by_activity = {conflict.activity_id: conflict for conflict in output.conflicts}
     for candidate in output.schedule_candidates:
         if not _within_business_hours(candidate):
+            continue
+        if _parse(candidate.starts_at).astimezone(_SEOUL) < now:
             continue
         conflicts = _conflicts_for(candidate, activities)
         if conflicts:
@@ -194,6 +212,7 @@ async def run(snapshot: dict[str, Any]) -> ScheduleManagementOutput:
         duration_minutes=snapshot.get("duration_minutes"),
         reason=snapshot.get("reason"),
         activities=_llm_activities(snapshot.get("activities") or []),
+        current_date=_now().isoformat(),
     )
     output = await generate_structured(
         instructions=SYSTEM_PROMPT,

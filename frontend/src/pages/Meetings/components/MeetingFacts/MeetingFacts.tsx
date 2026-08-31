@@ -21,7 +21,7 @@ export default function MeetingFacts({ dept, contact, place, hospital, when }: P
   const facts: [string, string][] = [
     ...(hospital === undefined ? [] : ([['회사', hospital]] as [string, string][])),
     ['부서', dept],
-    ['담당자', contact],
+    ['고객 담당자', contact],
     ['장소', place],
     ...(when === undefined ? [] : ([['일시', when]] as [string, string][])),
   ]

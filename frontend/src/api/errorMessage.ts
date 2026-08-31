@@ -53,6 +53,9 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   customer_company_not_found: '고객사를 찾지 못했습니다. 다시 시도해 주세요.',
   customer_contact_not_found: '고객을 찾지 못했습니다. 목록을 새로 불러와 주세요.',
   customer_contact_status_code_not_found: '고객 상태 설정을 확인해 주세요.',
+  // 보고서 (/reports)
+  activity_not_owned: '본인이 진행한 일정에만 보고서를 쓸 수 있습니다.',
+  report_not_owned: '본인이 쓴 보고서만 고치거나 제출할 수 있습니다.',
   // 상품 (/products)
   product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   product_image_not_found: '등록된 사진이 없습니다.',
@@ -67,6 +70,8 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   // 음성 변환 (/transcriptions)
   stt_not_configured: '음성 변환 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
   stt_unavailable: '음성 변환 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+  // AI 추천 승인 (/activities)
+  suggestion_already_processed: '이미 처리된 추천입니다. 목록을 새로 불러옵니다.',
 }
 
 /**

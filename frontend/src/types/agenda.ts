@@ -82,6 +82,8 @@ export interface AgendaItem extends AgendaSeed {
   allDay?: boolean
   /** AI 추천 일정을 승인해 만든 활동에서, 브리핑 큐잉이 실패했을 때만 채워짐 */
   briefingQueueWarning?: string | null
+  /** AI 추천 일정을 승인했는데 그 시간에 이미 다른 일정이 있을 때만 채워짐 */
+  scheduleConflictWarning?: string | null
 }
 
 /**
@@ -149,6 +151,8 @@ export interface ActivityRead {
   updated_at: string
   /** schedule_management_run_id로 브리핑을 큐잉하려다 실패했을 때만 채워짐 */
   briefing_queue_warning?: string | null
+  /** 승인한 시간에 이미 다른 일정이 있을 때만 채워짐. 등록 자체는 성공한 상태다 */
+  schedule_conflict_warning?: string | null
   /** 이 활동에 연결된 최신 브리핑 실행. 실행 기록 자체가 없으면(한 번도 요청 안 했으면) null */
   ai_briefing?: AiBriefing | null
 }

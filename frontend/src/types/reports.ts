@@ -94,6 +94,8 @@ export interface DailyReportSeed {
 export interface DailyReport extends DailyReportSeed {
   /** YYYY-MM-DD */
   date: string
+  /** 작성자의 구성원 번호. 고칠 수 있는 사람인지 이 값으로 가립니다. */
+  ownerMemberId: string
   template: ReportTemplate
 }
 

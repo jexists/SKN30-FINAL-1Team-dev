@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
-from app.models.agent import AgentRun
+from app.models.agent import AgentRun, ContractNextMeetingSuggestion
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import Product, SalesDeal
@@ -24,6 +24,7 @@ from app.schemas.activities import (
 )
 from app.schemas.agent_runs import AgentRunCreate
 from app.services import agent_runs as agent_run_service
+from app.services import contract_next_meeting_pipeline
 
 router = APIRouter(tags=["activities"])
 
@@ -489,6 +490,10 @@ async def create_activity(
         values.pop("category_code")
         values.pop("action_tag")
         schedule_management_run_id = values.pop("schedule_management_run_id")
+        if schedule_management_run_id is not None:
+            # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
+            # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
+            await _claim_suggestion(db, member, schedule_management_run_id)
         activity = Activity(
             id=uuid4(),
             team_id=member.team_id,
@@ -532,9 +537,95 @@ async def create_activity(
                 background.add_task(agent_run_service.execute, briefing_run_id)
         except HTTPException as error:
             read.briefing_queue_warning = str(error.detail)
+        read.schedule_conflict_warning = await _conflict_warning(db, member, activity)
+    elif activity.sales_deal_id is not None:
+        # AI 추천을 거치지 않은 수동 등록이다 — 이 딜이 AI 추천 체인을 한 번도 안 거쳤을
+        # 수 있다는 신호로 보고 트리거한다(계약에이전트_설계.md 3장).
+        contract_next_meeting_pipeline.queue(
+            background, activity.sales_deal_id, {"activity_id": str(activity.id)}
+        )
 
     response.headers["Location"] = f"/api/activities/{activity.id}"
     return read
+
+
+async def _conflict_warning(db: AsyncSession, member: Member, activity: Activity) -> str | None:
+    """승인한 시간에 이 담당자의 다른 일정이 이미 있으면 안내 문구를 만든다.
+
+    제안은 트리거 시점에 미리 계산해 둔 값이라, 그때는 비어 있던 자리에 승인하기 전까지
+    다른 일정이 잡혔을 수 있다. 일정관리 에이전트가 겹침을 걸러 내는 것은 계산 시점 한
+    번뿐이므로 여기서 한 번 더 본다. 등록은 이미 커밋됐고 되돌리지 않는다 — 사람이 보고
+    옮기도록 알리기만 한다.
+    """
+    # 종료가 없는(하루 종일) 일정은 그날 전체를 차지한 것으로 본다.
+    starts_at = activity.starts_at
+    ends_at = activity.ends_at or starts_at + timedelta(days=1)
+    rows = (
+        await db.execute(
+            select(Activity.title, Activity.starts_at)
+            .where(
+                Activity.team_id == member.team_id,
+                Activity.owner_member_id == member.id,
+                Activity.id != activity.id,
+                Activity.deleted_at.is_(None),
+                Activity.starts_at < ends_at,
+                func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1)) > starts_at,
+            )
+            .order_by(Activity.starts_at)
+            .limit(1)
+        )
+    ).all()
+    if not rows:
+        return None
+    title, other_start = rows[0]
+    when = other_start.astimezone(_SEOUL).strftime("%m/%d %H:%M")
+    return f"이 시간에 이미 다른 일정이 있습니다: {when} {title}"
+
+
+async def _claim_suggestion(
+    db: AsyncSession, member: Member, schedule_management_run_id: UUID
+) -> None:
+    """AI 추천 카드를 승인해서 만든 등록이다 — 그 제안을 이 요청의 것으로 선점한다.
+
+    승인 버튼을 연달아 누르거나 두 탭에서 함께 누르면 요청이 겹친다. 제안을 읽기만 하고
+    등록을 커밋한 뒤에 상태를 바꾸면 두 요청 모두 pending 을 보게 되어, 하나의 추천에서
+    같은 미팅이 두 번 등록된다. 그래서 등록보다 먼저, 같은 트랜잭션 안에서 잠근다
+    (계약에이전트_설계.md 6장 "제안 상태 저장").
+
+    with_for_update 는 이 줄을 커밋할 때까지 붙잡는다. 뒤늦게 들어온 요청은 여기서
+    기다렸다가 바뀐 상태를 읽고 409 로 끝난다.
+
+    잠금은 순서를 세울 뿐 권한을 보지 않는다. 조회 범위는 목록 조회
+    (contract_suggestions.list_contract_next_meeting_suggestions)와 같게 건다 — 실행 ID 만
+    보면 그 값을 아는 사람이 다른 팀이나 다른 담당자의 제안을 내려 버릴 수 있다.
+
+    범위 밖이거나 제안이 아예 없으면 그대로 진행한다. 캘린더 카드를 거치지 않고 일정관리
+    실행 ID 만 들고 온 등록이라 막을 근거가 없고, 남의 제안은 손대지 않은 채로 남는다.
+    """
+    conditions = [
+        ContractNextMeetingSuggestion.schedule_management_run_id == schedule_management_run_id,
+        ContractNextMeetingSuggestion.team_id == member.team_id,
+    ]
+    if member.role_code == "member":
+        conditions.append(SalesDeal.owner_member_id == member.id)
+
+    suggestion = (
+        await db.execute(
+            select(ContractNextMeetingSuggestion)
+            .join(SalesDeal, SalesDeal.id == ContractNextMeetingSuggestion.sales_deal_id)
+            .where(*conditions)
+            # 딜은 범위를 거는 데만 쓴다 — of 를 빼면 조인한 딜 행까지 함께 잠근다.
+            .with_for_update(of=ContractNextMeetingSuggestion)
+        )
+    ).scalar_one_or_none()
+    if suggestion is None:
+        return
+    if suggestion.status_code != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="suggestion_already_processed"
+        )
+    suggestion.status_code = "accepted"
+    suggestion.updated_at = datetime.now(UTC)
 
 
 @router.patch("/activities/{activity_id}", response_model=ActivityRead)

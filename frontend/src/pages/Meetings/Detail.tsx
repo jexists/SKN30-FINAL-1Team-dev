@@ -1,6 +1,7 @@
 // 제출한 미팅 기록을 읽는 화면입니다. 작성 화면과 같은 컴포넌트를 읽기 모드로 씁니다.
 import { Link, useParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
 import { EditIcon } from '@/components/icons'
@@ -26,6 +27,9 @@ export default function Detail() {
   )
 
   const report = item ? toMeetingReport(item) : undefined
+  // 보고서는 쓴 사람만 고칩니다. 팀장이 팀원의 보고서를 열어도 고치는 길은 서지 않습니다.
+  const { memberId } = useCurrentUser()
+  const isMine = report?.ownerMemberId === memberId
 
   if (loading)
     return (
@@ -125,7 +129,7 @@ export default function Detail() {
               <span className={`${styles.sealed} ${styles.trailing}`}>
                 팀장 확인이 끝나 수정할 수 없습니다
               </span>
-            ) : (
+            ) : isMine ? (
               <Link
                 className={buttonClass({}, styles.trailing)}
                 to={meetingComposePath(report.agendaId)}
@@ -133,7 +137,7 @@ export default function Detail() {
                 <EditIcon width={15} height={15} />
                 수정하기
               </Link>
-            )}
+            ) : null}
           </div>
         </div>
 

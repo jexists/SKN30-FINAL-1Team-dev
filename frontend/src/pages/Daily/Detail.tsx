@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button from '@/components/Button'
 import ReportFields from '@/components/ReportFields'
@@ -25,6 +26,9 @@ export default function Detail() {
   )
 
   const report = item ? toReport(item) : undefined
+  // 보고서는 쓴 사람만 고칩니다. 팀장이 팀원의 보고서를 열어도 고치는 길은 서지 않습니다.
+  const { memberId } = useCurrentUser()
+  const isMine = report?.ownerMemberId === memberId
 
   if (loading)
     return (
@@ -69,7 +73,7 @@ export default function Detail() {
         <ReportStatusBadge status={report.status} />
         <span className={styles.approver}>보고 대상 {report.approver}</span>
 
-        {report.status === '반려' && (
+        {report.status === '반려' && isMine && (
           <Link className={styles.rewrite} to={dailyComposePath(report.date, report.kind)}>
             수정해서 다시 제출
           </Link>

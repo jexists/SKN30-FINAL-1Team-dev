@@ -1,16 +1,7 @@
-// 계약관리·일정관리 에이전트(`/agent-runs`)가 주고받는 값의 모양.
-// backend/app/agents/contract_management.py, schedule_management.py 의 Pydantic 스키마를
-// 그대로 옮긴다 — 필드가 바뀌면 두 쪽을 같이 맞춘다.
-
-import type { AgentRunStatus } from './reports'
-
-/** `POST/GET /agent-runs` 공통 응답 뼈대. output_snapshot 모양은 agent_code 마다 다르다. */
-export interface AgentRunEnvelope<TOutput> {
-  id: string
-  status_code: AgentRunStatus
-  output_snapshot: TOutput | null
-  error_message: string | null
-}
+// 계약관리·일정관리 에이전트가 만든 값의 모양.
+// backend/app/agents/contract_management.py, schedule_management.py 와
+// backend/app/schemas/contract_suggestions.py 의 Pydantic 스키마를 그대로 옮긴다 —
+// 필드가 바뀌면 두 쪽을 같이 맞춘다.
 
 // 화면·알림·테스트가 이 값에 의존하므로 자유 문구 대신 일곱 가지로 고정한다
 // (contract_management.py 의 RiskCode 와 동일).
@@ -31,32 +22,6 @@ export interface ContractRisk {
   message: string
 }
 
-export interface SelectedNextMeetingCandidate {
-  customer_company_id: string
-  sales_deal_id: string
-  reason: string
-  priority: number
-}
-
-export interface SelectNextMeetingCandidatesOutput {
-  candidates: SelectedNextMeetingCandidate[]
-}
-
-export interface NextMeetingSuggestion {
-  sales_deal_id: string
-  reason: string
-  preferred_starts_at: string | null
-  preferred_ends_at: string | null
-  duration_minutes: number
-}
-
-export interface NextMeetingProposalOutput {
-  risks: ContractRisk[]
-  missing_information: string[]
-  recommended_actions: string[]
-  next_meeting_suggestion: NextMeetingSuggestion | null
-}
-
 export interface ScheduleCandidate {
   candidate_id: string
   title: string
@@ -66,13 +31,34 @@ export interface ScheduleCandidate {
   reason: string
 }
 
-export interface ScheduleManagementOutput {
-  schedule_candidates: ScheduleCandidate[]
-}
-
 export interface ContractBriefingOutput {
   contract_summary: string
   risks: ContractRisk[]
   missing_information: string[]
   recommended_actions: string[]
+}
+
+/**
+ * `GET /contract-next-meeting-suggestions` 한 건. 트리거(보고서 확정·일정 수동 등록·영업 딜
+ * 생성/이동·CS 처리 시작)로 서버가 미리 "다음 미팅 제안 → 일정 후보"까지 계산해 저장해 둔
+ * 결과다 — 캘린더가 이 값을 읽을 때는 LLM을 부르지 않는다.
+ * backend/app/schemas/contract_suggestions.py 의 ContractNextMeetingSuggestionRead 를 옮긴다.
+ */
+export interface ContractNextMeetingSuggestion {
+  id: string
+  sales_deal_id: string
+  customer_company_id: string
+  customer_company_name: string
+  customer_contact_id: string | null
+  customer_contact_name: string | null
+  owner_member_id: string
+  owner_display_name: string
+  sales_deal_title: string
+  reason: string
+  risks: ContractRisk[]
+  schedule_management_run_id: string
+  schedule_candidates: ScheduleCandidate[]
+  status_code: 'pending' | 'dismissed' | 'accepted'
+  created_at: string
+  updated_at: string
 }

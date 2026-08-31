@@ -65,6 +65,7 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
   return {
     id: item.id,
     owner: item.author_display_name,
+    ownerMemberId: item.author_member_id,
     agendaId: item.source_activity_id ?? '',
     off: Math.round((parseISO(item.report_date).getTime() - TODAY.getTime()) / DAY),
     date: item.report_date,

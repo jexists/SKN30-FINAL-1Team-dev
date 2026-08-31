@@ -3,11 +3,10 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { errorMessage, transportMessage } from '@/api/errorMessage'
-import { useCurrentUser } from '@/auth/sessionContext'
 import ErrorToast from '@/components/ErrorToast'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
-import { useScopeOwnerIds } from '@/shared/scope'
+import { useScopeOwnerIds, useShowOwner } from '@/shared/scope'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
 
 import type { BusinessCardDraft } from './businessCard'
@@ -54,10 +53,10 @@ export default function Customers() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const { prefs, toggleColumn, moveColumn, setWidth, reset } = useColumnPrefs()
-  // 팀원에게는 자기가 담당인 고객만 보여, 담당자 칸이 늘 자기 이름입니다. 아예 감춥니다.
-  // 저장된 설정은 건드리지 않습니다. 팀장으로 다시 들어오면 그대로 돌아와야 합니다.
-  const { isManager } = useCurrentUser()
-  const hiddenColumns = useMemo(() => (isManager ? [] : ['owner']), [isManager])
+  // 한 사람만 보고 있으면 담당자 칸이 줄마다 같은 이름이라 아예 감춥니다. 팀원은 늘 그렇습니다.
+  // 저장된 설정은 건드리지 않습니다. 범위를 넓히면 그대로 돌아와야 합니다.
+  const showOwner = useShowOwner()
+  const hiddenColumns = useMemo(() => (showOwner ? [] : ['owner']), [showOwner])
   const deferredQuery = useDeferredValue(query)
   const ownerIds = useScopeOwnerIds()
 

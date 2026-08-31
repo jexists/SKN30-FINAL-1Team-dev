@@ -180,6 +180,14 @@
     color: var(--muted);
     font-size: 12px;
   }
+
+  // 작성자 이름표가 앞에 설 수 있어 한 줄로 늘어놓습니다.
+  .rowMeta {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-width: 0;
+  }
 }
 
 .approver,

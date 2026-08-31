@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
 from app.models.agent import AgentRun
 from app.models.crm import Activity, CustomerCompany
@@ -263,6 +264,7 @@ async def test_build_candidate_selection_snapshot_filters_deals_without_risk_sig
     db = _Db(
         _Result(rows=[(risky_deal, stage, company), (safe_deal, stage, company)]),
         _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[]),  # _deal_ids_with_upcoming_activity
     )
 
     snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
@@ -275,6 +277,37 @@ async def test_build_candidate_selection_snapshot_filters_deals_without_risk_sig
     assert candidate["stage_code"] == "negotiation"
     assert candidate["stage_phase_code"] == "negotiation"
     assert any(s["code"] == "contract_expiring" for s in candidate["risk_signals"])
+
+
+@pytest.mark.anyio
+async def test_build_candidate_selection_snapshot_skips_deals_with_upcoming_activity():
+    """계약 만료일 같은 신호는 미팅을 잡아도 사라지지 않는다 — 이미 앞으로 잡힌 일정이
+    있는 딜은 위험 신호가 남아 있어도 후보에서 뺀다."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    stage = _stage(phase_code="negotiation")
+    today = date.today()
+
+    booked_deal = _deal(
+        member,
+        title="이미 미팅 잡힌 딜",
+        contract_ends_on=today + timedelta(days=5),
+    )
+    open_deal = _deal(
+        member,
+        title="아직 안 잡힌 딜",
+        contract_ends_on=today + timedelta(days=5),
+    )
+
+    db = _Db(
+        _Result(rows=[(booked_deal, stage, company), (open_deal, stage, company)]),
+        _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[(booked_deal.id,)]),  # _deal_ids_with_upcoming_activity
+    )
+
+    snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
+
+    assert [c["sales_deal_id"] for c in snapshot["candidates"]] == [str(open_deal.id)]
 
 
 @pytest.mark.anyio
@@ -291,6 +324,7 @@ async def test_build_candidate_selection_snapshot_exposes_stage_code():
     db = _Db(
         _Result(rows=[(deal, stage, company)]),
         _Result(rows=[]),  # _last_activity_by_deal
+        _Result(rows=[]),  # _deal_ids_with_upcoming_activity
     )
 
     snapshot = await snapshots.build_candidate_selection_snapshot(db, member)
@@ -391,3 +425,154 @@ async def test_build_schedule_snapshot_without_parent_uses_request_preferred_win
     assert snapshot["preferred_starts_at"] == "2026-09-01T00:00:00+09:00"
     assert snapshot["duration_minutes"] == 30
     assert snapshot["reason"] is None
+
+
+@pytest.mark.anyio
+async def test_schedule_snapshot_normalizes_naive_preferred_window():
+    """시간대 없는 입력은 UTC 로 못 박아 내보낸다.
+
+    원본 문자열을 그대로 흘려보내면 이 단계는 UTC 로, contract_management 는
+    Asia/Seoul 로 읽어 같은 글자가 9시간 다르게 해석된다.
+    """
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2026-12-01T09:00:00",  # offset 없음
+        "2026-12-03T18:00:00",
+        60,
+    )
+
+    start = datetime.fromisoformat(snapshot["preferred_starts_at"])
+    end = datetime.fromisoformat(snapshot["preferred_ends_at"])
+    assert start.tzinfo is not None
+    assert end.tzinfo is not None
+    assert start.utcoffset() == timedelta(0)
+    assert start == datetime(2026, 12, 1, 9, tzinfo=UTC)
+
+
+@pytest.mark.anyio
+async def test_schedule_snapshot_pulls_a_past_start_up_to_now():
+    """시작이 이미 지났으면 지금으로 당긴다 — 끝이 미래면 창 자체는 살린다."""
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+    before = datetime.now(UTC)
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2020-01-01T00:00:00+00:00",  # 한참 과거
+        "2026-12-03T18:00:00+00:00",  # 끝은 미래
+        60,
+    )
+
+    start = datetime.fromisoformat(snapshot["preferred_starts_at"])
+    assert start >= before
+    assert start <= datetime.now(UTC)
+
+
+@pytest.mark.anyio
+async def test_schedule_snapshot_drops_an_inverted_preferred_window():
+    """시작이 끝보다 늦으면 탐색 범위가 성립하지 않는다 — 기본 범위로 넘긴다."""
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2026-12-05T09:00:00+00:00",  # 시작이
+        "2026-12-03T18:00:00+00:00",  # 끝보다 늦다
+        60,
+    )
+
+    assert snapshot["preferred_starts_at"] is None
+    assert snapshot["preferred_ends_at"] is None
+
+
+# ---- build_next_meeting_snapshot: 딜 범위 한정 ----
+
+
+@pytest.mark.anyio
+async def test_next_meeting_snapshot_narrows_to_the_triggering_deal():
+    """같은 회사에 딜이 둘이면 트리거 딜만 넣는다.
+
+    둘 다 넣으면 LLM 이 다른 딜을 골라 답할 수 있고, 그 답이 트리거 딜의 제안으로
+    저장된다(contract_next_meeting_pipeline).
+    """
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    triggered = _deal(member, deal_no="D-1", customer_company_id=company.id, title="트리거 딜")
+    other = _deal(member, deal_no="D-2", customer_company_id=company.id, title="다른 딜")
+    stage = _stage(phase_code="negotiation")
+    db = _Db(
+        _Result(scalar=company),  # _company_or_404
+        _Result(rows=[(triggered, stage), (other, stage)]),  # _open_deals
+        _Result(rows=[]),  # _last_activity_by_deal
+        _Result(scalar_values=[]),  # _unresolved_support_signals
+        _Result(scalar_values=[]),  # _recent_finalized_reports
+    )
+
+    snapshot = await snapshots.build_next_meeting_snapshot(db, member, company.id, triggered.id)
+
+    ids = [deal["id"] for deal in snapshot["sales_deals"]]
+    assert ids == [str(triggered.id)]
+    assert str(other.id) not in ids
+
+
+@pytest.mark.anyio
+async def test_next_meeting_snapshot_keeps_every_deal_without_a_deal_id():
+    """딜 id 를 주지 않는 기존 호출부(POST /agent-runs)는 회사 단위 그대로 돈다."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    first = _deal(member, deal_no="D-1", customer_company_id=company.id)
+    second = _deal(member, deal_no="D-2", customer_company_id=company.id)
+    stage = _stage(phase_code="negotiation")
+    db = _Db(
+        _Result(scalar=company),
+        _Result(rows=[(first, stage), (second, stage)]),
+        _Result(rows=[]),
+        _Result(scalar_values=[]),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_next_meeting_snapshot(db, member, company.id)
+
+    assert len(snapshot["sales_deals"]) == 2
+
+
+@pytest.mark.anyio
+async def test_next_meeting_snapshot_rejects_a_deal_outside_the_company():
+    """이 회사의 열린 딜이 아니면 빈 스냅샷 대신 404 로 끊는다 — LLM 이 지어내지 않게."""
+    member = _member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="테스트 병원")
+    open_deal = _deal(member, customer_company_id=company.id)
+    db = _Db(
+        _Result(scalar=company),
+        _Result(rows=[(open_deal, _stage(phase_code="negotiation"))]),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await snapshots.build_next_meeting_snapshot(db, member, company.id, uuid4())
+
+    assert error.value.status_code == 404
+    assert error.value.detail == "sales_deal_not_found"

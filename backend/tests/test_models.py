@@ -63,6 +63,8 @@ EXPECTED_COLUMN_COUNTS = {
     "file": 19,
     "document_chunk": 12,
     "agent_run": 17,
+    # 20260829_0013 으로 contract_next_meeting_suggestion 을 새로 만들었다.
+    "contract_next_meeting_suggestion": 7,
 }
 
 # Supabase에 이미 남아 있지만 현재 애플리케이션이 사용하지 않는 과거 테이블입니다.
@@ -92,14 +94,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 358
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 365
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 86
+    assert len(foreign_key_constraints) == 89
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

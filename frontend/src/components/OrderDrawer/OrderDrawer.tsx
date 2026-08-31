@@ -10,14 +10,16 @@ import Button, { buttonClass } from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import { ChevronRightIcon, TrashIcon } from '@/components/icons'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
-import type { PurchaseOrder } from '@/types'
+import { useShowOwner } from '@/shared/scope'
+import type { ApiPurchaseOrder } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
 
 import styles from './OrderDrawer.module.scss'
 
 interface Props {
-  order: PurchaseOrder
+  /** 담당 영업을 세우려면 서버가 채워 주는 owner 가 있어야 해 API 형을 받습니다. */
+  order: ApiPurchaseOrder
   /** 목록에서 들어왔을 때만 있습니다. */
   onBack?: () => void
   onEdit?: () => void
@@ -29,8 +31,11 @@ interface Props {
 
 export default function OrderDrawer({ order, onBack, onEdit, onDelete, detailTo, onClose }: Props) {
   const late = isLate(order)
+  const showOwner = useShowOwner()
 
   const rows: [string, string][] = [
+    // 여러 사람의 발주가 섞여 보일 때만 누구 것인지 앞세웁니다.
+    ...(showOwner ? ([['담당 영업', order.owner]] as [string, string][]) : []),
     ['품목', orderItemLabel(order)],
     ['금액', wonFull(orderTotal(order))],
     ['공급처', order.supplier],
