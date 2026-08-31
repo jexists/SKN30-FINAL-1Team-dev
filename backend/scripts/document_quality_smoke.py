@@ -101,6 +101,8 @@ def main() -> None:
     )
     args = parser.parse_args()
     results = [evaluate(path, use_local_ocr=args.ocr_local) for path in _paths(args.paths)]
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(results, ensure_ascii=False))
     if not results or any(item["status"] != "passed" for item in results):
         raise SystemExit(1)
