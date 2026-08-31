@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.models.agent import ContractNextMeetingSuggestion
+from app.models.agent import AgentRun, ContractNextMeetingSuggestion
 from app.models.crm import CustomerCompany
 from app.models.sales import SalesDeal
 from app.models.workspace import Member
@@ -195,3 +195,32 @@ def test_drops_a_suggestion_about_another_deal():
     assert (
         pipeline._answers_this_deal({"sales_deal_id": str(other_deal_id)}, sales_deal_id) is False
     )
+
+
+def _schedule_run(*, window: tuple[str, str] | None, candidates: list | None) -> AgentRun:
+    snapshot = {"sales_deal_id": str(uuid4()), "duration_minutes": 60}
+    if window is not None:
+        snapshot["preferred_starts_at"], snapshot["preferred_ends_at"] = window
+    else:
+        snapshot["preferred_starts_at"] = None
+        snapshot["preferred_ends_at"] = None
+    return AgentRun(
+        id=uuid4(),
+        team_id=uuid4(),
+        agent_code="schedule_management",
+        status_code="completed",
+        input_snapshot=snapshot,
+        output_snapshot={"schedule_candidates": candidates or [], "conflicts": []},
+    )
+
+
+def test_only_a_completed_run_with_candidates_counts():
+    """실패했거나 빈손인 실행으로 카드를 띄우면 안 된다."""
+    filled = _schedule_run(window=None, candidates=[{"starts_at": "2026-09-01T10:00:00+09:00"}])
+    empty = _schedule_run(window=None, candidates=[])
+    failed = _schedule_run(window=None, candidates=[{"starts_at": "x"}])
+    failed.status_code = "failed"
+
+    assert pipeline._has_candidates(filled) is True
+    assert pipeline._has_candidates(empty) is False
+    assert pipeline._has_candidates(failed) is False

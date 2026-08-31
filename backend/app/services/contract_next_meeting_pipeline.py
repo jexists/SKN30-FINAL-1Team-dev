@@ -114,31 +114,13 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
         except HTTPException:
             return
 
-        schedule_run_id = uuid4()
         team_id = deal.team_id
-        session.add(
-            AgentRun(
-                id=schedule_run_id,
-                team_id=team_id,
-                parent_run_id=next_meeting_run.id,
-                requested_by_member_id=None,
-                agent_code="schedule_management",
-                trigger_code="system",
-                idempotency_key=None,
-                status_code="queued",
-                llm_model_name=settings.llm_model,
-                prompt_version=schedule_management.PROMPT_VERSION,
-                source_refs={
-                    "sales_deal_id": str(sales_deal_id),
-                    "parent_run_id": str(next_meeting_run.id),
-                },
-                input_snapshot=schedule_input,
-                output_snapshot=None,
-                evidence=None,
-                error_message=None,
-                started_at=None,
-                finished_at=None,
-            )
+        schedule_run_id = _add_schedule_run(
+            session,
+            team_id=team_id,
+            sales_deal_id=sales_deal_id,
+            parent_run_id=next_meeting_run.id,
+            input_snapshot=schedule_input,
         )
         await session.commit()
 
@@ -148,10 +130,53 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
         schedule_run = await session.get(AgentRun, schedule_run_id)
         if schedule_run is None or schedule_run.status_code != "completed":
             return
-        candidates = (schedule_run.output_snapshot or {}).get("schedule_candidates") or []
-        if not candidates:
+        if not _has_candidates(schedule_run):
             return
         await _upsert_suggestion(session, team_id, sales_deal_id, schedule_run_id)
+
+
+def _add_schedule_run(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    sales_deal_id: UUID,
+    parent_run_id: UUID,
+    input_snapshot: dict,
+) -> UUID:
+    """일정관리 실행을 queued 로 세션에 넣고 그 id 를 준다. 커밋은 호출 쪽에서 한다."""
+    run_id = uuid4()
+    source_refs = {
+        "sales_deal_id": str(sales_deal_id),
+        "parent_run_id": str(parent_run_id),
+    }
+    session.add(
+        AgentRun(
+            id=run_id,
+            team_id=team_id,
+            parent_run_id=parent_run_id,
+            requested_by_member_id=None,
+            agent_code="schedule_management",
+            trigger_code="system",
+            idempotency_key=None,
+            status_code="queued",
+            llm_model_name=settings.llm_model,
+            prompt_version=schedule_management.PROMPT_VERSION,
+            source_refs=source_refs,
+            input_snapshot=input_snapshot,
+            output_snapshot=None,
+            evidence=None,
+            error_message=None,
+            started_at=None,
+            finished_at=None,
+        )
+    )
+    return run_id
+
+
+def _has_candidates(run: AgentRun) -> bool:
+    if run.status_code != "completed":
+        return False
+    return bool((run.output_snapshot or {}).get("schedule_candidates"))
 
 
 def _answers_this_deal(suggestion: dict, sales_deal_id: UUID) -> bool:
