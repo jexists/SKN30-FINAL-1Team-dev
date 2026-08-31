@@ -307,7 +307,7 @@ export default function Documents() {
           onNewVersion={() => setUploading(openDoc.id)}
           onSummarize={summarizeOpenDocument}
           onLoadSummary={loadOpenDocumentSummary}
-          autoSummarizeFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
+          autoLoadSummaryFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
           onSummaryCompleted={completeQueuedSummary}
           onApproveSummary={approveOpenDocument}
         />

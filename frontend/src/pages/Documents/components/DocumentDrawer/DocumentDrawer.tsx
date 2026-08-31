@@ -13,6 +13,7 @@ import { fmtDay, parseISO } from '@/utils/date'
 import { KIND_LABEL, latestOf } from '../../catalog'
 import { linkLabel } from '../../columns'
 import { downloadArtifact, downloadVersion, type DocumentArtifact } from '../../download'
+import { pollSummary } from '../../summaryPolling'
 
 import styles from './DocumentDrawer.module.scss'
 
@@ -23,7 +24,8 @@ interface Props {
   onNewVersion: () => void
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
   onLoadSummary: (fileId: string) => Promise<DocumentSummaryResponse>
-  autoSummarizeFileId?: string
+  /** 배치 접수 뒤에는 처리 시작 POST 없이 상태·결과만 조회합니다. */
+  autoLoadSummaryFileId?: string
   onSummaryCompleted?: (fileId: string, failureMessage?: string) => void
   onApproveSummary: (fileId: string) => Promise<DocumentSummaryResponse>
 }
@@ -35,7 +37,7 @@ export default function DocumentDrawer({
   onNewVersion,
   onSummarize,
   onLoadSummary,
-  autoSummarizeFileId,
+  autoLoadSummaryFileId,
   onSummaryCompleted,
   onApproveSummary,
 }: Props) {
@@ -109,9 +111,45 @@ export default function DocumentDrawer({
     [onSummarize, onSummaryCompleted],
   )
 
+  const monitorQueuedSummary = useCallback(
+    (fileId: string) => {
+      setSummaryLoading(true)
+      setSummaryError(null)
+      setSummaryLoadError(null)
+      void pollSummary({
+        // 배치 API가 이미 처리 요청을 접수했으므로 자동 흐름에서는 GET만 수행합니다.
+        start: async () => undefined,
+        read: () => onLoadSummary(fileId),
+      })
+        .then((result) => {
+          setSummary(result)
+          if (result.processing_status === 'completed') {
+            onSummaryCompleted?.(result.file_id)
+          } else if (result.processing_status === 'failed') {
+            const message = '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+            setSummaryError(message)
+            onSummaryCompleted?.(result.file_id, message)
+          }
+        })
+        .catch((reason: unknown) => {
+          const message =
+            reason instanceof Error && reason.message === 'document_summary_timeout'
+              ? '문서 요약 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
+              : errorMessage(
+                  reason,
+                  '문서 요약 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                )
+          setSummaryError(message)
+          onSummaryCompleted?.(fileId, message)
+        })
+        .finally(() => setSummaryLoading(false))
+    },
+    [onLoadSummary, onSummaryCompleted],
+  )
+
   useEffect(() => {
-    if (autoSummarizeFileId) requestSummary(autoSummarizeFileId)
-  }, [autoSummarizeFileId, requestSummary])
+    if (autoLoadSummaryFileId) monitorQueuedSummary(autoLoadSummaryFileId)
+  }, [autoLoadSummaryFileId, monitorQueuedSummary])
 
   async function handleArtifact(artifact: DocumentArtifact) {
     if (!latest.id) return
