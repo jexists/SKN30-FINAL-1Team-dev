@@ -46,7 +46,7 @@ ONNX Runtime도 `onnxruntime==1.23.2`를 이미지에 포함하고 `/opt/onnxrun
 1. [완료] Dockerfile에서 Runpod GPU용 PaddlePaddle 런타임을 지정한다.
 2. [검증] `requirements.txt` 설치를 포함한 호환성 이미지 빌드를 완료한다.
 3. [검증] `handler.py`와 모델 파일을 포함한 이미지를 Docker Hub에 push한다.
-4. [완료] Serverless endpoint에 `seongbae0201/salesluv-document-ocr:20260827-onnxruntime` 이미지를 반영한다.
+4. [검증] Serverless endpoint에 `seongbae0201/salesluv-document-ocr:20260831-runpod-worker-ocr-fix` 이미지를 반영한다.
 5. [완료] endpoint ID를 백엔드 `OCR_API_URL`에 입력한다.
 6. [검증] 새 워커가 `IDLE` 상태로 기동했고 CUDA 런타임 fitness check와 이미지 내부 모델 파일 존재를 확인했다.
 7. [검증] Blackwell MIG 워커에서 합성 OCR이 `ocr_empty_result`로 실패한 이력이 있다. 해당 결과는 GPU binary memory allocation warning과 함께 관측됐다.
@@ -59,6 +59,7 @@ ONNX Runtime도 `onnxruntime==1.23.2`를 이미지에 포함하고 `/opt/onnxrun
 14. [검증] PDFium 공유 라이브러리 경로 보강 이미지 `seongbae0201/salesluv-document-ocr:20260827-pdfium`을 배포한 뒤 실제 취업규칙 PDF 35페이지 OCR을 재검증했다. 페이지 번호 연속성·Markdown·텍스트 생성을 확인했다.
 15. [검증] 위 Runpod OCR 결과를 OpenAI Responses API의 `gpt-5.6-luna` 구조화 요약으로 전달해 핵심 요약·주요 내용·리스크·추출 필드 결과를 생성했다. 원문과 요약 본문은 출력하지 않았다.
 16. [검증] `onnxruntime==1.23.2`와 공유 라이브러리 경로 보강 이미지를 배포한 뒤 합성 PDF OCR을 `COMPLETED`로 재검증했다. 백엔드의 비동기 상태 폴링도 열린 HTTP 세션 안에서 완료됨을 확인했다.
+17. [검증] Linux GPU 워커의 PaddleOCR 명함 엔진에 `enable_mkldnn=False`를 적용한 이미지를 배포했다. 새 워커가 `IDLE`로 기동했고 개인정보 없는 합성 명함 결과가 1페이지·오류 없음·OCR confidence 0.983으로 반환됐다.
 
 [가정] PaddlePaddle의 CUDA·Python 조합은 선택한 Runpod 이미지에 맞춰 고정해야 한다. 이 저장소에서는 특정 CUDA wheel을 임의로 고정하지 않는다.
 

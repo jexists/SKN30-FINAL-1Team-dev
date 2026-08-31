@@ -128,7 +128,7 @@ API 키는 저장소·로그·프론트엔드에 기록하지 않는다.
 2. [완료] `handler.py`에서 `source_url`·`content_base64` 입력 처리
 3. [완료] 명함 프로필의 방향·원근 보정 및 다중 variant OCR 정의
 4. [완료] PDF 페이지 렌더링 및 OCR 결과를 위 응답 계약으로 변환
-5. [완료] 호환성 이미지 `seongbae0201/salesluv-document-ocr:20260827-onnxruntime`를 빌드·배포하고 endpoint 이미지에 반영
+5. [검증] Linux GPU 호환성 이미지 `seongbae0201/salesluv-document-ocr:20260831-runpod-worker-ocr-fix`를 빌드·배포하고 endpoint 이미지에 반영
 6. [검증] 새 워커 기동, CUDA 런타임 확인, 이미지 내부 PaddleOCR 모델 파일 포함을 확인
 7. [검증] Blackwell MIG 워커에서 합성 OCR이 `ocr_empty_result`로 실패한 이력이 있다. GPU binary memory allocation warning도 함께 관측됐다.
 8. [완료] endpoint를 `AMPERE_24` 풀의 RTX A5000 호환 환경으로 제한하고 허용 CUDA를 `12.8,13.0`, 최소 CUDA를 `12.8`로 설정
@@ -144,5 +144,6 @@ API 키는 저장소·로그·프론트엔드에 기록하지 않는다.
     명함은 5/5 성공·평균 2.24초·최대 6.28초, PDF는 5/5 성공·평균 1.23초·최대 1.42초였다.
     [미완료] 워커를 실제로 0개까지 내린 뒤 측정하는 콜드스타트 표본과 Runpod 청구 내역 기준의
     실제 비용은 아직 별도 기록이 필요하다. 클라이언트 경과시간을 실제 과금시간으로 간주하지 않는다.
-18. [검증] 현재 endpoint(`5jtfroqhrxwgq9`)는 `version 11`, RTX A5000 `IDLE` 워커 1개,
-`unhealthy 0` 상태이며, 개인정보 없는 합성 명함·PDF의 백엔드 OCR 스모크를 모두 통과했다.
+18. [검증] 현재 endpoint(`5jtfroqhrxwgq9`)는 `version 14`, 새 이미지의 RTX A5000 `IDLE` 워커 1개,
+`unhealthy 0` 상태이며, 개인정보 없는 합성 명함 요청이 `COMPLETED`로 반환됐다.
+19. [검증] 2026-08-31 새 이미지의 합성 명함 응답은 1페이지, `ocr_profile=business_card`, `ocr_confidence=0.983`, 오류 없음으로 확인했다.

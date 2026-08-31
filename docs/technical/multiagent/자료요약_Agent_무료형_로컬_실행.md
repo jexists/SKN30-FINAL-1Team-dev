@@ -29,6 +29,14 @@ uv sync --extra local
 `local` extra에는 `pdf-inspector`, `pypdfium2`, `onnxruntime`, `paddleocr`, `paddlepaddle`이 포함된다. PDF OCR은 `pdf-inspector`와 `pypdfium2`를 사용하며, 애플리케이션이 Mac·Windows·Linux별 PDFium과 ONNX Runtime 라이브러리를 자동 탐색한다. 경로를 직접 지정해야 하는 환경에서는 `PDFIUM_LIB_PATH`와 `ORT_DYLIB_PATH`를 지정한다.
 
 첫 실행 시 PaddleOCR·pdf-inspector 모델 파일을 내려받을 수 있으므로 개발 환경에서 한 번 네트워크를 허용한다. 이후 OCR은 입력 문서를 외부 API로 보내지 않고 로컬 모델로 처리한다. [가정] 운영 환경의 OS·CPU 아키텍처가 개발 환경과 다르면 해당 환경에서 `uv sync --extra local`과 샘플 OCR을 별도로 검증한다.
+
+Docker로 배포 이미지를 빌드할 때는 Runpod과 일반 Linux 배포 환경의 x86_64 호환성을 맞춘다. Apple Silicon Mac에서는 다음처럼 대상 플랫폼을 명시한다.
+
+```bash
+docker build --platform linux/amd64 -t salesluv-document-ocr:latest -f backend/Dockerfile backend
+```
+
+`paddlepaddle`의 Linux ARM64 wheel이 제공되지 않는 환경에서는 `--platform linux/amd64`가 필요하다. Windows Docker Desktop에서도 같은 명령을 사용하면 배포 대상과 동일한 이미지를 만들 수 있다.
 모델 캐시는 기본적으로 OS 임시 폴더 아래에 저장되며, 지속 경로가 필요하면 `.env`의
 `PDF_INSPECTOR_MODEL_DIRECTORY`와 `PADDLEX_CACHE_HOME`을 지정한다.
 PaddleX 모델이 이미 캐시에 있으면 오프라인 환경에서 호스트 확인을 건너뛰도록 앱이

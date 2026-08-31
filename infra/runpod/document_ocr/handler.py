@@ -135,6 +135,9 @@ def _paddle_engine(language: str):
             use_doc_orientation_classify=True,
             use_doc_unwarping=True,
             use_textline_orientation=True,
+            # Linux CPU 진단 환경에서 oneDNN이 OCR 모델 속성 오류를 내는
+            # 호환성 문제가 있어 GPU·CPU 워커 모두 명시적으로 비활성화한다.
+            enable_mkldnn=False,
         )
     except TypeError:
         return PaddleOCR(lang=language, use_angle_cls=True)
@@ -151,6 +154,8 @@ def _paddle_business_card_engine(language: str):
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
+            # Linux CPU 진단 환경과 동일한 Paddle 설정을 유지한다.
+            enable_mkldnn=False,
         )
     except TypeError:
         return PaddleOCR(lang=language, use_angle_cls=False)
