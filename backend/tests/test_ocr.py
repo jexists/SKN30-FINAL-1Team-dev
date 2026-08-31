@@ -261,6 +261,7 @@ def test_business_card_variants_cap_large_input_side(monkeypatch):
 
 def test_business_card_uses_lightweight_paddle_engine(monkeypatch):
     calls = []
+    monkeypatch.setattr(ocr.os, "name", "nt")
 
     class FakePaddleOCR:
         def __init__(self, **kwargs):
@@ -281,6 +282,7 @@ def test_business_card_uses_lightweight_paddle_engine(monkeypatch):
             "use_doc_orientation_classify": False,
             "use_doc_unwarping": False,
             "use_textline_orientation": False,
+            "enable_mkldnn": False,
         }
     ]
     ocr._paddle_business_card_engine.cache_clear()
@@ -314,6 +316,7 @@ def test_paddle_lines_reads_paddlex_dict_json_result():
 
 def test_paddle_engine_enables_card_orientation_and_unwarping(monkeypatch):
     calls = []
+    monkeypatch.setattr(ocr.os, "name", "nt")
 
     class _PaddleOCR:
         def __init__(self, **kwargs):
@@ -330,6 +333,7 @@ def test_paddle_engine_enables_card_orientation_and_unwarping(monkeypatch):
     assert calls[0]["use_doc_orientation_classify"] is True
     assert calls[0]["use_doc_unwarping"] is True
     assert calls[0]["use_textline_orientation"] is True
+    assert calls[0]["enable_mkldnn"] is False
 
 
 @pytest.mark.anyio

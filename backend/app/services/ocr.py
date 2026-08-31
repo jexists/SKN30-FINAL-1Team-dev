@@ -324,12 +324,16 @@ def _paddle_engine():
     except ImportError as error:
         raise OcrError("local_ocr_dependency_missing:paddleocr") from error
     try:
-        return PaddleOCR(
-            lang=settings.ocr_local_language,
-            use_doc_orientation_classify=True,
-            use_doc_unwarping=True,
-            use_textline_orientation=True,
-        )
+        options = {
+            "lang": settings.ocr_local_language,
+            "use_doc_orientation_classify": True,
+            "use_doc_unwarping": True,
+            "use_textline_orientation": True,
+        }
+        if os.name == "nt":
+            # PaddlePaddle Windows oneDNN currently fails on OCR model attributes.
+            options["enable_mkldnn"] = False
+        return PaddleOCR(**options)
     except TypeError:
         # PaddleOCR 2.x 호환용 옵션. 최신 버전의 옵션이 없는 설치를 지원한다.
         return PaddleOCR(lang=settings.ocr_local_language, use_angle_cls=True)
@@ -344,14 +348,18 @@ def _paddle_business_card_engine():
     except ImportError as error:
         raise OcrError("local_ocr_dependency_missing:paddleocr") from error
     try:
-        return PaddleOCR(
-            lang=settings.ocr_local_language,
-            text_detection_model_name="PP-OCRv5_mobile_det",
-            text_recognition_model_name="korean_PP-OCRv5_mobile_rec",
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
-        )
+        options = {
+            "lang": settings.ocr_local_language,
+            "text_detection_model_name": "PP-OCRv5_mobile_det",
+            "text_recognition_model_name": "korean_PP-OCRv5_mobile_rec",
+            "use_doc_orientation_classify": False,
+            "use_doc_unwarping": False,
+            "use_textline_orientation": False,
+        }
+        if os.name == "nt":
+            # PaddlePaddle Windows oneDNN currently fails on OCR model attributes.
+            options["enable_mkldnn"] = False
+        return PaddleOCR(**options)
     except TypeError:
         # PaddleOCR 2.x 호환용: 명함 사진은 각도 보정 없이 이미 전처리한다.
         return PaddleOCR(lang=settings.ocr_local_language, use_angle_cls=False)
