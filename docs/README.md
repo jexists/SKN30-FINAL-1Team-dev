@@ -16,6 +16,11 @@
 | [database/](database/) | 실제 DB 구조 정리 — 테이블 목록·ERD·FK·테이블별 컬럼 |
 | [database/erd.html](database/erd.html) | 브라우저로 여는 Interactive ERD (검색·확대·클릭 상세) |
 | [technical/](technical/) | ERD·아키텍처 등 기술 설계 |
+| [technical/머신러닝_딥러닝_학습결과서.md](technical/머신러닝_딥러닝_학습결과서.md) | 로더 연결 전 13컬럼 전처리·RF 기준선·튜닝·앙상블 학습 기록과 현재 연결 상태의 구분 |
+| [technical/학습한_ML_DL_모델_산출물.md](technical/학습한_ML_DL_모델_산출물.md) | 학습 후보의 입력·저장 계약·검증 기록과 후속 연결·배포 범위 |
+| [submission/](submission/) | 위 ML 보고서 두 건의 DOCX·PDF 출력본. 내용 수정 원본은 `technical/`의 MD |
+| [../backend/notebooks/README.md](../backend/notebooks/README.md) | 현재 ML 노트북 실행 순서와 이전 실험 구분 |
+| [../deploy/backend/README.md](../deploy/backend/README.md) | 최신 모델 연결·Linux 검증·AWS 파일 배치와 미완료 배포 범위의 기준 |
 | [technical/SalesLuv_ERD.md](technical/SalesLuv_ERD.md) | 실제 테이블·컬럼 이름을 기준으로 한 SalesLuv ERD |
 | [technical/데이터베이스_저장소_설계_문서_260817.docx](technical/데이터베이스_저장소_설계_문서_260817.docx) | 타입·NULL·FK·제약·적용 이력을 포함한 상세 DB 설계서 |
 | [technical/multiagent/](technical/multiagent/) | 멀티에이전트 운영 문서 모음 |
