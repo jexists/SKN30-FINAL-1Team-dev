@@ -18,6 +18,9 @@ jobs:
     env:
       APP_ENV: production
       DEBUG: 'false'
+      # 커스텀 도메인을 쓰면 CORS_ORIGINS Secret으로 덮어쓴다. 현재 운영 진입점은
+      # 문서화된 CloudFront HTTPS origin이므로 Secret이 아직 없어도 정리 작업이 부팅된다.
+      CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || 'https://d3m90og33enu6v.cloudfront.net' }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
