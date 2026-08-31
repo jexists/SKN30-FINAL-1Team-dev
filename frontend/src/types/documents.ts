@@ -60,7 +60,12 @@ export interface SalesDocument extends Omit<SalesDocumentSeed, 'versions'> {
   versions: DocumentVersion[]
 }
 
-export type DocumentProcessingStatus = 'uploaded' | 'processing' | 'completed' | 'failed'
+export type DocumentProcessingStatus =
+  | 'uploaded'
+  | 'processing'
+  | 'review_required'
+  | 'completed'
+  | 'failed'
 
 export interface DocumentFileResponse {
   id: string

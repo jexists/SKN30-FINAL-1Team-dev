@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
@@ -20,13 +20,24 @@ interface Props {
   canUpload: boolean
   onNewVersion: () => void
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
+  autoSummarizeFileId?: string
+  onApproveSummary: (fileId: string) => Promise<DocumentSummaryResponse>
 }
 
-export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion, onSummarize }: Props) {
+export default function DocumentDrawer({
+  doc,
+  onClose,
+  canUpload,
+  onNewVersion,
+  onSummarize,
+  autoSummarizeFileId,
+  onApproveSummary,
+}: Props) {
   const [summary, setSummary] = useState<DocumentSummaryResponse | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [artifactLoading, setArtifactLoading] = useState<DocumentArtifact | null>(null)
+  const [approvalLoading, setApprovalLoading] = useState(false)
   const latest = latestOf(doc)
   const rows: [string, string][] = [
     ['메모', doc.description || '—'],
@@ -37,6 +48,22 @@ export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion, 
     ['등록일', fmtDay(parseISO(latest.uploaded))],
   ]
   const history = [...doc.versions].reverse()
+
+  const requestSummary = useCallback(
+    (fileId: string) => {
+      setSummaryLoading(true)
+      setSummaryError(null)
+      void onSummarize(fileId)
+        .then(setSummary)
+        .catch(() => setSummaryError('문서 요약을 생성하지 못했습니다.'))
+        .finally(() => setSummaryLoading(false))
+    },
+    [onSummarize],
+  )
+
+  useEffect(() => {
+    if (autoSummarizeFileId) requestSummary(autoSummarizeFileId)
+  }, [autoSummarizeFileId, requestSummary])
 
   async function handleArtifact(artifact: DocumentArtifact) {
     if (!latest.id) return
@@ -99,16 +126,9 @@ export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion, 
                       type="button"
                       className={styles.summarize}
                       disabled={summaryLoading}
-                      onClick={() => {
-                        setSummaryLoading(true)
-                        setSummaryError(null)
-                        void onSummarize(version.id!)
-                          .then(setSummary)
-                          .catch(() => setSummaryError('문서 요약을 생성하지 못했습니다.'))
-                          .finally(() => setSummaryLoading(false))
-                      }}
+                      onClick={() => requestSummary(version.id!)}
                     >
-                      {summaryLoading ? '요약 중…' : 'AI 요약'}
+                      {summaryLoading ? '요약 중…' : 'OCR·요약 다시 실행'}
                     </button>
                   )}
                 </>
@@ -133,7 +153,30 @@ export default function DocumentDrawer({ doc, onClose, canUpload, onNewVersion, 
             <p className={styles.summaryError}>{summaryError}</p>
           ) : (
             <>
+              {summary?.processing_status === 'review_required' && (
+                <p className={styles.reviewNotice}>
+                  OCR·요약 결과를 확인한 뒤 승인해야 최종 DB와 RAG에 저장됩니다.
+                </p>
+              )}
               <pre>{summary?.summary_markdown}</pre>
+              {summary?.processing_status === 'review_required' && (
+                <div className={styles.artifactActions}>
+                  <button
+                    type="button"
+                    className={styles.approve}
+                    disabled={approvalLoading}
+                    onClick={() => {
+                      setApprovalLoading(true)
+                      void onApproveSummary(summary.file_id)
+                        .then(setSummary)
+                        .catch(() => setSummaryError('요약을 승인하고 저장하지 못했습니다.'))
+                        .finally(() => setApprovalLoading(false))
+                    }}
+                  >
+                    {approvalLoading ? '저장 중…' : '확인하고 최종 저장'}
+                  </button>
+                </div>
+              )}
               {summary?.processing_status === 'completed' && (
                 <div className={styles.artifactActions}>
                   {(

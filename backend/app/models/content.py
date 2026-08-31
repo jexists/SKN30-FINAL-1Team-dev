@@ -85,6 +85,10 @@ class File(Base):
     summary_payload: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     processing_error: Mapped[str | None]
     processed_at: Mapped[datetime | None]
+    review_expires_at: Mapped[datetime | None]
+    unapproved_expires_at: Mapped[datetime | None]
+    approved_by_member_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.member.id"))
+    approved_at: Mapped[datetime | None]
     uploaded_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     note: Mapped[str | None]
     uploaded_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
@@ -108,4 +112,22 @@ class DocumentChunk(Base):
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     embedding: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class DocumentFileAudit(Base):
+    """자료 파일의 업로드·재처리·승인 이력. 원문 대신 변경된 구조화 값만 보관한다."""
+
+    __tablename__ = "document_file_audit"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.document.id", ondelete="CASCADE")
+    )
+    file_id: Mapped[UUID] = mapped_column(ForeignKey("public.file.id", ondelete="CASCADE"))
+    action_code: Mapped[str]
+    actor_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    before_snapshot: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    after_snapshot: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

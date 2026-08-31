@@ -27,7 +27,7 @@ OptionCode = Annotated[
     ),
 ]
 
-ProcessingStatus = Literal["uploaded", "processing", "completed", "failed"]
+ProcessingStatus = Literal["uploaded", "processing", "review_required", "completed", "failed"]
 
 
 class _WriteModel(BaseModel):

@@ -225,7 +225,7 @@ export default function useDocuments(query?: DocumentQuery) {
       await uploadFile(created.id, draft.file, draft.note)
       const { data } = await client.get<DocumentResponse>(`/documents/${created.id}`)
       setDocuments((current) => [toDocument(data), ...current])
-      return data.id
+      return data
     } catch (reason: unknown) {
       setError(mutationMessage(reason, '자료를 등록하지 못했습니다.'))
       throw reason
@@ -244,6 +244,7 @@ export default function useDocuments(query?: DocumentQuery) {
       setDocuments((current) =>
         current.map((document) => (document.id === id ? updated : document)),
       )
+      return data
     } catch (reason: unknown) {
       setError(mutationMessage(reason, '새 버전을 등록하지 못했습니다.'))
       throw reason
@@ -296,6 +297,16 @@ export default function useDocuments(query?: DocumentQuery) {
     [],
   )
 
+  const approveSummary = useCallback(
+    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
+      const { data } = await client.post<DocumentSummaryResponse>(
+        `/documents/${documentId}/files/${fileId}/approve-summary`,
+      )
+      return data
+    },
+    [],
+  )
+
   return {
     documents,
     total,
@@ -310,5 +321,6 @@ export default function useDocuments(query?: DocumentQuery) {
     addVersion,
     updateDocument,
     summarizeVersion,
+    approveSummary,
   }
 }

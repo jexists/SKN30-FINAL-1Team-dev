@@ -16,7 +16,7 @@ from app.models.content import File as FileRow
 from app.models.workspace import Member
 from app.schemas.business_cards import BusinessCardDraft, BusinessCardFields
 from app.schemas.documents import DocumentCreate, DocumentPageParams
-from app.services import business_cards, sales_context, storage
+from app.services import business_cards, document_processing, sales_context, storage
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
@@ -163,6 +163,43 @@ def test_document_request_rejects_unsafe_values():
         DocumentPageParams(limit=31)
 
 
+@pytest.mark.parametrize("operation", ["create", "patch_existing_product"])
+def test_document_rejects_product_and_deal_together(operation):
+    member = _member()
+    product_id = uuid4()
+    sales_deal_id = uuid4()
+    if operation == "create":
+        db = _Db()
+    else:
+        document = _document(member)
+        document.product_id = product_id
+        db = _Db(_Result(scalar=document))
+
+    with _client(db, member) as client:
+        if operation == "create":
+            response = client.post(
+                "/api/documents",
+                headers={"Origin": ORIGIN},
+                json={
+                    "category_code": "proposal",
+                    "title": "동시 연결 자료",
+                    "product_id": str(product_id),
+                    "sales_deal_id": str(sales_deal_id),
+                },
+            )
+        else:
+            response = client.patch(
+                f"/api/documents/{document.id}",
+                headers={"Origin": ORIGIN},
+                json={"sales_deal_id": str(sales_deal_id)},
+            )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "document_link_conflict"}
+    assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
 def test_upload_requires_storage_configuration(storage_missing):
     member = _member()
     db = _Db()
@@ -241,6 +278,42 @@ def test_upload_removes_object_when_db_write_fails(storage_ready, monkeypatch):
     assert uploaded == removed
     assert len(removed) == 1
     assert db.rollback_count == 1
+
+
+def test_duplicate_content_upload_is_kept_as_a_new_version(storage_ready, monkeypatch):
+    """같은 파일을 다시 올리면 기존 원본을 덮지 않고 다음 버전으로 보관한다."""
+    uploaded: list[bytes] = []
+
+    async def _upload(**kwargs):
+        uploaded.append(kwargs["content"])
+
+    monkeypatch.setattr(storage, "upload", _upload)
+
+    member = _member()
+    document = _document(member)
+    db = _Db(
+        _Result(scalar=document),
+        _Result(scalar=0),
+        _Result(scalar=document),
+        _Result(scalar=1),
+    )
+    with _client(db, member) as client:
+        first = client.post(
+            f"/api/documents/{document.id}/files",
+            headers={"Origin": ORIGIN},
+            files={"upload": ("same.pdf", PDF, "application/pdf")},
+        )
+        second = client.post(
+            f"/api/documents/{document.id}/files",
+            headers={"Origin": ORIGIN},
+            files={"upload": ("same.pdf", PDF, "application/pdf")},
+        )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["version_no"] == 1
+    assert second.json()["version_no"] == 2
+    assert uploaded == [PDF, PDF]
 
 
 def test_download_never_exposes_storage_key(storage_ready, monkeypatch):
@@ -324,6 +397,106 @@ def test_process_route_marks_file_processing_and_schedules_summary(monkeypatch):
     assert response.json()["processing_status"] == "processing"
     assert row.processing_status == "processing"
     assert scheduled == [row.id]
+    assert db.commit_count == 1
+
+
+def test_process_route_reprocesses_completed_file_and_records_audit(monkeypatch):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    row.processing_status = "completed"
+    row.approved_by_member_id = member.id
+    row.approved_at = NOW
+    scheduled: list[object] = []
+
+    async def _execute(file_id):
+        scheduled.append(file_id)
+
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+    monkeypatch.setattr("app.services.document_processing.execute", _execute)
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/documents/{document.id}/files/{row.id}/process",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 202
+    assert row.processing_status == "processing"
+    assert row.processing_error is None
+    assert row.approved_by_member_id is None
+    assert row.approved_at is None
+    assert scheduled == [row.id]
+    audits = [item for item in db.added if item.__class__.__name__ == "DocumentFileAudit"]
+    assert len(audits) == 1
+    assert audits[0].action_code == "summary_reprocess_requested"
+
+
+def test_summary_route_exposes_review_draft(monkeypatch):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    row.processing_status = "review_required"
+
+    async def _draft(_storage_key):
+        return {
+            "extracted_text": "계약금액: 1,000원",
+            "extracted_markdown": "## 금액\n\n계약금액: 1,000원",
+            "extracted_payload": {"pages": []},
+            "summary_markdown": "# 문서 요약\n\n계약금액은 1,000원이다.",
+            "summary_payload": {"extracted_fields": {"계약금액": "1,000원"}},
+        }
+
+    monkeypatch.setattr(document_processing, "load_review_draft", _draft)
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+    with _client(db, member) as client:
+        response = client.get(f"/api/documents/{document.id}/files/{row.id}/summary")
+
+    assert response.status_code == 200
+    assert response.json()["processing_status"] == "review_required"
+    assert response.json()["extracted_text"] == "계약금액: 1,000원"
+
+
+def test_approve_summary_route_commits_final_result(monkeypatch):
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    row.processing_status = "review_required"
+
+    async def _approve(_db, *, row, team_id, approved_by_member_id):
+        assert team_id == member.team_id
+        assert approved_by_member_id == member.id
+        row.processing_status = "completed"
+        row.extracted_text = "승인된 원문"
+        row.extracted_markdown = "승인된 원문"
+        row.summary_markdown = "승인된 요약"
+        row.summary_payload = {"approved": True}
+
+    async def _remove(*, storage_key):
+        assert storage_key.endswith(document_processing.DRAFT_SUFFIX)
+
+    monkeypatch.setattr(document_processing, "approve_review", _approve)
+    monkeypatch.setattr(storage, "remove", _remove)
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/documents/{document.id}/files/{row.id}/approve-summary",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["processing_status"] == "completed"
+    assert response.json()["summary_markdown"] == "승인된 요약"
     assert db.commit_count == 1
 
 

@@ -45,7 +45,7 @@ class _Session:
 
 
 @pytest.mark.anyio
-async def test_execute_persists_extraction_summary_and_rag_chunks(monkeypatch):
+async def test_execute_stages_extraction_and_summary_for_approval(monkeypatch):
     team_id = uuid4()
     document = Document(
         id=uuid4(),
@@ -77,8 +77,9 @@ async def test_execute_persists_extraction_summary_and_rag_chunks(monkeypatch):
         note=None,
     )
     first = _Session([_Result((row, team_id))])
-    second = _Session([_Result(row), object()])
+    second = _Session([_Result(row)])
     sessions = iter([first, second])
+    drafts: dict[str, bytes] = {}
 
     def _sessionmaker():
         return lambda: next(sessions)
@@ -86,6 +87,13 @@ async def test_execute_persists_extraction_summary_and_rag_chunks(monkeypatch):
     async def _download(*, storage_key):
         assert storage_key == row.storage_key
         return b"\xea\xb3\x84\xec\x95\xbd\xea\xb8\xb0\xea\xb0\x84: 1\xeb\x85\x84"
+
+    async def _remove(*, storage_key):
+        drafts.pop(storage_key, None)
+
+    async def _upload(*, storage_key, content, media_type):
+        assert media_type == "application/json"
+        drafts[storage_key] = content
 
     def _extract(*, file_name, media_type, content):
         assert (file_name, media_type) == ("contract.txt", "text/plain")
@@ -109,6 +117,8 @@ async def test_execute_persists_extraction_summary_and_rag_chunks(monkeypatch):
     monkeypatch.setattr(document_processing, "get_sessionmaker", _sessionmaker)
     monkeypatch.setattr(type(settings), "embedding_configured", property(lambda self: False))
     monkeypatch.setattr(storage, "download", _download)
+    monkeypatch.setattr(storage, "remove", _remove)
+    monkeypatch.setattr(storage, "upload", _upload)
     monkeypatch.setattr(document_processing, "extract_document", _extract)
     monkeypatch.setattr(document_processing.document_summary, "run", _summary)
 
@@ -116,12 +126,125 @@ async def test_execute_persists_extraction_summary_and_rag_chunks(monkeypatch):
 
     assert first.committed
     assert second.committed
+    assert row.processing_status == "review_required"
+    assert row.extracted_text is None
+    assert row.summary_markdown is None
+    assert len(second.added) == 0
+    draft = document_processing._read_draft_payload(
+        drafts[document_processing.draft_storage_key(row.storage_key)]
+    )
+    assert draft["extracted_text"] == "계약기간: 1년"
+    assert "계약기간은 1년이다." in draft["summary_markdown"]
+
+
+@pytest.mark.anyio
+async def test_execute_marks_file_failed_when_source_download_fails(monkeypatch):
+    team_id = uuid4()
+    row = FileRow(
+        id=uuid4(),
+        document_id=uuid4(),
+        file_name="contract.pdf",
+        storage_key="team/contract.pdf",
+        media_type="application/pdf",
+        byte_size=32,
+        processing_status="processing",
+        extracted_text=None,
+        uploaded_by_member_id=uuid4(),
+    )
+    document_result = _Session([_Result((row, team_id))])
+    failure_result = _Session([_Result(row)])
+    sessions = iter([document_result, failure_result])
+
+    monkeypatch.setattr(document_processing, "get_sessionmaker", lambda: lambda: next(sessions))
+
+    async def _download(**_kwargs):
+        raise storage.StorageError("storage_download_failed:503")
+
+    removed: list[str] = []
+
+    async def _remove(*, storage_key):
+        removed.append(storage_key)
+
+    monkeypatch.setattr(storage, "download", _download)
+    monkeypatch.setattr(storage, "remove", _remove)
+
+    await document_processing.execute(row.id)
+
+    assert row.processing_status == "failed"
+    assert row.processing_error == "storage_download_failed:503"
+    assert removed == [document_processing.draft_storage_key(row.storage_key)]
+    assert failure_result.committed
+
+
+@pytest.mark.anyio
+async def test_approve_review_persists_final_results_and_rag_chunks(monkeypatch):
+    team_id = uuid4()
+    document = Document(
+        id=uuid4(),
+        team_id=team_id,
+        created_by_member_id=uuid4(),
+        document_no="SL-DC-2026-0001",
+        category_code="contract",
+        title="합성 계약서",
+        description=None,
+        customer_company_id=None,
+        customer_contact_id=None,
+        sales_deal_id=None,
+        purchase_order_id=None,
+        tags=[],
+        created_at=datetime.now(UTC),
+    )
+    row = FileRow(
+        id=uuid4(),
+        report_id=None,
+        document_id=document.id,
+        version_no=1,
+        file_name="contract.txt",
+        storage_key="team/contract.txt",
+        media_type="text/plain",
+        byte_size=32,
+        processing_status="review_required",
+        extracted_text=None,
+        uploaded_by_member_id=document.created_by_member_id,
+        note=None,
+    )
+    summary = DocumentSummaryOutput(
+        summary="계약기간은 1년이다.",
+        key_points=["계약기간: 1년"],
+        source_refs=["계약서 1쪽"],
+    )
+    extracted = ExtractedDocument(
+        plain_text="계약기간: 1년",
+        markdown="## 계약 조건\n\n계약기간: 1년",
+        payload={
+            "source_type": "text",
+            "pages": [{"page_number": 1, "markdown": "## 계약 조건\n\n계약기간: 1년"}],
+        },
+    )
+    draft = document_processing._draft_bytes(extracted=extracted, summary=summary)
+
+    async def _download(*, storage_key):
+        assert storage_key == document_processing.draft_storage_key(row.storage_key)
+        return draft
+
+    db = _Session([object()])
+    monkeypatch.setattr(type(settings), "embedding_configured", property(lambda self: False))
+    monkeypatch.setattr(storage, "download", _download)
+
+    await document_processing.approve_review(
+        db,
+        row=row,
+        team_id=team_id,
+        approved_by_member_id=document.created_by_member_id,
+    )
+
     assert row.processing_status == "completed"
     assert row.extracted_text == "계약기간: 1년"
     assert "계약기간은 1년이다." in row.summary_markdown
-    assert len(second.added) == 1
-    chunk = second.added[0]
-    assert chunk.document_id == document.id
-    assert chunk.page_start == 1
-    assert chunk.page_end == 1
-    assert chunk.content == "계약기간: 1년"
+    chunks = [item for item in db.added if item.__class__.__name__ == "DocumentChunk"]
+    audits = [item for item in db.added if item.__class__.__name__ == "DocumentFileAudit"]
+    assert len(chunks) == 1
+    assert chunks[0].document_id == document.id
+    assert chunks[0].page_start == 1
+    assert len(audits) == 1
+    assert audits[0].action_code == "summary_approved"

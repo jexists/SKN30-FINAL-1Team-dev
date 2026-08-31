@@ -8,13 +8,19 @@
 ```text
 자료실 업로드
   → POST /api/documents/{document_id}/files/{file_id}/process
-  → TXT·MD·JSON 추출
+  → TXT·MD·JSON 임시 검토 결과 생성
   → 구조화 요약
-  → document_chunk 저장
+  → 사용자 확인·승인
+  → file 결과 컬럼·document_chunk 최종 저장
   → GET /api/documents/rag-search?q=...
 ```
 
-업로드와 처리는 분리되어 있다. 업로드 직후 자동으로 외부 LLM을 호출하지 않으며, 화면의 `AI 요약` 버튼이 처리 API를 호출한다.
+원본 파일은 업로드 직후 Storage에 보관하고, 처리 결과는 `review_required` 상태의 임시
+검토 결과로 둔다. 사용자가 OCR·요약 내용을 확인해 승인하기 전에는 `file`의 최종 추출
+컬럼과 `document_chunk` RAG 청크를 만들지 않는다. 승인 후에만 브리핑 검색 대상이 된다.
+
+자료 연결 대상은 `연결 안 함`, `상품`, `딜` 중 하나만 선택한다. 상품과 딜은 동시에
+연결할 수 없으며, 화면의 라디오 선택과 백엔드 최종 상태 검증에서 같은 규칙을 적용한다.
 
 ## Runpod·AWS 없이 먼저 검증하는 범위
 
@@ -26,6 +32,14 @@
 - 로컬 임베딩 또는 키워드 기반 RAG fallback
 - `txt`·`md`·`json`·요약 Markdown 산출물 다운로드
 - `briefing-context`의 `summaries`·`sources` 응답
+
+개발 환경에서 외부 서비스까지 포함한 전체 흐름은 개인정보 없는 합성 문서로 다음 명령을
+실행해 확인한다. 테스트 문서·파일·청크·Storage 객체는 검증 후 자동 삭제한다.
+
+```bash
+cd backend
+DEBUG=false .venv/bin/python scripts/document_rag_e2e.py --run
+```
 
 스캔 PDF와 이미지에서 텍스트를 읽는 단계는 OCR 제공자가 필요하다. `OCR_PROVIDER=none`인
 상태에서는 원문을 추측해 저장하지 않고 처리 결과를 실패로 남긴다. 명함 이미지는 OCR 서버가
@@ -92,6 +106,37 @@ POST /api/documents/{document_id}/files/{file_id}/process
 ```http
 GET /api/documents/{document_id}/files/{file_id}/summary
 ```
+
+처리 결과가 `review_required`이면 이 API는 승인 전 임시 OCR·요약 결과를 보여 준다.
+`completed`이면 승인되어 최종 저장된 결과를 보여 준다. `processing` 중에는 결과가 아직
+준비되지 않았으며, `failed`이면 `processing_error`를 확인한다.
+
+### 요약 승인
+
+```http
+POST /api/documents/{document_id}/files/{file_id}/approve-summary
+```
+
+`review_required` 상태에서만 승인할 수 있다. 승인 시 추출 원문·Markdown·JSON 요약을
+`file`에 저장하고, 같은 결과를 청크로 나눠 `document_chunk`에 저장한다. 이후 임베딩을
+사용할 수 있으면 청크에 함께 저장하고, 실패하면 키워드 검색 fallback을 유지한다.
+
+금액·기간·날짜가 포함된 파일을 새 버전으로 올리거나 `OCR·요약 다시 실행`하면 OCR과
+요약을 처음부터 다시 실행해 새 검토 결과를 만든다. 새 결과도 승인 전에는 기존 RAG에
+반영하지 않는다.
+
+### 보관 정책
+
+기본 보관 기간은 다음과 같다.
+
+- 승인 대기 OCR·요약 임시 결과: 7일
+- 승인하지 않은 원본 파일: 30일
+- 승인자·업로드·재처리 이력: 5년
+
+파일에는 임시 결과와 미승인 원본의 만료 시각, 승인자, 승인 시각을 기록한다. 승인·수정
+이력은 `document_file_audit`에 원문 전체가 아니라 작업자, 작업 종류, 변경된 구조화 값과
+처리 시각을 기록한다. `backend/scripts/cleanup_document_retention.py`는 하루 한 번
+호출하는 정리 명령이며, 운영환경의 cron·CI·컨테이너 스케줄러에 연결한다.
 
 ### 결과 파일
 
@@ -195,8 +240,13 @@ HWP만 외부 실행 파일을 사용한다. Windows에서는 임시 HWP 파일�
 backend/sql/20260825_0005_document_summary.sql
 backend/sql/20260825_0006_business_card_archive.sql
 backend/sql/20260825_0007_runtime_schema_alignment.sql
+backend/sql/20260828_0013_document_link_exclusive.sql
+backend/sql/20260828_0014_document_summary_approval.sql
+backend/sql/20260828_0015_document_retention_and_audit.sql
 ```
 
 이 migration은 `file`에 추출·요약 결과를 추가하고, RAG 청크용 `document_chunk` 테이블을 생성한다.
 두 번째 migration은 명함 원본 자료실 문서와 `customer_contact`를 연결하는 컬럼·인덱스를 추가한다.
 세 번째 migration은 기존 `notice` 스키마와 고객 연락처 source 값을 현재 API 계약에 맞춘다.
+마지막 세 migration은 자료 연결 대상의 단일 선택, 승인 대기 상태, 보관 만료 시각과 승인·수정
+이력을 추가한다. 원격 Supabase에는 SQL 적용 전에 현재 스키마와 기존 충돌 데이터를 확인한다.

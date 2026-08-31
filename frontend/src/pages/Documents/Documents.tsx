@@ -58,6 +58,7 @@ export default function Documents() {
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
   /** 업로드 모달. 'new' 는 새 문서, 문서 id 면 그 문서의 새 버전입니다. */
   const [uploading, setUploading] = useState<string | null>(null)
+  const [reviewQueue, setReviewQueue] = useState<{ documentId: string; fileId: string }[]>([])
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   // 조건이 바뀌면 첫 페이지로 돌아옵니다. 3페이지에 있다가 결과가 줄면 빈 화면을 봅니다.
@@ -103,6 +104,7 @@ export default function Documents() {
     addDocument,
     addVersion,
     summarizeVersion,
+    approveSummary,
   } = useDocuments(documentQuery)
 
   // 분류 탭 옆 건수는 서버가 셉니다. 고른 분류는 빼고 센 값입니다.
@@ -135,12 +137,15 @@ export default function Documents() {
 
   const onUpload = async (results: UploadResult[]) => {
     try {
+      const nextReviews: { documentId: string; fileId: string }[] = []
       if (versionTarget) {
         const [result] = results
-        await addVersion(versionTarget.id, result.file, profile.name, result.note)
+        const updated = await addVersion(versionTarget.id, result.file, profile.name, result.note)
+        const latest = updated.files.at(-1)
+        if (latest) nextReviews.push({ documentId: updated.id, fileId: latest.id })
       } else {
         for (const result of [...results].reverse()) {
-          await addDocument({
+          const created = await addDocument({
             file: result.file,
             owner: profile.name,
             note: result.note,
@@ -149,13 +154,37 @@ export default function Documents() {
             link: result.link,
             description: result.description,
           })
+          const latest = created.files.at(-1)
+          if (latest) nextReviews.push({ documentId: created.id, fileId: latest.id })
         }
       }
       setUploading(null)
+      setReviewQueue(nextReviews.reverse())
+      if (nextReviews[0]) setOpenId(nextReviews[0].documentId)
     } catch {
       // 훅이 화면에 오류를 표시하며, 모달은 입력값 보존을 위해 그대로 둡니다.
     }
   }
+
+  const review = reviewQueue[0]
+  const summarizeOpenDocument = useCallback(
+    (fileId: string) =>
+      openDoc ? summarizeVersion(openDoc.id, fileId) : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
+    [openDoc, summarizeVersion],
+  )
+  const approveOpenDocument = useCallback(
+    async (fileId: string) => {
+      if (!openDoc) throw new Error('자료를 찾을 수 없습니다.')
+      const result = await approveSummary(openDoc.id, fileId)
+      setReviewQueue((current) => current.slice(1))
+      reload()
+      const next = reviewQueue[1]
+      if (next) setOpenId(next.documentId)
+      else setOpenId(null)
+      return result
+    },
+    [approveSummary, openDoc, reload, reviewQueue],
+  )
 
   const isFiltered =
     query.trim() !== '' || owner !== '' || category !== '' || range !== DEFAULT_RANGE
@@ -251,7 +280,9 @@ export default function Documents() {
           onClose={() => setOpenId(null)}
           canUpload={isManager}
           onNewVersion={() => setUploading(openDoc.id)}
-          onSummarize={(fileId) => summarizeVersion(openDoc.id, fileId)}
+          onSummarize={summarizeOpenDocument}
+          autoSummarizeFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
+          onApproveSummary={approveOpenDocument}
         />
       )}
 

@@ -146,6 +146,13 @@
   font-size: 12px;
 }
 
+.reviewNotice {
+  margin-bottom: var(--s2);
+  color: var(--orange-ink, var(--ink-2));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .artifactActions {
   display: flex;
   flex-wrap: wrap;
@@ -166,6 +173,22 @@
     border-color: var(--blue);
     color: var(--blue);
   }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+}
+
+.approve {
+  padding: 7px var(--s3);
+  border: 1px solid var(--blue);
+  border-radius: var(--r-sm);
+  background: var(--blue);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 
   &:disabled {
     cursor: wait;

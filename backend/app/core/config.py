@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     pdf_inspector_model_directory: str = ""
     paddlex_cache_home: str = ""
 
+    # 자료실 보관 정책. 임시 결과·미승인 원본·승인/수정 이력을 서로 다른
+    # 수명으로 관리한다. 환경변수로만 조정하고 코드에 비밀값을 두지 않는다.
+    document_review_draft_retention_days: int = Field(default=7, ge=1, le=30)
+    document_unapproved_file_retention_days: int = Field(default=30, ge=1, le=365)
+    document_audit_log_retention_days: int = Field(default=1_825, ge=365, le=3_650)
+
     # HWP5 추출기 경로. 비워 두면 PATH에서 hwp5txt 또는 hwp5txt.exe를 찾는다.
     hwp5txt_path: str = ""
     # hwp5txt가 없을 때 사용할 LibreOffice 실행 파일 경로.

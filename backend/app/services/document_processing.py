@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
@@ -12,12 +13,61 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import document_summary
 from app.core.config import settings
 from app.db.session import get_sessionmaker
-from app.models.content import Document, DocumentChunk
+from app.models.content import Document, DocumentChunk, DocumentFileAudit
 from app.models.content import File as FileRow
 from app.services import embeddings, storage
-from app.services.document_extraction import ExtractionError, extract_document
+from app.services.document_extraction import ExtractedDocument, ExtractionError, extract_document
 from app.services.llm import LLMError
 from app.services.ocr import OcrError
+
+DRAFT_SUFFIX = ".document-summary-draft.json"
+
+
+def draft_storage_key(storage_key: str) -> str:
+    """원본과 같은 폴더에 승인 전 결과를 두되, 원본 키는 외부에 노출하지 않는다."""
+    return f"{storage_key}{DRAFT_SUFFIX}"
+
+
+def retention_deadline(*, now: datetime, days: int) -> datetime:
+    """환경설정한 보관일을 UTC 만료 시각으로 바꾼다."""
+    return now + timedelta(days=days)
+
+
+def _draft_bytes(*, extracted: ExtractedDocument, summary) -> bytes:
+    return json.dumps(
+        {
+            "extracted_text": extracted.plain_text,
+            "extracted_markdown": extracted.markdown,
+            "extracted_payload": extracted.payload,
+            "summary_markdown": _summary_markdown(summary),
+            "summary_payload": summary.model_dump(),
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def _read_draft_payload(content: bytes) -> dict:
+    try:
+        payload = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise OcrError("summary_draft_invalid") from error
+    if not isinstance(payload, dict):
+        raise OcrError("summary_draft_invalid")
+    required = {
+        "extracted_text",
+        "extracted_markdown",
+        "extracted_payload",
+        "summary_markdown",
+        "summary_payload",
+    }
+    if not required <= payload.keys():
+        raise OcrError("summary_draft_invalid")
+    return payload
+
+
+async def load_review_draft(storage_key: str) -> dict:
+    """승인 대기 중인 OCR·요약 결과를 읽는다."""
+    return _read_draft_payload(await storage.download(storage_key=draft_storage_key(storage_key)))
 
 
 def _safe_error(error: Exception) -> str:
@@ -40,7 +90,7 @@ async def _mark_failed(file_id: UUID, error: Exception) -> None:
 
 
 async def execute(file_id: UUID) -> None:
-    """원본 파일을 추출·요약·청크화한다. 요청 세션과 분리해 실행한다."""
+    """원본 파일을 추출·요약한 뒤 승인 대기 결과로 보관한다."""
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session:
         result = await session.execute(
@@ -63,6 +113,7 @@ async def execute(file_id: UUID) -> None:
         }
         await session.commit()
 
+    draft_key = draft_storage_key(source["storage_key"])
     try:
         content = await storage.download(storage_key=source["storage_key"])
         try:
@@ -99,20 +150,6 @@ async def execute(file_id: UUID) -> None:
                 extracted=extracted,
             )
         )
-        chunk_values = document_summary.chunks(
-            extracted.markdown,
-            pages=extracted.payload.get("pages"),
-        )
-        vectors: list[list[float]] | None = None
-        embedding_error: str | None = None
-        if chunk_values:
-            if settings.embedding_configured:
-                try:
-                    vectors = await embeddings.embed([item["content"] for item in chunk_values])
-                except embeddings.EmbeddingError as error:
-                    # 문서 처리 자체는 보존하고, 임베딩이 없으면 키워드 RAG로 대체한다.
-                    embedding_error = _safe_error(error)
-
         payload = dict(extracted.payload)
         payload.update(
             {
@@ -121,9 +158,19 @@ async def execute(file_id: UUID) -> None:
                 "extractor_version": "document_extraction.v1",
             }
         )
-        summary_payload = summary.model_dump()
-        if embedding_error:
-            summary_payload["embedding_status"] = embedding_error
+        await storage.remove(storage_key=draft_key)
+        await storage.upload(
+            storage_key=draft_key,
+            content=_draft_bytes(
+                extracted=ExtractedDocument(
+                    plain_text=extracted.plain_text,
+                    markdown=extracted.markdown,
+                    payload=payload,
+                ),
+                summary=summary,
+            ),
+            media_type="application/json",
+        )
 
         async with sessionmaker() as session:
             row = (
@@ -133,34 +180,14 @@ async def execute(file_id: UUID) -> None:
             ).scalar_one_or_none()
             if row is None:
                 return
-            await session.execute(delete(DocumentChunk).where(DocumentChunk.file_id == file_id))
-            row.extracted_text = extracted.plain_text
-            row.extracted_markdown = extracted.markdown
-            row.extracted_payload = payload
-            row.summary_markdown = _summary_markdown(summary)
-            row.summary_payload = summary_payload
+            now = datetime.now(UTC)
             row.processing_error = None
-            row.processing_status = "completed"
-            row.processed_at = datetime.now(UTC)
-            for index, item in enumerate(chunk_values):
-                session.add(
-                    DocumentChunk(
-                        id=uuid4(),
-                        team_id=source["team_id"],
-                        document_id=row.document_id,
-                        file_id=row.id,
-                        chunk_no=index,
-                        page_start=item.get("page_start"),
-                        page_end=item.get("page_end"),
-                        section=item.get("section"),
-                        content=item["content"],
-                        metadata_json={
-                            "file_name": source["file_name"],
-                            "source_type": payload.get("source_type"),
-                        },
-                        embedding=None if vectors is None else vectors[index],
-                    )
-                )
+            row.processing_status = "review_required"
+            row.review_expires_at = retention_deadline(
+                now=now,
+                days=settings.document_review_draft_retention_days,
+            )
+            row.processed_at = now
             await session.commit()
     except (
         ExtractionError,
@@ -169,9 +196,91 @@ async def execute(file_id: UUID) -> None:
         storage.StorageError,
         embeddings.EmbeddingError,
     ) as error:
+        await storage.remove(storage_key=draft_key)
         await _mark_failed(file_id, error)
     except Exception as error:
+        await storage.remove(storage_key=draft_key)
         await _mark_failed(file_id, error)
+
+
+async def approve_review(
+    db: AsyncSession,
+    *,
+    row: FileRow,
+    team_id: UUID,
+    approved_by_member_id: UUID,
+) -> None:
+    """승인된 임시 결과만 file 결과 컬럼과 RAG 청크로 확정한다."""
+    if row.document_id is None or row.processing_status != "review_required":
+        raise ValueError("document_summary_not_awaiting_approval")
+
+    draft = await load_review_draft(row.storage_key)
+    extracted_payload = dict(draft["extracted_payload"])
+    chunk_values = document_summary.chunks(
+        str(draft["extracted_markdown"]),
+        pages=extracted_payload.get("pages"),
+    )
+    vectors: list[list[float]] | None = None
+    embedding_error: str | None = None
+    if chunk_values and settings.embedding_configured:
+        try:
+            vectors = await embeddings.embed([item["content"] for item in chunk_values])
+        except embeddings.EmbeddingError as error:
+            # 승인 자체는 보존하고, 임베딩이 없으면 키워드 RAG로 대체한다.
+            embedding_error = _safe_error(error)
+
+    summary_payload = dict(draft["summary_payload"])
+    if embedding_error:
+        summary_payload["embedding_status"] = embedding_error
+
+    await db.execute(delete(DocumentChunk).where(DocumentChunk.file_id == row.id))
+    row.extracted_text = str(draft["extracted_text"])
+    row.extracted_markdown = str(draft["extracted_markdown"])
+    row.extracted_payload = extracted_payload
+    row.summary_markdown = str(draft["summary_markdown"])
+    row.summary_payload = summary_payload
+    now = datetime.now(UTC)
+    row.processing_error = None
+    row.processing_status = "completed"
+    row.processed_at = now
+    row.review_expires_at = None
+    row.unapproved_expires_at = None
+    row.approved_by_member_id = approved_by_member_id
+    row.approved_at = now
+    for index, item in enumerate(chunk_values):
+        db.add(
+            DocumentChunk(
+                id=uuid4(),
+                team_id=team_id,
+                document_id=row.document_id,
+                file_id=row.id,
+                chunk_no=index,
+                page_start=item.get("page_start"),
+                page_end=item.get("page_end"),
+                section=item.get("section"),
+                content=item["content"],
+                metadata_json={
+                    "file_name": row.file_name,
+                    "source_type": extracted_payload.get("source_type"),
+                },
+                embedding=None if vectors is None else vectors[index],
+            )
+        )
+    db.add(
+        DocumentFileAudit(
+            id=uuid4(),
+            team_id=team_id,
+            document_id=row.document_id,
+            file_id=row.id,
+            action_code="summary_approved",
+            actor_member_id=approved_by_member_id,
+            before_snapshot={"processing_status": "review_required"},
+            after_snapshot={
+                "processing_status": "completed",
+                "summary_fields": draft["summary_payload"].get("extracted_fields", {}),
+            },
+        )
+    )
 
 
 def _summary_markdown(summary: document_summary.DocumentSummaryOutput) -> str:
@@ -208,10 +317,13 @@ async def search_chunks(
     sales_deal_id: UUID | None = None,
 ) -> list[tuple[DocumentChunk, float]]:
     """임베딩이 있으면 코사인, 없으면 출처 보존 키워드 점수로 검색한다."""
-    conditions = [DocumentChunk.team_id == team_id]
+    conditions = [
+        DocumentChunk.team_id == team_id,
+        FileRow.processing_status == "completed",
+    ]
     if document_id is not None:
         conditions.append(DocumentChunk.document_id == document_id)
-    statement = select(DocumentChunk)
+    statement = select(DocumentChunk).join(FileRow, FileRow.id == DocumentChunk.file_id)
     if sales_deal_id is not None:
         statement = statement.join(Document, Document.id == DocumentChunk.document_id)
         conditions.append(Document.sales_deal_id == sales_deal_id)

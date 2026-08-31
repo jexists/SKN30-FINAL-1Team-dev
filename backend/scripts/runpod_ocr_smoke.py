@@ -37,6 +37,11 @@ def _synthetic_pdf() -> bytes:
     return buffer.getvalue()
 
 
+def _normalized(value: str) -> str:
+    """OCR 공백·구두점 차이를 무시하고 합성 테스트 문자열을 비교한다."""
+    return "".join(character.lower() for character in value if character.isalnum())
+
+
 async def _run_case(case: str) -> dict[str, object]:
     if case == "business_card":
         file_name, media_type, profile, content = (
@@ -45,6 +50,7 @@ async def _run_case(case: str) -> dict[str, object]:
             "business_card",
             _synthetic_card(),
         )
+        expected_fragments = ("SALESLUV OCR TEST", "Synthetic Business Card")
     else:
         file_name, media_type, profile, content = (
             "synthetic-document.pdf",
@@ -52,6 +58,7 @@ async def _run_case(case: str) -> dict[str, object]:
             "document",
             _synthetic_pdf(),
         )
+        expected_fragments = ("SALESLUV OCR TEST", "Synthetic Business Card")
 
     started = time.perf_counter()
     try:
@@ -70,15 +77,24 @@ async def _run_case(case: str) -> dict[str, object]:
         }
 
     pages = result.payload.get("pages", [])
+    normalized_text = _normalized(result.plain_text)
+    expected_text_present = all(
+        _normalized(fragment) in normalized_text for fragment in expected_fragments
+    )
     return {
         "case": case,
-        "status": "passed" if result.plain_text.strip() and pages else "failed",
+        "status": (
+            "passed"
+            if result.plain_text.strip() and pages and expected_text_present
+            else "failed"
+        ),
         "provider": result.payload.get("ocr_provider"),
         "elapsed_seconds": round(time.perf_counter() - started, 2),
         "page_count": len(pages),
         "page_numbers_sequential": [page.get("page_number") for page in pages]
         == list(range(1, len(pages) + 1)),
         "markdown_present": bool(result.markdown.strip()),
+        "expected_text_present": expected_text_present,
     }
 
 

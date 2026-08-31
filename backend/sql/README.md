@@ -157,6 +157,20 @@
   **개발 DB 에는 이 표가 이미 있습니다** — 아카이브한 브랜치
   (`archive/2026-08-28-contract-agent-fix`)를 시험하며 SQL 파일 없이 먼저 만든 것이라,
   컬럼·제약이 같은 것을 확인하고 `CREATE TABLE IF NOT EXISTS` 로 두었습니다.
+- `20260828_0013_document_link_exclusive.sql`: 자료실 문서의 `product_id`와
+  `sales_deal_id`가 동시에 채워지지 않도록 DB CHECK 제약을 추가합니다. 적용 전 기존
+  충돌 행을 검사하며, 충돌이 있으면 데이터를 임의로 삭제·수정하지 않고 migration이
+  실패합니다. API의 422 검증과 함께 적용해야 합니다.
+
+- `20260828_0014_document_summary_approval.sql`: 파일 처리 상태에 `review_required`를
+  추가합니다. 원본 파일은 먼저 저장하지만, OCR·요약 결과와 RAG 청크는 사용자 승인 전에는
+  최종 테이블에 기록하지 않고 승인 API에서 확정합니다.
+- `20260828_0015_document_retention_and_audit.sql`: 승인 대기 임시 결과 7일, 미승인 원본
+  30일, 승인·수정 이력 5년을 적용할 만료 시각과 승인자 컬럼을 `file`에 추가하고,
+  업로드·재처리·승인 이력을 `document_file_audit`에 보관합니다. `uv run python -m
+  scripts.cleanup_document_retention`을 운영 스케줄러에서 하루 한 번 실행하면 만료된
+  미승인 Storage 객체와 임시 결과, 보관 기간이 지난 감사 이력을 정리합니다. 실제 삭제
+  전에는 `--dry-run`으로 대상 건수를 먼저 확인할 수 있습니다.
 
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
@@ -185,6 +199,9 @@
 | 2026-08-28 | 개발 | `20260827_0010_drop_activity_type.sql` | session pooler | 성공. activity 22→21 / activity_category 10→9 / activity_action_tag 10→9컬럼. 업무 활동 28건(전부 미삭제 상태)과 그 report_activity 3건을 지우고 report 1건의 `source_activity_id` 를 NULL 로 끊었다. 딸린 activity_companion 은 0건. 액션태그 8행·카테고리 2행 삭제(팀 2개 × 4/1). 미팅 활동 377건과 report 229건은 그대로. ORM 대조에서 세 표의 컬럼·nullable·타입·기본값·PK·FK 일치 확인 |
 | 2026-08-28 | 개발 | `20260828_0011_sales_deal_source.sql` | — | **적용 시점 미상.** 0010 을 넣기 전 확인해 보니 `sales_deal.source_code` 와 `sales_deal_source_code_check` 가 이미 있었고 값이 든 딜이 122건이었다. 저장소 밖에서 먼저 적용된 것으로 보이며 이 줄은 사후 기록이다 |
 | 2026-08-28 | 개발 | `20260828_0012_document_product_link.sql` | — | **적용 시점 미상.** 위와 같이 `document.product_id`·`document_product_id_fkey`·`document_product_idx` 가 이미 있었다. 사후 기록이다 |
+| 2026-08-28 | 현재 연결된 개발 DB | `20260828_0013_document_link_exclusive.sql` | PostgreSQL direct | 성공. 기존 상품·딜 동시 연결 0건 확인 후 `document_product_or_deal_check` 생성 |
+| 2026-08-28 | 현재 연결된 개발 DB | `20260828_0014_document_summary_approval.sql` | PostgreSQL direct | 성공. `file_processing_status_check`에 `review_required` 추가 |
+| 2026-08-28 | 현재 연결된 개발 DB | `20260828_0015_document_retention_and_audit.sql` | PostgreSQL direct | 성공. `file` 보관·승인 컬럼 4개와 `document_file_audit` 생성 |
 
 ## 개발 DB 재구축 런북
 
