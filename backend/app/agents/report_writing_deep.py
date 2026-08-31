@@ -19,7 +19,7 @@ from deepagents.backends import StateBackend
 from deepagents.backends.utils import create_file_data
 from deepagents.middleware.filesystem import FilesystemPermission
 from langchain.agents import create_agent
-from langchain.agents.middleware import ModelCallLimitMiddleware, before_model
+from langchain.agents.middleware import ModelCallLimitMiddleware, after_model, before_model
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.language_models import BaseChatModel
@@ -34,7 +34,7 @@ from app.services.agent_logging import agent_operation, log_agent_error, log_age
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, LLMNotConfigured
 
-PROMPT_VERSION = "report_writing.deep.v4"
+PROMPT_VERSION = "report_writing.deep.v5"
 RUN_TIMEOUT_SECONDS = 900
 MAX_MODEL_CALLS = 100
 MAX_REVIEWS = 10
@@ -141,6 +141,42 @@ class ReportReview(BaseModel):
         description="수정할 경로 + 초안의 문제 표현 + 원문 근거 + 수정 행동. 통과면 []. "
         "없는 정보 자체나 문체 취향은 오류가 아니다.",
     )
+
+
+def _review_final_response(schema, review):
+    """미팅·기간 보고서의 직접 최종 출력도 기존 검토·횟수 제한을 거친다."""
+
+    @after_model
+    async def review_final_report(state, runtime):
+        value = state.get("structured_response")
+        if value is None:
+            return None
+        draft = schema.model_validate(value)
+        feedback = await review(draft)
+        if not feedback["issues"]:
+            return {"structured_response": draft}
+        receipt = next(
+            message
+            for message in reversed(state["messages"])
+            if message.type == "tool" and message.name == schema.__name__
+        )
+        return {
+            "structured_response": None,
+            "messages": [
+                # SDK는 구조화 응답 이름이 남으면 다른 도구 실행 뒤에도 종료한다.
+                # 같은 도구 응답 ID를 유지하고 종료 표지만 없애 기본 수정 루프로 보낸다.
+                receipt.model_copy(
+                    update={
+                        "name": None,
+                        "content": "최종 제출 검토에서 아래 문제가 남았다. 지적된 부분만 "
+                        "수정하고 다시 검토를 요청하라. 없는 정보는 만들지 마라.\n"
+                        + json.dumps(feedback, ensure_ascii=False),
+                    }
+                )
+            ],
+        }
+
+    return review_final_report
 
 
 def _structural_issues(
@@ -296,9 +332,24 @@ def _structural_issues(
     return issues
 
 
+def _log_structural_issues(issues: list[dict[str, Any]], **fields) -> None:
+    for issue in issues:
+        log_agent_event(
+            "report_writing.review_validation",
+            outcome="failed",
+            reason_code=issue["code"],
+            validation_path=issue["path"],
+            sales_deal_id=issue.get("sales_deal_id"),
+            missing_evidence_ids=",".join(issue["missing_ids"]),
+            unexpected_evidence_ids=",".join(issue["unexpected_ids"]),
+            **fields,
+        )
+
+
 def validate_reports(source: ReportWritingInput, draft: FreeformMeetingReports) -> None:
     """딜 혼입/ID 누락과 미지정 원문 유실 방지. 문장 의미의 사실성은 별도 리뷰가 맡는다."""
     if issues := _structural_issues(source, draft):
+        _log_structural_issues(issues)
         raise ValueError(issues[0]["code"])
 
 
@@ -610,16 +661,13 @@ async def _run(
             semantic_review_count=semantic_review_count,
         )
         if issues := _structural_issues(source, draft):
-            for code in sorted({issue["code"] for issue in issues}):
-                log_agent_event(
-                    "report_writing.review_validation",
-                    outcome="failed",
-                    reason_code=code,
-                    review_attempt=review_count,
-                    review_limit=MAX_REVIEWS,
-                    validation_attempt=review_count,
-                    semantic_review_count=semantic_review_count,
-                )
+            _log_structural_issues(
+                issues,
+                review_attempt=review_count,
+                review_limit=MAX_REVIEWS,
+                validation_attempt=review_count,
+                semantic_review_count=semantic_review_count,
+            )
             publish_progress("report_writing")
             return {
                 "review_kind": "structural",
@@ -706,9 +754,13 @@ async def _run(
         ],
         middleware=[
             finish_accepted_report,
+            _review_final_response(FreeformMeetingReports, review_report),
             ModelCallLimitMiddleware(run_limit=100, exit_behavior="error"),
         ],
-        response_format=ToolStrategy(FreeformMeetingReports),
+        response_format=ToolStrategy(
+            FreeformMeetingReports,
+            tool_message_content="초안 접수. 검토를 통과해야 최종 제출된다.",
+        ),
         name="meeting_report_writer",
     )
     started = perf_counter()

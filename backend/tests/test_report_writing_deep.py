@@ -216,18 +216,86 @@ def test_history_is_shared_with_reviewer_but_scoped_for_deal_writer(deal_id):
     assert "관련 없는 과거 이력을 생략한 것은 누락 오류가 아니다" in model._seen[5][0].content
 
 
-@pytest.mark.parametrize("scenario", ["skipped_review", "review_limit"])
-def test_actual_graph_rejects_unreviewed_or_exhausted_output(scenario):
+def test_actual_graph_rejects_exhausted_output():
     good = draft()
-    if scenario == "skipped_review":
-        responses = [call("FreeformMeetingReports", **good)]
-        error = "report_agent_unreviewed_output"
-    else:
-        good["unassigned_report"] = None
-        responses = [call("review_report", draft=good) for _ in range(writer.MAX_REVIEWS + 1)]
-        error = "report_agent_review_limit"
-    with pytest.raises(LLMError, match=error):
+    good["unassigned_report"] = None
+    responses = [call("review_report", draft=good) for _ in range(writer.MAX_REVIEWS + 1)]
+    with pytest.raises(LLMError, match="report_agent_review_limit"):
         asyncio.run(writer.run(sample(), model=ScriptedModel(responses=responses)))
+
+
+def test_direct_final_submission_is_reviewed_and_repaired_before_returning(caplog):
+    bad = draft()
+    bad["deal_reports"][0]["evidence_ids"] = ["S0003"]
+    model = ScriptedModel(
+        responses=[
+            call("FreeformMeetingReports", **bad),
+            call("FreeformMeetingReports", **draft()),
+            call("ReportReview", issues=["예정이라는 조건을 더 분명히 보존하라."]),
+            call("review_report", draft=draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+    result = asyncio.run(writer.run(sample(), model=model))
+    assert result.model_dump(mode="json") == draft()
+    assert len(model._seen) == 5
+    assert "report_deal_evidence_mismatch" in str(model._seen[1])
+    assert "예정이라는 조건을 더 분명히 보존하라" in str(model._seen[3])
+    events = [
+        json.loads(record.getMessage().removeprefix("agent_progress "))
+        for record in caplog.records
+        if record.getMessage().startswith("agent_progress ")
+    ]
+    issue = next(
+        event for event in events if event.get("reason_code") == "report_deal_evidence_mismatch"
+    )
+    assert issue["validation_path"] == "deal_reports[0].evidence_ids"
+    assert issue["sales_deal_id"] == str(DEAL_A)
+    assert issue["missing_evidence_ids"] == "S0002"
+    assert issue["unexpected_evidence_ids"] == "S0003"
+    summary = next(event for event in events if event["stage"] == "report_writing.summary")
+    assert summary["call_count"] == 5
+    assert summary["review_attempt"] == 3 and summary["semantic_review_count"] == 2
+    assert "A는 보안" not in caplog.text and "예정이라는 조건" not in caplog.text
+
+
+def test_direct_final_submission_cannot_bypass_review_budget(monkeypatch):
+    monkeypatch.setattr(writer, "MAX_REVIEWS", 2)
+    bad = draft()
+    bad["unassigned_report"] = None
+    model = ScriptedModel(responses=[call("FreeformMeetingReports", **bad)] * 3)
+    with pytest.raises(LLMError, match="^report_agent_review_limit$"):
+        asyncio.run(writer.run(sample(), model=model))
+    assert len(model._seen) == 3
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_final_submission_with_other_tools_preserves_tool_responses(invalid):
+    first = draft()
+    if invalid:
+        first["unassigned_report"] = None
+    combined = AIMessage(
+        content="",
+        tool_calls=[
+            call("FreeformMeetingReports", **first).tool_calls[0],
+            call("read_meeting_evidence").tool_calls[0],
+        ],
+    )
+    model = ScriptedModel(
+        responses=[
+            combined,
+            *([call("FreeformMeetingReports", **draft())] if invalid else []),
+            call("ReportReview", issues=[]),
+        ]
+    )
+    result = asyncio.run(writer.run(sample(), model=model))
+    assert result.model_dump(mode="json") == draft()
+    if invalid:
+        messages = model._seen[1]
+        replies = {message.tool_call_id for message in messages if message.type == "tool"}
+        assert {tool["id"] for tool in combined.tool_calls} <= replies
+        assert "report_unassigned_evidence_missing" in str(messages)
+    assert len(model._seen) == (3 if invalid else 2)
 
 
 def test_accepted_draft_stops_before_any_parent_rewrite_or_final_model_call():
@@ -309,11 +377,11 @@ def test_virtual_files_are_read_only_assets_and_isolated_per_run():
             call("read_file", file_path="/scratch/note.md"),
             call("read_file", file_path="/etc/passwd"),
             call("FreeformMeetingReports", **draft()),
+            call("ReportReview", issues=[]),
         ]
     )
-    with pytest.raises(LLMError, match="report_agent_unreviewed_output"):
-        asyncio.run(writer.run(sample(), model=model))
-    tool_messages = [m for m in model._seen[-1] if m.type == "tool"]
+    assert asyncio.run(writer.run(sample(), model=model)).model_dump(mode="json") == draft()
+    tool_messages = [m for m in model._seen[-2] if m.type == "tool"]
     assert "denied" in tool_messages[0].content.lower()
     assert "sales-meeting-report" in tool_messages[2].content
     assert "malicious" not in tool_messages[2].content
@@ -324,11 +392,11 @@ def test_virtual_files_are_read_only_assets_and_isolated_per_run():
         responses=[
             call("read_file", file_path="/scratch/note.md"),
             call("FreeformMeetingReports", **draft()),
+            call("ReportReview", issues=[]),
         ]
     )
-    with pytest.raises(LLMError, match="report_agent_unreviewed_output"):
-        asyncio.run(writer.run(sample(), model=other))
-    assert "not found" in other._seen[-1][-1].content.lower()
+    assert asyncio.run(writer.run(sample(), model=other)).model_dump(mode="json") == draft()
+    assert "not found" in other._seen[-2][-1].content.lower()
 
 
 def test_run_timeout_and_provider_error_do_not_leak(monkeypatch):

@@ -13,17 +13,18 @@ from app.schemas.meeting_content import (
     MeetingContentAnalysisOutput,
     SegmentApplicability,
     SegmentAssignment,
+    build_evidence_ledger,
 )
 from app.services.llm import LLMError
 
 
-def _deal(deal_id, *, title="LP1000 공급"):
+def _deal(deal_id, *, title="LP1000 공급", product_names=None):
     return meeting_content_analysis.DealGroundingContext(
         sales_deal_id=deal_id,
         deal_no="DL-001",
         title=title,
         description="LP1000 신규 공급 검토",
-        product_names=["LP1000"],
+        product_names=["LP1000"] if product_names is None else product_names,
         deal_type_name="신규 공급",
         pipeline_stage_name="제안",
     )
@@ -186,6 +187,13 @@ def _assignment(segment_id, scope, deal_id=None):
     }
 
 
+def _initial_responses(assignments):
+    return [
+        _call("MeetingContentAnalysisOutput", assignments=assignments),
+        _call("GroundingReview", revisions=[]),
+    ]
+
+
 def _grounding_case():
     deal_a, deal_b = uuid4(), uuid4()
     snapshot = meeting_content_analysis.input_snapshot(
@@ -200,6 +208,419 @@ def _grounding_case():
     return snapshot, deal_a, deal_b, initial
 
 
+def _ledger_case(transcript, deals, assignments):
+    agent_input = meeting_content_analysis.MeetingContentAgentInput.model_validate(
+        meeting_content_analysis.input_snapshot(transcript, deals)
+    )
+    ledger = build_evidence_ledger(
+        agent_input.source, MeetingContentAnalysisOutput(assignments=assignments)
+    )
+    return agent_input, ledger
+
+
+def _revision(segment_id, scope, deal_id=None, *, basis=None, reason="합성 검토 근거"):
+    return {
+        **_assignment(segment_id, scope, deal_id),
+        "basis_segment_ids": ["S0001"] if basis is None else basis,
+        "reason": reason,
+    }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("deal_count", "scope"),
+    [
+        (1, "all_selected_deals"),
+        (1, "unresolved"),
+        (2, "deal"),
+        (2, "company_context"),
+        (2, "unresolved"),
+    ],
+)
+async def test_review_skips_single_deal_or_no_structural_risk(deal_count, scope):
+    deal_ids = [uuid4() for _ in range(deal_count)]
+    initial = [_assignment("S0001", scope, deal_ids[0] if scope == "deal" else None)]
+    agent_input, ledger = _ledger_case(
+        "확인한 내용을 기록했다.",
+        [_deal(deal_id, product_names=[f"제품 {index}"]) for index, deal_id in enumerate(deal_ids)],
+        initial,
+    )
+    model = ScriptedGroundingModel(
+        responses=[_call("MeetingContentAnalysisOutput", assignments=initial)]
+    )
+
+    result = await meeting_content_analysis.run(agent_input.model_dump(mode="json"), model=model)
+
+    assert meeting_content_analysis._review_candidates(agent_input, ledger) == {}
+    assert result == ledger
+    assert len(model._seen) == 1
+    assert all("GroundingReview" not in names for names in model._tool_sets)
+
+
+def test_review_candidates_match_only_exact_normalized_nonempty_product_names():
+    deal_ids = [uuid4() for _ in range(4)]
+    agent_input, ledger = _ledger_case(
+        "첫 공급건. 둘째 공급건. 셋째 공급건. 넷째 공급건.",
+        [
+            _deal(deal_id, product_names=names)
+            for deal_id, names in zip(
+                deal_ids,
+                [[" LP1000 ", " "], ["lp1000"], ["LP1000-PRO", ""], [" ", ""]],
+                strict=True,
+            )
+        ],
+        [
+            _assignment(f"S{index:04d}", "deal", deal_id)
+            for index, deal_id in enumerate(deal_ids, start=1)
+        ],
+    )
+
+    assert meeting_content_analysis._review_candidates(agent_input, ledger) == {
+        "S0001": ["shared_product_deals"],
+        "S0002": ["shared_product_deals"],
+    }
+
+
+def test_review_candidates_follow_context_until_an_explicit_deal_or_out_of_scope():
+    deal_a, deal_b = uuid4(), uuid4()
+    agent_input, ledger = _ledger_case(
+        "첫 딜. 장소 설명. 회사 설명. 대상 미상. 둘째 딜. 후속 설명. 무관한 잡담. 대상 미상.",
+        [_deal(deal_a, product_names=["제품 A"]), _deal(deal_b, product_names=["제품 B"])],
+        [
+            _assignment("S0001", "deal", deal_a),
+            _assignment("S0002", "meeting_context"),
+            _assignment("S0003", "company_context"),
+            _assignment("S0004", "unresolved"),
+            _assignment("S0005", "deal", deal_b),
+            _assignment("S0006", "company_context"),
+            _assignment("S0007", "out_of_scope"),
+            _assignment("S0008", "unresolved"),
+        ],
+    )
+
+    assert meeting_content_analysis._review_candidates(agent_input, ledger) == {
+        segment_id: ["context_continuation"] for segment_id in ["S0002", "S0003", "S0004", "S0006"]
+    }
+
+
+@pytest.mark.parametrize(
+    ("separator", "is_candidate"),
+    [(" ", True), ("\n", True), ("\n\n", False), ("\r\n\r\n", False), ("\n \n", False)],
+)
+def test_review_candidate_context_does_not_cross_a_blank_line(separator, is_candidate):
+    deal_a, deal_b = uuid4(), uuid4()
+    agent_input, ledger = _ledger_case(
+        f"첫 딜 내용.{separator}후속 설명.",
+        [_deal(deal_a, product_names=["제품 A"]), _deal(deal_b, product_names=["제품 B"])],
+        [_assignment("S0001", "deal", deal_a), _assignment("S0002", "meeting_context")],
+    )
+
+    candidates = meeting_content_analysis._review_candidates(agent_input, ledger)
+
+    assert ("S0002" in candidates) is is_candidate
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("case", ["shared_product", "all_deals", "multiple_deals"])
+async def test_review_corrects_candidate_scope_without_rewriting_source(case):
+    deal_a, deal_b = uuid4(), uuid4()
+    initial = [
+        _assignment("S0001", "deal", deal_a),
+        _assignment("S0002", "all_selected_deals"),
+        _assignment("S0003", "company_context"),
+    ]
+    agent_input, ledger = _ledger_case(
+        "정기 공급 기록 방식을 논의했다. 세 업체가 비교표를 내기로 했다.\n\n"
+        "공용 메일로 자료를 받는다.",
+        [
+            _deal(deal_a, title="일회 증설", product_names=["LP1000"]),
+            _deal(
+                deal_b,
+                title="정기 공급",
+                product_names=["LP1000"] if case == "shared_product" else ["LP2000"],
+            ),
+        ],
+        initial,
+    )
+    target = "S0001" if case == "shared_product" else "S0002"
+    revision = _revision(target, "deal", deal_b if case == "shared_product" else deal_a)
+    if case == "multiple_deals":
+        revision["applicability"]["deal_ids"] = [str(deal_a), str(deal_b)]
+    model = ScriptedGroundingModel(
+        responses=[
+            _call("MeetingContentAnalysisOutput", assignments=initial),
+            _call("GroundingReview", revisions=[revision]),
+        ]
+    )
+
+    result = await meeting_content_analysis.run(agent_input.model_dump(mode="json"), model=model)
+
+    by_id = {item.segment.segment_id: item for item in result.items}
+    assert by_id[target].applicability.model_dump(mode="json") == revision["applicability"]
+    assert by_id["S0003"] == ledger.items[2]
+    assert [item.segment for item in result.items] == [item.segment for item in ledger.items]
+    assert result.transcript_sha256 == ledger.transcript_sha256
+    assert result.selected_deal_ids == ledger.selected_deal_ids
+    assert len(model._seen) == 2
+    assert model._tool_sets[-1] == {"GroundingReview"}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "common_scope", ["all_selected_deals", "company_context", "meeting_context"]
+)
+async def test_empty_review_preserves_real_common_facts_and_information_shortage(common_scope):
+    deal_a, deal_b = uuid4(), uuid4()
+    initial = [
+        _assignment("S0001", "deal", deal_a),
+        _assignment("S0002", common_scope),
+        _assignment("S0003", "unresolved"),
+    ]
+    agent_input, ledger = _ledger_case(
+        "첫 제품을 설명했다. 두 딜 자료 모두 공용 메일로 받기로 했다. 누군가 지난 제품도 물었다.",
+        [_deal(deal_a, product_names=["제품 A"]), _deal(deal_b, product_names=["제품 B"])],
+        initial,
+    )
+    model = ScriptedGroundingModel(responses=_initial_responses(initial))
+
+    result = await meeting_content_analysis.run(agent_input.model_dump(mode="json"), model=model)
+
+    assert result == ledger
+    assert len(model._seen) == 2
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "noncandidate",
+        "new_segment",
+        "new_basis",
+        "unselected_deal",
+        "duplicate_revision",
+        "duplicate_basis",
+        "empty_basis",
+        "blank_reason",
+        "empty_reason",
+    ],
+)
+async def test_review_rejects_invalid_revisions_atomically_without_model_retry(invalid):
+    deal_a, deal_b = uuid4(), uuid4()
+    agent_input, ledger = _ledger_case(
+        "첫 딜 이야기. 모두 제출한다고 했다. 무관한 잡담.",
+        [_deal(deal_a, product_names=["제품 A"]), _deal(deal_b, product_names=["제품 B"])],
+        [
+            _assignment("S0001", "deal", deal_a),
+            _assignment("S0002", "all_selected_deals"),
+            _assignment("S0003", "out_of_scope"),
+        ],
+    )
+    before = ledger.model_dump(mode="json")
+    revision = _revision("S0002", "deal", deal_a, basis=["S0001", "S0002"])
+    if invalid == "noncandidate":
+        revision["segment_id"] = "S0001"
+    elif invalid == "new_segment":
+        revision["segment_id"] = "S9999"
+    elif invalid == "new_basis":
+        revision["basis_segment_ids"] = ["S9999"]
+    elif invalid == "unselected_deal":
+        revision["applicability"]["deal_ids"] = [str(uuid4())]
+    elif invalid == "duplicate_basis":
+        revision["basis_segment_ids"] = ["S0001", "S0001"]
+    elif invalid == "empty_basis":
+        revision["basis_segment_ids"] = []
+    elif invalid == "blank_reason":
+        revision["reason"] = " \n "
+    elif invalid == "empty_reason":
+        revision["reason"] = ""
+    # A valid first revision must not be partly applied when a later one is invalid.
+    revisions = [_revision("S0002", "unresolved"), revision]
+    if invalid != "duplicate_revision":
+        revisions = [revision]
+    model = ScriptedGroundingModel(responses=[_call("GroundingReview", revisions=revisions)])
+    budget = meeting_content_analysis._ModelBudget()
+
+    with pytest.raises(LLMError, match="^meeting_content_review_invalid$"):
+        await meeting_content_analysis._review_assignments(agent_input, ledger, model, budget)
+
+    assert ledger.model_dump(mode="json") == before
+    assert len(model._seen) == 1
+    assert budget.calls == 1
+
+
+@pytest.mark.anyio
+async def test_review_uses_the_initial_classification_budget(monkeypatch):
+    snapshot, _, _, initial = _grounding_case()
+    monkeypatch.setattr(meeting_content_analysis, "MAX_MODEL_CALLS", 1)
+    model = ScriptedGroundingModel(responses=_initial_responses(initial))
+
+    with pytest.raises(LLMError, match="^meeting_content_model_call_limit$"):
+        await meeting_content_analysis.run(snapshot, model=model)
+
+    assert len(model._seen) == 1
+
+
+@pytest.mark.anyio
+async def test_review_plain_text_cannot_trigger_an_additional_model_call():
+    snapshot, _, _, initial = _grounding_case()
+    model = ScriptedGroundingModel(
+        responses=[
+            _call("MeetingContentAnalysisOutput", assignments=initial),
+            AIMessage(content="검토 내용을 더 생각해 보겠다."),
+            _call("GroundingReview", revisions=[]),
+        ]
+    )
+
+    with pytest.raises(LLMError, match="^meeting_content_failed$"):
+        await meeting_content_analysis.run(snapshot, model=model)
+
+    assert len(model._seen) == 2
+
+
+@pytest.mark.anyio
+async def test_review_logs_only_safe_candidate_and_revision_metadata(caplog):
+    snapshot, deal_a, _, initial = _grounding_case()
+    secret_reason = "PRIVATE_REVIEW_REASON_회사담당자연락내용"
+    revision = _revision("S0002", "deal", deal_a, reason=secret_reason)
+    model = ScriptedGroundingModel(
+        responses=[
+            _call("MeetingContentAnalysisOutput", assignments=initial),
+            _call("GroundingReview", revisions=[revision]),
+        ]
+    )
+
+    await meeting_content_analysis.run(snapshot, model=model)
+
+    events = [
+        json.loads(record.message.removeprefix("agent_progress "))
+        for record in caplog.records
+        if record.message.startswith("agent_progress ")
+    ]
+    revised = [event for event in events if event["stage"] == "meeting_content.review_revision"]
+    assert len(revised) == 1
+    assert revised[0]["segment_id"] == "S0002"
+    assert revised[0]["before_scope"] == "unresolved"
+    assert revised[0]["after_scope"] == "deal"
+    assert revised[0]["basis_segment_ids"] == "S0001"
+    completed = [
+        event
+        for event in events
+        if event["stage"] == "meeting_content.review" and event["outcome"] == "completed"
+    ]
+    assert completed[0]["review_change_count"] == 1
+    assert completed[0]["review_attempt"] == completed[0]["review_limit"] == 1
+    assert secret_reason not in caplog.text
+    assert snapshot["source"]["transcript"] not in caplog.text
+    assert "지난번 보여준" not in caplog.text
+    assert "합성회사" not in caplog.text
+
+
+@pytest.mark.anyio
+async def test_review_without_injected_model_uses_the_structured_generator(monkeypatch, caplog):
+    snapshot, deal_a, _, initial = _grounding_case()
+    calls = []
+    outputs = [
+        MeetingContentAnalysisOutput(assignments=initial),
+        meeting_content_analysis.GroundingReview(revisions=[_revision("S0002", "deal", deal_a)]),
+    ]
+
+    async def fake_generate_structured(**kwargs):
+        calls.append(kwargs)
+        return outputs[len(calls) - 1]
+
+    monkeypatch.setattr(meeting_content_analysis, "generate_structured", fake_generate_structured)
+
+    result = await meeting_content_analysis.run(snapshot)
+
+    assert [call["schema"] for call in calls] == [
+        MeetingContentAnalysisOutput,
+        meeting_content_analysis.GroundingReview,
+    ]
+    assert calls[1]["schema_name"] == "meeting_grounding_review"
+    payload = json.loads(calls[1]["input_text"])
+    assert set(payload["review_candidates"]) == {"S0001", "S0002"}
+    assert "unrelated" not in payload["crm_context"]
+    assert result.items[1].applicability.deal_ids == [deal_a]
+    finished = [
+        json.loads(record.message.removeprefix("agent_progress "))
+        for record in caplog.records
+        if record.message.startswith("agent_progress ")
+        and '"stage": "meeting_content.finished"' in record.message
+    ]
+    assert finished[0]["call_count"] == 2
+
+
+@pytest.mark.anyio
+async def test_refinement_receives_the_reviewed_ledger_as_its_context():
+    deal_a, deal_b = uuid4(), uuid4()
+    initial = [
+        _assignment("S0001", "deal", deal_a),
+        _assignment("S0002", "all_selected_deals"),
+        _assignment("S0003", "unresolved"),
+    ]
+    snapshot = meeting_content_analysis.input_snapshot(
+        "제품 A 입찰을 논의했다. 세 업체가 모두 참가한다. 지난번 작은 제품도 다시 물었다.",
+        [_deal(deal_a, product_names=["제품 A"]), _deal(deal_b, product_names=["제품 B"])],
+    )
+
+    async def lookup(kind, deal_id):
+        assert (kind, deal_id) == ("product_details", deal_b)
+        return {"items": [{"name": "제품 B", "description": "지난번 작은 제품"}]}
+
+    model = ScriptedGroundingModel(
+        responses=[
+            _call("MeetingContentAnalysisOutput", assignments=initial),
+            _call("GroundingReview", revisions=[_revision("S0002", "deal", deal_a)]),
+            _call("product_details", sales_deal_id=str(deal_b)),
+            _call(
+                "MeetingContentAnalysisOutput", assignments=[_assignment("S0003", "deal", deal_b)]
+            ),
+        ]
+    )
+
+    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+
+    payload = json.loads(
+        next(message.content for message in model._seen[2] if message.type == "human")
+    )
+    assert [item["segment_id"] for item in payload["unresolved_segments"]] == ["S0003"]
+    assert payload["resolved_context"][1]["applicability"] == {
+        "scope": "deal",
+        "deal_ids": [str(deal_a)],
+    }
+    assert [item.applicability.deal_ids for item in result.items] == [[deal_a], [deal_a], [deal_b]]
+    assert len(model._seen) == 4
+
+
+@pytest.mark.anyio
+async def test_review_can_defer_uncertain_assignment_to_existing_lookup_loop():
+    snapshot, deal_a, deal_b, initial = _grounding_case()
+    initial[1] = _assignment("S0002", "all_selected_deals")
+    looked_up = []
+
+    async def lookup(kind, deal_id):
+        looked_up.append((kind, deal_id))
+        return {"items": []}
+
+    model = ScriptedGroundingModel(
+        responses=[
+            _call("MeetingContentAnalysisOutput", assignments=initial),
+            _call("GroundingReview", revisions=[_revision("S0002", "unresolved")]),
+            _call("previous_reports", sales_deal_id=str(deal_b)),
+            _call(
+                "MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]
+            ),
+        ]
+    )
+
+    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+
+    assert looked_up == [("previous_reports", deal_b)]
+    assert result.items[0].applicability.deal_ids == [deal_a]
+    assert result.items[1].applicability.scope == "unresolved"
+    assert len(model._seen) == 4
+
+
 @pytest.mark.anyio
 async def test_real_tool_loop_refines_only_unresolved_and_preserves_source():
     snapshot, deal_a, deal_b, initial = _grounding_case()
@@ -211,7 +632,7 @@ async def test_real_tool_loop_refines_only_unresolved_and_preserves_source():
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             _call("product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]
@@ -230,6 +651,7 @@ async def test_real_tool_loop_refines_only_unresolved_and_preserves_source():
     assert "노출하지 않는 값" not in str(model._seen)
     assert set.union(*model._tool_sets) == {
         "MeetingContentAnalysisOutput",
+        "GroundingReview",
         "trade_history",
         "previous_reports",
         "product_details",
@@ -248,7 +670,7 @@ async def test_no_new_evidence_keeps_unresolved_even_if_model_guesses(lookup_res
         calls.append((kind, deal_id))
         return lookup_result
 
-    responses = [_call("MeetingContentAnalysisOutput", assignments=initial)]
+    responses = _initial_responses(initial)
     if lookup_result is not None:
         responses.append(_call("previous_reports", sales_deal_id=str(deal_b)))
     responses.append(
@@ -262,19 +684,17 @@ async def test_no_new_evidence_keeps_unresolved_even_if_model_guesses(lookup_res
 
 
 @pytest.mark.anyio
-async def test_no_unresolved_skips_the_lookup_agent():
+async def test_no_unresolved_skips_lookup_but_reviews_shared_product_candidates():
     snapshot, _, deal_b, initial = _grounding_case()
     initial[1] = _assignment("S0002", "deal", deal_b)
 
     async def lookup(*args):
         pytest.fail("이미 귀속된 원문에는 추가 조회하지 않는다")
 
-    model = ScriptedGroundingModel(
-        responses=[_call("MeetingContentAnalysisOutput", assignments=initial)]
-    )
+    model = ScriptedGroundingModel(responses=_initial_responses(initial))
     result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
     assert result.items[1].applicability.deal_ids == [deal_b]
-    assert len(model._seen) == 1
+    assert len(model._seen) == 2
 
 
 @pytest.mark.anyio
@@ -287,7 +707,7 @@ async def test_refinement_rejects_resolved_changes_or_new_segments(segment_id):
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             _call("product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput",
@@ -311,7 +731,7 @@ async def test_tool_target_and_global_lookup_limit_are_enforced(monkeypatch):
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             _call("previous_reports", sales_deal_id=str(uuid4())),
             _call("product_details", sales_deal_id=str(deal_b)),
             _call("previous_reports", sales_deal_id=str(deal_b)),
@@ -337,7 +757,7 @@ async def test_refinement_cannot_return_an_unselected_deal():
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             _call("product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput",
@@ -358,7 +778,7 @@ async def test_model_budget_includes_initial_classification():
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             *[
                 _call("product_details", sales_deal_id=str(deal_b))
                 for _ in range(meeting_content_analysis.MAX_MODEL_CALLS)
@@ -382,7 +802,7 @@ async def test_repeated_empty_lookup_runs_once_and_keeps_unresolved():
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             AIMessage(
                 content="",
                 tool_calls=[
@@ -426,7 +846,7 @@ async def test_transient_lookup_failure_is_not_cached():
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             _call("product_details", sales_deal_id=str(deal_b)),
             _call("product_details", sales_deal_id=str(deal_b)),
             _call(
@@ -454,7 +874,7 @@ async def test_sdk_calls_log_actual_usage_and_safe_start_finish_progress(monkeyp
         return {"items": [{"name": "휴대형"}]}
 
     responses = [
-        _call("MeetingContentAnalysisOutput", assignments=initial),
+        *_initial_responses(initial),
         _call("product_details", sales_deal_id=str(deal_b)),
         _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]),
     ]
@@ -472,13 +892,13 @@ async def test_sdk_calls_log_actual_usage_and_safe_start_finish_progress(monkeyp
     completed = [
         event for event in events if event["stage"] == "meeting_content.model_call_completed"
     ]
-    assert [event["call_count"] for event in completed] == [1, 2, 3]
+    assert [event["call_count"] for event in completed] == [1, 2, 3, 4]
     assert all(event["input_tokens"] == 20 and event["total_tokens"] == 30 for event in completed)
     assert all(event["elapsed_ms"] >= 0 for event in completed)
     assert len(progress) == 2
     assert [stage for stage, _ in progress] == ["content_analysis", "content_analysis"]
     assert progress[0][1]["call_count"] == 0
-    assert progress[1][1]["call_count"] == 3
+    assert progress[1][1]["call_count"] == 4
     assert progress[1][1]["call_limit"] == 24
     assert "합성회사" not in caplog.text
     assert "지난번 보여준" not in caplog.text
@@ -535,7 +955,7 @@ async def test_timeout_and_tool_errors_do_not_expose_private_values(monkeypatch)
 
     model = ScriptedGroundingModel(
         responses=[
-            _call("MeetingContentAnalysisOutput", assignments=initial),
+            *_initial_responses(initial),
             _call("product_details", sales_deal_id=str(deal_b)),
             _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "unresolved")]),
         ]

@@ -48,6 +48,8 @@ export default function Compose() {
   const agendaId = params.get('agenda') ?? ''
   useEffect(() => {
     setGenerating(false)
+    setSavingNotes(false)
+    setNotesDirty(false)
     setRunError(null)
     setRunErrors({})
     return () => {
@@ -268,6 +270,8 @@ export default function Compose() {
 
   const saveShared = async (common: string | null, unassigned: string | null) => {
     if (busy || !canEditNotes || !result) return
+    const controller = new AbortController()
+    processingAbort.current = controller
     setSavingNotes(true)
     setRunError(null)
     try {
@@ -277,12 +281,14 @@ export default function Compose() {
         common,
         unassigned,
       )
+      if (controller.signal.aborted) return
       draft.acceptShared(reports.map(toMeetingReport))
       showToast('미팅 공통·미지정 메모를 저장했습니다.')
     } catch (reason: unknown) {
+      if (controller.signal.aborted) return
       setRunError(errorMessage(reason, '미팅 메모를 저장하지 못했습니다.'))
     } finally {
-      setSavingNotes(false)
+      if (!controller.signal.aborted) setSavingNotes(false)
     }
   }
 

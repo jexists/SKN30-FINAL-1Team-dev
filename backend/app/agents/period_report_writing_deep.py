@@ -289,11 +289,15 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
             ],
             middleware=[
                 finish_accepted_report,
+                meeting_writer._review_final_response(ReportDraftOutput, review_period_report),
                 ModelCallLimitMiddleware(
                     run_limit=meeting_writer.MAX_MODEL_CALLS, exit_behavior="error"
                 ),
             ],
-            response_format=ToolStrategy(ReportDraftOutput),
+            response_format=ToolStrategy(
+                ReportDraftOutput,
+                tool_message_content="초안 접수. 검토를 통과해야 최종 제출된다.",
+            ),
             name="period_report_writer",
         )
         with tracing_context(enabled=False):

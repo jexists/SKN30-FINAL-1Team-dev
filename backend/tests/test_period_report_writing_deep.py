@@ -321,10 +321,33 @@ def test_transcript_only_daily_is_allowed_without_linked_reports(include_sources
     assert source["transcript"] in str(model._seen[-1])
 
 
-def test_final_output_without_review_is_rejected():
-    model = ScriptedModel(responses=[call("ReportDraftOutput", **draft())])
-    with pytest.raises(LLMError, match="^period_report_agent_unreviewed_output$"):
-        asyncio.run(period.run(sample(), model=model))
+def test_direct_final_output_cannot_skip_semantic_review():
+    model = ScriptedModel(
+        responses=[
+            call("ReportDraftOutput", **draft()),
+            call("ReportReview", issues=["검토 예정이라는 조건을 분명히 보존하라."]),
+            call("ReportDraftOutput", **draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+    assert asyncio.run(period.run(sample(), model=model)).model_dump(mode="json") == draft()
+    assert len(model._seen) == 4
+    assert "검토 예정이라는 조건" in str(model._seen[2])
+
+
+def test_direct_final_submission_repairs_structure_and_passes_semantic_review():
+    bad = draft()
+    bad["fields"][0]["field_id"] = "other"
+    model = ScriptedModel(
+        responses=[
+            call("ReportDraftOutput", **bad),
+            call("ReportDraftOutput", **draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+    assert asyncio.run(period.run(sample(), model=model)).model_dump(mode="json") == draft()
+    assert len(model._seen) == 3
+    assert "expected_ids" in str(model._seen[1])
 
 
 def test_review_limit_does_not_keep_retrying(monkeypatch):
