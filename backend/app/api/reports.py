@@ -5,10 +5,13 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import Text, delete, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.api.activities import _activity_row
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.api.sales_deals import _sales_deal_row
 from app.models.content import Report, ReportActivity
 from app.models.crm import Activity
 from app.models.workspace import Member
@@ -33,6 +36,7 @@ _recipient = aliased(Member)
 # 팀원이 고칠 수 있는 상태. 팀장이 수정 요청하면(유스케이스 RPT-004) 다시 편집·제출한다.
 _EDITABLE_STATUSES = ("draft", "changes_requested")
 _INITIAL_STATUS = "draft"
+_MEETING_DEAL_UNIQUE_INDEX = "report_source_activity_sales_deal_key"
 
 
 def _contains(value: str) -> str:
@@ -99,6 +103,7 @@ def _report_read(
         recipient_member_id=report.recipient_member_id,
         recipient_display_name=recipient_display_name,
         source_activity_id=report.source_activity_id,
+        sales_deal_id=report.sales_deal_id,
         report_kind=report.report_kind,
         report_date=report.report_date,
         period_start=report.period_start,
@@ -159,6 +164,35 @@ async def _visible_recipient(db: AsyncSession, member: Member, recipient_id: UUI
             detail="recipient_not_found",
         )
     return recipient
+
+
+async def _validate_meeting_deal(
+    db: AsyncSession,
+    member: Member,
+    source_activity_id: UUID,
+    sales_deal_id: UUID,
+) -> None:
+    """선택한 딜이 접근 가능하고 미팅 고객사와 같은 고객사인지 확인한다."""
+    # 두 조회는 각 원본 API와 같은 팀·담당자·활성 상태 스코프를 그대로 쓴다.
+    activity = await _activity_row(db, member, source_activity_id)
+    deal = await _sales_deal_row(db, member, sales_deal_id)
+    meeting_company_id = activity[3]
+    deal_company_id = deal[0].customer_company_id
+    if meeting_company_id is None or meeting_company_id != deal_company_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="sales_deal_not_found",
+        )
+
+
+def _duplicate_meeting_deal(error: IntegrityError) -> bool:
+    original = getattr(error, "orig", None)
+    cause = getattr(original, "__cause__", None)
+    candidates = (original, cause, getattr(original, "diag", None), getattr(cause, "diag", None))
+    return any(
+        getattr(candidate, "constraint_name", None) == _MEETING_DEAL_UNIQUE_INDEX
+        for candidate in candidates
+    )
 
 
 async def _activities_by_report_ids(
@@ -286,6 +320,8 @@ async def list_reports(
         scope.append(Report.report_date <= page.end_date)
     if page.source_activity_id is not None:
         scope.append(Report.source_activity_id == page.source_activity_id)
+    if page.sales_deal_id is not None:
+        scope.append(Report.sales_deal_id == page.sales_deal_id)
     if page.approver is not None:
         scope.append(_approver_expr().in_(tuple(dict.fromkeys(page.approver))))
     if page.hospital is not None:
@@ -348,7 +384,16 @@ async def create_report(
             if payload.recipient_member_id is None
             else await _visible_recipient(db, member, payload.recipient_member_id)
         )
-        if payload.source_activity_id is not None:
+        if payload.report_kind == "meeting":
+            assert payload.source_activity_id is not None
+            assert payload.sales_deal_id is not None
+            await _validate_meeting_deal(
+                db,
+                member,
+                payload.source_activity_id,
+                payload.sales_deal_id,
+            )
+        elif payload.source_activity_id is not None:
             await _visible_activity_ids(db, member, [payload.source_activity_id])
         activity_ids = await _visible_activity_ids(db, member, payload.activity_ids)
 
@@ -359,6 +404,7 @@ async def create_report(
             recipient_member_id=None if recipient is None else recipient.id,
             template_snapshot=payload.template_snapshot,
             source_activity_id=payload.source_activity_id,
+            sales_deal_id=payload.sales_deal_id,
             report_kind=payload.report_kind,
             report_date=payload.report_date,
             period_start=payload.period_start,
@@ -379,6 +425,14 @@ async def create_report(
         await db.flush()
         read = await _detail(db, member, report.id)
         await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        if _duplicate_meeting_deal(error):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="meeting_deal_report_exists",
+            ) from error
+        raise
     except Exception:
         await db.rollback()
         raise

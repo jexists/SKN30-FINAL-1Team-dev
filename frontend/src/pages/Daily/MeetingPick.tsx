@@ -44,10 +44,15 @@ export default function MeetingPick() {
     error: meetingError,
     reload: reloadMeetings,
   } = useMeetingReportsOn(dateISO)
-  const byAgenda = useMemo(
-    () => new Map(meetings.map((report) => [report.agendaId, report])),
-    [meetings],
-  )
+  const byAgenda = useMemo(() => {
+    const grouped = new Map<string, typeof meetings>()
+    for (const report of meetings) {
+      const group = grouped.get(report.agendaId) ?? []
+      group.push(report)
+      grouped.set(report.agendaId, group)
+    }
+    return grouped
+  }, [meetings])
   const changeDate = (next: string) => {
     if (next === '' || next > TODAY_ISO) return
     const query = new URLSearchParams(params)

@@ -27,6 +27,6 @@ export function reviewOf(code: ApiReportStatus, onHold: boolean): MeetingReview 
   if (code === 'approved') return 'approved'
   if (onHold) return 'hold'
   if (code === 'draft') return 'writing'
-  if (code === 'rejected') return 'needsMore'
+  if (code === 'rejected' || code === 'changes_requested') return 'needsMore'
   return 'submitted'
 }

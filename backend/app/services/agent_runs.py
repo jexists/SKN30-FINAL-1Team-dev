@@ -105,11 +105,14 @@ async def _build_run_input(
     """agent_code 별로 prompt_version, input_snapshot, source_refs, parent_run_id 를 만든다."""
     if payload.agent_code in ("report_writing", "meeting_analysis"):
         report = await _draft_source(db, member, payload.report_id)
+        source_refs = {"report_id": str(report.id)}
+        if report.sales_deal_id is not None:
+            source_refs["sales_deal_id"] = str(report.sales_deal_id)
         if payload.agent_code == "report_writing":
             return (
                 report_writing.PROMPT_VERSION,
                 report_writing.input_snapshot(report, payload.guidance),
-                {"report_id": str(report.id)},
+                source_refs,
                 None,
             )
         try:
@@ -122,7 +125,7 @@ async def _build_run_input(
         return (
             meeting_analysis.PROMPT_VERSION,
             input_snapshot,
-            {"report_id": str(report.id)},
+            source_refs,
             None,
         )
 

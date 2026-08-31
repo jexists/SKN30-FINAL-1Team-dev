@@ -1,4 +1,4 @@
-import type { ReportAttachment, ReportStatus, ReportTemplate } from './reports'
+import type { ApiReportStatus, ReportAttachment, ReportStatus, ReportTemplate } from './reports'
 
 /**
  * 업무보고서를 팀장이 어디까지 봤는지.
@@ -43,19 +43,17 @@ export interface MeetingReportSeed {
   status: ReportStatus
   /** 팀장 확인 단계. 상세 화면 배지와 수정 잠금이 이 값만 봅니다. */
   review: MeetingReview
+  /** 저장·Agent 실행 가능 여부를 서버 코드 그대로 판단할 때 씁니다. */
+  apiStatus?: ApiReportStatus
   /** 직접 입력한 미팅 내용. 나중에 STT 결과가 들어올 자리입니다. */
   transcript: string
   /** ReportFieldDef.id → 입력값 */
   values: Record<string, string>
   attachments: ReportAttachment[]
-  /**
-   * 이 미팅이 어느 영업 현황에 대한 것인지. 여러 건일 수 있습니다.
-   *
-   * 딜은 계속 움직이므로 id 만 두면 나중에 무엇을 골랐는지 읽을 수 없습니다.
-   * 고를 때 본 이름표를 salesDeals 에 함께 박아 둡니다.
-   */
-  salesDealIds?: string[]
-  salesDeals?: MeetingDealRef[]
+  /** 이 보고서가 다루는 딜. 기존 합성 데이터는 값이 없을 수 있습니다. */
+  salesDealId?: string | null
+  /** 딜이 바뀌어도 보고서 작성 당시 이름을 보여 주기 위한 스냅샷입니다. */
+  salesDeal?: MeetingDealRef
   /** AI 가 어디를 보고 채웠는지 한 줄 */
   evidence?: string
   /**

@@ -98,7 +98,7 @@ export interface DailyReport extends DailyReportSeed {
 }
 
 export type ApiReportKind = 'meeting' | 'daily' | 'weekly' | 'monthly'
-export type ApiReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
+export type ApiReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'changes_requested'
 
 export interface ReportActivityResponse {
   activity_id: string
@@ -113,6 +113,7 @@ export interface ReportResponse {
   recipient_member_id: string | null
   recipient_display_name: string | null
   source_activity_id: string | null
+  sales_deal_id: string | null
   report_kind: ApiReportKind
   report_date: string
   period_start: string | null
@@ -133,6 +134,7 @@ export interface ReportWriteRequest {
   period_start: string | null
   period_end: string | null
   source_activity_id: string | null
+  sales_deal_id: string | null
   recipient_member_id: string | null
   template_snapshot: ReportTemplate
   content: Record<string, unknown>
@@ -143,13 +145,26 @@ export interface ReportWriteRequest {
 
 export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'failed'
 
-export interface AgentRunResponse {
+export interface ReportDraftSnapshot {
+  fields?: { field_id: string; value: string }[]
+  summary?: string
+}
+
+export interface DealAssessment {
+  features: Record<string, string>
+  label: 'high' | 'watch'
+  high_probability: number
+  model_version: string
+}
+
+export interface MeetingAnalysisSnapshot {
+  deal_assessment: DealAssessment
+}
+
+export interface AgentRunResponse<T = ReportDraftSnapshot> {
   id: string
   status_code: AgentRunStatus
-  output_snapshot: {
-    fields?: { field_id: string; value: string }[]
-    summary?: string
-  } | null
+  output_snapshot: T | null
   evidence: { summary?: string } | null
   error_message: string | null
 }

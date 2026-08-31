@@ -56,7 +56,8 @@ EXPECTED_COLUMN_COUNTS = {
     "purchase_order": 17,
     "purchase_order_item": 6,
     "sales_target": 5,
-    "report": 20,
+    # 20260828_0013 으로 미팅보고서가 어느 딜의 보고서인지 sales_deal_id 로 가리킨다.
+    "report": 21,
     "report_activity": 2,
     # 20260828_0012 로 document 에 product_id 가 늘었다.
     "document": 13,
@@ -72,14 +73,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 338
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 339
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 81
+    assert len(foreign_key_constraints) == 82
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

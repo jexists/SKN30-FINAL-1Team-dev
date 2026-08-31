@@ -37,6 +37,7 @@ const STATUS_BY_API: Record<ApiReportStatus, ReportStatus> = {
   submitted: '검토 대기',
   approved: '확정',
   rejected: '반려',
+  changes_requested: '반려',
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -133,6 +134,7 @@ function requestOf(draft: DraftPayload): ReportWriteRequest {
     period_start: draft.kind === '일일' ? null : from,
     period_end: draft.kind === '일일' ? null : to,
     source_activity_id: null,
+    sales_deal_id: null,
     recipient_member_id: null,
     template_snapshot: draft.template,
     content: {
@@ -196,7 +198,12 @@ export default function useDailyReports() {
     try {
       const existingId = await savedIdForPeriod(draft.kind, draft.date)
       const request = requestOf(draft)
-      const { report_kind: _kind, source_activity_id: _source, ...patch } = request
+      const {
+        report_kind: _kind,
+        source_activity_id: _source,
+        sales_deal_id: _deal,
+        ...patch
+      } = request
       const saved = existingId
         ? await client.patch<ReportResponse>(`/reports/${existingId}`, patch)
         : await client.post<ReportResponse>('/reports', request)

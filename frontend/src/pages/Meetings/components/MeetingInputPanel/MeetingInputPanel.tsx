@@ -19,8 +19,8 @@ interface Props {
   /** 'AI 보고서 작성' 을 누를 수 있는지. 미팅 내용이나 첨부가 있어야 누릅니다. */
   canGenerate: boolean
   generating: boolean
-  /** 이미 한 번 만든 뒤인지. 다시 만드는 일은 보고서 아래 액션 바가 맡습니다. */
-  hasAiOriginal: boolean
+  /** 기간 보고서처럼 생성 버튼을 다른 자리에서 제공하는 화면이 숨길 때 씁니다. */
+  hasAiOriginal?: boolean
   /** 내용 칸의 이름. 업무보고(일일·주간·월간)는 미팅이 아니라 그 기간을 적습니다. */
   contentLabel?: string
   disabled: boolean
@@ -36,14 +36,12 @@ export default function MeetingInputPanel({
   onTranscriptChange,
   canGenerate,
   generating,
-  hasAiOriginal,
+  hasAiOriginal = false,
   contentLabel = '미팅 내용 (선택)',
   disabled,
   onGenerate,
 }: Props) {
-  // 한 번 만든 뒤로 다시 만드는 일은 보고서 아래 액션 바가 맡습니다. 같은 버튼을
-  // 두 군데 두면 어느 쪽을 눌러야 하는지 묻게 됩니다.
-  const generateLabel = generating ? 'AI 보고서 작성 중…' : 'AI 보고서 작성'
+  const generateLabel = generating ? '딜별 보고서 작성 중…' : '선택한 딜 보고서 작성'
 
   return (
     <div className={styles.root}>

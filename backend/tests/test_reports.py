@@ -1,10 +1,14 @@
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
+from app.api import reports as reports_api
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
@@ -124,6 +128,7 @@ def _report(member: Member, *, kind: str = "daily", status_code: str = "draft") 
         recipient_member_id=None,
         template_snapshot=TEMPLATE,
         source_activity_id=None,
+        sales_deal_id=None,
         report_kind=kind,
         report_date=date(2026, 8, 17),
         period_start=None,
@@ -223,6 +228,37 @@ def test_report_request_rejects_unsafe_values():
             content=CONTENT,
         )
 
+    activity_id = uuid4()
+    with pytest.raises(ValidationError):
+        # 신규 업무보고서는 어느 딜의 보고서인지 반드시 정한다.
+        ReportCreate(
+            report_kind="meeting",
+            report_date="2026-08-17",
+            source_activity_id=activity_id,
+            template_snapshot=TEMPLATE,
+            content=CONTENT,
+        )
+
+    deal_id = uuid4()
+    meeting = ReportCreate(
+        report_kind="meeting",
+        report_date="2026-08-17",
+        source_activity_id=activity_id,
+        sales_deal_id=deal_id,
+        template_snapshot=TEMPLATE,
+        content=CONTENT,
+    )
+    assert meeting.sales_deal_id == deal_id
+
+    with pytest.raises(ValidationError):
+        ReportCreate(
+            report_kind="daily",
+            report_date="2026-08-17",
+            sales_deal_id=deal_id,
+            template_snapshot=TEMPLATE,
+            content=CONTENT,
+        )
+
     duplicated = uuid4()
     with pytest.raises(ValidationError):
         ReportCreate(
@@ -300,6 +336,7 @@ def test_create_starts_as_draft_and_ignores_client_status():
     assert body["status_code"] == "draft"
     assert body["author_member_id"] == str(member.id)
     assert body["team_id"] == str(member.team_id)
+    assert body["sales_deal_id"] is None
     assert body["activities"] == []
     assert response.headers["Location"] == f"/api/reports/{body['id']}"
     assert db.flush_count == db.commit_count == 1
@@ -482,7 +519,7 @@ def test_write_failure_rolls_back_transaction():
     assert db.rollback_count == 1
 
 
-def test_source_activity_filter_reaches_the_query():
+def test_source_activity_and_sales_deal_filters_reach_the_query():
     """이 일정으로 쓴 보고서가 있는지를 서버가 직접 답해야 한다.
 
     이 조건이 쿼리에 실리지 않으면 저장 화면이 목록 첫 페이지만 보고 없다고 판단해,
@@ -490,6 +527,7 @@ def test_source_activity_filter_reaches_the_query():
     """
     member = _member()
     activity_id = uuid4()
+    sales_deal_id = uuid4()
     db = _Db(_Result(scalar=0), _Result(rows=[]))
 
     with _client(db, member) as client:
@@ -498,6 +536,7 @@ def test_source_activity_filter_reaches_the_query():
             params={
                 "report_kind": "meeting",
                 "source_activity_id": str(activity_id),
+                "sales_deal_id": str(sales_deal_id),
                 "limit": 1,
             },
         )
@@ -506,7 +545,46 @@ def test_source_activity_filter_reaches_the_query():
     assert response.json()["total"] == 0
     # 개수 쿼리와 행 쿼리 모두 같은 조건으로 좁혀야 총계와 목록이 어긋나지 않는다.
     for statement in db.statements:
-        assert "report.source_activity_id = " in str(statement)
+        sql = str(statement)
+        assert "report.source_activity_id = " in sql
+        assert "report.sales_deal_id = " in sql
+
+
+@pytest.mark.anyio
+async def test_meeting_deal_must_belong_to_the_meeting_company(monkeypatch):
+    member = _member()
+    activity_id = uuid4()
+    sales_deal_id = uuid4()
+    company_id = uuid4()
+
+    async def activity_row(_db, _member, _activity_id):
+        return (None, None, None, company_id)
+
+    async def deal_row(_db, _member, _sales_deal_id):
+        return (SimpleNamespace(customer_company_id=company_id),)
+
+    monkeypatch.setattr(reports_api, "_activity_row", activity_row)
+    monkeypatch.setattr(reports_api, "_sales_deal_row", deal_row)
+    await reports_api._validate_meeting_deal(_Db(), member, activity_id, sales_deal_id)
+
+    async def other_company_deal(_db, _member, _sales_deal_id):
+        return (SimpleNamespace(customer_company_id=uuid4()),)
+
+    monkeypatch.setattr(reports_api, "_sales_deal_row", other_company_deal)
+    with pytest.raises(HTTPException) as caught:
+        await reports_api._validate_meeting_deal(_Db(), member, activity_id, sales_deal_id)
+    assert caught.value.status_code == 404
+    assert caught.value.detail == "sales_deal_not_found"
+
+
+def test_asyncpg_unique_violation_is_recognized():
+    cause = RuntimeError("duplicate")
+    cause.constraint_name = reports_api._MEETING_DEAL_UNIQUE_INDEX
+    original = RuntimeError("adapter")
+    original.__cause__ = cause
+    error = IntegrityError("insert", {}, original)
+
+    assert reports_api._duplicate_meeting_deal(error)
 
 
 def test_approver_and_hospital_filters_reach_the_query():

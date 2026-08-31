@@ -2,7 +2,10 @@
 //
 // 화면에서 유일하게 떠 있는 흰 면입니다. 그것만으로 "지금 고치는 것은 여기" 가
 // 전달되므로 안내 문구를 덧붙이지 않습니다.
-import Button from '@/components/Button'
+import { useId } from 'react'
+import { Link } from 'react-router'
+
+import Button, { buttonClass } from '@/components/Button'
 import type { ReportTemplate } from '@/types'
 
 import type { MeetingPhase } from '../../useMeetingDraft'
@@ -14,6 +17,7 @@ import styles from './ReportSheet.module.scss'
 interface Props {
   phase: MeetingPhase
   template: ReportTemplate
+  titleId?: string
   title: string
   onTitleChange: (value: string) => void
   /** 미팅한 날. 제목 아래에 한 줄로 놓습니다. */
@@ -31,17 +35,24 @@ interface Props {
   /** 만들지 못한 이유. 눌러 본 자리 옆에서 보여야 무엇이 실패한 것인지 압니다. */
   generationError: string | null
   onRetryGenerate: () => void
+  /** 서버가 Agent 실행을 허용하지 않는 상태입니다. 편집·저장은 계속 가능합니다. */
+  generationDisabled?: boolean
   locked: boolean
   saving: boolean
   hasAiOriginal: boolean
   onStartManual: () => void
   onRegenerate: () => void
   onSave: () => void
+  /** 이미 저장된 딜 보고서 상세로 가는 길입니다. */
+  viewTo?: string
+  /** 딜 카드가 바깥 면을 맡을 때 시트의 중복 테두리·sticky를 걷습니다. */
+  embedded?: boolean
 }
 
 export default function ReportSheet({
   phase,
   template,
+  titleId,
   title,
   onTitleChange,
   when,
@@ -54,18 +65,23 @@ export default function ReportSheet({
   generationStep,
   generationError,
   onRetryGenerate,
+  generationDisabled = false,
   locked,
   saving,
   hasAiOriginal,
   onStartManual,
   onRegenerate,
   onSave,
+  viewTo,
+  embedded = false,
 }: Props) {
+  const generatedTitleId = useId()
+  const inputId = titleId ?? generatedTitleId
   const empty = phase === 'idle'
   const broken = sectionIssues.length > 0
 
   return (
-    <div className={styles.root}>
+    <div className={`${styles.root} ${embedded ? styles.embedded : ''}`}>
       <article className={styles.sheet}>
         {/*
           실패는 눌러 본 자리 옆이 아니라 결과가 나왔어야 할 자리에서 알립니다.
@@ -78,7 +94,7 @@ export default function ReportSheet({
               variant="outline"
               size="sm"
               type="button"
-              disabled={locked || saving}
+              disabled={locked || saving || generationDisabled}
               onClick={onRetryGenerate}
             >
               다시 시도
@@ -97,11 +113,11 @@ export default function ReportSheet({
         ) : (
           <>
             <div className={styles.titleBlock}>
-              <label className="sr-only" htmlFor="report-title">
+              <label className="sr-only" htmlFor={inputId}>
                 보고서 제목
               </label>
               <input
-                id="report-title"
+                id={inputId}
                 className={styles.title}
                 value={title}
                 disabled={locked}
@@ -134,11 +150,17 @@ export default function ReportSheet({
           <Button
             variant="outline"
             type="button"
-            disabled={locked || saving || phase === 'generating'}
+            disabled={locked || saving || generationDisabled || phase === 'generating'}
             onClick={onRegenerate}
           >
             AI 다시 생성
           </Button>
+        )}
+
+        {viewTo && (
+          <Link className={buttonClass({ variant: 'outline' })} to={viewTo}>
+            저장된 보고서 보기
+          </Link>
         )}
 
         <Button

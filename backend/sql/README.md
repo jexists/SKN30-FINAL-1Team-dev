@@ -142,6 +142,12 @@
   **백엔드·프론트 배포가 DB 적용보다 먼저입니다** — 이전 코드는 INSERT에
   `activity_type`을 넣으므로 컬럼이 없으면 일정 등록이 깨집니다.
 
+- `20260828_0013_report_sales_deal.sql`: 한 미팅에서 선택한 딜마다 보고서를 한 건씩 저장할 수
+  있도록 `report.sales_deal_id`를 추가합니다. 기존 일정에 보고서와 단일 딜 연결이 각각 하나면
+  이를 승계하고, 그 외 기존 보고서는 NULL을 유지합니다. 신규 미팅보고서는 API가 값을 필수로 받습니다.
+  `(source_activity_id, sales_deal_id)` 부분 유일 인덱스로 같은 미팅·딜 보고서의 중복 생성을
+  막고, 딜별 승인 보고서 조회용 인덱스를 둡니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -160,6 +166,7 @@
 | 2026-08-26 | 개발 | `20260826_0007_deal_quote_contract_order.sql` | session pooler | 성공. quote_status·contract_status(각 10컬럼)·sales_deal_item(6컬럼)·sales_deal_participant(3컬럼) 신설(RLS on) / sales_deal 28→33컬럼 / purchase_order 13→17컬럼. 기존 발주 9건 모두 걸린 딜의 owner_member_id·customer_company_id 로 백필한 뒤 NOT NULL 적용(NULL 0건). 부서 두 칸은 DEFAULT 대로 '영업팀'/'생산팀'. purchase_order_status 의 `cancelled` 라벨 2행을 '취소'→'발주취소' 로 변경. 기존 딜 52건의 신규 컬럼은 전부 NULL(아직 견적·계약 없음). `tests/test_models.py` 의 신규 4표·컬럼 수 대조 통과 |
 | 2026-08-26 | 개발 | `20260826_0008_contract_terms.sql` | session pooler | 성공. sales_deal 33→35컬럼(`contract_payment_terms`·`contract_late_interest_terms`). 둘 다 NULL 허용이라 기존 딜 52건은 NULL 그대로이고 백필 대상이 없습니다. `tests/test_models.py` 의 물리 스키마 대조 통과 |
 | 2026-08-26 | 개발 | `20260826_0009_customer_company_address.sql` | session pooler | 성공. customer_company 6→9컬럼(`postcode`·`address`·`address_detail`, 전부 nullable). 기존 36행은 백필 없이 NULL. `tests/test_models.py` 의 컬럼 수 대조 통과 |
+| 2026-08-28 | 개발 | `20260828_0013_report_sales_deal.sql` | session pooler | 성공. report +1컬럼(`sales_deal_id`, nullable) / 부분 유일 인덱스·딜별 날짜 인덱스 추가. 기존 report 128행 보존(128→128) |
 
 ## 개발 DB 재구축 런북
 

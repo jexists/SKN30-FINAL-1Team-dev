@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -40,8 +41,10 @@ class _Result:
 class _Db:
     def __init__(self, *results: _Result):
         self.results = list(results)
+        self.statements = []
 
     async def execute(self, statement):
+        self.statements.append(statement)
         assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
         return self.results.pop(0)
 
@@ -316,6 +319,26 @@ async def test_build_next_meeting_snapshot_with_no_open_deals():
     assert snapshot["sales_deals"] == []
     assert snapshot["risk_signals"] == []
     assert snapshot["recent_approved_reports"] == []
+
+
+@pytest.mark.anyio
+async def test_recent_approved_reports_are_linked_by_report_deal():
+    member = _member()
+    sales_deal_id = uuid4()
+    report = SimpleNamespace(
+        id=uuid4(),
+        sales_deal_id=sales_deal_id,
+        report_date=date(2026, 8, 17),
+        content={"summary": "승인 보고서"},
+    )
+    db = _Db(_Result(scalar_values=[report]))
+
+    recent = await snapshots._recent_approved_reports(db, member, [sales_deal_id])
+
+    assert recent[0]["sales_deal_id"] == str(sales_deal_id)
+    sql = str(db.statements[0])
+    assert "report.sales_deal_id IN" in sql
+    assert "JOIN public.activity" not in sql
 
 
 @pytest.mark.anyio

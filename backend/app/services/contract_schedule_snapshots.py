@@ -258,11 +258,10 @@ async def _recent_approved_reports(
         return []
     result = await db.execute(
         select(Report)
-        .join(Activity, Activity.id == Report.source_activity_id)
         .where(
             Report.team_id == member.team_id,
             Report.status_code == "approved",
-            Activity.sales_deal_id.in_(deal_ids),
+            Report.sales_deal_id.in_(deal_ids),
         )
         .order_by(Report.report_date.desc())
         .limit(5)
@@ -270,6 +269,7 @@ async def _recent_approved_reports(
     return [
         {
             "id": str(report.id),
+            "sales_deal_id": str(report.sales_deal_id),
             "report_date": report.report_date.isoformat(),
             "content": report.content,
         }

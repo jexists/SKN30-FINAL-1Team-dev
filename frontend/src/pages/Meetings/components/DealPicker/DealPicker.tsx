@@ -17,6 +17,8 @@ interface Props {
   onRetry: () => void
   /** 고른 딜의 id */
   selected: string[]
+  /** 보고서 행이 이미 생긴 딜은 연결을 바꿀 수 없어 선택을 풀 수 없습니다. */
+  fixed?: string[]
   onToggle: (id: string) => void
   disabled: boolean
 }
@@ -27,6 +29,7 @@ export default function DealPicker({
   error,
   onRetry,
   selected,
+  fixed = [],
   onToggle,
   disabled,
 }: Props) {
@@ -58,7 +61,7 @@ export default function DealPicker({
               type="checkbox"
               className={styles.check}
               checked={selected.includes(deal.id)}
-              disabled={disabled}
+              disabled={disabled || fixed.includes(deal.id)}
               onChange={() => onToggle(deal.id)}
             />
 

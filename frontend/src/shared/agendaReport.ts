@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
-import { meetingComposePath, meetingReportPath } from '@/constants/routes'
+import { meetingComposePath } from '@/constants/routes'
 import { savedForAgenda } from '@/pages/Meetings/useMeetingReports'
 import type { AgendaItem } from '@/types'
 
@@ -45,7 +45,7 @@ export function useAgendaReportLink(item: AgendaItem | null) {
         if (controller.signal.aborted) return
         setLink(
           row
-            ? { to: meetingReportPath(row.id), label: '업무보고서 열기', written: true }
+            ? { to: meetingComposePath(id), label: '업무보고서 열기', written: true }
             : { to: meetingComposePath(id), label: '업무보고서 작성', written: false },
         )
       })
