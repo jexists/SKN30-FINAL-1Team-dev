@@ -100,10 +100,9 @@ export default function BusinessCardModal({
     >
       <input
         ref={fileRef}
+        data-testid="business-card-image-input"
         type="file"
         accept="image/*"
-        // 폰에서는 파일을 고르는 대신 바로 뒷면 카메라가 뜹니다.
-        capture="environment"
         className="sr-only"
         onChange={(event) => {
           const file = event.target.files?.[0]
@@ -150,8 +149,8 @@ export default function BusinessCardModal({
       {unavailable && (
         <div className={styles.notice} role="alert">
           <p>
-            명함 인식은 아직 연결되지 않았습니다. 지금은 등록 폼에 직접 입력해 주세요. 인식이 붙으면
-            이 자리에서 바로 칸이 채워집니다.
+            OCR 서버를 사용할 수 없습니다. 지금은 등록 폼에 직접 입력하거나 잠시 후 다시 시도해
+            주세요.
           </p>
           <Button type="button" variant="outline" size="sm" onClick={onManual}>
             직접 입력으로 등록

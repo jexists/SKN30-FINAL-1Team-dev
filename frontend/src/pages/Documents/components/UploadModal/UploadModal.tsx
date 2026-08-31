@@ -148,6 +148,7 @@ export default function UploadModal({ target, submitting = false, onClose, onSub
         <input
           ref={fileRef}
           type="file"
+          accept=".pdf,.docx,.pptx,.html,.htm,.txt,.md,.markdown,.hwp"
           multiple={!isVersion}
           className="sr-only"
           onChange={(event) => {

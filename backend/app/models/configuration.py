@@ -77,10 +77,10 @@ class PurchaseOrderStatus(Base):
     outcome_code: Mapped[str]
 
 
-class QuoteStatus(Base):
-    """견적서 한 장의 진행 상태. 파이프라인 단계와는 다른 축이다."""
+class ContractStatus(Base):
+    """계약서 한 장의 진행 상태."""
 
-    __tablename__ = "quote_status"
+    __tablename__ = "contract_status"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
@@ -94,10 +94,10 @@ class QuoteStatus(Base):
     outcome_code: Mapped[str]
 
 
-class ContractStatus(Base):
-    """계약서 한 장의 진행 상태."""
+class QuoteStatus(Base):
+    """견적서 한 장의 진행 상태. 파이프라인 단계와는 다른 축이다."""
 
-    __tablename__ = "contract_status"
+    __tablename__ = "quote_status"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))

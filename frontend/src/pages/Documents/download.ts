@@ -2,6 +2,8 @@ import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import type { DocumentVersion, DownloadResponse } from '@/types'
 
+export type DocumentArtifact = 'text' | 'txt' | 'md' | 'json' | 'summary'
+
 export async function downloadVersion(version: DocumentVersion) {
   if (!version.documentId || !version.id) {
     window.alert('내려받을 파일이 없습니다.')
@@ -21,5 +23,27 @@ export async function downloadVersion(version: DocumentVersion) {
     link.click()
   } catch (reason: unknown) {
     window.alert(errorMessage(reason, '파일을 내려받지 못했습니다.'))
+  }
+}
+
+export async function downloadArtifact(
+  documentId: string,
+  fileId: string,
+  artifact: DocumentArtifact,
+) {
+  try {
+    const { data } = await client.get<Blob>(
+      `/documents/${documentId}/files/${fileId}/artifacts/${artifact}`,
+      { responseType: 'blob' },
+    )
+    const url = URL.createObjectURL(data)
+    const extension = artifact === 'summary' ? 'md' : artifact
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `document-${fileId}.${extension}`
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+  } catch (reason: unknown) {
+    window.alert(errorMessage(reason, '처리 결과를 내려받지 못했습니다.'))
   }
 }
