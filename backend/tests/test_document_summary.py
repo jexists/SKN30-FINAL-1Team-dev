@@ -93,6 +93,40 @@ def test_pptx_extraction_sorts_double_digit_slides_numerically():
     ]
 
 
+def test_pptx_extraction_uses_recorded_presentation_order():
+    stream = BytesIO()
+    presentation = """<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+      xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+      <p:sldIdLst>
+        <p:sldId id="1" r:id="rId10"/><p:sldId id="2" r:id="rId11"/><p:sldId id="3" r:id="rId12"/>
+      </p:sldIdLst>
+    </p:presentation>"""
+    relationships = """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+      <Relationship Id="rId10" Target="slides/slide10.xml" Type="slide"/>
+      <Relationship Id="rId11" Target="slides/slide2.xml" Type="slide"/>
+      <Relationship Id="rId12" Target="slides/slide1.xml" Type="slide"/>
+    </Relationships>"""
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("ppt/presentation.xml", presentation)
+        archive.writestr("ppt/_rels/presentation.xml.rels", relationships)
+        for number in (1, 10, 2):
+            xml = f"""<p:sld xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\"
+              xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">
+              <p:cSld><a:t>기록순서 {number}</a:t></p:cSld>
+            </p:sld>"""
+            archive.writestr(f"ppt/slides/slide{number}.xml", xml)
+
+    result = extract_document(
+        file_name="reordered.pptx", media_type=None, content=stream.getvalue()
+    )
+
+    assert [page["blocks"][0]["text"] for page in result.payload["pages"]] == [
+        "기록순서 10",
+        "기록순서 2",
+        "기록순서 1",
+    ]
+
+
 def test_scanned_pdf_is_not_silently_indexed():
     with pytest.raises(ExtractionError, match="invalid_pdf|ocr_required"):
         extract_document(

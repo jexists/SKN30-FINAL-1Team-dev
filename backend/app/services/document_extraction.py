@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import html
 import os
+import posixpath
 import re
 import shutil
 import subprocess
@@ -37,6 +38,8 @@ _WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _DRAWING_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 _PPT_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 _A_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+_REL_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+_PACKAGE_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
 
 def _clean_text(value: str) -> str:
@@ -121,17 +124,23 @@ def _docx(content: bytes) -> ExtractedDocument:
 def _pptx(content: bytes) -> ExtractedDocument:
     try:
         with ZipFile(__import__("io").BytesIO(content)) as archive:
-            names = [
+            slide_names = {
                 name
                 for name in archive.namelist()
                 if name.startswith("ppt/slides/slide") and name.endswith(".xml")
-            ]
-            # 문자열 정렬은 slide10을 slide2보다 먼저 배치한다. 파일명의 숫자를
-            # 실제 슬라이드 번호로 해석해 출처 페이지와 본문 순서를 맞춘다.
-            names.sort(
-                key=lambda name: (
-                    int(match.group(1)) if (match := re.search(r"slide(\d+)\.xml$", name)) else 0,
-                    name,
+            }
+            names = _pptx_slide_order(archive, slide_names)
+            # presentation.xml이 없는 최소 테스트 파일·손상 파일은 파일명 숫자를
+            # 보조 순서로 사용하되, 정상 PPTX에서는 기록된 발표 순서를 우선한다.
+            names.extend(
+                sorted(
+                    slide_names.difference(names),
+                    key=lambda name: (
+                        int(match.group(1))
+                        if (match := re.search(r"slide(\d+)\.xml$", name))
+                        else 0,
+                        name,
+                    ),
                 )
             )
             pages: list[dict[str, Any]] = []
@@ -150,6 +159,40 @@ def _pptx(content: bytes) -> ExtractedDocument:
     if not blocks:
         raise ExtractionError("empty_pptx")
     return _blocks_result(blocks, "pptx", pages=pages)
+
+
+def _pptx_slide_order(archive: ZipFile, slide_names: set[str]) -> list[str]:
+    """PPT 파일에 기록된 발표 순서대로 슬라이드 경로를 반환한다."""
+    try:
+        presentation = ET.fromstring(archive.read("ppt/presentation.xml"))
+        relationships = ET.fromstring(archive.read("ppt/_rels/presentation.xml.rels"))
+    except (KeyError, ET.ParseError):
+        return []
+
+    targets = {
+        relationship.attrib.get("Id"): _resolve_package_target(
+            "ppt/presentation.xml", relationship.attrib.get("Target", "")
+        )
+        for relationship in relationships.findall(f"{_PACKAGE_REL_NS}Relationship")
+        if relationship.attrib.get("Id") and relationship.attrib.get("Target")
+    }
+    ordered: list[str] = []
+    slide_id_list = presentation.find(f"{_PPT_NS}sldIdLst")
+    if slide_id_list is None:
+        return ordered
+    for slide_id in slide_id_list.findall(f"{_PPT_NS}sldId"):
+        relationship_id = slide_id.attrib.get(f"{_REL_NS}id")
+        target = targets.get(relationship_id)
+        if target in slide_names and target not in ordered:
+            ordered.append(target)
+    return ordered
+
+
+def _resolve_package_target(source: str, target: str) -> str:
+    target = target.replace("\\", "/")
+    if target.startswith("/"):
+        return target.lstrip("/")
+    return posixpath.normpath(posixpath.join(posixpath.dirname(source), target))
 
 
 def _blocks_result(

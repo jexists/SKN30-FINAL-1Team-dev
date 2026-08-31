@@ -213,6 +213,7 @@
 | 2026-08-28 | 현재 연결된 개발 DB | `20260828_0013_document_link_exclusive.sql` | PostgreSQL direct | 성공. 기존 상품·딜 동시 연결 0건 확인 후 `document_product_or_deal_check` 생성 |
 | 2026-08-28 | 현재 연결된 개발 DB | `20260828_0014_document_summary_approval.sql` | PostgreSQL direct | 성공. `file_processing_status_check`에 `review_required` 추가 |
 | 2026-08-28 | 현재 연결된 개발 DB | `20260828_0015_document_retention_and_audit.sql` | PostgreSQL direct | 성공. `file` 보관·승인 컬럼 4개와 `document_file_audit` 생성 |
+| 2026-08-31 | 현재 연결된 개발 DB | `20260831_0015_document_audit_summary_completed.sql` | PostgreSQL direct | 성공. `document_file_audit.action_code`에 자동 요약 완료 이력(`summary_completed`) 추가 후 PostgreSQL 제약조건 조회로 확인 |
 
 ## 개발 DB 재구축 런북
 

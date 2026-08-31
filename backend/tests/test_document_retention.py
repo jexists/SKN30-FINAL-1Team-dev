@@ -59,6 +59,7 @@ async def test_cleanup_expired_applies_separate_review_file_and_audit_retention(
 
     async def _remove(*, storage_key):
         removed.append(storage_key)
+        return True
 
     monkeypatch.setattr(document_retention, "get_sessionmaker", lambda: lambda: db)
     monkeypatch.setattr(storage, "remove", _remove)
@@ -72,4 +73,33 @@ async def test_cleanup_expired_applies_separate_review_file_and_audit_retention(
     assert db.deleted == []
     assert expired_review.processing_status == "failed"
     assert expired_review.processing_error == "review_expired"
+    assert db.committed
+
+
+@pytest.mark.anyio
+async def test_cleanup_expired_keeps_failed_draft_deletion_retryable(monkeypatch):
+    now = datetime(2026, 8, 28, tzinfo=UTC)
+    document = Document(id=uuid4())
+    expired_review = FileRow(
+        id=uuid4(),
+        document_id=document.id,
+        storage_key="team/retry.pdf",
+        processing_status="review_required",
+        uploaded_at=now - timedelta(days=8),
+        processed_at=now - timedelta(days=8),
+    )
+    db = _Db(_Result([expired_review]), _Result(rowcount=0))
+
+    async def _remove(*, storage_key):
+        raise storage.StorageError("storage_delete_failed:503")
+
+    monkeypatch.setattr(document_retention, "get_sessionmaker", lambda: lambda: db)
+    monkeypatch.setattr(storage, "remove", _remove)
+
+    result = await document_retention.cleanup_expired(now=now)
+
+    assert result.expired_review_drafts == 1
+    assert expired_review.processing_status == "review_required"
+    assert expired_review.processing_error == "review_draft_delete_pending"
+    assert expired_review.review_expires_at == now
     assert db.committed

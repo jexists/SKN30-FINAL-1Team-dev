@@ -51,20 +51,49 @@ async def _run_local(
     content: bytes,
     profile: str,
 ) -> ExtractedDocument:
+    semaphore = _ocr_semaphore()
+    await semaphore.acquire()
+    worker = asyncio.create_task(
+        asyncio.to_thread(
+            _local,
+            file_name=file_name,
+            media_type=media_type,
+            content=content,
+            profile=profile,
+        )
+    )
+    released = False
+
+    def release_slot(_completed: asyncio.Future[Any] | None = None) -> None:
+        nonlocal released
+        if _completed is not None and not _completed.cancelled():
+            # 타임아웃 뒤 백그라운드 worker가 실패해도 "Task exception was
+            # never retrieved" 경고를 남기지 않는다.
+            _completed.exception()
+        if not released:
+            released = True
+            semaphore.release()
+
     try:
-        async with _ocr_semaphore():
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    _local,
-                    file_name=file_name,
-                    media_type=media_type,
-                    content=content,
-                    profile=profile,
-                ),
-                timeout=settings.ocr_timeout_seconds,
-            )
+        # 요청 타임아웃이 실제 OCR 스레드까지 취소하지 않도록 보호한다.
+        # 응답이 끝난 뒤에도 worker가 끝날 때까지 슬롯을 유지해야 동시성
+        # 제한이 실제 엔진 실행 수에 적용된다.
+        result = await asyncio.wait_for(
+            asyncio.shield(worker),
+            timeout=settings.ocr_timeout_seconds,
+        )
     except TimeoutError as error:
+        worker.add_done_callback(release_slot)
         raise OcrError("local_ocr_timeout") from error
+    except BaseException:
+        if worker.done():
+            release_slot()
+        else:
+            worker.add_done_callback(release_slot)
+        raise
+    else:
+        release_slot()
+        return result
 
 
 async def _local_fallback(
@@ -411,9 +440,10 @@ def _paddle_engine():
             "use_doc_unwarping": True,
             "use_textline_orientation": True,
         }
-        if os.name == "nt":
-            # PaddlePaddle Windows oneDNN currently fails on OCR model attributes.
-            options["enable_mkldnn"] = False
+        # CPU 컨테이너의 Linux/Windows 양쪽에서 PaddlePaddle oneDNN 엔진이
+        # OCR 모델 속성 오류를 낼 수 있어 공통으로 끈다. GPU 제공자는 이
+        # 로컬 경로를 사용하지 않으므로 호환성을 우선한다.
+        options["enable_mkldnn"] = False
         return PaddleOCR(**options)
     except TypeError:
         # PaddleOCR 2.x 호환용 옵션. 최신 버전의 옵션이 없는 설치를 지원한다.
@@ -437,9 +467,9 @@ def _paddle_business_card_engine():
             "use_doc_unwarping": False,
             "use_textline_orientation": False,
         }
-        if os.name == "nt":
-            # PaddlePaddle Windows oneDNN currently fails on OCR model attributes.
-            options["enable_mkldnn"] = False
+        # CPU 컨테이너의 Linux/Windows 양쪽에서 PaddlePaddle oneDNN 엔진이
+        # OCR 모델 속성 오류를 낼 수 있어 공통으로 끈다.
+        options["enable_mkldnn"] = False
         return PaddleOCR(**options)
     except TypeError:
         # PaddleOCR 2.x 호환용: 명함 사진은 각도 보정 없이 이미 전처리한다.

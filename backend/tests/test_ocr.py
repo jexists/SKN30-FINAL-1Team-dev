@@ -317,6 +317,27 @@ def test_business_card_uses_lightweight_paddle_engine(monkeypatch):
     ocr._paddle_business_card_engine.cache_clear()
 
 
+def test_business_card_disables_mkldnn_in_linux_cpu_container(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ocr.os, "name", "posix")
+
+    class FakePaddleOCR:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    fake_module = type("Module", (), {"PaddleOCR": FakePaddleOCR})
+    monkeypatch.setitem(__import__("sys").modules, "paddleocr", fake_module)
+    ocr._paddle_business_card_engine.cache_clear()
+    monkeypatch.setattr(ocr, "_configure_paddlex_cache", lambda: None)
+
+    try:
+        ocr._paddle_business_card_engine()
+    finally:
+        ocr._paddle_business_card_engine.cache_clear()
+
+    assert calls[0]["enable_mkldnn"] is False
+
+
 def test_paddle_lines_reads_paddlex_nested_json_result():
     results = [
         {"json": ('{"res":{"rec_texts":["오현미","010-1234-5678"],"rec_scores":[0.98,0.91]}}')}
@@ -385,6 +406,44 @@ async def test_extract_document_passes_business_card_profile_to_local(monkeypatc
 
     assert result == "local-result"
     assert captured["profile"] == "business_card"
+
+
+@pytest.mark.anyio
+async def test_local_ocr_timeout_keeps_semaphore_until_worker_finishes(monkeypatch):
+    import asyncio
+    import threading
+
+    active = 0
+    maximum = 0
+    lock = threading.Lock()
+
+    def _slow_local(**_kwargs):
+        nonlocal active, maximum
+        with lock:
+            active += 1
+            maximum = max(maximum, active)
+        time.sleep(0.05)
+        with lock:
+            active -= 1
+        return "done"
+
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "local")
+    monkeypatch.setattr(ocr.settings, "ocr_max_concurrency", 1)
+    monkeypatch.setattr(ocr.settings, "ocr_timeout_seconds", 0.001)
+    monkeypatch.setattr(ocr, "_local", _slow_local)
+    ocr._semaphore_by_loop.clear()
+
+    results = await asyncio.gather(
+        ocr.extract_document(file_name="one.png", media_type="image/png", content=b"1"),
+        ocr.extract_document(file_name="two.png", media_type="image/png", content=b"2"),
+        ocr.extract_document(file_name="three.png", media_type="image/png", content=b"3"),
+        return_exceptions=True,
+    )
+
+    assert all(isinstance(result, ocr.OcrError) for result in results)
+    assert maximum == 1
+    await asyncio.sleep(0.2)
+    assert active == 0
 
 
 @pytest.mark.anyio

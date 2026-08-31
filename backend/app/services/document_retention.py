@@ -55,9 +55,18 @@ async def cleanup_expired(*, now: datetime | None = None, dry_run: bool = False)
         )
         if not dry_run:
             for row in review_drafts:
-                await storage.remove(
-                    storage_key=document_processing.draft_storage_key(row.storage_key)
-                )
+                try:
+                    removed = await storage.remove(
+                        storage_key=document_processing.draft_storage_key(row.storage_key)
+                    )
+                except storage.StorageError:
+                    removed = False
+                if removed is False:
+                    # 원본 삭제가 확인될 때까지 같은 review_required 행을
+                    # 다음 정리 작업에서도 다시 선택할 수 있게 유지한다.
+                    row.processing_error = "review_draft_delete_pending"
+                    row.review_expires_at = current
+                    continue
                 row.processing_status = "failed"
                 row.processing_error = "review_expired"
                 row.review_expires_at = None

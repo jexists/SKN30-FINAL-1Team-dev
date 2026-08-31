@@ -91,13 +91,14 @@ async def download(*, storage_key: str) -> bytes:
     return response.content
 
 
-async def remove(*, storage_key: str) -> None:
-    """업로드 뒤 DB 기록이 실패했을 때 되돌리기 위해 쓴다."""
+async def remove(*, storage_key: str) -> bool:
+    """객체 삭제를 시도하고, 실제 성공 여부를 반환한다."""
     _require_config()
     url = _endpoint(f"object/{settings.supabase_storage_bucket}/{storage_key}")
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.delete(url, headers=_headers())
+            response = await client.delete(url, headers=_headers())
     except httpx.HTTPError:
-        # 정리 실패가 원래 오류를 덮지 않게 한다. 고아 객체는 남을 수 있다.
-        return
+        # 호출부가 재시도 가능한 상태를 남길 수 있도록 실패를 명시한다.
+        return False
+    return 200 <= response.status_code < 300

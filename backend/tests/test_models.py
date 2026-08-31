@@ -114,6 +114,12 @@ def test_all_database_tables_are_mapped():
     )
 
 
+def test_document_summary_completion_audit_status_is_migrated():
+    migration = Path(__file__).parents[1] / "sql/20260831_0015_document_audit_summary_completed.sql"
+
+    assert "'summary_completed'" in migration.read_text()
+
+
 @pytest.mark.skipif(
     not settings.run_integration_tests or not settings.database_url,
     reason="실통합 테스트 비활성화 또는 DATABASE_URL 미설정",
