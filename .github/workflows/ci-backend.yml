@@ -73,7 +73,7 @@ jobs:
           PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: 'true'
         run: >-
           uv run python scripts/document_quality_smoke.py --ocr-local
-          "data/sanitized_docs/(주)온케어메딕 사업자등록증_2017.04.19.pdf"
+          "../data/sanitized_docs/(주)온케어메딕 사업자등록증_2017.04.19.pdf"
 
       - name: 배포 스크립트 검증
         working-directory: .
