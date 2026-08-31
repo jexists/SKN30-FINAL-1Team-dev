@@ -39,6 +39,16 @@ def _extract_text(payload: dict[str, Any]) -> str:
     if chunks:
         return "".join(chunks)
 
+    # Ollama /api/chat 응답은 본문을 response가 아니라
+    # message.content에 넣고, /api/generate 응답은 최상위 response에 넣는다.
+    response_text = payload.get("response")
+    if isinstance(response_text, str) and response_text.strip():
+        return response_text
+    message = payload.get("message")
+    if isinstance(message, dict) and isinstance(message.get("content"), str):
+        if message["content"].strip():
+            return message["content"]
+
     # Chat Completions 형태로 응답하는 공급자도 받아 준다.
     for choice in payload.get("choices") or ():
         if isinstance(choice, dict):
@@ -112,7 +122,11 @@ async def generate_structured[Schema: BaseModel](
     except ValueError as error:
         raise LLMError("llm_response_not_json") from error
 
-    text = _extract_text(payload)
+    text = _extract_text(payload).strip()
+    if text.startswith("```") and text.endswith("```"):
+        text = text[3:-3].strip()
+        if text.lower().startswith("json"):
+            text = text[4:].lstrip()
     try:
         return schema.model_validate(json.loads(text))
     except (ValueError, ValidationError) as error:

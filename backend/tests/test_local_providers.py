@@ -1,4 +1,9 @@
+import pytest
+
 from app.core.config import Settings
+from app.core.config import settings as runtime_settings
+from app.schemas.business_cards import BusinessCardFields
+from app.services import llm
 from app.services.ocr import _paddle_lines
 
 
@@ -58,3 +63,35 @@ def test_paddle_v2_result_is_normalized_to_ocr_lines():
     )
 
     assert result == [{"content": "영업팀", "confidence": 0.96}]
+
+
+@pytest.mark.anyio
+async def test_ollama_generate_structured_reads_chat_message_content(monkeypatch):
+    class _Response:
+        status_code = 200
+
+        def json(self):
+            return {"message": {"role": "assistant", "content": '{"name":"홍길동"}'}}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            return _Response()
+
+    monkeypatch.setattr(llm.httpx, "AsyncClient", lambda **_kwargs: _Client())
+    monkeypatch.setattr(type(runtime_settings), "llm_configured", property(lambda self: True))
+    monkeypatch.setattr(runtime_settings, "llm_provider", "ollama")
+
+    result = await llm.generate_structured(
+        instructions="JSON만 출력",
+        input_text="명함",
+        schema=BusinessCardFields,
+        schema_name="business_card_fields",
+    )
+
+    assert result.name == "홍길동"

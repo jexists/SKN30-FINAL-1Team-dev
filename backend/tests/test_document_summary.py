@@ -74,6 +74,25 @@ def test_pptx_extraction_creates_slide_source_pages():
     assert result.payload["page_count"] == 1
 
 
+def test_pptx_extraction_sorts_double_digit_slides_numerically():
+    stream = BytesIO()
+    with ZipFile(stream, "w") as archive:
+        for number in (1, 10, 2):
+            xml = f"""<p:sld xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\"
+              xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">
+              <p:cSld><a:t>슬라이드 {number}</a:t></p:cSld>
+            </p:sld>"""
+            archive.writestr(f"ppt/slides/slide{number}.xml", xml)
+
+    result = extract_document(file_name="sales.pptx", media_type=None, content=stream.getvalue())
+
+    assert [page["blocks"][0]["text"] for page in result.payload["pages"]] == [
+        "슬라이드 1",
+        "슬라이드 2",
+        "슬라이드 10",
+    ]
+
+
 def test_scanned_pdf_is_not_silently_indexed():
     with pytest.raises(ExtractionError, match="invalid_pdf|ocr_required"):
         extract_document(

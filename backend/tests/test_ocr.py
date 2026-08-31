@@ -116,6 +116,35 @@ def test_runpod_result_accepts_line_based_worker_output():
     assert result.payload["source_type"] == "runpod_ocr"
 
 
+@pytest.mark.anyio
+async def test_runpod_failure_falls_back_to_local_ocr(monkeypatch):
+    from app.services.document_extraction import ExtractedDocument
+
+    async def _runpod(**_kwargs):
+        raise ocr.OcrError("runpod_poll_timeout")
+
+    async def _local(**_kwargs):
+        return ExtractedDocument(
+            plain_text="로컬 OCR 결과",
+            markdown="로컬 OCR 결과\n",
+            payload={"source_type": "paddleocr_local", "local_ocr": True},
+        )
+
+    monkeypatch.setattr(type(ocr.settings), "ocr_configured", property(lambda self: True))
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "runpod")
+    monkeypatch.setattr(ocr, "_runpod", _runpod)
+    monkeypatch.setattr(ocr, "_run_local", _local)
+
+    result = await ocr.extract_document(
+        file_name="scan.png",
+        media_type="image/png",
+        content=b"image",
+    )
+
+    assert result.plain_text == "로컬 OCR 결과"
+    assert result.payload["ocr_fallback"]["reason"] == "runpod_poll_timeout"
+
+
 def test_runpod_mineru_result_is_normalized(monkeypatch):
     monkeypatch.setattr(ocr.settings, "ocr_runpod_contract", "mineru")
     result = _runpod_result(

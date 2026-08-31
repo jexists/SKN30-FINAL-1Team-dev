@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     ocr_runpod_wait_seconds: int = Field(default=120, ge=1, le=300)
     ocr_runpod_inline_max_bytes: int = Field(default=14 * 1024 * 1024, gt=0, le=20 * 1024 * 1024)
     ocr_runpod_signed_url_expires_seconds: int = Field(default=300, ge=60, le=3_600)
+    # 원격 장애 시 로컬 OCR이 과부하되지 않도록 프로세스별 동시 실행 수를 제한한다.
+    ocr_max_concurrency: int = Field(default=2, ge=1, le=8)
     business_card_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0, le=50 * 1024 * 1024)
     business_card_max_side: int = Field(default=2_400, ge=640, le=6_000)
     pdf_inspector_model_directory: str = ""

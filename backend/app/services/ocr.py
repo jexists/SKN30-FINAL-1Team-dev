@@ -10,8 +10,10 @@ import tempfile
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from weakref import WeakKeyDictionary
 
 import httpx
 
@@ -27,6 +29,72 @@ class OcrError(Exception):
     """OCR 제공자 호출 실패."""
 
 
+_semaphore_by_loop: WeakKeyDictionary[Any, asyncio.Semaphore] = WeakKeyDictionary()
+_semaphore_lock = Lock()
+
+
+def _ocr_semaphore() -> asyncio.Semaphore:
+    """이벤트 루프마다 OCR 동시 실행 제한기를 하나씩 만든다."""
+    loop = asyncio.get_running_loop()
+    with _semaphore_lock:
+        semaphore = _semaphore_by_loop.get(loop)
+        if semaphore is None:
+            semaphore = asyncio.Semaphore(settings.ocr_max_concurrency)
+            _semaphore_by_loop[loop] = semaphore
+        return semaphore
+
+
+async def _run_local(
+    *,
+    file_name: str,
+    media_type: str | None,
+    content: bytes,
+    profile: str,
+) -> ExtractedDocument:
+    try:
+        async with _ocr_semaphore():
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    _local,
+                    file_name=file_name,
+                    media_type=media_type,
+                    content=content,
+                    profile=profile,
+                ),
+                timeout=settings.ocr_timeout_seconds,
+            )
+    except TimeoutError as error:
+        raise OcrError("local_ocr_timeout") from error
+
+
+async def _local_fallback(
+    *,
+    file_name: str,
+    media_type: str | None,
+    content: bytes,
+    profile: str,
+    remote_error: OcrError,
+) -> ExtractedDocument:
+    """원격 OCR 장애를 기록한 뒤 로컬 OCR로 한 번만 재시도한다."""
+    extracted = await _run_local(
+        file_name=file_name,
+        media_type=media_type,
+        content=content,
+        profile=profile,
+    )
+    payload = dict(extracted.payload)
+    payload["ocr_fallback"] = {
+        "from_provider": settings.ocr_provider,
+        "reason": str(remote_error),
+        "provider": "local",
+    }
+    return ExtractedDocument(
+        plain_text=extracted.plain_text,
+        markdown=extracted.markdown,
+        payload=payload,
+    )
+
+
 async def extract_document(
     *,
     file_name: str,
@@ -38,30 +106,43 @@ async def extract_document(
     if not settings.ocr_configured:
         raise OcrError("ocr_provider_not_configured")
     if settings.ocr_provider == "local":
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    _local,
-                    file_name=file_name,
-                    media_type=media_type,
-                    content=content,
-                    profile=profile,
-                ),
-                timeout=settings.ocr_timeout_seconds,
-            )
-        except TimeoutError as error:
-            raise OcrError("local_ocr_timeout") from error
-    if settings.ocr_provider == "runpod":
-        return await _runpod(
+        return await _run_local(
             file_name=file_name,
             media_type=media_type,
             content=content,
-            source_url=source_url,
             profile=profile,
         )
+    if settings.ocr_provider == "runpod":
+        try:
+            async with _ocr_semaphore():
+                return await _runpod(
+                    file_name=file_name,
+                    media_type=media_type,
+                    content=content,
+                    source_url=source_url,
+                    profile=profile,
+                )
+        except OcrError as remote_error:
+            return await _local_fallback(
+                file_name=file_name,
+                media_type=media_type,
+                content=content,
+                profile=profile,
+                remote_error=remote_error,
+            )
     if settings.ocr_provider != "azure":
         raise OcrError("ocr_provider_unsupported")
-    return await _azure(file_name=file_name, media_type=media_type, content=content)
+    try:
+        async with _ocr_semaphore():
+            return await _azure(file_name=file_name, media_type=media_type, content=content)
+    except OcrError as remote_error:
+        return await _local_fallback(
+            file_name=file_name,
+            media_type=media_type,
+            content=content,
+            profile=profile,
+            remote_error=remote_error,
+        )
 
 
 async def _runpod(

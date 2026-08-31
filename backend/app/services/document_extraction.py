@@ -121,10 +121,20 @@ def _docx(content: bytes) -> ExtractedDocument:
 def _pptx(content: bytes) -> ExtractedDocument:
     try:
         with ZipFile(__import__("io").BytesIO(content)) as archive:
-            names = sorted(
+            names = [
                 name
                 for name in archive.namelist()
                 if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+            ]
+            # 문자열 정렬은 slide10을 slide2보다 먼저 배치한다. 파일명의 숫자를
+            # 실제 슬라이드 번호로 해석해 출처 페이지와 본문 순서를 맞춘다.
+            names.sort(
+                key=lambda name: (
+                    int(match.group(1))
+                    if (match := re.search(r"slide(\d+)\.xml$", name))
+                    else 0,
+                    name,
+                )
             )
             pages: list[dict[str, Any]] = []
             blocks: list[dict[str, Any]] = []
@@ -300,7 +310,10 @@ def _pdf(content: bytes) -> ExtractedDocument:
     except Exception as error:
         raise ExtractionError("invalid_pdf") from error
     blocks = [block for page in pages for block in page["blocks"]]
-    if not any(str(block.get("text", "")).strip() for block in blocks):
+    # 텍스트 페이지와 스캔 페이지가 섞인 PDF는 텍스트가 있는 페이지만 RAG에
+    # 넣으면 원문 일부가 조용히 누락된다. 빈 페이지가 하나라도 있으면 전체를
+    # 페이지 단위 OCR 경로로 넘겨 두 종류를 함께 보존한다.
+    if any(not str(page["blocks"][0].get("text", "")).strip() for page in pages):
         raise ExtractionError("ocr_required")
     return _blocks_result(blocks, "pdf", pages=pages)
 
@@ -326,13 +339,14 @@ def _pdf_inspector(content: bytes) -> ExtractedDocument | None:
                 for index, page in enumerate(page_results, start=1):
                     page_number = _value(page, "page")
                     page_number = int(page_number) + 1 if isinstance(page_number, int) else index
-                    needs_ocr = bool(_value(page, "needs_ocr"))
+                    markdown = str(_value(page, "markdown") or "")
+                    needs_ocr = bool(_value(page, "needs_ocr")) or not markdown.strip()
                     if needs_ocr:
                         pages_needing_ocr.append(page_number)
                     pages.append(
                         {
                             "page_number": page_number,
-                            "markdown": str(_value(page, "markdown") or ""),
+                            "markdown": markdown,
                             "needs_ocr": needs_ocr,
                             "ocr_reason": _value(page, "ocr_reason"),
                         }
