@@ -99,14 +99,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 378
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 379
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 94
+    assert len(foreign_key_constraints) == 95
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints
