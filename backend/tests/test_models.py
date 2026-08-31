@@ -117,7 +117,7 @@ def test_all_database_tables_are_mapped():
 def test_document_summary_completion_audit_status_is_migrated():
     migration = Path(__file__).parents[1] / "sql/20260831_0015_document_audit_summary_completed.sql"
 
-    assert "'summary_completed'" in migration.read_text()
+    assert "'summary_completed'" in migration.read_text(encoding="utf-8")
 
 
 @pytest.mark.skipif(
@@ -133,7 +133,7 @@ def test_models_match_configured_database():
 async def test_legacy_report_deal_migration_only_clears_ambiguous_links():
     """후속 SQL의 조건을 합성 행에만 적용한다. 실제 보고서는 읽거나 수정하지 않는다."""
     migration = Path(__file__).parents[1] / "sql/20260831_0014_report_legacy_deal_scope.sql"
-    predicate = migration.read_text().split("WHERE", 1)[1].split(";", 1)[0]
+    predicate = migration.read_text(encoding="utf-8").split("WHERE", 1)[1].split(";", 1)[0]
     query = text(
         "SELECT CASE WHEN " + predicate + " THEN NULL ELSE report.sales_deal_id END "
         "FROM (SELECT CAST(:kind AS text) AS report_kind, CAST(:deal AS uuid) AS sales_deal_id, "
