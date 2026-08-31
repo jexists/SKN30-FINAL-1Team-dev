@@ -27,7 +27,9 @@ OptionCode = Annotated[
     ),
 ]
 
-ProcessingStatus = Literal["uploaded", "processing", "completed", "failed"]
+# public.file 의 file_processing_status_check 와 같은 목록이어야 한다.
+# 한 값이라도 빠지면 그 값이 든 행을 담은 목록 응답 전체가 검증에서 터진다.
+ProcessingStatus = Literal["uploaded", "processing", "review_required", "completed", "failed"]
 
 
 class _WriteModel(BaseModel):

@@ -47,7 +47,11 @@ export default function RejectReasonModal({ busy, onCancel, onSubmit }: Props) {
         </>
       }
     >
-      <FormField label="반려 사유" required error={invalid ? '반려 사유를 적어 주세요.' : undefined}>
+      <FormField
+        label="반려 사유"
+        required
+        error={invalid ? '반려 사유를 적어 주세요.' : undefined}
+      >
         <textarea
           className={styles.textarea}
           value={reason}

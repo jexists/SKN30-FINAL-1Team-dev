@@ -147,9 +147,7 @@ export default function Team() {
       {members.some((member) => !member.active) && (
         <p className={styles.note}>
           <StatusBadge label="비활성" />
-          <span>
-            비활성 구성원도 목록에 남깁니다. 상세에서 다시 재직으로 되돌릴 수 있습니다.
-          </span>
+          <span>비활성 구성원도 목록에 남깁니다. 상세에서 다시 재직으로 되돌릴 수 있습니다.</span>
         </p>
       )}
 

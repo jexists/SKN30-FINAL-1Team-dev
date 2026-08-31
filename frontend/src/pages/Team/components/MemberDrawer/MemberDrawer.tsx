@@ -71,7 +71,10 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
       sub={member.email ?? '이메일 없음'}
       meta={
         <>
-          <StatusBadge label={ROLE_LABEL[member.role_code]} tone={role === 'manager' ? 'blue' : 'neutral'} />
+          <StatusBadge
+            label={ROLE_LABEL[member.role_code]}
+            tone={role === 'manager' ? 'blue' : 'neutral'}
+          />
           <StatusBadge
             label={member.active ? '재직' : '비활성'}
             tone={member.active ? 'green' : 'neutral'}
@@ -140,8 +143,8 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
         </div>
         {isSelf && (
           <p className={styles.hint}>
-            자기 역할과 계정 상태는 바꿀 수 없습니다. 팀에 팀장이 없어지면 이 화면에 다시 들어올
-            수 없습니다.
+            자기 역할과 계정 상태는 바꿀 수 없습니다. 팀에 팀장이 없어지면 이 화면에 다시 들어올 수
+            없습니다.
           </p>
         )}
       </section>

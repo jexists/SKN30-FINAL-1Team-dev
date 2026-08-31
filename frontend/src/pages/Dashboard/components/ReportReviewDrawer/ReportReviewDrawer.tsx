@@ -174,9 +174,7 @@ export default function ReportReviewDrawer({ reportId, onReviewed, onClose }: Pr
             </section>
 
             {!canReview && isReviewable(status) && (
-              <p className={styles.hint}>
-                자기가 쓴 보고서는 스스로 확정할 수 없습니다.
-              </p>
+              <p className={styles.hint}>자기가 쓴 보고서는 스스로 확정할 수 없습니다.</p>
             )}
           </>
         )}
