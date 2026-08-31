@@ -1,5 +1,6 @@
 import base64
 import time
+from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
@@ -149,14 +150,14 @@ def test_runpod_mineru_single_markdown_result_is_normalized(monkeypatch):
 def test_pdf_inspector_model_directory_uses_configured_path(monkeypatch):
     monkeypatch.setattr(ocr.settings, "pdf_inspector_model_directory", "~/salesluv-models")
 
-    assert ocr._pdf_inspector_model_directory().endswith("/salesluv-models")
+    assert Path(ocr._pdf_inspector_model_directory()).name == "salesluv-models"
 
 
 def test_pdf_inspector_model_directory_defaults_to_temp(monkeypatch):
     monkeypatch.setattr(ocr.settings, "pdf_inspector_model_directory", "")
     monkeypatch.setattr(ocr.tempfile, "gettempdir", lambda: "/tmp")
 
-    assert ocr._pdf_inspector_model_directory().endswith("salesluv-pdf-inspector-models")
+    assert Path(ocr._pdf_inspector_model_directory()).name == "salesluv-pdf-inspector-models"
 
 
 def test_pdf_inspector_model_directory_finds_nested_downloaded_artifacts(tmp_path, monkeypatch):
@@ -180,7 +181,7 @@ def test_pdf_inspector_model_cache_sets_library_environment(monkeypatch):
 
     ocr._configure_pdf_inspector_model_cache()
 
-    assert ocr.os.environ["PDF_INSPECTOR_MODEL_CACHE"] == "/tmp/salesluv-models"
+    assert Path(ocr.os.environ["PDF_INSPECTOR_MODEL_CACHE"]) == Path("/tmp/salesluv-models")
 
 
 def test_pdf_inspector_uses_default_download_mode_without_model(monkeypatch):
