@@ -104,6 +104,7 @@ export default function Documents() {
     addDocument,
     addVersion,
     summarizeVersion,
+    loadSummary,
     approveSummary,
   } = useDocuments(documentQuery)
 
@@ -174,6 +175,13 @@ export default function Documents() {
         : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
     [openDoc, summarizeVersion],
   )
+  const loadOpenDocumentSummary = useCallback(
+    (fileId: string) =>
+      openDoc
+        ? loadSummary(openDoc.id, fileId)
+        : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
+    [loadSummary, openDoc],
+  )
   const approveOpenDocument = useCallback(
     async (fileId: string) => {
       if (!openDoc) throw new Error('자료를 찾을 수 없습니다.')
@@ -186,6 +194,16 @@ export default function Documents() {
       return result
     },
     [approveSummary, openDoc, reload, reviewQueue],
+  )
+  const completeQueuedSummary = useCallback(
+    (fileId: string) => {
+      if (reviewQueue[0]?.fileId !== fileId) return
+      const next = reviewQueue[1]
+      setReviewQueue((current) => current.slice(1))
+      reload()
+      if (next) setOpenId(next.documentId)
+    },
+    [reload, reviewQueue],
   )
 
   const isFiltered =
@@ -283,7 +301,9 @@ export default function Documents() {
           canUpload={isManager}
           onNewVersion={() => setUploading(openDoc.id)}
           onSummarize={summarizeOpenDocument}
+          onLoadSummary={loadOpenDocumentSummary}
           autoSummarizeFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
+          onSummaryCompleted={completeQueuedSummary}
           onApproveSummary={approveOpenDocument}
         />
       )}

@@ -47,7 +47,11 @@ export async function recognizeBusinessCard(image: File): Promise<BusinessCardDr
   const form = new FormData()
   form.append('image', image)
   try {
-    const { data } = await client.post<BusinessCardScanResponse>('/business-cards/scan', form)
+    // 명함은 로컬 OCR 모델 초기화·이미지 보정·구조화 LLM이 순서대로 실행될 수
+    // 있어 일반 API 요청의 10초 제한을 그대로 쓰면 정상 처리도 실패로 보인다.
+    const { data } = await client.post<BusinessCardScanResponse>('/business-cards/scan', form, {
+      timeout: 180_000,
+    })
     const fields = {
       name: data.fields.name,
       company_name: data.fields.company_name,

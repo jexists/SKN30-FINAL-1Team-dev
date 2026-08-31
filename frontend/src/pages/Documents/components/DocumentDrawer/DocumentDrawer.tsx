@@ -20,7 +20,9 @@ interface Props {
   canUpload: boolean
   onNewVersion: () => void
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
+  onLoadSummary: (fileId: string) => Promise<DocumentSummaryResponse>
   autoSummarizeFileId?: string
+  onSummaryCompleted?: (fileId: string) => void
   onApproveSummary: (fileId: string) => Promise<DocumentSummaryResponse>
 }
 
@@ -30,7 +32,9 @@ export default function DocumentDrawer({
   canUpload,
   onNewVersion,
   onSummarize,
+  onLoadSummary,
   autoSummarizeFileId,
+  onSummaryCompleted,
   onApproveSummary,
 }: Props) {
   const [summary, setSummary] = useState<DocumentSummaryResponse | null>(null)
@@ -49,16 +53,30 @@ export default function DocumentDrawer({
   ]
   const history = [...doc.versions].reverse()
 
+  useEffect(() => {
+    if (!latest.id) return
+    void onLoadSummary(latest.id)
+      .then((result) => {
+        if (result.summary_markdown) setSummary(result)
+      })
+      .catch(() => {
+        // 아직 처리 전인 파일은 빈 상태로 두고, 사용자가 다시 실행할 수 있게 한다.
+      })
+  }, [latest.id, onLoadSummary])
+
   const requestSummary = useCallback(
     (fileId: string) => {
       setSummaryLoading(true)
       setSummaryError(null)
       void onSummarize(fileId)
-        .then(setSummary)
+        .then((result) => {
+          setSummary(result)
+          if (result.processing_status === 'completed') onSummaryCompleted?.(result.file_id)
+        })
         .catch(() => setSummaryError('문서 요약을 생성하지 못했습니다.'))
         .finally(() => setSummaryLoading(false))
     },
-    [onSummarize],
+    [onSummarize, onSummaryCompleted],
   )
 
   useEffect(() => {

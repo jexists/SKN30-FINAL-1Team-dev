@@ -297,6 +297,16 @@ export default function useDocuments(query?: DocumentQuery) {
     [],
   )
 
+  const loadSummary = useCallback(
+    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
+      const { data } = await client.get<DocumentSummaryResponse>(
+        `/documents/${documentId}/files/${fileId}/summary`,
+      )
+      return data
+    },
+    [],
+  )
+
   const approveSummary = useCallback(
     async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
       const { data } = await client.post<DocumentSummaryResponse>(
@@ -321,6 +331,7 @@ export default function useDocuments(query?: DocumentQuery) {
     addVersion,
     updateDocument,
     summarizeVersion,
+    loadSummary,
     approveSummary,
   }
 }
