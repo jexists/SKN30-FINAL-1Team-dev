@@ -1,0 +1,45 @@
+name: Cleanup document retention
+
+on:
+  schedule:
+    # GitHub Actions cron은 UTC 기준. 매일 한국시간 04:00에 실행한다.
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      APP_ENV: production
+      DEBUG: 'false'
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+      DOCUMENT_REVIEW_DRAFT_RETENTION_DAYS: '7'
+      DOCUMENT_UNAPPROVED_FILE_RETENTION_DAYS: '30'
+      DOCUMENT_AUDIT_LOG_RETENTION_DAYS: '1825'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.5'
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --frozen --no-dev
+
+      - name: Cleanup expired document data
+        run: uv run python -m scripts.cleanup_document_retention
