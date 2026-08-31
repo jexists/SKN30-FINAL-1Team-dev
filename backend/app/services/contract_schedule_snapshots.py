@@ -462,8 +462,14 @@ async def build_schedule_snapshot(
     preferred_starts_at: str | None,
     preferred_ends_at: str | None,
     duration_minutes: int | None,
+    *,
+    min_window_days: int | None = None,
 ) -> dict[str, Any]:
-    """일정관리 실행 입력. 선호 시간대는 부모 실행(계약관리 제안) 또는 요청값에서 온다."""
+    """일정관리 실행 입력. 선호 시간대는 부모 실행(계약관리 제안) 또는 요청값에서 온다.
+
+    min_window_days 는 후보가 0개로 끝난 실행을 다시 돌릴 때만 들어온다. 선호 기간이
+    그보다 좁으면 끝을 밀어 최소 폭을 확보한다(계약_일정_에이전트_아키텍처.md 3.2).
+    """
     deal = (
         await db.execute(
             select(SalesDeal).where(
@@ -519,6 +525,15 @@ async def build_schedule_snapshot(
     else:
         window_start = datetime.fromisoformat(preferred_starts_at)
         window_end = datetime.fromisoformat(preferred_ends_at)
+
+    if min_window_days is not None:
+        # 끝만 뒤로 민다. 시작을 당기면 계약관리가 의도한 시점보다 앞선 시간을 제안하게
+        # 되는데, "왜 지금인가"는 계약관리의 판단이라 여기서 뒤집지 않는다.
+        widened_end = window_start + timedelta(days=min_window_days)
+        if widened_end > window_end:
+            window_end = widened_end
+            preferred_starts_at = window_start.isoformat()
+            preferred_ends_at = window_end.isoformat()
 
     padding = timedelta(days=_SCHEDULE_SEARCH_PADDING_DAYS)
     activities = (
