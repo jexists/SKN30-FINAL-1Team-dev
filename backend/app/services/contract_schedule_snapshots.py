@@ -28,6 +28,20 @@ _SCHEDULE_SEARCH_PADDING_DAYS = 7
 _DEFAULT_PREFERRED_WINDOW_DAYS = 7
 
 
+def _parse_aware_or_none(value: str) -> datetime | None:
+    """ISO 문자열을 tz-aware datetime으로 파싱한다. 형식이 깨졌으면 None.
+
+    LLM 출력이나 클라이언트 요청값은 offset이 없을(naive) 수 있다 — 그런 값은 UTC로 본다.
+    """
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
 async def _company_or_404(
     db: AsyncSession, member: Member, customer_company_id: UUID
 ) -> CustomerCompany:
@@ -109,6 +123,26 @@ async def _last_activity_by_deal(
         .group_by(Activity.sales_deal_id)
     )
     return {deal_id: last_start for deal_id, last_start in result.all()}
+
+
+async def _deal_ids_with_upcoming_activity(
+    db: AsyncSession, member: Member, deal_ids: list[UUID]
+) -> set[UUID]:
+    """앞으로 예정된(starts_at > now) 활동이 이미 있는 딜 id 집합.
+
+    이미 뭔가 잡혀 있으면 0차 선별에서 "다음 미팅 필요"로 다시 올리지 않는다.
+    """
+    if not deal_ids:
+        return set()
+    result = await db.execute(
+        select(Activity.sales_deal_id).where(
+            Activity.team_id == member.team_id,
+            Activity.sales_deal_id.in_(deal_ids),
+            Activity.deleted_at.is_(None),
+            Activity.starts_at > datetime.now(UTC),
+        )
+    )
+    return {deal_id for (deal_id,) in result.all()}
 
 
 async def _unresolved_support_signals(
@@ -251,16 +285,22 @@ def _deal_summary(deal: SalesDeal, stage: SalesPipelineStage) -> dict[str, Any]:
     }
 
 
-async def _recent_approved_reports(
+async def _recent_finalized_reports(
     db: AsyncSession, member: Member, deal_ids: list[UUID]
 ) -> list[dict[str, Any]]:
+    """작성자가 확정한(submitted) 보고서까지 근거로 쓴다.
+
+    approved 는 팀장 검토까지 끝난 상태인데 그 검토 화면이 아직 없어, approved 만 보면
+    방금 확정한 보고서가 영영 입력에 들어오지 못한다. 보고서 확정이 곧 이 파이프라인의
+    트리거이기도 하므로(계약에이전트_설계.md 3장) 두 상태를 함께 본다.
+    """
     if not deal_ids:
         return []
     result = await db.execute(
         select(Report)
         .where(
             Report.team_id == member.team_id,
-            Report.status_code == "approved",
+            Report.status_code.in_(("approved", "submitted")),
             Report.sales_deal_id.in_(deal_ids),
         )
         .order_by(Report.report_date.desc())
@@ -288,10 +328,13 @@ async def build_candidate_selection_snapshot(db: AsyncSession, member: Member) -
     deals = await _member_open_deals(db, member)
     deal_ids = [deal.id for deal, _stage, _company in deals]
     last_activity = await _last_activity_by_deal(db, member, deal_ids)
+    upcoming = await _deal_ids_with_upcoming_activity(db, member, deal_ids)
     today = datetime.now(UTC).date()
 
     candidates: list[dict[str, Any]] = []
     for deal, stage, company in deals:
+        if deal.id in upcoming:
+            continue
         risk_signals = _deal_risk_signals(deal, stage, last_activity.get(deal.id), today)
         if not risk_signals:
             continue
@@ -311,11 +354,32 @@ async def build_candidate_selection_snapshot(db: AsyncSession, member: Member) -
 
 
 async def build_next_meeting_snapshot(
-    db: AsyncSession, member: Member, customer_company_id: UUID
+    db: AsyncSession,
+    member: Member,
+    customer_company_id: UUID,
+    sales_deal_id: UUID | None = None,
 ) -> dict[str, Any]:
-    """계약관리 1차 실행(propose_next_meeting) 입력. 위험 판정 신호를 계산해 넣는다."""
+    """계약관리 1차 실행(propose_next_meeting) 입력. 위험 판정 신호를 계산해 넣는다.
+
+    sales_deal_id 를 주면 그 딜 하나로 좁힌다. 트리거 기반 파이프라인
+    (contract_next_meeting_pipeline)은 영업 건 하나를 가리키는 신호에서 출발하는데,
+    회사의 딜을 전부 넣으면 같은 고객사에 딜이 둘 이상일 때 LLM 이 다른 딜을 골라
+    답할 수 있다. 그 답을 트리거 딜의 제안으로 저장하면 카드에 이름과 내용이
+    어긋난 채 뜨고, 예외도 로그도 남지 않는다.
+
+    기본값이 None 인 것은 회사 단위로 도는 기존 호출부(POST /agent-runs 의 수동 실행,
+    agent_runs._build_input)를 그대로 두기 위해서다.
+    """
     company = await _company_or_404(db, member, customer_company_id)
     deals = await _open_deals(db, member, customer_company_id)
+    if sales_deal_id is not None:
+        deals = [(deal, stage) for deal, stage in deals if deal.id == sales_deal_id]
+        if not deals:
+            # 이 회사의 열린 딜이 아니다(닫혔거나 다른 회사). 빈 스냅샷을 넘기면 LLM 이
+            # 근거 없이 지어내므로 여기서 끊는다 — 파이프라인은 이 예외를 받고 종료한다.
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="sales_deal_not_found"
+            )
     deal_ids = [deal.id for deal, _stage in deals]
     last_activity = await _last_activity_by_deal(db, member, deal_ids)
     today = datetime.now(UTC).date()
@@ -323,13 +387,18 @@ async def build_next_meeting_snapshot(
     risk_signals: list[dict[str, Any]] = []
     for deal, stage in deals:
         risk_signals.extend(_deal_risk_signals(deal, stage, last_activity.get(deal.id), today))
+    # CS 미해결은 딜이 아니라 고객사에 붙는 신호라 딜을 좁혀도 그대로 넣는다. 어느 딜을
+    # 고를지 흔드는 값이 아니라, 고른 딜을 언제 만날지 판단하는 맥락이다.
     risk_signals.extend(await _unresolved_support_signals(db, member, customer_company_id))
 
     return {
         "customer_company": {"id": str(company.id), "name": company.name},
         "sales_deals": [_deal_summary(deal, stage) for deal, stage in deals],
         "risk_signals": risk_signals,
-        "recent_approved_reports": await _recent_approved_reports(db, member, deal_ids),
+        # 키 이름은 그대로 둔다 — 이 스냅샷은 그대로 LLM 입력 JSON 이 되므로
+        # (contract_management._NextMeetingLLMInput) 바꾸려면 프롬프트 버전을
+        # 올려야 한다. 함수 이름만 실제 동작(submitted + approved)에 맞춘다.
+        "recent_approved_reports": await _recent_finalized_reports(db, member, deal_ids),
     }
 
 
@@ -415,10 +484,36 @@ async def build_schedule_snapshot(
         duration_minutes = suggestion.get("duration_minutes", 60)
         reason = suggestion.get("reason")
 
+    now = datetime.now(UTC)
+    if preferred_starts_at is not None and preferred_ends_at is not None:
+        # 상위 제안(계약관리 1차 실행)이 이미 지난 날짜를 줬을 수 있다 — LLM이 현재
+        # 시각을 잘못 가늠했을 때의 방어선이다. preferred_starts_at/ends_at은 LLM 출력이나
+        # 클라이언트 요청값을 그대로 받은 문자열이라 형식이 깨졌거나(파싱 실패) offset이
+        # 없을(naive) 수 있다 — 둘 다 방어한다.
+        parsed_start = _parse_aware_or_none(preferred_starts_at)
+        parsed_end = _parse_aware_or_none(preferred_ends_at)
+        # 시작이 끝보다 늦으면(LLM 이 날짜를 거꾸로 답한 경우) 탐색 범위가 성립하지 않아
+        # 활동 조회도 일정 에이전트 입력도 무의미해진다 — 아래 기본 범위로 넘긴다.
+        inverted = (
+            parsed_start is not None
+            and parsed_end is not None
+            and max(parsed_start, now) >= parsed_end
+        )
+        if parsed_start is None or parsed_end is None or parsed_end <= now or inverted:
+            preferred_starts_at = None
+            preferred_ends_at = None
+        else:
+            # 파싱해서 시간대를 붙인 값을 되돌려 담는다. 아래에서 원본 문자열을 다시
+            # 파싱하는데 datetime.fromisoformat 은 naive 를 naive 그대로 통과시켜,
+            # offset 없는 입력이 여기서는 UTC, contract_management 에서는 Asia/Seoul 로
+            # 갈린다 — 같은 글자가 9시간 다르게 읽힌다.
+            # max 는 "시작이 이미 지났으면 지금으로 당긴다"를 분기 없이 처리한다.
+            preferred_starts_at = max(parsed_start, now).isoformat()
+            preferred_ends_at = parsed_end.isoformat()
+
     if preferred_starts_at is None or preferred_ends_at is None:
         # 계약관리 제안에 구체적인 선호 시간대가 없으면(예: 근거만 있고 날짜 미정),
         # 오늘부터 일주일을 기본 탐색 범위로 둔다.
-        now = datetime.now(UTC)
         window_start = now
         window_end = now + timedelta(days=_DEFAULT_PREFERRED_WINDOW_DAYS)
     else:

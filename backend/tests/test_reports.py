@@ -431,6 +431,36 @@ def test_submit_moves_draft_and_rejects_stale_expectation():
     assert stale_db.rollback_count == 1
 
 
+@pytest.mark.parametrize("kind,has_deal", [("meeting", True), ("meeting", False), ("daily", False)])
+def test_submit_queues_only_the_reports_deal_after_commit(monkeypatch, kind, has_deal):
+    member = _member()
+    report = _report(member, kind=kind)
+    report.source_activity_id = uuid4() if kind == "meeting" else None
+    report.sales_deal_id = uuid4() if has_deal else None
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+    )
+    queued = []
+
+    def queue(_background, deal_id, trigger):
+        assert db.commit_count == 1
+        queued.append((deal_id, trigger))
+
+    monkeypatch.setattr(reports_api.contract_next_meeting_pipeline, "queue", queue)
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/reports/{report.id}/submit",
+            headers={"Origin": ORIGIN},
+            json={"expected_status_code": "draft"},
+        )
+
+    assert response.status_code == 200
+    assert queued == ([(report.sales_deal_id, {"report_id": str(report.id)})] if has_deal else [])
+    assert not db.results  # 일정의 대표 딜을 다시 조회해서 대체하지 않는다.
+
+
 def test_member_scope_hides_other_authors_report():
     member = _member()
     hidden_db = _Db(_Result(rows=[]))
@@ -455,13 +485,10 @@ def test_member_scope_hides_other_authors_report():
     assert locked_db.rollback_count == 1
 
 
-def test_member_cannot_attach_another_owners_activity():
-    member = _member()
-    foreign = _activity(_member(team_id=member.team_id))
-
-    db = _Db(_Result(scalar_values=[]))
+def _attach(db: _Db, member: Member, activity_id: UUID):
+    """일정 하나를 묶어 보고서를 만들어 본다."""
     with _client(db, member) as client:
-        response = client.post(
+        return client.post(
             "/api/reports",
             headers={"Origin": ORIGIN},
             json={
@@ -469,18 +496,189 @@ def test_member_cannot_attach_another_owners_activity():
                 "report_date": "2026-08-17",
                 "template_snapshot": TEMPLATE,
                 "content": CONTENT,
-                "activity_ids": [str(foreign.id)],
+                "activity_ids": [str(activity_id)],
             },
         )
 
-    assert response.status_code == 404
-    assert response.json() == {"detail": "activity_not_found"}
+
+def test_member_cannot_attach_another_owners_activity():
+    """남의 일정에는 보고서를 달 수 없다. 같은 팀이라 없는 척하지 않고 403 으로 답한다."""
+    member = _member()
+    foreign = _activity(_member(team_id=member.team_id))
+
+    db = _Db(_Result(rows=[(foreign.id, foreign.owner_member_id)]))
+    response = _attach(db, member, foreign.id)
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "activity_not_owned"}
     assert db.commit_count == 0
     assert db.rollback_count == 1
 
     sql = str(db.statements[0])
     assert "activity.owner_member_id" in sql
     assert "activity.deleted_at IS NULL" in sql
+
+
+def test_manager_cannot_attach_a_teammate_activity():
+    """보고는 남이 한 일을 대신 적는 문서가 아니다. 팀장도 같은 규칙을 받는다."""
+    manager = _member(role="manager")
+    teammate = _activity(_member(team_id=manager.team_id))
+
+    db = _Db(_Result(rows=[(teammate.id, teammate.owner_member_id)]))
+    response = _attach(db, manager, teammate.id)
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "activity_not_owned"}
+    assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
+    manager = _member(role="manager")
+    teammate = _activity(_member(team_id=manager.team_id))
+    db = _Db(_Result(rows=[(teammate.id, teammate.owner_member_id)]))
+
+    with _client(db, manager) as client:
+        response = client.post(
+            "/api/reports",
+            headers={"Origin": ORIGIN},
+            json={
+                "report_kind": "meeting",
+                "report_date": "2026-08-17",
+                "source_activity_id": str(teammate.id),
+                "sales_deal_id": str(uuid4()),
+                "activity_ids": [],
+                "template_snapshot": TEMPLATE,
+                "content": CONTENT,
+            },
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "activity_not_owned"}
+    assert db.added == []
+    assert db.commit_count == 0
+
+
+def test_unknown_activity_is_reported_as_not_found_before_ownership():
+    """다른 팀이거나 지워진 일정은 소유를 따지기 전에 404 로 끊는다."""
+    manager = _member(role="manager")
+
+    db = _Db(_Result(rows=[]))
+    response = _attach(db, manager, uuid4())
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "activity_not_found"}
+    assert db.commit_count == 0
+
+
+def test_manager_can_attach_own_activity():
+    """자기가 한 일이면 팀장도 그대로 쓴다."""
+    manager = _member(role="manager")
+    own = _activity(manager)
+
+    class _OwnActivityDb(_Db):
+        async def execute(self, statement):
+            self.statements.append(statement)
+            # 첫 쿼리는 일정 소유 확인, 그 뒤 둘이 상세 조회다.
+            if len(self.statements) == 1:
+                return _Result(rows=[(own.id, own.owner_member_id)])
+            if len(self.statements) == 2:
+                report = next(value for value in self.added if isinstance(value, Report))
+                return _Result(rows=[_row(report, manager)])
+            return _Result(rows=[])
+
+    db = _OwnActivityDb()
+    response = _attach(db, manager, own.id)
+
+    assert response.status_code == 201
+    assert response.json()["author_member_id"] == str(manager.id)
+    assert db.commit_count == 1
+
+
+def test_update_keeps_activities_linked_before_the_ownership_rule():
+    """규칙이 생기기 전에 묶어 둔 남의 일정은 수정 때 그대로 둔다.
+
+    통째로 막으면 팀장이 만들어 둔 보고서가 손댈 수 없는 문서가 된다.
+    """
+    manager = _member(role="manager")
+    report = _report(manager)
+    legacy = _activity(_member(team_id=manager.team_id))
+
+    db = _Db(
+        _Result(scalar=report),
+        # _visible_activity_ids: 팀 안의 일정인지
+        _Result(scalar_values=[legacy.id]),
+        # _linked_activity_ids: 이미 묶여 있던 일정
+        _Result(scalar_values=[legacy.id]),
+        # _replace_report_activities 의 delete
+        _Result(),
+        _Result(rows=[_row(report, manager)]),
+        _Result(rows=[]),
+    )
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"activity_ids": [str(legacy.id)]},
+        )
+
+    assert response.status_code == 200
+    assert db.commit_count == 1
+
+
+def test_manager_cannot_edit_or_submit_a_teammate_report():
+    """보고서는 쓴 사람이 고치고 제출하고 지운다. 팀장도 대신 손대지 않는다.
+
+    팀장은 팀원의 보고서를 목록에서 보고 있으므로 404 가 아니라 403 으로 답한다.
+    """
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id)
+    report = _report(teammate)
+
+    for call in (
+        lambda client: client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"note": "팀장이 대신 고쳐 본다"},
+        ),
+        lambda client: client.post(
+            f"/api/reports/{report.id}/submit",
+            headers={"Origin": ORIGIN},
+            json={"expected_status_code": "draft"},
+        ),
+        lambda client: client.delete(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+        ),
+    ):
+        db = _Db(_Result(scalar=report))
+        with _client(db, manager) as client:
+            response = call(client)
+        assert response.status_code == 403
+        assert response.json() == {"detail": "report_not_owned"}
+        assert db.commit_count == 0
+        assert db.rollback_count == 1
+
+
+def test_manager_can_still_edit_own_report():
+    """자기가 쓴 보고서는 팀장도 그대로 고친다."""
+    manager = _member(role="manager")
+    report = _report(manager)
+
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, manager)]),
+        _Result(rows=[]),
+    )
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"note": "내가 쓴 보고서"},
+        )
+
+    assert response.status_code == 200
+    assert db.commit_count == 1
 
 
 def test_manager_author_filter_is_limited_to_same_team():

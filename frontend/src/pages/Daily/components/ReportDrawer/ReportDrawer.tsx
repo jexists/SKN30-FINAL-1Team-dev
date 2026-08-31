@@ -6,9 +6,11 @@ import { useEffect, useId, useRef } from 'react'
 import { Link } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
+import OwnerName from '@/components/OwnerName'
 import { ChevronRightIcon, CloseIcon } from '@/components/icons'
 import { dailyComposePath } from '@/constants/routes'
 import { agendaFor } from '@/shared/agenda'
+import { useShowOwner } from '@/shared/scope'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
@@ -31,6 +33,7 @@ interface Props {
 
 export default function ReportDrawer({ dateISO, rows, kind, onClose }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null)
+  const showOwner = useShowOwner()
   const titleId = useId()
 
   // Modal 과 같은 처리입니다. Escape 로 닫고 배경은 스크롤을 멈추며,
@@ -108,6 +111,7 @@ export default function ReportDrawer({ dateISO, rows, kind, onClose }: Props) {
                   <span className={styles.kind}>{row.kindLabel}</span>
                   <ReportStatusBadge status={row.status} />
                   <span className={styles.approver}>{row.aside}</span>
+                  {showOwner && <OwnerName name={row.author} />}
                 </div>
 
                 <h3 className={styles.title}>{row.title}</h3>

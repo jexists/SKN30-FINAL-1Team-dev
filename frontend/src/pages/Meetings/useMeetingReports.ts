@@ -38,10 +38,6 @@ function valuesOf(value: unknown): Record<string, string> {
   )
 }
 
-function textList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string') : []
-}
-
 /** 저장해 둔 딜 이름표. 모양이 어긋난 항목은 버립니다. */
 function dealsOf(value: unknown): MeetingDealRef[] {
   if (!Array.isArray(value)) return []
@@ -62,13 +58,13 @@ function statusOf(code: ReportResponse['status_code']): ReportStatus {
 
 export function toMeetingReport(item: ReportResponse): MeetingReport {
   const content = record(item.content)
-  const legacyDealIds = textList(content.sales_deal_ids)
   const storedDeals = dealsOf(content.sales_deals)
   const storedDeal = dealsOf([content.sales_deal])[0]
-  const salesDealId = item.sales_deal_id ?? legacyDealIds[0] ?? null
+  const salesDealId = item.sales_deal_id
   return {
     id: item.id,
     owner: item.author_display_name,
+    ownerMemberId: item.author_member_id,
     agendaId: item.source_activity_id ?? '',
     off: Math.round((parseISO(item.report_date).getTime() - TODAY.getTime()) / DAY),
     date: item.report_date,
@@ -89,7 +85,7 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
       ? (content.attachments as ReportAttachment[])
       : [],
     salesDealId,
-    salesDeal: storedDeal ?? storedDeals.find((deal) => deal.id === salesDealId) ?? storedDeals[0],
+    salesDeal: [storedDeal, ...storedDeals].find((deal) => deal?.id === salesDealId),
     evidence: text(content.evidence) || undefined,
     aiValues: valuesOf(content.ai_values),
     aiEvidence: text(content.ai_evidence) || undefined,

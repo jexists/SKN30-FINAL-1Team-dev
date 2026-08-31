@@ -2,15 +2,16 @@
 //
 // 왼쪽은 미팅 공통 정보·원문이고, 오른쪽은 선택한 딜마다 하나씩 생기는 보고서입니다.
 // 카드 한 장이 report 한 행이자 sales_deal 한 건이라 저장·Agent·ML 상태가 섞이지 않습니다.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button, { buttonClass } from '@/components/Button'
 import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
-import { useAgendaItem } from '@/shared/agenda'
+import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
 import { showToast } from '@/shared/toast'
 import type { AgentRunStatus, MeetingDealRef } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
@@ -18,6 +19,7 @@ import { fmtDot, parseISO } from '@/utils/date'
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingInputPanel from './components/MeetingInputPanel'
+import { runDealGeneration } from './generatedDraft'
 import useCompanyDeals from './useCompanyDeals'
 import useMeetingDraft from './useMeetingDraft'
 import useMeetingReports, {
@@ -31,6 +33,9 @@ type Confirm = { kind: 'apply'; dealId: string } | null
 
 export default function Compose() {
   const [params] = useSearchParams()
+  const { memberId, isManager } = useCurrentUser()
+  const activeGenerations = useRef(new Set<string>())
+  const [generatingDealIds, setGeneratingDealIds] = useState<string[]>([])
   const agendaId = params.get('agenda') ?? ''
   const {
     item,
@@ -91,13 +96,18 @@ export default function Compose() {
   const savedByDeal = new Map(
     savedReports.flatMap((report) => (report.salesDealId ? [[report.salesDealId, report]] : [])),
   )
+  const unassignedReports = savedReports.filter((report) => !report.salesDealId)
+  const canWrite = isOwnAgendaItem(item, memberId, isManager)
+  const canEditDeal = (dealId: string) =>
+    canWrite && (!savedByDeal.has(dealId) || savedByDeal.get(dealId)?.ownerMemberId === memberId)
   const lockedDealIds = savedReports.flatMap((report) =>
     report.review === 'approved' && report.salesDealId ? [report.salesDealId] : [],
   )
   const fixedDealIds = draft.salesDealIds.filter(
     (dealId) => draft.draftsByDeal[dealId]?.reportId !== undefined,
   )
-  const busy = pending || draft.anyGenerating
+  const anyGenerating = generatingDealIds.length > 0
+  const busy = pending || anyGenerating
   const when = `${fmtDot(parseISO(item.date))} ${item.time}`
 
   const dealRef = (dealId: string): MeetingDealRef => {
@@ -137,28 +147,40 @@ export default function Compose() {
 
   // 에이전트는 저장된 보고서를 읽습니다. 딜 한 건을 먼저 저장한 뒤 두 Agent를 병렬 실행합니다.
   const generateOne = async (dealId: string, onStatus?: (status: AgentRunStatus) => void) => {
-    try {
-      const report = await saveDraft(payloadFor(dealId))
-      draft.bindReport(dealId, report)
-      const generated = await draft.generate(dealId, report.id, onStatus)
-      if (!generated) return false
-
-      const persisted = await saveDraft({
-        ...payloadFor(dealId),
-        reportId: report.id,
-        statusCode: report.apiStatus,
-        values: generated.values,
-        evidence: generated.evidence,
-        aiValues: generated.aiValues,
-        aiEvidence: generated.aiEvidence,
-        aiGeneratedAt: generated.aiGeneratedAt,
-      })
-      draft.bindReport(dealId, persisted)
-      return true
-    } catch (reason: unknown) {
-      draft.generationFailed(dealId, reason)
+    if (
+      pending ||
+      !canEditDeal(dealId) ||
+      !draft.canGenerate ||
+      draft.draftsByDeal[dealId]?.statusCode !== 'draft'
+    )
       return false
-    }
+
+    return runDealGeneration(
+      activeGenerations.current,
+      dealId,
+      () => setGeneratingDealIds([...activeGenerations.current]),
+      async () => {
+        try {
+          const payload = payloadFor(dealId)
+          const report = await saveDraft(payload)
+          draft.bindReport(dealId, report)
+          const generated = await draft.generate(dealId, report.id, onStatus)
+          if (!generated) return false
+
+          const persisted = await saveDraft({
+            ...payload,
+            reportId: report.id,
+            statusCode: report.apiStatus,
+            ...generated,
+          })
+          draft.bindReport(dealId, persisted)
+          return true
+        } catch (reason: unknown) {
+          draft.generationFailed(dealId, reason)
+          return false
+        }
+      },
+    )
   }
 
   const generateAll = async () => {
@@ -173,6 +195,7 @@ export default function Compose() {
   }
 
   const saveOne = async (dealId: string) => {
+    if (activeGenerations.current.has(dealId) || !canEditDeal(dealId) || pending) return
     try {
       const report = await saveDraft(payloadFor(dealId))
       draft.bindReport(dealId, report)
@@ -229,6 +252,13 @@ export default function Compose() {
         </p>
       )}
 
+      {unassignedReports.map((report) => (
+        <p className={styles.locked} key={report.id}>
+          딜이 지정되지 않은 기존 보고서는 원본 그대로 보관했습니다.{' '}
+          <Link to={meetingReportPath(report.id)}>{report.title || '기존 보고서'} 열기</Link>
+        </p>
+      ))}
+
       <div className={styles.layout}>
         <div className={styles.side}>
           <aside className={styles.reference}>
@@ -246,7 +276,7 @@ export default function Compose() {
               selectedDealIds={draft.salesDealIds}
               fixedDealIds={fixedDealIds}
               onToggleDeal={draft.toggleSalesDeal}
-              disabled={busy}
+              disabled={busy || !canWrite}
             />
           </aside>
 
@@ -259,8 +289,9 @@ export default function Compose() {
               transcript={draft.transcript}
               onTranscriptChange={draft.setTranscript}
               canGenerate={draft.canGenerate && generatable}
-              generating={draft.anyGenerating}
-              disabled={busy}
+              generating={anyGenerating}
+              generateLabel="선택한 딜 보고서 작성"
+              disabled={busy || !canWrite}
               onGenerate={() => void generateAll()}
             />
           </div>
@@ -288,6 +319,9 @@ export default function Compose() {
                   template={draft.template}
                   when={when}
                   saving={pending}
+                  generating={generatingDealIds.includes(dealId)}
+                  canGenerate={draft.canGenerate}
+                  readOnly={!canEditDeal(dealId)}
                   onTitleChange={(value) => draft.setTitle(dealId, value)}
                   onChange={(values, missing) => draft.applyDocument(dealId, values, missing)}
                   onRestoreSections={() => draft.restoreSections(dealId)}

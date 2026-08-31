@@ -16,6 +16,7 @@ import Modal from '@/components/Modal'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, SkeletonBlocks } from '@/components/Skeleton'
 import usePointerDrag from '@/hooks/usePointerDrag'
+import { useShowOwner } from '@/shared/scope'
 import { addDays, iso, TODAY } from '@/utils/date'
 
 import { DROP_ATTR, parseSlot, type BoardDeal } from './board'
@@ -52,6 +53,8 @@ export default function DealBoard() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
   const requestedPipelineId = params.get('pipeline') ?? ''
+  // 카드마다 묻지 않고 보드가 한 번 정해 컬럼으로 내려 줍니다.
+  const showOwner = useShowOwner()
   const {
     pipelines,
     dealPipelineId,
@@ -340,6 +343,7 @@ export default function DealBoard() {
                 cards={shownByColumn.get(column.id) ?? []}
                 identityOf={pipelineIdentity}
                 editableStages={false}
+                showOwner={showOwner}
                 readOnly={readOnly}
                 dropSlot={dropKey}
                 draggingIdentity={dragging?.id ?? null}

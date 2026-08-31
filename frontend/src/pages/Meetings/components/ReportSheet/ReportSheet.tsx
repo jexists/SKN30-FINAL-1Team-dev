@@ -182,7 +182,13 @@ export default function ReportSheet({
           <p>
             {sectionIssues.join(', ')} 제목이 문서에서 사라졌습니다. 되살린 뒤 저장할 수 있습니다.
           </p>
-          <Button variant="outline" size="sm" type="button" onClick={onRestoreSections}>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            disabled={locked || saving || phase === 'generating'}
+            onClick={onRestoreSections}
+          >
             제목 되살리기
           </Button>
         </div>

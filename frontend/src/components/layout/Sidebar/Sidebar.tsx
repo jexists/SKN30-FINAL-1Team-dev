@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Link, NavLink } from 'react-router'
 
+import fullLogo from '@/assets/full-logo.png'
+import logoMark from '@/assets/logo-mark.png'
 import { useCurrentUser, useSession } from '@/auth/sessionContext'
 import { ChevronLeftIcon, CloseIcon, LogoutIcon } from '@/components/icons'
 import { useSidebar } from '@/components/layout/AppShell/sidebarContext'
@@ -33,8 +35,8 @@ export default function Sidebar() {
     <aside id={SIDEBAR_ID} ref={asideRef} tabIndex={-1} className={className} aria-label="주 메뉴">
       <div className={styles.brand}>
         <Link to={ROUTES.DASHBOARD} className={styles.brandLockup} aria-label="대시보드로 이동">
-          <span className={styles.brandMark}>S</span>
-          <span className={styles.brandName}>SalesLuv</span>
+          <img src={logoMark} alt="" className={styles.brandMark} />
+          <img src={fullLogo} alt="SalesLuv" className={styles.brandFull} />
         </Link>
 
         <button

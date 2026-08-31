@@ -23,6 +23,7 @@ interface Props {
   hasAiOriginal?: boolean
   /** 내용 칸의 이름. 업무보고(일일·주간·월간)는 미팅이 아니라 그 기간을 적습니다. */
   contentLabel?: string
+  generateLabel?: string
   disabled: boolean
   onGenerate: () => void
 }
@@ -38,11 +39,10 @@ export default function MeetingInputPanel({
   generating,
   hasAiOriginal = false,
   contentLabel = '미팅 내용 (선택)',
+  generateLabel = 'AI 보고서 작성',
   disabled,
   onGenerate,
 }: Props) {
-  const generateLabel = generating ? '딜별 보고서 작성 중…' : '선택한 딜 보고서 작성'
-
   return (
     <div className={styles.root}>
       <section className={styles.block}>
@@ -92,7 +92,7 @@ export default function MeetingInputPanel({
             onClick={onGenerate}
             disabled={disabled || !canGenerate || generating}
           >
-            {generateLabel}
+            {generating ? `${generateLabel} 중…` : generateLabel}
           </Button>
         )}
       </div>

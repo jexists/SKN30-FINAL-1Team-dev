@@ -22,6 +22,9 @@ interface Props {
   template: ReportTemplate
   when: string
   saving: boolean
+  generating: boolean
+  canGenerate: boolean
+  readOnly: boolean
   onTitleChange: (value: string) => void
   onChange: (values: Record<string, string>, missingSections: string[]) => void
   onRestoreSections: () => void
@@ -66,6 +69,9 @@ export default function DealReportCard({
   template,
   when,
   saving,
+  generating,
+  canGenerate,
+  readOnly,
   onTitleChange,
   onChange,
   onRestoreSections,
@@ -81,8 +87,8 @@ export default function DealReportCard({
   const dealLabel = deal?.no ?? savedDeal?.label ?? dealId
   const dealTitle = deal ? deal.title.trim() || deal.product : savedDeal?.note
   const editable = draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
-  const locked = !editable
-  const generationDisabled = !editable
+  const locked = !editable || readOnly || generating || saving
+  const generationDisabled = draft.statusCode !== 'draft' || !canGenerate
   const hasAiOriginal = Object.keys(draft.aiValues).length > 0
 
   return (
@@ -148,15 +154,13 @@ export default function DealReportCard({
           onRetryGenerate={() => onGenerate(generation.onStatus)}
           generationDisabled={generationDisabled}
           locked={locked}
-          saving={saving}
+          saving={saving || generating}
           hasAiOriginal={hasAiOriginal}
           onStartManual={onStartManual}
           onRegenerate={() => onGenerate(generation.onStatus)}
           onSave={onSave}
           viewTo={
-            draft.reportId && draft.phase !== 'generating' && !saving
-              ? meetingReportPath(draft.reportId)
-              : undefined
+            draft.reportId && !generating && !saving ? meetingReportPath(draft.reportId) : undefined
           }
         />
       </div>

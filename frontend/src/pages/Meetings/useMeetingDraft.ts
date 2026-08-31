@@ -2,7 +2,7 @@
 //
 // 원문·첨부·선택 딜은 미팅에 한 벌이고, 최종 보고서·AI 원본·ML 결과는 딜마다 한 벌입니다.
 // Report 한 행이 Deal 하나를 가리키므로 화면 상태도 dealId 를 키로 같은 경계를 지킵니다.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
 import { analyzeMeetingReport, generateReportDraft } from '@/api/reportAgent'
@@ -303,10 +303,6 @@ export default function useMeetingDraft(item?: AgendaItem, savedReports: Meeting
   )
 
   const hasSource = transcript.trim().length > 0 || files.attachments.length > 0
-  const selectedDrafts = useMemo(
-    () => salesDealIds.map((dealId) => draftsByDeal[dealId]).filter(Boolean),
-    [salesDealIds, draftsByDeal],
-  )
 
   return {
     template,
@@ -327,8 +323,10 @@ export default function useMeetingDraft(item?: AgendaItem, savedReports: Meeting
     bindReport,
     generationFailed,
     generate,
-    canGenerate: hasSource && salesDealIds.length > 0,
-    anyGenerating: selectedDrafts.some((draft) => draft?.phase === 'generating'),
+    canGenerate:
+      hasSource &&
+      salesDealIds.length > 0 &&
+      !files.attachments.some((attachment) => attachment.state === 'analyzing'),
     reset,
   }
 }

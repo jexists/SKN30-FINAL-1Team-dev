@@ -147,6 +147,18 @@
   이를 승계하고, 그 외 기존 보고서는 NULL을 유지합니다. 신규 미팅보고서는 API가 값을 필수로 받습니다.
   `(source_activity_id, sales_deal_id)` 부분 유일 인덱스로 같은 미팅·딜 보고서의 중복 생성을
   막고, 딜별 승인 보고서 조회용 인덱스를 둡니다.
+- `20260829_0013_contract_next_meeting_suggestion.sql`: 캘린더 "AI 추천 일정" 패널이 조회하는
+  `contract_next_meeting_suggestion`(7컬럼, RLS on)을 만듭니다. 딜 하나에 활성 제안은 하나라
+  `sales_deal_id` 에 UNIQUE 를 겁니다. 날짜·사유 같은 내용은 복제하지 않고
+  `schedule_management_run_id` 로 `agent_run.output_snapshot` 을 조회합니다.
+  **개발 DB 에는 이 표가 이미 있습니다** — 아카이브한 브랜치
+  (`archive/2026-08-28-contract-agent-fix`)를 시험하며 SQL 파일 없이 먼저 만든 것이라,
+  컬럼·제약이 같은 것을 확인하고 `CREATE TABLE IF NOT EXISTS` 로 두었습니다.
+- `20260831_0014_report_legacy_deal_scope.sql`: 보고서 0013의 백필 결과가 기존 본문의
+  `sales_deal_ids`와 일치하지 않으면 `sales_deal_id`만 NULL로 되돌립니다. 여러 딜을 다룬
+  통합보고서를 일정 대표 딜의 보고서로 오인하지 않기 위한 보정입니다. 본문과 선택 딜 목록,
+  새 형식의 딜별 보고서는 보존합니다. **아직 DB에 적용하지 않았습니다.** 새 환경은 보고서
+  0013 다음에 적용하고, 기존 환경은 대상 행 확인 후 별도 승인받아 적용합니다.
 
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
@@ -167,6 +179,9 @@
 | 2026-08-26 | 개발 | `20260826_0008_contract_terms.sql` | session pooler | 성공. sales_deal 33→35컬럼(`contract_payment_terms`·`contract_late_interest_terms`). 둘 다 NULL 허용이라 기존 딜 52건은 NULL 그대로이고 백필 대상이 없습니다. `tests/test_models.py` 의 물리 스키마 대조 통과 |
 | 2026-08-26 | 개발 | `20260826_0009_customer_company_address.sql` | session pooler | 성공. customer_company 6→9컬럼(`postcode`·`address`·`address_detail`, 전부 nullable). 기존 36행은 백필 없이 NULL. `tests/test_models.py` 의 컬럼 수 대조 통과 |
 | 2026-08-28 | 개발 | `20260828_0013_report_sales_deal.sql` | session pooler | 성공. report +1컬럼(`sales_deal_id`, nullable) / 부분 유일 인덱스·딜별 날짜 인덱스 추가. 기존 report 128행 보존(128→128) |
+| 2026-08-28 | 개발 | `20260827_0010_drop_activity_type.sql` | session pooler | 성공. activity 22→21 / activity_category 10→9 / activity_action_tag 10→9컬럼. 업무 활동 28건(전부 미삭제 상태)과 그 report_activity 3건을 지우고 report 1건의 `source_activity_id` 를 NULL 로 끊었다. 딸린 activity_companion 은 0건. 액션태그 8행·카테고리 2행 삭제(팀 2개 × 4/1). 미팅 활동 377건과 report 229건은 그대로. ORM 대조에서 세 표의 컬럼·nullable·타입·기본값·PK·FK 일치 확인 |
+| 2026-08-28 | 개발 | `20260828_0011_sales_deal_source.sql` | — | **적용 시점 미상.** 0010 을 넣기 전 확인해 보니 `sales_deal.source_code` 와 `sales_deal_source_code_check` 가 이미 있었고 값이 든 딜이 122건이었다. 저장소 밖에서 먼저 적용된 것으로 보이며 이 줄은 사후 기록이다 |
+| 2026-08-28 | 개발 | `20260828_0012_document_product_link.sql` | — | **적용 시점 미상.** 위와 같이 `document.product_id`·`document_product_id_fkey`·`document_product_idx` 가 이미 있었다. 사후 기록이다 |
 
 ## 개발 DB 재구축 런북
 

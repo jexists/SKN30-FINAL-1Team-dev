@@ -84,7 +84,7 @@ export default function Signup() {
           </p>
         )}
         <Button className={styles.mainBtn} type="submit" disabled={submitting}>
-          {submitting ? '보내는 중…' : '요청 보내기'} <span aria-hidden="true">→</span>
+          {submitting ? '전송중' : '요청 보내기'}
         </Button>
       </form>
 

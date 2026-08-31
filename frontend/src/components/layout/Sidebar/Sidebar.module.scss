@@ -55,24 +55,18 @@
   gap: var(--s3);
 }
 
-.brandMark {
+// 워드마크가 붙은 전체 로고가 기본. 레일에서만 마크로 바꿔 답니다.
+.brandMark,
+.brandFull {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px 11px 11px 3px;
-  background: var(--blue);
-  color: #fff;
-  font-size: 17px;
-  font-weight: 800;
+  width: auto;
+  margin-bottom: -4px;
+  height: 30px;
+  object-fit: contain;
 }
 
-.brandName {
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--ink);
+.brandMark {
+  display: none;
 }
 
 .railToggle,
@@ -268,7 +262,6 @@
 }
 
 .navText,
-.brandName,
 .footCopy {
   white-space: nowrap;
   overflow: hidden;
@@ -285,10 +278,18 @@
   width: var(--sidebar-mini);
 
   .navText,
-  .brandName,
   .footCopy {
     opacity: 0;
     pointer-events: none;
+  }
+
+  // 레일 폭(68px)에 워드마크까지 들어갈 자리가 없습니다.
+  .brandFull {
+    display: none;
+  }
+
+  .brandMark {
+    display: block;
   }
 
   // 캡션은 감추는 대신 짧은 이름으로 바꿔 답니다. 상자를 접었다가 펼칠 때
@@ -313,17 +314,6 @@
   // 마우스를 올리면 사이드바가 펼쳐지면서 제자리에 다시 나타납니다.
   .railToggle {
     display: none;
-  }
-
-  // 세로 배치에서는 .brandLockup 의 flex:1 이 높이를 뜻하므로 폭을 붙잡지 못합니다.
-  // 폭을 직접 접어 주지 않으면 흐려진 브랜드명이 자리를 차지한 채
-  // 로고를 사이드바 밖으로 밀어냅니다.
-  .brandLockup {
-    gap: 0;
-  }
-
-  .brandName {
-    width: 0;
   }
 
   .section + .section {
@@ -358,7 +348,6 @@
     transition-delay: 90ms;
 
     .navText,
-    .brandName,
     .sectionTitleFull,
     .footCopy {
       opacity: 1;
@@ -380,12 +369,12 @@
       display: grid;
     }
 
-    .brandLockup {
-      gap: var(--s3);
+    .brandFull {
+      display: block;
     }
 
-    .brandName {
-      width: auto;
+    .brandMark {
+      display: none;
     }
 
     .foot {

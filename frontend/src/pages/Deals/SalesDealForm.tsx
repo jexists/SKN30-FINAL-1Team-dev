@@ -5,7 +5,6 @@ import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
-import { SOURCE_LABEL } from '@/pages/Customers/contact'
 import type {
   CustomerCompanyCreateRequest,
   CustomerCompanyResponse,
@@ -35,8 +34,6 @@ interface FormState {
   product: RecordOption | null
   title: string
   stageId: string
-  /** 유입경로. 빈 문자열은 미지정입니다. */
-  sourceCode: CustomerSourceCode | ''
 }
 
 /**
@@ -80,7 +77,6 @@ export default function SalesDealForm({
     product: deal?.productId ? { id: deal.productId, label: deal.product } : null,
     title: deal?.title ?? '',
     stageId: stageId ?? columns[0]?.id ?? '',
-    sourceCode: (deal?.sourceCode as CustomerSourceCode | undefined) ?? '',
   }))
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -142,7 +138,7 @@ export default function SalesDealForm({
         dealTypeCode: deal?.dealTypeCode ?? dealTypes[0]?.code ?? '',
         date: deal?.date ?? DEFAULT_OPENED_ON,
         memo: deal?.memo ?? null,
-        sourceCode: form.sourceCode === '' ? null : form.sourceCode,
+        sourceCode: (deal?.sourceCode as CustomerSourceCode | null | undefined) ?? null,
         stageId: form.stageId,
         participantContactIds: (deal?.participants ?? []).map(
           (participant) => participant.customer_contact_id,
@@ -225,21 +221,6 @@ export default function SalesDealForm({
             {columns.map((column) => (
               <option key={column.id} value={column.id}>
                 {column.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="유입경로">
-          <select
-            value={form.sourceCode}
-            disabled={submitting}
-            onChange={(event) => set('sourceCode', event.target.value as CustomerSourceCode | '')}
-          >
-            <option value="">미지정</option>
-            {Object.entries(SOURCE_LABEL).map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
               </option>
             ))}
           </select>

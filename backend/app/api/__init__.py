@@ -5,6 +5,7 @@ from app.api import (
     admin,
     agent_runs,
     auth,
+    contract_suggestions,
     customers,
     dashboard,
     documents,
@@ -32,6 +33,7 @@ api_router.include_router(support.router)
 api_router.include_router(reports.router)
 api_router.include_router(notices.router)
 api_router.include_router(agent_runs.router)
+api_router.include_router(contract_suggestions.router)
 api_router.include_router(documents.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(transcriptions.router)

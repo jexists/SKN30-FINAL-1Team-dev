@@ -18,3 +18,21 @@ export function mergeGeneratedValues(
   }
   return values
 }
+
+/** 사전저장부터 최종 자동저장까지 같은 딜의 중복 실행·편집을 막습니다. */
+export async function runDealGeneration(
+  active: Set<string>,
+  dealId: string,
+  onChange: () => void,
+  generate: () => Promise<boolean>,
+) {
+  if (active.has(dealId)) return false
+  active.add(dealId)
+  onChange()
+  try {
+    return await generate()
+  } finally {
+    active.delete(dealId)
+    onChange()
+  }
+}

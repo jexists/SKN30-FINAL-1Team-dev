@@ -47,7 +47,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: '고객',
     items: [
       { to: ROUTES.CUSTOMERS, label: '고객현황', icon: CustomersIcon },
-      { to: ROUTES.COMPLAINTS, label: '고객불만관리', icon: ComplaintIcon },
+      { to: ROUTES.COMPLAINTS, label: '고객불만', icon: ComplaintIcon },
     ],
   },
   {
