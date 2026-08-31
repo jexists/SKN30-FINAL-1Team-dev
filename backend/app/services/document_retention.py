@@ -1,4 +1,4 @@
-"""자료실의 승인 대기 파일과 감사 이력 정리."""
+"""레거시 승인 대기 임시 결과와 감사 이력 정리."""
 
 from __future__ import annotations
 
@@ -26,41 +26,19 @@ class CleanupResult:
 async def cleanup_expired(*, now: datetime | None = None, dry_run: bool = False) -> CleanupResult:
     """보관 정책이 지난 Storage 객체와 DB 이력을 정리한다.
 
-    승인 완료 파일은 원본과 RAG를 삭제하지 않는다. 승인 전 파일만 원본 보관
-    기한을 적용하고, 임시 OCR·요약 결과는 더 짧은 검토 기한을 적용한다.
+    자동 저장된 원본·요약·RAG는 삭제하지 않는다. 구버전 승인 대기 임시 결과만
+    검토 기한을 적용하고, 감사 이력은 별도 보관 기한을 적용한다.
     """
     current = now or datetime.now(UTC)
     review_cutoff = current - timedelta(days=settings.document_review_draft_retention_days)
-    file_cutoff = current - timedelta(days=settings.document_unapproved_file_retention_days)
     audit_cutoff = current - timedelta(days=settings.document_audit_log_retention_days)
 
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as db:
-        unapproved = (
-            (
-                await db.execute(
-                    select(FileRow).where(
-                        FileRow.processing_status != "completed",
-                        or_(
-                            FileRow.unapproved_expires_at <= current,
-                            and_(
-                                FileRow.unapproved_expires_at.is_(None),
-                                FileRow.uploaded_at <= file_cutoff,
-                            ),
-                        ),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        if not dry_run:
-            for row in unapproved:
-                await storage.remove(
-                    storage_key=document_processing.draft_storage_key(row.storage_key)
-                )
-                await storage.remove(storage_key=row.storage_key)
-                await db.delete(row)
+        # 문서 요약은 자동 저장되며 원본은 자료실의 근거이므로, 승인 여부나
+        # 처리 지연만으로 Storage 원본과 File 행을 삭제하지 않는다. 이 목록은
+        # 하위 호환 결과 형식을 위해 비워 둔다.
+        unapproved: list[FileRow] = []
 
         review_conditions = [
             FileRow.processing_status == "review_required",
@@ -72,8 +50,6 @@ async def cleanup_expired(*, now: datetime | None = None, dry_run: bool = False)
                 ),
             ),
         ]
-        if unapproved:
-            review_conditions.append(FileRow.id.not_in([row.id for row in unapproved]))
         review_drafts = (
             (await db.execute(select(FileRow).where(*review_conditions))).scalars().all()
         )

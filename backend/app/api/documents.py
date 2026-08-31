@@ -690,6 +690,9 @@ async def process_document_file(
     row.processing_status = "processing"
     row.processing_error = None
     row.review_expires_at = None
+    # 재처리는 승인 대기 파일이 아니다. 이전 업로드 시각의 만료값이 남아
+    # 보관 정리 대상이 되지 않도록 즉시 비운다.
+    row.unapproved_expires_at = None
     row.approved_by_member_id = None
     row.approved_at = None
     if previous_status == "completed":
@@ -765,8 +768,21 @@ async def approve_document_summary(
     member: CurrentMember,
     db: DbSession,
 ) -> DocumentSummaryRead:
-    """사람이 확인한 OCR·요약 결과만 최종 DB와 RAG에 확정한다."""
+    """구버전 승인 대기 결과를 확정하거나, 자동 저장 결과를 그대로 반환한다."""
     row = await _file_row(db, member, document_id, file_id)
+    if row.processing_status == "completed":
+        return DocumentSummaryRead(
+            file_id=row.id,
+            file_name=row.file_name,
+            processing_status=row.processing_status,
+            processing_error=row.processing_error,
+            extracted_text=row.extracted_text,
+            extracted_markdown=row.extracted_markdown,
+            extracted_payload=row.extracted_payload,
+            summary_markdown=row.summary_markdown,
+            summary_payload=row.summary_payload,
+            processed_at=_seoul(row.processed_at) if row.processed_at else None,
+        )
     if row.processing_status != "review_required":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

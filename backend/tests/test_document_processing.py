@@ -45,7 +45,7 @@ class _Session:
 
 
 @pytest.mark.anyio
-async def test_execute_stages_extraction_and_summary_for_approval(monkeypatch):
+async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch):
     team_id = uuid4()
     document = Document(
         id=uuid4(),
@@ -77,9 +77,8 @@ async def test_execute_stages_extraction_and_summary_for_approval(monkeypatch):
         note=None,
     )
     first = _Session([_Result((row, team_id))])
-    second = _Session([_Result(row)])
+    second = _Session([_Result(row), _Result(None)])
     sessions = iter([first, second])
-    drafts: dict[str, bytes] = {}
 
     def _sessionmaker():
         return lambda: next(sessions)
@@ -87,13 +86,6 @@ async def test_execute_stages_extraction_and_summary_for_approval(monkeypatch):
     async def _download(*, storage_key):
         assert storage_key == row.storage_key
         return b"\xea\xb3\x84\xec\x95\xbd\xea\xb8\xb0\xea\xb0\x84: 1\xeb\x85\x84"
-
-    async def _remove(*, storage_key):
-        drafts.pop(storage_key, None)
-
-    async def _upload(*, storage_key, content, media_type):
-        assert media_type == "application/json"
-        drafts[storage_key] = content
 
     def _extract(*, file_name, media_type, content):
         assert (file_name, media_type) == ("contract.txt", "text/plain")
@@ -117,8 +109,6 @@ async def test_execute_stages_extraction_and_summary_for_approval(monkeypatch):
     monkeypatch.setattr(document_processing, "get_sessionmaker", _sessionmaker)
     monkeypatch.setattr(type(settings), "embedding_configured", property(lambda self: False))
     monkeypatch.setattr(storage, "download", _download)
-    monkeypatch.setattr(storage, "remove", _remove)
-    monkeypatch.setattr(storage, "upload", _upload)
     monkeypatch.setattr(document_processing, "extract_document", _extract)
     monkeypatch.setattr(document_processing.document_summary, "run", _summary)
 
@@ -126,15 +116,14 @@ async def test_execute_stages_extraction_and_summary_for_approval(monkeypatch):
 
     assert first.committed
     assert second.committed
-    assert row.processing_status == "review_required"
-    assert row.extracted_text is None
-    assert row.summary_markdown is None
-    assert len(second.added) == 0
-    draft = document_processing._read_draft_payload(
-        drafts[document_processing.draft_storage_key(row.storage_key)]
-    )
-    assert draft["extracted_text"] == "계약기간: 1년"
-    assert "계약기간은 1년이다." in draft["summary_markdown"]
+    assert row.processing_status == "completed"
+    assert row.extracted_text == "계약기간: 1년"
+    assert "계약기간은 1년이다." in row.summary_markdown
+    chunks = [item for item in second.added if item.__class__.__name__ == "DocumentChunk"]
+    audits = [item for item in second.added if item.__class__.__name__ == "DocumentFileAudit"]
+    assert len(chunks) == 1
+    assert chunks[0].page_start == 1
+    assert audits[0].action_code == "summary_completed"
 
 
 @pytest.mark.anyio

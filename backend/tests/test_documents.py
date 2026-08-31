@@ -464,6 +464,29 @@ def test_summary_route_exposes_review_draft(monkeypatch):
     assert response.json()["extracted_text"] == "계약금액: 1,000원"
 
 
+def test_summary_route_returns_saved_summary_again():
+    member = _member()
+    document = _document(member)
+    row = _file(document, member)
+    row.processing_status = "completed"
+    row.extracted_text = "계약금액: 1,000원"
+    row.extracted_markdown = "## 금액\n\n계약금액: 1,000원"
+    row.extracted_payload = {"pages": [{"page_number": 1}]}
+    row.summary_markdown = "# 문서 요약\n\n계약금액은 1,000원이다."
+    row.summary_payload = {"extracted_fields": {"계약금액": "1,000원"}}
+    db = _Db(
+        _Result(rows=[(document, member.display_name, None)]),
+        _Result(scalar=row),
+    )
+
+    with _client(db, member) as client:
+        response = client.get(f"/api/documents/{document.id}/files/{row.id}/summary")
+
+    assert response.status_code == 200
+    assert response.json()["processing_status"] == "completed"
+    assert response.json()["summary_markdown"] == row.summary_markdown
+
+
 def test_approve_summary_route_commits_final_result(monkeypatch):
     member = _member()
     document = _document(member)
