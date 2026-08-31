@@ -14,7 +14,7 @@ from app.api import agent_runs
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
-from app.main import app
+from app.main import app, lifespan
 from app.ml.deal_baseline import DealModelError
 from app.models.agent import AgentRun
 from app.models.content import Report
@@ -40,8 +40,9 @@ class _Secret:
 
 
 class _Result:
-    def __init__(self, *, scalar=_MISSING):
+    def __init__(self, *, scalar=_MISSING, rowcount=0):
         self.scalar = scalar
+        self.rowcount = rowcount
 
     def scalar_one(self):
         assert self.scalar is not _MISSING
@@ -327,6 +328,52 @@ def test_meeting_analysis_requires_transcript(llm_ready):
 
     assert response.status_code == 422
     assert response.json() == {"detail": "transcript_required"}
+
+
+@pytest.mark.anyio
+async def test_recover_interrupted_runs_fails_orphaned_rows(monkeypatch):
+    """프로세스가 사라져 남은 queued/running 행을 기동 시 failed 로 회수한다."""
+    db = _Db(_Result(rowcount=2))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(db),
+    )
+
+    recovered = await agent_run_service.recover_interrupted_runs()
+
+    assert recovered == 2
+    assert db.commit_count == 1
+    statement = str(db.statements[0].compile(compile_kwargs={"literal_binds": True}))
+    assert "UPDATE public.agent_run" in statement
+    assert "status_code IN ('queued', 'running')" in statement
+    assert agent_run_service.INTERRUPTED_ERROR in statement
+
+
+@pytest.mark.anyio
+async def test_recover_interrupted_runs_leaves_settled_rows_alone(monkeypatch):
+    """이미 completed/failed 로 끝난 행은 회수 대상이 아니다."""
+    db = _Db(_Result(rowcount=0))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(db),
+    )
+
+    assert await agent_run_service.recover_interrupted_runs() == 0
+
+
+@pytest.mark.anyio
+async def test_startup_recovery_failure_does_not_block_boot(monkeypatch):
+    """회수가 실패해도 서버는 떠야 한다. 뒷정리가 기동을 막지 않는다."""
+
+    async def boom():
+        raise RuntimeError("db unreachable")
+
+    monkeypatch.setattr(agent_run_service, "recover_interrupted_runs", boom)
+
+    async with lifespan(app):
+        pass
 
 
 @pytest.mark.anyio

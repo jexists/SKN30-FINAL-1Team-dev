@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import contract_management, meeting_analysis, report_writing, schedule_management
@@ -19,6 +19,9 @@ from app.services import contract_schedule_snapshots
 from app.services.llm import LLMError
 
 _SEOUL = ZoneInfo("Asia/Seoul")
+
+# 프로세스가 사라져 결과를 기록하지 못한 실행에 남기는 사유.
+INTERRUPTED_ERROR = "interrupted_by_restart"
 
 
 def _seoul(value: datetime | None) -> datetime | None:
@@ -263,6 +266,31 @@ async def create(
         raise
 
     return read, run.id
+
+
+async def recover_interrupted_runs() -> int:
+    """서버가 뜰 때, 이전 프로세스가 남긴 queued/running 실행을 failed 로 회수한다.
+
+    실행은 BackgroundTasks 로 이 프로세스 안에서만 돈다. 프로세스가 사라지면 결과를 기록할
+    주체도 함께 사라져서 행이 queued/running 인 채로 남는다. 도는 것은 없는데 화면에는
+    계속 "실행 중"으로 보이므로, 뜨는 시점에 정리하고 요청을 받는다.
+
+    ponytail: execute() 와 같은 단일 프로세스 전제. 다중 worker 에서는 다른 worker 가
+    처리 중인 실행까지 끊으므로, heartbeat 나 소유 worker 식별로 대상을 좁혀야 한다.
+    """
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as session:
+        result = await session.execute(
+            update(AgentRun)
+            .where(AgentRun.status_code.in_(("queued", "running")))
+            .values(
+                status_code="failed",
+                error_message=INTERRUPTED_ERROR,
+                finished_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    return result.rowcount
 
 
 async def execute(run_id: UUID) -> None:
