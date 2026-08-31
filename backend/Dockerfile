@@ -10,8 +10,12 @@ ENV UV_LINK_MODE=copy \
 
 COPY pyproject.toml uv.lock ./
 
+# Runpod/Azure 장애 시 서버 자체에서 OCR을 재시도할 수 있도록 플랫폼 공통
+# local OCR 의존성도 함께 설치한다. 모델 파일은 앱 설정의 캐시 경로에 첫
+# 실행 때 준비되며, 이후 요청에서는 재사용된다.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev \
+    uv sync --frozen --no-dev --extra local \
+    uv sync --frozen --no-dev --extra local \
     && chmod -R a=rX /app/.venv
 
 COPY app ./app

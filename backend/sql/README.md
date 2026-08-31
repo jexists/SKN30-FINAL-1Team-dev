@@ -167,15 +167,14 @@
   충돌 행을 검사하며, 충돌이 있으면 데이터를 임의로 삭제·수정하지 않고 migration이
   실패합니다. API의 422 검증과 함께 적용해야 합니다.
 
-- `20260828_0014_document_summary_approval.sql`: 파일 처리 상태에 `review_required`를
-  추가합니다. 원본 파일은 먼저 저장하지만, OCR·요약 결과와 RAG 청크는 사용자 승인 전에는
-  최종 테이블에 기록하지 않고 승인 API에서 확정합니다.
-- `20260828_0015_document_retention_and_audit.sql`: 승인 대기 임시 결과 7일, 미승인 원본
-  30일, 승인·수정 이력 5년을 적용할 만료 시각과 승인자 컬럼을 `file`에 추가하고,
-  업로드·재처리·승인 이력을 `document_file_audit`에 보관합니다. `uv run python -m
-  scripts.cleanup_document_retention`을 운영 스케줄러에서 하루 한 번 실행하면 만료된
-  미승인 Storage 객체와 임시 결과, 보관 기간이 지난 감사 이력을 정리합니다. 실제 삭제
-  전에는 `--dry-run`으로 대상 건수를 먼저 확인할 수 있습니다.
+- `20260828_0014_document_summary_approval.sql`: 구버전 승인 대기 데이터를 읽을 수 있도록
+  파일 처리 상태에 `review_required`를 추가합니다. 현재 새 처리는 사용자 승인 없이
+  OCR·요약 결과와 RAG 청크를 자동 저장하며, 기존 승인 대기 행만 승인 API로 확정할 수 있습니다.
+- `20260828_0015_document_retention_and_audit.sql`: 기존 승인 대기 임시 결과와 감사 이력을
+  관리할 만료 시각·승인자 컬럼을 `file`에 추가하고, 업로드·재처리·확정 이력을
+  `document_file_audit`에 보관합니다. 원본은 검색 근거이므로 승인 여부나 처리 지연만으로
+  자동 삭제하지 않습니다. `uv run python -m scripts.cleanup_document_retention`은 레거시
+  임시 결과와 보관 기간이 지난 감사 이력만 정리합니다.
 
 - `20260831_0014_report_legacy_deal_scope.sql`: 보고서 0013의 백필 결과가 기존 본문의
   `sales_deal_ids`와 일치하지 않으면 `sales_deal_id`만 NULL로 되돌립니다. 여러 딜을 다룬

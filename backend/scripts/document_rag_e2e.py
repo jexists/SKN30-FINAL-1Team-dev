@@ -1,4 +1,4 @@
-"""개인정보 없는 합성 문서로 Storage·OCR·요약·승인·RAG를 점검한다.
+"""개인정보 없는 합성 문서로 Storage·OCR·요약·RAG를 점검한다.
 
 실행 시 합성 문서를 Supabase에 잠시 저장하고, 검증이 끝나면 해당 문서·파일·청크와
 Storage 객체를 모두 삭제한다. 실제 문서나 사용자 계정 정보는 사용하지 않는다.
@@ -10,7 +10,6 @@ import argparse
 import asyncio
 import json
 import sys
-from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -109,7 +108,7 @@ async def run() -> dict[str, object]:
                     processing_error=None,
                     processed_at=None,
                     review_expires_at=None,
-                    unapproved_expires_at=datetime.now(UTC),
+                    unapproved_expires_at=None,
                     approved_by_member_id=None,
                     approved_at=None,
                     uploaded_by_member_id=member_id,
@@ -134,25 +133,17 @@ async def run() -> dict[str, object]:
         await document_processing.execute(file_id)
         async with sessionmaker() as session:
             row = (await session.execute(select(FileRow).where(FileRow.id == file_id))).scalar_one()
-            draft = await document_processing.load_review_draft(row.storage_key)
-            review_ok = (
-                row.processing_status == "review_required"
-                and bool(draft["extracted_text"])
-                and bool(draft["summary_markdown"])
+            auto_saved = (
+                row.processing_status == "completed"
+                and bool(row.extracted_text)
+                and bool(row.summary_markdown)
             )
-            before_approval_matches = await document_processing.search_chunks(
+            matches = await document_processing.search_chunks(
                 session,
                 team_id=team_id,
                 query="contract amount payment terms",
                 document_id=document_id,
             )
-            await document_processing.approve_review(
-                session,
-                row=row,
-                team_id=team_id,
-                approved_by_member_id=member_id,
-            )
-            await session.commit()
 
         async with sessionmaker() as session:
             row = (await session.execute(select(FileRow).where(FileRow.id == file_id))).scalar_one()
@@ -173,16 +164,11 @@ async def run() -> dict[str, object]:
             )
             return {
                 "status": "passed"
-                if review_ok
-                and not before_approval_matches
-                and row.processing_status == "completed"
+                if auto_saved
                 and chunks
                 and matches
                 else "failed",
-                "review_required_before_approval": review_ok,
-                "unapproved_rag_match_count": len(before_approval_matches),
-                "unapproved_excluded": not before_approval_matches,
-                "completed_after_approval": row.processing_status == "completed",
+                "auto_saved": auto_saved,
                 "chunk_count": len(chunks),
                 "embedding_present": bool(chunks and isinstance(chunks[0].embedding, list)),
                 "rag_match_count": len(matches),
