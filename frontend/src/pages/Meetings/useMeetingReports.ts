@@ -38,10 +38,6 @@ function valuesOf(value: unknown): Record<string, string> {
   )
 }
 
-function textList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string') : []
-}
-
 /** 저장해 둔 딜 이름표. 모양이 어긋난 항목은 버립니다. */
 function dealsOf(value: unknown): MeetingDealRef[] {
   if (!Array.isArray(value)) return []
@@ -56,12 +52,15 @@ function dealsOf(value: unknown): MeetingDealRef[] {
 
 function statusOf(code: ReportResponse['status_code']): ReportStatus {
   if (code === 'draft') return '작성중'
-  if (code === 'rejected') return '반려'
-  return '확정'
+  if (code === 'rejected' || code === 'changes_requested') return '반려'
+  return code === 'approved' ? '확정' : '검토 대기'
 }
 
 export function toMeetingReport(item: ReportResponse): MeetingReport {
   const content = record(item.content)
+  const storedDeals = dealsOf(content.sales_deals)
+  const storedDeal = dealsOf([content.sales_deal])[0]
+  const salesDealId = item.sales_deal_id
   return {
     id: item.id,
     owner: item.author_display_name,
@@ -79,13 +78,14 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     title: text(content.title),
     status: statusOf(item.status_code),
     review: reviewOf(item.status_code, content.on_hold === true),
+    apiStatus: item.status_code,
     transcript: item.transcript ?? '',
     values: valuesOf(content.values ?? item.content),
     attachments: Array.isArray(content.attachments)
       ? (content.attachments as ReportAttachment[])
       : [],
-    salesDealIds: textList(content.sales_deal_ids),
-    salesDeals: dealsOf(content.sales_deals),
+    salesDealId,
+    salesDeal: [storedDeal, ...storedDeals].find((deal) => deal?.id === salesDealId),
     evidence: text(content.evidence) || undefined,
     aiValues: valuesOf(content.ai_values),
     aiEvidence: text(content.ai_evidence) || undefined,
@@ -94,7 +94,11 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
 }
 
 export interface MeetingDraftPayload {
+  reportId?: string
+  statusCode?: ReportResponse['status_code']
   agendaId: string
+  salesDealId: string
+  salesDeal: MeetingDealRef
   date: string
   template: ReportTemplate
   time: string
@@ -107,9 +111,6 @@ export interface MeetingDraftPayload {
   transcript: string
   values: Record<string, string>
   attachments: ReportAttachment[]
-  /** 이 미팅에 연결한 영업 현황. id 와 이름표를 함께 남깁니다. */
-  salesDealIds: string[]
-  salesDeals: MeetingDealRef[]
   evidence?: string
   /** AI 원본. 최종본(values)과 나란히 저장해 두 벌을 다 복원합니다. */
   aiValues: Record<string, string>
@@ -141,6 +142,7 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
     period_start: null,
     period_end: null,
     source_activity_id: draft.agendaId,
+    sales_deal_id: draft.salesDealId,
     recipient_member_id: null,
     template_snapshot: draft.template,
     content: {
@@ -153,9 +155,8 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
       title: draft.title,
       values: draft.values,
       attachments: draft.attachments,
-      // 에이전트가 content 전체를 프롬프트에 싣습니다. 고른 딜이 그대로 작성 근거가 됩니다.
-      sales_deal_ids: draft.salesDealIds,
-      sales_deals: draft.salesDeals,
+      // 작성 당시 이름표도 남깁니다. 정규 관계와 권한 검증은 최상위 sales_deal_id 가 맡습니다.
+      sales_deal: draft.salesDeal,
       evidence: draft.evidence ?? null,
       ai_values: draft.aiValues,
       ai_evidence: draft.aiEvidence ?? null,
@@ -177,37 +178,39 @@ export function useMeetingReportsOn(dateISO: string, enabled = true) {
   return { reports, loading, error, reload }
 }
 
-/** 그 일정으로 쓴 업무보고서 한 건. 없으면 undefined 입니다. */
-export function useMeetingReportOfAgenda(agendaId: string) {
+/** 그 일정에서 선택한 딜마다 쓴 업무보고서들입니다. */
+export function useMeetingReportsOfAgenda(agendaId: string) {
   const { items, loading, error, reload } = useReportQuery(
-    agendaId === '' ? null : { report_kind: 'meeting', source_activity_id: agendaId, limit: 1 },
+    agendaId === '' ? null : { report_kind: 'meeting', source_activity_id: agendaId },
     '업무보고서를 불러오지 못했습니다.',
   )
-  // 렌더마다 새 객체를 만들면 이 값을 의존성으로 쓰는 작성 화면의 초기화 effect 가
-  // 끝없이 돕니다. 실제로 받아 온 것이 바뀔 때만 새로 만듭니다.
-  const report = useMemo(() => (items[0] ? toMeetingReport(items[0]) : undefined), [items])
-  return { report, loading, error, reload }
+  const reports = useMemo(() => items.map(toMeetingReport), [items])
+  return { reports, loading, error, reload }
 }
 
 export default function useMeetingReports() {
   const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
   const save = useCallback(async (draft: MeetingDraftPayload, submit: boolean) => {
-    setPending(true)
+    setPendingCount((count) => count + 1)
     setError(null)
     try {
-      const existing = await savedForAgenda(draft.agendaId)
       const request = requestOf(draft)
-      const { report_kind: _kind, source_activity_id: _source, ...patch } = request
-      const saved = existing
-        ? await client.patch<ReportResponse>(`/reports/${existing.id}`, patch)
+      const {
+        report_kind: _kind,
+        source_activity_id: _source,
+        sales_deal_id: _deal,
+        ...patch
+      } = request
+      const saved = draft.reportId
+        ? await client.patch<ReportResponse>(`/reports/${draft.reportId}`, patch)
         : await client.post<ReportResponse>('/reports', request)
       // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
       // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
-      const from = existing?.status_code ?? 'draft'
+      const from = draft.statusCode ?? 'draft'
       const response =
-        submit && (from === 'draft' || from === 'rejected')
+        submit && (from === 'draft' || from === 'changes_requested')
           ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
               expected_status_code: from,
             })
@@ -222,13 +225,13 @@ export default function useMeetingReports() {
       )
       throw reason
     } finally {
-      setPending(false)
+      setPendingCount((count) => count - 1)
     }
   }, [])
 
   return {
     error,
-    pending,
+    pending: pendingCount > 0,
     saveReport: (draft: MeetingDraftPayload) => save(draft, true),
     saveDraft: (draft: MeetingDraftPayload) => save(draft, false),
   }

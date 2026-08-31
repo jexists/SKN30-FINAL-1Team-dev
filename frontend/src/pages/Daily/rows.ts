@@ -69,13 +69,14 @@ export function fromDailyReport(report: DailyReport): ListRow {
 
 export function fromMeetingReport(report: MeetingReport): ListRow {
   const files = report.attachments.length
+  const deal = report.salesDeal?.label
 
   return {
     id: report.id,
     date: report.date,
     kindLabel: '미팅',
     // 미팅 제목은 그 자리에서 정한 말이라 어느 병원인지가 붙어야 알아봅니다.
-    title: `${report.hospital} ${report.title}`,
+    title: [report.hospital, deal, report.title].filter(Boolean).join(' · '),
     summary: report.values.reaction?.trim() ?? '',
     meta: [`${report.time} · ${report.contact}`, files > 0 ? `첨부 ${files}건` : '']
       .filter(Boolean)
@@ -87,6 +88,7 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     haystack: lower([
       report.hospital,
       report.title,
+      deal,
       report.owner,
       report.dept,
       report.contact,

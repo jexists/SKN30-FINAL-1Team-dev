@@ -59,6 +59,7 @@ class ReportCreate(_WriteModel):
     period_start: date | None = None
     period_end: date | None = None
     source_activity_id: UUID | None = None
+    sales_deal_id: UUID | None = None
     recipient_member_id: UUID | None = None
     template_snapshot: dict[str, Any]
     content: dict[str, Any]
@@ -70,8 +71,13 @@ class ReportCreate(_WriteModel):
     def _validate(self) -> Self:
         _check_period(self.report_kind, self.period_start, self.period_end)
         # 업무보고서는 근거 일정이 곧 보고 대상이라 반드시 있어야 합니다.
-        if self.report_kind == "meeting" and self.source_activity_id is None:
-            raise ValueError("source_activity_required")
+        if self.report_kind == "meeting":
+            if self.source_activity_id is None:
+                raise ValueError("source_activity_required")
+            if self.sales_deal_id is None:
+                raise ValueError("sales_deal_required")
+        elif self.sales_deal_id is not None:
+            raise ValueError("sales_deal_not_supported")
         if len(set(self.activity_ids)) != len(self.activity_ids):
             raise ValueError("duplicate_activity_ids")
         return self
@@ -116,6 +122,7 @@ class ReportRead(BaseModel):
     recipient_member_id: UUID | None
     recipient_display_name: str | None
     source_activity_id: UUID | None
+    sales_deal_id: UUID | None
     report_kind: ReportKind
     report_date: date
     period_start: date | None
@@ -172,6 +179,7 @@ class ReportPageParams(BaseModel):
     # "이 일정으로 쓴 보고서가 이미 있는가" 를 묻는 조회에 쓴다. 목록을 통째로 받아 뒤지면
     # 페이지 밖에 있는 보고서를 못 찾고 같은 일정에 보고서를 또 만든다.
     source_activity_id: UUID | None = None
+    sales_deal_id: UUID | None = None
     # 보고 대상과 고객사는 컬럼이 아니라 content 안에 있다. 그래도 서버가 걸러야 한다.
     # 전건을 받아 화면에서 거르면 쪽으로 끊는 순간 첫 쪽 밖의 일치 항목을 놓친다.
     approver: list[Text] | None = None

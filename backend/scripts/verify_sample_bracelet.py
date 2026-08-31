@@ -89,6 +89,18 @@ CHECKS: tuple[tuple[str, str, int | None], ...] = (
         0,
     ),
     (
+        "업무보고서 딜과 미팅 고객사가 다름",
+        """
+        select count(*) from public.report r
+        join public.activity a on a.id = r.source_activity_id
+        join public.customer_contact c on c.id = a.customer_contact_id
+        join public.sales_deal d on d.id = r.sales_deal_id
+        where r.team_id = :team and r.report_kind = 'meeting'
+          and c.company_id <> d.customer_company_id
+        """,
+        0,
+    ),
+    (
         "보고서가 다른 팀의 일정을 인용",
         """
         select count(*) from public.report r

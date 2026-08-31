@@ -18,6 +18,7 @@ class Report(Base):
     recipient_member_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.member.id"))
     template_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
     source_activity_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.activity.id"))
+    sales_deal_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.sales_deal.id"))
     report_kind: Mapped[str]
     report_date: Mapped[date]
     period_start: Mapped[date | None]

@@ -62,6 +62,8 @@ export default function Detail() {
     )
   }
 
+  const editable = report.apiStatus === 'draft' || report.apiStatus === 'changes_requested'
+
   return (
     <section>
       <h1 className="sr-only">
@@ -79,6 +81,7 @@ export default function Detail() {
         <div className={styles.heading}>
           <p className={styles.title}>
             {report.hospital}
+            {report.salesDeal && <span>{report.salesDeal.label}</span>}
             <StatusBadge label={REVIEW_LABEL[report.review]} tone={REVIEW_TONE[report.review]} />
           </p>
 
@@ -125,9 +128,11 @@ export default function Detail() {
               PDF 다운로드
             </Button>
 
-            {report.review === 'approved' ? (
+            {!editable ? (
               <span className={`${styles.sealed} ${styles.trailing}`}>
-                팀장 확인이 끝나 수정할 수 없습니다
+                {report.review === 'approved'
+                  ? '팀장 확인이 끝나 수정할 수 없습니다'
+                  : '현재 상태에서는 수정할 수 없습니다'}
               </span>
             ) : isMine ? (
               <Link

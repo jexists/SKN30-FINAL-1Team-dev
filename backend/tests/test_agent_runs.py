@@ -136,6 +136,7 @@ def _report(
         recipient_member_id=None,
         template_snapshot=TEMPLATE,
         source_activity_id=None,
+        sales_deal_id=None,
         report_kind="daily",
         report_date=date(2026, 8, 17),
         period_start=None,
@@ -243,6 +244,7 @@ def test_accepted_run_is_queued_and_does_not_touch_report(llm_ready, monkeypatch
 
     member = _member()
     report = _report(member)
+    report.sales_deal_id = uuid4()
     db = _Db(_Result(scalar=None), _Result(scalar=report))
 
     with _client(db, member) as client:
@@ -266,6 +268,12 @@ def test_accepted_run_is_queued_and_does_not_touch_report(llm_ready, monkeypatch
     # 사람이 확인하기 전에는 보고서를 고치지 않는다.
     assert report.content == {"summary": ""}
     assert report.status_code == "draft"
+    created = db.added[0]
+    assert created.source_refs == {
+        "report_id": str(report.id),
+        "sales_deal_id": str(report.sales_deal_id),
+    }
+    assert created.input_snapshot["sales_deal_id"] == str(report.sales_deal_id)
     assert db.commit_count == 1
     assert scheduled == [UUID(body["id"])]
 

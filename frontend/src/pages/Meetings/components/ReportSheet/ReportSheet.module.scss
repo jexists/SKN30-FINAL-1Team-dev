@@ -4,6 +4,26 @@
   min-width: 0;
 }
 
+/* 바깥 DealReportCard가 면과 그림자를 맡습니다. 본문·액션의 기능만 남깁니다. */
+.embedded {
+  .sheet {
+    padding: var(--s5);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .actions {
+    position: static;
+    padding: var(--s3) var(--s5) var(--s4);
+    background: none;
+  }
+
+  .broken {
+    margin: 0 var(--s5) var(--s4);
+  }
+}
+
 /*
  * 왼쪽 참고판과 같은 흰 면이지만 이쪽만 떠 있습니다. 참고판은 놓여 있고
  * 이 문서는 들려 있습니다 — 그림자 한 겹과 넉넉한 여백이 그 차이를 혼자

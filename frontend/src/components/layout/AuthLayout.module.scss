@@ -11,12 +11,17 @@
   --auth-line: rgba(255, 255, 255, 0.14);
 
   // 01/02/03 에만 쓰는 계기판용 글꼴.
-  --auth-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --auth-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
 
   min-height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(390px, 0.85fr);
-  background: linear-gradient(155deg, var(--auth-abyss) 0%, var(--auth-deep) 55%, var(--auth-blue) 100%);
+  background: linear-gradient(
+    155deg,
+    var(--auth-abyss) 0%,
+    var(--auth-deep) 55%,
+    var(--auth-blue) 100%
+  );
   color: #fff;
   overflow: hidden;
 
@@ -50,7 +55,7 @@
 
   // 좌상단 라디얼. 제목 쪽에 빛을 한 겹 얹어 배경이 평평해 보이지 않게 합니다.
   &::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: 0;
     z-index: -2;
@@ -59,7 +64,7 @@
 
   // 우하단에서 비스듬히 올라오는 광선.
   &::after {
-    content: "";
+    content: '';
     position: absolute;
     z-index: -1;
     right: -18%;

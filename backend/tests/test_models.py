@@ -1,7 +1,9 @@
 import asyncio
+import json
+from pathlib import Path
 
 import pytest
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import configure_mappers
 
@@ -56,7 +58,8 @@ EXPECTED_COLUMN_COUNTS = {
     "purchase_order": 17,
     "purchase_order_item": 6,
     "sales_target": 5,
-    "report": 20,
+    # 20260828_0013 으로 미팅보고서가 어느 딜의 보고서인지 sales_deal_id 로 가리킨다.
+    "report": 21,
     "report_activity": 2,
     # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
     "document": 14,
@@ -117,6 +120,43 @@ def test_all_database_tables_are_mapped():
 )
 def test_models_match_configured_database():
     asyncio.run(_assert_models_match_database())
+
+
+@pytest.mark.skipif(not settings.database_url, reason="DATABASE_URL 미설정")
+@pytest.mark.anyio
+async def test_legacy_report_deal_migration_only_clears_ambiguous_links():
+    """후속 SQL의 조건을 합성 행에만 적용한다. 실제 보고서는 읽거나 수정하지 않는다."""
+    migration = Path(__file__).parents[1] / "sql/20260831_0014_report_legacy_deal_scope.sql"
+    predicate = migration.read_text().split("WHERE", 1)[1].split(";", 1)[0]
+    query = text(
+        "SELECT CASE WHEN " + predicate + " THEN NULL ELSE report.sales_deal_id END "
+        "FROM (SELECT CAST(:kind AS text) AS report_kind, CAST(:deal AS uuid) AS sales_deal_id, "
+        "CAST(:content AS jsonb) AS content) AS report"
+    )
+    deal = "00000000-0000-0000-0000-000000000001"
+    other = "00000000-0000-0000-0000-000000000002"
+    cases = [
+        ("meeting", {}, deal),
+        ("meeting", {"sales_deal_ids": [deal]}, deal),
+        ("meeting", {"sales_deal_ids": [deal, other]}, None),
+        ("meeting", {"sales_deal_ids": [other]}, None),
+        ("meeting", {"sales_deal_ids": []}, None),
+        ("meeting", {"sales_deal_ids": None}, deal),
+        ("meeting", {"sales_deal_ids": [deal, other], "sales_deal": {"id": deal}}, deal),
+        ("daily", {"sales_deal_ids": [deal, other]}, deal),
+    ]
+    engine = create_async_engine(settings.async_database_url)
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SET TRANSACTION READ ONLY"))
+            for kind, content, expected in cases:
+                result = await connection.execute(
+                    query, {"kind": kind, "deal": deal, "content": json.dumps(content)}
+                )
+                actual = result.scalar_one_or_none()
+                assert (str(actual) if actual is not None else None) == expected
+    finally:
+        await engine.dispose()
 
 
 async def _assert_models_match_database():
