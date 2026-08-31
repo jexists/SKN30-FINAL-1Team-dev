@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     llm_api_url: str = ""
     llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
-    llm_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    llm_timeout_seconds: float = Field(default=180.0, gt=0, le=300)
 
     # 미팅 음성은 저장하지 않고 OpenAI 전사 API 로 바로 보낸다.
     stt_api_key: SecretStr = SecretStr("")

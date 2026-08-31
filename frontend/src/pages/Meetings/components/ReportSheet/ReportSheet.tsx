@@ -6,7 +6,7 @@ import { useId } from 'react'
 import { Link } from 'react-router'
 
 import Button, { buttonClass } from '@/components/Button'
-import type { ReportTemplate } from '@/types'
+import type { MeetingPreview, MeetingProgress, ReportTemplate } from '@/types'
 
 import type { MeetingPhase } from '../../useMeetingDraft'
 import GenerationProgress from '../GenerationProgress'
@@ -30,8 +30,9 @@ interface Props {
   sectionIssues: string[]
   onRestoreSections: () => void
   evidence?: string
-  /** 지금 몇 번째 단계인지. phase 가 generating 일 때만 씁니다. */
-  generationStep: number
+  /** 서버가 보낸 실행 상태와 검토 전 초안. 최종 편집기 값으로 쓰지 않습니다. */
+  generationProgress?: MeetingProgress | null
+  generationPreview?: MeetingPreview
   /** 만들지 못한 이유. 눌러 본 자리 옆에서 보여야 무엇이 실패한 것인지 압니다. */
   generationError: string | null
   onRetryGenerate: () => void
@@ -42,6 +43,7 @@ interface Props {
   hasAiOriginal: boolean
   onStartManual: () => void
   onRegenerate: () => void
+  regenerateLabel?: string
   onSave: () => void
   /** 이미 저장된 딜 보고서 상세로 가는 길입니다. */
   viewTo?: string
@@ -62,7 +64,8 @@ export default function ReportSheet({
   sectionIssues,
   onRestoreSections,
   evidence,
-  generationStep,
+  generationProgress,
+  generationPreview,
   generationError,
   onRetryGenerate,
   generationDisabled = false,
@@ -71,6 +74,7 @@ export default function ReportSheet({
   hasAiOriginal,
   onStartManual,
   onRegenerate,
+  regenerateLabel = 'AI 다시 생성',
   onSave,
   viewTo,
   embedded = false,
@@ -128,7 +132,11 @@ export default function ReportSheet({
             </div>
 
             {phase === 'generating' ? (
-              <GenerationProgress step={generationStep} fieldCount={template.fields.length} />
+              <GenerationProgress
+                progress={generationProgress}
+                preview={generationPreview}
+                fieldCount={template.fields.length}
+              />
             ) : (
               <>
                 <ReportDocument
@@ -153,7 +161,7 @@ export default function ReportSheet({
             disabled={locked || saving || generationDisabled || phase === 'generating'}
             onClick={onRegenerate}
           >
-            AI 다시 생성
+            {regenerateLabel}
           </Button>
         )}
 

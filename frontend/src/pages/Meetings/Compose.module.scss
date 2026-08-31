@@ -37,6 +37,13 @@
   font-size: 13px;
 }
 
+.generationNote {
+  margin-top: var(--s3);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 .notFound {
   @include card;
 

@@ -5,10 +5,9 @@ import StageChip from '@/components/StageChip'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingReportPath } from '@/constants/routes'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
-import type { AgentRunStatus, MeetingDealRef, ReportTemplate } from '@/types'
+import type { MeetingDealRef, MeetingProgress, ReportTemplate } from '@/types'
 
 import type { DealDraftState } from '../../useMeetingDraft'
-import useGenerationSteps from '../../useGenerationSteps'
 import AiOriginalPanel from '../AiOriginalPanel'
 import ReportSheet from '../ReportSheet'
 
@@ -19,6 +18,7 @@ interface Props {
   deal?: SalesDeal
   savedDeal?: MeetingDealRef
   draft: DealDraftState
+  progress?: MeetingProgress | null
   template: ReportTemplate
   when: string
   saving: boolean
@@ -30,7 +30,7 @@ interface Props {
   onRestoreSections: () => void
   onStartManual: () => void
   onApplyAi: () => void
-  onGenerate: (onStatus?: (status: AgentRunStatus) => void) => void
+  onGenerate: () => void
   onSave: () => void
 }
 
@@ -66,6 +66,7 @@ export default function DealReportCard({
   deal,
   savedDeal,
   draft,
+  progress,
   template,
   when,
   saving,
@@ -82,7 +83,6 @@ export default function DealReportCard({
 }: Props) {
   const [open, setOpen] = useState(true)
   const bodyId = useId()
-  const generation = useGenerationSteps(draft.phase === 'generating')
   const badge = assessmentBadge(draft)
   const dealLabel = deal?.no ?? savedDeal?.label ?? dealId
   const dealTitle = deal ? deal.title.trim() || deal.product : savedDeal?.note
@@ -149,15 +149,19 @@ export default function DealReportCard({
           sectionIssues={draft.sectionIssues}
           onRestoreSections={onRestoreSections}
           evidence={draft.evidence}
-          generationStep={generation.step}
+          generationProgress={progress}
+          generationPreview={progress?.previews.find(
+            (preview) => preview.section === 'deal' && preview.sales_deal_id === dealId,
+          )}
           generationError={draft.generationError}
-          onRetryGenerate={() => onGenerate(generation.onStatus)}
+          onRetryGenerate={onGenerate}
           generationDisabled={generationDisabled}
           locked={locked}
           saving={saving || generating}
           hasAiOriginal={hasAiOriginal}
           onStartManual={onStartManual}
-          onRegenerate={() => onGenerate(generation.onStatus)}
+          onRegenerate={onGenerate}
+          regenerateLabel="미팅 전체 다시 생성"
           onSave={onSave}
           viewTo={
             draft.reportId && !generating && !saving ? meetingReportPath(draft.reportId) : undefined

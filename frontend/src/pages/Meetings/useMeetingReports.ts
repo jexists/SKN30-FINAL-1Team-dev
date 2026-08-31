@@ -6,7 +6,9 @@ import { reportTemplateFromSnapshot } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
   MeetingDealRef,
+  MeetingEvidenceLedger,
   MeetingReport,
+  MeetingReportBody,
   PageResponse,
   ReportAttachment,
   ReportResponse,
@@ -17,6 +19,7 @@ import type {
 import { parseISO, TODAY } from '@/utils/date'
 
 import { reviewOf } from './reviewStatus'
+import { readMeetingAnalysis } from './generatedDraft'
 
 const DAY = 86_400_000
 
@@ -56,11 +59,27 @@ function statusOf(code: ReportResponse['status_code']): ReportStatus {
   return code === 'approved' ? '확정' : '검토 대기'
 }
 
+function bodyOf(value: unknown): MeetingReportBody | null {
+  const body = record(value)
+  return typeof body.body === 'string' && Array.isArray(body.evidence_ids)
+    ? {
+        body: body.body,
+        evidence_ids: body.evidence_ids.filter((id): id is string => typeof id === 'string'),
+        ai_body: typeof body.ai_body === 'string' ? body.ai_body : undefined,
+        edited: body.edited === true,
+      }
+    : null
+}
+
 export function toMeetingReport(item: ReportResponse): MeetingReport {
   const content = record(item.content)
   const storedDeals = dealsOf(content.sales_deals)
   const storedDeal = dealsOf([content.sales_deal])[0]
   const salesDealId = item.sales_deal_id
+  const source = record(item.source_snapshot)
+  const shared = record(content.meeting_shared)
+  const analysis = record(item.ai_evidence)
+  const ledger = record(source.evidence)
   return {
     id: item.id,
     owner: item.author_display_name,
@@ -90,6 +109,22 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     aiValues: valuesOf(content.ai_values),
     aiEvidence: text(content.ai_evidence) || undefined,
     aiGeneratedAt: text(content.ai_generated_at) || undefined,
+    updatedAt: item.updated_at,
+    meetingRunId: text(source.meeting_run_id) || text(shared.run_id) || undefined,
+    meetingShared:
+      typeof shared.run_id === 'string'
+        ? {
+            run_id: shared.run_id,
+            revision: text(shared.revision),
+            common_report: bodyOf(shared.common_report),
+            unassigned_report: bodyOf(shared.unassigned_report),
+          }
+        : undefined,
+    evidenceLedger:
+      Array.isArray(ledger.items) && Array.isArray(ledger.selected_deal_ids)
+        ? (ledger as unknown as MeetingEvidenceLedger)
+        : undefined,
+    ...readMeetingAnalysis(analysis),
   }
 }
 

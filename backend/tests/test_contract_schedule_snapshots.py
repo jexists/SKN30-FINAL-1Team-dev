@@ -1,3 +1,5 @@
+import copy
+import json
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
@@ -5,6 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+from app.agents import contract_management
 from app.models.agent import AgentRun
 from app.models.crm import Activity, CustomerCompany
 from app.models.sales import SalesDeal, SalesPipelineStage
@@ -362,6 +365,7 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
     report = SimpleNamespace(
         id=uuid4(),
         sales_deal_id=sales_deal_id,
+        source_activity_id=None,
         report_date=date(2026, 8, 17),
         content={"summary": "승인 보고서"},
     )
@@ -370,10 +374,120 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
     recent = await snapshots._recent_finalized_reports(db, member, [sales_deal_id])
 
     assert recent[0]["sales_deal_id"] == str(sales_deal_id)
+    assert recent[0]["source_activity_id"] is None
+    assert recent[0]["content"] == report.content
     sql = str(db.statements[0])
     assert "report.sales_deal_id IN" in sql
     assert "JOIN public.activity" not in sql
     assert ["approved", "submitted"] in db.statements[0].compile().params.values()
+
+
+@pytest.mark.anyio
+async def test_contract_report_context_includes_shared_bodies_without_ml_or_ai(monkeypatch):
+    member = _member()
+    sales_deal_id = uuid4()
+    content = {
+        "title": "해당 딜 보고서",
+        "values": {"body": "담당자가 검토한 해당 딜의 계약 협의 내용"},
+        "meeting_shared": {
+            "run_id": str(uuid4()),
+            "common_report": {
+                "body": "미팅 공통 배경",
+                "evidence_ids": ["S0001"],
+                "edited": True,
+                "ai_body": "수정 전 AI 공통 초안",
+            },
+            "unassigned_report": {
+                "body": "딜 미지정 · 확인 필요: 아직 딜을 정하지 못한 내용",
+                "evidence_ids": ["S0002"],
+            },
+            "ml_result": "제외",
+        },
+        "deal_assessment": {"label": "high", "high_probability": 0.99},
+        "ai_values": {"body": "아직 검토하지 않은 AI 초안"},
+        "ai_evidence": "AI 생성 근거 표시",
+        "ml_result": "제외",
+        "transcript": "제외",
+    }
+    original = copy.deepcopy(content)
+    report = SimpleNamespace(
+        id=uuid4(),
+        sales_deal_id=sales_deal_id,
+        source_activity_id=uuid4(),
+        report_date=date(2026, 8, 17),
+        content=content,
+        transcript="여러 딜의 전체 미팅 원문",
+        ai_evidence={"deal_assessment": {"label": "high"}},
+        source_snapshot={"evidence": "원문 근거 장부"},
+    )
+    db = _Db(_Result(scalar_values=[report]))
+
+    recent = await snapshots._recent_finalized_reports(db, member, [sales_deal_id])
+
+    assert recent == [
+        {
+            "id": str(report.id),
+            "sales_deal_id": str(sales_deal_id),
+            "source_activity_id": str(report.source_activity_id),
+            "report_date": "2026-08-17",
+            "content": {
+                "title": content["title"],
+                "values": content["values"],
+                "meeting_shared": {
+                    "common_report": {"body": "미팅 공통 배경"},
+                    "unassigned_report": {
+                        "body": "딜 미지정 · 확인 필요: 아직 딜을 정하지 못한 내용"
+                    },
+                },
+            },
+        }
+    ]
+    assert report.content is content and content == original
+
+    async def generate(**kwargs):
+        assert json.loads(kwargs["input_text"])["recent_approved_reports"] == recent
+        assert "해당 딜의 확정 사실·약속·계약 조건으로 배정하지 말고" in kwargs["instructions"]
+        assert "모든 선택 딜에 명시적으로 적용된 합의·조건은" in kwargs["instructions"]
+        return contract_management.NextMeetingProposalOutput()
+
+    monkeypatch.setattr(contract_management, "generate_structured", generate)
+    await contract_management.propose_next_meeting({"recent_approved_reports": recent})
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "content,has_activity,detail",
+    [
+        (None, True, "report_source_content_invalid"),
+        ({"meeting_shared": "손상된 값"}, True, "report_source_shared_invalid"),
+        ({"meeting_shared": {"common_report": {}}}, True, "report_source_shared_invalid"),
+        (
+            {"meeting_shared": {"unassigned_report": {"body": 123}}},
+            True,
+            "report_source_shared_invalid",
+        ),
+        (
+            {"meeting_shared": {"common_report": {"body": "공통 내용"}}},
+            False,
+            "report_source_shared_invalid",
+        ),
+    ],
+)
+async def test_contract_report_context_rejects_malformed_shared(content, has_activity, detail):
+    member = _member()
+    report = SimpleNamespace(
+        id=uuid4(),
+        sales_deal_id=uuid4(),
+        source_activity_id=uuid4() if has_activity else None,
+        report_date=date(2026, 8, 17),
+        content=content,
+    )
+    with pytest.raises(HTTPException) as error:
+        await snapshots._recent_finalized_reports(
+            _Db(_Result(scalar_values=[report])), member, [report.sales_deal_id]
+        )
+    assert error.value.status_code == 422
+    assert error.value.detail == detail
 
 
 @pytest.mark.anyio

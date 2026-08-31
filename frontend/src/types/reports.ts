@@ -124,6 +124,8 @@ export interface ReportResponse {
   template_snapshot: Record<string, unknown>
   content: Record<string, unknown>
   transcript: string | null
+  source_snapshot?: Record<string, unknown> | null
+  ai_evidence?: Record<string, unknown> | null
   note: string | null
   activities: ReportActivityResponse[]
   created_at: string
@@ -153,10 +155,81 @@ export interface ReportDraftSnapshot {
 }
 
 export interface DealAssessment {
-  features: Record<string, string>
+  features?: Record<string, string>
   label: 'high' | 'watch'
   high_probability: number
   model_version: string
+}
+
+export interface MeetingEvidenceLedger {
+  schema_version: 'meeting_content.v1'
+  transcript_sha256: string
+  selected_deal_ids: string[]
+  items: {
+    segment: { segment_id: string; start: number; end: number; text: string }
+    applicability: {
+      scope:
+        | 'meeting_context'
+        | 'company_context'
+        | 'all_selected_deals'
+        | 'deal'
+        | 'unresolved'
+        | 'out_of_scope'
+      deal_ids: string[]
+    }
+  }[]
+}
+
+export interface MeetingReportBody {
+  body: string
+  evidence_ids: string[]
+  ai_body?: string
+  edited?: boolean
+}
+
+export interface MeetingSharedNotes {
+  run_id: string
+  revision: string
+  common_report: MeetingReportBody | null
+  unassigned_report: MeetingReportBody | null
+}
+
+export interface MeetingAssignmentOverride {
+  segment_id: string
+  applicability: { scope: 'deal'; deal_ids: string[] }
+}
+
+export interface MeetingProcessingOutput {
+  reports: {
+    deal_reports: (MeetingReportBody & { sales_deal_id: string })[]
+    common_report: MeetingReportBody | null
+    unassigned_report: MeetingReportBody | null
+  } | null
+  analyses: {
+    sales_deal_id: string
+    features: Record<string, string> | null
+    assessment: DealAssessment | null
+    error: string | null
+  }[]
+  evidence: MeetingEvidenceLedger
+  errors: Record<string, string>
+}
+
+/** 검토·적용 전 화면에서만 보여 주는 문장입니다. ReportWriteRequest에 포함하지 않습니다. */
+export interface MeetingPreview {
+  section: 'deal' | 'common' | 'unassigned'
+  sales_deal_id: string | null
+  body: string
+  revision: number
+}
+
+export interface MeetingProgress {
+  run_id: string
+  status_code: AgentRunStatus
+  stage: string
+  previews: MeetingPreview[]
+  review_attempt?: number
+  review_limit?: number
 }
 
 export interface MeetingAnalysisSnapshot {

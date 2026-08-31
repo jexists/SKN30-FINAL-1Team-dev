@@ -6,13 +6,16 @@ API URL·인증·HTTP 오류·응답 파싱은 이 모듈에서 처리한다.
 API key 는 서버 환경변수에서만 읽고 응답이나 로그에 남기지 않는다.
 """
 
+import asyncio
 import json
+from time import perf_counter
 from typing import Any
 
 import httpx
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
+from app.services.agent_logging import log_agent_error, log_agent_event
 
 
 class LLMError(Exception):
@@ -21,6 +24,22 @@ class LLMError(Exception):
 
 class LLMNotConfigured(LLMError):
     """LLM_API_URL, LLM_API_KEY, LLM_MODEL 중 빠진 값이 있다."""
+
+
+def safe_token_usage(usage: object) -> dict[str, int]:
+    """공급자가 돌려준 사용량 중 알려진 비음수 정수만 남긴다. 없으면 추정하지 않는다."""
+    if not isinstance(usage, dict):
+        return {}
+    counts = {}
+    for field, fallback in (
+        ("input_tokens", "prompt_tokens"),
+        ("output_tokens", "completion_tokens"),
+        ("total_tokens", "total_tokens"),
+    ):
+        value = usage.get(field, usage.get(fallback))
+        if type(value) is int and value >= 0:
+            counts[field] = value
+    return counts
 
 
 def _extract_text(payload: dict[str, Any]) -> str:
@@ -76,8 +95,15 @@ async def generate_structured[Schema: BaseModel](
         },
     }
 
+    started = perf_counter()
+    log_agent_event(
+        "llm.request_started", schema_name=schema_name, timeout_seconds=settings.llm_timeout_seconds
+    )
     try:
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        timeout = httpx.Timeout(
+            settings.llm_timeout_seconds, connect=min(10.0, settings.llm_timeout_seconds)
+        )
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 settings.llm_api_url,
                 headers={
@@ -87,19 +113,56 @@ async def generate_structured[Schema: BaseModel](
                 json=body,
             )
     except httpx.HTTPError as error:
+        log_agent_error(
+            error,
+            stage="llm.request",
+            schema_name=schema_name,
+            elapsed_ms=round((perf_counter() - started) * 1000),
+        )
         # 공급자 URL 과 key 가 메시지에 섞이지 않도록 예외 종류만 남긴다.
         raise LLMError(f"llm_request_failed:{type(error).__name__}") from error
+    except asyncio.CancelledError:
+        log_agent_event(
+            "llm.request_cancelled",
+            schema_name=schema_name,
+            elapsed_ms=round((perf_counter() - started) * 1000),
+        )
+        raise
 
+    response_log = {
+        "schema_name": schema_name,
+        "status_code": response.status_code,
+        "request_id": getattr(response, "headers", {}).get("x-request-id"),
+        "elapsed_ms": round((perf_counter() - started) * 1000),
+    }
     if response.status_code >= 400:
-        raise LLMError(f"llm_provider_error:{response.status_code}")
+        error = LLMError(f"llm_provider_error:{response.status_code}")
+        log_agent_error(
+            error,
+            stage="llm.response",
+            error_code="llm_provider_error",
+            **response_log,
+        )
+        raise error
 
     try:
         payload = response.json()
     except ValueError as error:
+        log_agent_error(error, stage="llm.response_json", **response_log)
         raise LLMError("llm_response_not_json") from error
 
-    text = _extract_text(payload)
+    log_agent_event(
+        "llm.request_completed",
+        **response_log,
+        **safe_token_usage(payload.get("usage") if isinstance(payload, dict) else None),
+    )
+    try:
+        text = _extract_text(payload)
+    except Exception as error:
+        log_agent_error(error, stage="llm.output_text", **response_log)
+        raise
     try:
         return schema.model_validate(json.loads(text))
     except (ValueError, ValidationError) as error:
+        log_agent_error(error, stage="llm.output_validation", **response_log)
         raise LLMError("llm_output_schema_mismatch") from error

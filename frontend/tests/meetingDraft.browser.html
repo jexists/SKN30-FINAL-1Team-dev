@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>미팅 초안 회귀 테스트</title>
+  </head>
+  <body>
+    <h1>미팅 초안 상태 회귀 테스트</h1>
+    <p>
+      로컬 Vite에서 /tests/meetingDraft.browser.html 열기. 실제 React 훅과 합성 입력만 사용하며
+      API를 호출하지 않습니다.
+    </p>
+    <pre id="result">실행 중…</pre>
+    <div id="test-root"></div>
+    <script type="module">
+      import { act, createElement } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
+
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      const root = createRoot(document.getElementById('test-root'))
+      const result = document.getElementById('result')
+      const checks = []
+      let draft
+      function Probe({ item, reports, ready }) {
+        draft = useMeetingDraft(item, reports, ready)
+        return null
+      }
+      function assert(condition, message) {
+        if (!condition) throw new Error(message)
+        checks.push(message)
+      }
+      const item = { id: 'meeting-a', title: '합성 미팅', salesDealId: 'deal-a' }
+      const template = {
+        id: 'test-body',
+        fields: [{ id: 'body', type: 'textarea', required: true, aiFilled: true }],
+      }
+      const saved = (id, body = '') => ({
+        id: `report-${id}`,
+        salesDealId: id,
+        agendaId: item.id,
+        template,
+        apiStatus: 'draft',
+        review: 'writing',
+        title: '서버 제목',
+        transcript: '서버 원문',
+        values: { body },
+        aiValues: {},
+        attachments: [],
+        reportError: 'report_agent_review_limit',
+        analysisError: '이전 분석 실패',
+      })
+      const reports = ['deal-a', 'deal-b', 'deal-c'].map((id) => saved(id))
+      async function render(nextItem, nextReports, ready) {
+        await act(async () =>
+          root.render(createElement(Probe, { item: nextItem, reports: nextReports, ready })),
+        )
+      }
+      async function run() {
+        await render(item, [], false)
+        assert(draft.salesDealIds.length === 0, '조회 전에는 빈 서버 응답으로 초기화하지 않음')
+        await render(item, reports, true)
+        assert(draft.salesDealIds.length === 3, '최초 조회 완료 후 선택 딜 3개 복원')
+        await act(async () => {
+          draft.setTranscript('사용자가 수정한 원문')
+          draft.setTitle('deal-a', '직접 쓴 제목')
+          draft.startManual('deal-a')
+          draft.applyDocument('deal-a', { body: '사람이 쓴 본문' }, [])
+          draft.beginGeneration(['deal-a', 'deal-b', 'deal-c'])
+        })
+        await act(async () =>
+          reports.forEach((report) => draft.bindReport(report.salesDealId, report)),
+        )
+        await render(
+          { ...item, title: '재조회된 일정 제목' },
+          reports.map((report) => ({ ...report })),
+          true,
+        )
+        assert(
+          Object.values(draft.draftsByDeal).every(
+            (state) =>
+              state.phase === 'generating' &&
+              state.generationError === null &&
+              state.analysisPhase === 'running',
+          ),
+          '사전저장 응답·재조회 뒤에도 딜 3개 생성/ML 진행 중 유지',
+        )
+        assert(
+          draft.transcript === '사용자가 수정한 원문' &&
+            draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문' &&
+            draft.draftsByDeal['deal-a'].title === '직접 쓴 제목',
+          '재조회가 사용자 원문·제목·본문을 덮지 않음',
+        )
+        const progress = {
+          run_id: 'run-current',
+          status_code: 'running',
+          stage: 'report_writing',
+          previews: reports.map((report) => ({
+            section: 'deal',
+            sales_deal_id: report.salesDealId,
+            body: '검토 전 스트리밍 문장',
+            revision: 1,
+          })),
+        }
+        await act(async () => draft.receiveProgress(progress))
+        await render(
+          item,
+          reports.map((report) => ({ ...report, updatedAt: 'changed' })),
+          true,
+        )
+        assert(
+          draft.processingProgress?.previews.length === 3 &&
+            Object.values(draft.draftsByDeal).every((state) => state.phase === 'generating'),
+          '스트리밍 수신 후 재조회에서도 미리보기와 카드 생성 상태 유지',
+        )
+        assert(
+          draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문' &&
+            !Object.keys(draft.draftsByDeal['deal-b'].aiValues).length,
+          '검토 전 문장은 최종 본문이나 AI 원본에 저장하지 않음',
+        )
+        await act(async () =>
+          draft.generationFailed(['deal-a', 'deal-b', 'deal-c'], new Error('실행 실패')),
+        )
+        assert(
+          draft.processingProgress === null &&
+            draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문',
+          '실패 후 미리보기만 지우고 사람 본문 유지',
+        )
+        await render({ id: 'meeting-b', title: '다른 미팅', salesDealId: 'deal-z' }, [], true)
+        assert(
+          draft.salesDealIds.join() === 'deal-z' && draft.transcript === '',
+          '다른 미팅으로 이동하면 해당 미팅으로 새로 초기화',
+        )
+        await act(async () => root.unmount())
+        result.textContent = `PASS ${checks.length}\n${checks.join('\n')}`
+        document.title = `PASS ${checks.length} · 미팅 초안 회귀 테스트`
+      }
+      run().catch((error) => {
+        result.textContent = `FAIL\n${error.stack}`
+        document.title = 'FAIL · 미팅 초안 회귀 테스트'
+      })
+    </script>
+  </body>
+</html>

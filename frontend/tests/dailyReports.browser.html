@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>일일보고서 줄글 회귀 테스트</title>
+  </head>
+  <body>
+    <h1>일일보고서 줄글 회귀 테스트</h1>
+    <p>
+      로컬 Vite에서 /tests/dailyReports.browser.html 열기. 실제 보고서 변환 함수와 React 컴포넌트에
+      합성 입력만 사용하며 API를 호출하지 않습니다.
+    </p>
+    <pre id="result">실행 중…</pre>
+    <div id="test-root"></div>
+    <script type="module">
+      import { act, createElement, useState } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import ReportFields from '../src/components/ReportFields/ReportFields.tsx'
+      import { fromDailyReport } from '../src/pages/Daily/rows.ts'
+      import { reportTemplateFromSnapshot, templateFor } from '../src/shared/reports.ts'
+
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      const container = document.getElementById('test-root')
+      const root = createRoot(container)
+      const result = document.getElementById('result')
+      const checks = []
+      function assert(condition, message) {
+        if (!condition) throw new Error(message)
+        checks.push(message)
+      }
+      const oldSnapshot = {
+        id: 'builtin-daily',
+        name: '기본 일일보고 양식',
+        fields: [
+          { id: 'summary', label: '업무 요약', type: 'textarea', required: true, aiFilled: true },
+          { id: 'issue', label: '특이사항 · 이슈', type: 'textarea', aiFilled: true },
+          { id: 'next', label: '내일 계획', type: 'textarea', required: true, aiFilled: true },
+          { id: 'competitor', label: '경쟁사 동향', type: 'text' },
+        ],
+      }
+      const oldValues = {
+        summary: '저장된 구형 업무 요약',
+        issue: '저장된 구형 특이사항',
+        next: '저장된 구형 내일 계획',
+        competitor: '저장된 구형 경쟁사 동향',
+      }
+      const report = (template, values) => ({
+        id: 'synthetic-daily',
+        date: '2026-08-10',
+        kind: '일일',
+        owner: '합성 작성자',
+        approver: '합성 검토자',
+        status: '작성중',
+        note: '',
+        activities: [],
+        attachments: [],
+        template,
+        values,
+      })
+      let editedValues
+      function Editor() {
+        const [values, setValues] = useState({ body: '새 일일보고서 본문' })
+        editedValues = values
+        return createElement(ReportFields, {
+          template: templateFor('일일'),
+          values,
+          onChange: (id, value) => setValues((previous) => ({ ...previous, [id]: value })),
+        })
+      }
+      async function render(element) {
+        await act(async () => root.render(element))
+      }
+      async function run() {
+        const daily = templateFor('일일')
+        assert(
+          daily.id === 'builtin-daily-freeform' &&
+            daily.fields.length === 1 &&
+            daily.fields[0].id === 'body' &&
+            daily.fields[0].type === 'textarea' &&
+            daily.fields[0].required &&
+            daily.fields[0].aiFilled,
+          '새 일일보고서는 AI 작성 가능한 필수 줄글 본문 1개',
+        )
+        assert(
+          templateFor('주간')
+            .fields.map((field) => field.id)
+            .join() === 'result,plan,risk' &&
+            templateFor('월간')
+              .fields.map((field) => field.id)
+              .join() === 'perf,gap,focus',
+          '주간·월간 보고서 양식은 유지',
+        )
+        const before = JSON.stringify(oldSnapshot)
+        const restored = reportTemplateFromSnapshot(oldSnapshot, '복원 양식')
+        assert(
+          restored.id === 'builtin-daily' &&
+            restored.fields.map((field) => field.id).join() === 'summary,issue,next,competitor' &&
+            JSON.stringify(oldSnapshot) === before,
+          '저장된 구형 스냅샷은 변경 없이 4개 필드로 복원',
+        )
+        assert(
+          fromDailyReport(report(daily, { body: '  새 줄글 요약  ' })).summary === '새 줄글 요약' &&
+            fromDailyReport(report(restored, oldValues)).summary === oldValues.summary,
+          '목록 요약은 새 body와 구형 summary를 각각 보존',
+        )
+        assert(
+          fromDailyReport(report({ ...restored, fields: [] }, {})).summary === '',
+          '양식 필드가 없어도 목록 변환은 오류 없이 빈 요약 반환',
+        )
+        await render(createElement(Editor))
+        const textarea = container.querySelector('textarea')
+        assert(
+          container.querySelectorAll('textarea,input,select').length === 1 &&
+            textarea?.id === 'body' &&
+            textarea.value === '새 일일보고서 본문',
+          '실제 ReportFields 편집 화면은 본문 입력칸 하나만 표시',
+        )
+        const body = '직접 고친 일일보고서 첫 문단.\n\n두 번째 문단도 유지한다.'
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(
+            textarea,
+            body,
+          )
+          textarea.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+        assert(
+          editedValues.body === body && textarea.value === body,
+          '본문 직접 편집은 줄바꿈을 포함해 body 값에 반영',
+        )
+        await render(
+          createElement(ReportFields, { template: daily, values: editedValues, readOnly: true }),
+        )
+        assert(
+          container.querySelectorAll('textarea,input,select').length === 0 &&
+            container.textContent.includes(body),
+          '새 본문은 읽기 화면에서도 줄글 내용 전체를 표시',
+        )
+        await render(
+          createElement(ReportFields, { template: restored, values: oldValues, readOnly: true }),
+        )
+        assert(
+          container.querySelectorAll('label').length === 4 &&
+            Object.values(oldValues).every((value) => container.textContent.includes(value)),
+          '구형 저장 보고서는 읽기 화면에서 네 항목 모두 유지',
+        )
+        await act(async () => root.unmount())
+        result.textContent = `PASS ${checks.length}\n${checks.join('\n')}`
+        document.title = `PASS ${checks.length} · 일일보고서 줄글 회귀 테스트`
+      }
+      run().catch((error) => {
+        result.textContent = `FAIL\n${error.stack}`
+        document.title = 'FAIL · 일일보고서 줄글 회귀 테스트'
+      })
+    </script>
+  </body>
+</html>

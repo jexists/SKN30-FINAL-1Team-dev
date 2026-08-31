@@ -468,7 +468,9 @@ async def create_report(
             period_end=payload.period_end,
             # 작성은 언제나 draft 로 시작한다. 제출은 별도 endpoint 를 거친다.
             status_code=_INITIAL_STATUS,
-            content=payload.content,
+            content={
+                key: value for key, value in payload.content.items() if key != "meeting_shared"
+            },
             transcript=payload.transcript,
             source_snapshot=None,
             ai_evidence=None,
@@ -514,6 +516,11 @@ async def update_report(
 
         values = payload.model_dump(exclude_unset=True)
         activity_ids = values.pop("activity_ids", None)
+        if isinstance(values.get("content"), dict):
+            # 미팅 공통 편집본은 전용 API가 그룹 전체를 원자적으로 갱신한다.
+            values["content"].pop("meeting_shared", None)
+            if isinstance(report.content, dict) and "meeting_shared" in report.content:
+                values["content"]["meeting_shared"] = report.content["meeting_shared"]
 
         if "recipient_member_id" in values and values["recipient_member_id"] is not None:
             await _visible_recipient(db, member, values["recipient_member_id"])

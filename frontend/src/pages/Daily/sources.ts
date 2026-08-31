@@ -106,7 +106,9 @@ function dailySources(
           title: [report.hospital, report.salesDeal?.label, report.title]
             .filter(Boolean)
             .join(' · '),
-          desc: report.values.decision?.split('\n')[0] || '미팅 기록 확정',
+          desc:
+            (report.values.body || report.values.decision || report.values.note)?.split('\n')[0] ||
+            '미팅 기록 확정',
           included: true,
           refId: report.id,
         })
@@ -140,7 +142,9 @@ function dailySources(
       id: `meet-${report.id}`,
       source: '업무보고서',
       title: [report.hospital, report.salesDeal?.label, report.title].filter(Boolean).join(' · '),
-      desc: report.values.decision?.split('\n')[0] || '미팅 기록 확정',
+      desc:
+        (report.values.body || report.values.decision || report.values.note)?.split('\n')[0] ||
+        '미팅 기록 확정',
       included: true,
       refId: report.id,
     })

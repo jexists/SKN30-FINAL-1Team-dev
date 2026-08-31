@@ -14,6 +14,7 @@ import { useReportDetail } from '@/shared/reportQuery'
 import { fmtDay, parseISO } from '@/utils/date'
 
 import MeetingFacts from './components/MeetingFacts'
+import MeetingSharedPanel from './components/MeetingSharedPanel'
 import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
 import { toMeetingReport } from './useMeetingReports'
 
@@ -94,6 +95,32 @@ export default function Detail() {
             </span>
             <span>작성자 {report.owner}</span>
           </p>
+          {(report.assessment || report.analysisError) && (
+            <p className={styles.meta}>
+              <span
+                title={
+                  report.analysisError ??
+                  (report.assessment ? `ML 모델 ${report.assessment.model_version}` : undefined)
+                }
+              >
+                <StatusBadge
+                  label={
+                    report.analysisError
+                      ? 'ML 분석 실패'
+                      : `${report.assessment!.label === 'high' ? '성사 가능성 높음' : '관찰 필요'} · ${Math.round(report.assessment!.high_probability * 100)}%`
+                  }
+                  tone={
+                    report.analysisError
+                      ? 'red'
+                      : report.assessment!.label === 'high'
+                        ? 'green'
+                        : 'orange'
+                  }
+                />
+              </span>
+              {report.analysisError && <span>{report.analysisError}</span>}
+            </p>
+          )}
         </div>
       </header>
 
@@ -104,6 +131,7 @@ export default function Detail() {
       */}
       <div className={styles.layout}>
         <div className={styles.report}>
+          <MeetingSharedPanel shared={report.meetingShared ?? null} />
           <article className={styles.sheet}>
             <h2 className={styles.docTitle}>{report.title}</h2>
             <p className={styles.docWhen}>
