@@ -287,12 +287,7 @@ def test_business_card_uses_lightweight_paddle_engine(monkeypatch):
 
 def test_paddle_lines_reads_paddlex_nested_json_result():
     results = [
-        {
-            "json": (
-                '{"res":{"rec_texts":["오현미","010-1234-5678"],'
-                '"rec_scores":[0.98,0.91]}}'
-            )
-        }
+        {"json": ('{"res":{"rec_texts":["오현미","010-1234-5678"],"rec_scores":[0.98,0.91]}}')}
     ]
 
     assert ocr._paddle_lines(results) == [
@@ -313,9 +308,7 @@ def test_paddle_lines_reads_paddlex_dict_json_result():
         }
     ]
 
-    assert ocr._paddle_lines(results) == [
-        {"content": "제주한농부", "confidence": 0.97}
-    ]
+    assert ocr._paddle_lines(results) == [{"content": "제주한농부", "confidence": 0.97}]
 
 
 def test_paddle_engine_enables_card_orientation_and_unwarping(monkeypatch):

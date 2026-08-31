@@ -84,9 +84,7 @@ async def _run_case(case: str) -> dict[str, object]:
     return {
         "case": case,
         "status": (
-            "passed"
-            if result.plain_text.strip() and pages and expected_text_present
-            else "failed"
+            "passed" if result.plain_text.strip() and pages and expected_text_present else "failed"
         ),
         "provider": result.payload.get("ocr_provider"),
         "elapsed_seconds": round(time.perf_counter() - started, 2),

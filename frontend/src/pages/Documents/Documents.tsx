@@ -169,7 +169,9 @@ export default function Documents() {
   const review = reviewQueue[0]
   const summarizeOpenDocument = useCallback(
     (fileId: string) =>
-      openDoc ? summarizeVersion(openDoc.id, fileId) : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
+      openDoc
+        ? summarizeVersion(openDoc.id, fileId)
+        : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
     [openDoc, summarizeVersion],
   )
   const approveOpenDocument = useCallback(

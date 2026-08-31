@@ -23,9 +23,7 @@ class CleanupResult:
     deleted_audit_logs: int
 
 
-async def cleanup_expired(
-    *, now: datetime | None = None, dry_run: bool = False
-) -> CleanupResult:
+async def cleanup_expired(*, now: datetime | None = None, dry_run: bool = False) -> CleanupResult:
     """보관 정책이 지난 Storage 객체와 DB 이력을 정리한다.
 
     승인 완료 파일은 원본과 RAG를 삭제하지 않는다. 승인 전 파일만 원본 보관
@@ -39,19 +37,23 @@ async def cleanup_expired(
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as db:
         unapproved = (
-            await db.execute(
-                select(FileRow).where(
-                    FileRow.processing_status != "completed",
-                    or_(
-                        FileRow.unapproved_expires_at <= current,
-                        and_(
-                            FileRow.unapproved_expires_at.is_(None),
-                            FileRow.uploaded_at <= file_cutoff,
+            (
+                await db.execute(
+                    select(FileRow).where(
+                        FileRow.processing_status != "completed",
+                        or_(
+                            FileRow.unapproved_expires_at <= current,
+                            and_(
+                                FileRow.unapproved_expires_at.is_(None),
+                                FileRow.uploaded_at <= file_cutoff,
+                            ),
                         ),
-                    ),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if not dry_run:
             for row in unapproved:
                 await storage.remove(
@@ -73,8 +75,8 @@ async def cleanup_expired(
         if unapproved:
             review_conditions.append(FileRow.id.not_in([row.id for row in unapproved]))
         review_drafts = (
-            await db.execute(select(FileRow).where(*review_conditions))
-        ).scalars().all()
+            (await db.execute(select(FileRow).where(*review_conditions))).scalars().all()
+        )
         if not dry_run:
             for row in review_drafts:
                 await storage.remove(
@@ -86,9 +88,9 @@ async def cleanup_expired(
 
         if dry_run:
             audit_result = await db.execute(
-                select(func.count()).select_from(DocumentFileAudit).where(
-                    DocumentFileAudit.created_at <= audit_cutoff
-                )
+                select(func.count())
+                .select_from(DocumentFileAudit)
+                .where(DocumentFileAudit.created_at <= audit_cutoff)
             )
             deleted_audit_logs = audit_result.scalar_one()
         else:

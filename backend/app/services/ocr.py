@@ -85,9 +85,7 @@ async def _runpod(
     else:
         if len(content) > settings.ocr_runpod_inline_max_bytes:
             raise OcrError("runpod_source_url_required_for_large_file")
-        content_key = (
-            "file_b64" if settings.ocr_runpod_contract == "mineru" else "content_base64"
-        )
+        content_key = "file_b64" if settings.ocr_runpod_contract == "mineru" else "content_base64"
         input_payload[content_key] = base64.b64encode(content).decode("ascii")
 
     if settings.ocr_runpod_contract == "mineru":
@@ -538,9 +536,7 @@ def _configure_paddlex_cache() -> None:
     os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
 
-def _local_image(
-    *, content: bytes, file_name: str, profile: str = "document"
-) -> ExtractedDocument:
+def _local_image(*, content: bytes, file_name: str, profile: str = "document") -> ExtractedDocument:
     try:
         import numpy as np
         from PIL import Image
@@ -552,11 +548,7 @@ def _local_image(
             if profile == "business_card"
             else [np.asarray(Image.open(BytesIO(content)).convert("RGB"))]
         )
-        engine = (
-            _paddle_business_card_engine()
-            if profile == "business_card"
-            else _paddle_engine()
-        )
+        engine = _paddle_business_card_engine() if profile == "business_card" else _paddle_engine()
         line_groups = []
         for image in images:
             try:

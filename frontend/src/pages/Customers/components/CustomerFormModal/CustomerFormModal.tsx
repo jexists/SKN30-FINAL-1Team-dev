@@ -190,7 +190,8 @@ export default function CustomerFormModal({
           await client.post('/business-cards/archive', archive)
         } catch {
           // 고객 등록은 완료됐으므로 원본 보관 실패가 등록 자체를 되돌리지는 않습니다.
-          warning = '고객은 등록됐지만 명함 원본 보관에 실패했습니다. 자료실에 다시 업로드해 주세요.'
+          warning =
+            '고객은 등록됐지만 명함 원본 보관에 실패했습니다. 자료실에 다시 업로드해 주세요.'
         }
       }
       setSubmitting(false)

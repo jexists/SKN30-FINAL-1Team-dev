@@ -123,9 +123,7 @@ class DocumentFileAudit(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
-    document_id: Mapped[UUID] = mapped_column(
-        ForeignKey("public.document.id", ondelete="CASCADE")
-    )
+    document_id: Mapped[UUID] = mapped_column(ForeignKey("public.document.id", ondelete="CASCADE"))
     file_id: Mapped[UUID] = mapped_column(ForeignKey("public.file.id", ondelete="CASCADE"))
     action_code: Mapped[str]
     actor_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))

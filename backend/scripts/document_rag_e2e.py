@@ -133,9 +133,7 @@ async def run() -> dict[str, object]:
 
         await document_processing.execute(file_id)
         async with sessionmaker() as session:
-            row = (
-                await session.execute(select(FileRow).where(FileRow.id == file_id))
-            ).scalar_one()
+            row = (await session.execute(select(FileRow).where(FileRow.id == file_id))).scalar_one()
             draft = await document_processing.load_review_draft(row.storage_key)
             review_ok = (
                 row.processing_status == "review_required"
@@ -157,12 +155,16 @@ async def run() -> dict[str, object]:
             await session.commit()
 
         async with sessionmaker() as session:
-            row = (
-                await session.execute(select(FileRow).where(FileRow.id == file_id))
-            ).scalar_one()
+            row = (await session.execute(select(FileRow).where(FileRow.id == file_id))).scalar_one()
             chunks = (
-                await session.execute(select(DocumentChunk).where(DocumentChunk.file_id == file_id))
-            ).scalars().all()
+                (
+                    await session.execute(
+                        select(DocumentChunk).where(DocumentChunk.file_id == file_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             matches = await document_processing.search_chunks(
                 session,
                 team_id=team_id,
@@ -191,9 +193,7 @@ async def run() -> dict[str, object]:
     finally:
         if storage_key:
             await storage.remove(storage_key=storage_key)
-            await storage.remove(
-                storage_key=document_processing.draft_storage_key(storage_key)
-            )
+            await storage.remove(storage_key=document_processing.draft_storage_key(storage_key))
         if team_id:
             async with sessionmaker() as session:
                 await session.execute(

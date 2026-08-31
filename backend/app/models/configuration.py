@@ -96,6 +96,7 @@ class ContractStatus(Base):
 
 class QuoteStatus(Base):
     """견적서 한 장의 진행 상태. 파이프라인 단계와는 다른 축이다."""
+
     __tablename__ = "quote_status"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)

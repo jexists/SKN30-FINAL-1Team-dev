@@ -61,11 +61,7 @@ export interface SalesDocument extends Omit<SalesDocumentSeed, 'versions'> {
 }
 
 export type DocumentProcessingStatus =
-  | 'uploaded'
-  | 'processing'
-  | 'review_required'
-  | 'completed'
-  | 'failed'
+  'uploaded' | 'processing' | 'review_required' | 'completed' | 'failed'
 
 export interface DocumentFileResponse {
   id: string

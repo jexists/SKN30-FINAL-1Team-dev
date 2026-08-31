@@ -109,9 +109,7 @@ class SalesDeal(Base):
     contract_no: Mapped[str | None]
     contract_signed_on: Mapped[date | None]
     quote_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.quote_status.id"))
-    contract_status_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("public.contract_status.id")
-    )
+    contract_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.contract_status.id"))
     quote_amount: Mapped[int | None] = mapped_column(BigInteger)
     contract_amount: Mapped[int | None] = mapped_column(BigInteger)
     quote_delivery_terms: Mapped[str | None]
