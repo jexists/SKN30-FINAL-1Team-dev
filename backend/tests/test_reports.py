@@ -437,8 +437,18 @@ def test_submit_queues_only_the_reports_deal_after_commit(monkeypatch, kind, has
     report = _report(member, kind=kind)
     report.source_activity_id = uuid4() if kind == "meeting" else None
     report.sales_deal_id = uuid4() if has_deal else None
+    company_id = uuid4()
+    validation_results = (
+        [
+            _Result(rows=[(None, None, None, company_id)]),
+            _Result(rows=[(SimpleNamespace(customer_company_id=company_id),)]),
+        ]
+        if has_deal
+        else []
+    )
     db = _Db(
         _Result(scalar=report),
+        *validation_results,
         _Result(rows=[_row(report, member)]),
         _Result(rows=[]),
     )
@@ -459,6 +469,53 @@ def test_submit_queues_only_the_reports_deal_after_commit(monkeypatch, kind, has
     assert response.status_code == 200
     assert queued == ([(report.sales_deal_id, {"report_id": str(report.id)})] if has_deal else [])
     assert not db.results  # 일정의 대표 딜을 다시 조회해서 대체하지 않는다.
+
+
+@pytest.mark.parametrize("invalid", ["company", "deal", "activity", "missing_activity"])
+def test_submit_rejects_invalid_meeting_deal_before_commit(monkeypatch, invalid):
+    member = _member()
+    report = _report(member, kind="meeting")
+    report.source_activity_id = None if invalid == "missing_activity" else uuid4()
+    report.sales_deal_id = uuid4()
+    company_id = uuid4()
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+    )
+    queued = []
+
+    async def activity_row(_db, actor, activity_id):
+        assert actor is member and activity_id == report.source_activity_id
+        if invalid == "activity":
+            raise HTTPException(status_code=404, detail="activity_not_found")
+        return (None, None, None, company_id)
+
+    async def deal_row(_db, actor, deal_id):
+        assert actor is member and deal_id == report.sales_deal_id
+        if invalid == "deal":
+            raise HTTPException(status_code=404, detail="deal_not_found")
+        return (
+            SimpleNamespace(customer_company_id=uuid4() if invalid == "company" else company_id),
+        )
+
+    monkeypatch.setattr(reports_api, "_activity_row", activity_row)
+    monkeypatch.setattr(reports_api, "_sales_deal_row", deal_row)
+    monkeypatch.setattr(
+        reports_api.contract_next_meeting_pipeline, "queue", lambda *args: queued.append(args)
+    )
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/reports/{report.id}/submit",
+            headers={"Origin": ORIGIN},
+            json={"expected_status_code": "draft"},
+        )
+
+    assert response.status_code == 404
+    assert report.status_code == "draft"
+    assert db.flush_count == db.commit_count == 0
+    assert db.rollback_count == 1
+    assert queued == []
 
 
 def test_member_scope_hides_other_authors_report():

@@ -297,7 +297,7 @@ export default function Compose() {
           </div>
         </div>
 
-        <div className={styles.work} aria-label="딜별 미팅보고서">
+        <section className={styles.work} aria-label="딜별 미팅보고서">
           {draft.salesDealIds.length === 0 ? (
             <div className={styles.noDeals}>
               <h2>보고서를 작성할 딜을 선택하세요</h2>
@@ -333,7 +333,7 @@ export default function Compose() {
               )
             })
           )}
-        </div>
+        </section>
       </div>
 
       {confirm?.kind === 'apply' && (
