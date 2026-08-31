@@ -14,7 +14,7 @@ from app.api import agent_runs
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
-from app.main import app
+from app.main import app, lifespan
 from app.ml.deal_baseline import DealModelError
 from app.models.agent import AgentRun
 from app.models.content import Report
@@ -40,14 +40,20 @@ class _Secret:
 
 
 class _Result:
-    def __init__(self, *, scalar=_MISSING):
+    """SQLAlchemy Result 대체. 조회 결과와 UPDATE 영향 행 수를 함께 흉내 낸다."""
+
+    def __init__(self, *, scalar=_MISSING, rowcount=0):
+        """조회로 돌려줄 값과 UPDATE 가 바꾼 행 수를 받는다."""
         self.scalar = scalar
+        self.rowcount = rowcount
 
     def scalar_one(self):
+        """단일 행을 돌려준다. 준비된 값이 없으면 테스트를 실패시킨다."""
         assert self.scalar is not _MISSING
         return self.scalar
 
     def scalar_one_or_none(self):
+        """단일 행 또는 None 을 돌려준다. 준비된 값이 없으면 테스트를 실패시킨다."""
         assert self.scalar is not _MISSING
         return self.scalar
 
@@ -329,6 +335,91 @@ def test_meeting_analysis_requires_transcript(llm_ready):
     assert response.json() == {"detail": "transcript_required"}
 
 
+def _patch_sessionmaker(monkeypatch, db: _Db) -> None:
+    """서비스가 자체 세션을 열 때 가짜 세션을 쓰게 한다."""
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(db),
+    )
+
+
+@pytest.mark.anyio
+async def test_recover_interrupted_runs_fails_orphaned_rows(monkeypatch):
+    """프로세스가 사라져 남은 running 행을 기동 시 failed 로 회수한다."""
+    db = _Db(_Result(rowcount=2))
+    _patch_sessionmaker(monkeypatch, db)
+
+    recovered = await agent_run_service.recover_interrupted_runs()
+
+    assert recovered == 2
+    assert db.commit_count == 1
+    statement = str(db.statements[0].compile(compile_kwargs={"literal_binds": True}))
+    assert "UPDATE public.agent_run" in statement
+    assert "status_code = 'running'" in statement
+    assert agent_run_service.INTERRUPTED_ERROR in statement
+
+
+@pytest.mark.anyio
+async def test_recover_interrupted_runs_spares_freshly_started_runs(monkeypatch):
+    """무중단 배포로 컨테이너가 겹치는 동안 옛 컨테이너가 돌리는 실행은 건드리지 않는다.
+
+    새 컨테이너가 기동하면서 방금 시작된 running 행까지 failed 로 바꾸면, 살아 있는
+    작업을 죽이고 사용자 화면에는 실패로 남는다. started_at 기준 유예가 이를 막는다.
+    """
+    db = _Db(_Result(rowcount=0))
+    _patch_sessionmaker(monkeypatch, db)
+
+    await agent_run_service.recover_interrupted_runs()
+
+    params = db.statements[0].compile().params
+    moments = sorted(value for value in params.values() if isinstance(value, datetime))
+    # 회수 시각(finished_at)과 기준 시각(cutoff) 두 개가 들어간다.
+    assert len(moments) == 2
+    cutoff, finished_at = moments
+    # 기준 시각은 딱 유예만큼 과거다. 방금 시작한 실행은 이 조건에 걸리지 않는다.
+    assert finished_at - cutoff == agent_run_service.RECOVERY_GRACE
+
+
+@pytest.mark.anyio
+async def test_recover_interrupted_runs_leaves_queued_rows_alone(monkeypatch):
+    """queued 는 회수하지 않는다. 선점을 앞지르면 실행이 통째로 유실된다.
+
+    execute() 는 queued 인 행만 running 으로 바꾼다. 회수가 먼저 failed 로 바꿔버리면
+    옛 컨테이너의 백그라운드 작업이 그대로 반환해 요청이 사라진다.
+    """
+    db = _Db(_Result(rowcount=0))
+    _patch_sessionmaker(monkeypatch, db)
+
+    await agent_run_service.recover_interrupted_runs()
+
+    statement = str(db.statements[0].compile(compile_kwargs={"literal_binds": True}))
+    assert "queued" not in statement
+
+
+@pytest.mark.anyio
+async def test_recover_interrupted_runs_leaves_settled_rows_alone(monkeypatch):
+    """이미 completed/failed 로 끝난 행은 회수 대상이 아니다."""
+    db = _Db(_Result(rowcount=0))
+    _patch_sessionmaker(monkeypatch, db)
+
+    assert await agent_run_service.recover_interrupted_runs() == 0
+
+
+@pytest.mark.anyio
+async def test_startup_recovery_failure_does_not_block_boot(monkeypatch):
+    """회수가 실패해도 서버는 떠야 한다. 뒷정리가 기동을 막지 않는다."""
+
+    async def boom():
+        """회수가 DB 에 닿지 못하는 상황을 만든다."""
+        raise RuntimeError("db unreachable")
+
+    monkeypatch.setattr(agent_run_service, "recover_interrupted_runs", boom)
+
+    async with lifespan(app):
+        pass
+
+
 @pytest.mark.anyio
 async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch):
     """미팅 분석 결과와 모델 버전이 실행 이력에 저장되는지 검증한다."""
@@ -374,6 +465,49 @@ async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch)
     }
     assert first.commit_count == 1
     assert second.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_execute_clears_recovery_error_on_success(monkeypatch):
+    """회수가 앞질러 failed 로 바꿔놨어도 성공한 실행에 회수 사유를 남기지 않는다."""
+    member = _member()
+    run = _run(member)
+    run.agent_code = "meeting_analysis"
+    run.input_snapshot = {"transcript": "고객이 다음 달 예산 승인을 검토합니다."}
+    first = _Db(_Result(scalar=run))
+    second = _Db(_Result(scalar=run))
+    sessions = iter((first, second))
+    monkeypatch.setattr(
+        agent_run_service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(next(sessions)),
+    )
+
+    async def fake_run(snapshot):
+        """미팅 분석 결과를 고정해 결과 기록 단계만 본다."""
+        return SimpleNamespace(
+            deal_assessment=SimpleNamespace(model_version="test-deal-model-v1"),
+            model_dump=dict,
+        )
+
+    monkeypatch.setattr(meeting_analysis, "run", fake_run)
+
+    # LLM 을 부르는 동안 다른 컨테이너가 기동해 이 행을 회수해 간 상황을 만든다.
+    # 결과 기록 단계에서 행을 다시 읽는 시점이 회수 직후가 된다.
+    original_execute = second.execute
+
+    async def execute_after_recovery(statement):
+        """결과를 다시 읽기 직전에 회수가 끼어든 상태로 만든다."""
+        run.status_code = "failed"
+        run.error_message = agent_run_service.INTERRUPTED_ERROR
+        return await original_execute(statement)
+
+    second.execute = execute_after_recovery
+
+    await agent_run_service.execute(run.id)
+
+    assert run.status_code == "completed"
+    assert run.error_message is None
 
 
 @pytest.mark.anyio

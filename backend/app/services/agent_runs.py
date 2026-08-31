@@ -1,10 +1,10 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import contract_management, meeting_analysis, report_writing, schedule_management
@@ -19,6 +19,14 @@ from app.services import contract_schedule_snapshots
 from app.services.llm import LLMError
 
 _SEOUL = ZoneInfo("Asia/Seoul")
+
+# 프로세스가 사라져 결과를 기록하지 못한 실행에 남기는 사유.
+INTERRUPTED_ERROR = "interrupted_by_restart"
+
+# 이 시간이 지나도 running 인 실행은 결과를 쓸 주체가 사라진 것으로 본다.
+# 무중단 배포는 새 컨테이너를 띄운 뒤 헬스체크(최대 60초)와 드레인(10초)을 거쳐야
+# 옛 컨테이너를 내린다. 그동안 옛 컨테이너가 돌리는 실행을 끊지 않도록 넉넉히 잡는다.
+RECOVERY_GRACE = timedelta(minutes=10)
 
 
 def _seoul(value: datetime | None) -> datetime | None:
@@ -265,6 +273,42 @@ async def create(
     return read, run.id
 
 
+async def recover_interrupted_runs() -> int:
+    """서버가 뜰 때, 이전 프로세스가 남긴 running 실행을 failed 로 회수한다.
+
+    실행은 BackgroundTasks 로 이 프로세스 안에서만 돈다. 프로세스가 사라지면 결과를 기록할
+    주체도 함께 사라져서 행이 running 인 채로 남는다. 도는 것은 없는데 화면에는 계속
+    "실행 중"으로 보이므로, 뜨는 시점에 정리하고 요청을 받는다.
+
+    회수 대상은 started_at 이 RECOVERY_GRACE 보다 오래된 행뿐이다. 무중단 배포는 새
+    컨테이너를 띄운 채 옛 컨테이너로 트래픽을 계속 보내므로, 기동 시점에 남의 실행이
+    돌고 있을 수 있다. 방금 시작한 실행까지 끊으면 살아 있는 작업을 죽인다.
+
+    ponytail: queued 는 대상이 아니다. agent_run 에 생성 시각이 없어 나이를 못 재는데,
+    회수했다가 틀리면 execute() 가 선점 실패로 보고 그냥 반환해 요청이 유실된다. API 도
+    파이프라인도 커밋 직후 execute() 를 부르므로 queued 로 머무는 구간은 1초 미만이라
+    고아 행 자체가 드물다. 확실히 덮으려면 created_at 컬럼이 필요하다.
+    """
+    now = datetime.now(UTC)
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as session:
+        result = await session.execute(
+            update(AgentRun)
+            .where(
+                AgentRun.status_code == "running",
+                AgentRun.started_at.is_not(None),
+                AgentRun.started_at < now - RECOVERY_GRACE,
+            )
+            .values(
+                status_code="failed",
+                error_message=INTERRUPTED_ERROR,
+                finished_at=now,
+            )
+        )
+        await session.commit()
+    return result.rowcount
+
+
 async def execute(run_id: UUID) -> None:
     """백그라운드 실행. 요청 세션이 닫힌 뒤라 자체 세션을 쓴다."""
     sessionmaker = get_sessionmaker()
@@ -331,6 +375,9 @@ async def execute(run_id: UUID) -> None:
         else:
             run.status_code = "completed"
             run.output_snapshot = output.model_dump()
+            # 회수가 이 실행을 failed 로 앞질렀어도 결과는 여기서 확정된다.
+            # 사유를 지우지 않으면 completed 행에 회수 흔적이 남는다.
+            run.error_message = None
             if run.agent_code == "report_writing":
                 # 제안일 뿐이다. 사람이 확인해 보고서에 반영하기 전에는 report 를 고치지 않는다.
                 run.evidence = {
