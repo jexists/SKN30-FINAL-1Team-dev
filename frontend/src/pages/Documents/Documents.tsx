@@ -59,6 +59,7 @@ export default function Documents() {
   /** 업로드 모달. 'new' 는 새 문서, 문서 id 면 그 문서의 새 버전입니다. */
   const [uploading, setUploading] = useState<string | null>(null)
   const [reviewQueue, setReviewQueue] = useState<{ documentId: string; fileId: string }[]>([])
+  const [reviewQueueError, setReviewQueueError] = useState<string | null>(null)
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   // 조건이 바뀌면 첫 페이지로 돌아옵니다. 3페이지에 있다가 결과가 줄면 빈 화면을 봅니다.
@@ -139,14 +140,14 @@ export default function Documents() {
   const onUpload = async (results: UploadResult[]) => {
     try {
       const nextReviews: { documentId: string; fileId: string }[] = []
+      setReviewQueueError(null)
       if (versionTarget) {
         const [result] = results
-        const updated = await addVersion(versionTarget.id, result.file, profile.name, result.note)
-        const latest = updated.files.at(-1)
-        if (latest) nextReviews.push({ documentId: updated.id, fileId: latest.id })
+        const uploaded = await addVersion(versionTarget.id, result.file, profile.name, result.note)
+        nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
       } else {
         for (const result of [...results].reverse()) {
-          const created = await addDocument({
+          const uploaded = await addDocument({
             file: result.file,
             owner: profile.name,
             note: result.note,
@@ -155,8 +156,7 @@ export default function Documents() {
             link: result.link,
             description: result.description,
           })
-          const latest = created.files.at(-1)
-          if (latest) nextReviews.push({ documentId: created.id, fileId: latest.id })
+          nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
         }
       }
       setUploading(null)
@@ -196,8 +196,9 @@ export default function Documents() {
     [approveSummary, openDoc, reload, reviewQueue],
   )
   const completeQueuedSummary = useCallback(
-    (fileId: string) => {
+    (fileId: string, failureMessage?: string) => {
       if (reviewQueue[0]?.fileId !== fileId) return
+      if (failureMessage) setReviewQueueError(failureMessage)
       const next = reviewQueue[1]
       setReviewQueue((current) => current.slice(1))
       reload()
@@ -227,6 +228,7 @@ export default function Documents() {
       <h1 className="sr-only">자료실</h1>
 
       <ErrorToast message={error} onRetry={reload} />
+      <ErrorToast message={reviewQueueError} />
 
       <div className={styles.toolbar}>
         <SearchInput

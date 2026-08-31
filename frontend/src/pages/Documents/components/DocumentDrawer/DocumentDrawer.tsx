@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import { DownloadIcon, UploadIcon } from '@/components/icons'
@@ -22,7 +23,7 @@ interface Props {
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
   onLoadSummary: (fileId: string) => Promise<DocumentSummaryResponse>
   autoSummarizeFileId?: string
-  onSummaryCompleted?: (fileId: string) => void
+  onSummaryCompleted?: (fileId: string, failureMessage?: string) => void
   onApproveSummary: (fileId: string) => Promise<DocumentSummaryResponse>
 }
 
@@ -71,9 +72,22 @@ export default function DocumentDrawer({
       void onSummarize(fileId)
         .then((result) => {
           setSummary(result)
-          if (result.processing_status === 'completed') onSummaryCompleted?.(result.file_id)
+          if (result.processing_status === 'completed') {
+            onSummaryCompleted?.(result.file_id)
+          } else if (result.processing_status === 'failed') {
+            const message = '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+            setSummaryError(message)
+            onSummaryCompleted?.(result.file_id, message)
+          }
         })
-        .catch(() => setSummaryError('문서 요약을 생성하지 못했습니다.'))
+        .catch((reason: unknown) => {
+          const message =
+            reason instanceof Error && reason.message === 'document_summary_timeout'
+              ? '문서 요약 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
+              : errorMessage(reason, '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+          setSummaryError(message)
+          onSummaryCompleted?.(fileId, message)
+        })
         .finally(() => setSummaryLoading(false))
     },
     [onSummarize, onSummaryCompleted],
