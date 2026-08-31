@@ -9,7 +9,6 @@ API key 는 서버 환경변수에서만 읽고 응답이나 로그에 남기지
 import asyncio
 import json
 from time import perf_counter
-from typing import Any
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -42,8 +41,10 @@ def safe_token_usage(usage: object) -> dict[str, int]:
     return counts
 
 
-def _extract_text(payload: dict[str, Any]) -> str:
+def _extract_text(payload: object) -> str:
     """공급자 응답에서 모델이 쓴 본문만 꺼낸다."""
+    if not isinstance(payload, dict):
+        raise LLMError("llm_response_not_object")
     text = payload.get("output_text")
     if isinstance(text, str) and text.strip():
         return text

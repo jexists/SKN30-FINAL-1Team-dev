@@ -140,6 +140,51 @@ async def test_http_usage_is_recorded_even_when_output_schema_fails(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "payload",
+    [[], ["private-provider-output"], "private-provider-output", None, 42, False],
+    ids=["empty-array", "array", "string", "null", "number", "boolean"],
+)
+async def test_non_object_response_uses_safe_llm_error(
+    configured_llm, monkeypatch, caplog, payload
+):
+    original_client = httpx.AsyncClient
+    monkeypatch.setattr(llm.settings, "llm_provider", "external")
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            content=json.dumps(payload),
+            headers={"Content-Type": "application/json", "x-request-id": "req_safe_test"},
+        )
+    )
+    monkeypatch.setattr(
+        llm.httpx,
+        "AsyncClient",
+        lambda **kwargs: original_client(transport=transport, **kwargs),
+    )
+
+    with pytest.raises(llm.LLMError, match="^llm_response_not_object$"):
+        await llm.generate_structured(
+            instructions="private-instructions",
+            input_text="private-transcript",
+            schema=_Result,
+            schema_name="safe_test",
+        )
+
+    errors = [
+        json.loads(record.message.removeprefix("agent_error "))
+        for record in caplog.records
+        if record.message.startswith("agent_error ")
+    ]
+    assert len(errors) == 1
+    assert errors[0]["stage"] == "llm.output_text"
+    assert errors[0]["exceptions"][0]["type"] == "LLMError"
+    assert errors[0]["request_id"] == "req_safe_test"
+    assert "private-" not in caplog.text
+    assert "provider.invalid" not in caplog.text
+
+
+@pytest.mark.anyio
 async def test_cancellation_keeps_safe_timing_without_fake_usage(
     configured_llm, monkeypatch, caplog
 ):
