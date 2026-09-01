@@ -13,12 +13,14 @@
     <pre id="result">실행 중…</pre>
     <div id="test-root"></div>
     <script type="module">
-      import { act, createElement } from 'react'
+      import { act, createElement, Fragment } from 'react'
       import { createRoot } from 'react-dom/client'
       import { createMemoryRouter, RouterProvider } from 'react-router'
       import { client } from '../src/api/client.ts'
       import { SessionContext } from '../src/auth/sessionContext.ts'
+      import ToastHost from '../src/components/Toast/ToastHost.tsx'
       import Compose from '../src/pages/Meetings/Compose.tsx'
+      import { getMeetingGeneration } from '../src/pages/Meetings/meetingGenerationStore.ts'
       import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
       import { getToasts } from '../src/shared/toast.ts'
 
@@ -68,6 +70,24 @@
         const pendingSaves = []
         const pendingReportSaves = []
         const unexpectedRequests = []
+        const eventSources = []
+        let appliedBackgroundRun = 0
+        const NativeEventSource = window.EventSource
+        window.EventSource = class {
+          listeners = new Map()
+          onerror = null
+          constructor(url) {
+            this.url = url
+            eventSources.push(this)
+          }
+          addEventListener(type, listener) {
+            this.listeners.set(type, listener)
+          }
+          close() {}
+          emit(type, data) {
+            this.listeners.get(type)?.({ data: JSON.stringify(data) })
+          }
+        }
         const response = (config, data) => ({
           config,
           data,
@@ -146,6 +166,31 @@
               pendingReportSaves.push({ config, resolve, reject }),
             )
           }
+          if (
+            config.method === 'patch' &&
+            config.url === '/reports/report-meeting-background'
+          ) {
+            return response(config, report('meeting-background'))
+          }
+          if (config.method === 'post' && config.url === '/agent-runs') {
+            return response(config, {
+              id: 'run-background-agent',
+              status_code: 'running',
+              output_snapshot: null,
+              evidence: null,
+              error_message: null,
+            })
+          }
+          if (
+            config.method === 'post' &&
+            config.url === '/agent-runs/run-background-agent/apply'
+          ) {
+            appliedBackgroundRun += 1
+            const completed = report('meeting-background')
+            completed.source_snapshot = { meeting_run_id: 'run-background-agent' }
+            completed.content.values = { body: '화면 밖에서 완성된 보고서' }
+            return response(config, [completed])
+          }
           unexpectedRequests.push(config.url)
           throw new Error(`예상하지 않은 요청: ${config.url}`)
         }
@@ -160,14 +205,21 @@
           login: async () => {},
           logout: async () => {},
         }
+        const screen = (child) =>
+          createElement(
+            SessionContext,
+            { value: session },
+            createElement(Fragment, null, createElement(ToastHost), child),
+          )
         const router = createMemoryRouter(
           [
+            { path: '/meetings/new', element: screen(createElement(Compose)) },
             {
-              path: '*',
-              element: createElement(SessionContext, { value: session }, createElement(Compose)),
+              path: '/away',
+              element: screen(createElement('p', { id: 'away' }, '다른 업무 화면')),
             },
           ],
-          { initialEntries: ['/?agenda=meeting-a'] },
+          { initialEntries: ['/meetings/new?agenda=meeting-a'] },
         )
         const button = (text) =>
           [...container.querySelectorAll('button')].find((el) => el.textContent === text)
@@ -178,7 +230,7 @@
           await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
         }
         async function navigate(id, suffix = '') {
-          await act(async () => router.navigate(`/?agenda=${id}${suffix}`))
+          await act(async () => router.navigate(`/meetings/new?agenda=${id}${suffix}`))
           for (
             let at = 0;
             at < 20 && container.querySelector('#transcript')?.value !== `${id} 미팅 원문`;
@@ -306,11 +358,61 @@
             container.textContent.includes('저장하지 않은 변경사항'),
             '저장 후 수정하면 완료 표시를 미저장 상태로 전환',
           )
+
+          await navigate('meeting-background')
+          await act(async () => button('미팅 전체 분석·보고서 작성').click())
+          for (let at = 0; at < 20 && eventSources.length === 0; at += 1) await flush()
+          assert(eventSources.length === 1, '백그라운드 미팅 실행이 시작됨')
+          await act(async () => router.navigate('/away'))
+          assert(!!container.querySelector('#away'), '보고서 작성 중 다른 화면으로 이동')
+          await act(async () => {
+            eventSources[0].emit('done', {
+              id: 'run-background-agent',
+              status_code: 'completed',
+              output_snapshot: {
+                reports: { deal_reports: [], common_report: null, unassigned_report: null },
+                analyses: [],
+                evidence: {},
+                errors: {},
+              },
+              evidence: null,
+              error_message: null,
+            })
+            await flush()
+          })
+          for (let at = 0; at < 20 && appliedBackgroundRun === 0; at += 1) await flush()
+          const returnLink = [...container.querySelectorAll('a')].find(
+            (link) => link.textContent === '보고서 보기',
+          )
+          assert(
+            appliedBackgroundRun === 1 && returnLink,
+            '화면 밖에서도 결과를 적용하고 돌아가기 알림 표시',
+          )
+          await act(async () => returnLink.click())
+          for (
+            let at = 0;
+            at < 20 && container.querySelector('#transcript')?.value !== 'meeting-background 미팅 원문';
+            at += 1
+          )
+            await flush()
+          assert(
+            container.querySelector('#transcript')?.value === 'meeting-background 미팅 원문',
+            '완료 알림으로 작성 화면에 복귀',
+          )
+          assert(
+            ![...container.querySelectorAll('a')].some((link) => link.textContent === '보고서 보기'),
+            '복귀하며 완료 알림 닫기',
+          )
+          assert(
+            getMeetingGeneration('meeting-background') === null,
+            '반영한 완료 결과는 다시 덮어쓰지 않도록 소비',
+          )
           assert(unexpectedRequests.length === 0, '정의한 메모리 응답 외 서버 요청 없음')
         } finally {
           await act(async () => composeRoot.unmount())
           router.dispose()
           client.defaults.adapter = adapter
+          window.EventSource = NativeEventSource
         }
       }
       async function run() {
@@ -382,6 +484,12 @@
           draft.processingProgress === null &&
             draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문',
           '실패 후 미리보기만 지우고 사람 본문 유지',
+        )
+        await act(async () => draft.beginGeneration(['deal-not-yet-saved']))
+        assert(
+          draft.salesDealIds.includes('deal-not-yet-saved') &&
+            draft.draftsByDeal['deal-not-yet-saved'].phase === 'generating',
+          '서버 조회 전인 선택 딜도 실행 스냅샷으로 복원',
         )
         await render({ id: 'meeting-b', title: '다른 미팅', salesDealId: 'deal-z' }, [], true)
         assert(

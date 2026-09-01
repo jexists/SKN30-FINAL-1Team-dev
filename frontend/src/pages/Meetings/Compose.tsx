@@ -15,18 +15,24 @@ import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
 import { showToast } from '@/shared/toast'
-import type { MeetingAssignmentOverride, MeetingDealRef } from '@/types'
+import type { MeetingAssignmentOverride, MeetingDealRef, MeetingProgress } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
-import { canReassignEvidence, runDealGeneration } from './generatedDraft'
+import { canReassignEvidence } from './generatedDraft'
+import {
+  acknowledgeMeetingGeneration,
+  startMeetingGeneration,
+  useMeetingGeneration,
+} from './meetingGenerationStore'
 import useCompanyDeals from './useCompanyDeals'
 import useMeetingDraft from './useMeetingDraft'
 import useMeetingReports, {
   type MeetingDraftPayload,
+  saveMeetingDraft,
   toMeetingReport,
   useMeetingReportsOfAgenda,
 } from './useMeetingReports'
@@ -41,10 +47,14 @@ type SaveFeedback =
 export default function Compose() {
   const [params] = useSearchParams()
   const { memberId, isManager } = useCurrentUser()
-  const activeGenerations = useRef(new Set<string>())
-  const processingAbort = useRef<AbortController | null>(null)
+  const notesAbort = useRef<AbortController | null>(null)
   const saveAbort = useRef<AbortController | null>(null)
-  const [generating, setGenerating] = useState(false)
+  const mirroredGeneration = useRef({
+    requestId: '',
+    progress: null as MeetingProgress | null,
+    reportIds: new Set<string>(),
+    terminal: false,
+  })
   const [savingNotes, setSavingNotes] = useState(false)
   const [savingAll, setSavingAll] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null)
@@ -52,17 +62,24 @@ export default function Compose() {
   const [runErrors, setRunErrors] = useState<Record<string, string>>({})
   const [notesDirty, setNotesDirty] = useState(false)
   const agendaId = params.get('agenda') ?? ''
+  const generation = useMeetingGeneration(agendaId)
+  const generating = generation?.status === 'running'
   useEffect(() => {
-    setGenerating(false)
     setSavingNotes(false)
     setSavingAll(false)
     setSaveFeedback(null)
     setNotesDirty(false)
     setRunError(null)
     setRunErrors({})
+    mirroredGeneration.current = {
+      requestId: '',
+      progress: null,
+      reportIds: new Set<string>(),
+      terminal: false,
+    }
     return () => {
-      processingAbort.current?.abort()
-      processingAbort.current = null
+      notesAbort.current?.abort()
+      notesAbort.current = null
       saveAbort.current?.abort()
       saveAbort.current = null
     }
@@ -80,11 +97,56 @@ export default function Compose() {
     reload,
   } = useMeetingReportsOfAgenda(agendaId)
   const { saveDraft, pending } = useMeetingReports()
-  const draft = useMeetingDraft(
-    item,
-    savedReports,
-    !agendaLoading && !loading && !agendaError && !loadError && item?.id === agendaId,
-  )
+  const draftReady =
+    !agendaLoading && !loading && !agendaError && !loadError && item?.id === agendaId
+  const draft = useMeetingDraft(item, savedReports, draftReady)
+  const { beginGeneration, bindReport, receiveProgress, acceptGenerated, generationFailed } = draft
+  useEffect(() => {
+    if (!generation || !draftReady) return
+    const mirror = mirroredGeneration.current
+    if (mirror.requestId !== generation.requestId) {
+      mirror.requestId = generation.requestId
+      mirror.progress = null
+      mirror.reportIds = new Set<string>()
+      mirror.terminal = false
+      beginGeneration(generation.dealIds)
+      setRunError(null)
+      setRunErrors({})
+    }
+
+    for (const report of generation.savedReports) {
+      if (!report.salesDealId || mirror.reportIds.has(report.id)) continue
+      mirror.reportIds.add(report.id)
+      bindReport(report.salesDealId, report)
+    }
+
+    if (generation.status === 'running') {
+      if (generation.progress && mirror.progress !== generation.progress) {
+        mirror.progress = generation.progress
+        receiveProgress(generation.progress)
+      }
+      return
+    }
+    if (mirror.terminal) return
+    mirror.terminal = true
+    if (generation.status === 'completed') {
+      acceptGenerated(generation.reports, generation.writingFailed)
+      setRunErrors(generation.errors)
+    } else {
+      generationFailed(generation.dealIds, new Error(generation.error))
+      setRunError(generation.error)
+    }
+    acknowledgeMeetingGeneration(agendaId, generation.requestId)
+  }, [
+    generation,
+    draftReady,
+    agendaId,
+    beginGeneration,
+    bindReport,
+    receiveProgress,
+    acceptGenerated,
+    generationFailed,
+  ])
   const deals = useCompanyDeals(item?.customerCompanyId)
   const [confirm, setConfirm] = useState<Confirm>(null)
 
@@ -222,83 +284,64 @@ export default function Compose() {
 
   // 잠금 키는 딜이 아니라 미팅입니다. 사전저장부터 서버 apply까지 한 번만 실행합니다.
   const generateAll = async (overrides: MeetingAssignmentOverride[] = []) => {
-    if (busy || activeGenerations.current.has(agendaId) || !generatable || !draft.canGenerate)
-      return false
+    if (busy || !generatable || !draft.canGenerate) return false
     if (notesDirty) {
       setRunError('수정한 공통·미지정 메모를 먼저 저장한 뒤 다시 생성하세요.')
       return false
     }
     if (overrides.length && !canReassign) return false
     const targets = [...draft.salesDealIds]
-    const controller = new AbortController()
-    processingAbort.current = controller
-    return runDealGeneration(
-      activeGenerations.current,
+    const payloads = targets.map(payloadFor)
+    const rerun = overrides.length
+      ? {
+          parent_run_id: result!.runId,
+          assignment_overrides: [...overrides],
+        }
+      : undefined
+    setRunError(null)
+    setRunErrors({})
+    return startMeetingGeneration({
       agendaId,
-      () => {
-        if (!controller.signal.aborted) setGenerating(activeGenerations.current.has(agendaId))
-      },
-      async () => {
-        setRunError(null)
-        setRunErrors({})
-        draft.beginGeneration(targets)
-        try {
-          const reports = await Promise.all(
-            targets.map(async (id) => {
-              const report = await saveDraft(payloadFor(id), controller.signal)
-              if (!controller.signal.aborted) draft.bindReport(id, report)
-              return report
-            }),
-          )
-          if (controller.signal.aborted) return false
-          const run = await processMeeting(
-            reports.map((report) => report.id),
-            overrides.length
-              ? {
-                  parent_run_id: result!.runId,
-                  assignment_overrides: overrides,
-                }
-              : undefined,
-            (progress) => {
-              if (controller.signal.aborted || processingAbort.current !== controller) return
-              draft.receiveProgress({
-                ...progress,
-                previews: progress.previews.filter(
-                  (preview) =>
-                    preview.section !== 'deal' || targets.includes(preview.sales_deal_id!),
-                ),
-              })
-            },
-            controller.signal,
-          )
-          if (controller.signal.aborted) return false
-          const persisted = await applyMeetingProcessing(run.id)
-          if (controller.signal.aborted) return false
-          draft.acceptGenerated(
-            persisted.map(toMeetingReport),
-            run.output_snapshot.reports === null,
-          )
-          setRunErrors(run.output_snapshot.errors)
-          showToast(
-            Object.keys(run.output_snapshot.errors).length
-              ? '미팅 처리가 일부 완료됐습니다. 실패한 항목을 확인하세요.'
-              : `${targets.length}개 딜의 보고서와 분석 결과를 저장했습니다.`,
-          )
-          return true
-        } catch (reason: unknown) {
-          if (controller.signal.aborted) return false
-          draft.generationFailed(targets, reason)
-          setRunError(errorMessage(reason, '미팅 처리를 완료하지 못했습니다.'))
-          return false
+      dealIds: targets,
+      execute: async (onProgress, onReportSaved) => {
+        const saved = await Promise.allSettled(
+          payloads.map(async (payload) => {
+            const report = await saveMeetingDraft(payload)
+            onReportSaved(report)
+            return report
+          }),
+        )
+        const failed = saved.find((entry) => entry.status === 'rejected')
+        if (failed?.status === 'rejected') throw failed.reason
+        const reports = saved.flatMap((entry) =>
+          entry.status === 'fulfilled' ? [entry.value] : [],
+        )
+        const run = await processMeeting(
+          reports.map((report) => report.id),
+          rerun,
+          (progress) => {
+            onProgress({
+              ...progress,
+              previews: progress.previews.filter(
+                (preview) => preview.section !== 'deal' || targets.includes(preview.sales_deal_id!),
+              ),
+            })
+          },
+        )
+        const persisted = await applyMeetingProcessing(run.id)
+        return {
+          reports: persisted.map(toMeetingReport),
+          writingFailed: run.output_snapshot.reports === null,
+          errors: run.output_snapshot.errors,
         }
       },
-    )
+    })
   }
 
   const saveShared = async (common: string | null, unassigned: string | null) => {
     if (busy || !canEditNotes || !result) return
     const controller = new AbortController()
-    processingAbort.current = controller
+    notesAbort.current = controller
     setSavingNotes(true)
     setRunError(null)
     try {
@@ -315,7 +358,10 @@ export default function Compose() {
       if (controller.signal.aborted) return
       setRunError(errorMessage(reason, '미팅 메모를 저장하지 못했습니다.'))
     } finally {
-      if (!controller.signal.aborted) setSavingNotes(false)
+      if (notesAbort.current === controller) {
+        notesAbort.current = null
+        setSavingNotes(false)
+      }
     }
   }
 
@@ -323,7 +369,6 @@ export default function Compose() {
     if (
       busy ||
       saveAbort.current ||
-      activeGenerations.current.has(agendaId) ||
       editableDealIds.length === 0 ||
       emptyDealIds.length > 0 ||
       brokenDealIds.length > 0

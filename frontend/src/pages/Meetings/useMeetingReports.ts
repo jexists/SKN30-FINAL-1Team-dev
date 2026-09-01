@@ -254,6 +254,38 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
   }
 }
 
+async function persistMeetingReport(
+  draft: MeetingDraftPayload,
+  submit: boolean,
+  signal?: AbortSignal,
+) {
+  const request = requestOf(draft)
+  const {
+    report_kind: _kind,
+    source_activity_id: _source,
+    sales_deal_id: _deal,
+    ...patch
+  } = request
+  const saved = draft.reportId
+    ? await client.patch<ReportResponse>(`/reports/${draft.reportId}`, patch, { signal })
+    : await client.post<ReportResponse>('/reports', request, { signal })
+  // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
+  // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
+  const from = draft.statusCode ?? 'draft'
+  const response =
+    submit && (from === 'draft' || from === 'changes_requested')
+      ? await client.post<ReportResponse>(
+          `/reports/${saved.data.id}/submit`,
+          { expected_status_code: from },
+          { signal },
+        )
+      : saved
+  return toMeetingReport(response.data)
+}
+
+/** 페이지가 사라져도 전역 미팅 실행이 사전저장을 끝낼 수 있는 상태 없는 저장 함수입니다. */
+export const saveMeetingDraft = (draft: MeetingDraftPayload) => persistMeetingReport(draft, false)
+
 /** 그 날 쓴 업무보고서들. 하루치라 한 쪽에 다 들어옵니다. */
 export function useMeetingReportsOn(dateISO: string, enabled = true) {
   const { items, loading, error, reload } = useReportQuery(
@@ -283,30 +315,7 @@ export default function useMeetingReports() {
       setPendingCount((count) => count + 1)
       setError(null)
       try {
-        const request = requestOf(draft)
-        const {
-          report_kind: _kind,
-          source_activity_id: _source,
-          sales_deal_id: _deal,
-          ...patch
-        } = request
-        const saved = draft.reportId
-          ? await client.patch<ReportResponse>(`/reports/${draft.reportId}`, patch, { signal })
-          : await client.post<ReportResponse>('/reports', request, { signal })
-        // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
-        // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
-        const from = draft.statusCode ?? 'draft'
-        const response =
-          submit && (from === 'draft' || from === 'changes_requested')
-            ? await client.post<ReportResponse>(
-                `/reports/${saved.data.id}/submit`,
-                {
-                  expected_status_code: from,
-                },
-                { signal },
-              )
-            : saved
-        return toMeetingReport(response.data)
+        return await persistMeetingReport(draft, submit, signal)
       } catch (reason: unknown) {
         if (!signal?.aborted) {
           setError(

@@ -200,6 +200,7 @@ export default function useMeetingDraft(
   const beginGeneration = useCallback(
     (dealIds: string[]) => {
       setProcessingProgress(null)
+      setSalesDealIds((previous) => [...new Set([...previous, ...dealIds])])
       for (const id of dealIds)
         updateDeal(id, (draft) => ({
           ...draft,
