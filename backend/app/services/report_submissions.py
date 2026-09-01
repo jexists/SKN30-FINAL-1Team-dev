@@ -46,6 +46,20 @@ def _legacy_shared_body(content: Any, key: str) -> str | None:
     return _text(_mapping(item).get("body"))
 
 
+def _declared_legacy_values(report: Report, content: dict[str, Any]) -> dict[str, Any]:
+    """Recover only top-level values named by the report's frozen template."""
+    fields = _mapping(getattr(report, "template_snapshot", None)).get("fields")
+    if not isinstance(fields, list):
+        return {}
+    output: dict[str, Any] = {}
+    for raw_field in fields:
+        field_id = _mapping(raw_field).get("id")
+        if not isinstance(field_id, str) or field_id == "body" or field_id not in content:
+            continue
+        output[field_id] = content[field_id]
+    return output
+
+
 def effective_report_fields(report: Report) -> dict[str, Any]:
     """Return normalized human-facing fields, with a read-only legacy fallback."""
     content = _mapping(report.content)
@@ -53,6 +67,10 @@ def effective_report_fields(report: Report) -> dict[str, Any]:
     structured = _mapping(getattr(report, "structured_values", None))
     if not structured:
         structured = {key: value for key, value in values.items() if key != "body"}
+    if not structured:
+        # Old period reports stored template fields directly under ``content``.  A template-id
+        # allowlist keeps AI drafts, transcripts, activities, and metadata out of submissions.
+        structured = _declared_legacy_values(report, content)
     return {
         "title": _text(getattr(report, "title", None)) or _text(content.get("title")),
         "body": _text(getattr(report, "body", None))

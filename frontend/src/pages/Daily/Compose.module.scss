@@ -14,11 +14,27 @@
 }
 
 .saved,
-.locked {
+.locked,
+.review {
   margin-bottom: var(--s3);
   padding: var(--s3) var(--s4);
   border-radius: var(--r-md);
   font-size: 13px;
+}
+
+.review {
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+
+  strong {
+    display: block;
+    margin-bottom: var(--s1);
+  }
+
+  p {
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
 }
 
 .saved {
@@ -216,6 +232,7 @@
   .head.head,
   .saved.saved,
   .locked.locked,
+  .review.review,
   .reference.reference,
   .input.input,
   .actions.actions,

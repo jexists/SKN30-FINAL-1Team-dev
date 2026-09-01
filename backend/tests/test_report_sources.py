@@ -594,6 +594,38 @@ def test_body_values_never_fall_back_to_ai_or_metadata(sample):
     assert run(sample)["reports"][0]["values"] == {}
 
 
+def test_submission_snapshot_recovers_only_declared_legacy_top_level_fields(sample):
+    _, report, _, _ = sample
+    report.report_kind = "daily"
+    report.template_snapshot = {
+        "id": "legacy-daily",
+        "fields": [
+            {"id": "summary", "label": "요약"},
+            {"id": "issue", "label": "이슈"},
+            {"id": "body", "label": "본문"},
+        ],
+    }
+    report.content = {
+        "summary": "레거시 요약",
+        "issue": "레거시 이슈",
+        "body": "레거시 실제 본문",
+        "ai_values": {"summary": "보존하면 안 되는 AI 초안"},
+        "transcript": "보존하면 안 되는 원문",
+        "activities": [{"title": "보존하면 안 되는 메타데이터"}],
+    }
+
+    snapshot = report_submissions.build_submission_snapshot(report, [])
+
+    assert snapshot["structured_values"] == {
+        "summary": "레거시 요약",
+        "issue": "레거시 이슈",
+    }
+    assert snapshot["body"] == "레거시 실제 본문"
+    assert "ai_values" not in snapshot["structured_values"]
+    assert "transcript" not in snapshot["structured_values"]
+    assert "activities" not in snapshot["structured_values"]
+
+
 def test_malformed_source_discriminator_returns_validation_error(sample):
     _, parent, _, lookup = sample
     parent.content["activities"] = [{"source": [], "included": True}]

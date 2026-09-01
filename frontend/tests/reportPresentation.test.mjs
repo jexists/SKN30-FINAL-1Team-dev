@@ -16,6 +16,12 @@ const { historyQueryScopes } = await vite.ssrLoadModule('/src/pages/Daily/useRep
 const { meetingRequestOf, toMeetingReport } = await vite.ssrLoadModule(
   '/src/pages/Meetings/useMeetingReports.ts',
 )
+const { canEditPeriodReport, detailTemplateOf, ownPeriodReportQuery, toReport } =
+  await vite.ssrLoadModule('/src/pages/Daily/useDailyReports.ts')
+const { default: ReportFields } = await vite.ssrLoadModule(
+  '/src/components/ReportFields/ReportFields.tsx',
+)
+const { initScope, resetScope } = await vite.ssrLoadModule('/src/shared/scope.ts')
 const { default: MeetingSharedPanel } = await vite.ssrLoadModule(
   '/src/pages/Meetings/components/MeetingSharedPanel.tsx',
 )
@@ -59,6 +65,86 @@ const ledger = () => ({
 })
 const convertLedger = (evidence) =>
   toMeetingReport({ ...response(), source_snapshot: { evidence } }).evidenceLedger
+
+const periodResponse = ({
+  body = null,
+  structuredValues = {},
+  status = 'draft',
+  reviewNote = null,
+} = {}) => ({
+  id: 'synthetic-period-report',
+  author_member_id: 'synthetic-author',
+  author_display_name: '합성 작성자',
+  recipient_display_name: '합성 팀장',
+  report_kind: 'daily',
+  report_date: '2026-08-31',
+  period_start: null,
+  period_end: null,
+  status_code: status,
+  version: 1,
+  current_submission_id: null,
+  template_snapshot: {
+    id: 'legacy-daily',
+    fields: [{ id: 'summary', label: '요약', type: 'textarea' }],
+  },
+  content: {},
+  body,
+  structured_values: structuredValues,
+  transcript: null,
+  note: null,
+  review_note: reviewNote,
+  activities: [],
+})
+
+test('기간 보고서 상세는 구조화 요약과 별도 본문을 함께 보이고 같은 본문은 중복하지 않는다', () => {
+  const report = toReport(
+    periodResponse({ body: '실제 canonical 본문', structuredValues: { summary: '기존 요약' } }),
+  )
+  const view = renderToStaticMarkup(
+    createElement(ReportFields, {
+      template: detailTemplateOf(report),
+      values: report.values,
+      readOnly: true,
+    }),
+  )
+  assert.match(view, /기존 요약/)
+  assert.match(view, /실제 canonical 본문/)
+
+  const duplicated = toReport(
+    periodResponse({ body: '같은 내용', structuredValues: { summary: '같은 내용' } }),
+  )
+  assert.deepEqual(
+    detailTemplateOf(duplicated).fields.map((field) => field.id),
+    ['summary'],
+  )
+})
+
+test('기간 보고서 상세의 수정 진입은 본인 draft와 changes_requested에만 열린다', () => {
+  const draft = toReport(periodResponse({ status: 'draft' }))
+  const returned = toReport(
+    periodResponse({ status: 'changes_requested', reviewNote: '수치를 보완해 주세요.' }),
+  )
+
+  assert.equal(canEditPeriodReport(draft, 'synthetic-author'), true)
+  assert.equal(canEditPeriodReport(returned, 'synthetic-author'), true)
+  assert.equal(canEditPeriodReport(draft, 'another-member'), false)
+  assert.equal(
+    canEditPeriodReport(toReport(periodResponse({ status: 'submitted' })), 'synthetic-author'),
+    false,
+  )
+  assert.equal(returned.reviewNote, '수치를 보완해 주세요.')
+})
+
+test('팀장의 기간 보고서 작성 조회는 전역 팀 범위와 무관하게 본인으로 좁힌다', () => {
+  initScope('manager-member', true)
+  try {
+    assert.deepEqual(ownPeriodReportQuery('주간', '2026-08-31').author_member_id, [
+      'manager-member',
+    ])
+  } finally {
+    resetScope()
+  }
+})
 
 test('일정 연결·독립 미팅 자료 모두 설명 첫 줄의 공백과 CRLF를 제거한다', () => {
   const cases = [

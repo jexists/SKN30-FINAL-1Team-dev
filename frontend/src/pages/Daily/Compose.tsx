@@ -17,6 +17,7 @@ import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
 import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
+import { showToast } from '@/shared/toast'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
@@ -149,6 +150,15 @@ export default function Compose() {
     }
   }
 
+  const onSave = async () => {
+    try {
+      await saveDraft(payload)
+      showToast(`${kind}업무보고서 초안을 임시저장했습니다.`)
+    } catch {
+      // 저장 훅이 같은 화면에 오류를 표시합니다.
+    }
+  }
+
   if (isFuture) {
     return (
       <section>
@@ -198,6 +208,13 @@ export default function Compose() {
         <p className={styles.saved}>
           이 기간에 {existing.status}인 보고서가 있어 이어서 씁니다. 새 보고서를 만들지 않습니다.
         </p>
+      )}
+
+      {existing?.reviewNote && (
+        <div className={styles.review} role="note">
+          <strong>반려 사유</strong>
+          <p>{existing.reviewNote}</p>
+        </div>
       )}
 
       {locked && existing && (
@@ -336,9 +353,23 @@ export default function Compose() {
 
           <div className={styles.actions}>
             <Button
+              variant="outline"
+              type="button"
+              disabled={locked || pending || draft.phase === 'idle' || draft.phase === 'generating'}
+              onClick={() => void onSave()}
+            >
+              {pending ? '저장 중…' : '임시저장'}
+            </Button>
+            <Button
               type="button"
               className={styles.submit}
-              disabled={draft.missing.length > 0 || locked || draft.phase === 'idle'}
+              disabled={
+                draft.missing.length > 0 ||
+                locked ||
+                pending ||
+                draft.phase === 'idle' ||
+                draft.phase === 'generating'
+              }
               onClick={() => setConfirm({ kind: 'submit' })}
             >
               보고서 제출
