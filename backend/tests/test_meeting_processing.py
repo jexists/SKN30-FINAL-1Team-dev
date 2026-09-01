@@ -25,8 +25,9 @@ from app.services.llm import LLMError
 
 
 def test_processing_version_tracks_executive_report_contract():
-    assert service.PROMPT_VERSION == "meeting_processing.v8"
-    assert report_writing_deep.PROMPT_VERSION == "report_writing.deep.v7"
+    assert service.PROMPT_VERSION == "meeting_processing.v10"
+    assert meeting_content_analysis.PROMPT_VERSION == "meeting_content_analysis.v5"
+    assert report_writing_deep.PROMPT_VERSION == "report_writing.deep.v8"
 
 
 def case():
@@ -118,15 +119,36 @@ def test_new_run_contract_requires_unique_reports_and_versioned_overrides():
 def test_snapshot_builds_crm_once_and_checks_group_and_manual_assignment(monkeypatch):
     member, sections, parent, result = case()
     calls = []
+    parent.input_snapshot["deals"][0]["title"] = "부모 실행 딜"
+    parent.input_snapshot["crm_context"] = {
+        "snapshot_at": "2026-08-20T09:00:00+00:00",
+        "company": {"name": "부모 실행 회사"},
+    }
+    parent_lookup = {
+        "kind": "product_details",
+        "sales_deal_id": str(sections[0].sales_deal_id),
+        "data": {"items": [{"name": "부모 실행 상품"}]},
+    }
+    parent.output_snapshot["context_lookups"] = [parent_lookup]
+    current_deals = copy.deepcopy(parent.input_snapshot["deals"])
+    current_deals[0]["title"] = "현재 CRM 딜"
 
     async def context(db, owner, activity_id, selected):
         calls.append(selected)
-        return {"deals": parent.input_snapshot["deals"], "crm_context": {"contact": {}}}
+        return {
+            "deals": copy.deepcopy(current_deals),
+            "crm_context": {
+                "snapshot_at": "2026-09-01T09:00:00+00:00",
+                "company": {"name": "현재 CRM 회사"},
+            },
+        }
 
     monkeypatch.setattr(service.meeting_context, "build_context", context)
     monkeypatch.setattr(service, "_report_deals", AsyncMock(return_value=sections))
     snapshot = asyncio.run(service.input_snapshot(None, member, parent.test_report))
     assert len(calls) == 1 and len(snapshot["source"]["selected_deal_ids"]) == 2
+    assert snapshot["deals"][0]["title"] == "현재 CRM 딜"
+    assert snapshot["crm_context"]["company"]["name"] == "현재 CRM 회사"
     parent.test_report.source_snapshot = {"meeting_run_id": str(parent.id)}
     override = SegmentAssignment.model_validate(
         {
@@ -137,7 +159,17 @@ def test_snapshot_builds_crm_once_and_checks_group_and_manual_assignment(monkeyp
     updated = asyncio.run(
         service.input_snapshot(None, member, parent.test_report, parent, [override])
     )
+    assert len(calls) == 2  # 현재 권한·연결 검사는 재수행한다.
+    assert updated["deals"] == parent.input_snapshot["deals"]
+    assert updated["crm_context"] == parent.input_snapshot["crm_context"]
+    assert updated["parent_context_lookups"] == [parent_lookup]
     assert updated["parent_evidence"] == result.evidence.model_dump(mode="json")
+    updated["deals"][0]["title"] = "자식 변경"
+    updated["crm_context"]["company"]["name"] = "자식 변경"
+    updated["parent_context_lookups"][0]["data"]["items"][0]["name"] = "자식 변경"
+    assert parent.input_snapshot["deals"][0]["title"] == "부모 실행 딜"
+    assert parent.input_snapshot["crm_context"]["company"]["name"] == "부모 실행 회사"
+    assert parent.output_snapshot["context_lookups"] == [parent_lookup]
     parent.test_report.source_snapshot = {"meeting_run_id": str(uuid4())}
     with pytest.raises(HTTPException, match="meeting_assignment_stale"):
         asyncio.run(service.input_snapshot(None, member, parent.test_report, parent, [override]))
@@ -153,14 +185,17 @@ def test_snapshot_builds_crm_once_and_checks_group_and_manual_assignment(monkeyp
 @pytest.mark.parametrize("report_failure", [False, True])
 def test_workflow_shares_one_analysis_and_keeps_partial_results(monkeypatch, report_failure):
     member, _, run, expected = case()
+    run.input_snapshot["crm_context"]["refinement_context"] = {"private_batch": ["tool-only"]}
     seen = []
 
-    async def analyze(snapshot, *, lookup):
+    async def analyze(snapshot, *, on_lookup):
+        assert snapshot["crm_context"]["refinement_context"] == {"private_batch": ["tool-only"]}
         seen.append("content")
         return expected.evidence
 
     async def write(source):
         assert source.evidence == expected.evidence
+        assert "refinement_context" not in source.crm_context
         seen.append("report")
         if report_failure:
             raise LLMError("report_agent_timeout")
@@ -168,6 +203,7 @@ def test_workflow_shares_one_analysis_and_keeps_partial_results(monkeypatch, rep
 
     async def features(evidence, crm, *, timeout=None):
         assert evidence == expected.evidence
+        assert "refinement_context" not in crm
         seen.append("features")
         return expected.analyses
 
@@ -198,20 +234,20 @@ def test_previous_reports_are_writer_context_and_grounding_looks_up_only_when_ne
     ]
     run.input_snapshot["crm_context"]["previous_reports"] = copy.deepcopy(histories)
 
-    def no_database():
-        pytest.fail("기본 스냅샷의 이전 보고서를 다시 조회하면 안 된다")
-
-    async def analyze(snapshot, *, lookup):
+    async def analyze(snapshot, *, on_lookup):
         agent_input = meeting_content_analysis.MeetingContentAgentInput.model_validate(snapshot)
         prompt = meeting_content_analysis._prompt_input(agent_input)
         assert "이전 미팅 전용 내용" not in prompt
         assert "previous_reports" not in prompt
         if request_history:
             for report, history in zip(reports, histories, strict=True):
-                first = await lookup("previous_reports", report.sales_deal_id)
-                assert first == history
-                first["items"].append({"values": {"body": "도구 응답 변형"}})
-                assert await lookup("previous_reports", report.sales_deal_id) == history
+                on_lookup(
+                    {
+                        "kind": "previous_reports",
+                        "sales_deal_id": str(report.sales_deal_id),
+                        "data": copy.deepcopy(history),
+                    }
+                )
         return expected.evidence
 
     async def write(source):
@@ -226,7 +262,6 @@ def test_previous_reports_are_writer_context_and_grounding_looks_up_only_when_ne
                 assert filtered["additional_context"] == []
         return expected.analyses
 
-    monkeypatch.setattr(service, "get_sessionmaker", no_database)
     monkeypatch.setattr(service.meeting_content_analysis, "run", analyze)
     monkeypatch.setattr(service.report_writing_deep, "run", write)
     monkeypatch.setattr(service.meeting_analysis, "run_for_deals", features)
@@ -236,6 +271,43 @@ def test_previous_reports_are_writer_context_and_grounding_looks_up_only_when_ne
     assert actual.reports == expected.reports
     assert run.input_snapshot["crm_context"]["previous_reports"] == histories
     assert len(actual.context_lookups) == (2 if request_history else 0)
+
+
+def test_company_trade_history_is_recorded_once_and_promoted_without_duplicate_context(
+    monkeypatch,
+):
+    member, _, run, expected = case()
+    history = {
+        "kind": "trade_history",
+        "items": [{"sales_deal_id": str(uuid4()), "title": "이전 확정 거래"}],
+        "limit": 50,
+        "truncated": False,
+    }
+
+    async def analyze(snapshot, *, on_lookup):
+        value = {"kind": "trade_history", "data": copy.deepcopy(history)}
+        on_lookup(value)
+        on_lookup(value)
+        return expected.evidence
+
+    async def write(source):
+        assert source.crm_context["trade_history"] == history["items"]
+        assert all(
+            item.get("kind") != "trade_history" for item in source.crm_context["additional_context"]
+        )
+        return expected.reports
+
+    async def features(evidence, crm, *, timeout):
+        assert crm["trade_history"] == history["items"]
+        return expected.analyses
+
+    monkeypatch.setattr(service.meeting_content_analysis, "run", analyze)
+    monkeypatch.setattr(service.report_writing_deep, "run", write)
+    monkeypatch.setattr(service.meeting_analysis, "run_for_deals", features)
+
+    actual = asyncio.run(service.run(run.input_snapshot, member.id))
+
+    assert actual.context_lookups == [{"kind": "trade_history", "data": history}]
 
 
 def test_manual_reassignment_keeps_other_segments_without_another_classification(monkeypatch):
@@ -637,7 +709,7 @@ async def test_workflow_deadline_preserves_completed_report_and_deal_results(
             timeout_contexts[1].reschedule(asyncio.get_running_loop().time())
         return await real_wait(tasks, timeout=0)
 
-    async def analyze(snapshot, *, lookup):
+    async def analyze(snapshot, *, on_lookup):
         return expected.evidence
 
     async def write(source):
@@ -705,7 +777,7 @@ async def test_workflow_passes_only_remaining_total_budget_to_deal_analysis(monk
     member, _, run, expected = case()
     remaining = []
 
-    async def analyze(snapshot, *, lookup):
+    async def analyze(snapshot, *, on_lookup):
         await asyncio.sleep(0)
         return expected.evidence
 
@@ -733,7 +805,7 @@ async def test_workflow_cancellation_cleans_both_downstream_branches(monkeypatch
     ready = asyncio.Event()
     previous_tasks = asyncio.all_tasks()
 
-    async def analyze(snapshot, *, lookup):
+    async def analyze(snapshot, *, on_lookup):
         return expected.evidence
 
     async def block(kind):

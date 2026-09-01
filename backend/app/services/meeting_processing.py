@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
-from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
 from app.models.content import MeetingDealAnalysis, Report, ReportDeal
 from app.models.workspace import Member
@@ -28,7 +27,7 @@ from app.services.agent_logging import log_agent_error
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError
 
-PROMPT_VERSION = "meeting_processing.v8"
+PROMPT_VERSION = "meeting_processing.v10"
 RUN_TIMEOUT_SECONDS = 1_200
 
 
@@ -125,44 +124,43 @@ async def input_snapshot(
                 raise HTTPException(422, "meeting_assignment_not_unresolved")
             if not set(item.applicability.deal_ids) <= set(evidence.selected_deal_ids):
                 raise HTTPException(422, "meeting_assignment_deal_not_selected")
+        # 현재 연결과 권한은 위 build_context로 다시 확인하되, 재배정 결과는 부모 실행이
+        # 실제로 사용한 CRM 시점과 섞이지 않도록 부모의 frozen 입력을 그대로 이어받는다.
+        snapshot["deals"] = copy.deepcopy(parent.input_snapshot["deals"])
+        snapshot["crm_context"] = copy.deepcopy(parent.input_snapshot["crm_context"])
         snapshot["parent_evidence"] = evidence.model_dump(mode="json")
-        snapshot["parent_context_lookups"] = parent.output_snapshot.get("context_lookups", [])
+        snapshot["parent_context_lookups"] = copy.deepcopy(
+            parent.output_snapshot.get("context_lookups", [])
+        )
     return snapshot
 
 
 async def run(snapshot: dict[str, Any], member_id: UUID) -> MeetingProcessingOutput:
+    # dispatch 계약 호환용 인수다. 권한은 input_snapshot 구성 시 한 번 검증하며 에이전트 실행 중
+    # live DB를 다시 읽지 않는다.
+    _ = member_id
     loop = asyncio.get_running_loop()
     deadline = loop.time() + RUN_TIMEOUT_SECONDS
-    additional: list[dict[str, Any]] = copy.deepcopy(snapshot.get("parent_context_lookups", []))
-    selected = [UUID(value) for value in snapshot["source"]["selected_deal_ids"]]
+    additional: list[dict[str, Any]] = []
 
-    async def lookup(kind: str, sales_deal_id: UUID) -> dict[str, Any]:
-        if kind == "previous_reports" and sales_deal_id in selected:
-            for history in snapshot["crm_context"].get("previous_reports", []):
-                if history["sales_deal_id"] == str(sales_deal_id):
-                    # 빈 이력도 이미 조회한 결과다. 실행 중 최신 DB 값으로 바꾸지 않는다.
-                    if not any(
-                        item["kind"] == kind and item["sales_deal_id"] == str(sales_deal_id)
-                        for item in additional
-                    ):
-                        additional.append(
-                            {
-                                "kind": kind,
-                                "sales_deal_id": str(sales_deal_id),
-                                "data": copy.deepcopy(history),
-                            }
-                        )
-                    return copy.deepcopy(history)
-        # 도구마다 짧은 별도 세션. LLM을 기다리는 동안 DB 연결을 잡고 있지 않는다.
-        async with get_sessionmaker()() as db:
-            member = await db.get(Member, member_id)
-            if member is None or not member.active or str(member.team_id) != snapshot["team_id"]:
-                raise LLMError("meeting_context_access_denied")
-            value = await meeting_context.load_extra_context(
-                db, member, UUID(snapshot["activity_id"]), selected, kind, sales_deal_id
-            )
-        additional.append({"kind": kind, "sales_deal_id": str(sales_deal_id), "data": value})
-        return value
+    def record_lookup(value: dict[str, Any]) -> None:
+        """실제로 읽은 frozen 자료만 후속 작성·ML과 감사 출력에 한 번 전달한다."""
+        item = copy.deepcopy(value)
+        kind = item.get("kind")
+        deal_id = item.get("sales_deal_id")
+        if kind == "trade_history":
+            if any(existing.get("kind") == kind for existing in additional):
+                return
+        elif any(
+            existing.get("kind") == kind and existing.get("sales_deal_id") == deal_id
+            for existing in additional
+        ):
+            return
+        additional.append(item)
+
+    for item in snapshot.get("parent_context_lookups", []):
+        if isinstance(item, dict):
+            record_lookup(item)
 
     async with asyncio.timeout_at(deadline):
         publish_progress("content_analysis")
@@ -189,9 +187,26 @@ async def run(snapshot: dict[str, Any], member_id: UUID) -> MeetingProcessingOut
             )
         else:
             evidence = await meeting_content_analysis.run(
-                {key: snapshot[key] for key in ("source", "deals", "crm_context")}, lookup=lookup
+                {key: snapshot[key] for key in ("source", "deals", "crm_context")},
+                on_lookup=record_lookup,
             )
-    crm = {**snapshot["crm_context"], "additional_context": additional}
+    crm = copy.deepcopy(snapshot["crm_context"])
+    # 보강용 전체 자료는 내용분석 도구 전용이다. 후속 에이전트에는 실제로 읽은 조각만 보낸다.
+    crm.pop("refinement_context", None)
+    company_history = next(
+        (item.get("data") for item in additional if item.get("kind") == "trade_history"),
+        None,
+    )
+    if isinstance(company_history, dict) and isinstance(company_history.get("items"), list):
+        crm["trade_history"] = copy.deepcopy(company_history["items"])
+        crm["trade_history_metadata"] = {
+            key: copy.deepcopy(value)
+            for key, value in company_history.items()
+            if key not in {"kind", "items", "sales_deal_id"}
+        }
+    crm["additional_context"] = [
+        copy.deepcopy(item) for item in additional if item.get("kind") != "trade_history"
+    ]
 
     async def write_reports():
         try:

@@ -168,6 +168,7 @@ def period_sample(kind):
         "reports": [
             {
                 "id": str(UUID(int=400 + index)),
+                "submission_id": str(UUID(int=500 + index)),
                 "report_kind": "weekly" if monthly else "daily",
                 "sales_deal_id": None,
                 "source_activity_id": None,
@@ -184,6 +185,380 @@ def period_sample(kind):
     return source
 
 
+def manifest(source):
+    normalized = period._source(source)
+    return period._evidence_catalog(normalized)[0]
+
+
+def evidence_keys(source):
+    return [item["source_key"] for item in manifest(source)]
+
+
+def read_all(source):
+    return call("read_period_evidence", source_keys=evidence_keys(source))
+
+
+def oversized_meeting_source():
+    source = sample()
+    reports = []
+    for index in range(3):
+        report = copy.deepcopy(source["report_sources"]["reports"][0])
+        report.update(
+            id=str(UUID(int=1_200 + index)),
+            sales_deal_id=str(UUID(int=1_300 + index)),
+            source_activity_id=str(MEETING_A),
+            values={"body": chr(ord("가") + index) * 50_000},
+        )
+        reports.append(report)
+    source["report_sources"] = {
+        "reports": reports,
+        "meetings": source["report_sources"]["meetings"][:1],
+    }
+    return source
+
+
+def test_initial_input_inlines_run_context_and_manifest_but_not_activity_or_attachment_body():
+    source = sample()
+    activity_note = "직접 활동의 상세 근거는 reader에서만 보인다."
+    attachment_extract = "첨부 추출문도 reader에서만 보인다."
+    source["report_sources"] = {
+        "reports": [],
+        "meetings": [],
+        "activities": [
+            {
+                "id": str(UUID(int=701)),
+                "source": "캘린더",
+                "title": "확정 활동",
+                "note": activity_note,
+            }
+        ],
+    }
+    source["content"]["attachments"] = [
+        {
+            "id": str(UUID(int=801)),
+            "name": "evidence.txt",
+            "state": "done",
+            "extract": attachment_extract,
+        }
+    ]
+    good = {
+        "fields": [{"field_id": "body", "value": f"{activity_note} {attachment_extract}"}],
+        "summary": "직접 활동과 첨부 근거를 확인했다.",
+    }
+    model = ScriptedModel(
+        responses=[
+            read_all(source),
+            call("review_period_report", draft=good),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == good
+
+    initial = json.loads(model._seen[0][-1].content)
+    assert initial["run_context"]["template_snapshot"] == source["template_snapshot"]
+    assert initial["run_context"]["current_values"] == source["content"]["values"]
+    assert initial["run_context"]["transcript"] == source["transcript"]
+    assert initial["run_context"]["guidance"] == source["guidance"]
+    assert [item["source_type"] for item in initial["source_manifest"]] == [
+        "direct_activity",
+        "attachment",
+    ]
+    assert activity_note not in model._seen[0][-1].content
+    assert attachment_extract not in model._seen[0][-1].content
+
+    read = json.loads(model._seen[1][-1].content)["sources"]
+    assert activity_note in str(read)
+    assert attachment_extract in str(read)
+    reviewed = json.loads(model._seen[2][-1].content)["source"]
+    assert set(reviewed) == {"run_context", "review_batch", "evidence"}
+    assert reviewed["review_batch"] == {
+        "batch_index": 1,
+        "batch_count": 1,
+        "source_keys": evidence_keys(source),
+    }
+    assert reviewed["evidence"] == read
+
+
+def test_review_requires_every_manifest_source_to_have_been_read():
+    source = sample()
+    model = ScriptedModel(
+        responses=[
+            call("review_period_report", draft=draft()),
+            read_all(source),
+            call("review_period_report", draft=draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+    coverage = json.loads(model._seen[1][-1].content)
+    assert coverage["review_kind"] == "coverage"
+    assert coverage["issues"][0]["code"] == "period_report_source_coverage_missing"
+    assert coverage["issues"][0]["missing_source_keys"] == evidence_keys(source)
+
+
+def test_evidence_request_key_count_duplicates_and_key_chars_are_bounded():
+    source = sample()
+    valid = evidence_keys(source)
+    model = ScriptedModel(
+        responses=[
+            call("read_period_evidence", source_keys=[]),
+            call(
+                "read_period_evidence",
+                source_keys=[valid[0]] * (period.MAX_EVIDENCE_KEYS_PER_CALL + 1),
+            ),
+            call(
+                "read_period_evidence",
+                source_keys=["x" * (period.MAX_EVIDENCE_KEY_CHARS_PER_CALL + 1)],
+            ),
+            read_all(source),
+            call("review_period_report", draft=draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    asyncio.run(period.run(source, model=model))
+
+    for turn in (1, 2, 3):
+        result = json.loads(model._seen[turn][-1].content)
+        assert result == {"error": "period_report_evidence_request_invalid"}
+
+
+def test_evidence_reader_requires_explicit_keys_and_never_falls_back_to_full_dump():
+    source = sample()
+    model = ScriptedModel(
+        responses=[
+            call("read_period_evidence"),
+            read_all(source),
+            call("review_period_report", draft=draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    asyncio.run(period.run(source, model=model))
+
+    tool_error = model._seen[1][-1].content
+    assert "source_keys" in tool_error
+    assert "합성회사" not in tool_error
+    assert "보안 승인 후 예산" not in tool_error
+
+
+def test_evidence_response_chars_are_bounded_and_successful_batches_cover_sources(monkeypatch):
+    source = sample()
+    source["report_sources"] = {"reports": [], "meetings": []}
+    source["content"]["activities"] = []
+    source["content"]["attachments"] = [
+        {
+            "id": str(UUID(int=810 + index)),
+            "name": f"evidence-{index}.txt",
+            "state": "done",
+            "extract": marker * 40,
+        }
+        for index, marker in enumerate(("첫 첨부 근거", "둘째 첨부 근거"), 1)
+    ]
+    normalized = period._source(source)
+    _, catalog = period._evidence_catalog(normalized)
+    keys = list(catalog)
+    single_limit = max(period._single_evidence_chars(catalog[key]) for key in keys)
+    assert period._json_chars({"sources": list(catalog.values())}) > single_limit
+    monkeypatch.setattr(period, "MAX_EVIDENCE_RESPONSE_CHARS", single_limit)
+    model = ScriptedModel(
+        responses=[
+            call("read_period_evidence", source_keys=keys),
+            call("read_period_evidence", source_keys=[keys[0]]),
+            call("read_period_evidence", source_keys=[keys[1]]),
+            call("review_period_report", draft=draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    asyncio.run(period.run(source, model=model))
+
+    too_large = json.loads(model._seen[1][-1].content)
+    assert too_large["error"] == "period_report_evidence_too_large"
+    assert too_large["response_chars"] > too_large["max_chars"]
+
+
+def test_oversized_logical_source_is_deterministically_chunked_and_can_complete():
+    source = oversized_meeting_source()
+    normalized = period._source(source)
+    first_manifest, first_catalog = period._evidence_catalog(normalized)
+    second_manifest, second_catalog = period._evidence_catalog(normalized)
+
+    assert first_manifest == second_manifest
+    assert first_catalog == second_catalog
+    assert len(first_manifest) >= 2
+    parent_key = f"meeting:{MEETING_A}"
+    assert [item["chunk_index"] for item in first_manifest] == list(
+        range(1, len(first_manifest) + 1)
+    )
+    assert {item["chunk_count"] for item in first_manifest} == {len(first_manifest)}
+    assert {item["parent_source_key"] for item in first_manifest} == {parent_key}
+    assert {item["source_group_key"] for item in first_manifest} == {parent_key}
+    assert all(
+        period._single_evidence_chars(first_catalog[item["source_key"]])
+        <= period.MAX_EVIDENCE_RESPONSE_CHARS
+        for item in first_manifest
+    )
+    chunks = [first_catalog[item["source_key"]] for item in first_manifest]
+    expected = json.dumps(
+        {
+            "source_key": parent_key,
+            "source_type": "meeting_bundle",
+            "meeting_bundle": {
+                "deal_reports": source["report_sources"]["reports"],
+                "meetings": source["report_sources"]["meetings"],
+            },
+        },
+        ensure_ascii=False,
+        default=str,
+        separators=(",", ":"),
+    )
+    assert chunks[0]["fragment_start"] == 0
+    assert chunks[0]["fragment_overlap_chars"] == 0
+    for previous, current in zip(chunks, chunks[1:], strict=False):
+        overlap = current["fragment_overlap_chars"]
+        assert 0 < overlap <= period.EVIDENCE_CHUNK_OVERLAP_CHARS
+        assert previous["fragment_end"] - current["fragment_start"] == overlap
+        assert previous["content_fragment"][-overlap:] == current["content_fragment"][:overlap]
+    assert chunks[-1]["fragment_end"] == len(expected)
+    reconstructed = chunks[0]["content_fragment"] + "".join(
+        chunk["content_fragment"][chunk["fragment_overlap_chars"] :] for chunk in chunks[1:]
+    )
+    assert reconstructed == expected
+
+    keys = [item["source_key"] for item in first_manifest]
+    model = ScriptedModel(
+        responses=[
+            *[call("read_period_evidence", source_keys=[key]) for key in keys],
+            call("review_period_report", draft=draft()),
+            *[call("ReportReview", issues=[]) for _ in keys],
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+
+
+def test_small_source_catalog_shape_is_unchanged():
+    source = sample()
+    source_manifest, catalog = period._evidence_catalog(period._source(source))
+
+    assert all(
+        set(item)
+        == {
+            "source_key",
+            "source_type",
+            "source_activity_id",
+            "report_date",
+            "deal_count",
+            "content_chars",
+        }
+        for item in source_manifest
+    )
+    assert all(
+        set(catalog[item["source_key"]]) == {"source_key", "source_type", "meeting_bundle"}
+        for item in source_manifest
+    )
+
+
+def test_semantic_reviewer_batches_evidence_and_caps_combined_issues():
+    source = sample()
+    source["report_sources"] = {"reports": [], "meetings": []}
+    source["content"]["activities"] = []
+    source["content"]["attachments"] = [
+        {
+            "id": str(UUID(int=1_400 + index)),
+            "name": f"large-{index}.txt",
+            "state": "done",
+            "extract": marker * 70_000,
+        }
+        for index, marker in enumerate(("가", "나"), 1)
+    ]
+    keys = evidence_keys(source)
+    first_issues = [f"batch-1-{index}" for index in range(20)]
+    second_issues = [f"batch-2-{index}" for index in range(20)]
+    model = ScriptedModel(
+        responses=[
+            call("read_period_evidence", source_keys=[keys[0]]),
+            call("read_period_evidence", source_keys=[keys[1]]),
+            call("review_period_report", draft=draft()),
+            call("ReportReview", issues=first_issues),
+            call("ReportReview", issues=second_issues),
+            call("review_period_report", draft=draft()),
+            call("ReportReview", issues=[]),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+
+    reviewer_payloads = []
+    for messages in model._seen:
+        for message in messages:
+            if message.type != "human":
+                continue
+            try:
+                payload = json.loads(message.content)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict) and "review_batch" in payload.get("source", {}):
+                reviewer_payloads.append(payload)
+    assert len(reviewer_payloads) == 4
+    assert [payload["source"]["review_batch"]["batch_index"] for payload in reviewer_payloads] == [
+        1,
+        2,
+        1,
+        2,
+    ]
+    assert all(
+        period._json_chars({"evidence": payload["source"]["evidence"]})
+        <= period.MAX_EVIDENCE_RESPONSE_CHARS
+        for payload in reviewer_payloads
+    )
+    root_after_review = model._seen[5]
+    feedback = next(
+        json.loads(message.content)
+        for message in root_after_review
+        if message.type == "tool" and message.name == "review_period_report"
+    )
+    assert feedback["issues"] == [*first_issues, *second_issues[:10]]
+
+
+def test_more_than_one_reader_batch_can_cover_all_direct_sources():
+    source = sample()
+    source["content"]["activities"] = []
+    source["report_sources"] = {
+        "reports": [],
+        "meetings": [],
+        "activities": [
+            {
+                "id": str(UUID(int=900 + index)),
+                "source": "캘린더",
+                "title": f"직접 활동 {index}",
+            }
+            for index in range(period.MAX_EVIDENCE_KEYS_PER_CALL + 1)
+        ],
+    }
+    keys = evidence_keys(source)
+    model = ScriptedModel(
+        responses=[
+            call(
+                "read_period_evidence",
+                source_keys=keys[: period.MAX_EVIDENCE_KEYS_PER_CALL],
+            ),
+            call(
+                "read_period_evidence",
+                source_keys=keys[period.MAX_EVIDENCE_KEYS_PER_CALL :],
+            ),
+            call("review_period_report", draft=draft()),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+
+
 def test_actual_graph_reads_sources_revises_and_returns_accepted_draft_unchanged():
     source = sample()
     original = copy.deepcopy(source)
@@ -192,7 +567,7 @@ def test_actual_graph_reads_sources_revises_and_returns_accepted_draft_unchanged
     bad["fields"][0]["value"] = "합성회사 A의 예산이 승인되었다."
     model = ScriptedModel(
         responses=[
-            call("read_report_sources"),
+            read_all(source),
             call("review_period_report", draft=bad),
             call(
                 "ReportReview",
@@ -214,6 +589,7 @@ def test_actual_graph_reads_sources_revises_and_returns_accepted_draft_unchanged
     assert "딜 미지정" in str(model._seen[2])
     assert "합성회사 B" in str(model._seen[2])
     assert all(not {"execute", "web_search"} & tools for tools in model._tool_sets)
+    assert all("read_report_sources" not in tools for tools in model._tool_sets)
 
 
 def test_subagent_reads_only_target_meeting_with_common_and_unassigned(monkeypatch):
@@ -228,47 +604,58 @@ def test_subagent_reads_only_target_meeting_with_common_and_unassigned(monkeypat
 
     monkeypatch.setattr(deepagents.middleware.subagents, "create_sub_agent", record_subagent)
     source = sample()
+    meeting_a_key = f"meeting:{MEETING_A}"
+    meeting_b_key = f"meeting:{MEETING_B}"
     model = ScriptedModel(
         responses=[
-            call("read_report_sources"),
-            call("task", subagent_type="general-purpose", description="합성회사 A 미팅 초안"),
-            call("read_report_sources", activity_id=str(MEETING_A)),
+            call(
+                "task",
+                subagent_type="general-purpose",
+                description=f'source_keys=["{meeting_a_key}"] 합성회사 A 미팅 초안을 정리하라.',
+            ),
+            call("read_period_evidence", source_keys=[meeting_a_key]),
             AIMessage(content="A의 두 딜과 공통·미지정 내용을 함께 정리한다."),
+            call("read_period_evidence", source_keys=[meeting_b_key]),
             call("review_period_report", draft=draft()),
             call("ReportReview", issues=[]),
         ]
     )
 
     assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
-    shared = json.loads(model._seen[1][-1].content)
-    scoped = json.loads(model._seen[3][-1].content)
-    assert shared["report_sources"] == source["report_sources"]
-    assert shared["current_values"] == source["content"]["values"]
-    assert shared["transcript"] == source["transcript"]
-    assert scoped["report_sources"]["reports"] == source["report_sources"]["reports"][:2]
-    assert scoped["report_sources"]["meetings"] == source["report_sources"]["meetings"][:1]
-    assert scoped["current_values"] == {}
-    assert scoped["transcript"] is None
-    assert scoped["activities"] == scoped["attachments"] == []
+    initial = json.loads(model._seen[0][-1].content)
+    scoped = json.loads(model._seen[2][-1].content)["sources"][0]
+    assert initial["run_context"]["current_values"] == source["content"]["values"]
+    assert initial["run_context"]["transcript"] == source["transcript"]
+    assert {item["source_key"] for item in initial["source_manifest"]} == {
+        meeting_a_key,
+        meeting_b_key,
+    }
+    assert scoped["meeting_bundle"]["deal_reports"] == source["report_sources"]["reports"][:2]
+    assert scoped["meeting_bundle"]["meetings"] == source["report_sources"]["meetings"][:1]
     assert "그것도 보내주세요" in str(scoped)
     assert "합성회사 B" not in str(scoped)
+    delegated = next(message.content for message in model._seen[1] if message.type == "human")
+    assert f'source_keys=["{meeting_a_key}"]' in delegated
+    assert "보안 권한 경계가 아니" in model._seen[1][0].content
     assert specs
     for spec in specs:
         assert {
             tool.name if hasattr(tool, "name") else tool.__name__ for tool in spec["tools"]
-        } == {"read_report_sources"}
+        } == {"read_period_evidence"}
         assert not any("finish_accepted" in item.name for item in spec.get("middleware", []))
 
 
 def test_unknown_meeting_cannot_read_other_meeting_sources():
+    source = sample()
     model = ScriptedModel(
         responses=[
-            call("read_report_sources", activity_id=str(UUID(int=999))),
+            call("read_period_evidence", source_keys=[f"meeting:{UUID(int=999)}"]),
+            read_all(source),
             call("review_period_report", draft=draft()),
             call("ReportReview", issues=[]),
         ]
     )
-    asyncio.run(period.run(sample(), model=model))
+    asyncio.run(period.run(source, model=model))
     result = json.loads(model._seen[1][-1].content)
     assert result.get("error")
     assert "합성회사" not in str(result)
@@ -276,6 +663,7 @@ def test_unknown_meeting_cannot_read_other_meeting_sources():
 
 @pytest.mark.parametrize("invalid", ["duplicate", "missing", "unexpected", "blank_body"])
 def test_structural_field_errors_are_repaired_before_semantic_review(invalid):
+    source = sample()
     bad = draft()
     if invalid == "duplicate":
         bad["fields"].append(copy.deepcopy(bad["fields"][0]))
@@ -287,15 +675,16 @@ def test_structural_field_errors_are_repaired_before_semantic_review(invalid):
         bad["fields"][0]["value"] = " \n "
     model = ScriptedModel(
         responses=[
+            read_all(source),
             call("review_period_report", draft=bad),
             call("review_period_report", draft=draft()),
             call("ReportReview", issues=[]),
         ]
     )
 
-    assert asyncio.run(period.run(sample(), model=model)).model_dump(mode="json") == draft()
-    assert len(model._seen) == 3  # 잘못된 필드는 의미 검토 모델에 보내지 않는다.
-    feedback = json.loads(model._seen[1][-1].content)
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+    assert len(model._seen) == 4  # 잘못된 필드는 의미 검토 모델에 보내지 않는다.
+    feedback = json.loads(model._seen[2][-1].content)
     assert feedback["review_kind"] == "structural"
     assert feedback["issues"]
 
@@ -315,7 +704,11 @@ def test_saved_multifield_template_remains_compatible():
         "summary": "근거 없는 후속 기한은 채우지 않았다.",
     }
     model = ScriptedModel(
-        responses=[call("review_period_report", draft=good), call("ReportReview", issues=[])]
+        responses=[
+            read_all(source),
+            call("review_period_report", draft=good),
+            call("ReportReview", issues=[]),
+        ]
     )
     assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == good
 
@@ -336,7 +729,6 @@ def test_transcript_only_daily_is_allowed_without_linked_reports(include_sources
     }
     model = ScriptedModel(
         responses=[
-            call("read_report_sources"),
             call("review_period_report", draft=good),
             call("ReportReview", issues=[]),
         ]
@@ -346,38 +738,45 @@ def test_transcript_only_daily_is_allowed_without_linked_reports(include_sources
 
 
 def test_direct_final_output_cannot_skip_semantic_review():
+    source = sample()
     model = ScriptedModel(
         responses=[
+            call("ReportDraftOutput", **draft()),
+            read_all(source),
             call("ReportDraftOutput", **draft()),
             call("ReportReview", issues=["검토 예정이라는 조건을 분명히 보존하라."]),
             call("ReportDraftOutput", **draft()),
             call("ReportReview", issues=[]),
         ]
     )
-    assert asyncio.run(period.run(sample(), model=model)).model_dump(mode="json") == draft()
-    assert len(model._seen) == 4
-    assert "검토 예정이라는 조건" in str(model._seen[2])
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+    assert len(model._seen) == 6
+    assert "period_report_source_coverage_missing" in str(model._seen[1])
+    assert "검토 예정이라는 조건" in str(model._seen[4])
 
 
 def test_direct_final_submission_repairs_structure_and_passes_semantic_review():
+    source = sample()
     bad = draft()
     bad["fields"][0]["field_id"] = "other"
     model = ScriptedModel(
         responses=[
+            read_all(source),
             call("ReportDraftOutput", **bad),
             call("ReportDraftOutput", **draft()),
             call("ReportReview", issues=[]),
         ]
     )
-    assert asyncio.run(period.run(sample(), model=model)).model_dump(mode="json") == draft()
-    assert len(model._seen) == 3
-    assert "expected_ids" in str(model._seen[1])
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+    assert len(model._seen) == 4
+    assert "expected_ids" in str(model._seen[2])
 
 
 def test_review_limit_does_not_keep_retrying(monkeypatch):
     monkeypatch.setattr(writer, "MAX_REVIEWS", 2)
     model = ScriptedModel(
         responses=[
+            read_all(sample()),
             call("review_period_report", draft=draft()),
             call("ReportReview", issues=["원문의 조건을 보존하라."]),
             call("review_period_report", draft=draft()),
@@ -387,7 +786,7 @@ def test_review_limit_does_not_keep_retrying(monkeypatch):
     )
     with pytest.raises(LLMError, match="^period_report_agent_review_limit$"):
         asyncio.run(period.run(sample(), model=model))
-    assert len(model._seen) == 5
+    assert len(model._seen) == 6
 
 
 def test_model_budget_includes_subagent_and_reviewer(monkeypatch):
@@ -427,6 +826,17 @@ def test_unsupported_report_kind_is_rejected_before_model_call(kind):
     assert model._seen == []
 
 
+@pytest.mark.parametrize("invalid", [None, [], "", 0, False])
+def test_falsy_non_mapping_report_sources_are_rejected(invalid):
+    source = sample()
+    source["report_sources"] = invalid
+    model = ScriptedModel(responses=[call("ReportDraftOutput", **draft())])
+
+    with pytest.raises(LLMError, match="^period_report_sources_invalid$"):
+        asyncio.run(period.run(source, model=model))
+    assert model._seen == []
+
+
 @pytest.mark.parametrize("kind", ["weekly", "monthly"])
 def test_period_sources_and_boundary_uncertainty_reach_reviewer_unchanged(kind):
     source = period_sample(kind)
@@ -451,7 +861,7 @@ def test_period_sources_and_boundary_uncertainty_reach_reviewer_unchanged(kind):
     bad["fields"][0]["value"] = "9월 계약 세 건과 예산 승인이 확정됐다."
     model = ScriptedModel(
         responses=[
-            call("read_report_sources"),
+            read_all(source),
             call("review_period_report", draft=bad),
             call("ReportReview", issues=["문의와 검토를 계약·예산 확정으로 바꾸지 마라."]),
             call("review_period_report", draft=good),
@@ -465,68 +875,54 @@ def test_period_sources_and_boundary_uncertainty_reach_reviewer_unchanged(kind):
     assert result.model_dump(mode="json") == good
     assert source == original
     assert len(model._seen) == 5
-    shared = json.loads(model._seen[1][-1].content)
+    shared = json.loads(model._seen[1][-1].content)["sources"]
     reviewed = json.loads(model._seen[2][-1].content)["source"]
-    for supplied in (shared, reviewed):
-        assert supplied["report_kind"] == kind
-        assert supplied["period_start"] == source["period_start"]
-        assert supplied["period_end"] == source["period_end"]
-        assert supplied["report_sources"] == source["report_sources"]
+    assert reviewed["run_context"]["report_kind"] == kind
+    assert reviewed["run_context"]["period_start"] == source["period_start"]
+    assert reviewed["run_context"]["period_end"] == source["period_end"]
+    assert reviewed["evidence"] == shared
+    assert "report_sources" not in reviewed
     if kind == "monthly":
-        boundary = reviewed["report_sources"]["reports"][0]
-        assert boundary["period_start"] < reviewed["period_start"]
+        boundary = reviewed["evidence"][0]["child_submission"]["reports"][0]
+        assert boundary["period_start"] < reviewed["run_context"]["period_start"]
         assert "각 문의의 날짜는 기록되지 않았다" in boundary["values"]["body"]
         assert "미승인" in result.fields[0].value
 
 
 @pytest.mark.parametrize("kind", ["daily", "weekly", "monthly"])
-def test_read_one_selected_report_keeps_only_its_sources(kind):
+def test_read_one_manifest_source_keeps_its_period_unit_and_boundaries(kind):
     source = sample() if kind == "daily" else period_sample(kind)
-    selected = source["report_sources"]["reports"][0]
+    keys = evidence_keys(source)
     good = draft()
-    model = ScriptedModel(
-        responses=[
-            call("read_report_sources", report_id=selected["id"]),
-            call("review_period_report", draft=good),
-            call("ReportReview", issues=[]),
-        ]
-    )
+    responses = [call("read_period_evidence", source_keys=[keys[0]])]
+    if len(keys) > 1:
+        responses.append(call("read_period_evidence", source_keys=keys[1:]))
+    responses.extend([call("review_period_report", draft=good), call("ReportReview", issues=[])])
+    model = ScriptedModel(responses=responses)
 
     asyncio.run(period.run(source, model=model))
 
-    scoped = json.loads(model._seen[1][-1].content)
-    assert scoped["report_sources"]["reports"] == [selected]
-    expected_meetings = source["report_sources"]["meetings"][:1] if kind == "daily" else []
-    assert scoped["report_sources"]["meetings"] == expected_meetings
-    assert scoped["current_values"] == {}
-    assert scoped["transcript"] is None
-    assert scoped["activities"] == scoped["attachments"] == []
+    scoped = json.loads(model._seen[1][-1].content)["sources"][0]
+    if kind == "daily":
+        assert scoped["source_type"] == "meeting_bundle"
+        assert scoped["meeting_bundle"]["deal_reports"] == source["report_sources"]["reports"][:2]
+        assert scoped["meeting_bundle"]["meetings"] == source["report_sources"]["meetings"][:1]
+    else:
+        assert scoped["source_type"] == "child_submission"
+        assert scoped["child_submission"]["reports"] == [source["report_sources"]["reports"][0]]
 
 
-@pytest.mark.parametrize(
-    ("kind", "filters"),
-    [
-        ("daily", {"activity_id": str(MEETING_A), "report_id": str(UUID(int=201))}),
-        ("weekly", {"activity_id": str(MEETING_A)}),
-        ("monthly", {"activity_id": str(MEETING_A)}),
-        ("daily", {"report_id": str(UUID(int=999))}),
-        ("weekly", {"report_id": str(UUID(int=999))}),
-        ("monthly", {"report_id": str(UUID(int=999))}),
-    ],
-    ids=[
-        "daily-both-filters-rejected",
-        "weekly-activity-not-selected",
-        "monthly-activity-not-selected",
-        "daily-report-not-selected",
-        "weekly-report-not-selected",
-        "monthly-report-not-selected",
-    ],
-)
-def test_conflicting_or_unselected_source_filters_do_not_expose_reports(kind, filters):
+@pytest.mark.parametrize("kind", ["daily", "weekly", "monthly"])
+def test_unselected_source_key_uses_one_error_without_exposing_evidence(kind):
     source = sample() if kind == "daily" else period_sample(kind)
+    selected = evidence_keys(source)[0]
     model = ScriptedModel(
         responses=[
-            call("read_report_sources", **filters),
+            call(
+                "read_period_evidence",
+                source_keys=[selected, "submission:not-selected"],
+            ),
+            read_all(source),
             call("review_period_report", draft=draft()),
             call("ReportReview", issues=[]),
         ]
@@ -534,10 +930,9 @@ def test_conflicting_or_unselected_source_filters_do_not_expose_reports(kind, fi
     asyncio.run(period.run(source, model=model))
     result = json.loads(model._seen[1][-1].content)
     assert result.get("error")
-    assert "report_sources" not in result
+    assert "sources" not in result
     assert "합성" not in str(result)
-    if filters.get("report_id") == str(UUID(int=999)):
-        assert result["error"] == "period_report_source_not_selected"
+    assert result["error"] == "period_report_source_not_selected"
 
 
 @pytest.mark.parametrize("kind", ["weekly", "monthly"])

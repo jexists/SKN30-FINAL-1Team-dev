@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.content import Report, ReportDeal
 from app.models.crm import Activity
-from app.models.sales import Product, SalesDeal, SalesDealItem
+from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.customers import CustomerSource
 
@@ -224,22 +224,37 @@ async def build_context(
                 "participants_truncated": len(deal_participants) > RELATED_ITEM_LIMIT,
             }
         )
-    history, history_metadata = await _trade_history(
+    snapshot_at = datetime.now(UTC)
+    full_history, full_history_metadata = await _trade_history(
         db,
         member,
         activity,
         company_id,
         selected_deal_ids,
-        INITIAL_HISTORY_LIMIT,
+        EXTRA_HISTORY_LIMIT,
     )
+    history = full_history[:INITIAL_HISTORY_LIMIT]
+    history_metadata = {
+        **full_history_metadata,
+        "limit": INITIAL_HISTORY_LIMIT,
+        "truncated": full_history_metadata["truncated"]
+        or len(full_history) > INITIAL_HISTORY_LIMIT,
+    }
     previous_reports = [
         await _previous_reports(db, member, activity, deal_id) for deal_id in selected_deal_ids
     ]
+    product_details = await _product_details_by_deal(
+        db,
+        member,
+        rows,
+        items,
+        observed_at=snapshot_at,
+    )
     return jsonable_encoder(
         {
             "deals": grounding,
             "crm_context": {
-                "snapshot_at": datetime.now(UTC),
+                "snapshot_at": snapshot_at,
                 "crm_time_basis": "current_values_not_reconstructed_at_meeting_time",
                 "activity": {
                     "id": activity.id,
@@ -264,6 +279,16 @@ async def build_context(
                 "trade_history": history,
                 "trade_history_metadata": history_metadata,
                 "previous_reports": previous_reports,
+                # 내용분석 보강 도구는 이 실행 시점에 고정한 자료만 읽는다. 기본 작성·ML
+                # 문맥에는 필요한 경우에만 additional_context로 전달한다.
+                "refinement_context": {
+                    "company_trade_history": {
+                        "kind": "trade_history",
+                        "items": full_history,
+                        **full_history_metadata,
+                    },
+                    "product_details": product_details,
+                },
                 "related_items_limit": RELATED_ITEM_LIMIT,
             },
         }
@@ -359,74 +384,79 @@ async def _previous_reports(db, member, activity, sales_deal_id):
     )
 
 
-async def load_extra_context(
+async def _product_details_by_deal(
     db: AsyncSession,
     member: Member,
-    activity_id: UUID,
-    selected_deal_ids: list[UUID],
-    kind: str,
-    sales_deal_id: UUID,
-) -> dict[str, Any]:
-    """선택 딜에 묶인 추가 읽기. 빈 조회와 DB/권한 실패를 구분한다."""
-    if kind not in {"trade_history", "previous_reports", "product_details"}:
-        raise HTTPException(status_code=422, detail="meeting_context_kind_invalid")
-    if sales_deal_id not in selected_deal_ids:
-        raise HTTPException(status_code=422, detail="context_deal_not_selected")
-    activity_row, deal_rows = await _selection(db, member, activity_id, selected_deal_ids)
-    activity, _, _, company_id, *_ = activity_row
-    if kind == "trade_history":
-        items, metadata = await _trade_history(
-            db,
-            member,
-            activity,
-            company_id,
-            selected_deal_ids,
-            EXTRA_HISTORY_LIMIT,
-        )
-    elif kind == "previous_reports":
-        return await _previous_reports(db, member, activity, sales_deal_id)
-    else:
-        deal = next(row[0] for row in deal_rows if row[0].id == sales_deal_id)
-        rows = (
-            (
-                await db.execute(
-                    select(Product)
-                    .where(
-                        Product.team_id == member.team_id,
-                        or_(
-                            Product.id == deal.product_id,
-                            Product.id.in_(
-                                select(SalesDealItem.product_id).where(
-                                    SalesDealItem.sales_deal_id == sales_deal_id
-                                ),
-                            ),
-                        ),
-                    )
-                    .order_by(Product.name, Product.id)
-                    .limit(PRODUCT_DETAIL_LIMIT + 1)
+    deal_rows: list[tuple],
+    deal_items: dict[UUID, list[Any]],
+    *,
+    observed_at: datetime,
+) -> list[dict[str, Any]]:
+    """선택 딜 전부의 제품 상세를 한 쿼리로 읽어 실행 입력에 고정한다."""
+    product_ids_by_deal: dict[UUID, list[UUID]] = {}
+    for row in deal_rows:
+        deal = row[0]
+        product_ids: list[UUID] = []
+        seen: set[UUID] = set()
+        if isinstance(deal.product_id, UUID):
+            product_ids.append(deal.product_id)
+            seen.add(deal.product_id)
+        for item in deal_items.get(deal.id, []):
+            product_id = item.product_id
+            if not isinstance(product_id, UUID) or product_id in seen:
+                continue
+            product_ids.append(product_id)
+            seen.add(product_id)
+            if len(product_ids) >= PRODUCT_DETAIL_LIMIT + 1:
+                break
+        product_ids_by_deal[deal.id] = product_ids
+
+    all_product_ids = {
+        product_id for product_ids in product_ids_by_deal.values() for product_id in product_ids
+    }
+    products_by_id: dict[UUID, Product] = {}
+    if all_product_ids:
+        products = (
+            await db.execute(
+                select(Product)
+                .where(
+                    Product.team_id == member.team_id,
+                    Product.id.in_(all_product_ids),
                 )
+                .order_by(Product.name, Product.id)
             )
-            .scalars()
-            .all()
-        )
-        items = [
-            {
-                "id": product.id,
-                "name": product.name,
-                "category_code": product.category_code,
-                "active": product.active,
-                "unit_price": product.unit_price,
-                "shelf_life_months": product.shelf_life_months,
-                "memo": product.memo,
-            }
-            for product in rows[:PRODUCT_DETAIL_LIMIT]
+        ).scalars()
+        products_by_id = {product.id: product for product in products.all()}
+
+    output = []
+    for row in deal_rows:
+        deal = row[0]
+        product_ids = product_ids_by_deal[deal.id]
+        selected = [
+            products_by_id[product_id]
+            for product_id in product_ids[:PRODUCT_DETAIL_LIMIT]
+            if product_id in products_by_id
         ]
-        metadata = {
-            "limit": PRODUCT_DETAIL_LIMIT,
-            "truncated": len(rows) > PRODUCT_DETAIL_LIMIT,
-            "time_basis": "current_catalog_not_historical_price",
-            "observed_at": datetime.now(UTC),
-        }
-    return jsonable_encoder(
-        {"kind": kind, "sales_deal_id": sales_deal_id, "items": items, **metadata}
-    )
+        output.append(
+            {
+                "kind": "product_details",
+                "sales_deal_id": deal.id,
+                "items": [
+                    {
+                        "id": product.id,
+                        "name": product.name,
+                        "category_code": product.category_code,
+                        "active": product.active,
+                        "unit_price": product.unit_price,
+                        "shelf_life_months": product.shelf_life_months,
+                        "memo": product.memo,
+                    }
+                    for product in selected[:PRODUCT_DETAIL_LIMIT]
+                ],
+                "limit": PRODUCT_DETAIL_LIMIT,
+                "truncated": len(product_ids) > PRODUCT_DETAIL_LIMIT,
+                "time_basis": "current_catalog_not_historical_price",
+                "observed_at": observed_at,
+            }
+        )
+    return output

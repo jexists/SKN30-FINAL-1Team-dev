@@ -10,7 +10,7 @@ from app.services.llm import generate_structured
 
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
-PROMPT_VERSION = "report_writing.v9"
+PROMPT_VERSION = "report_writing.v10"
 
 SYSTEM_PROMPT = (
     "너는 한국어 영업 보고서 초안을 작성하는 AI다. "

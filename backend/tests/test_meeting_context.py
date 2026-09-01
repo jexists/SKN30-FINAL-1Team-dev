@@ -3,6 +3,7 @@
 import asyncio
 import json
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -154,19 +155,6 @@ def build(sample, db):
     )
 
 
-def extra(sample, db, kind, deal_id=None):
-    return asyncio.run(
-        service.load_extra_context(
-            db,
-            sample["member"],
-            sample["activity"].id,
-            sample["ids"],
-            kind,
-            deal_id if deal_id is not None else sample["ids"][0],
-        )
-    )
-
-
 def test_build_returns_grounding_and_serializable_current_crm(sample):
     deal = sample["deals"][0]
     item_id = uuid4()
@@ -191,7 +179,7 @@ def test_build_returns_grounding_and_serializable_current_crm(sample):
         ]
     }
 
-    result = build(sample, Db(Result(), Result(), Result()))
+    result = build(sample, Db(Result(), Result(), Result(), Result()))
 
     json.dumps(result, ensure_ascii=False)
     assert [DealGroundingContext.model_validate(row).sales_deal_id for row in result["deals"]] == (
@@ -208,6 +196,8 @@ def test_build_returns_grounding_and_serializable_current_crm(sample):
     assert crm["deals"][0]["participants"][0]["customer_contact_name"] == "합성 고객"
     assert crm["trade_history"] == []
     assert [history["items"] for history in crm["previous_reports"]] == [[], []]
+    assert crm["refinement_context"]["company_trade_history"]["items"] == []
+    assert len(crm["refinement_context"]["product_details"]) == 2
     assert "not_proof_of_new_client" in crm["trade_history_metadata"]["empty_means"]
     assert not {"transcript", "ml", "golden"} & crm.keys()
 
@@ -242,20 +232,6 @@ def test_wrong_company_or_inaccessible_deal_is_rejected(sample):
         build(sample, Db())
 
 
-@pytest.mark.parametrize(
-    "kind,deal_id,detail",
-    [
-        ("raw_transcript", None, "meeting_context_kind_invalid"),
-        ("product_details", uuid4(), "context_deal_not_selected"),
-    ],
-)
-def test_extra_tools_reject_arbitrary_kind_or_unselected_deal(sample, kind, deal_id, detail):
-    with pytest.raises(HTTPException) as error:
-        extra(sample, Db(), kind, deal_id)
-    assert error.value.detail == detail
-    sample["get_activity"].assert_not_awaited()
-
-
 def test_history_is_company_scoped_completed_and_strictly_before_meeting(sample):
     old = SalesDeal(
         id=uuid4(),
@@ -267,7 +243,12 @@ def test_history_is_company_scoped_completed_and_strictly_before_meeting(sample)
         contract_signed_on=date(2026, 8, 1),
         contract_amount=30_000,
     )
-    db = Db(Result([(old, "이전 상품")] * (service.INITIAL_HISTORY_LIMIT + 1)), Result(), Result())
+    db = Db(
+        Result([(old, "이전 상품")] * (service.INITIAL_HISTORY_LIMIT + 1)),
+        Result(),
+        Result(),
+        Result(),
+    )
 
     result = build(sample, db)["crm_context"]
 
@@ -298,12 +279,12 @@ def test_history_is_company_scoped_completed_and_strictly_before_meeting(sample)
     assert date(2026, 8, 20) in params.values()
 
 
-def test_extra_history_has_larger_explicit_limit_and_company_scope(sample):
-    db = Db(Result())
-    result = extra(sample, db, "trade_history")
+def test_frozen_company_history_has_larger_explicit_limit_and_no_deal_scope(sample):
+    db = Db(Result(), Result(), Result(), Result())
+    result = build(sample, db)["crm_context"]["refinement_context"]["company_trade_history"]
     assert result["limit"] == service.EXTRA_HISTORY_LIMIT
     assert result["kind"] == "trade_history"
-    assert result["sales_deal_id"] == str(sample["ids"][0])
+    assert "sales_deal_id" not in result
     assert result["items"] == []
     assert "same_company" in result["scope"]
 
@@ -319,16 +300,21 @@ def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample)
         "unassigned_report": "미지정 금지",
     }
     meeting_at = sample["activity"].starts_at - timedelta(days=1)
-    db = Db(Result([(report_id, date(2026, 8, 1), values, meeting_at, "approved")]))
+    db = Db(
+        Result(),
+        Result([(report_id, date(2026, 8, 1), values, meeting_at, "approved")]),
+        Result(),
+        Result(),
+    )
 
-    result = extra(sample, db, "previous_reports")
+    result = build(sample, db)["crm_context"]["previous_reports"][0]
 
     assert result["items"][0]["values"] == {"body": "확정한 이전 딜 내용"}
     assert result["items"][0]["report_id"] == str(report_id)
     assert result["items"][0]["meeting_at"] == meeting_at.isoformat()
     assert result["items"][0]["status_code"] == "approved"
     assert result["time_basis"] == "historical_context_not_current_meeting_facts"
-    compiled = db.statements[0].compile(dialect=postgresql.dialect())
+    compiled = db.statements[1].compile(dialect=postgresql.dialect())
     sql = str(compiled)
     for predicate in [
         "report.team_id =",
@@ -357,11 +343,11 @@ def test_initial_history_is_loaded_once_per_deal_using_the_same_scoped_query(sam
         (uuid4(), meeting_at.date(), {"body": f"이전 논의 {i}"}, meeting_at, "submitted")
         for i in range(service.PREVIOUS_REPORT_LIMIT + 1)
     ]
-    db = Db(Result(), Result(rows), Result())
+    db = Db(Result(), Result(rows), Result(), Result())
 
     histories = build(sample, db)["crm_context"]["previous_reports"]
 
-    assert len(db.statements) == 3  # 거래 이력 1회, 선택 딜 2개의 보고서 각 1회
+    assert len(db.statements) == 4  # 거래 이력 1회, 딜별 보고서 2회, 제품 상세 batch 1회
     sample["get_activity"].assert_awaited_once()
     assert sample["get_deal"].await_count == 2
     assert [history["sales_deal_id"] for history in histories] == list(map(str, sample["ids"]))
@@ -369,9 +355,8 @@ def test_initial_history_is_loaded_once_per_deal_using_the_same_scoped_query(sam
     assert histories[0]["truncated"] is True
     assert histories[1]["items"] == [] and histories[1]["truncated"] is False
     assert "not_proof" in histories[1]["empty_means"]
-    assert histories[0] == extra(sample, Db(Result(rows)), "previous_reports")
     assert histories[0]["items"][0]["status_code"] == "submitted"
-    for statement, deal_id in zip(db.statements[1:], sample["ids"], strict=True):
+    for statement, deal_id in zip(db.statements[1:3], sample["ids"], strict=True):
         params = statement.compile(dialect=postgresql.dialect()).params
         assert deal_id in params.values()
         assert service.PREVIOUS_REPORT_LIMIT + 1 in params.values()
@@ -384,7 +369,7 @@ def test_report_values_have_explicit_text_limit_and_no_legacy_root_fallback():
     assert truncated is True
 
 
-def test_product_lookup_is_bound_to_selected_deal_team_and_returns_no_storage_key(sample):
+def test_product_details_are_batched_scoped_and_frozen_without_storage_key(sample):
     product = Product(
         id=sample["deals"][0].product_id,
         name="단종 상품",
@@ -395,27 +380,113 @@ def test_product_lookup_is_bound_to_selected_deal_team_and_returns_no_storage_ke
         memo="규격",
         image_storage_key="private/storage",
     )
-    db = Db(Result([product]))
+    db = Db(Result(), Result(), Result(), Result([product]))
 
-    result = extra(sample, db, "product_details")
+    result = build(sample, db)["crm_context"]["refinement_context"]["product_details"][0]
 
     json.dumps(result)
     assert result["items"][0]["active"] is False
     assert "image_storage_key" not in result["items"][0]
     assert result["time_basis"] == "current_catalog_not_historical_price"
-    compiled = db.statements[0].compile(dialect=postgresql.dialect())
+    compiled = db.statements[3].compile(dialect=postgresql.dialect())
     sql = str(compiled)
     assert "product.team_id =" in sql
-    assert "sales_deal_item.sales_deal_id =" in sql
-    assert sample["ids"][0] in compiled.params.values()
+    assert "product.id IN" in sql
+    assert sample["deals"][0].product_id in compiled.params["id_1"]
     assert sample["member"].team_id in compiled.params.values()
+
+
+def test_product_batch_prioritizes_primary_then_item_order_and_queries_one_sentinel(sample):
+    deal = sample["deals"][0]
+    item_ids = [uuid4() for _ in range(service.PRODUCT_DETAIL_LIMIT + 2)]
+    items = [
+        SalesDealItemRead(
+            id=uuid4(),
+            product_id=product_id,
+            product_name=f"품목 {position}",
+            quantity=1,
+            unit_price=100,
+            position=position,
+        )
+        for position, product_id in enumerate(item_ids)
+    ]
+    queried_ids = [deal.product_id, *item_ids[: service.PRODUCT_DETAIL_LIMIT]]
+    products = [
+        Product(
+            id=product_id,
+            team_id=sample["member"].team_id,
+            name="대표 상품" if product_id == deal.product_id else f"상품 {position:02d}",
+            active=True,
+            category_code="system",
+            unit_price=position,
+            shelf_life_months=None,
+            memo=f"메모 {position}",
+        )
+        for position, product_id in enumerate(queried_ids)
+    ]
+    db = Db(Result(reversed(products)))
+
+    result = asyncio.run(
+        service._product_details_by_deal(
+            db,
+            sample["member"],
+            [sample["deal_rows"][deal.id]],
+            {deal.id: items},
+            observed_at=sample["activity"].starts_at,
+        )
+    )[0]
+
+    assert [item["id"] for item in result["items"]] == [
+        deal.product_id,
+        *item_ids[: service.PRODUCT_DETAIL_LIMIT - 1],
+    ]
+    assert result["items"][0]["name"] == "대표 상품"
+    assert result["truncated"] is True
+    query_ids = db.statements[0].compile(dialect=postgresql.dialect()).params["id_1"]
+    assert len(query_ids) == service.PRODUCT_DETAIL_LIMIT + 1
+    assert set(query_ids) == set(queried_ids)
+    assert item_ids[service.PRODUCT_DETAIL_LIMIT] not in query_ids
+
+
+def test_product_batch_caps_query_ids_for_one_hundred_deals(sample):
+    rows = []
+    items = {}
+    for _ in range(service.SELECTED_DEAL_LIMIT):
+        deal = SimpleNamespace(id=uuid4(), product_id=uuid4())
+        rows.append((deal,))
+        items[deal.id] = [
+            SimpleNamespace(product_id=uuid4()) for _ in range(service.PRODUCT_DETAIL_LIMIT + 5)
+        ]
+    db = Db(Result())
+
+    result = asyncio.run(
+        service._product_details_by_deal(
+            db,
+            sample["member"],
+            rows,
+            items,
+            observed_at=sample["activity"].starts_at,
+        )
+    )
+
+    query_ids = db.statements[0].compile(dialect=postgresql.dialect()).params["id_1"]
+    assert len(query_ids) == service.SELECTED_DEAL_LIMIT * (service.PRODUCT_DETAIL_LIMIT + 1)
+    assert len(result) == service.SELECTED_DEAL_LIMIT
+    assert all(item["truncated"] is True for item in result)
 
 
 def test_db_failure_is_not_silently_changed_to_unknown_or_empty(sample):
     db = AsyncMock()
     db.execute.side_effect = RuntimeError("synthetic database failure")
     with pytest.raises(RuntimeError, match="synthetic database failure"):
-        extra(sample, db, "previous_reports")
+        asyncio.run(
+            service._previous_reports(
+                db,
+                sample["member"],
+                sample["activity"],
+                sample["ids"][0],
+            )
+        )
 
 
 def test_unknown_legacy_source_is_not_guessed_as_other():
