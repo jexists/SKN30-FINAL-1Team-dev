@@ -4,9 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from app.schemas.meeting_content import SegmentAssignment
+
 AgentCode = Literal[
     "report_writing",
     "meeting_analysis",
+    "meeting_processing",
     "contract_management_select_candidates",
     "contract_management_next_meeting",
     "contract_management_briefing",
@@ -26,6 +29,7 @@ Guidance = Annotated[
 _REQUIRED_FIELDS: dict[str, set[str]] = {
     "report_writing": {"report_id"},
     "meeting_analysis": {"report_id"},
+    "meeting_processing": {"report_ids"},
     # 로그인한 담당자의 전체 포트폴리오를 대상으로 돈다 — 특정 대상을 지정하지 않는다.
     "contract_management_select_candidates": set(),
     "contract_management_next_meeting": {"customer_company_id"},
@@ -33,6 +37,7 @@ _REQUIRED_FIELDS: dict[str, set[str]] = {
     "schedule_management": {"sales_deal_id"},
 }
 _OPTIONAL_FIELDS: dict[str, set[str]] = {
+    "meeting_processing": {"parent_run_id", "assignment_overrides"},
     # AI 제안(일정관리 실행)을 승인해서 만든 일정만 부모를 기록한다. 캘린더 직접 입력이나
     # 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은 부모 없이 activity_id만으로 만든다.
     "contract_management_briefing": {"parent_run_id"},
@@ -45,6 +50,8 @@ _OPTIONAL_FIELDS: dict[str, set[str]] = {
 }
 _IDENTIFYING_FIELDS = {
     "report_id",
+    "report_ids",
+    "assignment_overrides",
     "customer_company_id",
     "sales_deal_id",
     "activity_id",
@@ -62,6 +69,10 @@ class AgentRunCreate(BaseModel):
     agent_code: AgentCode
     # 실행 원문을 가진 보고서. report_writing/meeting_analysis 에서만 쓴다.
     report_id: UUID | None = None
+    report_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=100)
+    assignment_overrides: list[SegmentAssignment] | None = Field(
+        default=None, min_length=1, max_length=5_000
+    )
     # 회사 단위로 실행하는 계약관리 에이전트가 쓴다.
     customer_company_id: UUID | None = None
     # 딜 단위로 실행하는 일정관리 에이전트가 쓴다.
@@ -97,6 +108,15 @@ class AgentRunCreate(BaseModel):
             if getattr(self, name) is not None:
                 raise ValueError(f"{name}_not_supported")
 
+        if self.report_ids is not None and len(set(self.report_ids)) != len(self.report_ids):
+            raise ValueError("report_ids_duplicate")
+        if self.agent_code == "meeting_processing":
+            if bool(self.assignment_overrides) != bool(self.parent_run_id):
+                raise ValueError("meeting_assignment_parent_required")
+            ids = [item.segment_id for item in self.assignment_overrides or []]
+            if len(set(ids)) != len(ids):
+                raise ValueError("assignment_segment_duplicate")
+
         if self.agent_code == "schedule_management" and self.parent_run_id is None:
             # 계약관리 제안이 없으면 선호 시간대를 직접 받아야 한다.
             missing = {"preferred_starts_at", "preferred_ends_at", "duration_minutes"} - {
@@ -112,6 +132,15 @@ class AgentRunCreate(BaseModel):
             ):
                 raise ValueError("preferred_schedule_not_supported_with_parent_run")
         return self
+
+
+class MeetingNotesPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: UUID
+    # 두 본문을 함께 교체하므로 모두 필수다. null은 해당 본문 삭제를 뜻한다.
+    common_body: str | None = Field(max_length=100_000)
+    unassigned_body: str | None = Field(max_length=100_000)
 
 
 class AgentRunRead(BaseModel):

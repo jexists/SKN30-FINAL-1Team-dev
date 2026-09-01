@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>미팅 초안 회귀 테스트</title>
+  </head>
+  <body>
+    <h1>미팅 초안 상태 회귀 테스트</h1>
+    <p>
+      로컬 Vite에서 /tests/meetingDraft.browser.html 열기. 실제 React 훅·작성 화면에 합성 입력과
+      메모리 응답만 사용하며 서버 API를 호출하지 않습니다.
+    </p>
+    <pre id="result">실행 중…</pre>
+    <div id="test-root"></div>
+    <script type="module">
+      import { act, createElement } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import { createMemoryRouter, RouterProvider } from 'react-router'
+      import { client } from '../src/api/client.ts'
+      import { SessionContext } from '../src/auth/sessionContext.ts'
+      import Compose from '../src/pages/Meetings/Compose.tsx'
+      import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
+      import { getToasts } from '../src/shared/toast.ts'
+
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      const root = createRoot(document.getElementById('test-root'))
+      const result = document.getElementById('result')
+      const checks = []
+      let draft
+      function Probe({ item, reports, ready }) {
+        draft = useMeetingDraft(item, reports, ready)
+        return null
+      }
+      function assert(condition, message) {
+        if (!condition) throw new Error(message)
+        checks.push(message)
+      }
+      const item = { id: 'meeting-a', title: '합성 미팅', salesDealId: 'deal-a' }
+      const template = {
+        id: 'test-body',
+        fields: [{ id: 'body', type: 'textarea', required: true, aiFilled: true }],
+      }
+      const saved = (id, body = '') => ({
+        id: `report-${id}`,
+        salesDealId: id,
+        agendaId: item.id,
+        template,
+        apiStatus: 'draft',
+        review: 'writing',
+        title: '서버 제목',
+        transcript: '서버 원문',
+        values: { body },
+        aiValues: {},
+        attachments: [],
+        reportError: 'report_agent_review_limit',
+        analysisError: '이전 분석 실패',
+      })
+      const reports = ['deal-a', 'deal-b', 'deal-c'].map((id) => saved(id))
+      async function render(nextItem, nextReports, ready) {
+        await act(async () =>
+          root.render(createElement(Probe, { item: nextItem, reports: nextReports, ready })),
+        )
+      }
+      async function checkComposeIsolation() {
+        const container = document.getElementById('test-root')
+        const composeRoot = createRoot(container)
+        const adapter = client.defaults.adapter
+        const pendingSaves = []
+        const unexpectedRequests = []
+        const response = (config, data) => ({
+          config,
+          data,
+          status: 200,
+          headers: {},
+          statusText: 'OK',
+        })
+        const report = (id, body = `${id} 공통 메모`) => ({
+          id: `report-${id}`,
+          author_member_id: 'synthetic-owner',
+          author_display_name: '합성 작성자',
+          source_activity_id: id,
+          sales_deal_id: `deal-${id}`,
+          report_date: '2026-08-31',
+          status_code: 'draft',
+          template_snapshot: template,
+          transcript: `${id} 미팅 원문`,
+          source_snapshot: id === 'meeting-b' ? {} : { meeting_run_id: `run-${id}` },
+          content: {
+            title: `${id} 보고서`,
+            values: { body: '' },
+            sales_deal: { id: `deal-${id}`, label: `딜 ${id}` },
+            ...(id === 'meeting-b'
+              ? {}
+              : {
+                  meeting_shared: {
+                    run_id: `run-${id}`,
+                    revision: body,
+                    common_report: { body, evidence_ids: ['S0001'] },
+                    unassigned_report: null,
+                  },
+                }),
+          },
+        })
+        client.defaults.adapter = async (config) => {
+          if (config.method === 'get' && config.url.startsWith('/activities/')) {
+            const id = config.url.split('/').at(-1)
+            return response(config, {
+              id,
+              title: `${id} 합성 미팅`,
+              owner_member_id: 'synthetic-owner',
+              owner_display_name: '합성 작성자',
+              starts_at: '2026-08-31T09:00:00+09:00',
+              ends_at: '2026-08-31T10:00:00+09:00',
+              category_code: 'visit',
+              customer_company_id: null,
+              sales_deal_id: `deal-${id}`,
+            })
+          }
+          if (config.method === 'get' && config.url === '/reports') {
+            return response(config, { items: [report(config.params.source_activity_id)] })
+          }
+          if (config.method === 'patch' && config.url.endsWith('/meeting-notes')) {
+            return new Promise((resolve, reject) => pendingSaves.push({ config, resolve, reject }))
+          }
+          unexpectedRequests.push(config.url)
+          throw new Error(`예상하지 않은 요청: ${config.url}`)
+        }
+        const session = {
+          session: {
+            memberId: 'synthetic-owner',
+            role: 'member',
+            profile: { name: '합성 작성자', title: '담당자' },
+            isAdmin: false,
+          },
+          status: 'authenticated',
+          login: async () => {},
+          logout: async () => {},
+        }
+        const router = createMemoryRouter(
+          [
+            {
+              path: '*',
+              element: createElement(SessionContext, { value: session }, createElement(Compose)),
+            },
+          ],
+          { initialEntries: ['/?agenda=meeting-a'] },
+        )
+        const button = (text) =>
+          [...container.querySelectorAll('button')].find((el) => el.textContent === text)
+        const notes = () => container.querySelector('[aria-label="미팅 공통·미지정 기록"] textarea')
+        async function flush() {
+          await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+        }
+        async function navigate(id, suffix = '') {
+          await act(async () => router.navigate(`/?agenda=${id}${suffix}`))
+          for (
+            let at = 0;
+            at < 20 && container.querySelector('#transcript')?.value !== `${id} 미팅 원문`;
+            at += 1
+          )
+            await flush()
+          assert(
+            container.querySelector('#transcript')?.value === `${id} 미팅 원문`,
+            `${id} 작성 화면 로드`,
+          )
+        }
+        async function editNote(value) {
+          await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(
+              notes(),
+              value,
+            )
+            notes().dispatchEvent(new Event('input', { bubbles: true }))
+          })
+        }
+        async function saveNote() {
+          await act(async () => button('공통·미지정 메모 저장').click())
+        }
+        try {
+          await act(async () => composeRoot.render(createElement(RouterProvider, { router })))
+          await navigate('meeting-a')
+          await editNote('A 저장 전 수정')
+          assert(
+            button('미팅 전체 분석·보고서 작성').disabled,
+            '수정한 공통 메모가 있으면 생성 잠금',
+          )
+          await navigate('meeting-a', '&view=unchanged')
+          assert(notes().value === 'A 저장 전 수정', '같은 미팅의 다른 쿼리는 편집 상태 보존')
+          await navigate('meeting-b')
+          assert(
+            !notes() && !button('미팅 전체 분석·보고서 작성').disabled,
+            '미팅 전환 후 없는 공통 메모의 dirty 상태로 생성이 잠기지 않음',
+          )
+
+          await navigate('meeting-a')
+          await editNote('A 늦은 저장')
+          await saveNote()
+          assert(pendingSaves.length === 1, '이전 미팅 저장 응답을 보류')
+          await navigate('meeting-c')
+          assert(!notes().disabled, '이전 미팅 저장 대기가 새 미팅 편집을 잠그지 않음')
+          await editNote('C 저장할 메모')
+          await saveNote()
+          assert(
+            pendingSaves.length === 2 && notes().disabled,
+            '새 미팅 저장은 자체 대기 상태를 유지',
+          )
+          const toastCount = getToasts().length
+          await act(async () =>
+            pendingSaves[0].resolve(
+              response(pendingSaves[0].config, [report('meeting-a', 'A 늦은 응답')]),
+            ),
+          )
+          assert(
+            notes().value === 'C 저장할 메모' && notes().disabled,
+            '늦은 이전 성공 응답은 새 본문·저장 잠금을 바꾸지 않음',
+          )
+          assert(getToasts().length === toastCount, '화면을 떠난 저장의 성공 알림을 표시하지 않음')
+          await act(async () =>
+            pendingSaves[1].resolve(
+              response(pendingSaves[1].config, [report('meeting-c', 'C 저장 완료')]),
+            ),
+          )
+          assert(
+            notes().value === 'C 저장 완료' && !notes().disabled,
+            '현재 미팅 저장 응답은 정상 적용',
+          )
+
+          await navigate('meeting-a')
+          await editNote('A 실패할 저장')
+          await saveNote()
+          await navigate('meeting-b')
+          await act(async () => pendingSaves[2].reject(new Error('이전 미팅 저장 실패')))
+          assert(
+            !container.textContent.includes('이전 미팅 저장 실패') &&
+              !button('미팅 전체 분석·보고서 작성').disabled,
+            '이전 저장 실패도 새 미팅 오류·잠금 상태에 적용하지 않음',
+          )
+          assert(unexpectedRequests.length === 0, '정의한 메모리 응답 외 서버 요청 없음')
+        } finally {
+          await act(async () => composeRoot.unmount())
+          router.dispose()
+          client.defaults.adapter = adapter
+        }
+      }
+      async function run() {
+        await render(item, [], false)
+        assert(draft.salesDealIds.length === 0, '조회 전에는 빈 서버 응답으로 초기화하지 않음')
+        await render(item, reports, true)
+        assert(draft.salesDealIds.length === 3, '최초 조회 완료 후 선택 딜 3개 복원')
+        await act(async () => {
+          draft.setTranscript('사용자가 수정한 원문')
+          draft.setTitle('deal-a', '직접 쓴 제목')
+          draft.startManual('deal-a')
+          draft.applyDocument('deal-a', { body: '사람이 쓴 본문' }, [])
+          draft.beginGeneration(['deal-a', 'deal-b', 'deal-c'])
+        })
+        await act(async () =>
+          reports.forEach((report) => draft.bindReport(report.salesDealId, report)),
+        )
+        await render(
+          { ...item, title: '재조회된 일정 제목' },
+          reports.map((report) => ({ ...report })),
+          true,
+        )
+        assert(
+          Object.values(draft.draftsByDeal).every(
+            (state) =>
+              state.phase === 'generating' &&
+              state.generationError === null &&
+              state.analysisPhase === 'running',
+          ),
+          '사전저장 응답·재조회 뒤에도 딜 3개 생성/ML 진행 중 유지',
+        )
+        assert(
+          draft.transcript === '사용자가 수정한 원문' &&
+            draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문' &&
+            draft.draftsByDeal['deal-a'].title === '직접 쓴 제목',
+          '재조회가 사용자 원문·제목·본문을 덮지 않음',
+        )
+        const progress = {
+          run_id: 'run-current',
+          status_code: 'running',
+          stage: 'report_writing',
+          previews: reports.map((report) => ({
+            section: 'deal',
+            sales_deal_id: report.salesDealId,
+            body: '검토 전 스트리밍 문장',
+            revision: 1,
+          })),
+        }
+        await act(async () => draft.receiveProgress(progress))
+        await render(
+          item,
+          reports.map((report) => ({ ...report, updatedAt: 'changed' })),
+          true,
+        )
+        assert(
+          draft.processingProgress?.previews.length === 3 &&
+            Object.values(draft.draftsByDeal).every((state) => state.phase === 'generating'),
+          '스트리밍 수신 후 재조회에서도 미리보기와 카드 생성 상태 유지',
+        )
+        assert(
+          draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문' &&
+            !Object.keys(draft.draftsByDeal['deal-b'].aiValues).length,
+          '검토 전 문장은 최종 본문이나 AI 원본에 저장하지 않음',
+        )
+        await act(async () =>
+          draft.generationFailed(['deal-a', 'deal-b', 'deal-c'], new Error('실행 실패')),
+        )
+        assert(
+          draft.processingProgress === null &&
+            draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문',
+          '실패 후 미리보기만 지우고 사람 본문 유지',
+        )
+        await render({ id: 'meeting-b', title: '다른 미팅', salesDealId: 'deal-z' }, [], true)
+        assert(
+          draft.salesDealIds.join() === 'deal-z' && draft.transcript === '',
+          '다른 미팅으로 이동하면 해당 미팅으로 새로 초기화',
+        )
+        await act(async () => root.unmount())
+        await checkComposeIsolation()
+        result.textContent = `PASS ${checks.length}\n${checks.join('\n')}`
+        document.title = `PASS ${checks.length} · 미팅 초안 회귀 테스트`
+      }
+      run().catch((error) => {
+        result.textContent = `FAIL\n${error.stack}`
+        document.title = 'FAIL · 미팅 초안 회귀 테스트'
+      })
+    </script>
+  </body>
+</html>

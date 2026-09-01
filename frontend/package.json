@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test:summary": "node --experimental-strip-types --test tests/summaryPolling.test.mjs",
     "typecheck": "tsc -b --noEmit",
     "format": "prettier --write src",
     "format:check": "prettier --check src",

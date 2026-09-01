@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -340,6 +341,95 @@ def test_create_starts_as_draft_and_ignores_client_status():
     assert body["activities"] == []
     assert response.headers["Location"] == f"/api/reports/{body['id']}"
     assert db.flush_count == db.commit_count == 1
+
+
+@pytest.mark.parametrize("kind", ["daily", "meeting"])
+def test_create_cannot_inject_server_owned_meeting_shared(monkeypatch, kind):
+    member = _member()
+    db = _CreateDb(member)
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(reports_api, "_validate_meeting_deal", AsyncMock())
+    content = {
+        "values": {"body": "사용자가 입력한 딜 본문"},
+        "meeting_shared": {
+            "run_id": str(uuid4()),
+            "common_report": {"body": "위조된 공통 합의", "evidence_ids": ["S0001"]},
+            "unassigned_report": None,
+        },
+    }
+    payload = {
+        "report_kind": kind,
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": content,
+    }
+    if kind == "meeting":
+        payload.update(source_activity_id=str(uuid4()), sales_deal_id=str(uuid4()))
+
+    with _client(db, member) as client:
+        response = client.post("/api/reports", headers={"Origin": ORIGIN}, json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["content"] == {"values": content["values"]}
+    stored = next(value for value in db.added if isinstance(value, Report))
+    assert "meeting_shared" not in stored.content
+    assert db.commit_count == 1
+
+
+@pytest.mark.parametrize(
+    "has_server_value,attack",
+    [
+        (False, "replace"),
+        (True, "replace"),
+        (True, "omit"),
+        (True, "null"),
+    ],
+)
+@pytest.mark.parametrize("key", ["ai_values", "ai_evidence", "ai_generated_at", "meeting_shared"])
+def test_patch_cannot_create_replace_or_remove_server_content(key, has_server_value, attack):
+    member = _member()
+    report = _report(member, kind="meeting")
+    report.source_activity_id, report.sales_deal_id = uuid4(), uuid4()
+    server_values = {
+        "ai_values": {"body": "서버가 저장한 AI 초안"},
+        "ai_evidence": "S0001",
+        "ai_generated_at": NOW.isoformat(),
+        "meeting_shared": {
+            "run_id": str(uuid4()),
+            "common_report": {"body": "서버가 저장한 공통 내용", "evidence_ids": ["S0001"]},
+            "unassigned_report": {"body": "딜 미지정 · 확인 필요", "evidence_ids": ["S0002"]},
+        },
+    }
+    report.content = {"values": {"body": "기존 딜 내용"}}
+    if has_server_value:
+        report.content[key] = server_values[key]
+    report.ai_evidence = {"deal_assessment": {"label": "high"}}
+    replacement = {"values": {"body": "사용자가 수정한 딜 내용"}}
+    if attack == "replace":
+        replacement[key] = "클라이언트가 보낸 위조 값"
+    elif attack == "null":
+        replacement[key] = None
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+    )
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"content": replacement},
+        )
+
+    assert response.status_code == 200
+    expected = {"values": replacement["values"]}
+    if has_server_value:
+        expected[key] = server_values[key]
+    assert report.content == expected
+    assert response.json()["content"] == expected
+    assert response.json()["ai_evidence"] == {"deal_assessment": {"label": "high"}}
+    assert db.commit_count == 1 and db.rollback_count == 0
 
 
 def test_changes_requested_report_is_editable_again():

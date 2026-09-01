@@ -6,7 +6,9 @@ import { reportTemplateFromSnapshot } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
   MeetingDealRef,
+  MeetingEvidenceLedger,
   MeetingReport,
+  MeetingReportBody,
   PageResponse,
   ReportAttachment,
   ReportResponse,
@@ -17,6 +19,7 @@ import type {
 import { parseISO, TODAY } from '@/utils/date'
 
 import { reviewOf } from './reviewStatus'
+import { readMeetingAnalysis } from './generatedDraft'
 
 const DAY = 86_400_000
 
@@ -56,11 +59,81 @@ function statusOf(code: ReportResponse['status_code']): ReportStatus {
   return code === 'approved' ? '확정' : '검토 대기'
 }
 
+function bodyOf(value: unknown): MeetingReportBody | null {
+  const body = record(value)
+  return typeof body.body === 'string' && Array.isArray(body.evidence_ids)
+    ? {
+        body: body.body,
+        evidence_ids: body.evidence_ids.filter((id): id is string => typeof id === 'string'),
+        ai_body: typeof body.ai_body === 'string' ? body.ai_body : undefined,
+        edited: body.edited === true,
+      }
+    : null
+}
+
+/** 저장 근거는 일부가 손상되어도 배정에 쓰지 않도록 전체를 확인합니다. */
+function evidenceOf(value: unknown): MeetingEvidenceLedger | undefined {
+  const ledger = record(value)
+  if (
+    ledger.schema_version !== 'meeting_content.v1' ||
+    !/^[a-f0-9]{64}$/.test(text(ledger.transcript_sha256)) ||
+    !Array.isArray(ledger.selected_deal_ids) ||
+    ledger.selected_deal_ids.length < 1 ||
+    ledger.selected_deal_ids.length > 100 ||
+    !ledger.selected_deal_ids.every((id) => typeof id === 'string' && id.trim()) ||
+    !Array.isArray(ledger.items) ||
+    ledger.items.length < 1 ||
+    ledger.items.length > 5_000
+  )
+    return undefined
+
+  const selected = new Set(ledger.selected_deal_ids)
+  if (selected.size !== ledger.selected_deal_ids.length) return undefined
+  const segmentIds = new Set<string>()
+  const scopes = [
+    'meeting_context',
+    'company_context',
+    'all_selected_deals',
+    'deal',
+    'unresolved',
+    'out_of_scope',
+  ]
+  for (const item of ledger.items) {
+    const row = record(item)
+    const segment = record(row.segment)
+    const applicability = record(row.applicability)
+    if (
+      !/^S\d{4,6}$/.test(text(segment.segment_id)) ||
+      segmentIds.has(text(segment.segment_id)) ||
+      typeof segment.start !== 'number' ||
+      !Number.isSafeInteger(segment.start) ||
+      segment.start < 0 ||
+      typeof segment.end !== 'number' ||
+      !Number.isSafeInteger(segment.end) ||
+      segment.end <= segment.start ||
+      !text(segment.text) ||
+      !scopes.includes(text(applicability.scope)) ||
+      !Array.isArray(applicability.deal_ids) ||
+      !applicability.deal_ids.every((id) => typeof id === 'string' && selected.has(id)) ||
+      new Set(applicability.deal_ids).size !== applicability.deal_ids.length ||
+      (applicability.scope === 'deal'
+        ? applicability.deal_ids.length === 0
+        : applicability.deal_ids.length !== 0)
+    )
+      return undefined
+    segmentIds.add(text(segment.segment_id))
+  }
+  return ledger as unknown as MeetingEvidenceLedger
+}
+
 export function toMeetingReport(item: ReportResponse): MeetingReport {
   const content = record(item.content)
   const storedDeals = dealsOf(content.sales_deals)
   const storedDeal = dealsOf([content.sales_deal])[0]
   const salesDealId = item.sales_deal_id
+  const source = record(item.source_snapshot)
+  const shared = record(content.meeting_shared)
+  const analysis = record(item.ai_evidence)
   return {
     id: item.id,
     owner: item.author_display_name,
@@ -90,6 +163,19 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     aiValues: valuesOf(content.ai_values),
     aiEvidence: text(content.ai_evidence) || undefined,
     aiGeneratedAt: text(content.ai_generated_at) || undefined,
+    updatedAt: item.updated_at,
+    meetingRunId: text(source.meeting_run_id) || text(shared.run_id) || undefined,
+    meetingShared:
+      typeof shared.run_id === 'string'
+        ? {
+            run_id: shared.run_id,
+            revision: text(shared.revision),
+            common_report: bodyOf(shared.common_report),
+            unassigned_report: bodyOf(shared.unassigned_report),
+          }
+        : undefined,
+    evidenceLedger: evidenceOf(source.evidence),
+    ...readMeetingAnalysis(analysis),
   }
 }
 

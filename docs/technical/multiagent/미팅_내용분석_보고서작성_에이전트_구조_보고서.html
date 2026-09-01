@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SalesLuv · 내용분석·보고서작성 에이전트</title>
+  <style>
+    :root {
+      --paper: #f5f6f8;
+      --white: #fff;
+      --ink: #172330;
+      --muted: #596675;
+      --line: #dce2e9;
+      --wire: #8795a7;
+      --blue: #205ccc;
+      --blue-tint: #edf3ff;
+      --orange: #a55412;
+      --orange-tint: #fff5e9;
+      --green: #276b51;
+      --green-tint: #edf6f1;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 96px; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+      letter-spacing: -.02em;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3, h4, p, figure { margin: 0; }
+    a { color: inherit; text-decoration: none; }
+    a:focus-visible { outline: 3px solid var(--blue); outline-offset: 5px; }
+    ::selection { background: #d8e6ff; }
+    .wrap { width: min(1344px, calc(100% - 64px)); margin: auto; }
+    .topbar {
+      position: sticky; top: 0; z-index: 5;
+      background: rgba(255,255,255,.97); border-bottom: 1px solid var(--line);
+    }
+    .topbar .wrap { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .brand { font-size: 22px; font-weight: 800; letter-spacing: -.06em; }
+    .brand span { color: var(--blue); }
+    .brand small { margin-left: 16px; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+    nav { display: flex; gap: 26px; font-size: 13px; font-weight: 600; }
+    nav a { padding: 20px 0; border-bottom: 2px solid transparent; }
+    nav a:hover { color: var(--blue); border-color: var(--blue); }
+    .hero { padding: 46px 0 30px; display: flex; justify-content: space-between; gap: 32px; align-items: end; }
+    .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; color: var(--muted); }
+    h1 { margin: 10px 0 12px; font-size: clamp(28px, 3.2vw, 42px); line-height: 1.25; letter-spacing: -.055em; }
+    .hero p { color: var(--muted); font-size: 15px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 15px; font-size: 12px; white-space: nowrap; padding-bottom: 3px; }
+    .legend span { display: inline-flex; gap: 7px; align-items: center; }
+    .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--wire); }
+    .dot.blue { background: var(--blue); }
+    .dot.orange { background: var(--orange); }
+    .section { margin: 0 0 28px; scroll-margin-top: 90px; }
+    .board { background: var(--white); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+    .section-head { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 27px 30px 0; }
+    .section-title { display: flex; gap: 13px; align-items: center; }
+    .index { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; font-weight: 700; color: var(--muted); }
+    h2 { font-size: 22px; letter-spacing: -.035em; line-height: 1.4; }
+    .section-head p { color: var(--muted); margin: 7px 0 0 29px; font-size: 14px; }
+    .tag { display: inline-block; padding: 4px 10px; border: 1px solid var(--line); border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; letter-spacing: .01em; }
+    .tag.blue { color: var(--blue); border-color: #c0d2f6; background: var(--blue-tint); }
+    .tag.orange { color: var(--orange); border-color: #efd1ad; background: var(--orange-tint); }
+    .node { border: 1px solid var(--line); border-radius: 10px; padding: 20px; background: var(--white); min-width: 0; }
+    .node h3 { font-size: 18px; line-height: 1.4; margin: 8px 0; letter-spacing: -.035em; }
+    .node p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .node .label { font-size: 10px; font-weight: 700; letter-spacing: .09em; color: var(--muted); }
+    .node.analysis { background: var(--blue-tint); border: 1.5px solid #7ea3e8; }
+    .node.analysis .label { color: var(--blue); }
+    .node.writing { background: var(--orange-tint); border: 1.5px solid #d9a366; }
+    .node.writing .label { color: var(--orange); }
+    .node.neutral { background: #f7f8fa; }
+    .node-link { display: block; transition: border-color .16s, box-shadow .16s; }
+    .node-link:hover { border-color: currentColor; box-shadow: 0 3px 12px #1723300b; }
+    .node-link .more { display: block; margin-top: 13px; font-size: 12px; font-weight: 600; color: var(--blue); }
+    .node-link.writing .more { color: var(--orange); }
+    .arrow { display: flex; align-items: center; justify-content: center; color: var(--wire); font-size: 24px; font-family: sans-serif; }
+    .overview { display: grid; grid-template-columns: 1fr 34px 1.18fr 44px 1.28fr 34px 1fr; align-items: center; padding: 30px; }
+    .input-meta { border-top: 1px solid var(--line); margin-top: 15px; padding-top: 13px; font-size: 12px; color: var(--muted); }
+    .input-meta strong { display: block; color: var(--ink); font-weight: 600; }
+    .parallel { display: grid; grid-template-rows: 1fr 1fr; gap: 14px; }
+    .parallel .node { min-height: 142px; }
+    .branch { align-self: stretch; display: flex; align-items: center; }
+    .branch svg { width: 100%; height: 170px; overflow: visible; }
+    .result-stack { display: grid; gap: 14px; }
+    .result-stack .node { min-height: 142px; display: flex; flex-direction: column; justify-content: center; padding: 17px; }
+    .result-stack h3 { font-size: 15px; margin-top: 0; }
+    .result-stack p { font-size: 12px; }
+    .double-arrow { display: grid; align-self: stretch; grid-template-rows: 1fr 1fr; gap: 14px; }
+    .overview-note { border-top: 1px solid var(--line); padding: 15px 30px; display: flex; justify-content: space-between; gap: 18px; font-size: 12px; color: var(--muted); background: #fafbfc; }
+    .overview-note strong { color: var(--ink); font-weight: 600; }
+    .parallel-label { color: var(--muted); font-size: 11px; text-align: center; margin: 0 0 7px; }
+    .process-body { padding: 27px 30px 25px; }
+    .analysis-layout { display: grid; grid-template-columns: 1fr 35px 1.3fr 35px 1fr; align-items: center; }
+    .analysis-layout > .node { min-height: 189px; }
+    .numbered { display: grid; gap: 7px; margin-top: 12px; font-size: 13px; }
+    .numbered span { display: flex; gap: 10px; align-items: baseline; }
+    .numbered b { color: var(--blue); font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; }
+    .scope-row { display: flex; gap: 9px; align-items: center; font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .scope-row:last-child { border: 0; }
+    .scope-row strong { min-width: 42px; font-weight: 650; }
+    .scope-row span { color: var(--muted); }
+    .tool-loop { width: 66%; margin: 0 auto; text-align: center; }
+    .exchange { display: flex; justify-content: center; align-items: center; gap: 13px; padding: 9px 0; color: var(--blue); font-size: 12px; }
+    .exchange .flow { font-size: 26px; letter-spacing: 8px; line-height: 1.3; }
+    .toolbox { border: 1px dashed #99b6e8; background: #f8faff; border-radius: 9px; padding: 15px 18px; }
+    .toolbox-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--blue); }
+    .toolbox-head span { color: var(--muted); font-size: 11px; }
+    .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 11px; }
+    .tool { background: var(--white); border: 1px solid #d4dff0; border-radius: 5px; padding: 10px 6px; font-size: 13px; font-weight: 600; }
+    .tool small { display: block; color: var(--muted); font-size: 10px; font-weight: 400; font-family: "SFMono-Regular", Consolas, monospace; margin-top: 3px; letter-spacing: -.03em; }
+    .rules { display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); padding: 14px 30px; font-size: 12px; color: var(--muted); }
+    .rules strong { color: var(--ink); font-weight: 600; }
+    .writing-body { padding: 25px 30px; }
+    .resource-rail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 17px; background: #fafbfc; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+    .resource-rail strong { margin-right: 8px; }
+    .resource-rail span:not(.resource-tool) { padding: 3px 10px; border: 1px solid var(--line); border-radius: 4px; background: white; }
+    .resource-tool { margin-left: auto; color: var(--muted); font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; }
+    .down { text-align: center; color: var(--wire); font-size: 22px; line-height: 1.6; }
+    .writer-and-delegates { display: grid; grid-template-columns: 1.1fr 100px 1fr; align-items: center; }
+    .writer-and-delegates .writing { text-align: center; padding: 19px; }
+    .writer-and-delegates h3 { font-size: 22px; }
+    .delegate-link { text-align: center; color: var(--orange); font-size: 11px; }
+    .delegate-link b { display: block; font-size: 29px; font-weight: 400; line-height: 1.25; }
+    .delegates { border: 1px dashed #d7b38c; border-radius: 9px; padding: 17px 19px; }
+    .delegates h4 { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+    .delegates h4 span { font-size: 11px; color: var(--muted); font-weight: 400; }
+    .delegate-list { display: flex; gap: 8px; margin: 12px 0 7px; }
+    .delegate-list span { flex: 1; background: var(--orange-tint); border: 1px solid #efddc8; text-align: center; border-radius: 5px; padding: 8px; font-size: 12px; }
+    .delegates p { color: var(--muted); font-size: 11px; }
+    .draft-bridge { width: 48%; padding-top: 10px; text-align: center; font-size: 12px; color: var(--orange); }
+    .draft-bridge span { display: block; font-size: 23px; line-height: 1.3; }
+    .review-loop { position: relative; margin: 24px 0 0 14px; padding: 19px 0 0 24px; border-left: 2px solid #cb9055; border-top: 2px solid #cb9055; border-radius: 15px 0 0 0; }
+    .review-loop::before { content: ""; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-top: 2px solid #cb9055; border-right: 2px solid #cb9055; transform: rotate(-90deg); }
+    .loop-caption { position: absolute; top: -13px; left: 22px; padding: 0 10px; background: var(--white); font-size: 12px; color: var(--orange); font-weight: 600; }
+    .review-steps { display: grid; grid-template-columns: .75fr 25px 1.12fr 25px 1.18fr 25px 1.03fr; align-items: stretch; }
+    .review-steps .node { padding: 17px 15px; }
+    .review-steps h3 { font-size: 16px; }
+    .review-steps .node p { font-size: 12px; }
+    .node.accepted { background: var(--green-tint); border-color: #a9cdbd; }
+    .node.accepted .label { color: var(--green); }
+    .feedback { display: flex; align-items: center; gap: 13px; color: var(--orange); padding: 15px 0 0; font-size: 12px; }
+    .feedback b { font-size: 22px; font-weight: 400; }
+    .feedback span { color: var(--muted); }
+    .output-formula { display: grid; grid-template-columns: 165px 1fr; gap: 18px; align-items: center; border-top: 1px solid var(--line); padding: 20px 30px; background: #fffcf8; }
+    .output-formula h3 { font-size: 14px; }
+    .output-formula p { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .formula { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 14px; }
+    .formula .term { border-bottom: 2px solid #d9b68e; padding: 5px 0; }
+    .formula .term small { font-size: 11px; color: var(--muted); margin-left: 6px; }
+    .formula .plus { color: #ad947c; }
+    .period-body { padding: 26px 30px; }
+    .period-chain { display: grid; grid-template-columns: 1fr 40px 1fr 40px 1fr 40px 1fr; align-items: center; }
+    .period-step { padding: 17px; border-bottom: 3px solid var(--line); }
+    .period-step.active { border-color: #cb9055; background: #fffaf4; }
+    .period-step .label { font-size: 11px; color: var(--muted); }
+    .period-step h3 { font-size: 19px; margin: 3px 0; }
+    .period-step p { font-size: 12px; color: var(--muted); }
+    .period-loop { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 17px 20px; background: #fafbfc; border: 1px solid var(--line); border-radius: 8px; margin-top: 23px; font-size: 13px; }
+    .period-loop strong { color: var(--orange); margin-right: 8px; }
+    .period-loop .cycle { color: var(--orange); }
+    .period-foot { display: flex; gap: 28px; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 15px; }
+    footer { padding: 3px 0 36px; display: flex; justify-content: space-between; gap: 20px; color: var(--muted); font-size: 11px; }
+    footer a { text-decoration: underline; text-underline-offset: 4px; }
+    @media (max-width: 1100px) {
+      .hero { display: block; }
+      .legend { margin-top: 21px; }
+      .overview { grid-template-columns: 1fr 25px 1.15fr 32px 1.25fr; }
+      .overview > .double-arrow, .overview > .result-stack { display: none; }
+      .overview-note { flex-direction: column; gap: 5px; }
+      .node { padding: 16px; }
+      .resource-tool { width: 100%; margin: 3px 0 0; }
+      .tool-loop { width: 80%; }
+      .review-steps { grid-template-columns: 1fr 20px 1.25fr 20px 1.25fr; }
+      .review-steps > .accepted { grid-column: 1 / -1; margin-top: 13px; }
+      .review-steps > .approval-arrow { display: none; }
+    }
+    @media (max-width: 720px) {
+      html { scroll-padding-top: 115px; }
+      .wrap { width: calc(100% - 32px); }
+      .topbar .wrap { flex-direction: column; gap: 0; align-items: stretch; padding-top: 11px; }
+      .brand { font-size: 20px; }
+      .brand small { font-size: 10px; }
+      nav { gap: 0; justify-content: space-between; font-size: 12px; }
+      nav a { padding: 10px 0; }
+      .hero { padding: 29px 0 23px; }
+      .hero p { font-size: 13px; }
+      .legend { font-size: 11px; gap: 12px; margin-top: 17px; }
+      h1 { font-size: 29px; max-width: 350px; }
+      h2 { font-size: 19px; }
+      .section { margin-bottom: 18px; }
+      .section-head { padding: 21px 18px 0; gap: 10px; }
+      .section-head p { font-size: 12px; margin-left: 0; }
+      .section-head > .tag { display: none; }
+      .overview, .analysis-layout { display: flex; flex-direction: column; align-items: stretch; }
+      .overview, .process-body, .writing-body, .period-body { padding: 20px 18px; }
+      .overview > .arrow, .analysis-layout > .arrow { transform: rotate(90deg); min-height: 36px; }
+      .branch { height: 38px; justify-content: center; }
+      .branch svg { display: none; }
+      .branch::after { content: "↓ 분석 후 두 작업을 병렬 실행"; color: var(--muted); font-size: 12px; }
+      .overview .parallel .node { min-height: 0; }
+      .parallel-label { display: none; }
+      .overview-note, .rules { padding: 14px 18px; flex-direction: column; gap: 8px; }
+      .analysis-layout > .node { min-height: 0; }
+      .process-body { display: flex; flex-direction: column; }
+      .analysis-layout { display: contents; }
+      .analysis-layout .ledger { order: 6; margin-top: 13px; }
+      .analysis-layout .ledger-arrow { display: none; }
+      .tool-loop { width: 100%; margin-top: 6px; order: 4; }
+      .toolbox { padding: 13px 12px; }
+      .toolbox-head { flex-direction: column; align-items: start; gap: 2px; }
+      .tools { gap: 6px; }
+      .tool { font-size: 12px; padding: 9px 3px; }
+      .tool small { font-size: 8px; }
+      .writer-and-delegates { grid-template-columns: 1fr; }
+      .delegate-link { padding: 6px 0; }
+      .delegate-link b { display: inline-block; transform: rotate(90deg); margin: 0 12px; }
+      .resource-rail { padding: 11px; gap: 6px; font-size: 11px; }
+      .resource-rail strong { width: 100%; }
+      .draft-bridge { width: 100%; }
+      .review-loop { margin: 24px 0 0 4px; padding-left: 12px; }
+      .loop-caption { left: 10px; font-size: 10px; padding: 0 6px; }
+      .review-steps { display: flex; flex-direction: column; }
+      .review-steps > .arrow { transform: rotate(90deg); min-height: 30px; }
+      .review-steps > .approval-arrow { display: flex; }
+      .review-steps > .accepted { margin-top: 0; }
+      .feedback { flex-wrap: wrap; gap: 6px; font-size: 11px; }
+      .feedback span { width: 100%; padding-left: 22px; }
+      .output-formula { grid-template-columns: 1fr; gap: 11px; padding: 18px; }
+      .formula { gap: 8px; font-size: 12px; }
+      .formula .term small { display: block; margin: 0; font-size: 10px; }
+      .period-chain { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+      .period-chain > .arrow { transform: rotate(90deg); height: 22px; }
+      .period-step { padding: 13px 10px; }
+      .period-step h3 { font-size: 17px; }
+      .period-step p { font-size: 11px; }
+      .period-loop { gap: 8px; font-size: 12px; padding: 13px; }
+      .period-loop strong { width: 100%; }
+      .period-foot { flex-direction: column; gap: 8px; }
+      footer { flex-direction: column; gap: 7px; padding-bottom: 25px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .node-link { transition: none; } }
+    @media print {
+      @page { size: A4 landscape; margin: 12mm; }
+      body { background: white; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .wrap { width: 100%; }
+      .topbar { position: static; }
+      nav, .more { display: none !important; }
+      .hero { padding-top: 22px; }
+      .section { break-inside: avoid; margin-bottom: 18px; }
+      .section:not(:first-of-type) { break-before: page; }
+      .board { border-radius: 8px; }
+      .overview-note, .rules, .node p { color: #3e4b59; }
+      footer { padding-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="#overview" aria-label="SalesLuv 에이전트 구조 처음으로">Sales<span>Luv</span><small>에이전트 구조</small></a>
+      <nav aria-label="문서 목차">
+        <a href="#overview">전체 흐름</a>
+        <a href="#analysis">내용분석</a>
+        <a href="#writing">보고서작성</a>
+        <a href="#period">일일·주간·월간</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="hero">
+      <div>
+        <div class="eyebrow">SALES OPERATIONS / AGENT ARCHITECTURE</div>
+        <h1>내용분석·보고서작성 에이전트</h1>
+        <p>내용분석은 근거를 나누고, 보고서작성은 그 근거로 작성·검토·수정을 반복한다.</p>
+      </div>
+      <div class="legend" aria-label="도식 범례">
+        <span><i class="dot blue" aria-hidden="true"></i>내용분석</span>
+        <span><i class="dot orange" aria-hidden="true"></i>보고서작성</span>
+        <span><i class="dot" aria-hidden="true"></i>일반 처리</span>
+      </div>
+    </div>
+
+    <section id="overview" class="section board" aria-labelledby="overview-title">
+      <div class="section-head">
+        <div class="section-title"><span class="index">01</span><h2 id="overview-title">하나의 원문, 공유하는 분석 결과</h2></div>
+        <span class="tag">생성 버튼으로 시작</span>
+      </div>
+      <div class="overview">
+        <div class="node neutral">
+          <span class="label">INPUT</span>
+          <h3>미팅 원문</h3>
+          <p>회사 ID · 고객 ID<br>선택한 딜 ID N개</p>
+          <div class="input-meta"><strong>+ 초기 CRM 조회</strong>회사·고객·딜의 배경</div>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <a class="node analysis node-link" href="#analysis">
+          <span class="label">AGENT 01</span>
+          <h3>내용분석<br>에이전트</h3>
+          <p>원문을 공통·딜별·미지정으로 분리하고 근거를 연결</p>
+          <span class="more">도구 조회 루프 보기 ↗</span>
+        </a>
+        <div class="branch" aria-hidden="true">
+          <svg viewBox="0 0 44 170" fill="none"><path d="M0 85H19V8H42M19 85V162H42" stroke="#8795a7" stroke-width="1.4"/><path d="m36 3 6 5-6 5M36 157l6 5-6 5" stroke="#8795a7" stroke-width="1.4"/></svg>
+        </div>
+        <div>
+          <p class="parallel-label">분석 결과를 공유 · 두 작업 병렬 실행</p>
+          <div class="parallel">
+            <a class="node writing node-link" href="#writing">
+              <span class="label">AGENT 02 / DEEP AGENT</span>
+              <h3>보고서작성 에이전트</h3>
+              <p>계획 → 작성 ↔ 검토 → 완성</p>
+              <span class="more">작성·검토 루프 보기 ↗</span>
+            </a>
+            <div class="node neutral">
+              <span class="label">고정 파이프라인 · LLM + ML</span>
+              <h3>13개 특성 → ML 예측</h3>
+              <p>불확실한 특성은 Unknown<br>태그는 화면 참고용 · 후속 판단에 재사용 안 함</p>
+            </div>
+          </div>
+        </div>
+        <div class="double-arrow" aria-hidden="true"><div class="arrow">→</div><div class="arrow">→</div></div>
+        <div class="result-stack">
+          <div class="node"><h3>딜별 줄글 보고서</h3><p>딜 본문<br>+ 공통 내용<br>+ 미지정·확인 필요 내용</p></div>
+          <div class="node"><h3>딜별 ML 태그</h3><p>화면 참고용<br>다른 에이전트의<br>판단에 재사용하지 않음</p></div>
+        </div>
+      </div>
+      <div class="overview-note">
+        <span><strong>일반 코드</strong>가 입력 고정·병렬 실행·결과 저장을 담당</span>
+        <span><strong>딜별 보고서</strong> → 사용자 수정·제출 → 해당 딜 계약관리로 전달</span>
+      </div>
+    </section>
+
+    <section id="analysis" class="section board" aria-labelledby="analysis-title">
+      <div class="section-head">
+        <div><div class="section-title"><span class="index">02</span><h2 id="analysis-title">내용분석 에이전트</h2></div><p>어떤 딜의 이야기인가? 근거가 부족하면 필요한 정보를 더 읽는다.</p></div>
+        <span class="tag blue">LangChain · 도구 선택 루프</span>
+      </div>
+      <div class="process-body">
+        <div class="analysis-layout">
+          <div class="node neutral">
+            <span class="label">읽는 자료</span><h3>원문 구간 + CRM</h3>
+            <p>원문은 구간 ID로 보존<br>선택 딜의 이름·제품·설명과<br>회사·고객의 문맥을 함께 확인</p>
+          </div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="node analysis">
+            <span class="label">판단하는 주체</span><h3>분류 · 조회 · 재판단</h3>
+            <div class="numbered">
+              <span><b>1</b>원문 구간을 최초 분류</span>
+              <span><b>2</b>미해결 구간에 필요한 조회 선택</span>
+              <span><b>3</b>추가 근거로 미해결 구간만 재분석</span>
+            </div>
+          </div>
+          <div class="arrow ledger-arrow" aria-hidden="true">→</div>
+          <div class="node ledger">
+            <span class="label">공유 출력</span><h3>근거 장부</h3>
+            <div class="scope-row"><strong>공통</strong><span>미팅·회사·모든 선택 딜</span></div>
+            <div class="scope-row"><strong>딜별</strong><span>해당 딜 ID + 원문 근거</span></div>
+            <div class="scope-row"><strong>미지정</strong><span>미해결·범위 밖 내용 보존</span></div>
+          </div>
+        </div>
+        <div class="tool-loop">
+          <div class="exchange"><span>필요한 도구 호출</span><span class="flow" aria-hidden="true">↓ ↑</span><span>조회 결과로 재판단</span></div>
+          <div class="toolbox">
+            <div class="toolbox-head"><strong>CRM 조회 도구</strong><span>대상이 불명확한 미해결 구간에만 사용</span></div>
+            <div class="tools">
+              <div class="tool">과거 거래<small>trade_history</small></div>
+              <div class="tool">이전 보고서<small>previous_reports</small></div>
+              <div class="tool">제품 상세<small>product_details</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rules"><span>새 근거가 없으면 <strong>미해결 유지</strong> · 같은 조회는 반복하지 않음</span><span>코드 검사: <strong>원문 누락·중복·선택 밖 딜 ID 차단</strong></span></div>
+    </section>
+
+    <section id="writing" class="section board" aria-labelledby="writing-title">
+      <div class="section-head">
+        <div><div class="section-title"><span class="index">03</span><h2 id="writing-title">미팅 보고서작성 Deep Agent</h2></div><p>주 작성자가 계획하고, 필요하면 작성을 위임하고, 검토 의견으로 다시 쓴다.</p></div>
+        <span class="tag orange">Deep Agents · 작성·검토 루프</span>
+      </div>
+      <div class="writing-body">
+        <div class="resource-rail"><strong>참고 자료</strong><span>근거 장부</span><span>CRM · 같은 딜 이전 보고서</span><span>작성 스킬</span><span class="resource-tool">read_meeting_evidence</span></div>
+        <div class="down" aria-hidden="true">↓</div>
+        <div class="writer-and-delegates">
+          <div class="node writing"><span class="label">주 작성 에이전트</span><h3>계획 → 글 작성 → 수정</h3><p>자료를 확인하고, 딜별·공통·미지정 초안을 조립</p></div>
+          <div class="delegate-link">작업 위임<b aria-hidden="true">⇄</b>초안 반환</div>
+          <div class="delegates"><h4>딜별 작성 서브에이전트 <span>필요할 때 선택</span></h4><div class="delegate-list"><span>딜 A 작성</span><span>딜 B 작성</span><span>…</span></div><p>task 도구 · 맡긴 딜의 초안을 주 작성자에게 반환</p></div>
+        </div>
+        <div class="draft-bridge">초안 제출 · review_report<span aria-hidden="true">↓</span></div>
+        <div class="review-loop">
+          <div class="loop-caption">↖ 수정 의견을 주 작성자에게 돌려보냄</div>
+          <div class="review-steps">
+            <div class="node"><span class="label">DRAFT</span><h3>전체 초안</h3><p>딜별 + 공통<br>+ 미지정 내용</p></div>
+            <div class="arrow" aria-hidden="true">→</div>
+            <div class="node neutral"><span class="label">코드 검사</span><h3>구조 검증</h3><p>딜·근거 ID 누락<br>중복·잘못된 인용 검사</p></div>
+            <div class="arrow" aria-hidden="true">→</div>
+            <div class="node writing"><span class="label">별도 검토 LLM</span><h3>의미 검토</h3><p>사실 왜곡·딜 혼입<br>핵심 내용 누락 확인</p></div>
+            <div class="arrow approval-arrow" aria-hidden="true">→</div>
+            <div class="node accepted"><span class="label">검토 통과</span><h3>최종 반환</h3><p>통과한 초안을<br>바꾸지 않고 반환</p></div>
+          </div>
+          <div class="feedback"><b aria-hidden="true">↰</b>구조 오류 또는 검토 의견 → 수정 → 재검토<span>누락된 근거 · 수정 위치 · 필요한 행동을 전달</span></div>
+        </div>
+      </div>
+      <div class="output-formula"><div><h3>딜별 보고서 구성</h3><p>공통 내용은 한 번 작성해 각 딜에 포함</p></div><div class="formula"><span class="term">해당 딜 본문</span><span class="plus" aria-hidden="true">+</span><span class="term">미팅 공통 내용</span><span class="plus" aria-hidden="true">+</span><span class="term">미지정 내용<small>원문 + 확인 필요 표시</small></span></div></div>
+      <div class="rules"><span>원문에 정보가 없으면 <strong>미확인으로 남김</strong> · 추측해서 채우지 않음</span><span><strong>검토 통과 시 종료</strong> · 호출·검토·시간 한도 초과 시 실패 처리</span></div>
+    </section>
+
+    <section id="period" class="section board" aria-labelledby="period-title">
+      <div class="section-head"><div><div class="section-title"><span class="index">04</span><h2 id="period-title">일일·주간·월간도 Deep Agent로</h2></div><p>미팅 작성자와 역할은 분리하고, 기간 보고서끼리는 하나의 코어를 공유한다.</p></div><span class="tag orange">기간 보고서 Deep Agent</span></div>
+      <div class="period-body">
+        <div class="period-chain">
+          <div class="period-step"><span class="label">기초 자료</span><h3>미팅 보고서</h3><p>딜별 본문 + 공통·미지정</p></div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="period-step active"><span class="label">하루의 미팅 종합</span><h3>일일보고서</h3><p>선택한 당일 미팅 보고서</p></div>
+          <div class="arrow wrap-arrow" aria-hidden="true">→</div>
+          <div class="period-step active"><span class="label">한 주의 활동 종합</span><h3>주간보고서</h3><p>선택한 기간 내 일일보고서</p></div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="period-step active"><span class="label">한 달의 활동 종합</span><h3>월간보고서</h3><p>해당 월에 걸친 선택 주간보고서</p></div>
+        </div>
+        <div class="period-loop"><strong>공통 실행 구조</strong><span>자료 조회</span><span aria-hidden="true">→</span><span>계획·작성</span><span class="cycle">⇄</span><span>검토·수정</span><span aria-hidden="true">→</span><span>통과한 초안</span></div>
+        <div class="period-foot"><span><strong>검토 기준</strong>　기간 혼입 · 핵심 누락 · 공통 내용 중복 · 근거 없는 실적</span><span><strong>실행 시점</strong>　사용자 생성 요청 → 초안 → 사용자 저장·제출</span></div>
+      </div>
+    </section>
+    <footer><span>SalesLuv · 현재 구현 기준 · 2026.08.31</span><a href="./미팅_내용분석_보고서작성_에이전트_구조_보고서.md">구현 근거·상세 문서 ↗</a></footer>
+  </main>
+</body>
+</html>

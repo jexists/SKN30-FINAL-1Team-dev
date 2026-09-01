@@ -108,6 +108,11 @@ class SalesDeal(Base):
     quote_valid_until: Mapped[date | None]
     contract_no: Mapped[str | None]
     contract_signed_on: Mapped[date | None]
+    quote_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.quote_status.id"))
+    contract_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.contract_status.id"))
+    quote_amount: Mapped[int | None] = mapped_column(BigInteger)
+    contract_amount: Mapped[int | None] = mapped_column(BigInteger)
+    quote_delivery_terms: Mapped[str | None]
     contract_ends_on: Mapped[date | None]
     # 견적·계약의 자기 값. 상태가 NULL 이면 아직 그 국면에 들어가지 않았다는 뜻이라
     # 견적현황·계약현황 목록이 그것으로 갈린다. 금액은 deal_amount(영업 예상금액)와 별개다.

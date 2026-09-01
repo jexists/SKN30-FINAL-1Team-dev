@@ -359,7 +359,7 @@ async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch)
         assert snapshot == run.input_snapshot
         return SimpleNamespace(
             deal_assessment=SimpleNamespace(model_version="test-deal-model-v1"),
-            model_dump=lambda: output_snapshot,
+            model_dump=lambda **kwargs: output_snapshot,
         )
 
     monkeypatch.setattr(meeting_analysis, "run", fake_run)
@@ -377,7 +377,7 @@ async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch)
 
 
 @pytest.mark.anyio
-async def test_execute_records_model_failure_separately_from_llm_failure(monkeypatch):
+async def test_execute_records_model_failure_separately_from_llm_failure(monkeypatch, caplog):
     """모델 로드 실패가 LLM 오류와 구분되어 기록되는지 검증한다."""
     member = _member()
     run = _run(member)
@@ -401,6 +401,9 @@ async def test_execute_records_model_failure_separately_from_llm_failure(monkeyp
 
     assert run.status_code == "failed"
     assert run.error_message == "deal_model_unavailable"
+    assert str(run.id) in caplog.text
+    assert '"type": "DealModelError"' in caplog.text
+    assert '"stage": "meeting_analysis"' in caplog.text
 
 
 def test_same_idempotency_key_returns_existing_run(llm_ready):
@@ -463,7 +466,7 @@ def test_member_cannot_read_other_requesters_run():
 
 
 @pytest.mark.anyio
-async def test_provider_errors_never_leak_url_or_key(llm_ready, monkeypatch):
+async def test_provider_errors_never_leak_url_or_key(llm_ready, monkeypatch, caplog):
     class _FailingClient:
         def __init__(self, *args, **kwargs):
             pass
@@ -491,12 +494,17 @@ async def test_provider_errors_never_leak_url_or_key(llm_ready, monkeypatch):
     assert "super-secret-key" not in message
     assert "provider.invalid" not in message
     assert message == "llm_request_failed:ConnectError"
+    assert '"type": "ConnectError"' in caplog.text
+    assert '"stage": "llm.request"' in caplog.text
+    assert "provider.invalid" not in caplog.text
+    assert "super-secret-key" not in caplog.text
 
 
 @pytest.mark.anyio
-async def test_schema_mismatch_is_rejected(llm_ready, monkeypatch):
+async def test_schema_mismatch_is_rejected(llm_ready, monkeypatch, caplog):
     class _Response:
         status_code = 200
+        headers = {"x-request-id": "req_schema_mismatch"}
 
         def json(self):
             # fields 가 요구 형태가 아니다.
@@ -524,6 +532,10 @@ async def test_schema_mismatch_is_rejected(llm_ready, monkeypatch):
             schema=ReportDraftOutput,
             schema_name="report_draft",
         )
+
+    assert '"stage": "llm.output_validation"' in caplog.text
+    assert '"request_id": "req_schema_mismatch"' in caplog.text
+    assert '"status_code": 200' in caplog.text
 
 
 def test_contract_management_select_candidates_run_uses_portfolio_snapshot(llm_ready, monkeypatch):
@@ -771,7 +783,7 @@ async def test_execute_dispatches_contract_management_select_candidates(monkeypa
 
     async def fake_select(snapshot):
         assert snapshot == run.input_snapshot
-        return SimpleNamespace(candidates=[], model_dump=lambda: output_snapshot)
+        return SimpleNamespace(candidates=[], model_dump=lambda **kwargs: output_snapshot)
 
     monkeypatch.setattr(contract_management, "select_next_meeting_candidates", fake_select)
 
@@ -811,7 +823,7 @@ async def test_execute_dispatches_contract_management_next_meeting(monkeypatch):
 
     async def fake_propose(snapshot):
         assert snapshot == run.input_snapshot
-        return SimpleNamespace(risks=[], model_dump=lambda: output_snapshot)
+        return SimpleNamespace(risks=[], model_dump=lambda **kwargs: output_snapshot)
 
     monkeypatch.setattr(contract_management, "propose_next_meeting", fake_propose)
 
@@ -846,7 +858,7 @@ async def test_execute_dispatches_schedule_management(monkeypatch):
 
     async def fake_run(snapshot):
         assert snapshot == run.input_snapshot
-        return SimpleNamespace(schedule_candidates=[], model_dump=lambda: output_snapshot)
+        return SimpleNamespace(schedule_candidates=[], model_dump=lambda **kwargs: output_snapshot)
 
     monkeypatch.setattr(schedule_management, "run", fake_run)
 

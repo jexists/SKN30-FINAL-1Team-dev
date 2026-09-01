@@ -18,16 +18,21 @@ import type {
 } from '@/types'
 import { businessNoDigits, formatBusinessNo } from '@/utils/format'
 
+import type { BusinessCardMatch } from '../../businessCard'
 import styles from './CustomerFormModal.module.scss'
 
 interface CustomerFormModalProps {
   onClose: () => void
   /** 방금 만든 고객. 부른 쪽이 그대로 골라 둘 수 있게 넘깁니다. */
-  onCreated: (contact: CustomerContactResponse) => void
+  onCreated: (contact: CustomerContactResponse, warning?: string) => void
   /** 명함에서 읽어 온 값. 사람이 확인하고 고칠 수 있게 칸만 채워 둡니다. */
   initial?: Partial<Draft>
   /** 부른 쪽에서 이미 정해진 회사. 검색창에 미리 올려 둡니다. */
   initialCompany?: CompanySelection
+  /** 명함 인식 뒤 발견한 기존 담당자 후보. 자동 병합하지 않습니다. */
+  duplicateMatches?: BusinessCardMatch[]
+  /** 명함 OCR에 사용한 원본. 고객 등록 뒤 자료실에 보관합니다. */
+  archiveImage?: File
 }
 
 const EMPTY = {
@@ -104,6 +109,8 @@ export default function CustomerFormModal({
   onCreated,
   initial,
   initialCompany,
+  duplicateMatches = [],
+  archiveImage,
 }: CustomerFormModalProps) {
   const { isManager, memberId } = useCurrentUser()
 
@@ -174,8 +181,21 @@ export default function CustomerFormModal({
         ...(isManager ? { assignee_member_ids: assigneeIds } : {}),
       }
       const { data } = await client.post<CustomerContactResponse>('/customer-contacts', payload)
+      let warning: string | undefined
+      if (archiveImage) {
+        const archive = new FormData()
+        archive.append('contact_id', data.id)
+        archive.append('image', archiveImage)
+        try {
+          await client.post('/business-cards/archive', archive)
+        } catch {
+          // 고객 등록은 완료됐으므로 원본 보관 실패가 등록 자체를 되돌리지는 않습니다.
+          warning =
+            '고객은 등록됐지만 명함 원본 보관에 실패했습니다. 자료실에 다시 업로드해 주세요.'
+        }
+      }
       setSubmitting(false)
-      onCreated(data)
+      onCreated(data, warning)
     } catch (error: unknown) {
       setSubmitError(errorMessage(error, '고객을 등록하지 못했습니다.'))
       setSubmitting(false)
@@ -202,6 +222,19 @@ export default function CustomerFormModal({
         </>
       }
     >
+      {duplicateMatches.length > 0 && (
+        <div className={styles.duplicateNotice} role="alert">
+          <strong>기존 고객 후보가 있습니다.</strong>
+          <ul>
+            {duplicateMatches.map((match) => (
+              <li key={match.contact_id}>
+                {match.company_name} · {match.name} · {match.phone}
+              </li>
+            ))}
+          </ul>
+          <span>기존 고객인지 확인한 뒤 등록하세요. 자동으로 합치지 않습니다.</span>
+        </div>
+      )}
       <div className={styles.grid} aria-busy={submitting}>
         <Field label="회사" required error={errors.company} htmlFor={false}>
           <CompanyAutocomplete

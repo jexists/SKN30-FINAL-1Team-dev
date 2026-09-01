@@ -5,7 +5,6 @@
 // 매번 갈라지면 같은 코드를 두 벌 갖게 됩니다. 그래서 화면에 필요한 것만 여기서
 // 한 모양으로 만들고, 아래쪽 컴포넌트는 이 타입 하나만 압니다.
 import { dailyReportPath, meetingReportPath } from '@/constants/routes'
-import { templateFor } from '@/shared/reports'
 import type { DailyReport, MeetingReport, ReportStatus } from '@/types'
 
 import { reportTitle } from './periods'
@@ -37,8 +36,8 @@ export interface ListRow {
 const lower = (parts: (string | undefined)[]) => parts.filter(Boolean).join(' ').toLowerCase()
 
 export function fromDailyReport(report: DailyReport): ListRow {
-  // 양식의 첫 필드가 언제나 그 보고서의 본문입니다.
-  const [first] = templateFor(report.kind).fields
+  // 저장 당시 양식의 첫 필드로 기존 보고서와 자유본문을 모두 표시합니다.
+  const [first] = report.template.fields
   const files = report.attachments.length
   const acts = report.activities.filter((a) => a.included).length
 
@@ -47,7 +46,7 @@ export function fromDailyReport(report: DailyReport): ListRow {
     date: report.date,
     kindLabel: report.kind,
     title: reportTitle(report),
-    summary: report.values[first.id]?.trim() ?? '',
+    summary: first ? (report.values[first.id]?.trim() ?? '') : '',
     meta:
       acts > 0 || files > 0
         ? `활동 ${acts}건${files > 0 ? ` · 첨부 ${files}건` : ''}`
@@ -70,6 +69,9 @@ export function fromDailyReport(report: DailyReport): ListRow {
 export function fromMeetingReport(report: MeetingReport): ListRow {
   const files = report.attachments.length
   const deal = report.salesDeal?.label
+  const templateSummary = report.template.fields
+    .map((field) => report.values[field.id]?.trim())
+    .find(Boolean)
 
   return {
     id: report.id,
@@ -77,7 +79,12 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     kindLabel: '미팅',
     // 미팅 제목은 그 자리에서 정한 말이라 어느 병원인지가 붙어야 알아봅니다.
     title: [report.hospital, deal, report.title].filter(Boolean).join(' · '),
-    summary: report.values.reaction?.trim() ?? '',
+    summary:
+      templateSummary ||
+      report.values.body?.trim() ||
+      report.values.reaction?.trim() ||
+      report.values.note?.trim() ||
+      '',
     meta: [`${report.time} · ${report.contact}`, files > 0 ? `첨부 ${files}건` : '']
       .filter(Boolean)
       .join(' · '),

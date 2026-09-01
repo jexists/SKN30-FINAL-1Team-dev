@@ -105,7 +105,7 @@
 - Agent 오케스트레이션은 `backend/app/services/agent_runs.py`(사용자 요청 경로)와 `backend/app/services/contract_next_meeting_pipeline.py`(트리거 기반 선계산 경로)가 나눠 맡는다. 선계산 경로는 계약관리 1차→일정관리를 서버가 백그라운드로 자동으로 잇고, 결과를 `contract_next_meeting_suggestion`에 저장한다. 일정관리→계약관리 재진입(브리핑)은 `backend/app/api/activities.py`의 `create_activity`가 `schedule_management_run_id`를 받아 자동으로 이어서 큐잉한다.
 - 같은 딜에 트리거가 몰려도 10분 안에는 다시 돌리지 않는다(`_COOLDOWN`). 진행 중인 실행이 있으면 시각과 무관하게 막는다.
 - 미팅분석 ↔ 보고서작성은 서로 연결돼 있지 않다. 계약관리 1차 제안도 보고서작성 Agent의 출력을 직접 받지 않고, DB에서 확정된(`submitted`/`approved`) 보고서를 다시 조회하는 방식으로만 간접 연결된다.
-- 자료요약(RAG) Agent: 미구현. 브리핑 입력의 `document_summaries`는 항상 빈 배열이다.
+- 자료요약(RAG) Agent: 문서 추출·OCR·요약·검색 청크 저장과 브리핑 컨텍스트 조회 API가 구현돼 있다. `GET /api/documents/briefing-context?q=...`는 같은 팀의 검색 청크(`sources`)와 저장 요약(`summaries`)을 반환한다. 현재 계약관리 Agent 브리핑 입력에 이 컨텍스트를 전달하는 최종 핸들러 연결은 별도 작업으로 남아 있다.
 - 프론트엔드: 미팅 상세(`RecordDrawer`)가 브리핑 결과를 읽기 전용으로 보여주고, 캘린더 탭의 "AI 추천 일정" 패널(`SuggestionPanel`)이 저장된 제안을 조회해 보여주고 승인받는다. 패널은 LLM을 직접 호출하지 않는다 — `GET /contract-next-meeting-suggestions` 한 번이 전부다.
 - 트리거가 한 번도 걸리지 않은 기존 딜은 제안이 없어 패널에 뜨지 않는다. `backend/scripts/backfill_contract_next_meeting_suggestions.py`로 한 번에 채운다.
 

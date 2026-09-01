@@ -1,4 +1,12 @@
-import type { ApiReportStatus, ReportAttachment, ReportStatus, ReportTemplate } from './reports'
+import type {
+  ApiReportStatus,
+  DealAssessment,
+  MeetingEvidenceLedger,
+  MeetingSharedNotes,
+  ReportAttachment,
+  ReportStatus,
+  ReportTemplate,
+} from './reports'
 
 /**
  * 업무보고서를 팀장이 어디까지 봤는지.
@@ -66,6 +74,12 @@ export interface MeetingReportSeed {
   aiEvidence?: string
   /** 원본을 만든 시각. ISO 8601 */
   aiGeneratedAt?: string
+  meetingRunId?: string
+  meetingShared?: MeetingSharedNotes
+  evidenceLedger?: MeetingEvidenceLedger
+  assessment?: DealAssessment
+  analysisError?: string
+  reportError?: string
 }
 
 /** 실제 날짜가 붙은 업무보고서. date 는 미팅한 날입니다. */
@@ -75,4 +89,5 @@ export interface MeetingReport extends MeetingReportSeed {
   /** 작성자의 구성원 번호. 고칠 수 있는 사람인지 이 값으로 가립니다. */
   ownerMemberId: string
   template: ReportTemplate
+  updatedAt?: string
 }

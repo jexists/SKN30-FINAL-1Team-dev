@@ -134,6 +134,10 @@
 .report {
   grid-area: sheet;
   min-width: 0;
+
+  > section {
+    margin-bottom: var(--s5);
+  }
 }
 
 /*

@@ -58,6 +58,11 @@ function meetingStatus(reports: MeetingReport[]): ReportStatus | null {
   return '검토 대기'
 }
 
+function meetingDescription(values: Record<string, string>): string {
+  const firstLine = (values.body || values.decision || values.note)?.split('\n')[0]
+  return firstLine?.trim() || '미팅 기록 확정'
+}
+
 /** 일정 하나의 딜별 보고서를 모두 볼 수 있는 작성 화면으로 갑니다. */
 export function meetingLinkFor(agendaId: string, reports: MeetingReport[] = []): SourceMeta {
   const status = meetingStatus(reports)
@@ -106,7 +111,7 @@ function dailySources(
           title: [report.hospital, report.salesDeal?.label, report.title]
             .filter(Boolean)
             .join(' · '),
-          desc: report.values.decision?.split('\n')[0] || '미팅 기록 확정',
+          desc: meetingDescription(report.values),
           included: true,
           refId: report.id,
         })
@@ -140,7 +145,7 @@ function dailySources(
       id: `meet-${report.id}`,
       source: '업무보고서',
       title: [report.hospital, report.salesDeal?.label, report.title].filter(Boolean).join(' · '),
-      desc: report.values.decision?.split('\n')[0] || '미팅 기록 확정',
+      desc: meetingDescription(report.values),
       included: true,
       refId: report.id,
     })

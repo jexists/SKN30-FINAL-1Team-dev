@@ -4,6 +4,7 @@
 어긋나면 거절한다. 단순화를 이유로 생략하지 않는다.
 """
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -29,6 +30,8 @@ class AllowedType:
     media_type: str
     # OOXML 은 전부 zip 이라 signature 만으로는 서로 구분되지 않는다.
     magic: tuple[bytes, ...]
+    declared_media_types: frozenset[str] | None = None
+    has_signature: Callable[[bytes], bool] | None = None
 
 
 @dataclass(frozen=True)
@@ -41,17 +44,69 @@ class AllowedMediaType:
     has_signature: Callable[[bytes], bool]
 
 
-# 멀티에이전트 운영 플로우의 자료실 입력이 PDF·PPTX·DOCX 다. HTML 은 규약 13절에 따라
-# 인라인 실행 위험이 있어 받지 않는다.
+# HTML은 저장 후 브라우저에서 실행하지 않고 document_extraction에서 script/style을 제거한
+# 텍스트만 사용한다. HWP는 hwp5txt 또는 LibreOffice soffice가 설치된 경우 실제 추출된다.
 _ALLOWED: tuple[AllowedType, ...] = (
     AllowedType(".pdf", _PDF, (b"%PDF-",)),
     AllowedType(".docx", _DOCX, (b"PK\x03\x04",)),
     AllowedType(".pptx", _PPTX, (b"PK\x03\x04",)),
+    AllowedType(
+        ".html",
+        "text/html",
+        (),
+        frozenset(("text/html",)),
+        lambda content: _is_html(content),
+    ),
+    AllowedType(
+        ".htm",
+        "text/html",
+        (),
+        frozenset(("text/html",)),
+        lambda content: _is_html(content),
+    ),
+    AllowedType(
+        ".txt",
+        "text/plain",
+        (),
+        frozenset(("text/plain",)),
+        lambda content: _is_text(content),
+    ),
+    AllowedType(
+        ".md",
+        "text/markdown",
+        (),
+        frozenset(("text/markdown", "text/plain")),
+        lambda content: _is_text(content),
+    ),
+    AllowedType(
+        ".markdown",
+        "text/markdown",
+        (),
+        frozenset(("text/markdown", "text/plain")),
+        lambda content: _is_text(content),
+    ),
+    AllowedType(
+        ".hwp",
+        "application/x-hwp",
+        (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",),
+        frozenset(("application/x-hwp", "application/haansofthwp", "application/octet-stream")),
+    ),
 )
 
 _BY_EXTENSION = {allowed.extension: allowed for allowed in _ALLOWED}
 
 ALLOWED_EXTENSIONS = tuple(sorted(_BY_EXTENSION))
+
+
+def _is_text(content: bytes) -> bool:
+    return b"\x00" not in content
+
+
+def _is_html(content: bytes) -> bool:
+    if not _is_text(content):
+        return False
+    text = content.decode("utf-8", errors="replace").lstrip().lower()
+    return bool(re.search(r"<\s*(?:!doctype\b|html\b|head\b|body\b|[a-z][^>]*>)", text))
 
 
 def _is_mpeg_audio(content: bytes) -> bool:
@@ -150,13 +205,18 @@ def check_upload(*, file_name: str, declared_media_type: str | None, content: by
     # 선언 MIME 은 클라이언트 값이라 신뢰하지 않고 확장자와 일치할 때만 받는다.
     if declared_media_type is not None:
         declared = declared_media_type.split(";")[0].strip().lower()
-        if declared and declared != allowed.media_type:
+        declared_media_types = allowed.declared_media_types or frozenset((allowed.media_type,))
+        if declared and declared not in declared_media_types:
             raise UploadRejected("media_type_mismatch", 415)
 
     if not content:
         raise UploadRejected("empty_file", 422)
 
-    if not any(content.startswith(magic) for magic in allowed.magic):
+    if allowed.has_signature is not None:
+        signature_matches = allowed.has_signature(content)
+    else:
+        signature_matches = any(content.startswith(magic) for magic in allowed.magic)
+    if not signature_matches:
         raise UploadRejected("file_signature_mismatch", 415)
 
     return allowed

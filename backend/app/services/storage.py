@@ -75,13 +75,30 @@ async def signed_url(*, storage_key: str, expires_in: int = 60) -> str:
     return f"{settings.supabase_project_url}/storage/v1{signed}"
 
 
-async def remove(*, storage_key: str) -> None:
-    """업로드 뒤 DB 기록이 실패했을 때 되돌리기 위해 쓴다."""
+async def download(*, storage_key: str) -> bytes:
+    """서버 내부 문서 처리용 원본 다운로드. storage_key 는 응답에 노출하지 않는다."""
+    _require_config()
+    url = _endpoint(f"object/{settings.supabase_storage_bucket}/{storage_key}")
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(url, headers=_headers())
+    except httpx.HTTPError as error:
+        raise StorageError(f"storage_request_failed:{type(error).__name__}") from error
+    if response.status_code >= 400:
+        raise StorageError(f"storage_download_failed:{response.status_code}")
+    if len(response.content) > settings.upload_max_bytes:
+        raise StorageError("storage_download_too_large")
+    return response.content
+
+
+async def remove(*, storage_key: str) -> bool:
+    """객체 삭제를 시도하고, 실제 성공 여부를 반환한다."""
     _require_config()
     url = _endpoint(f"object/{settings.supabase_storage_bucket}/{storage_key}")
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.delete(url, headers=_headers())
+            response = await client.delete(url, headers=_headers())
     except httpx.HTTPError:
-        # 정리 실패가 원래 오류를 덮지 않게 한다. 고아 객체는 남을 수 있다.
-        return
+        # 호출부가 재시도 가능한 상태를 남길 수 있도록 실패를 명시한다.
+        return False
+    return 200 <= response.status_code < 300

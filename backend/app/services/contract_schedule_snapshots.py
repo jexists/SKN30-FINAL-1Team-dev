@@ -18,6 +18,7 @@ from app.models.content import Report
 from app.models.crm import Activity, CustomerCompany, CustomerContact, SupportRequest
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
+from app.services.report_sources import _NON_BODY_KEYS, _shared_body
 
 _CONTRACT_EXPIRING_WITHIN_DAYS = 30
 _QUOTE_EXPIRING_WITHIN_DAYS = 14
@@ -306,15 +307,37 @@ async def _recent_finalized_reports(
         .order_by(Report.report_date.desc())
         .limit(5)
     )
-    return [
-        {
-            "id": str(report.id),
-            "sales_deal_id": str(report.sales_deal_id),
-            "report_date": report.report_date.isoformat(),
-            "content": report.content,
-        }
-        for report in result.scalars().all()
-    ]
+    output = []
+    shared_by_activity = {}
+    for report in result.scalars().all():
+        if not isinstance(report.content, dict):
+            raise HTTPException(422, "report_source_content_invalid")
+        content = {key: value for key, value in report.content.items() if key not in _NON_BODY_KEYS}
+        shared = report.content.get("meeting_shared")
+        if shared is not None:
+            if not isinstance(shared, dict) or report.source_activity_id is None:
+                raise HTTPException(422, "report_source_shared_invalid")
+            # 딜 본문은 유지하고 공통/미지정 맥락만 별도 전달한다. AI·ML 메타는 제외한다.
+            content["meeting_shared"] = {
+                "common_report": _shared_body(shared.get("common_report")),
+                "unassigned_report": _shared_body(shared.get("unassigned_report")),
+            }
+            previous = shared_by_activity.get(report.source_activity_id)
+            if previous is not None and previous != content["meeting_shared"]:
+                raise HTTPException(409, "report_source_shared_conflict")
+            shared_by_activity[report.source_activity_id] = content["meeting_shared"]
+        output.append(
+            {
+                "id": str(report.id),
+                "sales_deal_id": str(report.sales_deal_id),
+                "source_activity_id": (
+                    str(report.source_activity_id) if report.source_activity_id else None
+                ),
+                "report_date": report.report_date.isoformat(),
+                "content": content,
+            }
+        )
+    return output
 
 
 async def build_candidate_selection_snapshot(db: AsyncSession, member: Member) -> dict[str, Any]:

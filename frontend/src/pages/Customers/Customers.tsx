@@ -177,6 +177,14 @@ export default function Customers() {
     setDialog('create')
   }, [])
 
+  const onCustomerCreated = useCallback(
+    (_contact: CustomerContactResponse, warning?: string) => {
+      reload()
+      if (warning) setNotice(warning)
+    },
+    [reload],
+  )
+
   // 내보내기는 화면 밖의 줄까지 모두 모읍니다. 페이지 한 장만 담으면 파일이 거짓말을 합니다.
   const exportRef = useRef<AbortController | null>(null)
   useEffect(() => () => exportRef.current?.abort(), [])
@@ -275,7 +283,9 @@ export default function Customers() {
       {dialog === 'create' && (
         <CustomerFormModal
           onClose={closeDialog}
-          onCreated={reload}
+          onCreated={onCustomerCreated}
+          duplicateMatches={cardDraft?.matches}
+          archiveImage={cardDraft?.sourceImage}
           initial={
             cardDraft === null
               ? undefined

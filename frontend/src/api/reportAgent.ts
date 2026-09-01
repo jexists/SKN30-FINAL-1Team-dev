@@ -1,15 +1,19 @@
 import { client } from './client'
+import { MEETING_WAIT_MS, waitForMeetingRun } from './meetingStream'
 
 import type {
   AgentRunResponse,
   AgentRunStatus,
   DealAssessment,
   MeetingAnalysisSnapshot,
+  MeetingAssignmentOverride,
+  MeetingProcessingOutput,
+  MeetingProgress,
   ReportDraftSnapshot,
+  ReportResponse,
 } from '@/types'
 
 const POLL_INTERVAL_MS = 2_000
-const MAX_POLLS = 30
 
 const wait = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
@@ -34,12 +38,26 @@ async function runAgent<T>(
     idempotency_key: crypto.randomUUID(),
   })
 
+  return pollRun(created, onStatus)
+}
+
+async function pollRun<T>(
+  created: AgentRunResponse<T>,
+  onStatus?: (status: AgentRunStatus) => void,
+): Promise<CompletedAgentRun<T>> {
   let run = created
+  const deadline = Date.now() + MEETING_WAIT_MS
   onStatus?.(run.status_code)
-  for (let poll = 0; run.status_code === 'queued' || run.status_code === 'running'; poll += 1) {
-    if (poll >= MAX_POLLS) throw new Error('agent_run_timeout')
-    await wait(POLL_INTERVAL_MS)
-    run = (await client.get<AgentRunResponse<T>>(`/agent-runs/${run.id}`)).data
+  while (run.status_code === 'queued' || run.status_code === 'running') {
+    if (Date.now() >= deadline) throw new Error('agent_run_timeout')
+    await wait(Math.min(POLL_INTERVAL_MS, deadline - Date.now()))
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) throw new Error('agent_run_timeout')
+    run = (
+      await client.get<AgentRunResponse<T>>(`/agent-runs/${run.id}`, {
+        timeout: Math.min(client.defaults.timeout || 10_000, remaining),
+      })
+    ).data
     onStatus?.(run.status_code)
   }
 
@@ -71,4 +89,53 @@ export async function generateReportDraft(
 export async function analyzeMeetingReport(reportId: string): Promise<DealAssessment> {
   const run = await runAgent<MeetingAnalysisSnapshot>('meeting_analysis', reportId)
   return run.output_snapshot.deal_assessment
+}
+
+/** 선택된 딜 전체가 같은 원문·근거 장부로 처리되는 미팅 실행입니다. */
+export async function processMeeting(
+  reportIds: string[],
+  overrides?: { parent_run_id: string; assignment_overrides: MeetingAssignmentOverride[] },
+  onProgress?: (progress: MeetingProgress) => void,
+  signal?: AbortSignal,
+) {
+  const { data } = await client.post<AgentRunResponse<MeetingProcessingOutput>>(
+    '/agent-runs',
+    {
+      agent_code: 'meeting_processing',
+      report_ids: reportIds,
+      idempotency_key: crypto.randomUUID(),
+      ...overrides,
+    },
+    { signal },
+  )
+  return waitForMeetingRun(data, {
+    eventsUrl: client.getUri({ url: `/agent-runs/${data.id}/events` }),
+    readRun: async (pollSignal) =>
+      (
+        await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${data.id}`, {
+          signal: pollSignal,
+        })
+      ).data,
+    onProgress,
+    signal,
+  })
+}
+
+export async function applyMeetingProcessing(runId: string): Promise<ReportResponse[]> {
+  return (await client.post<ReportResponse[]>(`/agent-runs/${runId}/apply`)).data
+}
+
+export async function saveMeetingNotes(
+  runId: string,
+  expectedRevision: string,
+  commonBody: string | null,
+  unassignedBody: string | null,
+): Promise<ReportResponse[]> {
+  return (
+    await client.patch<ReportResponse[]>(`/agent-runs/${runId}/meeting-notes`, {
+      expected_revision: expectedRevision,
+      common_body: commonBody,
+      unassigned_body: unassignedBody,
+    })
+  ).data
 }

@@ -15,7 +15,9 @@ from app.models.agent import AgentRun
 from app.models.content import Report
 from app.models.workspace import Member
 from app.schemas.agent_runs import AgentRunCreate, AgentRunRead
-from app.services import contract_schedule_snapshots
+from app.services import contract_schedule_snapshots, meeting_processing
+from app.services.agent_logging import agent_operation, log_agent_error
+from app.services.agent_stream import progress_context
 from app.services.llm import LLMError
 
 _SEOUL = ZoneInfo("Asia/Seoul")
@@ -103,15 +105,40 @@ async def _build_run_input(
     payload: AgentRunCreate, member: Member, db: AsyncSession
 ) -> tuple[str, dict[str, Any], dict[str, Any], UUID | None]:
     """agent_code 별로 prompt_version, input_snapshot, source_refs, parent_run_id 를 만든다."""
+    if payload.agent_code == "meeting_processing":
+        reports = [await _draft_source(db, member, report_id) for report_id in payload.report_ids]
+        parent = None
+        if payload.parent_run_id:
+            parent = await _parent_run_or_409(
+                db, member, payload.parent_run_id, expected_agent_code="meeting_processing"
+            )
+        snapshot = await meeting_processing.input_snapshot(
+            db, member, reports, parent, payload.assignment_overrides
+        )
+        return (
+            meeting_processing.PROMPT_VERSION,
+            snapshot,
+            {
+                "report_ids": [str(report.id) for report in reports],
+                "activity_id": str(reports[0].source_activity_id),
+                "sales_deal_ids": [str(report.sales_deal_id) for report in reports],
+            },
+            payload.parent_run_id,
+        )
     if payload.agent_code in ("report_writing", "meeting_analysis"):
         report = await _draft_source(db, member, payload.report_id)
         source_refs = {"report_id": str(report.id)}
         if report.sales_deal_id is not None:
             source_refs["sales_deal_id"] = str(report.sales_deal_id)
         if payload.agent_code == "report_writing":
+            snapshot = report_writing.input_snapshot(report, payload.guidance)
+            if report.report_kind != "meeting":
+                from app.services.report_sources import build_report_sources
+
+                snapshot["report_sources"] = await build_report_sources(db, member, report)
             return (
                 report_writing.PROMPT_VERSION,
-                report_writing.input_snapshot(report, payload.guidance),
+                snapshot,
                 source_refs,
                 None,
             )
@@ -266,6 +293,15 @@ async def create(
 
 
 async def execute(run_id: UUID) -> None:
+    # 병렬 실행·하위 task에서도 같은 ID로 원인 로그를 찾는다. DB 조회/저장 실패도 포함한다.
+    with (
+        agent_operation("agent_run", run_id=str(run_id), model=settings.llm_model),
+        progress_context(run_id),
+    ):
+        await _execute(run_id)
+
+
+async def _execute(run_id: UUID) -> None:
     """백그라운드 실행. 요청 세션이 닫힌 뒤라 자체 세션을 쓴다."""
     sessionmaker = get_sessionmaker()
     # 1) 아직 queued 인 실행만 running 으로 바꾼다. 이미 처리된 재호출은 건너뛴다.
@@ -282,6 +318,7 @@ async def execute(run_id: UUID) -> None:
 
         agent_code = run.agent_code
         input_snapshot = run.input_snapshot
+        requested_by_member_id = run.requested_by_member_id
 
     output: (
         report_writing.ReportDraftOutput
@@ -290,6 +327,7 @@ async def execute(run_id: UUID) -> None:
         | contract_management.NextMeetingProposalOutput
         | contract_management.ContractBriefingOutput
         | schedule_management.ScheduleManagementOutput
+        | meeting_processing.MeetingProcessingOutput
         | None
     ) = None
     error: str | None = None
@@ -299,6 +337,8 @@ async def execute(run_id: UUID) -> None:
             output = await report_writing.run(input_snapshot)
         elif agent_code == "meeting_analysis":
             output = await meeting_analysis.run(input_snapshot)
+        elif agent_code == "meeting_processing":
+            output = await meeting_processing.run(input_snapshot, requested_by_member_id)
         elif agent_code == "contract_management_select_candidates":
             output = await contract_management.select_next_meeting_candidates(input_snapshot)
         elif agent_code == "contract_management_next_meeting":
@@ -310,10 +350,16 @@ async def execute(run_id: UUID) -> None:
         else:
             error = "unsupported_agent"
     except LLMError as caught:
+        log_agent_error(caught, stage=agent_code)
         error = str(caught)
     except DealModelError as caught:
+        log_agent_error(caught, stage=agent_code)
         error = str(caught)
-    except Exception:
+    except TimeoutError as caught:
+        log_agent_error(caught, stage=agent_code, error_code="agent_run_timeout")
+        error = "agent_run_timeout"
+    except Exception as caught:
+        log_agent_error(caught, stage=agent_code, error_code="llm_unexpected_error")
         # 공급자 예외 원문에 URL 이나 key 가 섞일 수 있어 코드만 남긴다.
         error = "llm_unexpected_error"
 
@@ -330,7 +376,7 @@ async def execute(run_id: UUID) -> None:
             run.error_message = error
         else:
             run.status_code = "completed"
-            run.output_snapshot = output.model_dump()
+            run.output_snapshot = output.model_dump(mode="json")
             if run.agent_code == "report_writing":
                 # 제안일 뿐이다. 사람이 확인해 보고서에 반영하기 전에는 report 를 고치지 않는다.
                 run.evidence = {
@@ -341,6 +387,16 @@ async def execute(run_id: UUID) -> None:
                 run.evidence = {
                     "prompt_version": meeting_analysis.PROMPT_VERSION,
                     "model_version": output.deal_assessment.model_version,
+                }
+            elif run.agent_code == "meeting_processing":
+                run.evidence = {
+                    "prompt_version": meeting_processing.PROMPT_VERSION,
+                    "deal_count": len(output.analyses),
+                    "unresolved_count": sum(
+                        item.applicability.scope in {"unresolved", "out_of_scope"}
+                        for item in output.evidence.items
+                    ),
+                    "errors": output.errors,
                 }
             elif run.agent_code == "contract_management_select_candidates":
                 run.evidence = {
