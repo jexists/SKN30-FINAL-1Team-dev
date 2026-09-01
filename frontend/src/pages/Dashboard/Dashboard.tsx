@@ -232,6 +232,8 @@ export default function Dashboard() {
 
       {open?.type === 'notice' && (
         <NoticeDrawer
+          // 다른 공지를 열면 이전 공지의 이행 상태가 남지 않도록 새로 세웁니다.
+          key={open.notice.id}
           label={open.label}
           notice={open.notice}
           // 이행 여부가 바뀌면 티커의 배지도 새 값으로 서야 합니다.
