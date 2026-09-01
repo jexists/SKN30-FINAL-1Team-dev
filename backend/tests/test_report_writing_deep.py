@@ -143,6 +143,13 @@ def test_actual_graph_reads_skill_delegates_and_revises_after_review(monkeypatch
     assert result.model_dump(mode="json") == good
     assert any("예산 승인 사실 없음" in str(messages) for messages in model._seen)
     assert "관심, 자료 요청, 검토 의향, 구매 합의, 발주를 구별한다" in model._seen[1][-1].content
+    assert "독자는 미팅에 참석하지 않은 영업팀장·임원" in model._seen[1][-1].content
+    assert any(
+        "근거에 있는 핵심 결과, 가장 큰 미결 조건, 합의된 후속 조치" in str(message.content)
+        for messages in model._seen
+        for message in messages
+        if message.type == "system"
+    )
     writer_turn = model._seen[5]
     evidence = next(message for message in writer_turn if message.type == "tool")
     assert "S0001" in evidence.content and "S0002" in evidence.content
@@ -398,6 +405,10 @@ def test_virtual_files_are_read_only_assets_and_isolated_per_run():
             ),
             call("write_file", file_path="/scratch/note.md", content="temporary note"),
             call("read_file", file_path=path),
+            call(
+                "read_file",
+                file_path="/skills/sales-meeting-report/references/examples.md",
+            ),
             call("read_file", file_path="/scratch/note.md"),
             call("read_file", file_path="/etc/passwd"),
             call("FreeformMeetingReports", **draft()),
@@ -409,8 +420,11 @@ def test_virtual_files_are_read_only_assets_and_isolated_per_run():
     assert "denied" in tool_messages[0].content.lower()
     assert "sales-meeting-report" in tool_messages[2].content
     assert "malicious" not in tool_messages[2].content
-    assert "temporary note" in tool_messages[3].content
-    assert "not found" in tool_messages[4].content.lower()
+    assert "일반 대화 요약체 — 사용하지 않음" in tool_messages[3].content
+    assert "상급자 보고체" in tool_messages[3].content
+    assert "보안 검토 선행·예산 미승인" in tool_messages[3].content
+    assert "temporary note" in tool_messages[4].content
+    assert "not found" in tool_messages[5].content.lower()
 
     other = ScriptedModel(
         responses=[

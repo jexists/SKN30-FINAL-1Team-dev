@@ -24,6 +24,11 @@ from app.services.agent_logging import log_agent_event
 from app.services.llm import LLMError
 
 
+def test_processing_version_tracks_executive_report_contract():
+    assert service.PROMPT_VERSION == "meeting_processing.v8"
+    assert report_writing_deep.PROMPT_VERSION == "report_writing.deep.v7"
+
+
 def case():
     source = sample()
     member = _member()

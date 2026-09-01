@@ -247,6 +247,10 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
     assert model.request_timeout.connect == 10.0
 
 
+def test_executive_report_prompt_version_is_explicit():
+    assert agent.PROMPT_VERSION == "report_writing.deep.v7"
+
+
 def test_deal_schema_emits_identity_before_live_body():
     assert list(agent.DealReport.model_json_schema()["properties"]) == [
         "sales_deal_id",
