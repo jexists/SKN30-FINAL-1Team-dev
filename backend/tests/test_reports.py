@@ -524,7 +524,7 @@ async def test_deal_section_patch_preserves_server_ai_fields_and_ml_evidence():
     with pytest.raises(ValidationError):
         ReportDealWrite(
             sales_deal_id=section.sales_deal_id,
-            deal_snapshot={},
+            deal_snapshot={"id": str(section.sales_deal_id), "label": "D-1"},
             content={},
             ai_evidence={"deal_assessment": {"label": "spoofed"}},
         )

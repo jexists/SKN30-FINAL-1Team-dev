@@ -154,6 +154,14 @@ def test_meeting_report_sections_migration_rejects_conflicting_deal_candidates()
     assert "conflicting legacy report deal candidates" in sql
 
 
+def test_meeting_report_sections_migration_rejects_unscoped_parent_deal_content():
+    migration = Path(__file__).parents[1] / "sql/20260901_0016_report_deal_sections.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "canonical.content ?| ARRAY[" in sql
+    assert "canonical meeting report has unscoped deal content" in sql
+
+
 @pytest.mark.skipif(
     not settings.run_integration_tests or not settings.database_url,
     reason="실통합 테스트 비활성화 또는 DATABASE_URL 미설정",

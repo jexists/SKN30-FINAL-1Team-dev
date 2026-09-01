@@ -101,6 +101,8 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     haystack: lower([
       report.hospital,
       report.title,
+      report.meetingShared?.common_report?.body,
+      report.meetingShared?.unassigned_report?.body,
       ...dealLabels,
       report.owner,
       report.dept,

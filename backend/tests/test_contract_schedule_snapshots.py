@@ -387,6 +387,43 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
 
 
 @pytest.mark.anyio
+async def test_recent_finalized_reports_limits_reports_before_joining_deal_sections():
+    """한 보고서의 여러 딜 섹션이 최근 보고서 5건 제한을 잠식하지 않는다."""
+    member = _member()
+    deal_ids = [uuid4(), uuid4()]
+    reports = [
+        SimpleNamespace(
+            id=uuid4(),
+            source_activity_id=None,
+            report_date=date(2026, 8, 17 - index),
+            content={},
+        )
+        for index in range(5)
+    ]
+    sections = [
+        SimpleNamespace(sales_deal_id=deal_ids[0], content={}),
+        SimpleNamespace(sales_deal_id=deal_ids[1], content={}),
+    ]
+    rows = [(reports[0], section) for section in sections]
+    rows.extend(
+        (report, SimpleNamespace(sales_deal_id=deal_ids[0], content={})) for report in reports[1:]
+    )
+    db = _Db(_Result(rows=rows))
+
+    recent = await snapshots._recent_finalized_reports(db, member, deal_ids)
+
+    assert len({item["id"] for item in recent}) == 5
+    assert len(recent) == 6
+    assert {item["sales_deal_id"] for item in recent if item["id"] == str(reports[0].id)} == {
+        str(deal_id) for deal_id in deal_ids
+    }
+    sql = str(db.statements[0].compile(dialect=postgresql.dialect()))
+    assert "GROUP BY public.report.id" in sql
+    assert sql.count("LIMIT") == 1
+    assert sql.index("LIMIT") < sql.rindex("JOIN public.report_deal")
+
+
+@pytest.mark.anyio
 async def test_contract_report_context_includes_shared_bodies_without_ml_or_ai(monkeypatch):
     member = _member()
     sales_deal_id = uuid4()

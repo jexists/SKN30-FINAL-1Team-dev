@@ -83,6 +83,7 @@ function meetingValues(report: MeetingReport): Record<string, string> {
 function meetingDescription(report: MeetingReport): string {
   const text =
     report.meetingShared?.common_report?.body ||
+    report.meetingShared?.unassigned_report?.body ||
     report.dealSections
       .flatMap((section) => [section.values.body, section.values.decision, section.values.note])
       .find((value) => value?.trim())

@@ -302,16 +302,27 @@ async def _recent_finalized_reports(
     if not deal_ids:
         return []
     priority = [] if required_report_id is None else [(Report.id == required_report_id).desc()]
-    result = await db.execute(
-        select(Report, ReportDeal)
+    recent_report_ids = (
+        select(Report.id)
         .join(ReportDeal, ReportDeal.report_id == Report.id)
         .where(
             Report.team_id == member.team_id,
             Report.status_code.in_(("approved", "submitted")),
             ReportDeal.sales_deal_id.in_(deal_ids),
         )
-        .order_by(*priority, Report.report_date.desc(), Report.id, ReportDeal.sales_deal_id)
+        .group_by(Report.id)
+        .order_by(*priority, Report.report_date.desc(), Report.id)
         .limit(5)
+        .subquery()
+    )
+    result = await db.execute(
+        select(Report, ReportDeal)
+        .join(recent_report_ids, recent_report_ids.c.id == Report.id)
+        .join(ReportDeal, ReportDeal.report_id == Report.id)
+        .where(
+            ReportDeal.sales_deal_id.in_(deal_ids),
+        )
+        .order_by(*priority, Report.report_date.desc(), Report.id, ReportDeal.sales_deal_id)
     )
     rows = result.all()
     if required_report_id is not None and not any(

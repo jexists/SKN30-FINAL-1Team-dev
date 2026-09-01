@@ -267,6 +267,36 @@ BEGIN
 END
 $$;
 
+-- 딜 참조가 없는 canonical 행에 딜 본문이 남아 있는데 같은 미팅의 다른 행에서 자식이
+-- 만들어진 경우, 이 본문은 공통/미지정인지 특정 딜인지 자동 판정할 수 없다. 부모에
+-- 숨겨 두거나 지우지 않고 수동 정리를 요구한다.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.report AS canonical
+        WHERE canonical.report_kind = 'meeting'
+          AND canonical.source_activity_id IS NOT NULL
+          AND canonical.sales_deal_id IS NULL
+          AND jsonb_typeof(canonical.content -> 'sales_deal_ids') IS DISTINCT FROM 'array'
+          AND EXISTS (
+              SELECT 1
+              FROM public.report_deal AS section
+              WHERE section.report_id = canonical.id
+          )
+          AND (
+              canonical.content ?| ARRAY[
+                  'product', 'values', 'sales_deal', 'evidence',
+                  'ai_values', 'ai_evidence', 'ai_generated_at'
+              ]
+              OR canonical.ai_evidence IS NOT NULL
+          )
+    ) THEN
+        RAISE EXCEPTION 'canonical meeting report has unscoped deal content; manual reconciliation required';
+    END IF;
+END
+$$;
+
 -- 부모에는 공통 입력과 공통/미지정 AI 본문만 남긴다. 구 데이터가 딜마다 서로 다른
 -- 원문을 저장했다면 어느 하나도 버리지 않고 딜 번호를 붙여 한 원문으로 합친다.
 UPDATE public.report AS canonical

@@ -19,6 +19,9 @@ const { meetingRequestOf, toMeetingReport } = await vite.ssrLoadModule(
 const { default: MeetingSharedPanel } = await vite.ssrLoadModule(
   '/src/pages/Meetings/components/MeetingSharedPanel.tsx',
 )
+const { ReportReviewContents } = await vite.ssrLoadModule(
+  '/src/pages/Dashboard/components/ReportReviewDrawer/ReportReviewDrawer.tsx',
+)
 
 const dealId = '10000000-0000-4000-8000-000000000001'
 const dealSection = (values = {}, id = dealId) => ({
@@ -125,6 +128,53 @@ test('미팅 응답 한 건에서 공통 기록과 모든 딜 섹션을 분리�
   assert.equal(sources.activities.length, 1)
   assert.match(sources.values.get(`meet-${report.id}`).body, /첫 번째 딜 본문/)
   assert.match(sources.values.get(`meet-${report.id}`).body, /두 번째 딜 본문/)
+})
+
+test('팀장 검토 화면은 공통·미지정 기록과 모든 딜 본문을 함께 표시한다', () => {
+  const secondId = '10000000-0000-4000-8000-000000000002'
+  const raw = response(
+    {},
+    [{ id: 'body', label: '본문' }],
+    [
+      dealSection({ body: '첫 딜 검토 본문' }),
+      dealSection({ body: '둘째 딜 검토 본문' }, secondId),
+    ],
+  )
+  raw.content.meeting_shared = {
+    run_id: 'synthetic-run',
+    revision: 'synthetic-revision',
+    common_report: { body: '검토할 공통 기록', evidence_ids: [] },
+    unassigned_report: { body: '검토할 미지정 기록', evidence_ids: [] },
+  }
+
+  const report = toMeetingReport(raw)
+  const view = renderToStaticMarkup(createElement(ReportReviewContents, { report }))
+
+  assert.match(view, /검토할 공통 기록/)
+  assert.match(view, /검토할 미지정 기록/)
+  assert.match(view, /DEAL-1/)
+  assert.match(view, /DEAL-2/)
+  assert.match(view, /첫 딜 검토 본문/)
+  assert.match(view, /둘째 딜 검토 본문/)
+})
+
+test('미팅 공통·미지정 기록은 목록 검색과 일일보고 자료 설명에도 포함한다', () => {
+  const raw = response({})
+  raw.content.meeting_shared = {
+    run_id: 'synthetic-run',
+    revision: 'synthetic-revision',
+    common_report: { body: '공통 검색 전용 문구', evidence_ids: [] },
+    unassigned_report: { body: '미지정 설명 첫 줄\n둘째 줄', evidence_ids: [] },
+  }
+  const report = toMeetingReport(raw)
+  const row = fromMeetingReport(report)
+
+  assert.match(row.haystack, /공통 검색 전용 문구/)
+  assert.match(row.haystack, /미지정 설명 첫 줄/)
+
+  report.meetingShared.common_report = null
+  const sources = sourcesFor('일일', report.date, [report], [], [])
+  assert.equal(sources.activities[0].desc, '미지정 설명 첫 줄')
 })
 
 test('미팅 저장 요청은 한 report에 딜 섹션을 묶고 서버 소유 AI 필드를 보내지 않는다', () => {
