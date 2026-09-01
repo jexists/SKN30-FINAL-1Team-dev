@@ -279,7 +279,7 @@ export default function Compose() {
     if (!first) throw new Error('meeting_draft_not_found')
     return {
       reportId: savedReport?.id ?? first.reportId,
-      version: savedReport?.version ?? first.reportVersion,
+      version: first.reportVersion ?? savedReport?.version,
       statusCode: savedReport?.apiStatus ?? first.statusCode,
       agendaId: item.id,
       template: savedReport?.template ?? first.template,
