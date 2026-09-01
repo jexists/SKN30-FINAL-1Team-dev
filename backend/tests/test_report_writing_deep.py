@@ -145,7 +145,7 @@ def test_actual_graph_reads_skill_delegates_and_revises_after_review(monkeypatch
     assert "관심, 자료 요청, 검토 의향, 구매 합의, 발주를 구별한다" in model._seen[1][-1].content
     assert "독자는 미팅에 참석하지 않은 영업팀장·임원" in model._seen[1][-1].content
     assert any(
-        "근거에 있는 핵심 결과, 가장 큰 미결 조건, 합의된 후속 조치" in str(message.content)
+        "그 조건이 딜에 미치는 의미, 합의된 후속 조치" in str(message.content)
         for messages in model._seen
         for message in messages
         if message.type == "system"
@@ -423,6 +423,8 @@ def test_virtual_files_are_read_only_assets_and_isolated_per_run():
     assert "일반 대화 요약체 — 사용하지 않음" in tool_messages[3].content
     assert "상급자 보고체" in tool_messages[3].content
     assert "보안 검토 선행·예산 미승인" in tool_messages[3].content
+    assert "딜에 미치는 의미와 필요한 지원 밝히기" in tool_messages[3].content
+    assert "영업팀장의 일정 조율 지원" in tool_messages[3].content
     assert "temporary note" in tool_messages[4].content
     assert "not found" in tool_messages[5].content.lower()
 

@@ -248,7 +248,10 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.deep.v7"
+    assert agent.PROMPT_VERSION == "report_writing.deep.v8"
+    skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
+    assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
 
 
 def test_deal_schema_emits_identity_before_live_body():

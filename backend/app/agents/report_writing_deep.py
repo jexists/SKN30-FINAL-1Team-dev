@@ -35,7 +35,7 @@ from app.services.agent_logging import agent_operation, log_agent_error, log_age
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, LLMNotConfigured
 
-PROMPT_VERSION = "report_writing.deep.v7"
+PROMPT_VERSION = "report_writing.deep.v8"
 RUN_TIMEOUT_SECONDS = 900
 MAX_MODEL_CALLS = 100
 MAX_REVIEWS = 10
@@ -147,7 +147,8 @@ class ReportReview(BaseModel):
         max_length=30,
         description="수정할 경로 + 초안의 문제 표현 + 원문 근거 + 수정 행동. 통과면 []. "
         "없는 정보 자체나 단순 문체 취향은 오류가 아니다. 스킬에 명시된 핵심 결과, "
-        "미결 조건, 후속 조치가 근거에 있는데 묻히거나 상투적 총평으로 대체되면 오류다.",
+        "미결 조건, 딜에 미치는 의미, 후속 조치, 상급자 결정·지원 필요가 근거에 있는데 "
+        "묻히거나 상투적 총평으로 대체되면 오류다. 근거에 없는 의미나 요청을 만들면 오류다.",
     )
 
 
@@ -707,8 +708,10 @@ async def _run(
         + "\n독립 검토자다. 원문/귀속/CRM과 초안을 대조해 사실 왜곡, 딜 혼입, 누락을 찾는다. "
         "구조/ID/미지정 원문 인용은 코드 검사를 이미 통과했다. 문장 의미의 사실성을 검토하라. "
         "단순한 문체 취향은 오류로 보지 않는다. 다만 작성 스킬에 명시된 상급자 보고 기준은 "
-        "객관적 완료 조건이다. 근거에 있는 핵심 결과, 가장 큰 미결 조건, 합의된 후속 조치가 "
-        "주변 대화에 묻히거나 시간순 반복·상투적 총평으로 대체되면 수정하도록 지적하라. "
+        "객관적 완료 조건이다. 근거에 있는 핵심 결과, 가장 큰 미결 조건, 그 조건이 딜에 "
+        "미치는 의미, 합의된 후속 조치가 주변 대화에 묻히거나 시간순 반복·상투적 총평으로 "
+        "대체되면 수정하도록 지적하라. 상급자의 결정·지원 필요가 근거에 명시됐는데 빠진 "
+        "경우도 지적하되, 근거에 없는 영향·권고·승인·지원 요청을 만들게 하지 마라. "
         "원문에 없는 결과나 조치를 추가하거나 짧은 입력의 분량을 늘리라고 요구하지 마라. "
         "근거 ID가 있어도 본문에 내용이 빠졌는지 확인한다. "
         "각 issues에는 수정할 경로, 문제인 초안 표현, 대조한 원문 구절과 수정 행동을 적어라. "
