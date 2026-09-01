@@ -31,7 +31,6 @@ interface Props {
   onStartManual: () => void
   onApplyAi: () => void
   onGenerate: () => void
-  onSave: () => void
 }
 
 function assessmentBadge(draft: DealDraftState): {
@@ -79,7 +78,6 @@ export default function DealReportCard({
   onStartManual,
   onApplyAi,
   onGenerate,
-  onSave,
 }: Props) {
   const [open, setOpen] = useState(true)
   const bodyId = useId()
@@ -162,7 +160,6 @@ export default function DealReportCard({
           onStartManual={onStartManual}
           onRegenerate={onGenerate}
           regenerateLabel="미팅 전체 다시 생성"
-          onSave={onSave}
           viewTo={
             draft.reportId && !generating && !saving ? meetingReportPath(draft.reportId) : undefined
           }

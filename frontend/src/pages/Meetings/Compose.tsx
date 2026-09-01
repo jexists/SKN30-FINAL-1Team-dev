@@ -9,7 +9,7 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage } from '@/api/errorMessage'
 import { applyMeetingProcessing, processMeeting, saveMeetingNotes } from '@/api/reportAgent'
 import Button, { buttonClass } from '@/components/Button'
-import { ChevronLeftIcon } from '@/components/icons'
+import { CheckIcon, ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
@@ -34,14 +34,20 @@ import useMeetingReports, {
 import styles from './Compose.module.scss'
 
 type Confirm = { kind: 'apply'; dealId: string } | null
+type SaveFeedback =
+  | { kind: 'success'; count: number; snapshot: string }
+  | { kind: 'error'; saved: number; failed: string[]; reason: string; snapshot: string }
 
 export default function Compose() {
   const [params] = useSearchParams()
   const { memberId, isManager } = useCurrentUser()
   const activeGenerations = useRef(new Set<string>())
   const processingAbort = useRef<AbortController | null>(null)
+  const saveAbort = useRef<AbortController | null>(null)
   const [generating, setGenerating] = useState(false)
   const [savingNotes, setSavingNotes] = useState(false)
+  const [savingAll, setSavingAll] = useState(false)
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
   const [runErrors, setRunErrors] = useState<Record<string, string>>({})
   const [notesDirty, setNotesDirty] = useState(false)
@@ -49,12 +55,16 @@ export default function Compose() {
   useEffect(() => {
     setGenerating(false)
     setSavingNotes(false)
+    setSavingAll(false)
+    setSaveFeedback(null)
     setNotesDirty(false)
     setRunError(null)
     setRunErrors({})
     return () => {
       processingAbort.current?.abort()
       processingAbort.current = null
+      saveAbort.current?.abort()
+      saveAbort.current = null
     }
   }, [agendaId])
   const {
@@ -69,7 +79,7 @@ export default function Compose() {
     error: loadError,
     reload,
   } = useMeetingReportsOfAgenda(agendaId)
-  const { saveDraft, error: saveError, pending } = useMeetingReports()
+  const { saveDraft, pending } = useMeetingReports()
   const draft = useMeetingDraft(
     item,
     savedReports,
@@ -130,7 +140,7 @@ export default function Compose() {
   const fixedDealIds = draft.salesDealIds.filter(
     (dealId) => draft.draftsByDeal[dealId]?.reportId !== undefined,
   )
-  const busy = pending || generating || savingNotes
+  const busy = pending || generating || savingNotes || savingAll
   const when = `${fmtDot(parseISO(item.date))} ${item.time}`
 
   const dealRef = (dealId: string): MeetingDealRef => {
@@ -192,6 +202,23 @@ export default function Compose() {
         canEditDeal(id) &&
         ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
     )
+  const editableDealIds = draft.salesDealIds.filter(
+    (id) =>
+      canEditDeal(id) &&
+      ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
+  )
+  const emptyDealIds = editableDealIds.filter((id) => draft.draftsByDeal[id]?.phase === 'idle')
+  const brokenDealIds = editableDealIds.filter(
+    (id) => (draft.draftsByDeal[id]?.sectionIssues.length ?? 0) > 0,
+  )
+  const saveSnapshot = JSON.stringify({
+    transcript: draft.transcript,
+    attachments: draft.attachments,
+    reports: editableDealIds.map((id) => {
+      const state = draft.draftsByDeal[id]
+      return [id, state?.title, state?.values, state?.sectionIssues]
+    }),
+  })
 
   // 잠금 키는 딜이 아니라 미팅입니다. 사전저장부터 서버 apply까지 한 번만 실행합니다.
   const generateAll = async (overrides: MeetingAssignmentOverride[] = []) => {
@@ -218,7 +245,7 @@ export default function Compose() {
         try {
           const reports = await Promise.all(
             targets.map(async (id) => {
-              const report = await saveDraft(payloadFor(id))
+              const report = await saveDraft(payloadFor(id), controller.signal)
               if (!controller.signal.aborted) draft.bindReport(id, report)
               return report
             }),
@@ -292,14 +319,110 @@ export default function Compose() {
     }
   }
 
-  const saveOne = async (dealId: string) => {
-    if (activeGenerations.current.has(agendaId) || !canEditDeal(dealId) || busy) return
+  const saveAll = async () => {
+    if (
+      busy ||
+      saveAbort.current ||
+      activeGenerations.current.has(agendaId) ||
+      editableDealIds.length === 0 ||
+      emptyDealIds.length > 0 ||
+      brokenDealIds.length > 0
+    )
+      return
+
+    const targets = [...editableDealIds]
+    const snapshot = saveSnapshot
+    const controller = new AbortController()
+    saveAbort.current = controller
+    setSavingAll(true)
+    setSaveFeedback(null)
+
     try {
-      const report = await saveDraft(payloadFor(dealId))
-      draft.bindReport(dealId, report)
-      showToast(`${dealRef(dealId).label} 보고서를 저장했습니다.`)
-    } catch {
-      // 저장 훅이 카드 목록 위에 오류를 표시합니다.
+      const results = await Promise.allSettled(
+        targets.map(async (id) => {
+          const report = await saveDraft(payloadFor(id), controller.signal)
+          if (!controller.signal.aborted && saveAbort.current === controller) {
+            draft.bindReport(id, report)
+          }
+          return report
+        }),
+      )
+      if (controller.signal.aborted || saveAbort.current !== controller) return
+
+      const failed = results.flatMap((result, index) =>
+        result.status === 'rejected' ? [dealRef(targets[index]).label] : [],
+      )
+      if (failed.length > 0) {
+        const firstFailure = results.find((result) => result.status === 'rejected')
+        setSaveFeedback({
+          kind: 'error',
+          saved: targets.length - failed.length,
+          failed,
+          snapshot,
+          reason:
+            firstFailure?.status === 'rejected'
+              ? errorMessage(firstFailure.reason, '저장 요청을 완료하지 못했습니다.')
+              : '저장 요청을 완료하지 못했습니다.',
+        })
+        return
+      }
+
+      setSaveFeedback({ kind: 'success', count: targets.length, snapshot })
+      showToast(`${targets.length}개 딜 보고서를 모두 저장했습니다.`)
+    } finally {
+      if (saveAbort.current === controller) {
+        saveAbort.current = null
+        setSavingAll(false)
+      }
+    }
+  }
+
+  let saveNotice = {
+    tone: 'idle',
+    title: `딜 보고서 ${editableDealIds.length}건`,
+    detail: '편집 가능한 딜 보고서를 한 번에 저장합니다.',
+  }
+  if (savingAll) {
+    saveNotice = {
+      tone: 'saving',
+      title: '전체 저장 중',
+      detail: `${editableDealIds.length}개 딜 보고서를 저장하고 있습니다.`,
+    }
+  } else if (saveFeedback?.kind === 'error' && saveFeedback.snapshot === saveSnapshot) {
+    saveNotice = {
+      tone: 'error',
+      title: `저장 ${saveFeedback.saved}건 · 실패 ${saveFeedback.failed.length}건`,
+      detail: `실패: ${saveFeedback.failed.join(', ')} · ${saveFeedback.reason}`,
+    }
+  } else if (saveFeedback?.kind === 'success' && saveFeedback.snapshot === saveSnapshot) {
+    saveNotice = {
+      tone: 'success',
+      title: '전체 저장 완료',
+      detail: `${saveFeedback.count}개 딜 보고서를 모두 저장했습니다.`,
+    }
+  } else if (emptyDealIds.length > 0) {
+    saveNotice = {
+      tone: 'dirty',
+      title: '저장 전 작성이 필요합니다',
+      detail: `${emptyDealIds.map((id) => dealRef(id).label).join(', ')} 보고서를 먼저 작성하세요.`,
+    }
+  } else if (brokenDealIds.length > 0) {
+    saveNotice = {
+      tone: 'dirty',
+      title: '저장 전 항목 복원이 필요합니다',
+      detail: `${brokenDealIds.map((id) => dealRef(id).label).join(', ')} 보고서의 사라진 항목 제목을 되살리세요.`,
+    }
+  } else if (editableDealIds.length === 0) {
+    saveNotice = {
+      tone: 'idle',
+      title: '저장할 보고서가 없습니다',
+      detail: '수정 가능한 딜 보고서가 없습니다.',
+    }
+  } else if (saveFeedback) {
+    saveNotice = {
+      tone: 'dirty',
+      title: '저장하지 않은 변경사항',
+      detail: '이전 저장 시도 후 바뀐 내용이 있습니다. 다시 전체 저장하세요.',
     }
   }
 
@@ -341,9 +464,9 @@ export default function Compose() {
         </p>
       )}
 
-      {(saveError || runError) && (
+      {runError && (
         <p className={styles.mutationError} role="alert">
-          {saveError || runError}
+          {runError}
         </p>
       )}
       {Object.keys(runErrors).length > 0 && (
@@ -419,6 +542,41 @@ export default function Compose() {
         </div>
 
         <section className={styles.work} aria-label="딜별 미팅보고서">
+          {draft.salesDealIds.length > 0 && (
+            <div className={styles.saveBar} data-tone={saveNotice.tone} aria-busy={savingAll}>
+              <span className={styles.saveMark} aria-hidden="true">
+                {saveNotice.tone === 'success' ? (
+                  <CheckIcon width={16} height={16} />
+                ) : saveNotice.tone === 'error' ? (
+                  '!'
+                ) : saveNotice.tone === 'saving' ? (
+                  '…'
+                ) : null}
+              </span>
+              <div
+                className={styles.saveCopy}
+                role={saveNotice.tone === 'error' ? 'alert' : 'status'}
+                aria-live={saveNotice.tone === 'error' ? 'assertive' : 'polite'}
+              >
+                <strong>{saveNotice.title}</strong>
+                <p>{saveNotice.detail}</p>
+              </div>
+              <Button
+                type="button"
+                className={styles.saveAllButton}
+                aria-label="딜 보고서 전체 저장"
+                disabled={
+                  busy ||
+                  editableDealIds.length === 0 ||
+                  emptyDealIds.length > 0 ||
+                  brokenDealIds.length > 0
+                }
+                onClick={() => void saveAll()}
+              >
+                {savingAll ? '저장 중…' : '전체 저장'}
+              </Button>
+            </div>
+          )}
           {(result || draft.processingProgress) && (
             <MeetingSharedPanel
               shared={result?.shared ?? null}
@@ -463,7 +621,6 @@ export default function Compose() {
                   onStartManual={() => draft.startManual(dealId)}
                   onApplyAi={() => setConfirm({ kind: 'apply', dealId })}
                   onGenerate={() => void generateAll()}
-                  onSave={() => void saveOne(dealId)}
                 />
               )
             })

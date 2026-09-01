@@ -278,47 +278,56 @@ export default function useMeetingReports() {
   const [error, setError] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
 
-  const save = useCallback(async (draft: MeetingDraftPayload, submit: boolean) => {
-    setPendingCount((count) => count + 1)
-    setError(null)
-    try {
-      const request = requestOf(draft)
-      const {
-        report_kind: _kind,
-        source_activity_id: _source,
-        sales_deal_id: _deal,
-        ...patch
-      } = request
-      const saved = draft.reportId
-        ? await client.patch<ReportResponse>(`/reports/${draft.reportId}`, patch)
-        : await client.post<ReportResponse>('/reports', request)
-      // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
-      // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
-      const from = draft.statusCode ?? 'draft'
-      const response =
-        submit && (from === 'draft' || from === 'changes_requested')
-          ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
-              expected_status_code: from,
-            })
-          : saved
-      return toMeetingReport(response.data)
-    } catch (reason: unknown) {
-      setError(
-        errorMessage(
-          reason,
-          submit ? '미팅 기록을 확정하지 못했습니다.' : '임시저장하지 못했습니다.',
-        ),
-      )
-      throw reason
-    } finally {
-      setPendingCount((count) => count - 1)
-    }
-  }, [])
+  const save = useCallback(
+    async (draft: MeetingDraftPayload, submit: boolean, signal?: AbortSignal) => {
+      setPendingCount((count) => count + 1)
+      setError(null)
+      try {
+        const request = requestOf(draft)
+        const {
+          report_kind: _kind,
+          source_activity_id: _source,
+          sales_deal_id: _deal,
+          ...patch
+        } = request
+        const saved = draft.reportId
+          ? await client.patch<ReportResponse>(`/reports/${draft.reportId}`, patch, { signal })
+          : await client.post<ReportResponse>('/reports', request, { signal })
+        // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
+        // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
+        const from = draft.statusCode ?? 'draft'
+        const response =
+          submit && (from === 'draft' || from === 'changes_requested')
+            ? await client.post<ReportResponse>(
+                `/reports/${saved.data.id}/submit`,
+                {
+                  expected_status_code: from,
+                },
+                { signal },
+              )
+            : saved
+        return toMeetingReport(response.data)
+      } catch (reason: unknown) {
+        if (!signal?.aborted) {
+          setError(
+            errorMessage(
+              reason,
+              submit ? '미팅 기록을 확정하지 못했습니다.' : '임시저장하지 못했습니다.',
+            ),
+          )
+        }
+        throw reason
+      } finally {
+        setPendingCount((count) => count - 1)
+      }
+    },
+    [],
+  )
 
   return {
     error,
     pending: pendingCount > 0,
-    saveReport: (draft: MeetingDraftPayload) => save(draft, true),
-    saveDraft: (draft: MeetingDraftPayload) => save(draft, false),
+    saveReport: (draft: MeetingDraftPayload, signal?: AbortSignal) => save(draft, true, signal),
+    saveDraft: (draft: MeetingDraftPayload, signal?: AbortSignal) => save(draft, false, signal),
   }
 }

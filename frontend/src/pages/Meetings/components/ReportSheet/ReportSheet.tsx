@@ -44,7 +44,6 @@ interface Props {
   onStartManual: () => void
   onRegenerate: () => void
   regenerateLabel?: string
-  onSave: () => void
   /** 이미 저장된 딜 보고서 상세로 가는 길입니다. */
   viewTo?: string
   /** 딜 카드가 바깥 면을 맡을 때 시트의 중복 테두리·sticky를 걷습니다. */
@@ -75,7 +74,6 @@ export default function ReportSheet({
   onStartManual,
   onRegenerate,
   regenerateLabel = 'AI 다시 생성',
-  onSave,
   viewTo,
   embedded = false,
 }: Props) {
@@ -153,33 +151,26 @@ export default function ReportSheet({
         )}
       </article>
 
-      <div className={styles.actions}>
-        {hasAiOriginal && (
-          <Button
-            variant="outline"
-            type="button"
-            disabled={locked || saving || generationDisabled || phase === 'generating'}
-            onClick={onRegenerate}
-          >
-            {regenerateLabel}
-          </Button>
-        )}
+      {(hasAiOriginal || viewTo) && (
+        <div className={styles.actions}>
+          {hasAiOriginal && (
+            <Button
+              variant="outline"
+              type="button"
+              disabled={locked || saving || generationDisabled || phase === 'generating'}
+              onClick={onRegenerate}
+            >
+              {regenerateLabel}
+            </Button>
+          )}
 
-        {viewTo && (
-          <Link className={buttonClass({ variant: 'outline' })} to={viewTo}>
-            저장된 보고서 보기
-          </Link>
-        )}
-
-        <Button
-          type="button"
-          className={styles.submit}
-          disabled={locked || saving || empty || broken}
-          onClick={onSave}
-        >
-          저장
-        </Button>
-      </div>
+          {viewTo && (
+            <Link className={buttonClass({ variant: 'outline' })} to={viewTo}>
+              저장된 보고서 보기
+            </Link>
+          )}
+        </div>
+      )}
 
       {/*
         항목 제목이 사라지면 그 아래 글이 어느 항목인지 알 수 없습니다. 짐작해서

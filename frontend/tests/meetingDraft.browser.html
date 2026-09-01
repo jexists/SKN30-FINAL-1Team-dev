@@ -66,6 +66,7 @@
         const composeRoot = createRoot(container)
         const adapter = client.defaults.adapter
         const pendingSaves = []
+        const pendingReportSaves = []
         const unexpectedRequests = []
         const response = (config, data) => ({
           config,
@@ -101,6 +102,19 @@
                 }),
           },
         })
+        const batchReports = ['A', 'B'].map((label) => ({
+          ...report(`batch-${label}`),
+          id: `report-batch-${label}`,
+          source_activity_id: 'meeting-save-all',
+          sales_deal_id: `deal-${label}`,
+          transcript: 'meeting-save-all 미팅 원문',
+          source_snapshot: {},
+          content: {
+            title: `딜 ${label} 보고서`,
+            values: { body: `딜 ${label} 본문` },
+            sales_deal: { id: `deal-${label}`, label: `딜 ${label}` },
+          },
+        }))
         client.defaults.adapter = async (config) => {
           if (config.method === 'get' && config.url.startsWith('/activities/')) {
             const id = config.url.split('/').at(-1)
@@ -117,10 +131,20 @@
             })
           }
           if (config.method === 'get' && config.url === '/reports') {
-            return response(config, { items: [report(config.params.source_activity_id)] })
+            return response(config, {
+              items:
+                config.params.source_activity_id === 'meeting-save-all'
+                  ? batchReports
+                  : [report(config.params.source_activity_id)],
+            })
           }
           if (config.method === 'patch' && config.url.endsWith('/meeting-notes')) {
             return new Promise((resolve, reject) => pendingSaves.push({ config, resolve, reject }))
+          }
+          if (config.method === 'patch' && config.url.startsWith('/reports/report-batch-')) {
+            return new Promise((resolve, reject) =>
+              pendingReportSaves.push({ config, resolve, reject }),
+            )
           }
           unexpectedRequests.push(config.url)
           throw new Error(`예상하지 않은 요청: ${config.url}`)
@@ -147,6 +171,8 @@
         )
         const button = (text) =>
           [...container.querySelectorAll('button')].find((el) => el.textContent === text)
+        const saveAllButton = () =>
+          container.querySelector('button[aria-label="딜 보고서 전체 저장"]')
         const notes = () => container.querySelector('[aria-label="미팅 공통·미지정 기록"] textarea')
         async function flush() {
           await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
@@ -234,6 +260,51 @@
             !container.textContent.includes('이전 미팅 저장 실패') &&
               !button('미팅 전체 분석·보고서 작성').disabled,
             '이전 저장 실패도 새 미팅 오류·잠금 상태에 적용하지 않음',
+          )
+
+          await navigate('meeting-save-all')
+          assert(
+            [...container.querySelectorAll('button')].every((one) => one.textContent !== '저장') &&
+              saveAllButton(),
+            '카드별 저장 없이 전체 저장 버튼 하나만 표시',
+          )
+          await act(async () => saveAllButton().click())
+          assert(
+            pendingReportSaves.length === 2 &&
+              saveAllButton().disabled &&
+              saveAllButton().textContent === '저장 중…',
+            '두 딜을 함께 요청하고 저장 중 재클릭 잠금',
+          )
+          await act(async () => {
+            pendingReportSaves[0].resolve(response(pendingReportSaves[0].config, batchReports[0]))
+            pendingReportSaves[1].reject(new Error('딜 B 저장 실패'))
+          })
+          assert(
+            container.textContent.includes('저장 1건 · 실패 1건') &&
+              container.textContent.includes('실패: 딜 B'),
+            '부분 성공을 숨기지 않고 실패 딜을 표시',
+          )
+          await act(async () => saveAllButton().click())
+          await act(async () => {
+            pendingReportSaves[2].resolve(response(pendingReportSaves[2].config, batchReports[0]))
+            pendingReportSaves[3].resolve(response(pendingReportSaves[3].config, batchReports[1]))
+          })
+          assert(
+            container.textContent.includes('전체 저장 완료') &&
+              container.textContent.includes('2개 딜 보고서를 모두 저장했습니다.'),
+            '전체 성공 상태를 화면에 유지',
+          )
+          await act(async () => {
+            const title = container.querySelector('input[placeholder="보고서 제목을 적으세요"]')
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(
+              title,
+              '저장 후 바꾼 제목',
+            )
+            title.dispatchEvent(new Event('input', { bubbles: true }))
+          })
+          assert(
+            container.textContent.includes('저장하지 않은 변경사항'),
+            '저장 후 수정하면 완료 표시를 미저장 상태로 전환',
           )
           assert(unexpectedRequests.length === 0, '정의한 메모리 응답 외 서버 요청 없음')
         } finally {
