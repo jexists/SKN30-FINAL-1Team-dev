@@ -8,7 +8,7 @@ import type { MeetingProgress, MeetingReport } from '../../types'
 import { runDealGeneration } from './generatedDraft.ts'
 
 export interface MeetingGenerationResult {
-  reports: MeetingReport[]
+  report: MeetingReport
   writingFailed: boolean
   errors: Record<string, string>
 }
@@ -18,7 +18,7 @@ export type MeetingGenerationState = {
   agendaId: string
   dealIds: string[]
   progress: MeetingProgress | null
-  savedReports: MeetingReport[]
+  savedReport: MeetingReport | null
 } & (
   | { status: 'running' }
   | ({ status: 'completed' } & MeetingGenerationResult)
@@ -71,7 +71,7 @@ export function startMeetingGeneration({ agendaId, dealIds, execute }: StartOpti
     agendaId,
     dealIds: [...dealIds],
     progress: null,
-    savedReports: [],
+    savedReport: null,
     status: 'running',
   }
 
@@ -95,27 +95,22 @@ export function startMeetingGeneration({ agendaId, dealIds, execute }: StartOpti
             if (current?.requestId === requestId && current.status === 'running') {
               publish({
                 ...current,
-                savedReports: [
-                  ...current.savedReports.filter(
-                    (saved) => saved.salesDealId !== report.salesDealId,
-                  ),
-                  report,
-                ],
+                savedReport: report,
               })
             }
           },
         )
-        publish({ ...running, ...result, savedReports: result.reports, status: 'completed' })
+        publish({ ...running, ...result, savedReport: result.report, status: 'completed' })
         const partial = result.writingFailed || Object.keys(result.errors).length > 0
         showToast(
           partial
-            ? '미팅 처리가 일부 완료됐습니다. 결과를 확인하세요.'
-            : `${dealIds.length}개 딜 보고서와 ML 분석이 완료됐습니다.`,
+            ? 'AI 초안 생성 일부 완료 · 편집 화면에서 결과를 확인하세요.'
+            : `AI 초안 생성 완료 · 딜 ${dealIds.length}건을 확인하세요.`,
           {
             tone: partial ? 'error' : 'success',
             persistent: true,
             to: meetingComposePath(agendaId),
-            actionLabel: '보고서 보기',
+            actionLabel: '초안 수정하기',
           },
         )
         return true
@@ -124,7 +119,7 @@ export function startMeetingGeneration({ agendaId, dealIds, execute }: StartOpti
         const current = states.get(agendaId)
         publish({
           ...running,
-          savedReports: current?.requestId === requestId ? current.savedReports : [],
+          savedReport: current?.requestId === requestId ? current.savedReport : null,
           status: 'failed',
           error: message,
         })

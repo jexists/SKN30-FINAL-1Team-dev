@@ -43,7 +43,7 @@ export default function MeetingPick() {
     loading: meetingLoading,
     error: meetingError,
     reload: reloadMeetings,
-  } = useMeetingReportsOn(dateISO)
+  } = useMeetingReportsOn(dateISO, { includeDrafts: true })
   const byAgenda = useMemo(() => {
     const grouped = new Map<string, typeof meetings>()
     for (const report of meetings) {

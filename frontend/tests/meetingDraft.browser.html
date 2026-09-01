@@ -29,8 +29,8 @@
       const result = document.getElementById('result')
       const checks = []
       let draft
-      function Probe({ item, reports, ready }) {
-        draft = useMeetingDraft(item, reports, ready)
+      function Probe({ item, report, ready }) {
+        draft = useMeetingDraft(item, report, ready)
         return null
       }
       function assert(condition, message) {
@@ -42,25 +42,34 @@
         id: 'test-body',
         fields: [{ id: 'body', type: 'textarea', required: true, aiFilled: true }],
       }
-      const saved = (id, body = '') => ({
-        id: `report-${id}`,
+      const savedSection = (id, body = '') => ({
         salesDealId: id,
+        salesDeal: { id, label: id },
+        product: `${id} 제품`,
+        title: '서버 제목',
+        values: { body },
+        aiValues: {},
+        analysisEvidence: {
+          report_error: 'report_agent_review_limit',
+          analysis_error: '이전 분석 실패',
+        },
+        reportError: 'report_agent_review_limit',
+        analysisError: '이전 분석 실패',
+      })
+      const savedReport = {
+        id: 'report-meeting-a',
         agendaId: item.id,
         template,
         apiStatus: 'draft',
         review: 'writing',
-        title: '서버 제목',
+        title: '서버 공통 제목',
         transcript: '서버 원문',
-        values: { body },
-        aiValues: {},
         attachments: [],
-        reportError: 'report_agent_review_limit',
-        analysisError: '이전 분석 실패',
-      })
-      const reports = ['deal-a', 'deal-b', 'deal-c'].map((id) => saved(id))
-      async function render(nextItem, nextReports, ready) {
+        dealSections: ['deal-a', 'deal-b', 'deal-c'].map((id) => savedSection(id)),
+      }
+      async function render(nextItem, nextReport, ready) {
         await act(async () =>
-          root.render(createElement(Probe, { item: nextItem, reports: nextReports, ready })),
+          root.render(createElement(Probe, { item: nextItem, report: nextReport, ready })),
         )
       }
       async function checkComposeIsolation() {
@@ -100,7 +109,7 @@
           author_member_id: 'synthetic-owner',
           author_display_name: '합성 작성자',
           source_activity_id: id,
-          sales_deal_id: `deal-${id}`,
+          sales_deal_id: null,
           report_date: '2026-08-31',
           status_code: 'draft',
           template_snapshot: template,
@@ -108,8 +117,6 @@
           source_snapshot: id === 'meeting-b' ? {} : { meeting_run_id: `run-${id}` },
           content: {
             title: `${id} 보고서`,
-            values: { body: '' },
-            sales_deal: { id: `deal-${id}`, label: `딜 ${id}` },
             ...(id === 'meeting-b'
               ? {}
               : {
@@ -121,20 +128,35 @@
                   },
                 }),
           },
+          deal_sections: [
+            {
+              sales_deal_id: `deal-${id}`,
+              deal_snapshot: { id: `deal-${id}`, label: `딜 ${id}` },
+              content: { product: `${id} 제품`, title: `${id} 딜 보고서`, values: { body: '' } },
+              ai_evidence: null,
+            },
+          ],
         })
-        const batchReports = ['A', 'B'].map((label) => ({
-          ...report(`batch-${label}`),
-          id: `report-batch-${label}`,
+        const batchReport = {
+          ...report('meeting-save-all'),
+          id: 'report-meeting-save-all',
           source_activity_id: 'meeting-save-all',
-          sales_deal_id: `deal-${label}`,
           transcript: 'meeting-save-all 미팅 원문',
           source_snapshot: {},
           content: {
-            title: `딜 ${label} 보고서`,
-            values: { body: `딜 ${label} 본문` },
-            sales_deal: { id: `deal-${label}`, label: `딜 ${label}` },
+            title: 'meeting-save-all 합성 미팅',
           },
-        }))
+          deal_sections: ['A', 'B'].map((label) => ({
+            sales_deal_id: `deal-${label}`,
+            deal_snapshot: { id: `deal-${label}`, label: `딜 ${label}` },
+            content: {
+              product: `제품 ${label}`,
+              title: `딜 ${label} 보고서`,
+              values: { body: `딜 ${label} 본문` },
+            },
+            ai_evidence: null,
+          })),
+        }
         client.defaults.adapter = async (config) => {
           if (config.method === 'get' && config.url.startsWith('/activities/')) {
             const id = config.url.split('/').at(-1)
@@ -154,23 +176,26 @@
             return response(config, {
               items:
                 config.params.source_activity_id === 'meeting-save-all'
-                  ? batchReports
+                  ? [batchReport]
                   : [report(config.params.source_activity_id)],
             })
           }
           if (config.method === 'patch' && config.url.endsWith('/meeting-notes')) {
             return new Promise((resolve, reject) => pendingSaves.push({ config, resolve, reject }))
           }
-          if (config.method === 'patch' && config.url.startsWith('/reports/report-batch-')) {
+          if (config.method === 'patch' && config.url === '/reports/report-meeting-save-all') {
             return new Promise((resolve, reject) =>
               pendingReportSaves.push({ config, resolve, reject }),
             )
           }
-          if (
-            config.method === 'patch' &&
-            config.url === '/reports/report-meeting-background'
-          ) {
+          if (config.method === 'patch' && config.url === '/reports/report-meeting-background') {
             return response(config, report('meeting-background'))
+          }
+          if (
+            config.method === 'post' &&
+            config.url === '/reports/report-meeting-save-all/submit'
+          ) {
+            return response(config, { ...batchReport, status_code: 'submitted' })
           }
           if (config.method === 'post' && config.url === '/agent-runs') {
             return response(config, {
@@ -181,15 +206,12 @@
               error_message: null,
             })
           }
-          if (
-            config.method === 'post' &&
-            config.url === '/agent-runs/run-background-agent/apply'
-          ) {
+          if (config.method === 'post' && config.url === '/agent-runs/run-background-agent/apply') {
             appliedBackgroundRun += 1
             const completed = report('meeting-background')
             completed.source_snapshot = { meeting_run_id: 'run-background-agent' }
-            completed.content.values = { body: '화면 밖에서 완성된 보고서' }
-            return response(config, [completed])
+            completed.deal_sections[0].content.values = { body: '화면 밖에서 완성된 보고서' }
+            return response(config, completed)
           }
           unexpectedRequests.push(config.url)
           throw new Error(`예상하지 않은 요청: ${config.url}`)
@@ -218,13 +240,18 @@
               path: '/away',
               element: screen(createElement('p', { id: 'away' }, '다른 업무 화면')),
             },
+            {
+              path: '/meetings/:reportId',
+              element: screen(createElement('p', { id: 'detail' }, '미팅 보고서 상세')),
+            },
           ],
           { initialEntries: ['/meetings/new?agenda=meeting-a'] },
         )
         const button = (text) =>
           [...container.querySelectorAll('button')].find((el) => el.textContent === text)
-        const saveAllButton = () =>
-          container.querySelector('button[aria-label="딜 보고서 전체 저장"]')
+        const saveDraftButton = () =>
+          container.querySelector('button[aria-label="미팅 보고서 임시저장"]')
+        const submitButton = () => container.querySelector('button[aria-label="업무보고 확정"]')
         const notes = () => container.querySelector('[aria-label="미팅 공통·미지정 기록"] textarea')
         async function flush() {
           await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
@@ -285,7 +312,7 @@
           const toastCount = getToasts().length
           await act(async () =>
             pendingSaves[0].resolve(
-              response(pendingSaves[0].config, [report('meeting-a', 'A 늦은 응답')]),
+              response(pendingSaves[0].config, report('meeting-a', 'A 늦은 응답')),
             ),
           )
           assert(
@@ -295,7 +322,7 @@
           assert(getToasts().length === toastCount, '화면을 떠난 저장의 성공 알림을 표시하지 않음')
           await act(async () =>
             pendingSaves[1].resolve(
-              response(pendingSaves[1].config, [report('meeting-c', 'C 저장 완료')]),
+              response(pendingSaves[1].config, report('meeting-c', 'C 저장 완료')),
             ),
           )
           assert(
@@ -316,47 +343,43 @@
 
           await navigate('meeting-save-all')
           assert(
-            [...container.querySelectorAll('button')].every((one) => one.textContent !== '저장') &&
-              saveAllButton(),
-            '카드별 저장 없이 전체 저장 버튼 하나만 표시',
+            !!saveDraftButton() &&
+              !!submitButton() &&
+              container.querySelectorAll('button[aria-label="미팅 보고서 임시저장"]').length === 1,
+            '카드별 저장 없이 임시저장과 업무보고 확정을 한 곳에 표시',
           )
-          await act(async () => saveAllButton().click())
+          await act(async () => saveDraftButton().click())
+          const savedPayload =
+            typeof pendingReportSaves[0]?.config.data === 'string'
+              ? JSON.parse(pendingReportSaves[0].config.data)
+              : pendingReportSaves[0]?.config.data
           assert(
-            pendingReportSaves.length === 2 &&
-              saveAllButton().disabled &&
-              saveAllButton().textContent === '저장 중…',
-            '두 딜을 함께 요청하고 저장 중 재클릭 잠금',
-          )
-          await act(async () => {
-            pendingReportSaves[0].resolve(response(pendingReportSaves[0].config, batchReports[0]))
-            pendingReportSaves[1].reject(new Error('딜 B 저장 실패'))
-          })
-          assert(
-            container.textContent.includes('저장 1건 · 실패 1건') &&
-              container.textContent.includes('실패: 딜 B'),
-            '부분 성공을 숨기지 않고 실패 딜을 표시',
-          )
-          await act(async () => saveAllButton().click())
-          await act(async () => {
-            pendingReportSaves[2].resolve(response(pendingReportSaves[2].config, batchReports[0]))
-            pendingReportSaves[3].resolve(response(pendingReportSaves[3].config, batchReports[1]))
-          })
-          assert(
-            container.textContent.includes('전체 저장 완료') &&
-              container.textContent.includes('2개 딜 보고서를 모두 저장했습니다.'),
-            '전체 성공 상태를 화면에 유지',
+            pendingReportSaves.length === 1 &&
+              saveDraftButton().disabled &&
+              submitButton().disabled &&
+              saveDraftButton().textContent === '저장 중…' &&
+              savedPayload.deal_sections.length === 2 &&
+              savedPayload.deal_sections.every((section) => !('ai_evidence' in section)),
+            '두 딜을 한 요청에 묶고 서버 소유 AI 필드를 제외한 채 재클릭 잠금',
           )
           await act(async () => {
-            const title = container.querySelector('input[placeholder="보고서 제목을 적으세요"]')
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(
-              title,
-              '저장 후 바꾼 제목',
-            )
-            title.dispatchEvent(new Event('input', { bubbles: true }))
+            pendingReportSaves[0].resolve(response(pendingReportSaves[0].config, batchReport))
+            await flush()
           })
           assert(
-            container.textContent.includes('저장하지 않은 변경사항'),
-            '저장 후 수정하면 완료 표시를 미저장 상태로 전환',
+            router.state.location.pathname === '/meetings/new' && !!saveDraftButton(),
+            '임시저장은 초안을 보존하고 작성 화면에 머묾',
+          )
+          await act(async () => submitButton().click())
+          assert(pendingReportSaves.length === 2, '업무보고 확정도 미팅 단일 저장 요청 사용')
+          await act(async () => {
+            pendingReportSaves[1].resolve(response(pendingReportSaves[1].config, batchReport))
+            await flush()
+          })
+          assert(
+            router.state.location.pathname === '/meetings/report-meeting-save-all' &&
+              !!container.querySelector('#detail'),
+            '업무보고 확정이 끝난 뒤에만 미팅 보고서 단일 상세로 이동',
           )
 
           await navigate('meeting-background')
@@ -382,30 +405,26 @@
           })
           for (let at = 0; at < 20 && appliedBackgroundRun === 0; at += 1) await flush()
           const returnLink = [...container.querySelectorAll('a')].find(
-            (link) => link.textContent === '보고서 보기',
+            (link) => link.textContent === '초안 수정하기',
           )
           assert(
-            appliedBackgroundRun === 1 && returnLink,
-            '화면 밖에서도 결과를 적용하고 돌아가기 알림 표시',
+            appliedBackgroundRun === 1 &&
+              returnLink?.getAttribute('href') === '/meetings/new?agenda=meeting-background',
+            '화면 밖에서도 AI 초안을 적용하고 편집 화면 알림 표시',
           )
           await act(async () => returnLink.click())
-          for (
-            let at = 0;
-            at < 20 && container.querySelector('#transcript')?.value !== 'meeting-background 미팅 원문';
-            at += 1
-          )
+          for (let at = 0; at < 20 && !container.querySelector('#transcript'); at += 1)
             await flush()
+          assert(router.state.location.pathname === '/meetings/new', '완료 알림으로 초안 편집 복귀')
           assert(
-            container.querySelector('#transcript')?.value === 'meeting-background 미팅 원문',
-            '완료 알림으로 작성 화면에 복귀',
-          )
-          assert(
-            ![...container.querySelectorAll('a')].some((link) => link.textContent === '보고서 보기'),
+            ![...container.querySelectorAll('a')].some(
+              (link) => link.textContent === '초안 수정하기',
+            ),
             '복귀하며 완료 알림 닫기',
           )
           assert(
             getMeetingGeneration('meeting-background') === null,
-            '반영한 완료 결과는 다시 덮어쓰지 않도록 소비',
+            '작성 화면이 반영한 AI 초안 완료 결과는 다시 적용하지 않도록 소비',
           )
           assert(unexpectedRequests.length === 0, '정의한 메모리 응답 외 서버 요청 없음')
         } finally {
@@ -416,9 +435,9 @@
         }
       }
       async function run() {
-        await render(item, [], false)
+        await render(item, undefined, false)
         assert(draft.salesDealIds.length === 0, '조회 전에는 빈 서버 응답으로 초기화하지 않음')
-        await render(item, reports, true)
+        await render(item, savedReport, true)
         assert(draft.salesDealIds.length === 3, '최초 조회 완료 후 선택 딜 3개 복원')
         await act(async () => {
           draft.setTranscript('사용자가 수정한 원문')
@@ -427,14 +446,8 @@
           draft.applyDocument('deal-a', { body: '사람이 쓴 본문' }, [])
           draft.beginGeneration(['deal-a', 'deal-b', 'deal-c'])
         })
-        await act(async () =>
-          reports.forEach((report) => draft.bindReport(report.salesDealId, report)),
-        )
-        await render(
-          { ...item, title: '재조회된 일정 제목' },
-          reports.map((report) => ({ ...report })),
-          true,
-        )
+        await act(async () => draft.bindReport(savedReport))
+        await render({ ...item, title: '재조회된 일정 제목' }, { ...savedReport }, true)
         assert(
           Object.values(draft.draftsByDeal).every(
             (state) =>
@@ -454,19 +467,15 @@
           run_id: 'run-current',
           status_code: 'running',
           stage: 'report_writing',
-          previews: reports.map((report) => ({
+          previews: savedReport.dealSections.map((section) => ({
             section: 'deal',
-            sales_deal_id: report.salesDealId,
+            sales_deal_id: section.salesDealId,
             body: '검토 전 스트리밍 문장',
             revision: 1,
           })),
         }
         await act(async () => draft.receiveProgress(progress))
-        await render(
-          item,
-          reports.map((report) => ({ ...report, updatedAt: 'changed' })),
-          true,
-        )
+        await render(item, { ...savedReport, updatedAt: 'changed' }, true)
         assert(
           draft.processingProgress?.previews.length === 3 &&
             Object.values(draft.draftsByDeal).every((state) => state.phase === 'generating'),
@@ -491,7 +500,11 @@
             draft.draftsByDeal['deal-not-yet-saved'].phase === 'generating',
           '서버 조회 전인 선택 딜도 실행 스냅샷으로 복원',
         )
-        await render({ id: 'meeting-b', title: '다른 미팅', salesDealId: 'deal-z' }, [], true)
+        await render(
+          { id: 'meeting-b', title: '다른 미팅', salesDealId: 'deal-z' },
+          undefined,
+          true,
+        )
         assert(
           draft.salesDealIds.join() === 'deal-z' && draft.transcript === '',
           '다른 미팅으로 이동하면 해당 미팅으로 새로 초기화',

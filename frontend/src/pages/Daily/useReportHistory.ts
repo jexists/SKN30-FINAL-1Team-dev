@@ -14,7 +14,7 @@ import useSearchPaging from '@/hooks/useSearchPaging'
 import { toMeetingReport } from '@/pages/Meetings/useMeetingReports'
 import { fetchReportPage } from '@/shared/reportQuery'
 import { useScopeOwnerIds } from '@/shared/scope'
-import type { ApiReportKind, ReportResponse } from '@/types'
+import type { ApiReportKind, ApiReportStatus, ReportResponse } from '@/types'
 import { addMonths, iso, startOfMonth, startOfWeek, TODAY } from '@/utils/date'
 
 import { type HistoryFilters } from './historyFilters'
@@ -27,14 +27,25 @@ const API_KIND: Record<string, ApiReportKind> = {
   주간: 'weekly',
   월간: 'monthly',
 }
-const API_STATUS: Record<string, string> = {
-  작성중: 'draft',
-  '검토 대기': 'submitted',
-  확정: 'approved',
-  반려: 'rejected',
+const API_STATUS: Record<string, ApiReportStatus[]> = {
+  작성중: ['draft'],
+  '검토 대기': ['submitted'],
+  확정: ['approved'],
+  반려: ['rejected', 'changes_requested'],
+}
+const MEETING_HISTORY_STATUS: ApiReportStatus[] = [
+  'submitted',
+  'approved',
+  'rejected',
+  'changes_requested',
+]
+
+interface HistoryQueryScope {
+  report_kind: ApiReportKind[]
+  status_code?: ApiReportStatus[]
 }
 
-const some = (values: string[]) => (values.length > 0 ? values : undefined)
+const some = <T>(values: T[]) => (values.length > 0 ? values : undefined)
 
 /** 이 탭이 보는 보고서 종류. 서버가 이 목록으로 좁힙니다. */
 function kindsOf(period: Period): ApiReportKind[] {
@@ -46,6 +57,35 @@ function kindsOf(period: Period): ApiReportKind[] {
   }
   if (showsMeetings(period)) kinds.push('meeting')
   return kinds
+}
+
+/**
+ * 일반 보고서의 draft는 목록에 남기되, 미팅 draft는 일정의 `계속 작성`에서만 보입니다.
+ * 두 조건을 한 API 요청으로 AND 처리할 수 없어 전체 탭은 종류별 조회로 나눕니다.
+ */
+export function historyQueryScopes(
+  period: Period,
+  selectedStatuses?: ApiReportStatus[],
+): HistoryQueryScope[] {
+  const scopes: HistoryQueryScope[] = []
+  const dailyKinds = kindsOf(period).filter((kind) => kind !== 'meeting')
+  if (dailyKinds.length > 0) {
+    scopes.push({
+      report_kind: dailyKinds,
+      ...(selectedStatuses === undefined ? {} : { status_code: selectedStatuses }),
+    })
+  }
+
+  if (showsMeetings(period)) {
+    const meetingStatuses =
+      selectedStatuses === undefined
+        ? MEETING_HISTORY_STATUS
+        : selectedStatuses.filter((status) => status !== 'draft')
+    if (meetingStatuses.length > 0) {
+      scopes.push({ report_kind: ['meeting'], status_code: meetingStatuses })
+    }
+  }
+  return scopes
 }
 
 /** 받은 한 줄을 종류에 맞는 모양으로 폅니다. 목록에는 두 종류가 섞입니다. */
@@ -63,32 +103,69 @@ export function toRow(item: ReportResponse): ListRow {
  */
 export function useReportList(period: Period, query: string, filters: HistoryFilters) {
   const authorIds = useScopeOwnerIds()
-  const params = useMemo(
-    () => ({
-      report_kind: kindsOf(period),
+  const paramsByScope = useMemo(() => {
+    const selectedStatuses = some(filters.status.flatMap((value) => API_STATUS[value]))
+    return historyQueryScopes(period, selectedStatuses).map((scope) => ({
+      ...scope,
       author_member_id: authorIds,
       // 빈 배열을 보내면 "아무것도 아닌 것" 을 고른 조건이 됩니다. 아예 뺍니다.
-      status_code: some(filters.status.map((value) => API_STATUS[value])),
       approver: some(filters.approver),
       hospital: some(filters.hospital),
       start_date: rangeStartISO(filters.range) ?? undefined,
-    }),
-    [period, authorIds, filters],
-  )
+    }))
+  }, [period, authorIds, filters])
 
-  const paging = useSearchPaging<ReportResponse>('/reports', query, {
+  // 조회 개수는 탭이 바뀐 때도 고정해 React Hook 순서를 유지합니다.
+  const first = useSearchPaging<ReportResponse>('/reports', query, {
     open: true,
-    params,
+    params: paramsByScope[0],
+    enabled: paramsByScope[0] !== undefined,
+    fallback: '보고서를 불러오지 못했습니다.',
+  })
+  const second = useSearchPaging<ReportResponse>('/reports', query, {
+    open: true,
+    params: paramsByScope[1],
+    enabled: paramsByScope[1] !== undefined,
     fallback: '보고서를 불러오지 못했습니다.',
   })
 
-  const rows = useMemo(() => paging.matches.map(toRow).sort(byDateDesc), [paging.matches])
+  const rows = useMemo(
+    () =>
+      [...(paramsByScope[0] ? first.matches : []), ...(paramsByScope[1] ? second.matches : [])]
+        .map(toRow)
+        .sort(byDateDesc),
+    [paramsByScope, first.matches, second.matches],
+  )
+  const loading =
+    (paramsByScope[0] !== undefined && first.loading) ||
+    (paramsByScope[1] !== undefined && second.loading)
   // 한 번이라도 답을 받았는지. 화면 전체를 덮는 자리표시자는 첫 진입에만 서야 합니다.
   // 조건을 고칠 때마다 덮으면 "0건" 이 자리표시자로 보입니다.
   const ready = useRef(false)
-  if (!paging.loading) ready.current = true
+  if (!loading) ready.current = true
 
-  return { ...paging, rows, ready: ready.current }
+  return {
+    rows,
+    total: (paramsByScope[0] ? first.total : 0) + (paramsByScope[1] ? second.total : 0),
+    loading,
+    loadingMore:
+      (paramsByScope[0] !== undefined && first.loadingMore) ||
+      (paramsByScope[1] !== undefined && second.loadingMore),
+    loadError:
+      (paramsByScope[0] ? first.loadError : null) ?? (paramsByScope[1] ? second.loadError : null),
+    hasMore:
+      (paramsByScope[0] !== undefined && first.hasMore) ||
+      (paramsByScope[1] !== undefined && second.hasMore),
+    loadMore: () => {
+      if (paramsByScope[0]) first.loadMore()
+      if (paramsByScope[1]) second.loadMore()
+    },
+    reload: () => {
+      if (paramsByScope[0]) first.reload()
+      if (paramsByScope[1]) second.reload()
+    },
+    ready: ready.current,
+  }
 }
 
 /**
@@ -101,23 +178,32 @@ export function useReportList(period: Period, query: string, filters: HistoryFil
 export function useReportMarks(period: Period, fromISO: string, toISO: string) {
   const authorIds = useScopeOwnerIds()
   const [rows, setRows] = useState<ListRow[]>([])
-  const key = JSON.stringify([kindsOf(period), authorIds, fromISO, toISO])
+  const key = JSON.stringify([historyQueryScopes(period), authorIds, fromISO, toISO])
 
   useEffect(() => {
-    const [kinds, ids, start, end] = JSON.parse(key) as [
-      ApiReportKind[],
+    const [scopes, ids, start, end] = JSON.parse(key) as [
+      HistoryQueryScope[],
       string[] | undefined,
       string,
       string,
     ]
     const controller = new AbortController()
 
-    void fetchReportPage(
-      { report_kind: kinds, author_member_id: ids, start_date: start, end_date: end },
-      controller.signal,
+    void Promise.all(
+      scopes.map((scope) =>
+        fetchReportPage(
+          {
+            ...scope,
+            author_member_id: ids,
+            start_date: start,
+            end_date: end,
+          },
+          controller.signal,
+        ),
+      ),
     )
-      .then((items) => {
-        if (!controller.signal.aborted) setRows(items.map(toRow))
+      .then((pages) => {
+        if (!controller.signal.aborted) setRows(pages.flat().map(toRow))
       })
       // 점이 안 찍히는 것으로 충분합니다. 목록이 이미 같은 실패를 알립니다.
       .catch(() => {

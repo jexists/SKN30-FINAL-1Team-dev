@@ -25,7 +25,7 @@ test('화면 구독자가 없어져도 사전저장부터 완료 알림까지 �
   clearToasts()
   const agendaId = `agenda-${crypto.randomUUID()}`
   const finish = Promise.withResolvers()
-  const saved = { id: 'report-1', salesDealId: 'deal-1' }
+  const saved = { id: 'report-1', dealSections: [{ salesDealId: 'deal-1' }] }
   const progress = { phase: 'report_writing', previews: [] }
 
   assert.equal(
@@ -48,21 +48,22 @@ test('화면 구독자가 없어져도 사전저장부터 완료 알림까지 �
     }),
     false,
   )
-  assert.deepEqual(getMeetingGeneration(agendaId)?.savedReports, [saved])
+  assert.deepEqual(getMeetingGeneration(agendaId)?.savedReport, saved)
   assert.equal(getMeetingGeneration(agendaId)?.progress, progress)
 
-  finish.resolve({ reports: [saved], writingFailed: false, errors: {} })
+  finish.resolve({ report: saved, writingFailed: false, errors: {} })
   const completed = await waitFor(() => {
     const state = getMeetingGeneration(agendaId)
     return state?.status === 'completed' ? state : null
   })
-  assert.deepEqual(completed.reports, [saved])
+  assert.deepEqual(completed.report, saved)
   assert.ok(
     getToasts().some(
       (toast) =>
         toast.persistent &&
+        toast.message.startsWith('AI 초안 생성 완료') &&
         toast.to === `/meetings/new?agenda=${agendaId}` &&
-        toast.actionLabel === '보고서 보기',
+        toast.actionLabel === '초안 수정하기',
     ),
   )
   acknowledgeMeetingGeneration(agendaId, completed.requestId)
@@ -77,7 +78,10 @@ test('실패도 화면 밖에 보관하고 돌아갈 수 있는 오류 알림을
     agendaId,
     dealIds: ['deal-1'],
     execute: async (_onProgress, onReportSaved) => {
-      onReportSaved({ id: 'report-saved-before-failure', salesDealId: 'deal-1' })
+      onReportSaved({
+        id: 'report-saved-before-failure',
+        dealSections: [{ salesDealId: 'deal-1' }],
+      })
       throw new Error('agent_failed')
     },
   })
@@ -87,7 +91,7 @@ test('실패도 화면 밖에 보관하고 돌아갈 수 있는 오류 알림을
     return state?.status === 'failed' ? state : null
   })
   assert.equal(failed.error, '미팅 처리를 완료하지 못했습니다.')
-  assert.equal(failed.savedReports[0].id, 'report-saved-before-failure')
+  assert.equal(failed.savedReport.id, 'report-saved-before-failure')
   assert.ok(
     getToasts().some(
       (toast) =>

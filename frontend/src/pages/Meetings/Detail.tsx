@@ -7,11 +7,12 @@ import Button, { buttonClass } from '@/components/Button'
 import { EditIcon } from '@/components/icons'
 import ReportFields from '@/components/ReportFields'
 import { SkeletonDetail } from '@/components/Skeleton'
-import StatusBadge from '@/components/StatusBadge'
+import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
 import DailyListLink from '@/pages/Daily/components/DailyListLink'
 import { useReportDetail } from '@/shared/reportQuery'
 import { fmtDay, parseISO } from '@/utils/date'
+import type { MeetingDealSection } from '@/types'
 
 import MeetingFacts from './components/MeetingFacts'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
@@ -19,6 +20,29 @@ import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
 import { toMeetingReport } from './useMeetingReports'
 
 import styles from './Detail.module.scss'
+
+function assessmentBadge(section: MeetingDealSection): {
+  label: string
+  tone: StatusTone
+  title?: string
+} {
+  if (section.analysisError) {
+    return { label: 'ML 분석 실패', tone: 'red', title: section.analysisError }
+  }
+  if (!section.assessment) return { label: 'ML 분석 결과 없음', tone: 'neutral' }
+  const probability = `${Math.round(section.assessment.high_probability * 100)}%`
+  return section.assessment.label === 'high'
+    ? {
+        label: `성사 가능성 높음 · ${probability}`,
+        tone: 'green',
+        title: `ML 모델 ${section.assessment.model_version}`,
+      }
+    : {
+        label: `관찰 필요 · ${probability}`,
+        tone: 'orange',
+        title: `ML 모델 ${section.assessment.model_version}`,
+      }
+}
 
 export default function Detail() {
   const { reportId } = useParams()
@@ -82,7 +106,7 @@ export default function Detail() {
         <div className={styles.heading}>
           <p className={styles.title}>
             {report.hospital}
-            {report.salesDeal && <span>{report.salesDeal.label}</span>}
+            {report.title && <span>{report.title}</span>}
             <StatusBadge label={REVIEW_LABEL[report.review]} tone={REVIEW_TONE[report.review]} />
           </p>
 
@@ -94,33 +118,11 @@ export default function Detail() {
               ·
             </span>
             <span>작성자 {report.owner}</span>
+            <span className={styles.dot} aria-hidden="true">
+              ·
+            </span>
+            <span>딜 {report.dealSections.length}건</span>
           </p>
-          {(report.assessment || report.analysisError) && (
-            <p className={styles.meta}>
-              <span
-                title={
-                  report.analysisError ??
-                  (report.assessment ? `ML 모델 ${report.assessment.model_version}` : undefined)
-                }
-              >
-                <StatusBadge
-                  label={
-                    report.analysisError
-                      ? 'ML 분석 실패'
-                      : `${report.assessment!.label === 'high' ? '성사 가능성 높음' : '관찰 필요'} · ${Math.round(report.assessment!.high_probability * 100)}%`
-                  }
-                  tone={
-                    report.analysisError
-                      ? 'red'
-                      : report.assessment!.label === 'high'
-                        ? 'green'
-                        : 'orange'
-                  }
-                />
-              </span>
-              {report.analysisError && <span>{report.analysisError}</span>}
-            </p>
-          )}
         </div>
       </header>
 
@@ -132,19 +134,57 @@ export default function Detail() {
       <div className={styles.layout}>
         <div className={styles.report}>
           <MeetingSharedPanel shared={report.meetingShared ?? null} />
-          <article className={styles.sheet}>
-            <h2 className={styles.docTitle}>{report.title}</h2>
-            <p className={styles.docWhen}>
-              {fmtDay(parseISO(report.date))} {report.time}
+          {report.dealSections.length === 0 ? (
+            <p className={styles.emptySections} role="alert">
+              저장된 딜별 보고서 내용을 찾을 수 없습니다.
             </p>
+          ) : (
+            <div className={styles.dealSections}>
+              {report.dealSections.map((section, index) => {
+                const badge = assessmentBadge(section)
+                const titleId = `deal-report-${section.salesDealId}-${index}`
+                return (
+                  <article className={styles.sheet} key={titleId} aria-labelledby={titleId}>
+                    <div className={styles.sectionHead}>
+                      <div>
+                        <p className={styles.dealLabel}>
+                          {section.salesDeal.label}
+                          {section.salesDeal.note && <span>{section.salesDeal.note}</span>}
+                        </p>
+                        <h2 className={styles.docTitle} id={titleId}>
+                          {section.title || report.title}
+                        </h2>
+                        <p className={styles.docWhen}>
+                          {fmtDay(parseISO(report.date))} {report.time}
+                          {section.product && ` · ${section.product}`}
+                        </p>
+                      </div>
+                      <span className={styles.assessment} title={badge.title}>
+                        <StatusBadge label={badge.label} tone={badge.tone} />
+                      </span>
+                    </div>
 
-            {report.template.fields.length === 0 ? (
-              <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
-            ) : (
-              <ReportFields template={report.template} values={report.values} readOnly />
-            )}
-            {report.evidence && <p className={styles.evidence}>{report.evidence}</p>}
-          </article>
+                    {report.template.fields.length === 0 ? (
+                      <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
+                    ) : (
+                      <ReportFields template={report.template} values={section.values} readOnly />
+                    )}
+                    {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
+                    {section.analysisError && (
+                      <p className={styles.sectionError} role="status">
+                        ML 분석: {section.analysisError}
+                      </p>
+                    )}
+                    {section.reportError && (
+                      <p className={styles.sectionError} role="status">
+                        보고서 생성: {section.reportError}
+                      </p>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
 
           {/*
             고치는 것은 다 읽은 다음의 일입니다. 머리말에서 먼저 소리치지 않고

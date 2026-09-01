@@ -5,6 +5,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { reportTemplateFromSnapshot } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
+  MeetingDealSection,
   MeetingDealRef,
   MeetingEvidenceLedger,
   MeetingReport,
@@ -13,8 +14,8 @@ import type {
   ReportAttachment,
   ReportResponse,
   ReportTemplate,
-  ReportStatus,
   ReportWriteRequest,
+  MeetingReportStatus,
 } from '@/types'
 import { parseISO, TODAY } from '@/utils/date'
 
@@ -41,20 +42,18 @@ function valuesOf(value: unknown): Record<string, string> {
   )
 }
 
-/** 저장해 둔 딜 이름표. 모양이 어긋난 항목은 버립니다. */
-function dealsOf(value: unknown): MeetingDealRef[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((one) => {
-    const row = record(one)
-    if (typeof row.id !== 'string' || typeof row.label !== 'string') return []
-    return [
-      { id: row.id, label: row.label, ...(typeof row.note === 'string' ? { note: row.note } : {}) },
-    ]
-  })
+/** 저장 당시 딜 이름표. 손상된 이름표도 딜 ID 자체로 구분할 수 있게 복구합니다. */
+function dealOf(value: unknown, salesDealId: string): MeetingDealRef {
+  const row = record(value)
+  return {
+    id: typeof row.id === 'string' ? row.id : salesDealId,
+    label: typeof row.label === 'string' ? row.label : salesDealId,
+    ...(typeof row.note === 'string' ? { note: row.note } : {}),
+  }
 }
 
-function statusOf(code: ReportResponse['status_code']): ReportStatus {
-  if (code === 'draft') return '작성중'
+function statusOf(code: ReportResponse['status_code']): MeetingReportStatus {
+  if (code === 'draft') return '수정중'
   if (code === 'rejected' || code === 'changes_requested') return '반려'
   return code === 'approved' ? '확정' : '검토 대기'
 }
@@ -126,14 +125,47 @@ function evidenceOf(value: unknown): MeetingEvidenceLedger | undefined {
   return ledger as unknown as MeetingEvidenceLedger
 }
 
+function dealSectionOf(
+  salesDealId: string,
+  dealSnapshot: unknown,
+  value: unknown,
+  aiEvidence: unknown,
+): MeetingDealSection {
+  const content = record(value)
+  const analysisEvidence = aiEvidence == null ? null : record(aiEvidence)
+  return {
+    salesDealId,
+    salesDeal: dealOf(dealSnapshot, salesDealId),
+    product: text(content.product),
+    title: text(content.title),
+    values: valuesOf(content.values ?? content),
+    evidence: text(content.evidence) || undefined,
+    aiValues: valuesOf(content.ai_values),
+    aiEvidence: text(content.ai_evidence) || undefined,
+    aiGeneratedAt: text(content.ai_generated_at) || undefined,
+    analysisEvidence,
+    ...readMeetingAnalysis(analysisEvidence ?? {}),
+  }
+}
+
 export function toMeetingReport(item: ReportResponse): MeetingReport {
   const content = record(item.content)
-  const storedDeals = dealsOf(content.sales_deals)
-  const storedDeal = dealsOf([content.sales_deal])[0]
-  const salesDealId = item.sales_deal_id
   const source = record(item.source_snapshot)
   const shared = record(content.meeting_shared)
-  const analysis = record(item.ai_evidence)
+  const dealSections = (item.deal_sections ?? []).map((section) =>
+    dealSectionOf(
+      section.sales_deal_id,
+      section.deal_snapshot,
+      section.content,
+      section.ai_evidence,
+    ),
+  )
+  // 배포 중 기존 딜별 응답도 한 섹션으로 읽습니다. 새 저장은 항상 deal_sections만 씁니다.
+  if (dealSections.length === 0 && item.sales_deal_id) {
+    dealSections.push(
+      dealSectionOf(item.sales_deal_id, content.sales_deal, content, item.ai_evidence),
+    )
+  }
   return {
     id: item.id,
     owner: item.author_display_name,
@@ -146,23 +178,16 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     hospital: text(content.hospital),
     dept: text(content.dept),
     contact: text(content.contact),
-    product: text(content.product),
     place: text(content.place),
     title: text(content.title),
     status: statusOf(item.status_code),
     review: reviewOf(item.status_code, content.on_hold === true),
     apiStatus: item.status_code,
     transcript: item.transcript ?? '',
-    values: valuesOf(content.values ?? item.content),
     attachments: Array.isArray(content.attachments)
       ? (content.attachments as ReportAttachment[])
       : [],
-    salesDealId,
-    salesDeal: [storedDeal, ...storedDeals].find((deal) => deal?.id === salesDealId),
-    evidence: text(content.evidence) || undefined,
-    aiValues: valuesOf(content.ai_values),
-    aiEvidence: text(content.ai_evidence) || undefined,
-    aiGeneratedAt: text(content.ai_generated_at) || undefined,
+    dealSections,
     updatedAt: item.updated_at,
     meetingRunId: text(source.meeting_run_id) || text(shared.run_id) || undefined,
     meetingShared:
@@ -175,33 +200,33 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
           }
         : undefined,
     evidenceLedger: evidenceOf(source.evidence),
-    ...readMeetingAnalysis(analysis),
   }
+}
+
+export interface MeetingDealDraftPayload {
+  salesDealId: string
+  salesDeal: MeetingDealRef
+  product: string
+  title: string
+  values: Record<string, string>
+  evidence?: string
 }
 
 export interface MeetingDraftPayload {
   reportId?: string
   statusCode?: ReportResponse['status_code']
   agendaId: string
-  salesDealId: string
-  salesDeal: MeetingDealRef
   date: string
   template: ReportTemplate
   time: string
   hospital: string
   dept: string
   contact: string
-  product: string
   place: string
   title: string
   transcript: string
-  values: Record<string, string>
   attachments: ReportAttachment[]
-  evidence?: string
-  /** AI 원본. 최종본(values)과 나란히 저장해 두 벌을 다 복원합니다. */
-  aiValues: Record<string, string>
-  aiEvidence?: string
-  aiGeneratedAt?: string
+  dealSections: MeetingDealDraftPayload[]
 }
 
 /**
@@ -221,14 +246,14 @@ export async function savedForAgenda(
   return data.items[0]
 }
 
-function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
+export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest {
   return {
     report_kind: 'meeting',
     report_date: draft.date,
     period_start: null,
     period_end: null,
     source_activity_id: draft.agendaId,
-    sales_deal_id: draft.salesDealId,
+    sales_deal_id: null,
     recipient_member_id: null,
     template_snapshot: draft.template,
     content: {
@@ -236,21 +261,23 @@ function requestOf(draft: MeetingDraftPayload): ReportWriteRequest {
       hospital: draft.hospital,
       dept: draft.dept,
       contact: draft.contact,
-      product: draft.product,
       place: draft.place,
       title: draft.title,
-      values: draft.values,
       attachments: draft.attachments,
-      // 작성 당시 이름표도 남깁니다. 정규 관계와 권한 검증은 최상위 sales_deal_id 가 맡습니다.
-      sales_deal: draft.salesDeal,
-      evidence: draft.evidence ?? null,
-      ai_values: draft.aiValues,
-      ai_evidence: draft.aiEvidence ?? null,
-      ai_generated_at: draft.aiGeneratedAt ?? null,
     },
     transcript: draft.transcript || null,
     note: null,
     activity_ids: [draft.agendaId],
+    deal_sections: draft.dealSections.map((section) => ({
+      sales_deal_id: section.salesDealId,
+      deal_snapshot: section.salesDeal,
+      content: {
+        product: section.product,
+        title: section.title,
+        values: section.values,
+        evidence: section.evidence ?? null,
+      },
+    })),
   }
 }
 
@@ -259,7 +286,7 @@ async function persistMeetingReport(
   submit: boolean,
   signal?: AbortSignal,
 ) {
-  const request = requestOf(draft)
+  const request = meetingRequestOf(draft)
   const {
     report_kind: _kind,
     source_activity_id: _source,
@@ -286,24 +313,42 @@ async function persistMeetingReport(
 /** 페이지가 사라져도 전역 미팅 실행이 사전저장을 끝낼 수 있는 상태 없는 저장 함수입니다. */
 export const saveMeetingDraft = (draft: MeetingDraftPayload) => persistMeetingReport(draft, false)
 
-/** 그 날 쓴 업무보고서들. 하루치라 한 쪽에 다 들어옵니다. */
-export function useMeetingReportsOn(dateISO: string, enabled = true) {
+interface MeetingReportsOnOptions {
+  enabled?: boolean
+  /** 일정/대시보드에서 수정중 초안의 '계속 작성' 경로를 보여 줄 때만 켭니다. */
+  includeDrafts?: boolean
+}
+
+/** 그 날 확정한 업무보고서들. 하루치라 한 쪽에 다 들어옵니다. */
+export function useMeetingReportsOn(
+  dateISO: string,
+  { enabled = true, includeDrafts = false }: MeetingReportsOnOptions = {},
+) {
   const { items, loading, error, reload } = useReportQuery(
-    enabled ? { report_kind: 'meeting', start_date: dateISO, end_date: dateISO } : null,
+    enabled
+      ? {
+          report_kind: 'meeting',
+          start_date: dateISO,
+          end_date: dateISO,
+          ...(includeDrafts
+            ? {}
+            : { status_code: ['submitted', 'approved', 'rejected', 'changes_requested'] }),
+        }
+      : null,
     '업무보고서를 불러오지 못했습니다.',
   )
   const reports = useMemo(() => items.map(toMeetingReport), [items])
   return { reports, loading, error, reload }
 }
 
-/** 그 일정에서 선택한 딜마다 쓴 업무보고서들입니다. */
-export function useMeetingReportsOfAgenda(agendaId: string) {
+/** 그 일정으로 쓴 업무보고서 한 건. 딜별 내용은 report.dealSections에 있습니다. */
+export function useMeetingReportOfAgenda(agendaId: string) {
   const { items, loading, error, reload } = useReportQuery(
-    agendaId === '' ? null : { report_kind: 'meeting', source_activity_id: agendaId },
+    agendaId === '' ? null : { report_kind: 'meeting', source_activity_id: agendaId, limit: 1 },
     '업무보고서를 불러오지 못했습니다.',
   )
-  const reports = useMemo(() => items.map(toMeetingReport), [items])
-  return { reports, loading, error, reload }
+  const report = useMemo(() => (items[0] ? toMeetingReport(items[0]) : undefined), [items])
+  return { report, loading, error, reload }
 }
 
 export default function useMeetingReports() {

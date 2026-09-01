@@ -122,54 +122,10 @@
   background: var(--surface);
   box-shadow: var(--sh-2);
 
-  &[data-tone='success'] {
-    border-color: color-mix(in srgb, var(--green) 34%, var(--line));
-
-    .saveMark {
-      background: var(--green-tint);
-      color: var(--green-ink);
-    }
-  }
-
-  &[data-tone='dirty'] {
-    border-color: color-mix(in srgb, var(--orange) 32%, var(--line));
-
-    .saveMark {
-      background: var(--orange-tint);
-    }
-  }
-
-  &[data-tone='error'] {
-    border-color: color-mix(in srgb, var(--red) 34%, var(--line));
-
-    .saveMark {
-      background: var(--red-tint);
-      color: var(--red-ink);
-    }
-  }
-
-  &[data-tone='saving'] .saveMark {
-    background: var(--blue-tint);
-    color: var(--blue);
-  }
-
   @include sm {
     flex-wrap: wrap;
     top: 64px;
   }
-}
-
-.saveMark {
-  flex: none;
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 700;
 }
 
 .saveCopy {

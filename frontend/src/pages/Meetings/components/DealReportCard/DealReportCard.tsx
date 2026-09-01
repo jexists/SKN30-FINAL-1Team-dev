@@ -3,7 +3,6 @@ import { useId, useState } from 'react'
 import { ChevronDownIcon } from '@/components/icons'
 import StageChip from '@/components/StageChip'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
-import { meetingReportPath } from '@/constants/routes'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import type { MeetingDealRef, MeetingProgress, ReportTemplate } from '@/types'
 
@@ -160,9 +159,6 @@ export default function DealReportCard({
           onStartManual={onStartManual}
           onRegenerate={onGenerate}
           regenerateLabel="미팅 전체 다시 생성"
-          viewTo={
-            draft.reportId && !generating && !saving ? meetingReportPath(draft.reportId) : undefined
-          }
         />
       </div>
     </article>

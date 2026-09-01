@@ -76,7 +76,10 @@ export function writeFilters(
     else next.set(key, value)
   }
 
-  put('status', filters.status.join(','))
+  put(
+    'status',
+    filters.status.filter((status) => period !== 'meeting' || status !== '작성중').join(','),
+  )
   put('approver', showsApprover(period) ? filters.approver.join(',') : '')
   put('hospital', showsHospital(period) ? filters.hospital.join(',') : '')
   put('range', filters.range === 'all' ? '' : filters.range)

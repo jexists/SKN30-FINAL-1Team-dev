@@ -56,14 +56,21 @@ export function useAgendaReportLink(item: AgendaItem | null) {
     void savedForAgenda(id, controller.signal)
       .then((row) => {
         if (controller.signal.aborted) return
+        const canContinue =
+          !!row &&
+          canWrite &&
+          row.author_member_id === memberId &&
+          (row.status_code === 'draft' || row.status_code === 'changes_requested')
         setLink(
           row
             ? {
-                to:
-                  canWrite && row.author_member_id === memberId
-                    ? meetingComposePath(id)
-                    : meetingReportPath(row.id),
-                label: '업무보고서 열기',
+                to: canContinue ? meetingComposePath(id) : meetingReportPath(row.id),
+                label:
+                  row.status_code === 'draft' && canContinue
+                    ? '업무보고서 계속 작성'
+                    : canContinue
+                      ? '업무보고서 수정'
+                      : '업무보고서 열기',
                 written: true,
               }
             : canWrite

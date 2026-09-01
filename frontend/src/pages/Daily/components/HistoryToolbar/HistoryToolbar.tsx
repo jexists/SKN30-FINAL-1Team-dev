@@ -87,20 +87,22 @@ export default function HistoryToolbar({
           <fieldset className={styles.group}>
             <legend className={styles.legend}>상태</legend>
             <div className={styles.chips}>
-              {FILTER_STATUSES.map((value) => {
-                const on = filters.status.includes(value)
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`${styles.chip} ${on ? styles.isChipOn : ''}`}
-                    aria-pressed={on}
-                    onClick={() => toggle('status', value)}
-                  >
-                    {value}
-                  </button>
-                )
-              })}
+              {FILTER_STATUSES.filter((value) => period !== 'meeting' || value !== '작성중').map(
+                (value) => {
+                  const on = filters.status.includes(value)
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`${styles.chip} ${on ? styles.isChipOn : ''}`}
+                      aria-pressed={on}
+                      onClick={() => toggle('status', value)}
+                    >
+                      {value}
+                    </button>
+                  )
+                },
+              )}
             </div>
           </fieldset>
 
