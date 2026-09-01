@@ -151,9 +151,7 @@ async def build_report_sources(
             sections = await _report_deals(db, source.id)
             if not sections:
                 raise HTTPException(422, "report_source_deal_sections_required")
-            source_contents = [
-                (section.sales_deal_id, section.content) for section in sections
-            ]
+            source_contents = [(section.sales_deal_id, section.content) for section in sections]
         else:
             source_contents = [(source.sales_deal_id, content)]
         for sales_deal_id, source_content in source_contents:

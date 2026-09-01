@@ -799,13 +799,13 @@ def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
             json={
                 "report_kind": "meeting",
                 "report_date": "2026-08-17",
-                    "source_activity_id": str(teammate.id),
-                    "deal_sections": [
-                        {
-                            "sales_deal_id": str(deal_id),
-                            "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
-                            "content": {"values": {"body": "본문"}},
-                        }
+                "source_activity_id": str(teammate.id),
+                "deal_sections": [
+                    {
+                        "sales_deal_id": str(deal_id),
+                        "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
+                        "content": {"values": {"body": "본문"}},
+                    }
                 ],
                 "activity_ids": [],
                 "template_snapshot": TEMPLATE,

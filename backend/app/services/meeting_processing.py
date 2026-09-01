@@ -442,9 +442,7 @@ async def update_notes(
         report, _sections = await _locked_report_and_deals(db, member, run)
         if (report.source_snapshot or {}).get("meeting_run_id") != str(run_id):
             raise HTTPException(409, "meeting_notes_stale")
-        if (report.content.get("meeting_shared") or {}).get("revision") != str(
-            expected_revision
-        ):
+        if (report.content.get("meeting_shared") or {}).get("revision") != str(expected_revision):
             raise HTTPException(409, "meeting_notes_changed")
         revision = str(uuid4())
         content = copy.deepcopy(report.content)

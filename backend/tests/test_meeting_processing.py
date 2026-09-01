@@ -60,9 +60,7 @@ def case():
         "activity_id": str(activity_id),
         "team_id": str(member.team_id),
         "assignment_overrides": [],
-        "report_versions": [
-            {"id": str(report.id), "updated_at": report.updated_at.isoformat()}
-        ],
+        "report_versions": [{"id": str(report.id), "updated_at": report.updated_at.isoformat()}],
         "deal_versions": [
             {
                 "sales_deal_id": str(section.sales_deal_id),
@@ -463,12 +461,8 @@ def test_run_and_report_locks_enforce_scope_and_source(monkeypatch):
         return run.test_report
 
     monkeypatch.setattr(reports_api, "_locked_report", locked)
-    section_db = _Db(
-        SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: sections))
-    )
-    report, locked_sections = asyncio.run(
-        service._locked_report_and_deals(section_db, member, run)
-    )
+    section_db = _Db(SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: sections)))
+    report, locked_sections = asyncio.run(service._locked_report_and_deals(section_db, member, run))
     assert report is run.test_report and locked_sections == sections
     run.test_report.transcript = "원문이 바뀜"
     with pytest.raises(HTTPException, match="meeting_source_changed"):

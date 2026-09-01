@@ -52,6 +52,7 @@ def sample(monkeypatch):
     by_id = {source.id: source for source in sources}
     lookup = AsyncMock(side_effect=lambda db, member, source_id: (by_id[source_id], None, None))
     monkeypatch.setattr(reports, "_report_row", lookup)
+
     async def report_deals(_db, report_id):
         source = by_id[report_id]
         return [

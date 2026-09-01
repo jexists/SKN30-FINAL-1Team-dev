@@ -333,7 +333,7 @@ def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample)
     for predicate in [
         "report.team_id =",
         "report.author_member_id =",
-            "report_deal.sales_deal_id =",
+        "report_deal.sales_deal_id =",
         "report.source_activity_id !=",
         "activity.team_id =",
         "activity.starts_at <",

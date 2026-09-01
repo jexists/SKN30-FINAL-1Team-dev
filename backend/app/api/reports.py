@@ -746,10 +746,10 @@ async def submit_report(
                     detail="activity_not_found",
                 )
             sections = (
-                await db.execute(
-                    select(ReportDeal).where(ReportDeal.report_id == report.id)
-                )
-            ).scalars().all()
+                (await db.execute(select(ReportDeal).where(ReportDeal.report_id == report.id)))
+                .scalars()
+                .all()
+            )
             sales_deal_ids = [section.sales_deal_id for section in sections]
             if not sales_deal_ids and report.sales_deal_id is not None:
                 # migration 전 레거시 보고서 제출 호환.
@@ -761,9 +761,7 @@ async def submit_report(
                 )
             # 저장 후 달라진 접근 권한·고객사 연결은 확정 전에 다시 확인한다.
             for sales_deal_id in sales_deal_ids:
-                await _validate_meeting_deal(
-                    db, member, report.source_activity_id, sales_deal_id
-                )
+                await _validate_meeting_deal(db, member, report.source_activity_id, sales_deal_id)
         report.status_code = "submitted"
         report.updated_at = datetime.now(UTC)
         await db.flush()

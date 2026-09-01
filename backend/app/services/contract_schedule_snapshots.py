@@ -323,15 +323,9 @@ async def _recent_finalized_reports(
     for report, section in rows:
         if not isinstance(report.content, dict) or not isinstance(section.content, dict):
             raise HTTPException(422, "report_source_content_invalid")
-        content = {
-            key: value for key, value in report.content.items() if key not in _NON_BODY_KEYS
-        }
+        content = {key: value for key, value in report.content.items() if key not in _NON_BODY_KEYS}
         content.update(
-            {
-                key: value
-                for key, value in section.content.items()
-                if key not in _NON_BODY_KEYS
-            }
+            {key: value for key, value in section.content.items() if key not in _NON_BODY_KEYS}
         )
         shared = report.content.get("meeting_shared")
         if shared is not None:

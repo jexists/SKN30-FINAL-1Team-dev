@@ -146,9 +146,7 @@ def test_meeting_report_sections_migration_rejects_conflicting_deal_candidates()
     assert "UNION ALL" in sql
     assert "count(DISTINCT candidate.deal_snapshot) > 1" in sql
     assert "count(DISTINCT candidate.content) > 1" in sql
-    assert (
-        "count(DISTINCT coalesce(candidate.ai_evidence, 'null'::jsonb)) > 1" in sql
-    )
+    assert "count(DISTINCT coalesce(candidate.ai_evidence, 'null'::jsonb)) > 1" in sql
     assert "conflicting legacy report deal candidates" in sql
 
 
