@@ -241,7 +241,7 @@ async def set_password(payload: SetPasswordRequest, response: Response) -> None:
         )
     except supabase_auth.WeakPassword as error:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="password_rejected",
         ) from error
     except supabase_auth.AuthError as error:

@@ -186,11 +186,10 @@ def _sync_legacy_report_content(
         values = (
             dict(normalized["structured_values"]) if sync_structured else _legacy_values(output)
         )
-        if sync_body:
-            if normalized["body"] is None:
-                values.pop("body", None)
-            else:
-                values["body"] = normalized["body"]
+        if normalized["body"] is None:
+            values.pop("body", None)
+        else:
+            values["body"] = normalized["body"]
         output["values"] = values
     if sync_common or sync_unassigned:
         shared = _dict(output.get("meeting_shared"))
@@ -438,11 +437,10 @@ def _normalized_section_payload(payload: ReportDealWrite, position: int) -> dict
             content["title"] = title
     if "body" in explicit or "structured_values" in explicit:
         legacy_values = dict(structured) if "structured_values" in explicit else values
-        if "body" in explicit:
-            if body is None:
-                legacy_values.pop("body", None)
-            else:
-                legacy_values["body"] = body
+        if body is None:
+            legacy_values.pop("body", None)
+        else:
+            legacy_values["body"] = body
         content["values"] = legacy_values
     snapshot = payload.deal_snapshot.model_dump(mode="json")
     return {
@@ -1010,7 +1008,7 @@ async def update_report(
         if deal_sections is not None:
             if report.report_kind != "meeting":
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="deal_sections_not_supported",
                 )
             if report.source_activity_id is None:
@@ -1039,19 +1037,19 @@ async def update_report(
             period_start is not None or period_end is not None
         ):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="period_not_supported",
             )
         if report.report_kind in {"weekly", "monthly"} and (
             period_start is None or period_end is None
         ):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="period_required",
             )
         if period_start is not None and period_end is not None and period_end < period_start:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="invalid_report_period",
             )
 
@@ -1171,7 +1169,7 @@ async def submit_report(
                 sales_deal_ids = [report.sales_deal_id]
             if not sales_deal_ids:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="deal_sections_required",
                 )
             # 저장 후 달라진 접근 권한·고객사 연결은 확정 전에 다시 확인한다.

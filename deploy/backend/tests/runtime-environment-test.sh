@@ -178,6 +178,27 @@ worker_run_args=" ${DOCKER_RUN_ARGS[*]} "
     || fail "agent worker was not started as a private process from the backend image"
 unset -f docker
 
+DOCKER_WORKER_STATE='true 0'
+docker() {
+    if [[ "$*" == *'.State.ExitCode'* ]]; then
+        printf 'running=%s restarts=%s exit_code=1\n' \
+            "${DOCKER_WORKER_STATE%% *}" "${DOCKER_WORKER_STATE##* }"
+    else
+        printf '%s\n' "${DOCKER_WORKER_STATE}"
+    fi
+}
+sleep() { :; }
+wait_for_agent_worker test-worker \
+    || fail "stable agent worker was rejected"
+DOCKER_WORKER_STATE='true 1'
+if worker_failure="$(wait_for_agent_worker test-worker 2>&1)"; then
+    fail "restarting agent worker was accepted"
+fi
+[[ "${worker_failure}" == *'restarts=1 exit_code=1'* ]] \
+    || fail "unstable agent worker diagnostics omitted restart and exit state"
+unset -f sleep
+unset -f docker
+
 TIMEOUT_ARGS=()
 timeout() {
     TIMEOUT_ARGS=("$@")

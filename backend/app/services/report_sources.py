@@ -231,7 +231,6 @@ async def sync_report_sources_from_legacy_content(
             Report.id.in_(report_ids),
             Report.team_id == member.team_id,
             Report.report_kind == expected_kind,
-            Report.status_code.in_(("submitted", "approved")),
         ]
         if member.role_code == "member":
             conditions.append(Report.author_member_id == member.id)
@@ -249,6 +248,8 @@ async def sync_report_sources_from_legacy_content(
             raise HTTPException(404, "report_not_found")
         for source_id in report_ids:
             source = by_id[source_id]
+            if source.status_code not in {"submitted", "approved"}:
+                raise HTTPException(409, "report_source_not_finalized")
             _check_period(report, source)
             if source.current_submission_id is None:
                 await materialize_legacy_submission(db, source)
@@ -370,7 +371,11 @@ def _snapshot_values(snapshot: dict[str, Any]) -> dict[str, Any]:
     structured = snapshot.get("structured_values")
     if not isinstance(structured, dict):
         raise HTTPException(422, "report_source_values_invalid")
-    values = dict(structured)
+    values = {
+        key: value
+        for key, value in structured.items()
+        if isinstance(key, str) and key.lower() not in _NON_BODY_KEYS and isinstance(value, str)
+    }
     body = snapshot.get("body")
     if body is not None:
         if not isinstance(body, str):

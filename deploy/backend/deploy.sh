@@ -684,14 +684,33 @@ validate_agent_queue_schema_runtime() {
 wait_for_agent_worker() {
     local container_name="$1"
     local attempt
+    local final_state
+    local restart_count
+    local running
+    local state
+    local stable_checks=0
 
     for ((attempt = 1; attempt <= 10; attempt++)); do
-        if [[ "$(docker container inspect --format '{{.State.Running}}' \
-            "${container_name}" 2>/dev/null || true)" == "true" ]]; then
-            return 0
+        state="$(docker container inspect \
+            --format '{{.State.Running}} {{.RestartCount}}' \
+            "${container_name}" 2>/dev/null || true)"
+        running="${state%% *}"
+        restart_count="${state##* }"
+        if [[ "${running}" == "true" && "${restart_count}" == "0" ]]; then
+            ((stable_checks += 1))
+            if ((stable_checks >= 3)); then
+                return 0
+            fi
+        else
+            stable_checks=0
         fi
         sleep 1
     done
+    final_state="$(docker container inspect \
+        --format 'running={{.State.Running}} restarts={{.RestartCount}} exit_code={{.State.ExitCode}}' \
+        "${container_name}" 2>/dev/null || printf 'unavailable')"
+    printf 'AgentRun worker did not stabilize: %s (%s)\n' \
+        "${container_name}" "${final_state}" >&2
     return 1
 }
 

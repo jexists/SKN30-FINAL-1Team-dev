@@ -154,7 +154,11 @@ def test_normalized_source_reads_the_immutable_submission_instead_of_mutable_rep
                     "sales_deal_id": str(source.sales_deal_id),
                     "title": "확정 당시 제목",
                     "body": "확정 당시 딜 본문",
-                    "structured_values": {"next_step": "견적 전달"},
+                    "structured_values": {
+                        "next_step": "견적 전달",
+                        "transcript": "전달하면 안 되는 원문",
+                        "ai_values": "전달하면 안 되는 초안",
+                    },
                 }
             ],
         },
@@ -186,6 +190,7 @@ def test_normalized_source_reads_the_immutable_submission_instead_of_mutable_rep
     }
     assert result["meetings"][0]["common_report"] == {"body": "확정 당시 공통 내용"}
     assert "변조된 현재 초안" not in str(result)
+    assert "전달하면 안 되는" not in str(result)
     lookup.assert_not_awaited()
 
 
@@ -289,6 +294,25 @@ def test_new_period_save_materializes_selected_submission_as_canonical_source(sa
     assert stored.position == 0
     assert stored.source_activity_id is None
     assert stored.source_report_submission_id == source.current_submission_id
+
+
+def test_new_period_save_rejects_a_selected_draft_as_not_finalized(sample, monkeypatch):
+    member, parent, sources, _ = sample
+    source = sources[0]
+    source.status_code = "draft"
+    source.current_submission_id = uuid4()
+    refs(parent, [source])
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [source]
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[]))
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(service.sync_report_sources_from_legacy_content(db, member, parent))
+
+    assert error.value.status_code == 409
+    assert error.value.detail == "report_source_not_finalized"
 
 
 def test_legacy_finalized_source_is_materialized_before_parent_links(sample, monkeypatch):

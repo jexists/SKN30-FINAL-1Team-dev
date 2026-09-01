@@ -240,7 +240,7 @@ def test_queue_migration_does_not_expire_legacy_running_jobs():
     sql = migration.read_text(encoding="utf-8")
 
     assert "SET lease_expires_at = now()" not in sql
-    active_index = sql.split("agent_run_meeting_active_report_key", 1)[1]
+    active_index = sql.split("agent_run_meeting_active_report_key", 1)[1].split(";", 1)[0]
     assert "request_hash IS NOT NULL" in active_index
 
 

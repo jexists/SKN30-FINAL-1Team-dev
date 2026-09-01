@@ -396,13 +396,13 @@ def test_notes_sync_without_changing_original_evidence(monkeypatch):
     evidence = copy.deepcopy(run.test_report.source_snapshot)
     revision = UUID(run.test_report.content["meeting_shared"]["revision"])
     version = run.test_report.version
-    generation_input_version = getattr(run.test_report, "generation_input_version", None)
+    generation_input_version = run.test_report.generation_input_version
     asyncio.run(
         service.update_notes(db, member, run.id, "공통 수정", "미지정 원문 확인 필요", revision)
     )
     assert run.test_report.source_snapshot == evidence
     assert run.test_report.version == version + 1
-    assert getattr(run.test_report, "generation_input_version", None) == generation_input_version
+    assert run.test_report.generation_input_version == generation_input_version
     assert run.test_report.common_body == "공통 수정"
     assert run.test_report.unassigned_body == "미지정 원문 확인 필요"
     with pytest.raises(HTTPException, match="meeting_notes_changed"):

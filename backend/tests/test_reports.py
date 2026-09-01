@@ -807,6 +807,45 @@ def test_patch_null_structured_values_is_rejected_at_the_request_boundary():
     assert db.statements == []
 
 
+def test_patch_structured_values_preserves_legacy_body():
+    member = _member()
+    report = _report(member)
+    report.body = "사람이 저장한 본문"
+    report.content = {"values": {"body": "사람이 저장한 본문", "old": "value"}}
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+    )
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"expected_version": 1, "structured_values": {"next": "value"}},
+        )
+
+    assert response.status_code == 200
+    assert report.content["values"] == {
+        "next": "value",
+        "body": "사람이 저장한 본문",
+    }
+
+
+def test_deal_structured_values_preserve_body_in_legacy_mirror():
+    deal_id = uuid4()
+    payload = ReportDealWrite(
+        sales_deal_id=deal_id,
+        deal_snapshot={"id": deal_id, "label": "D-1"},
+        content={"values": {"body": "딜 본문", "old": "value"}},
+        structured_values={"next": "value"},
+    )
+
+    normalized = reports_api._normalized_section_payload(payload, 0)
+
+    assert normalized["content"]["values"] == {"next": "value", "body": "딜 본문"}
+
+
 @pytest.mark.anyio
 async def test_reordering_report_deals_clears_positions_before_swapping():
     member = _member()
