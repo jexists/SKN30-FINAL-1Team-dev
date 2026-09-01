@@ -24,6 +24,7 @@ export type AnalysisPhase = 'idle' | 'running' | 'completed' | 'failed'
 
 export interface DealDraftState {
   reportId?: string
+  reportVersion?: number
   statusCode: ApiReportStatus
   review: MeetingReview
   template: ReportTemplate
@@ -67,6 +68,7 @@ function stateOf(
   const aiValues = section?.aiValues ?? {}
   return {
     reportId: saved?.id,
+    reportVersion: saved?.version,
     statusCode: saved?.apiStatus ?? 'draft',
     review: saved?.review ?? 'writing',
     template,
@@ -198,6 +200,7 @@ export default function useMeetingDraft(
         updateDeal(section.salesDealId, (draft) => ({
           ...draft,
           reportId: report.id,
+          reportVersion: report.version,
           statusCode: report.apiStatus ?? draft.statusCode,
           review: report.review,
           analysisEvidence: section.analysisEvidence,

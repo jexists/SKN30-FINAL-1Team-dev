@@ -130,15 +130,23 @@ function dealSectionOf(
   dealSnapshot: unknown,
   value: unknown,
   aiEvidence: unknown,
+  explicitTitle?: string | null,
+  explicitBody?: string | null,
+  structuredValues?: Record<string, unknown>,
 ): MeetingDealSection {
   const content = record(value)
   const analysisEvidence = aiEvidence == null ? null : record(aiEvidence)
+  const values = {
+    ...valuesOf(content.values ?? content),
+    ...valuesOf(structuredValues),
+    ...(explicitBody ? { body: explicitBody } : {}),
+  }
   return {
     salesDealId,
     salesDeal: dealOf(dealSnapshot, salesDealId),
     product: text(content.product),
-    title: text(content.title),
-    values: valuesOf(content.values ?? content),
+    title: explicitTitle || text(content.title),
+    values,
     evidence: text(content.evidence) || undefined,
     aiValues: valuesOf(content.ai_values),
     aiEvidence: text(content.ai_evidence) || undefined,
@@ -158,6 +166,9 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
       section.deal_snapshot,
       section.content,
       section.ai_evidence,
+      section.title,
+      section.body,
+      section.structured_values,
     ),
   )
   // 배포 중 기존 딜별 응답도 한 섹션으로 읽습니다. 새 저장은 항상 deal_sections만 씁니다.
@@ -179,7 +190,7 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     dept: text(content.dept),
     contact: text(content.contact),
     place: text(content.place),
-    title: text(content.title),
+    title: item.title || text(content.title),
     status: statusOf(item.status_code),
     review: reviewOf(item.status_code, content.on_hold === true),
     apiStatus: item.status_code,
@@ -188,15 +199,31 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
       ? (content.attachments as ReportAttachment[])
       : [],
     dealSections,
+    version: item.version,
+    currentSubmissionId: item.current_submission_id,
     updatedAt: item.updated_at,
-    meetingRunId: text(source.meeting_run_id) || text(shared.run_id) || undefined,
+    meetingRunId:
+      item.last_applied_agent_run_id ||
+      text(source.meeting_run_id) ||
+      text(shared.run_id) ||
+      undefined,
     meetingShared:
       typeof shared.run_id === 'string'
         ? {
             run_id: shared.run_id,
             revision: text(shared.revision),
-            common_report: bodyOf(shared.common_report),
-            unassigned_report: bodyOf(shared.unassigned_report),
+            common_report: item.common_body
+              ? {
+                  ...(bodyOf(shared.common_report) ?? { evidence_ids: [] }),
+                  body: item.common_body,
+                }
+              : bodyOf(shared.common_report),
+            unassigned_report: item.unassigned_body
+              ? {
+                  ...(bodyOf(shared.unassigned_report) ?? { evidence_ids: [] }),
+                  body: item.unassigned_body,
+                }
+              : bodyOf(shared.unassigned_report),
           }
         : undefined,
     evidenceLedger: evidenceOf(source.evidence),
@@ -214,6 +241,7 @@ export interface MeetingDealDraftPayload {
 
 export interface MeetingDraftPayload {
   reportId?: string
+  version?: number
   statusCode?: ReportResponse['status_code']
   agendaId: string
   date: string
@@ -265,12 +293,24 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
       title: draft.title,
       attachments: draft.attachments,
     },
+    title: draft.title,
+    body: null,
+    common_body: null,
+    unassigned_body: null,
+    structured_values: {},
     transcript: draft.transcript || null,
     note: null,
-    activity_ids: [draft.agendaId],
-    deal_sections: draft.dealSections.map((section) => ({
+    // 미팅의 기준 일정은 source_activity_id 한 곳이 진실 원본입니다.
+    activity_ids: [],
+    deal_sections: draft.dealSections.map((section, position) => ({
       sales_deal_id: section.salesDealId,
       deal_snapshot: section.salesDeal,
+      position,
+      title: section.title || null,
+      body: section.values.body?.trim() || null,
+      structured_values: Object.fromEntries(
+        Object.entries(section.values).filter(([key]) => key !== 'body'),
+      ),
       content: {
         product: section.product,
         title: section.title,
@@ -291,10 +331,16 @@ async function persistMeetingReport(
     report_kind: _kind,
     source_activity_id: _source,
     sales_deal_id: _deal,
+    common_body: _commonBody,
+    unassigned_body: _unassignedBody,
     ...patch
   } = request
   const saved = draft.reportId
-    ? await client.patch<ReportResponse>(`/reports/${draft.reportId}`, patch, { signal })
+    ? await client.patch<ReportResponse>(
+        `/reports/${draft.reportId}`,
+        { ...patch, expected_version: draft.version ?? 1 },
+        { signal },
+      )
     : await client.post<ReportResponse>('/reports', request, { signal })
   // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
   // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
@@ -303,7 +349,7 @@ async function persistMeetingReport(
     submit && (from === 'draft' || from === 'changes_requested')
       ? await client.post<ReportResponse>(
           `/reports/${saved.data.id}/submit`,
-          { expected_status_code: from },
+          { expected_status_code: from, expected_version: saved.data.version },
           { signal },
         )
       : saved

@@ -87,5 +87,8 @@ export interface MeetingReport extends MeetingReportSeed {
   /** 작성자의 구성원 번호. 고칠 수 있는 사람인지 이 값으로 가립니다. */
   ownerMemberId: string
   template: ReportTemplate
+  /** 서버의 낙관적 잠금 버전. 합성 fallback에는 없을 수 있습니다. */
+  version?: number
+  currentSubmissionId?: string | null
   updatedAt?: string
 }

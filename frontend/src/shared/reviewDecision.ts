@@ -42,6 +42,7 @@ export function isReviewable(status: ApiReportStatus): boolean {
  */
 export async function reviewReport(
   reportId: string,
+  submissionId: string | null,
   decision: ReportReviewRequest['decision'],
   reason: string | null,
 ): Promise<ReportResponse> {
@@ -49,6 +50,7 @@ export async function reviewReport(
     decision,
     reason,
     expected_status_code: 'submitted',
+    expected_submission_id: submissionId,
   }
   const { data } = await client.post<ReportResponse>(`/reports/${reportId}/review`, payload)
   return data

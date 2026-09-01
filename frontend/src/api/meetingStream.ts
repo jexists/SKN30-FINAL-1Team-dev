@@ -18,7 +18,9 @@ export function readMeetingProgress(value: unknown, runId: string): MeetingProgr
   const event = value as Partial<MeetingProgress>
   if (
     event.run_id !== runId ||
-    !['queued', 'running', 'completed', 'failed'].includes(event.status_code ?? '') ||
+    !['queued', 'running', 'completed', 'partial', 'failed', 'cancelled'].includes(
+      event.status_code ?? '',
+    ) ||
     typeof event.stage !== 'string' ||
     !Array.isArray(event.previews)
   )
@@ -103,12 +105,15 @@ export function waitForMeetingRun<T>(
     }
     function terminal(run: AgentRunResponse<T>): boolean {
       if (run.id !== created.id) return false
-      if (run.status_code === 'failed') {
-        finish(new Error(run.error_message ?? 'agent_run_failed'))
+      if (run.status_code === 'failed' || run.status_code === 'cancelled') {
+        finish(new Error(run.error_code ?? run.error_message ?? 'agent_run_failed'))
         return true
       }
-      if (run.status_code === 'completed') {
-        if (run.output_snapshot) finish(undefined, { ...run, output_snapshot: run.output_snapshot })
+      if (run.status_code === 'completed' || run.status_code === 'partial') {
+        if (run.apply_status === 'stale') finish(new Error('meeting_report_changed'))
+        else if (run.apply_status !== 'applied') finish(new Error('meeting_result_not_applied'))
+        else if (run.output_snapshot)
+          finish(undefined, { ...run, output_snapshot: run.output_snapshot })
         else finish(new Error('agent_run_failed'))
         return true
       }
