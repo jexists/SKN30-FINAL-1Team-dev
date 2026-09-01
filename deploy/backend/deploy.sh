@@ -24,6 +24,8 @@ readonly LEGACY_PRODUCTION_CONTAINER="salesluv-backend"
 readonly LEGACY_CANDIDATE_CONTAINER="salesluv-backend-candidate"
 readonly SLOT_8000_CONTAINER="salesluv-backend-8000"
 readonly SLOT_18000_CONTAINER="salesluv-backend-18000"
+readonly WORKER_8000_CONTAINER="salesluv-agent-worker-8000"
+readonly WORKER_18000_CONTAINER="salesluv-agent-worker-18000"
 readonly BACKEND_PORT_A="8000"
 readonly BACKEND_PORT_B="18000"
 
@@ -68,6 +70,8 @@ NEW_IMAGE_ID=""
 ACTIVE_CONTAINER=""
 ACTIVE_PORT=""
 NEW_CONTAINER=""
+ACTIVE_WORKER=""
+NEW_WORKER=""
 NEW_PORT=""
 ENV_REPLACED="false"
 IMAGE_BUILT="false"
@@ -602,6 +606,10 @@ cleanup() {
         printf 'New backend container retained because upstream rollback failed: %s\n' \
             "${NEW_CONTAINER}" >&2
     fi
+    if [[ -n "${NEW_WORKER}" \
+        && "${DEPLOY_SUCCEEDED}" != "true" ]]; then
+        docker rm -f "${NEW_WORKER}" >/dev/null 2>&1 || true
+    fi
     if [[ "${IMAGE_BUILT}" == "true" \
         && "${DEPLOY_SUCCEEDED}" != "true" \
         && "${UPSTREAM_SWITCHED}" != "true" ]]; then
@@ -653,6 +661,52 @@ start_production() {
         --mount "type=bind,source=${DEAL_MODEL_HOST_DIR},target=${DEAL_MODEL_CONTAINER_DIR},readonly" \
         --publish "127.0.0.1:${host_port}:8000" \
         "${image}" >/dev/null
+}
+
+worker_container_for_port() {
+    case "$1" in
+        "${BACKEND_PORT_A}") printf '%s' "${WORKER_8000_CONTAINER}" ;;
+        "${BACKEND_PORT_B}") printf '%s' "${WORKER_18000_CONTAINER}" ;;
+        *) return 1 ;;
+    esac
+}
+
+start_agent_worker() {
+    local image="$1"
+    local container_name="$2"
+
+    docker run --detach \
+        --name "${container_name}" \
+        --restart unless-stopped \
+        --log-driver json-file \
+        --log-opt max-size=10m \
+        --log-opt max-file=3 \
+        --env-file "${ENV_FILE}" \
+        --env "DEAL_MODEL_DIR=${DEAL_MODEL_CONTAINER_DIR}" \
+        --mount "type=bind,source=${DEAL_MODEL_HOST_DIR},target=${DEAL_MODEL_CONTAINER_DIR},readonly" \
+        "${image}" \
+        /app/.venv/bin/python -m app.services.agent_worker >/dev/null
+}
+
+validate_agent_queue_schema_runtime() {
+    local container_name="$1"
+
+    docker exec "${container_name}" \
+        /app/.venv/bin/python -m app.services.agent_worker --check-schema
+}
+
+wait_for_agent_worker() {
+    local container_name="$1"
+    local attempt
+
+    for ((attempt = 1; attempt <= 10; attempt++)); do
+        if [[ "$(docker container inspect --format '{{.State.Running}}' \
+            "${container_name}" 2>/dev/null || true)" == "true" ]]; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
 }
 
 validate_deal_model_runtime() {
@@ -957,6 +1011,10 @@ else
 fi
 NEW_CONTAINER="$(slot_container_for_port "${NEW_PORT}")" \
     || die "unsupported backend deployment port: ${NEW_PORT}"
+ACTIVE_WORKER="$(worker_container_for_port "${ACTIVE_PORT}")" \
+    || die "unsupported active worker slot: ${ACTIVE_PORT}"
+NEW_WORKER="$(worker_container_for_port "${NEW_PORT}")" \
+    || die "unsupported worker slot: ${NEW_PORT}"
 
 printf 'Creating an isolated build context for %s.\n' "${DEPLOY_SHA}"
 [[ "$(git -C "${REPO_DIR}" cat-file -t "${DEPLOY_SHA}" 2>/dev/null)" == "commit" ]] \
@@ -1026,6 +1084,7 @@ NEW_IMAGE_ID="$(
 )" || die "unable to inspect the newly built backend image"
 
 docker rm -f "${NEW_CONTAINER}" >/dev/null 2>&1 || true
+docker rm -f "${NEW_WORKER}" >/dev/null 2>&1 || true
 printf 'Starting and validating backend slot %s on port %s.\n' \
     "${NEW_CONTAINER}" "${NEW_PORT}"
 if ! start_production "${NEW_IMAGE}" "${NEW_CONTAINER}" "${NEW_PORT}"; then
@@ -1039,6 +1098,10 @@ printf 'Validating the deal model in backend slot %s.\n' "${NEW_CONTAINER}"
 if ! validate_deal_model_runtime "${NEW_CONTAINER}"; then
     die "deal model validation failed; the production upstream was not changed"
 fi
+printf 'Validating the AgentRun queue schema.\n'
+if ! validate_agent_queue_schema_runtime "${NEW_CONTAINER}"; then
+    die "agent queue schema validation failed; apply migrations 0017 and 0018 first"
+fi
 
 PROMOTION_STARTED="true"
 if [[ -n "${ACTIVE_CONTAINER}" ]]; then
@@ -1047,6 +1110,11 @@ if [[ -n "${ACTIVE_CONTAINER}" ]]; then
     if ! switch_backend_upstream "${ACTIVE_PORT}" "${NEW_PORT}"; then
         die "unable to switch and reload the backend Nginx upstream"
     fi
+fi
+printf 'Starting AgentRun worker %s after traffic promotion.\n' "${NEW_WORKER}"
+if ! start_agent_worker "${NEW_IMAGE}" "${NEW_WORKER}" \
+    || ! wait_for_agent_worker "${NEW_WORKER}"; then
+    die "unable to start the AgentRun worker after traffic promotion"
 fi
 
 DEPLOY_SUCCEEDED="true"
@@ -1077,6 +1145,17 @@ if [[ -n "${ACTIVE_CONTAINER}" ]]; then
         printf 'Backend deployment succeeded, but the previous container was not removed: %s\n' \
             "${ACTIVE_CONTAINER}" >&2
     fi
+fi
+if [[ -n "${ACTIVE_CONTAINER}" && "${ACTIVE_WORKER}" != "${NEW_WORKER}" ]] \
+    && docker container inspect "${ACTIVE_WORKER}" >/dev/null 2>&1; then
+    printf 'Stopping the previous AgentRun worker %s.\n' "${ACTIVE_WORKER}"
+    if ! docker stop \
+        --time "${CONTAINER_STOP_TIMEOUT_SECONDS}" \
+        "${ACTIVE_WORKER}" >/dev/null; then
+        printf 'Backend deployment succeeded, but the previous worker did not stop cleanly: %s\n' \
+            "${ACTIVE_WORKER}" >&2
+    fi
+    docker rm "${ACTIVE_WORKER}" >/dev/null 2>&1 || true
 fi
 
 if ! prune_old_backend_images; then
