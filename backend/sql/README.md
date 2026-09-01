@@ -203,7 +203,8 @@
   스냅샷·본문·AI 분석을 복합 PK 자식 `report_deal`로 옮깁니다. 기존 딜별 보고서의 첨부,
   `report_activity`, 에이전트 `source_refs`는 canonical 보고서로 재연결하며, 작성자·원문·상태나
   공통 본문이 충돌하면 임의로 고르지 않고 migration을 중단합니다. 이후 같은 일정에는 미팅
-  보고서를 한 건만 만들 수 있습니다. **아직 DB에 적용하지 않았습니다.**
+  보고서를 한 건만 만들 수 있습니다. **현재 연결된 개발 DB에는 적용된 구조를 확인했지만,
+  적용 시점은 기존 기록에서 확인되지 않았습니다.**
 
 - `20260901_0017_report_workflow_v2_foundation.sql`: 수정 중인 `report`와 작성자가 확정한
   불변 `report_submission`을 분리하고, 기간 보고서 출처 `report_source`와 실행별 딜 분석
@@ -214,14 +215,14 @@
   보고서의 출처가 될 때 잠긴 현재 본문을 백엔드가 같은 Python canonical hash로 한 번만
   스냅샷합니다. 기존 `rejected`는 같은 의미의 `changes_requested`로 옮깁니다. 딜 분석 이력은
   수정 중인 `report_deal` 섹션을 제거해도 부모 보고서가 남는 동안 보존합니다. 레거시 컬럼과
-  `report_activity`도 전환 기간 동안 삭제하지 않습니다. **0016 다음에 적용하며 아직 DB에
-  적용하지 않았습니다.**
+  `report_activity`도 전환 기간 동안 삭제하지 않습니다. **현재 연결된 개발 DB에는
+  2026-09-01 적용했으며 운영 DB에는 적용하지 않았습니다.**
 
 - `20260901_0018_agent_run_queue.sql`: `agent_run`을 PostgreSQL 영속 큐로 확장합니다.
   검증된 요청을 실제 CRM·보고서 입력과 분리해 먼저 저장하고, worker lease·heartbeat·최대
   3회 재시도·보고서 버전·적용 상태를 기록합니다. 기존 실행은 그대로 보존하고 보고서 ID와
-  적용 여부를 확인 가능한 범위에서만 백필합니다. **0017 다음에 적용하며 아직 DB에 적용하지
-  않았습니다.**
+  적용 여부를 확인 가능한 범위에서만 백필합니다. **현재 연결된 개발 DB에는 0017 다음으로
+  2026-09-01 적용했으며 운영 DB에는 적용하지 않았습니다.**
 
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
@@ -258,6 +259,9 @@
 | 2026-08-31 | 개발 | `20260831_0015_team_management.sql` | session pooler | 성공. sales_target 5컬럼 유지(`customer_company_id` 를 NOT NULL 에서 nullable 로) / 부분 유일 인덱스 `sales_target_member_month_key` 추가 / notice_target 3→7컬럼(`status_code`·`status_reason`·`status_changed_at`·`status_changed_by_member_id`, FK 1 추가). 거래처별로 흩어져 있던 목표를 담당자·월 단위 한 줄로 합쳤고 거래처가 붙은 행은 0건이 되었다. **담당자·월별 합계와 총액이 모두 보존된 것을 적용 전후 대조로 확인**(합계 1,185,000,000 그대로, 36개 담당자·월 조합 전부 일치). notice_target 32행은 그대로이고 기본값 `pending` 으로 채워졌다. `tests/test_models.py` 의 ORM 대조에서 notice_target 컬럼·nullable·타입·기본값·PK·FK 일치 확인 |
 | 2026-08-31 | 개발 | `20260831_0016_report_review_note.sql` | session pooler | 성공. report 21→22컬럼(`review_note`, nullable). 기존 report 698행 보존(698→698)이고 작성자가 적어 둔 `note` 181행도 그대로입니다. 컬럼을 나눈 뒤 브라우저에서 반려→재확인→확정을 돌려 반려 사유가 `review_note` 에만 들어가고 `note` 는 건드려지지 않는 것을 확인 |
 | 2026-08-31 | 현재 연결된 개발 DB | `20260831_0015_document_audit_summary_completed.sql` | PostgreSQL direct | 성공. `document_file_audit.action_code`에 자동 요약 완료 이력(`summary_completed`) 추가 후 PostgreSQL 제약조건 조회로 확인 |
+| 2026-09-01 | 현재 연결된 개발 DB | 중복 일일보고서 정리 | session pooler | 적용을 막던 테스트용 일일보고서 초안 5건과 그 실행 기록 `agent_run` 5건 삭제. 확정 보고서·미팅보고서·CRM 데이터는 삭제하지 않음 |
+| 2026-09-01 | 현재 연결된 개발 DB | `20260901_0017_report_workflow_v2_foundation.sql` | session pooler | 성공. 정리 후 report 699행과 report_deal 461행을 유지하고 report_submission·report_source·meeting_deal_analysis 및 제약조건·인덱스를 추가. 일일보고서 중복 0건 확인 |
+| 2026-09-01 | 현재 연결된 개발 DB | `20260901_0018_agent_run_queue.sql` | session pooler | 성공. 정리 후 agent_run 537행을 유지하고 큐 컬럼·제약조건·인덱스를 추가. `agent_worker --check-schema` 통과 |
 
 ## 개발 DB 재구축 런북
 
