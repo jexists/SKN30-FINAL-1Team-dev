@@ -76,6 +76,14 @@ async def _draft_source(db: AsyncSession, member: Member, report_id: UUID) -> Re
     return report
 
 
+def _briefing_document_ids(input_snapshot: dict[str, Any]) -> list[str]:
+    """브리핑이 근거로 조회한 문서 id. 실행 이력에서 되짚을 수 있게 남긴다."""
+    sources = (input_snapshot.get("document_context") or {}).get("sources") or []
+    return list(
+        dict.fromkeys(str(item["document_id"]) for item in sources if item.get("document_id"))
+    )
+
+
 async def _parent_run_or_409(
     db: AsyncSession, member: Member, parent_run_id: UUID, *, expected_agent_code: str
 ) -> AgentRun:
@@ -193,6 +201,9 @@ async def _build_run_input(
             db, member, payload.activity_id
         )
         source_refs["customer_company_id"] = input_snapshot["customer_company"]["id"]
+        document_ids = _briefing_document_ids(input_snapshot)
+        if document_ids:
+            source_refs["document_ids"] = document_ids
         return (
             contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
             input_snapshot,
@@ -409,9 +420,13 @@ async def _execute(run_id: UUID) -> None:
                     "risk_count": len(output.risks),
                 }
             elif run.agent_code == "contract_management_briefing":
+                context = (run.input_snapshot or {}).get("document_context") or {}
                 run.evidence = {
                     "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
                     "risk_count": len(output.risks),
+                    # 근거가 비어 있을 때 자료가 없었는지 검색이 안 됐는지 구분한다.
+                    "document_count": len(context.get("summaries") or []),
+                    "chunk_count": len(context.get("sources") or []),
                 }
             else:  # schedule_management
                 run.evidence = {

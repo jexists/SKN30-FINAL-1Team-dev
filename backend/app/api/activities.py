@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, time, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 from zoneinfo import ZoneInfo
 
@@ -176,9 +176,31 @@ async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID
         "run_id": str(run.id),
         "status": run.status_code,
         "content": run.output_snapshot,
+        # content.source_refs 는 문서 id 뿐이라 화면에서 읽을 수 없다. 실행 시점에 조회한
+        # 파일명·페이지를 함께 내려 자료실을 다시 조회하지 않고 출처를 그릴 수 있게 한다.
+        "documents": _briefing_documents(run.input_snapshot),
         "error": run.error_message,
         "generated_at": _seoul(run.finished_at).isoformat() if run.finished_at else None,
     }
+
+
+def _briefing_documents(input_snapshot: Any) -> list[dict]:
+    """브리핑이 근거로 조회한 문서를 문서 단위로 한 번씩만 추린다."""
+    if not isinstance(input_snapshot, dict):
+        return []
+    sources = (input_snapshot.get("document_context") or {}).get("sources") or []
+    documents: dict[str, dict] = {}
+    for item in sources:
+        document_id = item.get("document_id")
+        if not document_id or str(document_id) in documents:
+            continue
+        documents[str(document_id)] = {
+            "document_id": str(document_id),
+            "file_name": item.get("file_name"),
+            "page_start": item.get("page_start"),
+            "page_end": item.get("page_end"),
+        }
+    return list(documents.values())
 
 
 async def _activity_row(

@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import AgentRun
@@ -18,7 +19,10 @@ from app.models.content import Report, ReportDeal
 from app.models.crm import Activity, CustomerCompany, CustomerContact, SupportRequest
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
+from app.services import sales_context
+from app.services.embeddings import EmbeddingError
 from app.services.report_sources import _NON_BODY_KEYS, _shared_body
+from app.services.storage import StorageError
 
 _CONTRACT_EXPIRING_WITHIN_DAYS = 30
 _QUOTE_EXPIRING_WITHIN_DAYS = 14
@@ -27,6 +31,10 @@ _CONTRACT_REVISIT_DUE_AFTER_DAYS = 7
 _CONTRACT_REVISIT_URGENT_AFTER_DAYS = 14
 _SCHEDULE_SEARCH_PADDING_DAYS = 7
 _DEFAULT_PREFERRED_WINDOW_DAYS = 7
+# 자료실 검색 API 의 q 상한과 맞춘다.
+_BRIEFING_QUERY_MAX_CHARS = 500
+# 청크 하나가 최대 1,600자라 5건이면 문맥 블록 상한(12,000자) 안에 든다.
+_BRIEFING_DOCUMENT_LIMIT = 5
 
 
 def _parse_aware_or_none(value: str) -> datetime | None:
@@ -453,6 +461,43 @@ async def build_next_meeting_snapshot(
     }
 
 
+def _briefing_search_query(
+    company: CustomerCompany,
+    activity: Activity,
+    deals: list[tuple[SalesDeal, SalesPipelineStage]],
+) -> str:
+    """자료실을 찾아볼 검색어. LLM 을 한 번 더 부르지 않고 결정적으로 만든다."""
+    parts = [company.name, activity.title, *(deal.title for deal, _stage in deals)]
+    # 자료실 검색 API 의 q 상한과 같은 길이로 자른다.
+    return " ".join(part for part in parts if part)[:_BRIEFING_QUERY_MAX_CHARS]
+
+
+async def _briefing_document_context(
+    db: AsyncSession,
+    company: CustomerCompany,
+    activity: Activity,
+    deals: list[tuple[SalesDeal, SalesPipelineStage]],
+) -> dict[str, Any]:
+    """자료요약 Agent 가 저장한 요약·근거를 브리핑 입력 형태로 가져온다.
+
+    조회가 실패해도 브리핑 자체는 만들어야 한다 — 계약에이전트_설계.md 의 "앞 단계
+    데이터가 없어도 최소 동작한다" 원칙에 따라 빈 문맥으로 되돌린다.
+    """
+    query = _briefing_search_query(company, activity, deals)
+    try:
+        return await sales_context.retrieve_briefing_context(
+            db,
+            team_id=company.team_id,
+            query=query,
+            limit=_BRIEFING_DOCUMENT_LIMIT,
+            # 자료는 딜에만 붙기도 하고 고객사에만 붙기도 해서 둘 다 넘긴다(OR).
+            sales_deal_id=activity.sales_deal_id,
+            customer_company_id=company.id,
+        )
+    except (SQLAlchemyError, EmbeddingError, StorageError):
+        return {"query": query, "summaries": [], "sources": []}
+
+
 async def build_briefing_snapshot(
     db: AsyncSession,
     member: Member,
@@ -460,8 +505,8 @@ async def build_briefing_snapshot(
 ) -> dict[str, Any]:
     """확정 미팅에 표시할 브리핑 입력을 일정 ID로 다시 조회한다.
 
-    자료요약 Agent(RAG)가 아직 없어 document_summaries 는 항상 빈 값이다 — 기획 문서의
-    "이전 단계 데이터가 없어도 최소 동작해야 한다" 원칙에 따라 비어 있는 채로 진행한다.
+    document_context 는 자료요약 Agent(RAG)의 조회 결과다. 관련 자료가 없거나 조회가
+    실패하면 비어 있는 채로 진행한다.
     """
     row = (
         await db.execute(
@@ -501,7 +546,9 @@ async def build_briefing_snapshot(
             "ends_at": activity.ends_at.isoformat() if activity.ends_at else None,
             "location": activity.location,
         },
-        "document_summaries": [],
+        # 구조화된 조회 결과를 그대로 둔다. 이 스냅샷은 agent_run.input_snapshot 으로
+        # 저장되므로, 실행 시점에 어떤 근거를 봤는지가 그대로 남는다.
+        "document_context": await _briefing_document_context(db, company, activity, deals),
     }
 
 
