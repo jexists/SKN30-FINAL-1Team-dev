@@ -10,7 +10,12 @@ import openai
 import pytest
 from pydantic import ValidationError
 
-from app.services.agent_logging import agent_log_context, log_agent_error, log_agent_event
+from app.services.agent_logging import (
+    agent_log_context,
+    collect_token_usage,
+    log_agent_error,
+    log_agent_event,
+)
 
 
 def _events(caplog):
@@ -156,6 +161,15 @@ def test_progress_records_actual_counts_timing_tokens_not_source(caplog):
     assert event["elapsed_ms"] == 45_200 and event["total_tokens"] == 195
     assert event["review_attempt"] == 2 and event["review_limit"] == 10
     assert "PRIVATE_" not in caplog.text
+
+
+def test_collect_token_usage_sums_model_events_and_restores_context():
+    with collect_token_usage() as usage:
+        log_agent_event("model.1", input_tokens=10, output_tokens=4, total_tokens=14)
+        log_agent_event("model.2", input_tokens=7, output_tokens=3, total_tokens=10)
+    log_agent_event("outside", input_tokens=99, output_tokens=99, total_tokens=198)
+
+    assert usage == {"input_tokens": 17, "output_tokens": 7, "total_tokens": 24}
 
 
 @pytest.mark.parametrize("failure", [False, True])

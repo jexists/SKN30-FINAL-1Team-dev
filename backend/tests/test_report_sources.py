@@ -4,16 +4,17 @@ import asyncio
 import json
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
 
 from app.api import reports
-from app.models.content import Report
+from app.models.content import Report, ReportSource, ReportSubmission
 from app.models.workspace import Member
 from app.services import report_sources as service
+from app.services import report_submissions
 
 
 @pytest.fixture
@@ -63,6 +64,7 @@ def sample(monkeypatch):
         ]
 
     monkeypatch.setattr(service, "_report_deals", report_deals)
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[]))
     return member, parent, sources, lookup
 
 
@@ -122,6 +124,256 @@ def test_daily_loads_stored_values_and_deduplicates_meeting_shared(sample):
     assert "전체 원문" not in str(result) and "미검토 초안" not in str(result)
     assert "ml_result" not in str(result) and "evidence_ids" not in str(result)
     assert lookup.await_count == 2
+
+
+def test_normalized_source_reads_the_immutable_submission_instead_of_mutable_report(
+    sample, monkeypatch
+):
+    member, parent, sources, lookup = sample
+    source = sources[0]
+    source.content = {"values": {"body": "제출 뒤 변조된 현재 초안"}}
+    submission = ReportSubmission(
+        id=uuid4(),
+        report_id=source.id,
+        revision_no=1,
+        report_version=4,
+        team_id=member.team_id,
+        submitted_by_member_id=member.id,
+        snapshot={
+            "schema_version": "report_submission.v1",
+            "report_id": str(source.id),
+            "report_kind": "meeting",
+            "report_date": parent.report_date.isoformat(),
+            "period_start": None,
+            "period_end": None,
+            "source_activity_id": str(source.source_activity_id),
+            "common_body": "확정 당시 공통 내용",
+            "unassigned_body": None,
+            "deals": [
+                {
+                    "sales_deal_id": str(source.sales_deal_id),
+                    "title": "확정 당시 제목",
+                    "body": "확정 당시 딜 본문",
+                    "structured_values": {"next_step": "견적 전달"},
+                }
+            ],
+        },
+        snapshot_sha256="0" * 64,
+        review_status="pending",
+        reviewed_by_member_id=None,
+        reviewed_at=None,
+        review_note=None,
+    )
+    submission.snapshot_sha256 = report_submissions.snapshot_sha256(submission.snapshot)
+    row = SimpleNamespace(
+        source_activity_id=None,
+        source_report_submission_id=submission.id,
+    )
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[row]))
+    monkeypatch.setattr(
+        service,
+        "_source_submissions",
+        AsyncMock(return_value={submission.id: (submission, source)}),
+    )
+
+    result = run(sample)
+
+    assert result["reports"][0]["submission_id"] == str(submission.id)
+    assert result["reports"][0]["title"] == "확정 당시 제목"
+    assert result["reports"][0]["values"] == {
+        "next_step": "견적 전달",
+        "body": "확정 당시 딜 본문",
+    }
+    assert result["meetings"][0]["common_report"] == {"body": "확정 당시 공통 내용"}
+    assert "변조된 현재 초안" not in str(result)
+    lookup.assert_not_awaited()
+
+
+def test_submission_snapshot_keeps_ordered_source_revision_refs(sample):
+    _, parent, _, _ = sample
+    first_submission_id, second_submission_id = uuid4(), uuid4()
+    direct_activity_id = uuid4()
+    rows = [
+        ReportSource(
+            report_id=parent.id,
+            position=2,
+            source_activity_id=None,
+            source_report_submission_id=second_submission_id,
+        ),
+        ReportSource(
+            report_id=parent.id,
+            position=0,
+            source_activity_id=direct_activity_id,
+            source_report_submission_id=None,
+        ),
+        ReportSource(
+            report_id=parent.id,
+            position=1,
+            source_activity_id=None,
+            source_report_submission_id=first_submission_id,
+        ),
+    ]
+
+    snapshot = report_submissions.build_submission_snapshot(parent, [], rows)
+
+    assert snapshot["source_refs"] == [
+        {
+            "position": 0,
+            "source_activity_id": str(direct_activity_id),
+            "source_report_submission_id": None,
+        },
+        {
+            "position": 1,
+            "source_activity_id": None,
+            "source_report_submission_id": str(first_submission_id),
+        },
+        {
+            "position": 2,
+            "source_activity_id": None,
+            "source_report_submission_id": str(second_submission_id),
+        },
+    ]
+
+
+def test_normalized_direct_activity_is_not_silently_dropped(sample, monkeypatch):
+    member, parent, _, lookup = sample
+    activity_id = uuid4()
+    row = SimpleNamespace(
+        source_activity_id=activity_id,
+        source_report_submission_id=None,
+    )
+    activity = {
+        "id": activity_id,
+        "source": "캘린더",
+        "included": True,
+        "title": "견적 검토 후속 전화",
+    }
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[row]))
+    monkeypatch.setattr(service, "_source_submissions", AsyncMock(return_value={}))
+    load_activities = AsyncMock(return_value=[activity])
+    monkeypatch.setattr(service, "_source_activities", load_activities)
+
+    result = run(sample)
+
+    assert result == {
+        "reports": [],
+        "meetings": [],
+        "activities": [{**activity, "id": str(activity_id)}],
+    }
+    load_activities.assert_awaited_once_with(
+        ANY,
+        member,
+        parent,
+        [activity_id],
+    )
+    lookup.assert_not_awaited()
+
+
+def test_new_period_save_materializes_selected_submission_as_canonical_source(sample, monkeypatch):
+    member, parent, sources, _ = sample
+    source = sources[0]
+    source.current_submission_id = uuid4()
+    refs(parent, [source])
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [source]
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+    db.add = MagicMock()
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[]))
+
+    changed = asyncio.run(service.sync_report_sources_from_legacy_content(db, member, parent))
+
+    assert changed
+    stored = db.add.call_args.args[0]
+    assert stored.report_id == parent.id
+    assert stored.position == 0
+    assert stored.source_activity_id is None
+    assert stored.source_report_submission_id == source.current_submission_id
+
+
+def test_legacy_finalized_source_is_materialized_before_parent_links(sample, monkeypatch):
+    member, parent, sources, _ = sample
+    source = sources[0]
+    source.current_submission_id = None
+    refs(parent, [source])
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [source]
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+    db.add = MagicMock()
+    submission_id = uuid4()
+
+    async def materialize(_db, legacy):
+        legacy.current_submission_id = submission_id
+        return SimpleNamespace(id=submission_id)
+
+    ensure = AsyncMock(side_effect=materialize)
+    monkeypatch.setattr(service, "materialize_legacy_submission", ensure)
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[]))
+
+    changed = asyncio.run(service.sync_report_sources_from_legacy_content(db, member, parent))
+
+    assert changed
+    ensure.assert_awaited_once_with(db, source)
+    assert db.add.call_args.args[0].source_report_submission_id == submission_id
+
+
+def test_legacy_submission_materialization_uses_the_report_author(sample, monkeypatch):
+    member, report, _, _ = sample
+    report.status_code = "submitted"
+    report.current_submission_id = None
+    submission = ReportSubmission(
+        id=uuid4(),
+        report_id=report.id,
+        revision_no=1,
+        report_version=1,
+        team_id=report.team_id,
+        submitted_by_member_id=member.id,
+        snapshot={},
+        snapshot_sha256="0" * 64,
+        review_status="pending",
+        reviewed_by_member_id=None,
+        reviewed_at=None,
+        review_note=None,
+    )
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=member)
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[]))
+    monkeypatch.setattr(service, "_report_deals", AsyncMock(return_value=[]))
+    create = AsyncMock(return_value=submission)
+    monkeypatch.setattr(service, "create_submission", create)
+
+    result = asyncio.run(service.materialize_legacy_submission(db, report))
+
+    assert result is submission
+    assert report.current_submission_id == submission.id
+    create.assert_awaited_once_with(
+        db,
+        report,
+        member,
+        [],
+        submitted_by_member_id=report.author_member_id,
+    )
+
+
+def test_legacy_approved_materialization_requires_original_review_metadata(sample, monkeypatch):
+    member, report, _, _ = sample
+    report.status_code = "approved"
+    report.current_submission_id = None
+    report.reviewed_by_member_id = None
+    report.reviewed_at = None
+    submission = SimpleNamespace(id=uuid4(), review_status="pending")
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=member)
+    monkeypatch.setattr(service, "_report_source_rows", AsyncMock(return_value=[]))
+    monkeypatch.setattr(service, "_report_deals", AsyncMock(return_value=[]))
+    monkeypatch.setattr(service, "create_submission", AsyncMock(return_value=submission))
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(service.materialize_legacy_submission(db, report))
+
+    assert error.value.detail == "legacy_report_review_metadata_missing"
+    assert report.current_submission_id is None
 
 
 def test_daily_keeps_each_common_body_linked_to_its_meeting(sample):

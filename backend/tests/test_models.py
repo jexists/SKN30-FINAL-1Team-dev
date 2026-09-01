@@ -61,10 +61,13 @@ EXPECTED_COLUMN_COUNTS = {
     "purchase_order": 17,
     "purchase_order_item": 6,
     "sales_target": 5,
-    # report는 미팅 공통 1행, report_deal은 딜별 본문 N행이다. 팀장의 반려 사유는
-    # 작성자의 note와 review_note로 칸을 나눈다.
-    "report": 22,
-    "report_deal": 7,
+    # report는 수정 가능한 aggregate, report_submission은 확정 당시 불변 스냅샷이다.
+    # report_deal은 딜별 본문 N행, meeting_deal_analysis는 실행별 ML 결과를 보관한다.
+    "report": 32,
+    "report_deal": 13,
+    "report_submission": 13,
+    "report_source": 4,
+    "meeting_deal_analysis": 10,
     "report_activity": 2,
     # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
     "document": 14,
@@ -72,7 +75,7 @@ EXPECTED_COLUMN_COUNTS = {
     "file": 23,
     "document_chunk": 12,
     "document_file_audit": 9,
-    "agent_run": 17,
+    "agent_run": 34,
     # 20260829_0013 으로 contract_next_meeting_suggestion 을 새로 만들었다.
     "contract_next_meeting_suggestion": 7,
 }
@@ -104,14 +107,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 390
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 450
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 97
+    assert len(foreign_key_constraints) == 110
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints
