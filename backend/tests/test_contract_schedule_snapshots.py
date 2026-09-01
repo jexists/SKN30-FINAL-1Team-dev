@@ -554,6 +554,13 @@ async def test_contract_report_context_rejects_malformed_shared(content, has_act
 async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
     member = _member()
     deal = _deal(member)
+    # 날짜를 박아 두면 그날이 지난 뒤에는 기간이 통째로 버려지는데, 이 테스트는 기간을
+    # 단언하지 않아 그래도 통과한다 — 이름과 달리 아무것도 검사하지 않게 된다.
+    base = datetime.now(UTC)
+    preferred_starts_at = (base + timedelta(days=2)).isoformat()
+    preferred_ends_at = (
+        base + timedelta(days=2 + snapshots._MIN_PREFERRED_WINDOW_DAYS)
+    ).isoformat()
     parent = AgentRun(
         id=uuid4(),
         team_id=member.team_id,
@@ -563,8 +570,8 @@ async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
             "next_meeting_suggestion": {
                 "sales_deal_id": str(deal.id),
                 "reason": "계약 갱신 협의",
-                "preferred_starts_at": "2026-08-25T00:00:00+09:00",
-                "preferred_ends_at": "2026-08-28T00:00:00+09:00",
+                "preferred_starts_at": preferred_starts_at,
+                "preferred_ends_at": preferred_ends_at,
                 "duration_minutes": 45,
             }
         },
@@ -590,6 +597,9 @@ async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
 
     assert snapshot["duration_minutes"] == 45
     assert snapshot["reason"] == "계약 갱신 협의"
+    # 이 테스트의 이름이 주장하는 것. 없으면 기간이 버려져도 통과한다.
+    assert snapshot["preferred_starts_at"] == preferred_starts_at
+    assert snapshot["preferred_ends_at"] == preferred_ends_at
     assert snapshot["activities"] == [
         {
             "id": str(activity.id),
@@ -610,19 +620,90 @@ async def test_build_schedule_snapshot_without_parent_uses_request_preferred_win
         _Result(scalar_values=[]),
     )
 
+    # 날짜를 박아 두면 그날이 지나는 순간 build_schedule_snapshot 이 시작을 now 로 당겨
+    # (max) 다른 분기를 탄다 — 오늘이 언제든 미래가 되도록 now 기준으로 만든다.
+    base = datetime.now(UTC)
+    starts_at = (base + timedelta(days=3)).isoformat()
+    # 최소 폭보다 넓게 잡는다. 좁으면 끝이 밀려 "요청값을 그대로 쓴다"를 검사하지 못한다.
+    ends_at = (base + timedelta(days=3 + snapshots._MIN_PREFERRED_WINDOW_DAYS)).isoformat()
+
     snapshot = await snapshots.build_schedule_snapshot(
         db,
         member,
         deal.id,
         None,
-        "2026-09-01T00:00:00+09:00",
-        "2026-09-03T00:00:00+09:00",
+        starts_at,
+        ends_at,
         30,
     )
 
-    assert snapshot["preferred_starts_at"] == "2026-09-01T00:00:00+09:00"
+    assert snapshot["preferred_starts_at"] == starts_at
+    assert snapshot["preferred_ends_at"] == ends_at
     assert snapshot["duration_minutes"] == 30
     assert snapshot["reason"] is None
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_widens_a_narrow_preferred_window():
+    """계약관리가 "30분 한 칸"을 줘도 첫 실행 전에 최소 폭을 확보한다.
+
+    좁은 기간으로는 후보가 거의 나오지 않는다 — 실측에서 폭 1일 이하 실행의 평균 후보는
+    2.0개였다. 실패한 뒤에 넓혀 다시 부르는 대신, 부르기 전에 넓힌다.
+    """
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+    base = datetime.now(UTC)
+    starts_at = (base + timedelta(days=3)).isoformat()
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        starts_at,
+        (base + timedelta(days=3, minutes=30)).isoformat(),
+        30,
+    )
+
+    # 시작은 계약관리의 판단이라 그대로 두고 끝만 민다.
+    assert snapshot["preferred_starts_at"] == starts_at
+    assert (
+        snapshot["preferred_ends_at"]
+        == (
+            datetime.fromisoformat(starts_at) + timedelta(days=snapshots._MIN_PREFERRED_WINDOW_DAYS)
+        ).isoformat()
+    )
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_drops_a_preferred_window_already_past():
+    """이미 지난 선호 기간은 버리고 기본 탐색 범위로 넘긴다.
+
+    과거 날짜는 시간이 흘러도 계속 과거라, 여기서는 박아 둬도 썩지 않는다.
+    """
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2020-01-01T09:00:00+09:00",
+        "2020-01-03T18:00:00+09:00",
+        30,
+    )
+
+    assert snapshot["preferred_starts_at"] is None
+    assert snapshot["preferred_ends_at"] is None
 
 
 @pytest.mark.anyio

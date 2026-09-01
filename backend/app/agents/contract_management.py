@@ -30,7 +30,7 @@ def _now() -> datetime:
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
 SELECT_CANDIDATES_PROMPT_VERSION = "contract_management.select_candidates.v2"
-PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v3"
+PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v4"
 GENERATE_BRIEFING_PROMPT_VERSION = "contract_management.generate_briefing.v1"
 
 SELECT_CANDIDATES_SYSTEM_PROMPT = """너는 B2B 영업·계약관리를 보조하는 AI다.
@@ -80,6 +80,12 @@ preferred_starts_at·preferred_ends_at은 반드시 current_date 이후여야 �
 preferred_starts_at ~ preferred_ends_at 은 일정관리가 후보를 찾아볼 "기간"이다. 미팅
 하나가 겨우 들어갈 폭으로 좁게 주지 마라 — 그 자리가 이미 차 있으면 후보가 하나도 나오지
 않는다. 급하면 이번 주, 여유가 있으면 2주 안처럼 넓게 잡아라.
+
+recent_approved_reports 본문에 다음 만남을 언제 하기로 했다는 말이 있으면(예: "다음 주
+금요일에 봅시다"), 그 날짜가 preferred_starts_at ~ preferred_ends_at 안에 들어가게 잡고,
+근거가 된 문장을 reason 에 그대로 인용하라. 다만 그 날 하루로 좁히지는 마라 — 앞뒤로 며칠을
+함께 줘야 그 자리가 이미 차 있어도 후보가 나온다. "언제 한번 보시죠" 처럼 시점을 정하지 않은
+말은 약속으로 보지 마라.
 
 duration_minutes 는 습관적으로 같은 값을 쓰지 말고, reason 에 쓴 안건에 맞춰 정하라.
 "수락 여부만 확인"과 "요구사항을 처음부터 정리"는 필요한 시간이 다르다. 왜 그 시간이

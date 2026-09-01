@@ -27,6 +27,14 @@ _CONTRACT_REVISIT_DUE_AFTER_DAYS = 7
 _CONTRACT_REVISIT_URGENT_AFTER_DAYS = 14
 _SCHEDULE_SEARCH_PADDING_DAYS = 7
 _DEFAULT_PREFERRED_WINDOW_DAYS = 7
+# 계약관리가 준 선호 기간이 이 폭보다 좁으면 끝을 밀어 이만큼 확보한다.
+#
+# 실행 145건 실측: 폭이 1일 이하인 34건은 후보가 평균 2.0개(0개로 끝난 실행 2건)였고,
+# 7일 이상인 35건은 평균 5.9개(0개 0건)였다. 게다가 그 34건이 낸 후보 69개 중 선호 기간을
+# 실제로 지킨 것은 15개뿐이었다 — 좁은 기간은 지켜지지도 않은 채 결과만 나빴다.
+#
+# 선호 기간이 아예 없을 때 쓰는 폭과 같은 값으로 맞춘다. 기준을 두 개 두지 않는다.
+_MIN_PREFERRED_WINDOW_DAYS = _DEFAULT_PREFERRED_WINDOW_DAYS
 
 
 def _parse_aware_or_none(value: str) -> datetime | None:
@@ -542,6 +550,16 @@ async def build_schedule_snapshot(
     else:
         window_start = datetime.fromisoformat(preferred_starts_at)
         window_end = datetime.fromisoformat(preferred_ends_at)
+        # 좁은 선호 기간은 첫 실행 전에 넓힌다. 계약관리가 "30분 한 칸"처럼 좁은 기간을
+        # 줄 때가 있는데, 그 폭으로는 쓸 만한 후보가 나오지 않는다.
+        #
+        # 끝만 뒤로 민다. 시작을 당기면 계약관리가 의도한 시점보다 앞선 시간을 제안하게
+        # 되는데, "왜 지금인가"는 계약관리의 판단이라 여기서 뒤집지 않는다.
+        widened_end = window_start + timedelta(days=_MIN_PREFERRED_WINDOW_DAYS)
+        if widened_end > window_end:
+            window_end = widened_end
+            preferred_starts_at = window_start.isoformat()
+            preferred_ends_at = window_end.isoformat()
 
     padding = timedelta(days=_SCHEDULE_SEARCH_PADDING_DAYS)
     activities = (
