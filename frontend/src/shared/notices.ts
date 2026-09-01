@@ -31,6 +31,8 @@ export function toNotice(item: NoticeLike): Notice {
     due: item.due_text ?? item.due_at?.slice(0, 10),
     // 공지는 수신자가 없어 빈 목록입니다. 없는 것과 같게 두어 화면이 자리를 잡지 않게 합니다.
     recipients: item.targets.length === 0 ? undefined : item.targets.map((t) => t.display_name),
+    // 내가 받은 지시일 때만 옵니다. 공지이거나 남에게 간 지시면 서버가 null 을 줍니다.
+    myStatus: item.my_status ?? undefined,
   }
 }
 

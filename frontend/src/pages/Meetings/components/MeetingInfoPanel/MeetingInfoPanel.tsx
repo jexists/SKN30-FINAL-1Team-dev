@@ -20,6 +20,7 @@ interface Props {
   dealsError: string | null
   onReloadDeals: () => void
   selectedDealIds: string[]
+  fixedDealIds?: string[]
   onToggleDeal: (id: string) => void
   disabled: boolean
 }
@@ -31,6 +32,7 @@ export default function MeetingInfoPanel({
   dealsError,
   onReloadDeals,
   selectedDealIds,
+  fixedDealIds,
   onToggleDeal,
   disabled,
 }: Props) {
@@ -62,6 +64,7 @@ export default function MeetingInfoPanel({
           error={dealsError}
           onRetry={onReloadDeals}
           selected={selectedDealIds}
+          fixed={fixedDealIds}
           onToggle={onToggleDeal}
           disabled={disabled}
         />

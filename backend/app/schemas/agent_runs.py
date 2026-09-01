@@ -4,16 +4,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from app.schemas.meeting_content import SegmentAssignment
+
 AgentCode = Literal[
     "report_writing",
     "meeting_analysis",
+    "meeting_processing",
     "contract_management_select_candidates",
     "contract_management_next_meeting",
     "contract_management_briefing",
     "schedule_management",
 ]
 # queued -> running -> completed 또는 failed 로만 움직인다.
-AgentStatus = Literal["queued", "running", "completed", "failed"]
+AgentStatus = Literal["queued", "running", "completed", "partial", "failed", "cancelled"]
+AgentApplyStatus = Literal["pending", "applied", "stale", "not_applicable"]
 
 # 사람이 덧붙이는 지시문. 그대로 프롬프트에 들어가므로 길이를 잘라둔다.
 Guidance = Annotated[
@@ -26,6 +30,7 @@ Guidance = Annotated[
 _REQUIRED_FIELDS: dict[str, set[str]] = {
     "report_writing": {"report_id"},
     "meeting_analysis": {"report_id"},
+    "meeting_processing": {"report_id"},
     # 로그인한 담당자의 전체 포트폴리오를 대상으로 돈다 — 특정 대상을 지정하지 않는다.
     "contract_management_select_candidates": set(),
     "contract_management_next_meeting": {"customer_company_id"},
@@ -33,6 +38,7 @@ _REQUIRED_FIELDS: dict[str, set[str]] = {
     "schedule_management": {"sales_deal_id"},
 }
 _OPTIONAL_FIELDS: dict[str, set[str]] = {
+    "meeting_processing": {"parent_run_id", "assignment_overrides"},
     # AI 제안(일정관리 실행)을 승인해서 만든 일정만 부모를 기록한다. 캘린더 직접 입력이나
     # 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은 부모 없이 activity_id만으로 만든다.
     "contract_management_briefing": {"parent_run_id"},
@@ -45,6 +51,8 @@ _OPTIONAL_FIELDS: dict[str, set[str]] = {
 }
 _IDENTIFYING_FIELDS = {
     "report_id",
+    "report_ids",
+    "assignment_overrides",
     "customer_company_id",
     "sales_deal_id",
     "activity_id",
@@ -60,8 +68,13 @@ class AgentRunCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     agent_code: AgentCode
-    # 실행 원문을 가진 보고서. report_writing/meeting_analysis 에서만 쓴다.
+    # 실행 원문을 가진 보고서. 보고서 작성·분석과 미팅 통합 처리에서 쓴다.
     report_id: UUID | None = None
+    # 과거 클라이언트 입력을 명시적으로 거절하기 위해 남긴 필드다.
+    report_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=100)
+    assignment_overrides: list[SegmentAssignment] | None = Field(
+        default=None, min_length=1, max_length=5_000
+    )
     # 회사 단위로 실행하는 계약관리 에이전트가 쓴다.
     customer_company_id: UUID | None = None
     # 딜 단위로 실행하는 일정관리 에이전트가 쓴다.
@@ -97,6 +110,15 @@ class AgentRunCreate(BaseModel):
             if getattr(self, name) is not None:
                 raise ValueError(f"{name}_not_supported")
 
+        if self.report_ids is not None and len(set(self.report_ids)) != len(self.report_ids):
+            raise ValueError("report_ids_duplicate")
+        if self.agent_code == "meeting_processing":
+            if bool(self.assignment_overrides) != bool(self.parent_run_id):
+                raise ValueError("meeting_assignment_parent_required")
+            ids = [item.segment_id for item in self.assignment_overrides or []]
+            if len(set(ids)) != len(ids):
+                raise ValueError("assignment_segment_duplicate")
+
         if self.agent_code == "schedule_management" and self.parent_run_id is None:
             # 계약관리 제안이 없으면 선호 시간대를 직접 받아야 한다.
             missing = {"preferred_starts_at", "preferred_ends_at", "duration_minutes"} - {
@@ -114,6 +136,34 @@ class AgentRunCreate(BaseModel):
         return self
 
 
+class MeetingNotesPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: UUID
+    # 두 본문을 함께 교체하므로 모두 필수다. null은 해당 본문 삭제를 뜻한다.
+    common_body: str | None = Field(max_length=100_000)
+    unassigned_body: str | None = Field(max_length=100_000)
+
+
+class MeetingGenerationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: UUID
+    parent_run_id: UUID | None = None
+    assignment_overrides: list[SegmentAssignment] | None = Field(
+        default=None, min_length=1, max_length=5_000
+    )
+
+    @model_validator(mode="after")
+    def _check_parent_and_overrides(self):
+        if bool(self.assignment_overrides) != bool(self.parent_run_id):
+            raise ValueError("meeting_assignment_parent_required")
+        ids = [item.segment_id for item in self.assignment_overrides or []]
+        if len(set(ids)) != len(ids):
+            raise ValueError("assignment_segment_duplicate")
+        return self
+
+
 class AgentRunRead(BaseModel):
     """실행 이력 응답. 어떤 모델·프롬프트로 돌렸는지까지 함께 남긴다."""
 
@@ -124,6 +174,7 @@ class AgentRunRead(BaseModel):
     llm_model_name: str
     prompt_version: str
     requested_by_member_id: UUID | None
+    report_id: UUID | None
     # 이 실행이 무엇을 참조했는지 (예: report_id)
     source_refs: dict[str, Any]
     # 완료 전에는 없다. 보고서에 자동 반영되지 않는 "제안" 초안이다.
@@ -132,6 +183,17 @@ class AgentRunRead(BaseModel):
     evidence: dict[str, Any] | None
     # 실패했을 때만 채워진다.
     error_message: str | None
+    error_code: str | None
+    apply_status: AgentApplyStatus
+    current_stage_code: str | None
+    attempt_count: int
+    base_report_version: int | None
+    base_generation_input_version: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
     # 이 API 에서는 서울 시간으로 변환해서 내보낸다.
+    created_at: datetime | None
+    heartbeat_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None

@@ -4,6 +4,26 @@
   min-width: 0;
 }
 
+/* 바깥 DealReportCard가 면과 그림자를 맡습니다. 본문·액션의 기능만 남깁니다. */
+.embedded {
+  .sheet {
+    padding: var(--s5);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .actions {
+    position: static;
+    padding: var(--s3) var(--s5) var(--s4);
+    background: none;
+  }
+
+  .broken {
+    margin: 0 var(--s5) var(--s4);
+  }
+}
+
 /*
  * 왼쪽 참고판과 같은 흰 면이지만 이쪽만 떠 있습니다. 참고판은 놓여 있고
  * 이 문서는 들려 있습니다 — 그림자 한 겹과 넉넉한 여백이 그 차이를 혼자
@@ -112,10 +132,7 @@
   line-height: 1.7;
 }
 
-/*
- * 이 화면의 유일한 저장 지점입니다. 머리말에는 저장 버튼을 두지 않습니다.
- * 시트 아래에 붙어 따라오되, 화면 전체를 가로지르지 않아 본문을 가리지 않습니다.
- */
+/* AI 원본 재생성과 저장된 보고서 이동처럼 이 카드에만 해당하는 보조 조작입니다. */
 .actions {
   position: sticky;
   bottom: 0;
@@ -129,15 +146,6 @@
 
   @include sm {
     flex-wrap: wrap;
-  }
-}
-
-.submit {
-  margin-left: auto;
-
-  @include sm {
-    margin-left: 0;
-    width: 100%;
   }
 }
 

@@ -111,6 +111,45 @@ def test_queue_defers_the_chain_to_the_background():
     assert background.tasks == [(pipeline._run_pipeline, (sales_deal_id, {"report_id": "r-1"}))]
 
 
+def test_report_trigger_passes_the_submitted_report_to_the_snapshot(monkeypatch):
+    """최신 5건 밖이어도 방금 확정한 보고서는 계약관리 입력에 반드시 포함한다."""
+    monkeypatch.setattr(pipeline.settings.__class__, "llm_configured", property(lambda _self: True))
+    owner = _member()
+    deal = _deal(owner)
+    report_id = uuid4()
+    captured = []
+
+    class _Context:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, *_exc):
+            return False
+
+    async def _build(db, member, company_id, sales_deal_id, required_report_id):
+        captured.append((db, member, company_id, sales_deal_id, required_report_id))
+        raise pipeline.HTTPException(404, "stop_after_capture")
+
+    async def _true(*_args):
+        return True
+
+    async def _deal_result(*_args):
+        return deal
+
+    async def _member_result(*_args):
+        return owner
+
+    monkeypatch.setattr(pipeline, "get_sessionmaker", lambda: lambda: _Context())
+    monkeypatch.setattr(pipeline, "_reserve", _true)
+    monkeypatch.setattr(pipeline, "_open_deal", _deal_result)
+    monkeypatch.setattr(pipeline, "_member", _member_result)
+    monkeypatch.setattr(pipeline.contract_schedule_snapshots, "build_next_meeting_snapshot", _build)
+
+    asyncio.run(pipeline._run_pipeline(deal.id, {"report_id": str(report_id)}))
+
+    assert captured[0][2:] == (deal.customer_company_id, deal.id, report_id)
+
+
 def test_reserve_locks_the_deal_before_looking():
     """잠금이 조회보다 먼저 걸려야 한다 — 순서가 뒤집히면 막지 못하는 틈이 그대로 남는다."""
     sales_deal_id = uuid4()

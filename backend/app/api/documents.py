@@ -1,31 +1,51 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Path,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession
 from app.core.config import settings
-from app.models.content import Document
+from app.models.content import Document, DocumentFileAudit
 from app.models.content import File as FileRow
-from app.models.crm import CustomerCompany
+from app.models.crm import CustomerCompany, CustomerContact
 from app.models.sales import Product, PurchaseOrder, SalesDeal
 from app.models.workspace import Member, Team
+from app.schemas.business_cards import BusinessCardDraft
 from app.schemas.documents import (
+    DocumentBriefingContextRead,
+    DocumentChunkRead,
     DocumentCreate,
     DocumentFileRead,
     DocumentPage,
     DocumentPageParams,
     DocumentPatch,
+    DocumentProcessBatchRead,
+    DocumentProcessBatchRequest,
     DocumentRead,
+    DocumentSummaryRead,
     DocumentUploaderRead,
     DownloadRead,
 )
-from app.services import storage
+from app.services import business_cards, document_processing, sales_context, storage
+from app.services.llm import LLMError
+from app.services.ocr import OcrError
 from app.services.storage import StorageError
 from app.services.upload_guard import UploadRejected, check_size, check_upload
 
@@ -92,6 +112,7 @@ def _file_read(row: FileRow, uploader_display_name: str) -> DocumentFileRead:
         media_type=row.media_type,
         byte_size=row.byte_size,
         processing_status=row.processing_status,
+        processing_error=row.processing_error,
         uploaded_by_member_id=row.uploaded_by_member_id,
         uploaded_by_display_name=uploader_display_name,
         note=row.note,
@@ -115,6 +136,7 @@ def _document_read(
         description=document.description,
         customer_company_id=document.customer_company_id,
         customer_company_name=company_name,
+        customer_contact_id=document.customer_contact_id,
         sales_deal_id=document.sales_deal_id,
         sales_deal_no=deal_no,
         purchase_order_id=document.purchase_order_id,
@@ -201,8 +223,41 @@ async def _detail(db: AsyncSession, member: Member, document_id: UUID) -> Docume
     return _document_read(*row, files[document_id])
 
 
+async def _file_row(
+    db: AsyncSession,
+    member: Member,
+    document_id: UUID,
+    file_id: UUID,
+) -> FileRow:
+    await _document_row(db, member, document_id)
+    row = (
+        await db.execute(
+            select(FileRow).where(
+                FileRow.id == file_id,
+                FileRow.document_id == document_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="file_not_found")
+    return row
+
+
+def _ensure_exclusive_document_link(*, product_id: UUID | None, sales_deal_id: UUID | None) -> None:
+    """자료는 상품 또는 딜 하나에만 연결되도록 최종 상태를 검사한다."""
+    if product_id is not None and sales_deal_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="document_link_conflict",
+        )
+
+
 async def _validate_links(db: AsyncSession, member: Member, values: dict) -> None:
     """다른 팀 FK 를 붙이지 못하게 막는다. 존재 여부는 404 로 숨긴다."""
+    _ensure_exclusive_document_link(
+        product_id=values.get("product_id"),
+        sales_deal_id=values.get("sales_deal_id"),
+    )
     checks = (
         ("customer_company_id", CustomerCompany, "customer_company_not_found"),
         ("sales_deal_id", SalesDeal, "sales_deal_not_found"),
@@ -220,6 +275,24 @@ async def _validate_links(db: AsyncSession, member: Member, values: dict) -> Non
         ).scalar_one_or_none()
         if found is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+    contact_id = values.get("customer_contact_id")
+    if contact_id is not None:
+        found = (
+            await db.execute(
+                select(CustomerContact.id)
+                .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
+                .where(
+                    CustomerContact.id == contact_id,
+                    CustomerCompany.team_id == member.team_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if found is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="customer_contact_not_found",
+            )
 
 
 async def _next_document_no(db: AsyncSession, member: Member, year: int) -> str:
@@ -344,6 +417,134 @@ async def list_documents(
     )
 
 
+@router.get("/documents/rag-search", response_model=list[DocumentChunkRead])
+async def search_document_chunks(
+    q: Annotated[str, Query(min_length=1, max_length=500)],
+    member: CurrentMember,
+    db: DbSession,
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+    document_id: UUID | None = None,
+    sales_deal_id: UUID | None = None,
+) -> list[DocumentChunkRead]:
+    """영업·계약관리 Agent가 자료요약 결과를 조회하는 RAG 접점."""
+    results = await document_processing.search_chunks(
+        db,
+        team_id=member.team_id,
+        query=q,
+        limit=limit,
+        document_id=document_id,
+        sales_deal_id=sales_deal_id,
+    )
+    return [
+        DocumentChunkRead(
+            chunk_id=row.id,
+            document_id=row.document_id,
+            file_id=row.file_id,
+            chunk_no=row.chunk_no,
+            page_start=row.page_start,
+            page_end=row.page_end,
+            section=row.section,
+            content=row.content,
+            score=score,
+            metadata=dict(row.metadata_json or {}),
+        )
+        for row, score in results
+    ]
+
+
+@router.get(
+    "/documents/briefing-context",
+    response_model=DocumentBriefingContextRead,
+)
+async def get_briefing_context(
+    q: Annotated[str, Query(min_length=1, max_length=500)],
+    member: CurrentMember,
+    db: DbSession,
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+    document_id: UUID | None = None,
+    sales_deal_id: UUID | None = None,
+) -> DocumentBriefingContextRead:
+    """영업·계약관리 Agent가 브리핑에 사용할 요약·RAG 문맥을 반환한다."""
+    context = await sales_context.retrieve_briefing_context(
+        db,
+        team_id=member.team_id,
+        query=q,
+        limit=limit,
+        document_id=document_id,
+        sales_deal_id=sales_deal_id,
+    )
+    return DocumentBriefingContextRead.model_validate(context)
+
+
+@router.post(
+    "/documents/process-batch",
+    response_model=DocumentProcessBatchRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def process_document_batch(
+    payload: DocumentProcessBatchRequest,
+    background: BackgroundTasks,
+    member: CurrentMember,
+    db: DbSession,
+) -> DocumentProcessBatchRead:
+    """화면과 분리된 자료요약 배치를 접수한다.
+
+    파일 ID를 다시 팀 범위로 조회해 권한을 검증한 뒤, 현재 요청에서만
+    순차 작업을 시작한다. 서버 재시작 시 복구하는 영속 큐는 별도 범위다.
+    """
+    if not settings.llm_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_not_configured",
+        )
+
+    file_ids = list(dict.fromkeys(payload.file_ids))
+    rows = (
+        await db.execute(
+            select(FileRow, Member.display_name)
+            .join(Document, Document.id == FileRow.document_id)
+            .join(Member, Member.id == FileRow.uploaded_by_member_id)
+            .where(FileRow.id.in_(file_ids), Document.team_id == member.team_id)
+        )
+    ).all()
+    rows_by_id = {row.id: (row, display_name) for row, display_name in rows}
+    if len(rows_by_id) != len(file_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document_file_not_found")
+
+    queued: list[UUID] = []
+    reads: list[DocumentFileRead] = []
+    for file_id in file_ids:
+        row, display_name = rows_by_id[file_id]
+        if row.processing_status != "processing":
+            previous_status = row.processing_status
+            row.processing_status = "processing"
+            row.processing_error = None
+            row.review_expires_at = None
+            row.unapproved_expires_at = None
+            row.approved_by_member_id = None
+            row.approved_at = None
+            if previous_status == "completed":
+                db.add(
+                    DocumentFileAudit(
+                        id=uuid4(),
+                        team_id=member.team_id,
+                        document_id=row.document_id,
+                        file_id=row.id,
+                        action_code="summary_reprocess_requested",
+                        actor_member_id=member.id,
+                        before_snapshot={"processing_status": previous_status},
+                        after_snapshot={"processing_status": "processing"},
+                    )
+                )
+            queued.append(row.id)
+        reads.append(_file_read(row, display_name))
+
+    await db.commit()
+    if queued:
+        background.add_task(document_processing.execute_batch, queued)
+    return DocumentProcessBatchRead(files=reads)
+
+
 @router.get("/documents/{document_id}", response_model=DocumentRead)
 async def get_document(
     document_id: UUID,
@@ -372,6 +573,7 @@ async def create_document(
             title=payload.title,
             description=payload.description,
             customer_company_id=payload.customer_company_id,
+            customer_contact_id=payload.customer_contact_id,
             sales_deal_id=payload.sales_deal_id,
             purchase_order_id=payload.purchase_order_id,
             product_id=payload.product_id,
@@ -408,6 +610,10 @@ async def update_document(
                 detail="document_not_found",
             )
         values = payload.model_dump(exclude_unset=True)
+        _ensure_exclusive_document_link(
+            product_id=values.get("product_id", document.product_id),
+            sales_deal_id=values.get("sales_deal_id", document.sales_deal_id),
+        )
         await _validate_links(db, member, values)
         for field_name, value in values.items():
             setattr(document, field_name, value)
@@ -449,6 +655,7 @@ async def upload_document_file(
         ) from rejected
 
     storage_key = storage.build_storage_key(member.team_id, allowed.extension)
+    uploaded_at = datetime.now(UTC)
     try:
         await storage.upload(
             storage_key=storage_key,
@@ -491,11 +698,34 @@ async def upload_document_file(
             byte_size=len(content),
             processing_status="uploaded",
             extracted_text=None,
+            review_expires_at=None,
+            unapproved_expires_at=document_processing.retention_deadline(
+                now=uploaded_at,
+                days=settings.document_unapproved_file_retention_days,
+            ),
+            approved_by_member_id=None,
+            approved_at=None,
             uploaded_by_member_id=member.id,
             note=note,
+            uploaded_at=uploaded_at,
         )
         db.add(row)
         await db.flush()
+        db.add(
+            DocumentFileAudit(
+                id=uuid4(),
+                team_id=member.team_id,
+                document_id=document_id,
+                file_id=row.id,
+                action_code="file_uploaded",
+                actor_member_id=member.id,
+                before_snapshot=None,
+                after_snapshot={
+                    "version_no": row.version_no,
+                    "file_name": row.file_name,
+                },
+            )
+        )
         read = _file_read(row, member.display_name)
         await db.commit()
     except Exception:
@@ -504,6 +734,238 @@ async def upload_document_file(
         await storage.remove(storage_key=storage_key)
         raise
     return read
+
+
+@router.post(
+    "/documents/{document_id}/files/{file_id}/process",
+    response_model=DocumentFileRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def process_document_file(
+    document_id: UUID,
+    file_id: UUID,
+    background: BackgroundTasks,
+    member: CurrentMember,
+    db: DbSession,
+) -> DocumentFileRead:
+    """업로드된 문서를 자료요약 Agent에 전달한다."""
+    if not settings.llm_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_not_configured",
+        )
+    row = await _file_row(db, member, document_id, file_id)
+    if row.processing_status == "processing":
+        return _file_read(row, member.display_name)
+    previous_status = row.processing_status
+    row.processing_status = "processing"
+    row.processing_error = None
+    row.review_expires_at = None
+    # 재처리는 승인 대기 파일이 아니다. 이전 업로드 시각의 만료값이 남아
+    # 보관 정리 대상이 되지 않도록 즉시 비운다.
+    row.unapproved_expires_at = None
+    row.approved_by_member_id = None
+    row.approved_at = None
+    if previous_status == "completed":
+        db.add(
+            DocumentFileAudit(
+                id=uuid4(),
+                team_id=member.team_id,
+                document_id=document_id,
+                file_id=file_id,
+                action_code="summary_reprocess_requested",
+                actor_member_id=member.id,
+                before_snapshot={"processing_status": previous_status},
+                after_snapshot={"processing_status": "processing"},
+            )
+        )
+    await db.commit()
+    background.add_task(document_processing.execute, row.id)
+    return _file_read(row, member.display_name)
+
+
+@router.get(
+    "/documents/{document_id}/files/{file_id}/summary",
+    response_model=DocumentSummaryRead,
+)
+async def get_document_summary(
+    document_id: UUID,
+    file_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> DocumentSummaryRead:
+    row = await _file_row(db, member, document_id, file_id)
+    if row.processing_status == "review_required":
+        try:
+            draft = await document_processing.load_review_draft(row.storage_key)
+        except (OcrError, StorageError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="summary_draft_unavailable",
+            ) from error
+        return DocumentSummaryRead(
+            file_id=row.id,
+            file_name=row.file_name,
+            processing_status=row.processing_status,
+            processing_error=row.processing_error,
+            extracted_text=draft["extracted_text"],
+            extracted_markdown=draft["extracted_markdown"],
+            extracted_payload=draft["extracted_payload"],
+            summary_markdown=draft["summary_markdown"],
+            summary_payload=draft["summary_payload"],
+            processed_at=_seoul(row.processed_at) if row.processed_at else None,
+        )
+    return DocumentSummaryRead(
+        file_id=row.id,
+        file_name=row.file_name,
+        processing_status=row.processing_status,
+        processing_error=row.processing_error,
+        extracted_text=row.extracted_text,
+        extracted_markdown=row.extracted_markdown,
+        extracted_payload=row.extracted_payload,
+        summary_markdown=row.summary_markdown,
+        summary_payload=row.summary_payload,
+        processed_at=_seoul(row.processed_at) if row.processed_at else None,
+    )
+
+
+@router.post(
+    "/documents/{document_id}/files/{file_id}/approve-summary",
+    response_model=DocumentSummaryRead,
+)
+async def approve_document_summary(
+    document_id: UUID,
+    file_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> DocumentSummaryRead:
+    """구버전 승인 대기 결과를 확정하거나, 자동 저장 결과를 그대로 반환한다."""
+    row = await _file_row(db, member, document_id, file_id)
+    if row.processing_status == "completed":
+        return DocumentSummaryRead(
+            file_id=row.id,
+            file_name=row.file_name,
+            processing_status=row.processing_status,
+            processing_error=row.processing_error,
+            extracted_text=row.extracted_text,
+            extracted_markdown=row.extracted_markdown,
+            extracted_payload=row.extracted_payload,
+            summary_markdown=row.summary_markdown,
+            summary_payload=row.summary_payload,
+            processed_at=_seoul(row.processed_at) if row.processed_at else None,
+        )
+    if row.processing_status != "review_required":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="document_summary_not_awaiting_approval",
+        )
+    try:
+        await document_processing.approve_review(
+            db,
+            row=row,
+            team_id=member.team_id,
+            approved_by_member_id=member.id,
+        )
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+    except (OcrError, StorageError) as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="summary_draft_unavailable",
+        ) from error
+    except Exception:
+        await db.rollback()
+        raise
+
+    await storage.remove(storage_key=document_processing.draft_storage_key(row.storage_key))
+    return DocumentSummaryRead(
+        file_id=row.id,
+        file_name=row.file_name,
+        processing_status=row.processing_status,
+        processing_error=row.processing_error,
+        extracted_text=row.extracted_text,
+        extracted_markdown=row.extracted_markdown,
+        extracted_payload=row.extracted_payload,
+        summary_markdown=row.summary_markdown,
+        summary_payload=row.summary_payload,
+        processed_at=_seoul(row.processed_at) if row.processed_at else None,
+    )
+
+
+@router.post(
+    "/documents/{document_id}/files/{file_id}/business-card-draft",
+    response_model=BusinessCardDraft,
+)
+async def create_business_card_draft(
+    document_id: UUID,
+    file_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> BusinessCardDraft:
+    """OCR 원문을 명함 등록 초안으로 구조화한다. 자동으로 고객을 저장하지 않는다."""
+    row = await _file_row(db, member, document_id, file_id)
+    if row.processing_status != "completed" or not row.extracted_text:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="document_not_processed",
+        )
+    try:
+        return await business_cards.extract(
+            ocr_text=row.extracted_text,
+            file_name=row.file_name,
+        )
+    except LLMError as error:
+        detail = (
+            "llm_not_configured"
+            if str(error) == "llm_not_configured"
+            else "business_card_extraction_failed"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=detail,
+        ) from error
+
+
+@router.get("/documents/{document_id}/files/{file_id}/artifacts/{artifact}")
+async def download_document_artifact(
+    document_id: UUID,
+    file_id: UUID,
+    artifact: Annotated[str, Path(pattern="^(text|txt|md|json|summary)$")],
+    member: CurrentMember,
+    db: DbSession,
+) -> Response:
+    """OCR 결과를 text·txt·md·json 파일 형태로 내려준다."""
+    from fastapi.responses import JSONResponse, PlainTextResponse
+
+    row = await _file_row(db, member, document_id, file_id)
+    values: dict[str, object | None] = {
+        "text": row.extracted_text,
+        "txt": row.extracted_text,
+        "md": row.extracted_markdown,
+        "json": row.extracted_payload,
+        "summary": row.summary_markdown,
+    }
+    value = values[artifact]
+    if value is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="artifact_not_ready")
+    filename = f"{row.file_name.rsplit('.', 1)[0]}.{artifact if artifact != 'summary' else 'md'}"
+    # HTTP 헤더의 기본 filename은 ASCII fallback으로 두고, 실제 파일명은 RFC 5987로
+    # UTF-8 인코딩한다. 한국어 원본 파일명도 Starlette 응답에서 안전하게 내려간다.
+    ascii_filename = f"document.{artifact if artifact != 'summary' else 'md'}"
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    if artifact == "json":
+        return JSONResponse(content=value, headers=headers)
+    return PlainTextResponse(content=str(value), headers=headers)
 
 
 @router.get("/documents/{document_id}/files/{file_id}/download", response_model=DownloadRead)

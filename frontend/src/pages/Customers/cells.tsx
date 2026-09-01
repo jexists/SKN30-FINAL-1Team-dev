@@ -34,6 +34,8 @@ export function PlainNumber({ value }: { value: string }) {
 }
 
 /**
+ * 고객 한 명에게 붙은 담당자들입니다. 한 사람만 보여 주는 이름표는 components/OwnerName 입니다.
+ *
  * 담당자가 여럿이면 대표 한 명과 나머지 수만 보여 줍니다. 좁은 칸에 이름을 다 늘어놓으면
  * 어느 것도 읽히지 않습니다. 전체 이름은 마우스를 올리면 나옵니다.
  */

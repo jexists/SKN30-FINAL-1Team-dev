@@ -14,6 +14,7 @@ import { UploadIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { useShowOwner } from '@/shared/scope'
 import type { DocumentCategory } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
@@ -37,13 +38,14 @@ const RANGES = [
 const DEFAULT_RANGE = '12'
 
 export default function Documents() {
-  // 자료는 팀원도 올립니다. 등록자 필터·열은 팀장에게만 보입니다.
+  // 자료는 팀원도 올립니다. 등록자 칸은 여러 사람이 섞여 보일 때만 세웁니다.
+  // 등록자 필터는 보여 주는 것이 아니라 대상을 좁히는 조작이라 팀장에게 늘 둡니다.
   const { profile, isManager } = useCurrentUser()
-  const showOwner = isManager
+  const showOwner = useShowOwner()
 
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
-  const owner = showOwner ? (params.get('owner') ?? '') : ''
+  const owner = isManager ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
 
   const category = params.get('category') ?? ''
@@ -56,6 +58,8 @@ export default function Documents() {
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
   /** 업로드 모달. 'new' 는 새 문서, 문서 id 면 그 문서의 새 버전입니다. */
   const [uploading, setUploading] = useState<string | null>(null)
+  const [reviewQueue, setReviewQueue] = useState<{ documentId: string; fileId: string }[]>([])
+  const [reviewQueueError, setReviewQueueError] = useState<string | null>(null)
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   // 조건이 바뀌면 첫 페이지로 돌아옵니다. 3페이지에 있다가 결과가 줄면 빈 화면을 봅니다.
@@ -100,6 +104,10 @@ export default function Documents() {
     reload,
     addDocument,
     addVersion,
+    queueSummaries,
+    summarizeVersion,
+    loadSummary,
+    approveSummary,
   } = useDocuments(documentQuery)
 
   // 분류 탭 옆 건수는 서버가 셉니다. 고른 분류는 빼고 센 값입니다.
@@ -132,12 +140,15 @@ export default function Documents() {
 
   const onUpload = async (results: UploadResult[]) => {
     try {
+      const nextReviews: { documentId: string; fileId: string }[] = []
+      setReviewQueueError(null)
       if (versionTarget) {
         const [result] = results
-        await addVersion(versionTarget.id, result.file, profile.name, result.note)
+        const uploaded = await addVersion(versionTarget.id, result.file, profile.name, result.note)
+        nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
       } else {
         for (const result of [...results].reverse()) {
-          await addDocument({
+          const uploaded = await addDocument({
             file: result.file,
             owner: profile.name,
             note: result.note,
@@ -146,13 +157,58 @@ export default function Documents() {
             link: result.link,
             description: result.description,
           })
+          nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
         }
       }
+      await queueSummaries(nextReviews)
       setUploading(null)
+      setReviewQueue(nextReviews.reverse())
+      if (nextReviews[0]) setOpenId(nextReviews[0].documentId)
     } catch {
-      // 훅이 화면에 오류를 표시하며, 모달은 입력값 보존을 위해 그대로 둡니다.
+      // 업로드 뒤 서버 배치 접수가 실패하면 훅의 오류 안내를 보여 줍니다.
+      // 서버가 접수한 뒤의 처리는 화면 수명과 무관합니다.
     }
   }
+
+  const review = reviewQueue[0]
+  const summarizeOpenDocument = useCallback(
+    (fileId: string) =>
+      openDoc
+        ? summarizeVersion(openDoc.id, fileId)
+        : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
+    [openDoc, summarizeVersion],
+  )
+  const loadOpenDocumentSummary = useCallback(
+    (fileId: string) =>
+      openDoc
+        ? loadSummary(openDoc.id, fileId)
+        : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
+    [loadSummary, openDoc],
+  )
+  const approveOpenDocument = useCallback(
+    async (fileId: string) => {
+      if (!openDoc) throw new Error('자료를 찾을 수 없습니다.')
+      const result = await approveSummary(openDoc.id, fileId)
+      setReviewQueue((current) => current.slice(1))
+      reload()
+      const next = reviewQueue[1]
+      if (next) setOpenId(next.documentId)
+      else setOpenId(null)
+      return result
+    },
+    [approveSummary, openDoc, reload, reviewQueue],
+  )
+  const completeQueuedSummary = useCallback(
+    (fileId: string, failureMessage?: string) => {
+      if (reviewQueue[0]?.fileId !== fileId) return
+      if (failureMessage) setReviewQueueError(failureMessage)
+      const next = reviewQueue[1]
+      setReviewQueue((current) => current.slice(1))
+      reload()
+      if (next) setOpenId(next.documentId)
+    },
+    [reload, reviewQueue],
+  )
 
   const isFiltered =
     query.trim() !== '' || owner !== '' || category !== '' || range !== DEFAULT_RANGE
@@ -175,6 +231,7 @@ export default function Documents() {
       <h1 className="sr-only">자료실</h1>
 
       <ErrorToast message={error} onRetry={reload} />
+      <ErrorToast message={reviewQueueError} />
 
       <div className={styles.toolbar}>
         <SearchInput
@@ -185,7 +242,7 @@ export default function Documents() {
           onChange={(next) => setParam('q', next)}
         />
 
-        {showOwner && (
+        {isManager && (
           <FilterSelect
             label="등록자"
             value={owner}
@@ -205,12 +262,14 @@ export default function Documents() {
           onChange={(value) => setParam('range', value, DEFAULT_RANGE)}
         />
 
-        <div className={styles.actions}>
-          <Button disabled={pending} onClick={() => setUploading('new')}>
-            <UploadIcon width={15} height={15} />
-            파일 업로드
-          </Button>
-        </div>
+        {isManager && (
+          <div className={styles.actions}>
+            <Button disabled={pending} onClick={() => setUploading('new')}>
+              <UploadIcon width={15} height={15} />
+              파일 업로드
+            </Button>
+          </div>
+        )}
       </div>
 
       <CategoryTabs
@@ -232,6 +291,7 @@ export default function Documents() {
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
         showOwner={showOwner}
+        canUpload={isManager}
         onUpload={() => setUploading('new')}
       />
 
@@ -243,7 +303,13 @@ export default function Documents() {
         <DocumentDrawer
           doc={openDoc}
           onClose={() => setOpenId(null)}
+          canUpload={isManager}
           onNewVersion={() => setUploading(openDoc.id)}
+          onSummarize={summarizeOpenDocument}
+          onLoadSummary={loadOpenDocumentSummary}
+          autoLoadSummaryFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
+          onSummaryCompleted={completeQueuedSummary}
+          onApproveSummary={approveOpenDocument}
         />
       )}
 

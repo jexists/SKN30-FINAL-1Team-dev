@@ -21,6 +21,8 @@ interface Props {
   identityOf?: (deal: BoardDeal) => string
   /** 실제 API에는 단계 CRUD가 없으므로 그 화면에서는 설정 메뉴를 숨깁니다. */
   editableStages?: boolean
+  /** 카드마다 담당 영업을 세울지. 보드가 보기 범위를 보고 정합니다. */
+  showOwner?: boolean
   readOnly?: boolean
   /** 지금 가리키고 있는 자리. `<컬럼 id>:<자리>` */
   dropSlot: string | null
@@ -43,6 +45,7 @@ export default function StageColumn({
   cards,
   identityOf = (deal) => deal.no,
   editableStages = true,
+  showOwner = false,
   readOnly = false,
   dropSlot,
   draggingIdentity,
@@ -107,6 +110,7 @@ export default function StageColumn({
                 onNudge={onNudge}
                 onEdit={onEditCard}
                 onDelete={onDeleteCard}
+                showOwner={showOwner}
                 readOnly={readOnly}
               />
             </li>

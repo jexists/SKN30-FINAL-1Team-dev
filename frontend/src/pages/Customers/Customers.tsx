@@ -3,11 +3,10 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { errorMessage, transportMessage } from '@/api/errorMessage'
-import { useCurrentUser } from '@/auth/sessionContext'
 import ErrorToast from '@/components/ErrorToast'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
-import { useScopeOwnerIds } from '@/shared/scope'
+import { useScopeOwnerIds, useShowOwner } from '@/shared/scope'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
 
 import type { BusinessCardDraft } from './businessCard'
@@ -54,10 +53,10 @@ export default function Customers() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const { prefs, toggleColumn, moveColumn, setWidth, reset } = useColumnPrefs()
-  // 팀원에게는 자기가 담당인 고객만 보여, 담당자 칸이 늘 자기 이름입니다. 아예 감춥니다.
-  // 저장된 설정은 건드리지 않습니다. 팀장으로 다시 들어오면 그대로 돌아와야 합니다.
-  const { isManager } = useCurrentUser()
-  const hiddenColumns = useMemo(() => (isManager ? [] : ['owner']), [isManager])
+  // 한 사람만 보고 있으면 담당자 칸이 줄마다 같은 이름이라 아예 감춥니다. 팀원은 늘 그렇습니다.
+  // 저장된 설정은 건드리지 않습니다. 범위를 넓히면 그대로 돌아와야 합니다.
+  const showOwner = useShowOwner()
+  const hiddenColumns = useMemo(() => (showOwner ? [] : ['owner']), [showOwner])
   const deferredQuery = useDeferredValue(query)
   const ownerIds = useScopeOwnerIds()
 
@@ -178,6 +177,14 @@ export default function Customers() {
     setDialog('create')
   }, [])
 
+  const onCustomerCreated = useCallback(
+    (_contact: CustomerContactResponse, warning?: string) => {
+      reload()
+      if (warning) setNotice(warning)
+    },
+    [reload],
+  )
+
   // 내보내기는 화면 밖의 줄까지 모두 모읍니다. 페이지 한 장만 담으면 파일이 거짓말을 합니다.
   const exportRef = useRef<AbortController | null>(null)
   useEffect(() => () => exportRef.current?.abort(), [])
@@ -276,7 +283,9 @@ export default function Customers() {
       {dialog === 'create' && (
         <CustomerFormModal
           onClose={closeDialog}
-          onCreated={reload}
+          onCreated={onCustomerCreated}
+          duplicateMatches={cardDraft?.matches}
+          archiveImage={cardDraft?.sourceImage}
           initial={
             cardDraft === null
               ? undefined

@@ -4,35 +4,84 @@
   gap: var(--s3);
 }
 
-.summary {
+/* 팀 목표 카드. 대시보드 매출 목표 타일과 같은 어휘를 한 단계 크게 씁니다. */
+.goal {
+  @include card;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+}
+
+.goalHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.goalTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.goalMonth {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.goalStats {
   display: flex;
   align-items: center;
-  gap: var(--s5);
+  gap: var(--s6);
   flex-wrap: wrap;
 }
 
 .stat {
   display: flex;
-  align-items: baseline;
-  gap: var(--s2);
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
 
   strong {
     color: var(--ink);
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 700;
   }
 }
 
-.dirty {
-  margin-left: auto;
-  padding: 4px 10px;
+.goalTrack {
+  position: relative;
+  height: 6px;
   border-radius: var(--r-pill);
-  background: var(--blue-tint);
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 600;
+  background: var(--fill);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 100%;
+    width: var(--p, 0%);
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--blue), #4da3ff);
+    transition: width var(--t-slow) var(--ease-spring);
+  }
+}
+
+// 목표를 넘어선 막대. 길이로는 더 보일 자리가 없어 색으로 알립니다.
+.isOver i {
+  background: linear-gradient(90deg, var(--green), var(--green-ink));
+}
+
+.goalFoot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .card {
@@ -53,7 +102,7 @@
 
   th,
   td {
-    height: 56px; // 입력칸이 들어가 목록 표보다 한 단계 높습니다
+    height: 52px;
     padding: var(--s2) var(--s3);
     text-align: left;
     vertical-align: middle;
@@ -87,12 +136,19 @@
   text-align: right !important;
 }
 
-.note {
+.empty {
+  margin: 0;
+  padding: var(--s6) var(--s4);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
+  text-align: center;
 }
 
-.foot {
+.note {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
 }

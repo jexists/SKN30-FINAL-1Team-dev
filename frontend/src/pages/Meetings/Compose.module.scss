@@ -28,6 +28,22 @@
   }
 }
 
+.mutationError {
+  margin-bottom: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-md);
+  background: var(--red-tint);
+  color: var(--red-ink);
+  font-size: 13px;
+}
+
+.generationNote {
+  margin-top: var(--s3);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 .notFound {
   @include card;
 
@@ -91,6 +107,81 @@
   align-content: start;
 }
 
+/* 여러 딜 카드의 저장 지점은 이 한 곳입니다. 긴 보고서를 내려 읽어도 상단에 남습니다. */
+.saveBar {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s3));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+
+  @include sm {
+    flex-wrap: wrap;
+    top: 64px;
+  }
+}
+
+.saveCopy {
+  min-width: 0;
+  flex: 1;
+
+  strong {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  p {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+}
+
+.saveAllButton {
+  flex: none;
+
+  @include sm {
+    width: 100%;
+  }
+}
+
+.noDeals {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s6);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  text-align: center;
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  p {
+    max-width: 38ch;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+}
+
 /*
  * 입력판. 참고판과 같은 열에 놓여 있는 면입니다 — 테두리만 있고 그림자가 없습니다.
  * 떠 있는 면은 오른쪽 보고서 하나뿐이어야 어느 쪽이 결과인지 헷갈리지 않습니다.
@@ -137,6 +228,8 @@
   // 개발 서버에서 무엇이 이길지 달라집니다.
   .head.head,
   .locked.locked,
+  .mutationError.mutationError,
+  .saveBar.saveBar,
   .reference.reference,
   .input.input {
     display: none;

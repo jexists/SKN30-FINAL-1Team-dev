@@ -38,6 +38,8 @@ export interface DocumentVersion extends Omit<DocumentVersionSeed, 'uploadedOff'
   uploaded: string
   /** 이 세션에서 올린 파일만 갖습니다. 시드에는 없어 내려받을 수 없습니다. */
   blob?: File
+  processingStatus?: DocumentProcessingStatus
+  processingError?: string | null
 }
 
 export interface SalesDocumentSeed {
@@ -58,7 +60,8 @@ export interface SalesDocument extends Omit<SalesDocumentSeed, 'versions'> {
   versions: DocumentVersion[]
 }
 
-export type DocumentProcessingStatus = 'uploaded' | 'processing' | 'completed' | 'failed'
+export type DocumentProcessingStatus =
+  'uploaded' | 'processing' | 'review_required' | 'completed' | 'failed'
 
 export interface DocumentFileResponse {
   id: string
@@ -67,10 +70,24 @@ export interface DocumentFileResponse {
   media_type: string | null
   byte_size: number
   processing_status: DocumentProcessingStatus
+  processing_error?: string | null
   uploaded_by_member_id: string
   uploaded_by_display_name: string
   note: string | null
   uploaded_at: string
+}
+
+export interface DocumentSummaryResponse {
+  file_id: string
+  file_name: string
+  processing_status: DocumentProcessingStatus
+  processing_error: string | null
+  extracted_text: string | null
+  extracted_markdown: string | null
+  extracted_payload: Record<string, unknown> | null
+  summary_markdown: string | null
+  summary_payload: Record<string, unknown> | null
+  processed_at: string | null
 }
 
 export interface DocumentResponse {

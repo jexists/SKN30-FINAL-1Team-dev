@@ -176,6 +176,7 @@ GitHub Actions
 - [ ] DB schema 변경 시 production SQL 선적용
 - [ ] SSM 설정 변경 시 이전 값 백업
 - [ ] `VITE_API_BASE_URL`과 `CORS_ORIGINS` 동일 origin 확인
+- [ ] 딜 승산 모델 교체 시 [단일 파일·해시·권한·로더 배포 전제](../../../deploy/backend/README.md) 확인
 
 배포 workflow는 CI 성공을 자동 확인하지 않는다. 운영자가 먼저 확인해야 한다.
 

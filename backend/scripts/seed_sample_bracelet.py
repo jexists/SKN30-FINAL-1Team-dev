@@ -2260,6 +2260,7 @@ class Seeder:
         *,
         period: tuple[date, date] | None = None,
         source_activity: UUID | None = None,
+        sales_deal_id: UUID | None = None,
         activity_ids: tuple[UUID, ...] = (),
         note: str | None = None,
         transcript: str | None = None,
@@ -2278,6 +2279,7 @@ class Seeder:
                 else self.members[MANAGER],
                 "template_snapshot": template,
                 "source_activity_id": source_activity,
+                "sales_deal_id": sales_deal_id,
                 "report_kind": kind,
                 "report_date": day,
                 "period_start": period[0] if period else None,
@@ -2350,6 +2352,7 @@ class Seeder:
                     "ai_generated_at": at(record["day"], 18).isoformat() if ai_values else None,
                 },
                 source_activity=record["id"],
+                sales_deal_id=deal["id"],
                 activity_ids=(record["id"],),
             )
 

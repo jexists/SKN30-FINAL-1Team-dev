@@ -136,3 +136,10 @@
   color: var(--muted);
   font-size: 12px;
 }
+
+// 담당 영업과 날짜는 오른쪽에 나란히 섭니다.
+.metaEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}

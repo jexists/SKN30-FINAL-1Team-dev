@@ -94,16 +94,48 @@ export interface DailyReportSeed {
 export interface DailyReport extends DailyReportSeed {
   /** YYYY-MM-DD */
   date: string
+  /** 작성자의 구성원 번호. 고칠 수 있는 사람인지 이 값으로 가립니다. */
+  ownerMemberId: string
   template: ReportTemplate
+  apiStatus?: ApiReportStatus
+  version?: number
+  currentSubmissionId?: string | null
 }
 
 export type ApiReportKind = 'meeting' | 'daily' | 'weekly' | 'monthly'
-export type ApiReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
+export type ApiReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'changes_requested'
 
 export interface ReportActivityResponse {
   activity_id: string
   title: string
   starts_at: string
+}
+
+export interface ReportDealSectionWrite {
+  sales_deal_id: string
+  deal_snapshot: {
+    id: string
+    label: string
+    note?: string | null
+  }
+  content: Record<string, unknown>
+  position?: number | null
+  title?: string | null
+  body?: string | null
+  structured_values?: Record<string, unknown>
+}
+
+export interface ReportDealSectionResponse extends ReportDealSectionWrite {
+  position: number | null
+  deal_no_snapshot: string | null
+  deal_title_snapshot: string | null
+  title: string | null
+  body: string | null
+  structured_values: Record<string, unknown>
+  /** 미팅 분석·ML 결과는 서버가 생성하며 조회 응답에만 포함됩니다. */
+  ai_evidence: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
 }
 
 export interface ReportResponse {
@@ -113,18 +145,46 @@ export interface ReportResponse {
   recipient_member_id: string | null
   recipient_display_name: string | null
   source_activity_id: string | null
+  sales_deal_id: string | null
   report_kind: ApiReportKind
   report_date: string
   period_start: string | null
   period_end: string | null
   status_code: ApiReportStatus
+  version: number
+  generation_input_version: number
+  current_submission_id: string | null
+  last_applied_agent_run_id: string | null
   template_snapshot: Record<string, unknown>
   content: Record<string, unknown>
+  customer_company_id: string | null
+  title: string | null
+  body: string | null
+  common_body: string | null
+  unassigned_body: string | null
+  structured_values: Record<string, unknown>
   transcript: string | null
+  source_snapshot: Record<string, unknown> | null
+  /** AI 가 어느 근거로 채웠는지. 보고서 상세가 그대로 펼쳐 보여 줍니다. */
+  ai_evidence: Record<string, unknown> | null
+  /** 작성자의 메모. 일일보고서는 여기에 '활동 3건' 같은 제 요약을 넣습니다. */
   note: string | null
+  /** 팀장이 반려하며 남긴 사유. 확정하면 비워집니다. 작성자의 note 와 칸이 다릅니다. */
+  review_note: string | null
+  reviewed_by_member_id: string | null
+  reviewed_at: string | null
   activities: ReportActivityResponse[]
+  deal_sections: ReportDealSectionResponse[]
   created_at: string
   updated_at: string
+}
+
+/** 팀장의 검토 결과. 반려는 changes_requested 로 가서 팀원이 다시 고칠 수 있습니다. */
+export interface ReportReviewRequest {
+  decision: 'approve' | 'reject'
+  reason: string | null
+  expected_status_code: 'submitted'
+  expected_submission_id: string | null
 }
 
 export interface ReportWriteRequest {
@@ -133,23 +193,122 @@ export interface ReportWriteRequest {
   period_start: string | null
   period_end: string | null
   source_activity_id: string | null
+  sales_deal_id: string | null
   recipient_member_id: string | null
   template_snapshot: ReportTemplate
   content: Record<string, unknown>
+  title?: string | null
+  body?: string | null
+  common_body?: string | null
+  unassigned_body?: string | null
+  structured_values?: Record<string, unknown>
   transcript: string | null
   note: string | null
   activity_ids: string[]
+  deal_sections: ReportDealSectionWrite[]
 }
 
-export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'failed'
+export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'
 
-export interface AgentRunResponse {
-  id: string
-  status_code: AgentRunStatus
-  output_snapshot: {
-    fields?: { field_id: string; value: string }[]
-    summary?: string
+export type AgentRunApplyStatus = 'pending' | 'applied' | 'stale' | 'not_applicable'
+
+export interface ReportDraftSnapshot {
+  fields?: { field_id: string; value: string }[]
+  summary?: string
+}
+
+export interface DealAssessment {
+  features?: Record<string, string>
+  label: 'high' | 'watch'
+  high_probability: number
+  model_version: string
+}
+
+export interface MeetingEvidenceLedger {
+  schema_version: 'meeting_content.v1'
+  transcript_sha256: string
+  selected_deal_ids: string[]
+  items: {
+    segment: { segment_id: string; start: number; end: number; text: string }
+    applicability: {
+      scope:
+        | 'meeting_context'
+        | 'company_context'
+        | 'all_selected_deals'
+        | 'deal'
+        | 'unresolved'
+        | 'out_of_scope'
+      deal_ids: string[]
+    }
+  }[]
+}
+
+export interface MeetingReportBody {
+  body: string
+  evidence_ids: string[]
+  ai_body?: string
+  edited?: boolean
+}
+
+export interface MeetingSharedNotes {
+  run_id: string
+  revision: string
+  common_report: MeetingReportBody | null
+  unassigned_report: MeetingReportBody | null
+}
+
+export interface MeetingAssignmentOverride {
+  segment_id: string
+  applicability: { scope: 'deal'; deal_ids: string[] }
+}
+
+export interface MeetingProcessingOutput {
+  reports: {
+    deal_reports: (MeetingReportBody & { sales_deal_id: string })[]
+    common_report: MeetingReportBody | null
+    unassigned_report: MeetingReportBody | null
   } | null
+  analyses: {
+    sales_deal_id: string
+    features: Record<string, string> | null
+    assessment: DealAssessment | null
+    error: string | null
+  }[]
+  evidence: MeetingEvidenceLedger
+  errors: Record<string, string>
+}
+
+/** 검토·적용 전 화면에서만 보여 주는 문장입니다. ReportWriteRequest에 포함하지 않습니다. */
+export interface MeetingPreview {
+  section: 'deal' | 'common' | 'unassigned'
+  sales_deal_id: string | null
+  body: string
+  revision: number
+}
+
+export interface MeetingProgress {
+  run_id: string
+  status_code: AgentRunStatus
+  stage: string
+  previews: MeetingPreview[]
+  review_attempt?: number
+  review_limit?: number
+}
+
+export interface MeetingAnalysisSnapshot {
+  deal_assessment: DealAssessment
+}
+
+export interface AgentRunResponse<T = ReportDraftSnapshot> {
+  id: string
+  report_id: string | null
+  status_code: AgentRunStatus
+  current_stage_code: string
+  apply_status: AgentRunApplyStatus
+  attempt_count: number
+  output_snapshot: T | null
   evidence: { summary?: string } | null
+  error_code: string | null
   error_message: string | null
+  created_at: string
 }

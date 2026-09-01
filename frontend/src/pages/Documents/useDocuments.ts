@@ -4,13 +4,20 @@ import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import type {
   DocumentCategory,
+  DocumentFileResponse,
   DocumentResponse,
+  DocumentSummaryResponse,
   DocumentVersion,
   TabbedPageResponse,
   SalesDocument,
 } from '@/types'
 
 import { kindOfFile } from './catalog'
+import { pollSummary } from './summaryPolling'
+
+// 공통 API 제한(10초)보다 길게 잡습니다. 이 요청은 실제 OCR·요약을 기다리지 않고
+// 백그라운드 작업을 시작하므로, 느린 DB 응답만 흡수한 뒤 아래 폴링으로 상태를 확인합니다.
+const SUMMARY_START_TIMEOUT_MS = 30_000
 
 /** 등록자 고르는 칸에 세울 사람. 최신 버전을 올린 사람 기준입니다. */
 export interface DocumentUploader {
@@ -50,6 +57,8 @@ function versionOf(documentId: string, file: DocumentResponse['files'][number]):
     owner: file.uploaded_by_display_name,
     uploaded: file.uploaded_at.slice(0, 10),
     note: file.note ?? '',
+    processingStatus: file.processing_status,
+    processingError: file.processing_error,
   }
 }
 
@@ -117,11 +126,16 @@ function linkFields(link: SalesDocument['link']) {
   return { ...empty, purchase_order_id: link.id }
 }
 
-async function uploadFile(documentId: string, file: File, note: string) {
+async function uploadFile(
+  documentId: string,
+  file: File,
+  note: string,
+): Promise<DocumentFileResponse> {
   const form = new FormData()
   form.append('upload', file)
   if (note) form.append('note', note)
-  await client.post(`/documents/${documentId}/files`, form)
+  const { data } = await client.post<DocumentFileResponse>(`/documents/${documentId}/files`, form)
+  return data
 }
 
 function mutationMessage(reason: unknown, fallback: string): string {
@@ -219,10 +233,10 @@ export default function useDocuments(query?: DocumentQuery) {
         description: draft.description || null,
         ...links,
       })
-      await uploadFile(created.id, draft.file, draft.note)
+      const uploaded = await uploadFile(created.id, draft.file, draft.note)
       const { data } = await client.get<DocumentResponse>(`/documents/${created.id}`)
       setDocuments((current) => [toDocument(data), ...current])
-      return data.id
+      return { document: data, fileId: uploaded.id }
     } catch (reason: unknown) {
       setError(mutationMessage(reason, '자료를 등록하지 못했습니다.'))
       throw reason
@@ -235,12 +249,13 @@ export default function useDocuments(query?: DocumentQuery) {
     setPending(true)
     setError(null)
     try {
-      await uploadFile(id, file, note)
+      const uploaded = await uploadFile(id, file, note)
       const { data } = await client.get<DocumentResponse>(`/documents/${id}`)
       const updated = toDocument(data)
       setDocuments((current) =>
         current.map((document) => (document.id === id ? updated : document)),
       )
+      return { document: data, fileId: uploaded.id }
     } catch (reason: unknown) {
       setError(mutationMessage(reason, '새 버전을 등록하지 못했습니다.'))
       throw reason
@@ -276,6 +291,60 @@ export default function useDocuments(query?: DocumentQuery) {
     [documents],
   )
 
+  const summarizeVersion = useCallback(
+    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
+      return pollSummary({
+        start: async () => {
+          await client.post(`/documents/${documentId}/files/${fileId}/process`, undefined, {
+            timeout: SUMMARY_START_TIMEOUT_MS,
+          })
+        },
+        read: async () => {
+          const { data } = await client.get<DocumentSummaryResponse>(
+            `/documents/${documentId}/files/${fileId}/summary`,
+          )
+          return data
+        },
+      })
+    },
+    [],
+  )
+
+  const queueSummaries = useCallback(
+    async (files: { documentId: string; fileId: string }[]): Promise<void> => {
+      if (files.length === 0) return
+      try {
+        await client.post('/documents/process-batch', {
+          file_ids: files.map(({ fileId }) => fileId),
+        })
+      } catch (reason: unknown) {
+        setError(errorMessage(reason, '문서 요약 작업을 서버에 등록하지 못했습니다.'))
+        throw reason
+      }
+    },
+    [],
+  )
+
+  const loadSummary = useCallback(
+    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
+      const { data } = await client.get<DocumentSummaryResponse>(
+        `/documents/${documentId}/files/${fileId}/summary`,
+      )
+      return data
+    },
+    [],
+  )
+
+  const approveSummary = useCallback(
+    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
+      const { data } = await client.post<DocumentSummaryResponse>(
+        `/documents/${documentId}/files/${fileId}/approve-summary`,
+      )
+      return data
+    },
+    [],
+  )
+
   return {
     documents,
     total,
@@ -289,5 +358,9 @@ export default function useDocuments(query?: DocumentQuery) {
     addDocument,
     addVersion,
     updateDocument,
+    summarizeVersion,
+    queueSummaries,
+    loadSummary,
+    approveSummary,
   }
 }

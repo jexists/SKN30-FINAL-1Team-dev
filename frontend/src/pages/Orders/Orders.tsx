@@ -6,7 +6,6 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
-import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
@@ -21,6 +20,7 @@ import StageChip from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { orderNewPath, orderPath } from '@/constants/routes'
 import { isLate, orderItemLabel, orderTotal } from '@/shared/orders'
+import { useShowOwner } from '@/shared/scope'
 import type { ApiPurchaseOrder } from '@/types'
 import { addDays, fmtDotShort, iso, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
@@ -44,7 +44,7 @@ const DEFAULT_RANGE = '6'
 
 export default function Orders() {
   const navigate = useNavigate()
-  const { isManager } = useCurrentUser()
+  const showOwner = useShowOwner()
 
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
@@ -67,11 +67,11 @@ export default function Orders() {
   // 같은 처리로 헤더 정렬을 끕니다.
   const columns = useMemo(
     () =>
-      ORDER_COLUMNS.filter((col) => col.id !== 'owner' || isManager).map((col) => ({
+      ORDER_COLUMNS.filter((col) => col.id !== 'owner' || showOwner).map((col) => ({
         ...col,
         sortable: false,
       })),
-    [isManager],
+    [showOwner],
   )
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.

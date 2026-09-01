@@ -134,6 +134,62 @@
 .report {
   grid-area: sheet;
   min-width: 0;
+
+  > section {
+    margin-bottom: var(--s5);
+  }
+}
+
+.dealSections {
+  display: grid;
+  gap: var(--s5);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+
+  @include sm {
+    flex-direction: column;
+    gap: var(--s2);
+  }
+}
+
+.dealLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+
+  span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+}
+
+.assessment {
+  flex: none;
+}
+
+.sectionError {
+  margin-top: var(--s3);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.emptySections {
+  padding: var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--muted);
+  text-align: center;
 }
 
 /*
@@ -267,5 +323,10 @@
     padding: 0;
     border: 0;
     box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .dealSections.dealSections {
+    gap: var(--s7);
   }
 }

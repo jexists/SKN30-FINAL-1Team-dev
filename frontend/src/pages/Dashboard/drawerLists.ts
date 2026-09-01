@@ -9,18 +9,30 @@ import { won } from '@/utils/format'
 
 export type DrawerListTone = 'risk' | 'good' | 'now'
 
+/** 줄을 눌렀을 때 그 자리에서 펼쳐지는 상세. 목록 응답이 이미 들고 있는 값만 씁니다. */
+export interface DrawerListDetail {
+  fields: { label: string; value: string }[]
+  notesTitle?: string
+  notes?: { key: string; by: string; at: string; body: string }[]
+  notesEmpty?: string
+}
+
 export interface DrawerListRow {
   key: string
   title: string
   titleNote?: string
   note: string
   tags: { text: string; tone?: DrawerListTone }[]
+  /** 이 건의 담당자. 여러 사람이 섞여 보일 때만 드로어가 세웁니다. */
+  owner?: string
   side: {
     strong: string
     late?: boolean
     numeric?: boolean
     lines?: { text: string; numeric?: boolean }[]
   }
+  /** 있으면 줄을 눌러 펼칠 수 있습니다. */
+  detail?: DrawerListDetail
   orderNo?: string
 }
 
@@ -32,6 +44,14 @@ export interface DrawerList {
 }
 
 export type KpiListKey = 'cs' | 'renewal'
+
+const dateTime = new Intl.DateTimeFormat('ko-KR', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+})
 
 const DAY = 86_400_000
 const daysUntil = (dateISO: string) =>
@@ -52,18 +72,35 @@ export function csList(requests: SupportRequestResponse[]): DrawerList {
         key: request.id,
         title: request.title,
         titleNote: `${request.customer_company_name} · ${request.contract_no ?? request.deal_no}`,
+        owner: request.assignee_display_name,
         note: request.body,
-        tags: [
-          ...(request.is_urgent ? [{ text: '긴급', tone: 'risk' as const }] : []),
-          {
-            text: SUPPORT_STATUS_LABEL[request.status_code],
-            tone: request.status_code === 'completed' ? ('good' as const) : undefined,
-          },
-        ],
+        // 상태는 오른쪽에 이미 서 있습니다. 태그로 한 번 더 달면 같은 말이 두 번 보입니다.
+        tags: request.is_urgent ? [{ text: '긴급', tone: 'risk' as const }] : [],
         side: {
           strong: SUPPORT_STATUS_LABEL[request.status_code],
           late: request.status_code !== 'completed',
           lines: [{ text: fmtDay(new Date(request.occurred_at)) }],
+        },
+        detail: {
+          fields: [
+            {
+              label: '딜',
+              value: `${request.contract_no ?? request.deal_no} · ${request.deal_title}`,
+            },
+            { label: '제품', value: request.product_name ?? '미지정' },
+            { label: '워런티', value: request.warranty_terms ?? '없음' },
+            { label: '등록한 사람', value: request.assignee_display_name },
+            { label: '발생일시', value: dateTime.format(new Date(request.occurred_at)) },
+            { label: '등록일시', value: dateTime.format(new Date(request.registered_at)) },
+          ],
+          notesTitle: '답변 이력',
+          notes: request.responses.map((response) => ({
+            key: response.id,
+            by: response.responder_display_name,
+            at: dateTime.format(new Date(response.responded_at)),
+            body: response.body,
+          })),
+          notesEmpty: '등록된 답변이 없습니다.',
         },
       })),
     empty: '등록된 C/S 대응요청이 없습니다.',
@@ -80,7 +117,7 @@ export function renewalList(deals: SalesDealResponse[]): DrawerList {
       return {
         key: deal.id,
         title: deal.customer_company_name,
-        titleNote: deal.owner_display_name,
+        owner: deal.owner_display_name,
         note: deal.description ?? deal.memo ?? '등록된 메모가 없습니다.',
         tags: [
           { text: deal.deal_type_name },

@@ -8,18 +8,36 @@ dependencies = [
     "httpx>=0.28.1",
     "nh3>=0.3.1",
     "catboost==1.2.10",
+    "deepagents==0.7.11",
     "joblib==1.5.3",
-    "numpy==2.5.2",
+    "langchain-openai==1.6.0",
+    # PaddleOCR/PaddleX currently requires NumPy < 2.4.
+    "numpy==2.3.5",
     "pandas==3.0.5",
     "pydantic-settings>=2.14.2",
+    "pypdf>=5.0.0",
     "pyjwt[crypto]>=2.10.1",
     "python-multipart>=0.0.32",
     "scikit-learn==1.9.0",
     "sqlalchemy[asyncio]>=2.0.51",
-    "tabicl==2.1.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-    "torch==2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
+]
+
+[project.optional-dependencies]
+local = [
+    "pdf-inspector>=1.17.0",
+    "onnxruntime>=1.29.0",
+    "paddleocr>=3.7.0",
+    "paddlepaddle>=3.3.1",
+    "pillow>=12.3.0",
+    "opencv-python-headless>=4.10.0",
+    "pypdfium2>=5.13.0",
+    # sentence-transformers가 끌어오는 transitive torch에는 아래 tool.uv.sources가
+    # 적용되지 않는다. 직접 의존성으로 적어야 linux에서 CPU 휠을 받고, CUDA 런타임
+    # 라이브러리 수 GB가 이미지에 들어가지 않는다.
+    "torch>=2.13.0",
+    "sentence-transformers>=6.0.0",
 ]
 
 [tool.uv.sources]
@@ -47,3 +65,6 @@ select = ["E", "W", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: 외부 LLM 또는 Supabase 연결이 필요한 실통합 테스트",
+]

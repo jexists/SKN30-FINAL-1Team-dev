@@ -32,8 +32,26 @@ BodyHtml = Annotated[
 NoticeScope = Literal["team", "personal"]
 NoticeType = Literal["NOTICE", "DIRECTIVE"]
 
+# 지시사항 이행 여부. pending 은 담당자가 아직 손대지 않은 상태다.
+NoticeTargetStatus = Literal["pending", "done", "not_done"]
+# 담당자가 고를 수 있는 값. 손대지 않은 상태로 되돌리지는 않는다.
+NoticeTargetDecision = Literal["done", "not_done"]
+
+MissReason = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=1_000),
+]
+
 # 노출 순서는 팀장이 손으로 넣는다. 화면이 다루기 어려운 값이 들어오지 않게 폭을 좁힌다.
 _SORT_ORDER = Field(ge=-9_999, le=9_999)
+
+
+class NoticeMyStatusRead(BaseModel):
+    """지금 보고 있는 사람에게 온 지시의 이행 여부. 수신자가 아니면 응답에 None 이다."""
+
+    status_code: NoticeTargetStatus
+    status_reason: str | None
+    status_changed_at: datetime | None
 
 
 class NoticeRead(BaseModel):
@@ -57,6 +75,8 @@ class NoticeRead(BaseModel):
     published_at: datetime
     due_at: datetime | None
     due_text: str | None
+    # 지시사항이고 내가 수신자일 때만 값이 있다. 공지에는 언제나 None 이다.
+    my_status: NoticeMyStatusRead | None = None
 
 
 class NoticePage(BaseModel):
@@ -69,8 +89,32 @@ class NoticePage(BaseModel):
 
 
 class NoticeTargetRead(BaseModel):
+    """지시 한 건의 수신자와 그 사람의 이행 여부."""
+
     id: UUID
     display_name: str
+    status_code: NoticeTargetStatus
+    # not_done 일 때만 채워진다.
+    status_reason: str | None
+    status_changed_at: datetime | None
+
+
+class NoticeStatusWrite(BaseModel):
+    """담당자가 자기 몫의 이행 여부를 바꾼다.
+
+    미이행에는 까닭이 있어야 한다. 왜 못 했는지 없이 표시만 바뀌면 팀장이 다시 물어야 한다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    status_code: NoticeTargetDecision
+    reason: MissReason | None = None
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        if self.status_code == "not_done" and self.reason is None:
+            raise ValueError("status_reason_required")
+        return self
 
 
 class NoticeManageListItem(BaseModel):

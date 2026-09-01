@@ -10,6 +10,7 @@ import { orderPath } from '@/constants/routes'
 import { statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { RISK_LABEL } from '@/shared/riskLabels'
+import { useShowOwner } from '@/shared/scope'
 import type { AgendaItem } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
@@ -46,13 +47,16 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     error: briefingError,
   } = useAiBriefing({ activityId: item.id, eligible: !!item.customerContactId })
   const [menuOpen, setMenuOpen] = useState(false)
+  const showOwner = useShowOwner()
   // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
   const reportState = useAgendaReportLink(item)
   const at = item.contact.lastIndexOf(' ')
   const facts: [string, string][] = (
     [
+      // 여러 사람의 일정이 섞여 보일 때만, 이것이 누구 일정인지 먼저 말합니다.
+      ...(showOwner ? ([['담당 영업', item.owner]] as [string, string][]) : []),
       ['부서', item.dept],
-      ['담당자', at < 0 ? item.contact : item.contact.slice(0, at)],
+      ['고객 담당자', at < 0 ? item.contact : item.contact.slice(0, at)],
       ['직책', item.contact && at >= 0 ? item.contact.slice(at + 1) : ''],
       ['제품', item.product],
       ['장소', item.place],
@@ -123,17 +127,18 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
           )}
         </>
       }
+      // 남이 한 일이고 아직 보고서도 없으면(blocked) 갈 곳이 없어 아무것도 세우지 않습니다.
       footer={
         reportState.error ? (
           <Button variant="outline" onClick={reportState.reload}>
             보고서 다시 조회
           </Button>
-        ) : reportState.link ? (
+        ) : !reportState.link ? (
+          <InlineLoader label="보고서 연결을 확인하는 중입니다." />
+        ) : reportState.link.blocked ? null : (
           <Link className={buttonClass()} to={reportState.link.to}>
             {reportState.link.label}
           </Link>
-        ) : (
-          <InlineLoader label="보고서 연결을 확인하는 중입니다." />
         )
       }
     >

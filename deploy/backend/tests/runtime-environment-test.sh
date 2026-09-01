@@ -142,6 +142,12 @@ raw_value="$(dotenv_value "${raw_file}" RAW_VALUE)"
 [[ "${raw_value}" == '  literal # text = preserved  ' ]] \
     || fail "dotenv_value changed the raw value"
 
+[[ "${DEAL_MODEL_VERSION}" == "deal-paper-rf-ensemble-v1" \
+    && "${DEAL_MODEL_HOST_DIR}" == "/opt/salesluv-models/deal-paper-rf-ensemble-v1" \
+    && "${#DEAL_MODEL_ARTIFACTS[@]}" == "1" \
+    && "${DEAL_MODEL_ARTIFACTS[0]}" == "deal-paper-rf-ensemble-v1.joblib:609c5d63b201fcb125cca9cddc2fcbe229f76d3ebf0a1417466d027248b17681" ]] \
+    || fail "deployment must use the verified single-file RF ensemble"
+
 model_dir="${TEST_TMP_DIR}/model"
 mkdir -p "${model_dir}"
 printf 'model-bytes' >"${model_dir}/model.bin"
@@ -164,6 +170,33 @@ docker_run_args=" ${DOCKER_RUN_ARGS[*]} "
     || fail "deal model container directory was not configured"
 [[ "${docker_run_args}" == *" --mount type=bind,source=${DEAL_MODEL_HOST_DIR},target=${DEAL_MODEL_CONTAINER_DIR},readonly "* ]] \
     || fail "deal model directory was not mounted read-only"
+start_agent_worker test-image test-worker
+worker_run_args=" ${DOCKER_RUN_ARGS[*]} "
+[[ "${worker_run_args}" == *" --name test-worker "* \
+    && "${worker_run_args}" == *" /app/.venv/bin/python -m app.services.agent_worker "* \
+    && "${worker_run_args}" != *" --publish "* ]] \
+    || fail "agent worker was not started as a private process from the backend image"
+unset -f docker
+
+DOCKER_WORKER_STATE='true 0'
+docker() {
+    if [[ "$*" == *'.State.ExitCode'* ]]; then
+        printf 'running=%s restarts=%s exit_code=1\n' \
+            "${DOCKER_WORKER_STATE%% *}" "${DOCKER_WORKER_STATE##* }"
+    else
+        printf '%s\n' "${DOCKER_WORKER_STATE}"
+    fi
+}
+sleep() { :; }
+wait_for_agent_worker test-worker \
+    || fail "stable agent worker was rejected"
+DOCKER_WORKER_STATE='true 1'
+if worker_failure="$(wait_for_agent_worker test-worker 2>&1)"; then
+    fail "restarting agent worker was accepted"
+fi
+[[ "${worker_failure}" == *'restarts=1 exit_code=1'* ]] \
+    || fail "unstable agent worker diagnostics omitted restart and exit state"
+unset -f sleep
 unset -f docker
 
 TIMEOUT_ARGS=()
@@ -190,9 +223,20 @@ validate_deal_model_runtime test-container
     && "${DOCKER_EXEC_ARGS[3]}" == "-c" \
     && "${DOCKER_EXEC_ARGS[4]}" == *"_load_models()"* ]] \
     || fail "candidate deal model validation command was not executed"
+validate_agent_queue_schema_runtime test-container
+[[ "${DOCKER_EXEC_ARGS[0]}" == "exec" \
+    && "${DOCKER_EXEC_ARGS[1]}" == "test-container" \
+    && "${DOCKER_EXEC_ARGS[2]}" == "/app/.venv/bin/python" \
+    && "${DOCKER_EXEC_ARGS[3]}" == "-m" \
+    && "${DOCKER_EXEC_ARGS[4]}" == "app.services.agent_worker" \
+    && "${DOCKER_EXEC_ARGS[5]}" == "--check-schema" ]] \
+    || fail "agent queue schema validation command was not executed"
 DOCKER_EXEC_STATUS=1
 if validate_deal_model_runtime test-container; then
     fail "candidate deal model validation failure was swallowed"
+fi
+if validate_agent_queue_schema_runtime test-container; then
+    fail "agent queue schema validation failure was swallowed"
 fi
 unset -f timeout
 unset -f docker
@@ -204,6 +248,23 @@ upstream_file="$(write_environment upstream $'upstream salesluv_backend {\n    s
     || fail "port 8000 did not map to its deployment slot"
 [[ "$(other_backend_port 8000)" == "18000" ]] \
     || fail "inactive backend port was not selected"
+
+schema_check_line="$(awk '/Validating the AgentRun queue schema/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+promotion_line="$(awk '/Switching Nginx upstream from port/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+worker_start_line="$(awk '/Starting AgentRun worker .*after traffic promotion/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+deployment_success_line="$(awk '/^DEPLOY_SUCCEEDED="true"$/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+[[ "${schema_check_line}" =~ ^[0-9]+$ \
+    && "${promotion_line}" =~ ^[0-9]+$ \
+    && "${worker_start_line}" =~ ^[0-9]+$ \
+    && "${deployment_success_line}" =~ ^[0-9]+$ \
+    && schema_check_line -lt promotion_line \
+    && promotion_line -lt worker_start_line \
+    && worker_start_line -lt deployment_success_line ]] \
+    || fail "candidate worker must start only after successful traffic promotion"
 
 rewritten_upstream_file="${TEST_TMP_DIR}/rewritten-upstream.conf"
 if ! rewrite_backend_upstream_port \

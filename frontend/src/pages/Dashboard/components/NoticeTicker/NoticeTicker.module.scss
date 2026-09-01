@@ -109,4 +109,10 @@
     font-size: 11px;
     color: var(--muted);
   }
+
+  // 이행 배지. 줄 오른쪽 끝에 붙되 제목이 밀리지 않게 자리를 더 가져가지 않습니다.
+  button > span {
+    flex: none;
+    align-self: center;
+  }
 }

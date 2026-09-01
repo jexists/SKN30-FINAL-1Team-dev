@@ -245,6 +245,10 @@ export function seedAgenda(dateISO: string, seeded: AgendaItem[]) {
   if (loadedKey !== null && loadedKey !== key) return
   loadedKey = key
   loadError = null
+  // 심은 키는 아래 loadAgenda 의 캐시에 걸려 조회 자체가 생략됩니다. 그러면 loading 을
+  // 내리는 자리도 함께 사라지므로, 받아 둔 것을 심는 여기서 같이 내립니다. 다만 조회가
+  // 이미 떠 있으면 그쪽이 끝나며 내리게 두어야 목록이 두 번 바뀌지 않습니다.
+  if (!loadPromise) loading = false
   commit(seeded)
 }
 
@@ -375,6 +379,23 @@ export function useAgendaState(
 }
 
 /**
+ * 이 일정이 내가 한 일인지. '보고서 작성' 이 설 자리를 정합니다.
+ *
+ * ownerMemberId 가 비는 것은 서버를 거치지 않은 줄뿐입니다. 팀원 목록은 서버가 본인
+ * 것만 돌려주므로 비어 있어도 본인 일정으로 봅니다. 팀장은 남의 줄이 섞여 있어,
+ * 확인할 수 없으면 세우지 않습니다. 세웠다가 서버가 403 을 돌려주는 것보다
+ * 처음부터 없는 편이 낫습니다.
+ */
+export function isOwnAgendaItem(
+  item: Pick<AgendaItem, 'ownerMemberId'>,
+  memberId: string,
+  isManager: boolean,
+): boolean {
+  if (item.ownerMemberId !== undefined) return item.ownerMemberId === memberId
+  return !isManager
+}
+
+/**
  * 활동 하나만 받아 옵니다. 보고서 작성 화면이 주소의 활동 번호로 바로 들어올 때 씁니다.
  *
  * 목록에서 찾으면 그 활동이 언제 것인지 모르는 채로 전 기간을 받아야 합니다. 번호를 아는
@@ -424,8 +445,13 @@ export function useAgendaItem(id: string) {
 /**
  * 하루치만 받아 옵니다. 대시보드가 첫 응답으로 심어 둔 날은 캐시에 걸려 다시 받지 않습니다.
  */
-export function useAgendaFor(dateISO: string): AgendaItem[] {
-  useAgendaState(dateISO, dateISO)
+export function useAgendaFor(dateISO: string): { items: AgendaItem[]; loading: boolean } {
+  const { loading, error } = useAgendaState(dateISO, dateISO)
   const snapshot = useCallback(() => agendaFor(dateISO), [dateISO])
-  return useSyncExternalStore(subscribeAgenda, snapshot, snapshot)
+  const list = useSyncExternalStore(subscribeAgenda, snapshot, snapshot)
+  // 날짜가 바뀐 뒤 요청을 띄우는 것은 effect 라, 그 앞의 렌더에서는 아직 store 의
+  // loading 이 false 입니다. 그대로 두면 '일정 없음' 이 한 번 스쳤다가 목록으로
+  // 바뀝니다. 이 날짜를 실제로 받아 두었는지까지 함께 봅니다.
+  const settled = loadedKey === `${getScopeKey()}|${dateISO}:${dateISO}` || error !== null
+  return { items: list, loading: loading || !settled }
 }

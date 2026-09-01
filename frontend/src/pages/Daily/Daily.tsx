@@ -9,10 +9,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import Button, { buttonClass } from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Skeleton from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import WeekStrip from '@/components/WeekStrip'
 import { dailyComposePath, meetingPickPath } from '@/constants/routes'
+import { useShowOwner } from '@/shared/scope'
 import {
   addDays,
   addMonths,
@@ -53,6 +55,7 @@ export default function Daily() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const period = toPeriod(params.get('tab'))
+  const showOwner = useShowOwner()
   const kind = PERIOD_KIND[period]
 
   /**
@@ -74,7 +77,12 @@ export default function Daily() {
   const [openISO, setOpenISO] = useState('')
 
   const query = params.get('q') ?? ''
-  const filters = useMemo(() => parseFilters(params), [params])
+  const filters = useMemo(() => {
+    const parsed = parseFilters(params)
+    return period === 'meeting'
+      ? { ...parsed, status: parsed.status.filter((status) => status !== '작성중') }
+      : parsed
+  }, [params, period])
 
   const days = weekDays(weekOffset)
 
@@ -155,7 +163,7 @@ export default function Daily() {
     const tone = (() => {
       if (row?.status === '확정') return styles.markDone
       if (row?.status === '검토 대기') return styles.markPending
-      if (row?.status === '작성중') return styles.markDraft
+      if (row?.status === '작성중' || row?.status === '수정중') return styles.markDraft
       if (row?.status === '반려') return styles.markMissing
       // 주간·월간·미팅은 매일 내는 보고가 아니므로 미작성으로 보지 않습니다.
       if (period !== 'all' && period !== 'daily') return null
@@ -198,7 +206,9 @@ export default function Daily() {
           onChange={setPeriod}
         />
 
-        {/* 탭이 종류를 이미 골랐으면 한 번 더 묻지 않고 그 화면으로 바로 갑니다. */}
+        {/* 탭이 종류를 이미 골랐으면 한 번 더 묻지 않고 그 화면으로 바로 갑니다.
+            일정에 붙는 업무보고서와 달리 기간 보고서는 언제나 본인 것이라 소유를 따지지
+            않습니다. 서버도 작성자를 로그인한 사람으로 박습니다. */}
         {composeTo ? (
           <Link className={buttonClass()} to={composeTo}>
             보고서 작성하기
@@ -339,7 +349,11 @@ export default function Daily() {
                     {row.title}
                   </Link>
                 </strong>
-                <span>{row.meta}</span>
+                <span className={styles.rowMeta}>
+                  {/* 여러 사람의 보고서가 섞여 보일 때만 누가 썼는지 세웁니다. */}
+                  {showOwner && <OwnerName name={row.author} />}
+                  {row.meta}
+                </span>
               </div>
 
               <span className={styles.approver}>{row.aside}</span>

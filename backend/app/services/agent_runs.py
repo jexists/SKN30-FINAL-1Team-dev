@@ -1,10 +1,14 @@
+import hashlib
+import json
+import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import contract_management, meeting_analysis, report_writing, schedule_management
@@ -15,7 +19,7 @@ from app.models.agent import AgentRun
 from app.models.content import Report
 from app.models.workspace import Member
 from app.schemas.agent_runs import AgentRunCreate, AgentRunRead
-from app.services import contract_schedule_snapshots
+from app.services import contract_schedule_snapshots, meeting_processing
 from app.services.llm import LLMError
 
 _SEOUL = ZoneInfo("Asia/Seoul")
@@ -35,13 +39,76 @@ def _run_read(run: AgentRun) -> AgentRunRead:
         llm_model_name=run.llm_model_name,
         prompt_version=run.prompt_version,
         requested_by_member_id=run.requested_by_member_id,
+        report_id=run.report_id,
         source_refs=run.source_refs,
         output_snapshot=run.output_snapshot,
         evidence=run.evidence,
         error_message=run.error_message,
+        error_code=run.error_code,
+        apply_status=run.apply_status or "not_applicable",
+        current_stage_code=run.current_stage_code,
+        attempt_count=run.attempt_count or 0,
+        base_report_version=run.base_report_version,
+        base_generation_input_version=run.base_generation_input_version,
+        input_tokens=run.input_tokens,
+        output_tokens=run.output_tokens,
+        total_tokens=run.total_tokens,
+        created_at=_seoul(run.created_at),
+        heartbeat_at=_seoul(run.heartbeat_at),
         started_at=_seoul(run.started_at),
         finished_at=_seoul(run.finished_at),
     )
+
+
+def _prompt_version(agent_code: str) -> str:
+    return {
+        "report_writing": report_writing.PROMPT_VERSION,
+        "meeting_analysis": meeting_analysis.PROMPT_VERSION,
+        "meeting_processing": meeting_processing.PROMPT_VERSION,
+        "contract_management_select_candidates": (
+            contract_management.SELECT_CANDIDATES_PROMPT_VERSION
+        ),
+        "contract_management_next_meeting": (
+            contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION
+        ),
+        "contract_management_briefing": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+        "schedule_management": schedule_management.PROMPT_VERSION,
+    }[agent_code]
+
+
+def _request_hash(snapshot: dict[str, Any]) -> str:
+    payload = json.dumps(
+        snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _integrity_constraint(error: IntegrityError) -> str | None:
+    original = getattr(error, "orig", None)
+    cause = getattr(original, "__cause__", None)
+    return next(
+        (
+            name
+            for candidate in (original, cause, getattr(original, "diag", None))
+            if (name := getattr(candidate, "constraint_name", None)) is not None
+        ),
+        None,
+    )
+
+
+def _request_source_refs(payload: AgentRunCreate) -> dict[str, Any]:
+    refs = {}
+    for field in (
+        "report_id",
+        "customer_company_id",
+        "sales_deal_id",
+        "activity_id",
+        "parent_run_id",
+    ):
+        value = getattr(payload, field)
+        if value is not None:
+            refs[field] = str(value)
+    return refs
 
 
 def _scope(member: Member):
@@ -53,7 +120,7 @@ def _scope(member: Member):
 
 
 async def _draft_source(db: AsyncSession, member: Member, report_id: UUID) -> Report:
-    """초안을 붙일 draft 보고서. 일반 구성원은 본인 것만, 관리자는 팀 전체를 다룬다."""
+    """초안 생성도 보고서 작성자만 시작한다."""
     conditions = [
         Report.id == report_id,
         Report.team_id == member.team_id,
@@ -66,7 +133,12 @@ async def _draft_source(db: AsyncSession, member: Member, report_id: UUID) -> Re
             status_code=status.HTTP_404_NOT_FOUND,
             detail="report_not_found",
         )
-    if report.status_code != "draft":
+    if report.author_member_id != member.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="report_not_owned",
+        )
+    if report.status_code not in {"draft", "changes_requested"}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="report_not_editable",
@@ -78,20 +150,29 @@ async def _parent_run_or_409(
     db: AsyncSession, member: Member, parent_run_id: UUID, *, expected_agent_code: str
 ) -> AgentRun:
     """다른 실행을 이어받을 때, 같은 팀의 완료된 실행인지 확인한다."""
-    parent = (
-        await db.execute(
-            select(AgentRun).where(
-                AgentRun.id == parent_run_id,
-                AgentRun.team_id == member.team_id,
+    conditions = [AgentRun.id == parent_run_id, AgentRun.team_id == member.team_id]
+    if member.role_code == "member":
+        # 시스템이 팀에 만든 제안은 담당자가 이어 쓸 수 있지만 다른 팀원의 수동 실행은 못 쓴다.
+        conditions.append(
+            or_(
+                AgentRun.requested_by_member_id == member.id,
+                AgentRun.requested_by_member_id.is_(None),
             )
         )
-    ).scalar_one_or_none()
+    parent = (await db.execute(select(AgentRun).where(*conditions))).scalar_one_or_none()
     if parent is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="parent_run_not_found",
         )
-    if parent.agent_code != expected_agent_code or parent.status_code != "completed":
+    partial_applied = (
+        expected_agent_code == "meeting_processing"
+        and parent.status_code == "partial"
+        and parent.apply_status == "applied"
+    )
+    if parent.agent_code != expected_agent_code or not (
+        parent.status_code == "completed" or partial_applied
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="parent_run_not_usable",
@@ -101,16 +182,48 @@ async def _parent_run_or_409(
 
 async def _build_run_input(
     payload: AgentRunCreate, member: Member, db: AsyncSession
-) -> tuple[str, dict[str, Any], dict[str, Any], UUID | None]:
+) -> tuple[str, dict[str, Any], dict[str, Any], UUID | None, int | None, int | None]:
     """agent_code 별로 prompt_version, input_snapshot, source_refs, parent_run_id 를 만든다."""
+    if payload.agent_code == "meeting_processing":
+        report = await _draft_source(db, member, payload.report_id)
+        parent = None
+        if payload.parent_run_id:
+            parent = await _parent_run_or_409(
+                db, member, payload.parent_run_id, expected_agent_code="meeting_processing"
+            )
+        snapshot = await meeting_processing.input_snapshot(
+            db, member, report, parent, payload.assignment_overrides
+        )
+        return (
+            meeting_processing.PROMPT_VERSION,
+            snapshot,
+            {
+                "report_id": str(report.id),
+                "activity_id": str(report.source_activity_id),
+                "sales_deal_ids": list(snapshot["source"]["selected_deal_ids"]),
+            },
+            payload.parent_run_id,
+            getattr(report, "version", None),
+            getattr(report, "generation_input_version", None),
+        )
     if payload.agent_code in ("report_writing", "meeting_analysis"):
         report = await _draft_source(db, member, payload.report_id)
+        source_refs = {"report_id": str(report.id)}
+        if report.sales_deal_id is not None:
+            source_refs["sales_deal_id"] = str(report.sales_deal_id)
         if payload.agent_code == "report_writing":
+            snapshot = report_writing.input_snapshot(report, payload.guidance)
+            if report.report_kind != "meeting":
+                from app.services.report_sources import build_report_sources
+
+                snapshot["report_sources"] = await build_report_sources(db, member, report)
             return (
                 report_writing.PROMPT_VERSION,
-                report_writing.input_snapshot(report, payload.guidance),
-                {"report_id": str(report.id)},
+                snapshot,
+                source_refs,
                 None,
+                getattr(report, "version", None),
+                getattr(report, "generation_input_version", None),
             )
         try:
             input_snapshot = meeting_analysis.input_snapshot(report.transcript)
@@ -122,8 +235,10 @@ async def _build_run_input(
         return (
             meeting_analysis.PROMPT_VERSION,
             input_snapshot,
-            {"report_id": str(report.id)},
+            source_refs,
             None,
+            getattr(report, "version", None),
+            getattr(report, "generation_input_version", None),
         )
 
     if payload.agent_code == "contract_management_select_candidates":
@@ -135,6 +250,8 @@ async def _build_run_input(
             input_snapshot,
             {},
             None,
+            None,
+            None,
         )
 
     if payload.agent_code == "contract_management_next_meeting":
@@ -145,6 +262,8 @@ async def _build_run_input(
             contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
             input_snapshot,
             {"customer_company_id": str(payload.customer_company_id)},
+            None,
+            None,
             None,
         )
 
@@ -168,6 +287,8 @@ async def _build_run_input(
             input_snapshot,
             source_refs,
             parent_id,
+            None,
+            None,
         )
 
     # schedule_management. 계약관리 제안이 없어도(parent_run_id 없이) 실행할 수 있다.
@@ -196,6 +317,8 @@ async def _build_run_input(
         input_snapshot,
         source_refs,
         parent.id if parent is not None else None,
+        None,
+        None,
     )
 
 
@@ -204,7 +327,7 @@ async def create(
     member: Member,
     db: AsyncSession,
 ) -> tuple[AgentRunRead, UUID | None]:
-    """실행 이력을 만들고 새 실행이면 백그라운드 작업용 id 도 돌려준다."""
+    """원 요청만 먼저 영속화한다. CRM 조회와 프롬프트 입력 구성은 worker가 맡는다."""
     # LLM 설정이 없으면 큐에 쌓아둬도 반드시 실패한다. 만들기 전에 막는다.
     if not settings.llm_configured:
         raise HTTPException(
@@ -212,6 +335,8 @@ async def create(
             detail="llm_not_configured",
         )
 
+    request_snapshot = payload.model_dump(mode="json")
+    request_hash = _request_hash(request_snapshot)
     # 같은 사용자가 동일 키로 재전송하면 새 실행 대신 기존 실행을 돌려준다.
     existing = (
         await db.execute(
@@ -222,13 +347,38 @@ async def create(
         )
     ).scalar_one_or_none()
     if existing is not None:
+        if existing.request_hash is not None and existing.request_hash != request_hash:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="idempotency_key_reused",
+            )
         return _run_read(existing), None
 
+    # 권한 검증은 큐에 넣기 전에 끝낸다. CRM·과거 보고서 같은 비싼 스냅샷만 worker로 미룬다.
+    parent_run_id = None
+    base_report_version = None
+    base_generation_input_version = None
     try:
-        prompt_version, input_snapshot, source_refs, parent_run_id = await _build_run_input(
-            payload, member, db
-        )
+        if payload.report_id is not None:
+            report = await _draft_source(db, member, payload.report_id)
+            base_report_version = getattr(report, "version", None)
+            base_generation_input_version = getattr(report, "generation_input_version", None)
+        if payload.parent_run_id is not None:
+            expected_parent = {
+                "meeting_processing": "meeting_processing",
+                "contract_management_briefing": "schedule_management",
+                "schedule_management": "contract_management_next_meeting",
+            }[payload.agent_code]
+            parent = await _parent_run_or_409(
+                db, member, payload.parent_run_id, expected_agent_code=expected_parent
+            )
+            parent_run_id = parent.id
+    except Exception:
+        await db.rollback()
+        raise
 
+    now = datetime.now(UTC)
+    try:
         run = AgentRun(
             id=uuid4(),
             team_id=member.team_id,
@@ -237,16 +387,34 @@ async def create(
             agent_code=payload.agent_code,
             trigger_code="user",
             idempotency_key=payload.idempotency_key,
-            # 실제 호출은 백그라운드에서 한다. 여기서는 대기 상태로만 남긴다.
+            report_id=payload.report_id,
             status_code="queued",
             llm_model_name=settings.llm_model,
-            prompt_version=prompt_version,
-            source_refs=source_refs,
-            # 실행 시점 입력을 저장한다. 원본 데이터가 바뀌어도 이 실행에 쓴 입력은 남는다.
-            input_snapshot=input_snapshot,
+            prompt_version=_prompt_version(payload.agent_code),
+            request_snapshot=request_snapshot,
+            request_hash=request_hash,
+            source_refs=_request_source_refs(payload),
+            # NOT NULL인 구 계약을 유지한다. worker가 만든 실제 입력으로 교체된다.
+            input_snapshot={},
             output_snapshot=None,
             evidence=None,
             error_message=None,
+            error_code=None,
+            apply_status=(
+                "pending" if payload.agent_code == "meeting_processing" else "not_applicable"
+            ),
+            current_stage_code="queued",
+            attempt_count=0,
+            base_report_version=base_report_version,
+            base_generation_input_version=base_generation_input_version,
+            lease_owner=None,
+            lease_expires_at=None,
+            heartbeat_at=None,
+            next_attempt_at=now,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+            created_at=now,
             started_at=None,
             finished_at=None,
         )
@@ -254,6 +422,30 @@ async def create(
         await db.flush()
         read = _run_read(run)
         await db.commit()
+    except IntegrityError as error:
+        # 동시에 들어온 같은 멱등키는 UNIQUE가 결정한다. 승자 실행을 그대로 반환한다.
+        await db.rollback()
+        existing = (
+            await db.execute(
+                select(AgentRun).where(
+                    AgentRun.requested_by_member_id == member.id,
+                    AgentRun.idempotency_key == payload.idempotency_key,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            if _integrity_constraint(error) == "agent_run_meeting_active_report_key":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="meeting_generation_in_progress",
+                ) from error
+            raise
+        if existing.request_hash is not None and existing.request_hash != request_hash:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="idempotency_key_reused",
+            ) from None
+        return _run_read(existing), None
     except Exception:
         # 실행 이력이 일부만 저장되지 않도록 트랜잭션 전체를 되돌린다.
         await db.rollback()
@@ -263,103 +455,185 @@ async def create(
 
 
 async def execute(run_id: UUID) -> None:
-    """백그라운드 실행. 요청 세션이 닫힌 뒤라 자체 세션을 쓴다."""
+    """기존 내부 호출용 진입점. 선점은 DB lease를 사용하므로 worker와 중복 실행되지 않는다."""
+    from app.services.agent_worker import execute as execute_queued
+
+    await execute_queued(run_id)
+
+
+async def prepare_claimed(
+    run: AgentRun, lease_owner: str
+) -> tuple[str, dict[str, Any], UUID | None]:
+    """신규 요청의 실제 입력을 만든다. 이미 만든 입력은 재시도에서도 그대로 재사용한다."""
+    if run.input_snapshot:
+        return run.agent_code, run.input_snapshot, run.requested_by_member_id
+
+    request_snapshot = run.request_snapshot or {}
+    if not request_snapshot:
+        # 전환 전에 만들어진 실행은 빈 입력도 유효할 수 있다.
+        return run.agent_code, run.input_snapshot, run.requested_by_member_id
+    if run.request_hash != _request_hash(request_snapshot):
+        raise ValueError("request_hash_mismatch")
+    payload = AgentRunCreate.model_validate(request_snapshot)
+    if run.requested_by_member_id is None:
+        raise ValueError("requester_required")
+
     sessionmaker = get_sessionmaker()
-    # 1) 아직 queued 인 실행만 running 으로 바꾼다. 이미 처리된 재호출은 건너뛴다.
-    # ponytail: 초기 단일 프로세스 전제. 다중 worker 에서는 조건부 UPDATE 로 선점한다.
     async with sessionmaker() as session:
-        run = (
-            await session.execute(select(AgentRun).where(AgentRun.id == run_id))
+        member = (
+            await session.execute(
+                select(Member).where(
+                    Member.id == run.requested_by_member_id,
+                    Member.team_id == run.team_id,
+                    Member.active.is_(True),
+                    Member.role_code.in_(("member", "manager")),
+                )
+            )
         ).scalar_one_or_none()
-        if run is None or run.status_code != "queued":
-            return
-        run.status_code = "running"
-        run.started_at = datetime.now(UTC)
+        if member is None:
+            raise ValueError("requester_not_active")
+        (
+            prompt_version,
+            input_snapshot,
+            source_refs,
+            parent_run_id,
+            report_version,
+            generation_input_version,
+        ) = await _build_run_input(payload, member, session)
+        if (
+            run.base_generation_input_version is not None
+            and generation_input_version != run.base_generation_input_version
+        ):
+            raise ValueError("report_source_changed")
+        if (
+            run.base_generation_input_version is None
+            and run.base_report_version is not None
+            and report_version != run.base_report_version
+        ):
+            raise ValueError("report_source_changed")
+        values = {
+            "prompt_version": prompt_version,
+            "input_snapshot": input_snapshot,
+            "source_refs": source_refs,
+            "parent_run_id": parent_run_id,
+            "current_stage_code": "running_agent",
+        }
+        if run.base_report_version is None:
+            values["base_report_version"] = report_version
+        if run.base_generation_input_version is None:
+            values["base_generation_input_version"] = generation_input_version
+        result = await session.execute(
+            update(AgentRun)
+            .where(
+                AgentRun.id == run.id,
+                AgentRun.status_code == "running",
+                AgentRun.lease_owner == lease_owner,
+            )
+            .values(**values)
+        )
+        if getattr(result, "rowcount", 1) == 0:
+            raise RuntimeError("agent_run_lease_lost")
         await session.commit()
+    return run.agent_code, input_snapshot, run.requested_by_member_id
 
-        agent_code = run.agent_code
-        input_snapshot = run.input_snapshot
 
-    output: (
-        report_writing.ReportDraftOutput
-        | meeting_analysis.MeetingAnalysisOutput
-        | contract_management.SelectNextMeetingCandidatesOutput
-        | contract_management.NextMeetingProposalOutput
-        | contract_management.ContractBriefingOutput
-        | schedule_management.ScheduleManagementOutput
-        | None
-    ) = None
-    error: str | None = None
-    # 2) LLM 호출. 느린 구간이라 DB 커넥션을 쥐지 않은 채로 돈다.
-    try:
-        if agent_code == "report_writing":
-            output = await report_writing.run(input_snapshot)
-        elif agent_code == "meeting_analysis":
-            output = await meeting_analysis.run(input_snapshot)
-        elif agent_code == "contract_management_select_candidates":
-            output = await contract_management.select_next_meeting_candidates(input_snapshot)
-        elif agent_code == "contract_management_next_meeting":
-            output = await contract_management.propose_next_meeting(input_snapshot)
-        elif agent_code == "contract_management_briefing":
-            output = await contract_management.generate_briefing(input_snapshot)
-        elif agent_code == "schedule_management":
-            output = await schedule_management.run(input_snapshot)
-        else:
-            error = "unsupported_agent"
-    except LLMError as caught:
-        error = str(caught)
-    except DealModelError as caught:
-        error = str(caught)
-    except Exception:
-        # 공급자 예외 원문에 URL 이나 key 가 섞일 수 있어 코드만 남긴다.
-        error = "llm_unexpected_error"
+async def dispatch(
+    agent_code: str, input_snapshot: dict[str, Any], requested_by_member_id: UUID | None
+) -> Any:
+    """DB 연결을 쥐지 않고 에이전트 하나를 실행한다."""
+    if agent_code == "report_writing":
+        return await report_writing.run(input_snapshot)
+    if agent_code == "meeting_analysis":
+        return await meeting_analysis.run(input_snapshot)
+    if agent_code == "meeting_processing":
+        return await meeting_processing.run(input_snapshot, requested_by_member_id)
+    if agent_code == "contract_management_select_candidates":
+        return await contract_management.select_next_meeting_candidates(input_snapshot)
+    if agent_code == "contract_management_next_meeting":
+        return await contract_management.propose_next_meeting(input_snapshot)
+    if agent_code == "contract_management_briefing":
+        return await contract_management.generate_briefing(input_snapshot)
+    if agent_code == "schedule_management":
+        return await schedule_management.run(input_snapshot)
+    raise ValueError("unsupported_agent")
 
-    # 3) 결과 기록.
-    async with sessionmaker() as session:
-        run = (
-            await session.execute(select(AgentRun).where(AgentRun.id == run_id))
-        ).scalar_one_or_none()
-        if run is None:
-            return
-        run.finished_at = datetime.now(UTC)
-        if output is None:
-            run.status_code = "failed"
-            run.error_message = error
-        else:
-            run.status_code = "completed"
-            run.output_snapshot = output.model_dump()
-            if run.agent_code == "report_writing":
-                # 제안일 뿐이다. 사람이 확인해 보고서에 반영하기 전에는 report 를 고치지 않는다.
-                run.evidence = {
-                    "prompt_version": report_writing.PROMPT_VERSION,
-                    "summary": output.summary,
-                }
-            elif run.agent_code == "meeting_analysis":
-                run.evidence = {
-                    "prompt_version": meeting_analysis.PROMPT_VERSION,
-                    "model_version": output.deal_assessment.model_version,
-                }
-            elif run.agent_code == "contract_management_select_candidates":
-                run.evidence = {
-                    "prompt_version": contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
-                    "candidate_count": len(output.candidates),
-                }
-            elif run.agent_code == "contract_management_next_meeting":
-                run.evidence = {
-                    "prompt_version": contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
-                    "risk_count": len(output.risks),
-                }
-            elif run.agent_code == "contract_management_briefing":
-                run.evidence = {
-                    "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
-                    "risk_count": len(output.risks),
-                }
-            else:  # schedule_management
-                run.evidence = {
-                    "prompt_version": schedule_management.PROMPT_VERSION,
-                    "candidate_count": len(output.schedule_candidates),
-                }
-        await session.commit()
+
+def evidence(agent_code: str, output: Any) -> dict[str, Any]:
+    if agent_code == "report_writing":
+        return {"prompt_version": report_writing.PROMPT_VERSION, "summary": output.summary}
+    if agent_code == "meeting_analysis":
+        return {
+            "prompt_version": meeting_analysis.PROMPT_VERSION,
+            "model_version": output.deal_assessment.model_version,
+        }
+    if agent_code == "meeting_processing":
+        return {
+            "prompt_version": meeting_processing.PROMPT_VERSION,
+            "deal_count": len(output.analyses),
+            "unresolved_count": sum(
+                item.applicability.scope in {"unresolved", "out_of_scope"}
+                for item in output.evidence.items
+            ),
+            "errors": output.errors,
+        }
+    if agent_code == "contract_management_select_candidates":
+        return {
+            "prompt_version": contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+            "candidate_count": len(output.candidates),
+        }
+    if agent_code == "contract_management_next_meeting":
+        return {
+            "prompt_version": contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+            "risk_count": len(output.risks),
+        }
+    if agent_code == "contract_management_briefing":
+        return {
+            "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+            "risk_count": len(output.risks),
+        }
+    return {
+        "prompt_version": schedule_management.PROMPT_VERSION,
+        "candidate_count": len(output.schedule_candidates),
+    }
+
+
+def safe_error_code(error: BaseException) -> str:
+    if isinstance(error, HTTPException) and isinstance(error.detail, str):
+        candidate = error.detail
+    elif isinstance(error, TimeoutError):
+        return "agent_run_timeout"
+    elif isinstance(error, DealModelError):
+        candidate = str(error)
+    elif isinstance(error, LLMError):
+        candidate = str(error)
+    elif isinstance(error, ValueError):
+        candidate = str(error)
+    else:
+        return "agent_run_unexpected_error"
+    return candidate if re.fullmatch(r"[A-Za-z0-9_:-]{1,120}", candidate) else "agent_run_failed"
+
+
+def is_transient_error(error_code: str) -> bool:
+    if error_code.endswith("_timeout"):
+        return True
+    if error_code.startswith("llm_request_failed:"):
+        return error_code.rsplit(":", 1)[-1] in {
+            "ConnectError",
+            "ConnectTimeout",
+            "PoolTimeout",
+            "ReadError",
+            "ReadTimeout",
+            "RemoteProtocolError",
+            "WriteError",
+            "WriteTimeout",
+        }
+    if error_code.startswith("llm_provider_error:"):
+        try:
+            status_code = int(error_code.rsplit(":", 1)[-1])
+        except ValueError:
+            return False
+        return status_code == 429 or status_code >= 500
+    return False
 
 
 async def get(agent_run_id: UUID, member: Member, db: AsyncSession) -> AgentRunRead:
@@ -371,5 +645,37 @@ async def get(agent_run_id: UUID, member: Member, db: AsyncSession) -> AgentRunR
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="agent_run_not_found",
+        )
+    return _run_read(run)
+
+
+async def latest_for_report(report_id: UUID, member: Member, db: AsyncSession) -> AgentRunRead:
+    report_conditions = [Report.id == report_id, Report.team_id == member.team_id]
+    if member.role_code == "member":
+        report_conditions.append(Report.author_member_id == member.id)
+    report_exists = (
+        await db.execute(select(Report.id).where(*report_conditions))
+    ).scalar_one_or_none()
+    if report_exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="report_not_found",
+        )
+    run = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.report_id == report_id,
+                AgentRun.team_id == member.team_id,
+                AgentRun.agent_code == "meeting_processing",
+            )
+            .order_by(AgentRun.created_at.desc().nullslast(), AgentRun.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="report_generation_not_found",
         )
     return _run_read(run)

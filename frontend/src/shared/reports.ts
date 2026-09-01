@@ -4,42 +4,18 @@ import { addDays, iso, TODAY } from '@/utils/date'
 export const APPROVERS: readonly string[] = []
 
 export const dailyTemplate: ReportTemplate = {
-  id: 'builtin-daily',
-  name: '기본 일일보고 양식',
+  id: 'builtin-daily-freeform',
+  name: '일일보고서',
   owner: '',
   updated: '',
   fields: [
     {
-      id: 'summary',
-      label: '업무 요약',
+      id: 'body',
+      label: '보고서 본문',
       type: 'textarea',
       required: true,
       aiFilled: true,
-      placeholder: '오늘 진행한 활동을 요약합니다.',
-    },
-    {
-      id: 'issue',
-      label: '특이사항 · 이슈',
-      type: 'textarea',
-      required: false,
-      aiFilled: true,
-      placeholder: '지연, 고객 불만, 예산 보류 등',
-    },
-    {
-      id: 'next',
-      label: '내일 계획',
-      type: 'textarea',
-      required: true,
-      aiFilled: true,
-      placeholder: '내일 처리할 후속 업무',
-    },
-    {
-      id: 'competitor',
-      label: '경쟁사 동향',
-      type: 'text',
-      required: false,
-      aiFilled: false,
-      placeholder: '직접 확인한 내용이 있으면 입력하세요.',
+      placeholder: '하루 동안 진행한 업무와 미팅 내용을 자유롭게 작성하세요.',
     },
   ],
 }

@@ -1,0 +1,159 @@
+.card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+}
+
+.header {
+  display: flex;
+  width: 100%;
+  min-height: 78px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast);
+
+  &:hover {
+    background: var(--fill);
+  }
+
+  &:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 3px solid var(--blue-ring);
+    outline-offset: -3px;
+  }
+
+  &:active {
+    transform: none;
+  }
+}
+
+.identity,
+.dealLine,
+.result {
+  display: flex;
+  align-items: center;
+}
+
+.identity {
+  min-width: 0;
+  gap: var(--s3);
+}
+
+.caret {
+  flex: none;
+  color: var(--muted);
+  transform: rotate(-90deg);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.isOpen .caret {
+  color: var(--blue);
+  transform: rotate(0deg);
+}
+
+.dealText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.dealLine {
+  gap: var(--s2);
+
+  strong {
+    font-size: 15px;
+    letter-spacing: -0.015em;
+  }
+}
+
+.dealTitle {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result {
+  flex: none;
+}
+
+.body {
+  border-top: 1px solid var(--line);
+}
+
+.isClosed {
+  display: none;
+}
+
+.original {
+  margin: var(--s4) var(--s5) 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--ink-2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    span {
+      color: var(--purple-ink);
+    }
+  }
+}
+
+@include sm {
+  .header {
+    min-height: 70px;
+    align-items: flex-start;
+    padding: var(--s4);
+  }
+
+  .result {
+    max-width: 46%;
+  }
+}
+
+@media print {
+  .card {
+    margin-bottom: var(--s6);
+    overflow: visible;
+    border: 0;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .header {
+    min-height: 0;
+    padding: 0 0 var(--s3);
+  }
+
+  .caret,
+  .original {
+    display: none;
+  }
+
+  .body,
+  .isClosed {
+    display: block;
+    border-top: 1px solid var(--line);
+  }
+}

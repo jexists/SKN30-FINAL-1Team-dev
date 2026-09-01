@@ -32,6 +32,14 @@
   color: var(--ink);
   font-size: 14px;
   animation: drop var(--t) var(--ease-spring);
+
+  &[data-tone='error'] {
+    border-color: color-mix(in srgb, var(--red) 36%, var(--line));
+
+    .mark {
+      background: var(--red);
+    }
+  }
 }
 
 @include md {
@@ -56,6 +64,25 @@
 
 .text {
   min-width: 0;
+}
+
+.action {
+  flex: none;
+  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+
+  &:hover {
+    background: var(--line);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
 }
 
 .close {

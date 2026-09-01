@@ -188,8 +188,10 @@ def test_scope_splits_team_notice_and_personal_directive():
     personal_db = _Db(
         _Result(scalar=1),
         _Result(rows=[(personal, member.display_name)]),
-        # 지시는 수신자를 한 번 더 읽는다.
-        _Result(rows=[(personal.id, member.id, member.display_name)]),
+        # 지시는 수신자를 한 번 더 읽는다. 이제 이행 여부까지 함께 읽는다.
+        _Result(rows=[(personal.id, member.id, member.display_name, "pending", None, None)]),
+        # 그다음 자기 몫의 이행 여부를 따로 읽는다.
+        _Result(rows=[(personal.id, "pending", None, None)]),
     )
     with _client(personal_db, member) as client:
         mine = client.get("/api/notices?scope=personal")

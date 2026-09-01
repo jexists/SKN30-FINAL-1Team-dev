@@ -246,3 +246,31 @@
     accent-color: var(--brand);
   }
 }
+
+/* ---- 이행 현황 ---- */
+
+// 배지와 진행도를 한 덩어리로 눌러 사람별 상태를 엽니다. 표 안이라 버튼처럼 굵게 세우지
+// 않고 배경 없이 둡니다.
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--t-fast);
+
+  &:hover {
+    background: var(--fill-2);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+    outline: none;
+  }
+}

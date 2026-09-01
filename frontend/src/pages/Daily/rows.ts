@@ -5,8 +5,7 @@
 // 매번 갈라지면 같은 코드를 두 벌 갖게 됩니다. 그래서 화면에 필요한 것만 여기서
 // 한 모양으로 만들고, 아래쪽 컴포넌트는 이 타입 하나만 압니다.
 import { dailyReportPath, meetingReportPath } from '@/constants/routes'
-import { templateFor } from '@/shared/reports'
-import type { DailyReport, MeetingReport, ReportStatus } from '@/types'
+import type { DailyReport, MeetingReport, MeetingReportStatus, ReportStatus } from '@/types'
 
 import { reportTitle } from './periods'
 
@@ -23,20 +22,22 @@ export interface ListRow {
   meta: string
   /** 오른쪽 끝 값. 일일은 보고 대상, 미팅은 고객사입니다. */
   aside: string
-  status: ReportStatus
+  status: ReportStatus | MeetingReportStatus
   /** 전문으로 넘어가는 경로 */
   to: string
   /** 검색이 훑을 글자. 소문자로 만들어 둡니다. */
   haystack: string
   /** 미팅만 갖습니다. 고객사 필터가 봅니다. */
   hospital?: string
+  /** 이 보고서를 쓴 사람. 여러 사람이 섞여 보일 때만 화면에 섭니다. */
+  author: string
 }
 
 const lower = (parts: (string | undefined)[]) => parts.filter(Boolean).join(' ').toLowerCase()
 
 export function fromDailyReport(report: DailyReport): ListRow {
-  // 양식의 첫 필드가 언제나 그 보고서의 본문입니다.
-  const [first] = templateFor(report.kind).fields
+  // 저장 당시 양식의 첫 필드로 기존 보고서와 자유본문을 모두 표시합니다.
+  const [first] = report.template.fields
   const files = report.attachments.length
   const acts = report.activities.filter((a) => a.included).length
 
@@ -45,18 +46,20 @@ export function fromDailyReport(report: DailyReport): ListRow {
     date: report.date,
     kindLabel: report.kind,
     title: reportTitle(report),
-    summary: report.values[first.id]?.trim() ?? '',
+    summary: first ? (report.values[first.id]?.trim() ?? '') : '',
     meta:
       acts > 0 || files > 0
         ? `활동 ${acts}건${files > 0 ? ` · 첨부 ${files}건` : ''}`
         : report.note,
     aside: report.approver,
+    author: report.owner,
     status: report.status,
     to: dailyReportPath(report.id),
     haystack: lower([
       reportTitle(report),
       report.note,
       report.approver,
+      report.owner,
       report.kind,
       ...Object.values(report.values),
     ]),
@@ -65,29 +68,53 @@ export function fromDailyReport(report: DailyReport): ListRow {
 
 export function fromMeetingReport(report: MeetingReport): ListRow {
   const files = report.attachments.length
+  const dealLabels = report.dealSections.map((section) => section.salesDeal.label)
+  const templateSummary = report.dealSections
+    .flatMap((section) => report.template.fields.map((field) => section.values[field.id]?.trim()))
+    .find(Boolean)
+  const fallbackSummary = report.dealSections
+    .flatMap((section) => [
+      section.values.body?.trim(),
+      section.values.reaction?.trim(),
+      section.values.note?.trim(),
+    ])
+    .find(Boolean)
 
   return {
     id: report.id,
     date: report.date,
     kindLabel: '미팅',
     // 미팅 제목은 그 자리에서 정한 말이라 어느 병원인지가 붙어야 알아봅니다.
-    title: `${report.hospital} ${report.title}`,
-    summary: report.values.reaction?.trim() ?? '',
-    meta: [`${report.time} · ${report.contact}`, files > 0 ? `첨부 ${files}건` : '']
+    title: [report.hospital, report.title].filter(Boolean).join(' · '),
+    summary: templateSummary || fallbackSummary || '',
+    meta: [
+      `${report.time} · ${report.contact}`,
+      dealLabels.length > 0 ? `딜 ${dealLabels.length}건` : '',
+      files > 0 ? `첨부 ${files}건` : '',
+    ]
       .filter(Boolean)
       .join(' · '),
     aside: report.hospital,
+    author: report.owner,
     status: report.status,
     to: meetingReportPath(report.id),
     haystack: lower([
       report.hospital,
       report.title,
+      report.meetingShared?.common_report?.body,
+      report.meetingShared?.unassigned_report?.body,
+      ...dealLabels,
+      report.owner,
       report.dept,
       report.contact,
-      report.product,
       report.place,
       report.transcript,
-      ...Object.values(report.values),
+      ...report.dealSections.flatMap((section) => [
+        section.title,
+        section.product,
+        section.salesDeal.note,
+        ...Object.values(section.values),
+      ]),
     ]),
     hospital: report.hospital,
   }

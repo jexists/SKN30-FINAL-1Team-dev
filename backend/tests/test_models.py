@@ -1,13 +1,17 @@
 import asyncio
+import json
+from pathlib import Path
 
 import pytest
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import configure_mappers
 
 from app.core.config import settings
 from app.db.base import Base
 from app.models.agent import AgentRun
+from app.models.content import ReportDeal
 
 EXPECTED_COLUMN_COUNTS = {
     # 20260823_0002 로 team 에 company_name/department/business_no, member 에 email 이 늘었다.
@@ -28,7 +32,10 @@ EXPECTED_COLUMN_COUNTS = {
     # sort_order/updated_at/deleted_at 이 늘고 recipient_member_id 가 빠졌다.
     # 수신자는 notice_target 으로 옮겼고, 본문 사진은 notice_image 가 가리킨다.
     "notice": 18,
-    "notice_target": 3,
+    # 20260831_0015 로 notice_target 에 이행 여부(status_code/status_reason/
+    # status_changed_at/status_changed_by_member_id)가 늘었다. 한 지시가 여러 명에게
+    # 가므로 notice 가 아니라 수신자 쪽에 남긴다.
+    "notice_target": 7,
     "notice_image": 6,
     # 20260827_0010 으로 세 표에서 activity_type 이 빠졌다. 활동은 늘 미팅이다.
     "activity": 21,
@@ -56,14 +63,53 @@ EXPECTED_COLUMN_COUNTS = {
     "purchase_order": 17,
     "purchase_order_item": 6,
     "sales_target": 5,
-    "report": 20,
+    # report는 수정 가능한 aggregate, report_submission은 확정 당시 불변 스냅샷이다.
+    # report_deal은 딜별 본문 N행, meeting_deal_analysis는 실행별 ML 결과를 보관한다.
+    "report": 32,
+    "report_deal": 13,
+    "report_submission": 13,
+    "report_source": 4,
+    "meeting_deal_analysis": 10,
     "report_activity": 2,
-    # 20260828_0012 로 document 에 product_id 가 늘었다.
-    "document": 13,
-    "file": 13,
-    "agent_run": 17,
+    # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
+    "document": 14,
+    # 20260828_0015 로 만료 시각과 승인자 정보가 늘었다.
+    "file": 23,
+    "document_chunk": 12,
+    "document_file_audit": 9,
+    "agent_run": 34,
     # 20260829_0013 으로 contract_next_meeting_suggestion 을 새로 만들었다.
     "contract_next_meeting_suggestion": 7,
+}
+
+# Supabase에 이미 남아 있지만 현재 애플리케이션이 사용하지 않는 과거 테이블입니다.
+# 삭제 대신 명시적으로 허용하고, 현재 모델 테이블이 DB에서 빠지는 경우는 계속 실패시킵니다.
+KNOWN_LEGACY_DATABASE_TABLES = {"contract_next_meeting_suggestion"}
+
+# 원격 Supabase에 이전 마이그레이션의 잔여 컬럼이 남아 있을 수 있습니다.
+# 모델 컬럼 누락은 계속 실패시키고, 아래에 기록한 추가 컬럼만 허용합니다.
+KNOWN_LEGACY_DATABASE_COLUMNS = {
+    "activity": {"activity_type"},
+    "activity_category": {"activity_type"},
+    "activity_action_tag": {"activity_type"},
+    "document": {"product_id"},
+    "report": {"sales_deal_id"},
+    "sales_deal": {"source_code"},
+}
+
+
+def test_report_deal_none_ai_evidence_binds_as_sql_null():
+    """초안의 None 은 DB CHECK 를 깨는 JSON null 이 아니라 SQL NULL 이어야 한다."""
+    column_type = ReportDeal.__table__.c.ai_evidence.type
+    bind = column_type.bind_processor(postgresql.dialect())
+
+    assert bind is not None
+    assert bind(None) is None
+
+
+KNOWN_LEGACY_DATABASE_FOREIGN_KEYS = {
+    "document": {("product_id", "public", "product", "id", None)},
+    "report": {("sales_deal_id", "public", "sales_deal", "id", None)},
 }
 
 
@@ -74,14 +120,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 345
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 450
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 84
+    assert len(foreign_key_constraints) == 110
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints
@@ -89,9 +135,94 @@ def test_all_database_tables_are_mapped():
     )
 
 
-@pytest.mark.skipif(not settings.database_url, reason="DATABASE_URL 미설정")
+def test_document_summary_completion_audit_status_is_migrated():
+    migration = Path(__file__).parents[1] / "sql/20260831_0015_document_audit_summary_completed.sql"
+
+    assert "'summary_completed'" in migration.read_text(encoding="utf-8")
+
+
+def test_meeting_report_sections_migration_preserves_links_and_parent_title():
+    migration = Path(__file__).parents[1] / "sql/20260901_0016_report_deal_sections.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE public.report_deal" in sql
+    assert "PRIMARY KEY (report_id, sales_deal_id)" in sql
+    assert "UPDATE public.file AS file" in sql
+    assert "INSERT INTO public.report_activity" in sql
+    assert "report_source_activity_meeting_key" in sql
+    assert "'product', 'values'" in sql
+    assert "'product', 'title', 'values'" not in sql
+    assert "CREATE TEMP TABLE meeting_report_deal_candidate" in sql
+    assert "min(candidate.created_at)" in sql
+    assert "max(candidate.updated_at)" in sql
+    assert "migration metadata; not spoken" in sql
+    assert "char_length(grouped.transcript) > 50000" in sql
+
+
+def test_meeting_report_sections_migration_rejects_conflicting_deal_candidates():
+    migration = Path(__file__).parents[1] / "sql/20260901_0016_report_deal_sections.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "UNION ALL" in sql
+    assert "count(DISTINCT candidate.deal_snapshot) > 1" in sql
+    assert "count(DISTINCT candidate.content) > 1" in sql
+    assert "count(DISTINCT coalesce(candidate.ai_evidence, 'null'::jsonb)) > 1" in sql
+    assert "conflicting legacy report deal candidates" in sql
+
+
+def test_meeting_report_sections_migration_rejects_unscoped_parent_deal_content():
+    migration = Path(__file__).parents[1] / "sql/20260901_0016_report_deal_sections.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "canonical.content ?| ARRAY[" in sql
+    assert "canonical meeting report has unscoped deal content" in sql
+
+
+@pytest.mark.skipif(
+    not settings.run_integration_tests or not settings.database_url,
+    reason="실통합 테스트 비활성화 또는 DATABASE_URL 미설정",
+)
 def test_models_match_configured_database():
     asyncio.run(_assert_models_match_database())
+
+
+@pytest.mark.skipif(not settings.database_url, reason="DATABASE_URL 미설정")
+@pytest.mark.anyio
+async def test_legacy_report_deal_migration_only_clears_ambiguous_links():
+    """후속 SQL의 조건을 합성 행에만 적용한다. 실제 보고서는 읽거나 수정하지 않는다."""
+    migration = Path(__file__).parents[1] / "sql/20260831_0014_report_legacy_deal_scope.sql"
+    # SQL 파일에 한글 주석이 있다. 인코딩을 적지 않으면 Windows 기본 코드페이지(cp949)로
+    # 읽어 깨진다.
+    predicate = migration.read_text(encoding="utf-8").split("WHERE", 1)[1].split(";", 1)[0]
+    query = text(
+        "SELECT CASE WHEN " + predicate + " THEN NULL ELSE report.sales_deal_id END "
+        "FROM (SELECT CAST(:kind AS text) AS report_kind, CAST(:deal AS uuid) AS sales_deal_id, "
+        "CAST(:content AS jsonb) AS content) AS report"
+    )
+    deal = "00000000-0000-0000-0000-000000000001"
+    other = "00000000-0000-0000-0000-000000000002"
+    cases = [
+        ("meeting", {}, deal),
+        ("meeting", {"sales_deal_ids": [deal]}, deal),
+        ("meeting", {"sales_deal_ids": [deal, other]}, None),
+        ("meeting", {"sales_deal_ids": [other]}, None),
+        ("meeting", {"sales_deal_ids": []}, None),
+        ("meeting", {"sales_deal_ids": None}, deal),
+        ("meeting", {"sales_deal_ids": [deal, other], "sales_deal": {"id": deal}}, deal),
+        ("daily", {"sales_deal_ids": [deal, other]}, deal),
+    ]
+    engine = create_async_engine(settings.async_database_url)
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SET TRANSACTION READ ONLY"))
+            for kind, content, expected in cases:
+                result = await connection.execute(
+                    query, {"kind": kind, "deal": deal, "content": json.dumps(content)}
+                )
+                actual = result.scalar_one_or_none()
+                assert (str(actual) if actual is not None else None) == expected
+    finally:
+        await engine.dispose()
 
 
 async def _assert_models_match_database():
@@ -101,14 +232,19 @@ async def _assert_models_match_database():
         inspector = inspect(connection)
         database_tables = set(inspector.get_table_names(schema="public"))
         model_tables = {table.name for table in Base.metadata.tables.values()}
-        assert database_tables == model_tables
+        assert model_tables <= database_tables
+        assert database_tables - model_tables <= KNOWN_LEGACY_DATABASE_TABLES
 
         for table in Base.metadata.tables.values():
             database_columns = {
                 column["name"]: column
                 for column in inspector.get_columns(table.name, schema="public")
             }
-            assert set(database_columns) == set(table.columns.keys())
+            model_columns = set(table.columns.keys())
+            assert model_columns <= set(database_columns)
+            assert set(database_columns) - model_columns <= KNOWN_LEGACY_DATABASE_COLUMNS.get(
+                table.name, set()
+            )
 
             for column in table.columns:
                 database_column = database_columns[column.name]
@@ -125,7 +261,12 @@ async def _assert_models_match_database():
                 inspector.get_pk_constraint(table.name, schema="public")["constrained_columns"]
             )
             assert database_primary_key == {column.name for column in table.primary_key}
-            assert _database_foreign_keys(inspector, table.name) == _model_foreign_keys(table)
+            database_foreign_keys = _database_foreign_keys(inspector, table.name)
+            model_foreign_keys = _model_foreign_keys(table)
+            assert model_foreign_keys <= database_foreign_keys
+            assert database_foreign_keys - model_foreign_keys <= (
+                KNOWN_LEGACY_DATABASE_FOREIGN_KEYS.get(table.name, set())
+            )
 
     try:
         async with engine.connect() as connection:

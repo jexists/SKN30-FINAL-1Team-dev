@@ -2,6 +2,8 @@
 //
 // 한 자리에서 여러 딜을 이야기하는 일이 흔해 체크박스로 둡니다. 고른 딜은 보고서에
 // 저장되고, 그대로 AI 가 읽는 작성 근거가 됩니다.
+import { useId } from 'react'
+
 import Button from '@/components/Button'
 import { SkeletonBlocks } from '@/components/Skeleton'
 import StageChip from '@/components/StageChip'
@@ -17,6 +19,8 @@ interface Props {
   onRetry: () => void
   /** 고른 딜의 id */
   selected: string[]
+  /** 보고서 행이 이미 생긴 딜은 연결을 바꿀 수 없어 선택을 풀 수 없습니다. */
+  fixed?: string[]
   onToggle: (id: string) => void
   disabled: boolean
 }
@@ -27,9 +31,12 @@ export default function DealPicker({
   error,
   onRetry,
   selected,
+  fixed = [],
   onToggle,
   disabled,
 }: Props) {
+  const fixedHintId = useId()
+
   if (loading) {
     return <SkeletonBlocks label="영업 현황을 불러오는 중입니다." count={3} height={52} />
   }
@@ -58,7 +65,8 @@ export default function DealPicker({
               type="checkbox"
               className={styles.check}
               checked={selected.includes(deal.id)}
-              disabled={disabled}
+              disabled={disabled || fixed.includes(deal.id)}
+              aria-describedby={fixed.includes(deal.id) ? `${fixedHintId}-${deal.id}` : undefined}
               onChange={() => onToggle(deal.id)}
             />
 
@@ -72,6 +80,11 @@ export default function DealPicker({
               <span className={['tnum', styles.amount].join(' ')}>{won(deal.amount)}</span>
             </span>
           </label>
+          {fixed.includes(deal.id) && (
+            <p id={`${fixedHintId}-${deal.id}`} className={styles.empty}>
+              저장된 보고서가 있어 선택을 해제할 수 없습니다.
+            </p>
+          )}
         </li>
       ))}
     </ul>

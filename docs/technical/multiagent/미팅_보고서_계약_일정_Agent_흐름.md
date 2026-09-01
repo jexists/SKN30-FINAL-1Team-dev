@@ -36,8 +36,8 @@
 
 - **구현**: `backend/app/agents/meeting_analysis.py`, `agent_code="meeting_analysis"`
 - **Input**: draft 보고서의 `transcript`(미팅 원문 텍스트)
-- **처리**: LLM이 원문에서 10개 딜 특성(Authority·Competitors·Purch_dept·Budgt_alloc·Forml_tend·RFI·RFP·Posit_statm·Scope·Needs_def)을 구조화한다. 원문에 없으면 추측하지 않고 `Unknown`으로 둔다. 이 10개 특성을 별도 ML 모델(`app/ml/deal_baseline.py`)에 넣어 `계약가능성 높음(high)` / `계약가능성 주의(watch)`와 확률을 계산한다.
-- **Output**: `deal_assessment`(구조화된 10개 특성 + `label` + `high_probability` + `model_version`). C/S 사항 추출은 이 Agent의 출력에 없다.
+- **처리**: LLM이 원문에서 13개 딜 특성(Authority·Competitors·Purch_dept·Budgt_alloc·Forml_tend·RFP·Posit_statm·Source·Client·Scope·Cross_sale·Deal_type·Needs_def)을 구조화한다. 원문에 없으면 추측하지 않고 `Unknown`으로 두며 실입력에 임의 마스킹은 하지 않는다. 이 13개 특성을 별도 ML 모델(`app/ml/deal_baseline.py`)에 넣어 `계약가능성 높음(high)` / `계약가능성 주의(watch)`와 확률을 계산한다. 이 브랜치의 로더는 RF 기반 단일 앙상블 `deal-paper-rf-ensemble-v1`에 연결했으며 AWS 업로드·배포는 별도다. 파일·해시·배포 순서는 [배포 인계](../../../deploy/backend/README.md)를 따른다.
+- **Output**: `deal_assessment`(구조화된 13개 특성 + `label` + `high_probability` + `model_version`). C/S 사항 추출은 이 Agent의 출력에 없다.
 - **다음 단계 연결**: 없다. 이 출력은 보고서작성 Agent나 계약관리 Agent로 자동으로 넘어가지 않고, 화면에 참고 지표로만 표시하는 용도다.
 
 ### 2. 보고서작성 Agent — 보고서 양식의 초안을 채우고, 사람이 승인해야 완성된다
@@ -105,7 +105,7 @@
 - Agent 오케스트레이션은 `backend/app/services/agent_runs.py`(사용자 요청 경로)와 `backend/app/services/contract_next_meeting_pipeline.py`(트리거 기반 선계산 경로)가 나눠 맡는다. 선계산 경로는 계약관리 1차→일정관리를 서버가 백그라운드로 자동으로 잇고, 결과를 `contract_next_meeting_suggestion`에 저장한다. 일정관리→계약관리 재진입(브리핑)은 `backend/app/api/activities.py`의 `create_activity`가 `schedule_management_run_id`를 받아 자동으로 이어서 큐잉한다.
 - 같은 딜에 트리거가 몰려도 10분 안에는 다시 돌리지 않는다(`_COOLDOWN`). 진행 중인 실행이 있으면 시각과 무관하게 막는다.
 - 미팅분석 ↔ 보고서작성은 서로 연결돼 있지 않다. 계약관리 1차 제안도 보고서작성 Agent의 출력을 직접 받지 않고, DB에서 확정된(`submitted`/`approved`) 보고서를 다시 조회하는 방식으로만 간접 연결된다.
-- 자료요약(RAG) Agent: 미구현. 브리핑 입력의 `document_summaries`는 항상 빈 배열이다.
+- 자료요약(RAG) Agent: 문서 추출·OCR·요약·검색 청크 저장과 브리핑 컨텍스트 조회 API가 구현돼 있다. `GET /api/documents/briefing-context?q=...`는 같은 팀의 검색 청크(`sources`)와 저장 요약(`summaries`)을 반환한다. 현재 계약관리 Agent 브리핑 입력에 이 컨텍스트를 전달하는 최종 핸들러 연결은 별도 작업으로 남아 있다.
 - 프론트엔드: 미팅 상세(`RecordDrawer`)가 브리핑 결과를 읽기 전용으로 보여주고, 캘린더 탭의 "AI 추천 일정" 패널(`SuggestionPanel`)이 저장된 제안을 조회해 보여주고 승인받는다. 패널은 LLM을 직접 호출하지 않는다 — `GET /contract-next-meeting-suggestions` 한 번이 전부다.
 - 트리거가 한 번도 걸리지 않은 기존 딜은 제안이 없어 패널에 뜨지 않는다. `backend/scripts/backfill_contract_next_meeting_suggestions.py`로 한 번에 채운다.
 
@@ -113,6 +113,7 @@
 
 - [계약에이전트_설계.md](계약에이전트_설계.md) — 계약관리 Agent(0차/1차/재진입)의 정확한 설계
 - [일정관리에이전트_설계.md](일정관리에이전트_설계.md) — 일정관리 Agent의 정확한 설계와 향후 확장 계획
-- [계약에이전트_테스트.md](계약에이전트_테스트.md) — 위 두 Agent의 테스트 방법과 결과
+- [계약_일정_에이전트_테스트보고서.md](계약_일정_에이전트_테스트보고서.md) — 계약관리·일정관리 Agent의 테스트 계획과 결과
+- [계약_일정_에이전트_아키텍처.md](계약_일정_에이전트_아키텍처.md) — 두 Agent의 아키텍처
 - [SalesLuv_ERD.md](../SalesLuv_ERD.md) — 데이터 모델
-- [딜_승산_점수_데이터_전처리_및_AI_학습_모델.md](../딜_승산_점수_데이터_전처리_및_AI_학습_모델.md) — 미팅분석 Agent가 쓰는 ML 모델
+- [딜_승산_점수_데이터_전처리_및_AI_학습_모델.md](../딜_승산_점수_데이터_전처리_및_AI_학습_모델.md) — 13개 입력 계약·현재 학습 흐름·학습 후보와 서비스 모델의 구분

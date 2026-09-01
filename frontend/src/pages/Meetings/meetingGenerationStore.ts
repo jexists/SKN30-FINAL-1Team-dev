@@ -1,0 +1,147 @@
+import { useSyncExternalStore } from 'react'
+
+import { errorMessage } from '../../api/errorMessage.ts'
+import { meetingComposePath } from '../../constants/routes.ts'
+import { showToast } from '../../shared/toast.ts'
+import type { MeetingProgress, MeetingReport } from '../../types'
+
+import { runDealGeneration } from './generatedDraft.ts'
+
+export interface MeetingGenerationResult {
+  report: MeetingReport
+  writingFailed: boolean
+  errors: Record<string, string>
+}
+
+export type MeetingGenerationState = {
+  requestId: string
+  agendaId: string
+  dealIds: string[]
+  progress: MeetingProgress | null
+  savedReport: MeetingReport | null
+} & (
+  | { status: 'running' }
+  | ({ status: 'completed' } & MeetingGenerationResult)
+  | { status: 'failed'; error: string }
+)
+
+interface StartOptions {
+  agendaId: string
+  dealIds: string[]
+  resumed?: boolean
+  execute: (
+    onProgress: (progress: MeetingProgress) => void,
+    onReportSaved: (report: MeetingReport) => void,
+  ) => Promise<MeetingGenerationResult>
+}
+
+const active = new Set<string>()
+const states = new Map<string, MeetingGenerationState>()
+const listeners = new Set<() => void>()
+
+function publish(state: MeetingGenerationState) {
+  states.set(state.agendaId, state)
+  for (const listener of listeners) listener()
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+export const getMeetingGeneration = (agendaId: string) => states.get(agendaId) ?? null
+
+/** 화면이 완료·실패 결과를 반영한 뒤 과거 결과가 다시 적용되지 않게 비웁니다. */
+export function acknowledgeMeetingGeneration(agendaId: string, requestId: string) {
+  const current = states.get(agendaId)
+  if (!current || current.requestId !== requestId || current.status === 'running') return
+  states.delete(agendaId)
+  for (const listener of listeners) listener()
+}
+
+export function useMeetingGeneration(agendaId: string) {
+  return useSyncExternalStore(subscribe, () => getMeetingGeneration(agendaId))
+}
+
+/** 실행 Promise를 페이지 밖에 보관해 라우트가 바뀌어도 apply와 알림까지 끝냅니다. */
+export function startMeetingGeneration({
+  agendaId,
+  dealIds,
+  resumed = false,
+  execute,
+}: StartOptions) {
+  if (!agendaId || active.has(agendaId)) return false
+  const requestId = crypto.randomUUID()
+  const running: MeetingGenerationState = {
+    requestId,
+    agendaId,
+    dealIds: [...dealIds],
+    progress: null,
+    savedReport: null,
+    status: 'running',
+  }
+
+  void runDealGeneration(
+    active,
+    agendaId,
+    () => {},
+    async () => {
+      publish(running)
+      showToast(
+        resumed
+          ? '서버에서 진행 중인 보고서 작성에 다시 연결했습니다.'
+          : '보고서 작성을 시작했습니다. 다른 화면으로 이동해도 계속됩니다.',
+      )
+      try {
+        const result = await execute(
+          (progress) => {
+            const current = states.get(agendaId)
+            if (current?.requestId === requestId && current.status === 'running') {
+              publish({ ...current, progress })
+            }
+          },
+          (report) => {
+            const current = states.get(agendaId)
+            if (current?.requestId === requestId && current.status === 'running') {
+              publish({
+                ...current,
+                savedReport: report,
+              })
+            }
+          },
+        )
+        publish({ ...running, ...result, savedReport: result.report, status: 'completed' })
+        const partial = result.writingFailed || Object.keys(result.errors).length > 0
+        showToast(
+          partial
+            ? 'AI 초안 생성 일부 완료 · 편집 화면에서 결과를 확인하세요.'
+            : `AI 초안 생성 완료 · 딜 ${dealIds.length}건을 확인하세요.`,
+          {
+            tone: partial ? 'error' : 'success',
+            persistent: true,
+            to: meetingComposePath(agendaId),
+            actionLabel: '초안 수정하기',
+          },
+        )
+        return true
+      } catch (reason: unknown) {
+        const message = errorMessage(reason, '미팅 처리를 완료하지 못했습니다.')
+        const current = states.get(agendaId)
+        publish({
+          ...running,
+          savedReport: current?.requestId === requestId ? current.savedReport : null,
+          status: 'failed',
+          error: message,
+        })
+        showToast(`미팅 보고서 생성 실패 · ${message}`, {
+          tone: 'error',
+          persistent: true,
+          to: meetingComposePath(agendaId),
+          actionLabel: '실패 확인',
+        })
+        return false
+      }
+    },
+  )
+  return true
+}

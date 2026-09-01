@@ -108,6 +108,11 @@ class SalesDeal(Base):
     quote_valid_until: Mapped[date | None]
     contract_no: Mapped[str | None]
     contract_signed_on: Mapped[date | None]
+    quote_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.quote_status.id"))
+    contract_status_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.contract_status.id"))
+    quote_amount: Mapped[int | None] = mapped_column(BigInteger)
+    contract_amount: Mapped[int | None] = mapped_column(BigInteger)
+    quote_delivery_terms: Mapped[str | None]
     contract_ends_on: Mapped[date | None]
     # 견적·계약의 자기 값. 상태가 NULL 이면 아직 그 국면에 들어가지 않았다는 뜻이라
     # 견적현황·계약현황 목록이 그것으로 갈린다. 금액은 deal_amount(영업 예상금액)와 별개다.
@@ -198,10 +203,18 @@ class SalesDealParticipant(Base):
 
 
 class SalesTarget(Base):
+    """담당자의 매출 목표. target_month 는 그달 1일이다.
+
+    customer_company_id 가 NULL 인 행은 거래처를 가리지 않는 그 사람의 월 목표이고,
+    팀 관리 화면이 고치는 것이 이 행이다. 부분 유니크 인덱스가 사람·월마다 하나로 묶는다.
+    """
+
     __tablename__ = "sales_target"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     owner_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
-    customer_company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
+    customer_company_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("public.customer_company.id")
+    )
     target_month: Mapped[date]
     target_amount: Mapped[int] = mapped_column(BigInteger)
