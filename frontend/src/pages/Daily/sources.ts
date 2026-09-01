@@ -9,6 +9,7 @@ import type {
   AgendaItem,
   DailyReport,
   MeetingReport,
+  MeetingReportStatus,
   ReportActivity,
   ReportKind,
   ReportStatus,
@@ -20,7 +21,7 @@ import { periodRange, periodStart, reportTitle } from './periods'
 /** 자료 한 줄에 붙는 원본 상태와 바로가기. 목록이 배지·링크를 그릴 때 씁니다. */
 export interface SourceMeta {
   /** 원본 보고서의 상태. null 이면 아직 쓰지 않았습니다. */
-  status: ReportStatus | null
+  status: ReportStatus | MeetingReportStatus | null
   /**
    * 보고서가 따로 나는 자료인지. 문서·후속은 그 자체로 보고서가 없어
    * '미작성' 이라고 말할 것이 없습니다. 배지는 이 값이 참일 때만 답니다.
@@ -43,34 +44,65 @@ export interface DraftSources {
 const ROLLED_UP: readonly ReportStatus[] = ['검토 대기', '확정']
 
 /** 상태별로 원본에서 할 수 있는 일. 미팅 일정과 상위 보고서가 같은 어휘를 씁니다. */
-function actionFor(status: ReportStatus | null): string {
+function actionFor(status: ReportStatus | MeetingReportStatus | null): string {
   if (status === null) return '작성'
-  if (status === '작성중') return '이어서 작성'
+  if (status === '작성중' || status === '수정중') return '이어서 작성'
   if (status === '반려') return '수정하기'
   return '보고서 열기'
 }
 
-function meetingStatus(reports: MeetingReport[]): ReportStatus | null {
+function meetingStatus(reports: MeetingReport[]): MeetingReportStatus | null {
   if (reports.length === 0) return null
   if (reports.every((report) => report.status === '확정')) return '확정'
   if (reports.some((report) => report.status === '반려')) return '반려'
-  if (reports.some((report) => report.status === '작성중')) return '작성중'
+  if (reports.some((report) => report.status === '수정중')) return '수정중'
   return '검토 대기'
 }
 
-function meetingDescription(values: Record<string, string>): string {
-  const firstLine = (values.body || values.decision || values.note)?.split('\n')[0]
+function meetingTitle(report: MeetingReport): string {
+  const labels = report.dealSections.map((section) => section.salesDeal.label).filter(Boolean)
+  const deals = labels.length > 2 ? `${labels[0]} 외 ${labels.length - 1}건` : labels.join(', ')
+  return [report.hospital, deals, report.title].filter(Boolean).join(' · ')
+}
+
+/** 상위 보고서에는 미팅 공통 기록과 모든 딜 본문을 한 자료로 넘깁니다. */
+function meetingValues(report: MeetingReport): Record<string, string> {
+  const parts = [
+    report.meetingShared?.common_report?.body,
+    report.meetingShared?.unassigned_report?.body,
+    ...report.dealSections.map((section) =>
+      [
+        `[${section.salesDeal.label}] ${section.title}`.trim(),
+        ...Object.values(section.values).filter((value) => value.trim()),
+      ].join('\n'),
+    ),
+  ].filter((value): value is string => !!value?.trim())
+  return { body: parts.join('\n\n') }
+}
+
+function meetingDescription(report: MeetingReport): string {
+  const text =
+    report.meetingShared?.common_report?.body ||
+    report.meetingShared?.unassigned_report?.body ||
+    report.dealSections
+      .flatMap((section) => [section.values.body, section.values.decision, section.values.note])
+      .find((value) => value?.trim())
+  const firstLine = text?.split('\n')[0]
   return firstLine?.trim() || '미팅 기록 확정'
 }
 
-/** 일정 하나의 딜별 보고서를 모두 볼 수 있는 작성 화면으로 갑니다. */
+/** 수정중 초안은 작성 화면으로, 제출한 미팅 보고서는 단일 상세로 갑니다. */
 export function meetingLinkFor(agendaId: string, reports: MeetingReport[] = []): SourceMeta {
   const status = meetingStatus(reports)
+  const editable = reports.find(
+    (report) => report.apiStatus === 'draft' || report.apiStatus === 'changes_requested',
+  )
+  const saved = editable ?? reports[0]
   return {
     status,
     tracked: true,
-    to: meetingComposePath(agendaId),
-    label: status === null ? '보고서 작성' : actionFor(status),
+    to: !saved || editable ? meetingComposePath(agendaId) : meetingReportPath(saved.id),
+    label: status === null ? '보고서 작성' : editable ? actionFor(status) : '보고서 열기',
   }
 }
 
@@ -108,10 +140,8 @@ function dailySources(
         activities.push({
           id,
           source: '업무보고서',
-          title: [report.hospital, report.salesDeal?.label, report.title]
-            .filter(Boolean)
-            .join(' · '),
-          desc: meetingDescription(report.values),
+          title: meetingTitle(report),
+          desc: meetingDescription(report),
           included: true,
           refId: report.id,
         })
@@ -121,7 +151,7 @@ function dailySources(
           to: meetingReportPath(report.id),
           label: '보고서 열기',
         })
-        values.set(id, report.values)
+        values.set(id, meetingValues(report))
       }
       continue
     }
@@ -144,8 +174,8 @@ function dailySources(
     activities.push({
       id: `meet-${report.id}`,
       source: '업무보고서',
-      title: [report.hospital, report.salesDeal?.label, report.title].filter(Boolean).join(' · '),
-      desc: meetingDescription(report.values),
+      title: meetingTitle(report),
+      desc: meetingDescription(report),
       included: true,
       refId: report.id,
     })
@@ -155,7 +185,7 @@ function dailySources(
       to: meetingReportPath(report.id),
       label: '보고서 열기',
     })
-    values.set(`meet-${report.id}`, report.values)
+    values.set(`meet-${report.id}`, meetingValues(report))
   }
 
   return { activities, meta, values }

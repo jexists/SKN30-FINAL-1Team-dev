@@ -18,6 +18,7 @@ from app.api import (
     sales_deals,
     signup,
     support,
+    team,
     transcriptions,
 )
 
@@ -27,6 +28,7 @@ api_router.include_router(auth.router)
 api_router.include_router(signup.router)
 api_router.include_router(customers.router)
 api_router.include_router(members.router)
+api_router.include_router(team.router)
 api_router.include_router(activities.router)
 api_router.include_router(sales_deals.router)
 api_router.include_router(orders.router)

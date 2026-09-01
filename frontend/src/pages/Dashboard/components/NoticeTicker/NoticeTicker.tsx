@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import StatusBadge from '@/components/StatusBadge'
 import { postedLabel, recipientLabel } from '@/shared/notices'
+import { statusLabel } from '@/shared/noticeStatus'
 import type { Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
@@ -75,6 +77,13 @@ export default function NoticeTicker({ label = '공지', items: notices = [], on
                 {n.recipients ? `${recipientLabel(n.recipients)} · ` : ''}
                 {postedLabel(n)}
               </small>
+              {/* 내가 받은 지시일 때만 섭니다. 열지 않고도 처리했는지 보이게 합니다. */}
+              {n.myStatus && (
+                <StatusBadge
+                  label={statusLabel(n.myStatus.status_code).label}
+                  tone={statusLabel(n.myStatus.status_code).tone}
+                />
+              )}
             </button>
           </li>
         ))}

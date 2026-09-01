@@ -14,7 +14,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.content import Report
+from app.models.content import Report, ReportDeal
 from app.models.crm import Activity
 from app.models.sales import Product, SalesDeal, SalesDealItem
 from app.models.workspace import Member
@@ -307,14 +307,15 @@ async def _previous_reports(db, member, activity, sales_deal_id):
             reports._joined_select(
                 Report.id,
                 Report.report_date,
-                Report.content["values"].label("values"),
+                ReportDeal.content["values"].label("values"),
                 Activity.starts_at,
                 Report.status_code,
             )
             .join(Activity, Report.source_activity_id == Activity.id)
+            .join(ReportDeal, ReportDeal.report_id == Report.id)
             .where(
                 *reports._scope(member),
-                Report.sales_deal_id == sales_deal_id,
+                ReportDeal.sales_deal_id == sales_deal_id,
                 Report.report_kind == "meeting",
                 Report.status_code.in_(("submitted", "approved")),
                 Report.source_activity_id != activity.id,

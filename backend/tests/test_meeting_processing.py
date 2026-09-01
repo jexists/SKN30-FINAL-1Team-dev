@@ -3,6 +3,8 @@
 import asyncio
 import copy
 import json
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -13,6 +15,7 @@ from test_report_writing_deep import draft, sample
 
 from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
 from app.api import reports as reports_api
+from app.models.content import ReportDeal
 from app.schemas.agent_runs import AgentRunCreate
 from app.schemas.meeting_content import SegmentAssignment
 from app.services import agent_runs
@@ -24,15 +27,25 @@ def case():
     source = sample()
     member = _member()
     activity_id = uuid4()
-    reports = []
+    report = _report(member, transcript=source.transcript)
+    report.report_kind = "meeting"
+    report.source_activity_id = activity_id
+    report.sales_deal_id = None
+    report.template_snapshot = {"fields": [{"id": "body", "label": "본문"}]}
+    report.content = {"attachments": []}
+    sections = []
     for deal_id in source.evidence.selected_deal_ids:
-        report = _report(member, transcript=source.transcript)
-        report.report_kind = "meeting"
-        report.source_activity_id = activity_id
-        report.sales_deal_id = deal_id
-        report.template_snapshot = {"fields": [{"id": "body", "label": "본문"}]}
-        report.content = {"title": "합성 미팅", "values": {"body": ""}, "attachments": []}
-        reports.append(report)
+        sections.append(
+            ReportDeal(
+                report_id=report.id,
+                sales_deal_id=deal_id,
+                deal_snapshot={"id": str(deal_id), "label": "합성 딜"},
+                content={"title": "합성 미팅", "values": {"body": ""}},
+                ai_evidence=None,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
     snapshot = {
         "source": {
             "transcript": source.transcript,
@@ -40,29 +53,29 @@ def case():
             "segments": [item.segment.model_dump(mode="json") for item in source.evidence.items],
         },
         "deals": [
-            {"sales_deal_id": str(report.sales_deal_id), "deal_no": str(i), "title": f"딜{i}"}
-            for i, report in enumerate(reports)
+            {"sales_deal_id": str(section.sales_deal_id), "deal_no": str(i), "title": f"딜{i}"}
+            for i, section in enumerate(sections)
         ],
         "crm_context": source.crm_context,
         "activity_id": str(activity_id),
         "team_id": str(member.team_id),
         "assignment_overrides": [],
-        "report_versions": [
+        "report_versions": [{"id": str(report.id), "updated_at": report.updated_at.isoformat()}],
+        "deal_versions": [
             {
-                "id": str(report.id),
-                "sales_deal_id": str(report.sales_deal_id),
-                "updated_at": report.updated_at.isoformat(),
+                "sales_deal_id": str(section.sales_deal_id),
+                "updated_at": section.updated_at.isoformat(),
             }
-            for report in reports
+            for section in sections
         ],
     }
     result = service.MeetingProcessingOutput(
         reports=report_writing_deep.FreeformMeetingReports.model_validate(draft()),
         analyses=[
             meeting_analysis.DealFeatureResult(
-                sales_deal_id=report.sales_deal_id, error="deal_prediction_failed"
+                sales_deal_id=section.sales_deal_id, error="deal_prediction_failed"
             )
-            for report in reports
+            for section in sections
         ],
         evidence=source.evidence,
         errors={},
@@ -71,28 +84,30 @@ def case():
     run.agent_code = "meeting_processing"
     run.input_snapshot = snapshot
     run.output_snapshot = result.model_dump(mode="json")
-    return member, reports, run, result
+    run.test_report = report
+    return member, sections, run, result
 
 
 def test_new_run_contract_requires_unique_reports_and_versioned_overrides():
     base = {"agent_code": "meeting_processing", "idempotency_key": uuid4()}
-    good = AgentRunCreate(**base, report_ids=[uuid4(), uuid4()])
-    assert len(good.report_ids) == 2
+    good = AgentRunCreate(**base, report_id=uuid4())
+    assert good.report_id is not None
     for values in (
         {},
         {"report_ids": []},
         {"report_ids": [UUID(int=1)] * 2},
-        {"report_ids": [uuid4()], "parent_run_id": uuid4()},
+        {"report_ids": [uuid4(), uuid4()]},
+        {"report_id": uuid4(), "parent_run_id": uuid4()},
     ):
         with pytest.raises(ValidationError):
             AgentRunCreate(**base, **values)
     override = {"segment_id": "S0003", "applicability": {"scope": "deal", "deal_ids": [uuid4()]}}
     with pytest.raises(ValidationError):
-        AgentRunCreate(**base, report_ids=[uuid4()], assignment_overrides=[override])
+        AgentRunCreate(**base, report_id=uuid4(), assignment_overrides=[override])
 
 
 def test_snapshot_builds_crm_once_and_checks_group_and_manual_assignment(monkeypatch):
-    member, reports, parent, result = case()
+    member, sections, parent, result = case()
     calls = []
 
     async def context(db, owner, activity_id, selected):
@@ -100,28 +115,30 @@ def test_snapshot_builds_crm_once_and_checks_group_and_manual_assignment(monkeyp
         return {"deals": parent.input_snapshot["deals"], "crm_context": {"contact": {}}}
 
     monkeypatch.setattr(service.meeting_context, "build_context", context)
-    snapshot = asyncio.run(service.input_snapshot(None, member, reports))
+    monkeypatch.setattr(service, "_report_deals", AsyncMock(return_value=sections))
+    snapshot = asyncio.run(service.input_snapshot(None, member, parent.test_report))
     assert len(calls) == 1 and len(snapshot["source"]["selected_deal_ids"]) == 2
-    for report in reports:
-        report.source_snapshot = {"meeting_run_id": str(parent.id)}
+    parent.test_report.source_snapshot = {"meeting_run_id": str(parent.id)}
     override = SegmentAssignment.model_validate(
         {
             "segment_id": "S0003",
-            "applicability": {"scope": "deal", "deal_ids": [reports[1].sales_deal_id]},
+            "applicability": {"scope": "deal", "deal_ids": [sections[1].sales_deal_id]},
         }
     )
-    updated = asyncio.run(service.input_snapshot(None, member, reports, parent, [override]))
+    updated = asyncio.run(
+        service.input_snapshot(None, member, parent.test_report, parent, [override])
+    )
     assert updated["parent_evidence"] == result.evidence.model_dump(mode="json")
-    reports[0].source_snapshot = {"meeting_run_id": str(uuid4())}
+    parent.test_report.source_snapshot = {"meeting_run_id": str(uuid4())}
     with pytest.raises(HTTPException, match="meeting_assignment_stale"):
-        asyncio.run(service.input_snapshot(None, member, reports, parent, [override]))
-    reports[0].source_snapshot = {"meeting_run_id": str(parent.id)}
+        asyncio.run(service.input_snapshot(None, member, parent.test_report, parent, [override]))
+    parent.test_report.source_snapshot = {"meeting_run_id": str(parent.id)}
     override.segment_id = "S0002"
     with pytest.raises(HTTPException, match="meeting_assignment_not_unresolved"):
-        asyncio.run(service.input_snapshot(None, member, reports, parent, [override]))
-    reports[1].transcript = "다른 원문"
+        asyncio.run(service.input_snapshot(None, member, parent.test_report, parent, [override]))
+    parent.test_report.report_kind = "daily"
     with pytest.raises(HTTPException, match="meeting_reports_mismatch"):
-        asyncio.run(service.input_snapshot(None, member, reports))
+        asyncio.run(service.input_snapshot(None, member, parent.test_report))
 
 
 @pytest.mark.parametrize("report_failure", [False, True])
@@ -241,7 +258,7 @@ def test_manual_reassignment_keeps_other_segments_without_another_classification
 
 
 def storage(monkeypatch, *, report_failure=False):
-    member, reports, run, output = case()
+    member, sections, run, output = case()
     if report_failure:
         output.reports = None
         output.errors = {"report_writing": "report_agent_failed"}
@@ -251,38 +268,49 @@ def storage(monkeypatch, *, report_failure=False):
     async def locked_run(*args):
         return run
 
-    async def locked_reports(*args):
-        return reports
+    async def locked_report_and_deals(*args):
+        return run.test_report, sections
 
-    async def commit(db, member, reports):
+    async def commit(db, member, report):
         await db.commit()
-        return reports
+        return report
 
     monkeypatch.setattr(service, "_locked_run", locked_run)
-    monkeypatch.setattr(service, "_locked_reports", locked_reports)
-    monkeypatch.setattr(service, "_commit_reports", commit)
-    return member, reports, run, db
+    monkeypatch.setattr(service, "_locked_report_and_deals", locked_report_and_deals)
+    monkeypatch.setattr(service, "_commit_report", commit)
+    return member, sections, run, db
 
 
 def test_apply_is_atomic_idempotent_and_does_not_overwrite_human_text(monkeypatch):
-    member, reports, run, db = storage(monkeypatch)
-    reports[1].content["values"]["body"] = "사람이 쓴 보고서"
+    member, sections, run, db = storage(monkeypatch)
+    sections[1].content["values"]["body"] = "사람이 쓴 보고서"
     asyncio.run(service.apply(db, member, run.id))
-    assert "보안 승인" in reports[0].content["values"]["body"]
-    assert reports[1].content["values"]["body"] == "사람이 쓴 보고서"
-    assert reports[1].content["ai_values"]["body"] != "사람이 쓴 보고서"
-    assert reports[0].content["meeting_shared"] == reports[1].content["meeting_shared"]
-    for report in reports:
-        assert (
-            report.content["meeting_shared"]["common_report"]["body"] == "구매팀과 미팅을 진행했다."
-        )
-        assert "구매팀과 미팅을 진행했다." not in report.content["values"]["body"]
-    assert "그거 다시 보내달래" in reports[0].content["meeting_shared"]["unassigned_report"]["body"]
-    assert reports[0].ai_evidence["analysis_error"] == "deal_prediction_failed"
-    assert reports[0].source_snapshot["evidence"]["transcript_sha256"]
-    reports[0].content["values"]["body"] = "저장 후 다시 편집"
+    assert "보안 승인" in sections[0].content["values"]["body"]
+    assert sections[1].content["values"]["body"] == "사람이 쓴 보고서"
+    assert sections[1].content["ai_values"]["body"] != "사람이 쓴 보고서"
+    shared = run.test_report.content["meeting_shared"]
+    assert shared["common_report"]["body"] == "구매팀과 미팅을 진행했다."
+    for section in sections:
+        assert "meeting_shared" not in section.content
+        assert "구매팀과 미팅을 진행했다." not in section.content["values"]["body"]
+    assert "그거 다시 보내달래" in shared["unassigned_report"]["body"]
+    assert sections[0].ai_evidence["analysis_error"] == "deal_prediction_failed"
+    assert run.test_report.source_snapshot["evidence"]["transcript_sha256"]
+    assert run.test_report.status_code == "draft"
+    sections[0].content["values"]["body"] = "저장 후 다시 편집"
     asyncio.run(service.apply(db, member, run.id))
-    assert reports[0].content["values"]["body"] == "저장 후 다시 편집"
+    assert sections[0].content["values"]["body"] == "저장 후 다시 편집"
+
+
+@pytest.mark.parametrize("malformed_values", [None, [], "잘못된 값"])
+def test_apply_replaces_malformed_values_with_generated_mapping(monkeypatch, malformed_values):
+    member, sections, run, db = storage(monkeypatch)
+    sections[0].content["values"] = malformed_values
+
+    asyncio.run(service.apply(db, member, run.id))
+
+    assert isinstance(sections[0].content["values"], dict)
+    assert "보안 승인" in sections[0].content["values"]["body"]
 
 
 @pytest.mark.parametrize(
@@ -314,85 +342,85 @@ def test_apply_is_atomic_idempotent_and_does_not_overwrite_human_text(monkeypatc
 def test_apply_selects_suitable_field_or_keeps_draft_as_suggestion(
     monkeypatch, fields, expected_field
 ):
-    member, reports, run, db = storage(monkeypatch)
-    for report in reports:
-        report.template_snapshot = {"fields": fields}
-        report.content["values"] = {field["id"]: "" for field in fields}
-    reports[1].content["values"] = {"note": "사람이 작성한 내용"}
-    original_values = [copy.deepcopy(report.content["values"]) for report in reports]
+    member, sections, run, db = storage(monkeypatch)
+    run.test_report.template_snapshot = {"fields": fields}
+    for section in sections:
+        section.content["values"] = {field["id"]: "" for field in fields}
+    sections[1].content["values"] = {"note": "사람이 작성한 내용"}
+    original_values = [copy.deepcopy(section.content["values"]) for section in sections]
 
     asyncio.run(service.apply(db, member, run.id))
 
-    for index, report in enumerate(reports):
+    for index, section in enumerate(sections):
         expected_draft = next(
             item
             for item in run.output_snapshot["reports"]["deal_reports"]
-            if item["sales_deal_id"] == str(report.sales_deal_id)
+            if item["sales_deal_id"] == str(section.sales_deal_id)
         )
         generated = {expected_field or "body": expected_draft["body"]}
-        assert report.content["values"] == (
+        assert section.content["values"] == (
             generated if index == 0 and expected_field is not None else original_values[index]
         )
-        assert report.content["ai_values"] == generated
-        assert report.content["ai_evidence"] == " · ".join(expected_draft["evidence_ids"])
-        assert report.content["ai_generated_at"]
-        assert report.source_snapshot["meeting_run_id"] == str(run.id)
-        assert report.source_snapshot["evidence"] == run.output_snapshot["evidence"]
+        assert section.content["ai_values"] == generated
+        assert section.content["ai_evidence"] == " · ".join(expected_draft["evidence_ids"])
+        assert section.content["ai_generated_at"]
+        assert run.test_report.source_snapshot["meeting_run_id"] == str(run.id)
+        assert run.test_report.source_snapshot["evidence"] == run.output_snapshot["evidence"]
 
 
 def test_apply_rejects_concurrent_edits_before_any_report_write(monkeypatch):
-    member, reports, run, db = storage(monkeypatch)
-    original = copy.deepcopy(reports[0].content)
-    reports[1].updated_at = NOW.replace(day=18)
+    member, sections, run, db = storage(monkeypatch)
+    original = copy.deepcopy(sections[0].content)
+    sections[1].updated_at = NOW.replace(day=18)
     with pytest.raises(HTTPException, match="meeting_report_changed"):
         asyncio.run(service.apply(db, member, run.id))
-    assert reports[0].content == original
+    assert sections[0].content == original
     assert db.commit_count == 0 and db.rollback_count == 1
 
 
 def test_failed_writer_still_saves_unassigned_original_and_analysis_state(monkeypatch):
-    member, reports, run, db = storage(monkeypatch, report_failure=True)
+    member, sections, run, db = storage(monkeypatch, report_failure=True)
     asyncio.run(service.apply(db, member, run.id))
-    assert reports[0].content["values"] == {"body": ""}
-    shared = reports[0].content["meeting_shared"]
+    assert sections[0].content["values"] == {"body": ""}
+    shared = run.test_report.content["meeting_shared"]
     assert shared["unassigned_report"]["evidence_ids"] == ["S0003", "S0004"]
     assert "기타 메모 ???" in shared["unassigned_report"]["body"]
-    assert reports[0].ai_evidence["report_error"] == "report_agent_failed"
+    assert sections[0].ai_evidence["report_error"] == "report_agent_failed"
 
 
 def test_notes_sync_without_changing_original_evidence(monkeypatch):
-    member, reports, run, db = storage(monkeypatch)
+    member, sections, run, db = storage(monkeypatch)
     asyncio.run(service.apply(db, member, run.id))
-    evidence = copy.deepcopy(reports[0].source_snapshot)
-    revision = UUID(reports[0].content["meeting_shared"]["revision"])
+    evidence = copy.deepcopy(run.test_report.source_snapshot)
+    revision = UUID(run.test_report.content["meeting_shared"]["revision"])
     asyncio.run(
         service.update_notes(db, member, run.id, "공통 수정", "미지정 원문 확인 필요", revision)
     )
-    assert reports[0].content["meeting_shared"] == reports[1].content["meeting_shared"]
-    assert reports[0].source_snapshot == evidence
+    assert run.test_report.source_snapshot == evidence
     with pytest.raises(HTTPException, match="meeting_notes_changed"):
         asyncio.run(
             service.update_notes(db, member, run.id, "오래된 탭 수정", "확인 필요", revision)
         )
-    assert reports[0].content["meeting_shared"]["common_report"]["body"] == "공통 수정"
-    revision = UUID(reports[0].content["meeting_shared"]["revision"])
-    reports[1].source_snapshot = {"meeting_run_id": str(uuid4())}
+    assert run.test_report.content["meeting_shared"]["common_report"]["body"] == "공통 수정"
+    revision = UUID(run.test_report.content["meeting_shared"]["revision"])
+    run.test_report.source_snapshot = {"meeting_run_id": str(uuid4())}
     with pytest.raises(HTTPException, match="meeting_notes_stale"):
         asyncio.run(service.update_notes(db, member, run.id, "다시 수정", "확인 필요", revision))
 
 
 def test_regeneration_preserves_edited_shared_notes_as_well_as_deal_bodies(monkeypatch):
-    member, reports, run, db = storage(monkeypatch)
+    member, sections, run, db = storage(monkeypatch)
     asyncio.run(service.apply(db, member, run.id))
-    revision = UUID(reports[0].content["meeting_shared"]["revision"])
+    revision = UUID(run.test_report.content["meeting_shared"]["revision"])
     asyncio.run(
         service.update_notes(db, member, run.id, "사람이 확정한 공통 정정", "미지정 수정", revision)
     )
     run.id = uuid4()
-    for version, report in zip(run.input_snapshot["report_versions"], reports, strict=True):
-        version["updated_at"] = report.updated_at.isoformat()
+    run.input_snapshot["report_versions"][0]["updated_at"] = run.test_report.updated_at.isoformat()
+    for version, section in zip(run.input_snapshot["deal_versions"], sections, strict=True):
+        version["updated_at"] = section.updated_at.isoformat()
     asyncio.run(service.apply(db, member, run.id))
-    shared = reports[0].content["meeting_shared"]
+    shared = run.test_report.content["meeting_shared"]
     assert shared["common_report"]["body"] == "사람이 확정한 공통 정정"
     assert shared["common_report"]["ai_body"] != shared["common_report"]["body"]
     assert shared["unassigned_report"]["body"] == "미지정 수정"
@@ -421,7 +449,7 @@ def test_background_dispatch_serializes_uuid_results(monkeypatch):
 
 
 def test_run_and_report_locks_enforce_scope_and_source(monkeypatch):
-    member, reports, run, _ = case()
+    member, sections, run, _ = case()
     db = _Db(_Result(scalar=None))
     with pytest.raises(HTTPException, match="agent_run_not_found"):
         asyncio.run(service._locked_run(db, member, run.id))
@@ -429,13 +457,16 @@ def test_run_and_report_locks_enforce_scope_and_source(monkeypatch):
     assert "team_id" in sql and "requested_by_member_id" in sql and "FOR UPDATE" in sql
 
     async def locked(db, member, report_id):
-        return next(report for report in reports if report.id == report_id)
+        assert report_id == run.test_report.id
+        return run.test_report
 
     monkeypatch.setattr(reports_api, "_locked_report", locked)
-    assert len(asyncio.run(service._locked_reports(None, member, run))) == 2
-    reports[1].transcript = "원문이 바뀜"
-    with pytest.raises(HTTPException, match="meeting_reports_mismatch"):
-        asyncio.run(service._locked_reports(None, member, run))
+    section_db = _Db(SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: sections)))
+    report, locked_sections = asyncio.run(service._locked_report_and_deals(section_db, member, run))
+    assert report is run.test_report and locked_sections == sections
+    run.test_report.transcript = "원문이 바뀜"
+    with pytest.raises(HTTPException, match="meeting_source_changed"):
+        asyncio.run(service._locked_report_and_deals(_Db(), member, run))
 
 
 @pytest.mark.anyio

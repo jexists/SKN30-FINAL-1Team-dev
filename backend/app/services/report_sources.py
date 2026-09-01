@@ -5,9 +5,10 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.content import Report
+from app.models.content import Report, ReportDeal
 from app.models.workspace import Member
 
 SOURCE_REPORT_LIMIT = 100
@@ -103,6 +104,20 @@ def _shared_body(value) -> dict[str, str] | None:
     return {"body": value["body"]}
 
 
+async def _report_deals(db: AsyncSession, report_id: UUID) -> list[ReportDeal]:
+    return list(
+        (
+            await db.execute(
+                select(ReportDeal)
+                .where(ReportDeal.report_id == report_id)
+                .order_by(ReportDeal.sales_deal_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
 async def build_report_sources(
     db: AsyncSession,
     member: Member,
@@ -132,19 +147,29 @@ async def build_report_sources(
         if not isinstance(source.content, dict):
             raise HTTPException(422, "report_source_content_invalid")
         content = source.content
-        title = content.get("title")
-        output.append(
-            {
-                "id": source.id,
-                "sales_deal_id": source.sales_deal_id,
-                "source_activity_id": source.source_activity_id,
-                "report_date": source.report_date,
-                "period_start": source.period_start,
-                "period_end": source.period_end,
-                "title": title if isinstance(title, str) else "",
-                "values": _values(content),
-            }
-        )
+        if source.report_kind == "meeting":
+            sections = await _report_deals(db, source.id)
+            if not sections:
+                raise HTTPException(422, "report_source_deal_sections_required")
+            source_contents = [(section.sales_deal_id, section.content) for section in sections]
+        else:
+            source_contents = [(source.sales_deal_id, content)]
+        for sales_deal_id, source_content in source_contents:
+            if not isinstance(source_content, dict):
+                raise HTTPException(422, "report_source_content_invalid")
+            title = source_content.get("title")
+            output.append(
+                {
+                    "id": source.id,
+                    "sales_deal_id": sales_deal_id,
+                    "source_activity_id": source.source_activity_id,
+                    "report_date": source.report_date,
+                    "period_start": source.period_start,
+                    "period_end": source.period_end,
+                    "title": title if isinstance(title, str) else "",
+                    "values": _values(source_content),
+                }
+            )
         shared = content.get("meeting_shared")
         if shared is None:
             continue

@@ -77,7 +77,12 @@ export default function Daily() {
   const [openISO, setOpenISO] = useState('')
 
   const query = params.get('q') ?? ''
-  const filters = useMemo(() => parseFilters(params), [params])
+  const filters = useMemo(() => {
+    const parsed = parseFilters(params)
+    return period === 'meeting'
+      ? { ...parsed, status: parsed.status.filter((status) => status !== '작성중') }
+      : parsed
+  }, [params, period])
 
   const days = weekDays(weekOffset)
 
@@ -158,7 +163,7 @@ export default function Daily() {
     const tone = (() => {
       if (row?.status === '확정') return styles.markDone
       if (row?.status === '검토 대기') return styles.markPending
-      if (row?.status === '작성중') return styles.markDraft
+      if (row?.status === '작성중' || row?.status === '수정중') return styles.markDraft
       if (row?.status === '반려') return styles.markMissing
       // 주간·월간·미팅은 매일 내는 보고가 아니므로 미작성으로 보지 않습니다.
       if (period !== 'all' && period !== 'daily') return null

@@ -152,6 +152,7 @@ function requestOf(draft: DraftPayload): ReportWriteRequest {
     activity_ids: included
       .filter((activity) => activity.source === '캘린더' && activity.refId)
       .map((activity) => activity.refId as string),
+    deal_sections: [],
   }
 }
 

@@ -106,22 +106,22 @@ async def _build_run_input(
 ) -> tuple[str, dict[str, Any], dict[str, Any], UUID | None]:
     """agent_code 별로 prompt_version, input_snapshot, source_refs, parent_run_id 를 만든다."""
     if payload.agent_code == "meeting_processing":
-        reports = [await _draft_source(db, member, report_id) for report_id in payload.report_ids]
+        report = await _draft_source(db, member, payload.report_id)
         parent = None
         if payload.parent_run_id:
             parent = await _parent_run_or_409(
                 db, member, payload.parent_run_id, expected_agent_code="meeting_processing"
             )
         snapshot = await meeting_processing.input_snapshot(
-            db, member, reports, parent, payload.assignment_overrides
+            db, member, report, parent, payload.assignment_overrides
         )
         return (
             meeting_processing.PROMPT_VERSION,
             snapshot,
             {
-                "report_ids": [str(report.id) for report in reports],
-                "activity_id": str(reports[0].source_activity_id),
-                "sales_deal_ids": [str(report.sales_deal_id) for report in reports],
+                "report_id": str(report.id),
+                "activity_id": str(report.source_activity_id),
+                "sales_deal_ids": list(snapshot["source"]["selected_deal_ids"]),
             },
             payload.parent_run_id,
         )

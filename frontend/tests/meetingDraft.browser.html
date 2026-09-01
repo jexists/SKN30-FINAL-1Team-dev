@@ -13,12 +13,14 @@
     <pre id="result">실행 중…</pre>
     <div id="test-root"></div>
     <script type="module">
-      import { act, createElement } from 'react'
+      import { act, createElement, Fragment } from 'react'
       import { createRoot } from 'react-dom/client'
       import { createMemoryRouter, RouterProvider } from 'react-router'
       import { client } from '../src/api/client.ts'
       import { SessionContext } from '../src/auth/sessionContext.ts'
+      import ToastHost from '../src/components/Toast/ToastHost.tsx'
       import Compose from '../src/pages/Meetings/Compose.tsx'
+      import { getMeetingGeneration } from '../src/pages/Meetings/meetingGenerationStore.ts'
       import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
       import { getToasts } from '../src/shared/toast.ts'
 
@@ -27,8 +29,8 @@
       const result = document.getElementById('result')
       const checks = []
       let draft
-      function Probe({ item, reports, ready }) {
-        draft = useMeetingDraft(item, reports, ready)
+      function Probe({ item, report, ready }) {
+        draft = useMeetingDraft(item, report, ready)
         return null
       }
       function assert(condition, message) {
@@ -40,25 +42,34 @@
         id: 'test-body',
         fields: [{ id: 'body', type: 'textarea', required: true, aiFilled: true }],
       }
-      const saved = (id, body = '') => ({
-        id: `report-${id}`,
+      const savedSection = (id, body = '') => ({
         salesDealId: id,
+        salesDeal: { id, label: id },
+        product: `${id} 제품`,
+        title: '서버 제목',
+        values: { body },
+        aiValues: {},
+        analysisEvidence: {
+          report_error: 'report_agent_review_limit',
+          analysis_error: '이전 분석 실패',
+        },
+        reportError: 'report_agent_review_limit',
+        analysisError: '이전 분석 실패',
+      })
+      const savedReport = {
+        id: 'report-meeting-a',
         agendaId: item.id,
         template,
         apiStatus: 'draft',
         review: 'writing',
-        title: '서버 제목',
+        title: '서버 공통 제목',
         transcript: '서버 원문',
-        values: { body },
-        aiValues: {},
         attachments: [],
-        reportError: 'report_agent_review_limit',
-        analysisError: '이전 분석 실패',
-      })
-      const reports = ['deal-a', 'deal-b', 'deal-c'].map((id) => saved(id))
-      async function render(nextItem, nextReports, ready) {
+        dealSections: ['deal-a', 'deal-b', 'deal-c'].map((id) => savedSection(id)),
+      }
+      async function render(nextItem, nextReport, ready) {
         await act(async () =>
-          root.render(createElement(Probe, { item: nextItem, reports: nextReports, ready })),
+          root.render(createElement(Probe, { item: nextItem, report: nextReport, ready })),
         )
       }
       async function checkComposeIsolation() {
@@ -66,7 +77,26 @@
         const composeRoot = createRoot(container)
         const adapter = client.defaults.adapter
         const pendingSaves = []
+        const pendingReportSaves = []
         const unexpectedRequests = []
+        const eventSources = []
+        let appliedBackgroundRun = 0
+        const NativeEventSource = window.EventSource
+        window.EventSource = class {
+          listeners = new Map()
+          onerror = null
+          constructor(url) {
+            this.url = url
+            eventSources.push(this)
+          }
+          addEventListener(type, listener) {
+            this.listeners.set(type, listener)
+          }
+          close() {}
+          emit(type, data) {
+            this.listeners.get(type)?.({ data: JSON.stringify(data) })
+          }
+        }
         const response = (config, data) => ({
           config,
           data,
@@ -79,7 +109,7 @@
           author_member_id: 'synthetic-owner',
           author_display_name: '합성 작성자',
           source_activity_id: id,
-          sales_deal_id: `deal-${id}`,
+          sales_deal_id: null,
           report_date: '2026-08-31',
           status_code: 'draft',
           template_snapshot: template,
@@ -87,8 +117,6 @@
           source_snapshot: id === 'meeting-b' ? {} : { meeting_run_id: `run-${id}` },
           content: {
             title: `${id} 보고서`,
-            values: { body: '' },
-            sales_deal: { id: `deal-${id}`, label: `딜 ${id}` },
             ...(id === 'meeting-b'
               ? {}
               : {
@@ -100,7 +128,35 @@
                   },
                 }),
           },
+          deal_sections: [
+            {
+              sales_deal_id: `deal-${id}`,
+              deal_snapshot: { id: `deal-${id}`, label: `딜 ${id}` },
+              content: { product: `${id} 제품`, title: `${id} 딜 보고서`, values: { body: '' } },
+              ai_evidence: null,
+            },
+          ],
         })
+        const batchReport = {
+          ...report('meeting-save-all'),
+          id: 'report-meeting-save-all',
+          source_activity_id: 'meeting-save-all',
+          transcript: 'meeting-save-all 미팅 원문',
+          source_snapshot: {},
+          content: {
+            title: 'meeting-save-all 합성 미팅',
+          },
+          deal_sections: ['A', 'B'].map((label) => ({
+            sales_deal_id: `deal-${label}`,
+            deal_snapshot: { id: `deal-${label}`, label: `딜 ${label}` },
+            content: {
+              product: `제품 ${label}`,
+              title: `딜 ${label} 보고서`,
+              values: { body: `딜 ${label} 본문` },
+            },
+            ai_evidence: null,
+          })),
+        }
         client.defaults.adapter = async (config) => {
           if (config.method === 'get' && config.url.startsWith('/activities/')) {
             const id = config.url.split('/').at(-1)
@@ -117,10 +173,45 @@
             })
           }
           if (config.method === 'get' && config.url === '/reports') {
-            return response(config, { items: [report(config.params.source_activity_id)] })
+            return response(config, {
+              items:
+                config.params.source_activity_id === 'meeting-save-all'
+                  ? [batchReport]
+                  : [report(config.params.source_activity_id)],
+            })
           }
           if (config.method === 'patch' && config.url.endsWith('/meeting-notes')) {
             return new Promise((resolve, reject) => pendingSaves.push({ config, resolve, reject }))
+          }
+          if (config.method === 'patch' && config.url === '/reports/report-meeting-save-all') {
+            return new Promise((resolve, reject) =>
+              pendingReportSaves.push({ config, resolve, reject }),
+            )
+          }
+          if (config.method === 'patch' && config.url === '/reports/report-meeting-background') {
+            return response(config, report('meeting-background'))
+          }
+          if (
+            config.method === 'post' &&
+            config.url === '/reports/report-meeting-save-all/submit'
+          ) {
+            return response(config, { ...batchReport, status_code: 'submitted' })
+          }
+          if (config.method === 'post' && config.url === '/agent-runs') {
+            return response(config, {
+              id: 'run-background-agent',
+              status_code: 'running',
+              output_snapshot: null,
+              evidence: null,
+              error_message: null,
+            })
+          }
+          if (config.method === 'post' && config.url === '/agent-runs/run-background-agent/apply') {
+            appliedBackgroundRun += 1
+            const completed = report('meeting-background')
+            completed.source_snapshot = { meeting_run_id: 'run-background-agent' }
+            completed.deal_sections[0].content.values = { body: '화면 밖에서 완성된 보고서' }
+            return response(config, completed)
           }
           unexpectedRequests.push(config.url)
           throw new Error(`예상하지 않은 요청: ${config.url}`)
@@ -136,23 +227,37 @@
           login: async () => {},
           logout: async () => {},
         }
+        const screen = (child) =>
+          createElement(
+            SessionContext,
+            { value: session },
+            createElement(Fragment, null, createElement(ToastHost), child),
+          )
         const router = createMemoryRouter(
           [
+            { path: '/meetings/new', element: screen(createElement(Compose)) },
             {
-              path: '*',
-              element: createElement(SessionContext, { value: session }, createElement(Compose)),
+              path: '/away',
+              element: screen(createElement('p', { id: 'away' }, '다른 업무 화면')),
+            },
+            {
+              path: '/meetings/:reportId',
+              element: screen(createElement('p', { id: 'detail' }, '미팅 보고서 상세')),
             },
           ],
-          { initialEntries: ['/?agenda=meeting-a'] },
+          { initialEntries: ['/meetings/new?agenda=meeting-a'] },
         )
         const button = (text) =>
           [...container.querySelectorAll('button')].find((el) => el.textContent === text)
+        const saveDraftButton = () =>
+          container.querySelector('button[aria-label="미팅 보고서 임시저장"]')
+        const submitButton = () => container.querySelector('button[aria-label="업무보고 확정"]')
         const notes = () => container.querySelector('[aria-label="미팅 공통·미지정 기록"] textarea')
         async function flush() {
           await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
         }
         async function navigate(id, suffix = '') {
-          await act(async () => router.navigate(`/?agenda=${id}${suffix}`))
+          await act(async () => router.navigate(`/meetings/new?agenda=${id}${suffix}`))
           for (
             let at = 0;
             at < 20 && container.querySelector('#transcript')?.value !== `${id} 미팅 원문`;
@@ -207,7 +312,7 @@
           const toastCount = getToasts().length
           await act(async () =>
             pendingSaves[0].resolve(
-              response(pendingSaves[0].config, [report('meeting-a', 'A 늦은 응답')]),
+              response(pendingSaves[0].config, report('meeting-a', 'A 늦은 응답')),
             ),
           )
           assert(
@@ -217,7 +322,7 @@
           assert(getToasts().length === toastCount, '화면을 떠난 저장의 성공 알림을 표시하지 않음')
           await act(async () =>
             pendingSaves[1].resolve(
-              response(pendingSaves[1].config, [report('meeting-c', 'C 저장 완료')]),
+              response(pendingSaves[1].config, report('meeting-c', 'C 저장 완료')),
             ),
           )
           assert(
@@ -235,17 +340,104 @@
               !button('미팅 전체 분석·보고서 작성').disabled,
             '이전 저장 실패도 새 미팅 오류·잠금 상태에 적용하지 않음',
           )
+
+          await navigate('meeting-save-all')
+          assert(
+            !!saveDraftButton() &&
+              !!submitButton() &&
+              container.querySelectorAll('button[aria-label="미팅 보고서 임시저장"]').length === 1,
+            '카드별 저장 없이 임시저장과 업무보고 확정을 한 곳에 표시',
+          )
+          await act(async () => saveDraftButton().click())
+          const savedPayload =
+            typeof pendingReportSaves[0]?.config.data === 'string'
+              ? JSON.parse(pendingReportSaves[0].config.data)
+              : pendingReportSaves[0]?.config.data
+          assert(
+            pendingReportSaves.length === 1 &&
+              saveDraftButton().disabled &&
+              submitButton().disabled &&
+              saveDraftButton().textContent === '저장 중…' &&
+              savedPayload.deal_sections.length === 2 &&
+              savedPayload.deal_sections.every((section) => !('ai_evidence' in section)),
+            '두 딜을 한 요청에 묶고 서버 소유 AI 필드를 제외한 채 재클릭 잠금',
+          )
+          await act(async () => {
+            pendingReportSaves[0].resolve(response(pendingReportSaves[0].config, batchReport))
+            await flush()
+          })
+          assert(
+            router.state.location.pathname === '/meetings/new' && !!saveDraftButton(),
+            '임시저장은 초안을 보존하고 작성 화면에 머묾',
+          )
+          await act(async () => submitButton().click())
+          assert(pendingReportSaves.length === 2, '업무보고 확정도 미팅 단일 저장 요청 사용')
+          await act(async () => {
+            pendingReportSaves[1].resolve(response(pendingReportSaves[1].config, batchReport))
+            await flush()
+          })
+          assert(
+            router.state.location.pathname === '/meetings/report-meeting-save-all' &&
+              !!container.querySelector('#detail'),
+            '업무보고 확정이 끝난 뒤에만 미팅 보고서 단일 상세로 이동',
+          )
+
+          await navigate('meeting-background')
+          await act(async () => button('미팅 전체 분석·보고서 작성').click())
+          for (let at = 0; at < 20 && eventSources.length === 0; at += 1) await flush()
+          assert(eventSources.length === 1, '백그라운드 미팅 실행이 시작됨')
+          await act(async () => router.navigate('/away'))
+          assert(!!container.querySelector('#away'), '보고서 작성 중 다른 화면으로 이동')
+          await act(async () => {
+            eventSources[0].emit('done', {
+              id: 'run-background-agent',
+              status_code: 'completed',
+              output_snapshot: {
+                reports: { deal_reports: [], common_report: null, unassigned_report: null },
+                analyses: [],
+                evidence: {},
+                errors: {},
+              },
+              evidence: null,
+              error_message: null,
+            })
+            await flush()
+          })
+          for (let at = 0; at < 20 && appliedBackgroundRun === 0; at += 1) await flush()
+          const returnLink = [...container.querySelectorAll('a')].find(
+            (link) => link.textContent === '초안 수정하기',
+          )
+          assert(
+            appliedBackgroundRun === 1 &&
+              returnLink?.getAttribute('href') === '/meetings/new?agenda=meeting-background',
+            '화면 밖에서도 AI 초안을 적용하고 편집 화면 알림 표시',
+          )
+          await act(async () => returnLink.click())
+          for (let at = 0; at < 20 && !container.querySelector('#transcript'); at += 1)
+            await flush()
+          assert(router.state.location.pathname === '/meetings/new', '완료 알림으로 초안 편집 복귀')
+          assert(
+            ![...container.querySelectorAll('a')].some(
+              (link) => link.textContent === '초안 수정하기',
+            ),
+            '복귀하며 완료 알림 닫기',
+          )
+          assert(
+            getMeetingGeneration('meeting-background') === null,
+            '작성 화면이 반영한 AI 초안 완료 결과는 다시 적용하지 않도록 소비',
+          )
           assert(unexpectedRequests.length === 0, '정의한 메모리 응답 외 서버 요청 없음')
         } finally {
           await act(async () => composeRoot.unmount())
           router.dispose()
           client.defaults.adapter = adapter
+          window.EventSource = NativeEventSource
         }
       }
       async function run() {
-        await render(item, [], false)
+        await render(item, undefined, false)
         assert(draft.salesDealIds.length === 0, '조회 전에는 빈 서버 응답으로 초기화하지 않음')
-        await render(item, reports, true)
+        await render(item, savedReport, true)
         assert(draft.salesDealIds.length === 3, '최초 조회 완료 후 선택 딜 3개 복원')
         await act(async () => {
           draft.setTranscript('사용자가 수정한 원문')
@@ -254,14 +446,8 @@
           draft.applyDocument('deal-a', { body: '사람이 쓴 본문' }, [])
           draft.beginGeneration(['deal-a', 'deal-b', 'deal-c'])
         })
-        await act(async () =>
-          reports.forEach((report) => draft.bindReport(report.salesDealId, report)),
-        )
-        await render(
-          { ...item, title: '재조회된 일정 제목' },
-          reports.map((report) => ({ ...report })),
-          true,
-        )
+        await act(async () => draft.bindReport(savedReport))
+        await render({ ...item, title: '재조회된 일정 제목' }, { ...savedReport }, true)
         assert(
           Object.values(draft.draftsByDeal).every(
             (state) =>
@@ -281,19 +467,15 @@
           run_id: 'run-current',
           status_code: 'running',
           stage: 'report_writing',
-          previews: reports.map((report) => ({
+          previews: savedReport.dealSections.map((section) => ({
             section: 'deal',
-            sales_deal_id: report.salesDealId,
+            sales_deal_id: section.salesDealId,
             body: '검토 전 스트리밍 문장',
             revision: 1,
           })),
         }
         await act(async () => draft.receiveProgress(progress))
-        await render(
-          item,
-          reports.map((report) => ({ ...report, updatedAt: 'changed' })),
-          true,
-        )
+        await render(item, { ...savedReport, updatedAt: 'changed' }, true)
         assert(
           draft.processingProgress?.previews.length === 3 &&
             Object.values(draft.draftsByDeal).every((state) => state.phase === 'generating'),
@@ -312,7 +494,17 @@
             draft.draftsByDeal['deal-a'].values.body === '사람이 쓴 본문',
           '실패 후 미리보기만 지우고 사람 본문 유지',
         )
-        await render({ id: 'meeting-b', title: '다른 미팅', salesDealId: 'deal-z' }, [], true)
+        await act(async () => draft.beginGeneration(['deal-not-yet-saved']))
+        assert(
+          draft.salesDealIds.includes('deal-not-yet-saved') &&
+            draft.draftsByDeal['deal-not-yet-saved'].phase === 'generating',
+          '서버 조회 전인 선택 딜도 실행 스냅샷으로 복원',
+        )
+        await render(
+          { id: 'meeting-b', title: '다른 미팅', salesDealId: 'deal-z' },
+          undefined,
+          true,
+        )
         assert(
           draft.salesDealIds.join() === 'deal-z' && draft.transcript === '',
           '다른 미팅으로 이동하면 해당 미팅으로 새로 초기화',

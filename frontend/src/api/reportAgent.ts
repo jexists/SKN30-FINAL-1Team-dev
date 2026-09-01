@@ -93,7 +93,7 @@ export async function analyzeMeetingReport(reportId: string): Promise<DealAssess
 
 /** 선택된 딜 전체가 같은 원문·근거 장부로 처리되는 미팅 실행입니다. */
 export async function processMeeting(
-  reportIds: string[],
+  reportId: string,
   overrides?: { parent_run_id: string; assignment_overrides: MeetingAssignmentOverride[] },
   onProgress?: (progress: MeetingProgress) => void,
   signal?: AbortSignal,
@@ -102,7 +102,7 @@ export async function processMeeting(
     '/agent-runs',
     {
       agent_code: 'meeting_processing',
-      report_ids: reportIds,
+      report_id: reportId,
       idempotency_key: crypto.randomUUID(),
       ...overrides,
     },
@@ -121,8 +121,8 @@ export async function processMeeting(
   })
 }
 
-export async function applyMeetingProcessing(runId: string): Promise<ReportResponse[]> {
-  return (await client.post<ReportResponse[]>(`/agent-runs/${runId}/apply`)).data
+export async function applyMeetingProcessing(runId: string): Promise<ReportResponse> {
+  return (await client.post<ReportResponse>(`/agent-runs/${runId}/apply`)).data
 }
 
 export async function saveMeetingNotes(
@@ -130,9 +130,9 @@ export async function saveMeetingNotes(
   expectedRevision: string,
   commonBody: string | null,
   unassignedBody: string | null,
-): Promise<ReportResponse[]> {
+): Promise<ReportResponse> {
   return (
-    await client.patch<ReportResponse[]>(`/agent-runs/${runId}/meeting-notes`, {
+    await client.patch<ReportResponse>(`/agent-runs/${runId}/meeting-notes`, {
       expected_revision: expectedRevision,
       common_body: commonBody,
       unassigned_body: unassignedBody,

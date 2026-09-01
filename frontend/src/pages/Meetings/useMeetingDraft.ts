@@ -8,6 +8,7 @@ import type {
   AgendaItem,
   ApiReportStatus,
   DealAssessment,
+  MeetingDealSection,
   MeetingEvidenceLedger,
   MeetingProgress,
   MeetingReport,
@@ -39,6 +40,7 @@ export interface DealDraftState {
   pendingAi: boolean
   generationError: string | null
   analysisPhase: AnalysisPhase
+  analysisEvidence: Record<string, unknown> | null
   assessment?: DealAssessment
   analysisError: string | null
 }
@@ -55,52 +57,52 @@ const emptyValues = (template: ReportTemplate) =>
 const isBlank = (values: Record<string, string>) =>
   Object.values(values).every((value) => !value.trim())
 
-function stateOf(fallbackTitle: string, saved?: MeetingReport): DealDraftState {
+function stateOf(
+  fallbackTitle: string,
+  saved?: MeetingReport,
+  section?: MeetingDealSection,
+): DealDraftState {
   const template = saved?.template ?? meetingFreeformTemplate
-  const values = { ...emptyValues(template), ...saved?.values }
-  const aiValues = saved?.aiValues ?? {}
+  const values = { ...emptyValues(template), ...section?.values }
+  const aiValues = section?.aiValues ?? {}
   return {
     reportId: saved?.id,
     statusCode: saved?.apiStatus ?? 'draft',
     review: saved?.review ?? 'writing',
     template,
     phase: isBlank(values) ? 'idle' : 'ready',
-    title: saved?.title ?? fallbackTitle,
+    title: section?.title || fallbackTitle,
     values,
-    evidence: saved?.evidence,
+    evidence: section?.evidence,
     touched: false,
     docKey: 0,
     sectionIssues: [],
     aiValues,
-    aiEvidence: saved?.aiEvidence,
-    aiGeneratedAt: saved?.aiGeneratedAt,
+    aiEvidence: section?.aiEvidence,
+    aiGeneratedAt: section?.aiGeneratedAt,
     pendingAi: hasPendingAi(values, aiValues),
-    generationError: saved?.reportError ?? null,
-    analysisPhase: saved?.analysisError ? 'failed' : saved?.assessment ? 'completed' : 'idle',
-    assessment: saved?.assessment,
-    analysisError: saved?.analysisError ?? null,
+    generationError: section?.reportError ?? null,
+    analysisPhase: section?.analysisError ? 'failed' : section?.assessment ? 'completed' : 'idle',
+    analysisEvidence: section?.analysisEvidence ?? null,
+    assessment: section?.assessment,
+    analysisError: section?.analysisError ?? null,
   }
 }
 
-function meetingResultOf(reports: MeetingReport[]): MeetingResultState | null {
-  const latest = reports
-    .filter((report) => report.meetingRunId)
-    .sort((a, b) =>
-      (b.updatedAt ?? b.aiGeneratedAt ?? '').localeCompare(a.updatedAt ?? a.aiGeneratedAt ?? ''),
-    )[0]
-  return latest?.meetingRunId
+function meetingResultOf(report?: MeetingReport): MeetingResultState | null {
+  return report?.meetingRunId
     ? {
-        runId: latest.meetingRunId,
-        transcript: latest.transcript,
-        evidence: latest.evidenceLedger,
-        shared: latest.meetingShared,
+        runId: report.meetingRunId,
+        transcript: report.transcript,
+        evidence: report.evidenceLedger,
+        shared: report.meetingShared,
       }
     : null
 }
 
 export default function useMeetingDraft(
   item?: AgendaItem,
-  savedReports: MeetingReport[] = [],
+  savedReport?: MeetingReport,
   sourceReady = true,
 ) {
   const initializedAgendaId = useRef<string | null>(null)
@@ -134,11 +136,11 @@ export default function useMeetingDraft(
   const fallbackTitle = item?.title ?? ''
 
   const initialize = useCallback(() => {
-    const ids = [...new Set(savedReports.flatMap((report) => report.salesDealId ?? []))]
+    const ids = [...new Set(savedReport?.dealSections.map((section) => section.salesDealId) ?? [])]
     if (ids.length === 0 && item?.salesDealId) ids.push(item.salesDealId)
-    const result = meetingResultOf(savedReports)
-    setTranscript(result?.transcript ?? savedReports[0]?.transcript ?? '')
-    setAttachments(savedReports[0]?.attachments ?? [])
+    const result = meetingResultOf(savedReport)
+    setTranscript(result?.transcript ?? savedReport?.transcript ?? '')
+    setAttachments(savedReport?.attachments ?? [])
     setSalesDealIds(ids)
     setDraftsByDeal(
       Object.fromEntries(
@@ -146,7 +148,8 @@ export default function useMeetingDraft(
           dealId,
           stateOf(
             fallbackTitle,
-            savedReports.find((report) => report.salesDealId === dealId),
+            savedReport,
+            savedReport?.dealSections.find((section) => section.salesDealId === dealId),
           ),
         ]),
       ),
@@ -154,7 +157,7 @@ export default function useMeetingDraft(
     setMeetingResult(result)
     setProcessingProgress(null)
     setAttachmentError(null)
-  }, [savedReports, item?.salesDealId, fallbackTitle, setAttachments, setAttachmentError])
+  }, [savedReport, item?.salesDealId, fallbackTitle, setAttachments, setAttachmentError])
 
   useEffect(() => {
     // 사전저장 후 재조회나 Fast Refresh가 와도 같은 미팅의 편집/실행 상태는 유지합니다.
@@ -187,19 +190,27 @@ export default function useMeetingDraft(
   )
 
   const bindReport = useCallback(
-    (dealId: string, report: MeetingReport) =>
-      updateDeal(dealId, (draft) => ({
-        ...draft,
-        reportId: report.id,
-        statusCode: report.apiStatus ?? draft.statusCode,
-        review: report.review,
-      })),
+    (report: MeetingReport) => {
+      setSalesDealIds((previous) => [
+        ...new Set([...previous, ...report.dealSections.map((section) => section.salesDealId)]),
+      ])
+      for (const section of report.dealSections) {
+        updateDeal(section.salesDealId, (draft) => ({
+          ...draft,
+          reportId: report.id,
+          statusCode: report.apiStatus ?? draft.statusCode,
+          review: report.review,
+          analysisEvidence: section.analysisEvidence,
+        }))
+      }
+    },
     [updateDeal],
   )
 
   const beginGeneration = useCallback(
     (dealIds: string[]) => {
       setProcessingProgress(null)
+      setSalesDealIds((previous) => [...new Set([...previous, ...dealIds])])
       for (const id of dealIds)
         updateDeal(id, (draft) => ({
           ...draft,
@@ -214,19 +225,19 @@ export default function useMeetingDraft(
 
   // 서버 apply가 사람 최종본을 보존한 결과를 반환합니다. 생성 중 편집은 잠겨 있습니다.
   const acceptGenerated = useCallback(
-    (reports: MeetingReport[], writingFailed = false) => {
+    (report: MeetingReport, writingFailed = false) => {
       setProcessingProgress(null)
-      for (const report of reports) {
-        if (!report.salesDealId) continue
-        updateDeal(report.salesDealId, (draft) => ({
-          ...stateOf(fallbackTitle, report),
+      setSalesDealIds(report.dealSections.map((section) => section.salesDealId))
+      for (const section of report.dealSections) {
+        updateDeal(section.salesDealId, (draft) => ({
+          ...stateOf(fallbackTitle, report, section),
           docKey: draft.docKey + 1,
           generationError: writingFailed
             ? '보고서 생성에 실패했습니다. 기존 작성 내용은 유지됩니다.'
-            : (report.reportError ?? null),
+            : (section.reportError ?? null),
         }))
       }
-      setMeetingResult(meetingResultOf(reports))
+      setMeetingResult(meetingResultOf(report))
     },
     [fallbackTitle, updateDeal],
   )
@@ -286,7 +297,7 @@ export default function useMeetingDraft(
     beginGeneration,
     acceptGenerated,
     generationFailed,
-    acceptShared: (reports: MeetingReport[]) => setMeetingResult(meetingResultOf(reports)),
+    acceptShared: (report: MeetingReport) => setMeetingResult(meetingResultOf(report)),
     canGenerate:
       transcript.trim().length > 0 &&
       salesDealIds.length > 0 &&

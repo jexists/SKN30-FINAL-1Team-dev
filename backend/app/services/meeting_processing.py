@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
-from app.models.content import Report
+from app.models.content import Report, ReportDeal
 from app.models.workspace import Member
 from app.schemas.meeting_content import (
     MeetingContentAnalysisOutput,
@@ -28,7 +28,7 @@ from app.services.agent_logging import log_agent_error
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError
 
-PROMPT_VERSION = "meeting_processing.v5"
+PROMPT_VERSION = "meeting_processing.v6"
 RUN_TIMEOUT_SECONDS = 1_200
 
 
@@ -42,30 +42,40 @@ class MeetingProcessingOutput(BaseModel):
     context_lookups: list[dict[str, Any]] = Field(default_factory=list)
 
 
-def _same_meeting(reports: list[Report]) -> None:
-    first = reports[0]
-    if (
-        any(report.report_kind != "meeting" or not report.sales_deal_id for report in reports)
-        or not first.source_activity_id
-        or any(report.source_activity_id != first.source_activity_id for report in reports)
-        or any(report.transcript != first.transcript for report in reports)
-        or len({report.sales_deal_id for report in reports}) != len(reports)
-    ):
+def _meeting_report(report: Report) -> Report:
+    if report.report_kind != "meeting" or report.source_activity_id is None:
         raise HTTPException(422, "meeting_reports_mismatch")
+    return report
+
+
+async def _report_deals(db: AsyncSession, report_id: UUID) -> list[ReportDeal]:
+    return list(
+        (
+            await db.execute(
+                select(ReportDeal)
+                .where(ReportDeal.report_id == report_id)
+                .order_by(ReportDeal.sales_deal_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
 
 async def input_snapshot(
     db: AsyncSession,
     member: Member,
-    reports: list[Report],
+    report: Report,
     parent: AgentRun | None = None,
     overrides: list[SegmentAssignment] | None = None,
 ) -> dict[str, Any]:
-    """이미 접근 권한을 확인한 딜 보고서 N개에서 원문 한 벌과 CRM을 고정한다."""
-    _same_meeting(reports)
-    first = reports[0]
+    """이미 접근 권한을 확인한 미팅 보고서 한 건에서 원문과 딜별 CRM을 고정한다."""
+    first = _meeting_report(report)
+    report_deals = await _report_deals(db, first.id)
+    if not report_deals:
+        raise HTTPException(422, "deal_sections_required")
     context = await meeting_context.build_context(
-        db, member, first.source_activity_id, [report.sales_deal_id for report in reports]
+        db, member, first.source_activity_id, [section.sales_deal_id for section in report_deals]
     )
     try:
         snapshot = meeting_content_analysis.input_snapshot(first.transcript, context["deals"])
@@ -75,19 +85,18 @@ async def input_snapshot(
     snapshot["activity_id"] = str(first.source_activity_id)
     snapshot["team_id"] = str(member.team_id)
     snapshot["report_versions"] = [
+        {"id": str(first.id), "updated_at": first.updated_at.isoformat()}
+    ]
+    snapshot["deal_versions"] = [
         {
-            "id": str(report.id),
-            "sales_deal_id": str(report.sales_deal_id),
-            "updated_at": report.updated_at.isoformat(),
+            "sales_deal_id": str(section.sales_deal_id),
+            "updated_at": section.updated_at.isoformat(),
         }
-        for report in reports
+        for section in report_deals
     ]
     snapshot["assignment_overrides"] = [item.model_dump(mode="json") for item in overrides or []]
     if parent is not None:
-        if any(
-            (report.source_snapshot or {}).get("meeting_run_id") != str(parent.id)
-            for report in reports
-        ):
+        if (first.source_snapshot or {}).get("meeting_run_id") != str(parent.id):
             raise HTTPException(409, "meeting_assignment_stale")
         evidence = MeetingEvidenceLedger.model_validate(parent.output_snapshot["evidence"])
         source = MeetingContentInput.model_validate(snapshot["source"])
@@ -237,32 +246,45 @@ async def _locked_run(db: AsyncSession, member: Member, run_id: UUID) -> AgentRu
     return run
 
 
-async def _locked_reports(db: AsyncSession, member: Member, run: AgentRun) -> list[Report]:
+async def _locked_report_and_deals(
+    db: AsyncSession, member: Member, run: AgentRun
+) -> tuple[Report, list[ReportDeal]]:
     from app.api.reports import _locked_report
 
-    reports = [
-        await _locked_report(db, member, UUID(item["id"]))
-        for item in sorted(run.input_snapshot["report_versions"], key=lambda item: item["id"])
-    ]
-    _same_meeting(reports)
-    versions = {item["id"]: item for item in run.input_snapshot["report_versions"]}
-    for report in reports:
-        if report.status_code not in {"draft", "changes_requested"}:
-            raise HTTPException(409, "report_not_editable")
-        if (
-            str(report.source_activity_id) != run.input_snapshot["activity_id"]
-            or str(report.sales_deal_id) != versions[str(report.id)]["sales_deal_id"]
-            or report.transcript != run.input_snapshot["source"]["transcript"]
-        ):
-            raise HTTPException(409, "meeting_source_changed")
-    return reports
+    versions = run.input_snapshot["report_versions"]
+    if len(versions) != 1:
+        raise HTTPException(409, "meeting_source_changed")
+    report = _meeting_report(await _locked_report(db, member, UUID(versions[0]["id"])))
+    if report.status_code not in {"draft", "changes_requested"}:
+        raise HTTPException(409, "report_not_editable")
+    if (
+        str(report.source_activity_id) != run.input_snapshot["activity_id"]
+        or report.transcript != run.input_snapshot["source"]["transcript"]
+    ):
+        raise HTTPException(409, "meeting_source_changed")
+    sections = list(
+        (
+            await db.execute(
+                select(ReportDeal)
+                .where(ReportDeal.report_id == report.id)
+                .order_by(ReportDeal.sales_deal_id)
+                .with_for_update()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    expected = {item["sales_deal_id"] for item in run.input_snapshot.get("deal_versions", [])}
+    if not sections or {str(section.sales_deal_id) for section in sections} != expected:
+        raise HTTPException(409, "meeting_source_changed")
+    return report, sections
 
 
-async def _commit_reports(db: AsyncSession, member: Member, reports: list[Report]):
+async def _commit_report(db: AsyncSession, member: Member, report: Report):
     from app.api.reports import _detail
 
     await db.flush()
-    output = [await _detail(db, member, report.id) for report in reports]
+    output = await _detail(db, member, report.id)
     await db.commit()
     return output
 
@@ -271,22 +293,21 @@ async def apply(db: AsyncSession, member: Member, run_id: UUID):
     """완료된 제안을 한 번만 원자적으로 저장. 실행 중 수정된 문서는 덮어쓰지 않는다."""
     try:
         run = await _locked_run(db, member, run_id)
-        reports = await _locked_reports(db, member, run)
-        applied = [
-            (report.source_snapshot or {}).get("meeting_run_id") == str(run_id)
-            for report in reports
-        ]
-        if all(applied):
-            return await _commit_reports(db, member, reports)
-        if any(applied):
-            raise HTTPException(409, "meeting_run_partially_applied")
-        versions = {
-            item["id"]: item["updated_at"] for item in run.input_snapshot["report_versions"]
+        report, sections = await _locked_report_and_deals(db, member, run)
+        if (report.source_snapshot or {}).get("meeting_run_id") == str(run_id):
+            return await _commit_report(db, member, report)
+        report_version = run.input_snapshot["report_versions"][0]["updated_at"]
+        deal_versions = {
+            item["sales_deal_id"]: item["updated_at"]
+            for item in run.input_snapshot.get("deal_versions", [])
         }
-        if any(report.updated_at.isoformat() != versions[str(report.id)] for report in reports):
+        if report.updated_at.isoformat() != report_version or any(
+            section.updated_at.isoformat() != deal_versions.get(str(section.sales_deal_id))
+            for section in sections
+        ):
             raise HTTPException(409, "meeting_report_changed")
         result = MeetingProcessingOutput.model_validate(run.output_snapshot)
-        selected = {report.sales_deal_id for report in reports}
+        selected = {section.sales_deal_id for section in sections}
         if set(result.evidence.selected_deal_ids) != selected:
             raise HTTPException(409, "meeting_result_deals_mismatch")
         if result.reports:
@@ -334,9 +355,8 @@ async def apply(db: AsyncSession, member: Member, run_id: UUID):
         for name in ("common_report", "unassigned_report"):
             edited = [
                 prior
-                for report in reports
-                if isinstance(prior := (report.content.get("meeting_shared") or {}).get(name), dict)
-                and prior.get("edited")
+                for prior in [(report.content.get("meeting_shared") or {}).get(name)]
+                if isinstance(prior, dict) and prior.get("edited")
             ]
             if edited:
                 if len({item["body"] for item in edited}) != 1:
@@ -349,9 +369,9 @@ async def apply(db: AsyncSession, member: Member, run_id: UUID):
                     "edited": True,
                     "ai_body": proposed["body"] if proposed else None,
                 }
-        for report in reports:
-            content = copy.deepcopy(report.content)
-            draft = drafts.get(report.sales_deal_id)
+        for section in sections:
+            content = copy.deepcopy(section.content)
+            draft = drafts.get(section.sales_deal_id)
             if draft:
                 fields = report.template_snapshot.get("fields", [])
                 field_id = (
@@ -369,6 +389,8 @@ async def apply(db: AsyncSession, member: Member, run_id: UUID):
                 )
                 generated = {field_id or "body": draft.body}
                 current = content.get("values", {})
+                if not isinstance(current, dict):
+                    current = {}
                 if field_id is not None and not any(
                     isinstance(value, str) and value.strip() for value in current.values()
                 ):
@@ -378,14 +400,9 @@ async def apply(db: AsyncSession, member: Member, run_id: UUID):
                     ai_evidence=" · ".join(draft.evidence_ids),
                     ai_generated_at=now.isoformat(),
                 )
-            content["meeting_shared"] = copy.deepcopy(shared)
-            report.content = content
-            report.source_snapshot = {
-                "meeting_run_id": str(run_id),
-                "evidence": result.evidence.model_dump(mode="json"),
-            }
-            analysis = analyses[report.sales_deal_id]
-            report.ai_evidence = {
+            section.content = content
+            analysis = analyses[section.sales_deal_id]
+            section.ai_evidence = {
                 "meeting_run_id": str(run_id),
                 "deal_assessment": analysis.assessment.model_dump(mode="json")
                 if analysis.assessment
@@ -396,8 +413,16 @@ async def apply(db: AsyncSession, member: Member, run_id: UUID):
                 "analysis_error": analysis.error,
                 "report_error": result.errors.get("report_writing"),
             }
-            report.updated_at = now
-        return await _commit_reports(db, member, reports)
+            section.updated_at = now
+        report_content = copy.deepcopy(report.content)
+        report_content["meeting_shared"] = shared
+        report.content = report_content
+        report.source_snapshot = {
+            "meeting_run_id": str(run_id),
+            "evidence": result.evidence.model_dump(mode="json"),
+        }
+        report.updated_at = now
+        return await _commit_report(db, member, report)
     except Exception:
         await db.rollback()
         raise
@@ -411,37 +436,33 @@ async def update_notes(
     unassigned_body: str | None,
     expected_revision: UUID,
 ):
-    """미팅 공통 편집본을 그룹 전체에 저장. AI 원문 근거와 분석 결과는 변경하지 않는다."""
+    """미팅 공통 편집본을 부모 보고서에 저장. AI 원문 근거와 분석 결과는 변경하지 않는다."""
     try:
         run = await _locked_run(db, member, run_id)
-        reports = await _locked_reports(db, member, run)
-        for report in reports:
-            if (report.source_snapshot or {}).get("meeting_run_id") != str(run_id):
-                raise HTTPException(409, "meeting_notes_stale")
-            if (report.content.get("meeting_shared") or {}).get("revision") != str(
-                expected_revision
-            ):
-                raise HTTPException(409, "meeting_notes_changed")
+        report, _sections = await _locked_report_and_deals(db, member, run)
+        if (report.source_snapshot or {}).get("meeting_run_id") != str(run_id):
+            raise HTTPException(409, "meeting_notes_stale")
+        if (report.content.get("meeting_shared") or {}).get("revision") != str(expected_revision):
+            raise HTTPException(409, "meeting_notes_changed")
         revision = str(uuid4())
-        for report in reports:
-            content = copy.deepcopy(report.content)
-            shared = content["meeting_shared"]
-            shared["revision"] = revision
-            for name, body in (
-                ("common_report", common_body),
-                ("unassigned_report", unassigned_body),
-            ):
-                if shared.get(name) is not None:
-                    if body is None or not body.strip():
-                        raise HTTPException(422, "meeting_notes_empty")
-                    if shared[name]["body"] != body:
-                        shared[name]["edited"] = True
-                    shared[name]["body"] = body
-                elif body:
-                    raise HTTPException(422, "meeting_notes_without_evidence")
-            report.content = content
-            report.updated_at = datetime.now(UTC)
-        return await _commit_reports(db, member, reports)
+        content = copy.deepcopy(report.content)
+        shared = content["meeting_shared"]
+        shared["revision"] = revision
+        for name, body in (
+            ("common_report", common_body),
+            ("unassigned_report", unassigned_body),
+        ):
+            if shared.get(name) is not None:
+                if body is None or not body.strip():
+                    raise HTTPException(422, "meeting_notes_empty")
+                if shared[name]["body"] != body:
+                    shared[name]["edited"] = True
+                shared[name]["body"] = body
+            elif body:
+                raise HTTPException(422, "meeting_notes_without_evidence")
+        report.content = content
+        report.updated_at = datetime.now(UTC)
+        return await _commit_report(db, member, report)
     except Exception:
         await db.rollback()
         raise

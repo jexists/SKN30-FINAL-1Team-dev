@@ -1,9 +1,9 @@
 // 업무 보고서 작성 화면.
 //
 // 왼쪽은 미팅 공통 정보·원문이고, 오른쪽은 선택한 딜마다 하나씩 생기는 보고서입니다.
-// 카드 한 장이 report 한 행이자 sales_deal 한 건이라 저장·Agent·ML 상태가 섞이지 않습니다.
+// 저장할 때는 공통 기록과 모든 딜 카드를 미팅 보고서 한 건으로 묶습니다.
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage } from '@/api/errorMessage'
@@ -15,20 +15,27 @@ import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
 import { showToast } from '@/shared/toast'
-import type { MeetingAssignmentOverride, MeetingDealRef } from '@/types'
+import type { MeetingAssignmentOverride, MeetingDealRef, MeetingProgress } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
-import { canReassignEvidence, runDealGeneration } from './generatedDraft'
+import { canReassignEvidence } from './generatedDraft'
+import {
+  acknowledgeMeetingGeneration,
+  startMeetingGeneration,
+  useMeetingGeneration,
+} from './meetingGenerationStore'
 import useCompanyDeals from './useCompanyDeals'
 import useMeetingDraft from './useMeetingDraft'
 import useMeetingReports, {
+  type MeetingDealDraftPayload,
   type MeetingDraftPayload,
+  saveMeetingDraft,
   toMeetingReport,
-  useMeetingReportsOfAgenda,
+  useMeetingReportOfAgenda,
 } from './useMeetingReports'
 
 import styles from './Compose.module.scss'
@@ -37,24 +44,43 @@ type Confirm = { kind: 'apply'; dealId: string } | null
 
 export default function Compose() {
   const [params] = useSearchParams()
+  const navigate = useNavigate()
   const { memberId, isManager } = useCurrentUser()
-  const activeGenerations = useRef(new Set<string>())
-  const processingAbort = useRef<AbortController | null>(null)
-  const [generating, setGenerating] = useState(false)
+  const notesAbort = useRef<AbortController | null>(null)
+  const saveAbort = useRef<AbortController | null>(null)
+  const mirroredGeneration = useRef({
+    requestId: '',
+    progress: null as MeetingProgress | null,
+    reportId: '',
+    terminal: false,
+  })
   const [savingNotes, setSavingNotes] = useState(false)
+  const [savingAll, setSavingAll] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [runErrors, setRunErrors] = useState<Record<string, string>>({})
   const [notesDirty, setNotesDirty] = useState(false)
   const agendaId = params.get('agenda') ?? ''
+  const generation = useMeetingGeneration(agendaId)
+  const generating = generation?.status === 'running'
   useEffect(() => {
-    setGenerating(false)
     setSavingNotes(false)
+    setSavingAll(false)
+    setSubmitting(false)
     setNotesDirty(false)
     setRunError(null)
     setRunErrors({})
+    mirroredGeneration.current = {
+      requestId: '',
+      progress: null,
+      reportId: '',
+      terminal: false,
+    }
     return () => {
-      processingAbort.current?.abort()
-      processingAbort.current = null
+      notesAbort.current?.abort()
+      notesAbort.current = null
+      saveAbort.current?.abort()
+      saveAbort.current = null
     }
   }, [agendaId])
   const {
@@ -64,17 +90,63 @@ export default function Compose() {
     reload: reloadAgenda,
   } = useAgendaItem(agendaId)
   const {
-    reports: savedReports,
+    report: savedReport,
     loading,
     error: loadError,
     reload,
-  } = useMeetingReportsOfAgenda(agendaId)
-  const { saveDraft, error: saveError, pending } = useMeetingReports()
-  const draft = useMeetingDraft(
-    item,
-    savedReports,
-    !agendaLoading && !loading && !agendaError && !loadError && item?.id === agendaId,
-  )
+  } = useMeetingReportOfAgenda(agendaId)
+  const { saveDraft, saveReport, error: saveError, pending } = useMeetingReports()
+  const draftReady =
+    !agendaLoading && !loading && !agendaError && !loadError && item?.id === agendaId
+  const draft = useMeetingDraft(item, savedReport, draftReady)
+  const { beginGeneration, bindReport, receiveProgress, acceptGenerated, generationFailed } = draft
+  useEffect(() => {
+    if (!generation || !draftReady) return
+    const mirror = mirroredGeneration.current
+    if (mirror.requestId !== generation.requestId) {
+      mirror.requestId = generation.requestId
+      mirror.progress = null
+      mirror.reportId = ''
+      mirror.terminal = false
+      beginGeneration(generation.dealIds)
+      setRunError(null)
+      setRunErrors({})
+    }
+
+    if (generation.status === 'running') {
+      if (generation.savedReport && mirror.reportId !== generation.savedReport.id) {
+        mirror.reportId = generation.savedReport.id
+        bindReport(generation.savedReport)
+      }
+    }
+
+    if (generation.status === 'running') {
+      if (generation.progress && mirror.progress !== generation.progress) {
+        mirror.progress = generation.progress
+        receiveProgress(generation.progress)
+      }
+      return
+    }
+    if (mirror.terminal) return
+    mirror.terminal = true
+    if (generation.status === 'completed') {
+      acceptGenerated(generation.report, generation.writingFailed)
+      setRunErrors(generation.errors)
+    } else {
+      generationFailed(generation.dealIds, new Error(generation.error))
+      setRunError(generation.error)
+    }
+    acknowledgeMeetingGeneration(agendaId, generation.requestId)
+  }, [
+    generation,
+    draftReady,
+    agendaId,
+    beginGeneration,
+    bindReport,
+    receiveProgress,
+    acceptGenerated,
+    generationFailed,
+  ])
   const deals = useCompanyDeals(item?.customerCompanyId)
   const [confirm, setConfirm] = useState<Confirm>(null)
 
@@ -118,53 +190,62 @@ export default function Compose() {
   }
 
   const savedByDeal = new Map(
-    savedReports.flatMap((report) => (report.salesDealId ? [[report.salesDealId, report]] : [])),
+    savedReport?.dealSections.map((section) => [section.salesDealId, section]) ?? [],
   )
-  const unassignedReports = savedReports.filter((report) => !report.salesDealId)
   const canWrite = isOwnAgendaItem(item, memberId, isManager)
-  const canEditDeal = (dealId: string) =>
-    canWrite && (!savedByDeal.has(dealId) || savedByDeal.get(dealId)?.ownerMemberId === memberId)
-  const lockedDealIds = savedReports.flatMap((report) =>
-    report.review === 'approved' && report.salesDealId ? [report.salesDealId] : [],
-  )
+  const canEdit =
+    canWrite &&
+    (!savedReport ||
+      (savedReport.ownerMemberId === memberId &&
+        (savedReport.apiStatus === 'draft' || savedReport.apiStatus === 'changes_requested')))
+  const canEditDeal = (_dealId: string) => canEdit
+  const lockedDealIds = savedReport?.review === 'approved' ? [...draft.salesDealIds] : []
   const fixedDealIds = draft.salesDealIds.filter(
     (dealId) => draft.draftsByDeal[dealId]?.reportId !== undefined,
   )
-  const busy = pending || generating || savingNotes
+  const busy = pending || generating || savingNotes || savingAll || submitting
   const when = `${fmtDot(parseISO(item.date))} ${item.time}`
 
   const dealRef = (dealId: string): MeetingDealRef => {
     const deal = deals.deals.find((one) => one.id === dealId)
-    if (deal) return { id: dealId, label: deal.no, note: deal.title.trim() || deal.product }
-    return savedByDeal.get(dealId)?.salesDeal ?? { id: dealId, label: dealId }
+    const saved = savedByDeal.get(dealId)?.salesDeal
+    const label = (deal?.no ?? saved?.label ?? dealId).trim().slice(0, 254) || dealId
+    const note = (deal ? deal.title.trim() || deal.product : saved?.note)?.trim().slice(0, 5_000)
+    return { id: dealId, label, ...(note ? { note } : {}) }
   }
 
-  const payloadFor = (dealId: string): MeetingDraftPayload => {
+  const sectionPayloadFor = (dealId: string): MeetingDealDraftPayload => {
     const state = draft.draftsByDeal[dealId]
     if (!state) throw new Error('deal_draft_not_found')
     const deal = deals.deals.find((one) => one.id === dealId)
     return {
-      reportId: state.reportId,
-      statusCode: state.statusCode,
-      agendaId: item.id,
       salesDealId: dealId,
       salesDeal: dealRef(dealId),
-      template: state.template,
+      product: deal?.product ?? savedByDeal.get(dealId)?.product ?? item.product,
+      title: state.title,
+      values: state.values,
+      evidence: state.evidence,
+    }
+  }
+
+  const payloadForMeeting = (): MeetingDraftPayload => {
+    const first = draft.draftsByDeal[draft.salesDealIds[0]]
+    if (!first) throw new Error('meeting_draft_not_found')
+    return {
+      reportId: savedReport?.id ?? first.reportId,
+      statusCode: savedReport?.apiStatus ?? first.statusCode,
+      agendaId: item.id,
+      template: savedReport?.template ?? first.template,
       date: item.date,
       time: item.time,
       hospital: item.hospital,
       dept: item.dept,
       contact: item.contact,
-      product: deal?.product ?? item.product,
       place: item.place,
-      title: state.title,
+      title: item.title,
       transcript: draft.transcript,
-      values: state.values,
       attachments: draft.attachments,
-      evidence: state.evidence,
-      aiValues: state.aiValues,
-      aiEvidence: state.aiEvidence,
-      aiGeneratedAt: state.aiGeneratedAt,
+      dealSections: draft.salesDealIds.map(sectionPayloadFor),
     }
   }
 
@@ -192,114 +273,146 @@ export default function Compose() {
         canEditDeal(id) &&
         ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
     )
-
+  const editableDealIds = draft.salesDealIds.filter(
+    (id) =>
+      canEditDeal(id) &&
+      ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
+  )
+  const emptyDealIds = editableDealIds.filter((id) => draft.draftsByDeal[id]?.phase === 'idle')
+  const brokenDealIds = editableDealIds.filter(
+    (id) => (draft.draftsByDeal[id]?.sectionIssues.length ?? 0) > 0,
+  )
   // 잠금 키는 딜이 아니라 미팅입니다. 사전저장부터 서버 apply까지 한 번만 실행합니다.
   const generateAll = async (overrides: MeetingAssignmentOverride[] = []) => {
-    if (busy || activeGenerations.current.has(agendaId) || !generatable || !draft.canGenerate)
-      return false
+    if (busy || !generatable || !draft.canGenerate) return false
     if (notesDirty) {
       setRunError('수정한 공통·미지정 메모를 먼저 저장한 뒤 다시 생성하세요.')
       return false
     }
     if (overrides.length && !canReassign) return false
     const targets = [...draft.salesDealIds]
-    const controller = new AbortController()
-    processingAbort.current = controller
-    return runDealGeneration(
-      activeGenerations.current,
+    const payload = payloadForMeeting()
+    const rerun = overrides.length
+      ? {
+          parent_run_id: result!.runId,
+          assignment_overrides: [...overrides],
+        }
+      : undefined
+    setRunError(null)
+    setRunErrors({})
+    return startMeetingGeneration({
       agendaId,
-      () => {
-        if (!controller.signal.aborted) setGenerating(activeGenerations.current.has(agendaId))
-      },
-      async () => {
-        setRunError(null)
-        setRunErrors({})
-        draft.beginGeneration(targets)
-        try {
-          const reports = await Promise.all(
-            targets.map(async (id) => {
-              const report = await saveDraft(payloadFor(id))
-              if (!controller.signal.aborted) draft.bindReport(id, report)
-              return report
-            }),
-          )
-          if (controller.signal.aborted) return false
-          const run = await processMeeting(
-            reports.map((report) => report.id),
-            overrides.length
-              ? {
-                  parent_run_id: result!.runId,
-                  assignment_overrides: overrides,
-                }
-              : undefined,
-            (progress) => {
-              if (controller.signal.aborted || processingAbort.current !== controller) return
-              draft.receiveProgress({
-                ...progress,
-                previews: progress.previews.filter(
-                  (preview) =>
-                    preview.section !== 'deal' || targets.includes(preview.sales_deal_id!),
-                ),
-              })
-            },
-            controller.signal,
-          )
-          if (controller.signal.aborted) return false
-          const persisted = await applyMeetingProcessing(run.id)
-          if (controller.signal.aborted) return false
-          draft.acceptGenerated(
-            persisted.map(toMeetingReport),
-            run.output_snapshot.reports === null,
-          )
-          setRunErrors(run.output_snapshot.errors)
-          showToast(
-            Object.keys(run.output_snapshot.errors).length
-              ? '미팅 처리가 일부 완료됐습니다. 실패한 항목을 확인하세요.'
-              : `${targets.length}개 딜의 보고서와 분석 결과를 저장했습니다.`,
-          )
-          return true
-        } catch (reason: unknown) {
-          if (controller.signal.aborted) return false
-          draft.generationFailed(targets, reason)
-          setRunError(errorMessage(reason, '미팅 처리를 완료하지 못했습니다.'))
-          return false
+      dealIds: targets,
+      execute: async (onProgress, onReportSaved) => {
+        const report = await saveMeetingDraft(payload)
+        onReportSaved(report)
+        const run = await processMeeting(report.id, rerun, (progress) => {
+          onProgress({
+            ...progress,
+            previews: progress.previews.filter(
+              (preview) => preview.section !== 'deal' || targets.includes(preview.sales_deal_id!),
+            ),
+          })
+        })
+        const persisted = await applyMeetingProcessing(run.id)
+        return {
+          report: toMeetingReport(persisted),
+          writingFailed: run.output_snapshot.reports === null,
+          errors: run.output_snapshot.errors,
         }
       },
-    )
+    })
   }
 
   const saveShared = async (common: string | null, unassigned: string | null) => {
     if (busy || !canEditNotes || !result) return
     const controller = new AbortController()
-    processingAbort.current = controller
+    notesAbort.current = controller
     setSavingNotes(true)
     setRunError(null)
     try {
-      const reports = await saveMeetingNotes(
+      const report = await saveMeetingNotes(
         result.runId,
         result.shared!.revision,
         common,
         unassigned,
       )
       if (controller.signal.aborted) return
-      draft.acceptShared(reports.map(toMeetingReport))
+      draft.acceptShared(toMeetingReport(report))
       showToast('미팅 공통·미지정 메모를 저장했습니다.')
     } catch (reason: unknown) {
       if (controller.signal.aborted) return
       setRunError(errorMessage(reason, '미팅 메모를 저장하지 못했습니다.'))
     } finally {
-      if (!controller.signal.aborted) setSavingNotes(false)
+      if (notesAbort.current === controller) {
+        notesAbort.current = null
+        setSavingNotes(false)
+      }
     }
   }
 
-  const saveOne = async (dealId: string) => {
-    if (activeGenerations.current.has(agendaId) || !canEditDeal(dealId) || busy) return
+  const saveAll = async () => {
+    if (
+      busy ||
+      saveAbort.current ||
+      editableDealIds.length !== draft.salesDealIds.length ||
+      emptyDealIds.length > 0 ||
+      brokenDealIds.length > 0
+    )
+      return
+
+    const controller = new AbortController()
+    saveAbort.current = controller
+    setSavingAll(true)
+    setRunError(null)
+
     try {
-      const report = await saveDraft(payloadFor(dealId))
-      draft.bindReport(dealId, report)
-      showToast(`${dealRef(dealId).label} 보고서를 저장했습니다.`)
-    } catch {
-      // 저장 훅이 카드 목록 위에 오류를 표시합니다.
+      const report = await saveDraft(payloadForMeeting(), controller.signal)
+      if (controller.signal.aborted || saveAbort.current !== controller) return
+      draft.bindReport(report)
+      showToast('미팅 보고서 초안을 임시저장했습니다.')
+    } catch (reason: unknown) {
+      if (!controller.signal.aborted) {
+        setRunError(errorMessage(reason, '미팅 보고서 초안을 임시저장하지 못했습니다.'))
+      }
+    } finally {
+      if (saveAbort.current === controller) {
+        saveAbort.current = null
+        setSavingAll(false)
+      }
+    }
+  }
+
+  const submitAll = async () => {
+    if (
+      busy ||
+      saveAbort.current ||
+      editableDealIds.length !== draft.salesDealIds.length ||
+      emptyDealIds.length > 0 ||
+      brokenDealIds.length > 0
+    )
+      return
+
+    const controller = new AbortController()
+    saveAbort.current = controller
+    setSubmitting(true)
+    setRunError(null)
+
+    try {
+      const report = await saveReport(payloadForMeeting(), controller.signal)
+      if (controller.signal.aborted || saveAbort.current !== controller) return
+      draft.bindReport(report)
+      showToast('업무보고를 확정했습니다.')
+      navigate(meetingReportPath(report.id), { replace: true })
+    } catch (reason: unknown) {
+      if (!controller.signal.aborted) {
+        setRunError(errorMessage(reason, '업무보고를 확정하지 못했습니다.'))
+      }
+    } finally {
+      if (saveAbort.current === controller) {
+        saveAbort.current = null
+        setSubmitting(false)
+      }
     }
   }
 
@@ -335,15 +448,13 @@ export default function Compose() {
       {lockedDealIds.length > 0 && (
         <p className={styles.locked}>
           팀장 확인이 끝난 딜 보고서 {lockedDealIds.length}건은 수정할 수 없습니다.{' '}
-          <Link to={meetingReportPath(savedByDeal.get(lockedDealIds[0])?.id ?? '')}>
-            확인 완료 보고서 열기
-          </Link>
+          <Link to={meetingReportPath(savedReport?.id ?? '')}>확인 완료 보고서 열기</Link>
         </p>
       )}
 
-      {(saveError || runError) && (
+      {(runError || saveError) && (
         <p className={styles.mutationError} role="alert">
-          {saveError || runError}
+          {runError ?? saveError}
         </p>
       )}
       {Object.keys(runErrors).length > 0 && (
@@ -356,13 +467,6 @@ export default function Compose() {
           </ul>
         </div>
       )}
-
-      {unassignedReports.map((report) => (
-        <p className={styles.locked} key={report.id}>
-          딜이 지정되지 않은 기존 보고서는 원본 그대로 보관했습니다.{' '}
-          <Link to={meetingReportPath(report.id)}>{report.title || '기존 보고서'} 열기</Link>
-        </p>
-      ))}
 
       <div className={styles.layout}>
         <div className={styles.side}>
@@ -381,7 +485,7 @@ export default function Compose() {
               selectedDealIds={draft.salesDealIds}
               fixedDealIds={fixedDealIds}
               onToggleDeal={draft.toggleSalesDeal}
-              disabled={busy || !canWrite}
+              disabled={busy || !canEdit}
             />
           </aside>
 
@@ -397,13 +501,13 @@ export default function Compose() {
               generating={generating}
               contentLabel="미팅 내용"
               generateLabel="미팅 전체 분석·보고서 작성"
-              disabled={busy || !canWrite}
+              disabled={busy || !canEdit}
               onGenerate={() => void generateAll()}
             />
             {draft.salesDealIds.length > 0 && !generatable && (
               <p className={styles.generationNote}>
-                선택한 딜 중 읽기 전용 또는 작성중이 아닌 보고서가 있어 미팅 전체를 다시 생성할 수
-                없습니다.
+                선택한 딜 중 읽기 전용 또는 수정중 상태가 아닌 보고서가 있어 미팅 전체를 다시 생성할
+                수 없습니다.
               </p>
             )}
             {notesDirty && (
@@ -419,6 +523,43 @@ export default function Compose() {
         </div>
 
         <section className={styles.work} aria-label="딜별 미팅보고서">
+          {draft.salesDealIds.length > 0 && (
+            <div className={styles.saveBar} aria-busy={savingAll || submitting}>
+              <div className={styles.saveCopy}>
+                <strong>미팅 보고서</strong>
+                <p>공통 기록과 딜 {draft.salesDealIds.length}건을 한 문서로 저장합니다.</p>
+              </div>
+              <Button
+                variant="outline"
+                type="button"
+                className={styles.saveAllButton}
+                aria-label="미팅 보고서 임시저장"
+                disabled={
+                  busy ||
+                  editableDealIds.length !== draft.salesDealIds.length ||
+                  emptyDealIds.length > 0 ||
+                  brokenDealIds.length > 0
+                }
+                onClick={() => void saveAll()}
+              >
+                {savingAll ? '저장 중…' : '임시저장'}
+              </Button>
+              <Button
+                type="button"
+                className={styles.saveAllButton}
+                aria-label="업무보고 확정"
+                disabled={
+                  busy ||
+                  editableDealIds.length !== draft.salesDealIds.length ||
+                  emptyDealIds.length > 0 ||
+                  brokenDealIds.length > 0
+                }
+                onClick={() => void submitAll()}
+              >
+                {submitting ? '확정 중…' : '업무보고 확정'}
+              </Button>
+            </div>
+          )}
           {(result || draft.processingProgress) && (
             <MeetingSharedPanel
               shared={result?.shared ?? null}
@@ -429,7 +570,7 @@ export default function Compose() {
               canReassign={canReassign}
               onSave={canEditNotes ? saveShared : undefined}
               onDirtyChange={setNotesDirty}
-              onAssign={canWrite ? (assignments) => void generateAll(assignments) : undefined}
+              onAssign={canEdit ? (assignments) => void generateAll(assignments) : undefined}
             />
           )}
           {draft.salesDealIds.length === 0 ? (
@@ -463,7 +604,6 @@ export default function Compose() {
                   onStartManual={() => draft.startManual(dealId)}
                   onApplyAi={() => setConfirm({ kind: 'apply', dealId })}
                   onGenerate={() => void generateAll()}
-                  onSave={() => void saveOne(dealId)}
                 />
               )
             })

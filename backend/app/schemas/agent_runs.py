@@ -29,7 +29,7 @@ Guidance = Annotated[
 _REQUIRED_FIELDS: dict[str, set[str]] = {
     "report_writing": {"report_id"},
     "meeting_analysis": {"report_id"},
-    "meeting_processing": {"report_ids"},
+    "meeting_processing": {"report_id"},
     # 로그인한 담당자의 전체 포트폴리오를 대상으로 돈다 — 특정 대상을 지정하지 않는다.
     "contract_management_select_candidates": set(),
     "contract_management_next_meeting": {"customer_company_id"},
@@ -67,8 +67,9 @@ class AgentRunCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     agent_code: AgentCode
-    # 실행 원문을 가진 보고서. report_writing/meeting_analysis 에서만 쓴다.
+    # 실행 원문을 가진 보고서. 보고서 작성·분석과 미팅 통합 처리에서 쓴다.
     report_id: UUID | None = None
+    # 과거 클라이언트 입력을 명시적으로 거절하기 위해 남긴 필드다.
     report_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=100)
     assignment_overrides: list[SegmentAssignment] | None = Field(
         default=None, min_length=1, max_length=5_000

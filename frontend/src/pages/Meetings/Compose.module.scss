@@ -107,6 +107,55 @@
   align-content: start;
 }
 
+/* 여러 딜 카드의 저장 지점은 이 한 곳입니다. 긴 보고서를 내려 읽어도 상단에 남습니다. */
+.saveBar {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s3));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+
+  @include sm {
+    flex-wrap: wrap;
+    top: 64px;
+  }
+}
+
+.saveCopy {
+  min-width: 0;
+  flex: 1;
+
+  strong {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  p {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+}
+
+.saveAllButton {
+  flex: none;
+
+  @include sm {
+    width: 100%;
+  }
+}
+
 .noDeals {
   display: flex;
   min-height: 220px;
@@ -180,6 +229,7 @@
   .head.head,
   .locked.locked,
   .mutationError.mutationError,
+  .saveBar.saveBar,
   .reference.reference,
   .input.input {
     display: none;

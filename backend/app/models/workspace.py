@@ -63,7 +63,10 @@ class Notice(Base):
 
 
 class NoticeTarget(Base):
-    """지시 한 건의 수신자. 공지에는 행이 없다. created_at 순서가 곧 표시 순서다."""
+    """지시 한 건의 수신자. 공지에는 행이 없다. created_at 순서가 곧 표시 순서다.
+
+    이행 여부도 여기에 남는다. 한 지시가 여러 명에게 가므로 notice 쪽에 둘 수 없다.
+    """
 
     __tablename__ = "notice_target"
 
@@ -72,6 +75,11 @@ class NoticeTarget(Base):
     )
     member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    # pending 은 담당자가 아직 손대지 않은 상태다. done 이행, not_done 미이행.
+    status_code: Mapped[str] = mapped_column(server_default=text("'pending'::text"))
+    status_reason: Mapped[str | None]
+    status_changed_at: Mapped[datetime | None]
+    status_changed_by_member_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.member.id"))
 
 
 class NoticeImage(Base):

@@ -3,11 +3,12 @@ import type { ReportStatus } from '@/types'
 
 interface Props {
   /** null 이면 아직 쓰지 않은 날입니다. */
-  status: ReportStatus | null
+  status: ReportStatus | '수정중' | null
 }
 
-const TONE: Record<ReportStatus, StatusTone> = {
+const TONE: Record<ReportStatus | '수정중', StatusTone> = {
   작성중: 'blue',
+  수정중: 'blue',
   '검토 대기': 'orange',
   확정: 'green',
   반려: 'red',

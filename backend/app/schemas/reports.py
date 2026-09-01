@@ -26,6 +26,10 @@ SearchQuery = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100),
 ]
+SnapshotNote = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, max_length=5_000),
+]
 
 # 유스케이스의 업무 보고는 미팅·일자별·주간·월간 네 가지다.
 # 업무보고서는 일정 하나에 붙고, 주간과 월간은 기간을 덮는다.
@@ -36,6 +40,15 @@ ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
 ReportStatus = Literal["draft", "submitted", "approved", "rejected", "changes_requested"]
 # 제출을 시작할 수 있는 상태. 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다.
 SubmittableStatus = Literal["draft", "changes_requested"]
+# 팀장이 검토할 수 있는 상태. 제출된 것만 본다.
+ReviewableStatus = Literal["submitted"]
+# 검토 결과. 반려는 rejected 가 아니라 changes_requested 로 간다. 반려한 보고서는
+# 팀원이 다시 고쳐 내야 하는데, 고칠 수 있는 상태(_EDITABLE_STATUSES)가 그쪽이다.
+ReviewDecision = Literal["approve", "reject"]
+REVIEW_DECISION_STATUS: dict[str, str] = {
+    "approve": "approved",
+    "reject": "changes_requested",
+}
 
 _PERIOD_KINDS = ("weekly", "monthly")
 
@@ -53,6 +66,33 @@ def _check_period(kind: ReportKind, start: date | None, end: date | None) -> Non
         raise ValueError("invalid_report_period")
 
 
+class ReportDealSnapshot(_WriteModel):
+    id: UUID
+    label: Text
+    note: SnapshotNote | None = None
+
+
+class ReportDealWrite(_WriteModel):
+    sales_deal_id: UUID
+    deal_snapshot: ReportDealSnapshot
+    content: dict[str, Any]
+
+    @model_validator(mode="after")
+    def _validate_snapshot_id(self) -> Self:
+        if self.deal_snapshot.id != self.sales_deal_id:
+            raise ValueError("deal_snapshot_id_mismatch")
+        return self
+
+
+class ReportDealRead(BaseModel):
+    sales_deal_id: UUID
+    deal_snapshot: dict[str, Any]
+    content: dict[str, Any]
+    ai_evidence: dict[str, Any] | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ReportCreate(_WriteModel):
     report_kind: ReportKind
     report_date: date
@@ -60,6 +100,7 @@ class ReportCreate(_WriteModel):
     period_end: date | None = None
     source_activity_id: UUID | None = None
     sales_deal_id: UUID | None = None
+    deal_sections: list[ReportDealWrite] = Field(default_factory=list, max_length=100)
     recipient_member_id: UUID | None = None
     template_snapshot: dict[str, Any]
     content: dict[str, Any]
@@ -74,10 +115,15 @@ class ReportCreate(_WriteModel):
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
                 raise ValueError("source_activity_required")
-            if self.sales_deal_id is None:
-                raise ValueError("sales_deal_required")
-        elif self.sales_deal_id is not None:
-            raise ValueError("sales_deal_not_supported")
+            if not self.deal_sections:
+                raise ValueError("deal_sections_required")
+            if self.sales_deal_id is not None:
+                raise ValueError("sales_deal_not_supported")
+        elif self.sales_deal_id is not None or self.deal_sections:
+            raise ValueError("deal_sections_not_supported")
+        deal_ids = [section.sales_deal_id for section in self.deal_sections]
+        if len(set(deal_ids)) != len(deal_ids):
+            raise ValueError("duplicate_deal_sections")
         if len(set(self.activity_ids)) != len(self.activity_ids):
             raise ValueError("duplicate_activity_ids")
         return self
@@ -93,6 +139,7 @@ class ReportPatch(_WriteModel):
     transcript: Transcript | None = None
     note: LongText | None = None
     activity_ids: list[UUID] | None = None
+    deal_sections: list[ReportDealWrite] | None = Field(default=None, max_length=100)
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -101,11 +148,35 @@ class ReportPatch(_WriteModel):
                 raise ValueError("invalid_report_period")
         if self.activity_ids is not None and len(set(self.activity_ids)) != len(self.activity_ids):
             raise ValueError("duplicate_activity_ids")
+        if self.deal_sections is not None:
+            if not self.deal_sections:
+                raise ValueError("deal_sections_required")
+            deal_ids = [section.sales_deal_id for section in self.deal_sections]
+            if len(set(deal_ids)) != len(deal_ids):
+                raise ValueError("duplicate_deal_sections")
         return self
 
 
 class ReportSubmit(_WriteModel):
     expected_status_code: SubmittableStatus
+
+
+class ReportReview(_WriteModel):
+    """팀장의 검토 결과.
+
+    반려에는 까닭이 있어야 한다. 무엇을 고쳐야 하는지 없이 돌려보내면 팀원이 같은 것을
+    그대로 다시 낸다.
+    """
+
+    decision: ReviewDecision
+    reason: LongText | None = None
+    expected_status_code: ReviewableStatus
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        if self.decision == "reject" and self.reason is None:
+            raise ValueError("review_reason_required")
+        return self
 
 
 class ReportActivityRead(BaseModel):
@@ -123,6 +194,7 @@ class ReportRead(BaseModel):
     recipient_display_name: str | None
     source_activity_id: UUID | None
     sales_deal_id: UUID | None
+    deal_sections: list[ReportDealRead]
     report_kind: ReportKind
     report_date: date
     period_start: date | None
@@ -134,6 +206,8 @@ class ReportRead(BaseModel):
     source_snapshot: dict[str, Any] | None
     ai_evidence: dict[str, Any] | None
     note: str | None
+    # 팀장이 반려하며 남긴 사유. 확정하면 비운다.
+    review_note: str | None
     reviewed_by_member_id: UUID | None
     reviewed_at: datetime | None
     activities: list[ReportActivityRead]
@@ -178,7 +252,8 @@ class ReportPageParams(BaseModel):
     author_member_id: list[UUID] | None = None
     # "이 일정으로 쓴 보고서가 이미 있는가" 를 묻는 조회에 쓴다. 목록을 통째로 받아 뒤지면
     # 페이지 밖에 있는 보고서를 못 찾고 같은 일정에 보고서를 또 만든다.
-    source_activity_id: UUID | None = None
+    # 여러 개를 받는 까닭은 대시보드가 하루치 일정의 보고서 유무를 한 번에 묻기 때문이다.
+    source_activity_id: list[UUID] | None = None
     sales_deal_id: UUID | None = None
     # 보고 대상과 고객사는 컬럼이 아니라 content 안에 있다. 그래도 서버가 걸러야 한다.
     # 전건을 받아 화면에서 거르면 쪽으로 끊는 순간 첫 쪽 밖의 일치 항목을 놓친다.

@@ -245,6 +245,10 @@ export function seedAgenda(dateISO: string, seeded: AgendaItem[]) {
   if (loadedKey !== null && loadedKey !== key) return
   loadedKey = key
   loadError = null
+  // 심은 키는 아래 loadAgenda 의 캐시에 걸려 조회 자체가 생략됩니다. 그러면 loading 을
+  // 내리는 자리도 함께 사라지므로, 받아 둔 것을 심는 여기서 같이 내립니다. 다만 조회가
+  // 이미 떠 있으면 그쪽이 끝나며 내리게 두어야 목록이 두 번 바뀌지 않습니다.
+  if (!loadPromise) loading = false
   commit(seeded)
 }
 

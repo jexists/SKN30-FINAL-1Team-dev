@@ -1,7 +1,7 @@
 // GET /api/dashboard 한 벌. 진입하자마자 화면에 서는 숫자와 오늘 일정만 담습니다.
 // 눌러야 열리는 드로어의 목록과 본문은 각 도메인 API 가 그때 줍니다.
 import type { ActivityRead } from './agenda'
-import type { NoticeTargetResponse, NoticeType } from './notices'
+import type { NoticeStatusResponse, NoticeTargetResponse, NoticeType } from './notices'
 
 export interface NoticeBrief {
   id: string
@@ -14,6 +14,8 @@ export interface NoticeBrief {
   published_at: string
   due_at: string | null
   due_text: string | null
+  /** 지시사항이고 내가 수신자일 때만 값이 있습니다. 티커가 이 값으로 배지를 세웁니다. */
+  my_status: NoticeStatusResponse | null
 }
 
 export interface NoticeSummary {

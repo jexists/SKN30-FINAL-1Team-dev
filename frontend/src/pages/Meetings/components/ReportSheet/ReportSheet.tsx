@@ -3,9 +3,8 @@
 // 화면에서 유일하게 떠 있는 흰 면입니다. 그것만으로 "지금 고치는 것은 여기" 가
 // 전달되므로 안내 문구를 덧붙이지 않습니다.
 import { useId } from 'react'
-import { Link } from 'react-router'
 
-import Button, { buttonClass } from '@/components/Button'
+import Button from '@/components/Button'
 import type { MeetingPreview, MeetingProgress, ReportTemplate } from '@/types'
 
 import type { MeetingPhase } from '../../useMeetingDraft'
@@ -44,9 +43,6 @@ interface Props {
   onStartManual: () => void
   onRegenerate: () => void
   regenerateLabel?: string
-  onSave: () => void
-  /** 이미 저장된 딜 보고서 상세로 가는 길입니다. */
-  viewTo?: string
   /** 딜 카드가 바깥 면을 맡을 때 시트의 중복 테두리·sticky를 걷습니다. */
   embedded?: boolean
 }
@@ -75,8 +71,6 @@ export default function ReportSheet({
   onStartManual,
   onRegenerate,
   regenerateLabel = 'AI 다시 생성',
-  onSave,
-  viewTo,
   embedded = false,
 }: Props) {
   const generatedTitleId = useId()
@@ -153,8 +147,8 @@ export default function ReportSheet({
         )}
       </article>
 
-      <div className={styles.actions}>
-        {hasAiOriginal && (
+      {hasAiOriginal && (
+        <div className={styles.actions}>
           <Button
             variant="outline"
             type="button"
@@ -163,23 +157,8 @@ export default function ReportSheet({
           >
             {regenerateLabel}
           </Button>
-        )}
-
-        {viewTo && (
-          <Link className={buttonClass({ variant: 'outline' })} to={viewTo}>
-            저장된 보고서 보기
-          </Link>
-        )}
-
-        <Button
-          type="button"
-          className={styles.submit}
-          disabled={locked || saving || empty || broken}
-          onClick={onSave}
-        >
-          저장
-        </Button>
-      </div>
+        </div>
+      )}
 
       {/*
         항목 제목이 사라지면 그 아래 글이 어느 항목인지 알 수 없습니다. 짐작해서

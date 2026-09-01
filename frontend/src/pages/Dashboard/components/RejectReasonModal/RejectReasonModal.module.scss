@@ -1,0 +1,31 @@
+.textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+
+  &:focus-visible {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+    outline: none;
+  }
+}
+
+// 되돌리기 어려운 일은 파란 기본 버튼으로 세우지 않습니다. Notices 의 삭제와 같은 모양입니다.
+.danger {
+  border-color: var(--red-tint);
+  background: var(--red-tint);
+  color: var(--red-ink);
+
+  &:hover {
+    background: var(--red-tint);
+    filter: brightness(0.97);
+  }
+}

@@ -5,7 +5,7 @@
 // 매번 갈라지면 같은 코드를 두 벌 갖게 됩니다. 그래서 화면에 필요한 것만 여기서
 // 한 모양으로 만들고, 아래쪽 컴포넌트는 이 타입 하나만 압니다.
 import { dailyReportPath, meetingReportPath } from '@/constants/routes'
-import type { DailyReport, MeetingReport, ReportStatus } from '@/types'
+import type { DailyReport, MeetingReport, MeetingReportStatus, ReportStatus } from '@/types'
 
 import { reportTitle } from './periods'
 
@@ -22,7 +22,7 @@ export interface ListRow {
   meta: string
   /** 오른쪽 끝 값. 일일은 보고 대상, 미팅은 고객사입니다. */
   aside: string
-  status: ReportStatus
+  status: ReportStatus | MeetingReportStatus
   /** 전문으로 넘어가는 경로 */
   to: string
   /** 검색이 훑을 글자. 소문자로 만들어 둡니다. */
@@ -68,9 +68,16 @@ export function fromDailyReport(report: DailyReport): ListRow {
 
 export function fromMeetingReport(report: MeetingReport): ListRow {
   const files = report.attachments.length
-  const deal = report.salesDeal?.label
-  const templateSummary = report.template.fields
-    .map((field) => report.values[field.id]?.trim())
+  const dealLabels = report.dealSections.map((section) => section.salesDeal.label)
+  const templateSummary = report.dealSections
+    .flatMap((section) => report.template.fields.map((field) => section.values[field.id]?.trim()))
+    .find(Boolean)
+  const fallbackSummary = report.dealSections
+    .flatMap((section) => [
+      section.values.body?.trim(),
+      section.values.reaction?.trim(),
+      section.values.note?.trim(),
+    ])
     .find(Boolean)
 
   return {
@@ -78,14 +85,13 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     date: report.date,
     kindLabel: '미팅',
     // 미팅 제목은 그 자리에서 정한 말이라 어느 병원인지가 붙어야 알아봅니다.
-    title: [report.hospital, deal, report.title].filter(Boolean).join(' · '),
-    summary:
-      templateSummary ||
-      report.values.body?.trim() ||
-      report.values.reaction?.trim() ||
-      report.values.note?.trim() ||
-      '',
-    meta: [`${report.time} · ${report.contact}`, files > 0 ? `첨부 ${files}건` : '']
+    title: [report.hospital, report.title].filter(Boolean).join(' · '),
+    summary: templateSummary || fallbackSummary || '',
+    meta: [
+      `${report.time} · ${report.contact}`,
+      dealLabels.length > 0 ? `딜 ${dealLabels.length}건` : '',
+      files > 0 ? `첨부 ${files}건` : '',
+    ]
       .filter(Boolean)
       .join(' · '),
     aside: report.hospital,
@@ -95,14 +101,20 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     haystack: lower([
       report.hospital,
       report.title,
-      deal,
+      report.meetingShared?.common_report?.body,
+      report.meetingShared?.unassigned_report?.body,
+      ...dealLabels,
       report.owner,
       report.dept,
       report.contact,
-      report.product,
       report.place,
       report.transcript,
-      ...Object.values(report.values),
+      ...report.dealSections.flatMap((section) => [
+        section.title,
+        section.product,
+        section.salesDeal.note,
+        ...Object.values(section.values),
+      ]),
     ]),
     hospital: report.hospital,
   }

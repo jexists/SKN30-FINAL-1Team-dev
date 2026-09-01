@@ -1,13 +1,16 @@
 // demo/layout_v3.html 의 #listDrawer 입니다.
 // 대시보드의 모든 카운터 뒤에 이 드로어 하나가 섭니다. KPI 타일이면 필터 없이,
 // 발주 타일이면 위에 필터 칩을 달고 같은 표면을 씁니다.
+import { useState } from 'react'
+
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
+import { ChevronDownIcon } from '@/components/icons'
 import OwnerName from '@/components/OwnerName'
 import { InlineLoader } from '@/components/Skeleton'
 import { useShowOwner } from '@/shared/scope'
 
-import type { DrawerList, DrawerListRow } from '../../drawerLists'
+import type { DrawerList, DrawerListDetail, DrawerListRow } from '../../drawerLists'
 import type { OrderFilterKey } from '../../orderFilters'
 
 import styles from './ListDrawer.module.scss'
@@ -30,7 +33,17 @@ interface Props {
   onClose: () => void
 }
 
-function Row({ row, showOwner }: { row: DrawerListRow; showOwner: boolean }) {
+function Row({
+  row,
+  showOwner,
+  expandable,
+  expanded,
+}: {
+  row: DrawerListRow
+  showOwner: boolean
+  expandable?: boolean
+  expanded?: boolean
+}) {
   return (
     <>
       <div className={styles.main}>
@@ -64,8 +77,52 @@ function Row({ row, showOwner }: { row: DrawerListRow; showOwner: boolean }) {
             {line.text}
           </span>
         ))}
+        {/* 펼칠 수 있는 줄이라는 표시. 눌러야 알 수 있으면 아무도 누르지 않습니다. */}
+        {expandable && (
+          <ChevronDownIcon
+            className={`${styles.caret} ${expanded ? styles.up : ''}`}
+            width={15}
+            height={15}
+          />
+        )}
       </div>
     </>
+  )
+}
+
+function Detail({ detail }: { detail: DrawerListDetail }) {
+  return (
+    <div className={styles.detail}>
+      <dl>
+        {detail.fields.map((field) => (
+          <div key={field.label}>
+            <dt>{field.label}</dt>
+            <dd>{field.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {detail.notes && (
+        <section className={styles.notes}>
+          <h4>{detail.notesTitle ?? '이력'}</h4>
+          {detail.notes.length === 0 ? (
+            <p className={styles.noNotes}>{detail.notesEmpty ?? '등록된 이력이 없습니다.'}</p>
+          ) : (
+            <ol>
+              {detail.notes.map((note) => (
+                <li key={note.key}>
+                  <div>
+                    <strong>{note.by}</strong>
+                    <span>{note.at}</span>
+                  </div>
+                  <p>{note.body}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
+    </div>
   )
 }
 
@@ -84,6 +141,8 @@ export default function ListDrawer({
   onClose,
 }: Props) {
   const showOwner = useShowOwner()
+  // 한 번에 한 줄만 펼칩니다. 여러 줄이 열리면 목록이 길어져 다시 찾기 어렵습니다.
+  const [openKey, setOpenKey] = useState<string | null>(null)
 
   return (
     <Drawer
@@ -123,20 +182,52 @@ export default function ListDrawer({
       ) : (
         <>
           {list.rows.map((row) => {
-            // 발주 줄만 더 들어갈 데가 있어 버튼입니다. 나머지는 여기가 끝입니다.
+            // 발주 줄은 제 화면으로 넘어갑니다. 상세를 들고 있는 줄은 그 자리에서 펼칩니다.
             const no = row.orderNo
-            return no && onOpenOrder ? (
-              <button
-                key={row.key}
-                type="button"
-                className={`${styles.row} ${styles.clickable}`}
-                onClick={() => onOpenOrder(no)}
-              >
-                <Row row={row} showOwner={showOwner} />
-              </button>
-            ) : (
-              <div key={row.key} className={styles.row}>
-                <Row row={row} showOwner={showOwner} />
+            const detail = row.detail
+            const expanded = openKey === row.key
+            const panelId = `list-row-${row.key}`
+
+            if (no && onOpenOrder) {
+              return (
+                <div key={row.key} className={styles.item}>
+                  <button
+                    type="button"
+                    className={`${styles.row} ${styles.clickable}`}
+                    onClick={() => onOpenOrder(no)}
+                  >
+                    <Row row={row} showOwner={showOwner} />
+                  </button>
+                </div>
+              )
+            }
+
+            if (detail) {
+              return (
+                <div key={row.key} className={styles.item}>
+                  <button
+                    type="button"
+                    className={`${styles.row} ${styles.clickable}`}
+                    aria-expanded={expanded}
+                    aria-controls={panelId}
+                    onClick={() => setOpenKey(expanded ? null : row.key)}
+                  >
+                    <Row row={row} showOwner={showOwner} expandable expanded={expanded} />
+                  </button>
+                  {expanded && (
+                    <div id={panelId}>
+                      <Detail detail={detail} />
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
+            return (
+              <div key={row.key} className={styles.item}>
+                <div className={styles.row}>
+                  <Row row={row} showOwner={showOwner} />
+                </div>
               </div>
             )
           })}

@@ -51,9 +51,18 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
         owner = await _member(session, deal.owner_member_id)
         if owner is None:
             return
+        source_report_id = source_refs.get("report_id")
+        try:
+            report_id = UUID(source_report_id) if source_report_id else None
+        except (TypeError, ValueError):
+            return
         try:
             next_meeting_input = await contract_schedule_snapshots.build_next_meeting_snapshot(
-                session, owner, deal.customer_company_id, sales_deal_id
+                session,
+                owner,
+                deal.customer_company_id,
+                sales_deal_id=sales_deal_id,
+                required_report_id=report_id,
             )
         except HTTPException:
             return

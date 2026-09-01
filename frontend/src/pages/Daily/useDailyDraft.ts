@@ -47,7 +47,7 @@ export default function useDailyDraft(
     loading: meetingLoading,
     error: meetingError,
     reload: reloadMeetings,
-  } = useMeetingReportsOn(dateISO, kind === '일일')
+  } = useMeetingReportsOn(dateISO, { enabled: kind === '일일' })
   const {
     reports,
     loading: reportLoading,

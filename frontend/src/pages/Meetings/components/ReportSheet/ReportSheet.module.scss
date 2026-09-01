@@ -132,10 +132,7 @@
   line-height: 1.7;
 }
 
-/*
- * 이 화면의 유일한 저장 지점입니다. 머리말에는 저장 버튼을 두지 않습니다.
- * 시트 아래에 붙어 따라오되, 화면 전체를 가로지르지 않아 본문을 가리지 않습니다.
- */
+/* AI 원본 재생성과 저장된 보고서 이동처럼 이 카드에만 해당하는 보조 조작입니다. */
 .actions {
   position: sticky;
   bottom: 0;
@@ -149,15 +146,6 @@
 
   @include sm {
     flex-wrap: wrap;
-  }
-}
-
-.submit {
-  margin-left: auto;
-
-  @include sm {
-    margin-left: 0;
-    width: 100%;
   }
 }
 

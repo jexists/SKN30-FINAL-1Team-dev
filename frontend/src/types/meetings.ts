@@ -15,6 +15,7 @@ import type {
  * pages/Meetings/reviewStatus.ts 가 붙입니다.
  */
 export type MeetingReview = 'writing' | 'submitted' | 'approved' | 'needsMore' | 'hold'
+export type MeetingReportStatus = Exclude<ReportStatus, '작성중'> | '수정중'
 
 /** 미팅에 연결한 영업 현황 한 건. 고를 때 본 이름표를 그대로 남깁니다. */
 export interface MeetingDealRef {
@@ -23,6 +24,24 @@ export interface MeetingDealRef {
   label: string
   /** 제목·단계처럼 딜을 가리는 데 필요한 곁말 */
   note?: string
+}
+
+/** 미팅 보고서 안에서 딜 하나가 차지하는 본문과 분석 결과입니다. */
+export interface MeetingDealSection {
+  salesDealId: string
+  salesDeal: MeetingDealRef
+  product: string
+  title: string
+  values: Record<string, string>
+  evidence?: string
+  aiValues: Record<string, string>
+  aiEvidence?: string
+  aiGeneratedAt?: string
+  /** 서버가 저장한 미팅 분석 원본. 사람이 본문을 저장해도 그대로 돌려보냅니다. */
+  analysisEvidence: Record<string, unknown> | null
+  assessment?: DealAssessment
+  analysisError?: string
+  reportError?: string
 }
 
 /**
@@ -43,43 +62,22 @@ export interface MeetingReportSeed {
   hospital: string
   dept: string
   contact: string
-  product: string
   place: string
   /** 일정 제목이 그대로 미팅 제목이 됩니다. */
   title: string
   /** 보고 흐름상의 상태. 일일보고가 이 값으로 활동을 끌어올릴지 가립니다. */
-  status: ReportStatus
+  status: MeetingReportStatus
   /** 팀장 확인 단계. 상세 화면 배지와 수정 잠금이 이 값만 봅니다. */
   review: MeetingReview
   /** 저장·Agent 실행 가능 여부를 서버 코드 그대로 판단할 때 씁니다. */
   apiStatus?: ApiReportStatus
   /** 직접 입력한 미팅 내용. 나중에 STT 결과가 들어올 자리입니다. */
   transcript: string
-  /** ReportFieldDef.id → 입력값 */
-  values: Record<string, string>
   attachments: ReportAttachment[]
-  /** 이 보고서가 다루는 딜. 기존 합성 데이터는 값이 없을 수 있습니다. */
-  salesDealId?: string | null
-  /** 딜이 바뀌어도 보고서 작성 당시 이름을 보여 주기 위한 스냅샷입니다. */
-  salesDeal?: MeetingDealRef
-  /** AI 가 어디를 보고 채웠는지 한 줄 */
-  evidence?: string
-  /**
-   * AI 가 최초로 만든 원본. values 와 따로 둡니다.
-   *
-   * 사용자가 values 를 아무리 고쳐도 이 값은 바뀌지 않아야 "AI 는 뭐라고 썼더라" 를
-   * 되짚을 수 있습니다. 한 벌로 관리하면 첫 수정에서 원본이 사라집니다.
-   */
-  aiValues?: Record<string, string>
-  aiEvidence?: string
-  /** 원본을 만든 시각. ISO 8601 */
-  aiGeneratedAt?: string
+  dealSections: MeetingDealSection[]
   meetingRunId?: string
   meetingShared?: MeetingSharedNotes
   evidenceLedger?: MeetingEvidenceLedger
-  assessment?: DealAssessment
-  analysisError?: string
-  reportError?: string
 }
 
 /** 실제 날짜가 붙은 업무보고서. date 는 미팅한 날입니다. */

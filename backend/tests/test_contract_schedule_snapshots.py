@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.dialects import postgresql
 
 from app.agents import contract_management
 from app.models.agent import AgentRun
@@ -364,22 +365,62 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
     sales_deal_id = uuid4()
     report = SimpleNamespace(
         id=uuid4(),
-        sales_deal_id=sales_deal_id,
         source_activity_id=None,
         report_date=date(2026, 8, 17),
+        content={"hospital": "한빛병원"},
+    )
+    section = SimpleNamespace(
+        sales_deal_id=sales_deal_id,
         content={"summary": "승인 보고서"},
     )
-    db = _Db(_Result(scalar_values=[report]))
+    db = _Db(_Result(rows=[(report, section)]))
 
     recent = await snapshots._recent_finalized_reports(db, member, [sales_deal_id])
 
     assert recent[0]["sales_deal_id"] == str(sales_deal_id)
     assert recent[0]["source_activity_id"] is None
-    assert recent[0]["content"] == report.content
+    assert recent[0]["content"] == {**report.content, **section.content}
     sql = str(db.statements[0])
-    assert "report.sales_deal_id IN" in sql
+    assert "report_deal.sales_deal_id IN" in sql
     assert "JOIN public.activity" not in sql
     assert ["approved", "submitted"] in db.statements[0].compile().params.values()
+
+
+@pytest.mark.anyio
+async def test_recent_finalized_reports_limits_reports_before_joining_deal_sections():
+    """한 보고서의 여러 딜 섹션이 최근 보고서 5건 제한을 잠식하지 않는다."""
+    member = _member()
+    deal_ids = [uuid4(), uuid4()]
+    reports = [
+        SimpleNamespace(
+            id=uuid4(),
+            source_activity_id=None,
+            report_date=date(2026, 8, 17 - index),
+            content={},
+        )
+        for index in range(5)
+    ]
+    sections = [
+        SimpleNamespace(sales_deal_id=deal_ids[0], content={}),
+        SimpleNamespace(sales_deal_id=deal_ids[1], content={}),
+    ]
+    rows = [(reports[0], section) for section in sections]
+    rows.extend(
+        (report, SimpleNamespace(sales_deal_id=deal_ids[0], content={})) for report in reports[1:]
+    )
+    db = _Db(_Result(rows=rows))
+
+    recent = await snapshots._recent_finalized_reports(db, member, deal_ids)
+
+    assert len({item["id"] for item in recent}) == 5
+    assert len(recent) == 6
+    assert {item["sales_deal_id"] for item in recent if item["id"] == str(reports[0].id)} == {
+        str(deal_id) for deal_id in deal_ids
+    }
+    sql = str(db.statements[0].compile(dialect=postgresql.dialect()))
+    assert "GROUP BY public.report.id" in sql
+    assert sql.count("LIMIT") == 1
+    assert sql.index("LIMIT") < sql.rindex("JOIN public.report_deal")
 
 
 @pytest.mark.anyio
@@ -409,18 +450,19 @@ async def test_contract_report_context_includes_shared_bodies_without_ml_or_ai(m
         "ml_result": "제외",
         "transcript": "제외",
     }
+    shared = content.pop("meeting_shared")
     original = copy.deepcopy(content)
     report = SimpleNamespace(
         id=uuid4(),
-        sales_deal_id=sales_deal_id,
         source_activity_id=uuid4(),
         report_date=date(2026, 8, 17),
-        content=content,
+        content={"meeting_shared": shared},
         transcript="여러 딜의 전체 미팅 원문",
         ai_evidence={"deal_assessment": {"label": "high"}},
         source_snapshot={"evidence": "원문 근거 장부"},
     )
-    db = _Db(_Result(scalar_values=[report]))
+    section = SimpleNamespace(sales_deal_id=sales_deal_id, content=content)
+    db = _Db(_Result(rows=[(report, section)]))
 
     recent = await snapshots._recent_finalized_reports(db, member, [sales_deal_id])
 
@@ -442,7 +484,7 @@ async def test_contract_report_context_includes_shared_bodies_without_ml_or_ai(m
             },
         }
     ]
-    assert report.content is content and content == original
+    assert section.content is content and content == original
 
     async def generate(**kwargs):
         assert json.loads(kwargs["input_text"])["recent_approved_reports"] == recent
@@ -473,11 +515,9 @@ async def test_contract_report_context_checks_shared_body_consistency(
     reports = [
         SimpleNamespace(
             id=uuid4(),
-            sales_deal_id=uuid4(),
             source_activity_id=activity_id if index == 0 or same_activity else uuid4(),
             report_date=date(2026, 8, 17),
             content={
-                "values": {"body": f"딜 {index + 1}의 확정 본문"},
                 "meeting_shared": {
                     "run_id": str(uuid4()),
                     "common_report": {
@@ -490,11 +530,18 @@ async def test_contract_report_context_checks_shared_body_consistency(
         )
         for index in range(2)
     ]
+    sections = [
+        SimpleNamespace(
+            sales_deal_id=uuid4(),
+            content={"values": {"body": f"딜 {index + 1}의 확정 본문"}},
+        )
+        for index in range(2)
+    ]
     if changed_body is not None:
         reports[1].content["meeting_shared"][changed_body]["body"] = "서로 다른 본문"
     originals = copy.deepcopy([report.content for report in reports])
-    db = _Db(_Result(scalar_values=reports))
-    deal_ids = [report.sales_deal_id for report in reports]
+    db = _Db(_Result(rows=list(zip(reports, sections, strict=True))))
+    deal_ids = [section.sales_deal_id for section in sections]
 
     if conflict:
         with pytest.raises(HTTPException) as error:
@@ -504,9 +551,9 @@ async def test_contract_report_context_checks_shared_body_consistency(
     else:
         recent = await snapshots._recent_finalized_reports(db, member, deal_ids)
         assert len(recent) == 2
-        for source, result in zip(reports, recent, strict=True):
-            assert result["sales_deal_id"] == str(source.sales_deal_id)
-            assert result["content"]["values"] == source.content["values"]
+        for source, section, result in zip(reports, sections, recent, strict=True):
+            assert result["sales_deal_id"] == str(section.sales_deal_id)
+            assert result["content"]["values"] == section.content["values"]
             assert result["content"]["meeting_shared"] == {
                 name: {"body": source.content["meeting_shared"][name]["body"]}
                 for name in ("common_report", "unassigned_report")
@@ -537,14 +584,14 @@ async def test_contract_report_context_rejects_malformed_shared(content, has_act
     member = _member()
     report = SimpleNamespace(
         id=uuid4(),
-        sales_deal_id=uuid4(),
         source_activity_id=uuid4() if has_activity else None,
         report_date=date(2026, 8, 17),
         content=content,
     )
+    section = SimpleNamespace(sales_deal_id=uuid4(), content={})
     with pytest.raises(HTTPException) as error:
         await snapshots._recent_finalized_reports(
-            _Db(_Result(scalar_values=[report])), member, [report.sales_deal_id]
+            _Db(_Result(rows=[(report, section)])), member, [section.sales_deal_id]
         )
     assert error.value.status_code == 422
     assert error.value.detail == detail
@@ -789,6 +836,30 @@ async def test_schedule_snapshot_drops_an_inverted_preferred_window():
 
 
 # ---- build_next_meeting_snapshot: 딜 범위 한정 ----
+
+
+@pytest.mark.anyio
+async def test_recent_reports_prioritizes_the_required_report():
+    """확정 트리거 보고서는 날짜·UUID 순서와 무관하게 5건 제한 안에 먼저 둔다."""
+    member = _member()
+    deal_id = uuid4()
+    report_id = uuid4()
+    report = SimpleNamespace(
+        id=report_id,
+        content={},
+        source_activity_id=None,
+        report_date=date(2026, 8, 1),
+    )
+    section = SimpleNamespace(sales_deal_id=deal_id, content={})
+    db = _Db(_Result(rows=[(report, section)]))
+
+    output = await snapshots._recent_finalized_reports(db, member, [deal_id], report_id)
+
+    compiled = db.statements[0].compile(dialect=postgresql.dialect())
+    sql = str(compiled)
+    assert sql.index("public.report.id =") < sql.index("public.report.report_date DESC")
+    assert report_id in compiled.params.values()
+    assert output[0]["id"] == str(report_id)
 
 
 @pytest.mark.anyio

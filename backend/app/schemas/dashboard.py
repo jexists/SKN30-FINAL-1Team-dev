@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.activities import ActivityRead
-from app.schemas.notices import NoticeTargetRead, NoticeType
+from app.schemas.notices import NoticeMyStatusRead, NoticeTargetRead, NoticeType
 
 
 class NoticeBrief(BaseModel):
@@ -22,6 +22,8 @@ class NoticeBrief(BaseModel):
     published_at: datetime
     due_at: datetime | None
     due_text: str | None
+    # 지시사항이고 내가 수신자일 때만 값이 있다. 티커가 이 값으로 이행 배지를 세운다.
+    my_status: NoticeMyStatusRead | None = None
 
 
 class NoticeSummary(BaseModel):

@@ -12,18 +12,22 @@ from sqlalchemy.orm import aliased
 from app.api.activities import _activity_row
 from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.api.sales_deals import _sales_deal_row
-from app.models.content import Report, ReportActivity
+from app.models.content import Report, ReportActivity, ReportDeal
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
+    REVIEW_DECISION_STATUS,
     ReportActivityRead,
     ReportCreate,
+    ReportDealRead,
+    ReportDealWrite,
     ReportFilterOptionParams,
     ReportFilterOptions,
     ReportPage,
     ReportPageParams,
     ReportPatch,
     ReportRead,
+    ReportReview,
     ReportSubmit,
 )
 from app.services import contract_next_meeting_pipeline
@@ -37,7 +41,7 @@ _recipient = aliased(Member)
 # 팀원이 고칠 수 있는 상태. 팀장이 수정 요청하면(유스케이스 RPT-004) 다시 편집·제출한다.
 _EDITABLE_STATUSES = ("draft", "changes_requested")
 _INITIAL_STATUS = "draft"
-_MEETING_DEAL_UNIQUE_INDEX = "report_source_activity_sales_deal_key"
+_MEETING_UNIQUE_INDEX = "report_source_activity_meeting_key"
 _SERVER_OWNED_CONTENT_KEYS = ("ai_values", "ai_evidence", "ai_generated_at", "meeting_shared")
 
 
@@ -77,6 +81,12 @@ def _scope(member: Member, author_ids: tuple[UUID, ...] | None = None):
     return conditions
 
 
+def _require_manager(member: Member) -> None:
+    """보고서 검토는 팀장이 한다. notices._require_manager 와 같은 코드를 쓴다."""
+    if member.role_code != "manager":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="manager_required")
+
+
 def _read_entities():
     return (Report, _author.display_name, _recipient.display_name)
 
@@ -96,6 +106,7 @@ def _report_read(
     author_display_name: str,
     recipient_display_name: str | None,
     activities: list[ReportActivityRead],
+    deal_sections: list[ReportDealRead],
 ) -> ReportRead:
     return ReportRead(
         id=report.id,
@@ -106,6 +117,7 @@ def _report_read(
         recipient_display_name=recipient_display_name,
         source_activity_id=report.source_activity_id,
         sales_deal_id=report.sales_deal_id,
+        deal_sections=deal_sections,
         report_kind=report.report_kind,
         report_date=report.report_date,
         period_start=report.period_start,
@@ -117,6 +129,7 @@ def _report_read(
         source_snapshot=report.source_snapshot,
         ai_evidence=report.ai_evidence,
         note=report.note,
+        review_note=report.review_note,
         reviewed_by_member_id=report.reviewed_by_member_id,
         reviewed_at=_seoul(report.reviewed_at),
         activities=activities,
@@ -187,14 +200,124 @@ async def _validate_meeting_deal(
         )
 
 
-def _duplicate_meeting_deal(error: IntegrityError) -> bool:
+async def _validate_meeting_deals(
+    db: AsyncSession,
+    member: Member,
+    source_activity_id: UUID,
+    deal_sections: list[ReportDealWrite],
+) -> None:
+    for section in deal_sections:
+        await _validate_meeting_deal(
+            db,
+            member,
+            source_activity_id,
+            section.sales_deal_id,
+        )
+
+
+def _duplicate_meeting(error: IntegrityError) -> bool:
     original = getattr(error, "orig", None)
     cause = getattr(original, "__cause__", None)
     candidates = (original, cause, getattr(original, "diag", None), getattr(cause, "diag", None))
     return any(
-        getattr(candidate, "constraint_name", None) == _MEETING_DEAL_UNIQUE_INDEX
+        getattr(candidate, "constraint_name", None) == _MEETING_UNIQUE_INDEX
         for candidate in candidates
     )
+
+
+async def _deal_sections_by_report_ids(
+    db: AsyncSession,
+    report_ids: list[UUID],
+) -> dict[UUID, list[ReportDealRead]]:
+    grouped: dict[UUID, list[ReportDealRead]] = {report_id: [] for report_id in report_ids}
+    if not report_ids:
+        return grouped
+    result = await db.execute(
+        select(ReportDeal)
+        .where(ReportDeal.report_id.in_(report_ids))
+        .order_by(ReportDeal.created_at, ReportDeal.sales_deal_id)
+    )
+    for section in result.scalars().all():
+        grouped[section.report_id].append(
+            ReportDealRead(
+                sales_deal_id=section.sales_deal_id,
+                deal_snapshot=section.deal_snapshot,
+                content=section.content,
+                ai_evidence=section.ai_evidence,
+                created_at=_seoul(section.created_at),
+                updated_at=_seoul(section.updated_at),
+            )
+        )
+    return grouped
+
+
+def _section_content(
+    incoming: dict,
+    current: dict | None = None,
+) -> dict:
+    content = dict(incoming)
+    for key in _SERVER_OWNED_CONTENT_KEYS:
+        content.pop(key, None)
+        if current is not None and key in current:
+            content[key] = current[key]
+    return content
+
+
+async def _replace_report_deals(
+    db: AsyncSession,
+    report_id: UUID,
+    deal_sections: list[ReportDealWrite],
+) -> None:
+    existing = {
+        section.sales_deal_id: section
+        for section in (
+            await db.execute(select(ReportDeal).where(ReportDeal.report_id == report_id))
+        )
+        .scalars()
+        .all()
+    }
+    incoming_ids = {section.sales_deal_id for section in deal_sections}
+    if removed := set(existing) - incoming_ids:
+        await db.execute(
+            delete(ReportDeal).where(
+                ReportDeal.report_id == report_id,
+                ReportDeal.sales_deal_id.in_(removed),
+            )
+        )
+    now = datetime.now(UTC)
+    for payload in deal_sections:
+        current = existing.get(payload.sales_deal_id)
+        if current is None:
+            db.add(
+                ReportDeal(
+                    report_id=report_id,
+                    sales_deal_id=payload.sales_deal_id,
+                    deal_snapshot=payload.deal_snapshot.model_dump(mode="json"),
+                    content=_section_content(payload.content),
+                    ai_evidence=None,
+                )
+            )
+            continue
+        current.deal_snapshot = payload.deal_snapshot.model_dump(mode="json")
+        current.content = _section_content(payload.content, current.content)
+        current.updated_at = now
+
+
+def _add_report_deals(
+    db: AsyncSession,
+    report_id: UUID,
+    deal_sections: list[ReportDealWrite],
+) -> None:
+    for payload in deal_sections:
+        db.add(
+            ReportDeal(
+                report_id=report_id,
+                sales_deal_id=payload.sales_deal_id,
+                deal_snapshot=payload.deal_snapshot.model_dump(mode="json"),
+                content=_section_content(payload.content),
+                ai_evidence=None,
+            )
+        )
 
 
 async def _activities_by_report_ids(
@@ -273,6 +396,34 @@ async def _locked_report(db: AsyncSession, member: Member, report_id: UUID) -> R
     return report
 
 
+async def _locked_report_for_review(db: AsyncSession, member: Member, report_id: UUID) -> Report:
+    """팀장이 검토할 한 건을 잠가서 읽는다.
+
+    _locked_report 는 쓰기를 작성자에게만 열어 주므로 여기서 쓸 수 없다. 검토는 남의
+    보고서에 하는 일이라 스코프가 반대다. 대신 볼 수 있는 범위는 목록과 같아야 하므로
+    조회 조건은 _scope 를 그대로 쓴다.
+    """
+    _require_manager(member)
+    result = await db.execute(
+        _joined_select(Report)
+        .where(Report.id == report_id, *_scope(member))
+        .with_for_update(of=Report)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="report_not_found",
+        )
+    # 자기가 쓴 보고서를 자기가 확정하지 않는다. 팀장도 자기 보고서는 남에게 낸다.
+    if report.author_member_id == member.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="self_review_not_allowed",
+        )
+    return report
+
+
 async def _own_activity_ids(
     db: AsyncSession,
     member: Member,
@@ -333,7 +484,13 @@ async def _replace_report_activities(
 async def _detail(db: AsyncSession, member: Member, report_id: UUID) -> ReportRead:
     row = await _report_row(db, member, report_id)
     activities = await _activities_by_report_ids(db, [report_id])
-    return _report_read(*row, activities[report_id])
+    report = row[0]
+    deal_sections = (
+        await _deal_sections_by_report_ids(db, [report_id])
+        if report.report_kind == "meeting"
+        else {report_id: []}
+    )
+    return _report_read(*row, activities[report_id], deal_sections[report_id])
 
 
 @router.get("/report-filter-options", response_model=ReportFilterOptions)
@@ -377,9 +534,18 @@ async def list_reports(
     if page.end_date is not None:
         scope.append(Report.report_date <= page.end_date)
     if page.source_activity_id is not None:
-        scope.append(Report.source_activity_id == page.source_activity_id)
+        scope.append(Report.source_activity_id.in_(tuple(dict.fromkeys(page.source_activity_id))))
     if page.sales_deal_id is not None:
-        scope.append(Report.sales_deal_id == page.sales_deal_id)
+        section_report_ids = select(ReportDeal.report_id).where(
+            ReportDeal.sales_deal_id == page.sales_deal_id
+        )
+        # migration 전 레거시 행도 조회가 끊기지 않게 둔다.
+        scope.append(
+            or_(
+                Report.sales_deal_id == page.sales_deal_id,
+                Report.id.in_(section_report_ids),
+            )
+        )
     if page.approver is not None:
         scope.append(_approver_expr().in_(tuple(dict.fromkeys(page.approver))))
     if page.hospital is not None:
@@ -408,7 +574,11 @@ async def list_reports(
     )
     rows = rows_result.all()
     activity_map = await _activities_by_report_ids(db, [row[0].id for row in rows])
-    items = [_report_read(*row, activity_map[row[0].id]) for row in rows]
+    meeting_ids = [row[0].id for row in rows if row[0].report_kind == "meeting"]
+    deal_map = await _deal_sections_by_report_ids(db, meeting_ids)
+    items = [
+        _report_read(*row, activity_map[row[0].id], deal_map.get(row[0].id, [])) for row in rows
+    ]
     has_more = page.skip + len(items) < total
     return ReportPage(
         items=items,
@@ -446,12 +616,11 @@ async def create_report(
             await _own_activity_ids(db, member, [payload.source_activity_id])
         if payload.report_kind == "meeting":
             assert payload.source_activity_id is not None
-            assert payload.sales_deal_id is not None
-            await _validate_meeting_deal(
+            await _validate_meeting_deals(
                 db,
                 member,
                 payload.source_activity_id,
-                payload.sales_deal_id,
+                payload.deal_sections,
             )
         activity_ids = await _own_activity_ids(db, member, payload.activity_ids)
 
@@ -462,7 +631,8 @@ async def create_report(
             recipient_member_id=None if recipient is None else recipient.id,
             template_snapshot=payload.template_snapshot,
             source_activity_id=payload.source_activity_id,
-            sales_deal_id=payload.sales_deal_id,
+            # 신규 미팅 보고서는 딜을 자식 섹션에만 보관한다.
+            sales_deal_id=None,
             report_kind=payload.report_kind,
             report_date=payload.report_date,
             period_start=payload.period_start,
@@ -476,10 +646,12 @@ async def create_report(
             source_snapshot=None,
             ai_evidence=None,
             note=payload.note,
+            review_note=None,
             reviewed_by_member_id=None,
             reviewed_at=None,
         )
         db.add(report)
+        _add_report_deals(db, report.id, payload.deal_sections)
         for activity_id in activity_ids:
             db.add(ReportActivity(report_id=report.id, activity_id=activity_id))
         await db.flush()
@@ -487,10 +659,10 @@ async def create_report(
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
-        if _duplicate_meeting_deal(error):
+        if _duplicate_meeting(error):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="meeting_deal_report_exists",
+                detail="meeting_report_exists",
             ) from error
         raise
     except Exception:
@@ -517,6 +689,7 @@ async def update_report(
 
         values = payload.model_dump(exclude_unset=True)
         activity_ids = values.pop("activity_ids", None)
+        deal_sections = values.pop("deal_sections", None)
         if isinstance(values.get("content"), dict):
             # AI 원본은 서버 값을 유지한다. 공통 편집본은 전용 API에서만 갱신한다.
             for key in _SERVER_OWNED_CONTENT_KEYS:
@@ -526,6 +699,26 @@ async def update_report(
 
         if "recipient_member_id" in values and values["recipient_member_id"] is not None:
             await _visible_recipient(db, member, values["recipient_member_id"])
+
+        if deal_sections is not None:
+            if report.report_kind != "meeting":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="deal_sections_not_supported",
+                )
+            if report.source_activity_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="activity_not_found",
+                )
+            parsed_sections = [ReportDealWrite.model_validate(section) for section in deal_sections]
+            await _validate_meeting_deals(
+                db,
+                member,
+                report.source_activity_id,
+                parsed_sections,
+            )
+            await _replace_report_deals(db, report.id, parsed_sections)
 
         period_start = values.get("period_start", report.period_start)
         period_end = values.get("period_end", report.period_end)
@@ -583,15 +776,30 @@ async def submit_report(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="invalid_state_transition",
             )
-        sales_deal_id = report.sales_deal_id if report.report_kind == "meeting" else None
-        if sales_deal_id is not None:
+        sales_deal_ids: list[UUID] = []
+        if report.report_kind == "meeting":
             if report.source_activity_id is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="activity_not_found",
                 )
+            sections = (
+                (await db.execute(select(ReportDeal).where(ReportDeal.report_id == report.id)))
+                .scalars()
+                .all()
+            )
+            sales_deal_ids = [section.sales_deal_id for section in sections]
+            if not sales_deal_ids and report.sales_deal_id is not None:
+                # migration 전 레거시 보고서 제출 호환.
+                sales_deal_ids = [report.sales_deal_id]
+            if not sales_deal_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="deal_sections_required",
+                )
             # 저장 후 달라진 접근 권한·고객사 연결은 확정 전에 다시 확인한다.
-            await _validate_meeting_deal(db, member, report.source_activity_id, sales_deal_id)
+            for sales_deal_id in sales_deal_ids:
+                await _validate_meeting_deal(db, member, report.source_activity_id, sales_deal_id)
         report.status_code = "submitted"
         report.updated_at = datetime.now(UTC)
         await db.flush()
@@ -601,11 +809,49 @@ async def submit_report(
         await db.rollback()
         raise
 
-    # 같은 미팅에서도 보고서마다 대상 딜이 다르다. 미배정 기존 보고서는 추측하지 않는다.
-    if sales_deal_id is not None:
+    for sales_deal_id in sales_deal_ids:
         contract_next_meeting_pipeline.queue(
-            background, sales_deal_id, {"report_id": str(report_id)}
+            background,
+            sales_deal_id,
+            {"report_id": str(report_id), "sales_deal_id": str(sales_deal_id)},
         )
+    return read
+
+
+@router.post("/reports/{report_id}/review", response_model=ReportRead)
+async def review_report(
+    report_id: UUID,
+    payload: ReportReview,
+    member: CurrentMember,
+    db: DbSession,
+) -> ReportRead:
+    """팀장이 제출된 보고서를 확정하거나 반려한다(유스케이스 RPT-004).
+
+    반려는 rejected 가 아니라 changes_requested 로 간다. 반려한 보고서는 팀원이 고쳐서
+    다시 내야 하는데 고칠 수 있는 상태가 그쪽이기 때문이다. rejected 는 되돌릴 수 없는
+    거절을 위해 비워 둔다.
+    """
+    try:
+        report = await _locked_report_for_review(db, member, report_id)
+        if report.status_code != payload.expected_status_code:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="invalid_state_transition",
+            )
+        report.status_code = REVIEW_DECISION_STATUS[payload.decision]
+        # 확정하면 지난 반려 사유를 남겨 두지 않는다. 고친 보고서에 옛 지적이 붙어 있으면
+        # 무엇이 남은 문제인지 알 수 없다. 확정 요청에 reason 이 실려 와도 비운다.
+        # 작성자의 note 는 건드리지 않는다.
+        report.review_note = payload.reason if payload.decision == "reject" else None
+        report.reviewed_by_member_id = member.id
+        report.reviewed_at = datetime.now(UTC)
+        report.updated_at = datetime.now(UTC)
+        await db.flush()
+        read = await _detail(db, member, report_id)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     return read
 
 

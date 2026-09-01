@@ -62,6 +62,10 @@ class _Db:
         # EXISTS 로 들어가므로 FROM 절 모양으로 갈라야 본 쿼리와 섞이지 않는다.
         if "public.notice_target join public.member" in sql:
             return "notice_targets"
+        # 자기 몫의 이행 여부는 notice_target 을 조인 없이 바로 고른다. 지시 조회 SQL 의
+        # EXISTS 안에도 같은 FROM 이 있으므로 SELECT 가 무엇으로 시작하는지로 갈라야 한다.
+        if sql.startswith("select public.notice_target.notice_id"):
+            return "notice_my_status"
         # sales_target 과 purchase_order 를 sales_deal 보다 먼저 본다. join 으로 겹친다.
         if "public.sales_target" in sql:
             return "target_sum"
@@ -92,6 +96,7 @@ class _Db:
             "notice_count": _Result(scalar=0),
             "notice_rows": _Result(rows=[]),
             "notice_targets": _Result(rows=[]),
+            "notice_my_status": _Result(rows=[]),
             "member_ids": _Result(rows=[]),
             "today": _Result(row=(0, 0)),
             "today_rows": _Result(rows=[]),
@@ -446,7 +451,7 @@ def test_directive_items_carry_their_recipients():
     db = _Db(
         notice_count=_Result(scalar=1),
         notice_rows=_Result(rows=[(directive, manager.display_name)]),
-        notice_targets=_Result(rows=[(directive.id, uuid4(), "김지훈")]),
+        notice_targets=_Result(rows=[(directive.id, uuid4(), "김지훈", "pending", None, None)]),
     )
 
     with _client(db, manager) as client:

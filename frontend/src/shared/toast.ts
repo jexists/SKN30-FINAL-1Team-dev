@@ -1,9 +1,5 @@
 /**
- * 성공·완료를 알리는 짧은 안내를 앱 전체가 공유하는 최소 저장소입니다.
- *
- * 오류는 ErrorToast 가 맡습니다. 그쪽은 화면이 들고 있는 오류 문구를 그대로
- * 그리는 선언형이라, 모달이 닫히며 사라지는 성공 알림에는 맞지 않습니다.
- * 여기서는 부르는 쪽이 화면에서 사라진 뒤에도 안내가 남아야 하므로
+ * 화면이 바뀐 뒤에도 남아야 하는 성공·실패 안내를 앱 전체가 공유합니다.
  * 저장소가 목록을 들고, 호스트 하나가 App 에 붙어 그립니다.
  *
  * 상태 관리 라이브러리를 새로 넣지 않습니다. connectionState 와 같은 방식입니다.
@@ -12,14 +8,19 @@
 export interface ToastItem {
   id: number
   message: string
+  tone: 'success' | 'error'
+  persistent: boolean
+  to?: string
+  actionLabel?: string
 }
 
-/** 보이는 시간. 짧은 한 문장을 읽고도 남을 만큼입니다. */
+/** 일반 안내가 보이는 시간. 작업 완료·실패 알림은 사용자가 닫을 때까지 남습니다. */
 const LIFETIME = 3000
 
 let items: ToastItem[] = []
 let nextId = 1
 const listeners = new Set<() => void>()
+const timers = new Map<number, ReturnType<typeof setTimeout>>()
 
 function notify() {
   for (const listener of listeners) listener()
@@ -42,14 +43,38 @@ export function getToasts(): ToastItem[] {
   return items
 }
 
-export function showToast(message: string) {
+export function showToast(
+  message: string,
+  options: {
+    tone?: ToastItem['tone']
+    persistent?: boolean
+    to?: string
+    actionLabel?: string
+  } = {},
+) {
   const id = nextId++
-  items = [...items, { id, message }]
+  const item: ToastItem = {
+    id,
+    message,
+    tone: options.tone ?? 'success',
+    persistent: options.persistent ?? false,
+    ...(options.to && options.actionLabel
+      ? { to: options.to, actionLabel: options.actionLabel }
+      : {}),
+  }
+  items = [...items, item]
   notify()
-  setTimeout(() => dismissToast(id), LIFETIME)
+  if (!item.persistent)
+    timers.set(
+      id,
+      setTimeout(() => dismissToast(id), LIFETIME),
+    )
+  return id
 }
 
 export function dismissToast(id: number) {
+  clearTimeout(timers.get(id))
+  timers.delete(id)
   const next = items.filter((item) => item.id !== id)
   // 이미 손으로 닫은 뒤 타이머가 뒤늦게 도착하는 일이 흔합니다. 그때 헛되이
   // 알리면 화면만 다시 그립니다.

@@ -140,6 +140,58 @@
   }
 }
 
+.dealSections {
+  display: grid;
+  gap: var(--s5);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+
+  @include sm {
+    flex-direction: column;
+    gap: var(--s2);
+  }
+}
+
+.dealLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+
+  span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+}
+
+.assessment {
+  flex: none;
+}
+
+.sectionError {
+  margin-top: var(--s3);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.emptySections {
+  padding: var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--muted);
+  text-align: center;
+}
+
 /*
  * 작성 화면은 시트 아래 같은 자리에 제출 버튼을 둡니다. 두 화면을 오갈 때
  * 주된 버튼이 같은 곳에 있습니다. 다만 여기서는 따라붙지 않습니다 —
@@ -271,5 +323,10 @@
     padding: 0;
     border: 0;
     box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .dealSections.dealSections {
+    gap: var(--s7);
   }
 }

@@ -30,7 +30,10 @@ EXPECTED_COLUMN_COUNTS = {
     # sort_order/updated_at/deleted_at 이 늘고 recipient_member_id 가 빠졌다.
     # 수신자는 notice_target 으로 옮겼고, 본문 사진은 notice_image 가 가리킨다.
     "notice": 18,
-    "notice_target": 3,
+    # 20260831_0015 로 notice_target 에 이행 여부(status_code/status_reason/
+    # status_changed_at/status_changed_by_member_id)가 늘었다. 한 지시가 여러 명에게
+    # 가므로 notice 가 아니라 수신자 쪽에 남긴다.
+    "notice_target": 7,
     "notice_image": 6,
     # 20260827_0010 으로 세 표에서 activity_type 이 빠졌다. 활동은 늘 미팅이다.
     "activity": 21,
@@ -58,8 +61,10 @@ EXPECTED_COLUMN_COUNTS = {
     "purchase_order": 17,
     "purchase_order_item": 6,
     "sales_target": 5,
-    # 20260828_0013 으로 미팅보고서가 어느 딜의 보고서인지 sales_deal_id 로 가리킨다.
-    "report": 21,
+    # report는 미팅 공통 1행, report_deal은 딜별 본문 N행이다. 팀장의 반려 사유는
+    # 작성자의 note와 review_note로 칸을 나눈다.
+    "report": 22,
+    "report_deal": 7,
     "report_activity": 2,
     # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
     "document": 14,
@@ -99,14 +104,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 378
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 390
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 94
+    assert len(foreign_key_constraints) == 97
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints
@@ -118,6 +123,43 @@ def test_document_summary_completion_audit_status_is_migrated():
     migration = Path(__file__).parents[1] / "sql/20260831_0015_document_audit_summary_completed.sql"
 
     assert "'summary_completed'" in migration.read_text(encoding="utf-8")
+
+
+def test_meeting_report_sections_migration_preserves_links_and_parent_title():
+    migration = Path(__file__).parents[1] / "sql/20260901_0016_report_deal_sections.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE public.report_deal" in sql
+    assert "PRIMARY KEY (report_id, sales_deal_id)" in sql
+    assert "UPDATE public.file AS file" in sql
+    assert "INSERT INTO public.report_activity" in sql
+    assert "report_source_activity_meeting_key" in sql
+    assert "'product', 'values'" in sql
+    assert "'product', 'title', 'values'" not in sql
+    assert "CREATE TEMP TABLE meeting_report_deal_candidate" in sql
+    assert "min(candidate.created_at)" in sql
+    assert "max(candidate.updated_at)" in sql
+    assert "migration metadata; not spoken" in sql
+    assert "char_length(grouped.transcript) > 50000" in sql
+
+
+def test_meeting_report_sections_migration_rejects_conflicting_deal_candidates():
+    migration = Path(__file__).parents[1] / "sql/20260901_0016_report_deal_sections.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "UNION ALL" in sql
+    assert "count(DISTINCT candidate.deal_snapshot) > 1" in sql
+    assert "count(DISTINCT candidate.content) > 1" in sql
+    assert "count(DISTINCT coalesce(candidate.ai_evidence, 'null'::jsonb)) > 1" in sql
+    assert "conflicting legacy report deal candidates" in sql
+
+
+def test_meeting_report_sections_migration_rejects_unscoped_parent_deal_content():
+    migration = Path(__file__).parents[1] / "sql/20260901_0016_report_deal_sections.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "canonical.content ?| ARRAY[" in sql
+    assert "canonical meeting report has unscoped deal content" in sql
 
 
 @pytest.mark.skipif(
@@ -133,6 +175,8 @@ def test_models_match_configured_database():
 async def test_legacy_report_deal_migration_only_clears_ambiguous_links():
     """후속 SQL의 조건을 합성 행에만 적용한다. 실제 보고서는 읽거나 수정하지 않는다."""
     migration = Path(__file__).parents[1] / "sql/20260831_0014_report_legacy_deal_scope.sql"
+    # SQL 파일에 한글 주석이 있다. 인코딩을 적지 않으면 Windows 기본 코드페이지(cp949)로
+    # 읽어 깨진다.
     predicate = migration.read_text(encoding="utf-8").split("WHERE", 1)[1].split(";", 1)[0]
     query = text(
         "SELECT CASE WHEN " + predicate + " THEN NULL ELSE report.sales_deal_id END "

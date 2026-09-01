@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
 import Button from '@/components/Button'
@@ -7,10 +7,12 @@ import { CalendarIcon, DailyReportIcon, EditIcon, MoreIcon, TrashIcon } from '@/
 import OwnerName from '@/components/OwnerName'
 import Popover from '@/components/Popover'
 import { InlineLoader } from '@/components/Skeleton'
+import StatusBadge from '@/components/StatusBadge'
 import { useCurrentUser } from '@/auth/sessionContext'
-import { meetingComposePath } from '@/constants/routes'
+import { meetingComposePath, meetingReportPath } from '@/constants/routes'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { isOwnAgendaItem, useAgendaFor } from '@/shared/agenda'
+import { reviewLabel } from '@/shared/reviewDecision'
 import { useShowOwner } from '@/shared/scope'
 import type { AgendaItem } from '@/types'
 
@@ -19,6 +21,10 @@ import styles from './DayAgenda.module.scss'
 interface Props {
   dateISO: string
   onOpen: (item: AgendaItem) => void
+  /** 팀장이 보고서를 확인·검토하러 들어가는 자리. 팀원에게는 전달되지 않습니다. */
+  onOpenReport?: (reportId: string) => void
+  /** 값이 바뀌면 그 날 보고서를 다시 받아 배지를 새로 세웁니다. 검토가 끝난 뒤입니다. */
+  reportsKey?: number
   onAddSchedule: () => void
   /** 줄 메뉴의 '수정'. 일정 폼을 엽니다. */
   onEdit: (item: AgendaItem) => void
@@ -29,7 +35,7 @@ interface Props {
 }
 
 const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
-  { dateISO, onOpen, onAddSchedule, onEdit, onDelete, flash },
+  { dateISO, onOpen, onOpenReport, reportsKey, onAddSchedule, onEdit, onDelete, flash },
   ref,
 ) {
   const { items: list, loading } = useAgendaFor(dateISO)
@@ -37,22 +43,53 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
   const { memberId, isManager } = useCurrentUser()
   /** 메뉴를 펴 둔 줄. 한 번에 한 줄만 폅니다. */
   const [menuId, setMenuId] = useState<string | null>(null)
-  // 아직 보고서를 안 쓴 줄에만 '보고서 작성' 을 세웁니다. 줄마다 따로 물으면 요청이
-  // 줄 수만큼 늘어나므로 그 날 쓴 보고서를 한 번에 받아 일정 번호로 맞춰 봅니다.
-  const { reports, loading: reportsLoading } = useMeetingReportsOn(dateISO)
-  const writtenIds = useMemo(
-    () => new Set(reports.map((report) => report.agendaId).filter(Boolean)),
-    [reports],
-  )
+  // 미작성 줄에는 '보고서 작성', 초안이 있는 줄에는 '계속 작성' 을 세웁니다. 줄마다
+  // 따로 물으면 요청이 늘어나므로 그 날 쓴 보고서를 한 번에 받아 일정 번호로 맞춥니다.
+  const {
+    reports,
+    loading: reportsLoading,
+    reload: reloadReports,
+  } = useMeetingReportsOn(dateISO, {
+    includeDrafts: true,
+  })
+
+  // 다시 받는 함수는 렌더마다 새로 만들어집니다. 그것을 아래 효과의 의존성으로 두면 효과가
+  // 매 렌더 다시 돌고, 그 안의 setState 가 또 렌더를 부르는 고리가 생깁니다. Modal 의
+  // onCloseRef 와 같은 까닭으로 최신 함수는 ref 로만 들고 효과는 열쇠만 봅니다.
+  const reloadReportsRef = useRef(reloadReports)
+  useEffect(() => {
+    reloadReportsRef.current = reloadReports
+  })
+
+  // 검토가 끝나면 그 날 보고서만 다시 받습니다. 일정 목록은 바뀐 것이 없어 그대로 둡니다.
+  useEffect(() => {
+    if (reportsKey !== undefined && reportsKey > 0) reloadReportsRef.current()
+  }, [reportsKey])
+
+  // 이미 쓴 줄에는 '보고서 확인' 이 섭니다. 한 일정에 딜마다 보고서가 여러 건일 수
+  // 있으므로 먼저 쓴 것을 세웁니다. 나머지는 상세에서 모두 볼 수 있습니다.
+  const reportByAgenda = useMemo(() => {
+    const found = new Map<string, (typeof reports)[number]>()
+    for (const report of reports) {
+      if (report.agendaId !== '' && !found.has(report.agendaId)) found.set(report.agendaId, report)
+    }
+    return found
+  }, [reports])
   const renderItem = (it: AgendaItem) => {
     const done = it.done
-    // 아직 안 쓴 줄에만 세웁니다. 답을 받기 전에도 세우지 않습니다.
-    // 세웠다가 거두면 이미 쓴 줄에서 깜빡입니다.
+    const report = reportByAgenda.get(it.id)
+    const isOwn = isOwnAgendaItem(it, memberId, isManager)
+    // 답을 받기 전에는 세우지 않습니다. 먼저 세웠다가 거두면 이미 쓴 줄에서 깜빡입니다.
     //
     // 내가 한 일에만 섭니다. 보고는 남이 한 일을 대신 적는 문서가 아니라서,
     // 팀 전체를 보고 있는 팀장에게도 팀원의 일정에는 이 길이 서지 않습니다.
-    const needsReport =
-      !reportsLoading && !writtenIds.has(it.id) && isOwnAgendaItem(it, memberId, isManager)
+    const needsReport = !reportsLoading && !report && isOwn
+    const canContinue =
+      !reportsLoading &&
+      !!report &&
+      report.ownerMemberId === memberId &&
+      (report.apiStatus === 'draft' || report.apiStatus === 'changes_requested')
+    const written = !reportsLoading && report?.apiStatus !== 'draft' ? report : undefined
 
     return (
       // 줄 어디를 눌러도 상세가 열립니다. 안쪽 버튼들은 각자 할 일이
@@ -71,16 +108,47 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
               앞에, 수정·삭제는 '...' 하나에 접어 그 뒤에 섭니다.
               줄 전체는 상세를 열므로 이 안의 클릭은 여기서 끊습니다. */}
           <div className={styles.actions} onClick={(event) => event.stopPropagation()}>
-            {/* 아직 보고서가 없는 줄에만 섭니다. 누르면 그 일정으로 작성 화면이 열립니다. */}
-            {needsReport && (
+            {/* 미작성 또는 수정중인 보고서는 그 일정의 작성 화면으로 엽니다. */}
+            {(needsReport || canContinue) && (
               <Link
                 to={meetingComposePath(it.id)}
                 className={styles.reportBtn}
-                aria-label={`${it.title} 업무보고서 작성`}
+                aria-label={`${it.title} 업무보고서 ${canContinue ? '계속 작성' : '작성'}`}
               >
                 <DailyReportIcon width={13} height={13} />
-                보고서 작성
+                {canContinue ? '계속 작성' : '보고서 작성'}
               </Link>
+            )}
+
+            {/* 보고서가 있는 줄에는 상태 배지와 확인 길이 함께 섭니다.
+                팀장은 여기서 바로 확정·반려하고, 팀원은 자기 보고서 상세로 갑니다. */}
+            {written !== undefined && (
+              <>
+                <StatusBadge
+                  label={reviewLabel(written.apiStatus ?? 'draft').label}
+                  tone={reviewLabel(written.apiStatus ?? 'draft').tone}
+                />
+                {onOpenReport === undefined ? (
+                  <Link
+                    to={meetingReportPath(written.id)}
+                    className={styles.reportBtn}
+                    aria-label={`${it.title} 보고서 확인`}
+                  >
+                    <DailyReportIcon width={13} height={13} />
+                    보고서 확인
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.reportBtn}
+                    aria-label={`${it.title} 보고서 확인`}
+                    onClick={() => onOpenReport(written.id)}
+                  >
+                    <DailyReportIcon width={13} height={13} />
+                    보고서 확인
+                  </button>
+                )}
+              </>
             )}
 
             <Popover
