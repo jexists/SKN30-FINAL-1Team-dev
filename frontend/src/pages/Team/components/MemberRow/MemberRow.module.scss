@@ -1,6 +1,6 @@
-// 저장하지 않은 줄은 왼쪽에 선을 세워 알립니다. 색만으로 알리지 않습니다.
-.isDirty td:first-child {
-  box-shadow: inset 3px 0 0 var(--blue);
+// 비활성 구성원은 목록에 남기되 눈에 먼저 들어오지 않게 낮춥니다.
+.isInactive td {
+  opacity: 0.55;
 }
 
 .name {
@@ -18,60 +18,32 @@
   font-weight: 700;
 }
 
-.text,
-.select,
-.number {
-  width: 100%;
-  max-width: 180px;
-  padding: 6px 8px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-xs);
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-
-  &:focus-visible {
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--blue-ring);
-    outline: none;
-  }
-
-  &:disabled {
-    background: var(--fill);
-    color: var(--muted);
-    cursor: not-allowed;
-  }
-}
-
-.number {
-  max-width: 150px;
-  text-align: right;
-}
-
-.switch {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--ink-2);
-  font-size: 13px;
-  cursor: pointer;
-}
-
 .right {
   text-align: right !important;
 }
 
-// 금액을 원 단위로 읽어 주는 보조 표시. 입력칸의 숫자가 길어 눈으로 세기 어렵습니다.
-.hint {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 11px;
+.rate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 108px;
 }
 
-.actions {
-  display: inline-flex;
-  gap: var(--s2);
-  justify-content: flex-end;
+// 대시보드 매출 목표 막대와 같은 모양을 한 단계 얇게 씁니다.
+.track {
+  flex: 1;
+  height: 4px;
+  min-width: 48px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 100%;
+    width: var(--p, 0%);
+    border-radius: inherit;
+    background: var(--blue);
+    transition: width var(--t-slow) var(--ease-spring);
+  }
 }

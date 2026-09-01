@@ -152,6 +152,8 @@
   border-radius: 999px;
   background: var(--surface);
   color: var(--ink-2);
+  // <a> 와 <button> 두 모양으로 씁니다. 버튼은 글꼴을 물려받지 않아 따로 맞춥니다.
+  font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;

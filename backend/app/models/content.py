@@ -29,6 +29,8 @@ class Report(Base):
     source_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=True)
     ai_evidence: Mapped[Any] = mapped_column(JSONB, nullable=True)
     note: Mapped[str | None]
+    # 팀장이 반려하며 남긴 사유. note 는 작성자의 칸이라 섞지 않는다.
+    review_note: Mapped[str | None]
     reviewed_by_member_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.member.id"))
     reviewed_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

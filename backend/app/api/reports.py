@@ -16,6 +16,7 @@ from app.models.content import Report, ReportActivity, ReportDeal
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
+    REVIEW_DECISION_STATUS,
     ReportActivityRead,
     ReportCreate,
     ReportDealRead,
@@ -26,6 +27,7 @@ from app.schemas.reports import (
     ReportPageParams,
     ReportPatch,
     ReportRead,
+    ReportReview,
     ReportSubmit,
 )
 from app.services import contract_next_meeting_pipeline
@@ -79,6 +81,12 @@ def _scope(member: Member, author_ids: tuple[UUID, ...] | None = None):
     return conditions
 
 
+def _require_manager(member: Member) -> None:
+    """보고서 검토는 팀장이 한다. notices._require_manager 와 같은 코드를 쓴다."""
+    if member.role_code != "manager":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="manager_required")
+
+
 def _read_entities():
     return (Report, _author.display_name, _recipient.display_name)
 
@@ -121,6 +129,7 @@ def _report_read(
         source_snapshot=report.source_snapshot,
         ai_evidence=report.ai_evidence,
         note=report.note,
+        review_note=report.review_note,
         reviewed_by_member_id=report.reviewed_by_member_id,
         reviewed_at=_seoul(report.reviewed_at),
         activities=activities,
@@ -387,6 +396,34 @@ async def _locked_report(db: AsyncSession, member: Member, report_id: UUID) -> R
     return report
 
 
+async def _locked_report_for_review(db: AsyncSession, member: Member, report_id: UUID) -> Report:
+    """팀장이 검토할 한 건을 잠가서 읽는다.
+
+    _locked_report 는 쓰기를 작성자에게만 열어 주므로 여기서 쓸 수 없다. 검토는 남의
+    보고서에 하는 일이라 스코프가 반대다. 대신 볼 수 있는 범위는 목록과 같아야 하므로
+    조회 조건은 _scope 를 그대로 쓴다.
+    """
+    _require_manager(member)
+    result = await db.execute(
+        _joined_select(Report)
+        .where(Report.id == report_id, *_scope(member))
+        .with_for_update(of=Report)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="report_not_found",
+        )
+    # 자기가 쓴 보고서를 자기가 확정하지 않는다. 팀장도 자기 보고서는 남에게 낸다.
+    if report.author_member_id == member.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="self_review_not_allowed",
+        )
+    return report
+
+
 async def _own_activity_ids(
     db: AsyncSession,
     member: Member,
@@ -497,7 +534,7 @@ async def list_reports(
     if page.end_date is not None:
         scope.append(Report.report_date <= page.end_date)
     if page.source_activity_id is not None:
-        scope.append(Report.source_activity_id == page.source_activity_id)
+        scope.append(Report.source_activity_id.in_(tuple(dict.fromkeys(page.source_activity_id))))
     if page.sales_deal_id is not None:
         section_report_ids = select(ReportDeal.report_id).where(
             ReportDeal.sales_deal_id == page.sales_deal_id
@@ -609,6 +646,7 @@ async def create_report(
             source_snapshot=None,
             ai_evidence=None,
             note=payload.note,
+            review_note=None,
             reviewed_by_member_id=None,
             reviewed_at=None,
         )
@@ -777,6 +815,43 @@ async def submit_report(
             sales_deal_id,
             {"report_id": str(report_id), "sales_deal_id": str(sales_deal_id)},
         )
+    return read
+
+
+@router.post("/reports/{report_id}/review", response_model=ReportRead)
+async def review_report(
+    report_id: UUID,
+    payload: ReportReview,
+    member: CurrentMember,
+    db: DbSession,
+) -> ReportRead:
+    """팀장이 제출된 보고서를 확정하거나 반려한다(유스케이스 RPT-004).
+
+    반려는 rejected 가 아니라 changes_requested 로 간다. 반려한 보고서는 팀원이 고쳐서
+    다시 내야 하는데 고칠 수 있는 상태가 그쪽이기 때문이다. rejected 는 되돌릴 수 없는
+    거절을 위해 비워 둔다.
+    """
+    try:
+        report = await _locked_report_for_review(db, member, report_id)
+        if report.status_code != payload.expected_status_code:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="invalid_state_transition",
+            )
+        report.status_code = REVIEW_DECISION_STATUS[payload.decision]
+        # 확정하면 지난 반려 사유를 남겨 두지 않는다. 고친 보고서에 옛 지적이 붙어 있으면
+        # 무엇이 남은 문제인지 알 수 없다. 확정 요청에 reason 이 실려 와도 비운다.
+        # 작성자의 note 는 건드리지 않는다.
+        report.review_note = payload.reason if payload.decision == "reject" else None
+        report.reviewed_by_member_id = member.id
+        report.reviewed_at = datetime.now(UTC)
+        report.updated_at = datetime.now(UTC)
+        await db.flush()
+        read = await _detail(db, member, report_id)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     return read
 
 

@@ -179,8 +179,25 @@
 - `20260831_0014_report_legacy_deal_scope.sql`: 보고서 0013의 백필 결과가 기존 본문의
   `sales_deal_ids`와 일치하지 않으면 `sales_deal_id`만 NULL로 되돌립니다. 여러 딜을 다룬
   통합보고서를 일정 대표 딜의 보고서로 오인하지 않기 위한 보정입니다. 본문과 선택 딜 목록,
-  새 형식의 딜별 보고서는 보존합니다. **아직 DB에 적용하지 않았습니다.** 새 환경은 보고서
-  0013 다음에 적용하고, 기존 환경은 대상 행 확인 후 별도 승인받아 적용합니다.
+  새 형식의 딜별 보고서는 보존합니다. 새 환경은 보고서 0013 다음에 적용합니다.
+  조건만 뽑아 합성 행으로 검사하는 테스트가
+  `tests/test_models.py::test_legacy_report_deal_migration_only_clears_ambiguous_links` 입니다.
+- `20260831_0015_team_management.sql`: 팀 관리 화면(팀장 전용)과 지시사항 이행 관리를 위한
+  변경입니다. 둘을 한 파일에 둔 까닭은 같은 기능(팀장 업무 관리 흐름)의 부분이기 때문입니다.
+  (1) `sales_target.customer_company_id` 를 nullable 로 열고, 거래처별로 흩어져 있던 기존
+  목표를 담당자·월 단위 한 줄로 합칩니다. 이 표를 읽는 곳은 `dashboard._sales_target_card`
+  의 SUM 하나뿐이라 합계가 보존되면 대시보드 숫자는 그대로입니다. NULL 을 서로 다른 값으로
+  보는 기존 UNIQUE 를 보완하려 부분 유일 인덱스 `sales_target_member_month_key` 를 겁니다.
+  (2) `notice_target` 에 이행 여부 4컬럼(`status_code`·`status_reason`·`status_changed_at`
+  ·`status_changed_by_member_id`)을 답니다. 한 지시가 여러 명에게 가므로 `notice` 가 아니라
+  수신자 쪽에 둡니다. 보고서 검토(팀장 확정·반려)는 `report` 의 `status_code`·
+  `reviewed_by_member_id`·`reviewed_at`·`note` 가 이미 있어 스키마를 바꾸지 않습니다.
+
+- `20260831_0016_report_review_note.sql`: `report.review_note` 를 더합니다. 0015 를 넣을 때는
+  팀장의 반려 사유를 기존 `report.note` 에 쓰려 했는데, 그 칸은 이미 작성자의 것입니다.
+  일일보고서가 "활동 3건 · 첨부 1건" 같은 제 요약을 거기에 넣고 있어(프론트
+  `useDailyReports.ts`) 반려 사유를 같은 칸에 쓰면 작성자가 남긴 값을 덮어씁니다. 검토하는
+  쪽의 칸을 따로 두어 `reviewed_by_member_id`·`reviewed_at` 과 한 묶음으로 씁니다.
 
 - `20260901_0016_report_deal_sections.sql`: 미팅 한 건을 `report` 한 행으로 합치고 딜별
   스냅샷·본문·AI 분석을 복합 PK 자식 `report_deal`로 옮깁니다. 기존 딜별 보고서의 첨부,
@@ -219,6 +236,9 @@
 | 2026-08-28 | 현재 연결된 개발 DB | `20260828_0013_document_link_exclusive.sql` | PostgreSQL direct | 성공. 기존 상품·딜 동시 연결 0건 확인 후 `document_product_or_deal_check` 생성 |
 | 2026-08-28 | 현재 연결된 개발 DB | `20260828_0014_document_summary_approval.sql` | PostgreSQL direct | 성공. `file_processing_status_check`에 `review_required` 추가 |
 | 2026-08-28 | 현재 연결된 개발 DB | `20260828_0015_document_retention_and_audit.sql` | PostgreSQL direct | 성공. `file` 보관·승인 컬럼 4개와 `document_file_audit` 생성 |
+| 2026-08-31 | 개발 | `20260831_0014_report_legacy_deal_scope.sql` | session pooler | 성공. 승인받아 적용. report 698행 보존(698→698)이고 컬럼·제약은 바뀌지 않는다. 본문의 `sales_deal_ids` 와 어긋나는 미팅보고서의 `sales_deal_id` 만 NULL 로 되돌려 딜 미배정 미팅보고서가 늘었다. 적용 뒤 `tests/test_models.py::test_legacy_report_deal_migration_only_clears_ambiguous_links` 가 실제 DB 에서 8가지 합성 행으로 조건을 확인하며 통과 |
+| 2026-08-31 | 개발 | `20260831_0015_team_management.sql` | session pooler | 성공. sales_target 5컬럼 유지(`customer_company_id` 를 NOT NULL 에서 nullable 로) / 부분 유일 인덱스 `sales_target_member_month_key` 추가 / notice_target 3→7컬럼(`status_code`·`status_reason`·`status_changed_at`·`status_changed_by_member_id`, FK 1 추가). 거래처별로 흩어져 있던 목표를 담당자·월 단위 한 줄로 합쳤고 거래처가 붙은 행은 0건이 되었다. **담당자·월별 합계와 총액이 모두 보존된 것을 적용 전후 대조로 확인**(합계 1,185,000,000 그대로, 36개 담당자·월 조합 전부 일치). notice_target 32행은 그대로이고 기본값 `pending` 으로 채워졌다. `tests/test_models.py` 의 ORM 대조에서 notice_target 컬럼·nullable·타입·기본값·PK·FK 일치 확인 |
+| 2026-08-31 | 개발 | `20260831_0016_report_review_note.sql` | session pooler | 성공. report 21→22컬럼(`review_note`, nullable). 기존 report 698행 보존(698→698)이고 작성자가 적어 둔 `note` 181행도 그대로입니다. 컬럼을 나눈 뒤 브라우저에서 반려→재확인→확정을 돌려 반려 사유가 `review_note` 에만 들어가고 `note` 는 건드려지지 않는 것을 확인 |
 | 2026-08-31 | 현재 연결된 개발 DB | `20260831_0015_document_audit_summary_completed.sql` | PostgreSQL direct | 성공. `document_file_audit.action_code`에 자동 요약 완료 이력(`summary_completed`) 추가 후 PostgreSQL 제약조건 조회로 확인 |
 
 ## 개발 DB 재구축 런북

@@ -1,0 +1,88 @@
+// 값만 늘어놓는 줄. RecordDrawer 의 세부 정보와 같은 모양입니다.
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s4);
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.heading {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+// 지난 반려 사유. 무엇을 지적했는지가 다시 낸 보고서를 읽는 기준이 됩니다.
+.reason {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  color: var(--red-ink);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.evidence {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.link {
+  align-self: flex-start;
+  margin-top: var(--s2);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.error {
+  margin: 0;
+  color: var(--red-ink);
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

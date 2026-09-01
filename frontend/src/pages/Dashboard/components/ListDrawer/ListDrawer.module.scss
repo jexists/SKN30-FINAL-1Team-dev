@@ -34,24 +34,15 @@
 }
 
 // 줄은 드로어 본문의 여백까지 넓혀 씁니다. 구분선은 다시 여백 안으로 들입니다.
-.row {
+// 펼친 상세도 같은 칸에 들어가므로 바깥 상자가 너비와 구분선을 맡습니다.
+.item {
   --gut: var(--s5);
 
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--s4);
-  align-items: start;
   width: calc(100% + var(--gut) * 2);
   margin: 0 calc(var(--gut) * -1);
-  padding: var(--s4) var(--gut);
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
 
-  & + .row::after {
+  & + .item::after {
     content: '';
     position: absolute;
     left: var(--gut);
@@ -64,6 +55,20 @@
   @include sm {
     --gut: var(--s4);
   }
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s4);
+  align-items: start;
+  width: 100%;
+  padding: var(--s4) var(--gut);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 
 .clickable {
@@ -139,6 +144,102 @@
     font-size: 13px;
     font-weight: 700;
   }
+}
+
+.caret {
+  margin-top: 2px;
+  color: var(--muted);
+  transition: transform var(--t-fast);
+}
+
+.up {
+  transform: rotate(180deg);
+}
+
+// 펼친 상세. 줄과 같은 여백 안에 들어가 한 덩어리로 읽힙니다.
+.detail {
+  padding: 0 var(--gut) var(--s4);
+
+  dl {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 6px var(--s4);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-sm);
+    background: var(--fill-2);
+    font-size: 13px;
+  }
+
+  dl > div {
+    display: contents;
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  dd {
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  @include sm {
+    dl {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
+    }
+
+    dl > div + div {
+      margin-top: 8px;
+    }
+  }
+}
+
+.notes {
+  margin-top: var(--s4);
+
+  h4 {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-2);
+  }
+
+  ol {
+    display: grid;
+    gap: var(--s3);
+    margin-top: 8px;
+    list-style: none;
+  }
+
+  li div {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  li strong {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  li span {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  li p {
+    margin-top: 3px;
+    color: var(--ink-2);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+.noNotes {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .late {

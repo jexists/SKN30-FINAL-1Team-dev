@@ -1,0 +1,19 @@
+.textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+
+  &:focus-visible {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+    outline: none;
+  }
+}

@@ -203,10 +203,18 @@ class SalesDealParticipant(Base):
 
 
 class SalesTarget(Base):
+    """담당자의 매출 목표. target_month 는 그달 1일이다.
+
+    customer_company_id 가 NULL 인 행은 거래처를 가리지 않는 그 사람의 월 목표이고,
+    팀 관리 화면이 고치는 것이 이 행이다. 부분 유니크 인덱스가 사람·월마다 하나로 묶는다.
+    """
+
     __tablename__ = "sales_target"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     owner_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
-    customer_company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
+    customer_company_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("public.customer_company.id")
+    )
     target_month: Mapped[date]
     target_amount: Mapped[int] = mapped_column(BigInteger)

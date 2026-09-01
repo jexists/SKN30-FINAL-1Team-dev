@@ -10,17 +10,19 @@ import SearchInput from '@/components/SearchInput'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import StatusBadge from '@/components/StatusBadge'
 import Tabs from '@/components/Tabs'
+import { progressLabel, rollupLabel } from '@/shared/noticeStatus'
 import { showToast } from '@/shared/toast'
 import type { NoticeManageListResponse, NoticeManageResponse, NoticeType } from '@/types'
 
+import DirectiveStatusModal from './components/DirectiveStatusModal'
 import NoticeFormModal from './components/NoticeFormModal'
 import NoticeRowActions from './components/NoticeRowActions'
 import {
-  COLUMNS,
-  TABLE_WIDTH,
   TYPE_TABS,
+  columnsFor,
   periodLabel,
   stateOf,
+  tableWidth,
   targetsLabel,
 } from './noticeCatalog'
 import useNotices from './useNotices'
@@ -38,7 +40,11 @@ export default function Notices() {
   const [page, setPage] = useState(1)
   const [form, setForm] = useState<FormState | null>(null)
   const [removing, setRemoving] = useState<NoticeManageListResponse | null>(null)
+  const [progressOf, setProgressOf] = useState<NoticeManageListResponse | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  // 이행 현황 열은 지시사항 탭에만 섭니다. 공지 표는 지금 모양 그대로입니다.
+  const columns = columnsFor(type)
 
   const {
     notices: rows,
@@ -177,16 +183,16 @@ export default function Notices() {
         <div className={styles.card}>
           {/* 좁은 화면에서는 표가 카드 안에서만 옆으로 흐릅니다. */}
           <div className={styles.scroller}>
-            <table className={styles.table} style={{ width: TABLE_WIDTH }}>
+            <table className={styles.table} style={{ width: tableWidth(columns) }}>
               <caption className="sr-only">등록된 공지·지시사항 목록</caption>
               <colgroup>
-                {COLUMNS.map((column) => (
+                {columns.map((column) => (
                   <col key={column.id} style={{ width: column.width }} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
-                  {COLUMNS.map((column) => (
+                  {columns.map((column) => (
                     <th key={column.id} scope="col">
                       {column.header}
                     </th>
@@ -206,6 +212,23 @@ export default function Notices() {
                       <td className={styles.targets} title={targetsLabel(row)}>
                         {targetsLabel(row)}
                       </td>
+                      {/* 누가 했고 누가 못 했는지. 눌러서 사람별 상태와 사유를 봅니다. */}
+                      {type === 'DIRECTIVE' && (
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.progress}
+                            onClick={() => setProgressOf(row)}
+                            aria-label={`${row.title} 이행 현황 보기`}
+                          >
+                            <StatusBadge
+                              label={rollupLabel(row.targets).label}
+                              tone={rollupLabel(row.targets).tone}
+                            />
+                            <span className="tnum">{progressLabel(row.targets)}</span>
+                          </button>
+                        </td>
+                      )}
                       <td className="tnum">{periodLabel(row)}</td>
                       <td>
                         <StatusBadge label={state.label} tone={state.tone} />
@@ -247,6 +270,10 @@ export default function Notices() {
             setForm(null)
           }}
         />
+      )}
+
+      {progressOf !== null && (
+        <DirectiveStatusModal notice={progressOf} onClose={() => setProgressOf(null)} />
       )}
 
       {removing !== null && (
