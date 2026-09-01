@@ -277,9 +277,9 @@ class File(Base):
     processing_status: Mapped[str]
     extracted_text: Mapped[str | None]
     extracted_markdown: Mapped[str | None]
-    extracted_payload: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    extracted_payload: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     summary_markdown: Mapped[str | None]
-    summary_payload: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    summary_payload: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     processing_error: Mapped[str | None]
     processed_at: Mapped[datetime | None]
     review_expires_at: Mapped[datetime | None]
@@ -308,7 +308,7 @@ class DocumentChunk(Base):
     metadata_json: Mapped[Any] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
-    embedding: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    embedding: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
@@ -323,6 +323,6 @@ class DocumentFileAudit(Base):
     file_id: Mapped[UUID] = mapped_column(ForeignKey("public.file.id", ondelete="CASCADE"))
     action_code: Mapped[str]
     actor_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
-    before_snapshot: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
-    after_snapshot: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    before_snapshot: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    after_snapshot: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
