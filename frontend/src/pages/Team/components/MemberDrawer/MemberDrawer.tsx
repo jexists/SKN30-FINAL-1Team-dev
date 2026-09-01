@@ -48,7 +48,10 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
     setSaving(true)
     setError(null)
     try {
-      const patch: TeamMemberPatchRequest = { monthly_target_amount: monthlyTarget }
+      // 바뀐 값만 보냅니다. 역할만 고쳐 저장할 때 목표까지 실어 보내면 그사이 다른
+      // 곳에서 바뀐 목표를 열었을 때의 값으로 되돌립니다.
+      const patch: TeamMemberPatchRequest = {}
+      if (monthlyTarget !== member.target_amount) patch.monthly_target_amount = monthlyTarget
       // 직함은 비울 수 없습니다. 서버가 빈 문자열을 거절하므로 바뀐 값만 보냅니다.
       if (jobTitle.trim() !== '' && jobTitle !== (member.job_title ?? '')) {
         patch.job_title = jobTitle.trim()
