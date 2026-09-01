@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import re
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import document_summary
@@ -357,6 +358,16 @@ def _tokens(value: str) -> set[str]:
     return {token.lower() for token in re.findall(r"[\w가-힣]{2,}", value)}
 
 
+def document_scopes(sales_deal_id: UUID | None, customer_company_id: UUID | None) -> list[Any]:
+    """딜·고객사 연결 조건. 둘 다 없으면 빈 목록이라 document 조인 자체를 하지 않는다."""
+    scopes: list[Any] = []
+    if sales_deal_id is not None:
+        scopes.append(Document.sales_deal_id == sales_deal_id)
+    if customer_company_id is not None:
+        scopes.append(Document.customer_company_id == customer_company_id)
+    return scopes
+
+
 async def search_chunks(
     db: AsyncSession,
     *,
@@ -365,8 +376,14 @@ async def search_chunks(
     limit: int = 5,
     document_id: UUID | None = None,
     sales_deal_id: UUID | None = None,
+    customer_company_id: UUID | None = None,
 ) -> list[tuple[DocumentChunk, float]]:
-    """임베딩이 있으면 코사인, 없으면 출처 보존 키워드 점수로 검색한다."""
+    """임베딩이 있으면 코사인, 없으면 출처 보존 키워드 점수로 검색한다.
+
+    sales_deal_id 와 customer_company_id 가 함께 오면 AND 가 아니라 OR 로 묶는다.
+    자료는 딜에만 붙기도 하고 고객사에만 붙기도 해서, 둘을 함께 요구하면 브리핑이
+    써야 할 자료가 대부분 빠진다.
+    """
     conditions = [
         DocumentChunk.team_id == team_id,
         FileRow.processing_status == "completed",
@@ -374,9 +391,10 @@ async def search_chunks(
     if document_id is not None:
         conditions.append(DocumentChunk.document_id == document_id)
     statement = select(DocumentChunk).join(FileRow, FileRow.id == DocumentChunk.file_id)
-    if sales_deal_id is not None:
+    scopes = document_scopes(sales_deal_id, customer_company_id)
+    if scopes:
         statement = statement.join(Document, Document.id == DocumentChunk.document_id)
-        conditions.append(Document.sales_deal_id == sales_deal_id)
+        conditions.append(or_(*scopes))
     rows = (await db.execute(statement.where(*conditions))).scalars().all()
     query_vector: list[float] | None = None
     if settings.embedding_configured and rows:

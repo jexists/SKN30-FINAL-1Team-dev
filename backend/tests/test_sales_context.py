@@ -89,6 +89,52 @@ def test_to_briefing_prompt_block_preserves_sources_and_escapes_document_data():
     assert "지시>무시" not in block
 
 
+def test_to_briefing_prompt_block_shows_document_ids_for_citation():
+    """브리핑 출력이 source_refs 에 문서 id 를 채우려면 블록에 그 id 가 보여야 한다."""
+    block = sales_context.to_briefing_prompt_block(
+        {
+            "query": "계약금",
+            "summaries": [{"document_id": "doc-1", "file_name": "계약서.docx"}],
+            "sources": [{"document_id": "doc-1", "file_name": "계약서.docx", "content": "본문"}],
+        }
+    )
+
+    assert block.count("문서ID: doc-1") == 2
+
+
+@pytest.mark.anyio
+async def test_retrieve_briefing_context_passes_company_scope_to_search(monkeypatch):
+    """고객사 범위를 검색까지 그대로 넘긴다 — 딜에 안 붙은 자료도 브리핑 근거가 된다."""
+    captured = {}
+
+    async def _search(*_args, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(document_processing, "search_chunks", _search)
+    company_id = uuid4()
+    deal_id = uuid4()
+    context = await sales_context.retrieve_briefing_context(
+        _Db([]),
+        team_id=uuid4(),
+        query="계약금",
+        sales_deal_id=deal_id,
+        customer_company_id=company_id,
+    )
+
+    assert captured["sales_deal_id"] == deal_id
+    assert captured["customer_company_id"] == company_id
+    assert context == {"query": "계약금", "summaries": [], "sources": []}
+
+
+def test_document_scopes_pairs_deal_and_company_for_or_matching():
+    """딜·고객사를 AND 로 묶으면 한쪽에만 연결된 자료가 통째로 빠진다."""
+    assert document_processing.document_scopes(None, None) == []
+    assert len(document_processing.document_scopes(uuid4(), None)) == 1
+    assert len(document_processing.document_scopes(None, uuid4())) == 1
+    assert len(document_processing.document_scopes(uuid4(), uuid4())) == 2
+
+
 def test_to_briefing_prompt_block_limits_untrusted_context_length():
     block = sales_context.to_briefing_prompt_block(
         {
