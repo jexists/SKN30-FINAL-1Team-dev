@@ -14,7 +14,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import AgentRun
-from app.models.content import Report
+from app.models.content import Report, ReportDeal
 from app.models.crm import Activity, CustomerCompany, CustomerContact, SupportRequest
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
@@ -287,32 +287,52 @@ def _deal_summary(deal: SalesDeal, stage: SalesPipelineStage) -> dict[str, Any]:
 
 
 async def _recent_finalized_reports(
-    db: AsyncSession, member: Member, deal_ids: list[UUID]
+    db: AsyncSession,
+    member: Member,
+    deal_ids: list[UUID],
+    required_report_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """작성자가 확정한(submitted) 보고서까지 근거로 쓴다.
 
     approved 는 팀장 검토까지 끝난 상태인데 그 검토 화면이 아직 없어, approved 만 보면
     방금 확정한 보고서가 영영 입력에 들어오지 못한다. 보고서 확정이 곧 이 파이프라인의
-    트리거이기도 하므로(계약에이전트_설계.md 3장) 두 상태를 함께 본다.
+    트리거이기도 하므로(계약에이전트_설계.md 3장) 두 상태를 함께 본다. 확정 트리거가
+    지정한 보고서는 5건 제한에 밀리지 않도록 맨 앞에 두며, 찾지 못하면 실행을 중단한다.
     """
     if not deal_ids:
         return []
+    priority = [] if required_report_id is None else [(Report.id == required_report_id).desc()]
     result = await db.execute(
-        select(Report)
+        select(Report, ReportDeal)
+        .join(ReportDeal, ReportDeal.report_id == Report.id)
         .where(
             Report.team_id == member.team_id,
             Report.status_code.in_(("approved", "submitted")),
-            Report.sales_deal_id.in_(deal_ids),
+            ReportDeal.sales_deal_id.in_(deal_ids),
         )
-        .order_by(Report.report_date.desc())
+        .order_by(*priority, Report.report_date.desc(), Report.id, ReportDeal.sales_deal_id)
         .limit(5)
     )
+    rows = result.all()
+    if required_report_id is not None and not any(
+        report.id == required_report_id for report, _section in rows
+    ):
+        raise HTTPException(404, "report_source_not_found")
     output = []
     shared_by_activity = {}
-    for report in result.scalars().all():
-        if not isinstance(report.content, dict):
+    for report, section in rows:
+        if not isinstance(report.content, dict) or not isinstance(section.content, dict):
             raise HTTPException(422, "report_source_content_invalid")
-        content = {key: value for key, value in report.content.items() if key not in _NON_BODY_KEYS}
+        content = {
+            key: value for key, value in report.content.items() if key not in _NON_BODY_KEYS
+        }
+        content.update(
+            {
+                key: value
+                for key, value in section.content.items()
+                if key not in _NON_BODY_KEYS
+            }
+        )
         shared = report.content.get("meeting_shared")
         if shared is not None:
             if not isinstance(shared, dict) or report.source_activity_id is None:
@@ -329,7 +349,7 @@ async def _recent_finalized_reports(
         output.append(
             {
                 "id": str(report.id),
-                "sales_deal_id": str(report.sales_deal_id),
+                "sales_deal_id": str(section.sales_deal_id),
                 "source_activity_id": (
                     str(report.source_activity_id) if report.source_activity_id else None
                 ),
@@ -381,6 +401,7 @@ async def build_next_meeting_snapshot(
     member: Member,
     customer_company_id: UUID,
     sales_deal_id: UUID | None = None,
+    required_report_id: UUID | None = None,
 ) -> dict[str, Any]:
     """계약관리 1차 실행(propose_next_meeting) 입력. 위험 판정 신호를 계산해 넣는다.
 
@@ -421,7 +442,9 @@ async def build_next_meeting_snapshot(
         # 키 이름은 그대로 둔다 — 이 스냅샷은 그대로 LLM 입력 JSON 이 되므로
         # (contract_management._NextMeetingLLMInput) 바꾸려면 프롬프트 버전을
         # 올려야 한다. 함수 이름만 실제 동작(submitted + approved)에 맞춘다.
-        "recent_approved_reports": await _recent_finalized_reports(db, member, deal_ids),
+        "recent_approved_reports": await _recent_finalized_reports(
+            db, member, deal_ids, required_report_id
+        ),
     }
 
 

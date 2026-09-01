@@ -14,11 +14,12 @@ from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
-from app.models.content import Report
+from app.models.content import Report, ReportDeal
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
     ReportCreate,
+    ReportDealWrite,
     ReportPageParams,
     ReportPatch,
     ReportSubmit,
@@ -92,7 +93,7 @@ class _Db:
         if self.flush_error is not None:
             raise self.flush_error
         for value in self.added:
-            if isinstance(value, Report):
+            if isinstance(value, (Report, ReportDeal)):
                 value.created_at = value.created_at or NOW
                 value.updated_at = value.updated_at or NOW
 
@@ -173,6 +174,19 @@ def _activity(member: Member) -> Activity:
     )
 
 
+def _section(report: Report, sales_deal_id: UUID | None = None) -> ReportDeal:
+    deal_id = sales_deal_id or uuid4()
+    return ReportDeal(
+        report_id=report.id,
+        sales_deal_id=deal_id,
+        deal_snapshot={"id": str(deal_id), "label": "D-1", "note": "합성 딜"},
+        content={"title": "합성 딜", "values": {"body": "딜별 본문"}},
+        ai_evidence=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+
 def _row(report: Report, author: Member, recipient_display_name: str | None = None):
     return (report, author.display_name, recipient_display_name)
 
@@ -245,11 +259,18 @@ def test_report_request_rejects_unsafe_values():
         report_kind="meeting",
         report_date="2026-08-17",
         source_activity_id=activity_id,
-        sales_deal_id=deal_id,
+        deal_sections=[
+            {
+                "sales_deal_id": deal_id,
+                "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
+                "content": {"values": {"body": "딜별 본문"}},
+            }
+        ],
         template_snapshot=TEMPLATE,
         content=CONTENT,
     )
-    assert meeting.sales_deal_id == deal_id
+    assert meeting.sales_deal_id is None
+    assert meeting.deal_sections[0].sales_deal_id == deal_id
 
     with pytest.raises(ValidationError):
         ReportCreate(
@@ -300,6 +321,27 @@ def test_report_request_rejects_unsafe_values():
     ]
 
 
+def test_deal_snapshot_requires_matching_id_and_safe_fields():
+    deal_id = uuid4()
+    valid = ReportDealWrite(
+        sales_deal_id=deal_id,
+        deal_snapshot={"id": str(deal_id), "label": "  D-1  ", "note": "  합성 딜  "},
+        content={},
+    )
+    assert valid.deal_snapshot.model_dump(mode="json") == {
+        "id": str(deal_id),
+        "label": "D-1",
+        "note": "합성 딜",
+    }
+    for snapshot in (
+        {"id": str(uuid4()), "label": "D-1"},
+        {"id": str(deal_id), "label": "   "},
+        {"id": str(deal_id), "label": "D-1", "unknown": "unsafe"},
+    ):
+        with pytest.raises(ValidationError):
+            ReportDealWrite(sales_deal_id=deal_id, deal_snapshot=snapshot, content={})
+
+
 class _CreateDb(_Db):
     """생성한 Report 를 그대로 상세 조회 응답으로 돌려준다."""
 
@@ -310,9 +352,13 @@ class _CreateDb(_Db):
     async def execute(self, statement):
         self.statements.append(statement)
         report = next(value for value in self.added if isinstance(value, Report))
-        # 상세 조회는 _report_row, _activities_by_report_ids 순서로 두 번 실행된다.
+        # 상세 조회는 report, activities, 미팅이면 deal sections 순서다.
         if len(self.statements) == 1:
             return _Result(rows=[_row(report, self.author)])
+        if len(self.statements) == 3:
+            return _Result(
+                scalar_values=[value for value in self.added if isinstance(value, ReportDeal)]
+            )
         return _Result(rows=[])
 
 
@@ -364,7 +410,17 @@ def test_create_cannot_inject_server_owned_meeting_shared(monkeypatch, kind):
         "content": content,
     }
     if kind == "meeting":
-        payload.update(source_activity_id=str(uuid4()), sales_deal_id=str(uuid4()))
+        deal_id = uuid4()
+        payload.update(
+            source_activity_id=str(uuid4()),
+            deal_sections=[
+                {
+                    "sales_deal_id": str(deal_id),
+                    "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
+                    "content": {"values": content["values"]},
+                }
+            ],
+        )
 
     with _client(db, member) as client:
         response = client.post("/api/reports", headers={"Origin": ORIGIN}, json=payload)
@@ -413,6 +469,7 @@ def test_patch_cannot_create_replace_or_remove_server_content(key, has_server_va
         _Result(scalar=report),
         _Result(rows=[_row(report, member)]),
         _Result(rows=[]),
+        _Result(scalar_values=[]),
     )
 
     with _client(db, member) as client:
@@ -430,6 +487,47 @@ def test_patch_cannot_create_replace_or_remove_server_content(key, has_server_va
     assert response.json()["content"] == expected
     assert response.json()["ai_evidence"] == {"deal_assessment": {"label": "high"}}
     assert db.commit_count == 1 and db.rollback_count == 0
+
+
+@pytest.mark.anyio
+async def test_deal_section_patch_preserves_server_ai_fields_and_ml_evidence():
+    member = _member()
+    report = _report(member, kind="meeting")
+    section = _section(report)
+    section.content.update(
+        ai_values={"body": "서버 AI 초안"},
+        ai_evidence="S0001",
+        ai_generated_at=NOW.isoformat(),
+    )
+    section.ai_evidence = {"deal_assessment": {"label": "watch"}}
+    db = _Db(_Result(scalar_values=[section]))
+    payload = ReportDealWrite(
+        sales_deal_id=section.sales_deal_id,
+        deal_snapshot={"id": str(section.sales_deal_id), "label": "D-1", "note": "수정"},
+        content={
+            "values": {"body": "사람이 수정한 본문"},
+            "ai_values": {"body": "위조"},
+            "ai_evidence": "위조",
+            "ai_generated_at": "위조",
+        },
+    )
+
+    await reports_api._replace_report_deals(db, report.id, [payload])
+
+    assert section.content == {
+        "values": {"body": "사람이 수정한 본문"},
+        "ai_values": {"body": "서버 AI 초안"},
+        "ai_evidence": "S0001",
+        "ai_generated_at": NOW.isoformat(),
+    }
+    assert section.ai_evidence == {"deal_assessment": {"label": "watch"}}
+    with pytest.raises(ValidationError):
+        ReportDealWrite(
+            sales_deal_id=section.sales_deal_id,
+            deal_snapshot={},
+            content={},
+            ai_evidence={"deal_assessment": {"label": "spoofed"}},
+        )
 
 
 def test_changes_requested_report_is_editable_again():
@@ -521,27 +619,20 @@ def test_submit_moves_draft_and_rejects_stale_expectation():
     assert stale_db.rollback_count == 1
 
 
-@pytest.mark.parametrize("kind,has_deal", [("meeting", True), ("meeting", False), ("daily", False)])
-def test_submit_queues_only_the_reports_deal_after_commit(monkeypatch, kind, has_deal):
+@pytest.mark.parametrize("kind,deal_count", [("meeting", 2), ("daily", 0)])
+def test_submit_queues_every_report_deal_after_commit(monkeypatch, kind, deal_count):
     member = _member()
     report = _report(member, kind=kind)
     report.source_activity_id = uuid4() if kind == "meeting" else None
-    report.sales_deal_id = uuid4() if has_deal else None
-    company_id = uuid4()
-    validation_results = (
-        [
-            _Result(rows=[(None, None, None, company_id)]),
-            _Result(rows=[(SimpleNamespace(customer_company_id=company_id),)]),
-        ]
-        if has_deal
-        else []
-    )
-    db = _Db(
-        _Result(scalar=report),
-        *validation_results,
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-    )
+    report.sales_deal_id = None
+    sections = [_section(report) for _ in range(deal_count)]
+    results = [_Result(scalar=report)]
+    if kind == "meeting":
+        results.append(_Result(scalar_values=sections))
+    results.extend((_Result(rows=[_row(report, member)]), _Result(rows=[])))
+    if kind == "meeting":
+        results.append(_Result(scalar_values=sections))
+    db = _Db(*results)
     queued = []
 
     def queue(_background, deal_id, trigger):
@@ -549,6 +640,8 @@ def test_submit_queues_only_the_reports_deal_after_commit(monkeypatch, kind, has
         queued.append((deal_id, trigger))
 
     monkeypatch.setattr(reports_api.contract_next_meeting_pipeline, "queue", queue)
+    validate = AsyncMock()
+    monkeypatch.setattr(reports_api, "_validate_meeting_deal", validate)
     with _client(db, member) as client:
         response = client.post(
             f"/api/reports/{report.id}/submit",
@@ -557,8 +650,18 @@ def test_submit_queues_only_the_reports_deal_after_commit(monkeypatch, kind, has
         )
 
     assert response.status_code == 200
-    assert queued == ([(report.sales_deal_id, {"report_id": str(report.id)})] if has_deal else [])
-    assert not db.results  # 일정의 대표 딜을 다시 조회해서 대체하지 않는다.
+    assert queued == [
+        (
+            section.sales_deal_id,
+            {
+                "report_id": str(report.id),
+                "sales_deal_id": str(section.sales_deal_id),
+            },
+        )
+        for section in sections
+    ]
+    assert validate.await_count == deal_count
+    assert not db.results
 
 
 @pytest.mark.parametrize("invalid", ["company", "deal", "activity", "missing_activity"])
@@ -566,12 +669,15 @@ def test_submit_rejects_invalid_meeting_deal_before_commit(monkeypatch, invalid)
     member = _member()
     report = _report(member, kind="meeting")
     report.source_activity_id = None if invalid == "missing_activity" else uuid4()
-    report.sales_deal_id = uuid4()
+    report.sales_deal_id = None
+    section = _section(report)
     company_id = uuid4()
     db = _Db(
         _Result(scalar=report),
+        _Result(scalar_values=[section]),
         _Result(rows=[_row(report, member)]),
         _Result(rows=[]),
+        _Result(scalar_values=[section]),
     )
     queued = []
 
@@ -582,7 +688,7 @@ def test_submit_rejects_invalid_meeting_deal_before_commit(monkeypatch, invalid)
         return (None, None, None, company_id)
 
     async def deal_row(_db, actor, deal_id):
-        assert actor is member and deal_id == report.sales_deal_id
+        assert actor is member and deal_id == section.sales_deal_id
         if invalid == "deal":
             raise HTTPException(status_code=404, detail="deal_not_found")
         return (
@@ -683,6 +789,7 @@ def test_manager_cannot_attach_a_teammate_activity():
 def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
     manager = _member(role="manager")
     teammate = _activity(_member(team_id=manager.team_id))
+    deal_id = uuid4()
     db = _Db(_Result(rows=[(teammate.id, teammate.owner_member_id)]))
 
     with _client(db, manager) as client:
@@ -692,8 +799,14 @@ def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
             json={
                 "report_kind": "meeting",
                 "report_date": "2026-08-17",
-                "source_activity_id": str(teammate.id),
-                "sales_deal_id": str(uuid4()),
+                    "source_activity_id": str(teammate.id),
+                    "deal_sections": [
+                        {
+                            "sales_deal_id": str(deal_id),
+                            "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
+                            "content": {"values": {"body": "본문"}},
+                        }
+                ],
                 "activity_ids": [],
                 "template_snapshot": TEMPLATE,
                 "content": CONTENT,
@@ -892,7 +1005,7 @@ def test_source_activity_and_sales_deal_filters_reach_the_query():
     for statement in db.statements:
         sql = str(statement)
         assert "report.source_activity_id = " in sql
-        assert "report.sales_deal_id = " in sql
+        assert "report_deal.sales_deal_id = " in sql
 
 
 @pytest.mark.anyio
@@ -924,12 +1037,12 @@ async def test_meeting_deal_must_belong_to_the_meeting_company(monkeypatch):
 
 def test_asyncpg_unique_violation_is_recognized():
     cause = RuntimeError("duplicate")
-    cause.constraint_name = reports_api._MEETING_DEAL_UNIQUE_INDEX
+    cause.constraint_name = reports_api._MEETING_UNIQUE_INDEX
     original = RuntimeError("adapter")
     original.__cause__ = cause
     error = IntegrityError("insert", {}, original)
 
-    assert reports_api._duplicate_meeting_deal(error)
+    assert reports_api._duplicate_meeting(error)
 
 
 def test_approver_and_hospital_filters_reach_the_query():

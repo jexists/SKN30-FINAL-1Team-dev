@@ -118,12 +118,12 @@ async def stream_agent_run(
     )
 
 
-@router.post("/agent-runs/{agent_run_id}/apply", response_model=list[ReportRead])
+@router.post("/agent-runs/{agent_run_id}/apply", response_model=ReportRead)
 async def apply_meeting_run(agent_run_id: UUID, member: CurrentMember, db: DbSession):
     return await meeting_processing.apply(db, member, agent_run_id)
 
 
-@router.patch("/agent-runs/{agent_run_id}/meeting-notes", response_model=list[ReportRead])
+@router.patch("/agent-runs/{agent_run_id}/meeting-notes", response_model=ReportRead)
 async def update_meeting_notes(
     agent_run_id: UUID, payload: MeetingNotesPatch, member: CurrentMember, db: DbSession
 ):

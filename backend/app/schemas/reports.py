@@ -26,6 +26,10 @@ SearchQuery = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100),
 ]
+SnapshotNote = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, max_length=5_000),
+]
 
 # 유스케이스의 업무 보고는 미팅·일자별·주간·월간 네 가지다.
 # 업무보고서는 일정 하나에 붙고, 주간과 월간은 기간을 덮는다.
@@ -53,6 +57,33 @@ def _check_period(kind: ReportKind, start: date | None, end: date | None) -> Non
         raise ValueError("invalid_report_period")
 
 
+class ReportDealSnapshot(_WriteModel):
+    id: UUID
+    label: Text
+    note: SnapshotNote | None = None
+
+
+class ReportDealWrite(_WriteModel):
+    sales_deal_id: UUID
+    deal_snapshot: ReportDealSnapshot
+    content: dict[str, Any]
+
+    @model_validator(mode="after")
+    def _validate_snapshot_id(self) -> Self:
+        if self.deal_snapshot.id != self.sales_deal_id:
+            raise ValueError("deal_snapshot_id_mismatch")
+        return self
+
+
+class ReportDealRead(BaseModel):
+    sales_deal_id: UUID
+    deal_snapshot: dict[str, Any]
+    content: dict[str, Any]
+    ai_evidence: dict[str, Any] | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ReportCreate(_WriteModel):
     report_kind: ReportKind
     report_date: date
@@ -60,6 +91,7 @@ class ReportCreate(_WriteModel):
     period_end: date | None = None
     source_activity_id: UUID | None = None
     sales_deal_id: UUID | None = None
+    deal_sections: list[ReportDealWrite] = Field(default_factory=list, max_length=100)
     recipient_member_id: UUID | None = None
     template_snapshot: dict[str, Any]
     content: dict[str, Any]
@@ -74,10 +106,15 @@ class ReportCreate(_WriteModel):
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
                 raise ValueError("source_activity_required")
-            if self.sales_deal_id is None:
-                raise ValueError("sales_deal_required")
-        elif self.sales_deal_id is not None:
-            raise ValueError("sales_deal_not_supported")
+            if not self.deal_sections:
+                raise ValueError("deal_sections_required")
+            if self.sales_deal_id is not None:
+                raise ValueError("sales_deal_not_supported")
+        elif self.sales_deal_id is not None or self.deal_sections:
+            raise ValueError("deal_sections_not_supported")
+        deal_ids = [section.sales_deal_id for section in self.deal_sections]
+        if len(set(deal_ids)) != len(deal_ids):
+            raise ValueError("duplicate_deal_sections")
         if len(set(self.activity_ids)) != len(self.activity_ids):
             raise ValueError("duplicate_activity_ids")
         return self
@@ -93,6 +130,7 @@ class ReportPatch(_WriteModel):
     transcript: Transcript | None = None
     note: LongText | None = None
     activity_ids: list[UUID] | None = None
+    deal_sections: list[ReportDealWrite] | None = Field(default=None, max_length=100)
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -101,6 +139,12 @@ class ReportPatch(_WriteModel):
                 raise ValueError("invalid_report_period")
         if self.activity_ids is not None and len(set(self.activity_ids)) != len(self.activity_ids):
             raise ValueError("duplicate_activity_ids")
+        if self.deal_sections is not None:
+            if not self.deal_sections:
+                raise ValueError("deal_sections_required")
+            deal_ids = [section.sales_deal_id for section in self.deal_sections]
+            if len(set(deal_ids)) != len(deal_ids):
+                raise ValueError("duplicate_deal_sections")
         return self
 
 
@@ -123,6 +167,7 @@ class ReportRead(BaseModel):
     recipient_display_name: str | None
     source_activity_id: UUID | None
     sales_deal_id: UUID | None
+    deal_sections: list[ReportDealRead]
     report_kind: ReportKind
     report_date: date
     period_start: date | None

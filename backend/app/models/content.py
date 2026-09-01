@@ -35,6 +35,22 @@ class Report(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
+class ReportDeal(Base):
+    __tablename__ = "report_deal"
+
+    report_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.report.id", ondelete="CASCADE"), primary_key=True
+    )
+    sales_deal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.sales_deal.id"), primary_key=True
+    )
+    deal_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    content: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    ai_evidence: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
 class ReportActivity(Base):
     __tablename__ = "report_activity"
 

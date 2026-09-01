@@ -3,6 +3,7 @@
 import asyncio
 import json
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -51,6 +52,16 @@ def sample(monkeypatch):
     by_id = {source.id: source for source in sources}
     lookup = AsyncMock(side_effect=lambda db, member, source_id: (by_id[source_id], None, None))
     monkeypatch.setattr(reports, "_report_row", lookup)
+    async def report_deals(_db, report_id):
+        source = by_id[report_id]
+        return [
+            SimpleNamespace(
+                sales_deal_id=source.sales_deal_id,
+                content=source.content,
+            )
+        ]
+
+    monkeypatch.setattr(service, "_report_deals", report_deals)
     return member, parent, sources, lookup
 
 
