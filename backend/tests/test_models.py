@@ -4,12 +4,14 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import inspect, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import configure_mappers
 
 from app.core.config import settings
 from app.db.base import Base
 from app.models.agent import AgentRun
+from app.models.content import ReportDeal
 
 EXPECTED_COLUMN_COUNTS = {
     # 20260823_0002 로 team 에 company_name/department/business_no, member 에 email 이 늘었다.
@@ -94,6 +96,17 @@ KNOWN_LEGACY_DATABASE_COLUMNS = {
     "report": {"sales_deal_id"},
     "sales_deal": {"source_code"},
 }
+
+
+def test_report_deal_none_ai_evidence_binds_as_sql_null():
+    """초안의 None 은 DB CHECK 를 깨는 JSON null 이 아니라 SQL NULL 이어야 한다."""
+    column_type = ReportDeal.__table__.c.ai_evidence.type
+    bind = column_type.bind_processor(postgresql.dialect())
+
+    assert bind is not None
+    assert bind(None) is None
+
+
 KNOWN_LEGACY_DATABASE_FOREIGN_KEYS = {
     "document": {("product_id", "public", "product", "id", None)},
     "report": {("sales_deal_id", "public", "sales_deal", "id", None)},

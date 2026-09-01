@@ -36,20 +36,6 @@ readonly NGINX_UPSTREAM_FILE="/etc/nginx/conf.d/salesluv-backend-upstream.conf"
 readonly CONTAINER_DRAIN_SECONDS="10"
 readonly CONTAINER_STOP_TIMEOUT_SECONDS="30"
 
-# 29GB 루트 디스크에서 구 이미지 + 신 이미지 + 빌드 캐시가 동시에 존재하는 최고점을
-# 넘기기 위한 최소 여유 공간이다. 퍼센트 기준은 이 규모에서 너무 늦게 발동한다.
-# 정리 강도를 임계치별로 나눈다. 16GiB 하나만 두고 자동으로 강도를 올리면 soft 정리로는
-# 16GiB에 도달하지 못해 매 배포마다 캐시를 전부 버리게 되고, 빌드 시간이 매번 길어진다.
-readonly BUILD_MIN_FREE_KIB="16777216"
-readonly BUILD_CRITICAL_FREE_KIB="8388608"
-# 시간 창은 배포 주기에 종속된다. 짧으면 공백 기간에 뜨거운 캐시를 버리고, 길면 최근 캐시만
-# 있는 상태에서 아무것도 회수하지 못한다. 총량을 묶고 최근 사용분부터 남기는 쪽이 맞다.
-readonly BUILD_CACHE_KEEP_BYTES="5GB"
-readonly BUILD_CACHE_KEEP_WINDOW="72h"
-# 이미지 export는 containerd 저장 영역에서, 빌드 캐시는 Docker 저장 영역에서 자란다.
-# 같은 파일시스템이면 같은 값이 나오고, 분리돼 있으면 실제 병목을 잡는다.
-readonly -a BUILD_DISK_PATHS=("/var/lib/containerd" "/var/lib/docker")
-
 readonly HEALTH_ATTEMPTS="30"
 readonly HEALTH_DELAY_SECONDS="2"
 readonly HEALTH_TIMEOUT_SECONDS="5"
@@ -752,167 +738,6 @@ rollback_production() {
     printf 'Previous backend upstream and environment restored.\n' >&2
 }
 
-disk_available_kib() {
-    local target="$1"
-    local df_output
-
-    [[ -d "${target}" ]] || return 1
-
-    # set -o pipefail 덕분에 df 실패(권한 거부 등)가 파이프라인으로 전파된다.
-    # awk 가 빈 문자열을 내보내는 경우까지 막으려고 형식 검사를 한 번 더 둔다.
-    df_output="$(df -Pk "${target}" 2>/dev/null | awk 'NR == 2 { print $4 }')" \
-        || return 1
-    [[ "${df_output}" =~ ^[0-9]+$ ]] || return 1
-
-    printf '%s' "${df_output}"
-}
-
-# 측정에 실패한 경로는 건너뛸 뿐 0으로 세지 않는다. 실패를 0으로 취급하면 최솟값이 0이 되어
-# 멀쩡한 디스크에서 빌드 캐시를 전부 버리게 된다. 측정 실패는 '가득 참'이 아니라 '모름'이다.
-available_disk_kib() {
-    local target
-    local reading
-    local smallest=""
-
-    for target in "${BUILD_DISK_PATHS[@]}"; do
-        if ! reading="$(disk_available_kib "${target}")"; then
-            continue
-        fi
-        if [[ -z "${smallest}" ]] || ((reading < smallest)); then
-            smallest="${reading}"
-        fi
-    done
-
-    if [[ -z "${smallest}" ]]; then
-        smallest="$(disk_available_kib "/")" || return 1
-    fi
-
-    printf '%s' "${smallest}"
-}
-
-prune_stale_release_dirs() {
-    local releases_root="${1:-${RELEASES_DIR}}"
-    local stale_dir
-    local prune_failed="false"
-
-    for stale_dir in "${releases_root}"/backend.*; do
-        [[ -d "${stale_dir}" ]] || continue
-        [[ "${stale_dir}" == "${releases_root}/backend."* ]] || continue
-        if [[ -n "${RELEASE_DIR}" && "${stale_dir}" == "${RELEASE_DIR}" ]]; then
-            continue
-        fi
-
-        if ! rm -rf -- "${stale_dir}"; then
-            printf 'Unable to remove the abandoned release directory: %s\n' \
-                "${stale_dir}" >&2
-            prune_failed="true"
-        fi
-    done
-
-    [[ "${prune_failed}" != "true" ]]
-}
-
-# Docker 버전에 따라 캐시 크기 상한 플래그 이름이 다르고 아예 없을 수도 있다.
-# 신 버전의 --max-used-space 를 먼저 보고, 없으면 구 버전의 --keep-storage 를 쓴다.
-builder_cache_limit_flag() {
-    local help_output
-
-    help_output="$(docker builder prune --help 2>/dev/null)" || return 0
-
-    if [[ "${help_output}" == *"--max-used-space"* ]]; then
-        printf -- '--max-used-space'
-    elif [[ "${help_output}" == *"--keep-storage"* ]]; then
-        printf -- '--keep-storage'
-    fi
-}
-
-# 실행 중인 컨테이너, 태그된 백엔드 이미지, Docker 볼륨은 건드리지 않는다.
-# image prune은 dangling 레이어만 제거하므로 롤백 대상인 OLD_IMAGE 는 남는다.
-reclaim_build_disk_space() {
-    local stage="$1"
-    local limit_flag
-
-    case "${stage}" in
-    soft)
-        limit_flag="$(builder_cache_limit_flag)"
-        if [[ -n "${limit_flag}" ]]; then
-            if ! docker builder prune -f \
-                "${limit_flag}" "${BUILD_CACHE_KEEP_BYTES}" >/dev/null; then
-                printf 'Unable to cap the Docker build cache size.\n' >&2
-            fi
-        elif ! docker builder prune -f \
-            --filter "until=${BUILD_CACHE_KEEP_WINDOW}" >/dev/null; then
-            printf 'Unable to reclaim the aged Docker build cache.\n' >&2
-        fi
-        ;;
-    hard)
-        if ! docker builder prune -af >/dev/null; then
-            printf 'Unable to reclaim the Docker build cache.\n' >&2
-        fi
-        ;;
-    *)
-        printf 'Unsupported build disk reclaim stage: %s\n' "${stage}" >&2
-        return 1
-        ;;
-    esac
-
-    if ! docker image prune -f >/dev/null; then
-        printf 'Unable to reclaim dangling Docker image layers.\n' >&2
-    fi
-}
-
-ensure_build_disk_space() {
-    local free_kib
-
-    if ! free_kib="$(available_disk_kib)"; then
-        printf 'Unable to measure free disk space; continuing without cleanup.\n' >&2
-        return 0
-    fi
-    ((free_kib < BUILD_MIN_FREE_KIB)) || return 0
-
-    printf 'Free disk space is %s KiB, below the %s KiB build threshold; reclaiming space.\n' \
-        "${free_kib}" "${BUILD_MIN_FREE_KIB}" >&2
-    prune_stale_release_dirs || true
-    reclaim_build_disk_space soft
-
-    if ! free_kib="$(available_disk_kib)"; then
-        printf 'Unable to re-measure free disk space after cleanup.\n' >&2
-        return 0
-    fi
-    # 16GiB 에 못 미쳐도 임계 수위(8GiB) 위라면 캐시를 남긴 채 빌드로 넘어간다.
-    # 여기서 전면 정리를 돌리면 사실상 매 배포마다 캐시를 버리는 것과 같아진다.
-    if ((free_kib >= BUILD_CRITICAL_FREE_KIB)); then
-        printf 'Free disk space is %s KiB after cleanup; keeping the remaining build cache.\n' \
-            "${free_kib}" >&2
-        return 0
-    fi
-
-    printf 'Free disk space is still %s KiB, below the %s KiB critical threshold; dropping the entire Docker build cache.\n' \
-        "${free_kib}" "${BUILD_CRITICAL_FREE_KIB}" >&2
-    reclaim_build_disk_space hard
-
-    if free_kib="$(available_disk_kib)"; then
-        printf 'Free disk space after full build cache removal: %s KiB.\n' \
-            "${free_kib}" >&2
-    fi
-
-    # 임계치에 못 미쳐도 빌드는 시도한다. 실제로 공간이 부족하면 빌드 실패를 감지해
-    # 한 번 더 정리하고 재시도한다.
-    return 0
-}
-
-build_log_shows_disk_exhaustion() {
-    local build_log="$1"
-
-    [[ -f "${build_log}" ]] || return 1
-    grep -qi 'no space left on device' "${build_log}"
-}
-
-build_backend_image() {
-    DOCKER_BUILDKIT=1 docker build --progress=plain \
-        --tag "${NEW_IMAGE}" "${BACKEND_CONTEXT}" >"${BUILD_LOG}" 2>&1
-}
-
 prune_old_backend_images() {
     local image_references
     local image_reference
@@ -1060,23 +885,13 @@ mv -f -- "${TEMP_ENV_FILE}" "${ENV_FILE}" \
 TEMP_ENV_FILE=""
 
 printf 'Building backend image %s.\n' "${NEW_IMAGE}"
-ensure_build_disk_space
 # SSM GetCommandInvocation은 표준 출력의 앞 24,000자와 표준 오류의 앞 8,000자만
 # 돌려주므로 빌드 로그는 파일로 받고 실패했을 때 끝부분만 남긴다.
 BUILD_LOG="${RELEASE_DIR}/build.log"
-if ! build_backend_image; then
-    if ! build_log_shows_disk_exhaustion "${BUILD_LOG}"; then
-        tail -n 30 "${BUILD_LOG}" | tail -c 7000 >&2
-        die "unable to build the backend image"
-    fi
-
-    printf 'Backend build ran out of disk space; reclaiming the Docker build cache and retrying once.\n' >&2
-    prune_stale_release_dirs || true
-    reclaim_build_disk_space hard
-    if ! build_backend_image; then
-        tail -n 30 "${BUILD_LOG}" | tail -c 7000 >&2
-        die "unable to build the backend image after reclaiming disk space"
-    fi
+if ! DOCKER_BUILDKIT=1 docker build --progress=plain \
+    --tag "${NEW_IMAGE}" "${BACKEND_CONTEXT}" >"${BUILD_LOG}" 2>&1; then
+    tail -n 30 "${BUILD_LOG}" | tail -c 7000 >&2
+    die "unable to build the backend image"
 fi
 IMAGE_BUILT="true"
 NEW_IMAGE_ID="$(
