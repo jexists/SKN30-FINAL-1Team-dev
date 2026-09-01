@@ -8,8 +8,13 @@
 
 캘린더는 여기서 저장한 결과를 조회만 한다(`GET /contract-next-meeting-suggestions`).
 화면에서 LLM을 기다리지 않는 대신, 사용자가 보기 전에 미리 계산해 두는 구조다.
+
+일정 후보가 0개로 끝나면 선호 기간을 넓혀 일정관리만 한 번 더 돌린다. 계약관리에게
+대체 시간을 되묻는 왕복 협상이 아니다 — 되물어도 같은 폭을 다시 줄 수 있어 원인이
+남는다(`_queue_widened_retry`).
 """
 
+import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -27,9 +32,15 @@ from app.models.workspace import Member
 from app.services import agent_runs as agent_run_service
 from app.services import contract_schedule_snapshots
 
+logger = logging.getLogger(__name__)
+
 # 같은 딜에 트리거가 몰려도(예: 칸반에서 단계를 연달아 옮김) 이 시간 안에는 다시 돌리지
 # 않는다. 트리거 한 번이 LLM 호출 두 번이라 그대로 두면 비용이 그대로 곱해진다.
 _COOLDOWN = timedelta(minutes=10)
+
+# 후보가 0개일 때 선호 기간을 이만큼으로 넓혀 한 번만 다시 돌린다. 기본 탐색 범위와
+# 같은 폭이다 — 실 데이터에서 이 폭으로 돈 실행 55건은 후보 0개가 하나도 없었다.
+_RETRY_WINDOW_DAYS = 7
 
 
 def queue(background: BackgroundTasks, sales_deal_id: UUID, source_refs: dict[str, str]) -> None:
@@ -123,31 +134,13 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
         except HTTPException:
             return
 
-        schedule_run_id = uuid4()
         team_id = deal.team_id
-        session.add(
-            AgentRun(
-                id=schedule_run_id,
-                team_id=team_id,
-                parent_run_id=next_meeting_run.id,
-                requested_by_member_id=None,
-                agent_code="schedule_management",
-                trigger_code="system",
-                idempotency_key=None,
-                status_code="queued",
-                llm_model_name=settings.llm_model,
-                prompt_version=schedule_management.PROMPT_VERSION,
-                source_refs={
-                    "sales_deal_id": str(sales_deal_id),
-                    "parent_run_id": str(next_meeting_run.id),
-                },
-                input_snapshot=schedule_input,
-                output_snapshot=None,
-                evidence=None,
-                error_message=None,
-                started_at=None,
-                finished_at=None,
-            )
+        schedule_run_id = _add_schedule_run(
+            session,
+            team_id=team_id,
+            sales_deal_id=sales_deal_id,
+            parent_run_id=next_meeting_run.id,
+            input_snapshot=schedule_input,
         )
         await session.commit()
 
@@ -157,10 +150,175 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
         schedule_run = await session.get(AgentRun, schedule_run_id)
         if schedule_run is None or schedule_run.status_code != "completed":
             return
-        candidates = (schedule_run.output_snapshot or {}).get("schedule_candidates") or []
-        if not candidates:
+        if _has_candidates(schedule_run):
+            await _upsert_suggestion(session, team_id, sales_deal_id, schedule_run_id)
             return
-        await _upsert_suggestion(session, team_id, sales_deal_id, schedule_run_id)
+        retry_run_id = await _queue_widened_retry(
+            session,
+            team_id=team_id,
+            sales_deal_id=sales_deal_id,
+            next_meeting_run_id=next_meeting_run_id,
+            schedule_run=schedule_run,
+        )
+
+    if retry_run_id is None:
+        return
+
+    await agent_run_service.execute(retry_run_id)
+
+    async with sessionmaker() as session:
+        retry_run = await session.get(AgentRun, retry_run_id)
+        if retry_run is None or not _has_candidates(retry_run):
+            # 넓혀도 빈손이면 카드가 뜨지 않는다. 화면에는 아무 흔적이 없으므로 로그에만
+            # 남긴다 — 사용자에게 알리는 방법은 아직 없다(아키텍처 7.3).
+            logger.info(
+                "일정 후보가 선호 기간을 넓혀 다시 돌린 뒤에도 0개입니다 "
+                "(sales_deal_id=%s, schedule_run_id=%s, retry_run_id=%s)",
+                sales_deal_id,
+                schedule_run_id,
+                retry_run_id,
+            )
+            return
+        await _upsert_suggestion(session, team_id, sales_deal_id, retry_run_id)
+
+
+async def _queue_widened_retry(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    sales_deal_id: UUID,
+    next_meeting_run_id: UUID,
+    schedule_run: AgentRun,
+) -> UUID | None:
+    """후보가 0개로 끝난 일정관리 실행을 선호 기간만 넓혀 한 번 더 큐잉한다.
+
+    되묻는 협상이 아니라 재시도다. 계약관리에게 대체 시간을 다시 물어봐도 같은 폭을 다시
+    줄 수 있어 원인이 남는다 — 좁은 기간 자체를 여기서 넓힌다.
+
+    실 데이터에서 후보 0개는 일정관리 실행 89건 중 2건이었고 둘 다 선호 기간이 30분
+    한 칸이었다. 기본 탐색 범위(7일)로 돈 실행에서는 0개가 없었다. 그래서 넓힐 여지가
+    있는 실행만 다시 돌리고, 이미 그만큼 넓었던 실행은 같은 입력으로 LLM 을 한 번 더
+    태우는 셈이라 건너뛴다.
+    """
+    if not _can_widen(schedule_run.input_snapshot):
+        return None
+    deal = await _open_deal(session, sales_deal_id)
+    if deal is None:
+        return None
+    owner = await _member(session, deal.owner_member_id)
+    if owner is None:
+        return None
+    next_meeting_run = await session.get(AgentRun, next_meeting_run_id)
+    if next_meeting_run is None:
+        return None
+    try:
+        schedule_input = await contract_schedule_snapshots.build_schedule_snapshot(
+            session,
+            owner,
+            sales_deal_id,
+            next_meeting_run,
+            None,
+            None,
+            None,
+            min_window_days=_RETRY_WINDOW_DAYS,
+        )
+    except HTTPException:
+        return None
+
+    retry_run_id = _add_schedule_run(
+        session,
+        team_id=team_id,
+        sales_deal_id=sales_deal_id,
+        parent_run_id=next_meeting_run_id,
+        input_snapshot=schedule_input,
+        widened_from_run_id=schedule_run.id,
+    )
+    await session.commit()
+    logger.info(
+        "일정 후보가 0개라 선호 기간을 %s일로 넓혀 다시 돌립니다 "
+        "(sales_deal_id=%s, schedule_run_id=%s, retry_run_id=%s)",
+        _RETRY_WINDOW_DAYS,
+        sales_deal_id,
+        schedule_run.id,
+        retry_run_id,
+    )
+    return retry_run_id
+
+
+def _add_schedule_run(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    sales_deal_id: UUID,
+    parent_run_id: UUID,
+    input_snapshot: dict,
+    widened_from_run_id: UUID | None = None,
+) -> UUID:
+    """일정관리 실행을 queued 로 세션에 넣고 그 id 를 준다. 커밋은 호출 쪽에서 한다."""
+    run_id = uuid4()
+    source_refs = {
+        "sales_deal_id": str(sales_deal_id),
+        "parent_run_id": str(parent_run_id),
+    }
+    if widened_from_run_id is not None:
+        # 이 실행이 왜 두 번 돌았는지 남긴다. 계보(parent_run_id)는 첫 실행과 같으므로
+        # 이 값이 없으면 재시도와 원래 실행을 구분할 방법이 없다.
+        source_refs["widened_from_run_id"] = str(widened_from_run_id)
+    session.add(
+        AgentRun(
+            id=run_id,
+            team_id=team_id,
+            parent_run_id=parent_run_id,
+            requested_by_member_id=None,
+            agent_code="schedule_management",
+            trigger_code="system",
+            idempotency_key=None,
+            status_code="queued",
+            llm_model_name=settings.llm_model,
+            prompt_version=schedule_management.PROMPT_VERSION,
+            source_refs=source_refs,
+            input_snapshot=input_snapshot,
+            output_snapshot=None,
+            evidence=None,
+            error_message=None,
+            started_at=None,
+            finished_at=None,
+        )
+    )
+    return run_id
+
+
+def _has_candidates(run: AgentRun) -> bool:
+    if run.status_code != "completed":
+        return False
+    return bool((run.output_snapshot or {}).get("schedule_candidates"))
+
+
+def _can_widen(input_snapshot: dict | None) -> bool:
+    """이 실행의 선호 기간을 넓힐 여지가 있는가.
+
+    기간이 비어 있던 실행은 이미 기본 탐색 범위(7일)로 돌았다. 그런 실행을 다시 돌리면
+    입력이 글자 하나 다르지 않아 LLM 호출만 늘어난다.
+    """
+    window = _window_days(input_snapshot)
+    return window is not None and window < _RETRY_WINDOW_DAYS
+
+
+def _window_days(input_snapshot: dict | None) -> float | None:
+    """실행 입력에 담긴 선호 기간의 폭(일). 기간이 없거나 읽을 수 없으면 None."""
+    snapshot = input_snapshot or {}
+    starts_at = snapshot.get("preferred_starts_at")
+    ends_at = snapshot.get("preferred_ends_at")
+    if not starts_at or not ends_at:
+        return None
+    try:
+        start = datetime.fromisoformat(starts_at)
+        end = datetime.fromisoformat(ends_at)
+        # 한쪽만 offset 이 없으면 뺄셈이 TypeError 를 낸다. 우리가 쓴 값이라 그럴 일은
+        # 없지만, 여기서 터지면 재시도가 아니라 파이프라인 전체가 멈춘다.
+        return (end - start) / timedelta(days=1)
+    except (TypeError, ValueError):
+        return None
 
 
 def _answers_this_deal(suggestion: dict, sales_deal_id: UUID) -> bool:

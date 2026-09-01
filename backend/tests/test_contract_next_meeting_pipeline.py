@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.models.agent import ContractNextMeetingSuggestion
+from app.models.agent import AgentRun, ContractNextMeetingSuggestion
 from app.models.crm import CustomerCompany
 from app.models.sales import SalesDeal
 from app.models.workspace import Member
@@ -35,7 +35,11 @@ class _Db:
         self.results = list(results)
         self.statements = []
         self.parameters = []
+        self.added = []
         self.commit_count = 0
+
+    def add(self, instance):
+        self.added.append(instance)
 
     async def execute(self, statement, parameters=None):
         self.statements.append(statement)
@@ -234,3 +238,107 @@ def test_drops_a_suggestion_about_another_deal():
     assert (
         pipeline._answers_this_deal({"sales_deal_id": str(other_deal_id)}, sales_deal_id) is False
     )
+
+
+def _schedule_run(*, window: tuple[str, str] | None, candidates: list | None) -> AgentRun:
+    snapshot = {"sales_deal_id": str(uuid4()), "duration_minutes": 60}
+    if window is not None:
+        snapshot["preferred_starts_at"], snapshot["preferred_ends_at"] = window
+    else:
+        snapshot["preferred_starts_at"] = None
+        snapshot["preferred_ends_at"] = None
+    return AgentRun(
+        id=uuid4(),
+        team_id=uuid4(),
+        agent_code="schedule_management",
+        status_code="completed",
+        input_snapshot=snapshot,
+        output_snapshot={"schedule_candidates": candidates or [], "conflicts": []},
+    )
+
+
+def test_widens_a_run_that_asked_for_a_single_slot():
+    """실 데이터에서 후보 0개는 전부 선호 기간이 칸 하나였던 실행이다 — 그 폭을 넓힌다."""
+    thirty_minutes = _schedule_run(
+        window=("2026-09-01T10:00:00+09:00", "2026-09-01T10:30:00+09:00"), candidates=[]
+    )
+
+    assert pipeline._can_widen(thirty_minutes.input_snapshot) is True
+
+
+def test_does_not_widen_a_run_that_was_already_wide():
+    """이미 넓게 돈 실행을 다시 돌리면 입력이 같아 LLM 호출만 늘어난다."""
+    week = _schedule_run(
+        window=("2026-09-01T00:00:00+09:00", "2026-09-08T00:00:00+09:00"), candidates=[]
+    )
+    default_window = _schedule_run(window=None, candidates=[])
+
+    assert pipeline._can_widen(week.input_snapshot) is False
+    # 기간이 비어 있던 실행은 이미 기본 탐색 범위(7일)로 돌았다.
+    assert pipeline._can_widen(default_window.input_snapshot) is False
+
+
+def test_window_days_survives_a_broken_snapshot():
+    """읽을 수 없는 값에 재시도 판단이 걸려 파이프라인 전체가 멈추면 안 된다."""
+    assert pipeline._window_days(None) is None
+    assert pipeline._window_days({}) is None
+    assert (
+        pipeline._window_days({"preferred_starts_at": "어제", "preferred_ends_at": "내일"}) is None
+    )
+    assert (
+        pipeline._window_days(
+            {
+                "preferred_starts_at": "2026-09-01T00:00:00",
+                "preferred_ends_at": "2026-09-08T00:00:00+09:00",
+            }
+        )
+        is None
+    )
+
+
+def test_retry_width_matches_the_default_search_window():
+    """넓히는 폭이 기본 탐색 범위와 어긋나면, 근거로 삼은 측정과 다른 값을 쓰게 된다."""
+    from app.services import contract_schedule_snapshots as snapshots
+
+    assert pipeline._RETRY_WINDOW_DAYS == snapshots._DEFAULT_PREFERRED_WINDOW_DAYS
+
+
+def test_only_a_completed_run_with_candidates_counts():
+    """실패했거나 빈손인 실행으로 카드를 띄우면 안 된다."""
+    filled = _schedule_run(window=None, candidates=[{"starts_at": "2026-09-01T10:00:00+09:00"}])
+    empty = _schedule_run(window=None, candidates=[])
+    failed = _schedule_run(window=None, candidates=[{"starts_at": "x"}])
+    failed.status_code = "failed"
+
+    assert pipeline._has_candidates(filled) is True
+    assert pipeline._has_candidates(empty) is False
+    assert pipeline._has_candidates(failed) is False
+
+
+def test_retry_run_records_what_it_retried():
+    """계보(parent_run_id)가 첫 실행과 같아서, 이 표시가 없으면 재시도를 구분할 수 없다."""
+    db = _Db()
+    team_id, sales_deal_id, parent_run_id, first_run_id = uuid4(), uuid4(), uuid4(), uuid4()
+
+    first = pipeline._add_schedule_run(
+        db,
+        team_id=team_id,
+        sales_deal_id=sales_deal_id,
+        parent_run_id=parent_run_id,
+        input_snapshot={},
+    )
+    retry = pipeline._add_schedule_run(
+        db,
+        team_id=team_id,
+        sales_deal_id=sales_deal_id,
+        parent_run_id=parent_run_id,
+        input_snapshot={},
+        widened_from_run_id=first_run_id,
+    )
+
+    assert first != retry
+    assert "widened_from_run_id" not in db.added[0].source_refs
+    assert db.added[1].source_refs["widened_from_run_id"] == str(first_run_id)
+    # 재시도도 승인 경로가 그대로 이어져야 한다 — POST /activities 는 이 두 값을 본다.
+    assert db.added[1].agent_code == "schedule_management"
+    assert db.added[1].parent_run_id == parent_run_id

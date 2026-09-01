@@ -926,3 +926,59 @@ async def test_next_meeting_snapshot_rejects_a_deal_outside_the_company():
 
     assert error.value.status_code == 404
     assert error.value.detail == "sales_deal_not_found"
+
+
+@pytest.mark.anyio
+async def test_min_window_days_pushes_a_single_slot_out_to_a_week():
+    """후보 0개로 끝난 실행을 다시 돌릴 때 쓰는 경로다.
+
+    실 데이터에서 후보가 0개였던 실행은 둘 다 선호 기간이 30분 한 칸이었다
+    (계약_일정_에이전트_아키텍처.md 3.2).
+    """
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2026-09-01T10:00:00+09:00",
+        "2026-09-01T10:30:00+09:00",
+        60,
+        min_window_days=7,
+    )
+
+    start = datetime.fromisoformat(snapshot["preferred_starts_at"])
+    end = datetime.fromisoformat(snapshot["preferred_ends_at"])
+    # 시작은 그대로다 — "왜 지금인가"는 계약관리의 판단이라 앞당기지 않는다.
+    assert start == datetime.fromisoformat("2026-09-01T10:00:00+09:00")
+    assert end - start == timedelta(days=7)
+
+
+@pytest.mark.anyio
+async def test_min_window_days_leaves_an_already_wide_window_alone():
+    """이미 넓은 기간을 더 늘리면 계약관리가 의도한 시점에서 멀어진다."""
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2026-09-01T00:00:00+09:00",
+        "2026-09-30T00:00:00+09:00",
+        60,
+        min_window_days=7,
+    )
+
+    assert snapshot["preferred_ends_at"] == "2026-09-30T00:00:00+09:00"
