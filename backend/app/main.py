@@ -24,12 +24,16 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     get_engine() 이 DATABASE_URL 을 요구하며 실패할 수 있다. 종료 경로가
     그것 때문에 깨지면 안 되니 조용히 넘어간다.
     """
-    yield
     try:
-        engine = get_engine()
-    except RuntimeError:
-        return
-    await engine.dispose()
+        yield
+    finally:
+        # 예외나 취소로 나갈 때도 반납한다. 안 그러면 죽는 프로세스가 슬롯을 쥔 채 남는다.
+        try:
+            engine = get_engine()
+        except RuntimeError:
+            engine = None
+        if engine is not None:
+            await engine.dispose()
 
 
 app = FastAPI(
