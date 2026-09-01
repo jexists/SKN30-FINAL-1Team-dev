@@ -85,12 +85,14 @@ def draft():
         "deal_reports": [
             {
                 "sales_deal_id": str(DEAL_A),
+                "title": "보안 승인 후 예산 검토",
                 "body": "A는 보안 승인을 받은 뒤 예산을 검토할 예정이다.",
                 "evidence_ids": ["S0002"],
             },
             {
                 "sales_deal_id": str(DEAL_B),
-                "body": "이번 미팅에서 B의 구체적인 논의는 확인되지 않았다.",
+                "title": writer.NO_DEAL_EVIDENCE_TEXT,
+                "body": writer.NO_DEAL_EVIDENCE_TEXT,
                 "evidence_ids": [],
             },
         ],
@@ -151,7 +153,7 @@ def test_actual_graph_reads_skill_delegates_and_revises_after_review(monkeypatch
 
 
 @pytest.mark.parametrize("deal_id", [DEAL_A, DEAL_B])
-def test_history_is_shared_with_reviewer_but_scoped_for_deal_writer(deal_id):
+def test_snapshot_tools_separate_evidence_deal_crm_and_history_without_cross_deal_data(deal_id):
     source = sample()
     histories = [
         {
@@ -175,14 +177,26 @@ def test_history_is_shared_with_reviewer_but_scoped_for_deal_writer(deal_id):
         }
         for deal in (DEAL_A, DEAL_B)
     ]
-    other_context = {"kind": "product_details", "items": []}
-    additional = [
+    history_lookups = [
         {"kind": "previous_reports", "sales_deal_id": item["sales_deal_id"], "data": item}
         for item in histories
     ]
+    product_lookups = [
+        {
+            "kind": "product_details",
+            "sales_deal_id": str(deal),
+            "data": {"name": f"딜 {deal} 전용 상품"},
+        }
+        for deal in (DEAL_A, DEAL_B)
+    ]
+    other_context = {"kind": "product_details", "items": ["딜 스코프 없음"]}
+    direct_histories = histories if deal_id == DEAL_A else []
     source.crm_context.update(
-        previous_reports=histories,
-        additional_context=[*additional, other_context],
+        deals=[
+            {"sales_deal_id": str(deal), "title": f"딜 {deal} CRM"} for deal in (DEAL_A, DEAL_B)
+        ],
+        previous_reports=direct_histories,
+        additional_context=[*history_lookups, *product_lookups, other_context],
     )
     original = source.model_dump(mode="json")
     model = ScriptedModel(
@@ -190,6 +204,8 @@ def test_history_is_shared_with_reviewer_but_scoped_for_deal_writer(deal_id):
             call("read_meeting_evidence"),
             call("task", subagent_type="general-purpose", description=f"딜 {deal_id} 초안"),
             call("read_meeting_evidence", sales_deal_id=str(deal_id)),
+            call("read_deal_crm", sales_deal_id=str(deal_id)),
+            call("read_previous_reports", sales_deal_id=str(deal_id)),
             AIMessage(content="이번 원문에 근거가 있는 내용만 작성한다."),
             call("review_report", draft=draft()),
             call("ReportReview", issues=[]),
@@ -197,23 +213,31 @@ def test_history_is_shared_with_reviewer_but_scoped_for_deal_writer(deal_id):
     )
     result = asyncio.run(writer.run(source, model=model))
     assert result.model_dump(mode="json") == draft()
-    shared = json.loads(model._seen[1][-1].content)
-    scoped = json.loads(model._seen[3][-1].content)
+    shared_evidence = json.loads(model._seen[1][-1].content)
+    scoped_evidence = json.loads(model._seen[3][-1].content)
+    scoped_crm = json.loads(model._seen[4][-1].content)
+    scoped_history = json.loads(model._seen[5][-1].content)
     expected = [item for item in histories if item["sales_deal_id"] == str(deal_id)]
-    assert shared["crm_context"] == original["crm_context"]
-    assert scoped["crm_context"]["previous_reports"] == expected
-    assert scoped["crm_context"]["additional_context"] == [
-        *[item for item in additional if item["sales_deal_id"] == str(deal_id)],
-        other_context,
+    assert set(shared_evidence) == {"evidence"}
+    assert set(scoped_evidence) == {"evidence"}
+    assert {item["segment"]["segment_id"] for item in scoped_evidence["evidence"]} == (
+        {"S0001", "S0002"} if deal_id == DEAL_A else {"S0001"}
+    )
+    assert [item["sales_deal_id"] for item in scoped_crm["crm_context"]["deals"]] == [str(deal_id)]
+    assert "previous_reports" not in scoped_crm["crm_context"]
+    assert scoped_crm["crm_context"]["additional_context"] == [
+        next(item for item in product_lookups if item["sales_deal_id"] == str(deal_id))
     ]
-    assert scoped["crm_context"]["company"] == source.crm_context["company"]
-    reviewer_source = json.loads(model._seen[5][-1].content)["source"]
-    assert reviewer_source["crm_context"]["previous_reports"] == histories
+    assert scoped_crm["crm_context"]["company"] == source.crm_context["company"]
+    assert scoped_history["previous_reports"] == expected
+    assert set(scoped_history) == {"previous_reports"}
+    reviewer_source = json.loads(model._seen[7][-1].content)["source"]
+    assert reviewer_source["crm_context"]["previous_reports"] == direct_histories
     assert source.model_dump(mode="json") == original
     history_rule = "이전 약속의 이행 여부와 고객 입장·조건의 변경은 이번 원문에 근거가 있을 때만"
-    for turn in (model._seen[0], model._seen[2], model._seen[5]):
+    for turn in (model._seen[0], model._seen[2], model._seen[7]):
         assert history_rule in str(turn[0].content)
-    assert "관련 없는 과거 이력을 생략한 것은 누락 오류가 아니다" in model._seen[5][0].content
+    assert "관련 없는 과거 이력을 생략한 것은 누락 오류가 아니다" in model._seen[7][0].content
 
 
 def test_actual_graph_rejects_exhausted_output():

@@ -73,6 +73,9 @@ _report_validation_codes = frozenset(
         "report_transcript_hash_mismatch",
         "report_body_empty",
         "report_evidence_duplicate",
+        "report_title_empty",
+        "report_deal_title_missing",
+        "report_deal_no_evidence_marker_missing",
     }
 )
 

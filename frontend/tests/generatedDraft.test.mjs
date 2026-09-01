@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   canReassignEvidence,
   hasPendingAi,
+  isInsufficientDealPrediction,
   readMeetingAnalysis,
   runDealGeneration,
   transcriptDigest,
@@ -51,6 +52,8 @@ test('저장된 ML 태그와 실패 정보를 복원하고 불완전한 결과�
     '본문 생성 실패',
   )
   assert.equal(readMeetingAnalysis({ deal_assessment: { label: 'high' } }).assessment, undefined)
+  assert.equal(isInsufficientDealPrediction('deal_prediction_insufficient_features'), true)
+  assert.equal(isInsufficientDealPrediction('deal_prediction_failed'), false)
 })
 
 test('미팅 잠금은 사전저장·ML 대기·서버 적용까지 유지하고 중복 실행을 막는다', async () => {

@@ -222,8 +222,41 @@ async def test_source_uses_only_six_contact_codes(monkeypatch, source_code, expe
         },
     )
     assert result[0].features.Source == expected
-    assert result[0].assessment.features.Source == expected
-    assert result[0].error is None
+    if expected == "Unknown":
+        assert result[0].assessment is None
+        assert result[0].error == "deal_prediction_insufficient_features"
+    else:
+        assert result[0].assessment.features.Source == expected
+        assert result[0].error is None
+
+
+@pytest.mark.anyio
+async def test_all_unknown_skips_prediction_but_partial_unknown_still_predicts(monkeypatch):
+    no_signal, partial_signal = uuid4(), uuid4()
+    predicted = []
+
+    async def generate(**kwargs):
+        deal_id = _payload(kwargs)["sales_deal_id"]
+        return meeting_analysis.MeetingFeatureOutput(
+            features={
+                **UNKNOWN_FEATURES,
+                "Authority": "High" if deal_id == str(partial_signal) else "Unknown",
+            }
+        )
+
+    def predict(features):
+        predicted.append(features)
+        return _prediction(features)
+
+    monkeypatch.setattr(meeting_analysis, "generate_structured", generate)
+    monkeypatch.setattr(deal_baseline, "predict", predict)
+    result = await meeting_analysis.run_for_deals(_ledger([no_signal, partial_signal]), {})
+
+    assert result[0].features.model_dump() == UNKNOWN_FEATURES
+    assert result[0].assessment is None
+    assert result[0].error == "deal_prediction_insufficient_features"
+    assert len(predicted) == 1 and predicted[0]["Authority"] == "High"
+    assert result[1].assessment is not None and result[1].error is None
 
 
 @pytest.mark.anyio
@@ -237,7 +270,7 @@ async def test_per_deal_failures_preserve_other_results_and_extracted_features(m
         return meeting_analysis.MeetingFeatureOutput(
             features={
                 **UNKNOWN_FEATURES,
-                "Authority": "High" if deal_id == str(deal_b) else "Unknown",
+                "Authority": "High" if deal_id == str(deal_b) else "Low",
             }
         )
 
@@ -267,7 +300,9 @@ async def test_at_most_three_deals_are_analyzed_concurrently(monkeypatch):
         peak = max(peak, current)
         await asyncio.sleep(0)
         current -= 1
-        return meeting_analysis.MeetingFeatureOutput(features=UNKNOWN_FEATURES)
+        return meeting_analysis.MeetingFeatureOutput(
+            features={**UNKNOWN_FEATURES, "Authority": "Low"}
+        )
 
     monkeypatch.setattr(meeting_analysis, "generate_structured", generate)
     monkeypatch.setattr(deal_baseline, "predict", _prediction)
@@ -304,7 +339,7 @@ async def test_timeout_preserves_completed_deals_and_features_before_slow_ml(mon
         return meeting_analysis.MeetingFeatureOutput(
             features={
                 **UNKNOWN_FEATURES,
-                "Authority": "High" if str(deal_b) in kwargs["input_text"] else "Unknown",
+                "Authority": "High" if str(deal_b) in kwargs["input_text"] else "Low",
             }
         )
 

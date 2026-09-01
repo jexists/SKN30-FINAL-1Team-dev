@@ -28,7 +28,7 @@ from app.services.agent_logging import log_agent_error
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError
 
-PROMPT_VERSION = "meeting_processing.v6"
+PROMPT_VERSION = "meeting_processing.v7"
 RUN_TIMEOUT_SECONDS = 1_200
 
 
@@ -307,6 +307,10 @@ def _legacy_body(content: object) -> str | None:
     return _clean_text(content["values"].get("body"))
 
 
+def _legacy_title(content: object) -> str | None:
+    return _clean_text(content.get("title")) if isinstance(content, dict) else None
+
+
 def _resolved_body(
     current: str | None, previous_ai: str | None, proposed: str | None
 ) -> str | None:
@@ -320,11 +324,11 @@ def _resolved_body(
 
 def _report_proposals(
     result: MeetingProcessingOutput | None,
-) -> tuple[dict[UUID, str], str | None, str | None]:
+) -> tuple[dict[UUID, report_writing_deep.DealReport], str | None, str | None]:
     if result is None or result.reports is None:
         return {}, None, None
     return (
-        {item.sales_deal_id: item.body for item in result.reports.deal_reports},
+        {item.sales_deal_id: item for item in result.reports.deal_reports},
         result.reports.common_report.body if result.reports.common_report else None,
         result.reports.unassigned_report.body if result.reports.unassigned_report else None,
     )
@@ -425,6 +429,7 @@ async def _apply_result(
                 evidence=result.evidence,
             ),
             result.reports,
+            require_titles=run.prompt_version == PROMPT_VERSION,
         )
 
     previous = await _previous_result(db, report)
@@ -476,12 +481,31 @@ async def _apply_result(
             shared[key].update(edited=True, ai_body=proposed)
 
     field_id = _ai_field_id(report)
+    default_title = _clean_text(getattr(report, "title", None)) or _legacy_title(report.content)
     for section in sections:
         analysis = analyses[section.sales_deal_id]
-        proposal = proposals.get(section.sales_deal_id)
+        proposal_report = proposals.get(section.sales_deal_id)
+        proposal = proposal_report.body if proposal_report else None
+        previous_report = previous_deals.get(section.sales_deal_id)
         current = _clean_text(getattr(section, "body", None)) or _legacy_body(section.content)
-        section.body = _resolved_body(current, previous_deals.get(section.sales_deal_id), proposal)
+        section.body = _resolved_body(
+            current, previous_report.body if previous_report else None, proposal
+        )
         content = copy.deepcopy(section.content) if isinstance(section.content, dict) else {}
+        current_title = _clean_text(getattr(section, "title", None)) or _legacy_title(content)
+        previous_title = (
+            _clean_text(previous_report.title) if previous_report else default_title
+        ) or default_title
+        proposed_title = _clean_text(proposal_report.title) if proposal_report else None
+        section.title = (
+            _resolved_body(current_title, previous_title, proposed_title)
+            if proposed_title is not None
+            else current_title
+        )
+        if section.title is None:
+            content.pop("title", None)
+        else:
+            content["title"] = section.title
         if proposal is not None:
             generated = {field_id or "body": proposal}
             if section.body == proposal and field_id is not None:
@@ -491,13 +515,7 @@ async def _apply_result(
                 content["values"] = values
             content.update(
                 ai_values=generated,
-                ai_evidence=" · ".join(
-                    next(
-                        item.evidence_ids
-                        for item in result.reports.deal_reports
-                        if item.sales_deal_id == section.sales_deal_id
-                    )
-                ),
+                ai_evidence=" · ".join(proposal_report.evidence_ids),
                 ai_generated_at=now.isoformat(),
             )
         section.content = content

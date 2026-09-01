@@ -1,5 +1,8 @@
 import type { DealAssessment } from '@/types'
 
+export const isInsufficientDealPrediction = (error: string | null | undefined) =>
+  error === 'deal_prediction_insufficient_features'
+
 /** 저장된 서버 분석을 읽습니다. ML 실패를 새로고침 후 대기로 숨기지 않습니다. */
 export function readMeetingAnalysis(value: Record<string, unknown>) {
   const assessment = value.deal_assessment as Partial<DealAssessment> | null | undefined

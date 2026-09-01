@@ -47,6 +47,7 @@ def _case(*, unassigned=True):
         deal_reports=[
             agent.DealReport(
                 sales_deal_id=deal,
+                title=f"{deal} 논의",
                 body=f"{rows[index][0]} {rows[5][0]}",
                 evidence_ids=[f"S{index + 1:04d}", "S0006"],
             )
@@ -249,11 +250,46 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 def test_deal_schema_emits_identity_before_live_body():
     assert list(agent.DealReport.model_json_schema()["properties"]) == [
         "sales_deal_id",
+        "title",
         "body",
         "evidence_ids",
     ]
     with pytest.raises(ValidationError, match="report_evidence_duplicate"):
         agent.DealReport(sales_deal_id=DEAL_A, body="내용", evidence_ids=["S0001", "S0001"])
+
+
+def test_new_reports_require_title_but_legacy_snapshot_still_deserializes():
+    source, draft = _case()
+    payload = draft.model_dump(mode="json")
+    payload["deal_reports"][0].pop("title")
+    legacy = agent.FreeformMeetingReports.model_validate(payload)
+
+    assert legacy.deal_reports[0].title is None
+    with pytest.raises(ValueError, match="report_deal_title_missing"):
+        agent.validate_reports(source, legacy)
+    agent.validate_reports(source, legacy, require_titles=False)
+
+
+@pytest.mark.parametrize("field", ["title", "body"])
+def test_selected_deal_without_current_evidence_requires_exact_marker(field):
+    source, draft = _case()
+    payload = source.model_dump(mode="json")
+    for item in payload["evidence"]["items"][4:6]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(payload)
+    draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
+    draft.deal_reports[1].title = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].evidence_ids = []
+    agent.validate_reports(source, draft)
+
+    for invalid in (
+        "이전 보고서의 논의만 있음",
+        f"{agent.NO_DEAL_EVIDENCE_TEXT}. 과거에는 예산을 검토했다.",
+    ):
+        setattr(draft.deal_reports[1], field, invalid)
+        with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
+            agent.validate_reports(source, draft)
 
 
 def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_common():

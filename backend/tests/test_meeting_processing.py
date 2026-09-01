@@ -15,7 +15,7 @@ from test_report_writing_deep import draft, sample
 
 from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
 from app.api import reports as reports_api
-from app.models.content import ReportDeal
+from app.models.content import MeetingDealAnalysis, ReportDeal
 from app.schemas.agent_runs import AgentRunCreate
 from app.schemas.meeting_content import SegmentAssignment
 from app.services import agent_runs
@@ -33,7 +33,8 @@ def case():
     report.source_activity_id = activity_id
     report.sales_deal_id = None
     report.template_snapshot = {"fields": [{"id": "body", "label": "본문"}]}
-    report.content = {"attachments": []}
+    report.title = "합성 미팅"
+    report.content = {"title": "합성 미팅", "attachments": []}
     sections = []
     for deal_id in source.evidence.selected_deal_ids:
         sections.append(
@@ -42,6 +43,7 @@ def case():
                 sales_deal_id=deal_id,
                 deal_snapshot={"id": str(deal_id), "label": "합성 딜"},
                 content={"title": "합성 미팅", "values": {"body": ""}},
+                title="합성 미팅",
                 ai_evidence=None,
                 created_at=NOW,
                 updated_at=NOW,
@@ -83,6 +85,7 @@ def case():
     )
     run = _run(member, status_code="completed")
     run.agent_code = "meeting_processing"
+    run.prompt_version = service.PROMPT_VERSION
     run.input_snapshot = snapshot
     run.output_snapshot = result.model_dump(mode="json")
     run.test_report = report
@@ -285,9 +288,14 @@ def storage(monkeypatch, *, report_failure=False):
 def test_apply_is_atomic_idempotent_and_does_not_overwrite_human_text(monkeypatch):
     member, sections, run, db = storage(monkeypatch)
     sections[1].content["values"]["body"] = "사람이 쓴 보고서"
+    sections[1].title = "사람이 정한 제목"
+    sections[1].content["title"] = "사람이 정한 제목"
     asyncio.run(service.apply(db, member, run.id))
     assert "보안 승인" in sections[0].content["values"]["body"]
+    assert sections[0].title == "보안 승인 후 예산 검토"
+    assert sections[0].content["title"] == sections[0].title
     assert sections[1].content["values"]["body"] == "사람이 쓴 보고서"
+    assert sections[1].title == sections[1].content["title"] == "사람이 정한 제목"
     assert sections[1].content["ai_values"]["body"] != "사람이 쓴 보고서"
     shared = run.test_report.content["meeting_shared"]
     assert shared["common_report"]["body"] == "구매팀과 미팅을 진행했다."
@@ -301,6 +309,74 @@ def test_apply_is_atomic_idempotent_and_does_not_overwrite_human_text(monkeypatc
     sections[0].content["values"]["body"] = "저장 후 다시 편집"
     asyncio.run(service.apply(db, member, run.id))
     assert sections[0].content["values"]["body"] == "저장 후 다시 편집"
+
+
+def test_apply_updates_previous_ai_title_but_preserves_later_human_title(monkeypatch):
+    member, sections, run, db = storage(monkeypatch)
+    asyncio.run(service.apply(db, member, run.id))
+    previous = service.MeetingProcessingOutput.model_validate(run.output_snapshot)
+    monkeypatch.setattr(service, "_previous_result", AsyncMock(return_value=previous))
+    sections[1].title = "사람 수정 제목"
+    sections[1].content["title"] = sections[1].title
+    result = service.MeetingProcessingOutput.model_validate(run.output_snapshot)
+    result.reports.deal_reports[0].title = "예산 검토 후속 미팅"
+    result.reports.deal_reports[1].title = report_writing_deep.NO_DEAL_EVIDENCE_TEXT
+    run.output_snapshot = result.model_dump(mode="json")
+    run.id = uuid4()
+    run.input_snapshot["report_versions"][0]["updated_at"] = run.test_report.updated_at.isoformat()
+    for version, section in zip(run.input_snapshot["deal_versions"], sections, strict=True):
+        version["updated_at"] = section.updated_at.isoformat()
+
+    asyncio.run(service.apply(db, member, run.id))
+
+    assert sections[0].title == sections[0].content["title"] == "예산 검토 후속 미팅"
+    assert sections[1].title == sections[1].content["title"] == "사람 수정 제목"
+
+
+def test_legacy_output_without_titles_deserializes_and_keeps_existing_titles(monkeypatch):
+    member, sections, run, db = storage(monkeypatch)
+    run.prompt_version = "meeting_processing.v6"
+    for item in run.output_snapshot["reports"]["deal_reports"]:
+        item.pop("title")
+    run.output_snapshot["reports"]["deal_reports"][1]["body"] = (
+        "이번 미팅에서 B의 구체적인 논의는 확인되지 않았다."
+    )
+
+    restored = service.MeetingProcessingOutput.model_validate(run.output_snapshot)
+    assert all(item.title is None for item in restored.reports.deal_reports)
+    asyncio.run(service.apply(db, member, run.id))
+
+    assert [section.title for section in sections] == ["합성 미팅", "합성 미팅"]
+    assert all(section.content["title"] == "합성 미팅" for section in sections)
+
+
+def test_apply_preserves_all_unknown_features_without_prediction(monkeypatch):
+    member, sections, run, db = storage(monkeypatch)
+    unknown = {name: "Unknown" for name in meeting_analysis.deal_baseline.FEATURE_NAMES}
+    output = service.MeetingProcessingOutput.model_validate(run.output_snapshot)
+    output.reports = None
+    output.analyses = [
+        meeting_analysis.DealFeatureResult(
+            sales_deal_id=section.sales_deal_id,
+            features=unknown,
+            error="deal_prediction_insufficient_features",
+        )
+        for section in sections
+    ]
+    run.output_snapshot = output.model_dump(mode="json")
+
+    asyncio.run(service.apply(db, member, run.id))
+
+    history = [item for item in db.added if isinstance(item, MeetingDealAnalysis)]
+    assert len(history) == len(sections)
+    for section, item in zip(sections, history, strict=True):
+        assert section.ai_evidence["features"] == unknown
+        assert section.ai_evidence["deal_assessment"] is None
+        assert section.ai_evidence["analysis_error"] == "deal_prediction_insufficient_features"
+        assert item.features == unknown
+        assert item.prediction_label is None and item.probability is None
+        assert item.model_version is None
+        assert item.error_code == "deal_prediction_insufficient_features"
 
 
 @pytest.mark.parametrize("malformed_values", [None, [], "잘못된 값"])
@@ -583,7 +659,10 @@ async def test_workflow_deadline_preserves_completed_report_and_deal_results(
             finally:
                 cancelled.add("deal")
         return meeting_analysis.MeetingFeatureOutput(
-            features={name: "Unknown" for name in meeting_analysis.deal_baseline.FEATURE_NAMES}
+            features={
+                **{name: "Unknown" for name in meeting_analysis.deal_baseline.FEATURE_NAMES},
+                "Authority": "Low",
+            }
         )
 
     async def predict_in_thread(function, features):

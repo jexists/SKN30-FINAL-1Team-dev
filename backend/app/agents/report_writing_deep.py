@@ -5,6 +5,7 @@ meeting_processing이 실행·저장을 맡으며 공통/미지정 내용은 딜
 """
 
 import asyncio
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -34,13 +35,14 @@ from app.services.agent_logging import agent_operation, log_agent_error, log_age
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, LLMNotConfigured
 
-PROMPT_VERSION = "report_writing.deep.v5"
+PROMPT_VERSION = "report_writing.deep.v6"
 RUN_TIMEOUT_SECONDS = 900
 MAX_MODEL_CALLS = 100
 MAX_REVIEWS = 10
 SKILL_DIR = Path(__file__).parent / "skills" / "sales-meeting-report"
 COMMON_SCOPES = {"meeting_context", "company_context", "all_selected_deals"}
 UNASSIGNED_SCOPES = {"unresolved", "out_of_scope"}
+NO_DEAL_EVIDENCE_TEXT = "이번 미팅에서 구체적 논의 없음"
 
 FACT_RULES = """
 너는 SalesLuv의 한국어 내부 영업 미팅 보고서 작성자다. 본문은 자연스러운 줄글로 쓴다.
@@ -56,12 +58,14 @@ unresolved와 out_of_scope 내용은 삭제하거나 임의로 딜에 배정하�
 귀속 실패가 아니다. 공통 방문 일정 등을 '어느 딜인지 모른다'고 설명하지 마라.
 공통 근거 전체를 common_report에 한 번 작성한다. 특정 딜 본문에만 넣어 대신하지 마라.
 각 딜별 보고서를 조회·전달할 때 common_report가 그 딜의 본문과 함께 포함된다.
-deal_reports의 body는 해당 딜의 논의에 집중하고 공통 문단을 그대로 반복하지 마라.
+deal_reports의 title은 이번 원문에서 확인한 해당 딜의 핵심을 짧게 요약하고, body는 해당
+딜의 논의에 집중하며 공통 문단을 그대로 반복하지 마라.
 모든 근거 ID가 결과에 남아야 하며, 여러 딜에 배정된 근거는 해당 딜마다 반영한다.
-근거가 없는 딜은 이번 미팅에서 구체적 논의가 확인되지 않았다고 쓰고 꾸며내지 마라.
+근거가 없는 선택 딜도 생략하지 않는다. title과 body에 모두 정확히
+'이번 미팅에서 구체적 논의 없음'을 넣고, CRM이나 과거 보고서로 이번 논의를 꾸며내지 마라.
 evidence_ids는 해당 본문에 실제 반영한 구간 ID다. ID만 나열하고 내용을 빼면 안 된다.
 제공된 CRM은 배경이다. 현재 미팅의 새로운 합의로 바꾸지 않는다.
-crm_context.previous_reports는 같은 딜의 과거 보고서다. 이번 논의를 이해하는 데 필요한
+read_previous_reports가 반환한 자료는 같은 딜의 과거 보고서다. 이번 논의를 이해하는 데 필요한
 이전 논의·약속만 참고하고, 본문에서는 제공된 미팅 날짜와 '이전 보고서에 따르면' 같은
 출처 표현으로 이번 원문과 구분한다. 날짜가 없으면 만들지 않는다.
 이전 약속의 이행 여부와 고객 입장·조건의 변경은 이번 원문에 근거가 있을 때만 쓴다.
@@ -73,7 +77,7 @@ crm_context.previous_reports는 같은 딜의 과거 보고서다. 이번 논의
 원문에 실제로 없는 정보는 오류가 아니다. 조건부·미확인·딜 미지정 상태를 정확히
 남기면 정상적으로 완료할 수 있다. 없는 예산·담당자·기한을 채우려고 재작성하지 마라.
 검토 의견은 경로, 원문과 초안의 차이, 필요한 수정 행동을 구체적으로 쓴다.
-작성 중에도 deal_reports의 각 객체는 sales_deal_id를 먼저, body를 그 다음에 출력한다.
+작성 중에도 deal_reports의 각 객체는 sales_deal_id, title, body 순서로 출력한다.
 """
 
 
@@ -114,13 +118,16 @@ class ReportBody(BaseModel):
 class DealReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # ID를 본문보다 먼저 생성해야 스트리밍 중에도 실제 딜에 안전하게 연결할 수 있다.
+    # 구버전 output_snapshot에는 title이 없다. 새 생성은 구조 검사에서 필수로 강제한다.
     sales_deal_id: UUID
+    title: str | None = Field(default=None, min_length=1, max_length=254)
     body: str = Field(min_length=1, max_length=100_000)
     evidence_ids: list[SegmentId] = Field(max_length=5_000)
 
     @model_validator(mode="after")
     def _check_body(self):
+        if self.title is not None and not self.title.strip():
+            raise ValueError("report_title_empty")
         ReportBody(body=self.body, evidence_ids=self.evidence_ids)
         return self
 
@@ -180,7 +187,10 @@ def _review_final_response(schema, review):
 
 
 def _structural_issues(
-    source: ReportWritingInput, draft: FreeformMeetingReports
+    source: ReportWritingInput,
+    draft: FreeformMeetingReports,
+    *,
+    require_titles: bool = True,
 ) -> list[dict[str, Any]]:
     """같은 strict 검사를 최종 제출과 수정 피드백에서 공유한다. 원문은 로그에 쓰지 않는다."""
     issues: list[dict[str, Any]] = []
@@ -241,6 +251,28 @@ def _structural_issues(
             if deal_id in item.applicability.deal_ids
         }
         refs = set(report.evidence_ids)
+        if require_titles and report.title is None:
+            add(
+                "report_deal_title_missing",
+                f"deal_reports[{index}].title",
+                set(),
+                set(),
+                "이번 원문의 해당 딜 핵심을 요약한 비어 있지 않은 title을 작성하라.",
+            )
+            issues[-1]["sales_deal_id"] = str(deal_id)
+        if require_titles and not required:
+            for field, value in (("title", report.title), ("body", report.body)):
+                if value is not None and value.strip() == NO_DEAL_EVIDENCE_TEXT:
+                    continue
+                add(
+                    "report_deal_no_evidence_marker_missing",
+                    f"deal_reports[{index}].{field}",
+                    set(),
+                    set(),
+                    f"현재 원문에 이 딜의 근거가 없으므로 {field}에 정확히 "
+                    f"'{NO_DEAL_EVIDENCE_TEXT}'을 넣어라. 과거 이력으로 채우지 마라.",
+                )
+                issues[-1]["sales_deal_id"] = str(deal_id)
         if not required <= refs or not refs <= required | common:
             add(
                 "report_deal_evidence_mismatch",
@@ -346,9 +378,14 @@ def _log_structural_issues(issues: list[dict[str, Any]], **fields) -> None:
         )
 
 
-def validate_reports(source: ReportWritingInput, draft: FreeformMeetingReports) -> None:
+def validate_reports(
+    source: ReportWritingInput,
+    draft: FreeformMeetingReports,
+    *,
+    require_titles: bool = True,
+) -> None:
     """딜 혼입/ID 누락과 미지정 원문 유실 방지. 문장 의미의 사실성은 별도 리뷰가 맡는다."""
-    if issues := _structural_issues(source, draft):
+    if issues := _structural_issues(source, draft, require_titles=require_titles):
         _log_structural_issues(issues)
         raise ValueError(issues[0]["code"])
 
@@ -588,7 +625,7 @@ async def _run(
         return None
 
     def read_meeting_evidence(sales_deal_id: UUID | None = None) -> dict[str, Any]:
-        """CRM과 원문을 읽는다. ID 지정 시 이력은 해당 딜, 원문은 해당 딜·공통만 반환한다."""
+        """스냅샷의 현재 미팅 근거만 읽는다. ID 지정 시 해당 딜·공통 근거만 반환한다."""
         if sales_deal_id is not None and sales_deal_id not in source.evidence.selected_deal_ids:
             return {"error": "deal_not_selected"}
         items = [
@@ -598,23 +635,70 @@ async def _run(
             or sales_deal_id in item.applicability.deal_ids
             or item.applicability.scope in COMMON_SCOPES
         ]
-        crm_context = source.crm_context
-        if sales_deal_id is not None:
-            crm_context = {**crm_context}
-            if "previous_reports" in crm_context:
-                crm_context["previous_reports"] = [
-                    item
-                    for item in crm_context["previous_reports"]
-                    if item.get("sales_deal_id") == str(sales_deal_id)
-                ]
-            if "additional_context" in crm_context:
-                crm_context["additional_context"] = [
-                    item
-                    for item in crm_context["additional_context"]
-                    if item.get("kind") != "previous_reports"
-                    or item.get("sales_deal_id") == str(sales_deal_id)
-                ]
-        return {"crm_context": crm_context, "evidence": items}
+        return {"evidence": items}
+
+    def read_deal_crm(sales_deal_id: UUID) -> dict[str, Any]:
+        """스냅샷에서 선택 딜 하나의 CRM과 공유 회사 배경만 읽는다."""
+        if sales_deal_id not in source.evidence.selected_deal_ids:
+            return {"error": "deal_not_selected"}
+        crm = source.crm_context
+        deals = crm.get("deals") if isinstance(crm.get("deals"), list) else []
+        additional = (
+            crm.get("additional_context") if isinstance(crm.get("additional_context"), list) else []
+        )
+        scoped = {
+            key: copy.deepcopy(crm[key])
+            for key in (
+                "snapshot_at",
+                "crm_time_basis",
+                "activity",
+                "company",
+                "contact",
+                "trade_history",
+                "trade_history_metadata",
+                "related_items_limit",
+            )
+            if key in crm
+        }
+        scoped["deals"] = [
+            copy.deepcopy(item)
+            for item in deals
+            if isinstance(item, dict)
+            and str(item.get("sales_deal_id") or item.get("id")) == str(sales_deal_id)
+        ]
+        scoped["additional_context"] = [
+            copy.deepcopy(item)
+            for item in additional
+            if isinstance(item, dict)
+            and item.get("kind") != "previous_reports"
+            and str(item.get("sales_deal_id")) == str(sales_deal_id)
+        ]
+        return {"crm_context": scoped}
+
+    def read_previous_reports(sales_deal_id: UUID) -> dict[str, Any]:
+        """스냅샷에서 선택 딜 하나의 과거 보고서만 읽는다."""
+        if sales_deal_id not in source.evidence.selected_deal_ids:
+            return {"error": "deal_not_selected"}
+        crm = source.crm_context
+        histories = crm.get("previous_reports")
+        histories = histories if isinstance(histories, list) else []
+        additional = crm.get("additional_context")
+        additional = additional if isinstance(additional, list) else []
+        selected = [
+            copy.deepcopy(item)
+            for item in histories
+            if isinstance(item, dict) and str(item.get("sales_deal_id")) == str(sales_deal_id)
+        ]
+        if not selected:
+            selected = [
+                copy.deepcopy(item["data"])
+                for item in additional
+                if isinstance(item, dict)
+                and item.get("kind") == "previous_reports"
+                and str(item.get("sales_deal_id")) == str(sales_deal_id)
+                and isinstance(item.get("data"), dict)
+            ]
+        return {"previous_reports": selected}
 
     reviewer = create_agent(
         model,
@@ -723,8 +807,9 @@ async def _run(
         system_prompt=FACT_RULES
         + "\nsales-meeting-report 스킬을 읽고 작성 계획을 세워라. 먼저 ID 없이 "
         "read_meeting_evidence()를 호출하여 공통·미지정까지 전체 근거를 확인하라. "
-        "crm_context.previous_reports에서 딜별 이전 논의와 후속 약속을 확인하되 이번 "
-        "원문과 이어지는 맥락만 작성에 사용하라. "
+        "선택 딜별로 read_deal_crm(sales_deal_id)과 "
+        "read_previous_reports(sales_deal_id)를 호출하여 다른 딜과 섞지 않게 배경과 "
+        "이전 논의를 확인하되, 이번 원문과 이어지는 맥락만 작성에 사용하라. "
         "딜별 위임의 필터된 근거만으로 전체 보고서를 조립하지 마라. read_meeting_evidence로 "
         "근거를 확인하고 task로 딜별 초안 작성을 위임할 수 있다. 작업 메모는 /scratch/에 쓴다. "
         "common_report는 공통 내용, unassigned_report는 딜 미지정 내용의 미팅 수준 본문이다. "
@@ -732,7 +817,7 @@ async def _run(
         "따라 해당 부분을 고친다. 구조 오류는 한 번에 모두 고친다. "
         "실제로 없는 정보는 미확인 상태로 남기는 것으로 완료하며 새 사실을 만들지 않는다. "
         "검토에 통과하면 그 초안이 자동으로 최종 제출되므로 다시 작성하지 않는다.",
-        tools=[read_meeting_evidence, review_report],
+        tools=[read_meeting_evidence, read_deal_crm, read_previous_reports, review_report],
         backend=StateBackend(),
         skills=["/skills/"],
         permissions=[
@@ -744,10 +829,11 @@ async def _run(
                 # 내장 general-purpose를 제한된 작성자로 교체해 검토 도구의 재귀 위임을 막는다.
                 "name": "general-purpose",
                 "description": "선택된 한 딜의 근거를 읽고 줄글 초안을 작성하는 전담 작성자.",
-                "system_prompt": FACT_RULES
-                + "\n작성 스킬과 read_meeting_evidence(sales_deal_id)로 대상 딜 근거·이력을 "
-                "읽고 본문 및 evidence_ids를 반환하라.",
-                "tools": [read_meeting_evidence],
+                "system_prompt": FACT_RULES + "\n작성 스킬과 read_meeting_evidence(sales_deal_id), "
+                "read_deal_crm(sales_deal_id), read_previous_reports(sales_deal_id)로 "
+                "대상 딜의 현재 근거·CRM·이력을 각각 읽고 title, body, evidence_ids를 "
+                "반환하라.",
+                "tools": [read_meeting_evidence, read_deal_crm, read_previous_reports],
                 "skills": ["/skills/"],
                 "middleware": [ModelCallLimitMiddleware(run_limit=30, exit_behavior="error")],
             }

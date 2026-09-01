@@ -239,6 +239,12 @@ async def run_for_deals(
                     call_limit=1,
                     elapsed_ms=round((perf_counter() - started) * 1000),
                 )
+                if all(value == "Unknown" for value in features.model_dump().values()):
+                    return DealFeatureResult(
+                        sales_deal_id=deal_id,
+                        features=features,
+                        error="deal_prediction_insufficient_features",
+                    )
                 # 취소는 ML 스레드의 대기만 끝낸다. 이미 시작한 predict는 자체 완료된다.
                 prediction = await asyncio.to_thread(deal_baseline.predict, features.model_dump())
                 return DealFeatureResult(

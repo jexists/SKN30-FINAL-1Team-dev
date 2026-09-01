@@ -16,6 +16,7 @@ import type { MeetingDealSection } from '@/types'
 
 import MeetingFacts from './components/MeetingFacts'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
+import { isInsufficientDealPrediction } from './generatedDraft'
 import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
 import { toMeetingReport } from './useMeetingReports'
 
@@ -26,6 +27,9 @@ function assessmentBadge(section: MeetingDealSection): {
   tone: StatusTone
   title?: string
 } {
+  if (isInsufficientDealPrediction(section.analysisError)) {
+    return { label: '판단 정보 부족', tone: 'neutral' }
+  }
   if (section.analysisError) {
     return { label: 'ML 분석 실패', tone: 'red', title: section.analysisError }
   }
@@ -170,11 +174,12 @@ export default function Detail() {
                       <ReportFields template={report.template} values={section.values} readOnly />
                     )}
                     {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
-                    {section.analysisError && (
-                      <p className={styles.sectionError} role="status">
-                        ML 분석: {section.analysisError}
-                      </p>
-                    )}
+                    {section.analysisError &&
+                      !isInsufficientDealPrediction(section.analysisError) && (
+                        <p className={styles.sectionError} role="status">
+                          ML 분석: {section.analysisError}
+                        </p>
+                      )}
                     {section.reportError && (
                       <p className={styles.sectionError} role="status">
                         보고서 생성: {section.reportError}

@@ -6,6 +6,7 @@ import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import type { MeetingDealRef, MeetingProgress, ReportTemplate } from '@/types'
 
+import { isInsufficientDealPrediction } from '../../generatedDraft'
 import type { DealDraftState } from '../../useMeetingDraft'
 import AiOriginalPanel from '../AiOriginalPanel'
 import ReportSheet from '../ReportSheet'
@@ -38,6 +39,9 @@ function assessmentBadge(draft: DealDraftState): {
   title?: string
 } {
   if (draft.analysisPhase === 'running') return { label: 'ML 분석 중', tone: 'blue' }
+  if (isInsufficientDealPrediction(draft.analysisError)) {
+    return { label: '판단 정보 부족', tone: 'neutral' }
+  }
   if (draft.analysisPhase === 'failed') {
     return { label: 'ML 분석 실패', tone: 'red', title: draft.analysisError ?? undefined }
   }
