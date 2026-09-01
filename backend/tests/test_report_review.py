@@ -164,6 +164,26 @@ def test_review_requires_a_reason_when_rejecting():
         ReportReview(decision="approve", expected_status_code="draft")
 
 
+def test_approval_clears_the_review_note_even_if_a_reason_is_sent():
+    """확정 요청에 사유가 실려 와도 남기지 않는다. 옛 지적이 붙어 있으면 무엇이 남은
+    문제인지 알 수 없다."""
+    manager = _member(role="manager")
+    author = _member(team_id=manager.team_id)
+    report = _report(author)
+    report.review_note = "고객 요구사항 내용이 부족합니다."
+
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[(report, author.display_name, None)]),
+        _Result(rows=[]),
+    )
+    response = _review(db, manager, report, decision="approve", reason="확인했습니다.")
+
+    assert response.status_code == 200
+    assert report.status_code == "approved"
+    assert report.review_note is None
+
+
 def test_manager_approves_a_teammates_report():
     manager = _member(role="manager")
     author = _member(team_id=manager.team_id)

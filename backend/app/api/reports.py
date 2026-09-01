@@ -660,8 +660,9 @@ async def review_report(
             )
         report.status_code = REVIEW_DECISION_STATUS[payload.decision]
         # 확정하면 지난 반려 사유를 남겨 두지 않는다. 고친 보고서에 옛 지적이 붙어 있으면
-        # 무엇이 남은 문제인지 알 수 없다. 작성자의 note 는 건드리지 않는다.
-        report.review_note = payload.reason
+        # 무엇이 남은 문제인지 알 수 없다. 확정 요청에 reason 이 실려 와도 비운다.
+        # 작성자의 note 는 건드리지 않는다.
+        report.review_note = payload.reason if payload.decision == "reject" else None
         report.reviewed_by_member_id = member.id
         report.reviewed_at = datetime.now(UTC)
         report.updated_at = datetime.now(UTC)
