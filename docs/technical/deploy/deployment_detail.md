@@ -257,6 +257,10 @@ gh workflow run deploy-backend.yml --ref develop
 8. SSM `/salesluv/production/backend/env`를 복호화해 임시 `0600` 파일로 받고 형식·필수값·production 보안값을 검증한다.
 9. 이전 env를 백업한 뒤 `/opt/salesluv/runtime/backend.env`를 원자 교체한다.
 10. 정확한 SHA에서 `git archive backend`로 격리 build context를 만들고 EC2에서 BuildKit으로 `salesluv-backend:<SHA>`를 빌드한다. ECR은 사용하지 않는다.
+    - 빌드 직전에 `/var/lib/containerd`와 `/var/lib/docker`의 여유 공간 중 작은 값을 잰다. 측정에 실패한 경로는 건너뛸 뿐 0으로 세지 않는다.
+    - 16 GiB 미만이면 남은 release context를 지우고 빌드 캐시를 5 GB로 제한한다. 캐시 크기 상한 플래그가 없는 Docker 버전에서는 `until=72h`로 폴백한다. dangling 레이어도 함께 정리한다.
+    - 그래도 8 GiB 미만일 때만 빌드 캐시를 전부 버린다. 컨테이너, 태그된 이미지, Docker volume은 어느 단계에서도 건드리지 않는다.
+    - 빌드가 `no space left on device`로 실패하면 빌드 캐시를 전부 버리고 한 번만 재시도한다. 다른 원인의 실패는 즉시 배포를 중단한다.
 11. 비활성 포트에 새 컨테이너를 띄운다.
     - `--restart unless-stopped`
     - host loopback에만 publish

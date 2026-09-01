@@ -48,7 +48,9 @@ class ReportDeal(Base):
     )
     deal_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
     content: Mapped[Any] = mapped_column(JSONB, nullable=False)
-    ai_evidence: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    # DB CHECK 는 SQL NULL 또는 JSON object 만 허용한다. 기본 JSONB 는 Python None 을
+    # JSON null 로 직렬화하므로 none_as_null 을 켜야 초안 딜을 저장할 수 있다.
+    ai_evidence: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 

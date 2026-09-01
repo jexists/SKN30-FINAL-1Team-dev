@@ -33,6 +33,10 @@ local = [
     "pillow>=12.3.0",
     "opencv-python-headless>=4.10.0",
     "pypdfium2>=5.13.0",
+    # sentence-transformers가 끌어오는 transitive torch에는 아래 tool.uv.sources가
+    # 적용되지 않는다. 직접 의존성으로 적어야 linux에서 CPU 휠을 받고, CUDA 런타임
+    # 라이브러리 수 GB가 이미지에 들어가지 않는다.
+    "torch>=2.13.0",
     "sentence-transformers>=6.0.0",
 ]
 
