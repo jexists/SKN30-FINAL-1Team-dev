@@ -159,10 +159,22 @@ export interface ActivityRead {
 
 export type AiBriefingStatus = 'queued' | 'running' | 'completed' | 'failed'
 
+/**
+ * 브리핑이 근거로 조회한 자료실 문서. `content.source_refs` 는 문서 id 만 담아서
+ * 화면에 그대로 띄울 수 없어, 서버가 실행 시점의 파일명·페이지를 함께 내려준다.
+ */
+export interface AiBriefingDocument {
+  document_id: string
+  file_name: string | null
+  page_start: number | null
+  page_end: number | null
+}
+
 export interface AiBriefing {
   run_id: string
   status: AiBriefingStatus
   content: ContractBriefingOutput | null
+  documents: AiBriefingDocument[]
   error: string | null
   generated_at: string | null
 }

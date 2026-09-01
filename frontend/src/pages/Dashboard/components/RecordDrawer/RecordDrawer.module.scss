@@ -247,6 +247,27 @@
   list-style: disc;
 }
 
+// AI 브리핑이 인용한 자료실 문서. 근거가 없으면 블록째 감춥니다.
+.sources {
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px dashed var(--line);
+}
+
+.sourcesTitle {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sourceList {
+  margin-top: var(--s2);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.7;
+  list-style: none;
+}
+
 // 왼쪽 선 하나로 지난 접촉을 시간순으로 세웁니다.
 .history {
   padding-left: var(--s4);

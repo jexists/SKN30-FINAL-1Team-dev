@@ -11,7 +11,7 @@ import { statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { RISK_LABEL } from '@/shared/riskLabels'
 import { useShowOwner } from '@/shared/scope'
-import type { AgendaItem } from '@/types'
+import type { AgendaItem, AiBriefingDocument } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
@@ -19,6 +19,13 @@ import { useRelatedDeal } from '../../useDashboard'
 import useAiBriefing from '../../useAiBriefing'
 
 import styles from './RecordDrawer.module.scss'
+
+/** DOCX·PPTX 처럼 페이지 경계가 없는 추출기는 page_start 가 비어 파일명만 남습니다. */
+function pageLabel({ page_start, page_end }: AiBriefingDocument): string {
+  if (page_start == null) return ''
+  if (page_end == null || page_end === page_start) return `p.${page_start}`
+  return `pp.${page_start}-${page_end}`
+}
 
 interface Props {
   item: AgendaItem
@@ -46,6 +53,16 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     loading: briefingLoading,
     error: briefingError,
   } = useAiBriefing({ activityId: item.id, eligible: !!item.customerContactId })
+  // 브리핑이 실제로 인용한 문서만 근거로 세웁니다. 조회는 됐지만 본문이 쓰지 않은
+  // 자료까지 보여 주면 "이걸 근거로 썼다"는 표시가 아니게 됩니다.
+  const citedDocumentIds = new Set(
+    (briefing?.content?.source_refs ?? [])
+      .filter((ref) => ref.type === 'document')
+      .map((ref) => ref.id),
+  )
+  const citedDocuments = (briefing?.documents ?? []).filter((document) =>
+    citedDocumentIds.has(document.document_id),
+  )
   const [menuOpen, setMenuOpen] = useState(false)
   const showOwner = useShowOwner()
   // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
@@ -271,6 +288,19 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
                     <li key={index}>{action}</li>
                   ))}
                 </ul>
+              )}
+              {citedDocuments.length > 0 && (
+                <div className={styles.sources}>
+                  <p className={styles.sourcesTitle}>📎 근거 자료</p>
+                  <ul className={styles.sourceList}>
+                    {citedDocuments.map((document) => (
+                      <li key={document.document_id}>
+                        {document.file_name ?? '이름 없는 자료'}
+                        {pageLabel(document) && ` ${pageLabel(document)}`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </>
           )}
