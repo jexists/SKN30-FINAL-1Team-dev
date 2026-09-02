@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -23,6 +24,22 @@ def _required_env(name: str) -> str:
 def require(response: httpx.Response, endpoint: str) -> None:
     if response.is_error:
         raise RuntimeError(f"{endpoint} failed with status {response.status_code}")
+
+
+def await_scan(client: httpx.Client, scan_id: str, *, timeout_seconds: float = 300.0) -> dict:
+    """인식이 끝날 때까지 상태를 폴링한다. 화면이 쓰는 방식과 같다."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        response = client.get(f"/business-cards/scan/{scan_id}")
+        require(response, "business_card_scan_status")
+        body = response.json()
+        processing_status = body.get("processing_status")
+        if processing_status == "completed":
+            return body
+        if processing_status == "failed":
+            raise RuntimeError(f"business card scan failed: {body.get('processing_error')}")
+        time.sleep(1.0)
+    raise RuntimeError("business card scan timed out")
 
 
 def main() -> None:
@@ -47,14 +64,15 @@ def main() -> None:
                 files={"image": (card_path.name, image, "image/jpeg")},
             )
         require(scan, "business_card_scan")
-        draft = scan.json()
-        fields = draft.get("fields", {})
+        # 스캔은 202로 접수만 하고, 결과는 폴링으로 받는다.
+        draft = await_scan(client, scan.json()["scan_id"])
+        fields = draft.get("fields") or {}
         field_names = ("name", "company_name", "department", "job_title", "email", "phone")
         print(
             {
                 "scan_status": scan.status_code,
+                "scan_processing_status": draft.get("processing_status"),
                 "ocr_fields_present": {name: bool(fields.get(name)) for name in field_names},
-                "match_count": len(draft.get("matches", [])),
             }
         )
 
