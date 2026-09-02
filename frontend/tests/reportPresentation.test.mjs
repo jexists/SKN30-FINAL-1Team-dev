@@ -30,7 +30,9 @@ const {
   periodGenerationSeedOf,
   toReport,
 } = await vite.ssrLoadModule('/src/pages/Daily/useDailyReports.ts')
-const { mergeGeneratedValues } = await vite.ssrLoadModule('/src/pages/Daily/useDailyDraft.ts')
+const { mergeGeneratedValues, mergeSourceActivities } = await vite.ssrLoadModule(
+  '/src/pages/Daily/useDailyDraft.ts',
+)
 const { hasMeetingDraftContent, mergeMeetingGeneratedValues } = await vite.ssrLoadModule(
   '/src/pages/Meetings/useMeetingDraft.ts',
 )
@@ -166,6 +168,43 @@ test('일정 연결·독립 미팅 자료 모두 설명 첫 줄의 공백과 CRL
       assert.match(result.values.get(`meet-${report.id}`).body, /DEAL-1/)
     }
   }
+})
+
+test('늦게 도착한 보고서 자료는 초기 초안에 반영하고 기존 선택은 보존한다', () => {
+  const loaded = [
+    {
+      id: 'cal-first',
+      source: '캘린더',
+      title: '첫 번째 일정',
+      desc: '',
+      included: true,
+      refId: 'first',
+    },
+    {
+      id: 'cal-picked',
+      source: '캘린더',
+      title: '미리 고른 일정',
+      desc: '',
+      included: false,
+      refId: 'picked',
+    },
+  ]
+
+  const initialized = mergeSourceActivities(loaded, [], 'picked')
+  assert.deepEqual(
+    initialized.map(({ id, included }) => [id, included]),
+    [
+      ['cal-first', true],
+      ['cal-picked', true],
+    ],
+  )
+
+  const refreshed = mergeSourceActivities(
+    [{ ...loaded[0], title: '갱신된 일정' }, loaded[1]],
+    [{ ...initialized[0], included: false }, initialized[1]],
+  )
+  assert.equal(refreshed[0].title, '갱신된 일정')
+  assert.equal(refreshed[0].included, false)
 })
 
 test('미팅 목록 요약은 저장 양식 순서와 비어 있지 않은 값을 먼저 사용한다', () => {

@@ -119,3 +119,19 @@
     margin-bottom: 0;
   }
 }
+
+// 본문을 기다리는 동안의 자리표시자. 줄 높이와 문단 간격을 .detail 과 맞춰
+// 전문이 도착해도 아래 내용이 밀리지 않게 합니다.
+.pending {
+  margin-top: var(--s3);
+}
+
+.pendingParagraph {
+  display: grid;
+  gap: 12px; // 13px * 1.75 - 막대 높이 11px
+  margin: 0 0 calc(0.75em + 12px);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}

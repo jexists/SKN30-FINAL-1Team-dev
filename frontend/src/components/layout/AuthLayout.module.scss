@@ -25,7 +25,14 @@
   color: #fff;
   overflow: hidden;
 
+  // 태블릿 폭에서도 소개-폼은 좌우로 둡니다. 폼이 아래로 내려가면 첫 화면에
+  // 로그인이 보이지 않습니다.
   @include lg {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.82fr);
+  }
+
+  // 소개가 사라지는 폭부터는 폼 한 칸만 남습니다.
+  @include md {
     grid-template-columns: 1fr;
   }
 }
@@ -42,11 +49,6 @@
   justify-content: center;
   // 로고-제목-사이클이 한 화면에 들어와야 합니다. 스크롤로 밀리면 안 됩니다.
   gap: clamp(18px, 2.2vw, 28px);
-
-  @include lg {
-    min-height: auto;
-    padding-block: clamp(48px, 8vw, 76px);
-  }
 
   // 좁은 화면에서는 소개를 아예 걷어냅니다. 폼이 첫 화면에 있어야 합니다.
   @include md {

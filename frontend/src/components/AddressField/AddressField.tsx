@@ -94,7 +94,7 @@ export default function AddressField({
 
       <input
         value={value.address}
-        placeholder="주소 검색을 눌러 주소를 고르세요"
+        placeholder={disabled ? '회사를 먼저 고르세요' : '주소 검색을 눌러 주소를 고르세요'}
         aria-label="주소"
         readOnly
         disabled={disabled}

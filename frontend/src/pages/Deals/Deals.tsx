@@ -113,7 +113,6 @@ export default function Deals() {
     cards: pageRows,
     total,
     counts,
-    dealTypes,
     loading,
     error,
     reload,
@@ -131,8 +130,20 @@ export default function Deals() {
     deleteSalesDeal,
     quoteStatuses,
     contractStatuses,
+    loadDocumentStatuses,
     saveDealDocument,
   } = useSalesDeals(openId, requestedPipelineId, 'list', undefined, dealQuery)
+
+  // 서류 모달은 열릴 때의 상태 목록으로 첫 상태를 정합니다. 목록을 받아 둔 뒤에 세웁니다.
+  const openDocument = useCallback(
+    (deal: SalesDeal, kind: 'quote' | 'contract') => {
+      void loadDocumentStatuses(kind).then(() => {
+        setDocumentDeal({ deal, kind })
+        setOpenId(null)
+      })
+    },
+    [loadDocumentStatuses],
+  )
 
   const pipelineOptions = useMemo(
     () => [
@@ -359,14 +370,12 @@ export default function Deals() {
           onEditQuote={() => {
             if (!selectedDeal) return
             clearMutationError()
-            setDocumentDeal({ deal: selectedDeal, kind: 'quote' })
-            setOpenId(null)
+            openDocument(selectedDeal, 'quote')
           }}
           onEditContract={() => {
             if (!selectedDeal) return
             clearMutationError()
-            setDocumentDeal({ deal: selectedDeal, kind: 'contract' })
-            setOpenId(null)
+            openDocument(selectedDeal, 'contract')
           }}
         />
       )}
@@ -401,8 +410,6 @@ export default function Deals() {
         <SalesDealForm
           columns={columns}
           stageId={addingColumn.id}
-          dealTypes={dealTypes}
-          optionsLoading={loading}
           onClose={() => setAddingTo(null)}
           onSubmit={async (input) => {
             await createSalesDeal(input)
@@ -416,8 +423,6 @@ export default function Deals() {
           deal={editingDeal}
           columns={columns}
           stageId={editingDeal.stageId}
-          dealTypes={dealTypes}
-          optionsLoading={loading}
           onClose={() => setEditingId(null)}
           onSubmit={async (input) => {
             await updateSalesDeal(editingDeal.id, input)

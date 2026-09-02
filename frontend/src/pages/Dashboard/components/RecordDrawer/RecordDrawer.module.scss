@@ -227,6 +227,16 @@
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.7;
+  // 브리핑과 메모는 문단을 나눠 옵니다. 기본값이면 개행이 공백으로 뭉개집니다.
+  white-space: pre-line;
+}
+
+// 브리핑이 짚은 "확인이 필요한 값". 보고서 필요 배지와 같은 주의 색을 씁니다.
+.check {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--orange-tint);
+  color: var(--orange-ink);
 }
 
 // AI 브리핑의 위험 배지 줄.
@@ -245,6 +255,69 @@
   font-size: 13px;
   line-height: 1.7;
   list-style: disc;
+}
+
+// 관련 자료 안에서 성격이 다른 묶음(제품 자료)을 갈라 세우는 선입니다.
+.sources {
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px dashed var(--line);
+}
+
+.sourcesTitle {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sourceList {
+  margin-top: var(--s2);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.7;
+  list-style: none;
+}
+
+.sourceName {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+// 자료요약 Agent 가 만든 요약. 원문 그대로라 자료실 드로어와 같은 pre 로 둡니다.
+.sourceSummary {
+  margin-top: var(--s1);
+
+  summary {
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  pre {
+    margin-top: var(--s2);
+    padding: var(--s3);
+    border-radius: var(--r-sm);
+    background: var(--fill);
+    color: var(--ink-2);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+// 브리핑이 실제로 인용한 자료에만 붙습니다. 목록을 거르지 않고 표시만 더합니다.
+.citedTag {
+  margin-left: var(--s2);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
 }
 
 // 왼쪽 선 하나로 지난 접촉을 시간순으로 세웁니다.

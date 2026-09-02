@@ -232,7 +232,7 @@ async def _complete(
             "status_code": status_code,
             "current_stage_code": status_code,
             "output_snapshot": output.model_dump(mode="json"),
-            "evidence": agent_runs.evidence(run.agent_code, output),
+            "evidence": agent_runs.evidence(run.agent_code, output, run.input_snapshot),
             "error_code": "agent_run_partial" if is_partial else None,
             "error_message": None,
             "lease_owner": None,

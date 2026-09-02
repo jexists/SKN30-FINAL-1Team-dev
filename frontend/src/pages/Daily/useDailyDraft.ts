@@ -62,6 +62,20 @@ export function mergeGeneratedValues(
   }
 }
 
+/** 늦게 도착한 원본에는 현재 선택만 얹습니다. */
+export function mergeSourceActivities(
+  collected: ReportActivity[],
+  previous: ReportActivity[],
+  pickId?: string,
+) {
+  const picked = new Map(previous.map((activity) => [activity.id, activity.included]))
+  return collected.map((activity) => ({
+    ...activity,
+    included:
+      picked.get(activity.id) ?? (pickId && activity.refId === pickId ? true : activity.included),
+  }))
+}
+
 interface DraftOptions {
   /** 미리 켜 둘 자료의 원본 id. 특정 일정에서 넘어올 때 씁니다. */
   pickId?: string
@@ -160,6 +174,7 @@ export default function useDailyDraft(
   const [generationRunId, setGenerationRunId] = useState<string>()
   const generationAbort = useRef<AbortController | null>(null)
   const generationAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
+  const sourceSelectionFrozen = useRef(false)
   const recoveryAbort = useRef<AbortController | null>(null)
   const recoveredScope = useRef('')
   const [recovering, setRecovering] = useState(true)
@@ -183,15 +198,8 @@ export default function useDailyDraft(
       live.current.reports,
       live.current.agendaItems,
     )
-    const picked = saved && new Map(saved.activities.map((a) => [a.id, a.included]))
-    setActivities(
-      collected.activities.map((activity) => ({
-        ...activity,
-        included:
-          picked?.get(activity.id) ??
-          (pickId && activity.refId === pickId ? true : activity.included),
-      })),
-    )
+    sourceSelectionFrozen.current = false
+    setActivities(mergeSourceActivities(collected.activities, saved?.activities ?? [], pickId))
     setAttachments(saved?.attachments ?? [])
     setAttachmentError(null)
     setTranscript(saved?.transcript ?? '')
@@ -212,7 +220,15 @@ export default function useDailyDraft(
     reset()
   }, [reset])
 
+  // 첫 렌더 뒤 도착한 자료만 초기 초안에 보탭니다. 사용자가 선택했거나 생성에 쓴
+  // 스냅샷은 이후 조회 결과로 바꾸지 않습니다.
+  useEffect(() => {
+    if (sourceSelectionFrozen.current) return
+    setActivities((previous) => mergeSourceActivities(sources.activities, previous, pickId))
+  }, [sources.activities, pickId])
+
   const toggleActivity = useCallback((id: string) => {
+    sourceSelectionFrozen.current = true
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, included: !a.included } : a)))
   }, [])
 
@@ -295,6 +311,7 @@ export default function useDailyDraft(
   const restoreGenerationInput = useCallback(
     (input: ReportGenerationInput) => {
       const restored = periodGenerationSeedOf(input)
+      sourceSelectionFrozen.current = true
       setTemplate(restored.template)
       setActivities(restored.activities)
       setAttachments(restored.attachments)
@@ -354,6 +371,7 @@ export default function useDailyDraft(
 
   const generate = useCallback(async () => {
     if (!canGenerate || generationAbort.current) return
+    sourceSelectionFrozen.current = true
     recoveryAbort.current?.abort()
     const controller = new AbortController()
     generationAbort.current = controller

@@ -1,6 +1,6 @@
 # 미팅 통합처리 → 보고서 확정 → 계약관리 → 일정관리 Agent 흐름
 
-> 이 문서는 미팅 통합처리·기간 보고서작성·계약관리·일정관리 Agent가 실제로 어떻게 동작하는지, 개발자와 Agent(코딩 에이전트)가 순서대로 따라가며 읽을 수 있도록 코드 기준으로 정리한 것이다. 자료요약(RAG) Agent는 아직 구현되지 않아 계약관리 Agent의 브리핑 입력에서 항상 빈 값으로 들어간다.
+> 이 문서는 미팅 통합처리·기간 보고서작성·계약관리·일정관리 Agent가 실제로 어떻게 동작하는지, 개발자와 Agent(코딩 에이전트)가 순서대로 따라가며 읽을 수 있도록 코드 기준으로 정리한 것이다. 자료요약(RAG) Agent는 계약관리 Agent의 브리핑 입력에 RAG 조회 결과로 연결돼 있다.
 >
 > 계약관리·일정관리 Agent의 정확한 Input/Output/상태 정의는 [계약에이전트_설계.md](계약에이전트_설계.md)와 [일정관리에이전트_설계.md](일정관리에이전트_설계.md)를 기준으로 삼는다. 이 문서와 그 두 문서가 어긋나면 두 설계 문서가 맞다 — 이 문서는 4개 Agent를 한 흐름으로 훑어보는 용도다.
 
@@ -76,7 +76,7 @@
 ### 6. 계약관리 Agent 재진입 — 승인된 일정과 자료요약을 묶어 브리핑을 만든다
 
 - **구현**: `contract_management.py`의 `generate_briefing()`, `agent_code="contract_management_briefing"`
-- **Input**: 사용자가 승인해 등록된 일정(`activity_id`), 고객사·딜 현황, 자료요약(RAG) — 자료요약 Agent가 아직 없어 이 값은 항상 빈 배열이다.
+- **Input**: 사용자가 승인해 등록된 일정(`activity_id`), 고객사·딜 현황, 자료요약(RAG) 조회 결과(`document_context`). 자료실 검색은 이 딜 또는 이 고객사(OR) 범위이며, 문서 본문은 `<document_context>` 경계 블록으로 감싸 전달한다.
 - **처리**: 승인된 일정과 계약·딜 현황을 근거로 브리핑을 요약한다. 근거가 없는 항목은 채우지 않고 `missing_information`에 남긴다.
 - **Output**: `contract_summary`, `source_refs`, `risks`, `missing_information`, `recommended_actions`
 - **주의**: 일정 등록(`POST /activities`)에 `schedule_management_run_id`(완료된 일정관리 실행 ID)를 실어 보내면, 서버가 등록 커밋 직후 같은 요청 안에서 이 실행을 자동으로 큐잉한다 — 클라이언트가 `agent-runs`를 별도로 다시 호출할 필요는 없다. 큐잉 자체가 실패하면(부모 실행을 못 찾음 등) 일정 등록은 그대로 두고 응답의 `briefing_queue_warning`으로만 알린다.
@@ -107,7 +107,7 @@
 - Agent 오케스트레이션은 `backend/app/services/agent_runs.py`(사용자 요청 경로)와 `backend/app/services/contract_next_meeting_pipeline.py`(트리거 기반 선계산 경로)가 나눠 맡는다. 선계산 경로는 계약관리 1차→일정관리를 서버가 백그라운드로 자동으로 잇고, 결과를 `contract_next_meeting_suggestion`에 저장한다. 일정관리→계약관리 재진입(브리핑)은 `backend/app/api/activities.py`의 `create_activity`가 `schedule_management_run_id`를 받아 자동으로 이어서 큐잉한다.
 - 같은 딜에 트리거가 몰려도 10분 안에는 다시 돌리지 않는다(`_COOLDOWN`). 진행 중인 실행이 있으면 시각과 무관하게 막는다.
 - 미팅 내용 귀속·보고서작성·딜 특성/ML은 하나의 `meeting_processing` 실행에서 같은 동결 근거를 공유한다. 계약관리 1차 제안은 이 임시 출력을 직접 받지 않고, DB에서 사람이 확정한(`submitted`/`approved`) 보고서를 다시 조회한다.
-- 자료요약(RAG) Agent: 문서 추출·OCR·요약·검색 청크 저장과 브리핑 컨텍스트 조회 API가 구현돼 있다. `GET /api/documents/briefing-context?q=...`는 같은 팀의 검색 청크(`sources`)와 저장 요약(`summaries`)을 반환한다. 현재 계약관리 Agent 브리핑 입력에 이 컨텍스트를 전달하는 최종 핸들러 연결은 별도 작업으로 남아 있다.
+- 자료요약(RAG) Agent: 문서 추출·OCR·요약·검색 청크 저장과 브리핑 컨텍스트 조회 API가 구현돼 있다. `GET /api/documents/briefing-context?q=...`는 같은 팀의 검색 청크(`sources`)와 저장 요약(`summaries`)을 반환한다. 계약관리 브리핑은 `build_briefing_snapshot()`에서 같은 조회를 직접 호출해 `document_context`를 채운다.
 - 프론트엔드: 미팅 상세(`RecordDrawer`)가 브리핑 결과를 읽기 전용으로 보여주고, 캘린더 탭의 "AI 추천 일정" 패널(`SuggestionPanel`)이 저장된 제안을 조회해 보여주고 승인받는다. 패널은 LLM을 직접 호출하지 않는다 — `GET /contract-next-meeting-suggestions` 한 번이 전부다.
 - 트리거가 한 번도 걸리지 않은 기존 딜은 제안이 없어 패널에 뜨지 않는다. `backend/scripts/backfill_contract_next_meeting_suggestions.py`로 한 번에 채운다.
 

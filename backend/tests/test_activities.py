@@ -354,6 +354,7 @@ def test_member_list_is_owner_date_and_soft_delete_scoped():
     for statement in db.statements:
         sql = str(statement)
         assert "activity.deleted_at IS NULL" in sql
+        assert "sales_deal_1.customer_company_id = customer_company_1.id" in sql
         assert "activity_category.deleted_at IS NULL" not in sql
         assert "activity_action_tag.deleted_at IS NULL" not in sql
         assert member.id in statement.compile().params.values()
@@ -560,6 +561,62 @@ def test_member_cannot_link_another_owners_sales_deal():
     assert "sales_deal.owner_member_id" in str(statement)
     assert member.id in statement.compile().params.values()
     assert member.team_id in statement.compile().params.values()
+    assert db.rollback_count == 1
+
+
+def test_create_rejects_contact_and_deal_from_different_companies():
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    deal = SimpleNamespace(id=uuid4(), customer_company_id=uuid4())
+    db = _Db(
+        _Result(rows=[(contact, company.id, company.name)]),
+        _Result(scalar=deal),
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_contact_id": str(contact.id),
+                "sales_deal_id": str(deal.id),
+                "category_code": "visit",
+                "title": "서로 다른 고객사의 일정",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "contact_company_mismatch"}
+    assert db.added == []
+    assert db.rollback_count == 1
+
+
+def test_patch_rejects_contact_and_existing_deal_from_different_companies():
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    deal = SimpleNamespace(id=uuid4(), customer_company_id=uuid4())
+    activity = _activity(member)
+    activity.sales_deal_id = deal.id
+    db = _Db(
+        _Result(scalar=activity),
+        _Result(rows=[(contact, company.id, company.name)]),
+        _Result(scalar=deal),
+    )
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/activities/{activity.id}",
+            headers={"Origin": ORIGIN},
+            json={"customer_contact_id": str(contact.id)},
+        )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "contact_company_mismatch"}
+    assert activity.customer_contact_id is None
+    assert db.commit_count == 0
     assert db.rollback_count == 1
 
 
@@ -814,10 +871,33 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
     """브리핑 큐잉이 실패해도 이미 커밋된 일정 등록은 되돌리지 않고 경고만 응답에 싣는다."""
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
 
+    expired = False
     member = _member()
+    member_getattribute = Member.__getattribute__
+    activity_getattribute = Activity.__getattribute__
+
+    def _guard_member(self, name):
+        if expired and self is member and name in {"id", "team_id"}:
+            raise AssertionError("rollback 뒤 member ORM 객체에 접근했습니다")
+        return member_getattribute(self, name)
+
+    def _guard_activity(self, name):
+        if expired and name in {"id", "sales_deal_id", "starts_at", "ends_at"}:
+            raise AssertionError("rollback 뒤 activity ORM 객체에 접근했습니다")
+        return activity_getattribute(self, name)
+
+    monkeypatch.setattr(Member, "__getattribute__", _guard_member)
+    monkeypatch.setattr(Activity, "__getattribute__", _guard_activity)
+
+    class _ExpiringDb(_Db):
+        async def rollback(self):
+            nonlocal expired
+            await super().rollback()
+            expired = True
+
     category = _category(member.team_id, code="demo")
     missing_run_id = uuid4()
-    db = _Db(
+    db = _ExpiringDb(
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음

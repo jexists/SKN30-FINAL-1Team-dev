@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,7 +14,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from test_report_writing_deep import ScriptedModel, sample
 
-from app.agents import report_writing_deep
+from app.agents import contract_management, report_writing_deep, schedule_management
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
@@ -27,7 +28,7 @@ from app.schemas.agent_runs import (
     ReportGenerationScope,
 )
 from app.services import agent_runs as service
-from app.services import agent_worker
+from app.services import agent_worker, contract_schedule_snapshots
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
@@ -214,6 +215,180 @@ def test_generic_queue_only_accepts_contract_and_schedule_agents():
     )
 
 
+@pytest.mark.parametrize(
+    ("agent_code", "identifying", "expected_prompt", "expected_refs"),
+    [
+        (
+            "contract_management_select_candidates",
+            {},
+            contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+            {},
+        ),
+        (
+            "contract_management_next_meeting",
+            {"customer_company_id": uuid4()},
+            contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+            None,
+        ),
+        (
+            "contract_management_briefing",
+            {"activity_id": uuid4()},
+            contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+            None,
+        ),
+        (
+            "schedule_management",
+            {
+                "sales_deal_id": uuid4(),
+                "preferred_starts_at": "2026-08-18T09:00:00+09:00",
+                "preferred_ends_at": "2026-08-18T12:00:00+09:00",
+                "duration_minutes": 60,
+            },
+            schedule_management.PROMPT_VERSION,
+            None,
+        ),
+    ],
+)
+def test_generic_agent_requests_are_queued(
+    llm_ready, agent_code, identifying, expected_prompt, expected_refs
+):
+    member = _member()
+    db = _Db(_Result(scalar=None))
+    payload = {
+        "agent_code": agent_code,
+        "idempotency_key": str(uuid4()),
+        **{
+            key: str(value) if isinstance(value, UUID) else value
+            for key, value in identifying.items()
+        },
+    }
+
+    with _client(db, member) as client:
+        response = client.post("/api/agent-runs", headers={"Origin": ORIGIN}, json=payload)
+
+    assert response.status_code == 202
+    run = db.added[0]
+    assert run.agent_code == agent_code
+    assert run.prompt_version == expected_prompt
+    assert run.report_id is None and run.input_snapshot == {}
+    assert run.source_refs == (
+        expected_refs
+        if expected_refs is not None
+        else {
+            key: str(value)
+            for key, value in identifying.items()
+            if key in {"customer_company_id", "sales_deal_id", "activity_id"}
+        }
+    )
+    assert run.parent_run_id is None
+    assert db.commit_count == 1
+
+
+@pytest.mark.parametrize(
+    ("agent_code", "parent_code", "identifying"),
+    [
+        ("contract_management_briefing", "schedule_management", {"activity_id": uuid4()}),
+        (
+            "schedule_management",
+            "contract_management_next_meeting",
+            {"sales_deal_id": uuid4()},
+        ),
+    ],
+)
+def test_parented_agent_requests_keep_valid_parent(llm_ready, agent_code, parent_code, identifying):
+    member = _member()
+    parent = _run(member, status_code="completed")
+    parent.agent_code = parent_code
+    db = _Db(_Result(scalar=None), _Result(scalar=parent))
+    payload = {
+        "agent_code": agent_code,
+        "parent_run_id": str(parent.id),
+        "idempotency_key": str(uuid4()),
+        **{key: str(value) for key, value in identifying.items()},
+    }
+
+    with _client(db, member) as client:
+        response = client.post("/api/agent-runs", headers={"Origin": ORIGIN}, json=payload)
+
+    assert response.status_code == 202
+    assert db.added[0].parent_run_id == parent.id
+    assert db.added[0].source_refs["parent_run_id"] == str(parent.id)
+
+
+@pytest.mark.parametrize(
+    ("parent_code", "parent_status", "parent_result", "expected_status"),
+    [
+        ("contract_management_next_meeting", "completed", "parent", 409),
+        ("schedule_management", "running", "parent", 409),
+        ("schedule_management", "completed", None, 404),
+    ],
+)
+def test_parent_run_requires_expected_type_completed_status_and_scope(
+    llm_ready, parent_code, parent_status, parent_result, expected_status
+):
+    member = _member()
+    parent = _run(member, status_code=parent_status)
+    parent.agent_code = parent_code
+    db = _Db(
+        _Result(scalar=None),
+        _Result(scalar=parent if parent_result == "parent" else None),
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "contract_management_briefing",
+                "activity_id": str(uuid4()),
+                "parent_run_id": str(parent.id),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == expected_status
+    assert db.added == []
+    if expected_status == 404:
+        parent_query = str(db.statements[1])
+        assert "agent_run.team_id" in parent_query
+        assert "agent_run.requested_by_member_id" in parent_query
+
+
+def test_same_generic_idempotency_key_returns_existing_run(llm_ready):
+    member = _member()
+    key = uuid4()
+    payload = AgentRunCreate(
+        agent_code="contract_management_select_candidates",
+        idempotency_key=key,
+    )
+    existing = _run(member, status_code="running", key=key)
+    existing.agent_code = payload.agent_code
+    existing.request_snapshot = payload.model_dump(mode="json")
+    existing.request_hash = service._request_hash(existing.request_snapshot)
+    db = _Db(_Result(scalar=existing))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json=payload.model_dump(mode="json"),
+        )
+
+    assert response.status_code == 202
+    assert response.json()["id"] == str(existing.id)
+    assert response.json()["status_code"] == "running"
+    assert db.added == [] and db.commit_count == 0
+
+
+def test_schedule_management_requires_preferred_window_without_parent_run():
+    with pytest.raises(ValidationError):
+        AgentRunCreate(
+            agent_code="schedule_management",
+            sales_deal_id=uuid4(),
+            idempotency_key=uuid4(),
+        )
+
+
 def test_report_generation_input_has_one_typed_scope():
     meeting = ReportGenerationCreate(
         idempotency_key=uuid4(),
@@ -290,6 +465,50 @@ def test_report_generation_is_queued_without_creating_a_report(llm_ready, monkey
     assert run.scope_key == "daily:2026-08-17"
     assert run.payload_expires_at - run.created_at == service.REPORT_GENERATION_RETENTION
     assert response.headers["Location"] == f"/api/agent-runs/{run.id}"
+
+
+def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
+    member = _member()
+    activity_id = uuid4()
+    activity = SimpleNamespace(
+        id=activity_id,
+        team_id=member.team_id,
+        owner_member_id=member.id,
+        starts_at=NOW,
+        ends_at=NOW + timedelta(hours=1),
+        deleted_at=None,
+        title="고객 미팅",
+        location="회의실",
+        note="계약 조건 협의",
+    )
+    db = _Db(
+        _Result(scalar=None),
+        _Result(scalars=[]),
+        _Result(scalars=[activity]),
+    )
+    payload = _daily_payload(
+        content={
+            "values": {},
+            "activities": [
+                {
+                    "refId": str(activity_id),
+                    "source": "캘린더",
+                    "included": True,
+                }
+            ],
+        }
+    )
+
+    with _client(db, member) as client:
+        response = client.post("/api/report-generations", headers={"Origin": ORIGIN}, json=payload)
+
+    assert response.status_code == 202
+    run = db.added[0]
+    for snapshot in (run.request_snapshot, run.source_refs, run.input_snapshot):
+        json.dumps(snapshot)
+    source = run.input_snapshot["report_sources"]["activities"][0]
+    assert source["id"] == str(activity_id)
+    assert source["starts_at"] == NOW.isoformat()
 
 
 def test_generation_input_restores_only_requesters_ui_values():
@@ -464,6 +683,213 @@ def test_member_cannot_read_another_requesters_run():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "agent_code",
+    [
+        "contract_management_select_candidates",
+        "contract_management_next_meeting",
+        "contract_management_briefing",
+        "schedule_management",
+    ],
+)
+async def test_prepare_claimed_routes_generic_inputs_and_persists_snapshot(monkeypatch, agent_code):
+    member = _member()
+    target_id = uuid4()
+    identifying = {
+        "contract_management_select_candidates": {},
+        "contract_management_next_meeting": {"customer_company_id": target_id},
+        "contract_management_briefing": {"activity_id": target_id},
+        "schedule_management": {
+            "sales_deal_id": target_id,
+            "preferred_starts_at": "2026-08-18T09:00:00+09:00",
+            "preferred_ends_at": "2026-08-18T12:00:00+09:00",
+            "duration_minutes": 60,
+        },
+    }[agent_code]
+    payload = AgentRunCreate(
+        agent_code=agent_code,
+        idempotency_key=uuid4(),
+        **identifying,
+    )
+    snapshots = {
+        "contract_management_select_candidates": {"candidates": []},
+        "contract_management_next_meeting": {
+            "customer_company": {"id": str(target_id)},
+            "risk_signals": [],
+        },
+        "contract_management_briefing": {
+            "customer_company": {"id": "company-1"},
+            "document_context": {"summaries": [], "sources": []},
+        },
+        "schedule_management": {"sales_deal_id": str(target_id), "activities": []},
+    }
+    builders = {
+        "contract_management_select_candidates": "build_candidate_selection_snapshot",
+        "contract_management_next_meeting": "build_next_meeting_snapshot",
+        "contract_management_briefing": "build_briefing_snapshot",
+        "schedule_management": "build_schedule_snapshot",
+    }
+    prompts = {
+        "contract_management_select_candidates": (
+            contract_management.SELECT_CANDIDATES_PROMPT_VERSION
+        ),
+        "contract_management_next_meeting": (
+            contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION
+        ),
+        "contract_management_briefing": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+        "schedule_management": schedule_management.PROMPT_VERSION,
+    }
+    calls = []
+
+    async def build(*args):
+        calls.append(args)
+        return snapshots[agent_code]
+
+    monkeypatch.setattr(contract_schedule_snapshots, builders[agent_code], build)
+    request_snapshot = payload.model_dump(mode="json")
+    run = SimpleNamespace(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code=agent_code,
+        requested_by_member_id=member.id,
+        request_snapshot=request_snapshot,
+        request_hash=service._request_hash(request_snapshot),
+        input_snapshot={},
+    )
+    db = _Db(_Result(scalar=member), SimpleNamespace(rowcount=1))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    code, input_snapshot, requester_id = await service.prepare_claimed(run, "worker-1")
+
+    assert (code, input_snapshot, requester_id) == (
+        agent_code,
+        snapshots[agent_code],
+        member.id,
+    )
+    assert run.input_snapshot == snapshots[agent_code]
+    assert len(calls) == 1 and calls[0][:2] == (db, member)
+    if agent_code != "contract_management_select_candidates":
+        assert calls[0][2] == target_id
+    values = db.statements[1].compile().params
+    assert values["prompt_version"] == prompts[agent_code]
+    assert values["input_snapshot"] == snapshots[agent_code]
+    assert values["current_stage_code"] == "running_agent"
+    assert "agent_run.status_code" in str(db.statements[1])
+    assert "agent_run.lease_owner" in str(db.statements[1])
+    assert db.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_prepare_claimed_rejects_lost_lease_before_exposing_snapshot(monkeypatch):
+    member = _member()
+    payload = AgentRunCreate(
+        agent_code="contract_management_select_candidates",
+        idempotency_key=uuid4(),
+    )
+    request_snapshot = payload.model_dump(mode="json")
+    run = SimpleNamespace(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code=payload.agent_code,
+        requested_by_member_id=member.id,
+        request_snapshot=request_snapshot,
+        request_hash=service._request_hash(request_snapshot),
+        input_snapshot={},
+    )
+    db = _Db(_Result(scalar=member), SimpleNamespace(rowcount=0))
+
+    async def build(*_args):
+        return "v1", {"candidates": []}, {}, None
+
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    monkeypatch.setattr(service, "_build_run_input", build)
+
+    with pytest.raises(RuntimeError, match="agent_run_lease_lost"):
+        await service.prepare_claimed(run, "old-worker")
+
+    assert run.input_snapshot == {}
+    assert db.commit_count == 0
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("agent_code", "agent_attribute", "output_values", "expected_evidence"),
+    [
+        (
+            "contract_management_select_candidates",
+            "select_next_meeting_candidates",
+            {"candidates": []},
+            {
+                "prompt_version": contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+                "candidate_count": 0,
+            },
+        ),
+        (
+            "contract_management_next_meeting",
+            "propose_next_meeting",
+            {"risks": []},
+            {
+                "prompt_version": contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+                "risk_count": 0,
+            },
+        ),
+        (
+            "contract_management_briefing",
+            "generate_briefing",
+            {"risks": []},
+            {
+                "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+                "risk_count": 0,
+                "document_count": 1,
+                "chunk_count": 2,
+            },
+        ),
+        (
+            "schedule_management",
+            "run",
+            {"schedule_candidates": []},
+            {
+                "prompt_version": schedule_management.PROMPT_VERSION,
+                "candidate_count": 0,
+            },
+        ),
+    ],
+)
+async def test_generic_dispatch_completion_and_evidence(
+    monkeypatch, agent_code, agent_attribute, output_values, expected_evidence
+):
+    member = _member()
+    run = _run(member, status_code="running")
+    run.agent_code = agent_code
+    run.lease_owner = "worker-1"
+    run.input_snapshot = {"document_context": {"summaries": [{}], "sources": [{}, {}]}}
+    output_snapshot = {"agent_code": agent_code}
+    output = SimpleNamespace(
+        **output_values,
+        model_dump=lambda **_kwargs: output_snapshot,
+    )
+    called = []
+
+    async def execute(snapshot):
+        called.append(snapshot)
+        return output
+
+    module = schedule_management if agent_code == "schedule_management" else contract_management
+    monkeypatch.setattr(module, agent_attribute, execute)
+
+    dispatched = await service.dispatch(agent_code, run.input_snapshot, member.id)
+    db = _Db(SimpleNamespace(rowcount=1))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    await agent_worker._complete(run, run.lease_owner, dispatched)
+
+    assert called == [run.input_snapshot]
+    assert run.status_code == "completed"
+    assert run.output_snapshot == output_snapshot
+    assert run.evidence == expected_evidence
+    assert run.lease_owner is None and db.commit_count == 1
+
+
+@pytest.mark.anyio
 async def test_worker_completes_meeting_output_without_an_apply_phase(monkeypatch):
     member = _member()
     run = _run(member)
@@ -508,8 +934,95 @@ async def test_worker_claim_excludes_expired_or_redacted_report_payloads(monkeyp
     params = repr(db.statements[0].compile().params)
     assert "agent_run.payload_expires_at" in statement
     assert "agent_run.payload_redacted_at IS NULL" in statement
+    assert "agent_run.request_hash IS NOT NULL" in statement
     assert "schedule_management" in params
     assert "meeting_analysis" not in params
+
+
+@pytest.mark.anyio
+async def test_expired_generic_lease_is_reclaimed_with_skip_locked(monkeypatch):
+    run = _run(_member(), status_code="running")
+    run.agent_code = "schedule_management"
+    run.request_hash = "a" * 64
+    run.attempt_count = 1
+    run.lease_owner = "dead-worker"
+    run.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db = _Db(_Result(scalar=run))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    claimed = await agent_worker.claim("replacement-worker")
+
+    assert claimed is run
+    assert run.attempt_count == 2
+    assert run.lease_owner == "replacement-worker"
+    assert run.lease_expires_at > datetime.now(UTC)
+    assert db.statements[0]._for_update_arg.skip_locked is True
+    assert db.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_direct_bridge_can_claim_legacy_system_run(monkeypatch):
+    run = _run(_member())
+    run.agent_code = "schedule_management"
+    run.requested_by_member_id = None
+    run.request_hash = None
+    db = _Db(_Result(scalar=run))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    claimed = await agent_worker.claim("direct-bridge", run.id)
+
+    assert claimed is run
+    assert "agent_run.request_hash IS NOT NULL" not in str(db.statements[0])
+
+
+@pytest.mark.anyio
+async def test_worker_completion_rejects_lost_lease(monkeypatch):
+    run = _run(_member(), status_code="running")
+    run.agent_code = "schedule_management"
+    run.lease_owner = "old-worker"
+    db = _Db(SimpleNamespace(rowcount=0), SimpleNamespace(rowcount=0))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    output = SimpleNamespace(
+        schedule_candidates=[],
+        model_dump=lambda **_kwargs: {"schedule_candidates": []},
+    )
+
+    with pytest.raises(RuntimeError, match="agent_run_lease_lost"):
+        await agent_worker._complete(run, "old-worker", output)
+
+    assert run.status_code == "running"
+    assert db.commit_count == 0
+
+
+@pytest.mark.anyio
+async def test_worker_schema_check_is_read_only(monkeypatch):
+    rows = [
+        (table_name, column_name)
+        for table_name, columns in agent_worker.REQUIRED_SCHEMA.items()
+        for column_name in (columns or {"id"})
+    ]
+    db = _Db(SimpleNamespace(all=lambda: rows))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    await agent_worker.check_schema()
+
+    assert db.commit_count == 0
+    assert len(db.statements) == 1
+
+
+@pytest.mark.anyio
+async def test_worker_schema_check_reports_missing_table(monkeypatch):
+    rows = [
+        (table_name, column_name)
+        for table_name, columns in agent_worker.REQUIRED_SCHEMA.items()
+        if table_name != "report_source"
+        for column_name in (columns or {"id"})
+    ]
+    db = _Db(SimpleNamespace(all=lambda: rows))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    with pytest.raises(RuntimeError, match="agent_worker_schema_incomplete:report_source"):
+        await agent_worker.check_schema()
 
 
 @pytest.mark.anyio
@@ -723,3 +1236,45 @@ def test_manual_meeting_apply_routes_are_removed():
     }
     assert ("POST", "/api/agent-runs/{agent_run_id}/apply") not in paths
     assert ("PATCH", "/api/agent-runs/{agent_run_id}/meeting-notes") not in paths
+
+
+@pytest.mark.anyio
+async def test_prepare_claimed_refreshes_the_run_input_snapshot(monkeypatch):
+    """worker 가 만든 입력을 run 에 반영하지 않으면 evidence 가 늘 0 을 기록한다."""
+    member_id, team_id = uuid4(), uuid4()
+    built = {"document_context": {"summaries": [{"file_id": "f"}], "sources": [{"chunk_id": "c"}]}}
+    request_snapshot = {
+        "agent_code": "contract_management_briefing",
+        "activity_id": str(uuid4()),
+        "idempotency_key": str(uuid4()),
+    }
+    run = SimpleNamespace(
+        id=uuid4(),
+        team_id=team_id,
+        agent_code="contract_management_briefing",
+        requested_by_member_id=member_id,
+        request_snapshot=request_snapshot,
+        request_hash=service._request_hash(request_snapshot),
+        input_snapshot={},
+    )
+    member = SimpleNamespace(id=member_id, team_id=team_id)
+    db = _Db(_Result(scalar=member), SimpleNamespace(rowcount=1))
+
+    async def _build(_payload, _member, _session):
+        return ("v4", built, {}, None)
+
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    monkeypatch.setattr(service, "_build_run_input", _build)
+
+    _code, input_snapshot, _requester = await service.prepare_claimed(run, "worker-1")
+
+    assert input_snapshot == built
+    # 호출자가 든 run 도 같은 입력을 봐야 한다.
+    assert run.input_snapshot == built
+    evidence = service.evidence(
+        "contract_management_briefing",
+        SimpleNamespace(risks=[]),
+        run.input_snapshot,
+    )
+    assert evidence["document_count"] == 1
+    assert evidence["chunk_count"] == 1
