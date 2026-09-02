@@ -24,8 +24,10 @@ class AgentRun(Base):
     prompt_version: Mapped[str]
     source_refs: Mapped[Any] = mapped_column(JSONB, nullable=False)
     input_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
-    output_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=True)
-    evidence: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    # report 와 같은 CHECK 가 걸려 있다. 아직 결과가 없는 실행은 SQL NULL 로 남아야 하고,
+    # 기본 JSONB 가 만드는 JSON null 은 제약에 걸려 실행 자체를 만들 수 없게 한다.
+    output_snapshot: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    evidence: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     error_message: Mapped[str | None]
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]

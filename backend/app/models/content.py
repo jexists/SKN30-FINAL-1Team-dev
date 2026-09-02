@@ -26,8 +26,10 @@ class Report(Base):
     status_code: Mapped[str]
     content: Mapped[Any] = mapped_column(JSONB, nullable=False)
     transcript: Mapped[str | None]
-    source_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=True)
-    ai_evidence: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    # DB CHECK 는 SQL NULL 또는 JSON object 만 허용한다. 기본 JSONB 는 Python None 을
+    # JSON null 로 직렬화하므로 none_as_null 을 켜야 보고서를 새로 만들 수 있다.
+    source_snapshot: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    ai_evidence: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     note: Mapped[str | None]
     # 팀장이 반려하며 남긴 사유. note 는 작성자의 칸이라 섞지 않는다.
     review_note: Mapped[str | None]
