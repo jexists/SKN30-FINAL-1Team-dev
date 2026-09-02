@@ -545,6 +545,9 @@ async def prepare_claimed(
         if getattr(result, "rowcount", 1) == 0:
             raise RuntimeError("agent_run_lease_lost")
         await session.commit()
+    # 여기서 만든 입력을 DB 에만 두면 호출자가 든 run 은 빈 스냅샷을 계속 들고 있다.
+    # evidence() 처럼 입력을 보고 지표를 세는 쪽이 늘 0 을 기록하게 된다.
+    run.input_snapshot = input_snapshot
     return run.agent_code, input_snapshot, run.requested_by_member_id
 
 
