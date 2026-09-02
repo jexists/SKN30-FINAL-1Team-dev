@@ -12,10 +12,16 @@ import {
 
 const created = {
   id: 'run-1',
+  report_id: 'report-1',
   status_code: 'running',
+  current_stage_code: 'report_writing',
+  apply_status: 'pending',
+  attempt_count: 1,
   output_snapshot: null,
+  error_code: null,
   error_message: null,
   evidence: null,
+  created_at: '2026-09-01T00:00:00Z',
 }
 const preview = (body, revision = 1) => ({
   section: 'deal',
@@ -32,6 +38,8 @@ const progress = (body, revision = 1) => ({
 const completed = {
   ...created,
   status_code: 'completed',
+  current_stage_code: 'completed',
+  apply_status: 'applied',
   output_snapshot: { reports: '검증된 최종 보고서' },
 }
 
@@ -131,20 +139,39 @@ test('인증 스트림은 현재 run만 표시하고 완료 output만 저장 호
   assert.equal(seen.length, 1)
 })
 
-test('초안 뒤 실행이 실패해도 초안은 완료·저장 결과로 승격되지 않는다', async (t) => {
+test('초안 뒤 실행이 실패·취소되면 초안을 저장 결과로 승격하지 않는다', async (t) => {
   const streams = fakeStream(t)
-  let applied = false
-  const waiting = waitForMeetingRun(created, {
-    eventsUrl: '/events',
-    readRun: () => assert.fail('불필요한 조회'),
-  }).then(() => {
-    applied = true
-  })
-  streams[0].emit('progress', progress('그럴듯하지만 검토 실패한 초안'))
-  streams[0].emit('done', { ...created, status_code: 'failed', error_message: 'review_failed' })
-  await assert.rejects(waiting, /review_failed/)
-  assert.equal(applied, false)
-  assert.equal(streams[0].closed, true)
+  for (const terminal of [
+    { status_code: 'failed', error_code: null, error_message: 'review_failed' },
+    { status_code: 'cancelled', error_code: 'user_cancelled', error_message: null },
+  ]) {
+    let applied = false
+    const waiting = waitForMeetingRun(created, {
+      eventsUrl: '/events',
+      readRun: () => assert.fail('불필요한 조회'),
+    }).then(() => {
+      applied = true
+    })
+    const stream = streams.at(-1)
+    stream.emit('progress', progress('그럴듯하지만 저장하면 안 되는 초안'))
+    stream.emit('done', { ...created, ...terminal })
+    await assert.rejects(waiting, new RegExp(terminal.error_code ?? terminal.error_message))
+    assert.equal(applied, false)
+    assert.equal(stream.closed, true)
+  }
+})
+
+test('실행 중 보고서가 바뀌어 stale이면 AI 결과를 반환하지 않는다', async () => {
+  await assert.rejects(
+    waitForMeetingRun(
+      { ...completed, apply_status: 'stale' },
+      {
+        eventsUrl: '/events',
+        readRun: () => assert.fail('종료 실행은 조회하지 않습니다.'),
+      },
+    ),
+    /meeting_report_changed/,
+  )
 })
 
 test('스트림 오류는 새 실행 없이 같은 run 조회로 한 번만 전환한다', async (t) => {
@@ -169,6 +196,7 @@ test('서버 custom error도 기존 인증 갱신 GET 경로로 전환하고 부
   const streams = fakeStream(t)
   const partial = {
     ...completed,
+    status_code: 'partial',
     output_snapshot: { reports: null, analyses: [], errors: { reports: '검토 실패' } },
   }
   let reads = 0

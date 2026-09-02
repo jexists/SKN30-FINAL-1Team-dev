@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import BigInteger, ForeignKey, Integer, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,14 +19,35 @@ class AgentRun(Base):
     agent_code: Mapped[str]
     trigger_code: Mapped[str]
     idempotency_key: Mapped[UUID | None]
+    report_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("public.report.id", ondelete="SET NULL")
+    )
     status_code: Mapped[str]
     llm_model_name: Mapped[str]
     prompt_version: Mapped[str]
+    request_snapshot: Mapped[Any] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    request_hash: Mapped[str | None]
     source_refs: Mapped[Any] = mapped_column(JSONB, nullable=False)
     input_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
-    output_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=True)
-    evidence: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    output_snapshot: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    evidence: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     error_message: Mapped[str | None]
+    error_code: Mapped[str | None]
+    apply_status: Mapped[str] = mapped_column(server_default=text("'not_applicable'::text"))
+    current_stage_code: Mapped[str] = mapped_column(server_default=text("'queued'::text"))
+    attempt_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    base_report_version: Mapped[int | None] = mapped_column(BigInteger)
+    base_generation_input_version: Mapped[int | None] = mapped_column(BigInteger)
+    lease_owner: Mapped[str | None]
+    lease_expires_at: Mapped[datetime | None]
+    heartbeat_at: Mapped[datetime | None]
+    next_attempt_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    input_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    output_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    total_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
 

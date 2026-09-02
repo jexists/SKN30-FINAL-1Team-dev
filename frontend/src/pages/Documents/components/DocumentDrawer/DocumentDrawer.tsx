@@ -13,7 +13,7 @@ import { fmtDay, parseISO } from '@/utils/date'
 import { KIND_LABEL, latestOf } from '../../catalog'
 import { linkLabel } from '../../columns'
 import { downloadArtifact, downloadVersion, type DocumentArtifact } from '../../download'
-import { pollSummary } from '../../summaryPolling'
+import { pollSummary } from '@/api/polling'
 
 import styles from './DocumentDrawer.module.scss'
 

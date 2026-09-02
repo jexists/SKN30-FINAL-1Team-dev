@@ -97,6 +97,9 @@ export interface DailyReport extends DailyReportSeed {
   /** 작성자의 구성원 번호. 고칠 수 있는 사람인지 이 값으로 가립니다. */
   ownerMemberId: string
   template: ReportTemplate
+  apiStatus?: ApiReportStatus
+  version?: number
+  currentSubmissionId?: string | null
 }
 
 export type ApiReportKind = 'meeting' | 'daily' | 'weekly' | 'monthly'
@@ -116,9 +119,19 @@ export interface ReportDealSectionWrite {
     note?: string | null
   }
   content: Record<string, unknown>
+  position?: number | null
+  title?: string | null
+  body?: string | null
+  structured_values?: Record<string, unknown>
 }
 
 export interface ReportDealSectionResponse extends ReportDealSectionWrite {
+  position: number | null
+  deal_no_snapshot: string | null
+  deal_title_snapshot: string | null
+  title: string | null
+  body: string | null
+  structured_values: Record<string, unknown>
   /** 미팅 분석·ML 결과는 서버가 생성하며 조회 응답에만 포함됩니다. */
   ai_evidence: Record<string, unknown> | null
   created_at: string
@@ -138,8 +151,18 @@ export interface ReportResponse {
   period_start: string | null
   period_end: string | null
   status_code: ApiReportStatus
+  version: number
+  generation_input_version: number
+  current_submission_id: string | null
+  last_applied_agent_run_id: string | null
   template_snapshot: Record<string, unknown>
   content: Record<string, unknown>
+  customer_company_id: string | null
+  title: string | null
+  body: string | null
+  common_body: string | null
+  unassigned_body: string | null
+  structured_values: Record<string, unknown>
   transcript: string | null
   source_snapshot: Record<string, unknown> | null
   /** AI 가 어느 근거로 채웠는지. 보고서 상세가 그대로 펼쳐 보여 줍니다. */
@@ -161,6 +184,7 @@ export interface ReportReviewRequest {
   decision: 'approve' | 'reject'
   reason: string | null
   expected_status_code: 'submitted'
+  expected_submission_id: string | null
 }
 
 export interface ReportWriteRequest {
@@ -173,13 +197,20 @@ export interface ReportWriteRequest {
   recipient_member_id: string | null
   template_snapshot: ReportTemplate
   content: Record<string, unknown>
+  title?: string | null
+  body?: string | null
+  common_body?: string | null
+  unassigned_body?: string | null
+  structured_values?: Record<string, unknown>
   transcript: string | null
   note: string | null
   activity_ids: string[]
   deal_sections: ReportDealSectionWrite[]
 }
 
-export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'failed'
+export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'
+
+export type AgentRunApplyStatus = 'pending' | 'applied' | 'stale' | 'not_applicable'
 
 export interface ReportDraftSnapshot {
   fields?: { field_id: string; value: string }[]
@@ -270,8 +301,14 @@ export interface MeetingAnalysisSnapshot {
 
 export interface AgentRunResponse<T = ReportDraftSnapshot> {
   id: string
+  report_id: string | null
   status_code: AgentRunStatus
+  current_stage_code: string
+  apply_status: AgentRunApplyStatus
+  attempt_count: number
   output_snapshot: T | null
   evidence: { summary?: string } | null
+  error_code: string | null
   error_message: string | null
+  created_at: string
 }

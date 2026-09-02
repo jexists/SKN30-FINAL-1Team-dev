@@ -3,12 +3,17 @@ import json
 from time import monotonic
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import CurrentMember, DbSession, get_current_member
 from app.db.session import get_sessionmaker
-from app.schemas.agent_runs import AgentRunCreate, AgentRunRead, MeetingNotesPatch
+from app.schemas.agent_runs import (
+    AgentRunCreate,
+    AgentRunRead,
+    MeetingGenerationCreate,
+    MeetingNotesPatch,
+)
 from app.schemas.reports import ReportRead
 from app.services import agent_runs as agent_run_service
 from app.services import meeting_processing
@@ -29,16 +34,11 @@ RETRY_AFTER_SECONDS = 2
 async def create_agent_run(
     payload: AgentRunCreate,
     response: Response,
-    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> AgentRunRead:
-    """새 요청은 queued 로 등록하고 202 로 응답한다. 결과는 GET 으로 확인한다."""
-    read, run_id = await agent_run_service.create(payload, member, db)
-    # 멱등키로 재요청이면 run_id 가 없다. 기존 이력만 돌려주고 다시 실행하지 않는다.
-    if run_id is not None:
-        # ponytail: 초기 뼈대는 프로세스 내부 작업이다. 재시작 복구가 필요하면 영속 큐로 바꾼다.
-        background.add_task(agent_run_service.execute, run_id)
+    """요청을 DB 큐에 먼저 등록한다. 별도 worker가 입력 구성부터 실행까지 맡는다."""
+    read, _ = await agent_run_service.create(payload, member, db)
     # 어디를 언제 다시 조회할지 응답 헤더로 알려준다.
     response.headers["Location"] = f"/api/agent-runs/{read.id}"
     response.headers["Retry-After"] = str(RETRY_AFTER_SECONDS)
@@ -53,6 +53,41 @@ async def get_agent_run(
 ) -> AgentRunRead:
     """진행 상태와 완료된 초안을 확인하는 폴링 대상."""
     return await agent_run_service.get(agent_run_id, member, db)
+
+
+@router.post(
+    "/reports/{report_id}/generations",
+    response_model=AgentRunRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_meeting_generation(
+    report_id: UUID,
+    payload: MeetingGenerationCreate,
+    response: Response,
+    member: CurrentMember,
+    db: DbSession,
+) -> AgentRunRead:
+    read, _ = await agent_run_service.create(
+        AgentRunCreate(
+            agent_code="meeting_processing",
+            report_id=report_id,
+            idempotency_key=payload.idempotency_key,
+            parent_run_id=payload.parent_run_id,
+            assignment_overrides=payload.assignment_overrides,
+        ),
+        member,
+        db,
+    )
+    response.headers["Location"] = f"/api/agent-runs/{read.id}"
+    response.headers["Retry-After"] = str(RETRY_AFTER_SECONDS)
+    return read
+
+
+@router.get("/reports/{report_id}/generations/latest", response_model=AgentRunRead)
+async def latest_meeting_generation(
+    report_id: UUID, member: CurrentMember, db: DbSession
+) -> AgentRunRead:
+    return await agent_run_service.latest_for_report(report_id, member, db)
 
 
 @router.get("/agent-runs/{agent_run_id}/events")
@@ -81,7 +116,7 @@ async def stream_agent_run(
             if sequence != last_sequence and (snapshot is not None or last_sequence is None):
                 progress = snapshot or {
                     "run_id": str(agent_run_id),
-                    "stage": "starting",
+                    "stage": run.current_stage_code or "starting",
                     "previews": [],
                 }
                 yield event("progress", {**progress, "status_code": run.status_code})

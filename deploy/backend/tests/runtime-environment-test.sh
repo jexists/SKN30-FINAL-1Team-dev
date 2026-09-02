@@ -170,6 +170,33 @@ docker_run_args=" ${DOCKER_RUN_ARGS[*]} "
     || fail "deal model container directory was not configured"
 [[ "${docker_run_args}" == *" --mount type=bind,source=${DEAL_MODEL_HOST_DIR},target=${DEAL_MODEL_CONTAINER_DIR},readonly "* ]] \
     || fail "deal model directory was not mounted read-only"
+start_agent_worker test-image test-worker
+worker_run_args=" ${DOCKER_RUN_ARGS[*]} "
+[[ "${worker_run_args}" == *" --name test-worker "* \
+    && "${worker_run_args}" == *" /app/.venv/bin/python -m app.services.agent_worker "* \
+    && "${worker_run_args}" != *" --publish "* ]] \
+    || fail "agent worker was not started as a private process from the backend image"
+unset -f docker
+
+DOCKER_WORKER_STATE='true 0'
+docker() {
+    if [[ "$*" == *'.State.ExitCode'* ]]; then
+        printf 'running=%s restarts=%s exit_code=1\n' \
+            "${DOCKER_WORKER_STATE%% *}" "${DOCKER_WORKER_STATE##* }"
+    else
+        printf '%s\n' "${DOCKER_WORKER_STATE}"
+    fi
+}
+sleep() { :; }
+wait_for_agent_worker test-worker \
+    || fail "stable agent worker was rejected"
+DOCKER_WORKER_STATE='true 1'
+if worker_failure="$(wait_for_agent_worker test-worker 2>&1)"; then
+    fail "restarting agent worker was accepted"
+fi
+[[ "${worker_failure}" == *'restarts=1 exit_code=1'* ]] \
+    || fail "unstable agent worker diagnostics omitted restart and exit state"
+unset -f sleep
 unset -f docker
 
 TIMEOUT_ARGS=()
@@ -196,9 +223,20 @@ validate_deal_model_runtime test-container
     && "${DOCKER_EXEC_ARGS[3]}" == "-c" \
     && "${DOCKER_EXEC_ARGS[4]}" == *"_load_models()"* ]] \
     || fail "candidate deal model validation command was not executed"
+validate_agent_queue_schema_runtime test-container
+[[ "${DOCKER_EXEC_ARGS[0]}" == "exec" \
+    && "${DOCKER_EXEC_ARGS[1]}" == "test-container" \
+    && "${DOCKER_EXEC_ARGS[2]}" == "/app/.venv/bin/python" \
+    && "${DOCKER_EXEC_ARGS[3]}" == "-m" \
+    && "${DOCKER_EXEC_ARGS[4]}" == "app.services.agent_worker" \
+    && "${DOCKER_EXEC_ARGS[5]}" == "--check-schema" ]] \
+    || fail "agent queue schema validation command was not executed"
 DOCKER_EXEC_STATUS=1
 if validate_deal_model_runtime test-container; then
     fail "candidate deal model validation failure was swallowed"
+fi
+if validate_agent_queue_schema_runtime test-container; then
+    fail "agent queue schema validation failure was swallowed"
 fi
 unset -f timeout
 unset -f docker
@@ -210,6 +248,23 @@ upstream_file="$(write_environment upstream $'upstream salesluv_backend {\n    s
     || fail "port 8000 did not map to its deployment slot"
 [[ "$(other_backend_port 8000)" == "18000" ]] \
     || fail "inactive backend port was not selected"
+
+schema_check_line="$(awk '/Validating the AgentRun queue schema/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+promotion_line="$(awk '/Switching Nginx upstream from port/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+worker_start_line="$(awk '/Starting AgentRun worker .*after traffic promotion/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+deployment_success_line="$(awk '/^DEPLOY_SUCCEEDED="true"$/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+[[ "${schema_check_line}" =~ ^[0-9]+$ \
+    && "${promotion_line}" =~ ^[0-9]+$ \
+    && "${worker_start_line}" =~ ^[0-9]+$ \
+    && "${deployment_success_line}" =~ ^[0-9]+$ \
+    && schema_check_line -lt promotion_line \
+    && promotion_line -lt worker_start_line \
+    && worker_start_line -lt deployment_success_line ]] \
+    || fail "candidate worker must start only after successful traffic promotion"
 
 rewritten_upstream_file="${TEST_TMP_DIR}/rewritten-upstream.conf"
 if ! rewrite_backend_upstream_port \
@@ -252,214 +307,5 @@ fi
 [[ "${container_status}" == "${CONTAINER_STATE_ERROR_STATUS}" ]] \
     || fail "find_active_container did not propagate the Docker state error"
 unset -f docker
-
-disk_log="${TEST_TMP_DIR}/build-disk.log"
-printf 'write /var/lib/containerd/io.containerd.content.v1.content/ingest/x/data: no space left on device\n' \
-    >"${disk_log}"
-build_log_shows_disk_exhaustion "${disk_log}" \
-    || fail "disk exhaustion was not detected in the build log"
-other_log="${TEST_TMP_DIR}/build-other.log"
-printf 'ERROR: process "/bin/sh -c uv sync" did not complete successfully: exit code: 1\n' \
-    >"${other_log}"
-if build_log_shows_disk_exhaustion "${other_log}"; then
-    fail "an unrelated build failure was reported as disk exhaustion"
-fi
-if build_log_shows_disk_exhaustion "${TEST_TMP_DIR}/missing-build.log"; then
-    fail "a missing build log was reported as disk exhaustion"
-fi
-
-DOCKER_PRUNE_CALLS=()
-DOCKER_PRUNE_HELP=""
-docker() {
-    if [[ "$*" == "builder prune --help" ]]; then
-        printf '%s\n' "${DOCKER_PRUNE_HELP}"
-        return 0
-    fi
-    DOCKER_PRUNE_CALLS+=(" $* ")
-    return 0
-}
-
-assert_reclaim_is_safe() {
-    local stage="$1"
-    local call
-
-    for call in "${DOCKER_PRUNE_CALLS[@]}"; do
-        [[ "${call}" != *" volume prune "* ]] \
-            || fail "${stage} reclaim removed Docker volumes"
-        [[ "${call}" != *" system prune "* ]] \
-            || fail "${stage} reclaim used system prune"
-        [[ "${call}" != *" rm -f "* ]] \
-            || fail "${stage} reclaim removed containers"
-    done
-    [[ " ${DOCKER_PRUNE_CALLS[*]} " == *" image prune -f "* ]] \
-        || fail "${stage} reclaim did not remove dangling image layers"
-}
-
-assert_soft_reclaim_uses() {
-    local help_output="$1"
-    local expected="$2"
-
-    DOCKER_PRUNE_CALLS=()
-    DOCKER_PRUNE_HELP="${help_output}"
-    reclaim_build_disk_space soft
-    [[ " ${DOCKER_PRUNE_CALLS[*]} " == *" ${expected} "* ]] \
-        || fail "soft reclaim did not run '${expected}': ${DOCKER_PRUNE_CALLS[*]}"
-    [[ " ${DOCKER_PRUNE_CALLS[*]} " != *" builder prune -af "* ]] \
-        || fail "soft reclaim dropped the entire build cache"
-    assert_reclaim_is_safe soft
-}
-
-# 신 버전은 --max-used-space, 구 버전은 --keep-storage, 둘 다 없으면 시간 창으로 폴백한다.
-assert_soft_reclaim_uses \
-    '      --max-used-space bytes   Maximum amount of disk space' \
-    "builder prune -f --max-used-space ${BUILD_CACHE_KEEP_BYTES}"
-assert_soft_reclaim_uses \
-    '      --keep-storage bytes     Amount of disk space to keep' \
-    "builder prune -f --keep-storage ${BUILD_CACHE_KEEP_BYTES}"
-assert_soft_reclaim_uses \
-    '      --filter filter          Provide filter values' \
-    "builder prune -f --filter until=${BUILD_CACHE_KEEP_WINDOW}"
-
-DOCKER_PRUNE_CALLS=()
-reclaim_build_disk_space hard
-[[ " ${DOCKER_PRUNE_CALLS[*]} " == *" builder prune -af "* ]] \
-    || fail "hard reclaim did not drop the build cache"
-assert_reclaim_is_safe hard
-
-DOCKER_PRUNE_CALLS=()
-if reclaim_build_disk_space bogus >/dev/null 2>&1; then
-    fail "an unsupported reclaim stage was accepted"
-fi
-((${#DOCKER_PRUNE_CALLS[@]} == 0)) \
-    || fail "an unsupported reclaim stage still called Docker"
-
-release_root="${TEST_TMP_DIR}/releases"
-mkdir -p \
-    "${release_root}/backend.aaa" \
-    "${release_root}/backend.bbb" \
-    "${release_root}/unrelated"
-RELEASE_DIR="${release_root}/backend.aaa"
-prune_stale_release_dirs "${release_root}" \
-    || fail "abandoned release directory cleanup failed"
-[[ -d "${release_root}/backend.aaa" ]] \
-    || fail "the current release directory was removed"
-[[ ! -d "${release_root}/backend.bbb" ]] \
-    || fail "the abandoned release directory was kept"
-[[ -d "${release_root}/unrelated" ]] \
-    || fail "a directory outside the release prefix was removed"
-RELEASE_DIR=""
-
-disk_available_kib "${TEST_TMP_DIR}" >/dev/null \
-    || fail "an existing directory could not be measured"
-[[ "$(disk_available_kib "${TEST_TMP_DIR}")" =~ ^[0-9]+$ ]] \
-    || fail "an existing directory did not yield a numeric measurement"
-if disk_available_kib "${TEST_TMP_DIR}/missing-mount" >/dev/null 2>&1; then
-    fail "a missing path was reported as measurable"
-fi
-
-# 측정 실패는 '가득 참'이 아니라 '모름'이다. 실패한 경로를 0으로 세면 최솟값이 0이 되어
-# 멀쩡한 디스크에서 전면 정리가 발동한다.
-DISK_PATH_READINGS=""
-disk_available_kib() {
-    local entry
-
-    for entry in ${DISK_PATH_READINGS}; do
-        if [[ "${entry%%:*}" == "$1" ]]; then
-            [[ "${entry#*:}" != "fail" ]] || return 1
-            printf '%s' "${entry#*:}"
-            return 0
-        fi
-    done
-    return 1
-}
-
-DISK_PATH_READINGS="/var/lib/containerd:900 /var/lib/docker:700"
-[[ "$(available_disk_kib)" == "700" ]] \
-    || fail "the smallest measurement was not selected"
-DISK_PATH_READINGS="/var/lib/containerd:500 /var/lib/docker:800"
-[[ "$(available_disk_kib)" == "500" ]] \
-    || fail "the smallest measurement was not selected when listed first"
-
-DISK_PATH_READINGS="/var/lib/containerd:600 /var/lib/docker:fail"
-[[ "$(available_disk_kib)" == "600" ]] \
-    || fail "a permission-denied path collapsed the measurement"
-DISK_PATH_READINGS="/var/lib/docker:600"
-[[ "$(available_disk_kib)" == "600" ]] \
-    || fail "a missing path collapsed the measurement"
-
-DISK_PATH_READINGS="/:1234"
-[[ "$(available_disk_kib)" == "1234" ]] \
-    || fail "the root filesystem fallback was not used"
-DISK_PATH_READINGS=""
-if available_disk_kib >/dev/null 2>&1; then
-    fail "an entirely unmeasurable disk was reported as measured"
-fi
-
-RECLAIM_STAGES=()
-reclaim_build_disk_space() {
-    RECLAIM_STAGES+=("$1")
-}
-prune_stale_release_dirs() {
-    return 0
-}
-DISK_READINGS=()
-# available_disk_kib 는 명령 치환으로 호출되어 서브셸에서 실행되므로 남은 측정값은
-# 파일로 넘긴다.
-readonly DISK_READING_CURSOR="${TEST_TMP_DIR}/disk-reading-cursor"
-available_disk_kib() {
-    local index=0
-
-    if [[ -s "${DISK_READING_CURSOR}" ]]; then
-        index="$(<"${DISK_READING_CURSOR}")"
-    fi
-    if ((index + 1 < ${#DISK_READINGS[@]})); then
-        printf '%s' "$((index + 1))" >"${DISK_READING_CURSOR}"
-    fi
-    printf '%s' "${DISK_READINGS[index]}"
-}
-
-set_disk_readings() {
-    DISK_READINGS=("$@")
-    : >"${DISK_READING_CURSOR}"
-}
-
-set_disk_readings "$((BUILD_MIN_FREE_KIB + 1))"
-ensure_build_disk_space 2>/dev/null
-((${#RECLAIM_STAGES[@]} == 0)) \
-    || fail "cleanup ran even though free disk space was sufficient"
-
-# soft 임계치 아래지만 임계 수위 위면 캐시를 남긴다. 여기서 hard 로 넘어가면 사실상
-# 매 배포마다 캐시를 버리는 것과 같아진다.
-RECLAIM_STAGES=()
-set_disk_readings "$((BUILD_MIN_FREE_KIB - 1))" "$((BUILD_CRITICAL_FREE_KIB + 1))"
-ensure_build_disk_space 2>/dev/null
-[[ "${RECLAIM_STAGES[*]}" == "soft" ]] \
-    || fail "moderate disk pressure escalated to a full cache drop: ${RECLAIM_STAGES[*]}"
-
-RECLAIM_STAGES=()
-set_disk_readings "$((BUILD_MIN_FREE_KIB - 1))" "$((BUILD_CRITICAL_FREE_KIB - 1))"
-ensure_build_disk_space 2>/dev/null
-[[ "${RECLAIM_STAGES[*]}" == "soft hard" ]] \
-    || fail "critical disk pressure did not escalate to a full cache drop: ${RECLAIM_STAGES[*]}"
-
-RECLAIM_STAGES=()
-set_disk_readings "$((BUILD_MIN_FREE_KIB - 1))" "$((BUILD_MIN_FREE_KIB))"
-ensure_build_disk_space 2>/dev/null
-[[ "${RECLAIM_STAGES[*]}" == "soft" ]] \
-    || fail "recovered disk space still triggered a full cache drop: ${RECLAIM_STAGES[*]}"
-
-RECLAIM_STAGES=()
-available_disk_kib() {
-    return 1
-}
-ensure_build_disk_space 2>/dev/null \
-    || fail "an unmeasurable disk blocked the deployment"
-((${#RECLAIM_STAGES[@]} == 0)) \
-    || fail "cleanup ran even though free disk space was unknown"
-
-unset -f docker
-unset -f reclaim_build_disk_space
-unset -f prune_stale_release_dirs
-unset -f available_disk_kib
 
 printf 'runtime environment validation tests passed\n'

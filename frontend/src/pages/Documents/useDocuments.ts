@@ -13,7 +13,7 @@ import type {
 } from '@/types'
 
 import { kindOfFile } from './catalog'
-import { pollSummary } from './summaryPolling'
+import { pollSummary } from '@/api/polling'
 
 // 공통 API 제한(10초)보다 길게 잡습니다. 이 요청은 실제 OCR·요약을 기다리지 않고
 // 백그라운드 작업을 시작하므로, 느린 DB 응답만 흡수한 뒤 아래 폴링으로 상태를 확인합니다.

@@ -71,6 +71,44 @@ test('화면 구독자가 없어져도 사전저장부터 완료 알림까지 �
   clearToasts()
 })
 
+test('서버 실행 재연결 후에도 편집 화면으로 돌아갈 완료 알림을 남긴다', async () => {
+  clearToasts()
+  const agendaId = `agenda-${crypto.randomUUID()}`
+  const finish = Promise.withResolvers()
+  const saved = { id: 'resumed-report', dealSections: [{ salesDealId: 'deal-1' }] }
+
+  assert.equal(
+    startMeetingGeneration({
+      agendaId,
+      dealIds: ['deal-1'],
+      resumed: true,
+      execute: async () => finish.promise,
+    }),
+    true,
+  )
+  assert.ok(
+    getToasts().some(
+      (toast) => toast.message === '서버에서 진행 중인 보고서 작성에 다시 연결했습니다.',
+    ),
+  )
+
+  finish.resolve({ report: saved, writingFailed: false, errors: {} })
+  const completed = await waitFor(() => {
+    const state = getMeetingGeneration(agendaId)
+    return state?.status === 'completed' ? state : null
+  })
+  assert.ok(
+    getToasts().some(
+      (toast) =>
+        toast.persistent &&
+        toast.to === `/meetings/new?agenda=${agendaId}` &&
+        toast.actionLabel === '초안 수정하기',
+    ),
+  )
+  acknowledgeMeetingGeneration(agendaId, completed.requestId)
+  clearToasts()
+})
+
 test('실패도 화면 밖에 보관하고 돌아갈 수 있는 오류 알림을 남긴다', async () => {
   clearToasts()
   const agendaId = `agenda-${crypto.randomUUID()}`

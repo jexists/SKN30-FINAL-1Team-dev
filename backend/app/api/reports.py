@@ -30,7 +30,7 @@ from app.schemas.reports import (
     ReportReview,
     ReportSubmit,
 )
-from app.services import contract_next_meeting_pipeline
+from app.services import contract_next_meeting_pipeline, report_sources, report_submissions
 
 router = APIRouter(tags=["reports"])
 
@@ -42,6 +42,12 @@ _recipient = aliased(Member)
 _EDITABLE_STATUSES = ("draft", "changes_requested")
 _INITIAL_STATUS = "draft"
 _MEETING_UNIQUE_INDEX = "report_source_activity_meeting_key"
+_REPORT_UNIQUE_CONSTRAINTS = {
+    _MEETING_UNIQUE_INDEX: "meeting_report_exists",
+    "report_daily_author_date_key": "report_exists",
+    "report_period_author_range_key": "report_exists",
+    "report_deal_position_key": "duplicate_deal_positions",
+}
 _SERVER_OWNED_CONTENT_KEYS = ("ai_values", "ai_evidence", "ai_generated_at", "meeting_shared")
 
 
@@ -52,6 +58,20 @@ def _contains(value: str) -> str:
 
 def _seoul(value: datetime | None) -> datetime | None:
     return None if value is None else value.astimezone(_SEOUL)
+
+
+def _report_version(report: Report) -> int:
+    # Existing rows are backfilled to 1 by the migration.  The fallback keeps mocked rows and
+    # a rolling deploy readable while the migration is applied.
+    return int(getattr(report, "version", None) or 1)
+
+
+def _require_version(report: Report, expected_version: int) -> None:
+    if _report_version(report) != expected_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="report_version_conflict",
+        )
 
 
 def _joined_select(*entities):
@@ -101,6 +121,98 @@ def _hospital_expr():
     return Report.content["hospital"].astext
 
 
+def _dict(value) -> dict:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _text(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _legacy_values(content) -> dict:
+    return _dict(_dict(content).get("values"))
+
+
+def _legacy_shared_body(content, key: str) -> str | None:
+    shared = _dict(_dict(content).get("meeting_shared"))
+    return _text(_dict(shared.get(key)).get("body"))
+
+
+def _normalized_report_values(
+    content: dict,
+    *,
+    title=None,
+    body=None,
+    common_body=None,
+    unassigned_body=None,
+    structured_values=None,
+) -> dict:
+    """Derive normalized columns from explicit fields, then legacy JSON."""
+    values = _legacy_values(content)
+    structured = _dict(structured_values)
+    if structured_values is None:
+        structured = {key: value for key, value in values.items() if key != "body"}
+    return {
+        "title": _text(title) or _text(content.get("title")),
+        "body": _text(body) or _text(values.get("body")) or _text(content.get("body")),
+        "common_body": _text(common_body) or _legacy_shared_body(content, "common_report"),
+        "unassigned_body": _text(unassigned_body)
+        or _legacy_shared_body(content, "unassigned_report"),
+        "structured_values": structured,
+    }
+
+
+def _sync_legacy_report_content(
+    content: dict,
+    normalized: dict,
+    *,
+    sync_title: bool,
+    sync_body: bool,
+    sync_common: bool,
+    sync_unassigned: bool,
+    sync_structured: bool,
+) -> dict:
+    """Keep old UI readers working while normalized columns become canonical."""
+    output = dict(content)
+    if sync_title:
+        if normalized["title"] is None:
+            output.pop("title", None)
+        else:
+            output["title"] = normalized["title"]
+    if sync_body or sync_structured:
+        values = (
+            dict(normalized["structured_values"]) if sync_structured else _legacy_values(output)
+        )
+        if normalized["body"] is None:
+            values.pop("body", None)
+        else:
+            values["body"] = normalized["body"]
+        output["values"] = values
+    if sync_common or sync_unassigned:
+        shared = _dict(output.get("meeting_shared"))
+        for should_sync, field, key in (
+            (sync_common, "common_body", "common_report"),
+            (sync_unassigned, "unassigned_body", "unassigned_report"),
+        ):
+            if not should_sync:
+                continue
+            body_value = normalized[field]
+            if body_value is None:
+                shared.pop(key, None)
+            else:
+                item = _dict(shared.get(key))
+                item["body"] = body_value
+                shared[key] = item
+        if shared:
+            output["meeting_shared"] = shared
+        else:
+            output.pop("meeting_shared", None)
+    return output
+
+
 def _report_read(
     report: Report,
     author_display_name: str,
@@ -123,8 +235,20 @@ def _report_read(
         period_start=report.period_start,
         period_end=report.period_end,
         status_code=report.status_code,
+        version=_report_version(report),
+        generation_input_version=int(
+            getattr(report, "generation_input_version", None) or _report_version(report)
+        ),
+        last_applied_agent_run_id=getattr(report, "last_applied_agent_run_id", None),
+        current_submission_id=getattr(report, "current_submission_id", None),
         template_snapshot=report.template_snapshot,
         content=report.content,
+        customer_company_id=getattr(report, "customer_company_id", None),
+        title=getattr(report, "title", None),
+        body=getattr(report, "body", None),
+        common_body=getattr(report, "common_body", None),
+        unassigned_body=getattr(report, "unassigned_body", None),
+        structured_values=_dict(getattr(report, "structured_values", None)),
         transcript=report.transcript,
         source_snapshot=report.source_snapshot,
         ai_evidence=report.ai_evidence,
@@ -188,16 +312,31 @@ async def _validate_meeting_deal(
     sales_deal_id: UUID,
 ) -> None:
     """선택한 딜이 접근 가능하고 미팅 고객사와 같은 고객사인지 확인한다."""
-    # 두 조회는 각 원본 API와 같은 팀·담당자·활성 상태 스코프를 그대로 쓴다.
+    await _validate_meeting_sales_deal_ids(db, member, source_activity_id, [sales_deal_id])
+
+
+async def _validate_meeting_sales_deal_ids(
+    db: AsyncSession,
+    member: Member,
+    source_activity_id: UUID,
+    sales_deal_ids: list[UUID],
+) -> UUID:
+    """Validate one meeting once, then each selected deal, and return its company."""
     activity = await _activity_row(db, member, source_activity_id)
-    deal = await _sales_deal_row(db, member, sales_deal_id)
     meeting_company_id = activity[3]
-    deal_company_id = deal[0].customer_company_id
-    if meeting_company_id is None or meeting_company_id != deal_company_id:
+    if meeting_company_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="sales_deal_not_found",
         )
+    for sales_deal_id in sales_deal_ids:
+        deal = await _sales_deal_row(db, member, sales_deal_id)
+        if meeting_company_id != deal[0].customer_company_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="sales_deal_not_found",
+            )
+    return meeting_company_id
 
 
 async def _validate_meeting_deals(
@@ -205,24 +344,31 @@ async def _validate_meeting_deals(
     member: Member,
     source_activity_id: UUID,
     deal_sections: list[ReportDealWrite],
-) -> None:
-    for section in deal_sections:
-        await _validate_meeting_deal(
-            db,
-            member,
-            source_activity_id,
-            section.sales_deal_id,
-        )
+) -> UUID:
+    return await _validate_meeting_sales_deal_ids(
+        db,
+        member,
+        source_activity_id,
+        [section.sales_deal_id for section in deal_sections],
+    )
 
 
-def _duplicate_meeting(error: IntegrityError) -> bool:
+def _integrity_constraint(error: IntegrityError) -> str | None:
     original = getattr(error, "orig", None)
     cause = getattr(original, "__cause__", None)
     candidates = (original, cause, getattr(original, "diag", None), getattr(cause, "diag", None))
-    return any(
-        getattr(candidate, "constraint_name", None) == _MEETING_UNIQUE_INDEX
-        for candidate in candidates
+    return next(
+        (
+            constraint
+            for candidate in candidates
+            if (constraint := getattr(candidate, "constraint_name", None)) is not None
+        ),
+        None,
     )
+
+
+def _duplicate_meeting(error: IntegrityError) -> bool:
+    return _integrity_constraint(error) == _MEETING_UNIQUE_INDEX
 
 
 async def _deal_sections_by_report_ids(
@@ -235,7 +381,11 @@ async def _deal_sections_by_report_ids(
     result = await db.execute(
         select(ReportDeal)
         .where(ReportDeal.report_id.in_(report_ids))
-        .order_by(ReportDeal.created_at, ReportDeal.sales_deal_id)
+        .order_by(
+            ReportDeal.position.asc().nullslast(),
+            ReportDeal.created_at,
+            ReportDeal.sales_deal_id,
+        )
     )
     for section in result.scalars().all():
         grouped[section.report_id].append(
@@ -243,6 +393,12 @@ async def _deal_sections_by_report_ids(
                 sales_deal_id=section.sales_deal_id,
                 deal_snapshot=section.deal_snapshot,
                 content=section.content,
+                position=section.position,
+                deal_no_snapshot=section.deal_no_snapshot,
+                deal_title_snapshot=section.deal_title_snapshot,
+                title=section.title,
+                body=section.body,
+                structured_values=_dict(section.structured_values),
                 ai_evidence=section.ai_evidence,
                 created_at=_seoul(section.created_at),
                 updated_at=_seoul(section.updated_at),
@@ -263,11 +419,47 @@ def _section_content(
     return content
 
 
+def _normalized_section_payload(payload: ReportDealWrite, position: int) -> dict:
+    content = _section_content(payload.content)
+    values = _legacy_values(content)
+    explicit = payload.model_fields_set
+    title = payload.title if "title" in explicit else _text(content.get("title"))
+    body = payload.body if "body" in explicit else _text(values.get("body"))
+    structured = (
+        dict(payload.structured_values)
+        if "structured_values" in explicit
+        else {key: value for key, value in values.items() if key != "body"}
+    )
+    if "title" in explicit:
+        if title is None:
+            content.pop("title", None)
+        else:
+            content["title"] = title
+    if "body" in explicit or "structured_values" in explicit:
+        legacy_values = dict(structured) if "structured_values" in explicit else values
+        if body is None:
+            legacy_values.pop("body", None)
+        else:
+            legacy_values["body"] = body
+        content["values"] = legacy_values
+    snapshot = payload.deal_snapshot.model_dump(mode="json")
+    return {
+        "position": payload.position if payload.position is not None else position,
+        "deal_snapshot": snapshot,
+        "deal_no_snapshot": payload.deal_snapshot.label,
+        "deal_title_snapshot": _text(payload.deal_snapshot.note),
+        "title": title,
+        "body": body,
+        "structured_values": structured,
+        "content": content,
+    }
+
+
 async def _replace_report_deals(
     db: AsyncSession,
     report_id: UUID,
     deal_sections: list[ReportDealWrite],
-) -> None:
+) -> tuple[bool, bool]:
     existing = {
         section.sales_deal_id: section
         for section in (
@@ -276,7 +468,13 @@ async def _replace_report_deals(
         .scalars()
         .all()
     }
+    normalized_sections = [
+        (payload, _normalized_section_payload(payload, position))
+        for position, payload in enumerate(deal_sections)
+    ]
     incoming_ids = {section.sales_deal_id for section in deal_sections}
+    deal_ids_changed = set(existing) != incoming_ids
+    changed = False
     if removed := set(existing) - incoming_ids:
         await db.execute(
             delete(ReportDeal).where(
@@ -284,23 +482,45 @@ async def _replace_report_deals(
                 ReportDeal.sales_deal_id.in_(removed),
             )
         )
+        changed = True
+
+    # PostgreSQL의 position UNIQUE 인덱스는 행마다 즉시 검사한다. 0↔1처럼 서로 자리를
+    # 바꾸는 경우만 기존 자리를 비운 뒤 최종 위치를 한 번에 채운다.
+    position_rewrite_needed = any(
+        payload.sales_deal_id in existing
+        and existing[payload.sales_deal_id].position != normalized["position"]
+        for payload, normalized in normalized_sections
+    )
+    if position_rewrite_needed:
+        for sales_deal_id in incoming_ids & set(existing):
+            existing[sales_deal_id].position = None
+        await db.flush()
+
     now = datetime.now(UTC)
-    for payload in deal_sections:
+    for payload, normalized in normalized_sections:
         current = existing.get(payload.sales_deal_id)
         if current is None:
             db.add(
                 ReportDeal(
                     report_id=report_id,
                     sales_deal_id=payload.sales_deal_id,
-                    deal_snapshot=payload.deal_snapshot.model_dump(mode="json"),
-                    content=_section_content(payload.content),
+                    **normalized,
                     ai_evidence=None,
                 )
             )
+            changed = True
             continue
-        current.deal_snapshot = payload.deal_snapshot.model_dump(mode="json")
-        current.content = _section_content(payload.content, current.content)
+        normalized["content"] = _section_content(normalized["content"], current.content)
+        section_changed = any(
+            getattr(current, field_name) != value for field_name, value in normalized.items()
+        )
+        if not section_changed:
+            continue
+        for field_name, value in normalized.items():
+            setattr(current, field_name, value)
         current.updated_at = now
+        changed = True
+    return changed, deal_ids_changed
 
 
 def _add_report_deals(
@@ -308,13 +528,12 @@ def _add_report_deals(
     report_id: UUID,
     deal_sections: list[ReportDealWrite],
 ) -> None:
-    for payload in deal_sections:
+    for position, payload in enumerate(deal_sections):
         db.add(
             ReportDeal(
                 report_id=report_id,
                 sales_deal_id=payload.sales_deal_id,
-                deal_snapshot=payload.deal_snapshot.model_dump(mode="json"),
-                content=_section_content(payload.content),
+                **_normalized_section_payload(payload, position),
                 ai_evidence=None,
             )
         )
@@ -475,10 +694,17 @@ async def _replace_report_activities(
     db: AsyncSession,
     report_id: UUID,
     activity_ids: tuple[UUID, ...],
-) -> None:
+    *,
+    current_ids: set[UUID] | None = None,
+) -> bool:
+    if current_ids is None:
+        current_ids = await _linked_activity_ids(db, report_id)
+    if current_ids == set(activity_ids):
+        return False
     await db.execute(delete(ReportActivity).where(ReportActivity.report_id == report_id))
     for activity_id in activity_ids:
         db.add(ReportActivity(report_id=report_id, activity_id=activity_id))
+    return True
 
 
 async def _detail(db: AsyncSession, member: Member, report_id: UUID) -> ReportRead:
@@ -552,14 +778,26 @@ async def list_reports(
         scope.append(_hospital_expr().in_(tuple(dict.fromkeys(page.hospital))))
     if page.q is not None:
         pattern = _contains(page.q)
+        matching_deal_reports = select(ReportDeal.report_id).where(
+            or_(
+                ReportDeal.title.ilike(pattern, escape="\\"),
+                ReportDeal.body.ilike(pattern, escape="\\"),
+                ReportDeal.content.cast(Text).ilike(pattern, escape="\\"),
+            )
+        )
         scope.append(
             or_(
                 Report.note.ilike(pattern, escape="\\"),
                 Report.transcript.ilike(pattern, escape="\\"),
                 _author.display_name.ilike(pattern, escape="\\"),
+                Report.title.ilike(pattern, escape="\\"),
+                Report.body.ilike(pattern, escape="\\"),
+                Report.common_body.ilike(pattern, escape="\\"),
+                Report.unassigned_body.ilike(pattern, escape="\\"),
                 # 보고 본문은 content 안에 있다. 여기를 빼면 제목도 고객사도 못 찾아
                 # 검색이 사실상 메모 검색이 된다.
                 Report.content.cast(Text).ilike(pattern, escape="\\"),
+                Report.id.in_(matching_deal_reports),
             )
         )
 
@@ -614,15 +852,38 @@ async def create_report(
         )
         if payload.source_activity_id is not None:
             await _own_activity_ids(db, member, [payload.source_activity_id])
+        customer_company_id = None
         if payload.report_kind == "meeting":
             assert payload.source_activity_id is not None
-            await _validate_meeting_deals(
+            customer_company_id = await _validate_meeting_deals(
                 db,
                 member,
                 payload.source_activity_id,
                 payload.deal_sections,
             )
         activity_ids = await _own_activity_ids(db, member, payload.activity_ids)
+
+        content = {key: value for key, value in payload.content.items() if key != "meeting_shared"}
+        explicit = payload.model_fields_set
+        normalized = _normalized_report_values(content)
+        for field_name in (
+            "title",
+            "body",
+            "common_body",
+            "unassigned_body",
+            "structured_values",
+        ):
+            if field_name in explicit:
+                normalized[field_name] = getattr(payload, field_name)
+        content = _sync_legacy_report_content(
+            content,
+            normalized,
+            sync_title="title" in explicit,
+            sync_body="body" in explicit,
+            sync_common="common_body" in explicit,
+            sync_unassigned="unassigned_body" in explicit,
+            sync_structured="structured_values" in explicit,
+        )
 
         report = Report(
             id=uuid4(),
@@ -633,18 +894,22 @@ async def create_report(
             source_activity_id=payload.source_activity_id,
             # 신규 미팅 보고서는 딜을 자식 섹션에만 보관한다.
             sales_deal_id=None,
+            customer_company_id=customer_company_id,
             report_kind=payload.report_kind,
             report_date=payload.report_date,
             period_start=payload.period_start,
             period_end=payload.period_end,
             # 작성은 언제나 draft 로 시작한다. 제출은 별도 endpoint 를 거친다.
             status_code=_INITIAL_STATUS,
-            content={
-                key: value for key, value in payload.content.items() if key != "meeting_shared"
-            },
+            content=content,
+            **normalized,
             transcript=payload.transcript,
             source_snapshot=None,
             ai_evidence=None,
+            version=1,
+            generation_input_version=1,
+            last_applied_agent_run_id=None,
+            current_submission_id=None,
             note=payload.note,
             review_note=None,
             reviewed_by_member_id=None,
@@ -652,6 +917,7 @@ async def create_report(
         )
         db.add(report)
         _add_report_deals(db, report.id, payload.deal_sections)
+        await report_sources.sync_report_sources_from_legacy_content(db, member, report)
         for activity_id in activity_ids:
             db.add(ReportActivity(report_id=report.id, activity_id=activity_id))
         await db.flush()
@@ -659,10 +925,11 @@ async def create_report(
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
-        if _duplicate_meeting(error):
+        constraint = _integrity_constraint(error)
+        if constraint in _REPORT_UNIQUE_CONSTRAINTS:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="meeting_report_exists",
+                detail=_REPORT_UNIQUE_CONSTRAINTS[constraint],
             ) from error
         raise
     except Exception:
@@ -686,24 +953,62 @@ async def update_report(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="report_not_editable",
             )
+        _require_version(report, payload.expected_version)
 
         values = payload.model_dump(exclude_unset=True)
+        values.pop("expected_version")
         activity_ids = values.pop("activity_ids", None)
         deal_sections = values.pop("deal_sections", None)
-        if isinstance(values.get("content"), dict):
+        explicit = payload.model_fields_set
+        content_supplied = "content" in values
+        if content_supplied and isinstance(values.get("content"), dict):
             # AI 원본은 서버 값을 유지한다. 공통 편집본은 전용 API에서만 갱신한다.
             for key in _SERVER_OWNED_CONTENT_KEYS:
                 values["content"].pop(key, None)
                 if isinstance(report.content, dict) and key in report.content:
                     values["content"][key] = report.content[key]
 
+        normalized_names = (
+            "title",
+            "body",
+            "common_body",
+            "unassigned_body",
+            "structured_values",
+        )
+        current_content = _dict(report.content)
+        next_content = _dict(values.get("content", current_content))
+        legacy_normalized = _normalized_report_values(next_content)
+        normalized = {}
+        for field_name in normalized_names:
+            if field_name in explicit:
+                normalized[field_name] = values.pop(field_name)
+            elif content_supplied:
+                normalized[field_name] = legacy_normalized[field_name]
+            else:
+                normalized[field_name] = getattr(report, field_name)
+        if any(field_name in explicit for field_name in normalized_names):
+            next_content = _sync_legacy_report_content(
+                next_content,
+                normalized,
+                sync_title="title" in explicit,
+                sync_body="body" in explicit,
+                sync_common="common_body" in explicit,
+                sync_unassigned="unassigned_body" in explicit,
+                sync_structured="structured_values" in explicit,
+            )
+        if content_supplied or any(field_name in explicit for field_name in normalized_names):
+            values["content"] = next_content
+        values.update(normalized)
+
         if "recipient_member_id" in values and values["recipient_member_id"] is not None:
             await _visible_recipient(db, member, values["recipient_member_id"])
 
+        changed = False
+        generation_input_changed = False
         if deal_sections is not None:
             if report.report_kind != "meeting":
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="deal_sections_not_supported",
                 )
             if report.source_activity_id is None:
@@ -718,32 +1023,100 @@ async def update_report(
                 report.source_activity_id,
                 parsed_sections,
             )
-            await _replace_report_deals(db, report.id, parsed_sections)
+            deal_changed, deal_ids_changed = await _replace_report_deals(
+                db,
+                report.id,
+                parsed_sections,
+            )
+            changed = deal_changed
+            generation_input_changed = deal_ids_changed
 
         period_start = values.get("period_start", report.period_start)
         period_end = values.get("period_end", report.period_end)
+        if report.report_kind in {"meeting", "daily"} and (
+            period_start is not None or period_end is not None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="period_not_supported",
+            )
+        if report.report_kind in {"weekly", "monthly"} and (
+            period_start is None or period_end is None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="period_required",
+            )
         if period_start is not None and period_end is not None and period_end < period_start:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="invalid_report_period",
             )
 
         for field_name, value in values.items():
+            if getattr(report, field_name) == value:
+                continue
+            if field_name == "transcript":
+                generation_input_changed = True
             setattr(report, field_name, value)
-        report.updated_at = datetime.now(UTC)
+            changed = True
 
         if activity_ids is not None:
-            visible = await _visible_activity_ids(db, member, activity_ids)
+            linked = await _linked_activity_ids(db, report.id)
+            requested = tuple(dict.fromkeys(activity_ids))
+            if linked == set(requested):
+                visible = requested
+            else:
+                visible = await _visible_activity_ids(db, member, activity_ids)
             # 새로 묶는 일정에만 소유를 따진다. 규칙이 생기기 전에 팀장이 팀원의
             # 일정으로 만들어 둔 보고서가 있고, 그것을 통째로 막으면 손댈 수 없는
             # 문서가 된다. 이미 묶여 있던 일정은 그대로 둔다.
-            linked = await _linked_activity_ids(db, report.id)
             await _own_activity_ids(db, member, [a for a in visible if a not in linked])
-            await _replace_report_activities(db, report.id, visible)
+            changed = (
+                await _replace_report_activities(
+                    db,
+                    report.id,
+                    visible,
+                    current_ids=linked,
+                )
+                or changed
+            )
+
+        if report.report_kind != "meeting" and (
+            content_supplied
+            or "report_date" in explicit
+            or "period_start" in explicit
+            or "period_end" in explicit
+        ):
+            changed = (
+                await report_sources.sync_report_sources_from_legacy_content(
+                    db,
+                    member,
+                    report,
+                )
+                or changed
+            )
+
+        if changed:
+            report.version = _report_version(report) + 1
+            if generation_input_changed:
+                report.generation_input_version = (
+                    int(getattr(report, "generation_input_version", None) or 1) + 1
+                )
+            report.updated_at = datetime.now(UTC)
 
         await db.flush()
         read = await _detail(db, member, report_id)
         await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        constraint = _integrity_constraint(error)
+        if constraint in _REPORT_UNIQUE_CONSTRAINTS:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=_REPORT_UNIQUE_CONSTRAINTS[constraint],
+            ) from error
+        raise
     except Exception:
         await db.rollback()
         raise
@@ -766,6 +1139,7 @@ async def submit_report(
     """
     try:
         report = await _locked_report(db, member, report_id)
+        _require_version(report, payload.expected_version)
         if report.status_code != payload.expected_status_code:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -777,13 +1151,14 @@ async def submit_report(
                 detail="invalid_state_transition",
             )
         sales_deal_ids: list[UUID] = []
+        sections: list[ReportDeal] = []
         if report.report_kind == "meeting":
             if report.source_activity_id is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="activity_not_found",
                 )
-            sections = (
+            sections = list(
                 (await db.execute(select(ReportDeal).where(ReportDeal.report_id == report.id)))
                 .scalars()
                 .all()
@@ -794,13 +1169,28 @@ async def submit_report(
                 sales_deal_ids = [report.sales_deal_id]
             if not sales_deal_ids:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="deal_sections_required",
                 )
             # 저장 후 달라진 접근 권한·고객사 연결은 확정 전에 다시 확인한다.
-            for sales_deal_id in sales_deal_ids:
-                await _validate_meeting_deal(db, member, report.source_activity_id, sales_deal_id)
+            report.customer_company_id = await _validate_meeting_sales_deal_ids(
+                db,
+                member,
+                report.source_activity_id,
+                sales_deal_ids,
+            )
+        else:
+            # 확정본에는 그 시점의 정렬된 출처 참조도 함께 고정한다.
+            await report_sources.sync_report_sources_from_legacy_content(db, member, report)
+        submission = await report_submissions.create_submission(db, report, member, sections)
+        report.current_submission_id = submission.id
         report.status_code = "submitted"
+        report.version = _report_version(report) + 1
+        # A resubmission starts a fresh review; the previous decision remains on its immutable
+        # ReportSubmission row.
+        report.review_note = None
+        report.reviewed_by_member_id = None
+        report.reviewed_at = None
         report.updated_at = datetime.now(UTC)
         await db.flush()
         read = await _detail(db, member, report_id)
@@ -827,9 +1217,7 @@ async def review_report(
 ) -> ReportRead:
     """팀장이 제출된 보고서를 확정하거나 반려한다(유스케이스 RPT-004).
 
-    반려는 rejected 가 아니라 changes_requested 로 간다. 반려한 보고서는 팀원이 고쳐서
-    다시 내야 하는데 고칠 수 있는 상태가 그쪽이기 때문이다. rejected 는 되돌릴 수 없는
-    거절을 위해 비워 둔다.
+    반려는 changes_requested 로 가며 팀원이 고쳐서 다시 제출할 수 있다.
     """
     try:
         report = await _locked_report_for_review(db, member, report_id)
@@ -838,13 +1226,37 @@ async def review_report(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="invalid_state_transition",
             )
+        expected_submission_id = payload.expected_submission_id
+        if report.current_submission_id is None:
+            if expected_submission_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="report_submission_conflict",
+                )
+            submission = await report_sources.materialize_legacy_submission(db, report)
+            expected_submission_id = submission.id
+        elif expected_submission_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="report_submission_conflict",
+            )
+        assert expected_submission_id is not None
+        submission = await report_submissions.review_current_submission(
+            db,
+            report,
+            member,
+            expected_submission_id=expected_submission_id,
+            approved=payload.decision == "approve",
+            note=payload.reason,
+        )
         report.status_code = REVIEW_DECISION_STATUS[payload.decision]
         # 확정하면 지난 반려 사유를 남겨 두지 않는다. 고친 보고서에 옛 지적이 붙어 있으면
         # 무엇이 남은 문제인지 알 수 없다. 확정 요청에 reason 이 실려 와도 비운다.
         # 작성자의 note 는 건드리지 않는다.
         report.review_note = payload.reason if payload.decision == "reject" else None
         report.reviewed_by_member_id = member.id
-        report.reviewed_at = datetime.now(UTC)
+        report.reviewed_at = submission.reviewed_at
+        report.version = _report_version(report) + 1
         report.updated_at = datetime.now(UTC)
         await db.flush()
         read = await _detail(db, member, report_id)
@@ -867,6 +1279,11 @@ async def delete_report(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="report_not_editable",
+            )
+        if report.current_submission_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="report_has_submission_history",
             )
         # report 에는 deleted_at 이 없다. 묶인 일정은 report_activity 의 FK CASCADE 가 지운다.
         await db.delete(report)

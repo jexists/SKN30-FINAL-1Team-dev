@@ -28,6 +28,7 @@ export type MeetingGenerationState = {
 interface StartOptions {
   agendaId: string
   dealIds: string[]
+  resumed?: boolean
   execute: (
     onProgress: (progress: MeetingProgress) => void,
     onReportSaved: (report: MeetingReport) => void,
@@ -63,7 +64,12 @@ export function useMeetingGeneration(agendaId: string) {
 }
 
 /** 실행 Promise를 페이지 밖에 보관해 라우트가 바뀌어도 apply와 알림까지 끝냅니다. */
-export function startMeetingGeneration({ agendaId, dealIds, execute }: StartOptions) {
+export function startMeetingGeneration({
+  agendaId,
+  dealIds,
+  resumed = false,
+  execute,
+}: StartOptions) {
   if (!agendaId || active.has(agendaId)) return false
   const requestId = crypto.randomUUID()
   const running: MeetingGenerationState = {
@@ -81,7 +87,11 @@ export function startMeetingGeneration({ agendaId, dealIds, execute }: StartOpti
     () => {},
     async () => {
       publish(running)
-      showToast('보고서 작성을 시작했습니다. 다른 화면으로 이동해도 계속됩니다.')
+      showToast(
+        resumed
+          ? '서버에서 진행 중인 보고서 작성에 다시 연결했습니다.'
+          : '보고서 작성을 시작했습니다. 다른 화면으로 이동해도 계속됩니다.',
+      )
       try {
         const result = await execute(
           (progress) => {

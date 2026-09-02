@@ -89,6 +89,30 @@ def sample():
     }
 
 
+def test_normalized_direct_activities_override_legacy_content_metadata():
+    source = sample()
+    source["content"]["activities"].append(
+        {
+            "source": "캘린더",
+            "included": True,
+            "title": "클라이언트가 보낸 오래된 활동",
+        }
+    )
+    source["report_sources"]["activities"] = [
+        {
+            "id": str(UUID(int=700)),
+            "source": "캘린더",
+            "included": True,
+            "title": "DB에서 조회한 확정 활동",
+        }
+    ]
+
+    normalized = period._source(source)
+
+    assert normalized["activities"] == source["report_sources"]["activities"]
+    assert "오래된 활동" not in str(normalized["activities"])
+
+
 def draft():
     return {
         "fields": [

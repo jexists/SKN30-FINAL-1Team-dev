@@ -20,6 +20,7 @@ from app.schemas.agent_runs import AgentRunCreate
 from app.schemas.meeting_content import SegmentAssignment
 from app.services import agent_runs
 from app.services import meeting_processing as service
+from app.services.agent_logging import log_agent_event
 from app.services.llm import LLMError
 
 
@@ -358,9 +359,10 @@ def test_apply_selects_suitable_field_or_keeps_draft_as_suggestion(
             if item["sales_deal_id"] == str(section.sales_deal_id)
         )
         generated = {expected_field or "body": expected_draft["body"]}
-        assert section.content["values"] == (
-            generated if index == 0 and expected_field is not None else original_values[index]
-        )
+        expected_values = original_values[index]
+        if expected_field is not None:
+            expected_values[expected_field] = expected_draft["body"]
+        assert section.content["values"] == expected_values
         assert section.content["ai_values"] == generated
         assert section.content["ai_evidence"] == " · ".join(expected_draft["evidence_ids"])
         assert section.content["ai_generated_at"]
@@ -393,10 +395,16 @@ def test_notes_sync_without_changing_original_evidence(monkeypatch):
     asyncio.run(service.apply(db, member, run.id))
     evidence = copy.deepcopy(run.test_report.source_snapshot)
     revision = UUID(run.test_report.content["meeting_shared"]["revision"])
+    version = run.test_report.version
+    generation_input_version = run.test_report.generation_input_version
     asyncio.run(
         service.update_notes(db, member, run.id, "공통 수정", "미지정 원문 확인 필요", revision)
     )
     assert run.test_report.source_snapshot == evidence
+    assert run.test_report.version == version + 1
+    assert run.test_report.generation_input_version == generation_input_version
+    assert run.test_report.common_body == "공통 수정"
+    assert run.test_report.unassigned_body == "미지정 원문 확인 필요"
     with pytest.raises(HTTPException, match="meeting_notes_changed"):
         asyncio.run(
             service.update_notes(db, member, run.id, "오래된 탭 수정", "확인 필요", revision)
@@ -411,6 +419,8 @@ def test_notes_sync_without_changing_original_evidence(monkeypatch):
 def test_regeneration_preserves_edited_shared_notes_as_well_as_deal_bodies(monkeypatch):
     member, sections, run, db = storage(monkeypatch)
     asyncio.run(service.apply(db, member, run.id))
+    previous = service.MeetingProcessingOutput.model_validate(run.output_snapshot)
+    monkeypatch.setattr(service, "_previous_result", AsyncMock(return_value=previous))
     revision = UUID(run.test_report.content["meeting_shared"]["revision"])
     asyncio.run(
         service.update_notes(db, member, run.id, "사람이 확정한 공통 정정", "미지정 수정", revision)
@@ -430,9 +440,12 @@ def test_regeneration_preserves_edited_shared_notes_as_well_as_deal_bodies(monke
 def test_background_dispatch_serializes_uuid_results(monkeypatch):
     member, _, run, output = case()
     run.status_code = "queued"
-    first = _Db(_Result(scalar=run))
-    last = _Db(_Result(scalar=run))
-    sessions = iter([first, last])
+    run.output_snapshot = None
+    run.apply_status = "pending"
+    claim = _Db(_Result(scalar=run))
+    persist = _Db(_Result(scalar=run))
+    apply = _Db(_Result(scalar=run))
+    sessions = iter([claim, persist, apply])
     monkeypatch.setattr(
         agent_runs, "get_sessionmaker", lambda: lambda: _SessionContext(next(sessions))
     )
@@ -441,11 +454,55 @@ def test_background_dispatch_serializes_uuid_results(monkeypatch):
         assert member_id == member.id
         return output
 
+    async def apply_output(db, current):
+        assert db is apply and current is run
+        return "applied"
+
     monkeypatch.setattr(service, "run", execute)
+    monkeypatch.setattr(service, "apply_output", apply_output)
     asyncio.run(agent_runs.execute(run.id))
     assert run.status_code == "completed"
+    assert run.apply_status == "applied"
     assert json.loads(json.dumps(run.output_snapshot))["analyses"][0]["sales_deal_id"]
     assert run.evidence["unresolved_count"] == 2
+
+
+def test_worker_does_not_count_tokens_twice_when_apply_fails(monkeypatch):
+    member, _, run, output = case()
+    run.status_code = "queued"
+    run.output_snapshot = None
+    run.apply_status = "pending"
+    sessions = iter(
+        [
+            _Db(_Result(scalar=run)),
+            _Db(_Result(scalar=run)),
+            _Db(_Result(scalar=run)),
+            _Db(_Result(scalar=run)),
+        ]
+    )
+    monkeypatch.setattr(
+        agent_runs, "get_sessionmaker", lambda: lambda: _SessionContext(next(sessions))
+    )
+
+    async def execute(_snapshot, _member_id):
+        log_agent_event(
+            "meeting_processing.model",
+            input_tokens=20,
+            output_tokens=10,
+            total_tokens=30,
+        )
+        return output
+
+    async def fail_apply(_db, _current):
+        raise ValueError("meeting_apply_status_invalid")
+
+    monkeypatch.setattr(service, "run", execute)
+    monkeypatch.setattr(service, "apply_output", fail_apply)
+
+    asyncio.run(agent_runs.execute(run.id))
+
+    assert run.status_code == "failed"
+    assert (run.input_tokens, run.output_tokens, run.total_tokens) == (20, 10, 30)
 
 
 def test_run_and_report_locks_enforce_scope_and_source(monkeypatch):

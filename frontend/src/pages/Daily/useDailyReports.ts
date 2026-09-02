@@ -87,7 +87,14 @@ export function toReport(item: ReportResponse): DailyReport {
       item.recipient_display_name ??
       (typeof content.approver === 'string' ? content.approver : '결재자 미지정'),
     status: STATUS_BY_API[item.status_code],
-    values: valuesOf(content.values ?? item.content),
+    apiStatus: item.status_code,
+    version: item.version,
+    currentSubmissionId: item.current_submission_id,
+    values: {
+      ...valuesOf(content.values ?? item.content),
+      ...valuesOf(item.structured_values),
+      ...(item.body ? { body: item.body } : {}),
+    },
     activities: activitiesOf(item),
     attachments: attachmentsOf(content.attachments),
     transcript: item.transcript ?? '',
@@ -113,17 +120,17 @@ export interface DraftPayload {
  * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 기간에 보고서를 하나 더
  * 만듭니다. 기간 전체를 서버에 물어야 합니다. 기간 안 어느 날짜든 같은 기간으로 접힙니다.
  */
-export async function savedIdForPeriod(
+export async function savedForPeriod(
   kind: ReportKind,
   dateISO: string,
   signal?: AbortSignal,
-): Promise<string | undefined> {
+): Promise<ReportResponse | undefined> {
   const [from, to] = periodRange(kind, dateISO)
   const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
     params: { report_kind: API_KIND[kind], start_date: from, end_date: to, limit: 1 },
     signal,
   })
-  return data.items[0]?.id
+  return data.items[0]
 }
 
 function requestOf(draft: DraftPayload): ReportWriteRequest {
@@ -144,6 +151,13 @@ function requestOf(draft: DraftPayload): ReportWriteRequest {
       activities: draft.activities,
       attachments: draft.attachments,
     },
+    title: periodLabelFor(draft.kind, draft.date),
+    body: draft.values.body?.trim() || null,
+    common_body: null,
+    unassigned_body: null,
+    structured_values: Object.fromEntries(
+      Object.entries(draft.values).filter(([key]) => key !== 'body'),
+    ),
     transcript: draft.transcript.trim() || null,
     note:
       draft.attachments.length > 0
@@ -198,7 +212,7 @@ export default function useDailyReports() {
     setPending(true)
     setError(null)
     try {
-      const existingId = await savedIdForPeriod(draft.kind, draft.date)
+      const existing = await savedForPeriod(draft.kind, draft.date)
       const request = requestOf(draft)
       const {
         report_kind: _kind,
@@ -206,12 +220,16 @@ export default function useDailyReports() {
         sales_deal_id: _deal,
         ...patch
       } = request
-      const saved = existingId
-        ? await client.patch<ReportResponse>(`/reports/${existingId}`, patch)
+      const saved = existing
+        ? await client.patch<ReportResponse>(`/reports/${existing.id}`, {
+            ...patch,
+            expected_version: existing.version,
+          })
         : await client.post<ReportResponse>('/reports', request)
       const response = submit
         ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
-            expected_status_code: 'draft',
+            expected_status_code: saved.data.status_code,
+            expected_version: saved.data.version,
           })
         : saved
       return toReport(response.data)

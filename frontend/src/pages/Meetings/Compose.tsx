@@ -4,10 +4,17 @@
 // 저장할 때는 공통 기록과 모든 딜 카드를 미팅 보고서 한 건으로 묶습니다.
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
+import { isAxiosError } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage } from '@/api/errorMessage'
-import { applyMeetingProcessing, processMeeting, saveMeetingNotes } from '@/api/reportAgent'
+import {
+  latestMeetingProcessing,
+  processMeeting,
+  readReport,
+  saveMeetingNotes,
+  waitForMeetingProcessing,
+} from '@/api/reportAgent'
 import Button, { buttonClass } from '@/components/Button'
 import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
@@ -48,6 +55,7 @@ export default function Compose() {
   const { memberId, isManager } = useCurrentUser()
   const notesAbort = useRef<AbortController | null>(null)
   const saveAbort = useRef<AbortController | null>(null)
+  const recoveredReportId = useRef('')
   const mirroredGeneration = useRef({
     requestId: '',
     progress: null as MeetingProgress | null,
@@ -70,6 +78,7 @@ export default function Compose() {
     setNotesDirty(false)
     setRunError(null)
     setRunErrors({})
+    recoveredReportId.current = ''
     mirroredGeneration.current = {
       requestId: '',
       progress: null,
@@ -147,6 +156,43 @@ export default function Compose() {
     acceptGenerated,
     generationFailed,
   ])
+  useEffect(() => {
+    if (
+      !draftReady ||
+      !savedReport ||
+      generation ||
+      recoveredReportId.current === savedReport.id ||
+      savedReport.ownerMemberId !== memberId ||
+      !['draft', 'changes_requested'].includes(savedReport.apiStatus ?? '')
+    )
+      return
+    recoveredReportId.current = savedReport.id
+    void latestMeetingProcessing(savedReport.id)
+      .then((run) => {
+        if (!['queued', 'running'].includes(run.status_code)) return
+        const dealIds = savedReport.dealSections.map((section) => section.salesDealId)
+        startMeetingGeneration({
+          agendaId,
+          dealIds,
+          resumed: true,
+          execute: async (onProgress, onReportSaved) => {
+            onReportSaved(savedReport)
+            const completed = await waitForMeetingProcessing(run, onProgress)
+            const persisted = await readReport(savedReport.id)
+            return {
+              report: toMeetingReport(persisted),
+              writingFailed: completed.output_snapshot.reports === null,
+              errors: completed.output_snapshot.errors,
+            }
+          },
+        })
+      })
+      .catch((reason: unknown) => {
+        if (!isAxiosError(reason) || reason.response?.status !== 404) {
+          setRunError(errorMessage(reason, '진행 중인 보고서 상태를 확인하지 못했습니다.'))
+        }
+      })
+  }, [agendaId, draftReady, generation, memberId, savedReport])
   const deals = useCompanyDeals(item?.customerCompanyId)
   const [confirm, setConfirm] = useState<Confirm>(null)
 
@@ -233,6 +279,7 @@ export default function Compose() {
     if (!first) throw new Error('meeting_draft_not_found')
     return {
       reportId: savedReport?.id ?? first.reportId,
+      version: first.reportVersion ?? savedReport?.version,
       statusCode: savedReport?.apiStatus ?? first.statusCode,
       agendaId: item.id,
       template: savedReport?.template ?? first.template,
@@ -314,7 +361,7 @@ export default function Compose() {
             ),
           })
         })
-        const persisted = await applyMeetingProcessing(run.id)
+        const persisted = await readReport(report.id)
         return {
           report: toMeetingReport(persisted),
           writingFailed: run.output_snapshot.reports === null,

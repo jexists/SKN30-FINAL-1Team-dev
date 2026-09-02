@@ -20,6 +20,7 @@ logger.setLevel(logging.INFO)
 if not logger.hasHandlers():
     logger.addHandler(logging.StreamHandler())
 _context: ContextVar[dict | None] = ContextVar("agent_log_context", default=None)
+_usage: ContextVar[dict[str, int] | None] = ContextVar("agent_token_usage", default=None)
 _fields = frozenset(
     {
         "run_id",
@@ -28,6 +29,7 @@ _fields = frozenset(
         "sales_deal_id",
         "schema_name",
         "lookup_kind",
+        "ocr_provider",
         "attempt",
         "status_code",
         "request_id",
@@ -86,8 +88,25 @@ def agent_log_context(**fields):
         _context.reset(token)
 
 
+@contextmanager
+def collect_token_usage():
+    """한 AgentRun 안의 여러 모델 호출 사용량을 합산한다."""
+    usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    token = _usage.set(usage)
+    try:
+        yield usage
+    finally:
+        _usage.reset(token)
+
+
 def log_agent_event(stage: str, **fields):
     """호출 시간·횟수·공급자가 반환한 토큰 수. 본문이나 모델의 자유 서술은 받지 않는다."""
+    usage = _usage.get()
+    if usage is not None:
+        for key in ("input_tokens", "output_tokens", "total_tokens"):
+            value = fields.get(key)
+            if type(value) is int and value >= 0:
+                usage[key] += value
     record = {
         "event": "agent_progress",
         "timestamp": datetime.now(UTC).isoformat(),
