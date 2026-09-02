@@ -4,7 +4,16 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 
 from app.api.deps import CurrentMember, DbSession
@@ -12,10 +21,15 @@ from app.core.config import settings
 from app.models.content import Document
 from app.models.content import File as FileRow
 from app.models.crm import CustomerCompany, CustomerContact
-from app.schemas.business_cards import BusinessCardDraft, BusinessCardFields, BusinessCardMatchRead
+from app.schemas.business_cards import (
+    BusinessCardFields,
+    BusinessCardMatchRead,
+    BusinessCardScanAccepted,
+    BusinessCardScanStatus,
+)
 from app.schemas.documents import DocumentRead
-from app.services import business_cards, ocr, storage
-from app.services.llm import LLMError
+from app.services import business_card_scans, business_cards, storage
+from app.services.agent_logging import log_agent_event
 from app.services.storage import StorageError
 from app.services.upload_guard import UploadRejected, check_image_upload, check_size
 
@@ -41,12 +55,22 @@ async def find_business_card_matches(
     return [BusinessCardMatchRead.model_validate(match) for match in matches]
 
 
-@router.post("/business-cards/scan", response_model=BusinessCardDraft)
+@router.post(
+    "/business-cards/scan",
+    response_model=BusinessCardScanAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def scan_business_card(
-    _member: CurrentMember,
+    background: BackgroundTasks,
+    member: CurrentMember,
     image: Annotated[UploadFile, File()],
-) -> BusinessCardDraft:
-    """명함을 읽어 사용자 확인용 초안을 반환한다. 원본 이미지는 저장하지 않는다."""
+) -> BusinessCardScanAccepted:
+    """명함 인식을 접수하고 202 로 응답한다. 결과는 GET 으로 확인한다.
+
+    OCR 과 LLM 을 동기로 기다리면 응답이 CloudFront origin timeout 을 넘겨 504 가
+    된다. 업로드 검증만 여기서 끝내고 인식은 백그라운드로 넘긴다. 원본 이미지는
+    저장하지 않고 작업 인자로만 전달한다.
+    """
     content = await image.read(settings.business_card_max_bytes + 1)
     try:
         check_size(len(content), settings.business_card_max_bytes)
@@ -63,32 +87,45 @@ async def scan_business_card(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="ocr_not_configured",
         )
-    try:
-        extracted = await ocr.extract_document(
-            file_name=image.filename or "business-card",
-            media_type=allowed.media_type,
-            content=content,
-            profile="business_card",
-        )
-        return await business_cards.extract(
-            ocr_text=extracted.plain_text,
-            file_name=image.filename or "business-card",
-        )
-    except ocr.OcrError as error:
+    scan_id = business_card_scans.create(member_id=member.id)
+    # 요청이 서버까지 도달했다는 사실 자체가 업로드 실패와 인식 실패를 가른다.
+    log_agent_event(
+        "business_card_scan_accepted",
+        run_id=str(scan_id),
+        agent_code=business_card_scans.AGENT_CODE,
+    )
+    background.add_task(
+        business_card_scans.run,
+        scan_id,
+        file_name=image.filename or "business-card",
+        media_type=allowed.media_type,
+        content=content,
+    )
+    return BusinessCardScanAccepted(scan_id=scan_id, processing_status="processing")
+
+
+@router.get("/business-cards/scan/{scan_id}", response_model=BusinessCardScanStatus)
+async def get_business_card_scan(
+    scan_id: UUID,
+    member: CurrentMember,
+) -> BusinessCardScanStatus:
+    """접수한 명함 인식의 진행 상태와 완료된 초안을 확인하는 폴링 대상."""
+    state = business_card_scans.get(scan_id, member_id=member.id)
+    if state is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="ocr_unavailable",
-        ) from error
-    except LLMError as error:
-        detail = (
-            "llm_not_configured"
-            if str(error) == "llm_not_configured"
-            else "business_card_extraction_failed"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="business_card_scan_not_found",
         )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=detail,
-        ) from error
+    draft = state.draft
+    return BusinessCardScanStatus(
+        processing_status=state.processing_status,
+        processing_error=state.processing_error,
+        fields=draft.fields if draft is not None else None,
+        missing_required_fields=draft.missing_required_fields if draft is not None else [],
+        ready_for_contact_registration=(
+            draft.ready_for_contact_registration if draft is not None else False
+        ),
+    )
 
 
 @router.post(

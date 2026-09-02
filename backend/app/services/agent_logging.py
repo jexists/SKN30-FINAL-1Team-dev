@@ -29,6 +29,7 @@ _fields = frozenset(
         "sales_deal_id",
         "schema_name",
         "lookup_kind",
+        "ocr_provider",
         "attempt",
         "status_code",
         "request_id",

@@ -46,3 +46,24 @@ class BusinessCardMatchRead(BaseModel):
     phone: str
     email: str | None
     matched_by: list[str] = Field(min_length=1, max_length=3)
+
+
+class BusinessCardScanAccepted(BaseModel):
+    """접수된 명함 인식. 실제 결과는 scan_id 로 조회한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scan_id: UUID
+    processing_status: str
+
+
+class BusinessCardScanStatus(BaseModel):
+    """명함 인식 진행 상태. 완료됐을 때만 초안 값을 담는다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    processing_status: str
+    processing_error: str | None = None
+    fields: BusinessCardFields | None = None
+    missing_required_fields: list[str] = Field(default_factory=list, max_length=10)
+    ready_for_contact_registration: bool = False
