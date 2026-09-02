@@ -159,24 +159,36 @@ export interface ActivityRead {
 
 export type AiBriefingStatus = 'queued' | 'running' | 'completed' | 'failed'
 
-/**
- * 브리핑이 근거로 조회한 자료실 문서. `content.source_refs` 는 문서 id 만 담아서
- * 화면에 그대로 띄울 수 없어, 서버가 실행 시점의 파일명·페이지를 함께 내려준다.
- */
-export interface AiBriefingDocument {
-  document_id: string
-  file_name: string | null
-  page_start: number | null
-  page_end: number | null
-}
-
 export interface AiBriefing {
   run_id: string
   status: AiBriefingStatus
   content: ContractBriefingOutput | null
-  documents: AiBriefingDocument[]
   error: string | null
   generated_at: string | null
+}
+
+/** 미팅에 관련된 자료실 문서 한 건. AI 브리핑과 무관하게 조회된다. */
+export interface ActivityDocument {
+  document_id: string
+  document_no: string
+  category_code: string
+  title: string
+  file_id: string
+  file_name: string
+  /** 자료요약 Agent 가 만든 요약. 아직 요약이 없는 파일이면 null 이다. */
+  summary_markdown: string | null
+  uploaded_at: string
+}
+
+/**
+ * `GET /activities/{id}/documents` 의 응답. 브리핑 실행 기록이 아니라 연결 관계만 보므로
+ * 미팅을 열 때마다 새로 조회하며, 브리핑을 만든 뒤 올라온 자료도 곧바로 보인다.
+ *
+ * `product` 는 고객사와 무관한 공용 자료(카탈로그·스펙)라 화면에서도 섞지 않는다.
+ */
+export interface ActivityDocuments {
+  related: ActivityDocument[]
+  product: ActivityDocument[]
 }
 
 export interface ActivityCreateRequest {

@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, time, timedelta
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 from zoneinfo import ZoneInfo
 
@@ -16,6 +16,8 @@ from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.activities import (
     ActivityCreate,
+    ActivityDocumentRead,
+    ActivityDocumentsRead,
     ActivityOptionRead,
     ActivityPage,
     ActivityPageParams,
@@ -23,8 +25,8 @@ from app.schemas.activities import (
     ActivityRead,
 )
 from app.schemas.agent_runs import AgentRunCreate
+from app.services import activity_documents, contract_next_meeting_pipeline
 from app.services import agent_runs as agent_run_service
-from app.services import contract_next_meeting_pipeline
 
 router = APIRouter(tags=["activities"])
 
@@ -109,6 +111,11 @@ def _seoul(value: datetime | None) -> datetime | None:
     return None if value is None else value.astimezone(_SEOUL)
 
 
+def _activity_document_read(item: dict) -> ActivityDocumentRead:
+    """저장된 UTC 시각을 화면과 같은 서울 시간으로 바꿔 내보낸다."""
+    return ActivityDocumentRead.model_validate({**item, "uploaded_at": _seoul(item["uploaded_at"])})
+
+
 def _activity_read(
     activity: Activity,
     owner_display_name: str,
@@ -176,31 +183,9 @@ async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID
         "run_id": str(run.id),
         "status": run.status_code,
         "content": run.output_snapshot,
-        # content.source_refs 는 문서 id 뿐이라 화면에서 읽을 수 없다. 실행 시점에 조회한
-        # 파일명·페이지를 함께 내려 자료실을 다시 조회하지 않고 출처를 그릴 수 있게 한다.
-        "documents": _briefing_documents(run.input_snapshot),
         "error": run.error_message,
         "generated_at": _seoul(run.finished_at).isoformat() if run.finished_at else None,
     }
-
-
-def _briefing_documents(input_snapshot: Any) -> list[dict]:
-    """브리핑이 근거로 조회한 문서를 문서 단위로 한 번씩만 추린다."""
-    if not isinstance(input_snapshot, dict):
-        return []
-    sources = (input_snapshot.get("document_context") or {}).get("sources") or []
-    documents: dict[str, dict] = {}
-    for item in sources:
-        document_id = item.get("document_id")
-        if not document_id or str(document_id) in documents:
-            continue
-        documents[str(document_id)] = {
-            "document_id": str(document_id),
-            "file_name": item.get("file_name"),
-            "page_start": item.get("page_start"),
-            "page_end": item.get("page_end"),
-        }
-    return list(documents.values())
 
 
 async def _activity_row(
@@ -475,6 +460,32 @@ async def get_activity(
     row = await _activity_row(db, member, activity_id)
     briefing = await _activity_briefing(db, member, activity_id)
     return _activity_read(*row, ai_briefing=briefing)
+
+
+@router.get("/activities/{activity_id}/documents", response_model=ActivityDocumentsRead)
+async def list_activity_documents(
+    activity_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> ActivityDocumentsRead:
+    """미팅에 관련된 자료실 문서.
+
+    AI 브리핑과 분리된 조회다. 브리핑은 실행 시점에 박제되지만 이 목록은 열 때마다 다시
+    조회하므로, 브리핑을 만든 뒤에 올라온 자료도 곧바로 보인다.
+    """
+    activity, _display_name, _contact, company_id, *_rest = await _activity_row(
+        db, member, activity_id
+    )
+    groups = await activity_documents.list_for_activity(
+        db,
+        team_id=member.team_id,
+        activity=activity,
+        customer_company_id=company_id,
+    )
+    return ActivityDocumentsRead(
+        related=[_activity_document_read(item) for item in groups["related"]],
+        product=[_activity_document_read(item) for item in groups["product"]],
+    )
 
 
 @router.post(

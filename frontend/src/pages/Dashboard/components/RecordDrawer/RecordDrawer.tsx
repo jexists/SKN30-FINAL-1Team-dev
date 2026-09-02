@@ -11,20 +11,33 @@ import { statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { RISK_LABEL } from '@/shared/riskLabels'
 import { useShowOwner } from '@/shared/scope'
-import type { AgendaItem, AiBriefingDocument } from '@/types'
+import type { ActivityDocument, AgendaItem } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import { useRelatedDeal } from '../../useDashboard'
+import useActivityDocuments from '../../useActivityDocuments'
 import useAiBriefing from '../../useAiBriefing'
 
 import styles from './RecordDrawer.module.scss'
 
-/** DOCX·PPTX 처럼 페이지 경계가 없는 추출기는 page_start 가 비어 파일명만 남습니다. */
-function pageLabel({ page_start, page_end }: AiBriefingDocument): string {
-  if (page_start == null) return ''
-  if (page_end == null || page_end === page_start) return `p.${page_start}`
-  return `pp.${page_start}-${page_end}`
+/**
+ * 브리핑이 `[[ ]]` 로 감싼 "사람이 확인해야 할 값"을 표시로 바꿉니다.
+ *
+ * 마커가 없거나 짝이 안 맞아도 그냥 평문이 되도록 두었습니다. LLM 출력이라 형식이
+ * 어긋날 수 있는데, 그때 글이 깨지는 것보다 강조가 빠지는 편이 낫습니다. 짝이 안 맞아
+ * 남은 대괄호는 화면에 새지 않도록 지웁니다.
+ */
+function highlightChecks(summary: string) {
+  return summary.split(/\[\[(.+?)\]\]/g).map((part, index) =>
+    index % 2 === 1 ? (
+      <mark key={index} className={styles.check}>
+        {part}
+      </mark>
+    ) : (
+      part.replace(/\[\[|\]\]/g, '')
+    ),
+  )
 }
 
 interface Props {
@@ -53,15 +66,34 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     loading: briefingLoading,
     error: briefingError,
   } = useAiBriefing({ activityId: item.id, eligible: !!item.customerContactId })
-  // 브리핑이 실제로 인용한 문서만 근거로 세웁니다. 조회는 됐지만 본문이 쓰지 않은
-  // 자료까지 보여 주면 "이걸 근거로 썼다"는 표시가 아니게 됩니다.
+  const {
+    documents,
+    loading: documentsLoading,
+    error: documentsError,
+  } = useActivityDocuments(item.id)
+  // 인용 여부는 목록을 거르는 조건이 아니라 줄에 붙는 표시입니다. 브리핑이 인용을
+  // 빠뜨려도 자료 자체는 보여야 하고, 브리핑이 실패해도 목록은 남아야 합니다.
   const citedDocumentIds = new Set(
     (briefing?.content?.source_refs ?? [])
       .filter((ref) => ref.type === 'document')
       .map((ref) => ref.id),
   )
-  const citedDocuments = (briefing?.documents ?? []).filter((document) =>
-    citedDocumentIds.has(document.document_id),
+  const documentRow = (document: ActivityDocument) => (
+    <li key={document.document_id}>
+      <span className={styles.sourceName}>
+        {document.file_name}
+        {citedDocumentIds.has(document.document_id) && (
+          <i className={styles.citedTag}>브리핑에 인용됨</i>
+        )}
+      </span>
+      {/* 요약은 길어서 목록을 밀어냅니다. 접어 두고 눌러야 펴지게 합니다. */}
+      {document.summary_markdown && (
+        <details className={styles.sourceSummary}>
+          <summary>자료요약 보기</summary>
+          <pre>{document.summary_markdown}</pre>
+        </details>
+      )}
+    </li>
   )
   const [menuOpen, setMenuOpen] = useState(false)
   const showOwner = useShowOwner()
@@ -272,7 +304,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
             <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
           ) : (
             <>
-              <p className={styles.note}>{briefing.content.contract_summary}</p>
+              <p className={styles.note}>{highlightChecks(briefing.content.contract_summary)}</p>
               {briefing.content.risks.length > 0 && (
                 <div className={styles.pills}>
                   {briefing.content.risks.map((risk, index) => (
@@ -289,20 +321,29 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
                   ))}
                 </ul>
               )}
-              {citedDocuments.length > 0 && (
-                <div className={styles.sources}>
-                  <p className={styles.sourcesTitle}>📎 근거 자료</p>
-                  <ul className={styles.sourceList}>
-                    {citedDocuments.map((document) => (
-                      <li key={document.document_id}>
-                        {document.file_name ?? '이름 없는 자료'}
-                        {pageLabel(document) && ` ${pageLabel(document)}`}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </>
+          )}
+        </section>
+
+        <section className={`${styles.block} ${styles.full}`}>
+          <h3>📎 관련 자료</h3>
+          {documentsLoading ? (
+            <Skeleton height={40} radius="var(--r-md)" />
+          ) : documentsError ? (
+            <p className={styles.note} role="alert">
+              {documentsError}
+            </p>
+          ) : documents.related.length === 0 ? (
+            <p className={styles.note}>이 고객사·딜에 연결된 자료가 없습니다.</p>
+          ) : (
+            <ul className={styles.sourceList}>{documents.related.map(documentRow)}</ul>
+          )}
+
+          {documents.product.length > 0 && (
+            <div className={styles.sources}>
+              <p className={styles.sourcesTitle}>📦 제품 자료</p>
+              <ul className={styles.sourceList}>{documents.product.map(documentRow)}</ul>
+            </div>
           )}
         </section>
 
