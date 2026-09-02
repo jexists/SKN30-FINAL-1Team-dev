@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-const { pollSummary } = await import('../src/pages/Documents/summaryPolling.ts')
+const { pollSummary } = await import('../src/api/polling.ts')
 
 function fakeClock() {
   let current = 0
