@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -127,12 +128,64 @@ async def test_retrieve_briefing_context_passes_company_scope_to_search(monkeypa
     assert context == {"query": "계약금", "summaries": [], "sources": []}
 
 
+@pytest.mark.anyio
+async def test_briefing_context_is_json_serializable(monkeypatch):
+    """이 결과는 agent_run.input_snapshot(JSONB)으로 저장된다 — UUID 가 섞이면 500 이 난다."""
+    chunk_id, document_id, file_id = uuid4(), uuid4(), uuid4()
+    chunk = SimpleNamespace(
+        id=chunk_id,
+        document_id=document_id,
+        file_id=file_id,
+        chunk_no=0,
+        page_start=None,
+        page_end=None,
+        section=None,
+        content="계약금 30%",
+        metadata_json=None,
+    )
+    file_row = SimpleNamespace(
+        id=file_id, file_name="계약서.pdf", summary_markdown="## 요약", summary_payload=None
+    )
+
+    async def _search(*_args, **_kwargs):
+        return [(chunk, 0.9)]
+
+    monkeypatch.setattr(document_processing, "search_chunks", _search)
+
+    context = await sales_context.retrieve_briefing_context(
+        _Db([(file_row, document_id)]),
+        team_id=uuid4(),
+        query="계약금",
+        sales_deal_id=uuid4(),
+    )
+
+    json.dumps(context)  # 여기서 TypeError 가 나면 브리핑 실행을 만들 수 없다.
+    assert context["sources"][0]["chunk_id"] == str(chunk_id)
+    assert context["summaries"][0]["document_id"] == str(document_id)
+
+
 def test_document_scopes_pairs_deal_and_company_for_or_matching():
     """딜·고객사를 AND 로 묶으면 한쪽에만 연결된 자료가 통째로 빠진다."""
     assert document_processing.document_scopes(None, None) == []
     assert len(document_processing.document_scopes(uuid4(), None)) == 1
-    assert len(document_processing.document_scopes(None, uuid4())) == 1
-    assert len(document_processing.document_scopes(uuid4(), uuid4())) == 2
+    assert document_processing.document_scopes(None, uuid4())
+    assert document_processing.document_scopes(uuid4(), uuid4())
+
+
+def test_document_scopes_reach_company_documents_through_the_deal():
+    """자료실 업로드 화면에 고객사 칸이 없어 컬럼만 보면 신규 자료가 전부 빠진다."""
+    rendered = " ".join(str(scope) for scope in document_processing.document_scopes(None, uuid4()))
+    # 고객사를 직접 들고 있는 예전 자료.
+    assert "document.customer_company_id" in rendered
+    # 딜을 거쳐 같은 고객사의 자료까지 잡는다.
+    assert "document.sales_deal_id IN" in rendered
+    assert "sales_deal.customer_company_id" in rendered
+
+
+def test_document_scopes_without_company_do_not_join_deals():
+    """딜만 지정하면 서브쿼리 없이 딜 연결만 본다."""
+    rendered = " ".join(str(scope) for scope in document_processing.document_scopes(uuid4(), None))
+    assert "sales_deal.customer_company_id" not in rendered
 
 
 def test_to_briefing_prompt_block_limits_untrusted_context_length():

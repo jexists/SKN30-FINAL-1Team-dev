@@ -68,9 +68,11 @@ async def retrieve_briefing_context(
             continue
         sources.append(
             {
-                "chunk_id": chunk.id,
-                "document_id": chunk.document_id,
-                "file_id": chunk.file_id,
+                # 이 dict 는 agent_run.input_snapshot(JSONB)으로 그대로 저장된다.
+                # UUID 객체를 그대로 두면 직렬화가 실패해 실행 생성 자체가 500 이 된다.
+                "chunk_id": str(chunk.id),
+                "document_id": str(chunk.document_id),
+                "file_id": str(chunk.file_id),
                 "file_name": file_row.file_name,
                 "chunk_no": chunk.chunk_no,
                 "page_start": getattr(chunk, "page_start", None),
@@ -86,8 +88,9 @@ async def retrieve_briefing_context(
 
     summaries = [
         {
-            "file_id": file_id,
-            "document_id": files[file_id][1],
+            # sources 와 같은 이유로 문자열로 내보낸다.
+            "file_id": str(file_id),
+            "document_id": str(files[file_id][1]),
             "file_name": files[file_id][0].file_name,
             "summary_markdown": files[file_id][0].summary_markdown,
             "summary_payload": files[file_id][0].summary_payload,

@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.models.content import Document, DocumentChunk, DocumentFileAudit
 from app.models.content import File as FileRow
+from app.models.sales import SalesDeal
 from app.services import embeddings, storage
 from app.services.document_extraction import ExtractedDocument, ExtractionError, extract_document
 from app.services.llm import LLMError
@@ -359,12 +360,26 @@ def _tokens(value: str) -> set[str]:
 
 
 def document_scopes(sales_deal_id: UUID | None, customer_company_id: UUID | None) -> list[Any]:
-    """딜·고객사 연결 조건. 둘 다 없으면 빈 목록이라 document 조인 자체를 하지 않는다."""
+    """딜·고객사 연결 조건. 둘 다 없으면 빈 목록이라 document 조인 자체를 하지 않는다.
+
+    고객사 조건은 ``Document.customer_company_id`` 만 봐서는 안 된다. 자료실 업로드
+    화면이 딜 또는 상품만 고르게 하고 고객사 칸을 주지 않아서, 새로 올라온 자료는 이
+    컬럼이 항상 비어 있다. 같은 고객사의 딜에 걸린 자료까지 함께 잡아야 실제로 범위가
+    넓어진다 — 그 컬럼만 보면 조건을 하나 더 붙이고도 결과는 딜 단독과 같아진다.
+    """
     scopes: list[Any] = []
     if sales_deal_id is not None:
         scopes.append(Document.sales_deal_id == sales_deal_id)
     if customer_company_id is not None:
+        # 고객사를 직접 들고 있는 예전 자료.
         scopes.append(Document.customer_company_id == customer_company_id)
+        # 신규 자료는 딜로만 연결되므로 딜을 거쳐 고객사를 판정한다. 팀 격리는 이 조건을
+        # 쓰는 쪽의 team_id 필터가 이미 맡고 있다.
+        scopes.append(
+            Document.sales_deal_id.in_(
+                select(SalesDeal.id).where(SalesDeal.customer_company_id == customer_company_id)
+            )
+        )
     return scopes
 
 
