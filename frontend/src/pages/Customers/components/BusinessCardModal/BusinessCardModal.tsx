@@ -1,18 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { errorMessage, messageForCode } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import { CardIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
+import ProgressBar from '@/components/ProgressBar'
 import { sizeLabel } from '@/utils/attachment'
 
 import {
+  BusinessCardScanError,
   BusinessCardUnavailableError,
   MAX_IMAGE_BYTES,
   recognizeBusinessCard,
   type BusinessCardDraft,
+  type ScanProgress,
 } from '../../businessCard'
 
 import styles from './BusinessCardModal.module.scss'
+
+const SCAN_FALLBACK_MESSAGE = '명함을 읽지 못했습니다. 사진이 흐리면 다시 찍어 주세요.'
+
+/** 지금 어느 단계인지 한 줄로 말합니다. 진행 막대만으로는 무엇을 기다리는지 모릅니다. */
+function progressLabel(progress: ScanProgress): string {
+  if (progress.phase === 'resizing') return '사진 준비 중…'
+  if (progress.phase === 'uploading') return `사진 올리는 중… ${Math.round(progress.percent)}%`
+  return `명함 읽는 중… ${progress.elapsedSeconds}초`
+}
 
 interface BusinessCardModalProps {
   onClose: () => void
@@ -33,6 +46,7 @@ export default function BusinessCardModal({
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   const [reading, setReading] = useState(false)
+  const [progress, setProgress] = useState<ScanProgress | null>(null)
 
   // 미리보기 주소는 붙잡고 있으면 사진이 메모리에 그대로 남습니다.
   useEffect(() => {
@@ -68,13 +82,20 @@ export default function BusinessCardModal({
     setReading(true)
     setError(null)
     setUnavailable(false)
+    setProgress({ phase: 'resizing' })
 
     try {
-      onRecognized(await recognizeBusinessCard(image))
+      onRecognized(await recognizeBusinessCard(image, setProgress))
     } catch (caught: unknown) {
+      // 어디서 실패했는지 말해 줍니다. 업로드가 끊긴 경우까지 "사진이 흐리다" 로
+      // 안내하면 사용자가 고칠 수 없는 것을 고치려 합니다.
       if (caught instanceof BusinessCardUnavailableError) setUnavailable(true)
-      else setError('명함을 읽지 못했습니다. 사진이 흐리면 다시 찍어 주세요.')
+      else if (caught instanceof BusinessCardScanError)
+        setError(messageForCode(caught.code, SCAN_FALLBACK_MESSAGE))
+      // 업로드 검증 실패처럼 서버가 코드를 실어 보낸 응답은 그 문구를 그대로 씁니다.
+      else setError(errorMessage(caught, SCAN_FALLBACK_MESSAGE))
       setReading(false)
+      setProgress(null)
     }
   }
 
@@ -138,6 +159,16 @@ export default function BusinessCardModal({
           {image.name} · <span className="tnum">{sizeLabel(image.size)}</span> · 다시 고르려면
           사진을 누르세요.
         </p>
+      )}
+
+      {reading && progress && (
+        <div className={styles.progress}>
+          <ProgressBar
+            value={progress.phase === 'uploading' ? progress.percent : undefined}
+            label={progressLabel(progress)}
+          />
+          <p className={styles.step}>{progressLabel(progress)}</p>
+        </div>
       )}
 
       {error && (
