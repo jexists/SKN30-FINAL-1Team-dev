@@ -15,6 +15,7 @@ SalesLuv 의 실제 데이터베이스 구조 정리. **36개 테이블 / 379개
 | 특정 테이블의 컬럼 전체 | `tables/{테이블명}.md` |
 | 외래 키 전체 목록 | [RELATIONS.md](RELATIONS.md) |
 | 구조가 언제 어떻게 바뀌었는지 | [CHANGELOG.md](CHANGELOG.md) |
+| 데모·테스트 데이터를 넣는 법 | [demo-dataset.md](demo-dataset.md) |
 
 테이블 하나만 필요하면 `tables/` 아래 해당 파일만 읽으면 된다. 컬럼 정보는 `tables/` 에만 있고 다른 문서에 반복하지 않는다.
 
