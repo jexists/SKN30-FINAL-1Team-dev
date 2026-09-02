@@ -74,14 +74,6 @@ class Report(Base):
     ai_evidence: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     version: Mapped[int] = mapped_column(BigInteger, server_default=text("1"))
     generation_input_version: Mapped[int] = mapped_column(BigInteger, server_default=text("1"))
-    last_applied_agent_run_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey(
-            "public.agent_run.id",
-            name="report_last_applied_agent_run_fkey",
-            ondelete="SET NULL",
-            use_alter=True,
-        )
-    )
     current_submission_id: Mapped[UUID | None]
     note: Mapped[str | None]
     # 팀장이 반려하며 남긴 사유. note 는 작성자의 칸이라 섞지 않는다.
@@ -134,6 +126,11 @@ class ReportSubmission(Base):
     __table_args__ = (
         UniqueConstraint("report_id", "revision_no", name="report_submission_revision_key"),
         UniqueConstraint("report_id", "id", name="report_submission_report_id_id_key"),
+        UniqueConstraint(
+            "submitted_by_member_id",
+            "idempotency_key",
+            name="report_submission_submitter_idempotency_key",
+        ),
         CheckConstraint("revision_no >= 1", name="report_submission_revision_positive"),
         CheckConstraint("report_version >= 1", name="report_submission_report_version_positive"),
         CheckConstraint(
@@ -141,6 +138,15 @@ class ReportSubmission(Base):
         ),
         CheckConstraint(
             "snapshot_sha256 ~ '^[0-9a-f]{64}$'", name="report_submission_sha256_check"
+        ),
+        CheckConstraint(
+            "request_hash IS NULL OR request_hash ~ '^[0-9a-f]{64}$'",
+            name="report_submission_request_hash_sha256",
+        ),
+        CheckConstraint(
+            "(idempotency_key IS NULL AND request_hash IS NULL) OR "
+            "(idempotency_key IS NOT NULL AND request_hash IS NOT NULL)",
+            name="report_submission_idempotency_pair",
         ),
         CheckConstraint(
             "review_status IN ('pending', 'approved', 'changes_requested')",
@@ -163,6 +169,9 @@ class ReportSubmission(Base):
     report_version: Mapped[int] = mapped_column(BigInteger)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     submitted_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    agent_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.agent_run.id"))
+    idempotency_key: Mapped[UUID | None]
+    request_hash: Mapped[str | None]
     snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
     snapshot_sha256: Mapped[str]
     review_status: Mapped[str] = mapped_column(server_default=text("'pending'::text"))
@@ -192,43 +201,6 @@ class ReportSource(Base):
     source_report_submission_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.report_submission.id")
     )
-
-
-class MeetingDealAnalysis(Base):
-    """한 에이전트 실행에서 만든 딜별 특성과 ML 판정."""
-
-    __tablename__ = "meeting_deal_analysis"
-    __table_args__ = (
-        CheckConstraint(
-            "features IS NULL OR jsonb_typeof(features) = 'object'",
-            name="meeting_deal_analysis_features_object",
-        ),
-        CheckConstraint(
-            "probability IS NULL OR probability BETWEEN 0 AND 1",
-            name="meeting_deal_analysis_probability_check",
-        ),
-        CheckConstraint(
-            "(error_code IS NULL AND features IS NOT NULL "
-            "AND num_nonnulls(prediction_label, probability, model_version) = 3) OR "
-            "(error_code IS NOT NULL AND prediction_label IS NULL AND probability IS NULL)",
-            name="meeting_deal_analysis_result_check",
-        ),
-    )
-
-    agent_run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("public.agent_run.id", ondelete="CASCADE"), primary_key=True
-    )
-    sales_deal_id: Mapped[UUID] = mapped_column(primary_key=True)
-    # report_deal은 사용자가 다시 고를 수 있는 작업본이다. 분석 이력은 섹션 삭제와
-    # 함께 지우지 않고 부모 보고서가 존재하는 동안 보존한다.
-    report_id: Mapped[UUID] = mapped_column(ForeignKey("public.report.id", ondelete="CASCADE"))
-    feature_schema_version: Mapped[str]
-    features: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
-    prediction_label: Mapped[str | None]
-    probability: Mapped[float | None]
-    model_version: Mapped[str | None]
-    error_code: Mapped[str | None]
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
 class ReportActivity(Base):

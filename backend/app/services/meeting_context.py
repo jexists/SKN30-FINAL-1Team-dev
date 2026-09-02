@@ -11,14 +11,15 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.content import Report, ReportDeal
+from app.models.content import Report, ReportSubmission
 from app.models.crm import Activity
 from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.customers import CustomerSource
+from app.services.report_submissions import is_reserved_submission_field
 
 SELECTED_DEAL_LIMIT = 100
 RELATED_ITEM_LIMIT = 100
@@ -34,7 +35,6 @@ _SEOUL = ZoneInfo("Asia/Seoul")
 async def _selection(db, member, activity_id, selected_deal_ids):
     # API는 agent_runs를 import하므로 서비스 모듈을 읽는 시점에는 import하지 않는다.
     from app.api.activities import _activity_row
-    from app.api.sales_deals import _sales_deal_row
 
     if not member.active or member.role_code not in {"member", "manager"}:
         raise HTTPException(status_code=403, detail="member_not_allowed")
@@ -54,13 +54,29 @@ async def _selection(db, member, activity_id, selected_deal_ids):
         raise HTTPException(status_code=422, detail="meeting_customer_required")
     if activity.starts_at.tzinfo is None or activity.starts_at.utcoffset() is None:
         raise ValueError("meeting_start_timezone_required")
-    rows = []
-    for deal_id in selected_deal_ids:
-        row = await _sales_deal_row(db, member, deal_id)
+    rows = await _selected_deal_rows(db, member, selected_deal_ids)
+    for row in rows:
         if row[0].customer_company_id != company_id:
             raise HTTPException(status_code=404, detail="deal_not_found")
-        rows.append(row)
     return activity_row, rows
+
+
+async def _selected_deal_rows(db, member, selected_deal_ids):
+    """권한 범위 안의 선택 딜을 한 번에 읽고 요청 순서로 반환한다."""
+    from app.api import sales_deals
+
+    rows = (
+        await db.execute(
+            sales_deals._joined_select(*sales_deals._read_entities()).where(
+                SalesDeal.id.in_(selected_deal_ids),
+                *sales_deals._scope(member),
+            )
+        )
+    ).all()
+    by_id = {row[0].id: row for row in rows}
+    if by_id.keys() != set(selected_deal_ids):
+        raise HTTPException(status_code=404, detail="deal_not_found")
+    return [by_id[deal_id] for deal_id in selected_deal_ids]
 
 
 def _source(contact_code, deal_code):
@@ -240,9 +256,7 @@ async def build_context(
         "truncated": full_history_metadata["truncated"]
         or len(full_history) > INITIAL_HISTORY_LIMIT,
     }
-    previous_reports = [
-        await _previous_reports(db, member, activity, deal_id) for deal_id in selected_deal_ids
-    ]
+    previous_reports = await _previous_reports_by_deal(db, member, activity, selected_deal_ids)
     product_details = await _product_details_by_deal(
         db,
         member,
@@ -310,9 +324,22 @@ def _report_values(values):
         "common_report",
         "unassigned_report",
         "ai_evidence",
+        "ai_values",
+        "attachments",
+        "activities",
+        "crm_context",
+        "evidence",
+        "input_snapshot",
+        "output_snapshot",
+        "source_snapshot",
     }
     for key, value in values.items():
-        if not isinstance(key, str) or key.lower() in excluded or not isinstance(value, str):
+        if (
+            not isinstance(key, str)
+            or key.lower() in excluded
+            or is_reserved_submission_field(key)
+            or not isinstance(value, str)
+        ):
             continue
         if len(cleaned) >= 50 or remaining <= 0:
             truncated = True
@@ -323,65 +350,126 @@ def _report_values(values):
     return cleaned, truncated
 
 
-async def _previous_reports(db, member, activity, sales_deal_id):
-    """권한·선택 관계 확인 후 호출한다. 기본 입력과 추가 조회가 같은 조회 규칙을 쓴다."""
+async def _previous_reports_by_deal(db, member, activity, sales_deal_ids):
+    """미팅 전 최신 확정 스냅샷을 한 번에 읽어 선택 딜별로 나눈다."""
     from app.api import reports
+    from app.services.report_submissions import snapshot_sha256
 
+    ranked = (
+        select(
+            ReportSubmission.id.label("submission_id"),
+            ReportSubmission.report_id,
+            ReportSubmission.snapshot,
+            ReportSubmission.snapshot_sha256,
+            ReportSubmission.review_status,
+            ReportSubmission.submitted_at,
+            func.row_number()
+            .over(
+                partition_by=ReportSubmission.report_id,
+                order_by=(
+                    ReportSubmission.submitted_at.desc(),
+                    ReportSubmission.revision_no.desc(),
+                ),
+            )
+            .label("submission_rank"),
+        )
+        .where(
+            ReportSubmission.team_id == member.team_id,
+            ReportSubmission.submitted_at < activity.starts_at,
+        )
+        .subquery()
+    )
     rows = (
         await db.execute(
             reports._joined_select(
+                ranked.c.submission_id,
                 Report.id,
                 Report.report_date,
-                ReportDeal.content["values"].label("values"),
                 Activity.starts_at,
-                Report.status_code,
+                ranked.c.review_status,
+                ranked.c.snapshot,
+                ranked.c.snapshot_sha256,
             )
             .join(Activity, Report.source_activity_id == Activity.id)
-            .join(ReportDeal, ReportDeal.report_id == Report.id)
+            .join(ranked, ranked.c.report_id == Report.id)
             .where(
                 *reports._scope(member),
-                ReportDeal.sales_deal_id == sales_deal_id,
                 Report.report_kind == "meeting",
-                Report.status_code.in_(("submitted", "approved")),
                 Report.source_activity_id != activity.id,
                 Activity.team_id == member.team_id,
                 Activity.deleted_at.is_(None),
                 Activity.starts_at < activity.starts_at,
-                Report.created_at < activity.starts_at,
-                Report.updated_at < activity.starts_at,
+                ranked.c.submission_rank == 1,
+                ranked.c.review_status.in_(("pending", "approved")),
+                or_(
+                    *(
+                        ranked.c.snapshot["deals"].contains([{"sales_deal_id": str(sales_deal_id)}])
+                        for sales_deal_id in sales_deal_ids
+                    )
+                ),
             )
-            .order_by(Activity.starts_at.desc(), Report.id)
-            .limit(PREVIOUS_REPORT_LIMIT + 1)
+            .order_by(Activity.starts_at.desc(), ranked.c.submitted_at.desc(), Report.id)
         )
     ).all()
-    items = []
-    for report_id, report_date, values, meeting_at, status_code in rows[:PREVIOUS_REPORT_LIMIT]:
-        cleaned, shortened = _report_values(values)
-        items.append(
+    items_by_deal = {sales_deal_id: [] for sales_deal_id in sales_deal_ids}
+    truncated = dict.fromkeys(sales_deal_ids, False)
+    for submission_id, report_id, report_date, meeting_at, review_status, snapshot, digest in rows:
+        if not isinstance(snapshot, dict) or snapshot_sha256(snapshot) != digest:
+            raise ValueError("report_submission_snapshot_hash_mismatch")
+        deals = snapshot.get("deals")
+        if snapshot.get("report_kind") != "meeting" or not isinstance(deals, list):
+            raise ValueError("report_submission_snapshot_invalid")
+        for sales_deal_id in sales_deal_ids:
+            deal = next(
+                (
+                    value
+                    for value in deals
+                    if isinstance(value, dict)
+                    and str(value.get("sales_deal_id")) == str(sales_deal_id)
+                ),
+                None,
+            )
+            if deal is None:
+                continue
+            items = items_by_deal[sales_deal_id]
+            if len(items) >= PREVIOUS_REPORT_LIMIT:
+                truncated[sales_deal_id] = True
+                continue
+            values = deal.get("structured_values")
+            values = dict(values) if isinstance(values, dict) else {}
+            if isinstance(deal.get("body"), str):
+                values["body"] = deal["body"]
+            cleaned, shortened = _report_values(values)
+            items.append(
+                {
+                    "submission_id": submission_id,
+                    "report_id": report_id,
+                    "sales_deal_id": sales_deal_id,
+                    "report_date": report_date,
+                    "meeting_at": meeting_at,
+                    "status_code": "approved" if review_status == "approved" else "submitted",
+                    "values": cleaned,
+                    "values_truncated": shortened,
+                }
+            )
+
+    return [
+        jsonable_encoder(
             {
-                "report_id": report_id,
+                "kind": "previous_reports",
                 "sales_deal_id": sales_deal_id,
-                "report_date": report_date,
-                "meeting_at": meeting_at,
-                "status_code": status_code,
-                "values": cleaned,
-                "values_truncated": shortened,
+                "items": items_by_deal[sales_deal_id],
+                "before": activity.starts_at,
+                "limit": PREVIOUS_REPORT_LIMIT,
+                "truncated": truncated[sales_deal_id],
+                "text_limit_per_report": REPORT_TEXT_LIMIT,
+                "scope": "authorized_same_deal_human_finalized_meeting_submissions",
+                "time_basis": "historical_context_not_current_meeting_facts",
+                "empty_means": "no_matching_record_not_proof_of_no_previous_meeting",
             }
         )
-    return jsonable_encoder(
-        {
-            "kind": "previous_reports",
-            "sales_deal_id": sales_deal_id,
-            "items": items,
-            "before": activity.starts_at,
-            "limit": PREVIOUS_REPORT_LIMIT,
-            "truncated": len(rows) > PREVIOUS_REPORT_LIMIT,
-            "text_limit_per_report": REPORT_TEXT_LIMIT,
-            "scope": "authorized_same_deal_submitted_or_approved_meeting_reports",
-            "time_basis": "historical_context_not_current_meeting_facts",
-            "empty_means": "no_matching_record_not_proof_of_no_previous_meeting",
-        }
-    )
+        for sales_deal_id in sales_deal_ids
+    ]
 
 
 async def _product_details_by_deal(

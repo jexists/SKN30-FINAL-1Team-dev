@@ -534,7 +534,7 @@ UQ는 `(owner_member_id, customer_company_id, target_month)`다.
 
 `num_nonnulls(report_id, document_id) = 1`이며 `(document_id, version_no)`는 UQ다.
 
-#### `agent_run` — 17컬럼
+#### `agent_run` — 34컬럼
 
 | 컬럼 | 타입 | NULL | 키·기본값·검사 |
 |---|---|---|---|
@@ -545,42 +545,59 @@ UQ는 `(owner_member_id, customer_company_id, target_month)`다.
 | `agent_code` | `text` | NN | 비어 있지 않음 |
 | `trigger_code` | `text` | NN | 비어 있지 않음 |
 | `idempotency_key` | `uuid` | NULL | 값이 있으면 요청자 필수 |
-| `status_code` | `text` | NN | `queued \| running \| completed \| failed` |
+| `report_id` | `uuid` | NULL | FK → `report.id`, `ON DELETE SET NULL` |
+| `status_code` | `text` | NN | `queued \| running \| completed \| partial \| failed \| cancelled` |
 | `llm_model_name` | `text` | NN | 비어 있지 않음 |
 | `prompt_version` | `text` | NN | 비어 있지 않음 |
+| `request_snapshot` | `jsonb` | NN | 검증된 요청, `DEFAULT '{}'::jsonb` |
+| `request_hash` | `text` | NULL | 값이 있으면 SHA-256 소문자 64자리 |
+| `scope_key` | `text` | NULL | 보고서 종류·활동·날짜·기간에서 서버가 계산한 재진입 범위 |
 | `source_refs` | `jsonb` | NN | 원천 레코드 식별자 |
 | `input_snapshot` | `jsonb` | NN | 실행 입력 스냅샷 |
 | `output_snapshot` | `jsonb` | NULL | 실행 출력 |
 | `evidence` | `jsonb` | NULL | 출력 근거 |
 | `error_message` | `text` | NULL | 값이 있으면 비어 있지 않음 |
+| `error_code` | `text` | NULL | 기계 판독용 실패 코드 |
+| `current_stage_code` | `text` | NN | `DEFAULT 'queued'` |
+| `attempt_count` | `integer` | NN | `0..3`, 런타임은 최대 2회 시도 |
+| `payload_expires_at` | `timestamptz` | NULL | 미확정 초안 복구 만료 시각 |
+| `payload_redacted_at` | `timestamptz` | NULL | 민감 payload 제거 시각 |
+| `lease_owner` | `text` | NULL | 현재 worker 식별자 |
+| `lease_expires_at` | `timestamptz` | NULL | worker lease 만료 시각 |
+| `heartbeat_at` | `timestamptz` | NULL | 마지막 worker heartbeat 시각 |
+| `next_attempt_at` | `timestamptz` | NN | `DEFAULT now()` |
+| `input_tokens` | `bigint` | NULL | `>= 0` |
+| `output_tokens` | `bigint` | NULL | `>= 0` |
+| `total_tokens` | `bigint` | NULL | `>= 0` |
+| `created_at` | `timestamptz` | NN | `DEFAULT now()` |
 | `started_at` | `timestamptz` | NULL |  |
 | `finished_at` | `timestamptz` | NULL |  |
 
-UQ는 `(requested_by_member_id, idempotency_key)`다. 고정 Agent 코드는 `meeting_analysis`, `report_writing`, `contract_management`, `schedule_management`, `document_summary`다.
+UQ는 `(requested_by_member_id, idempotency_key)`다. 보고서 생성 실행은
+`(team_id, requested_by_member_id, scope_key)`별 활성(`queued`, `running`) 행이 하나뿐이다.
+보고서 생성 코드는 미팅 통합 실행 `meeting_processing`과 기간 보고서 `report_writing`이며,
+계약·일정 코드는 용도별 세부 코드를 사용한다. 독립 `meeting_analysis` 실행은 없다.
 
 미팅 분석 실행은 다음 구조를 사용한다.
 
 ```json
 {
-  "agent_code": "meeting_analysis",
+  "agent_code": "meeting_processing",
   "source_refs": {
-    "activity_id": "uuid",
-    "sales_deal_id": "uuid"
+    "source_activity_id": "uuid",
+    "sales_deal_ids": ["uuid"]
   },
   "output_snapshot": {
-    "support_candidates": [],
-    "deal_assessment": {
-      "features": {},
-      "label": "high",
-      "model_version": "string"
-    }
+    "reports": {},
+    "analyses": [{"sales_deal_id": "uuid", "assessment": {}}],
+    "errors": {}
   }
 }
 ```
 
-- `label`은 `high`(계약가능성 높음) 또는 `watch`(계약가능성 주의) 두 값이고, 같은 딜의 `completed` 실행 중 `finished_at DESC, id DESC` 첫 행을 표시한다.
-- 재분석은 이전 행을 덮어쓰지 않고 새 `agent_run`을 추가한다.
-- `support_candidates`는 제안이다. 사용자가 확정한 항목만 별도 트랜잭션으로 `support_request`에 저장한다.
+- 생성 결과는 `AgentRun` 임시 초안으로만 보관하고, 사용자가 최종 승인할 때 보고서·딜 섹션·
+  불변 제출본을 한 트랜잭션으로 저장한다. 이때 검증된 딜별 assessment만 `report_deal.ai_evidence`로
+  옮기며 원문과 전체 에이전트 출력은 제출 스냅샷에 복제하지 않는다.
 
 ## 4. 고정 의미와 팀별 표시 설정
 

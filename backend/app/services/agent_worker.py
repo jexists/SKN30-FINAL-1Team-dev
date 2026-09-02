@@ -4,31 +4,34 @@ import argparse
 import asyncio
 import socket
 from datetime import UTC, datetime, timedelta
+from typing import get_args
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, or_, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.agent import AgentRun
+from app.schemas.agent_runs import AgentCode
 from app.services import agent_runs
 from app.services.agent_logging import agent_operation, collect_token_usage, log_agent_error
 from app.services.agent_stream import progress_context
 
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 2
 LEASE_SECONDS = 90
 HEARTBEAT_SECONDS = 30
-RETRY_DELAYS_SECONDS = (5, 20)
+RETRY_DELAY_SECONDS = 5
 REQUIRED_SCHEMA = {
     "agent_run": {
         "report_id",
         "request_snapshot",
         "request_hash",
+        "scope_key",
         "error_code",
-        "apply_status",
         "current_stage_code",
         "attempt_count",
-        "base_report_version",
-        "base_generation_input_version",
+        "payload_expires_at",
+        "payload_redacted_at",
         "lease_owner",
         "lease_expires_at",
         "heartbeat_at",
@@ -40,10 +43,22 @@ REQUIRED_SCHEMA = {
     },
     "report": set(),
     "report_deal": set(),
-    "meeting_deal_analysis": set(),
-    "report_submission": set(),
+    "report_submission": {"agent_run_id", "idempotency_key", "request_hash"},
     "report_source": set(),
 }
+
+
+def _runnable_conditions(now: datetime):
+    return (
+        AgentRun.agent_code.in_(get_args(AgentCode)),
+        or_(
+            AgentRun.agent_code.not_in(agent_runs.REPORT_GENERATION_CODES),
+            and_(
+                AgentRun.payload_redacted_at.is_(None),
+                AgentRun.payload_expires_at > now,
+            ),
+        ),
+    )
 
 
 async def _fail_exhausted_leases(now: datetime) -> None:
@@ -52,6 +67,7 @@ async def _fail_exhausted_leases(now: datetime) -> None:
         await session.execute(
             update(AgentRun)
             .where(
+                *_runnable_conditions(now),
                 AgentRun.status_code == "running",
                 AgentRun.request_hash.is_not(None),
                 AgentRun.lease_expires_at <= now,
@@ -76,6 +92,7 @@ async def claim(lease_owner: str, run_id: UUID | None = None) -> AgentRun | None
     sessionmaker = agent_runs.get_sessionmaker()
     async with sessionmaker() as session:
         conditions = [
+            *_runnable_conditions(now),
             AgentRun.attempt_count < MAX_ATTEMPTS,
             or_(
                 and_(
@@ -106,13 +123,7 @@ async def claim(lease_owner: str, run_id: UUID | None = None) -> AgentRun | None
         if run is None:
             return None
         run.status_code = "running"
-        if (
-            run.agent_code == "meeting_processing"
-            and run.output_snapshot
-            and run.apply_status == "pending"
-        ):
-            run.current_stage_code = "applying"
-        elif run.request_snapshot and not run.input_snapshot:
+        if run.request_snapshot and not run.input_snapshot:
             run.current_stage_code = "building_input"
         else:
             run.current_stage_code = "running_agent"
@@ -169,6 +180,46 @@ def _token_values(run: AgentRun, usage: dict[str, int] | None) -> dict[str, int]
     }
 
 
+def _expired_payload_values(now: datetime) -> dict[str, object]:
+    return {
+        "status_code": "cancelled",
+        "current_stage_code": "cancelled",
+        "request_snapshot": {},
+        "input_snapshot": {},
+        "output_snapshot": None,
+        "evidence": None,
+        "error_code": "agent_run_payload_expired",
+        "error_message": "agent_run_payload_expired",
+        "payload_expires_at": None,
+        "payload_redacted_at": now,
+        "lease_owner": None,
+        "lease_expires_at": None,
+        "heartbeat_at": now,
+        "finished_at": now,
+    }
+
+
+async def _redact_expired_claim(
+    session: AsyncSession, run: AgentRun, lease_owner: str, now: datetime
+) -> bool:
+    result = await session.execute(
+        update(AgentRun)
+        .where(
+            AgentRun.id == run.id,
+            AgentRun.status_code == "running",
+            AgentRun.lease_owner == lease_owner,
+            AgentRun.agent_code.in_(agent_runs.REPORT_GENERATION_CODES),
+            AgentRun.payload_redacted_at.is_(None),
+            or_(
+                AgentRun.payload_expires_at.is_(None),
+                AgentRun.payload_expires_at <= now,
+            ),
+        )
+        .values(**_expired_payload_values(now))
+    )
+    return getattr(result, "rowcount", 1) > 0
+
+
 async def _complete(
     run: AgentRun, lease_owner: str, output, usage: dict[str, int] | None = None
 ) -> None:
@@ -190,89 +241,29 @@ async def _complete(
             "finished_at": now,
             **_token_values(run, usage),
         }
-        result = await session.execute(
-            update(AgentRun)
-            .where(
-                AgentRun.id == run.id,
-                AgentRun.status_code == "running",
-                AgentRun.lease_owner == lease_owner,
+        conditions = [
+            AgentRun.id == run.id,
+            AgentRun.status_code == "running",
+            AgentRun.lease_owner == lease_owner,
+        ]
+        if run.agent_code in agent_runs.REPORT_GENERATION_CODES:
+            conditions.extend(
+                (
+                    AgentRun.payload_redacted_at.is_(None),
+                    AgentRun.payload_expires_at > now,
+                )
             )
-            .values(**values)
-        )
+        result = await session.execute(update(AgentRun).where(*conditions).values(**values))
         if getattr(result, "rowcount", 1) == 0:
+            if await _redact_expired_claim(session, run, lease_owner, now):
+                await session.commit()
+                for field, value in _expired_payload_values(now).items():
+                    setattr(run, field, value)
+                return
             raise RuntimeError("agent_run_lease_lost")
         await session.commit()
         for field, value in values.items():
             setattr(run, field, value)
-
-
-async def _persist_meeting_output(
-    run: AgentRun, lease_owner: str, output, usage: dict[str, int]
-) -> bool:
-    sessionmaker = agent_runs.get_sessionmaker()
-    async with sessionmaker() as session:
-        output_snapshot = output.model_dump(mode="json")
-        run_evidence = agent_runs.evidence(run.agent_code, output)
-        result = await session.execute(
-            update(AgentRun)
-            .where(
-                AgentRun.id == run.id,
-                AgentRun.status_code == "running",
-                AgentRun.lease_owner == lease_owner,
-            )
-            .values(
-                output_snapshot=output_snapshot,
-                evidence=run_evidence,
-                current_stage_code="applying",
-                **_token_values(run, usage),
-            )
-        )
-        await session.commit()
-        persisted = getattr(result, "rowcount", 1) != 0
-        if persisted:
-            run.output_snapshot = output_snapshot
-            run.evidence = run_evidence
-            run.current_stage_code = "applying"
-            for field, value in _token_values(run, usage).items():
-                setattr(run, field, value)
-        return persisted
-
-
-async def _apply_meeting_output(run: AgentRun, lease_owner: str, output) -> None:
-    hook = getattr(agent_runs.meeting_processing, "apply_output", None)
-    if hook is None:
-        # 전환 중 구 코드와 함께 뜬 worker는 제안만 완료하고 기존 /apply를 남긴다.
-        await _complete(run, lease_owner, output)
-        return
-    sessionmaker = agent_runs.get_sessionmaker()
-    async with sessionmaker() as session:
-        current = (
-            await session.execute(
-                select(AgentRun)
-                .where(
-                    AgentRun.id == run.id,
-                    AgentRun.status_code == "running",
-                    AgentRun.lease_owner == lease_owner,
-                )
-                .with_for_update()
-            )
-        ).scalar_one_or_none()
-        if current is None:
-            return
-        apply_status = await hook(session, current)
-        if apply_status not in {"applied", "stale"}:
-            raise ValueError("meeting_apply_status_invalid")
-        is_partial = bool(output.errors)
-        current.status_code = "partial" if is_partial else "completed"
-        current.current_stage_code = current.status_code
-        current.apply_status = apply_status
-        current.error_code = "agent_run_partial" if is_partial else None
-        current.error_message = None
-        current.lease_owner = None
-        current.lease_expires_at = None
-        current.heartbeat_at = datetime.now(UTC)
-        current.finished_at = current.heartbeat_at
-        await session.commit()
 
 
 async def _fail(
@@ -284,6 +275,23 @@ async def _fail(
     sessionmaker = agent_runs.get_sessionmaker()
     async with sessionmaker() as session:
         now = datetime.now(UTC)
+        if run.agent_code in agent_runs.REPORT_GENERATION_CODES and (
+            run.payload_expires_at is None or run.payload_expires_at <= now
+        ):
+            values = _expired_payload_values(now)
+            await session.execute(
+                update(AgentRun)
+                .where(
+                    AgentRun.id == run.id,
+                    AgentRun.status_code == "running",
+                    AgentRun.lease_owner == lease_owner,
+                )
+                .values(**values)
+            )
+            await session.commit()
+            for field, value in values.items():
+                setattr(run, field, value)
+            return
         # request_hash가 없는 구 system 실행은 범용 worker가 다시 선점하지 않는다.
         # 재시도 상태로 돌려놓으면 계약 pipeline이 영원히 queued에 묶인다.
         retry = (
@@ -300,12 +308,10 @@ async def _fail(
             **_token_values(run, usage),
         }
         if retry:
-            retry_index = min(run.attempt_count - 1, len(RETRY_DELAYS_SECONDS) - 1)
-            delay = RETRY_DELAYS_SECONDS[retry_index]
             values.update(
                 status_code="queued",
                 current_stage_code="retry_wait",
-                next_attempt_at=now + timedelta(seconds=delay),
+                next_attempt_at=now + timedelta(seconds=RETRY_DELAY_SECONDS),
             )
         else:
             values.update(
@@ -330,36 +336,32 @@ async def _fail(
 async def run_claimed(run: AgentRun, lease_owner: str) -> None:
     heartbeat = asyncio.create_task(_heartbeat(run.id, lease_owner))
     usage: dict[str, int] | None = None
-    usage_persisted = False
     try:
         try:
-            with (
-                agent_operation(
-                    "agent_run",
-                    run_id=str(run.id),
-                    agent_code=run.agent_code,
-                    model=settings.llm_model,
-                    attempt=run.attempt_count,
-                ),
-                progress_context(run.id),
-                collect_token_usage() as usage,
-            ):
-                if run.agent_code == "meeting_processing" and run.output_snapshot:
-                    output = agent_runs.meeting_processing.MeetingProcessingOutput.model_validate(
-                        run.output_snapshot
-                    )
-                else:
+            retention_seconds = None
+            if run.agent_code in agent_runs.REPORT_GENERATION_CODES:
+                retention_seconds = max(
+                    0.0,
+                    (run.payload_expires_at - datetime.now(UTC)).total_seconds()
+                    if run.payload_expires_at is not None
+                    else 0.0,
+                )
+            async with asyncio.timeout(retention_seconds):
+                with (
+                    agent_operation(
+                        "agent_run",
+                        run_id=str(run.id),
+                        agent_code=run.agent_code,
+                        model=settings.llm_model,
+                        attempt=run.attempt_count,
+                    ),
+                    progress_context(run.id),
+                    collect_token_usage() as usage,
+                ):
                     agent_code, input_snapshot, requester_id = await agent_runs.prepare_claimed(
                         run, lease_owner
                     )
                     output = await agent_runs.dispatch(agent_code, input_snapshot, requester_id)
-                    if run.agent_code == "meeting_processing":
-                        if not await _persist_meeting_output(run, lease_owner, output, usage):
-                            return
-                        usage_persisted = True
-                if run.agent_code == "meeting_processing":
-                    await _apply_meeting_output(run, lease_owner, output)
-                else:
                     await _complete(run, lease_owner, output, usage)
         except Exception as error:
             error_code = agent_runs.safe_error_code(error)
@@ -372,7 +374,7 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
                     attempt=run.attempt_count,
                     error_code=error_code,
                 )
-                await _fail(run, lease_owner, error_code, None if usage_persisted else usage)
+                await _fail(run, lease_owner, error_code, usage)
             return
     finally:
         heartbeat.cancel()
@@ -388,7 +390,9 @@ async def execute(run_id: UUID) -> None:
 
 
 async def run_once(lease_owner: str) -> bool:
-    await _fail_exhausted_leases(datetime.now(UTC))
+    now = datetime.now(UTC)
+    await _fail_exhausted_leases(now)
+    await agent_runs.redact_expired_payloads(now)
     run = await claim(lease_owner)
     if run is None:
         return False
@@ -401,7 +405,9 @@ async def run_forever(lease_owner: str, poll_seconds: float = 2.0) -> None:
     next_cleanup = 0.0
     while True:
         if loop.time() >= next_cleanup:
-            await _fail_exhausted_leases(datetime.now(UTC))
+            now = datetime.now(UTC)
+            await _fail_exhausted_leases(now)
+            await agent_runs.redact_expired_payloads(now)
             next_cleanup = loop.time() + LEASE_SECONDS
         run = await claim(lease_owner)
         if run is None:
@@ -422,7 +428,7 @@ async def check_schema() -> None:
                     FROM information_schema.columns
                     WHERE table_schema = 'public'
                       AND table_name IN (
-                        'agent_run', 'report', 'report_deal', 'meeting_deal_analysis',
+                        'agent_run', 'report', 'report_deal',
                         'report_submission', 'report_source'
                       )
                     """

@@ -39,7 +39,6 @@ interface Props {
   generationDisabled?: boolean
   locked: boolean
   saving: boolean
-  hasAiOriginal: boolean
   onStartManual: () => void
   onRegenerate: () => void
   regenerateLabel?: string
@@ -67,7 +66,6 @@ export default function ReportSheet({
   generationDisabled = false,
   locked,
   saving,
-  hasAiOriginal,
   onStartManual,
   onRegenerate,
   regenerateLabel = 'AI 다시 생성',
@@ -147,7 +145,7 @@ export default function ReportSheet({
         )}
       </article>
 
-      {hasAiOriginal && (
+      {!empty && (
         <div className={styles.actions}>
           <Button
             variant="outline"

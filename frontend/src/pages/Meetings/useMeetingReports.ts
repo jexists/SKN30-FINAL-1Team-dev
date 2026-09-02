@@ -1,18 +1,22 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
+import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
+import { meetingBodyField } from '@/shared/meetings'
 import { reportTemplateFromSnapshot } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
   MeetingDealSection,
   MeetingDealRef,
-  MeetingEvidenceLedger,
   MeetingReport,
   MeetingReportBody,
   PageResponse,
   ReportAttachment,
   ReportResponse,
+  ReportFinalizeRequest,
+  ReportGenerationInput,
+  ReportGenerationRequest,
   ReportTemplate,
   ReportWriteRequest,
   MeetingReportStatus,
@@ -58,73 +62,6 @@ function statusOf(code: ReportResponse['status_code']): MeetingReportStatus {
   return code === 'approved' ? '확정' : '검토 대기'
 }
 
-function bodyOf(value: unknown): MeetingReportBody | null {
-  const body = record(value)
-  return typeof body.body === 'string' && Array.isArray(body.evidence_ids)
-    ? {
-        body: body.body,
-        evidence_ids: body.evidence_ids.filter((id): id is string => typeof id === 'string'),
-        ai_body: typeof body.ai_body === 'string' ? body.ai_body : undefined,
-        edited: body.edited === true,
-      }
-    : null
-}
-
-/** 저장 근거는 일부가 손상되어도 배정에 쓰지 않도록 전체를 확인합니다. */
-function evidenceOf(value: unknown): MeetingEvidenceLedger | undefined {
-  const ledger = record(value)
-  if (
-    ledger.schema_version !== 'meeting_content.v1' ||
-    !/^[a-f0-9]{64}$/.test(text(ledger.transcript_sha256)) ||
-    !Array.isArray(ledger.selected_deal_ids) ||
-    ledger.selected_deal_ids.length < 1 ||
-    ledger.selected_deal_ids.length > 100 ||
-    !ledger.selected_deal_ids.every((id) => typeof id === 'string' && id.trim()) ||
-    !Array.isArray(ledger.items) ||
-    ledger.items.length < 1 ||
-    ledger.items.length > 5_000
-  )
-    return undefined
-
-  const selected = new Set(ledger.selected_deal_ids)
-  if (selected.size !== ledger.selected_deal_ids.length) return undefined
-  const segmentIds = new Set<string>()
-  const scopes = [
-    'meeting_context',
-    'company_context',
-    'all_selected_deals',
-    'deal',
-    'unresolved',
-    'out_of_scope',
-  ]
-  for (const item of ledger.items) {
-    const row = record(item)
-    const segment = record(row.segment)
-    const applicability = record(row.applicability)
-    if (
-      !/^S\d{4,6}$/.test(text(segment.segment_id)) ||
-      segmentIds.has(text(segment.segment_id)) ||
-      typeof segment.start !== 'number' ||
-      !Number.isSafeInteger(segment.start) ||
-      segment.start < 0 ||
-      typeof segment.end !== 'number' ||
-      !Number.isSafeInteger(segment.end) ||
-      segment.end <= segment.start ||
-      !text(segment.text) ||
-      !scopes.includes(text(applicability.scope)) ||
-      !Array.isArray(applicability.deal_ids) ||
-      !applicability.deal_ids.every((id) => typeof id === 'string' && selected.has(id)) ||
-      new Set(applicability.deal_ids).size !== applicability.deal_ids.length ||
-      (applicability.scope === 'deal'
-        ? applicability.deal_ids.length === 0
-        : applicability.deal_ids.length !== 0)
-    )
-      return undefined
-    segmentIds.add(text(segment.segment_id))
-  }
-  return ledger as unknown as MeetingEvidenceLedger
-}
-
 function dealSectionOf(
   salesDealId: string,
   dealSnapshot: unknown,
@@ -148,18 +85,18 @@ function dealSectionOf(
     title: explicitTitle || text(content.title),
     values,
     evidence: text(content.evidence) || undefined,
-    aiValues: valuesOf(content.ai_values),
-    aiEvidence: text(content.ai_evidence) || undefined,
-    aiGeneratedAt: text(content.ai_generated_at) || undefined,
-    analysisEvidence,
     ...readMeetingAnalysis(analysisEvidence ?? {}),
   }
 }
 
 export function toMeetingReport(item: ReportResponse): MeetingReport {
   const content = record(item.content)
-  const source = record(item.source_snapshot)
-  const shared = record(content.meeting_shared)
+  const common: MeetingReportBody | null = item.common_body
+    ? { body: item.common_body, evidence_ids: [] }
+    : null
+  const unassigned: MeetingReportBody | null = item.unassigned_body
+    ? { body: item.unassigned_body, evidence_ids: [] }
+    : null
   const dealSections = (item.deal_sections ?? []).map((section) =>
     dealSectionOf(
       section.sales_deal_id,
@@ -171,12 +108,6 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
       section.structured_values,
     ),
   )
-  // 배포 중 기존 딜별 응답도 한 섹션으로 읽습니다. 새 저장은 항상 deal_sections만 씁니다.
-  if (dealSections.length === 0 && item.sales_deal_id) {
-    dealSections.push(
-      dealSectionOf(item.sales_deal_id, content.sales_deal, content, item.ai_evidence),
-    )
-  }
   return {
     id: item.id,
     owner: item.author_display_name,
@@ -185,7 +116,9 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     off: Math.round((parseISO(item.report_date).getTime() - TODAY.getTime()) / DAY),
     date: item.report_date,
     time: text(content.time),
-    template: reportTemplateFromSnapshot(item.template_snapshot, '미팅 보고 양식'),
+    template: meetingTemplateWithBody(
+      reportTemplateFromSnapshot(item.template_snapshot, '미팅 보고 양식'),
+    ),
     hospital: text(content.hospital),
     dept: text(content.dept),
     contact: text(content.contact),
@@ -202,31 +135,8 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     version: item.version,
     currentSubmissionId: item.current_submission_id,
     updatedAt: item.updated_at,
-    meetingRunId:
-      item.last_applied_agent_run_id ||
-      text(source.meeting_run_id) ||
-      text(shared.run_id) ||
-      undefined,
     meetingShared:
-      typeof shared.run_id === 'string'
-        ? {
-            run_id: shared.run_id,
-            revision: text(shared.revision),
-            common_report: item.common_body
-              ? {
-                  ...(bodyOf(shared.common_report) ?? { evidence_ids: [] }),
-                  body: item.common_body,
-                }
-              : bodyOf(shared.common_report),
-            unassigned_report: item.unassigned_body
-              ? {
-                  ...(bodyOf(shared.unassigned_report) ?? { evidence_ids: [] }),
-                  body: item.unassigned_body,
-                }
-              : bodyOf(shared.unassigned_report),
-          }
-        : undefined,
-    evidenceLedger: evidenceOf(source.evidence),
+      common || unassigned ? { common_report: common, unassigned_report: unassigned } : undefined,
   }
 }
 
@@ -255,14 +165,34 @@ export interface MeetingDraftPayload {
   transcript: string
   attachments: ReportAttachment[]
   dealSections: MeetingDealDraftPayload[]
+  commonBody?: string | null
+  unassignedBody?: string | null
 }
 
-/**
- * 이 일정으로 이미 쓴 보고서의 번호. 저장할 때 새로 만들지 고칠지를 이걸로 가릅니다.
- *
- * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 일정에 보고서를 하나 더
- * 만듭니다. 서버에 직접 물어야 합니다.
- */
+/** 구 구조화 양식에는 의미를 추측하지 않고 자유형 생성 본문 칸만 덧붙입니다. */
+export function meetingTemplateWithBody(template: ReportTemplate): ReportTemplate {
+  return template.fields.some((field) => field.id === 'body')
+    ? template
+    : { ...template, fields: [...template.fields, { ...meetingBodyField, required: false }] }
+}
+
+export function meetingBodyOf(values: Record<string, string>): string | null {
+  return values.body?.trim() || null
+}
+
+export function meetingGenerationSeedOf(input: ReportGenerationInput) {
+  const content = record(input.content)
+  return {
+    salesDealIds: input.sales_deal_ids,
+    template: meetingTemplateWithBody(input.template_snapshot),
+    transcript: input.transcript ?? '',
+    attachments: Array.isArray(content.attachments)
+      ? (content.attachments as ReportAttachment[])
+      : [],
+  }
+}
+
+/** 이 일정에서 사용자가 이미 확정했거나 반려받은 보고서 한 건을 찾습니다. */
 export async function savedForAgenda(
   agendaId: string,
   signal?: AbortSignal,
@@ -275,6 +205,7 @@ export async function savedForAgenda(
 }
 
 export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest {
+  const template = meetingTemplateWithBody(draft.template)
   return {
     report_kind: 'meeting',
     report_date: draft.date,
@@ -283,7 +214,7 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
     source_activity_id: draft.agendaId,
     sales_deal_id: null,
     recipient_member_id: null,
-    template_snapshot: draft.template,
+    template_snapshot: template,
     content: {
       time: draft.time,
       hospital: draft.hospital,
@@ -295,8 +226,8 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
     },
     title: draft.title,
     body: null,
-    common_body: null,
-    unassigned_body: null,
+    common_body: draft.commonBody?.trim() || null,
+    unassigned_body: draft.unassignedBody?.trim() || null,
     structured_values: {},
     transcript: draft.transcript || null,
     note: null,
@@ -307,7 +238,7 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
       deal_snapshot: section.salesDeal,
       position,
       title: section.title || null,
-      body: section.values.body?.trim() || null,
+      body: meetingBodyOf(section.values),
       structured_values: Object.fromEntries(
         Object.entries(section.values).filter(([key]) => key !== 'body'),
       ),
@@ -321,43 +252,51 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
   }
 }
 
-async function persistMeetingReport(
+export function meetingGenerationRequestOf(
   draft: MeetingDraftPayload,
-  submit: boolean,
-  signal?: AbortSignal,
-) {
+  idempotencyKey: string,
+): ReportGenerationRequest {
   const request = meetingRequestOf(draft)
-  const {
-    report_kind: _kind,
-    source_activity_id: _source,
-    sales_deal_id: _deal,
-    common_body: _commonBody,
-    unassigned_body: _unassignedBody,
-    ...patch
-  } = request
-  const saved = draft.reportId
-    ? await client.patch<ReportResponse>(
-        `/reports/${draft.reportId}`,
-        { ...patch, expected_version: draft.version ?? 1 },
-        { signal },
-      )
-    : await client.post<ReportResponse>('/reports', request, { signal })
-  // 이미 제출한 보고서를 고쳐 저장하는 길입니다. 그때는 내용만 갈아 끼우고 상태는
-  // 그대로 둡니다. 다시 submit 하면 기대 상태가 어긋나 거절당합니다.
-  const from = draft.statusCode ?? 'draft'
-  const response =
-    submit && (from === 'draft' || from === 'changes_requested')
-      ? await client.post<ReportResponse>(
-          `/reports/${saved.data.id}/submit`,
-          { expected_status_code: from, expected_version: saved.data.version },
-          { signal },
-        )
-      : saved
-  return toMeetingReport(response.data)
+  return {
+    idempotency_key: idempotencyKey,
+    report_kind: 'meeting',
+    report_date: draft.date,
+    source_activity_id: draft.agendaId,
+    sales_deal_ids: draft.dealSections.map((section) => section.salesDealId),
+    template_snapshot: request.template_snapshot,
+    content: request.content,
+    transcript: draft.transcript,
+  }
 }
 
-/** 페이지가 사라져도 전역 미팅 실행이 사전저장을 끝낼 수 있는 상태 없는 저장 함수입니다. */
-export const saveMeetingDraft = (draft: MeetingDraftPayload) => persistMeetingReport(draft, false)
+export function meetingFinalizeRequestOf(
+  draft: MeetingDraftPayload,
+  idempotencyKey: string,
+  agentRunId?: string,
+): ReportFinalizeRequest {
+  const revisionStatus =
+    draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
+      ? draft.statusCode
+      : undefined
+  if (
+    (draft.statusCode === 'changes_requested' || draft.reportId) &&
+    (!draft.reportId || !draft.version || !revisionStatus)
+  ) {
+    throw new Error('report_revision_required')
+  }
+  return {
+    ...meetingRequestOf(draft),
+    idempotency_key: idempotencyKey,
+    ...(agentRunId ? { agent_run_id: agentRunId } : {}),
+    ...(draft.reportId && draft.version && revisionStatus
+      ? {
+          report_id: draft.reportId,
+          expected_version: draft.version,
+          expected_status_code: revisionStatus,
+        }
+      : {}),
+  }
+}
 
 interface MeetingReportsOnOptions {
   enabled?: boolean
@@ -400,21 +339,24 @@ export function useMeetingReportOfAgenda(agendaId: string) {
 export default function useMeetingReports() {
   const [error, setError] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
+  const finalizeAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
 
-  const save = useCallback(
-    async (draft: MeetingDraftPayload, submit: boolean, signal?: AbortSignal) => {
+  const finalize = useCallback(
+    async (draft: MeetingDraftPayload, agentRunId?: string, signal?: AbortSignal) => {
       setPendingCount((count) => count + 1)
       setError(null)
+      const attempt = idempotencyAttemptFor(finalizeAttempt.current, { draft, agentRunId })
+      finalizeAttempt.current = attempt
       try {
-        return await persistMeetingReport(draft, submit, signal)
+        const response = await finalizeReport(
+          meetingFinalizeRequestOf(draft, attempt.key, agentRunId),
+          signal,
+        )
+        finalizeAttempt.current = undefined
+        return toMeetingReport(response)
       } catch (reason: unknown) {
         if (!signal?.aborted) {
-          setError(
-            errorMessage(
-              reason,
-              submit ? '미팅 기록을 확정하지 못했습니다.' : '임시저장하지 못했습니다.',
-            ),
-          )
+          setError(errorMessage(reason, '미팅 기록을 확정하지 못했습니다.'))
         }
         throw reason
       } finally {
@@ -427,7 +369,7 @@ export default function useMeetingReports() {
   return {
     error,
     pending: pendingCount > 0,
-    saveReport: (draft: MeetingDraftPayload, signal?: AbortSignal) => save(draft, true, signal),
-    saveDraft: (draft: MeetingDraftPayload, signal?: AbortSignal) => save(draft, false, signal),
+    finalizeReport: (draft: MeetingDraftPayload, agentRunId?: string, signal?: AbortSignal) =>
+      finalize(draft, agentRunId, signal),
   }
 }

@@ -1293,17 +1293,18 @@ html&gt;body{padding:0}&lt;/style&gt;
     { d: &#x27;support&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/support-requests/{request_id}/responses&#x27;, s: &#x27;배정 본인 / Manager 팀&#x27;, x: &#x27;지원 요청에 현재 구성원 명의로 답변을 추가합니다.&#x27; },
 
     { d: &#x27;reports&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/reports&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;보고서를 유형·상태·기간·검색어로 페이지 조회합니다.&#x27; },
-    { d: &#x27;reports&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/reports&#x27;, s: &#x27;인증&#x27;, x: &#x27;현재 구성원을 작성자로 draft 보고서와 연결 활동을 생성합니다.&#x27; },
     { d: &#x27;reports&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/reports/{report_id}&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;보고서와 연결 활동을 상세 조회합니다.&#x27; },
-    { d: &#x27;reports&#x27;, m: &#x27;PATCH&#x27;, p: &#x27;/api/reports/{report_id}&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;편집 가능한 보고서 내용과 연결 활동을 수정합니다.&#x27; },
-    { d: &#x27;reports&#x27;, m: &#x27;DELETE&#x27;, p: &#x27;/api/reports/{report_id}&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;편집 가능한 보고서를 hard delete합니다.&#x27; },
-    { d: &#x27;reports&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/reports/{report_id}/submit&#x27;, s: &#x27;작성 본인 / Manager 팀&#x27;, x: &#x27;현재 상태를 검증한 뒤 보고서를 submitted로 전환합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/reports/finalize&#x27;, s: &#x27;작성 본인&#x27;, x: &#x27;사람이 승인한 최종값과 불변 제출본을 한 트랜잭션으로 저장합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/reports/{report_id}/review&#x27;, s: &#x27;Manager 팀&#x27;, x: &#x27;현재 불변 제출본을 승인하거나 수정 요청합니다.&#x27; },
+    { d: &#x27;reports&#x27;, m: &#x27;DELETE&#x27;, p: &#x27;/api/reports/{report_id}&#x27;, s: &#x27;작성 본인&#x27;, x: &#x27;제출 이력 없는 레거시 편집본만 삭제합니다.&#x27; },
 
     { d: &#x27;notices&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/notices&#x27;, s: &#x27;인증&#x27;, x: &#x27;팀 공지와 현재 구성원 개인 지시를 조회합니다.&#x27; },
     { d: &#x27;notices&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/notices/{notice_id}&#x27;, s: &#x27;인증&#x27;, x: &#x27;접근 가능한 팀 공지 또는 개인 지시 상세를 조회합니다.&#x27; },
 
-    { d: &#x27;agent&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/agent-runs&#x27;, s: &#x27;인증&#x27;, x: &#x27;draft 보고서에 대한 report_writing LLM 실행을 비동기로 요청합니다.&#x27; },
-    { d: &#x27;agent&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/agent-runs/{agent_run_id}&#x27;, s: &#x27;본인 / Manager 팀&#x27;, x: &#x27;AI 실행의 상태·결과·오류를 조회합니다.&#x27; },
+    { d: &#x27;agent&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/report-generations&#x27;, s: &#x27;인증&#x27;, x: &#x27;보고서를 저장하지 않고 TTL이 있는 생성 실행을 비동기로 요청합니다.&#x27; },
+    { d: &#x27;agent&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/report-generations/latest&#x27;, s: &#x27;요청 본인&#x27;, x: &#x27;같은 논리 범위의 최신 생성 실행을 복구합니다.&#x27; },
+    { d: &#x27;agent&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/agent-runs&#x27;, s: &#x27;인증&#x27;, x: &#x27;계약·일정 Agent 실행을 비동기로 요청합니다.&#x27; },
+    { d: &#x27;agent&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/agent-runs/{agent_run_id}&#x27;, s: &#x27;요청 본인 / Manager 메타데이터&#x27;, x: &#x27;AI 실행의 상태·결과·오류를 권한 범위에서 조회합니다.&#x27; },
 
     { d: &#x27;documents&#x27;, m: &#x27;GET&#x27;, p: &#x27;/api/documents&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;문서와 파일 버전을 검색·필터하고 페이지 조회합니다.&#x27; },
     { d: &#x27;documents&#x27;, m: &#x27;POST&#x27;, p: &#x27;/api/documents&#x27;, s: &#x27;인증·팀 공유&#x27;, x: &#x27;고객사·딜·발주 연결을 검증하고 자료실 문서를 생성합니다.&#x27; },

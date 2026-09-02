@@ -19,6 +19,7 @@ from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.sales_deals import SalesDealItemRead, SalesDealParticipantRead
 from app.services import meeting_context as service
+from app.services import report_submissions
 
 
 class Result:
@@ -122,11 +123,12 @@ def sample(monkeypatch):
         for i, deal in enumerate(deals)
     }
     get_activity = AsyncMock(return_value=activity_row)
-    get_deal = AsyncMock(side_effect=lambda db, member, deal_id: deal_rows[deal_id])
+    load_deals_impl = service._selected_deal_rows
+    get_deals = AsyncMock(return_value=list(deal_rows.values()))
     get_items = AsyncMock(return_value={})
     get_participants = AsyncMock(return_value={})
     monkeypatch.setattr(activities, "_activity_row", get_activity)
-    monkeypatch.setattr(sales_deals, "_sales_deal_row", get_deal)
+    monkeypatch.setattr(service, "_selected_deal_rows", get_deals)
     monkeypatch.setattr(sales_deals, "_items_by_deal_ids", get_items)
     monkeypatch.setattr(sales_deals, "_participants_by_deal_ids", get_participants)
     return {
@@ -138,7 +140,8 @@ def sample(monkeypatch):
         "activity_row": activity_row,
         "deal_rows": deal_rows,
         "get_activity": get_activity,
-        "get_deal": get_deal,
+        "get_deals": get_deals,
+        "load_deals_impl": load_deals_impl,
         "get_items": get_items,
         "get_participants": get_participants,
     }
@@ -152,6 +155,31 @@ def build(sample, db):
             sample["activity"].id,
             sample["ids"],
         )
+    )
+
+
+def _submission_row(deal_id, meeting_at, *, body="이전 논의", review_status="approved"):
+    report_id, submission_id = uuid4(), uuid4()
+    snapshot = {
+        "schema_version": "report_submission.v1",
+        "report_id": str(report_id),
+        "report_kind": "meeting",
+        "deals": [
+            {
+                "sales_deal_id": str(deal_id),
+                "body": body,
+                "structured_values": {},
+            }
+        ],
+    }
+    return (
+        submission_id,
+        report_id,
+        meeting_at.date(),
+        meeting_at,
+        review_status,
+        snapshot,
+        report_submissions.snapshot_sha256(snapshot),
     )
 
 
@@ -179,7 +207,7 @@ def test_build_returns_grounding_and_serializable_current_crm(sample):
         ]
     }
 
-    result = build(sample, Db(Result(), Result(), Result(), Result()))
+    result = build(sample, Db(Result(), Result(), Result()))
 
     json.dumps(result, ensure_ascii=False)
     assert [DealGroundingContext.model_validate(row).sales_deal_id for row in result["deals"]] == (
@@ -211,6 +239,20 @@ def test_rejects_invalid_selection_before_loading_context(sample, ids):
     sample["get_activity"].assert_not_awaited()
 
 
+def test_selected_deals_are_loaded_in_one_scoped_query_and_request_order(sample):
+    db = Db(Result(reversed(list(sample["deal_rows"].values()))))
+
+    rows = asyncio.run(sample["load_deals_impl"](db, sample["member"], sample["ids"]))
+
+    assert [row[0].id for row in rows] == sample["ids"]
+    assert len(db.statements) == 1
+    compiled = db.statements[0].compile(dialect=postgresql.dialect())
+    sql = str(compiled)
+    assert "sales_deal.id IN" in sql
+    assert "sales_deal.team_id =" in sql
+    assert "sales_deal.owner_member_id =" in sql
+
+
 def test_manager_cannot_analyze_someone_elses_activity(sample):
     sample["member"].role_code = "manager"
     sample["activity"].owner_member_id = uuid4()
@@ -218,7 +260,7 @@ def test_manager_cannot_analyze_someone_elses_activity(sample):
         build(sample, Db())
     assert error.value.status_code == 403
     assert error.value.detail == "activity_not_owned"
-    sample["get_deal"].assert_not_awaited()
+    sample["get_deals"].assert_not_awaited()
 
 
 def test_wrong_company_or_inaccessible_deal_is_rejected(sample):
@@ -227,7 +269,7 @@ def test_wrong_company_or_inaccessible_deal_is_rejected(sample):
         build(sample, Db())
     assert error.value.status_code == 404
     sample["get_items"].assert_not_awaited()
-    sample["get_deal"].side_effect = HTTPException(status_code=404, detail="deal_not_found")
+    sample["get_deals"].side_effect = HTTPException(status_code=404, detail="deal_not_found")
     with pytest.raises(HTTPException, match="deal_not_found"):
         build(sample, Db())
 
@@ -245,7 +287,6 @@ def test_history_is_company_scoped_completed_and_strictly_before_meeting(sample)
     )
     db = Db(
         Result([(old, "이전 상품")] * (service.INITIAL_HISTORY_LIMIT + 1)),
-        Result(),
         Result(),
         Result(),
     )
@@ -280,7 +321,7 @@ def test_history_is_company_scoped_completed_and_strictly_before_meeting(sample)
 
 
 def test_frozen_company_history_has_larger_explicit_limit_and_no_deal_scope(sample):
-    db = Db(Result(), Result(), Result(), Result())
+    db = Db(Result(), Result(), Result())
     result = build(sample, db)["crm_context"]["refinement_context"]["company_trade_history"]
     assert result["limit"] == service.EXTRA_HISTORY_LIMIT
     assert result["kind"] == "trade_history"
@@ -290,27 +331,25 @@ def test_frozen_company_history_has_larger_explicit_limit_and_no_deal_scope(samp
 
 
 def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample):
-    report_id = uuid4()
-    values = {
-        "body": "확정한 이전 딜 내용",
+    meeting_at = sample["activity"].starts_at - timedelta(days=1)
+    row = list(_submission_row(sample["ids"][0], meeting_at, body="확정한 이전 딜 내용"))
+    row[5]["deals"][0]["structured_values"] = {
         "transcript": "원문 금지",
+        "rawTranscript": "원문 변형도 금지",
+        "AI-Values": "AI 값 변형도 금지",
         "ml_result": "승리",
         "meeting_shared": "공통 금지",
         "common_report": "공통 금지",
         "unassigned_report": "미지정 금지",
     }
-    meeting_at = sample["activity"].starts_at - timedelta(days=1)
-    db = Db(
-        Result(),
-        Result([(report_id, date(2026, 8, 1), values, meeting_at, "approved")]),
-        Result(),
-        Result(),
-    )
+    row[6] = report_submissions.snapshot_sha256(row[5])
+    db = Db(Result(), Result([tuple(row)]), Result())
 
     result = build(sample, db)["crm_context"]["previous_reports"][0]
 
     assert result["items"][0]["values"] == {"body": "확정한 이전 딜 내용"}
-    assert result["items"][0]["report_id"] == str(report_id)
+    assert result["items"][0]["submission_id"] == str(row[0])
+    assert result["items"][0]["report_id"] == str(row[1])
     assert result["items"][0]["meeting_at"] == meeting_at.isoformat()
     assert result["items"][0]["status_code"] == "approved"
     assert result["time_basis"] == "historical_context_not_current_meeting_facts"
@@ -319,47 +358,47 @@ def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample)
     for predicate in [
         "report.team_id =",
         "report.author_member_id =",
-        "report_deal.sales_deal_id =",
         "report.source_activity_id !=",
         "activity.team_id =",
         "activity.starts_at <",
-        "report.created_at <",
-        "report.updated_at <",
-        "report.status_code IN",
+        "report_submission.team_id =",
+        "report_submission.submitted_at <",
+        "row_number() OVER (PARTITION BY",
         "activity.deleted_at IS NULL",
     ]:
         assert predicate in sql
-    assert "values" in compiled.params.values()
+    assert "report_deal" not in sql
     assert "transcript" not in sql and "ai_evidence" not in sql and "source_snapshot" not in sql
-    assert ["submitted", "approved"] in compiled.params.values()
-    assert sample["ids"][0] in compiled.params.values()
+    assert ["pending", "approved"] in compiled.params.values()
     assert sample["activity"].starts_at in compiled.params.values()
     assert "ORDER BY public.activity.starts_at DESC" in sql
 
 
-def test_initial_history_is_loaded_once_per_deal_using_the_same_scoped_query(sample):
+def test_previous_submissions_are_loaded_once_and_partitioned_by_deal(sample):
     meeting_at = sample["activity"].starts_at - timedelta(days=1)
     rows = [
-        (uuid4(), meeting_at.date(), {"body": f"이전 논의 {i}"}, meeting_at, "submitted")
+        _submission_row(
+            sample["ids"][0],
+            meeting_at - timedelta(minutes=i),
+            body=f"이전 논의 {i}",
+            review_status="pending",
+        )
         for i in range(service.PREVIOUS_REPORT_LIMIT + 1)
     ]
-    db = Db(Result(), Result(rows), Result(), Result())
+    db = Db(Result(), Result(rows), Result())
 
     histories = build(sample, db)["crm_context"]["previous_reports"]
 
-    assert len(db.statements) == 4  # 거래 이력 1회, 딜별 보고서 2회, 제품 상세 batch 1회
+    assert len(db.statements) == 3  # 거래 이력, 이전 확정본, 제품 상세를 각각 한 번 읽는다.
     sample["get_activity"].assert_awaited_once()
-    assert sample["get_deal"].await_count == 2
+    sample["get_deals"].assert_awaited_once()
     assert [history["sales_deal_id"] for history in histories] == list(map(str, sample["ids"]))
     assert len(histories[0]["items"]) == service.PREVIOUS_REPORT_LIMIT
     assert histories[0]["truncated"] is True
     assert histories[1]["items"] == [] and histories[1]["truncated"] is False
     assert "not_proof" in histories[1]["empty_means"]
     assert histories[0]["items"][0]["status_code"] == "submitted"
-    for statement, deal_id in zip(db.statements[1:3], sample["ids"], strict=True):
-        params = statement.compile(dialect=postgresql.dialect()).params
-        assert deal_id in params.values()
-        assert service.PREVIOUS_REPORT_LIMIT + 1 in params.values()
+    assert "report_submission" in str(db.statements[1])
 
 
 def test_report_values_have_explicit_text_limit_and_no_legacy_root_fallback():
@@ -380,7 +419,7 @@ def test_product_details_are_batched_scoped_and_frozen_without_storage_key(sampl
         memo="규격",
         image_storage_key="private/storage",
     )
-    db = Db(Result(), Result(), Result(), Result([product]))
+    db = Db(Result(), Result(), Result([product]))
 
     result = build(sample, db)["crm_context"]["refinement_context"]["product_details"][0]
 
@@ -388,7 +427,7 @@ def test_product_details_are_batched_scoped_and_frozen_without_storage_key(sampl
     assert result["items"][0]["active"] is False
     assert "image_storage_key" not in result["items"][0]
     assert result["time_basis"] == "current_catalog_not_historical_price"
-    compiled = db.statements[3].compile(dialect=postgresql.dialect())
+    compiled = db.statements[2].compile(dialect=postgresql.dialect())
     sql = str(compiled)
     assert "product.team_id =" in sql
     assert "product.id IN" in sql
@@ -480,11 +519,11 @@ def test_db_failure_is_not_silently_changed_to_unknown_or_empty(sample):
     db.execute.side_effect = RuntimeError("synthetic database failure")
     with pytest.raises(RuntimeError, match="synthetic database failure"):
         asyncio.run(
-            service._previous_reports(
+            service._previous_reports_by_deal(
                 db,
                 sample["member"],
                 sample["activity"],
-                sample["ids"][0],
+                sample["ids"],
             )
         )
 

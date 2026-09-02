@@ -13,12 +13,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.content import Report, ReportDeal, ReportSource, ReportSubmission
 from app.models.crm import Activity
 from app.models.workspace import Member
-from app.services.report_submissions import create_submission, snapshot_sha256
+from app.services.report_submissions import (
+    create_submission,
+    is_reserved_submission_field,
+    snapshot_sha256,
+)
 
 SOURCE_REPORT_LIMIT = 100
 _SOURCES = {"업무보고서": "meeting", "일일보고서": "daily", "주간보고서": "weekly"}
 _CHILD_KIND = {"daily": "meeting", "weekly": "daily", "monthly": "weekly"}
 _SEOUL = ZoneInfo("Asia/Seoul")
+# 계약·일정 스냅샷의 기존 필터가 공유한다. 보고서 입력 경계는 아래 공용 정규화 검사를 쓴다.
 _NON_BODY_KEYS = {
     "transcript",
     "raw_transcript",
@@ -96,7 +101,7 @@ def _values(content: dict) -> dict[str, str]:
     return {
         key: value
         for key, value in values.items()
-        if isinstance(key, str) and key.lower() not in _NON_BODY_KEYS and isinstance(value, str)
+        if isinstance(key, str) and not is_reserved_submission_field(key) and isinstance(value, str)
     }
 
 
@@ -374,7 +379,7 @@ def _snapshot_values(snapshot: dict[str, Any]) -> dict[str, Any]:
     values = {
         key: value
         for key, value in structured.items()
-        if isinstance(key, str) and key.lower() not in _NON_BODY_KEYS and isinstance(value, str)
+        if isinstance(key, str) and not is_reserved_submission_field(key) and isinstance(value, str)
     }
     body = snapshot.get("body")
     if body is not None:

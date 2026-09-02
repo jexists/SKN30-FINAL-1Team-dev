@@ -248,7 +248,7 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.deep.v8"
+    assert agent.PROMPT_VERSION == "report_writing.deep.v9"
     skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
     assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
     assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
@@ -297,6 +297,21 @@ def test_selected_deal_without_current_evidence_requires_exact_marker(field):
         setattr(draft.deal_reports[1], field, invalid)
         with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
             agent.validate_reports(source, draft)
+
+
+def test_selected_deal_without_evidence_reports_marker_error_for_missing_title():
+    source, draft = _case()
+    payload = source.model_dump(mode="json")
+    for item in payload["evidence"]["items"][4:6]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(payload)
+    draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
+    draft.deal_reports[1].title = None
+    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].evidence_ids = []
+
+    with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
+        agent.validate_reports(source, draft)
 
 
 def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_common():

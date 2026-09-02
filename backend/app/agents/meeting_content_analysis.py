@@ -29,7 +29,12 @@ from app.schemas.meeting_content import (
 )
 from app.services.agent_logging import agent_log_context, log_agent_error, log_agent_event
 from app.services.agent_stream import publish_progress
-from app.services.llm import LLMError, generate_structured, safe_token_usage
+from app.services.llm import (
+    LLMError,
+    generate_structured,
+    llm_boundary_error_code,
+    safe_token_usage,
+)
 
 PROMPT_VERSION = "meeting_content_analysis.v5"
 RUN_TIMEOUT_SECONDS = 300
@@ -541,28 +546,34 @@ async def _refine(
     refinement = refinement if isinstance(refinement, dict) else {}
 
     def company_trade_history() -> dict[str, Any]:
-        value = refinement.get("company_trade_history")
-        if isinstance(value, dict):
-            return copy.deepcopy(value)
-        history = crm.get("trade_history")
+        if "company_trade_history" in refinement:
+            value = refinement["company_trade_history"]
+            return (
+                copy.deepcopy(value)
+                if isinstance(value, dict)
+                else {"error": "context_not_available"}
+            )
+        if "trade_history" not in crm or not isinstance(crm["trade_history"], list):
+            return {"error": "context_not_available"}
+        history = crm["trade_history"]
         metadata = crm.get("trade_history_metadata")
         return {
             "kind": "trade_history",
-            "items": copy.deepcopy(history) if isinstance(history, list) else [],
+            "items": copy.deepcopy(history),
             **(copy.deepcopy(metadata) if isinstance(metadata, dict) else {}),
         }
 
     def deal_context(kind: str, sales_deal_id: UUID) -> dict[str, Any]:
         if kind == "previous_reports":
-            values = crm.get("previous_reports")
+            if "previous_reports" not in crm:
+                return {"error": "context_not_available"}
+            values = crm["previous_reports"]
         else:
             if "product_details" not in refinement:
                 return {"error": "context_not_available"}
             values = refinement["product_details"]
-            if not isinstance(values, list):
-                return {"error": "context_not_available"}
         if not isinstance(values, list):
-            return {"kind": kind, "sales_deal_id": str(sales_deal_id), "items": []}
+            return {"error": "context_not_available"}
         for value in values:
             if isinstance(value, dict) and str(value.get("sales_deal_id")) == str(sales_deal_id):
                 return copy.deepcopy(value)
@@ -595,8 +606,10 @@ async def _refine(
                     lookup_kind=kind,
                 )
                 return {"error": "crm_lookup_failed"}
-            if not isinstance(result, dict):
-                return {"error": "crm_lookup_invalid"}
+            if not isinstance(result, dict) or (
+                not result.get("error") and not isinstance(result.get("items"), list)
+            ):
+                result = {"error": "context_not_available"}
             has_information = bool(
                 isinstance(result.get("items"), list)
                 and result["items"]
@@ -608,6 +621,10 @@ async def _refine(
             }
             if sales_deal_id is not None:
                 response["sales_deal_id"] = str(sales_deal_id)
+            if result.get("error") == "context_not_available":
+                response["no_new_information"] = True
+                cached[key] = response
+                return response
             if not result.get("error"):
                 response["no_new_information"] = not has_information
                 if on_lookup is not None:
@@ -636,11 +653,24 @@ async def _refine(
             return response
 
     async def read_company_trade_history() -> dict[str, Any]:
-        """스냅샷의 고객사 과거 거래를 읽어 모호한 원문의 거래 대상을 확인한다."""
+        """모호한 구간이 과거 거래를 가리킬 때만 고객사 거래 이력을 읽는다.
+
+        특정 딜의 현재 발언이나 신규 고객 여부를 판단할 때는 사용하지 않는다. 결과의
+        ``items=[]``는 조회 범위에 기록이 없다는 뜻이고, ``context_not_available``은 이
+        실행의 고정 스냅샷에 해당 자료가 없다는 뜻이다. 둘 다 같은 조회를 반복하지 않는다.
+        """
         return await read("trade_history", None, company_trade_history)
 
     async def read_previous_deal_reports(sales_deal_id: UUID) -> dict[str, Any]:
-        """스냅샷에서 선택 딜의 이전 보고서를 읽어 지난번 제안 등의 참조를 확인한다."""
+        """선택 딜의 과거 확정 보고서를 읽어 '지난번 제안' 같은 표현을 확인한다.
+
+        Args:
+            sales_deal_id: 이번 미팅에서 선택된 딜 ID. 다른 딜 ID는 거부된다.
+
+        현재 미팅의 새 사실을 채우거나 다른 딜의 내용을 옮길 때는 사용하지 않는다.
+        ``items=[]``는 과거 확정본이 없다는 뜻이며, ``context_not_available``은 고정
+        스냅샷에 자료가 없다는 뜻이다. 어느 경우에도 추측하지 말고 unresolved를 유지한다.
+        """
         return await read(
             "previous_reports",
             sales_deal_id,
@@ -648,7 +678,15 @@ async def _refine(
         )
 
     async def read_deal_product_details(sales_deal_id: UUID) -> dict[str, Any]:
-        """스냅샷에서 선택 딜의 제품 상세를 읽어 약칭이나 제품 사양을 확인한다."""
+        """선택 딜의 제품명·사양이 원문 약칭의 대상을 가를 때만 제품 상세를 읽는다.
+
+        Args:
+            sales_deal_id: 이번 미팅에서 선택된 딜 ID. 다른 딜 ID는 거부된다.
+
+        제품이 비슷하다는 이유만으로 귀속할 때는 사용하지 않는다. ``items=[]`` 또는
+        ``context_not_available``이면 새 근거가 없으므로 unresolved를 유지하고 반복 조회하지
+        않는다. 도구 오류가 ``crm_lookup_failed``일 때만 한도 안에서 재시도할 수 있다.
+        """
         return await read(
             "product_details",
             sales_deal_id,
@@ -744,6 +782,9 @@ async def run(
         log_agent_error(error, stage="meeting_content", error_code="meeting_content_error")
         raise LLMError(str(error)) from None
     except Exception as error:
+        if code := llm_boundary_error_code(error):
+            log_agent_error(error, stage="meeting_content", error_code=code.split(":", 1)[0])
+            raise LLMError(code) from None
         log_agent_error(error, stage="meeting_content", error_code="meeting_content_failed")
         raise LLMError("meeting_content_failed") from None
     finally:

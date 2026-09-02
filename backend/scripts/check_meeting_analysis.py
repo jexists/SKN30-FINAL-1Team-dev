@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sys
+from uuid import UUID
 
 
 async def check() -> None:
@@ -13,6 +14,11 @@ async def check() -> None:
     from app.agents import meeting_analysis
     from app.core.config import settings
     from app.ml import deal_baseline
+    from app.schemas.meeting_content import (
+        MeetingContentAnalysisOutput,
+        MeetingContentInput,
+        build_evidence_ledger,
+    )
 
     if not settings.llm_configured:
         raise RuntimeError("LLM_API_URL, LLM_API_KEY, LLM_MODEL 설정이 필요합니다.")
@@ -22,12 +28,38 @@ async def check() -> None:
         "예산은 승인되었으며 공식 입찰과 경쟁 제품 검토는 진행하지 않습니다. "
         "고객은 도입에 긍정적이고 도입 범위와 요구사항은 명확합니다."
     )
-    output = await meeting_analysis.run(meeting_analysis.input_snapshot(transcript))
+    deal_id = UUID(int=1)
+    source = MeetingContentInput(
+        transcript=transcript,
+        selected_deal_ids=[deal_id],
+        segments=[
+            {
+                "segment_id": "S0001",
+                "start": 0,
+                "end": len(transcript),
+                "text": transcript,
+            }
+        ],
+    )
+    ledger = build_evidence_ledger(
+        source,
+        MeetingContentAnalysisOutput(
+            assignments=[
+                {
+                    "segment_id": "S0001",
+                    "applicability": {"scope": "deal", "deal_ids": [deal_id]},
+                }
+            ]
+        ),
+    )
+    [output] = await meeting_analysis.run_for_deals(ledger, {})
 
     print("[실제 미팅분석 응답]")
     print(json.dumps(output.model_dump(), ensure_ascii=False, indent=2))
 
-    assessment = output.deal_assessment
+    assessment = output.assessment
+    if assessment is None:
+        raise ValueError(f"딜 분석이 완료되지 않았습니다: {output.error}")
     features = assessment.features.model_dump()
     if tuple(features) != deal_baseline.FEATURE_NAMES:
         raise ValueError(f"딜 특성 13개의 순서가 일치하지 않습니다: {list(features)}")

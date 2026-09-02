@@ -1,4 +1,13 @@
-import type { ReportTemplate } from '@/types'
+import type { ReportFieldDef, ReportTemplate } from '@/types'
+
+export const meetingBodyField: ReportFieldDef = {
+  id: 'body',
+  label: '보고서 본문',
+  type: 'textarea',
+  required: true,
+  aiFilled: true,
+  placeholder: '미팅에서 논의한 내용을 입력하세요.',
+}
 
 export const meetingTemplate: ReportTemplate = {
   id: 'builtin-meeting',
@@ -54,14 +63,5 @@ export const meetingFreeformTemplate: ReportTemplate = {
   name: '미팅 보고서',
   owner: '',
   updated: '',
-  fields: [
-    {
-      id: 'body',
-      label: '보고서 본문',
-      type: 'textarea',
-      required: true,
-      aiFilled: true,
-      placeholder: '미팅에서 논의한 내용을 입력하세요.',
-    },
-  ],
+  fields: [meetingBodyField],
 }

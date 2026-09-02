@@ -46,7 +46,7 @@ export default function ReportDocument({ template, values, docKey, disabled, onC
    * 문서를 통째로 갈아야 할 때(docKey) 만 지금 값으로 다시 만듭니다.
    *
    * 마운트 때 한 번만 만들면 안 됩니다. 아래 Editor 는 key 로 다시 서지만 이
-   * 컴포넌트는 그대로 남아, AI 원본 적용·제목 되살리기·다시 쓰기에서 옛 내용이
+   * 컴포넌트는 그대로 남아, 새 후보 적용·섹션 복구·다시 쓰기에서 옛 내용이
    * 그대로 다시 들어갑니다(= 새 값이 화면에 나타나지 않습니다).
    */
   const doc = useRef<({ key: number } & DocumentHtml) | null>(null)

@@ -2,6 +2,8 @@ import asyncio
 import json
 from uuid import uuid4
 
+import httpx
+import openai
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
@@ -88,6 +90,22 @@ async def test_run_returns_a_validated_evidence_ledger(monkeypatch):
     assert captured["schema_name"] == "meeting_content_assignments"
     assert "LP1000 견적을 요청했다." in captured["input_text"]
     assert str(deal_id) in captured["input_text"]
+
+
+@pytest.mark.anyio
+async def test_run_preserves_transient_sdk_error_code(monkeypatch):
+    deal_id = uuid4()
+    snapshot = meeting_content_analysis.input_snapshot("LP1000 견적을 요청했다.", [_deal(deal_id)])
+    request = httpx.Request("POST", "https://private-provider.invalid")
+    response = httpx.Response(429, request=request)
+
+    async def fail(*args, **kwargs):
+        raise openai.RateLimitError("private response", response=response, body=None)
+
+    monkeypatch.setattr(meeting_content_analysis, "_initial_analysis", fail)
+
+    with pytest.raises(LLMError, match="^llm_provider_error:429$"):
+        await meeting_content_analysis.run(snapshot)
 
 
 @pytest.mark.anyio
@@ -720,13 +738,19 @@ async def test_no_new_evidence_keeps_unresolved_even_if_model_guesses(lookup_res
         snapshot, on_lookup=calls.append, model=ScriptedGroundingModel(responses=responses)
     )
     assert result.items[1].applicability.scope == "unresolved"
-    assert len(calls) == (0 if lookup_result is None or lookup_result.get("error") else 1)
+    assert len(calls) == (1 if lookup_result and lookup_result.get("items") == [] else 0)
 
 
 @pytest.mark.anyio
-async def test_legacy_snapshot_without_product_source_returns_uncached_not_available(monkeypatch):
+@pytest.mark.parametrize("product_details", [None, {}])
+async def test_missing_or_invalid_product_source_is_cached_not_available(
+    monkeypatch, product_details
+):
     snapshot, _, deal_b, initial = _grounding_case()
-    snapshot["crm_context"]["refinement_context"].pop("product_details")
+    if product_details is None:
+        snapshot["crm_context"]["refinement_context"].pop("product_details")
+    else:
+        snapshot["crm_context"]["refinement_context"]["product_details"] = product_details
     monkeypatch.setattr(meeting_content_analysis, "MAX_LOOKUPS", 1)
     calls = []
     model = ScriptedGroundingModel(
@@ -746,7 +770,8 @@ async def test_legacy_snapshot_without_product_source_returns_uncached_not_avail
         if message.type == "tool" and message.name == "read_deal_product_details"
     ]
     assert tool_results[0]["data"]["error"] == "context_not_available"
-    assert tool_results[1] == {"error": "meeting_content_lookup_limit"}
+    assert tool_results[0]["no_new_information"] is True
+    assert tool_results[1] == {**tool_results[0], "no_new_information": True}
     assert calls == []
     assert result.items[1].applicability.scope == "unresolved"
 

@@ -126,7 +126,6 @@ def _report(author: Member, *, status_code: str = "submitted") -> Report:
         ai_evidence=None,
         version=1,
         generation_input_version=1,
-        last_applied_agent_run_id=None,
         current_submission_id=uuid4(),
         note="활동 3건",
         review_note=None,

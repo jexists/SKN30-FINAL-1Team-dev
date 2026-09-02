@@ -224,6 +224,14 @@
   적용 여부를 확인 가능한 범위에서만 백필합니다. **현재 연결된 개발 DB에는 0017 다음으로
   2026-09-01 적용했으며 운영 DB에는 적용하지 않았습니다.**
 
+- `20260902_0019_transient_report_generation.sql`: 보고서 생성 중에는 `report`를 만들지 않고
+  24시간짜리 `agent_run` 입력·결과만 보관하며, 사람의 최종 확정은 멱등키가 붙은 불변
+  `report_submission`과 함께 저장합니다. 화면 재접속 scope·payload 만료 컬럼을 추가하며,
+  Blue/green 호환을 위해 구 자동 적용 컬럼·인덱스와 `meeting_deal_analysis`는 남겨 둡니다.
+  이 호환 객체는 구 컨테이너 종료 뒤 별도 정리 migration에서만 제거합니다. **0018 다음에 적용하고 worker 시작 전에
+  `uv run python -m app.services.agent_worker --check-schema`를 실행합니다. 아직 DB에는 적용하지
+  않았습니다.**
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 

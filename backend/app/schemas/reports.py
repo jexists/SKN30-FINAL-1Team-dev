@@ -111,7 +111,9 @@ class ReportDealRead(BaseModel):
     updated_at: datetime
 
 
-class ReportCreate(_WriteModel):
+class ReportFinalize(_WriteModel):
+    """사람이 승인한 최종값을 한 번에 저장하고 제출하는 요청."""
+
     report_kind: ReportKind
     report_date: date
     period_start: date | None = None
@@ -130,6 +132,11 @@ class ReportCreate(_WriteModel):
     transcript: Transcript | None = None
     note: LongText | None = None
     activity_ids: list[UUID] = Field(default_factory=list)
+    idempotency_key: UUID
+    agent_run_id: UUID | None = None
+    report_id: UUID | None = None
+    expected_version: int | None = Field(default=None, ge=1)
+    expected_status_code: SubmittableStatus | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -157,53 +164,16 @@ class ReportCreate(_WriteModel):
             raise ValueError("duplicate_activity_ids")
         return self
 
-
-class ReportPatch(_WriteModel):
-    expected_version: int = Field(ge=1)
-    report_date: date | None = None
-    period_start: date | None = None
-    period_end: date | None = None
-    recipient_member_id: UUID | None = None
-    template_snapshot: dict[str, Any] | None = None
-    content: dict[str, Any] | None = None
-    title: Text | None = None
-    body: ReportBody | None = None
-    common_body: ReportBody | None = None
-    unassigned_body: ReportBody | None = None
-    structured_values: dict[str, Any] = Field(default_factory=dict)
-    transcript: Transcript | None = None
-    note: LongText | None = None
-    activity_ids: list[UUID] | None = None
-    deal_sections: list[ReportDealWrite] | None = Field(default=None, max_length=100)
-
     @model_validator(mode="after")
-    def _validate(self) -> Self:
-        for field_name in ("report_date", "template_snapshot"):
-            if field_name in self.model_fields_set and getattr(self, field_name) is None:
-                raise ValueError(f"{field_name}_required")
-        if self.period_start is not None and self.period_end is not None:
-            if self.period_end < self.period_start:
-                raise ValueError("invalid_report_period")
-        if self.activity_ids is not None and len(set(self.activity_ids)) != len(self.activity_ids):
-            raise ValueError("duplicate_activity_ids")
-        if self.deal_sections is not None:
-            if not self.deal_sections:
-                raise ValueError("deal_sections_required")
-            deal_ids = [section.sales_deal_id for section in self.deal_sections]
-            if len(set(deal_ids)) != len(deal_ids):
-                raise ValueError("duplicate_deal_sections")
-            positions = [
-                section.position if section.position is not None else index
-                for index, section in enumerate(self.deal_sections)
-            ]
-            if len(set(positions)) != len(positions):
-                raise ValueError("duplicate_deal_positions")
+    def _validate_existing_revision(self) -> Self:
+        expected = self.expected_version is not None or self.expected_status_code is not None
+        if self.report_id is None and expected:
+            raise ValueError("report_id_required")
+        if self.report_id is not None and (
+            self.expected_version is None or self.expected_status_code is None
+        ):
+            raise ValueError("report_revision_expectation_required")
         return self
-
-
-class ReportSubmit(_WriteModel):
-    expected_status_code: SubmittableStatus
-    expected_version: int = Field(ge=1)
 
 
 class ReportReview(_WriteModel):
@@ -250,7 +220,6 @@ class ReportRead(BaseModel):
     status_code: ReportStatus
     version: int
     generation_input_version: int
-    last_applied_agent_run_id: UUID | None
     current_submission_id: UUID | None
     template_snapshot: dict[str, Any]
     content: dict[str, Any]

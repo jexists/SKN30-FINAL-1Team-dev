@@ -158,6 +158,8 @@ def test_normalized_source_reads_the_immutable_submission_instead_of_mutable_rep
                         "next_step": "견적 전달",
                         "transcript": "전달하면 안 되는 원문",
                         "ai_values": "전달하면 안 되는 초안",
+                        "rawTranscript": "표기만 바꾼 원문",
+                        "AI-Values": "표기만 바꾼 초안",
                     },
                 }
             ],
@@ -588,6 +590,8 @@ def test_body_values_never_fall_back_to_ai_or_metadata(sample):
         "ai_values": "AI 초안",
         "transcript": "원문",
         "deal_assessment": "승리",
+        "rawTranscript": "표기만 바꾼 원문",
+        "AI-Values": "표기만 바꾼 초안",
     }
     assert run(sample)["reports"][0]["values"] == {"body": "사람 검토 본문"}
     del sources[0].content["values"]

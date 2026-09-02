@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.ml import deal_baseline
 from app.schemas.meeting_content import MeetingEvidenceLedger
 from app.services.agent_logging import agent_log_context, log_agent_error, log_agent_event
-from app.services.llm import generate_structured
+from app.services.llm import LLMError, generate_structured, is_transient_llm_error
 
 PROMPT_VERSION = "meeting_analysis.v5"
 
@@ -88,14 +88,6 @@ class DealAssessment(BaseModel):
     label: Literal["high", "watch"]
     high_probability: float = Field(ge=0, le=1)
     model_version: str = Field(min_length=1, max_length=128)
-
-
-class MeetingAnalysisOutput(BaseModel):
-    """미팅분석 에이전트의 최종 출력."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    deal_assessment: DealAssessment
 
 
 class DealFeatureResult(BaseModel):
@@ -191,9 +183,6 @@ async def run_for_deals(
     """딜별 분석. 시간 제한 안에 완료한 결과와 추출한 특성은 그대로 보존한다."""
     ledger = MeetingEvidenceLedger.model_validate(ledger.model_dump(mode="json"))
     crm_context = copy.deepcopy(crm_context)
-    contact = crm_context.get("contact")
-    source_code = contact.get("source_code") if isinstance(contact, dict) else None
-    source = SOURCE_CODES.get(source_code, "Unknown") if isinstance(source_code, str) else "Unknown"
     semaphore = asyncio.Semaphore(3)
     extracted: dict[UUID, DealFeatures] = {}
 
@@ -202,11 +191,15 @@ async def run_for_deals(
             return await analyze_one(deal_id)
 
     async def analyze_one(deal_id: UUID) -> DealFeatureResult:
-        features: DealFeatures | None = None
         started = perf_counter()
+        crm = _deal_crm_context(crm_context, deal_id)
+        deal = crm.get("deal")
+        source_code = deal.get("source_code") if isinstance(deal, dict) else None
+        source = (
+            SOURCE_CODES.get(source_code, "Unknown") if isinstance(source_code, str) else "Unknown"
+        )
         try:
             async with semaphore:
-                crm = _deal_crm_context(crm_context, deal_id)
                 payload = {
                     "sales_deal_id": str(deal_id),
                     "source_value": source,
@@ -230,7 +223,7 @@ async def run_for_deals(
                         schema=MeetingFeatureOutput,
                         schema_name="deal_features",
                     )
-                # Source는 원문에서 추측할 값이 아니라 고객 CRM의 고정 코드다.
+                # Source는 원문에서 추측하지 않고 딜 컨텍스트에 고정된 유효값만 쓴다.
                 features = result.features.model_copy(update={"Source": source})
                 extracted[deal_id] = features
                 log_agent_event(
@@ -245,29 +238,41 @@ async def run_for_deals(
                         features=features,
                         error="deal_prediction_insufficient_features",
                     )
-                # 취소는 ML 스레드의 대기만 끝낸다. 이미 시작한 predict는 자체 완료된다.
-                prediction = await asyncio.to_thread(deal_baseline.predict, features.model_dump())
-                return DealFeatureResult(
-                    sales_deal_id=deal_id,
-                    features=features,
-                    assessment=DealAssessment(
-                        features=features,
-                        label=prediction.label,
-                        high_probability=prediction.high_probability,
-                        model_version=prediction.model_version,
-                    ),
-                )
-        except Exception as error:
+        except LLMError as error:
             log_agent_error(
                 error,
-                stage="deal_features" if features is None else "ml_prediction",
-                error_code="deal_feature_failed" if features is None else "deal_prediction_failed",
+                stage="deal_features",
+                error_code="deal_feature_failed",
+            )
+            if is_transient_llm_error(str(error)):
+                raise
+            return DealFeatureResult(sales_deal_id=deal_id, error="deal_feature_failed")
+
+        try:
+            async with semaphore:
+                # 취소는 ML 스레드의 대기만 끝낸다. 이미 시작한 predict는 자체 완료된다.
+                prediction = await asyncio.to_thread(deal_baseline.predict, features.model_dump())
+        except deal_baseline.DealModelError as error:
+            log_agent_error(
+                error,
+                stage="ml_prediction",
+                error_code="deal_prediction_failed",
             )
             return DealFeatureResult(
                 sales_deal_id=deal_id,
                 features=features,
-                error="deal_feature_failed" if features is None else "deal_prediction_failed",
+                error="deal_prediction_failed",
             )
+        return DealFeatureResult(
+            sales_deal_id=deal_id,
+            features=features,
+            assessment=DealAssessment(
+                features=features,
+                label=prediction.label,
+                high_probability=prediction.high_probability,
+                model_version=prediction.model_version,
+            ),
+        )
 
     tasks = [asyncio.create_task(analyze(deal_id)) for deal_id in ledger.selected_deal_ids]
     try:
@@ -296,46 +301,3 @@ async def run_for_deals(
             if not task.done():
                 task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-
-
-def _validated_transcript(value: object) -> str:
-    """미팅 원문이 비어 있지 않고 허용 길이 안인지 검증한다."""
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError("transcript_required")
-    transcript = value.strip()
-    if len(transcript) > 50_000:
-        raise ValueError("transcript_too_long")
-    return transcript
-
-
-def input_snapshot(transcript: str) -> dict[str, str]:
-    """실행 시점 미팅 원문을 고정한다."""
-    return {"transcript": _validated_transcript(transcript)}
-
-
-def _prompt_input(snapshot: dict[str, Any]) -> str:
-    """검증된 원문을 데이터 경계 태그로 감싸 LLM 입력을 만든다."""
-    transcript = _validated_transcript(snapshot.get("transcript"))
-    return f"<meeting_transcript>\n{transcript}\n</meeting_transcript>"
-
-
-async def run(snapshot: dict[str, Any]) -> MeetingAnalysisOutput:
-    """미팅 원문을 구조화하고 딜 성사 확률을 붙인다."""
-    feature_output = await generate_structured(
-        instructions=SYSTEM_PROMPT,
-        input_text=_prompt_input(snapshot),
-        schema=MeetingFeatureOutput,
-        schema_name="meeting_features",
-    )
-    prediction = await asyncio.to_thread(
-        deal_baseline.predict,
-        feature_output.features.model_dump(),
-    )
-    return MeetingAnalysisOutput(
-        deal_assessment=DealAssessment(
-            features=feature_output.features,
-            label=prediction.label,
-            high_probability=prediction.high_probability,
-            model_version=prediction.model_version,
-        )
-    )

@@ -13,6 +13,7 @@ from app.schemas.meeting_content import (
     MeetingContentInput,
     build_evidence_ledger,
 )
+from app.services.llm import LLMError
 
 UNKNOWN_FEATURES = {name: "Unknown" for name in deal_baseline.FEATURE_NAMES}
 
@@ -34,53 +35,6 @@ def test_feature_contract_uses_unknown_instead_of_guessing():
         meeting_analysis.MeetingFeatureOutput(
             features={**UNKNOWN_FEATURES, "unexpected": "Yes"},
         )
-
-
-def test_input_snapshot_rejects_empty_or_oversized_transcript():
-    """빈 원문과 길이 제한을 넘긴 원문이 거부되는지 검증한다."""
-    with pytest.raises(ValueError, match="transcript_required"):
-        meeting_analysis.input_snapshot("  ")
-    with pytest.raises(ValueError, match="transcript_too_long"):
-        meeting_analysis.input_snapshot("가" * 50_001)
-
-
-@pytest.mark.anyio
-async def test_run_uses_structured_llm_output_as_model_input(monkeypatch):
-    """LLM의 구조화 결과가 그대로 딜 모델 입력으로 전달되는지 검증한다."""
-    extracted = meeting_analysis.MeetingFeatureOutput(
-        features=UNKNOWN_FEATURES,
-    )
-    captured = {}
-
-    async def fake_generate_structured(**kwargs):
-        """LLM 호출 인자를 기록하고 고정된 구조화 결과를 반환한다."""
-        captured.update(kwargs)
-        return extracted
-
-    def fake_predict(features):
-        """모델 입력 계약을 확인하고 고정된 예측을 반환한다."""
-        assert features == UNKNOWN_FEATURES
-        return deal_baseline.DealPrediction(
-            label="watch",
-            high_probability=0.31,
-            model_version=deal_baseline.MODEL_VERSION,
-        )
-
-    monkeypatch.setattr(meeting_analysis, "generate_structured", fake_generate_structured)
-    monkeypatch.setattr(deal_baseline, "predict", fake_predict)
-
-    result = await meeting_analysis.run(
-        meeting_analysis.input_snapshot("고객이 다음 주까지 수정 견적서를 요청했습니다.")
-    )
-
-    assert result.deal_assessment.features.model_dump() == UNKNOWN_FEATURES
-    assert result.deal_assessment.label == "watch"
-    assert result.deal_assessment.high_probability == 0.31
-    assert result.deal_assessment.model_version == deal_baseline.MODEL_VERSION
-    assert captured["instructions"] == meeting_analysis.SYSTEM_PROMPT
-    assert captured["schema"] is meeting_analysis.MeetingFeatureOutput
-    assert captured["schema_name"] == "meeting_features"
-    assert "고객이 다음 주까지 수정 견적서를 요청했습니다." in captured["input_text"]
 
 
 def _ledger(deal_ids):
@@ -127,13 +81,13 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
             "name": "private-contact-name",
             "department": "구매부",
             "job_title": "부장",
-            "source_code": "event",
+            "source_code": None,
             "owner_member_id": "private-owner-id",
             "memo": "private-contact-memo",
         },
         "deals": [
-            {"sales_deal_id": str(deal_a), "title": "A 거래"},
-            {"id": str(deal_b), "title": "B 거래"},
+            {"sales_deal_id": str(deal_a), "title": "A 거래", "source_code": "event"},
+            {"id": str(deal_b), "title": "B 거래", "source_code": "referral"},
         ],
         "trade_history": [
             {"customer_company_id": str(company), "description": "과거 납품"},
@@ -169,7 +123,8 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
     result = await meeting_analysis.run_for_deals(_ledger([deal_a, deal_b]), crm)
 
     assert [item.sales_deal_id for item in result] == [deal_a, deal_b]
-    assert all(item.features.Source == "Event" and item.error is None for item in result)
+    assert [item.features.Source for item in result] == ["Event", "Referral"]
+    assert all(item.error is None for item in result)
     assert crm == original
     for index, deal_id in enumerate([deal_a, deal_b]):
         payload = seen[str(deal_id)]
@@ -183,7 +138,7 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
         assert "과거 납품" in text
         other = "B" if index == 0 else "A"
         assert f"{other} 거래" not in text and f"{other} 이전 보고서" not in text
-        assert payload["source_value"] == "Event"
+        assert payload["source_value"] == ("Event" if index == 0 else "Referral")
         assert payload["crm_context"]["contact"] == {"department": "구매부", "job_title": "부장"}
         assert "private-" not in text
 
@@ -203,7 +158,7 @@ async def test_deal_features_receive_only_allowed_evidence_and_crm(monkeypatch):
         ([], "Unknown"),
     ],
 )
-async def test_source_uses_only_six_contact_codes(monkeypatch, source_code, expected):
+async def test_source_uses_each_deals_effective_source_code(monkeypatch, source_code, expected):
     deal_id = uuid4()
 
     async def generate(**kwargs):
@@ -216,9 +171,9 @@ async def test_source_uses_only_six_contact_codes(monkeypatch, source_code, expe
     result = await meeting_analysis.run_for_deals(
         _ledger([deal_id]),
         {
-            "contact": {"source_code": source_code},
+            "contact": {"source_code": "referral"},
             "company": {"source_code": "event"},
-            "deals": [{"id": str(deal_id), "source_code": "online_form"}],
+            "deals": [{"id": str(deal_id), "source_code": source_code}],
         },
     )
     assert result[0].features.Source == expected
@@ -266,7 +221,7 @@ async def test_per_deal_failures_preserve_other_results_and_extracted_features(m
     async def generate(**kwargs):
         deal_id = _payload(kwargs)["sales_deal_id"]
         if deal_id == str(deal_a):
-            raise RuntimeError("private provider details")
+            raise LLMError("private provider details")
         return meeting_analysis.MeetingFeatureOutput(
             features={
                 **UNKNOWN_FEATURES,
@@ -276,7 +231,7 @@ async def test_per_deal_failures_preserve_other_results_and_extracted_features(m
 
     def predict(features):
         if features["Authority"] == "High":
-            raise RuntimeError("private model details")
+            raise deal_baseline.DealModelError("private model details")
         return _prediction(features)
 
     monkeypatch.setattr(meeting_analysis, "generate_structured", generate)
@@ -288,6 +243,26 @@ async def test_per_deal_failures_preserve_other_results_and_extracted_features(m
     assert result[1].assessment is None
     assert result[2].error is None and result[2].assessment is not None
     assert "private" not in str(result)
+
+
+@pytest.mark.anyio
+async def test_unexpected_programming_error_fails_the_run(monkeypatch):
+    async def generate(**kwargs):
+        raise RuntimeError("programming bug")
+
+    monkeypatch.setattr(meeting_analysis, "generate_structured", generate)
+    with pytest.raises(RuntimeError, match="programming bug"):
+        await meeting_analysis.run_for_deals(_ledger([uuid4()]), {})
+
+
+@pytest.mark.anyio
+async def test_transient_feature_failure_fails_the_run_for_worker_retry(monkeypatch):
+    async def generate(**kwargs):
+        raise LLMError("llm_request_failed:ConnectError")
+
+    monkeypatch.setattr(meeting_analysis, "generate_structured", generate)
+    with pytest.raises(LLMError, match="^llm_request_failed:ConnectError$"):
+        await meeting_analysis.run_for_deals(_ledger([uuid4()]), {})
 
 
 @pytest.mark.anyio

@@ -23,6 +23,35 @@ from app.models.workspace import Member
 
 SUBMISSION_SCHEMA_VERSION = "report_submission.v1"
 
+# Template field IDs are user-controlled.  Raw generation inputs and machine-only values must
+# not cross the human-approval boundary into immutable submissions, regardless of spelling.
+_RESERVED_FIELD_IDS = {
+    "activity",
+    "activities",
+    "attachment",
+    "attachments",
+    "ai_evidence",
+    "ai_generated_at",
+    "ai_values",
+    "context_lookups",
+    "crm_context",
+    "deal_assessment",
+    "input_snapshot",
+    "meeting_analysis",
+    "meeting_shared",
+    "ml",
+    "ml_result",
+    "raw_payload",
+    "raw_transcript",
+    "request_snapshot",
+    "source_snapshot",
+    "transcript",
+}
+_RESERVED_FIELD_TOKENS = {
+    "".join(character for character in key.casefold() if character.isalnum())
+    for key in _RESERVED_FIELD_IDS
+}
+
 
 def _text(value: Any) -> str | None:
     if not isinstance(value, str):
@@ -33,6 +62,35 @@ def _text(value: Any) -> str | None:
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def is_reserved_submission_field(value: Any) -> bool:
+    """Use one normalized denylist at both submission-write and historical-read boundaries."""
+    if not isinstance(value, str):
+        return False
+    token = "".join(character for character in value.casefold() if character.isalnum())
+    return token in _RESERVED_FIELD_TOKENS
+
+
+def _approved_structured_values(value: Any) -> dict[str, Any]:
+    """Reject raw-payload keys anywhere inside a human-approved structured value."""
+
+    def validate(item: Any) -> None:
+        if isinstance(item, dict):
+            if any(is_reserved_submission_field(key) for key in item):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="report_submission_reserved_field",
+                )
+            for nested in item.values():
+                validate(nested)
+        elif isinstance(item, list):
+            for nested in item:
+                validate(nested)
+
+    output = _mapping(value)
+    validate(output)
+    return output
 
 
 def _legacy_values(content: Any) -> dict[str, Any]:
@@ -56,17 +114,24 @@ def _declared_legacy_values(report: Report, content: dict[str, Any]) -> dict[str
         field_id = _mapping(raw_field).get("id")
         if not isinstance(field_id, str) or field_id == "body" or field_id not in content:
             continue
+        if is_reserved_submission_field(field_id):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="report_submission_reserved_field",
+            )
         output[field_id] = content[field_id]
-    return output
+    return _approved_structured_values(output)
 
 
 def effective_report_fields(report: Report) -> dict[str, Any]:
     """Return normalized human-facing fields, with a read-only legacy fallback."""
     content = _mapping(report.content)
     values = _legacy_values(content)
-    structured = _mapping(getattr(report, "structured_values", None))
+    structured = _approved_structured_values(getattr(report, "structured_values", None))
     if not structured:
-        structured = {key: value for key, value in values.items() if key != "body"}
+        structured = _approved_structured_values(
+            {key: value for key, value in values.items() if key != "body"}
+        )
     if not structured:
         # Old period reports stored template fields directly under ``content``.  A template-id
         # allowlist keeps AI drafts, transcripts, activities, and metadata out of submissions.
@@ -88,9 +153,11 @@ def effective_deal_fields(section: ReportDeal) -> dict[str, Any]:
     """Return normalized deal output, preserving legacy ``content.values`` rows."""
     content = _mapping(section.content)
     values = _legacy_values(content)
-    structured = _mapping(getattr(section, "structured_values", None))
+    structured = _approved_structured_values(getattr(section, "structured_values", None))
     if not structured:
-        structured = {key: value for key, value in values.items() if key != "body"}
+        structured = _approved_structured_values(
+            {key: value for key, value in values.items() if key != "body"}
+        )
     return {
         "title": _text(getattr(section, "title", None)) or _text(content.get("title")),
         "body": _text(getattr(section, "body", None)) or _text(values.get("body")),
@@ -171,7 +238,7 @@ def snapshot_sha256(snapshot: dict[str, Any]) -> str:
 
 
 def validate_submission_content(report: Report, sections: list[ReportDeal]) -> None:
-    """Reject finalization when a selected meeting deal has no human-visible body."""
+    """Reject a meeting section only when all human-visible fields are blank."""
     if report.report_kind != "meeting":
         return
     if not sections:
@@ -179,11 +246,15 @@ def validate_submission_content(report: Report, sections: list[ReportDeal]) -> N
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="deal_sections_required",
         )
-    if any(effective_deal_fields(section)["body"] is None for section in sections):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="report_deal_body_required",
-        )
+    for section in sections:
+        fields = effective_deal_fields(section)
+        if fields["body"] is None and not any(
+            _text(value) is not None for value in fields["structured_values"].values()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="report_deal_content_required",
+            )
 
 
 async def create_submission(
@@ -193,6 +264,9 @@ async def create_submission(
     sections: list[ReportDeal],
     *,
     submitted_by_member_id: UUID | None = None,
+    agent_run_id: UUID | None = None,
+    idempotency_key: UUID | None = None,
+    request_hash: str | None = None,
 ) -> ReportSubmission:
     """Insert the next immutable revision.  The caller owns the surrounding transaction."""
     validate_submission_content(report, sections)
@@ -221,6 +295,9 @@ async def create_submission(
         report_version=report.version,
         team_id=report.team_id,
         submitted_by_member_id=submitted_by_member_id or member.id,
+        agent_run_id=agent_run_id,
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
         snapshot=snapshot,
         snapshot_sha256=snapshot_sha256(snapshot),
         review_status="pending",

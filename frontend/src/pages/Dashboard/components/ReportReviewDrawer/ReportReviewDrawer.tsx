@@ -66,16 +66,6 @@ export function ReportReviewContents({ report }: { report: MeetingReport }) {
             )}
             <ReportFields template={report.template} values={section.values} readOnly />
             {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
-            {(section.aiEvidence !== undefined || section.aiGeneratedAt !== undefined) && (
-              <div>
-                {section.aiEvidence !== undefined && (
-                  <p className={styles.evidence}>{section.aiEvidence}</p>
-                )}
-                {section.aiGeneratedAt !== undefined && (
-                  <p className={styles.hint}>작성 도움 {stamp(section.aiGeneratedAt)}</p>
-                )}
-              </div>
-            )}
           </section>
         ))
       )}

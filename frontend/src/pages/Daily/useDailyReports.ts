@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
-import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
+import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
 import { reportTemplateFromSnapshot } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import { getOwnMemberIds } from '@/shared/scope'
@@ -9,11 +9,13 @@ import type {
   ApiReportKind,
   ApiReportStatus,
   DailyReport,
-  PageResponse,
   ReportActivity,
   ReportAttachment,
   ReportKind,
   ReportResponse,
+  ReportFinalizeRequest,
+  ReportGenerationInput,
+  ReportGenerationRequest,
   ReportTemplate,
   ReportStatus,
   ReportWriteRequest,
@@ -150,6 +152,9 @@ export function toReport(item: ReportResponse): DailyReport {
 }
 
 export interface DraftPayload {
+  reportId?: string
+  version?: number
+  statusCode?: ApiReportStatus
   date: string
   kind: ReportKind
   approver: string
@@ -161,22 +166,16 @@ export interface DraftPayload {
   transcript: string
 }
 
-/**
- * 이 기간에 이미 쓴 보고서의 번호. 저장할 때 새로 만들지 고칠지를 이걸로 가릅니다.
- *
- * 목록에서 찾으면 그 보고서가 현재 페이지 밖일 때 못 찾고 같은 기간에 보고서를 하나 더
- * 만듭니다. 기간 전체를 서버에 물어야 합니다. 기간 안 어느 날짜든 같은 기간으로 접힙니다.
- */
-export async function savedForPeriod(
-  kind: ReportKind,
-  dateISO: string,
-  signal?: AbortSignal,
-): Promise<ReportResponse | undefined> {
-  const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
-    params: ownPeriodReportQuery(kind, dateISO),
-    signal,
-  })
-  return data.items[0]
+export function periodGenerationSeedOf(input: ReportGenerationInput) {
+  const content = record(input.content)
+  return {
+    template: input.template_snapshot,
+    approver: typeof content.approver === 'string' ? content.approver : '',
+    values: valuesOf(content.values),
+    activities: Array.isArray(content.activities) ? (content.activities as ReportActivity[]) : [],
+    attachments: attachmentsOf(content.attachments),
+    transcript: input.guidance ?? '',
+  }
 }
 
 /** 팀장도 작성 화면에서는 팀 전체가 아니라 자신의 같은 기간 보고서만 찾습니다. */
@@ -192,7 +191,7 @@ export function ownPeriodReportQuery(kind: ReportKind, dateISO: string) {
   }
 }
 
-function requestOf(draft: DraftPayload): ReportWriteRequest {
+export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
   const [from, to] = periodRange(draft.kind, draft.date)
   const included = draft.activities.filter((activity) => activity.included)
   return {
@@ -229,6 +228,52 @@ function requestOf(draft: DraftPayload): ReportWriteRequest {
   }
 }
 
+export function periodGenerationRequestOf(
+  draft: DraftPayload,
+  idempotencyKey: string,
+): ReportGenerationRequest {
+  const request = reportRequestOf(draft)
+  return {
+    idempotency_key: idempotencyKey,
+    report_kind: request.report_kind,
+    report_date: request.report_date,
+    ...(request.period_start ? { period_start: request.period_start } : {}),
+    ...(request.period_end ? { period_end: request.period_end } : {}),
+    template_snapshot: request.template_snapshot,
+    content: request.content,
+    ...(draft.transcript.trim() ? { guidance: draft.transcript.trim() } : {}),
+  }
+}
+
+export function periodFinalizeRequestOf(
+  draft: DraftPayload,
+  idempotencyKey: string,
+  agentRunId?: string,
+): ReportFinalizeRequest {
+  const revisionStatus =
+    draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
+      ? draft.statusCode
+      : undefined
+  if (
+    (draft.statusCode === 'changes_requested' || draft.reportId) &&
+    (!draft.reportId || !draft.version || !revisionStatus)
+  ) {
+    throw new Error('report_revision_required')
+  }
+  return {
+    ...reportRequestOf(draft),
+    idempotency_key: idempotencyKey,
+    ...(agentRunId ? { agent_run_id: agentRunId } : {}),
+    ...(draft.reportId && draft.version && revisionStatus
+      ? {
+          report_id: draft.reportId,
+          expected_version: draft.version,
+          expected_status_code: revisionStatus,
+        }
+      : {}),
+  }
+}
+
 /**
  * 그 기간에 쓴 보고서 한 건. 없으면 undefined 입니다.
  *
@@ -240,7 +285,7 @@ export function useReportOfPeriod(kind: ReportKind, dateISO: string) {
     ownPeriodReportQuery(kind, dateISO),
     '업무보고를 불러오지 못했습니다.',
   )
-  const report = items[0] ? toReport(items[0]) : undefined
+  const report = useMemo(() => (items[0] ? toReport(items[0]) : undefined), [items])
   return { report, loading, error, reload }
 }
 
@@ -265,39 +310,19 @@ export function useChildReports(kind: ReportKind, dateISO: string, enabled: bool
 export default function useDailyReports() {
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const finalizeAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
 
-  const save = useCallback(async (draft: DraftPayload, submit: boolean) => {
+  const finalize = useCallback(async (draft: DraftPayload, agentRunId?: string) => {
     setPending(true)
     setError(null)
+    const attempt = idempotencyAttemptFor(finalizeAttempt.current, { draft, agentRunId })
+    finalizeAttempt.current = attempt
     try {
-      const existing = await savedForPeriod(draft.kind, draft.date)
-      const request = requestOf(draft)
-      const {
-        report_kind: _kind,
-        source_activity_id: _source,
-        sales_deal_id: _deal,
-        ...patch
-      } = request
-      const saved = existing
-        ? await client.patch<ReportResponse>(`/reports/${existing.id}`, {
-            ...patch,
-            expected_version: existing.version,
-          })
-        : await client.post<ReportResponse>('/reports', request)
-      const response = submit
-        ? await client.post<ReportResponse>(`/reports/${saved.data.id}/submit`, {
-            expected_status_code: saved.data.status_code,
-            expected_version: saved.data.version,
-          })
-        : saved
-      return toReport(response.data)
+      const response = await finalizeReport(periodFinalizeRequestOf(draft, attempt.key, agentRunId))
+      finalizeAttempt.current = undefined
+      return toReport(response)
     } catch (reason: unknown) {
-      setError(
-        errorMessage(
-          reason,
-          submit ? '업무보고를 제출하지 못했습니다.' : '임시저장하지 못했습니다.',
-        ),
-      )
+      setError(errorMessage(reason, '업무보고를 제출하지 못했습니다.'))
       throw reason
     } finally {
       setPending(false)
@@ -307,7 +332,6 @@ export default function useDailyReports() {
   return {
     error,
     pending,
-    submitReport: (draft: DraftPayload) => save(draft, true),
-    saveDraft: (draft: DraftPayload) => save(draft, false),
+    submitReport: (draft: DraftPayload, agentRunId?: string) => finalize(draft, agentRunId),
   }
 }

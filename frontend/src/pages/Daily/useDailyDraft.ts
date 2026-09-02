@@ -3,28 +3,85 @@
 // 자료를 어디서 모으는지는 종류마다 다릅니다(sources.ts). 일일은 그날 일정과
 // 업무보고서를, 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 씁니다.
 //
-// 초안은 임시저장된 보고서를 백엔드 agent-runs API에 전달해 받습니다.
+// 초안은 canonical 보고서를 만들지 않고 AgentRun 후보로 받습니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isAxiosError } from 'axios'
 
 import { errorMessage } from '@/api/errorMessage'
-import { generateReportDraft } from '@/api/reportAgent'
+import {
+  createReportGeneration,
+  finishIdempotencyAttempt,
+  idempotencyAttemptFor,
+  isAgentRunTerminalError,
+  latestReportGeneration,
+  requiresRecoveryConfirmation,
+  waitForReportGeneration,
+} from '@/api/reportAgent'
+import type { IdempotencyAttempt } from '@/api/reportAgent'
 import { useAgendaState } from '@/shared/agenda'
 import { APPROVERS, templateFor } from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
-import type { DailyReport, ReportActivity, ReportKind, ReportTemplate } from '@/types'
+import type {
+  AgentRunResponse,
+  ReportActivity,
+  ReportDraftSnapshot,
+  ReportGenerationInput,
+  ReportKind,
+  ReportTemplate,
+} from '@/types'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 
 import { sourcesFor } from './sources'
-import { useChildReports, useReportOfPeriod } from './useDailyReports'
+import { periodRange, periodStart } from './periods'
+import {
+  periodGenerationSeedOf,
+  periodGenerationRequestOf,
+  useChildReports,
+  useReportOfPeriod,
+} from './useDailyReports'
 
 export type DraftPhase = 'idle' | 'generating' | 'ready' | 'submitted'
 
 const emptyValues = (template: ReportTemplate) =>
   Object.fromEntries(template.fields.map((f) => [f.id, '']))
 
+/** 생성 후보는 AI 작성 필드만 바꾸고 사람이 직접 쓰는 필드는 그대로 둡니다. */
+export function mergeGeneratedValues(
+  template: ReportTemplate,
+  previous: Record<string, string>,
+  fields: { field_id: string; value: string }[],
+) {
+  const drafted = Object.fromEntries(fields.map((field) => [field.field_id, field.value]))
+  return {
+    ...previous,
+    ...Object.fromEntries(
+      template.fields
+        .filter((field) => field.aiFilled)
+        .map((field) => [field.id, drafted[field.id] ?? '']),
+    ),
+  }
+}
+
 interface DraftOptions {
   /** 미리 켜 둘 자료의 원본 id. 특정 일정에서 넘어올 때 씁니다. */
   pickId?: string
+}
+
+function periodInputOf(
+  run: AgentRunResponse<ReportDraftSnapshot>,
+  kind: ReportKind,
+  dateISO: string,
+): ReportGenerationInput {
+  const input = run.generation_input
+  const [from, to] = periodRange(kind, dateISO)
+  const expectedKind = kind === '일일' ? 'daily' : kind === '주간' ? 'weekly' : 'monthly'
+  const matchesScope =
+    input?.report_kind === expectedKind &&
+    (kind === '일일'
+      ? input.report_date === dateISO
+      : input.period_start === from && input.period_end === to)
+  if (!input || !matchesScope) throw new Error('report_generation_input_missing')
+  return input
 }
 
 export default function useDailyDraft(
@@ -66,26 +123,27 @@ export default function useDailyDraft(
     [kind, dateISO, meetings, reports, agendaItems],
   )
 
-  /**
-   * 자료를 다시 모으는 것은 기간·종류가 바뀔 때와 사람이 "초안 다시 불러오기"를
-   * 누를 때뿐입니다. 임시저장이 스토어를 건드릴 때마다 목록을 새로 깔면 쓰던 선택이
-   * 사라집니다. 그래서 원본 목록은 ref 로만 들고 갑니다.
-   */
+  /** 자료 조회가 갱신돼도 작성 중 선택이 되감기지 않도록 원본 목록만 ref로 받습니다. */
   const live = useRef({ meetings, reports, agendaItems })
   live.current = { meetings, reports, agendaItems }
 
-  /**
-   * 이어 쓸 원본은 기간이 바뀔 때만 다시 읽습니다. 임시저장이 스토어를 건드릴 때마다
-   * 다시 읽으면 방금 쓰던 내용이 저장 시점으로 되감깁니다.
-   */
-  const seedKey = `${kind}:${dateISO}`
-  const seed = useRef<{ key: string; report?: DailyReport }>({ key: seedKey, report: existing })
-  if (seed.current.key !== seedKey || (!seed.current.report && existing)) {
-    seed.current = { key: seedKey, report: existing }
+  const scopeKey = `${kind}:${dateISO}`
+  const matchingExisting =
+    existing?.kind === kind && periodStart(kind, existing.date) === dateISO ? existing : undefined
+  const canonicalSeed = useRef<{ scopeKey: string; report?: typeof existing }>({
+    scopeKey,
+    report: matchingExisting,
+  })
+  if (canonicalSeed.current.scopeKey !== scopeKey) {
+    canonicalSeed.current = { scopeKey, report: matchingExisting }
+  } else if (!canonicalSeed.current.report && matchingExisting) {
+    canonicalSeed.current.report = matchingExisting
   }
-  const template = seed.current.report?.template ?? templateFor(kind)
+  const canonical = canonicalSeed.current.report
+  const initialTemplate = canonical?.template ?? templateFor(kind)
 
   const [phase, setPhase] = useState<DraftPhase>('idle')
+  const [template, setTemplate] = useState<ReportTemplate>(initialTemplate)
   const [activities, setActivities] = useState<ReportActivity[]>(() => sources.activities)
   /** 자료에 없는 것을 직접 적는 칸. AI 가 이것도 함께 읽습니다. */
   const [transcript, setTranscript] = useState('')
@@ -94,18 +152,30 @@ export default function useDailyDraft(
     setTranscript((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text)),
   )
   const { setAttachments, setAttachmentError } = files
-  const [values, setValues] = useState<Record<string, string>>(() => emptyValues(template))
+  const [values, setValues] = useState<Record<string, string>>(() => emptyValues(initialTemplate))
   const [approver, setApprover] = useState<string>(APPROVERS[0] ?? '')
   const [aiFilledIds, setAiFilledIds] = useState<ReadonlySet<string>>(new Set())
   const [dirtyIds, setDirtyIds] = useState<ReadonlySet<string>>(new Set())
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [generationRunId, setGenerationRunId] = useState<string>()
+  const generationAbort = useRef<AbortController | null>(null)
+  const generationAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
+  const recoveryAbort = useRef<AbortController | null>(null)
+  const recoveredScope = useRef('')
+  const [recovering, setRecovering] = useState(true)
+  const [pendingRecovery, setPendingRecovery] =
+    useState<AgentRunResponse<ReportDraftSnapshot> | null>(null)
 
   // 기간이나 종류가 바뀌면 자료를 다시 모으고 처음 상태로 돌아갑니다.
   // 쓰던 내용을 지워도 되는지는 화면이 먼저 묻습니다.
   const reset = useCallback(() => {
+    generationAbort.current?.abort()
+    recoveryAbort.current?.abort()
+    generationAttempt.current = undefined
     // 쓰다 만 보고서의 선택을 그대로 살립니다. 자료 목록은 지금 것을 쓰되
     // 무엇을 골랐는지만 이어받습니다. 그 사이 새로 생긴 자료도 함께 보여야 합니다.
-    const saved = seed.current.report
+    const saved = canonical
+    const nextTemplate = saved?.template ?? templateFor(kind)
     const collected = sourcesFor(
       kind,
       dateISO,
@@ -125,14 +195,18 @@ export default function useDailyDraft(
     setAttachments(saved?.attachments ?? [])
     setAttachmentError(null)
     setTranscript(saved?.transcript ?? '')
-    setValues(saved ? { ...emptyValues(template), ...saved.values } : emptyValues(template))
+    setTemplate(nextTemplate)
+    setValues(saved ? { ...emptyValues(nextTemplate), ...saved.values } : emptyValues(nextTemplate))
     setApprover(saved?.approver ?? APPROVERS[0] ?? '')
     setAiFilledIds(new Set())
     setDirtyIds(new Set())
     setGenerationError(null)
+    setGenerationRunId(undefined)
+    setPendingRecovery(null)
+    setRecovering(true)
     // 이어 쓰는 보고서는 이미 쓴 내용이 있으므로 입력칸을 바로 펴 줍니다.
     setPhase(saved ? 'ready' : 'idle')
-  }, [kind, dateISO, template, pickId, setAttachments, setAttachmentError])
+  }, [kind, dateISO, pickId, setAttachments, setAttachmentError, canonical])
 
   useEffect(() => {
     reset()
@@ -157,42 +231,217 @@ export default function useDailyDraft(
    * 무엇이든 하나입니다 — 자료가 없는 기간이라도 적어서 쓸 수 있어야 합니다.
    */
   const canGenerate =
+    !recovering &&
     hasAiFields &&
     (included.length > 0 || transcript.trim().length > 0 || files.attachments.length > 0)
 
-  const generate = useCallback(
-    async (reportId: string) => {
-      if (!canGenerate) return
-      setPhase('generating')
-      setGenerationError(null)
+  const generationPayload = useCallback(
+    () => ({
+      reportId: canonical?.id,
+      version: canonical?.version,
+      statusCode: canonical?.apiStatus,
+      date: dateISO,
+      kind,
+      approver,
+      values,
+      activities,
+      template,
+      attachments: files.attachments,
+      transcript,
+    }),
+    [
+      canonical,
+      dateISO,
+      kind,
+      approver,
+      values,
+      activities,
+      template,
+      files.attachments,
+      transcript,
+    ],
+  )
 
-      try {
-        const drafted = (await generateReportDraft(reportId)).values
-
-        // 사람이 손댄 항목은 덮지 않습니다. 덮어도 되는지는 화면이 먼저 묻습니다.
-        setValues((prev) => {
-          const next = { ...prev }
-          for (const field of template.fields) {
-            if (!field.aiFilled) continue
-            if (dirtyIds.has(field.id)) continue
-            next[field.id] = drafted[field.id] ?? ''
-          }
-          return next
-        })
-        setAiFilledIds(
+  const acceptGeneration = useCallback(
+    (
+      runId: string,
+      fields: { field_id: string; value: string }[],
+      candidateTemplate = template,
+    ) => {
+      const drafted = Object.fromEntries(fields.map((field) => [field.field_id, field.value]))
+      setValues((previous) => mergeGeneratedValues(candidateTemplate, previous, fields))
+      setAiFilledIds(
+        new Set(
+          candidateTemplate.fields
+            .filter((field) => field.aiFilled && drafted[field.id])
+            .map((field) => field.id),
+        ),
+      )
+      setDirtyIds(
+        (previous) =>
           new Set(
-            template.fields
-              .filter((f) => f.aiFilled && !dirtyIds.has(f.id) && drafted[f.id])
-              .map((f) => f.id),
+            [...previous].filter(
+              (id) => !candidateTemplate.fields.some((field) => field.id === id && field.aiFilled),
+            ),
           ),
-        )
-        setPhase('ready')
+      )
+      setGenerationRunId(runId)
+      setGenerationError(null)
+      setPhase('ready')
+    },
+    [template],
+  )
+
+  const restoreGenerationInput = useCallback(
+    (input: ReportGenerationInput) => {
+      const restored = periodGenerationSeedOf(input)
+      setTemplate(restored.template)
+      setActivities(restored.activities)
+      setAttachments(restored.attachments)
+      setAttachmentError(null)
+      setTranscript(restored.transcript)
+      setValues({ ...emptyValues(restored.template), ...restored.values })
+      setApprover(restored.approver || APPROVERS[0] || '')
+      setAiFilledIds(new Set())
+      setDirtyIds(new Set())
+      setGenerationRunId(undefined)
+      setGenerationError(null)
+      setPhase(
+        restored.activities.length > 0 ||
+          restored.attachments.length > 0 ||
+          restored.transcript.trim() ||
+          Object.values(restored.values).some((value) => value.trim())
+          ? 'ready'
+          : 'idle',
+      )
+      return restored
+    },
+    [setAttachments, setAttachmentError],
+  )
+
+  const resumeGeneration = useCallback(
+    async (run: AgentRunResponse<ReportDraftSnapshot>, controller: AbortController) => {
+      const input = periodInputOf(run, kind, dateISO)
+      const restored = restoreGenerationInput(input)
+      try {
+        if (run.status_code === 'failed' || run.status_code === 'cancelled') {
+          throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
+        }
+        if (run.status_code === 'queued' || run.status_code === 'running') setPhase('generating')
+        const completed = ['queued', 'running'].includes(run.status_code)
+          ? await waitForReportGeneration(run, undefined, controller.signal)
+          : run
+        if (!completed.output_snapshot) throw new Error('agent_run_failed')
+        if (!controller.signal.aborted) {
+          acceptGeneration(completed.id, completed.output_snapshot.fields, restored.template)
+        }
       } catch (reason: unknown) {
-        setGenerationError(errorMessage(reason, 'AI 보고서 초안을 만들지 못했습니다.'))
-        setPhase('ready')
+        if (!controller.signal.aborted) {
+          setGenerationError(errorMessage(reason, '진행 중인 AI 보고서를 복구하지 못했습니다.'))
+          setPhase('ready')
+        }
+      } finally {
+        if (recoveryAbort.current === controller) {
+          recoveryAbort.current = null
+          setRecovering(false)
+        }
       }
     },
-    [canGenerate, dirtyIds, template],
+    [kind, dateISO, restoreGenerationInput, acceptGeneration],
+  )
+
+  const generate = useCallback(async () => {
+    if (!canGenerate || generationAbort.current) return
+    recoveryAbort.current?.abort()
+    const controller = new AbortController()
+    generationAbort.current = controller
+    setPhase('generating')
+    setGenerationError(null)
+    const payload = generationPayload()
+    const attempt = idempotencyAttemptFor(generationAttempt.current, payload)
+    generationAttempt.current = attempt
+
+    try {
+      const created = await createReportGeneration<ReportDraftSnapshot>(
+        periodGenerationRequestOf(payload, attempt.key),
+      )
+      const completed = await waitForReportGeneration(created, undefined, controller.signal)
+      if (!controller.signal.aborted) {
+        acceptGeneration(completed.id, completed.output_snapshot.fields)
+        generationAttempt.current = finishIdempotencyAttempt(generationAttempt.current, attempt.key)
+      }
+    } catch (reason: unknown) {
+      if (!controller.signal.aborted) {
+        if (isAgentRunTerminalError(reason)) {
+          generationAttempt.current = finishIdempotencyAttempt(
+            generationAttempt.current,
+            attempt.key,
+          )
+        }
+        setGenerationError(errorMessage(reason, 'AI 보고서 초안을 만들지 못했습니다.'))
+        setPhase(
+          canonical || Object.values(values).some((value) => value.trim()) ? 'ready' : 'idle',
+        )
+      }
+    } finally {
+      if (generationAbort.current === controller) generationAbort.current = null
+    }
+  }, [canGenerate, generationPayload, acceptGeneration, canonical, values])
+
+  useEffect(() => {
+    if (existingLoading || recoveredScope.current === scopeKey) return
+    if (canonical?.apiStatus === 'submitted' || canonical?.apiStatus === 'approved') {
+      setRecovering(false)
+      return
+    }
+    recoveredScope.current = scopeKey
+    const controller = new AbortController()
+    recoveryAbort.current = controller
+    setRecovering(true)
+    const [from, to] = periodRange(kind, dateISO)
+    const scope =
+      kind === '일일'
+        ? { report_kind: 'daily' as const, report_date: dateISO }
+        : {
+            report_kind: kind === '주간' ? ('weekly' as const) : ('monthly' as const),
+            period_start: from,
+            period_end: to,
+          }
+
+    void latestReportGeneration<ReportDraftSnapshot>(scope, controller.signal)
+      .then((run) => {
+        if (controller.signal.aborted || generationAbort.current) return
+        periodInputOf(run, kind, dateISO)
+        if (requiresRecoveryConfirmation(canonical?.id)) {
+          setPendingRecovery(run)
+          if (recoveryAbort.current === controller) {
+            recoveryAbort.current = null
+            setRecovering(false)
+          }
+          return
+        }
+        return resumeGeneration(run, controller)
+      })
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted || (isAxiosError(reason) && reason.response?.status === 404))
+          return
+        setGenerationError(errorMessage(reason, '진행 중인 AI 보고서를 복구하지 못했습니다.'))
+      })
+      .finally(() => {
+        if (recoveryAbort.current === controller) {
+          recoveryAbort.current = null
+          setRecovering(false)
+        }
+      })
+    return () => controller.abort()
+  }, [kind, dateISO, scopeKey, existingLoading, canonical, resumeGeneration])
+
+  useEffect(
+    () => () => {
+      generationAbort.current?.abort()
+      recoveryAbort.current?.abort()
+    },
+    [],
   )
 
   /**
@@ -236,14 +485,29 @@ export default function useDailyDraft(
     dirtyIds,
     canGenerate,
     generate,
+    recovering,
+    pendingRecovery,
+    acceptPendingRecovery: () => {
+      if (!pendingRecovery) return
+      const run = pendingRecovery
+      setPendingRecovery(null)
+      const controller = new AbortController()
+      recoveryAbort.current = controller
+      setRecovering(true)
+      void resumeGeneration(run, controller)
+    },
+    discardPendingRecovery: () => setPendingRecovery(null),
+    generationRunId,
     generationError,
     missing,
     reset,
     /** 이 기간에 이미 있는 보고서. 이어 쓰는 중인지 화면이 이 값으로 안내합니다. */
-    existing,
+    existing: canonical,
     loading: agendaLoading || meetingLoading || reportLoading || existingLoading,
     error: agendaError ?? meetingError ?? reportError ?? existingError,
     reload: () => {
+      recoveredScope.current = ''
+      setRecovering(true)
       void reloadAgenda()
       reloadMeetings()
       reloadReports()

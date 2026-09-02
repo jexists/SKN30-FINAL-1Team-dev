@@ -8,7 +8,6 @@ import type { MeetingDealRef, MeetingProgress, ReportTemplate } from '@/types'
 
 import { isInsufficientDealPrediction } from '../../generatedDraft'
 import type { DealDraftState } from '../../useMeetingDraft'
-import AiOriginalPanel from '../AiOriginalPanel'
 import ReportSheet from '../ReportSheet'
 
 import styles from './DealReportCard.module.scss'
@@ -29,7 +28,6 @@ interface Props {
   onChange: (values: Record<string, string>, missingSections: string[]) => void
   onRestoreSections: () => void
   onStartManual: () => void
-  onApplyAi: () => void
   onGenerate: () => void
 }
 
@@ -79,7 +77,6 @@ export default function DealReportCard({
   onChange,
   onRestoreSections,
   onStartManual,
-  onApplyAi,
   onGenerate,
 }: Props) {
   const [open, setOpen] = useState(true)
@@ -89,8 +86,8 @@ export default function DealReportCard({
   const dealTitle = deal ? deal.title.trim() || deal.product : savedDeal?.note
   const editable = draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
   const locked = !editable || readOnly || generating || saving
-  const generationDisabled = draft.statusCode !== 'draft' || !canGenerate
-  const hasAiOriginal = Object.keys(draft.aiValues).length > 0
+  const generationDisabled =
+    !['draft', 'changes_requested'].includes(draft.statusCode) || !canGenerate
 
   return (
     <article className={styles.card}>
@@ -118,24 +115,6 @@ export default function DealReportCard({
       </button>
 
       <div id={bodyId} className={`${styles.body} ${open ? '' : styles.isClosed}`}>
-        {hasAiOriginal && (
-          <details className={styles.original}>
-            <summary>
-              AI 원본 보기
-              {draft.pendingAi && <span>새 결과</span>}
-            </summary>
-            <AiOriginalPanel
-              template={template}
-              values={draft.aiValues}
-              evidence={draft.aiEvidence}
-              generatedAt={draft.aiGeneratedAt}
-              pending={draft.pendingAi}
-              disabled={locked || saving}
-              onApply={onApplyAi}
-            />
-          </details>
-        )}
-
         <ReportSheet
           embedded
           phase={draft.phase}
@@ -159,7 +138,6 @@ export default function DealReportCard({
           generationDisabled={generationDisabled}
           locked={locked}
           saving={saving || generating}
-          hasAiOriginal={hasAiOriginal}
           onStartManual={onStartManual}
           onRegenerate={onGenerate}
           regenerateLabel="미팅 전체 다시 생성"
