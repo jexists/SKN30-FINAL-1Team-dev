@@ -349,6 +349,8 @@ export default function useDailyDraft(
     },
     [kind, dateISO, restoreGenerationInput, acceptGeneration],
   )
+  const resumeGenerationRef = useRef(resumeGeneration)
+  resumeGenerationRef.current = resumeGeneration
 
   const generate = useCallback(async () => {
     if (!canGenerate || generationAbort.current) return
@@ -420,7 +422,7 @@ export default function useDailyDraft(
           }
           return
         }
-        return resumeGeneration(run, controller)
+        return resumeGenerationRef.current(run, controller)
       })
       .catch((reason: unknown) => {
         if (controller.signal.aborted || (isAxiosError(reason) && reason.response?.status === 404))
@@ -434,7 +436,7 @@ export default function useDailyDraft(
         }
       })
     return () => controller.abort()
-  }, [kind, dateISO, scopeKey, existingLoading, canonical, resumeGeneration])
+  }, [kind, dateISO, scopeKey, existingLoading, canonical?.id, canonical?.apiStatus])
 
   useEffect(
     () => () => {

@@ -52,7 +52,13 @@ export function idempotencyAttemptFor(
   current: IdempotencyAttempt | undefined,
   payload: unknown,
 ): IdempotencyAttempt {
-  const signature = JSON.stringify(payload)
+  const signature = JSON.stringify(payload, (_key, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+        )
+      : value,
+  )
   return current?.signature === signature ? current : { signature, key: crypto.randomUUID() }
 }
 

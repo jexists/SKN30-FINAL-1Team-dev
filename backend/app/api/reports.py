@@ -1042,8 +1042,9 @@ async def finalize_report(
             for field_name, value in normalized.items():
                 setattr(report, field_name, value)
             report.transcript = payload.transcript
-            report.source_snapshot = {"agent_run_id": str(run.id)} if run is not None else None
-            report.ai_evidence = dict(run.evidence or {}) if run is not None else None
+            if run is not None:
+                report.source_snapshot = {"agent_run_id": str(run.id)}
+                report.ai_evidence = dict(run.evidence or {})
             report.note = payload.note
             report.review_note = None
             report.reviewed_by_member_id = None

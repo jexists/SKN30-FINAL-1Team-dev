@@ -130,7 +130,11 @@ def effective_report_fields(report: Report) -> dict[str, Any]:
     structured = _approved_structured_values(getattr(report, "structured_values", None))
     if not structured:
         structured = _approved_structured_values(
-            {key: value for key, value in values.items() if key != "body"}
+            {
+                key: value
+                for key, value in values.items()
+                if key != "body" and not is_reserved_submission_field(key)
+            }
         )
     if not structured:
         # Old period reports stored template fields directly under ``content``.  A template-id
@@ -156,7 +160,11 @@ def effective_deal_fields(section: ReportDeal) -> dict[str, Any]:
     structured = _approved_structured_values(getattr(section, "structured_values", None))
     if not structured:
         structured = _approved_structured_values(
-            {key: value for key, value in values.items() if key != "body"}
+            {
+                key: value
+                for key, value in values.items()
+                if key != "body" and not is_reserved_submission_field(key)
+            }
         )
     return {
         "title": _text(getattr(section, "title", None)) or _text(content.get("title")),

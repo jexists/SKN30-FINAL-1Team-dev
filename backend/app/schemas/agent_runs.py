@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -28,6 +29,8 @@ Guidance = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=2_000),
 ]
+
+REPORT_GENERATION_JSON_MAX_BYTES = 256 * 1024
 
 # agent_code 별로 허용되는 식별 필드만 채울 수 있다. 나머지는 반드시 비워야 한다.
 # 값이 dict 형태면 그 필드가 필수라는 뜻이고, "optional" 이면 있어도 없어도 된다.
@@ -158,6 +161,16 @@ class ReportGenerationCreate(ReportGenerationInput):
     """Canonical 보고서를 만들지 않고 실행 시점에 고정하는 생성 요청."""
 
     idempotency_key: UUID
+
+    @model_validator(mode="after")
+    def _validate_json_size(self):
+        for field_name in ("template_snapshot", "content"):
+            serialized = json.dumps(
+                getattr(self, field_name), ensure_ascii=False, default=str, separators=(",", ":")
+            ).encode("utf-8")
+            if len(serialized) > REPORT_GENERATION_JSON_MAX_BYTES:
+                raise ValueError(f"{field_name}_too_large")
+        return self
 
 
 class ReportGenerationScope(BaseModel):

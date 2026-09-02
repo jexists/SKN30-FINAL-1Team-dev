@@ -20,7 +20,12 @@ from app.db.session import get_db
 from app.main import app
 from app.models.agent import AgentRun
 from app.models.workspace import Member
-from app.schemas.agent_runs import AgentRunCreate, ReportGenerationCreate, ReportGenerationScope
+from app.schemas.agent_runs import (
+    REPORT_GENERATION_JSON_MAX_BYTES,
+    AgentRunCreate,
+    ReportGenerationCreate,
+    ReportGenerationScope,
+)
 from app.services import agent_runs as service
 from app.services import agent_worker
 
@@ -233,6 +238,14 @@ def test_report_generation_input_has_one_typed_scope():
         )
     with pytest.raises(ValidationError):
         ReportGenerationScope(report_kind="weekly", period_start=date(2026, 8, 1))
+
+
+@pytest.mark.parametrize("field_name", ["template_snapshot", "content"])
+def test_report_generation_rejects_oversized_json_fields(field_name):
+    payload = _daily_payload(**{field_name: {"value": "가" * REPORT_GENERATION_JSON_MAX_BYTES}})
+
+    with pytest.raises(ValidationError, match=f"{field_name}_too_large"):
+        ReportGenerationCreate.model_validate(payload)
 
 
 def test_report_generation_rejects_missing_llm_before_db(llm_missing):
@@ -693,9 +706,10 @@ def test_transient_generation_migration_keeps_blue_green_agent_storage():
     sql = (
         Path(__file__).parents[1] / "sql/20260902_0019_transient_report_generation.sql"
     ).read_text(encoding="utf-8")
-    assert "DROP COLUMN IF EXISTS parent_run_id" not in sql
-    assert "DROP COLUMN" not in sql
-    assert "DROP INDEX" not in sql
+    active_sql = "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
+    assert "DROP COLUMN IF EXISTS parent_run_id" not in active_sql
+    assert "DROP COLUMN" not in active_sql
+    assert "DROP INDEX" not in active_sql
     assert "attempt_count BETWEEN" not in sql
     assert "agent_run_lifecycle_migrated" not in sql
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { after, test } from 'node:test'
 import { createServer } from 'vite'
 
@@ -54,10 +55,14 @@ const run = (status, output = null) => ({
 })
 
 test('같은 논리 시도의 응답 유실 재시도는 멱등 키를 재사용하고 입력 변경은 새 키를 쓴다', () => {
-  const first = idempotencyAttemptFor(undefined, { report_kind: 'daily', values: { body: 'A' } })
-  const retry = idempotencyAttemptFor(first, {
+  const payload = {
     report_kind: 'daily',
-    values: { body: 'A' },
+    values: { body: 'A', memo: 'B' },
+  }
+  const first = idempotencyAttemptFor(undefined, payload)
+  const retry = idempotencyAttemptFor(first, {
+    values: { memo: 'B', body: 'A' },
+    report_kind: 'daily',
   })
   const edited = idempotencyAttemptFor(first, {
     report_kind: 'daily',
@@ -69,18 +74,28 @@ test('같은 논리 시도의 응답 유실 재시도는 멱등 키를 재사용
   assert.notEqual(edited.key, first.key)
 
   // POST 뒤 polling만 실패한 동안에는 시도를 닫지 않아 같은 run을 다시 받습니다.
-  const afterPollingFailure = idempotencyAttemptFor(first, {
-    report_kind: 'daily',
-    values: { body: 'A' },
-  })
+  const afterPollingFailure = idempotencyAttemptFor(first, payload)
   assert.equal(afterPollingFailure.key, first.key)
   const finished = finishIdempotencyAttempt(afterPollingFailure, first.key)
-  const nextGeneration = idempotencyAttemptFor(finished, {
-    report_kind: 'daily',
-    values: { body: 'A' },
-  })
+  const nextGeneration = idempotencyAttemptFor(finished, payload)
   assert.notEqual(nextGeneration.key, first.key)
   assert.equal(finishIdempotencyAttempt(edited, first.key), edited)
+})
+
+test('기간 보고서 복구 polling은 복구 입력으로 화면 상태가 바뀌어도 같은 effect에서 이어진다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url),
+    'utf8',
+  )
+  const recoveryEffect = source.slice(
+    source.indexOf('if (existingLoading || recoveredScope.current === scopeKey)'),
+    source.indexOf('useEffect(\n    () => () =>'),
+  )
+  const dependencies = recoveryEffect.slice(recoveryEffect.lastIndexOf('}, ['))
+
+  assert.match(source, /const resumeGenerationRef = useRef\(resumeGeneration\)/)
+  assert.match(recoveryEffect, /resumeGenerationRef\.current\(run, controller\)/)
+  assert.doesNotMatch(dependencies, /\bresumeGeneration\b/)
 })
 
 test('재접속 후보는 canonical 보고서가 없을 때만 자동 적용한다', () => {

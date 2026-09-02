@@ -2,20 +2,21 @@
 -- Blue/green 전환 중 구 backend/worker가 읽는 기존 컬럼·인덱스·테이블은 유지한다.
 -- 파괴적 정리는 구 컨테이너가 모두 종료된 뒤 별도 migration으로 수행한다.
 BEGIN;
+SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE public.agent_run
     ADD COLUMN IF NOT EXISTS scope_key text,
     ADD COLUMN IF NOT EXISTS payload_expires_at timestamptz,
     ADD COLUMN IF NOT EXISTS payload_redacted_at timestamptz;
 
-CREATE UNIQUE INDEX agent_run_active_generation_scope_key
+CREATE UNIQUE INDEX IF NOT EXISTS agent_run_active_generation_scope_key
     ON public.agent_run (team_id, requested_by_member_id, scope_key)
     WHERE agent_code IN ('meeting_processing', 'report_writing')
       AND status_code IN ('queued', 'running')
       AND report_id IS NULL
       AND scope_key IS NOT NULL;
 
-CREATE INDEX agent_run_payload_expiry_idx
+CREATE INDEX IF NOT EXISTS agent_run_payload_expiry_idx
     ON public.agent_run (payload_expires_at)
     WHERE payload_expires_at IS NOT NULL AND payload_redacted_at IS NULL;
 
@@ -24,16 +25,42 @@ ALTER TABLE public.report_submission
     ADD COLUMN IF NOT EXISTS idempotency_key uuid,
     ADD COLUMN IF NOT EXISTS request_hash text;
 
-ALTER TABLE public.report_submission
-    ADD CONSTRAINT report_submission_request_hash_sha256
-        CHECK (request_hash IS NULL OR request_hash ~ '^[0-9a-f]{64}$'),
-    ADD CONSTRAINT report_submission_idempotency_pair
-        CHECK (
-            (idempotency_key IS NULL AND request_hash IS NULL)
-            OR (idempotency_key IS NOT NULL AND request_hash IS NOT NULL)
-        ),
-    ADD CONSTRAINT report_submission_submitter_idempotency_key
-        UNIQUE (submitted_by_member_id, idempotency_key);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'public.report_submission'::regclass
+          AND conname = 'report_submission_request_hash_sha256'
+    ) THEN
+        ALTER TABLE public.report_submission
+            ADD CONSTRAINT report_submission_request_hash_sha256
+            CHECK (request_hash IS NULL OR request_hash ~ '^[0-9a-f]{64}$');
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'public.report_submission'::regclass
+          AND conname = 'report_submission_idempotency_pair'
+    ) THEN
+        ALTER TABLE public.report_submission
+            ADD CONSTRAINT report_submission_idempotency_pair
+            CHECK (
+                (idempotency_key IS NULL AND request_hash IS NULL)
+                OR (idempotency_key IS NOT NULL AND request_hash IS NOT NULL)
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'public.report_submission'::regclass
+          AND conname = 'report_submission_submitter_idempotency_key'
+    ) THEN
+        ALTER TABLE public.report_submission
+            ADD CONSTRAINT report_submission_submitter_idempotency_key
+            UNIQUE (submitted_by_member_id, idempotency_key);
+    END IF;
+END
+$$;
 
 -- 확정 provenance와 멱등 정보도 제출 snapshot과 함께 불변이다.
 CREATE OR REPLACE FUNCTION public.guard_report_submission_update()
@@ -90,5 +117,14 @@ COMMENT ON COLUMN public.agent_run.payload_redacted_at IS
     '원문·CRM·AI 결과 payload를 제거한 시각.';
 COMMENT ON COLUMN public.report_submission.agent_run_id IS
     '사람이 이 확정본을 작성할 때 참고한 선택적 AgentRun.';
+
+-- 되돌릴 때는 아래 제약과 인덱스를 먼저 제거한다. 컬럼 제거는 저장된 provenance를
+-- 잃으므로 구 코드로 완전히 복귀하기로 결정한 별도 migration에서만 수행한다.
+-- ALTER TABLE public.report_submission DROP CONSTRAINT IF EXISTS
+--     report_submission_submitter_idempotency_key,
+--     DROP CONSTRAINT IF EXISTS report_submission_idempotency_pair,
+--     DROP CONSTRAINT IF EXISTS report_submission_request_hash_sha256;
+-- DROP INDEX IF EXISTS public.agent_run_payload_expiry_idx;
+-- DROP INDEX IF EXISTS public.agent_run_active_generation_scope_key;
 
 COMMIT;

@@ -11,7 +11,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import func, or_, select
+from sqlalchemy import column, func, or_, select, true
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.content import Report, ReportSubmission
@@ -379,79 +380,125 @@ async def _previous_reports_by_deal(db, member, activity, sales_deal_ids):
         )
         .subquery()
     )
+    snapshot_deal = (
+        func.jsonb_array_elements(ranked.c.snapshot["deals"])
+        .table_valued(column("value", JSONB))
+        .lateral("snapshot_deal")
+    )
+    matching_reports = (
+        reports._joined_select(
+            snapshot_deal.c.value["sales_deal_id"].astext.label("sales_deal_id"),
+            ranked.c.submission_id,
+            Report.id.label("report_id"),
+            Report.report_date,
+            Activity.starts_at.label("meeting_at"),
+            ranked.c.review_status,
+            ranked.c.snapshot,
+            ranked.c.snapshot_sha256,
+            ranked.c.submitted_at,
+        )
+        .join(Activity, Report.source_activity_id == Activity.id)
+        .join(ranked, ranked.c.report_id == Report.id)
+        .join(snapshot_deal, true())
+        .where(
+            *reports._scope(member),
+            Report.report_kind == "meeting",
+            Report.source_activity_id != activity.id,
+            Activity.team_id == member.team_id,
+            Activity.deleted_at.is_(None),
+            Activity.starts_at < activity.starts_at,
+            ranked.c.submission_rank == 1,
+            ranked.c.review_status.in_(("pending", "approved")),
+            snapshot_deal.c.value["sales_deal_id"].astext.in_(
+                tuple(str(sales_deal_id) for sales_deal_id in sales_deal_ids)
+            ),
+        )
+        .subquery("matching_previous_reports")
+    )
+    previous_reports = select(
+        matching_reports,
+        func.row_number()
+        .over(
+            partition_by=matching_reports.c.sales_deal_id,
+            order_by=(
+                matching_reports.c.meeting_at.desc(),
+                matching_reports.c.submitted_at.desc(),
+                matching_reports.c.report_id,
+            ),
+        )
+        .label("deal_rank"),
+    ).subquery("previous_reports")
     rows = (
         await db.execute(
-            reports._joined_select(
-                ranked.c.submission_id,
-                Report.id,
-                Report.report_date,
-                Activity.starts_at,
-                ranked.c.review_status,
-                ranked.c.snapshot,
-                ranked.c.snapshot_sha256,
+            select(
+                previous_reports.c.sales_deal_id,
+                previous_reports.c.submission_id,
+                previous_reports.c.report_id,
+                previous_reports.c.report_date,
+                previous_reports.c.meeting_at,
+                previous_reports.c.review_status,
+                previous_reports.c.snapshot,
+                previous_reports.c.snapshot_sha256,
             )
-            .join(Activity, Report.source_activity_id == Activity.id)
-            .join(ranked, ranked.c.report_id == Report.id)
-            .where(
-                *reports._scope(member),
-                Report.report_kind == "meeting",
-                Report.source_activity_id != activity.id,
-                Activity.team_id == member.team_id,
-                Activity.deleted_at.is_(None),
-                Activity.starts_at < activity.starts_at,
-                ranked.c.submission_rank == 1,
-                ranked.c.review_status.in_(("pending", "approved")),
-                or_(
-                    *(
-                        ranked.c.snapshot["deals"].contains([{"sales_deal_id": str(sales_deal_id)}])
-                        for sales_deal_id in sales_deal_ids
-                    )
-                ),
+            .where(previous_reports.c.deal_rank <= PREVIOUS_REPORT_LIMIT + 1)
+            .order_by(
+                previous_reports.c.sales_deal_id,
+                previous_reports.c.deal_rank,
             )
-            .order_by(Activity.starts_at.desc(), ranked.c.submitted_at.desc(), Report.id)
         )
     ).all()
+    selected_deals = {str(sales_deal_id): sales_deal_id for sales_deal_id in sales_deal_ids}
     items_by_deal = {sales_deal_id: [] for sales_deal_id in sales_deal_ids}
     truncated = dict.fromkeys(sales_deal_ids, False)
-    for submission_id, report_id, report_date, meeting_at, review_status, snapshot, digest in rows:
+    for (
+        matched_sales_deal_id,
+        submission_id,
+        report_id,
+        report_date,
+        meeting_at,
+        review_status,
+        snapshot,
+        digest,
+    ) in rows:
+        sales_deal_id = selected_deals.get(str(matched_sales_deal_id))
+        if sales_deal_id is None:
+            raise ValueError("report_submission_snapshot_invalid")
         if not isinstance(snapshot, dict) or snapshot_sha256(snapshot) != digest:
             raise ValueError("report_submission_snapshot_hash_mismatch")
         deals = snapshot.get("deals")
         if snapshot.get("report_kind") != "meeting" or not isinstance(deals, list):
             raise ValueError("report_submission_snapshot_invalid")
-        for sales_deal_id in sales_deal_ids:
-            deal = next(
-                (
-                    value
-                    for value in deals
-                    if isinstance(value, dict)
-                    and str(value.get("sales_deal_id")) == str(sales_deal_id)
-                ),
-                None,
-            )
-            if deal is None:
-                continue
-            items = items_by_deal[sales_deal_id]
-            if len(items) >= PREVIOUS_REPORT_LIMIT:
-                truncated[sales_deal_id] = True
-                continue
-            values = deal.get("structured_values")
-            values = dict(values) if isinstance(values, dict) else {}
-            if isinstance(deal.get("body"), str):
-                values["body"] = deal["body"]
-            cleaned, shortened = _report_values(values)
-            items.append(
-                {
-                    "submission_id": submission_id,
-                    "report_id": report_id,
-                    "sales_deal_id": sales_deal_id,
-                    "report_date": report_date,
-                    "meeting_at": meeting_at,
-                    "status_code": "approved" if review_status == "approved" else "submitted",
-                    "values": cleaned,
-                    "values_truncated": shortened,
-                }
-            )
+        deal = next(
+            (
+                value
+                for value in deals
+                if isinstance(value, dict) and str(value.get("sales_deal_id")) == str(sales_deal_id)
+            ),
+            None,
+        )
+        if deal is None:
+            raise ValueError("report_submission_snapshot_invalid")
+        items = items_by_deal[sales_deal_id]
+        if len(items) >= PREVIOUS_REPORT_LIMIT:
+            truncated[sales_deal_id] = True
+            continue
+        deal_values = deal.get("structured_values")
+        deal_values = dict(deal_values) if isinstance(deal_values, dict) else {}
+        if isinstance(deal.get("body"), str):
+            deal_values["body"] = deal["body"]
+        cleaned, shortened = _report_values(deal_values)
+        items.append(
+            {
+                "submission_id": submission_id,
+                "report_id": report_id,
+                "sales_deal_id": sales_deal_id,
+                "report_date": report_date,
+                "meeting_at": meeting_at,
+                "status_code": "approved" if review_status == "approved" else "submitted",
+                "values": cleaned,
+                "values_truncated": shortened,
+            }
+        )
 
     return [
         jsonable_encoder(

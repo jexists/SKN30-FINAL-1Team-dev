@@ -83,7 +83,10 @@ EXPECTED_COLUMN_COUNTS = {
 
 # Supabase에 이미 남아 있지만 현재 애플리케이션이 사용하지 않는 과거 테이블입니다.
 # 삭제 대신 명시적으로 허용하고, 현재 모델 테이블이 DB에서 빠지는 경우는 계속 실패시킵니다.
-KNOWN_LEGACY_DATABASE_TABLES = {"contract_next_meeting_suggestion"}
+KNOWN_LEGACY_DATABASE_TABLES = {
+    "contract_next_meeting_suggestion",
+    "meeting_deal_analysis",
+}
 
 # 원격 Supabase에 이전 마이그레이션의 잔여 컬럼이 남아 있을 수 있습니다.
 # 모델 컬럼 누락은 계속 실패시키고, 아래에 기록한 추가 컬럼만 허용합니다.

@@ -59,6 +59,15 @@ def test_usage_contains_only_reported_nonnegative_integer_counts(usage, expected
     assert llm.safe_token_usage(usage) == expected
 
 
+@pytest.mark.parametrize("error_type", [httpx.NetworkError, httpx.TimeoutException])
+def test_httpx_base_transport_errors_remain_retryable(error_type):
+    error = error_type("provider unavailable")
+    code = llm.llm_boundary_error_code(error)
+
+    assert code == f"llm_request_failed:{error_type.__name__}"
+    assert llm.is_transient_llm_error(code) is True
+
+
 @pytest.mark.anyio
 @pytest.mark.parametrize("malformed", [False, True])
 @pytest.mark.parametrize("response_kind", ["plain", "fenced", "ollama_fenced"])

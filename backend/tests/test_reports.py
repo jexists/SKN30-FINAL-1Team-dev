@@ -750,6 +750,24 @@ def test_submission_keeps_legitimate_declared_legacy_fields():
     assert snapshot["structured_values"] == {"summary": "사람이 승인한 요약"}
 
 
+def test_submission_drops_reserved_top_level_legacy_values():
+    member = _member()
+    report = _report(member, kind="meeting")
+    section = _section(report)
+    section.body = None
+    report.content = {"values": {"summary": "사람이 승인한 요약", "transcript": "구버전 원문"}}
+    section.content = {
+        "values": {"body": "사람이 승인한 본문", "ai_values": {"body": "구버전 초안"}}
+    }
+
+    snapshot = report_submissions.build_submission_snapshot(report, [section])
+
+    assert snapshot["structured_values"] == {"summary": "사람이 승인한 요약"}
+    assert snapshot["deals"][0]["body"] == "사람이 승인한 본문"
+    assert "transcript" not in snapshot["structured_values"]
+    assert "ai_values" not in snapshot["deals"][0]["structured_values"]
+
+
 def test_meeting_run_evidence_is_matched_by_server_deal_id():
     member = _member()
     deal_id = uuid4()
@@ -930,6 +948,46 @@ async def test_finalize_existing_report_checks_version_before_mutation(monkeypat
     assert caught.value.detail == "report_version_conflict"
     assert report.status_code == "changes_requested"
     assert db.commit_count == 0 and db.rollback_count == 1
+
+
+@pytest.mark.anyio
+async def test_resubmit_without_generation_keeps_existing_ai_provenance(monkeypatch):
+    member = _member()
+    report = _report(member, status_code="changes_requested")
+    report.source_snapshot = {"agent_run_id": str(uuid4())}
+    report.ai_evidence = {"prompt_version": "report_writing.v1"}
+    original_source = dict(report.source_snapshot)
+    original_evidence = dict(report.ai_evidence)
+    db = _Db(_Result(scalar_values=[]))
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_id=report.id,
+        expected_version=1,
+        expected_status_code="changes_requested",
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={"values": {"summary": "사람이 수정한 확정본"}},
+    )
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(reports_api, "_finalize_run", AsyncMock(return_value=None))
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(reports_api, "_locked_report", AsyncMock(return_value=report))
+    monkeypatch.setattr(reports_api, "_replace_report_activities", AsyncMock())
+    monkeypatch.setattr(
+        reports_api.report_sources, "sync_report_sources_from_legacy_content", AsyncMock()
+    )
+    monkeypatch.setattr(
+        reports_api,
+        "_detail",
+        AsyncMock(return_value=SimpleNamespace(id=report.id)),
+    )
+
+    await reports_api.finalize_report(payload, Response(), BackgroundTasks(), member, db)
+
+    assert report.source_snapshot == original_source
+    assert report.ai_evidence == original_evidence
+    assert report.status_code == "submitted"
 
 
 @pytest.mark.anyio

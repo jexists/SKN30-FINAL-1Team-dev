@@ -131,5 +131,9 @@ def test_transient_generation_migration_is_additive_and_guards_provenance():
     assert "NEW.agent_run_id" in sql
     assert "NEW.idempotency_key" in sql
     assert "NEW.request_hash" in sql
+    assert "SET LOCAL lock_timeout" in sql
+    assert sql.count("CREATE INDEX IF NOT EXISTS") == 1
+    assert sql.count("CREATE UNIQUE INDEX IF NOT EXISTS") == 1
+    assert sql.count("conrelid = 'public.report_submission'::regclass") == 3
     assert "DROP COLUMN" not in sql
     assert "DROP TABLE" not in sql

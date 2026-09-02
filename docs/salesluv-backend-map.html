@@ -895,7 +895,7 @@ html&gt;body{padding:0}&lt;/style&gt;
       &lt;div class=&quot;viz-row text-muted&quot;&gt;
         &lt;span&gt;ERD 26개 테이블&lt;/span&gt;
         &lt;span&gt;외래키 65개&lt;/span&gt;
-        &lt;span&gt;API 43개 경로 · 62개 동작&lt;/span&gt;
+        &lt;span&gt;API 46개 경로 · 63개 동작&lt;/span&gt;
       &lt;/div&gt;
     &lt;/div&gt;
     &lt;nav class=&quot;viz-controls&quot; aria-label=&quot;백엔드 지도 보기&quot;&gt;
@@ -961,7 +961,7 @@ html&gt;body{padding:0}&lt;/style&gt;
       &lt;/table&gt;
     &lt;/div&gt;
     &lt;div id=&quot;sl-api-mobile&quot; class=&quot;api-mobile-list&quot;&gt;&lt;/div&gt;
-    &lt;p class=&quot;text-small text-muted&quot;&gt;GET 32 · POST 19 · PATCH 7 · DELETE 4. 모든 POST/PATCH/DELETE 요청은 허용된 Origin 검사를 추가로 통과해야 합니다.&lt;/p&gt;
+    &lt;p class=&quot;text-small text-muted&quot;&gt;GET 33 · POST 20 · PATCH 6 · DELETE 4. 모든 POST/PATCH/DELETE 요청은 허용된 Origin 검사를 추가로 통과해야 합니다.&lt;/p&gt;
   &lt;/section&gt;
 
   &lt;footer class=&quot;text-small text-muted&quot;&gt;기준: 20260819 baseline schema와 FastAPI 런타임 OpenAPI · 2026-08-20&lt;/footer&gt;
@@ -1477,7 +1477,7 @@ html&gt;body{padding:0}&lt;/style&gt;
   apiMethod.addEventListener(&#x27;change&#x27;, renderApis);
   apiSearch.addEventListener(&#x27;input&#x27;, renderApis);
 
-  if (relations.length !== 65 || entities.length !== 26 || apis.length !== 62) {
+  if (relations.length !== 65 || entities.length !== 26 || apis.length !== 63) {
     root.querySelector(&#x27;footer&#x27;).classList.add(&#x27;text-destructive&#x27;);
     root.querySelector(&#x27;footer&#x27;).textContent = `데이터 검산 오류: tables=${entities.length}, fks=${relations.length}, apis=${apis.length}`;
   }

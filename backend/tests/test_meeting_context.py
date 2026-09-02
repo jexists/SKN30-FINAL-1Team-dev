@@ -173,6 +173,7 @@ def _submission_row(deal_id, meeting_at, *, body="이전 논의", review_status=
         ],
     }
     return (
+        deal_id,
         submission_id,
         report_id,
         meeting_at.date(),
@@ -333,7 +334,7 @@ def test_frozen_company_history_has_larger_explicit_limit_and_no_deal_scope(samp
 def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample):
     meeting_at = sample["activity"].starts_at - timedelta(days=1)
     row = list(_submission_row(sample["ids"][0], meeting_at, body="확정한 이전 딜 내용"))
-    row[5]["deals"][0]["structured_values"] = {
+    row[6]["deals"][0]["structured_values"] = {
         "transcript": "원문 금지",
         "rawTranscript": "원문 변형도 금지",
         "AI-Values": "AI 값 변형도 금지",
@@ -342,14 +343,14 @@ def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample)
         "common_report": "공통 금지",
         "unassigned_report": "미지정 금지",
     }
-    row[6] = report_submissions.snapshot_sha256(row[5])
+    row[7] = report_submissions.snapshot_sha256(row[6])
     db = Db(Result(), Result([tuple(row)]), Result())
 
     result = build(sample, db)["crm_context"]["previous_reports"][0]
 
     assert result["items"][0]["values"] == {"body": "확정한 이전 딜 내용"}
-    assert result["items"][0]["submission_id"] == str(row[0])
-    assert result["items"][0]["report_id"] == str(row[1])
+    assert result["items"][0]["submission_id"] == str(row[1])
+    assert result["items"][0]["report_id"] == str(row[2])
     assert result["items"][0]["meeting_at"] == meeting_at.isoformat()
     assert result["items"][0]["status_code"] == "approved"
     assert result["time_basis"] == "historical_context_not_current_meeting_facts"
@@ -371,7 +372,11 @@ def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample)
     assert "transcript" not in sql and "ai_evidence" not in sql and "source_snapshot" not in sql
     assert ["pending", "approved"] in compiled.params.values()
     assert sample["activity"].starts_at in compiled.params.values()
-    assert "ORDER BY public.activity.starts_at DESC" in sql
+    assert "PARTITION BY matching_previous_reports.sales_deal_id" in sql
+    assert "previous_reports.deal_rank <=" in sql
+    assert "jsonb_array_elements" in sql
+    assert "JOIN LATERAL" in sql
+    assert service.PREVIOUS_REPORT_LIMIT + 1 in compiled.params.values()
 
 
 def test_previous_submissions_are_loaded_once_and_partitioned_by_deal(sample):
