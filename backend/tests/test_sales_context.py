@@ -164,6 +164,15 @@ async def test_briefing_context_is_json_serializable(monkeypatch):
     assert context["summaries"][0]["document_id"] == str(document_id)
 
 
+def test_latest_completed_file_excludes_older_versions():
+    """같은 문서를 다시 올리면 옛 버전 청크가 남는다 — 근거로 섞이면 안 된다."""
+    rendered = str(document_processing.latest_completed_file())
+    # "더 새로운 완료 버전이 없다" 로 표현한다.
+    assert "NOT (EXISTS" in rendered
+    assert "version_no >" in rendered
+    assert "document_id = " in rendered
+
+
 def test_document_scopes_pairs_deal_and_company_for_or_matching():
     """딜·고객사를 AND 로 묶으면 한쪽에만 연결된 자료가 통째로 빠진다."""
     assert document_processing.document_scopes(None, None) == []

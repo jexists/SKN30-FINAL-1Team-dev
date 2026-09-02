@@ -56,6 +56,8 @@ async def retrieve_briefing_context(
             Document.team_id == team_id,
             *([or_(*scopes)] if scopes else []),
             FileRow.processing_status == "completed",
+            # 검색이 최신 버전만 보므로 요약도 같은 기준이어야 한다.
+            document_processing.latest_completed_file(),
         )
     )
     files = {row.id: (row, document_uuid) for row, document_uuid in summary_result.all()}

@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.agents import document_summary
 from app.core.config import settings
@@ -359,6 +360,27 @@ def _tokens(value: str) -> set[str]:
     return {token.lower() for token in re.findall(r"[\w가-힣]{2,}", value)}
 
 
+def latest_completed_file() -> Any:
+    """문서마다 최신 완료 버전 파일만 남기는 조건.
+
+    같은 문서를 다시 올리면 옛 버전의 청크와 요약이 그대로 남는다. 걸러 내지 않으면
+    이미 바뀐 금액이나 일정이 근거로 섞여 들어간다.
+
+    "더 새로운 완료 버전이 없다" 로 표현한다. 보고서에 붙은 파일처럼 document_id 가
+    없는 행은 비교 대상이 없어 그대로 통과한다.
+    """
+    newer = aliased(FileRow)
+    return ~(
+        select(newer.id)
+        .where(
+            newer.document_id == FileRow.document_id,
+            newer.processing_status == "completed",
+            newer.version_no > FileRow.version_no,
+        )
+        .exists()
+    )
+
+
 def document_scopes(sales_deal_id: UUID | None, customer_company_id: UUID | None) -> list[Any]:
     """딜·고객사 연결 조건. 둘 다 없으면 빈 목록이라 document 조인 자체를 하지 않는다.
 
@@ -398,10 +420,13 @@ async def search_chunks(
     sales_deal_id 와 customer_company_id 가 함께 오면 AND 가 아니라 OR 로 묶는다.
     자료는 딜에만 붙기도 하고 고객사에만 붙기도 해서, 둘을 함께 요구하면 브리핑이
     써야 할 자료가 대부분 빠진다.
+
+    같은 문서의 옛 버전은 보지 않는다 — latest_completed_file() 참고.
     """
     conditions = [
         DocumentChunk.team_id == team_id,
         FileRow.processing_status == "completed",
+        latest_completed_file(),
     ]
     if document_id is not None:
         conditions.append(DocumentChunk.document_id == document_id)
