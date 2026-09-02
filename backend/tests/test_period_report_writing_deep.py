@@ -521,7 +521,7 @@ def test_small_source_catalog_shape_is_unchanged():
     )
 
 
-def test_semantic_reviewer_batches_evidence_and_caps_combined_issues():
+def test_semantic_reviewer_batches_evidence_and_caps_combined_issues(caplog):
     source = sample()
     source["report_sources"] = {"reports": [], "meetings": []}
     source["content"]["activities"] = []
@@ -587,6 +587,13 @@ def test_semantic_reviewer_batches_evidence_and_caps_combined_issues():
         if message.type == "tool" and message.name == "review_period_report"
     )
     assert feedback["issues"] == [*first_issues, *second_issues[:10]]
+    summary = next(
+        record.message
+        for record in caplog.records
+        if '"stage": "period_report_writing.summary"' in record.message
+    )
+    assert '"evidence_batch_count": 4' in summary
+    assert '"support_batch_count": 1' in summary
 
 
 def test_multi_batch_global_support_review_rejects_unsupported_conclusion():

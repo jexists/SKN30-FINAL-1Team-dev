@@ -45,6 +45,8 @@ _fields = frozenset(
         "missing_evidence_ids",
         "unexpected_evidence_ids",
         "semantic_review_count",
+        "evidence_batch_count",
+        "support_batch_count",
         "review_candidate_count",
         "review_change_count",
         "segment_id",

@@ -634,6 +634,8 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
     budget = meeting_writer._RunBudget()
     reviews = 0
     semantic_reviews = 0
+    evidence_batch_count = 0
+    support_batch_count = 0
     accepted: ReportDraftOutput | None = None
     completed = False
     try:
@@ -728,7 +730,8 @@ validated_supports는 서버가 초안과 선택 원문에 실제 존재함을 �
 
         async def review_period_report(draft: ReportDraftOutput) -> dict[str, Any]:
             """전체 기간 보고서의 필드와 사실성을 검사한다. 지적이 있으면 고쳐 다시 검토한다."""
-            nonlocal accepted, reviews, semantic_reviews
+            nonlocal accepted, evidence_batch_count, reviews
+            nonlocal semantic_reviews, support_batch_count
             accepted = None
             if reviews >= meeting_writer.MAX_REVIEWS:
                 log_agent_event(
@@ -782,6 +785,7 @@ validated_supports는 서버가 초안과 선택 원문에 실제 존재함을 �
             if not issues:
                 kind = "semantic"
                 batches = _review_evidence_batches(required_source_keys, evidence_by_key)
+                evidence_batch_count += len(batches)
                 combined: list[str] = []
                 if len(batches) == 1:
                     semantic_reviews += 1
@@ -887,6 +891,7 @@ validated_supports는 서버가 초안과 선택 원문에 실제 존재함을 �
                         )
                     if not combined:
                         support_batches = _support_review_batches(units, supports)
+                        support_batch_count += len(support_batches)
                         for batch_index, support_batch in enumerate(support_batches, 1):
                             semantic_reviews += 1
                             reviewed = await support_reviewer.ainvoke(
@@ -1023,6 +1028,8 @@ validated_supports는 서버가 초안과 선택 원문에 실제 존재함을 �
             review_attempt=reviews,
             review_limit=meeting_writer.MAX_REVIEWS,
             semantic_review_count=semantic_reviews,
+            evidence_batch_count=evidence_batch_count,
+            support_batch_count=support_batch_count,
             timeout_seconds=meeting_writer.RUN_TIMEOUT_SECONDS,
             elapsed_ms=round((perf_counter() - started) * 1000),
         )
