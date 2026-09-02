@@ -198,6 +198,23 @@ def read_all(source):
     return call("read_period_evidence", source_keys=evidence_keys(source))
 
 
+def batch_review(*, issues=None, supports=None):
+    return call(
+        "PeriodBatchReview",
+        issues=issues or [],
+        supports=supports or [],
+    )
+
+
+def support(draft_quote, source_key, evidence_quote, *, unit_id="field:0"):
+    return {
+        "unit_id": unit_id,
+        "draft_quote": draft_quote,
+        "source_key": source_key,
+        "evidence_quote": evidence_quote,
+    }
+
+
 def oversized_meeting_source():
     source = sample()
     reports = []
@@ -296,6 +313,7 @@ def test_review_requires_every_manifest_source_to_have_been_read():
     assert coverage["review_kind"] == "coverage"
     assert coverage["issues"][0]["code"] == "period_report_source_coverage_missing"
     assert coverage["issues"][0]["missing_source_keys"] == evidence_keys(source)
+    assert coverage["remaining_reviews"] == writer.MAX_REVIEWS - 1
 
 
 def test_evidence_request_key_count_duplicates_and_key_chars_are_bounded():
@@ -353,7 +371,7 @@ def test_evidence_response_chars_are_bounded_and_successful_batches_cover_source
             "id": str(UUID(int=810 + index)),
             "name": f"evidence-{index}.txt",
             "state": "done",
-            "extract": marker * 40,
+            "extract": marker * 200,
         }
         for index, marker in enumerate(("첫 첨부 근거", "둘째 첨부 근거"), 1)
     ]
@@ -363,17 +381,23 @@ def test_evidence_response_chars_are_bounded_and_successful_batches_cover_source
     single_limit = max(period._single_evidence_chars(catalog[key]) for key in keys)
     assert period._json_chars({"sources": list(catalog.values())}) > single_limit
     monkeypatch.setattr(period, "MAX_EVIDENCE_RESPONSE_CHARS", single_limit)
+    good = {
+        "fields": [{"field_id": "body", "value": "첫 첨부 근거와 둘째 첨부 근거"}],
+        "summary": "",
+    }
     model = ScriptedModel(
         responses=[
             call("read_period_evidence", source_keys=keys),
             call("read_period_evidence", source_keys=[keys[0]]),
             call("read_period_evidence", source_keys=[keys[1]]),
-            call("review_period_report", draft=draft()),
+            call("review_period_report", draft=good),
+            batch_review(supports=[support("첫 첨부 근거", keys[0], "첫 첨부 근거")]),
+            batch_review(supports=[support("둘째 첨부 근거", keys[1], "둘째 첨부 근거")]),
             call("ReportReview", issues=[]),
         ]
     )
 
-    asyncio.run(period.run(source, model=model))
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == good
 
     too_large = json.loads(model._seen[1][-1].content)
     assert too_large["error"] == "period_report_evidence_too_large"
@@ -429,15 +453,50 @@ def test_oversized_logical_source_is_deterministically_chunked_and_can_complete(
     assert reconstructed == expected
 
     keys = [item["source_key"] for item in first_manifest]
+    good = {
+        "fields": [{"field_id": "body", "value": "가" * 10}],
+        "summary": "",
+    }
     model = ScriptedModel(
         responses=[
             *[call("read_period_evidence", source_keys=[key]) for key in keys],
-            call("review_period_report", draft=draft()),
-            *[call("ReportReview", issues=[]) for _ in keys],
+            call("review_period_report", draft=good),
+            *[
+                batch_review(
+                    supports=(
+                        [support("가" * 10, key, "가" * 10)]
+                        if "가" * 10 in first_catalog[key]["content_fragment"]
+                        else []
+                    )
+                )
+                for key in keys
+            ],
+            call("ReportReview", issues=[]),
         ]
     )
 
-    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == good
+
+
+def test_chunk_search_never_serializes_a_fragment_larger_than_the_response_limit(monkeypatch):
+    observed = []
+    original = period._single_evidence_chars
+
+    def record(item):
+        observed.append(len(item.get("content_fragment", "")))
+        return original(item)
+
+    monkeypatch.setattr(period, "_single_evidence_chars", record)
+    period._chunk_frozen_source(
+        "attachment:large",
+        {
+            "source_type": "attachment",
+            "content": "가" * (period.MAX_EVIDENCE_RESPONSE_CHARS * 4),
+        },
+    )
+
+    assert observed
+    assert max(observed) <= period.MAX_EVIDENCE_RESPONSE_CHARS
 
 
 def test_small_source_catalog_shape_is_unchanged():
@@ -478,20 +537,25 @@ def test_semantic_reviewer_batches_evidence_and_caps_combined_issues():
     keys = evidence_keys(source)
     first_issues = [f"batch-1-{index}" for index in range(20)]
     second_issues = [f"batch-2-{index}" for index in range(20)]
+    good = {
+        "fields": [{"field_id": "body", "value": "가가가가가 및 나나나나나 근거"}],
+        "summary": "",
+    }
     model = ScriptedModel(
         responses=[
             call("read_period_evidence", source_keys=[keys[0]]),
             call("read_period_evidence", source_keys=[keys[1]]),
-            call("review_period_report", draft=draft()),
-            call("ReportReview", issues=first_issues),
-            call("ReportReview", issues=second_issues),
-            call("review_period_report", draft=draft()),
-            call("ReportReview", issues=[]),
+            call("review_period_report", draft=good),
+            batch_review(issues=first_issues),
+            batch_review(issues=second_issues),
+            call("review_period_report", draft=good),
+            batch_review(supports=[support("가가가가가", keys[0], "가가가가가")]),
+            batch_review(supports=[support("나나나나나", keys[1], "나나나나나")]),
             call("ReportReview", issues=[]),
         ]
     )
 
-    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == good
 
     reviewer_payloads = []
     for messages in model._seen:
@@ -523,6 +587,260 @@ def test_semantic_reviewer_batches_evidence_and_caps_combined_issues():
         if message.type == "tool" and message.name == "review_period_report"
     )
     assert feedback["issues"] == [*first_issues, *second_issues[:10]]
+
+
+def test_multi_batch_global_support_review_rejects_unsupported_conclusion():
+    source = sample()
+    source["report_sources"] = {"reports": [], "meetings": []}
+    source["content"]["activities"] = []
+    source["content"]["attachments"] = [
+        {
+            "id": str(UUID(int=1_500)),
+            "name": "customer-a.txt",
+            "state": "done",
+            "extract": "고객 A는 보안 검토 중이다. " * 4_000,
+        },
+        {
+            "id": str(UUID(int=1_501)),
+            "name": "customer-b.txt",
+            "state": "done",
+            "extract": "고객 B는 예산 승인 대기 중이다. " * 4_000,
+        },
+    ]
+    keys = evidence_keys(source)
+    assert (
+        len(
+            period._review_evidence_batches(
+                keys, period._evidence_catalog(period._source(source))[1]
+            )
+        )
+        == 2
+    )
+    bad = {
+        "fields": [
+            {
+                "field_id": "body",
+                "value": "고객 A는 보안 검토 중이다. 고객 B는 예산 승인 대기 중이다. "
+                "두 고객 모두 계약을 최종 확정했다.",
+            }
+        ],
+        "summary": "",
+    }
+    good = {
+        "fields": [
+            {
+                "field_id": "body",
+                "value": "고객 A는 보안 검토 중이며 고객 B는 예산 승인 대기 중이다.",
+            }
+        ],
+        "summary": "",
+    }
+    bad_supports = [
+        [support("고객 A는 보안 검토 중이다.", keys[0], "고객 A는 보안 검토 중이다.")],
+        [
+            support(
+                "고객 B는 예산 승인 대기 중이다.",
+                keys[1],
+                "고객 B는 예산 승인 대기 중이다.",
+            )
+        ],
+    ]
+    good_supports = [
+        [support("고객 A는 보안 검토 중이며", keys[0], "고객 A는 보안 검토 중이다.")],
+        [
+            support(
+                "고객 B는 예산 승인 대기 중이다.",
+                keys[1],
+                "고객 B는 예산 승인 대기 중이다.",
+            )
+        ],
+    ]
+    unsupported = "fields[0].value의 계약 최종 확정은 어느 지원 기록에도 없다. 제거하라."
+    model = ScriptedModel(
+        responses=[
+            call("read_period_evidence", source_keys=[keys[0]]),
+            call("read_period_evidence", source_keys=[keys[1]]),
+            call("review_period_report", draft=bad),
+            batch_review(supports=bad_supports[0]),
+            batch_review(supports=bad_supports[1]),
+            call("ReportReview", issues=[unsupported]),
+            call("review_period_report", draft=good),
+            batch_review(supports=good_supports[0]),
+            batch_review(supports=good_supports[1]),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == good
+    assert unsupported in str(model._seen[6])
+    first_global_review = json.loads(model._seen[5][-1].content)
+    assert "두 고객 모두 계약을 최종 확정했다" in str(first_global_review)
+    assert "계약을 최종 확정" not in str(
+        first_global_review["review_units"][0]["validated_supports"]
+    )
+
+
+def test_multi_batch_deduplicates_equivalent_supports_and_reviews_empty_support_units():
+    source = sample()
+    facts = [f"공통 일정 {index:03d}은 추후 안내한다." for index in range(100)]
+    report_text = " ".join(facts)
+    source["template_snapshot"]["fields"] = [{"id": "body"}, {"id": "note"}]
+    source["transcript"] = report_text + " " * 300
+    source["report_sources"] = {"reports": [], "meetings": []}
+    source["content"]["activities"] = []
+    source["content"]["attachments"] = [
+        {
+            "id": str(UUID(int=1_600 + index)),
+            "name": f"large-{index}.txt",
+            "state": "done",
+            "extract": report_text + " " * 300 + marker * 70_000,
+        }
+        for index, marker in enumerate(("가", "나"), 1)
+    ]
+    keys = evidence_keys(source)
+    report = {
+        "fields": [
+            {"field_id": "body", "value": report_text},
+            {"field_id": "note", "value": "선택 자료에는 계약 확정 정보가 없다."},
+        ],
+        "summary": "",
+    }
+    units = period._draft_review_units(period.ReportDraftOutput.model_validate(report))
+    assert len(units) > 2
+    assert all(len(unit["text"]) <= period.DRAFT_REVIEW_TARGET_CHARS for unit in units)
+    unit_ids = {
+        fact: next(unit["unit_id"] for unit in units if fact in unit["text"]) for fact in facts
+    }
+    model = ScriptedModel(
+        responses=[
+            call("read_period_evidence", source_keys=[keys[0]]),
+            call("read_period_evidence", source_keys=[keys[1]]),
+            call("review_period_report", draft=report),
+            batch_review(
+                supports=[
+                    support(
+                        fact,
+                        period.INLINE_TRANSCRIPT_SOURCE_KEY,
+                        fact,
+                        unit_id=unit_ids[fact],
+                    )
+                    for fact in facts
+                ]
+            ),
+            batch_review(
+                supports=[support(fact, keys[1], fact, unit_id=unit_ids[fact]) for fact in facts]
+            ),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == report
+
+    second_batch = json.loads(model._seen[4][-1].content)
+    assert second_batch["source"]["run_context"]["transcript"] is None
+    global_review = json.loads(model._seen[5][-1].content)
+    review_units = global_review["review_units"]
+    assert sum(len(unit["validated_supports"]) for unit in review_units) == len(facts)
+    assert (
+        next(
+            unit for unit in review_units if "계약 확정 정보가 없다" in unit["draft_unit"]["text"]
+        )["validated_supports"]
+        == []
+    )
+
+
+def test_multi_batch_keeps_conflicting_contexts_for_the_global_reviewer():
+    source = sample()
+    source["report_sources"] = {"reports": [], "meetings": []}
+    source["content"]["activities"] = []
+    source["content"]["attachments"] = [
+        {
+            "id": str(UUID(int=1_700)),
+            "name": "confirmed.txt",
+            "state": "done",
+            "extract": "계약 확정 완료. " * 8_000,
+        },
+        {
+            "id": str(UUID(int=1_701)),
+            "name": "not-confirmed.txt",
+            "state": "done",
+            "extract": "계약 확정이 아니다. " * 8_000,
+        },
+    ]
+    keys = evidence_keys(source)
+    bad = {"fields": [{"field_id": "body", "value": "계약 확정"}], "summary": ""}
+    good = {
+        "fields": [{"field_id": "body", "value": "자료 간 계약 확정 여부가 일치하지 않는다."}],
+        "summary": "",
+    }
+    conflict = "fields[0].value: 계약 확정 여부가 출처 간 충돌한다. 충돌 상태를 명시하라."
+    model = ScriptedModel(
+        responses=[
+            call("read_period_evidence", source_keys=[keys[0]]),
+            call("read_period_evidence", source_keys=[keys[1]]),
+            call("review_period_report", draft=bad),
+            batch_review(supports=[support("계약 확정", keys[0], "계약 확정")]),
+            batch_review(supports=[support("계약 확정", keys[1], "계약 확정")]),
+            call("ReportReview", issues=[conflict]),
+            call("review_period_report", draft=good),
+            batch_review(supports=[support("계약 확정 여부", keys[0], "계약 확정")]),
+            batch_review(supports=[support("계약 확정 여부", keys[1], "계약 확정")]),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == good
+
+    first_global_review = json.loads(model._seen[5][-1].content)
+    contexts = str(first_global_review["review_units"][0]["validated_supports"])
+    assert "계약 확정 완료" in contexts
+    assert "계약 확정이 아니다" in contexts
+    assert conflict in str(model._seen[6])
+
+
+def test_batch_supports_require_real_draft_source_and_quotes():
+    unit = {"unit_id": "field:0", "path": "fields[0].value", "text": "실제 초안 문구"}
+    source = {"source_key": "attachment:1", "content": "실제 원문 문구"}
+    review = period.PeriodBatchReview(
+        issues=[],
+        supports=[
+            support("실제 초안 문구", "attachment:1", "실제 원문 문구"),
+            support("없는 초안", "attachment:1", "실제 원문 문구"),
+            support("실제 초안 문구", "attachment:missing", "실제 원문 문구"),
+            support("실제 초안 문구", "attachment:1", "없는 원문"),
+        ],
+    )
+
+    assert period._validated_batch_supports(
+        review, batch=[source], units=[unit], transcript=None
+    ) == [
+        {
+            **review.supports[0].model_dump(),
+            "evidence_context": "실제 원문 문구",
+        }
+    ]
+
+
+def test_batch_support_context_preserves_negation_around_a_quote():
+    unit = {"unit_id": "field:0", "path": "fields[0].value", "text": "계약 확정"}
+    source = {"source_key": "attachment:1", "content": "계약 확정이 아니다"}
+    review = period.PeriodBatchReview(
+        issues=[],
+        supports=[support("계약 확정", "attachment:1", "계약 확정")],
+    )
+
+    validated = period._validated_batch_supports(
+        review, batch=[source], units=[unit], transcript=None
+    )
+
+    assert validated[0]["evidence_context"] == "계약 확정이 아니다"
+
+
+def test_review_units_do_not_cut_a_long_sentence_in_the_middle():
+    sentence = "보안 검토가 끝나면 " + "세부 조건을 확인하고 " * 50 + "계약을 확정한다"
+
+    assert len(sentence) > period.DRAFT_REVIEW_TARGET_CHARS
+    assert period._review_text_parts(sentence) == [sentence]
 
 
 def test_more_than_one_reader_batch_can_cover_all_direct_sources():
@@ -770,6 +1088,40 @@ def test_direct_final_submission_repairs_structure_and_passes_semantic_review():
     assert asyncio.run(period.run(source, model=model)).model_dump(mode="json") == draft()
     assert len(model._seen) == 4
     assert "expected_ids" in str(model._seen[2])
+
+
+def test_coverage_rejections_consume_review_limit_and_log_the_reason(monkeypatch, caplog):
+    monkeypatch.setattr(writer, "MAX_REVIEWS", 2)
+    model = ScriptedModel(
+        responses=[
+            call("review_period_report", draft=draft()),
+            call("review_period_report", draft=draft()),
+            call("review_period_report", draft=draft()),
+        ]
+    )
+
+    with pytest.raises(LLMError, match="^period_report_agent_review_limit$"):
+        asyncio.run(period.run(sample(), model=model))
+
+    progress = [record.message for record in caplog.records if "agent_progress" in record.message]
+    coverage = [
+        message for message in progress if "period_report_source_coverage_missing" in message
+    ]
+    assert len(model._seen) == 3
+    assert len(coverage) == 2
+    assert '"review_attempt": 1' in coverage[0]
+    assert '"review_attempt": 2' in coverage[1]
+    assert any(
+        '"reason_code": "period_report_agent_review_limit"' in message
+        and '"review_attempt": 3' in message
+        for message in progress
+    )
+    assert any(
+        '"stage": "period_report_writing.summary"' in message
+        and '"review_attempt": 2' in message
+        and '"semantic_review_count": 0' in message
+        for message in progress
+    )
 
 
 def test_review_limit_does_not_keep_retrying(monkeypatch):

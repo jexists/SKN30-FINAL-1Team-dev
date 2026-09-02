@@ -16,6 +16,7 @@ from langchain.agents.middleware import ModelCallLimitMiddleware, before_model
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
 from langsmith import tracing_context
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents import report_writing_deep as meeting_writer
 from app.agents.report_writing import ReportDraftOutput
@@ -28,6 +29,8 @@ MAX_EVIDENCE_KEYS_PER_CALL = 20
 MAX_EVIDENCE_KEY_CHARS_PER_CALL = 4_000
 MAX_EVIDENCE_RESPONSE_CHARS = 120_000
 EVIDENCE_CHUNK_OVERLAP_CHARS = 200
+DRAFT_REVIEW_TARGET_CHARS = 500
+INLINE_TRANSCRIPT_SOURCE_KEY = "run_context:transcript"
 FACT_RULES = """
 너는 SalesLuv의 한국어 기간 보고서 작성자다.
 report_kind에 맞게 daily는 당일 미팅 보고서, weekly는 해당 주 일일보고서,
@@ -80,6 +83,26 @@ parent_source_key/source_group_key가 같은 chunk는 하나의 논리 source다
 없는 정보를 채우려고 반복하지 마라. 검토 통과본이 그대로 최종 제출되므로 다시 쓰지 마라.
 """
 )
+
+
+class PeriodEvidenceSupport(BaseModel):
+    """한 evidence batch가 실제로 지지하는 초안 구간과 원문 인용."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    unit_id: str = Field(min_length=1, max_length=128)
+    draft_quote: str = Field(min_length=1, max_length=1_000)
+    source_key: str = Field(min_length=1, max_length=256)
+    evidence_quote: str = Field(min_length=1, max_length=1_000)
+
+
+class PeriodBatchReview(BaseModel):
+    """여러 batch 검토를 합칠 수 있도록 문제와 정방향 근거를 함께 반환한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    issues: list[str] = Field(default_factory=list, max_length=30)
+    supports: list[PeriodEvidenceSupport] = Field(default_factory=list, max_length=100)
 
 
 def _source(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -219,7 +242,9 @@ def _chunk_frozen_source(parent_source_key: str, frozen: dict[str, Any]) -> list
     start = 0
     previous_end = 0
     while start < len(serialized):
-        low, high, best = start + 1, len(serialized), None
+        low = start + 1
+        high = min(len(serialized), start + MAX_EVIDENCE_RESPONSE_CHARS)
+        best = None
         while low <= high:
             end = (low + high) // 2
             candidate = _chunk_entry(
@@ -290,6 +315,148 @@ def _review_evidence_batches(
             raise LLMError("period_report_evidence_limit_invalid")
         batches.append(current)
         current = [item]
+    if current:
+        batches.append(current)
+    return batches
+
+
+def _review_text_parts(text: str) -> list[str]:
+    """문장 경계를 우선해 전역 근거 검토가 감당할 작은 원문 구간으로 나눈다."""
+    value = text.strip()
+    parts: list[str] = []
+    start = 0
+    while start < len(value):
+        hard_end = min(start + DRAFT_REVIEW_TARGET_CHARS, len(value))
+        end = hard_end
+        if hard_end < len(value):
+            for index in range(hard_end - 1, start - 1, -1):
+                if value[index] in ".!?。！？\n;；":
+                    end = index + 1
+                    break
+            else:
+                # ponytail: 문장 내부 분할은 조건·부정을 끊을 수 있다. 실제 장문 한 문장이
+                # support 한도를 넘기면 의미 기반 claim splitter로 교체한다.
+                for index in range(hard_end, len(value)):
+                    if value[index] in ".!?。！？\n;；":
+                        end = index + 1
+                        break
+                else:
+                    end = len(value)
+        part = value[start:end].strip()
+        if part:
+            parts.append(part)
+        start = end
+        while start < len(value) and value[start].isspace():
+            start += 1
+    return parts
+
+
+def _draft_review_units(draft: ReportDraftOutput) -> list[dict[str, str]]:
+    """저장 형식은 유지하고 전역 근거 검토에서만 긴 필드를 작은 구간으로 나눈다."""
+    units: list[dict[str, str]] = []
+
+    def add(prefix: str, path: str, text: str) -> None:
+        parts = _review_text_parts(text)
+        for index, part in enumerate(parts):
+            suffix = f":{index}" if len(parts) > 1 else ""
+            units.append(
+                {
+                    "unit_id": f"{prefix}{suffix}",
+                    "path": f"{path}#{index + 1}" if len(parts) > 1 else path,
+                    "text": part,
+                }
+            )
+
+    for index, field in enumerate(draft.fields):
+        add(f"field:{index}", f"fields[{index}].value", field.value)
+    add("summary", "summary", draft.summary)
+    return units
+
+
+def _exact_quote_context(value: Any, quote: str) -> str | None:
+    if isinstance(value, str):
+        position = value.find(quote)
+        if position < 0:
+            return None
+        return value[max(0, position - 200) : position + len(quote) + 200]
+    if isinstance(value, dict):
+        for item in value.values():
+            if context := _exact_quote_context(item, quote):
+                return context
+        return None
+    if isinstance(value, list):
+        for item in value:
+            if context := _exact_quote_context(item, quote):
+                return context
+        return None
+    if value is None:
+        return None
+    rendered = str(value)
+    return rendered if quote in rendered else None
+
+
+def _validated_batch_supports(
+    review: PeriodBatchReview,
+    *,
+    batch: list[dict[str, Any]],
+    units: list[dict[str, str]],
+    transcript: str | None,
+) -> list[dict[str, str]]:
+    """모델이 적은 초안·source 인용이 실제 입력에 모두 존재할 때만 장부에 넣는다."""
+    unit_by_id = {unit["unit_id"]: unit for unit in units}
+    source_by_key = {item["source_key"]: item for item in batch}
+    if transcript:
+        source_by_key[INLINE_TRANSCRIPT_SOURCE_KEY] = transcript
+    validated: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for support in review.supports:
+        unit = unit_by_id.get(support.unit_id)
+        source = source_by_key.get(support.source_key)
+        evidence_context = _exact_quote_context(source, support.evidence_quote)
+        identity = (
+            support.unit_id,
+            support.draft_quote,
+            support.source_key,
+            support.evidence_quote,
+        )
+        if (
+            unit is None
+            or source is None
+            or support.draft_quote not in unit["text"]
+            or evidence_context is None
+            or identity in seen
+        ):
+            continue
+        seen.add(identity)
+        validated.append({**support.model_dump(), "evidence_context": evidence_context})
+    return validated
+
+
+def _support_review_batches(
+    units: list[dict[str, str]], supports: list[dict[str, str]]
+) -> list[list[dict[str, Any]]]:
+    """각 초안 단위와 그 단위의 모든 지원 기록을 같은 전역 검토 batch에 둔다."""
+    supports_by_unit: dict[str, list[dict[str, str]]] = {unit["unit_id"]: [] for unit in units}
+    for support in supports:
+        if support["unit_id"] in supports_by_unit:
+            supports_by_unit[support["unit_id"]].append(support)
+    items = [
+        {"draft_unit": unit, "validated_supports": supports_by_unit[unit["unit_id"]]}
+        for unit in units
+    ]
+    batches: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for item in items:
+        candidate = [*current, item]
+        if _json_chars({"review_units": candidate}) <= MAX_EVIDENCE_RESPONSE_CHARS:
+            current = candidate
+            continue
+        if not current:
+            raise LLMError("period_report_support_limit_invalid")
+        batches.append(current)
+        current = [item]
+        if _json_chars({"review_units": current}) > MAX_EVIDENCE_RESPONSE_CHARS:
+            raise LLMError("period_report_support_limit_invalid")
     if current:
         batches.append(current)
     return batches
@@ -508,9 +675,8 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
             system_prompt=FACT_RULES
             + "\n너는 작성자가 아닌 독립 검토자다. 제공된 source와 draft만 대조한다. "
             "자료 조회나 본문 재작성 없이 ReportReview 구조화 응답으로 issues를 반환한다. "
-            "source.review_batch는 전체 근거의 한 batch다. 이 batch와 직접 충돌하는 "
-            "초안 표현과 이 batch의 핵심 누락만 지적하라. 다른 batch에 근거가 있을 수 "
-            "있으므로 현재 batch에 없다는 이유만으로 다른 초안 문장을 오류로 보지 마라. "
+            "source.review_batch는 이번 실행의 전체 선택 근거다. 근거 및 "
+            "run_context.transcript 어디에도 없는 초안의 사실 표현도 오류로 지적하라. "
             "parent_source_key/source_group_key가 같은 chunk는 한 논리 source의 일부이므로 "
             "현재 chunk 조각에서 확인할 수 있는 사실만 판단하라. "
             "양식/필드 검사는 이미 통과했다. 미팅·딜 혼입, 핵심 누락, 공통 내용 반복, "
@@ -524,14 +690,80 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
             name="period_report_reviewer",
         )
 
+        batch_reviewer = create_agent(
+            model,
+            system_prompt=FACT_RULES + "\n너는 여러 근거 batch 중 하나를 검토하는 독립 검토자다. "
+            "PeriodBatchReview만 반환한다. issues에는 현재 batch와 직접 충돌하는 초안 표현, "
+            "현재 batch의 핵심 누락, 기간·딜 혼입을 적는다. 다른 batch가 지지할 수 있다는 "
+            "이유만으로 현재 batch에 없는 초안 표현을 issues로 만들지는 마라. 대신 supports에 "
+            "현재 batch 또는 run_context.transcript가 실제로 지지하는 모든 초안 사실을 기록하라. "
+            "unit_id와 draft_quote는 draft_units에서, source_key와 evidence_quote는 evidence 또는 "
+            f"transcript의 합성 key {INLINE_TRANSCRIPT_SOURCE_KEY!r}에서 정확히 복사한다. "
+            "draft_quote는 현재 source가 전부 지지하는 최소 절이나 문장을 사용한다. 서로 다른 "
+            "batch의 사실이 한 문장에 있으면 현재 source가 지지하는 절만 기록한다. 원문과 초안에 "
+            "실제로 없는 인용을 만들지 말고 evidence_quote는 부정·조건이 보이도록 완전한 의미 "
+            "단위로 인용하라.",
+            response_format=ToolStrategy(PeriodBatchReview),
+            middleware=[ModelCallLimitMiddleware(run_limit=10, exit_behavior="error")],
+            name="period_report_batch_reviewer",
+        )
+
+        support_reviewer = create_agent(
+            model,
+            system_prompt="""
+너는 기간 보고서의 전역 근거 지원 검토자다. review_units의 draft_unit은 완전한 초안 구간이고,
+validated_supports는 서버가 초안과 선택 원문에 실제 존재함을 확인하고 원문 앞뒤 문맥까지 붙인
+모든 batch의 인용 장부다.
+각 초안 구간의 사실, 수량, 금액, 날짜, 상태, 조건, 결과, 후속 조치가 한 개 이상의 지원 기록
+또는 여러 지원 기록의 조합으로 의미상 뒷받침되는지 확인한다. 어느 지원 기록에도 없는 사실,
+가능성을 확정으로 강화한 표현, 서로 다른 지원 사실을 근거 없이 결론으로 합친 표현은 issues에
+경로, 문제 표현, 부족한 근거와 수정 행동을 적는다. 단순 연결어·문체나 자료가 없다는 정확한
+표현은 근거 없는 사실로 보지 않는다. 원문 재작성이나 새 사실 추정은 하지 않는다.
+문제가 없으면 issues=[]인 ReportReview만 반환한다.
+""".strip(),
+            response_format=ToolStrategy(meeting_writer.ReportReview),
+            middleware=[ModelCallLimitMiddleware(run_limit=10, exit_behavior="error")],
+            name="period_report_support_reviewer",
+        )
+
         async def review_period_report(draft: ReportDraftOutput) -> dict[str, Any]:
             """전체 기간 보고서의 필드와 사실성을 검사한다. 지적이 있으면 고쳐 다시 검토한다."""
             nonlocal accepted, reviews, semantic_reviews
             accepted = None
+            if reviews >= meeting_writer.MAX_REVIEWS:
+                log_agent_event(
+                    "period_report_writing.review",
+                    outcome="limit_reached",
+                    review_attempt=reviews + 1,
+                    review_limit=meeting_writer.MAX_REVIEWS,
+                    semantic_review_count=semantic_reviews,
+                    reason_code="period_report_agent_review_limit",
+                )
+                raise LLMError("period_report_agent_review_limit")
+            reviews += 1
+            publish_progress(
+                "report_review", review_attempt=reviews, review_limit=meeting_writer.MAX_REVIEWS
+            )
+            log_agent_event(
+                "period_report_writing.review",
+                outcome="started",
+                review_attempt=reviews,
+                review_limit=meeting_writer.MAX_REVIEWS,
+                semantic_review_count=semantic_reviews,
+            )
             missing_source_keys = [
                 key for key in required_source_keys if key not in read_source_keys
             ]
             if missing_source_keys:
+                log_agent_event(
+                    "period_report_writing.review",
+                    outcome="failed",
+                    review_attempt=reviews,
+                    review_limit=meeting_writer.MAX_REVIEWS,
+                    semantic_review_count=semantic_reviews,
+                    reason_code="period_report_source_coverage_missing",
+                )
+                publish_progress("report_writing")
                 return {
                     "review_kind": "coverage",
                     "issues": [
@@ -545,26 +777,13 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
                     ],
                     "remaining_reviews": meeting_writer.MAX_REVIEWS - reviews,
                 }
-            if reviews >= meeting_writer.MAX_REVIEWS:
-                raise LLMError("period_report_agent_review_limit")
-            reviews += 1
-            publish_progress(
-                "report_review", review_attempt=reviews, review_limit=meeting_writer.MAX_REVIEWS
-            )
-            log_agent_event(
-                "period_report_writing.review",
-                outcome="started",
-                review_attempt=reviews,
-                review_limit=meeting_writer.MAX_REVIEWS,
-                semantic_review_count=semantic_reviews,
-            )
             issues = _structural_issues(source, draft)
             kind = "structural"
             if not issues:
                 kind = "semantic"
                 batches = _review_evidence_batches(required_source_keys, evidence_by_key)
                 combined: list[str] = []
-                for batch_index, batch in enumerate(batches, 1):
+                if len(batches) == 1:
                     semantic_reviews += 1
                     reviewed = await reviewer.ainvoke(
                         {
@@ -576,13 +795,13 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
                                             "source": {
                                                 "run_context": run_context,
                                                 "review_batch": {
-                                                    "batch_index": batch_index,
-                                                    "batch_count": len(batches),
+                                                    "batch_index": 1,
+                                                    "batch_count": 1,
                                                     "source_keys": [
-                                                        item["source_key"] for item in batch
+                                                        item["source_key"] for item in batches[0]
                                                     ],
                                                 },
-                                                "evidence": batch,
+                                                "evidence": batches[0],
                                             },
                                             "draft": draft.model_dump(mode="json"),
                                         },
@@ -596,6 +815,103 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
                     for issue in reviewed["structured_response"].issues:
                         if issue not in combined and len(combined) < 30:
                             combined.append(issue)
+                else:
+                    units = _draft_review_units(draft)
+                    supports: list[dict[str, str]] = []
+                    support_identities: set[tuple[str, str, str, str]] = set()
+                    for batch_index, batch in enumerate(batches, 1):
+                        semantic_reviews += 1
+                        review_run_context = (
+                            run_context if batch_index == 1 else {**run_context, "transcript": None}
+                        )
+                        reviewed = await batch_reviewer.ainvoke(
+                            {
+                                "messages": [
+                                    {
+                                        "role": "user",
+                                        "content": json.dumps(
+                                            {
+                                                "source": {
+                                                    "run_context": review_run_context,
+                                                    "review_batch": {
+                                                        "batch_index": batch_index,
+                                                        "batch_count": len(batches),
+                                                        "source_keys": [
+                                                            item["source_key"] for item in batch
+                                                        ],
+                                                    },
+                                                    "evidence": batch,
+                                                },
+                                                "draft_units": units,
+                                            },
+                                            ensure_ascii=False,
+                                        ),
+                                    }
+                                ]
+                            },
+                            config={"recursion_limit": 40},
+                        )
+                        result: PeriodBatchReview = reviewed["structured_response"]
+                        for issue in result.issues:
+                            if issue not in combined and len(combined) < 30:
+                                combined.append(issue)
+                        validated = _validated_batch_supports(
+                            result,
+                            batch=batch,
+                            units=units,
+                            transcript=run_context["transcript"],
+                        )
+                        added = 0
+                        for support in validated:
+                            # 출처 ID가 달라도 실제 원문 문맥까지 같으면 하나면 충분하다.
+                            # 같은 인용의 긍정·부정 문맥은 서로 다르므로 둘 다 보존된다.
+                            identity = (
+                                support["unit_id"],
+                                support["draft_quote"],
+                                support["evidence_quote"],
+                                support["evidence_context"],
+                            )
+                            if identity in support_identities:
+                                continue
+                            support_identities.add(identity)
+                            supports.append(support)
+                            added += 1
+                        log_agent_event(
+                            "period_report_writing.review_supports",
+                            outcome="completed",
+                            review_attempt=reviews,
+                            review_limit=meeting_writer.MAX_REVIEWS,
+                            semantic_review_count=semantic_reviews,
+                            review_candidate_count=len(result.supports),
+                            review_change_count=added,
+                        )
+                    if not combined:
+                        support_batches = _support_review_batches(units, supports)
+                        for batch_index, support_batch in enumerate(support_batches, 1):
+                            semantic_reviews += 1
+                            reviewed = await support_reviewer.ainvoke(
+                                {
+                                    "messages": [
+                                        {
+                                            "role": "user",
+                                            "content": json.dumps(
+                                                {
+                                                    "review_batch": {
+                                                        "batch_index": batch_index,
+                                                        "batch_count": len(support_batches),
+                                                    },
+                                                    "review_units": support_batch,
+                                                },
+                                                ensure_ascii=False,
+                                            ),
+                                        }
+                                    ]
+                                },
+                                config={"recursion_limit": 40},
+                            )
+                            for issue in reviewed["structured_response"].issues:
+                                if issue not in combined and len(combined) < 30:
+                                    combined.append(issue)
                 issues = combined
                 if not issues:
                     accepted = draft.model_copy(deep=True)
