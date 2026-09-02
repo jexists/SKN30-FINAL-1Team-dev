@@ -8,6 +8,7 @@
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
@@ -24,6 +25,8 @@ from app.services.embeddings import EmbeddingError
 from app.services.report_sources import _NON_BODY_KEYS, _shared_body
 from app.services.storage import StorageError
 
+_SEOUL = ZoneInfo("Asia/Seoul")
+
 _CONTRACT_EXPIRING_WITHIN_DAYS = 30
 _QUOTE_EXPIRING_WITHIN_DAYS = 14
 _FOLLOW_UP_OVERDUE_AFTER_DAYS = 30
@@ -35,6 +38,11 @@ _DEFAULT_PREFERRED_WINDOW_DAYS = 7
 _BRIEFING_QUERY_MAX_CHARS = 500
 # 청크 하나가 최대 1,600자라 5건이면 문맥 블록 상한(12,000자) 안에 든다.
 _BRIEFING_DOCUMENT_LIMIT = 5
+
+
+def _seoul_iso(value: datetime | None) -> str | None:
+    """LLM 에 보낼 시각. 화면과 같은 서울 시간으로 맞춘다."""
+    return None if value is None else value.astimezone(_SEOUL).isoformat()
 
 
 def _parse_aware_or_none(value: str) -> datetime | None:
@@ -542,8 +550,10 @@ async def build_briefing_snapshot(
             "activity_id": str(activity.id),
             "sales_deal_id": str(activity.sales_deal_id) if activity.sales_deal_id else None,
             "title": activity.title,
-            "starts_at": activity.starts_at.isoformat(),
-            "ends_at": activity.ends_at.isoformat() if activity.ends_at else None,
+            # 화면이 서울 시간으로 보여 주는 미팅을 LLM 이 UTC 로 받아 브리핑에 그대로
+            # 옮겨 적으면, 같은 미팅의 시각이 화면과 본문에서 아홉 시간 어긋나 보인다.
+            "starts_at": _seoul_iso(activity.starts_at),
+            "ends_at": _seoul_iso(activity.ends_at),
             "location": activity.location,
         },
         # 구조화된 조회 결과를 그대로 둔다. 이 스냅샷은 agent_run.input_snapshot 으로

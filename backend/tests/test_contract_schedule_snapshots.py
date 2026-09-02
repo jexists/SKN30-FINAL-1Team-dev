@@ -913,6 +913,27 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
 
 
 @pytest.mark.anyio
+async def test_briefing_snapshot_sends_meeting_time_in_seoul(monkeypatch):
+    """화면이 서울 시간으로 보여 주는 미팅을 LLM 이 UTC 로 받으면 본문 시각이 어긋난다."""
+    member, company, deal, activity = _briefing_fixture()
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())]),
+        member,
+        activity.id,
+    )
+
+    # 2026-09-03 05:00 UTC == 같은 날 14:00 KST
+    assert snapshot["approved_next_meeting"]["starts_at"] == "2026-09-03T14:00:00+09:00"
+    assert snapshot["approved_next_meeting"]["ends_at"] == "2026-09-03T15:00:00+09:00"
+
+
+@pytest.mark.anyio
 async def test_briefing_snapshot_keeps_working_when_document_search_fails(monkeypatch):
     """자료요약이 멈춰도 브리핑은 나와야 한다 — 빈 문맥으로 되돌린다."""
     member, company, deal, activity = _briefing_fixture()
