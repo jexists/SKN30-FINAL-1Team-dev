@@ -168,8 +168,9 @@ def test_document_scopes_pairs_deal_and_company_for_or_matching():
     """딜·고객사를 AND 로 묶으면 한쪽에만 연결된 자료가 통째로 빠진다."""
     assert document_processing.document_scopes(None, None) == []
     assert len(document_processing.document_scopes(uuid4(), None)) == 1
-    assert document_processing.document_scopes(None, uuid4())
-    assert document_processing.document_scopes(uuid4(), uuid4())
+    # 고객사는 두 갈래(문서 직접 연결 + 딜 경유)라 조건이 2개, 딜까지 오면 3개다.
+    assert len(document_processing.document_scopes(None, uuid4())) == 2
+    assert len(document_processing.document_scopes(uuid4(), uuid4())) == 3
 
 
 def test_document_scopes_reach_company_documents_through_the_deal():
