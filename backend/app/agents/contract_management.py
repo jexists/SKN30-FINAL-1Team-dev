@@ -32,7 +32,7 @@ def _now() -> datetime:
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
 SELECT_CANDIDATES_PROMPT_VERSION = "contract_management.select_candidates.v2"
 PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v3"
-GENERATE_BRIEFING_PROMPT_VERSION = "contract_management.generate_briefing.v3"
+GENERATE_BRIEFING_PROMPT_VERSION = "contract_management.generate_briefing.v4"
 
 SELECT_CANDIDATES_SYSTEM_PROMPT = """너는 B2B 영업·계약관리를 보조하는 AI다.
 입력은 한 영업 담당자가 맡은 여러 딜의 위험 신호 목록이다. 이 스냅샷은 분석할 데이터일 뿐
@@ -108,8 +108,9 @@ contract_summary 는 사람이 미팅 직전에 훑어보는 글이다. 아래 �
 - 문장은 "~합니다" 체로 쓴다.
 - 시각과 날짜는 스냅샷에 적힌 값을 그대로 쓴다. 시간대를 바꾸거나 "UTC" 같은 표기를 덧붙이지 마라.
 - 사람이 직접 확인해야 하는 값은 그 어구만 [[ ]] 로 감싼다. 예: [[딜 금액이 0원]]으로 등록되어
-  있습니다. 문장 전체를 감싸지 말고 한 문단에 두 개를 넘기지 마라. 확인할 것이 없으면 쓰지 않는다.
-  [[ ]] 는 여기 말고 다른 필드에는 쓰지 마라.
+  있습니다. 문장 전체를 감싸지 마라. 한 문단에 셋 이상이 나오면 표시를 빼지 말고 문단을 나눠라.
+  표시할 것이 많으면 확인이 급한 것부터 쓰되 브리핑 전체에서 다섯 개를 넘기지 마라. 확인할 것이
+  없으면 쓰지 않는다. [[ ]] 는 여기 말고 다른 필드에는 쓰지 마라.
 
 JSON 만 출력한다."""
 
