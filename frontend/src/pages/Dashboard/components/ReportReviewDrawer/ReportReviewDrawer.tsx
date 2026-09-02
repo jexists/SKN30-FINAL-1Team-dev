@@ -99,7 +99,7 @@ export default function ReportReviewDrawer({ reportId, onReviewed, onClose }: Pr
   const decide = async (decision: 'approve' | 'reject', reason: string | null) => {
     setBusy(true)
     try {
-      await reviewReport(reportId, decision, reason)
+      await reviewReport(reportId, item?.current_submission_id ?? null, decision, reason)
       showToast(decision === 'approve' ? '보고서를 확정했습니다.' : '보고서를 반려했습니다.')
       setRejecting(false)
       onReviewed()

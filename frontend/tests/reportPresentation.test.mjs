@@ -22,6 +22,8 @@ const { default: MeetingSharedPanel } = await vite.ssrLoadModule(
 const { ReportReviewContents } = await vite.ssrLoadModule(
   '/src/pages/Dashboard/components/ReportReviewDrawer/ReportReviewDrawer.tsx',
 )
+const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts')
+const { client } = await vite.ssrLoadModule('/src/api/client.ts')
 
 const dealId = '10000000-0000-4000-8000-000000000001'
 const dealSection = (values = {}, id = dealId) => ({
@@ -251,6 +253,23 @@ test('전체 목록과 달력은 일반 draft를 유지하고 미팅 draft만 �
     },
     { report_kind: ['meeting'], status_code: ['approved'] },
   ])
+})
+
+test('V2 이전 제출본은 submission id 없이 검토 요청해 서버가 스냅샷하게 한다', async () => {
+  const originalAdapter = client.defaults.adapter
+  let sent
+  client.defaults.adapter = async (config) => {
+    sent = JSON.parse(config.data)
+    return { data: {}, status: 200, statusText: 'OK', headers: {}, config }
+  }
+  try {
+    await reviewReport('legacy-report', null, 'approve', null)
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+
+  assert.equal(sent.expected_submission_id, null)
+  assert.equal(sent.expected_status_code, 'submitted')
 })
 
 test('저장 근거는 모든 scope의 중첩 구조가 정상이면 원본 변경 없이 복원한다', () => {

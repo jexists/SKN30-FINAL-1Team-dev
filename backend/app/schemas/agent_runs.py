@@ -16,7 +16,8 @@ AgentCode = Literal[
     "schedule_management",
 ]
 # queued -> running -> completed 또는 failed 로만 움직인다.
-AgentStatus = Literal["queued", "running", "completed", "failed"]
+AgentStatus = Literal["queued", "running", "completed", "partial", "failed", "cancelled"]
+AgentApplyStatus = Literal["pending", "applied", "stale", "not_applicable"]
 
 # 사람이 덧붙이는 지시문. 그대로 프롬프트에 들어가므로 길이를 잘라둔다.
 Guidance = Annotated[
@@ -144,6 +145,25 @@ class MeetingNotesPatch(BaseModel):
     unassigned_body: str | None = Field(max_length=100_000)
 
 
+class MeetingGenerationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: UUID
+    parent_run_id: UUID | None = None
+    assignment_overrides: list[SegmentAssignment] | None = Field(
+        default=None, min_length=1, max_length=5_000
+    )
+
+    @model_validator(mode="after")
+    def _check_parent_and_overrides(self):
+        if bool(self.assignment_overrides) != bool(self.parent_run_id):
+            raise ValueError("meeting_assignment_parent_required")
+        ids = [item.segment_id for item in self.assignment_overrides or []]
+        if len(set(ids)) != len(ids):
+            raise ValueError("assignment_segment_duplicate")
+        return self
+
+
 class AgentRunRead(BaseModel):
     """실행 이력 응답. 어떤 모델·프롬프트로 돌렸는지까지 함께 남긴다."""
 
@@ -154,6 +174,7 @@ class AgentRunRead(BaseModel):
     llm_model_name: str
     prompt_version: str
     requested_by_member_id: UUID | None
+    report_id: UUID | None
     # 이 실행이 무엇을 참조했는지 (예: report_id)
     source_refs: dict[str, Any]
     # 완료 전에는 없다. 보고서에 자동 반영되지 않는 "제안" 초안이다.
@@ -162,6 +183,17 @@ class AgentRunRead(BaseModel):
     evidence: dict[str, Any] | None
     # 실패했을 때만 채워진다.
     error_message: str | None
+    error_code: str | None
+    apply_status: AgentApplyStatus
+    current_stage_code: str | None
+    attempt_count: int
+    base_report_version: int | None
+    base_generation_input_version: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
     # 이 API 에서는 서울 시간으로 변환해서 내보낸다.
+    created_at: datetime | None
+    heartbeat_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None

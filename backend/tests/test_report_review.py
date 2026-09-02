@@ -6,17 +6,19 @@
 """
 
 from datetime import UTC, date, datetime
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.api import reports as reports_api
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
-from app.models.content import Report
+from app.models.content import Report, ReportSubmission
 from app.models.workspace import Member
 from app.schemas.reports import ReportReview
 
@@ -58,9 +60,12 @@ class _Db:
         self.flush_count = 0
         self.commit_count = 0
         self.rollback_count = 0
+        self.submission = None
 
     async def execute(self, statement):
         self.statements.append(statement)
+        if "report_submission" in str(statement):
+            return _Result(scalar=self.submission)
         assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
         return self.results.pop(0)
 
@@ -104,15 +109,25 @@ def _report(author: Member, *, status_code: str = "submitted") -> Report:
         template_snapshot=TEMPLATE,
         source_activity_id=None,
         sales_deal_id=None,
+        customer_company_id=None,
         report_kind="meeting",
         report_date=date(2026, 8, 17),
         period_start=None,
         period_end=None,
         status_code=status_code,
         content=CONTENT,
+        title=None,
+        body=None,
+        common_body=None,
+        unassigned_body=None,
+        structured_values={},
         transcript=None,
         source_snapshot=None,
         ai_evidence=None,
+        version=1,
+        generation_input_version=1,
+        last_applied_agent_run_id=None,
+        current_submission_id=uuid4(),
         note="활동 3건",
         review_note=None,
         reviewed_by_member_id=None,
@@ -146,25 +161,63 @@ def _params(db: _Db) -> list[UUID]:
 
 
 def _review(db: _Db, member: Member, report: Report, **payload):
+    db.submission = ReportSubmission(
+        id=report.current_submission_id,
+        report_id=report.id,
+        revision_no=1,
+        report_version=1,
+        team_id=report.team_id,
+        submitted_by_member_id=report.author_member_id,
+        snapshot={},
+        snapshot_sha256="0" * 64,
+        review_status="pending",
+        reviewed_by_member_id=None,
+        reviewed_at=None,
+        review_note=None,
+        submitted_at=NOW,
+    )
     with _client(db, member) as client:
         return client.post(
             f"/api/reports/{report.id}/review",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "submitted", **payload},
+            json={
+                "expected_status_code": "submitted",
+                "expected_submission_id": (
+                    str(report.current_submission_id)
+                    if report.current_submission_id is not None
+                    else None
+                ),
+                **payload,
+            },
         )
 
 
 def test_review_requires_a_reason_when_rejecting():
     """반려에는 까닭이 있어야 한다. 무엇을 고칠지 없이 돌려보내면 같은 것이 다시 온다."""
     with pytest.raises(ValidationError):
-        ReportReview(decision="reject", expected_status_code="submitted")
+        ReportReview(
+            decision="reject",
+            expected_status_code="submitted",
+            expected_submission_id=uuid4(),
+        )
 
     # 확정은 사유가 없어도 된다.
-    assert ReportReview(decision="approve", expected_status_code="submitted").reason is None
+    assert (
+        ReportReview(
+            decision="approve",
+            expected_status_code="submitted",
+            expected_submission_id=uuid4(),
+        ).reason
+        is None
+    )
 
     with pytest.raises(ValidationError):
         # 제출되지 않은 보고서는 검토 대상이 아니다.
-        ReportReview(decision="approve", expected_status_code="draft")
+        ReportReview(
+            decision="approve",
+            expected_status_code="draft",
+            expected_submission_id=uuid4(),
+        )
 
 
 def test_approval_clears_the_review_note_even_if_a_reason_is_sent():
@@ -186,6 +239,8 @@ def test_approval_clears_the_review_note_even_if_a_reason_is_sent():
     assert response.status_code == 200
     assert report.status_code == "approved"
     assert report.review_note is None
+    assert db.submission.review_status == "approved"
+    assert db.submission.reviewed_by_member_id == manager.id
 
 
 def test_manager_approves_a_teammates_report():
@@ -214,6 +269,80 @@ def test_manager_approves_a_teammates_report():
     assert db.flush_count == db.commit_count == 1
 
 
+def test_manager_review_lazily_materializes_a_pre_v2_submission(monkeypatch):
+    manager = _member(role="manager")
+    author = _member(team_id=manager.team_id)
+    report = _report(author)
+    report.current_submission_id = None
+    submission = ReportSubmission(
+        id=uuid4(),
+        report_id=report.id,
+        revision_no=1,
+        report_version=1,
+        team_id=report.team_id,
+        submitted_by_member_id=author.id,
+        snapshot={},
+        snapshot_sha256="0" * 64,
+        review_status="pending",
+        reviewed_by_member_id=None,
+        reviewed_at=None,
+        review_note=None,
+        submitted_at=NOW,
+    )
+
+    async def materialize(_db, locked_report):
+        locked_report.current_submission_id = submission.id
+        return submission
+
+    ensure = AsyncMock(side_effect=materialize)
+    monkeypatch.setattr(reports_api.report_sources, "materialize_legacy_submission", ensure)
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[(report, author.display_name, None)]),
+        _Result(rows=[]),
+        _Result(rows=[]),
+    )
+    db.submission = submission
+
+    with _client(db, manager) as client:
+        response = client.post(
+            f"/api/reports/{report.id}/review",
+            headers={"Origin": ORIGIN},
+            json={
+                "decision": "approve",
+                "expected_status_code": "submitted",
+                "expected_submission_id": None,
+            },
+        )
+
+    assert response.status_code == 200
+    ensure.assert_awaited_once_with(db, report)
+    assert report.current_submission_id == submission.id
+    assert submission.review_status == "approved"
+
+
+def test_new_submission_review_still_requires_the_seen_revision_id():
+    manager = _member(role="manager")
+    author = _member(team_id=manager.team_id)
+    report = _report(author)
+    db = _Db(_Result(scalar=report))
+
+    with _client(db, manager) as client:
+        response = client.post(
+            f"/api/reports/{report.id}/review",
+            headers={"Origin": ORIGIN},
+            json={
+                "decision": "approve",
+                "expected_status_code": "submitted",
+                "expected_submission_id": None,
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "report_submission_conflict"}
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
 def test_rejection_returns_the_report_to_an_editable_state():
     """반려는 changes_requested 다. 팀원이 고쳐서 다시 낼 수 있어야 한다."""
     manager = _member(role="manager")
@@ -238,6 +367,8 @@ def test_rejection_returns_the_report_to_an_editable_state():
     assert response.json()["status_code"] == "changes_requested"
     assert report.status_code == "changes_requested"
     assert report.review_note == "고객 요구사항 내용이 부족합니다."
+    assert db.submission.review_status == "changes_requested"
+    assert db.submission.review_note == "고객 요구사항 내용이 부족합니다."
     assert report.note == "활동 3건"
     # reports._EDITABLE_STATUSES 가 이 상태를 열어 주어야 반려가 폐기가 되지 않는다.
     from app.api.reports import _EDITABLE_STATUSES

@@ -99,20 +99,26 @@ export async function processMeeting(
   signal?: AbortSignal,
 ) {
   const { data } = await client.post<AgentRunResponse<MeetingProcessingOutput>>(
-    '/agent-runs',
+    `/reports/${reportId}/generations`,
     {
-      agent_code: 'meeting_processing',
-      report_id: reportId,
       idempotency_key: crypto.randomUUID(),
       ...overrides,
     },
     { signal },
   )
-  return waitForMeetingRun(data, {
-    eventsUrl: client.getUri({ url: `/agent-runs/${data.id}/events` }),
+  return waitForMeetingProcessing(data, onProgress, signal)
+}
+
+export function waitForMeetingProcessing(
+  run: AgentRunResponse<MeetingProcessingOutput>,
+  onProgress?: (progress: MeetingProgress) => void,
+  signal?: AbortSignal,
+) {
+  return waitForMeetingRun(run, {
+    eventsUrl: client.getUri({ url: `/agent-runs/${run.id}/events` }),
     readRun: async (pollSignal) =>
       (
-        await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${data.id}`, {
+        await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${run.id}`, {
           signal: pollSignal,
         })
       ).data,
@@ -121,8 +127,18 @@ export async function processMeeting(
   })
 }
 
-export async function applyMeetingProcessing(runId: string): Promise<ReportResponse> {
-  return (await client.post<ReportResponse>(`/agent-runs/${runId}/apply`)).data
+export async function readReport(reportId: string): Promise<ReportResponse> {
+  return (await client.get<ReportResponse>(`/reports/${reportId}`)).data
+}
+
+export async function latestMeetingProcessing(
+  reportId: string,
+): Promise<AgentRunResponse<MeetingProcessingOutput>> {
+  return (
+    await client.get<AgentRunResponse<MeetingProcessingOutput>>(
+      `/reports/${reportId}/generations/latest`,
+    )
+  ).data
 }
 
 export async function saveMeetingNotes(

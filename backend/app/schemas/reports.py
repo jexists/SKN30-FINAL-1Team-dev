@@ -18,6 +18,10 @@ LongText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=5_000),
 ]
+ReportBody = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=50_000),
+]
 Transcript = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=50_000),
@@ -37,7 +41,9 @@ SnapshotNote = Annotated[
 ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
 # 유스케이스 RPT-004 의 검토 결과는 확인·반려·수정 요청 세 가지다.
 # 팀원이 다루는 범위는 draft 와 submitted 두 개이고 검토 결과는 조회로만 나온다.
-ReportStatus = Literal["draft", "submitted", "approved", "rejected", "changes_requested"]
+ReportStatus = Literal["draft", "submitted", "approved", "changes_requested"]
+# 조회 필터만 구버전 rejected를 받아 0건으로 처리한다. 신규 저장·응답 상태에는 허용하지 않는다.
+ReportFilterStatus = Literal["draft", "submitted", "approved", "changes_requested", "rejected"]
 # 제출을 시작할 수 있는 상태. 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다.
 SubmittableStatus = Literal["draft", "changes_requested"]
 # 팀장이 검토할 수 있는 상태. 제출된 것만 본다.
@@ -58,7 +64,9 @@ class _WriteModel(BaseModel):
 
 
 def _check_period(kind: ReportKind, start: date | None, end: date | None) -> None:
-    if kind == "meeting":
+    if kind in {"meeting", "daily"}:
+        if start is not None or end is not None:
+            raise ValueError("period_not_supported")
         return
     if kind in _PERIOD_KINDS and (start is None or end is None):
         raise ValueError("period_required")
@@ -76,6 +84,10 @@ class ReportDealWrite(_WriteModel):
     sales_deal_id: UUID
     deal_snapshot: ReportDealSnapshot
     content: dict[str, Any]
+    position: int | None = Field(default=None, ge=0, le=99)
+    title: Text | None = None
+    body: ReportBody | None = None
+    structured_values: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _validate_snapshot_id(self) -> Self:
@@ -88,6 +100,12 @@ class ReportDealRead(BaseModel):
     sales_deal_id: UUID
     deal_snapshot: dict[str, Any]
     content: dict[str, Any]
+    position: int | None
+    deal_no_snapshot: str | None
+    deal_title_snapshot: str | None
+    title: str | None
+    body: str | None
+    structured_values: dict[str, Any]
     ai_evidence: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
@@ -104,6 +122,11 @@ class ReportCreate(_WriteModel):
     recipient_member_id: UUID | None = None
     template_snapshot: dict[str, Any]
     content: dict[str, Any]
+    title: Text | None = None
+    body: ReportBody | None = None
+    common_body: ReportBody | None = None
+    unassigned_body: ReportBody | None = None
+    structured_values: dict[str, Any] = Field(default_factory=dict)
     transcript: Transcript | None = None
     note: LongText | None = None
     activity_ids: list[UUID] = Field(default_factory=list)
@@ -124,18 +147,30 @@ class ReportCreate(_WriteModel):
         deal_ids = [section.sales_deal_id for section in self.deal_sections]
         if len(set(deal_ids)) != len(deal_ids):
             raise ValueError("duplicate_deal_sections")
+        positions = [
+            section.position if section.position is not None else index
+            for index, section in enumerate(self.deal_sections)
+        ]
+        if len(set(positions)) != len(positions):
+            raise ValueError("duplicate_deal_positions")
         if len(set(self.activity_ids)) != len(self.activity_ids):
             raise ValueError("duplicate_activity_ids")
         return self
 
 
 class ReportPatch(_WriteModel):
+    expected_version: int = Field(ge=1)
     report_date: date | None = None
     period_start: date | None = None
     period_end: date | None = None
     recipient_member_id: UUID | None = None
     template_snapshot: dict[str, Any] | None = None
     content: dict[str, Any] | None = None
+    title: Text | None = None
+    body: ReportBody | None = None
+    common_body: ReportBody | None = None
+    unassigned_body: ReportBody | None = None
+    structured_values: dict[str, Any] = Field(default_factory=dict)
     transcript: Transcript | None = None
     note: LongText | None = None
     activity_ids: list[UUID] | None = None
@@ -143,6 +178,9 @@ class ReportPatch(_WriteModel):
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
+        for field_name in ("report_date", "template_snapshot"):
+            if field_name in self.model_fields_set and getattr(self, field_name) is None:
+                raise ValueError(f"{field_name}_required")
         if self.period_start is not None and self.period_end is not None:
             if self.period_end < self.period_start:
                 raise ValueError("invalid_report_period")
@@ -154,11 +192,18 @@ class ReportPatch(_WriteModel):
             deal_ids = [section.sales_deal_id for section in self.deal_sections]
             if len(set(deal_ids)) != len(deal_ids):
                 raise ValueError("duplicate_deal_sections")
+            positions = [
+                section.position if section.position is not None else index
+                for index, section in enumerate(self.deal_sections)
+            ]
+            if len(set(positions)) != len(positions):
+                raise ValueError("duplicate_deal_positions")
         return self
 
 
 class ReportSubmit(_WriteModel):
     expected_status_code: SubmittableStatus
+    expected_version: int = Field(ge=1)
 
 
 class ReportReview(_WriteModel):
@@ -171,6 +216,9 @@ class ReportReview(_WriteModel):
     decision: ReviewDecision
     reason: LongText | None = None
     expected_status_code: ReviewableStatus
+    # V2 이전 submitted 보고서는 아직 확정본 ID가 없다. 그 경우에만 null을 받아
+    # 잠긴 현재 본문을 최초 확정본으로 만든 뒤 같은 요청에서 검토한다.
+    expected_submission_id: UUID | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -200,8 +248,18 @@ class ReportRead(BaseModel):
     period_start: date | None
     period_end: date | None
     status_code: ReportStatus
+    version: int
+    generation_input_version: int
+    last_applied_agent_run_id: UUID | None
+    current_submission_id: UUID | None
     template_snapshot: dict[str, Any]
     content: dict[str, Any]
+    customer_company_id: UUID | None
+    title: str | None
+    body: str | None
+    common_body: str | None
+    unassigned_body: str | None
+    structured_values: dict[str, Any]
     transcript: str | None
     source_snapshot: dict[str, Any] | None
     ai_evidence: dict[str, Any] | None
@@ -246,7 +304,7 @@ class ReportPageParams(BaseModel):
 
     q: SearchQuery | None = None
     report_kind: list[ReportKind] | None = None
-    status_code: list[ReportStatus] | None = None
+    status_code: list[ReportFilterStatus] | None = None
     start_date: date | None = None
     end_date: date | None = None
     author_member_id: list[UUID] | None = None

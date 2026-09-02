@@ -14,7 +14,7 @@ from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
-from app.models.content import Report, ReportDeal
+from app.models.content import Report, ReportDeal, ReportSubmission
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
@@ -24,6 +24,7 @@ from app.schemas.reports import (
     ReportPatch,
     ReportSubmit,
 )
+from app.services import report_submissions
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
@@ -79,6 +80,14 @@ class _Db:
 
     async def execute(self, statement):
         self.statements.append(statement)
+        statement_text = str(statement).lower()
+        if "max(" in statement_text and "report_submission.revision_no" in statement_text:
+            revisions = [
+                value.revision_no for value in self.added if isinstance(value, ReportSubmission)
+            ]
+            return _Result(scalar=max(revisions, default=0))
+        if "from public.report_source" in statement_text:
+            return _Result(scalar_values=[])
         assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
         return self.results.pop(0)
 
@@ -131,15 +140,25 @@ def _report(member: Member, *, kind: str = "daily", status_code: str = "draft") 
         template_snapshot=TEMPLATE,
         source_activity_id=None,
         sales_deal_id=None,
+        customer_company_id=None,
         report_kind=kind,
         report_date=date(2026, 8, 17),
         period_start=None,
         period_end=None,
         status_code=status_code,
         content=CONTENT,
+        title=None,
+        body=None,
+        common_body=None,
+        unassigned_body=None,
+        structured_values={},
         transcript=None,
         source_snapshot=None,
         ai_evidence=None,
+        version=1,
+        generation_input_version=1,
+        last_applied_agent_run_id=None,
+        current_submission_id=None,
         note=None,
         reviewed_by_member_id=None,
         reviewed_at=None,
@@ -181,6 +200,12 @@ def _section(report: Report, sales_deal_id: UUID | None = None) -> ReportDeal:
         sales_deal_id=deal_id,
         deal_snapshot={"id": str(deal_id), "label": "D-1", "note": "합성 딜"},
         content={"title": "합성 딜", "values": {"body": "딜별 본문"}},
+        position=0,
+        deal_no_snapshot="D-1",
+        deal_title_snapshot="합성 딜",
+        title="합성 딜",
+        body="딜별 본문",
+        structured_values={},
         ai_evidence=None,
         created_at=NOW,
         updated_at=NOW,
@@ -309,7 +334,10 @@ def test_report_request_rejects_unsafe_values():
             author_member_id=str(uuid4()),
         )
 
-    assert ReportPatch(note=None).model_dump(exclude_unset=True) == {"note": None}
+    assert ReportPatch(expected_version=1, note=None).model_dump(exclude_unset=True) == {
+        "expected_version": 1,
+        "note": None,
+    }
     with pytest.raises(ValidationError):
         ReportPageParams(start_date="2026-08-17", end_date="2026-08-10")
 
@@ -318,6 +346,10 @@ def test_report_request_rejects_unsafe_values():
         "daily",
         "weekly",
         "monthly",
+    ]
+    assert ReportPageParams(status_code=["rejected", "changes_requested"]).status_code == [
+        "rejected",
+        "changes_requested",
     ]
 
 
@@ -340,6 +372,32 @@ def test_deal_snapshot_requires_matching_id_and_safe_fields():
     ):
         with pytest.raises(ValidationError):
             ReportDealWrite(sales_deal_id=deal_id, deal_snapshot=snapshot, content={})
+
+
+def test_deal_positions_validate_the_effective_default_positions():
+    first, second = uuid4(), uuid4()
+    sections = [
+        {
+            "sales_deal_id": str(first),
+            "position": 1,
+            "deal_snapshot": {"id": str(first), "label": "D-1"},
+            "content": {},
+        },
+        {
+            "sales_deal_id": str(second),
+            "deal_snapshot": {"id": str(second), "label": "D-2"},
+            "content": {},
+        },
+    ]
+
+    with pytest.raises(ValidationError, match="duplicate_deal_positions"):
+        ReportPatch(expected_version=1, deal_sections=sections)
+
+
+@pytest.mark.parametrize("field_name", ["report_date", "template_snapshot"])
+def test_patch_rejects_null_for_required_report_columns(field_name):
+    with pytest.raises(ValidationError, match=f"{field_name}_required"):
+        ReportPatch.model_validate({"expected_version": 1, field_name: None})
 
 
 class _CreateDb(_Db):
@@ -394,7 +452,11 @@ def test_create_cannot_inject_server_owned_meeting_shared(monkeypatch, kind):
     member = _member()
     db = _CreateDb(member)
     monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
-    monkeypatch.setattr(reports_api, "_validate_meeting_deal", AsyncMock())
+    monkeypatch.setattr(
+        reports_api,
+        "_validate_meeting_deals",
+        AsyncMock(return_value=uuid4()),
+    )
     content = {
         "values": {"body": "사용자가 입력한 딜 본문"},
         "meeting_shared": {
@@ -476,7 +538,7 @@ def test_patch_cannot_create_replace_or_remove_server_content(key, has_server_va
         response = client.patch(
             f"/api/reports/{report.id}",
             headers={"Origin": ORIGIN},
-            json={"content": replacement},
+            json={"expected_version": 1, "content": replacement},
         )
 
     assert response.status_code == 200
@@ -544,7 +606,7 @@ def test_changes_requested_report_is_editable_again():
         submitted = client.post(
             f"/api/reports/{report.id}/submit",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "changes_requested"},
+            json={"expected_status_code": "changes_requested", "expected_version": 1},
         )
     assert submitted.status_code == 200
     assert submitted.json()["status_code"] == "submitted"
@@ -552,9 +614,9 @@ def test_changes_requested_report_is_editable_again():
 
     # 검토 결과 상태는 팀원이 제출 시작점으로 쓸 수 없다.
     with pytest.raises(ValidationError):
-        ReportSubmit(expected_status_code="approved")
+        ReportSubmit(expected_status_code="approved", expected_version=1)
     with pytest.raises(ValidationError):
-        ReportSubmit(expected_status_code="rejected")
+        ReportSubmit(expected_status_code="rejected", expected_version=1)
 
 
 def test_submitted_report_is_not_editable_or_deletable():
@@ -566,7 +628,7 @@ def test_submitted_report_is_not_editable_or_deletable():
         patched = client.patch(
             f"/api/reports/{submitted.id}",
             headers={"Origin": ORIGIN},
-            json={"content": {"summary": "고치기"}},
+            json={"expected_version": 1, "content": {"summary": "고치기"}},
         )
     assert patched.status_code == 409
     assert patched.json() == {"detail": "report_not_editable"}
@@ -585,6 +647,24 @@ def test_submitted_report_is_not_editable_or_deletable():
     assert delete_db.commit_count == 0
 
 
+def test_changes_requested_report_with_submission_history_is_not_deletable():
+    member = _member()
+    report = _report(member, status_code="changes_requested")
+    report.current_submission_id = uuid4()
+    db = _Db(_Result(scalar=report))
+
+    with _client(db, member) as client:
+        response = client.delete(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "report_has_submission_history"}
+    assert db.deleted == []
+    assert db.rollback_count == 1
+
+
 def test_submit_moves_draft_and_rejects_stale_expectation():
     member = _member()
     report = _report(member)
@@ -598,25 +678,334 @@ def test_submit_moves_draft_and_rejects_stale_expectation():
         submitted = client.post(
             f"/api/reports/{report.id}/submit",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft"},
+            json={"expected_status_code": "draft", "expected_version": 1},
         )
     assert submitted.status_code == 200
     assert submitted.json()["status_code"] == "submitted"
     assert report.status_code == "submitted"
     assert "FOR UPDATE" in str(submit_db.statements[0])
-    assert submit_db.flush_count == submit_db.commit_count == 1
+    assert submit_db.flush_count == 2
+    assert submit_db.commit_count == 1
 
     stale_db = _Db(_Result(scalar=report))
     with _client(stale_db, member) as client:
         stale = client.post(
             f"/api/reports/{report.id}/submit",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft"},
+            json={"expected_status_code": "draft", "expected_version": 2},
         )
     assert stale.status_code == 409
     assert stale.json() == {"detail": "invalid_state_transition"}
     assert stale_db.commit_count == 0
     assert stale_db.rollback_count == 1
+
+
+def test_patch_rejects_a_stale_report_version():
+    member = _member()
+    report = _report(member)
+    report.version = 2
+    db = _Db(_Result(scalar=report))
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"expected_version": 1, "note": "오래된 화면에서 저장"},
+        )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "report_version_conflict"}
+    assert report.note is None and report.version == 2
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
+def test_noop_patch_does_not_bump_report_or_deal_timestamps(monkeypatch):
+    member = _member()
+    report = _report(member, kind="meeting")
+    report.source_activity_id = uuid4()
+    section = _section(report)
+    original_report_updated_at = report.updated_at
+    original_section_updated_at = section.updated_at
+    db = _Db(
+        _Result(scalar=report),
+        _Result(scalar_values=[section]),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+        _Result(scalar_values=[section]),
+    )
+    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock())
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={
+                "expected_version": 1,
+                "deal_sections": [
+                    {
+                        "sales_deal_id": str(section.sales_deal_id),
+                        "position": 0,
+                        "deal_snapshot": section.deal_snapshot,
+                        "content": section.content,
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["version"] == 1
+    assert report.updated_at == original_report_updated_at
+    assert section.updated_at == original_section_updated_at
+
+
+@pytest.mark.parametrize(
+    "patch,expected_generation_version",
+    [
+        ({"body": "사람이 고친 보고서 본문"}, 1),
+        ({"transcript": "새로 들어온 미팅 원문"}, 2),
+    ],
+)
+def test_generation_input_version_only_changes_for_generation_inputs(
+    patch, expected_generation_version
+):
+    member = _member()
+    report = _report(member)
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+    )
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"expected_version": 1, **patch},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["version"] == 2
+    assert response.json()["generation_input_version"] == expected_generation_version
+
+
+def test_patch_null_structured_values_is_rejected_at_the_request_boundary():
+    member = _member()
+    report = _report(member)
+    report.structured_values = {"old": "value"}
+    report.content = {"values": {"old": "value"}}
+    db = _Db()
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"expected_version": 1, "structured_values": None},
+        )
+
+    assert response.status_code == 422
+    assert report.structured_values == {"old": "value"}
+    assert db.statements == []
+
+
+def test_patch_structured_values_preserves_legacy_body():
+    member = _member()
+    report = _report(member)
+    report.body = "사람이 저장한 본문"
+    report.content = {"values": {"body": "사람이 저장한 본문", "old": "value"}}
+    db = _Db(
+        _Result(scalar=report),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+    )
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"expected_version": 1, "structured_values": {"next": "value"}},
+        )
+
+    assert response.status_code == 200
+    assert report.content["values"] == {
+        "next": "value",
+        "body": "사람이 저장한 본문",
+    }
+
+
+def test_deal_structured_values_preserve_body_in_legacy_mirror():
+    deal_id = uuid4()
+    payload = ReportDealWrite(
+        sales_deal_id=deal_id,
+        deal_snapshot={"id": deal_id, "label": "D-1"},
+        content={"values": {"body": "딜 본문", "old": "value"}},
+        structured_values={"next": "value"},
+    )
+
+    normalized = reports_api._normalized_section_payload(payload, 0)
+
+    assert normalized["content"]["values"] == {"next": "value", "body": "딜 본문"}
+
+
+@pytest.mark.anyio
+async def test_reordering_report_deals_clears_positions_before_swapping():
+    member = _member()
+    report = _report(member, kind="meeting")
+    first = _section(report)
+    second = _section(report)
+    second.position = 1
+
+    class ReorderDb(_Db):
+        async def flush(self):
+            self.positions_at_flush = (first.position, second.position)
+            await super().flush()
+
+    db = ReorderDb(_Result(scalar_values=[first, second]))
+    payloads = [
+        ReportDealWrite(
+            sales_deal_id=second.sales_deal_id,
+            position=0,
+            deal_snapshot=second.deal_snapshot,
+            content=second.content,
+        ),
+        ReportDealWrite(
+            sales_deal_id=first.sales_deal_id,
+            position=1,
+            deal_snapshot=first.deal_snapshot,
+            content=first.content,
+        ),
+    ]
+
+    changed, deal_ids_changed = await reports_api._replace_report_deals(db, report.id, payloads)
+
+    assert db.positions_at_flush == (None, None)
+    assert (first.position, second.position) == (1, 0)
+    assert changed is True and deal_ids_changed is False
+
+
+def test_patch_maps_known_integrity_constraint_to_conflict():
+    member = _member()
+    report = _report(member, kind="meeting")
+    cause = RuntimeError("duplicate")
+    cause.constraint_name = "report_deal_position_key"
+    original = RuntimeError("adapter")
+    original.__cause__ = cause
+    error = IntegrityError("update", {}, original)
+    db = _Db(_Result(scalar=report), flush_error=error)
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={"expected_version": 1, "note": "충돌 검사"},
+        )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "duplicate_deal_positions"}
+    assert db.rollback_count == 1
+
+
+def test_changing_the_selected_deal_set_bumps_generation_input_version(monkeypatch):
+    member = _member()
+    report = _report(member, kind="meeting")
+    report.source_activity_id = uuid4()
+    old_section = _section(report)
+    new_deal_id = uuid4()
+    db = _Db(
+        _Result(scalar=report),
+        _Result(scalar_values=[old_section]),
+        _Result(),
+        _Result(rows=[_row(report, member)]),
+        _Result(rows=[]),
+        _Result(scalar_values=[]),
+    )
+    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock())
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+            json={
+                "expected_version": 1,
+                "deal_sections": [
+                    {
+                        "sales_deal_id": str(new_deal_id),
+                        "deal_snapshot": {"id": str(new_deal_id), "label": "D-2"},
+                        "content": {"values": {"body": "새 딜 본문"}},
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["version"] == 2
+    assert response.json()["generation_input_version"] == 2
+
+
+def test_submit_rejects_an_empty_selected_deal(monkeypatch):
+    member = _member()
+    report = _report(member, kind="meeting")
+    report.source_activity_id = uuid4()
+    section = _section(report)
+    section.body = None
+    section.content = {"title": "본문 없는 딜", "values": {}}
+    db = _Db(_Result(scalar=report), _Result(scalar_values=[section]))
+    monkeypatch.setattr(
+        reports_api,
+        "_validate_meeting_sales_deal_ids",
+        AsyncMock(return_value=uuid4()),
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/reports/{report.id}/submit",
+            headers={"Origin": ORIGIN},
+            json={"expected_status_code": "draft", "expected_version": 1},
+        )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "report_deal_body_required"}
+    assert report.status_code == "draft" and report.current_submission_id is None
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
+@pytest.mark.anyio
+async def test_resubmit_creates_an_immutable_second_revision():
+    class SubmissionDb:
+        def __init__(self):
+            self.added = []
+
+        async def execute(self, _statement):
+            revisions = [item.revision_no for item in self.added]
+            return _Result(scalar=max(revisions, default=0))
+
+        def add(self, item):
+            self.added.append(item)
+
+        async def flush(self):
+            return None
+
+    member = _member()
+    report = _report(member, kind="meeting")
+    report.source_activity_id = uuid4()
+    report.transcript = "스냅샷에 원문을 중복 저장하지 않는다."
+    section = _section(report)
+    db = SubmissionDb()
+
+    first = await report_submissions.create_submission(db, report, member, [section])
+    first_snapshot = dict(first.snapshot)
+    section.body = "수정된 두 번째 본문"
+    section.content = {"title": "합성 딜", "values": {"body": section.body}}
+    report.version = 3
+    second = await report_submissions.create_submission(db, report, member, [section])
+
+    assert (first.revision_no, second.revision_no) == (1, 2)
+    assert first.report_version == 1 and second.report_version == 3
+    assert first.snapshot == first_snapshot
+    assert first.snapshot["deals"][0]["body"] == "딜별 본문"
+    assert second.snapshot["deals"][0]["body"] == "수정된 두 번째 본문"
+    assert first.snapshot_sha256 != second.snapshot_sha256
+    assert "transcript" not in first.snapshot
+    assert first.snapshot["transcript_sha256"] is not None
 
 
 @pytest.mark.parametrize("kind,deal_count", [("meeting", 2), ("daily", 0)])
@@ -641,12 +1030,13 @@ def test_submit_queues_every_report_deal_after_commit(monkeypatch, kind, deal_co
 
     monkeypatch.setattr(reports_api.contract_next_meeting_pipeline, "queue", queue)
     validate = AsyncMock()
-    monkeypatch.setattr(reports_api, "_validate_meeting_deal", validate)
+    validate.return_value = uuid4()
+    monkeypatch.setattr(reports_api, "_validate_meeting_sales_deal_ids", validate)
     with _client(db, member) as client:
         response = client.post(
             f"/api/reports/{report.id}/submit",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft"},
+            json={"expected_status_code": "draft", "expected_version": 1},
         )
 
     assert response.status_code == 200
@@ -660,7 +1050,7 @@ def test_submit_queues_every_report_deal_after_commit(monkeypatch, kind, deal_co
         )
         for section in sections
     ]
-    assert validate.await_count == deal_count
+    assert validate.await_count == (1 if kind == "meeting" else 0)
     assert not db.results
 
 
@@ -704,7 +1094,7 @@ def test_submit_rejects_invalid_meeting_deal_before_commit(monkeypatch, invalid)
         response = client.post(
             f"/api/reports/{report.id}/submit",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft"},
+            json={"expected_status_code": "draft", "expected_version": 1},
         )
 
     assert response.status_code == 404
@@ -731,7 +1121,7 @@ def test_member_scope_hides_other_authors_report():
         missing = client.post(
             f"/api/reports/{report_id}/submit",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft"},
+            json={"expected_status_code": "draft", "expected_version": 1},
         )
     assert missing.status_code == 404
     assert missing.json() == {"detail": "report_not_found"}
@@ -866,12 +1256,8 @@ def test_update_keeps_activities_linked_before_the_ownership_rule():
 
     db = _Db(
         _Result(scalar=report),
-        # _visible_activity_ids: 팀 안의 일정인지
-        _Result(scalar_values=[legacy.id]),
         # _linked_activity_ids: 이미 묶여 있던 일정
         _Result(scalar_values=[legacy.id]),
-        # _replace_report_activities 의 delete
-        _Result(),
         _Result(rows=[_row(report, manager)]),
         _Result(rows=[]),
     )
@@ -879,10 +1265,11 @@ def test_update_keeps_activities_linked_before_the_ownership_rule():
         response = client.patch(
             f"/api/reports/{report.id}",
             headers={"Origin": ORIGIN},
-            json={"activity_ids": [str(legacy.id)]},
+            json={"expected_version": 1, "activity_ids": [str(legacy.id)]},
         )
 
     assert response.status_code == 200
+    assert response.json()["version"] == 1
     assert db.commit_count == 1
 
 
@@ -899,12 +1286,12 @@ def test_manager_cannot_edit_or_submit_a_teammate_report():
         lambda client: client.patch(
             f"/api/reports/{report.id}",
             headers={"Origin": ORIGIN},
-            json={"note": "팀장이 대신 고쳐 본다"},
+            json={"expected_version": 1, "note": "팀장이 대신 고쳐 본다"},
         ),
         lambda client: client.post(
             f"/api/reports/{report.id}/submit",
             headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft"},
+            json={"expected_status_code": "draft", "expected_version": 1},
         ),
         lambda client: client.delete(
             f"/api/reports/{report.id}",
@@ -934,7 +1321,7 @@ def test_manager_can_still_edit_own_report():
         response = client.patch(
             f"/api/reports/{report.id}",
             headers={"Origin": ORIGIN},
-            json={"note": "내가 쓴 보고서"},
+            json={"expected_version": 1, "note": "내가 쓴 보고서"},
         )
 
     assert response.status_code == 200
@@ -1080,7 +1467,11 @@ def test_search_also_looks_inside_the_report_body():
 
     assert response.status_code == 200
     for statement in db.statements:
-        assert "CAST(public.report.content AS TEXT)) LIKE" in str(statement)
+        sql = str(statement)
+        assert "CAST(public.report.content AS TEXT)) LIKE" in sql
+        assert "report_deal.title" in sql
+        assert "report_deal.body" in sql
+        assert "CAST(public.report_deal.content AS TEXT)" in sql
 
 
 def test_filter_options_only_count_values_in_scope():

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
-from app.models.content import Report, ReportDeal
+from app.models.content import MeetingDealAnalysis, Report, ReportDeal
 from app.models.workspace import Member
 from app.schemas.meeting_content import (
     MeetingContentAnalysisOutput,
@@ -54,7 +54,7 @@ async def _report_deals(db: AsyncSession, report_id: UUID) -> list[ReportDeal]:
             await db.execute(
                 select(ReportDeal)
                 .where(ReportDeal.report_id == report_id)
-                .order_by(ReportDeal.sales_deal_id)
+                .order_by(ReportDeal.position.asc().nullslast(), ReportDeal.sales_deal_id)
             )
         )
         .scalars()
@@ -85,18 +85,26 @@ async def input_snapshot(
     snapshot["activity_id"] = str(first.source_activity_id)
     snapshot["team_id"] = str(member.team_id)
     snapshot["report_versions"] = [
-        {"id": str(first.id), "updated_at": first.updated_at.isoformat()}
+        {
+            "id": str(first.id),
+            "version": int(getattr(first, "version", None) or 1),
+            "generation_input_version": int(getattr(first, "generation_input_version", None) or 1),
+        }
     ]
     snapshot["deal_versions"] = [
         {
             "sales_deal_id": str(section.sales_deal_id),
+            # rolling deploy 중의 레거시 실행을 판별할 때만 쓴다. 신규 실행의 CAS는
+            # report.generation_input_version 하나가 담당한다.
             "updated_at": section.updated_at.isoformat(),
         }
         for section in report_deals
     ]
     snapshot["assignment_overrides"] = [item.model_dump(mode="json") for item in overrides or []]
     if parent is not None:
-        if (first.source_snapshot or {}).get("meeting_run_id") != str(parent.id):
+        if getattr(first, "last_applied_agent_run_id", None) != parent.id and (
+            first.source_snapshot or {}
+        ).get("meeting_run_id") != str(parent.id):
             raise HTTPException(409, "meeting_assignment_stale")
         evidence = MeetingEvidenceLedger.model_validate(parent.output_snapshot["evidence"])
         source = MeetingContentInput.model_validate(snapshot["source"])
@@ -241,7 +249,7 @@ async def _locked_run(db: AsyncSession, member: Member, run_id: UUID) -> AgentRu
     ).scalar_one_or_none()
     if run is None:
         raise HTTPException(404, "agent_run_not_found")
-    if run.agent_code != "meeting_processing" or run.status_code != "completed":
+    if run.agent_code != "meeting_processing" or run.status_code not in {"completed", "partial"}:
         raise HTTPException(409, "meeting_run_not_completed")
     return run
 
@@ -267,7 +275,7 @@ async def _locked_report_and_deals(
             await db.execute(
                 select(ReportDeal)
                 .where(ReportDeal.report_id == report.id)
-                .order_by(ReportDeal.sales_deal_id)
+                .order_by(ReportDeal.position.asc().nullslast(), ReportDeal.sales_deal_id)
                 .with_for_update()
             )
         )
@@ -289,139 +297,276 @@ async def _commit_report(db: AsyncSession, member: Member, report: Report):
     return output
 
 
+def _clean_text(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _legacy_body(content: object) -> str | None:
+    if not isinstance(content, dict) or not isinstance(content.get("values"), dict):
+        return None
+    return _clean_text(content["values"].get("body"))
+
+
+def _resolved_body(
+    current: str | None, previous_ai: str | None, proposed: str | None
+) -> str | None:
+    """빈 초안 또는 수정되지 않은 이전 AI안만 새 제안으로 교체한다."""
+    current = _clean_text(current)
+    previous_ai = _clean_text(previous_ai)
+    if current is None or (previous_ai is not None and current == previous_ai):
+        return _clean_text(proposed)
+    return current
+
+
+def _report_proposals(
+    result: MeetingProcessingOutput | None,
+) -> tuple[dict[UUID, str], str | None, str | None]:
+    if result is None or result.reports is None:
+        return {}, None, None
+    return (
+        {item.sales_deal_id: item.body for item in result.reports.deal_reports},
+        result.reports.common_report.body if result.reports.common_report else None,
+        result.reports.unassigned_report.body if result.reports.unassigned_report else None,
+    )
+
+
+async def _previous_result(db: AsyncSession, report: Report) -> MeetingProcessingOutput | None:
+    previous_id = getattr(report, "last_applied_agent_run_id", None)
+    if previous_id is None:
+        return None
+    previous = await db.get(AgentRun, previous_id)
+    if previous is None or not previous.output_snapshot:
+        return None
+    try:
+        return MeetingProcessingOutput.model_validate(previous.output_snapshot)
+    except ValueError:
+        # 전환 전 실행 형식은 사람의 현재 본문을 보존하는 쪽으로 처리한다.
+        return None
+
+
+def _legacy_source_changed(report: Report, sections: list[ReportDeal], run: AgentRun) -> bool:
+    versions = run.input_snapshot.get("report_versions", [])
+    if not versions or "updated_at" not in versions[0]:
+        return False
+    deal_versions = {
+        item["sales_deal_id"]: item.get("updated_at")
+        for item in run.input_snapshot.get("deal_versions", [])
+    }
+    return report.updated_at.isoformat() != versions[0]["updated_at"] or any(
+        section.updated_at.isoformat() != deal_versions.get(str(section.sales_deal_id))
+        for section in sections
+    )
+
+
+def _generation_source_changed(report: Report, sections: list[ReportDeal], run: AgentRun) -> bool:
+    expected = getattr(run, "base_generation_input_version", None)
+    if expected is None:
+        return _legacy_source_changed(report, sections, run)
+    return int(getattr(report, "generation_input_version", None) or 1) != expected
+
+
+def _fallback_shared(
+    result: MeetingProcessingOutput, scopes: set[str]
+) -> report_writing_deep.ReportBody | None:
+    items = [item for item in result.evidence.items if item.applicability.scope in scopes]
+    if not items:
+        return None
+    return report_writing_deep.ReportBody(
+        body="\n\n".join(item.segment.text for item in items),
+        evidence_ids=[item.segment.segment_id for item in items],
+    )
+
+
+def _ai_field_id(report: Report) -> str | None:
+    fields = report.template_snapshot.get("fields", [])
+    if any(field.get("id") == "body" for field in fields):
+        return "body"
+    return next(
+        (
+            field["id"]
+            for field in fields
+            if field.get("type") == "textarea" and field.get("aiFilled") is not False
+        ),
+        None,
+    ) or next((field["id"] for field in fields if field.get("aiFilled") is True), None)
+
+
+async def _apply_result(
+    db: AsyncSession,
+    report: Report,
+    sections: list[ReportDeal],
+    run: AgentRun,
+) -> str:
+    """worker와 수동 호환 API가 공유하는 원자적 반영 로직."""
+    if getattr(report, "last_applied_agent_run_id", None) == run.id or (
+        report.source_snapshot or {}
+    ).get("meeting_run_id") == str(run.id):
+        return "applied"
+    if report.status_code not in {"draft", "changes_requested"}:
+        return "stale"
+    if (
+        str(report.source_activity_id) != run.input_snapshot.get("activity_id")
+        or report.transcript != run.input_snapshot.get("source", {}).get("transcript")
+        or _generation_source_changed(report, sections, run)
+    ):
+        return "stale"
+
+    result = MeetingProcessingOutput.model_validate(run.output_snapshot)
+    selected = {section.sales_deal_id for section in sections}
+    if set(result.evidence.selected_deal_ids) != selected:
+        return "stale"
+    analyses = {item.sales_deal_id: item for item in result.analyses}
+    if set(analyses) != selected or len(analyses) != len(result.analyses):
+        raise ValueError("meeting_analysis_deals_mismatch")
+    if result.reports:
+        report_writing_deep.validate_reports(
+            report_writing_deep.ReportWritingInput(
+                transcript=run.input_snapshot["source"]["transcript"],
+                evidence=result.evidence,
+            ),
+            result.reports,
+        )
+
+    previous = await _previous_result(db, report)
+    previous_deals, previous_common, previous_unassigned = _report_proposals(previous)
+    proposals, proposed_common, proposed_unassigned = _report_proposals(result)
+    common_source = result.reports.common_report if result.reports else None
+    unassigned_source = result.reports.unassigned_report if result.reports else None
+    if result.reports is None:
+        common_source = _fallback_shared(result, report_writing_deep.COMMON_SCOPES)
+        unassigned_source = _fallback_shared(result, report_writing_deep.UNASSIGNED_SCOPES)
+        proposed_common = common_source.body if common_source else None
+        proposed_unassigned = unassigned_source.body if unassigned_source else None
+
+    current_common = _clean_text(getattr(report, "common_body", None))
+    current_unassigned = _clean_text(getattr(report, "unassigned_body", None))
+    legacy_shared = (
+        report.content.get("meeting_shared", {}) if isinstance(report.content, dict) else {}
+    )
+    if current_common is None and isinstance(legacy_shared.get("common_report"), dict):
+        current_common = _clean_text(legacy_shared["common_report"].get("body"))
+    if current_unassigned is None and isinstance(legacy_shared.get("unassigned_report"), dict):
+        current_unassigned = _clean_text(legacy_shared["unassigned_report"].get("body"))
+    report.common_body = _resolved_body(current_common, previous_common, proposed_common)
+    report.unassigned_body = _resolved_body(
+        current_unassigned, previous_unassigned, proposed_unassigned
+    )
+
+    now = datetime.now(UTC)
+    shared = {"run_id": str(run.id), "revision": str(uuid4())}
+    for key, body, proposed, evidence_ids in (
+        (
+            "common_report",
+            report.common_body,
+            proposed_common,
+            common_source.evidence_ids if common_source else [],
+        ),
+        (
+            "unassigned_report",
+            report.unassigned_body,
+            proposed_unassigned,
+            unassigned_source.evidence_ids if unassigned_source else [],
+        ),
+    ):
+        if body is None:
+            shared[key] = None
+            continue
+        shared[key] = {"body": body, "evidence_ids": evidence_ids}
+        if proposed is not None and body != proposed:
+            shared[key].update(edited=True, ai_body=proposed)
+
+    field_id = _ai_field_id(report)
+    for section in sections:
+        analysis = analyses[section.sales_deal_id]
+        proposal = proposals.get(section.sales_deal_id)
+        current = _clean_text(getattr(section, "body", None)) or _legacy_body(section.content)
+        section.body = _resolved_body(current, previous_deals.get(section.sales_deal_id), proposal)
+        content = copy.deepcopy(section.content) if isinstance(section.content, dict) else {}
+        if proposal is not None:
+            generated = {field_id or "body": proposal}
+            if section.body == proposal and field_id is not None:
+                values = content.get("values")
+                values = dict(values) if isinstance(values, dict) else {}
+                values[field_id] = proposal
+                content["values"] = values
+            content.update(
+                ai_values=generated,
+                ai_evidence=" · ".join(
+                    next(
+                        item.evidence_ids
+                        for item in result.reports.deal_reports
+                        if item.sales_deal_id == section.sales_deal_id
+                    )
+                ),
+                ai_generated_at=now.isoformat(),
+            )
+        section.content = content
+        section.ai_evidence = {
+            "meeting_run_id": str(run.id),
+            "deal_assessment": (
+                analysis.assessment.model_dump(mode="json") if analysis.assessment else None
+            ),
+            "features": analysis.features.model_dump(mode="json") if analysis.features else None,
+            "analysis_error": analysis.error,
+            "report_error": result.errors.get("report_writing"),
+        }
+        section.updated_at = now
+        db.add(
+            MeetingDealAnalysis(
+                agent_run_id=run.id,
+                report_id=report.id,
+                sales_deal_id=section.sales_deal_id,
+                feature_schema_version=meeting_analysis.PROMPT_VERSION,
+                features=(analysis.features.model_dump(mode="json") if analysis.features else None),
+                prediction_label=analysis.assessment.label if analysis.assessment else None,
+                probability=(analysis.assessment.high_probability if analysis.assessment else None),
+                model_version=analysis.assessment.model_version if analysis.assessment else None,
+                error_code=analysis.error,
+            )
+        )
+
+    report_content = copy.deepcopy(report.content) if isinstance(report.content, dict) else {}
+    report_content["meeting_shared"] = shared
+    report.content = report_content
+    report.source_snapshot = {
+        "meeting_run_id": str(run.id),
+        "evidence": result.evidence.model_dump(mode="json"),
+    }
+    report.ai_evidence = {
+        "meeting_run_id": str(run.id),
+        "errors": result.errors,
+    }
+    report.last_applied_agent_run_id = run.id
+    report.version = int(getattr(report, "version", None) or 1) + 1
+    report.updated_at = now
+    return "applied"
+
+
+async def apply_output(db: AsyncSession, run: AgentRun) -> str:
+    """worker가 lease로 잠근 실행 결과를 서버 소유 초안에 반영한다."""
+    if run.requested_by_member_id is None:
+        return "stale"
+    member = await db.get(Member, run.requested_by_member_id)
+    if member is None or not member.active or member.team_id != run.team_id:
+        return "stale"
+    try:
+        report, sections = await _locked_report_and_deals(db, member, run)
+    except HTTPException as error:
+        if error.status_code in {403, 404, 409}:
+            return "stale"
+        raise
+    return await _apply_result(db, report, sections, run)
+
+
 async def apply(db: AsyncSession, member: Member, run_id: UUID):
-    """완료된 제안을 한 번만 원자적으로 저장. 실행 중 수정된 문서는 덮어쓰지 않는다."""
+    """전환 기간의 수동 반영 API. worker 자동 반영 뒤에는 멱등 조회로 끝난다."""
     try:
         run = await _locked_run(db, member, run_id)
         report, sections = await _locked_report_and_deals(db, member, run)
-        if (report.source_snapshot or {}).get("meeting_run_id") == str(run_id):
-            return await _commit_report(db, member, report)
-        report_version = run.input_snapshot["report_versions"][0]["updated_at"]
-        deal_versions = {
-            item["sales_deal_id"]: item["updated_at"]
-            for item in run.input_snapshot.get("deal_versions", [])
-        }
-        if report.updated_at.isoformat() != report_version or any(
-            section.updated_at.isoformat() != deal_versions.get(str(section.sales_deal_id))
-            for section in sections
-        ):
+        outcome = await _apply_result(db, report, sections, run)
+        if outcome == "stale":
             raise HTTPException(409, "meeting_report_changed")
-        result = MeetingProcessingOutput.model_validate(run.output_snapshot)
-        selected = {section.sales_deal_id for section in sections}
-        if set(result.evidence.selected_deal_ids) != selected:
-            raise HTTPException(409, "meeting_result_deals_mismatch")
-        if result.reports:
-            report_writing_deep.validate_reports(
-                report_writing_deep.ReportWritingInput(
-                    transcript=run.input_snapshot["source"]["transcript"],
-                    evidence=result.evidence,
-                ),
-                result.reports,
-            )
-        drafts = (
-            {item.sales_deal_id: item for item in result.reports.deal_reports}
-            if result.reports
-            else {}
-        )
-        analyses = {item.sales_deal_id: item for item in result.analyses}
-        if set(analyses) != selected or len(analyses) != len(result.analyses):
-            raise HTTPException(409, "meeting_analysis_deals_mismatch")
-        now = datetime.now(UTC)
-        shared = {
-            "run_id": str(run_id),
-            "revision": str(uuid4()),
-            "common_report": result.reports.common_report.model_dump(mode="json")
-            if result.reports and result.reports.common_report
-            else None,
-            "unassigned_report": result.reports.unassigned_report.model_dump(mode="json")
-            if result.reports and result.reports.unassigned_report
-            else None,
-        }
-        if result.reports is None:
-            drafts = {}
-            # 작성 실패여도 미분류 원문은 화면/저장/일일보고에서 사라지지 않는다.
-            for name, scopes in (
-                ("common_report", report_writing_deep.COMMON_SCOPES),
-                ("unassigned_report", report_writing_deep.UNASSIGNED_SCOPES),
-            ):
-                items = [
-                    item for item in result.evidence.items if item.applicability.scope in scopes
-                ]
-                if items:
-                    shared[name] = {
-                        "body": "\n\n".join(item.segment.text for item in items),
-                        "evidence_ids": [item.segment.segment_id for item in items],
-                    }
-        for name in ("common_report", "unassigned_report"):
-            edited = [
-                prior
-                for prior in [(report.content.get("meeting_shared") or {}).get(name)]
-                if isinstance(prior, dict) and prior.get("edited")
-            ]
-            if edited:
-                if len({item["body"] for item in edited}) != 1:
-                    raise HTTPException(409, "meeting_notes_conflict")
-                proposed = shared[name]
-                # 사람이 쓴 공통 메모도 딜 본문과 동일하게 보호한다. 새 AI안은 별도 제안이다.
-                shared[name] = {
-                    "body": edited[0]["body"],
-                    "evidence_ids": proposed["evidence_ids"] if proposed else [],
-                    "edited": True,
-                    "ai_body": proposed["body"] if proposed else None,
-                }
-        for section in sections:
-            content = copy.deepcopy(section.content)
-            draft = drafts.get(section.sales_deal_id)
-            if draft:
-                fields = report.template_snapshot.get("fields", [])
-                field_id = (
-                    "body"
-                    if any(f.get("id") == "body" for f in fields)
-                    else next(
-                        (
-                            f["id"]
-                            for f in fields
-                            if f.get("type") == "textarea" and f.get("aiFilled") is not False
-                        ),
-                        None,
-                    )
-                    or next((f["id"] for f in fields if f.get("aiFilled") is True), None)
-                )
-                generated = {field_id or "body": draft.body}
-                current = content.get("values", {})
-                if not isinstance(current, dict):
-                    current = {}
-                if field_id is not None and not any(
-                    isinstance(value, str) and value.strip() for value in current.values()
-                ):
-                    content["values"] = generated
-                content.update(
-                    ai_values=generated,
-                    ai_evidence=" · ".join(draft.evidence_ids),
-                    ai_generated_at=now.isoformat(),
-                )
-            section.content = content
-            analysis = analyses[section.sales_deal_id]
-            section.ai_evidence = {
-                "meeting_run_id": str(run_id),
-                "deal_assessment": analysis.assessment.model_dump(mode="json")
-                if analysis.assessment
-                else None,
-                "features": analysis.features.model_dump(mode="json")
-                if analysis.features
-                else None,
-                "analysis_error": analysis.error,
-                "report_error": result.errors.get("report_writing"),
-            }
-            section.updated_at = now
-        report_content = copy.deepcopy(report.content)
-        report_content["meeting_shared"] = shared
-        report.content = report_content
-        report.source_snapshot = {
-            "meeting_run_id": str(run_id),
-            "evidence": result.evidence.model_dump(mode="json"),
-        }
-        report.updated_at = now
+        run.apply_status = "applied"
         return await _commit_report(db, member, report)
     except Exception:
         await db.rollback()
@@ -460,7 +605,9 @@ async def update_notes(
                 shared[name]["body"] = body
             elif body:
                 raise HTTPException(422, "meeting_notes_without_evidence")
+        report.common_body, report.unassigned_body = common_body, unassigned_body
         report.content = content
+        report.version = int(getattr(report, "version", None) or 1) + 1
         report.updated_at = datetime.now(UTC)
         return await _commit_report(db, member, report)
     except Exception:
