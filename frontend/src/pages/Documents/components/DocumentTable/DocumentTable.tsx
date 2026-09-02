@@ -26,7 +26,6 @@ interface Props {
   isFiltered: boolean
   onClearFilters: () => void
   showOwner: boolean
-  canUpload: boolean
   onUpload: () => void
 }
 
@@ -38,7 +37,6 @@ export default function DocumentTable({
   isFiltered,
   onClearFilters,
   showOwner,
-  canUpload,
   onUpload,
 }: Props) {
   const columns = useMemo(
@@ -66,7 +64,7 @@ export default function DocumentTable({
             <>
               <DocumentsIcon width={34} height={34} strokeWidth={1.5} />
               <p>아직 올린 자료가 없습니다.</p>
-              {canUpload && <Button onClick={onUpload}>파일 업로드</Button>}
+              <Button onClick={onUpload}>파일 업로드</Button>
             </>
           )}
         </div>
