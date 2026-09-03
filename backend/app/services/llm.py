@@ -8,6 +8,7 @@ API key 는 서버 환경변수에서만 읽고 응답이나 로그에 남기지
 
 import asyncio
 import json
+from ipaddress import ip_address
 from time import perf_counter
 from urllib.parse import urlsplit, urlunsplit
 
@@ -25,31 +26,75 @@ class LLMError(Exception):
 
 
 class LLMNotConfigured(LLMError):
-    """LLM_API_URL, LLM_API_KEY, LLM_MODEL 중 빠진 값이 있다."""
+    """선택한 LLM 공급자의 필수 설정이 비어 있다."""
+
+
+_OLLAMA_NON_SECRET_API_KEY = "ollama"
+
+
+def _is_loopback(hostname: str | None) -> bool:
+    if hostname == "localhost":
+        return True
+    try:
+        return bool(hostname and ip_address(hostname).is_loopback)
+    except ValueError:
+        return False
+
+
+def _validated_endpoint():
+    """인증 정보는 HTTPS로만, 무인증 Ollama는 loopback으로만 보낸다."""
+    try:
+        endpoint = urlsplit(settings.llm_api_url)
+        hostname = endpoint.hostname
+    except ValueError:
+        raise LLMError("report_agent_unsupported_endpoint") from None
+    if (
+        not endpoint.netloc
+        or not hostname
+        or endpoint.username is not None
+        or endpoint.password is not None
+        or endpoint.query
+        or endpoint.fragment
+        or (
+            settings.llm_provider == "ollama"
+            and (endpoint.scheme not in {"https", "http"} or not _is_loopback(hostname))
+        )
+        or (settings.llm_provider != "ollama" and endpoint.scheme != "https")
+    ):
+        raise LLMError("report_agent_unsupported_endpoint")
+    return endpoint
+
+
+def _external_api_key() -> str:
+    api_key = settings.effective_llm_api_key.strip()
+    if not api_key:
+        raise LLMNotConfigured("llm_not_configured")
+    return api_key
 
 
 def configured_chat_model() -> ChatOpenAI:
     """LangChain 에이전트가 공유하는 OpenAI 호환 채팅 모델을 만든다."""
-    if not settings.llm_configured or not settings.llm_api_key.get_secret_value().strip():
+    if not settings.llm_configured:
         raise LLMNotConfigured("llm_not_configured")
-    endpoint = urlsplit(settings.llm_api_url)
+    endpoint = _validated_endpoint()
     path = endpoint.path.rstrip("/")
-    suffix = next((s for s in ("/responses", "/chat/completions") if path.endswith(s)), None)
-    if (
-        suffix is None
-        or endpoint.scheme not in {"https", "http"}
-        or not endpoint.netloc
-        or endpoint.username
-        or endpoint.password
-        or endpoint.query
-        or endpoint.fragment
-    ):
+    if settings.llm_provider == "ollama":
+        suffix = "/api/chat"
+        base_path = f"{path[: -len(suffix)]}/v1" if path.endswith(suffix) else None
+        api_key = _OLLAMA_NON_SECRET_API_KEY
+        use_responses_api = False
+    else:
+        suffix = next((s for s in ("/responses", "/chat/completions") if path.endswith(s)), None)
+        base_path = path[: -len(suffix)] if suffix else None
+        api_key = _external_api_key()
+        use_responses_api = suffix == "/responses"
+    if base_path is None:
         raise LLMError("report_agent_unsupported_endpoint")
     return ChatOpenAI(
         model=settings.llm_model,
-        api_key=settings.llm_api_key,
-        base_url=urlunsplit((endpoint.scheme, endpoint.netloc, path[: -len(suffix)], "", "")),
-        use_responses_api=suffix == "/responses",
+        api_key=api_key,
+        base_url=urlunsplit((endpoint.scheme, endpoint.netloc, base_path, "", "")),
+        use_responses_api=use_responses_api,
         timeout=httpx.Timeout(max(180.0, settings.llm_timeout_seconds), connect=10.0),
         max_retries=0,
         max_completion_tokens=12_000,
@@ -184,6 +229,7 @@ async def generate_structured[Schema: BaseModel](
     """구조화 출력 하나를 받아 Pydantic 으로 검증해 돌려준다."""
     if not settings.llm_configured:
         raise LLMNotConfigured("llm_not_configured")
+    _validated_endpoint()
 
     if settings.llm_provider == "ollama":
         body = {
@@ -198,6 +244,7 @@ async def generate_structured[Schema: BaseModel](
         }
         headers = {"Content-Type": "application/json"}
     else:
+        api_key = _external_api_key()
         body = {
             "model": settings.llm_model,
             "input": [
@@ -214,7 +261,7 @@ async def generate_structured[Schema: BaseModel](
             },
         }
         headers = {
-            "Authorization": f"Bearer {settings.effective_llm_api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
 

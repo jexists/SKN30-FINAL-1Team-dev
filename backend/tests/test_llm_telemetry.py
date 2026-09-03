@@ -78,6 +78,8 @@ async def test_http_usage_is_recorded_even_when_output_schema_fails(
     original_client = httpx.AsyncClient
     ollama = response_kind == "ollama_fenced"
     monkeypatch.setattr(llm.settings, "llm_provider", "ollama" if ollama else "external")
+    if ollama:
+        monkeypatch.setattr(llm.settings, "llm_api_url", "http://localhost:11434/api/chat")
 
     def response(request):
         timeouts.append(request.extensions["timeout"])

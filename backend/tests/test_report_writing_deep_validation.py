@@ -222,10 +222,12 @@ def test_unassigned_report_is_required_only_when_there_is_unassigned_evidence():
 
 @pytest.fixture
 def model_settings(monkeypatch):
+    monkeypatch.setattr(llm_service.settings, "llm_provider", "external")
     monkeypatch.setattr(
         llm_service.settings, "llm_api_url", "https://provider.invalid/v1/responses"
     )
     monkeypatch.setattr(llm_service.settings, "llm_api_key", SecretStr("synthetic-test-key"))
+    monkeypatch.setattr(llm_service.settings, "openai_api_key", SecretStr(""))
     monkeypatch.setattr(llm_service.settings, "llm_model", "synthetic-model")
     monkeypatch.setattr(llm_service.settings, "llm_timeout_seconds", 7.0)
 
@@ -240,7 +242,6 @@ def model_settings(monkeypatch):
             "https://provider.invalid/api/v2",
             False,
         ),
-        ("http://localhost:1234/v1/chat/completions", "http://localhost:1234/v1", False),
     ],
 )
 def test_model_config_preserves_api_base_without_endpoint_suffix(
@@ -378,6 +379,7 @@ def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_
         "https://user:password@provider.invalid/v1/responses",
         "https://provider.invalid/v1/responses?mode=test",
         "https://provider.invalid/v1/responses#fragment",
+        "http://localhost:1234/v1/chat/completions",
     ],
 )
 def test_model_config_rejects_unsupported_urls(model_settings, monkeypatch, endpoint):
