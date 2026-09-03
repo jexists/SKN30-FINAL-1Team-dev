@@ -97,6 +97,7 @@ export function toReport(item: ReportResponse): DailyReport {
     apiStatus: item.status_code,
     version: item.version,
     currentSubmissionId: item.current_submission_id,
+    updatedAt: item.updated_at,
     values: { body: item.body ?? '' },
     activities: activitiesOf(item),
     attachments: attachmentsOf(content.attachments),

@@ -102,6 +102,7 @@ export interface DailyReport extends DailyReportSeed {
   apiStatus?: ApiReportStatus
   version?: number
   currentSubmissionId?: string | null
+  updatedAt?: string
   /** 팀장이 마지막 검토에서 돌려보낸 이유. 작성자의 note 와 다른 값입니다. */
   reviewNote?: string
 }

@@ -93,6 +93,7 @@ const periodResponse = ({
   status_code: status,
   version: 1,
   current_submission_id: null,
+  updated_at: '2026-08-31T10:00:00Z',
   template_snapshot: {
     id: 'legacy-daily',
     fields: [{ id: 'summary', label: '요약', type: 'textarea' }],
@@ -137,6 +138,7 @@ test('기간 보고서는 본인 작성본이면 승인 전까지 수정할 수 
   )
 
   assert.equal(canEditPeriodReport(draft, 'synthetic-author'), true)
+  assert.equal(draft.updatedAt, '2026-08-31T10:00:00Z')
   assert.equal(canEditPeriodReport(returned, 'synthetic-author'), true)
   assert.equal(canEditPeriodReport(draft, 'another-member'), false)
   assert.equal(

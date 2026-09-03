@@ -156,7 +156,7 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /setTranscript: changeTranscript/)
 })
 
-test('제출된 미팅 보고서는 저장 후 시작한 같은 딜 재생성만 복구한다', async () => {
+test('제출된 보고서는 저장 후 시작한 같은 자료 재생성만 복구한다', async () => {
   const meeting = await readFile(
     new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
     'utf8',
@@ -195,11 +195,22 @@ test('제출된 미팅 보고서는 저장 후 시작한 같은 딜 재생성만
     ),
     false,
   )
+  assert.equal(
+    canRecoverMeetingGeneration({ ...regenerated, status_code: 'failed' }, savedReport, 'member-1'),
+    false,
+  )
+  assert.equal(
+    canRecoverMeetingGeneration(regenerated, { ...savedReport, apiStatus: 'approved' }, 'member-1'),
+    false,
+  )
   assert.match(
     meeting,
     /meetingInputOf\(run, agendaId\)[\s\S]*?canRecoverMeetingGeneration\(run, savedReport, memberId\)[\s\S]*?resumeGeneration\(run, controller\)/,
   )
-  assert.match(period, /if \(canonical\) \{[\s\S]*?setRecovering\(false\)[\s\S]*?return/)
+  assert.match(
+    period,
+    /periodInputOf\(run, kind, dateISO\)[\s\S]*?canRecoverReportGeneration\(run, canonical, memberId\)[\s\S]*?resumeGenerationRef\.current\(run, controller\)/,
+  )
   assert.doesNotMatch(`${meeting}\n${daily}`, /이전에 생성하던 후보|후보 복구/)
 })
 

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
@@ -18,7 +19,7 @@ import {
 } from '@/api/reportAgent'
 import type { IdempotencyAttempt } from '@/api/reportAgent'
 import { useAgendaState } from '@/shared/agenda'
-import { APPROVERS, templateFor } from '@/shared/reports'
+import { APPROVERS, canRecoverReportGeneration, templateFor } from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgentRunResponse,
@@ -101,6 +102,7 @@ export default function useDailyDraft(
   options: DraftOptions = {},
 ) {
   const { pickId } = options
+  const { memberId } = useCurrentUser()
 
   const {
     items: agendaItems,
@@ -377,11 +379,6 @@ export default function useDailyDraft(
 
   useEffect(() => {
     if (existingLoading || sourcesLoading || recoveredScope.current === scopeKey) return
-    if (canonical) {
-      recoveredScope.current = scopeKey
-      setRecovering(false)
-      return
-    }
     recoveredScope.current = scopeKey
     const controller = new AbortController()
     recoveryAbort.current = controller
@@ -400,6 +397,7 @@ export default function useDailyDraft(
       .then((run) => {
         if (controller.signal.aborted || generationAbort.current) return
         const input = periodInputOf(run, kind, dateISO)
+        if (!canRecoverReportGeneration(run, canonical, memberId)) return
         const recovered = periodGenerationSeedOf(input).activities
         const current = mergeSourceActivities(sources.activities, recovered, pickId)
         if (!generationSourcesAreAvailable(recovered, current)) return
@@ -432,6 +430,7 @@ export default function useDailyDraft(
     sources.activities,
     pickId,
     canonical,
+    memberId,
   ])
 
   useEffect(
