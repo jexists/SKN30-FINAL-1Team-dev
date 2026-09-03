@@ -17,7 +17,7 @@ from datetime import UTC, date, datetime
 from hashlib import md5
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -378,10 +378,14 @@ async def _seed(session: AsyncSession) -> None:
                 sales_deal_id=deal_id,
                 purchase_order_id=None,
             )
+            # 이미 있는 행은 비어 있는 칸만 채우고 나머지는 그대로 둔다. 담당자와 딜은
+            # 각각 비어 있을 수 있어 coalesce 로 칸마다 따로 본다.
             .on_conflict_do_update(
                 index_elements=[Activity.id],
-                set_={"customer_contact_id": contact_id},
-                where=Activity.customer_contact_id.is_(None),
+                set_={
+                    "customer_contact_id": func.coalesce(Activity.customer_contact_id, contact_id),
+                    "sales_deal_id": func.coalesce(Activity.sales_deal_id, deal_id),
+                },
             )
         )
 

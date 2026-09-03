@@ -262,6 +262,22 @@
   코드는 INSERT 에 이 값을 넣지 않아 적용 뒤 배포 전까지는 일정 등록이 NOT NULL 에 막히므로,
   두 작업을 붙여서 합니다.
 
+- `20260903_0020_activity_sales_deal_required.sql`: 일정에 딜을 필수로 두고(`activity.sales_deal_id`
+  NOT NULL), `20260902_0019`가 미뤄 둔 담당자 필수화(`activity.customer_contact_id`·
+  `sales_deal.customer_contact_id`)도 함께 겁니다. 지금까지 캘린더에서 직접 등록한 일정에는 딜이
+  아예 붙지 않아(등록 모달에 딜 칸이 없었습니다) 파이프라인에도 계약관리 에이전트에도 걸리지
+  않는 일정이 계속 쌓였습니다. 백필은 두 갈래입니다 — 보고서를 쓴 일정은 `report_activity` →
+  `report_deal`로 어느 딜이었는지 역추적하고(`position`이 앞선 딜을 대표로, 레거시 단일 딜
+  보고서는 `report.sales_deal_id`를 봅니다), 그것도 없으면 고객사에 딜이 하나뿐일 때 그 딜로
+  채웁니다. 딜의 고객사가 일정의 고객사와 다르면 쓰지 않습니다. **삭제가 있습니다.** 두 갈래
+  모두 근거가 없는 일정과 거기에 물린 보고서를 지웁니다. 지울 보고서에 확정 스냅샷·첨부가
+  있거나, 남는 보고서가 지울 일정을 `report_activity`·`report_source`로 붙들고 있으면 조용히
+  지우지 않고 실패합니다. `ON DELETE`는 바꾸지 않습니다 — `activity.sales_deal_id`에 CASCADE를
+  걸면 딜을 지울 때 일정과 보고서가 말없이 사라지고, 앱은 딜을 `deleted_at`으로만 지우므로 실제
+  삭제는 마이그레이션뿐이라 그때 사람이 판단하는 편이 안전합니다. **백엔드 배포가 DB 적용보다
+  먼저입니다** — 이전 코드는 딜 없이도 일정을 등록하므로 DB를 먼저 잠그면 그 사이 등록이
+  NOT NULL 에 막힙니다. `20260902_0019`와 순서가 반대이니 두 파일을 함께 보고 적용합니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -304,6 +320,7 @@
 | 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_transient_report_generation.sql` | session pooler | 성공. 생성 payload 만료·재접속 scope·멱등 확정 컬럼과 보호 함수를 추가하고 `agent_worker --check-schema` 통과 |
 | 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_report_freeform_body.sql` 검토 전 초안 | session pooler | 일일 204·주간 51·월간 20건을 본문으로 이관하고 report_deal 본문 83→453건. 현재 PR의 fail-closed 검증과 구 단일 딜 미팅 이관이 들어가기 전 SQL이므로, 개발 반영 때는 0020 직전 백업으로 복구한 뒤 최종 SQL을 적용해야 함 |
 | 2026-09-03 | — | `20260903_0021_customer_contact_soft_delete.sql` | — | 대기. 고객 삭제용 `customer_contact.deleted_at`과 부분 인덱스. 적용 요청을 아직 받지 않았습니다 |
+| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_activity_sales_deal_required.sql` | session pooler | **미적용(대기).** `20260902_0019` 다음에 적용합니다. 수치는 이 브랜치를 배포하기 직전에 트랜잭션 안에서 돌려 보고 채웁니다 |
 
 ## 개발 DB 재구축 런북
 
