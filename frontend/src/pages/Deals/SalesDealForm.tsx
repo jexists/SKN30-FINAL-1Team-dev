@@ -28,8 +28,9 @@ interface Props {
   stageId?: string
   /**
    * 새 딜의 고객사·담당자를 부르는 쪽이 이미 정해 온 경우입니다. 일정 등록처럼 회사와
-   * 사람이 먼저 정해진 자리에서 씁니다. 주면 두 칸은 잠깁니다 — 여기서 다른 회사를
-   * 고를 수 있으면 부르는 쪽이 들고 있는 값과 어긋나기 때문입니다.
+   * 사람이 먼저 정해진 자리에서 씁니다. 준 칸만 잠깁니다 — 여기서 다른 값을 고를 수
+   * 있으면 부르는 쪽이 들고 있는 값과 어긋나기 때문입니다. 반대로 주지 않은 칸까지
+   * 잠그면 채울 방법이 없는 필수 칸이 생깁니다.
    */
   initialCompany?: CustomerCompanyResponse
   initialContact?: ContactOption
@@ -71,8 +72,9 @@ export default function SalesDealForm({
   onSubmit,
   onClose,
 }: Props) {
-  // 부르는 쪽이 회사와 사람을 정해 왔으면 두 칸을 고칠 수 없게 잠급니다.
-  const customerLocked = initialCompany !== undefined
+  // 부르는 쪽이 정해 온 칸만 잠급니다.
+  const companyLocked = initialCompany !== undefined
+  const contactLocked = initialContact !== undefined
   const [form, setForm] = useState<FormState>(() => ({
     // 딜은 회사 id 와 이름만 들고 있습니다. 아래에서 한 건을 읽어 채웁니다.
     company: initialCompany ? { kind: 'existing', company: initialCompany } : null,
@@ -268,7 +270,7 @@ export default function SalesDealForm({
             label="고객사"
             placeholder="회사 이름으로 검색"
             invalid={errors.company !== undefined}
-            disabled={submitting || customerLocked}
+            disabled={submitting || companyLocked}
             value={form.company}
             onChange={pickCompany}
           />
@@ -282,7 +284,7 @@ export default function SalesDealForm({
               companyId(form.company) === null ? '고객사를 먼저 선택하세요' : '이름으로 검색'
             }
             companyId={companyId(form.company)}
-            disabled={submitting || customerLocked}
+            disabled={submitting || contactLocked}
             invalid={errors.contact !== undefined}
             value={form.contact}
             onChange={(next) => set('contact', next)}

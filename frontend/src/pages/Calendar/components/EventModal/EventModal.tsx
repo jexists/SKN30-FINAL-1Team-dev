@@ -394,6 +394,10 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
             딜<b aria-hidden="true">*</b>
           </span>
           <RecordPicker<SalesDealResponse>
+            // 회사를 바꾸면 칸을 새로 답니다. RecordPicker 는 값이 null 로 비어도 입력칸의
+            // 글자를 지우지 않습니다 — 고른 뒤 글자를 고치는 중에 지워지면 안 되기 때문입니다.
+            // 그래서 회사가 바뀔 때는 그 규칙을 우회해 앞 회사의 딜 번호가 남지 않게 합니다.
+            key={companyId(company) ?? 'no-company'}
             path="/sales-deals"
             label="딜"
             placeholder={
@@ -410,17 +414,23 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
             toOption={toDealOption}
             onChange={(next) => pickDeal(next)}
           />
-          {/* 신규 고객사는 아직 딜이 없습니다. 여기서 막히지 않게 그 자리에서 만듭니다. */}
-          {companyId(company) !== null && quickDeal.ready && (
-            <button
-              type="button"
-              className={styles.createDeal}
-              disabled={pending}
-              onClick={() => setCreatingDeal(true)}
-            >
-              + 새 딜 만들기
-            </button>
-          )}
+          {/* 신규 고객사는 아직 딜이 없습니다. 여기서 막히지 않게 그 자리에서 만듭니다.
+              딜에도 담당자가 필요하고 그 사람은 이 일정의 고객과 같아야 하므로, 고객을
+              고르기 전에는 만들 수 없다고 알려 줍니다. */}
+          {companyId(company) !== null &&
+            quickDeal.ready &&
+            (customer === null ? (
+              <span className={styles.createDealHint}>고객을 고르면 새 딜을 만들 수 있습니다.</span>
+            ) : (
+              <button
+                type="button"
+                className={styles.createDeal}
+                disabled={pending}
+                onClick={() => setCreatingDeal(true)}
+              >
+                + 새 딜 만들기
+              </button>
+            ))}
           {dealError && (
             <span className={styles.error} role="alert">
               {dealError}

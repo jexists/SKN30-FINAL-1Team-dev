@@ -379,7 +379,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 현재 영업·발주 API의 안정적인 업무 오류 코드는 다음과 같다.
 
 - 공통 범위: `scope_not_allowed`, `deal_not_found`, `order_not_found`, 각 `*_not_found`
-- 설정·관계: `sales_pipeline_not_found`, `sales_pipeline_stage_not_found`, `sales_deal_type_code_not_found`, `purchase_order_status_code_not_found`, `sales_pipeline_stage_pipeline_mismatch`, `contact_company_mismatch`, `contact_owner_mismatch`
+- 설정·관계: `sales_pipeline_not_found`, `sales_pipeline_stage_not_found`, `sales_deal_type_code_not_found`, `purchase_order_status_code_not_found`, `sales_pipeline_stage_pipeline_mismatch`, `contact_company_mismatch`, `contact_owner_mismatch`(담당자 역할이 남의 고객을 딜에 붙일 때. 팀장은 팀 전체 고객을 붙일 수 있어 일정과 범위가 같다)
 - 검증: `invalid_sales_deal_dates`, `invalid_order_dates`, `invalid_sales_deal_position`, `sales_pipeline_order_stage_not_found`
 - 충돌: `invalid_state_transition`, `sales_deal_conflict`, `order_conflict`, `sales_deal_number_exhausted`, `order_number_exhausted`
 
