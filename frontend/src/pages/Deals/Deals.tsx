@@ -74,7 +74,15 @@ export default function Deals() {
     },
     [params, setParams],
   )
-  const setOpenId = useCallback((id: string | null) => setParam('deal', id ?? ''), [setParam])
+  const setOpenId = useCallback(
+    (id: string | null) => {
+      const next = new URLSearchParams(params)
+      if (id) next.set('deal', id)
+      else next.delete('deal')
+      setParams(next, { replace: true })
+    },
+    [params, setParams],
+  )
 
   const setPipeline = useCallback(
     (value: string) => {

@@ -59,6 +59,20 @@ test('딜 상세 링크는 식별자를 인코딩해 영업 현황 드로어를 
   assert.equal(dealDetailPath('deal/id?tab=1'), '/deals?deal=deal%2Fid%3Ftab%3D1')
 })
 
+test('딜 드로어를 열고 닫아도 현재 목록 페이지를 초기화하지 않는다', async () => {
+  const source = await readFile(new URL('../src/pages/Deals/Deals.tsx', import.meta.url), 'utf8')
+  const drawerParam = source.slice(
+    source.indexOf('const setOpenId = useCallback('),
+    source.indexOf('const setPipeline = useCallback('),
+  )
+
+  assert.match(drawerParam, /if \(id\) next\.set\('deal', id\)/)
+  assert.match(drawerParam, /else next\.delete\('deal'\)/)
+  assert.match(drawerParam, /setParams\(next, \{ replace: true \}\)/)
+  assert.doesNotMatch(drawerParam, /setParam\(|setPage\(/)
+  assert.match(source, /skip: \(page - 1\) \* PAGE_SIZE/)
+})
+
 const dealId = '10000000-0000-4000-8000-000000000001'
 const dealSection = (values = {}, id = dealId, label = id === dealId ? 'DEAL-1' : 'DEAL-2') => ({
   sales_deal_id: id,
