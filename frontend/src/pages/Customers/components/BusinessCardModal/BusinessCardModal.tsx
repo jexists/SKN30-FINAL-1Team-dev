@@ -4,7 +4,6 @@ import { errorMessage, messageForCode } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import { CardIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import ProgressBar from '@/components/ProgressBar'
 import { sizeLabel } from '@/utils/attachment'
 
 import {
@@ -15,6 +14,7 @@ import {
   type BusinessCardDraft,
   type ScanProgress,
 } from '../../businessCard'
+import RecognitionLoading from '../RecognitionLoading'
 
 import styles from './BusinessCardModal.module.scss'
 
@@ -162,13 +162,10 @@ export default function BusinessCardModal({
       )}
 
       {reading && progress && (
-        <div className={styles.progress}>
-          <ProgressBar
-            value={progress.phase === 'uploading' ? progress.percent : undefined}
-            label={progressLabel(progress)}
-          />
-          <p className={styles.step}>{progressLabel(progress)}</p>
-        </div>
+        <RecognitionLoading
+          description={progressLabel(progress)}
+          progress={progress.phase === 'uploading' ? progress.percent : undefined}
+        />
       )}
 
       {error && (

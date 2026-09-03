@@ -298,6 +298,7 @@ export default function Documents() {
 
       {openDoc && (
         <DocumentDrawer
+          key={openDoc.id}
           doc={openDoc}
           onClose={() => setOpenId(null)}
           onNewVersion={() => setUploading(openDoc.id)}

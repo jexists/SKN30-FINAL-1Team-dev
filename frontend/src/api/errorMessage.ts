@@ -65,6 +65,16 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   business_card_scan_timeout: '명함 인식이 제한시간 안에 끝나지 않았습니다. 다시 시도해 주세요.',
   business_card_upload_timeout:
     '사진을 올리는 데 시간이 너무 오래 걸렸습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
+  // 사업자등록증 인식 (/customers)
+  business_license_scan_empty:
+    '사업자등록증에서 읽어 낸 값이 없습니다. 문서가 선명하게 보이도록 다시 올려 주세요.',
+  business_license_scan_not_found: '인식 결과가 만료되었습니다. 다시 시도해 주세요.',
+  business_license_scan_timeout:
+    '사업자등록증 인식이 제한시간 안에 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  business_license_upload_timeout:
+    '사업자등록증을 올리는 데 시간이 너무 오래 걸렸습니다. 네트워크 상태를 확인해 주세요.',
+  business_license_upload_invalid: '사업자등록증 파일 형식을 확인해 주세요.',
+  business_license_unsupported_file: 'PDF 또는 이미지 형식의 사업자등록증만 올릴 수 있습니다.',
   // 보고서 (/reports)
   activity_not_owned: '본인이 진행한 일정에만 보고서를 쓸 수 있습니다.',
   report_not_owned: '본인이 쓴 보고서만 고치거나 제출할 수 있습니다.',
