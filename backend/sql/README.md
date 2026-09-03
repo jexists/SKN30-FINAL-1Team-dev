@@ -317,10 +317,7 @@
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0017_report_workflow_v2_foundation.sql` | session pooler | 성공. 정리 후 report 699행과 report_deal 461행을 유지하고 report_submission·report_source·meeting_deal_analysis 및 제약조건·인덱스를 추가. 일일보고서 중복 0건 확인 |
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0018_agent_run_queue.sql` | session pooler | 성공. 정리 후 agent_run 537행을 유지하고 큐 컬럼·제약조건·인덱스를 추가. `agent_worker --check-schema` 통과 |
 | 2026-09-02 | 현재 연결된 개발 DB | `20260902_0019_activity_customer_company.sql` | session pooler | **미적용(대기).** 트랜잭션 안에서 돌려 보고 롤백한 결과만 확인했습니다. 딜 담당자 NULL 19→0 / 일정 담당자 NULL 48→0(활성 33 + 소프트 삭제 15) / 일정 고객사 NULL 0. 삭제는 딜 9(416→407) · 일정 34(1993→1959) · 보고서 14(707→693) · `contract_next_meeting_suggestion` 3(90→87)이고, 딜에 걸린 자료 7건과 `report_deal` 472행은 그대로였습니다. 이 브랜치를 배포하기 직전에 적용합니다 |
-| 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_transient_report_generation.sql` | session pooler | 성공. 생성 payload 만료·재접속 scope·멱등 확정 컬럼과 보호 함수를 추가하고 `agent_worker --check-schema` 통과 |
-| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_report_freeform_body.sql` 검토 전 초안 | session pooler | 일일 204·주간 51·월간 20건을 본문으로 이관하고 report_deal 본문 83→453건. 현재 PR의 fail-closed 검증과 구 단일 딜 미팅 이관이 들어가기 전 SQL이므로, 개발 반영 때는 0020 직전 백업으로 복구한 뒤 최종 SQL을 적용해야 함 |
-| 2026-09-03 | — | `20260903_0021_customer_contact_soft_delete.sql` | — | 대기. 고객 삭제용 `customer_contact.deleted_at`과 부분 인덱스. 적용 요청을 아직 받지 않았습니다 |
-| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_activity_sales_deal_required.sql` | session pooler | **미적용(대기).** `20260902_0019` 다음에 적용합니다. 수치는 이 브랜치를 배포하기 직전에 트랜잭션 안에서 돌려 보고 채웁니다 |
+| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_activity_sales_deal_required.sql` | session pooler | **미적용(대기).** `20260902_0019` 를 앞에 붙여 한 트랜잭션 안에서 돌려 본 뒤 롤백해 수치만 확인했습니다. 0019 구간은 딜 담당자 NULL 20→0 / 일정 담당자 NULL 48→0 / 삭제는 딜 9(417→408) · 일정 34(1995→1961) · 보고서 14(686→672) · `contract_next_meeting_suggestion` 3(90→87). 0020 구간은 일정 딜 NULL 29→0 이고, 백필 16건(보고서 역추적 12 · 고객사에 딜이 하나뿐 4) 삭제 13건(1961→1948)으로 갈렸습니다. **지운 일정에 물린 보고서는 0건**이라 보고서는 672 그대로였고, 확정 스냅샷·첨부와 남는 보고서가 붙든 일정을 보는 가드는 모두 걸리지 않았습니다. 두 파일을 이 순서로 붙여서 적용합니다 |
 
 ## 개발 DB 재구축 런북
 
