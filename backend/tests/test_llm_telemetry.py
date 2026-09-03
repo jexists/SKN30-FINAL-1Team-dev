@@ -70,33 +70,27 @@ def test_httpx_base_transport_errors_remain_retryable(error_type):
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("malformed", [False, True])
-@pytest.mark.parametrize("response_kind", ["plain", "fenced", "ollama_fenced"])
+@pytest.mark.parametrize("response_kind", ["plain", "fenced"])
 async def test_http_usage_is_recorded_even_when_output_schema_fails(
     configured_llm, monkeypatch, caplog, malformed, response_kind
 ):
     timeouts = []
     original_client = httpx.AsyncClient
-    ollama = response_kind == "ollama_fenced"
-    monkeypatch.setattr(llm.settings, "llm_provider", "ollama" if ollama else "external")
-    if ollama:
-        monkeypatch.setattr(llm.settings, "llm_api_url", "http://localhost:11434/api/chat")
 
     def response(request):
         timeouts.append(request.extensions["timeout"])
         text = json.dumps({"value": "private-provider-output" if malformed else 5})
         if response_kind != "plain":
             text = f" \n```json\n{text}\n```\n "
-        payload = {"message": {"content": text}} if ollama else {"output_text": text}
-        if ollama:
-            assert "authorization" not in request.headers
-            assert json.loads(request.content)["stream"] is False
-        else:
-            payload["usage"] = {
+        payload = {
+            "output_text": text,
+            "usage": {
                 "input_tokens": 13,
                 "output_tokens": 7,
                 "total_tokens": 20,
                 "private_metadata": "private-token-data",
-            }
+            },
+        }
         return httpx.Response(
             200,
             headers={"x-request-id": "req_safe_test"},
@@ -129,12 +123,9 @@ async def test_http_usage_is_recorded_even_when_output_schema_fails(
     assert timeouts == [{"connect": 10, "read": 180, "write": 180, "pool": 180}]
     completed = [event for event in _events(caplog) if event["stage"] == "llm.request_completed"]
     assert len(completed) == 1
-    if ollama:
-        assert not {"input_tokens", "output_tokens", "total_tokens"} & completed[0].keys()
-    else:
-        assert completed[0]["input_tokens"] == 13
-        assert completed[0]["output_tokens"] == 7
-        assert completed[0]["total_tokens"] == 20
+    assert completed[0]["input_tokens"] == 13
+    assert completed[0]["output_tokens"] == 7
+    assert completed[0]["total_tokens"] == 20
     assert completed[0]["call_count"] == 2
     assert completed[0]["call_limit"] == 24
     assert completed[0]["request_id"] == "req_safe_test"
@@ -160,7 +151,6 @@ async def test_non_object_response_uses_safe_llm_error(
     configured_llm, monkeypatch, caplog, payload
 ):
     original_client = httpx.AsyncClient
-    monkeypatch.setattr(llm.settings, "llm_provider", "external")
     transport = httpx.MockTransport(
         lambda request: httpx.Response(
             200,

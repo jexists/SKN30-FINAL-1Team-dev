@@ -222,7 +222,6 @@ def test_unassigned_report_is_required_only_when_there_is_unassigned_evidence():
 
 @pytest.fixture
 def model_settings(monkeypatch):
-    monkeypatch.setattr(llm_service.settings, "llm_provider", "external")
     monkeypatch.setattr(
         llm_service.settings, "llm_api_url", "https://provider.invalid/v1/responses"
     )
