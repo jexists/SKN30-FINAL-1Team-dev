@@ -3,10 +3,14 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { errorMessage, transportMessage } from '@/api/errorMessage'
+import { useCurrentUser } from '@/auth/sessionContext'
+import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
+import Modal from '@/components/Modal'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import { useScopeOwnerIds, useShowOwner } from '@/shared/scope'
+import { showToast } from '@/shared/toast'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
 
 import type { BusinessCardDraft } from './businessCard'
@@ -51,6 +55,13 @@ export default function Customers() {
   const [reloadKey, setReloadKey] = useState(0)
   const [exporting, setExporting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Customer | null>(null)
+  const [deleting, setDeleting] = useState<Customer | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // 삭제는 팀장만 합니다. 메뉴에서 감추기만 하고 실제로 막는 일은 백엔드가 합니다.
+  const { isManager } = useCurrentUser()
 
   const { prefs, toggleColumn, moveColumn, setWidth, reset } = useColumnPrefs()
   // 한 사람만 보고 있으면 담당자 칸이 줄마다 같은 이름이라 아예 감춥니다. 팀원은 늘 그렇습니다.
@@ -185,6 +196,47 @@ export default function Customers() {
     [reload],
   )
 
+  /**
+   * 고친 줄만 갈아 끼웁니다. 목록을 다시 받으면 열려 있던 상세가 닫히는데
+   * (아래 로딩 효과가 openId 를 비웁니다), 방금 고친 값은 그 자리에서 보여야 합니다.
+   */
+  const onCustomerUpdated = useCallback((contact: CustomerContactResponse) => {
+    const updated = toCustomer(contact)
+    setRows((previous) => previous.map((row) => (row.id === updated.id ? updated : row)))
+    setEditing(null)
+    showToast('고객 정보를 수정했습니다.')
+  }, [])
+
+  const closeDeleteModal = useCallback(() => {
+    if (isDeleting) return
+    setDeleting(null)
+    setDeleteError(null)
+  }, [isDeleting])
+
+  const confirmDelete = useCallback(() => {
+    if (deleting === null || isDeleting) return
+    const target = deleting
+
+    setIsDeleting(true)
+    setDeleteError(null)
+
+    void client
+      .delete(`/customer-contacts/${target.id}`)
+      .then(() => {
+        setDeleting(null)
+        setOpenId(null)
+        // 눈앞에서 먼저 지우고, 쪽수와 합계는 다시 받아 맞춥니다.
+        setRows((previous) => previous.filter((row) => row.id !== target.id))
+        setTotal((previous) => Math.max(0, previous - 1))
+        setReloadKey((value) => value + 1)
+        showToast('고객을 삭제했습니다.')
+      })
+      .catch((error: unknown) => {
+        setDeleteError(errorMessage(error, '고객을 삭제하지 못했습니다.'))
+      })
+      .finally(() => setIsDeleting(false))
+  }, [deleting, isDeleting])
+
   // 내보내기는 화면 밖의 줄까지 모두 모읍니다. 페이지 한 장만 담으면 파일이 거짓말을 합니다.
   const exportRef = useRef<AbortController | null>(null)
   useEffect(() => () => exportRef.current?.abort(), [])
@@ -287,15 +339,15 @@ export default function Customers() {
           duplicateMatches={cardDraft?.matches}
           archiveImage={cardDraft?.sourceImage}
           initial={
-            cardDraft === null
-              ? undefined
-              : {
+            cardDraft
+              ? {
                   name: cardDraft.name,
                   dept: cardDraft.dept,
                   title: cardDraft.title,
                   email: cardDraft.email,
                   phone: cardDraft.phone,
                 }
+              : undefined
           }
           initialCompany={
             cardDraft?.org.trim() ? { kind: 'new', name: cardDraft.org.trim() } : undefined
@@ -313,7 +365,57 @@ export default function Customers() {
         />
       )}
 
-      {openCustomer && <CustomerDrawer customer={openCustomer} onClose={() => setOpenId(null)} />}
+      {openCustomer && (
+        <CustomerDrawer
+          customer={openCustomer}
+          canDelete={isManager}
+          onEdit={() => setEditing(openCustomer)}
+          onDelete={() => {
+            setDeleteError(null)
+            setDeleting(openCustomer)
+          }}
+          onClose={() => setOpenId(null)}
+        />
+      )}
+
+      {editing && (
+        <CustomerFormModal
+          customer={editing}
+          onClose={() => setEditing(null)}
+          onCreated={onCustomerCreated}
+          onUpdated={onCustomerUpdated}
+        />
+      )}
+
+      {deleting && (
+        <Modal
+          title="고객을 삭제하시겠습니까?"
+          description={`${deleting.org} · ${deleting.name}`}
+          onClose={closeDeleteModal}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isDeleting}
+                onClick={closeDeleteModal}
+              >
+                취소
+              </Button>
+              <Button type="button" disabled={isDeleting} onClick={confirmDelete}>
+                {isDeleting ? '삭제 중…' : '삭제'}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>삭제한 고객 정보는 복구할 수 없습니다.</p>
+          {deleteError && (
+            <p className={styles.confirmError} role="alert">
+              {deleteError}
+            </p>
+          )}
+        </Modal>
+      )}
     </section>
   )
 }

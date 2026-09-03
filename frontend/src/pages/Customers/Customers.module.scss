@@ -76,3 +76,17 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* 삭제 확인 모달. 되돌릴 수 없다는 말을 본문에 한 줄로 둡니다. */
+.confirm {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.confirmError {
+  margin-top: var(--s2);
+  color: var(--red-ink);
+  font-size: 12px;
+  line-height: 1.6;
+}
