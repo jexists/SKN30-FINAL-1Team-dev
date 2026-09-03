@@ -13,7 +13,7 @@ from app.main import app
 from app.models.agent import ContractNextMeetingSuggestion
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
-from app.models.sales import Product
+from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.activities import ActivityCreate, ActivityPageParams, ActivityPatch
 from app.services import agent_runs as agent_run_service
@@ -142,12 +142,35 @@ def _product(team_id: UUID) -> Product:
     return Product(id=uuid4(), team_id=team_id, name="합성 상품", active=True)
 
 
-def _activity(member: Member, *, contact_id: UUID | None = None, product_id: UUID | None = None):
+def _deal(*, team_id: UUID, company_id: UUID, owner_id: UUID) -> SalesDeal:
+    """일정에 붙일 딜. 고객사가 일정의 고객사와 같아야 등록이 통과한다."""
+    return SalesDeal(
+        id=uuid4(),
+        team_id=team_id,
+        deal_no="SL-DL-TEST-0001",
+        customer_company_id=company_id,
+        customer_contact_id=uuid4(),
+        owner_member_id=owner_id,
+        deleted_at=None,
+    )
+
+
+def _activity(
+    member: Member,
+    *,
+    contact_id: UUID | None = None,
+    product_id: UUID | None = None,
+    sales_deal_id: UUID | None = None,
+    company_id: UUID | None = None,
+):
+    # 20260903_0020 뒤로 딜도 고객사도 빈 일정은 남지 않는다. 기본값을 비워 두면 딜을
+    # 다시 보게 만드는 수정 경로가 실제와 다른 상태에서 돌아간다.
     return Activity(
         id=uuid4(),
         team_id=member.team_id,
         owner_member_id=member.id,
         customer_contact_id=contact_id,
+        customer_company_id=company_id or uuid4(),
         end_user_contact_id=None,
         activity_category_id=uuid4(),
         title="합성 미팅",
@@ -163,7 +186,7 @@ def _activity(member: Member, *, contact_id: UUID | None = None, product_id: UUI
         created_at=NOW,
         updated_at=NOW,
         product_id=product_id,
-        sales_deal_id=None,
+        sales_deal_id=sales_deal_id or uuid4(),
         purchase_order_id=None,
     )
 
@@ -419,12 +442,13 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
     product = _product(member.team_id)
-    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     action_tag = _action_tag(member.team_id, code="demo_in_progress")
+    deal = _deal(team_id=member.team_id, company_id=contact.company_id, owner_id=member.id)
     db = _Db(
         _Result(rows=[(contact, company.id, company.name)]),
         _Result(scalar=product),
+        _Result(scalar=deal),
         _Result(scalar=category),
         _Result(scalar=action_tag),
     )
@@ -436,6 +460,7 @@ def test_create_uses_authenticated_owner_and_same_team_references():
             json={
                 "customer_contact_id": str(contact.id),
                 "product_id": str(product.id),
+                "sales_deal_id": str(deal.id),
                 "category_code": "demo",
                 "title": "  합성 데모  ",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -458,6 +483,9 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     assert response.json()["activity_category_name"] == category.name
     assert response.json()["activity_action_tag_name"] == action_tag.name
     assert activity.title == "합성 데모"
+    # 고객사는 담당자에게서 나오고, 딜은 그 고객사의 것이어야 한다.
+    assert activity.customer_company_id == contact.company_id
+    assert activity.sales_deal_id == deal.id
     assert db.flush_count == db.commit_count == 1
     assert db.rollback_count == 0
     assert member.team_id in db.statements[0].compile().params.values()
@@ -541,8 +569,11 @@ def test_activity_options_reject_other_team_or_deleted_lookups():
 
 def test_member_cannot_link_another_owners_sales_deal():
     member = _member()
+    company = _company(member.team_id)
     sales_deal_id = uuid4()
-    db = _Db(_Result(scalar=None))
+    db = _Db(
+        _Result(scalar=None),  # _team_sales_deal: 남의 딜은 보이지 않는다
+    )
 
     with _client(db, member) as client:
         response = client.post(
@@ -550,6 +581,7 @@ def test_member_cannot_link_another_owners_sales_deal():
             headers={"Origin": ORIGIN},
             json={
                 "sales_deal_id": str(sales_deal_id),
+                "customer_company_id": str(company.id),
                 "category_code": "visit",
                 "title": "합성 미팅",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -621,6 +653,95 @@ def test_patch_rejects_contact_and_existing_deal_from_different_companies():
     assert db.rollback_count == 1
 
 
+def test_create_requires_a_sales_deal_from_the_same_company():
+    """딜이 없으면 그 일정은 파이프라인에도 에이전트에도 걸리지 않아 등록을 막는다."""
+    member = _member()
+    company = _company(member.team_id)
+
+    missing_db = _Db(
+        _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.id),  # _team_company
+    )
+    with _client(missing_db, member) as client:
+        missing = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_company_id": str(company.id),
+                "category_code": "visit",
+                "title": "딜 없는 일정",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+    assert missing.status_code == 422
+    assert missing.json() == {"detail": "sales_deal_required"}
+    assert not missing_db.added
+    assert missing_db.rollback_count == 1
+
+    # 다른 회사의 딜은 조용히 한쪽을 고르지 않고 막는다.
+    other_company_deal = _deal(team_id=member.team_id, company_id=uuid4(), owner_id=member.id)
+    mismatch_db = _Db(
+        _Result(scalar=other_company_deal),  # _team_sales_deal
+        _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.id),  # _team_company
+    )
+    with _client(mismatch_db, member) as client:
+        mismatch = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_company_id": str(company.id),
+                "sales_deal_id": str(other_company_deal.id),
+                "category_code": "visit",
+                "title": "남의 회사 딜",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+    assert mismatch.status_code == 422
+    assert mismatch.json() == {"detail": "contact_company_mismatch"}
+    assert not mismatch_db.added
+
+
+def test_patch_cannot_empty_the_sales_deal_or_leave_it_on_another_company():
+    """등록에서 막은 값을 수정으로 우회할 수 없어야 한다."""
+    member = _member()
+    company = _company(member.team_id)
+    activity = _activity(member)
+
+    cleared_db = _Db(
+        _Result(scalar=activity),
+        _Result(scalar=activity.customer_company_id),  # _team_company
+    )
+    with _client(cleared_db, member) as client:
+        cleared = client.patch(
+            f"/api/activities/{activity.id}",
+            headers={"Origin": ORIGIN},
+            json={"sales_deal_id": None},
+        )
+    assert cleared.status_code == 422
+    assert cleared.json() == {"detail": "sales_deal_required"}
+    assert cleared_db.commit_count == 0
+
+    # 고객사만 옮겨도 원래 딜이 다른 회사 것이 되므로 함께 다시 본다.
+    moved = _activity(member)
+    stale_deal = _deal(team_id=member.team_id, company_id=uuid4(), owner_id=member.id)
+    moved.sales_deal_id = stale_deal.id
+    moved_db = _Db(
+        _Result(scalar=moved),
+        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=stale_deal),  # _team_sales_deal
+    )
+    with _client(moved_db, member) as client:
+        response = client.patch(
+            f"/api/activities/{moved.id}",
+            headers={"Origin": ORIGIN},
+            json={"customer_company_id": str(company.id), "customer_contact_id": None},
+        )
+    assert response.status_code == 422
+    assert response.json() == {"detail": "contact_company_mismatch"}
+    assert moved_db.commit_count == 0
+
+
 def test_activity_options_are_active_same_team_and_ordered():
     member = _member()
     category = _category(member.team_id, code="custom_category")
@@ -662,9 +783,13 @@ def test_detail_and_patch_share_scope_and_patch_revalidates_range():
         detail = client.get(f"/api/activities/{activity.id}")
     assert detail.status_code == 200
 
+    # 담당자를 바꾸면 딜과 고객사의 짝을 다시 본다 — 그 사이 딜이 다른 회사 것이 될 수 있다.
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
+    activity.sales_deal_id = deal.id
     patch_db = _Db(
         _Result(scalar=activity),
         _Result(rows=[(contact, company.id, company.name)]),
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(rows=[_row(activity, member, contact, company)]),
     )
     with _client(patch_db, member) as client:
@@ -732,7 +857,9 @@ def test_cross_team_activity_is_hidden_and_delete_is_soft():
 def test_write_failure_rolls_back_transaction():
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=_category(member.team_id)),
         _Result(scalar=company.id),  # _team_company
         flush_error=RuntimeError("synthetic failure"),
@@ -747,6 +874,7 @@ def test_write_failure_rolls_back_transaction():
                 "title": "합성 일정",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
             },
         )
 
@@ -773,6 +901,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     parent_run = SimpleNamespace(
         id=uuid4(),
@@ -781,6 +910,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
         status_code="completed",
     )
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
@@ -798,6 +928,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
             },
         )
@@ -835,6 +966,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     parent_run = SimpleNamespace(
         id=uuid4(),
@@ -843,6 +975,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
         status_code="completed",
     )
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
@@ -860,6 +993,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
             },
         )
@@ -906,9 +1040,11 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
             await super().rollback()
             expired = True
 
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     missing_run_id = uuid4()
     db = _ExpiringDb(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
@@ -926,6 +1062,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(missing_run_id),
             },
         )
@@ -955,10 +1092,12 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     schedule_run_id = uuid4()
     suggestion = _pending_suggestion(member, schedule_run_id)
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.id),  # _team_company
         _Result(scalar=suggestion),  # _claim_suggestion: 아직 pending
@@ -976,6 +1115,7 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),
             },
         )
@@ -993,8 +1133,10 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 범위 안에 없음
@@ -1012,13 +1154,14 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(uuid4()),
             },
         )
 
     # 범위 밖이면 남의 제안을 건드리지 않고 등록만 진행한다.
     assert response.status_code == 201
-    claim_sql = str(db.statements[2])
+    claim_sql = str(db.statements[3])
     assert "contract_next_meeting_suggestion.team_id" in claim_sql
     assert "sales_deal.owner_member_id" in claim_sql  # role_code == "member"
     # of= 로 지정한 대상은 PostgreSQL 방언에서만 "OF ..." 로 붙어, 기본 컴파일에는
@@ -1032,11 +1175,13 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     schedule_run_id = uuid4()
     suggestion = _pending_suggestion(member, schedule_run_id)
     suggestion.status_code = "accepted"  # 먼저 온 요청이 이미 가져갔다
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.id),  # _team_company
         _Result(scalar=suggestion),  # _claim_suggestion: 이미 accepted
@@ -1051,6 +1196,7 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),
             },
         )

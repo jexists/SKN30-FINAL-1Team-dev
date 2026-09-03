@@ -323,6 +323,30 @@ async def _resolve_company_id(
     return company_id
 
 
+def _require_sales_deal(sales_deal: SalesDeal | None, company_id: UUID) -> UUID:
+    """이 일정이 무엇에 대한 영업 건인지 정한다.
+
+    딜이 비어 있으면 그 일정은 파이프라인에도 계약관리 에이전트에도 걸리지 않아 다시 찾을
+    자리가 없다. 신규 고객사처럼 고를 딜이 아직 없는 경우는 화면이 그 자리에서 딜을 만들어
+    이어 가므로, 비워 두는 길은 두지 않는다.
+
+    딜의 고객사가 일정의 고객사와 다르면 조용히 한쪽을 고르지 않고 막는다. 담당자와 딜이
+    어긋나는 같은 상황을 _validate_customer_company 가 이미 contact_company_mismatch 로
+    막고 있어, 담당자 없이 고객사만 정한 일정도 같은 이름으로 돌려준다.
+    """
+    if sales_deal is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="sales_deal_required",
+        )
+    if sales_deal.customer_company_id != company_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="contact_company_mismatch",
+        )
+    return sales_deal.id
+
+
 async def _team_product(db: AsyncSession, member: Member, product_id: UUID) -> Product:
     result = await db.execute(
         select(Product).where(
@@ -594,6 +618,7 @@ async def create_activity(
         values["customer_company_id"] = await _resolve_company_id(
             db, member, values["customer_company_id"], contact_info
         )
+        values["sales_deal_id"] = _require_sales_deal(sales_deal, values["customer_company_id"])
         if schedule_management_run_id is not None:
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
@@ -784,8 +809,9 @@ async def update_activity(
             _validate_customer_company(
                 None if contact_info is None else contact_info[1], sales_deal
             )
-        if values.get("product_id") is not None:
-            await _team_product(db, member, values["product_id"])
+            # 딜을 비우는 수정도 등록과 같이 막는다. 고객사만 옮겨도 원래 딜이 다른 회사
+            # 것이 되므로 위에서 정한 고객사로 다시 본다.
+            values["sales_deal_id"] = _require_sales_deal(sales_deal, values["customer_company_id"])
         if "category_code" in values:
             category_code = values.pop("category_code")
             category = await _active_activity_category(db, member, category_code)
