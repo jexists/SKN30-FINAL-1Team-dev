@@ -380,15 +380,12 @@ def test_remaining_quality_issue_after_one_repair_returns_renderable_draft():
     assert result.model_dump(mode="json") == bad
 
 
-def test_accepted_review_stops_before_parent_rewrites_it():
-    changed = draft()
-    changed["deal_reports"][0]["body"] = "검토 뒤 덮어쓴 내용입니다."
+def test_accepted_review_finishes_without_another_parent_model_call():
     model = ScriptedModel(
         responses=[
             *delegated_writing_responses(),
             call("review_report", draft=draft()),
             call("ReportReview", issues=[]),
-            call("FreeformMeetingReports", **changed),
         ]
     )
 
@@ -396,6 +393,22 @@ def test_accepted_review_stops_before_parent_rewrites_it():
 
     assert result.model_dump(mode="json") == draft()
     assert len(model._seen) == 11
+
+
+def test_accepted_review_returns_normalized_deal_order():
+    reversed_draft = draft()
+    reversed_draft["deal_reports"].reverse()
+    model = ScriptedModel(
+        responses=[
+            *delegated_writing_responses(),
+            call("review_report", draft=reversed_draft),
+            call("ReportReview", issues=[]),
+        ]
+    )
+
+    result = asyncio.run(writer.run(sample(), model=model))
+
+    assert result.model_dump(mode="json") == draft()
 
 
 def test_candidate_preview_is_filtered_to_selected_sections(monkeypatch):

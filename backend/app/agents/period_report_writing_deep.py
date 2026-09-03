@@ -308,7 +308,12 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
         writer_role = PERIOD_WRITER_ROLES[source["report_kind"]]
 
         def read_report_sources(source_id: str | None = None) -> dict[str, Any]:
-            """전체 동결 자료 또는 선택한 source_id 한 건을 읽는다."""
+            """기간 보고서 작성 task에서 선택된 동결 자료를 읽는다.
+
+            작성·수정 task 시작 시 인수 없이 호출해 ``run_context``와 모든 선택
+            ``source_units``를 받는다. 특정 자료만 다시 읽을 때는 ``source_id``를 준다.
+            선택하지 않은 ID는 오류이며 DB나 외부 자료를 조회하지 않는다.
+            """
             if source_id is None:
                 return copy.deepcopy(source_payload)
             unit = next(
@@ -487,7 +492,11 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
         async def review_period_report(
             draft: ReportDraftOutput, runtime: ToolRuntime
         ) -> dict[str, Any]:
-            """감독자가 조립한 전체 초안을 검토한다."""
+            """감독자가 작성 task 결과를 조립한 뒤 기간 보고서 전체를 검토한다.
+
+            ``issues``가 있으면 같은 작성 역할에 한 번만 재위임한 뒤 다시 호출한다.
+            문제가 없거나 재작성본의 화면 계약이 맞으면 현재 초안을 확정한다.
+            """
             return await review_candidate(draft, runtime.state["messages"])
 
         @before_model(can_jump_to=["end"])
@@ -528,6 +537,7 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
             },
             finish_middleware=finish_accepted_report,
             review_callback=review_candidate,
+            accepted_response=lambda: accepted,
             response_schema=ReportDraftOutput,
             supervisor_model_call_limit=SUPERVISOR_MODEL_CALL_LIMIT,
             tool_message_content="초안 접수. 검토 후 필요한 부분을 한 번 개선합니다.",

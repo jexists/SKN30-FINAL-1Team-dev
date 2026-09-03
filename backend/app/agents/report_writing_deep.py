@@ -311,7 +311,7 @@ def validate_reports(
     *,
     require_titles: bool = True,
 ) -> None:
-    """딜 혼입/ID 누락과 미지정 원문 유실 방지. 문장 의미의 사실성은 별도 리뷰가 맡는다."""
+    """딜·근거 귀속과 전체 근거 ID 사용을 검사하며 본문 원문 보존은 판단하지 않는다."""
     if issues := _structural_issues(source, draft, require_titles=require_titles):
         _log_structural_issues(issues)
         raise ValueError(issues[0]["code"])
@@ -487,7 +487,14 @@ async def _run(
         return None
 
     def read_meeting_evidence(sales_deal_id: UUID | None = None) -> dict[str, Any]:
-        """동결된 현재 미팅 근거를 읽는다. ID 지정 시 해당 딜·공통 근거만 반환한다."""
+        """현재 미팅의 동결 근거를 읽는다.
+
+        딜 작성·수정 task에서는 선택된 ``sales_deal_id``를 넣어 해당 딜과 공통
+        근거를 받고, 공통·딜 미지정 task에서는 인수 없이 전체 근거를 받은 뒤
+        ``applicability.scope``가 common 또는 out_of_scope인 항목만 쓴다. 선택하지
+        않은 딜은 오류이다. 반환값은 ``evidence`` 목록이며 DB나 외부 자료를 조회하지
+        않는다.
+        """
         if sales_deal_id is not None and sales_deal_id not in source.evidence.selected_deal_ids:
             return {"error": "deal_not_selected"}
         items = [
@@ -500,7 +507,12 @@ async def _run(
         return {"evidence": items}
 
     def read_deal_crm(sales_deal_id: UUID) -> dict[str, Any]:
-        """동결 스냅샷에서 선택 딜 하나의 CRM과 공유 회사 배경만 읽는다."""
+        """딜 작성·수정 task에서 현재 미팅 근거와 함께 선택 딜의 CRM을 읽는다.
+
+        선택된 ``sales_deal_id``의 딜·회사 배경을 ``crm_context``로 반환한다. 과거
+        보고서와 다른 딜은 제외하며, 선택하지 않은 딜은 오류이고 DB나 외부 자료를
+        조회하지 않는다.
+        """
         if sales_deal_id not in source.evidence.selected_deal_ids:
             return {"error": "deal_not_selected"}
         crm = source.crm_context
@@ -538,7 +550,12 @@ async def _run(
         return {"crm_context": scoped}
 
     def read_previous_reports(sales_deal_id: UUID) -> dict[str, Any]:
-        """동결 스냅샷에서 선택 딜 하나의 과거 보고서만 읽는다."""
+        """딜 작성·수정 task에서 현재 근거와 함께 같은 딜의 과거 보고서를 읽는다.
+
+        선택된 ``sales_deal_id``의 동결 이력을 ``previous_reports``로 반환한다. 이전
+        약속·변화의 배경일 뿐 이번 미팅의 발언 근거로 간주하면 안 되며, 선택하지 않은
+        딜은 오류이다.
+        """
         if sales_deal_id not in source.evidence.selected_deal_ids:
             return {"error": "deal_not_selected"}
         crm = source.crm_context
@@ -777,7 +794,11 @@ async def _run(
         }
 
     async def review_report(draft: FreeformMeetingReports, runtime: ToolRuntime) -> dict[str, Any]:
-        """전체 초안을 검토한다. 문제를 고친 뒤 다시 호출해야 제출할 수 있다."""
+        """감독자가 모든 필수 task 결과를 조립한 뒤 전체 초안을 검토한다.
+
+        ``issues``가 있으면 표시된 섹션만 한 번 재위임한 뒤 다시 호출한다. 문제가
+        없거나 재작성본의 화면 계약이 맞으면 현재 초안을 최종 결과로 확정한다.
+        """
         return await review_candidate(draft, runtime.state["messages"])
 
     writer = create_report_supervisor(
@@ -821,6 +842,7 @@ async def _run(
         },
         finish_middleware=finish_accepted_report,
         review_callback=review_candidate,
+        accepted_response=lambda: accepted,
         response_schema=FreeformMeetingReports,
         supervisor_model_call_limit=parent_call_limit,
         tool_message_content="초안 접수. 검토 후 필요한 부분을 한 번 개선한다.",

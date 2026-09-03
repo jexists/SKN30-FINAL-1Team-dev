@@ -128,7 +128,7 @@ def successful_task_descriptions(messages: list[Any]) -> list[str]:
     ]
 
 
-def review_final_response(schema, review):
+def review_final_response(schema, review, accepted_response):
     """구조화 출력도 동일한 advisory 검토 흐름으로 보낸다."""
 
     @after_model
@@ -139,7 +139,10 @@ def review_final_response(schema, review):
         draft = schema.model_validate(value)
         feedback = await review(draft, state["messages"])
         if not feedback["issues"]:
-            return {"structured_response": draft}
+            accepted = accepted_response()
+            if accepted is None:
+                raise LLMError("report_agent_unreviewed_output")
+            return {"structured_response": accepted}
         receipt = next(
             message
             for message in reversed(state["messages"])
@@ -170,6 +173,7 @@ def create_report_supervisor(
     subagent: dict[str, Any],
     finish_middleware,
     review_callback,
+    accepted_response,
     response_schema,
     supervisor_model_call_limit: int,
     tool_message_content: str,
@@ -188,7 +192,7 @@ def create_report_supervisor(
         subagents=[{**subagent, "name": DELEGATED_WRITER_NAME}],
         middleware=[
             finish_middleware,
-            review_final_response(response_schema, review_callback),
+            review_final_response(response_schema, review_callback, accepted_response),
             ModelCallLimitMiddleware(
                 run_limit=supervisor_model_call_limit,
                 exit_behavior="error",
