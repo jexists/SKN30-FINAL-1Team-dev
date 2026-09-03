@@ -38,7 +38,7 @@ EXPECTED_COLUMN_COUNTS = {
     "notice_target": 7,
     "notice_image": 6,
     # 20260827_0010 으로 세 표에서 activity_type 이 빠졌다. 활동은 늘 미팅이다.
-    "activity": 21,
+    "activity": 22,
     "activity_category": 9,
     "activity_action_tag": 9,
     "activity_companion": 2,
@@ -122,14 +122,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 443
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 444
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 108
+    assert len(foreign_key_constraints) == 109
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

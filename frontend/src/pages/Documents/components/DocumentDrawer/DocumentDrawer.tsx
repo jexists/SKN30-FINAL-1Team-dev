@@ -77,6 +77,12 @@ export default function DocumentDrawer({
 
   useEffect(() => {
     if (!latest.id) return
+    // 같은 드로어 컴포넌트가 다른 문서·버전으로 재사용될 수 있습니다. 새 파일의
+    // 결과를 받기 전에 이전 파일의 요약이 잠깐 보이지 않도록 먼저 비웁니다.
+    setSummary(null)
+    setSummaryError(null)
+    setSummaryLoading(false)
+    setApprovalLoading(false)
     loadSavedSummary(latest.id)
   }, [latest.id, loadSavedSummary])
 
@@ -237,11 +243,15 @@ export default function DocumentDrawer({
         ))}
       </ul>
 
-      {(summaryError || summary?.summary_markdown) && (
+      {(summaryLoading || summaryError || summary?.summary_markdown) && (
         <section className={styles.summary}>
           <h3 className={styles.sectionTitle}>AI 문서 요약</h3>
           {summaryError ? (
             <p className={styles.summaryError}>{summaryError}</p>
+          ) : summaryLoading && !summary?.summary_markdown ? (
+            <p className={styles.summaryPending} role="status">
+              문서 내용을 분석하고 요약하는 중입니다…
+            </p>
           ) : (
             <>
               {summary?.processing_status === 'review_required' && (

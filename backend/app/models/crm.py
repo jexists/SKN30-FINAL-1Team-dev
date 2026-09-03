@@ -72,6 +72,8 @@ class Activity(Base):
     customer_contact_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_contact.id")
     )
+    # 담당자가 속한 회사. customer_contact_id 에서 유도되며 API 가 채운다.
+    customer_company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
     end_user_contact_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_contact.id")
     )

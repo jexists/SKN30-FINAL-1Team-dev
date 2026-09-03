@@ -59,6 +59,9 @@ class _WriteModel(BaseModel):
 
 class ActivityCreate(_WriteModel):
     customer_contact_id: UUID | None = None
+    # 담당자를 고르면 그 사람의 회사로 채워지므로 대개 보내지 않는다. 담당자 없이 회사만
+    # 정해 둘 때만 직접 넣는다. 둘 다 없으면 422 customer_company_required 다.
+    customer_company_id: UUID | None = None
     product_id: UUID | None = None
     sales_deal_id: UUID | None = None
     category_code: OptionCode
@@ -82,6 +85,7 @@ class ActivityCreate(_WriteModel):
 
 class ActivityPatch(_WriteModel):
     customer_contact_id: UUID | None = None
+    customer_company_id: UUID | None = None
     product_id: UUID | None = None
     sales_deal_id: UUID | None = None
     category_code: OptionCode | None = None

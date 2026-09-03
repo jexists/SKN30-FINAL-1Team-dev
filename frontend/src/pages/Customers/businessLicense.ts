@@ -1,65 +1,125 @@
-// 사업자등록증(PDF)으로 고객을 넣는 길의 화면 밖 부분입니다.
-//
-// 읽어 낸 값은 명함과 같은 방식으로 고객 등록 폼에 그대로 채워집니다.
-// 아직 읽어 주는 서버가 없습니다. 그래서 화면은 extractBusinessLicense 의 Promise 만
-// 보게 두고, 실제 OCR 이 붙을 때 이 파일 한 곳만 고치면 되도록 갈라 둡니다.
+import { isAxiosError } from 'axios'
+
+import { client } from '@/api/client'
+import { pollSummary } from '@/api/polling'
 import { sizeLabel } from '@/utils/attachment'
 
-/** 명함(10MB)과 같은 한도입니다. 사업자등록증 한 장은 이보다 훨씬 작습니다. */
-export const MAX_PDF_BYTES = 10 * 1024 * 1024
-
-/** 사업자등록증에서 읽어 낼 값들. 등록 폼의 회사 칸에 그대로 들어갑니다. */
+/** 사업자등록증에서 읽어 고객사 등록 폼에 채울 값입니다. */
 export interface BusinessLicenseDraft {
-  /** 상호(법인명) */
   company: string
-  /** 등록번호. 화면에서는 123-45-67890 모양으로 적습니다. */
   businessNo: string
-  /** 사업장 소재지 */
   address: string
 }
 
-export const EMPTY_DRAFT: BusinessLicenseDraft = {
-  company: '',
-  businessNo: '',
-  address: '',
+interface BusinessLicenseScanAccepted {
+  scan_id: string
+  processing_status: string
 }
 
-/**
- * 올린 파일의 문제. 없으면 null 입니다.
- *
- * 브라우저가 확장자만 보고 type 을 비워 보내는 경우가 있어 둘 중 하나만 맞아도 PDF 로 봅니다.
- */
-export function pdfProblem(file: File): string | null {
+interface BusinessLicenseScanStatus {
+  processing_status: string
+  processing_error?: string | null
+  fields?: {
+    company: string
+    business_no: string
+    address: string
+  } | null
+}
+
+/** 서버 한도와 맞춘 사업자등록증 업로드 한도입니다. */
+export const MAX_BUSINESS_LICENSE_BYTES = 10 * 1024 * 1024
+// 기존 호출부와의 호환성을 유지합니다.
+export const MAX_PDF_BYTES = MAX_BUSINESS_LICENSE_BYTES
+
+/** 사업자등록증 PDF와 사진을 모두 받습니다. */
+export function businessLicenseProblem(file: File): string | null {
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
-  if (!isPdf) return 'PDF 파일만 올릴 수 있습니다. 사업자등록증 PDF를 골라 주세요.'
-  if (file.size > MAX_PDF_BYTES) {
-    return `파일이 ${sizeLabel(file.size)} 입니다. ${sizeLabel(MAX_PDF_BYTES)} 까지 올릴 수 있습니다.`
+  const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name)
+  if (!isPdf && !isImage) {
+    return 'PDF 또는 이미지 파일만 올릴 수 있습니다. 사업자등록증을 골라 주세요.'
+  }
+  if (file.size > MAX_BUSINESS_LICENSE_BYTES) {
+    return `파일이 ${sizeLabel(file.size)} 입니다. ${sizeLabel(MAX_BUSINESS_LICENSE_BYTES)} 까지 올릴 수 있습니다.`
   }
   if (file.size === 0) return '내용이 없는 파일입니다. 다른 파일을 골라 주세요.'
   return null
 }
 
-/** 읽기가 실패했을 때. 화면은 message 를 그대로 보여 줍니다. */
-export class BusinessLicenseReadError extends Error {}
+// 기존 이름을 사용하는 호출부도 PDF/이미지 검증을 동일하게 적용합니다.
+export const pdfProblem = businessLicenseProblem
 
-const MOCK_DELAY_MS = 1200
+const UNAVAILABLE_SCAN_ERRORS = new Set([
+  'ocr_unavailable',
+  'ocr_not_configured',
+  'llm_not_configured',
+])
 
-/**
- * 사업자등록증에서 값을 읽습니다.
- *
- * TODO: 백엔드가 생기면 이 안을 `POST /business-licenses/scan` 호출로 바꿉니다.
- * 지금은 읽는 데 걸리는 시간만 흉내 내고 빈 초안을 돌려줍니다. 사람이 등록 폼에서
- * 직접 채우게 두는 편이, 그럴듯한 가짜 값을 채워 넣어 진짜로 오해하게 하는 것보다 낫습니다.
- */
-export function extractBusinessLicense(file: File): Promise<BusinessLicenseDraft> {
-  return new Promise((resolve, reject) => {
-    window.setTimeout(() => {
-      const problem = pdfProblem(file)
-      if (problem !== null) {
-        reject(new BusinessLicenseReadError(problem))
-        return
-      }
-      resolve({ ...EMPTY_DRAFT })
-    }, MOCK_DELAY_MS)
-  })
+export class BusinessLicenseUnavailableError extends Error {
+  constructor() {
+    super('사업자등록증 인식 기능을 사용할 수 없습니다.')
+    this.name = 'BusinessLicenseUnavailableError'
+  }
+}
+
+export class BusinessLicenseScanError extends Error {
+  readonly code: string
+
+  constructor(code: string) {
+    super(code)
+    this.name = 'BusinessLicenseScanError'
+    this.code = code
+  }
+}
+
+/** PDF 또는 이미지를 서버 OCR로 보내고 완료될 때까지 결과를 조회합니다. */
+export async function extractBusinessLicense(file: File): Promise<BusinessLicenseDraft> {
+  const problem = businessLicenseProblem(file)
+  if (problem !== null) throw new BusinessLicenseScanError('business_license_upload_invalid')
+
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    let scanId = ''
+    const scan = await pollSummary<BusinessLicenseScanStatus>({
+      start: async () => {
+        const accepted = await client.post<BusinessLicenseScanAccepted>(
+          '/business-licenses/scan',
+          form,
+          { timeout: 120_000 },
+        )
+        scanId = accepted.data.scan_id
+      },
+      read: async () => {
+        const response = await client.get<BusinessLicenseScanStatus>(
+          `/business-licenses/scan/${scanId}`,
+        )
+        return response.data
+      },
+    })
+
+    if (!scan.fields) throw new BusinessLicenseScanError('business_license_scan_empty')
+    return {
+      company: scan.fields.company,
+      businessNo: scan.fields.business_no,
+      address: scan.fields.address,
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error) && [502, 503].includes(error.response?.status ?? 0)) {
+      throw new BusinessLicenseUnavailableError()
+    }
+    if (error instanceof Error && UNAVAILABLE_SCAN_ERRORS.has(error.message)) {
+      throw new BusinessLicenseUnavailableError()
+    }
+    if (isAxiosError(error) && error.code === 'ECONNABORTED') {
+      throw new BusinessLicenseScanError('business_license_upload_timeout')
+    }
+    if (!isAxiosError(error) && error instanceof Error) {
+      const code =
+        error.message === 'document_summary_timeout'
+          ? 'business_license_scan_timeout'
+          : error.message
+      throw new BusinessLicenseScanError(code)
+    }
+    throw error
+  }
 }

@@ -1,9 +1,13 @@
 """공유 개발 DB의 SalesLuv 데모팀에 계약/일정관리 에이전트 API 테스트용
-customer_company, sales_deal, activity 를 각 10건씩 넣는다.
+customer_company, customer_contact, sales_deal, activity 를 각 10건씩 넣는다.
 
 seed_demo_auth.py 가 이미 만들어 둔 데모팀(team_id, 파이프라인, 단계, 딜 유형,
 활동 분류)에 의존한다. deal_no 로 결정론적 id 를 만들어 반복 실행해도
 중복 삽입되지 않는다. 지우는 로직은 없다 — 계속 남겨 두고 재사용한다.
+
+회사마다 대표 담당자(가상 인물)를 하나씩 만들어 딜과 일정에 붙인다. 담당자가 없으면 계약관리
+에이전트가 다음 미팅을 추천할 때 일정에 넣을 사람을 못 정해 AI 브리핑이 만들어지지 않는다.
+이미 있는 딜·일정은 담당자와 고객사가 비어 있을 때만 채우고 나머지 값은 건드리지 않는다.
 
     uv run python -m scripts.seed_demo_contract_schedule
 """
@@ -13,11 +17,13 @@ from datetime import UTC, date, datetime
 from hashlib import md5
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_sessionmaker
-from app.models.crm import Activity, CustomerCompany
+from app.models.configuration import CustomerContactStatus
+from app.models.crm import Activity, CustomerCompany, CustomerContact, CustomerContactAssignee
 from app.models.sales import SalesDeal
 
 TEAM_ID = UUID("6d0f1b76-6b1a-4b72-9ba3-1df477a62d78")
@@ -201,6 +207,22 @@ DEALS = (
 )
 
 
+# 회사마다 대표 담당자 한 명. 목업이라 이름·직함·번호가 모두 가상이다. 미팅 참석자를 여럿
+# 두는 자리는 sales_deal_participant 이고, 여기 있는 사람은 "연락은 이 분께"에 해당한다.
+CONTACTS = {
+    "hanbit": ("정하윤", "구매팀장", "010-0000-0001"),
+    "seoul-jungang": ("문서준", "의공팀장", "010-0000-0002"),
+    "mirae-surgery": ("배소율", "원장", "010-0000-0003"),
+    "gangnam-union": ("한지후", "총무과장", "010-0000-0004"),
+    "pureun-internal": ("오다은", "실장", "010-0000-0005"),
+    "donghae-first": ("신재윤", "구매담당", "010-0000-0006"),
+    "saebom-ortho": ("윤채원", "행정실장", "010-0000-0007"),
+    "hangang-sungmo": ("임도현", "의공기사", "010-0000-0008"),
+    "yein-ent": ("강수아", "대표원장", "010-0000-0009"),
+    "daehan-rehab": ("서민호", "재활치료실장", "010-0000-0010"),
+}
+
+
 async def seed(*, dry_run: bool = False) -> None:
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session, session.begin():
@@ -209,14 +231,28 @@ async def seed(*, dry_run: bool = False) -> None:
             await session.rollback()
             print("--dry-run 이므로 아무것도 저장하지 않았습니다.")
             return
-    print(f"데모팀({TEAM_ID})에 customer_company/sales_deal/activity 를 각 10건 준비했습니다.")
+    print(
+        f"데모팀({TEAM_ID})에 customer_company/customer_contact/sales_deal/activity 를 "
+        "각 10건 준비했습니다."
+    )
 
 
 async def _seed(session: AsyncSession) -> None:
+    # 고객 상태 룩업은 팀마다 id 가 다르다. 데모팀 것을 한 번만 읽는다.
+    new_status_id = await session.scalar(
+        select(CustomerContactStatus.id).where(
+            CustomerContactStatus.team_id == TEAM_ID,
+            CustomerContactStatus.code == "new",
+            CustomerContactStatus.deleted_at.is_(None),
+        )
+    )
+
     for position, row in enumerate(DEALS):
         company_id = _id(f"customer_company:{row['key']}")
+        contact_id = _id(f"customer_contact:{row['key']}")
         deal_id = _id(f"sales_deal:{row['key']}")
         activity_id = _id(f"activity:{row['key']}")
+        contact_name, contact_job_title, contact_phone = CONTACTS[row["key"]]
 
         await session.execute(
             insert(CustomerCompany)
@@ -231,13 +267,44 @@ async def _seed(session: AsyncSession) -> None:
         )
 
         await session.execute(
+            insert(CustomerContact)
+            .values(
+                id=contact_id,
+                company_id=company_id,
+                owner_member_id=row["owner"],
+                created_by_member_id=row["owner"],
+                name=contact_name,
+                department=None,
+                job_title=contact_job_title,
+                email=None,
+                phone=contact_phone,
+                customer_contact_status_id=new_status_id,
+                source_code=None,
+                memo=None,
+            )
+            .on_conflict_do_nothing(index_elements=[CustomerContact.id])
+        )
+
+        # 대표 담당자도 담당자 목록에 함께 들어간다. 고객 조회 스코프가 이 표를 본다.
+        await session.execute(
+            insert(CustomerContactAssignee)
+            .values(customer_contact_id=contact_id, member_id=row["owner"])
+            .on_conflict_do_nothing(
+                index_elements=[
+                    CustomerContactAssignee.customer_contact_id,
+                    CustomerContactAssignee.member_id,
+                ]
+            )
+        )
+
+        await session.execute(
             insert(SalesDeal)
             .values(
                 id=deal_id,
                 team_id=TEAM_ID,
                 deal_no=f"DEMO-SEED-{position + 1:03d}",
                 customer_company_id=company_id,
-                customer_contact_id=None,
+                customer_contact_id=contact_id,
                 owner_member_id=row["owner"],
                 product_id=None,
                 sales_pipeline_id=PIPELINE_ID,
@@ -276,7 +343,12 @@ async def _seed(session: AsyncSession) -> None:
                 stage_position=0,
                 deleted_at=None,
             )
-            .on_conflict_do_nothing(index_elements=[SalesDeal.id])
+            # 이미 있는 행은 담당자가 비어 있을 때만 채우고 나머지는 그대로 둔다.
+            .on_conflict_do_update(
+                index_elements=[SalesDeal.id],
+                set_={"customer_contact_id": contact_id},
+                where=SalesDeal.customer_contact_id.is_(None),
+            )
         )
 
         category, starts_at, ends_at = row["activity"]
@@ -286,7 +358,8 @@ async def _seed(session: AsyncSession) -> None:
                 id=activity_id,
                 team_id=TEAM_ID,
                 owner_member_id=row["owner"],
-                customer_contact_id=None,
+                customer_contact_id=contact_id,
+                customer_company_id=company_id,
                 end_user_contact_id=None,
                 activity_category_id=ACTIVITY_CATEGORY[category],
                 title=f"{row['company']} {category}",
@@ -305,7 +378,11 @@ async def _seed(session: AsyncSession) -> None:
                 sales_deal_id=deal_id,
                 purchase_order_id=None,
             )
-            .on_conflict_do_nothing(index_elements=[Activity.id])
+            .on_conflict_do_update(
+                index_elements=[Activity.id],
+                set_={"customer_contact_id": contact_id},
+                where=Activity.customer_contact_id.is_(None),
+            )
         )
 
 
