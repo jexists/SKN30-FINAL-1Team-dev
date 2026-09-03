@@ -71,7 +71,7 @@ export default function Compose() {
   const pickId = params.get('pick') ?? undefined
 
   const draft = useDailyDraft(dateISO, kind, { pickId })
-  const { submitReport, saveDraft, pending, error } = useDailyReports()
+  const { submitReport, pending, error } = useDailyReports()
   const loadError = draft.error ?? error
 
   const [confirm, setConfirm] = useState<Confirm>(null)
@@ -88,12 +88,14 @@ export default function Compose() {
   const hasWork = draft.phase !== 'idle' || draft.dirtyIds.size > 0
 
   const payload = {
+    reportId: existing?.id,
+    version: existing?.version,
+    statusCode: existing?.apiStatus,
     date: dateISO,
     kind,
     approver: draft.approver,
     values: draft.values,
     activities: draft.activities,
-    template: draft.template,
     attachments: draft.attachments,
     transcript: draft.transcript,
   }
@@ -123,16 +125,15 @@ export default function Compose() {
 
   const runGenerate = async () => {
     try {
-      const report = await saveDraft(payload)
-      await draft.generate(report.id)
+      await draft.generate()
     } catch {
-      // 저장 훅이 오류를 표시합니다.
+      // 생성 훅이 오류를 표시합니다.
     }
   }
 
   const onGenerate = () => {
     // 사람이 손댄 항목이 있으면 덮어써도 되는지 먼저 묻습니다.
-    if (draft.phase === 'ready' && draft.dirtyIds.size > 0) {
+    if (draft.phase === 'ready' && (existing || draft.dirtyIds.size > 0)) {
       setConfirm({ kind: 'regenerate' })
       return
     }
@@ -141,7 +142,7 @@ export default function Compose() {
 
   const onSubmit = async () => {
     try {
-      const report = await submitReport(payload)
+      const report = await submitReport(payload, draft.generationRunId)
       setConfirm(null)
       navigate(dailyReportPath(report.id))
     } catch {
@@ -200,6 +201,13 @@ export default function Compose() {
         </p>
       )}
 
+      {existing?.reviewNote && (
+        <div className={styles.review} role="note">
+          <strong>반려 사유</strong>
+          <p>{existing.reviewNote}</p>
+        </div>
+      )}
+
       {locked && existing && (
         <p className={styles.locked}>
           {periodLabel ?? fmtDot(parseISO(dateISO))} 보고서는 이미 제출했습니다 · {existing.status}.{' '}
@@ -244,6 +252,7 @@ export default function Compose() {
             ) : (
               <ActivityList
                 activities={draft.activities}
+                disabled={draft.recovering}
                 // 주간·월간은 제출된 보고서가 그대로 실립니다. 고를 것도,
                 // 그래서 체크 모양도 없습니다.
                 readOnly={!picks}
@@ -281,8 +290,7 @@ export default function Compose() {
                 canGenerate={draft.canGenerate}
                 generating={draft.phase === 'generating'}
                 // 다시 만드는 버튼이 따로 없습니다. 이 자리 하나로 처음도 다시도 누릅니다.
-                hasAiOriginal={false}
-                disabled={locked || pending}
+                disabled={locked || pending || draft.recovering}
                 onGenerate={onGenerate}
               />
             </div>
@@ -306,7 +314,7 @@ export default function Compose() {
                 <Button
                   variant="outline"
                   type="button"
-                  disabled={locked}
+                  disabled={locked || draft.recovering}
                   onClick={() => draft.setPhase('ready')}
                 >
                   직접 작성하기
@@ -322,7 +330,7 @@ export default function Compose() {
                   template={draft.template}
                   values={draft.values}
                   aiFilledIds={draft.aiFilledIds}
-                  readOnly={locked}
+                  readOnly={locked || draft.recovering}
                   onChange={draft.setValue}
                 />
 
@@ -338,7 +346,14 @@ export default function Compose() {
             <Button
               type="button"
               className={styles.submit}
-              disabled={draft.missing.length > 0 || locked || draft.phase === 'idle'}
+              disabled={
+                draft.missing.length > 0 ||
+                locked ||
+                pending ||
+                draft.phase === 'idle' ||
+                draft.phase === 'generating' ||
+                draft.recovering
+              }
               onClick={() => setConfirm({ kind: 'submit' })}
             >
               보고서 제출
@@ -347,10 +362,30 @@ export default function Compose() {
         </div>
       </div>
 
+      {draft.pendingRecovery && (
+        <Modal
+          title="이전에 생성하던 후보를 복구할까요?"
+          description="복구하면 당시 자료 선택·첨부·직접 입력과 생성 결과가 현재 보고서 위에 올라옵니다."
+          onClose={draft.discardPendingRecovery}
+          footer={
+            <>
+              <Button variant="outline" type="button" onClick={draft.discardPendingRecovery}>
+                현재 내용 유지
+              </Button>
+              <Button type="button" onClick={draft.acceptPendingRecovery}>
+                후보 복구
+              </Button>
+            </>
+          }
+        >
+          <p>사용자가 복구를 선택하기 전까지 저장된 보고서 내용은 바뀌지 않습니다.</p>
+        </Modal>
+      )}
+
       {confirm?.kind === 'regenerate' && (
         <Modal
           title="직접 고친 내용을 덮어쓸까요?"
-          description="AI가 채우는 항목만 새로 씁니다. 직접 입력한 항목은 그대로 둡니다."
+          description="AI가 채우는 항목은 새 결과로 바뀝니다. 직접 입력 전용 항목은 유지됩니다."
           onClose={() => setConfirm(null)}
           footer={
             <>
@@ -370,8 +405,9 @@ export default function Compose() {
           }
         >
           <p>
-            지금까지 {draft.dirtyIds.size}개 항목을 직접 고쳤습니다. 고친 항목은 유지되고 나머지만
-            새로 만들어집니다.
+            {existing
+              ? '저장된 보고서의 AI 작성 항목이 새 후보로 바뀝니다.'
+              : `지금까지 ${draft.dirtyIds.size}개 항목을 직접 고쳤습니다. AI 작성 항목의 수정 내용이 새 후보로 바뀝니다.`}
           </p>
         </Modal>
       )}

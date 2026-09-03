@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -5,36 +6,37 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import httpx
+import openai
 import pytest
 from fastapi.testclient import TestClient
+from langchain_openai import StreamChunkTimeoutError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
+from test_report_writing_deep import ScriptedModel, sample
 
-from app.agents import contract_management, meeting_analysis, report_writing, schedule_management
-from app.agents.report_writing import ReportDraftOutput
-from app.api import agent_runs
+from app.agents import contract_management, report_writing_deep, schedule_management
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
-from app.ml.deal_baseline import DealModelError
 from app.models.agent import AgentRun
-from app.models.content import Report
 from app.models.workspace import Member
-from app.schemas.agent_runs import AgentRunCreate
-from app.services import agent_runs as agent_run_service
-from app.services import agent_worker, contract_schedule_snapshots, llm
-from app.services.agent_logging import log_agent_event
+from app.schemas.agent_runs import (
+    REPORT_GENERATION_JSON_MAX_BYTES,
+    AgentRunCreate,
+    ReportGenerationCreate,
+    ReportGenerationScope,
+)
+from app.services import agent_runs as service
+from app.services import agent_worker, contract_schedule_snapshots
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
-TEMPLATE = {"fields": [{"id": "summary", "label": "요약"}]}
+TEMPLATE = {"fields": [{"id": "body", "label": "본문"}]}
 _MISSING = object()
 
 
 class _Secret:
-    """SecretStr 대체. 값이 메시지에 새는지 보려고 일부러 눈에 띄는 문자열을 쓴다."""
-
     def __init__(self, value: str):
         self._value = value
 
@@ -42,9 +44,18 @@ class _Secret:
         return self._value
 
 
+class _Scalars:
+    def __init__(self, values):
+        self.values = values
+
+    def all(self):
+        return list(self.values)
+
+
 class _Result:
-    def __init__(self, *, scalar=_MISSING):
+    def __init__(self, *, scalar=_MISSING, scalars=None):
         self.scalar = scalar
+        self.scalar_values = [] if scalars is None else scalars
 
     def scalar_one(self):
         assert self.scalar is not _MISSING
@@ -54,9 +65,12 @@ class _Result:
         assert self.scalar is not _MISSING
         return self.scalar
 
+    def scalars(self):
+        return _Scalars(self.scalar_values)
+
 
 class _Db:
-    def __init__(self, *results: _Result):
+    def __init__(self, *results):
         self.results = list(results)
         self.statements = []
         self.added = []
@@ -67,6 +81,9 @@ class _Db:
         self.statements.append(statement)
         assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
         return self.results.pop(0)
+
+    async def get(self, *_args):
+        return None
 
     def add(self, value):
         self.added.append(value)
@@ -105,20 +122,17 @@ def llm_ready(monkeypatch):
     monkeypatch.setattr(settings, "llm_model", "test-model")
     monkeypatch.setattr(settings, "llm_api_key", _Secret("super-secret-key"))
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
-    yield
 
 
 @pytest.fixture
 def llm_missing(monkeypatch):
-    """개발 .env 에 LLM 값이 있어도 미설정 상태를 강제한다."""
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: False))
-    yield
 
 
-def _member(*, role: str = "member") -> Member:
+def _member(*, role: str = "member", team_id: UUID | None = None) -> Member:
     return Member(
         id=uuid4(),
-        team_id=uuid4(),
+        team_id=team_id or uuid4(),
         display_name="합성 영업 담당자",
         role_code=role,
         job_title="영업 담당자",
@@ -126,39 +140,7 @@ def _member(*, role: str = "member") -> Member:
     )
 
 
-def _report(
-    member: Member,
-    *,
-    status_code: str = "draft",
-    transcript: str | None = None,
-) -> Report:
-    return Report(
-        id=uuid4(),
-        team_id=member.team_id,
-        author_member_id=member.id,
-        recipient_member_id=None,
-        template_snapshot=TEMPLATE,
-        source_activity_id=None,
-        sales_deal_id=None,
-        report_kind="daily",
-        report_date=date(2026, 8, 17),
-        period_start=None,
-        period_end=None,
-        status_code=status_code,
-        content={"summary": ""},
-        transcript=transcript,
-        source_snapshot=None,
-        ai_evidence=None,
-        note=None,
-        reviewed_by_member_id=None,
-        reviewed_at=None,
-        created_at=NOW,
-        updated_at=NOW,
-    )
-
-
 def _run(member: Member, *, status_code: str = "queued", key: UUID | None = None) -> AgentRun:
-    now = datetime.now(UTC)
     return AgentRun(
         id=uuid4(),
         team_id=member.team_id,
@@ -170,28 +152,28 @@ def _run(member: Member, *, status_code: str = "queued", key: UUID | None = None
         report_id=None,
         status_code=status_code,
         llm_model_name="test-model",
-        prompt_version=report_writing.PROMPT_VERSION,
+        prompt_version="test.v1",
         request_snapshot={},
         request_hash=None,
-        source_refs={"report_id": str(uuid4())},
+        scope_key=None,
+        source_refs={},
         input_snapshot={},
         output_snapshot=None,
         evidence=None,
         error_message=None,
         error_code=None,
-        apply_status="not_applicable",
         current_stage_code=status_code,
         attempt_count=0,
-        base_report_version=None,
-        base_generation_input_version=None,
+        payload_expires_at=None,
+        payload_redacted_at=None,
         lease_owner=None,
         lease_expires_at=None,
         heartbeat_at=None,
-        next_attempt_at=now,
+        next_attempt_at=NOW,
         input_tokens=None,
         output_tokens=None,
         total_tokens=None,
-        created_at=now,
+        created_at=NOW,
         started_at=None,
         finished_at=None,
     )
@@ -209,467 +191,148 @@ def _client(db: _Db, member: Member) -> TestClient:
     return TestClient(app)
 
 
-def test_agent_run_request_rejects_unsafe_values():
-    report_id = uuid4()
-    key = uuid4()
-    with pytest.raises(ValidationError):
-        # 이번 범위에 없는 agent 는 받지 않는다.
-        AgentRunCreate(agent_code="unknown", report_id=report_id, idempotency_key=key)
+def _daily_payload(**overrides):
+    payload = {
+        "idempotency_key": str(uuid4()),
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": {"values": {}, "activities": []},
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_generic_queue_only_accepts_contract_and_schedule_agents():
     with pytest.raises(ValidationError):
         AgentRunCreate(
-            agent_code="meeting_analysis",
-            report_id=report_id,
-            idempotency_key=key,
-            guidance="이 지시는 보고서 작성에만 쓴다",
+            agent_code="meeting_processing",
+            idempotency_key=uuid4(),
         )
-    with pytest.raises(ValidationError):
-        # 상태와 팀은 요청으로 정할 수 없다.
-        AgentRunCreate(
-            agent_code="report_writing",
-            report_id=report_id,
-            idempotency_key=key,
-            status_code="completed",
-        )
-    with pytest.raises(ValidationError):
-        # idempotency_key 는 필수다.
-        AgentRunCreate(agent_code="report_writing", report_id=report_id)
+    AgentRunCreate(
+        agent_code="contract_management_select_candidates",
+        idempotency_key=uuid4(),
+    )
 
 
-def test_queue_migration_does_not_expire_legacy_running_jobs():
-    migration = Path(__file__).parents[1] / "sql/20260901_0018_agent_run_queue.sql"
-    sql = migration.read_text(encoding="utf-8")
-
-    assert "SET lease_expires_at = now()" not in sql
-    active_index = sql.split("agent_run_meeting_active_report_key", 1)[1].split(";", 1)[0]
-    assert "request_hash IS NOT NULL" in active_index
-
-
-def test_llm_not_configured_returns_503(llm_missing):
-    member = _member()
-    db = _Db()
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "report_writing",
-                "report_id": str(uuid4()),
-                "idempotency_key": str(uuid4()),
+@pytest.mark.parametrize(
+    ("agent_code", "identifying", "expected_prompt", "expected_refs"),
+    [
+        (
+            "contract_management_select_candidates",
+            {},
+            contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+            {},
+        ),
+        (
+            "contract_management_next_meeting",
+            {"customer_company_id": uuid4()},
+            contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+            None,
+        ),
+        (
+            "contract_management_briefing",
+            {"activity_id": uuid4()},
+            contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+            None,
+        ),
+        (
+            "schedule_management",
+            {
+                "sales_deal_id": uuid4(),
+                "preferred_starts_at": "2026-08-18T09:00:00+09:00",
+                "preferred_ends_at": "2026-08-18T12:00:00+09:00",
+                "duration_minutes": 60,
             },
-        )
-    assert response.status_code == 503
-    assert response.json() == {"detail": "llm_not_configured"}
-    assert db.commit_count == 0
-
-
-def test_accepted_run_is_queued_and_does_not_touch_report(llm_ready, monkeypatch):
+            schedule_management.PROMPT_VERSION,
+            None,
+        ),
+    ],
+)
+def test_generic_agent_requests_are_queued(
+    llm_ready, agent_code, identifying, expected_prompt, expected_refs
+):
     member = _member()
-    report = _report(member)
-    report.sales_deal_id = uuid4()
-    db = _Db(_Result(scalar=None), _Result(scalar=report))
+    db = _Db(_Result(scalar=None))
+    payload = {
+        "agent_code": agent_code,
+        "idempotency_key": str(uuid4()),
+        **{
+            key: str(value) if isinstance(value, UUID) else value
+            for key, value in identifying.items()
+        },
+    }
 
     with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "report_writing",
-                "report_id": str(report.id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
+        response = client.post("/api/agent-runs", headers={"Origin": ORIGIN}, json=payload)
 
     assert response.status_code == 202
-    body = response.json()
-    assert body["status_code"] == "queued"
-    assert body["output_snapshot"] is None
-    assert response.headers["Location"] == f"/api/agent-runs/{body['id']}"
-    assert response.headers["Retry-After"] == str(agent_runs.RETRY_AFTER_SECONDS)
-
-    # 사람이 확인하기 전에는 보고서를 고치지 않는다.
-    assert report.content == {"summary": ""}
-    assert report.status_code == "draft"
-    created = db.added[0]
-    assert created.source_refs == {"report_id": str(report.id)}
-    assert created.request_snapshot["report_id"] == str(report.id)
-    # CRM/보고서 입력 구성 전에 queued 행부터 커밋한다.
-    assert created.input_snapshot == {}
+    run = db.added[0]
+    assert run.agent_code == agent_code
+    assert run.prompt_version == expected_prompt
+    assert run.report_id is None and run.input_snapshot == {}
+    assert run.source_refs == (
+        expected_refs
+        if expected_refs is not None
+        else {
+            key: str(value)
+            for key, value in identifying.items()
+            if key in {"customer_company_id", "sales_deal_id", "activity_id"}
+        }
+    )
+    assert run.parent_run_id is None
     assert db.commit_count == 1
 
 
-def test_meeting_analysis_run_snapshots_transcript(llm_ready, monkeypatch):
+@pytest.mark.parametrize(
+    ("agent_code", "parent_code", "identifying"),
+    [
+        ("contract_management_briefing", "schedule_management", {"activity_id": uuid4()}),
+        (
+            "schedule_management",
+            "contract_management_next_meeting",
+            {"sales_deal_id": uuid4()},
+        ),
+    ],
+)
+def test_parented_agent_requests_keep_valid_parent(llm_ready, agent_code, parent_code, identifying):
     member = _member()
-    report = _report(member, transcript="고객은 다음 달 예산 승인을 검토합니다.")
-    db = _Db(_Result(scalar=None), _Result(scalar=report))
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "meeting_analysis",
-                "report_id": str(report.id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 202
-    created = db.added[0]
-    assert created.agent_code == "meeting_analysis"
-    assert created.prompt_version == meeting_analysis.PROMPT_VERSION
-    assert created.input_snapshot == {}
-    assert created.request_snapshot["report_id"] == str(report.id)
-
-
-def test_meeting_analysis_requires_transcript(llm_ready):
-    member = _member()
-    report = _report(member)
-    db = _Db(_Result(scalar=None), _Result(scalar=report))
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "meeting_analysis",
-                "report_id": str(report.id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 202
-    created = db.added[0]
-    assert created.status_code == "queued"
-    assert created.input_snapshot == {}
-
-
-@pytest.mark.anyio
-async def test_execute_dispatches_meeting_analysis_and_saves_result(monkeypatch):
-    """미팅 분석 결과와 모델 버전이 실행 이력에 저장되는지 검증한다."""
-    member = _member()
-    run = _run(member)
-    run.agent_code = "meeting_analysis"
-    run.input_snapshot = {"transcript": "고객이 다음 달 예산 승인을 검토합니다."}
-    first = _Db(_Result(scalar=run))
-    second = _Db(_Result(scalar=run))
-    sessions = iter((first, second))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(next(sessions)),
-    )
-
-    output_snapshot = {
-        "deal_assessment": {
-            "features": {},
-            "label": "watch",
-            "high_probability": 0.5,
-            "model_version": "test-deal-model-v1",
-        }
+    parent = _run(member, status_code="completed")
+    parent.agent_code = parent_code
+    db = _Db(_Result(scalar=None), _Result(scalar=parent))
+    payload = {
+        "agent_code": agent_code,
+        "parent_run_id": str(parent.id),
+        "idempotency_key": str(uuid4()),
+        **{key: str(value) for key, value in identifying.items()},
     }
 
-    async def fake_run(snapshot):
-        """입력 스냅샷을 확인하고 고정된 미팅 분석 결과를 반환한다."""
-        assert snapshot == run.input_snapshot
-        log_agent_event(
-            "meeting_analysis.model",
-            input_tokens=21,
-            output_tokens=9,
-            total_tokens=30,
-        )
-        return SimpleNamespace(
-            deal_assessment=SimpleNamespace(model_version="test-deal-model-v1"),
-            model_dump=lambda **kwargs: output_snapshot,
-        )
-
-    monkeypatch.setattr(meeting_analysis, "run", fake_run)
-
-    await agent_run_service.execute(run.id)
-
-    assert run.status_code == "completed"
-    assert run.output_snapshot == output_snapshot
-    assert run.evidence == {
-        "prompt_version": meeting_analysis.PROMPT_VERSION,
-        "model_version": "test-deal-model-v1",
-    }
-    assert (run.input_tokens, run.output_tokens, run.total_tokens) == (21, 9, 30)
-    assert first.commit_count == 1
-    assert second.commit_count == 1
-
-
-@pytest.mark.anyio
-async def test_execute_records_model_failure_separately_from_llm_failure(monkeypatch, caplog):
-    """모델 로드 실패가 LLM 오류와 구분되어 기록되는지 검증한다."""
-    member = _member()
-    run = _run(member)
-    run.agent_code = "meeting_analysis"
-    first = _Db(_Result(scalar=run))
-    second = _Db(_Result(scalar=run))
-    sessions = iter((first, second))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(next(sessions)),
-    )
-
-    async def fake_run(_snapshot):
-        """모델을 사용할 수 없는 상황을 재현한다."""
-        raise DealModelError("deal_model_unavailable")
-
-    monkeypatch.setattr(meeting_analysis, "run", fake_run)
-
-    await agent_run_service.execute(run.id)
-
-    assert run.status_code == "failed"
-    assert run.error_message == "deal_model_unavailable"
-    assert str(run.id) in caplog.text
-    assert '"type": "DealModelError"' in caplog.text
-    assert '"stage": "meeting_analysis"' in caplog.text
-
-
-def test_same_idempotency_key_returns_existing_run(llm_ready):
-    member = _member()
-    key = uuid4()
-    existing = _run(member, status_code="running", key=key)
-    db = _Db(_Result(scalar=existing))
-
     with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "report_writing",
-                "report_id": str(uuid4()),
-                "idempotency_key": str(key),
-            },
-        )
+        response = client.post("/api/agent-runs", headers={"Origin": ORIGIN}, json=payload)
 
     assert response.status_code == 202
-    assert response.json()["id"] == str(existing.id)
-    assert response.json()["status_code"] == "running"
-    # 새 실행을 만들지 않았다.
-    assert db.added == []
-    assert db.commit_count == 0
+    assert db.added[0].parent_run_id == parent.id
+    assert db.added[0].source_refs["parent_run_id"] == str(parent.id)
 
 
-def test_submitted_report_cannot_be_drafted(llm_ready):
+@pytest.mark.parametrize(
+    ("parent_code", "parent_status", "parent_result", "expected_status"),
+    [
+        ("contract_management_next_meeting", "completed", "parent", 409),
+        ("schedule_management", "running", "parent", 409),
+        ("schedule_management", "completed", None, 404),
+    ],
+)
+def test_parent_run_requires_expected_type_completed_status_and_scope(
+    llm_ready, parent_code, parent_status, parent_result, expected_status
+):
     member = _member()
-    submitted = _report(member, status_code="submitted")
-    db = _Db(_Result(scalar=None), _Result(scalar=submitted))
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "report_writing",
-                "report_id": str(submitted.id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 409
-    assert response.json() == {"detail": "report_not_editable"}
-    assert db.rollback_count == 1
-
-
-def test_manager_cannot_generate_a_teammate_report(llm_ready):
-    manager = _member(role="manager")
-    teammate = _member()
-    teammate.team_id = manager.team_id
-    report = _report(teammate)
-    db = _Db(_Result(scalar=None), _Result(scalar=report))
-
-    with _client(db, manager) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "report_writing",
-                "report_id": str(report.id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 403
-    assert response.json() == {"detail": "report_not_owned"}
-    assert db.added == []
-
-
-def test_member_cannot_read_other_requesters_run():
-    member = _member()
-    db = _Db(_Result(scalar=None))
-    with _client(db, member) as client:
-        response = client.get(f"/api/agent-runs/{uuid4()}")
-
-    assert response.status_code == 404
-    assert response.json() == {"detail": "agent_run_not_found"}
-    sql = str(db.statements[0])
-    assert "agent_run.requested_by_member_id" in sql
-    assert "agent_run.team_id" in sql
-
-
-@pytest.mark.anyio
-async def test_provider_errors_never_leak_url_or_key(llm_ready, monkeypatch, caplog):
-    class _FailingClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        async def post(self, *args, **kwargs):
-            raise httpx.ConnectError("https://provider.invalid 로 붙지 못함")
-
-    monkeypatch.setattr(llm.httpx, "AsyncClient", _FailingClient)
-
-    with pytest.raises(llm.LLMError) as caught:
-        await llm.generate_structured(
-            instructions="x",
-            input_text="y",
-            schema=ReportDraftOutput,
-            schema_name="report_draft",
-        )
-
-    message = str(caught.value)
-    assert "super-secret-key" not in message
-    assert "provider.invalid" not in message
-    assert message == "llm_request_failed:ConnectError"
-    assert '"type": "ConnectError"' in caplog.text
-    assert '"stage": "llm.request"' in caplog.text
-    assert "provider.invalid" not in caplog.text
-    assert "super-secret-key" not in caplog.text
-
-
-@pytest.mark.anyio
-async def test_schema_mismatch_is_rejected(llm_ready, monkeypatch, caplog):
-    class _Response:
-        status_code = 200
-        headers = {"x-request-id": "req_schema_mismatch"}
-
-        def json(self):
-            # fields 가 요구 형태가 아니다.
-            return {"output_text": json.dumps({"fields": [{"wrong": 1}]})}
-
-    class _Client:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        async def post(self, *args, **kwargs):
-            return _Response()
-
-    monkeypatch.setattr(llm.httpx, "AsyncClient", _Client)
-
-    with pytest.raises(llm.LLMError, match="llm_output_schema_mismatch"):
-        await llm.generate_structured(
-            instructions="x",
-            input_text="y",
-            schema=ReportDraftOutput,
-            schema_name="report_draft",
-        )
-
-    assert '"stage": "llm.output_validation"' in caplog.text
-    assert '"request_id": "req_schema_mismatch"' in caplog.text
-    assert '"status_code": 200' in caplog.text
-
-
-def test_contract_management_select_candidates_run_uses_portfolio_snapshot(llm_ready, monkeypatch):
-    fixed_snapshot = {"candidates": []}
-    captured_args = {}
-
-    async def _fake_build_candidate_selection_snapshot(db, member):
-        captured_args["member"] = member
-        return fixed_snapshot
-
-    monkeypatch.setattr(
-        contract_schedule_snapshots,
-        "build_candidate_selection_snapshot",
-        _fake_build_candidate_selection_snapshot,
+    parent = _run(member, status_code=parent_status)
+    parent.agent_code = parent_code
+    db = _Db(
+        _Result(scalar=None),
+        _Result(scalar=parent if parent_result == "parent" else None),
     )
-
-    member = _member()
-    db = _Db(_Result(scalar=None))
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "contract_management_select_candidates",
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 202
-    created = db.added[0]
-    assert created.agent_code == "contract_management_select_candidates"
-    assert created.prompt_version == contract_management.SELECT_CANDIDATES_PROMPT_VERSION
-    assert created.input_snapshot == {}
-    assert created.source_refs == {}
-    assert created.parent_run_id is None
-    assert captured_args == {}
-
-
-def test_contract_management_select_candidates_rejects_target_id():
-    """대상을 지정하지 않는 실행이다 — 다른 agent_code 용 식별 필드를 섞어 보내면 거절한다."""
-    with pytest.raises(ValidationError):
-        AgentRunCreate(
-            agent_code="contract_management_select_candidates",
-            customer_company_id=uuid4(),
-            idempotency_key=uuid4(),
-        )
-
-
-def test_contract_management_next_meeting_run_uses_company_snapshot(llm_ready, monkeypatch):
-    fixed_snapshot = {"customer_company": {"id": "company-1"}, "risk_signals": []}
-
-    async def _fake_build_next_meeting_snapshot(db, member, customer_company_id):
-        return fixed_snapshot
-
-    monkeypatch.setattr(
-        contract_schedule_snapshots,
-        "build_next_meeting_snapshot",
-        _fake_build_next_meeting_snapshot,
-    )
-
-    member = _member()
-    company_id = uuid4()
-    db = _Db(_Result(scalar=None))
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "contract_management_next_meeting",
-                "customer_company_id": str(company_id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 202
-    created = db.added[0]
-    assert created.agent_code == "contract_management_next_meeting"
-    assert created.prompt_version == contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION
-    assert created.input_snapshot == {}
-    assert created.source_refs == {"customer_company_id": str(company_id)}
-    assert created.parent_run_id is None
-
-
-def test_contract_management_briefing_requires_completed_schedule_parent(llm_ready):
-    member = _member()
-    other_agent_parent = _run(member, status_code="completed")
-    other_agent_parent.agent_code = "meeting_analysis"  # 기대하는 agent_code 가 아니다.
-    db = _Db(_Result(scalar=None), _Result(scalar=other_agent_parent))
 
     with _client(db, member) as client:
         response = client.post(
@@ -678,91 +341,43 @@ def test_contract_management_briefing_requires_completed_schedule_parent(llm_rea
             json={
                 "agent_code": "contract_management_briefing",
                 "activity_id": str(uuid4()),
-                "parent_run_id": str(other_agent_parent.id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 409
-    assert response.json() == {"detail": "parent_run_not_usable"}
-
-
-def test_contract_management_briefing_without_parent_run(llm_ready, monkeypatch):
-    """AI 제안을 거치지 않은 일정(캘린더 직접 입력, 팀장 대리 입력 등)도 parent_run_id 없이
-    브리핑을 만들 수 있다 — activity_id만으로 충분하다."""
-    fixed_snapshot = {
-        "customer_company": {"id": "company-1"},
-        "sales_deals": [],
-        "approved_next_meeting": None,
-        "document_summaries": [],
-    }
-
-    async def _fake_build_briefing_snapshot(db, member, activity_id):
-        return fixed_snapshot
-
-    monkeypatch.setattr(
-        contract_schedule_snapshots, "build_briefing_snapshot", _fake_build_briefing_snapshot
-    )
-
-    member = _member()
-    activity_id = uuid4()
-    db = _Db(_Result(scalar=None))
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "contract_management_briefing",
-                "activity_id": str(activity_id),
-                "idempotency_key": str(uuid4()),
-            },
-        )
-
-    assert response.status_code == 202
-    created = db.added[0]
-    assert created.agent_code == "contract_management_briefing"
-    assert created.parent_run_id is None
-    assert created.source_refs == {"activity_id": str(activity_id)}
-    assert created.input_snapshot == {}
-
-
-def test_schedule_management_run_uses_parent_next_meeting_suggestion(llm_ready, monkeypatch):
-    fixed_snapshot = {"sales_deal_id": "deal-1", "activities": []}
-
-    async def _fake_build_schedule_snapshot(
-        db, member, sales_deal_id, parent_run, starts_at, ends_at, duration
-    ):
-        assert parent_run is not None
-        assert starts_at is None and ends_at is None and duration is None
-        return fixed_snapshot
-
-    monkeypatch.setattr(
-        contract_schedule_snapshots, "build_schedule_snapshot", _fake_build_schedule_snapshot
-    )
-
-    member = _member()
-    parent = _run(member, status_code="completed")
-    parent.agent_code = "contract_management_next_meeting"
-    db = _Db(_Result(scalar=None), _Result(scalar=parent))
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/agent-runs",
-            headers={"Origin": ORIGIN},
-            json={
-                "agent_code": "schedule_management",
-                "sales_deal_id": str(uuid4()),
                 "parent_run_id": str(parent.id),
                 "idempotency_key": str(uuid4()),
             },
         )
 
+    assert response.status_code == expected_status
+    assert db.added == []
+    if expected_status == 404:
+        parent_query = str(db.statements[1])
+        assert "agent_run.team_id" in parent_query
+        assert "agent_run.requested_by_member_id" in parent_query
+
+
+def test_same_generic_idempotency_key_returns_existing_run(llm_ready):
+    member = _member()
+    key = uuid4()
+    payload = AgentRunCreate(
+        agent_code="contract_management_select_candidates",
+        idempotency_key=key,
+    )
+    existing = _run(member, status_code="running", key=key)
+    existing.agent_code = payload.agent_code
+    existing.request_snapshot = payload.model_dump(mode="json")
+    existing.request_hash = service._request_hash(existing.request_snapshot)
+    db = _Db(_Result(scalar=existing))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json=payload.model_dump(mode="json"),
+        )
+
     assert response.status_code == 202
-    created = db.added[0]
-    assert created.prompt_version == schedule_management.PROMPT_VERSION
-    assert created.input_snapshot == {}
-    assert created.parent_run_id == parent.id
+    assert response.json()["id"] == str(existing.id)
+    assert response.json()["status_code"] == "running"
+    assert db.added == [] and db.commit_count == 0
 
 
 def test_schedule_management_requires_preferred_window_without_parent_run():
@@ -774,152 +389,251 @@ def test_schedule_management_requires_preferred_window_without_parent_run():
         )
 
 
-@pytest.mark.anyio
-async def test_execute_dispatches_contract_management_select_candidates(monkeypatch):
-    member = _member()
-    run = _run(member)
-    run.agent_code = "contract_management_select_candidates"
-    run.input_snapshot = {"candidates": []}
-    first = _Db(_Result(scalar=run))
-    second = _Db(_Result(scalar=run))
-    sessions = iter((first, second))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(next(sessions)),
+def test_report_generation_input_has_one_typed_scope():
+    meeting = ReportGenerationCreate(
+        idempotency_key=uuid4(),
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=uuid4(),
+        sales_deal_ids=[uuid4()],
+        template_snapshot=TEMPLATE,
+        content={},
+        transcript="고객이 다음 달 예산을 검토합니다.",
     )
-
-    output_snapshot = {"candidates": []}
-
-    async def fake_select(snapshot):
-        assert snapshot == run.input_snapshot
-        return SimpleNamespace(candidates=[], model_dump=lambda **kwargs: output_snapshot)
-
-    monkeypatch.setattr(contract_management, "select_next_meeting_candidates", fake_select)
-
-    await agent_run_service.execute(run.id)
-
-    assert run.status_code == "completed"
-    assert run.output_snapshot == output_snapshot
-    assert run.evidence == {
-        "prompt_version": contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
-        "candidate_count": 0,
-    }
-    assert first.commit_count == 1
-    assert second.commit_count == 1
+    assert service.generation_scope_key(meeting).startswith("meeting:")
+    with pytest.raises(ValidationError):
+        ReportGenerationCreate(
+            idempotency_key=uuid4(),
+            report_kind="meeting",
+            report_date=date(2026, 8, 17),
+            sales_deal_ids=[uuid4()],
+            template_snapshot=TEMPLATE,
+            content={},
+            transcript="원문",
+        )
+    with pytest.raises(ValidationError):
+        ReportGenerationScope(report_kind="weekly", period_start=date(2026, 8, 1))
 
 
-@pytest.mark.anyio
-async def test_execute_dispatches_contract_management_next_meeting(monkeypatch):
-    member = _member()
-    run = _run(member)
-    run.agent_code = "contract_management_next_meeting"
-    run.input_snapshot = {"customer_company": {"id": "company-1"}, "risk_signals": []}
-    first = _Db(_Result(scalar=run))
-    second = _Db(_Result(scalar=run))
-    sessions = iter((first, second))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(next(sessions)),
+@pytest.mark.parametrize("field_name", ["template_snapshot", "content"])
+def test_report_generation_rejects_oversized_json_fields(field_name):
+    oversized = (
+        {"fields": [{"id": "body"}], "value": "가" * REPORT_GENERATION_JSON_MAX_BYTES}
+        if field_name == "template_snapshot"
+        else {"value": "가" * REPORT_GENERATION_JSON_MAX_BYTES}
     )
+    payload = _daily_payload(**{field_name: oversized})
 
-    output_snapshot = {
-        "risks": [],
-        "missing_information": [],
-        "recommended_actions": [],
-        "next_meeting_suggestion": None,
-    }
-
-    async def fake_propose(snapshot):
-        assert snapshot == run.input_snapshot
-        return SimpleNamespace(risks=[], model_dump=lambda **kwargs: output_snapshot)
-
-    monkeypatch.setattr(contract_management, "propose_next_meeting", fake_propose)
-
-    await agent_run_service.execute(run.id)
-
-    assert run.status_code == "completed"
-    assert run.output_snapshot == output_snapshot
-    assert run.evidence == {
-        "prompt_version": contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
-        "risk_count": 0,
-    }
-    assert first.commit_count == 1
-    assert second.commit_count == 1
+    with pytest.raises(ValidationError, match=f"{field_name}_too_large"):
+        ReportGenerationCreate.model_validate(payload)
 
 
-@pytest.mark.anyio
-async def test_execute_dispatches_schedule_management(monkeypatch):
-    member = _member()
-    run = _run(member)
-    run.agent_code = "schedule_management"
-    run.input_snapshot = {"sales_deal_id": "deal-1", "activities": []}
-    first = _Db(_Result(scalar=run))
-    second = _Db(_Result(scalar=run))
-    sessions = iter((first, second))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(next(sessions)),
-    )
-
-    output_snapshot = {"schedule_candidates": [], "conflicts": []}
-
-    async def fake_run(snapshot):
-        assert snapshot == run.input_snapshot
-        return SimpleNamespace(schedule_candidates=[], model_dump=lambda **kwargs: output_snapshot)
-
-    monkeypatch.setattr(schedule_management, "run", fake_run)
-
-    await agent_run_service.execute(run.id)
-
-    assert run.status_code == "completed"
-    assert run.output_snapshot == output_snapshot
-    assert run.evidence == {
-        "prompt_version": schedule_management.PROMPT_VERSION,
-        "candidate_count": 0,
-    }
+@pytest.mark.parametrize(
+    ("field_name", "value", "error"),
+    [
+        (
+            "template_snapshot",
+            {"fields": [{"id": "summary"}]},
+            "report_template_body_only",
+        ),
+        ("content", {"values": {"summary": "구형 요약"}}, "report_values_body_only"),
+        ("content", {"title": "가" * 255}, "report_title_invalid"),
+    ],
+)
+def test_new_report_generation_rejects_non_body_contract(field_name, value, error):
+    with pytest.raises(ValidationError, match=error):
+        ReportGenerationCreate.model_validate(_daily_payload(**{field_name: value}))
 
 
-def test_meeting_generation_domain_routes_create_and_resume_latest(llm_ready):
-    member = _member()
-    report = _report(member, transcript="고객이 예산 검토 일정을 공유했다.")
-    report.report_kind = "meeting"
-    report.version = 7
-    report.generation_input_version = 3
-    create_db = _Db(_Result(scalar=None), _Result(scalar=report))
-
-    with _client(create_db, member) as client:
+def test_report_generation_rejects_missing_llm_before_db(llm_missing):
+    with _client(_Db(), _member()) as client:
         response = client.post(
-            f"/api/reports/{report.id}/generations",
-            headers={"Origin": ORIGIN},
-            json={"idempotency_key": str(uuid4())},
+            "/api/report-generations", headers={"Origin": ORIGIN}, json=_daily_payload()
+        )
+    assert response.status_code == 503
+    assert response.json() == {"detail": "llm_not_configured"}
+
+
+def test_report_generation_is_queued_without_creating_a_report(llm_ready, monkeypatch):
+    member = _member()
+    db = _Db(_Result(scalar=None))
+
+    async def frozen_input(payload, owner, current_db):
+        assert owner is member and current_db is db
+        return (
+            "report_writing",
+            {"report_kind": "daily", "content": {}},
+            {
+                "report_kind": "daily",
+                "report_date": "2026-08-17",
+                "period_start": None,
+                "period_end": None,
+            },
+        )
+
+    monkeypatch.setattr(service, "_report_generation_input", frozen_input)
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/report-generations", headers={"Origin": ORIGIN}, json=_daily_payload()
         )
 
     assert response.status_code == 202
-    run = create_db.added[0]
-    assert run.agent_code == "meeting_processing"
-    assert run.report_id == report.id
-    assert run.base_report_version == 7
-    assert run.base_generation_input_version == 3
-    assert run.apply_status == "pending"
-    assert run.input_snapshot == {}
-
-    latest_db = _Db(_Result(scalar=report.id), _Result(scalar=run))
-    with _client(latest_db, member) as client:
-        latest = client.get(f"/api/reports/{report.id}/generations/latest")
-    assert latest.status_code == 200
-    assert latest.json()["id"] == str(run.id)
-    assert latest.json()["current_stage_code"] == "queued"
+    run = db.added[0]
+    assert isinstance(run, AgentRun)
+    assert run.report_id is None
+    assert run.request_snapshot == response.json()["generation_input"]
+    assert run.request_snapshot["content"] == {"values": {}, "activities": []}
+    assert run.input_snapshot["report_kind"] == "daily"
+    assert run.scope_key == "daily:2026-08-17"
+    assert run.payload_expires_at - run.created_at == service.REPORT_GENERATION_RETENTION
+    assert response.headers["Location"] == f"/api/agent-runs/{run.id}"
 
 
-def test_second_active_meeting_generation_returns_conflict(llm_ready):
+def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
     member = _member()
-    report = _report(member, transcript="고객이 예산 검토 일정을 공유했다.")
-    report.report_kind = "meeting"
+    activity_id = uuid4()
+    activity = SimpleNamespace(
+        id=activity_id,
+        team_id=member.team_id,
+        owner_member_id=member.id,
+        starts_at=NOW,
+        ends_at=NOW + timedelta(hours=1),
+        deleted_at=None,
+        title="고객 미팅",
+        location="회의실",
+        note="계약 조건 협의",
+    )
+    db = _Db(
+        _Result(scalar=None),
+        _Result(scalars=[activity]),
+    )
+    payload = _daily_payload(
+        content={
+            "values": {},
+            "activities": [
+                {
+                    "refId": str(activity_id),
+                    "source": "캘린더",
+                    "included": True,
+                }
+            ],
+        }
+    )
+
+    with _client(db, member) as client:
+        response = client.post("/api/report-generations", headers={"Origin": ORIGIN}, json=payload)
+
+    assert response.status_code == 202
+    run = db.added[0]
+    for snapshot in (run.request_snapshot, run.source_refs, run.input_snapshot):
+        json.dumps(snapshot)
+    source = run.input_snapshot["report_sources"]["activities"][0]
+    assert source["id"] == str(activity_id)
+    assert source["starts_at"] == NOW.isoformat()
+    assert run.source_refs["report_sources"] == [
+        {
+            "position": 0,
+            "source_activity_id": str(activity_id),
+            "source_report_submission_id": None,
+        }
+    ]
+
+
+def test_generation_input_restores_only_requesters_ui_values():
+    team_id = uuid4()
+    owner = _member(team_id=team_id)
+    run = _run(owner, status_code="running")
+    deal_id = uuid4()
+    activity_id = uuid4()
+    run.agent_code = "meeting_processing"
+    run.scope_key = f"meeting:{activity_id}"
+    run.payload_expires_at = datetime.now(UTC) + timedelta(days=1)
+    run.request_snapshot = {
+        "report_kind": "meeting",
+        "report_date": "2026-08-17",
+        "period_start": None,
+        "period_end": None,
+        "source_activity_id": str(activity_id),
+        "sales_deal_ids": [str(deal_id)],
+        "template_snapshot": TEMPLATE,
+        "content": {"title": "방문 미팅", "attachments": [{"name": "memo.pdf"}]},
+        "transcript": "고객이 예산을 승인했습니다.",
+        "guidance": None,
+    }
+    run.input_snapshot = {
+        "source": {"transcript": "고객이 예산을 승인했습니다."},
+        "crm_context": {"private": "응답하면 안 되는 CRM"},
+    }
+    run.output_snapshot = {
+        "reports": None,
+        "analyses": [],
+        "evidence": {"selected_deal_ids": [str(deal_id)]},
+        "errors": {},
+        "context_lookups": [{"private": "응답하면 안 되는 CRM"}],
+    }
+
+    with _client(_Db(_Result(scalar=run)), owner) as client:
+        restored = client.get(f"/api/agent-runs/{run.id}")
+
+    assert restored.status_code == 200
+    generation_input = restored.json()["generation_input"]
+    assert generation_input["transcript"] == "고객이 예산을 승인했습니다."
+    assert generation_input["content"]["attachments"] == [{"name": "memo.pdf"}]
+    assert "crm_context" not in generation_input
+    assert "context_lookups" not in restored.json()["output_snapshot"]
+
+    manager = _member(role="manager", team_id=team_id)
+    with _client(_Db(_Result(scalar=run)), manager) as client:
+        hidden = client.get(f"/api/agent-runs/{run.id}")
+    assert hidden.status_code == 200
+    assert hidden.json()["generation_input"] is None
+    assert hidden.json()["output_snapshot"] is None
+
+
+def test_redacted_generation_has_no_reconnect_input():
+    member = _member()
+    run = _run(member, status_code="cancelled")
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "period_start": None,
+        "period_end": None,
+        "source_activity_id": None,
+        "sales_deal_ids": [],
+        "template_snapshot": TEMPLATE,
+        "content": {"activities": [], "attachments": []},
+        "transcript": None,
+        "guidance": "이번 주 계약 위험을 강조",
+    }
+    run.payload_redacted_at = NOW
+    with _client(_Db(_Result(scalar=run)), member) as client:
+        response = client.get(f"/api/agent-runs/{run.id}")
+    assert response.status_code == 200
+    assert response.json()["generation_input"] is None
+
+
+def test_latest_generation_uses_server_scope_and_requester():
+    member = _member(role="manager")
+    run = _run(member, status_code="completed")
+    run.scope_key = "daily:2026-08-17"
+    run.payload_expires_at = datetime.now(UTC) + timedelta(days=1)
+    db = _Db(_Result(scalar=run))
+    with _client(db, member) as client:
+        response = client.get(
+            "/api/report-generations/latest?report_kind=daily&report_date=2026-08-17"
+        )
+    assert response.status_code == 200
+    assert response.json()["id"] == str(run.id)
+    sql = str(db.statements[0])
+    assert "agent_run.requested_by_member_id" in sql
+    assert "agent_run.scope_key" in sql
+    assert "agent_run.report_id IS NULL" in sql
+
+
+def test_active_generation_scope_conflict_is_not_a_report_conflict(llm_ready, monkeypatch):
+    member = _member()
     cause = RuntimeError("duplicate")
-    cause.constraint_name = "agent_run_meeting_active_report_key"
+    cause.constraint_name = "agent_run_active_generation_scope_key"
     original = RuntimeError("adapter")
     original.__cause__ = cause
     error = IntegrityError("insert", {}, original)
@@ -928,146 +642,377 @@ def test_second_active_meeting_generation_returns_conflict(llm_ready):
         async def flush(self):
             raise error
 
-    db = ConflictDb(_Result(scalar=None), _Result(scalar=report), _Result(scalar=None))
+    db = ConflictDb(_Result(scalar=None), _Result(scalar=None))
+
+    async def frozen_input(*_args):
+        return "report_writing", {"report_kind": "daily"}, {"report_kind": "daily"}
+
+    monkeypatch.setattr(service, "_report_generation_input", frozen_input)
     with _client(db, member) as client:
         response = client.post(
-            f"/api/reports/{report.id}/generations",
-            headers={"Origin": ORIGIN},
-            json={"idempotency_key": str(uuid4())},
+            "/api/report-generations", headers={"Origin": ORIGIN}, json=_daily_payload()
         )
-
     assert response.status_code == 409
-    assert response.json() == {"detail": "meeting_generation_in_progress"}
+    assert response.json() == {"detail": "report_generation_in_progress"}
 
 
-@pytest.mark.anyio
-async def test_applied_partial_meeting_run_can_be_reassigned():
-    member = _member()
-    parent = _run(member, status_code="partial")
-    parent.agent_code = "meeting_processing"
-    parent.apply_status = "applied"
+def test_generation_race_does_not_reuse_member_expired_by_rollback(llm_ready, monkeypatch):
+    stored_member = _member()
 
-    found = await agent_run_service._parent_run_or_409(
-        _Db(_Result(scalar=parent)),
-        member,
-        parent.id,
-        expected_agent_code="meeting_processing",
+    class ExpiringMember:
+        expired = False
+
+        @property
+        def id(self):
+            assert not self.expired, "rollback 뒤 ORM member를 다시 읽었습니다"
+            return stored_member.id
+
+        @property
+        def team_id(self):
+            assert not self.expired, "rollback 뒤 ORM member를 다시 읽었습니다"
+            return stored_member.team_id
+
+    member = ExpiringMember()
+    payload = ReportGenerationCreate.model_validate(_daily_payload())
+    winner = _run(stored_member, key=payload.idempotency_key)
+    winner.request_hash = service._request_hash(payload.model_dump(mode="json"))
+    error = IntegrityError("insert", {}, RuntimeError("duplicate"))
+
+    class RaceDb(_Db):
+        async def flush(self):
+            raise error
+
+        async def rollback(self):
+            await super().rollback()
+            member.expired = True
+
+    async def frozen_input(*_args):
+        return "report_writing", {"report_kind": "daily"}, {"report_kind": "daily"}
+
+    monkeypatch.setattr(service, "_report_generation_input", frozen_input)
+    read, run_id = asyncio.run(
+        service.create_report_generation(
+            payload,
+            member,
+            RaceDb(_Result(scalar=None), _Result(scalar=winner)),
+        )
     )
 
-    assert found is parent
+    assert read.id == winner.id and run_id is None
+
+
+def test_member_cannot_read_another_requesters_run():
+    member = _member()
+    db = _Db(_Result(scalar=None))
+    with _client(db, member) as client:
+        response = client.get(f"/api/agent-runs/{uuid4()}")
+    assert response.status_code == 404
+    assert "agent_run.requested_by_member_id" in str(db.statements[0])
 
 
 @pytest.mark.anyio
-async def test_manual_apply_endpoint_commits_only_in_meeting_processing(monkeypatch):
+@pytest.mark.parametrize(
+    "agent_code",
+    [
+        "contract_management_select_candidates",
+        "contract_management_next_meeting",
+        "contract_management_briefing",
+        "schedule_management",
+    ],
+)
+async def test_prepare_claimed_routes_generic_inputs_and_persists_snapshot(monkeypatch, agent_code):
     member = _member()
-    db = _Db()
-    expected = object()
-
-    async def apply(current_db, current_member, run_id):
-        assert (current_db, current_member) == (db, member)
-        assert isinstance(run_id, UUID)
-        return expected
-
-    monkeypatch.setattr(agent_runs.meeting_processing, "apply", apply)
-
-    assert await agent_runs.apply_meeting_run(uuid4(), member, db) is expected
-
-
-@pytest.mark.anyio
-async def test_worker_requeues_only_transient_provider_errors(monkeypatch):
-    member = _member()
-    run = _run(member)
-    run.request_hash = "0" * 64
-    run.input_snapshot = {"template_snapshot": TEMPLATE}
-    claim_db = _Db(_Result(scalar=run))
-    finish_db = _Db(_Result(scalar=run))
-    sessions = iter((claim_db, finish_db))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(next(sessions)),
+    target_id = uuid4()
+    identifying = {
+        "contract_management_select_candidates": {},
+        "contract_management_next_meeting": {"customer_company_id": target_id},
+        "contract_management_briefing": {"activity_id": target_id},
+        "schedule_management": {
+            "sales_deal_id": target_id,
+            "preferred_starts_at": "2026-08-18T09:00:00+09:00",
+            "preferred_ends_at": "2026-08-18T12:00:00+09:00",
+            "duration_minutes": 60,
+        },
+    }[agent_code]
+    payload = AgentRunCreate(
+        agent_code=agent_code,
+        idempotency_key=uuid4(),
+        **identifying,
     )
+    snapshots = {
+        "contract_management_select_candidates": {"candidates": []},
+        "contract_management_next_meeting": {
+            "customer_company": {"id": str(target_id)},
+            "risk_signals": [],
+        },
+        "contract_management_briefing": {
+            "customer_company": {"id": "company-1"},
+            "document_context": {"summaries": [], "sources": []},
+        },
+        "schedule_management": {"sales_deal_id": str(target_id), "activities": []},
+    }
+    builders = {
+        "contract_management_select_candidates": "build_candidate_selection_snapshot",
+        "contract_management_next_meeting": "build_next_meeting_snapshot",
+        "contract_management_briefing": "build_briefing_snapshot",
+        "schedule_management": "build_schedule_snapshot",
+    }
+    prompts = {
+        "contract_management_select_candidates": (
+            contract_management.SELECT_CANDIDATES_PROMPT_VERSION
+        ),
+        "contract_management_next_meeting": (
+            contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION
+        ),
+        "contract_management_briefing": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+        "schedule_management": schedule_management.PROMPT_VERSION,
+    }
+    calls = []
 
-    async def fail(_snapshot):
-        raise llm.LLMError("llm_request_failed:ReadTimeout")
+    async def build(*args):
+        calls.append(args)
+        return snapshots[agent_code]
 
-    monkeypatch.setattr(report_writing, "run", fail)
-    await agent_run_service.execute(run.id)
+    monkeypatch.setattr(contract_schedule_snapshots, builders[agent_code], build)
+    request_snapshot = payload.model_dump(mode="json")
+    run = SimpleNamespace(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code=agent_code,
+        requested_by_member_id=member.id,
+        request_snapshot=request_snapshot,
+        request_hash=service._request_hash(request_snapshot),
+        input_snapshot={},
+    )
+    db = _Db(_Result(scalar=member), SimpleNamespace(rowcount=1))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
 
-    assert run.status_code == "queued"
-    assert run.current_stage_code == "retry_wait"
-    assert run.attempt_count == 1
-    assert run.error_code == "llm_request_failed:ReadTimeout"
-    assert run.finished_at is None
-    assert run.next_attempt_at > datetime.now(UTC)
+    code, input_snapshot, requester_id = await service.prepare_claimed(run, "worker-1")
+
+    assert (code, input_snapshot, requester_id) == (
+        agent_code,
+        snapshots[agent_code],
+        member.id,
+    )
+    assert run.input_snapshot == snapshots[agent_code]
+    assert len(calls) == 1 and calls[0][:2] == (db, member)
+    if agent_code != "contract_management_select_candidates":
+        assert calls[0][2] == target_id
+    values = db.statements[1].compile().params
+    assert values["prompt_version"] == prompts[agent_code]
+    assert values["input_snapshot"] == snapshots[agent_code]
+    assert values["current_stage_code"] == "running_agent"
+    assert "agent_run.status_code" in str(db.statements[1])
+    assert "agent_run.lease_owner" in str(db.statements[1])
+    assert db.commit_count == 1
 
 
 @pytest.mark.anyio
-async def test_direct_legacy_run_does_not_enter_unclaimed_retry_queue(monkeypatch):
+async def test_prepare_claimed_rejects_lost_lease_before_exposing_snapshot(monkeypatch):
+    member = _member()
+    payload = AgentRunCreate(
+        agent_code="contract_management_select_candidates",
+        idempotency_key=uuid4(),
+    )
+    request_snapshot = payload.model_dump(mode="json")
+    run = SimpleNamespace(
+        id=uuid4(),
+        team_id=member.team_id,
+        agent_code=payload.agent_code,
+        requested_by_member_id=member.id,
+        request_snapshot=request_snapshot,
+        request_hash=service._request_hash(request_snapshot),
+        input_snapshot={},
+    )
+    db = _Db(_Result(scalar=member), SimpleNamespace(rowcount=0))
+
+    async def build(*_args):
+        return "v1", {"candidates": []}, {}, None
+
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    monkeypatch.setattr(service, "_build_run_input", build)
+
+    with pytest.raises(RuntimeError, match="agent_run_lease_lost"):
+        await service.prepare_claimed(run, "old-worker")
+
+    assert run.input_snapshot == {}
+    assert db.commit_count == 0
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("agent_code", "agent_attribute", "output_values", "expected_evidence"),
+    [
+        (
+            "contract_management_select_candidates",
+            "select_next_meeting_candidates",
+            {"candidates": []},
+            {
+                "prompt_version": contract_management.SELECT_CANDIDATES_PROMPT_VERSION,
+                "candidate_count": 0,
+            },
+        ),
+        (
+            "contract_management_next_meeting",
+            "propose_next_meeting",
+            {"risks": []},
+            {
+                "prompt_version": contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
+                "risk_count": 0,
+            },
+        ),
+        (
+            "contract_management_briefing",
+            "generate_briefing",
+            {"risks": []},
+            {
+                "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
+                "risk_count": 0,
+                "document_count": 1,
+                "chunk_count": 2,
+            },
+        ),
+        (
+            "schedule_management",
+            "run",
+            {"schedule_candidates": []},
+            {
+                "prompt_version": schedule_management.PROMPT_VERSION,
+                "candidate_count": 0,
+            },
+        ),
+    ],
+)
+async def test_generic_dispatch_completion_and_evidence(
+    monkeypatch, agent_code, agent_attribute, output_values, expected_evidence
+):
     member = _member()
     run = _run(member, status_code="running")
-    run.attempt_count = 1
-    run.lease_owner = "direct-bridge"
-    run.request_hash = None
+    run.agent_code = agent_code
+    run.lease_owner = "worker-1"
+    run.input_snapshot = {"document_context": {"summaries": [{}], "sources": [{}, {}]}}
+    output_snapshot = {"agent_code": agent_code}
+    output = SimpleNamespace(
+        **output_values,
+        model_dump=lambda **_kwargs: output_snapshot,
+    )
+    called = []
+
+    async def execute(snapshot):
+        called.append(snapshot)
+        return output
+
+    module = schedule_management if agent_code == "schedule_management" else contract_management
+    monkeypatch.setattr(module, agent_attribute, execute)
+
+    dispatched = await service.dispatch(agent_code, run.input_snapshot, member.id)
     db = _Db(SimpleNamespace(rowcount=1))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(db),
-    )
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    await agent_worker._complete(run, run.lease_owner, dispatched)
 
-    await agent_worker._fail(
-        run,
-        "direct-bridge",
-        "llm_request_failed:ReadTimeout",
-    )
-
-    assert run.status_code == "failed"
-    assert run.current_stage_code == "failed"
-    assert run.finished_at is not None
+    assert called == [run.input_snapshot]
+    assert run.status_code == "completed"
+    assert run.output_snapshot == output_snapshot
+    assert run.evidence == expected_evidence
+    assert run.lease_owner is None and db.commit_count == 1
 
 
 @pytest.mark.anyio
-async def test_worker_fails_non_retryable_validation_once(monkeypatch):
+async def test_worker_completes_meeting_output_without_an_apply_phase(monkeypatch):
     member = _member()
     run = _run(member)
-    run.input_snapshot = {"template_snapshot": TEMPLATE}
+    run.agent_code = "meeting_processing"
+    run.input_snapshot = {"source": {"transcript": "원문"}}
+    run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     claim_db = _Db(_Result(scalar=run))
-    finish_db = _Db(_Result(scalar=run))
-    sessions = iter((claim_db, finish_db))
+    complete_db = _Db(SimpleNamespace(rowcount=1))
+    sessions = iter((claim_db, complete_db))
     monkeypatch.setattr(
-        agent_run_service,
+        service,
         "get_sessionmaker",
         lambda: lambda: _SessionContext(next(sessions)),
     )
+    output = SimpleNamespace(
+        errors={},
+        analyses=[],
+        evidence=SimpleNamespace(items=[]),
+        model_dump=lambda **_kwargs: {"reports": None, "analyses": [], "errors": {}},
+    )
 
-    async def fail(_snapshot):
-        raise llm.LLMError("llm_output_schema_mismatch")
+    async def dispatch(*_args):
+        return output
 
-    monkeypatch.setattr(report_writing, "run", fail)
-    await agent_run_service.execute(run.id)
+    monkeypatch.setattr(service, "dispatch", dispatch)
+    await service.execute(run.id)
 
-    assert run.status_code == "failed"
-    assert run.attempt_count == 1
-    assert run.error_code == "llm_output_schema_mismatch"
-    assert run.finished_at is not None
+    assert run.status_code == "completed"
+    assert run.current_stage_code == "completed"
+    assert run.output_snapshot == {"reports": None, "analyses": [], "errors": {}}
+    assert not hasattr(run, "apply_status")
+
+
+@pytest.mark.anyio
+async def test_worker_claim_excludes_expired_or_redacted_report_payloads(monkeypatch):
+    db = _Db(_Result(scalar=None))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    assert await agent_worker.claim("worker-1") is None
+
+    statement = str(db.statements[0])
+    params = repr(db.statements[0].compile().params)
+    assert "agent_run.payload_expires_at" in statement
+    assert "agent_run.payload_redacted_at IS NULL" in statement
+    assert "agent_run.request_hash IS NOT NULL" in statement
+    assert "schedule_management" in params
+    assert "meeting_analysis" not in params
+
+
+@pytest.mark.anyio
+async def test_expired_generic_lease_is_reclaimed_with_skip_locked(monkeypatch):
+    run = _run(_member(), status_code="running")
+    run.agent_code = "schedule_management"
+    run.request_hash = "a" * 64
+    run.attempt_count = 1
+    run.lease_owner = "dead-worker"
+    run.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db = _Db(_Result(scalar=run))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    claimed = await agent_worker.claim("replacement-worker")
+
+    assert claimed is run
+    assert run.attempt_count == 2
+    assert run.lease_owner == "replacement-worker"
+    assert run.lease_expires_at > datetime.now(UTC)
+    assert db.statements[0]._for_update_arg.skip_locked is True
+    assert db.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_direct_bridge_can_claim_legacy_system_run(monkeypatch):
+    run = _run(_member())
+    run.agent_code = "schedule_management"
+    run.requested_by_member_id = None
+    run.request_hash = None
+    db = _Db(_Result(scalar=run))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    claimed = await agent_worker.claim("direct-bridge", run.id)
+
+    assert claimed is run
+    assert "agent_run.request_hash IS NOT NULL" not in str(db.statements[0])
 
 
 @pytest.mark.anyio
 async def test_worker_completion_rejects_lost_lease(monkeypatch):
-    member = _member()
-    run = _run(member, status_code="running")
-    run.agent_code = "meeting_analysis"
+    run = _run(_member(), status_code="running")
+    run.agent_code = "schedule_management"
     run.lease_owner = "old-worker"
-    db = _Db(SimpleNamespace(rowcount=0))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(db),
-    )
+    db = _Db(SimpleNamespace(rowcount=0), SimpleNamespace(rowcount=0))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
     output = SimpleNamespace(
-        deal_assessment=SimpleNamespace(model_version="test-model"),
-        model_dump=lambda **_kwargs: {"deal_assessment": {}},
+        schedule_candidates=[],
+        model_dump=lambda **_kwargs: {"schedule_candidates": []},
     )
 
     with pytest.raises(RuntimeError, match="agent_run_lease_lost"):
@@ -1078,65 +1023,6 @@ async def test_worker_completion_rejects_lost_lease(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_expired_lease_is_reclaimed_with_skip_locked(monkeypatch):
-    member = _member()
-    run = _run(member, status_code="running")
-    run.request_hash = "a" * 64
-    run.attempt_count = 1
-    run.lease_owner = "dead-worker"
-    run.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
-    db = _Db(_Result(scalar=run))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(db),
-    )
-
-    claimed = await agent_worker.claim("replacement-worker")
-
-    assert claimed is run
-    assert run.attempt_count == 2
-    assert run.lease_owner == "replacement-worker"
-    assert run.lease_expires_at > datetime.now(UTC)
-    assert "FOR UPDATE" in str(db.statements[0])
-    assert db.statements[0]._for_update_arg.skip_locked is True
-
-
-@pytest.mark.anyio
-async def test_general_worker_only_claims_durable_requests(monkeypatch):
-    db = _Db(_Result(scalar=None))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(db),
-    )
-
-    assert await agent_worker.claim("general-worker") is None
-
-    statement = str(db.statements[0])
-    assert "agent_run.request_hash IS NOT NULL" in statement
-
-
-@pytest.mark.anyio
-async def test_direct_bridge_can_claim_legacy_system_run(monkeypatch):
-    member = _member()
-    run = _run(member)
-    run.requested_by_member_id = None
-    run.request_hash = None
-    db = _Db(_Result(scalar=run))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(db),
-    )
-
-    claimed = await agent_worker.claim("direct-bridge", run.id)
-
-    assert claimed is run
-    assert "agent_run.request_hash IS NOT NULL" not in str(db.statements[0])
-
-
-@pytest.mark.anyio
 async def test_worker_schema_check_is_read_only(monkeypatch):
     rows = [
         (table_name, column_name)
@@ -1144,11 +1030,7 @@ async def test_worker_schema_check_is_read_only(monkeypatch):
         for column_name in (columns or {"id"})
     ]
     db = _Db(SimpleNamespace(all=lambda: rows))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(db),
-    )
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
 
     await agent_worker.check_schema()
 
@@ -1165,57 +1047,223 @@ async def test_worker_schema_check_reports_missing_table(monkeypatch):
         for column_name in (columns or {"id"})
     ]
     db = _Db(SimpleNamespace(all=lambda: rows))
-    monkeypatch.setattr(
-        agent_run_service,
-        "get_sessionmaker",
-        lambda: lambda: _SessionContext(db),
-    )
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
 
     with pytest.raises(RuntimeError, match="agent_worker_schema_incomplete:report_source"):
         await agent_worker.check_schema()
 
 
 @pytest.mark.anyio
-async def test_meeting_output_resume_skips_llm_and_finishes_apply_atomically(monkeypatch):
+async def test_running_generation_is_cancelled_and_redacted_at_payload_expiry(monkeypatch):
+    member = _member()
+    run = _run(member, status_code="running")
+    run.request_hash = "0" * 64
+    run.request_snapshot = {"private": "request"}
+    run.input_snapshot = {"private": "input"}
+    run.payload_expires_at = datetime.now(UTC) + timedelta(milliseconds=50)
+    run.lease_owner = "worker-1"
+    cancelled = False
+
+    async def prepare(*_args):
+        return "report_writing", run.input_snapshot, member.id
+
+    async def dispatch(*_args):
+        nonlocal cancelled
+        try:
+            await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
+
+    db = _Db(SimpleNamespace(rowcount=1))
+    monkeypatch.setattr(service, "prepare_claimed", prepare)
+    monkeypatch.setattr(service, "dispatch", dispatch)
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    await agent_worker.run_claimed(run, run.lease_owner)
+
+    assert cancelled is True
+    assert run.status_code == "cancelled"
+    assert run.error_code == "agent_run_payload_expired"
+    assert run.request_snapshot == {} and run.input_snapshot == {}
+    assert run.payload_redacted_at is not None
+
+
+@pytest.mark.anyio
+async def test_completion_cannot_store_output_after_payload_expiry(monkeypatch):
+    run = _run(_member(), status_code="running")
+    run.payload_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    run.lease_owner = "worker-1"
+    db = _Db(SimpleNamespace(rowcount=0), SimpleNamespace(rowcount=1))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    output = SimpleNamespace(model_dump=lambda **_kwargs: {"body": "late output"})
+
+    await agent_worker._complete(run, run.lease_owner, output)
+
+    assert "agent_run.payload_expires_at >" in str(db.statements[0])
+    assert run.status_code == "cancelled"
+    assert run.output_snapshot is None
+    assert run.payload_redacted_at is not None
+
+
+@pytest.mark.anyio
+async def test_frozen_report_input_rechecks_requester_before_dispatch(monkeypatch):
     member = _member()
     run = _run(member)
-    run.agent_code = "meeting_processing"
-    run.apply_status = "pending"
-    run.output_snapshot = {"already": "persisted"}
-    output = SimpleNamespace(errors={}, model_dump=lambda **kwargs: run.output_snapshot)
-    claim_db = _Db(_Result(scalar=run))
-    apply_db = _Db(_Result(scalar=run))
-    sessions = iter((claim_db, apply_db))
+    run.input_snapshot = {"report_kind": "daily"}
+    run.request_hash = "0" * 64
+    run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    db = _Db(_Result(scalar=None))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    with pytest.raises(ValueError, match="requester_not_active"):
+        await service.prepare_claimed(run, "worker-1")
+
+
+@pytest.mark.anyio
+async def test_expired_report_input_never_reaches_requester_or_dispatch(monkeypatch):
+    run = _run(_member())
+    run.input_snapshot = {"report_kind": "daily"}
+    run.request_hash = "0" * 64
+    run.payload_expires_at = datetime.now(UTC) - timedelta(seconds=1)
     monkeypatch.setattr(
-        agent_run_service,
+        service,
         "get_sessionmaker",
-        lambda: lambda: _SessionContext(next(sessions)),
-    )
-    monkeypatch.setattr(
-        agent_run_service.meeting_processing.MeetingProcessingOutput,
-        "model_validate",
-        staticmethod(lambda value: output),
+        lambda: (_ for _ in ()).throw(AssertionError("requester query must not run")),
     )
 
-    async def not_called(*_args):
-        pytest.fail("저장된 출력을 재개할 때 LLM을 다시 호출하면 안 됩니다.")
+    with pytest.raises(ValueError, match="agent_run_payload_expired"):
+        await service.prepare_claimed(run, "worker-1")
 
-    async def apply_output(db, current):
-        assert db is apply_db
-        assert current.output_snapshot == {"already": "persisted"}
-        return "applied"
 
-    monkeypatch.setattr(agent_run_service, "dispatch", not_called)
-    monkeypatch.setattr(
-        agent_run_service.meeting_processing, "apply_output", apply_output, raising=False
-    )
+def test_only_network_and_provider_failures_are_retried():
+    assert service.is_transient_error("llm_request_failed:ReadTimeout") is True
+    assert service.is_transient_error("llm_provider_error:429") is True
+    assert service.is_transient_error("llm_provider_error:503") is True
+    assert service.is_transient_error("agent_run_timeout") is False
+    assert service.is_transient_error("report_agent_timeout") is False
+    assert service.is_transient_error("review_limit_exceeded") is False
+    assert agent_worker.MAX_ATTEMPTS == 2
 
-    await agent_run_service.execute(run.id)
 
-    assert run.status_code == "completed"
-    assert run.apply_status == "applied"
-    assert run.lease_owner is None
-    assert apply_db.commit_count == 1
+def _provider_failure(kind: str) -> BaseException:
+    request = httpx.Request("POST", "https://provider.invalid/v1/responses")
+    if kind == "httpx_connection":
+        return httpx.ConnectError("private", request=request)
+    if kind == "openai_connection":
+        return openai.APIConnectionError(request=request)
+    if kind == "langchain_stream_timeout":
+        return StreamChunkTimeoutError(180, model_name="private-model")
+    response = httpx.Response(int(kind), request=request)
+    error_type = openai.RateLimitError if kind == "429" else openai.InternalServerError
+    return error_type("private", response=response, body=None)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "failure_kind,error_code",
+    [
+        ("httpx_connection", "llm_request_failed:ConnectError"),
+        ("openai_connection", "llm_request_failed:APIConnectionError"),
+        ("langchain_stream_timeout", "llm_request_failed:StreamChunkTimeoutError"),
+        ("429", "llm_provider_error:429"),
+        ("503", "llm_provider_error:503"),
+    ],
+)
+async def test_provider_failure_reaches_workers_single_retry(monkeypatch, failure_kind, error_code):
+    member = _member()
+    run = _run(member, status_code="running")
+    run.request_hash = "0" * 64
+    run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+
+    class BrokenModel(ScriptedModel):
+        def _generate(self, *args, **kwargs):
+            raise _provider_failure(failure_kind)
+
+    async def prepare(*_args):
+        return "report_writing", {}, member.id
+
+    async def dispatch(*_args):
+        return await report_writing_deep.run(sample(), model=BrokenModel(responses=[]))
+
+    monkeypatch.setattr(service, "prepare_claimed", prepare)
+    monkeypatch.setattr(service, "dispatch", dispatch)
+
+    for attempt, expected_status in ((1, "queued"), (2, "failed")):
+        run.status_code = "running"
+        run.current_stage_code = "running_agent"
+        run.attempt_count = attempt
+        run.lease_owner = f"worker-{attempt}"
+        db = _Db(SimpleNamespace(rowcount=1))
+        monkeypatch.setattr(
+            service,
+            "get_sessionmaker",
+            lambda db=db: lambda: _SessionContext(db),
+        )
+
+        await agent_worker.run_claimed(run, run.lease_owner)
+
+        assert run.error_code == error_code
+        assert run.status_code == expected_status
+        assert run.current_stage_code == ("retry_wait" if attempt == 1 else "failed")
+
+
+def test_finalize_redacts_only_report_generation_payloads():
+    report_run = _run(_member(), status_code="completed")
+    report_run.input_snapshot = {"transcript": "민감 원문"}
+    report_run.output_snapshot = {"body": "초안"}
+    report_run.evidence = {"quote": "민감 원문"}
+    service.redact_payload(report_run, now=NOW)
+    assert report_run.input_snapshot == {}
+    assert report_run.output_snapshot is None
+    assert report_run.evidence is None
+    assert report_run.payload_redacted_at == NOW
+
+    contract_run = _run(_member(), status_code="completed")
+    contract_run.agent_code = "schedule_management"
+    contract_run.output_snapshot = {"schedule_candidates": []}
+    service.redact_payload(contract_run, now=NOW)
+    assert contract_run.output_snapshot == {"schedule_candidates": []}
+
+
+@pytest.mark.anyio
+async def test_expired_report_payload_cleanup_is_one_bulk_update(monkeypatch):
+    db = _Db(SimpleNamespace(rowcount=2))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    assert await service.redact_expired_payloads(NOW) == 2
+    assert db.commit_count == 1
+    sql = str(db.statements[0])
+    params = db.statements[0].compile().params
+    assert "payload_expires_at" in sql
+    assert "payload_redacted_at" in sql
+    assert "CASE WHEN" in sql
+    assert "cancelled" in params.values()
+    assert "agent_run_payload_expired" in params.values()
+    # Status appears only in SET CASE expressions; expiry is not terminal-only.
+    assert "agent_run.status_code" not in sql.split(" WHERE ", 1)[1]
+
+
+def test_transient_generation_migration_keeps_blue_green_agent_storage():
+    sql = (
+        Path(__file__).parents[1] / "sql/20260902_0019_transient_report_generation.sql"
+    ).read_text(encoding="utf-8")
+    active_sql = "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
+    assert "DROP COLUMN IF EXISTS parent_run_id" not in active_sql
+    assert "DROP COLUMN" not in active_sql
+    assert "DROP INDEX" not in active_sql
+    assert "attempt_count BETWEEN" not in sql
+    assert "agent_run_lifecycle_migrated" not in sql
+
+
+def test_manual_meeting_apply_routes_are_removed():
+    paths = {
+        (method, route.path)
+        for route in app.routes
+        if hasattr(route, "path")
+        for method in getattr(route, "methods", set())
+    }
+    assert ("POST", "/api/agent-runs/{agent_run_id}/apply") not in paths
+    assert ("PATCH", "/api/agent-runs/{agent_run_id}/meeting-notes") not in paths
 
 
 @pytest.mark.anyio
@@ -1234,42 +1282,24 @@ async def test_prepare_claimed_refreshes_the_run_input_snapshot(monkeypatch):
         agent_code="contract_management_briefing",
         requested_by_member_id=member_id,
         request_snapshot=request_snapshot,
-        request_hash=agent_run_service._request_hash(request_snapshot),
+        request_hash=service._request_hash(request_snapshot),
         input_snapshot={},
-        base_report_version=None,
-        base_generation_input_version=None,
     )
-
-    class _Session:
-        async def execute(self, _statement):
-            if not hasattr(self, "_seen"):
-                self._seen = True
-                return SimpleNamespace(
-                    scalar_one_or_none=lambda: SimpleNamespace(id=member_id, team_id=team_id)
-                )
-            return SimpleNamespace(rowcount=1)
-
-        async def commit(self):
-            return None
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_exc):
-            return False
+    member = SimpleNamespace(id=member_id, team_id=team_id)
+    db = _Db(_Result(scalar=member), SimpleNamespace(rowcount=1))
 
     async def _build(_payload, _member, _session):
-        return ("v4", built, {}, None, None, None)
+        return ("v4", built, {}, None)
 
-    monkeypatch.setattr(agent_run_service, "get_sessionmaker", lambda: _Session)
-    monkeypatch.setattr(agent_run_service, "_build_run_input", _build)
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    monkeypatch.setattr(service, "_build_run_input", _build)
 
-    _code, input_snapshot, _requester = await agent_run_service.prepare_claimed(run, "worker-1")
+    _code, input_snapshot, _requester = await service.prepare_claimed(run, "worker-1")
 
     assert input_snapshot == built
     # 호출자가 든 run 도 같은 입력을 봐야 한다.
     assert run.input_snapshot == built
-    evidence = agent_run_service.evidence(
+    evidence = service.evidence(
         "contract_management_briefing",
         SimpleNamespace(risks=[]),
         run.input_snapshot,

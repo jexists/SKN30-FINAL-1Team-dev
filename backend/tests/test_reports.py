@@ -1,10 +1,10 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException, Response
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -14,23 +14,24 @@ from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
+from app.models.agent import AgentRun
 from app.models.content import Report, ReportDeal, ReportSubmission
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
-    ReportCreate,
+    REPORT_JSON_MAX_BYTES,
+    REPORT_TITLE_MAX_LENGTH,
     ReportDealWrite,
+    ReportFinalize,
     ReportPageParams,
-    ReportPatch,
-    ReportSubmit,
 )
-from app.services import report_submissions
+from app.services import report_sources, report_submissions
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
 START = datetime(2026, 8, 17, 1, tzinfo=UTC)
-TEMPLATE = {"fields": [{"id": "summary", "label": "요약"}]}
-CONTENT = {"summary": "합성 보고 내용"}
+TEMPLATE = {"fields": [{"id": "body", "label": "본문"}]}
+CONTENT = {"values": {"body": "합성 보고 내용"}}
 _MISSING = object()
 
 
@@ -148,7 +149,7 @@ def _report(member: Member, *, kind: str = "daily", status_code: str = "draft") 
         status_code=status_code,
         content=CONTENT,
         title=None,
-        body=None,
+        body="합성 보고 내용",
         common_body=None,
         unassigned_body=None,
         structured_values={},
@@ -157,7 +158,6 @@ def _report(member: Member, *, kind: str = "daily", status_code: str = "draft") 
         ai_evidence=None,
         version=1,
         generation_input_version=1,
-        last_applied_agent_run_id=None,
         current_submission_id=None,
         note=None,
         reviewed_by_member_id=None,
@@ -212,6 +212,101 @@ def _section(report: Report, sales_deal_id: UUID | None = None) -> ReportDeal:
     )
 
 
+def _meeting_generation_run(member: Member, deal_id: UUID, transcript: str) -> AgentRun:
+    features = {
+        "Authority": "High",
+        "Competitors": "Unknown",
+        "Purch_dept": "Unknown",
+        "Budgt_alloc": "Yes",
+        "Forml_tend": "Unknown",
+        "RFP": "Unknown",
+        "Posit_statm": "Yes",
+        "Source": "Unknown",
+        "Client": "Current",
+        "Scope": "Clear",
+        "Cross_sale": "Unknown",
+        "Deal_type": "Solution",
+        "Needs_def": "Yes",
+    }
+    return AgentRun(
+        id=uuid4(),
+        team_id=member.team_id,
+        parent_run_id=None,
+        requested_by_member_id=member.id,
+        agent_code="meeting_processing",
+        trigger_code="user",
+        idempotency_key=uuid4(),
+        report_id=None,
+        status_code="completed",
+        llm_model_name="test-model",
+        prompt_version="meeting_processing.v10",
+        request_snapshot={},
+        request_hash="0" * 64,
+        scope_key=f"meeting:{uuid4()}",
+        source_refs={},
+        input_snapshot={
+            "source": {
+                "transcript": transcript,
+                "selected_deal_ids": [str(deal_id)],
+            }
+        },
+        output_snapshot={
+            "reports": None,
+            "analyses": [
+                {
+                    "sales_deal_id": str(deal_id),
+                    "features": features,
+                    "assessment": {
+                        "features": features,
+                        "label": "high",
+                        "high_probability": 0.91,
+                        "model_version": "test.v1",
+                    },
+                    "error": None,
+                }
+            ],
+            "evidence": {
+                "schema_version": "meeting_content.v1",
+                "transcript_sha256": "0" * 64,
+                "selected_deal_ids": [str(deal_id)],
+                "items": [
+                    {
+                        "segment": {
+                            "segment_id": "S0001",
+                            "start": 0,
+                            "end": len(transcript),
+                            "text": transcript,
+                        },
+                        "applicability": {
+                            "scope": "deal",
+                            "deal_ids": [str(deal_id)],
+                        },
+                    }
+                ],
+            },
+            "errors": {},
+            "context_lookups": [],
+        },
+        evidence={"prompt_version": "meeting_processing.v10"},
+        error_message=None,
+        error_code=None,
+        current_stage_code="completed",
+        attempt_count=1,
+        payload_expires_at=NOW,
+        payload_redacted_at=None,
+        lease_owner=None,
+        lease_expires_at=None,
+        heartbeat_at=NOW,
+        next_attempt_at=NOW,
+        input_tokens=None,
+        output_tokens=None,
+        total_tokens=None,
+        created_at=NOW,
+        started_at=NOW,
+        finished_at=NOW,
+    )
+
+
 def _row(report: Report, author: Member, recipient_display_name: str | None = None):
     return (report, author.display_name, recipient_display_name)
 
@@ -228,129 +323,225 @@ def _client(db: _Db, member: Member) -> TestClient:
     return TestClient(app)
 
 
-def test_report_request_rejects_unsafe_values():
-    """기간·근거 규칙과 중복 일정은 스키마에서 막는다."""
+def test_legacy_report_content_write_routes_are_not_registered():
+    paths = app.openapi()["paths"]
+
+    assert "post" not in paths["/api/reports"]
+    assert "patch" not in paths["/api/reports/{report_id}"]
+    assert "/api/reports/{report_id}/submit" not in paths
+    assert "post" in paths["/api/reports/finalize"]
+    assert "post" in paths["/api/reports/{report_id}/review"]
+    assert "delete" in paths["/api/reports/{report_id}"]
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"report_kind": "weekly"},
+        {"report_kind": "monthly"},
+        {
+            "report_kind": "weekly",
+            "period_start": "2026-08-17",
+            "period_end": "2026-08-10",
+        },
+        {"report_kind": "meeting"},
+        {"report_kind": "meeting", "source_activity_id": uuid4()},
+        {"sales_deal_id": uuid4()},
+        {"activity_ids": [UUID(int=1), UUID(int=1)]},
+        {"status_code": "submitted"},
+        {"author_member_id": uuid4()},
+    ],
+)
+def test_finalize_request_rejects_unsafe_values(invalid):
+    payload = {
+        "idempotency_key": uuid4(),
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": CONTENT,
+        "body": "합성 보고 내용",
+        **invalid,
+    }
     with pytest.raises(ValidationError):
-        # 주간 보고는 기간이 필요하다.
-        ReportCreate(
-            report_kind="weekly",
-            report_date="2026-08-17",
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-        )
+        ReportFinalize(**payload)
 
     with pytest.raises(ValidationError):
-        # 월간도 기간을 덮으므로 주간과 같은 규칙을 받는다.
-        ReportCreate(
-            report_kind="monthly",
-            report_date="2026-08-31",
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-        )
+        ReportPageParams(start_date="2026-08-17", end_date="2026-08-10")
 
-    with pytest.raises(ValidationError):
-        # 끝이 시작보다 빠를 수 없다.
-        ReportCreate(
-            report_kind="weekly",
-            report_date="2026-08-17",
-            period_start="2026-08-17",
-            period_end="2026-08-10",
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-        )
 
-    with pytest.raises(ValidationError):
-        # 업무보고서는 근거 일정이 있어야 한다.
-        ReportCreate(
-            report_kind="meeting",
-            report_date="2026-08-17",
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-        )
+@pytest.mark.parametrize(
+    ("override", "error"),
+    [
+        ({"template_snapshot": {"fields": [{"id": "summary"}]}}, "report_template_body_only"),
+        ({"content": {"values": {"summary": "구형 요약"}}}, "report_values_body_only"),
+        ({"structured_values": {"summary": "구형 요약"}}, "structured_values_not_supported"),
+        ({"body": None}, "report_body_required"),
+    ],
+)
+def test_period_finalize_rejects_non_body_contract(override, error):
+    payload = {
+        "idempotency_key": uuid4(),
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": CONTENT,
+        "body": "합성 보고 내용",
+        **override,
+    }
+    with pytest.raises(ValidationError, match=error):
+        ReportFinalize(**payload)
 
-    activity_id = uuid4()
-    with pytest.raises(ValidationError):
-        # 신규 업무보고서는 어느 딜의 보고서인지 반드시 정한다.
-        ReportCreate(
-            report_kind="meeting",
-            report_date="2026-08-17",
-            source_activity_id=activity_id,
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-        )
 
+@pytest.mark.parametrize(
+    ("kind", "override", "error"),
+    [
+        ("meeting", {"body": "숨은 상위 본문"}, "report_body_not_supported"),
+        ("meeting", {"activity_ids": [uuid4()]}, "activity_ids_not_supported"),
+        ("daily", {"source_activity_id": uuid4()}, "source_activity_not_supported"),
+        ("daily", {"common_body": "숨은 공통 본문"}, "meeting_shared_not_supported"),
+        ("daily", {"unassigned_body": "숨은 미지정 본문"}, "meeting_shared_not_supported"),
+    ],
+)
+def test_finalize_rejects_hidden_fields_for_the_other_report_kind(kind, override, error):
+    if kind == "meeting":
+        deal_id = uuid4()
+        payload = {
+            "idempotency_key": uuid4(),
+            "report_kind": "meeting",
+            "report_date": "2026-08-17",
+            "source_activity_id": uuid4(),
+            "deal_sections": [
+                {
+                    "sales_deal_id": deal_id,
+                    "deal_snapshot": {"id": deal_id, "label": "D-1"},
+                    "content": {"values": {"body": "본문"}},
+                    "body": "본문",
+                }
+            ],
+            "template_snapshot": TEMPLATE,
+            "content": CONTENT,
+            "body": None,
+            "activity_ids": [],
+        }
+    else:
+        payload = {
+            "idempotency_key": uuid4(),
+            "report_kind": "daily",
+            "report_date": "2026-08-17",
+            "source_activity_id": None,
+            "template_snapshot": TEMPLATE,
+            "content": CONTENT,
+            "body": "본문",
+            "common_body": None,
+            "unassigned_body": None,
+        }
+    ReportFinalize(**payload)
+
+    with pytest.raises(ValidationError, match=error):
+        ReportFinalize(**{**payload, **override})
+
+
+@pytest.mark.parametrize("field_name", ["template_snapshot", "content"])
+def test_finalize_reuses_the_generation_json_byte_limit(field_name):
+    oversized = {"value": "가" * REPORT_JSON_MAX_BYTES}
+    if field_name == "template_snapshot":
+        oversized["fields"] = [{"id": "body"}]
+    payload = {
+        "idempotency_key": uuid4(),
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": CONTENT,
+        "body": "본문",
+        field_name: oversized,
+    }
+
+    with pytest.raises(ValidationError, match=f"{field_name}_too_large"):
+        ReportFinalize(**payload)
+
+
+def test_deal_content_reuses_the_generation_json_byte_limit():
     deal_id = uuid4()
-    meeting = ReportCreate(
+    with pytest.raises(ValidationError, match="content_too_large"):
+        ReportDealWrite(
+            sales_deal_id=deal_id,
+            deal_snapshot={"id": deal_id, "label": "D-1"},
+            content={"value": "가" * REPORT_JSON_MAX_BYTES},
+            body="본문",
+        )
+
+
+@pytest.mark.parametrize("target", ["finalize", "deal"])
+def test_content_title_cannot_bypass_the_canonical_title_limit(target):
+    accepted = "가" * REPORT_TITLE_MAX_LENGTH
+    rejected = accepted + "가"
+
+    def build(title):
+        if target == "finalize":
+            return ReportFinalize(
+                idempotency_key=uuid4(),
+                report_kind="daily",
+                report_date="2026-08-17",
+                template_snapshot=TEMPLATE,
+                content={"title": title, "values": {"body": "본문"}},
+                body="본문",
+            )
+        deal_id = uuid4()
+        return ReportDealWrite(
+            sales_deal_id=deal_id,
+            deal_snapshot={"id": deal_id, "label": "D-1"},
+            content={"title": title},
+            body="본문",
+        )
+
+    assert len(build(accepted).content["title"]) == REPORT_TITLE_MAX_LENGTH
+    with pytest.raises(ValidationError, match="report_title_invalid"):
+        build(rejected)
+
+
+def test_finalize_accepts_a_valid_meeting():
+    activity_id, deal_id = uuid4(), uuid4()
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
         report_kind="meeting",
         report_date="2026-08-17",
         source_activity_id=activity_id,
         deal_sections=[
             {
                 "sales_deal_id": deal_id,
-                "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
+                "deal_snapshot": {"id": deal_id, "label": "D-1"},
                 "content": {"values": {"body": "딜별 본문"}},
+                "body": "딜별 본문",
             }
         ],
         template_snapshot=TEMPLATE,
         content=CONTENT,
     )
-    assert meeting.sales_deal_id is None
-    assert meeting.deal_sections[0].sales_deal_id == deal_id
 
-    with pytest.raises(ValidationError):
-        ReportCreate(
-            report_kind="daily",
-            report_date="2026-08-17",
-            sales_deal_id=deal_id,
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-        )
+    assert payload.sales_deal_id is None
+    assert payload.deal_sections[0].sales_deal_id == deal_id
+    content, normalized = reports_api._finalize_values(payload)
+    assert normalized["body"] is None
+    assert "values" not in content
 
-    duplicated = uuid4()
-    with pytest.raises(ValidationError):
-        ReportCreate(
-            report_kind="daily",
-            report_date="2026-08-17",
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-            activity_ids=[duplicated, duplicated],
-        )
 
-    # 상태와 작성자는 요청으로 정하지 않는다.
-    with pytest.raises(ValidationError):
-        ReportCreate(
-            report_kind="daily",
-            report_date="2026-08-17",
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-            status_code="submitted",
-        )
-    with pytest.raises(ValidationError):
-        ReportCreate(
-            report_kind="daily",
-            report_date="2026-08-17",
-            template_snapshot=TEMPLATE,
-            content=CONTENT,
-            author_member_id=str(uuid4()),
-        )
-
-    assert ReportPatch(expected_version=1, note=None).model_dump(exclude_unset=True) == {
-        "expected_version": 1,
-        "note": None,
+def test_finalize_hash_preserves_omitted_vs_explicit_null():
+    values = {
+        "idempotency_key": uuid4(),
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": {"values": {"body": "legacy body"}},
+        "body": "본문",
     }
-    with pytest.raises(ValidationError):
-        ReportPageParams(start_date="2026-08-17", end_date="2026-08-10")
+    omitted = ReportFinalize(**values)
+    cleared = ReportFinalize(**values, title=None)
 
-    # 업무보고 목록 화면이 실제로 보내는 조합이다. monthly 가 빠지면 여기서 422 가 난다.
-    assert ReportPageParams(report_kind=["daily", "weekly", "monthly"]).report_kind == [
-        "daily",
-        "weekly",
-        "monthly",
-    ]
-    assert ReportPageParams(status_code=["rejected", "changes_requested"]).status_code == [
-        "rejected",
-        "changes_requested",
-    ]
+    assert reports_api._finalize_request_hash(omitted) != reports_api._finalize_request_hash(
+        cleared
+    )
+    assert reports_api._finalize_values(omitted)[1]["body"] == "본문"
+    assert reports_api._finalize_values(cleared)[1]["title"] is None
 
 
 def test_deal_snapshot_requires_matching_id_and_safe_fields():
@@ -359,6 +550,7 @@ def test_deal_snapshot_requires_matching_id_and_safe_fields():
         sales_deal_id=deal_id,
         deal_snapshot={"id": str(deal_id), "label": "  D-1  ", "note": "  합성 딜  "},
         content={},
+        body="본문",
     )
     assert valid.deal_snapshot.model_dump(mode="json") == {
         "id": str(deal_id),
@@ -371,7 +563,24 @@ def test_deal_snapshot_requires_matching_id_and_safe_fields():
         {"id": str(deal_id), "label": "D-1", "unknown": "unsafe"},
     ):
         with pytest.raises(ValidationError):
-            ReportDealWrite(sales_deal_id=deal_id, deal_snapshot=snapshot, content={})
+            ReportDealWrite(sales_deal_id=deal_id, deal_snapshot=snapshot, content={}, body="본문")
+
+
+@pytest.mark.parametrize("expected_status", ["draft", "changes_requested"])
+def test_finalize_accepts_cas_for_existing_editable_reports(expected_status):
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_id=uuid4(),
+        expected_version=1,
+        expected_status_code=expected_status,
+        report_kind="daily",
+        report_date=date(2026, 8, 17),
+        template_snapshot=TEMPLATE,
+        content=CONTENT,
+        body="합성 보고 내용",
+    )
+
+    assert payload.expected_status_code == expected_status
 
 
 def test_deal_positions_validate_the_effective_default_positions():
@@ -382,177 +591,30 @@ def test_deal_positions_validate_the_effective_default_positions():
             "position": 1,
             "deal_snapshot": {"id": str(first), "label": "D-1"},
             "content": {},
+            "body": "첫 본문",
         },
         {
             "sales_deal_id": str(second),
             "deal_snapshot": {"id": str(second), "label": "D-2"},
             "content": {},
+            "body": "둘째 본문",
         },
     ]
 
     with pytest.raises(ValidationError, match="duplicate_deal_positions"):
-        ReportPatch(expected_version=1, deal_sections=sections)
-
-
-@pytest.mark.parametrize("field_name", ["report_date", "template_snapshot"])
-def test_patch_rejects_null_for_required_report_columns(field_name):
-    with pytest.raises(ValidationError, match=f"{field_name}_required"):
-        ReportPatch.model_validate({"expected_version": 1, field_name: None})
-
-
-class _CreateDb(_Db):
-    """생성한 Report 를 그대로 상세 조회 응답으로 돌려준다."""
-
-    def __init__(self, author: Member):
-        super().__init__()
-        self.author = author
-
-    async def execute(self, statement):
-        self.statements.append(statement)
-        report = next(value for value in self.added if isinstance(value, Report))
-        # 상세 조회는 report, activities, 미팅이면 deal sections 순서다.
-        if len(self.statements) == 1:
-            return _Result(rows=[_row(report, self.author)])
-        if len(self.statements) == 3:
-            return _Result(
-                scalar_values=[value for value in self.added if isinstance(value, ReportDeal)]
-            )
-        return _Result(rows=[])
-
-
-def test_create_starts_as_draft_and_ignores_client_status():
-    member = _member()
-    db = _CreateDb(member)
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/reports",
-            headers={"Origin": ORIGIN},
-            json={
-                "report_kind": "daily",
-                "report_date": "2026-08-17",
-                "template_snapshot": TEMPLATE,
-                "content": CONTENT,
-            },
+        ReportFinalize(
+            idempotency_key=uuid4(),
+            report_kind="meeting",
+            report_date="2026-08-17",
+            source_activity_id=uuid4(),
+            deal_sections=sections,
+            template_snapshot=TEMPLATE,
+            content=CONTENT,
         )
-
-    assert response.status_code == 201
-    body = response.json()
-    assert body["status_code"] == "draft"
-    assert body["author_member_id"] == str(member.id)
-    assert body["team_id"] == str(member.team_id)
-    assert body["sales_deal_id"] is None
-    assert body["activities"] == []
-    assert response.headers["Location"] == f"/api/reports/{body['id']}"
-    assert db.flush_count == db.commit_count == 1
-
-
-@pytest.mark.parametrize("kind", ["daily", "meeting"])
-def test_create_cannot_inject_server_owned_meeting_shared(monkeypatch, kind):
-    member = _member()
-    db = _CreateDb(member)
-    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
-    monkeypatch.setattr(
-        reports_api,
-        "_validate_meeting_deals",
-        AsyncMock(return_value=uuid4()),
-    )
-    content = {
-        "values": {"body": "사용자가 입력한 딜 본문"},
-        "meeting_shared": {
-            "run_id": str(uuid4()),
-            "common_report": {"body": "위조된 공통 합의", "evidence_ids": ["S0001"]},
-            "unassigned_report": None,
-        },
-    }
-    payload = {
-        "report_kind": kind,
-        "report_date": "2026-08-17",
-        "template_snapshot": TEMPLATE,
-        "content": content,
-    }
-    if kind == "meeting":
-        deal_id = uuid4()
-        payload.update(
-            source_activity_id=str(uuid4()),
-            deal_sections=[
-                {
-                    "sales_deal_id": str(deal_id),
-                    "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
-                    "content": {"values": content["values"]},
-                }
-            ],
-        )
-
-    with _client(db, member) as client:
-        response = client.post("/api/reports", headers={"Origin": ORIGIN}, json=payload)
-
-    assert response.status_code == 201
-    assert response.json()["content"] == {"values": content["values"]}
-    stored = next(value for value in db.added if isinstance(value, Report))
-    assert "meeting_shared" not in stored.content
-    assert db.commit_count == 1
-
-
-@pytest.mark.parametrize(
-    "has_server_value,attack",
-    [
-        (False, "replace"),
-        (True, "replace"),
-        (True, "omit"),
-        (True, "null"),
-    ],
-)
-@pytest.mark.parametrize("key", ["ai_values", "ai_evidence", "ai_generated_at", "meeting_shared"])
-def test_patch_cannot_create_replace_or_remove_server_content(key, has_server_value, attack):
-    member = _member()
-    report = _report(member, kind="meeting")
-    report.source_activity_id, report.sales_deal_id = uuid4(), uuid4()
-    server_values = {
-        "ai_values": {"body": "서버가 저장한 AI 초안"},
-        "ai_evidence": "S0001",
-        "ai_generated_at": NOW.isoformat(),
-        "meeting_shared": {
-            "run_id": str(uuid4()),
-            "common_report": {"body": "서버가 저장한 공통 내용", "evidence_ids": ["S0001"]},
-            "unassigned_report": {"body": "딜 미지정 · 확인 필요", "evidence_ids": ["S0002"]},
-        },
-    }
-    report.content = {"values": {"body": "기존 딜 내용"}}
-    if has_server_value:
-        report.content[key] = server_values[key]
-    report.ai_evidence = {"deal_assessment": {"label": "high"}}
-    replacement = {"values": {"body": "사용자가 수정한 딜 내용"}}
-    if attack == "replace":
-        replacement[key] = "클라이언트가 보낸 위조 값"
-    elif attack == "null":
-        replacement[key] = None
-    db = _Db(
-        _Result(scalar=report),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-        _Result(scalar_values=[]),
-    )
-
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "content": replacement},
-        )
-
-    assert response.status_code == 200
-    expected = {"values": replacement["values"]}
-    if has_server_value:
-        expected[key] = server_values[key]
-    assert report.content == expected
-    assert response.json()["content"] == expected
-    assert response.json()["ai_evidence"] == {"deal_assessment": {"label": "high"}}
-    assert db.commit_count == 1 and db.rollback_count == 0
 
 
 @pytest.mark.anyio
-async def test_deal_section_patch_preserves_server_ai_fields_and_ml_evidence():
+async def test_deal_section_replace_preserves_server_ai_fields_and_ml_evidence():
     member = _member()
     report = _report(member, kind="meeting")
     section = _section(report)
@@ -572,6 +634,7 @@ async def test_deal_section_patch_preserves_server_ai_fields_and_ml_evidence():
             "ai_evidence": "위조",
             "ai_generated_at": "위조",
         },
+        body="사람이 수정한 본문",
     )
 
     await reports_api._replace_report_deals(db, report.id, [payload])
@@ -588,53 +651,14 @@ async def test_deal_section_patch_preserves_server_ai_fields_and_ml_evidence():
             sales_deal_id=section.sales_deal_id,
             deal_snapshot={"id": str(section.sales_deal_id), "label": "D-1"},
             content={},
+            body="본문",
             ai_evidence={"deal_assessment": {"label": "spoofed"}},
         )
 
 
-def test_changes_requested_report_is_editable_again():
-    """유스케이스 RPT-004: 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다."""
+def test_submitted_report_is_not_deletable():
     member = _member()
-    report = _report(member, status_code="changes_requested")
-
-    submit_db = _Db(
-        _Result(scalar=report),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-    )
-    with _client(submit_db, member) as client:
-        submitted = client.post(
-            f"/api/reports/{report.id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "changes_requested", "expected_version": 1},
-        )
-    assert submitted.status_code == 200
-    assert submitted.json()["status_code"] == "submitted"
-    assert submit_db.commit_count == 1
-
-    # 검토 결과 상태는 팀원이 제출 시작점으로 쓸 수 없다.
-    with pytest.raises(ValidationError):
-        ReportSubmit(expected_status_code="approved", expected_version=1)
-    with pytest.raises(ValidationError):
-        ReportSubmit(expected_status_code="rejected", expected_version=1)
-
-
-def test_submitted_report_is_not_editable_or_deletable():
-    member = _member()
-
     submitted = _report(member, status_code="submitted")
-    patch_db = _Db(_Result(scalar=submitted))
-    with _client(patch_db, member) as client:
-        patched = client.patch(
-            f"/api/reports/{submitted.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "content": {"summary": "고치기"}},
-        )
-    assert patched.status_code == 409
-    assert patched.json() == {"detail": "report_not_editable"}
-    assert patch_db.commit_count == 0
-    assert patch_db.rollback_count == 1
-
     delete_db = _Db(_Result(scalar=submitted))
     with _client(delete_db, member) as client:
         removed = client.delete(
@@ -665,185 +689,66 @@ def test_changes_requested_report_with_submission_history_is_not_deletable():
     assert db.rollback_count == 1
 
 
-def test_submit_moves_draft_and_rejects_stale_expectation():
-    member = _member()
-    report = _report(member)
-
-    submit_db = _Db(
-        _Result(scalar=report),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-    )
-    with _client(submit_db, member) as client:
-        submitted = client.post(
-            f"/api/reports/{report.id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft", "expected_version": 1},
-        )
-    assert submitted.status_code == 200
-    assert submitted.json()["status_code"] == "submitted"
-    assert report.status_code == "submitted"
-    assert "FOR UPDATE" in str(submit_db.statements[0])
-    assert submit_db.flush_count == 2
-    assert submit_db.commit_count == 1
-
-    stale_db = _Db(_Result(scalar=report))
-    with _client(stale_db, member) as client:
-        stale = client.post(
-            f"/api/reports/{report.id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft", "expected_version": 2},
-        )
-    assert stale.status_code == 409
-    assert stale.json() == {"detail": "invalid_state_transition"}
-    assert stale_db.commit_count == 0
-    assert stale_db.rollback_count == 1
+def test_deal_write_rejects_non_body_values():
+    deal_id = uuid4()
+    base = {
+        "sales_deal_id": deal_id,
+        "deal_snapshot": {"id": deal_id, "label": "D-1"},
+        "body": "딜 본문",
+    }
+    with pytest.raises(ValidationError, match="report_values_body_only"):
+        ReportDealWrite(**base, content={"values": {"body": "딜 본문", "old": "value"}})
+    with pytest.raises(ValidationError, match="structured_values_not_supported"):
+        ReportDealWrite(**base, content={}, structured_values={"next": "value"})
 
 
-def test_patch_rejects_a_stale_report_version():
-    member = _member()
-    report = _report(member)
-    report.version = 2
-    db = _Db(_Result(scalar=report))
-
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "note": "오래된 화면에서 저장"},
-        )
-
-    assert response.status_code == 409
-    assert response.json() == {"detail": "report_version_conflict"}
-    assert report.note is None and report.version == 2
-    assert db.commit_count == 0 and db.rollback_count == 1
-
-
-def test_noop_patch_does_not_bump_report_or_deal_timestamps(monkeypatch):
+def test_legacy_meeting_values_do_not_replace_normalized_body():
     member = _member()
     report = _report(member, kind="meeting")
-    report.source_activity_id = uuid4()
     section = _section(report)
-    original_report_updated_at = report.updated_at
-    original_section_updated_at = section.updated_at
-    db = _Db(
-        _Result(scalar=report),
-        _Result(scalar_values=[section]),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-        _Result(scalar_values=[section]),
-    )
-    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock())
+    section.body = None
+    section.content = {"values": {"body": "구버전 본문"}}
+    section.structured_values = {"attendees": "기존 참석자", "reaction": "기존 반응"}
 
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={
-                "expected_version": 1,
-                "deal_sections": [
-                    {
-                        "sales_deal_id": str(section.sales_deal_id),
-                        "position": 0,
-                        "deal_snapshot": section.deal_snapshot,
-                        "content": section.content,
-                    }
-                ],
-            },
-        )
-
-    assert response.status_code == 200
-    assert response.json()["version"] == 1
-    assert report.updated_at == original_report_updated_at
-    assert section.updated_at == original_section_updated_at
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.validate_submission_content(report, [section])
+    assert caught.value.detail == "report_deal_body_required"
 
 
-@pytest.mark.parametrize(
-    "patch,expected_generation_version",
-    [
-        ({"body": "사람이 고친 보고서 본문"}, 1),
-        ({"transcript": "새로 들어온 미팅 원문"}, 2),
-    ],
-)
-def test_generation_input_version_only_changes_for_generation_inputs(
-    patch, expected_generation_version
-):
+@pytest.mark.anyio
+async def test_structured_pre_v2_meeting_without_body_is_not_materialized():
     member = _member()
-    report = _report(member)
-    db = _Db(
-        _Result(scalar=report),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-    )
+    report = _report(member, kind="meeting", status_code="submitted")
+    report.current_submission_id = None
+    section = _section(report)
+    section.body = None
+    section.content = {"values": {"attendees": "기존 참석자", "decision": "기존 결정"}}
+    section.structured_values = {"attendees": "기존 참석자", "decision": "기존 결정"}
 
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, **patch},
-        )
+    class LegacyDb(_Db):
+        async def get(self, *_args):
+            return member
 
-    assert response.status_code == 200
-    assert response.json()["version"] == 2
-    assert response.json()["generation_input_version"] == expected_generation_version
+    db = LegacyDb(_Result(scalar_values=[section]))
+
+    with pytest.raises(HTTPException) as caught:
+        await report_sources.materialize_legacy_submission(db, report)
+    assert caught.value.detail == "report_deal_body_required"
+    assert report.current_submission_id is None
 
 
-def test_patch_null_structured_values_is_rejected_at_the_request_boundary():
+def test_blank_meeting_section_still_cannot_be_finalized():
     member = _member()
-    report = _report(member)
-    report.structured_values = {"old": "value"}
-    report.content = {"values": {"old": "value"}}
-    db = _Db()
+    report = _report(member, kind="meeting")
+    section = _section(report)
+    section.body = None
+    section.content = {"values": {"reaction": "  "}}
+    section.structured_values = {"reaction": "  "}
 
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "structured_values": None},
-        )
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.validate_submission_content(report, [section])
 
-    assert response.status_code == 422
-    assert report.structured_values == {"old": "value"}
-    assert db.statements == []
-
-
-def test_patch_structured_values_preserves_legacy_body():
-    member = _member()
-    report = _report(member)
-    report.body = "사람이 저장한 본문"
-    report.content = {"values": {"body": "사람이 저장한 본문", "old": "value"}}
-    db = _Db(
-        _Result(scalar=report),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-    )
-
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "structured_values": {"next": "value"}},
-        )
-
-    assert response.status_code == 200
-    assert report.content["values"] == {
-        "next": "value",
-        "body": "사람이 저장한 본문",
-    }
-
-
-def test_deal_structured_values_preserve_body_in_legacy_mirror():
-    deal_id = uuid4()
-    payload = ReportDealWrite(
-        sales_deal_id=deal_id,
-        deal_snapshot={"id": deal_id, "label": "D-1"},
-        content={"values": {"body": "딜 본문", "old": "value"}},
-        structured_values={"next": "value"},
-    )
-
-    normalized = reports_api._normalized_section_payload(payload, 0)
-
-    assert normalized["content"]["values"] == {"next": "value", "body": "딜 본문"}
+    assert caught.value.detail == "report_deal_body_required"
 
 
 @pytest.mark.anyio
@@ -866,12 +771,14 @@ async def test_reordering_report_deals_clears_positions_before_swapping():
             position=0,
             deal_snapshot=second.deal_snapshot,
             content=second.content,
+            body=second.body,
         ),
         ReportDealWrite(
             sales_deal_id=first.sales_deal_id,
             position=1,
             deal_snapshot=first.deal_snapshot,
             content=first.content,
+            body=first.body,
         ),
     ]
 
@@ -882,97 +789,12 @@ async def test_reordering_report_deals_clears_positions_before_swapping():
     assert changed is True and deal_ids_changed is False
 
 
-def test_patch_maps_known_integrity_constraint_to_conflict():
-    member = _member()
-    report = _report(member, kind="meeting")
-    cause = RuntimeError("duplicate")
-    cause.constraint_name = "report_deal_position_key"
-    original = RuntimeError("adapter")
-    original.__cause__ = cause
-    error = IntegrityError("update", {}, original)
-    db = _Db(_Result(scalar=report), flush_error=error)
-
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "note": "충돌 검사"},
-        )
-
-    assert response.status_code == 409
-    assert response.json() == {"detail": "duplicate_deal_positions"}
-    assert db.rollback_count == 1
-
-
-def test_changing_the_selected_deal_set_bumps_generation_input_version(monkeypatch):
-    member = _member()
-    report = _report(member, kind="meeting")
-    report.source_activity_id = uuid4()
-    old_section = _section(report)
-    new_deal_id = uuid4()
-    db = _Db(
-        _Result(scalar=report),
-        _Result(scalar_values=[old_section]),
-        _Result(),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-        _Result(scalar_values=[]),
-    )
-    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock())
-
-    with _client(db, member) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={
-                "expected_version": 1,
-                "deal_sections": [
-                    {
-                        "sales_deal_id": str(new_deal_id),
-                        "deal_snapshot": {"id": str(new_deal_id), "label": "D-2"},
-                        "content": {"values": {"body": "새 딜 본문"}},
-                    }
-                ],
-            },
-        )
-
-    assert response.status_code == 200
-    assert response.json()["version"] == 2
-    assert response.json()["generation_input_version"] == 2
-
-
-def test_submit_rejects_an_empty_selected_deal(monkeypatch):
-    member = _member()
-    report = _report(member, kind="meeting")
-    report.source_activity_id = uuid4()
-    section = _section(report)
-    section.body = None
-    section.content = {"title": "본문 없는 딜", "values": {}}
-    db = _Db(_Result(scalar=report), _Result(scalar_values=[section]))
-    monkeypatch.setattr(
-        reports_api,
-        "_validate_meeting_sales_deal_ids",
-        AsyncMock(return_value=uuid4()),
-    )
-
-    with _client(db, member) as client:
-        response = client.post(
-            f"/api/reports/{report.id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft", "expected_version": 1},
-        )
-
-    assert response.status_code == 422
-    assert response.json() == {"detail": "report_deal_body_required"}
-    assert report.status_code == "draft" and report.current_submission_id is None
-    assert db.commit_count == 0 and db.rollback_count == 1
-
-
 @pytest.mark.anyio
 async def test_resubmit_creates_an_immutable_second_revision():
     class SubmissionDb:
         def __init__(self):
             self.added = []
+            self.provenance_at_flush = []
 
         async def execute(self, _statement):
             revisions = [item.revision_no for item in self.added]
@@ -982,7 +804,14 @@ async def test_resubmit_creates_an_immutable_second_revision():
             self.added.append(item)
 
         async def flush(self):
-            return None
+            submission = self.added[-1]
+            self.provenance_at_flush.append(
+                (
+                    submission.agent_run_id,
+                    submission.idempotency_key,
+                    submission.request_hash,
+                )
+            )
 
     member = _member()
     report = _report(member, kind="meeting")
@@ -991,7 +820,18 @@ async def test_resubmit_creates_an_immutable_second_revision():
     section = _section(report)
     db = SubmissionDb()
 
-    first = await report_submissions.create_submission(db, report, member, [section])
+    agent_run_id = uuid4()
+    idempotency_key = uuid4()
+    request_hash = "1" * 64
+    first = await report_submissions.create_submission(
+        db,
+        report,
+        member,
+        [section],
+        agent_run_id=agent_run_id,
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
+    )
     first_snapshot = dict(first.snapshot)
     section.body = "수정된 두 번째 본문"
     section.content = {"title": "합성 딜", "values": {"body": section.body}}
@@ -1004,104 +844,657 @@ async def test_resubmit_creates_an_immutable_second_revision():
     assert first.snapshot["deals"][0]["body"] == "딜별 본문"
     assert second.snapshot["deals"][0]["body"] == "수정된 두 번째 본문"
     assert first.snapshot_sha256 != second.snapshot_sha256
+    assert db.provenance_at_flush[0] == (agent_run_id, idempotency_key, request_hash)
     assert "transcript" not in first.snapshot
     assert first.snapshot["transcript_sha256"] is not None
 
 
-@pytest.mark.parametrize("kind,deal_count", [("meeting", 2), ("daily", 0)])
-def test_submit_queues_every_report_deal_after_commit(monkeypatch, kind, deal_count):
+@pytest.mark.parametrize("field_id", ["transcript", "Attachments", "AI-Values", "Output-Snapshot"])
+def test_submission_rejects_reserved_legacy_values(field_id):
     member = _member()
-    report = _report(member, kind=kind)
-    report.source_activity_id = uuid4() if kind == "meeting" else None
-    report.sales_deal_id = None
-    sections = [_section(report) for _ in range(deal_count)]
-    results = [_Result(scalar=report)]
-    if kind == "meeting":
-        results.append(_Result(scalar_values=sections))
-    results.extend((_Result(rows=[_row(report, member)]), _Result(rows=[])))
-    if kind == "meeting":
-        results.append(_Result(scalar_values=sections))
-    db = _Db(*results)
-    queued = []
+    report = _report(member)
+    report.content = {"values": {field_id: {"raw": "민감 원문"}}}
 
-    def queue(_background, deal_id, trigger):
-        assert db.commit_count == 1
-        queued.append((deal_id, trigger))
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.build_submission_snapshot(report, [])
 
-    monkeypatch.setattr(reports_api.contract_next_meeting_pipeline, "queue", queue)
-    validate = AsyncMock()
-    validate.return_value = uuid4()
-    monkeypatch.setattr(reports_api, "_validate_meeting_sales_deal_ids", validate)
-    with _client(db, member) as client:
-        response = client.post(
-            f"/api/reports/{report.id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft", "expected_version": 1},
-        )
-
-    assert response.status_code == 200
-    assert queued == [
-        (
-            section.sales_deal_id,
-            {
-                "report_id": str(report.id),
-                "sales_deal_id": str(section.sales_deal_id),
-            },
-        )
-        for section in sections
-    ]
-    assert validate.await_count == (1 if kind == "meeting" else 0)
-    assert not db.results
+    assert caught.value.status_code == 422
+    assert caught.value.detail == "report_submission_reserved_field"
 
 
-@pytest.mark.parametrize("invalid", ["company", "deal", "activity", "missing_activity"])
-def test_submit_rejects_invalid_meeting_deal_before_commit(monkeypatch, invalid):
+@pytest.mark.parametrize(
+    "template_snapshot",
+    [
+        {"fields": [{"id": "body"}], "request_snapshot": {"transcript": "원문"}},
+        {
+            "fields": [
+                {
+                    "id": "body",
+                    "config": {"Output-Snapshot": {"rawTranscript": "원문"}},
+                }
+            ]
+        },
+    ],
+)
+def test_submission_rejects_reserved_fields_anywhere_in_the_template(template_snapshot):
+    member = _member()
+    report = _report(member)
+    report.template_snapshot = template_snapshot
+
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.build_submission_snapshot(report, [])
+
+    assert caught.value.status_code == 422
+    assert caught.value.detail == "report_submission_reserved_field"
+
+
+@pytest.mark.parametrize("target", ["report", "deal"])
+def test_submission_rejects_reserved_normalized_values_at_any_depth(target):
     member = _member()
     report = _report(member, kind="meeting")
-    report.source_activity_id = None if invalid == "missing_activity" else uuid4()
-    report.sales_deal_id = None
     section = _section(report)
-    company_id = uuid4()
-    db = _Db(
-        _Result(scalar=report),
-        _Result(scalar_values=[section]),
-        _Result(rows=[_row(report, member)]),
-        _Result(rows=[]),
-        _Result(scalar_values=[section]),
+    malicious = {"summary": {"safe": "확정 본문", "rawTranscript": "민감 원문"}}
+    if target == "report":
+        report.structured_values = malicious
+    else:
+        section.structured_values = malicious
+
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.build_submission_snapshot(report, [section])
+
+    assert caught.value.status_code == 422
+    assert caught.value.detail == "report_submission_reserved_field"
+
+
+def test_submission_does_not_restore_legacy_top_level_template_fields():
+    member = _member()
+    report = _report(member)
+    report.template_snapshot = {"fields": [{"id": "summary", "label": "요약"}]}
+    report.content = {"summary": "사람이 승인한 요약", "body": "구버전 본문"}
+    report.body = "정규 본문"
+
+    snapshot = report_submissions.build_submission_snapshot(report, [])
+
+    assert snapshot["structured_values"] == {}
+    assert snapshot["body"] == "정규 본문"
+
+
+def test_submission_rejects_reserved_top_level_legacy_values():
+    member = _member()
+    report = _report(member, kind="meeting")
+    section = _section(report)
+    report.content = {"values": {"summary": "사람이 승인한 요약", "transcript": "구버전 원문"}}
+    section.content = {
+        "values": {"body": "사람이 승인한 본문", "ai_values": {"body": "구버전 초안"}}
+    }
+
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.build_submission_snapshot(report, [section])
+    assert caught.value.detail == "report_submission_reserved_field"
+
+
+def test_meeting_run_evidence_is_matched_by_server_deal_id():
+    member = _member()
+    deal_id = uuid4()
+    run = _meeting_generation_run(member, deal_id, "예산이 승인되었습니다.")
+
+    extracted = reports_api.agent_run_service.meeting_deal_evidence(run, [deal_id])
+
+    assert extracted[deal_id]["deal_assessment"]["label"] == "high"
+    assert extracted[deal_id]["deal_assessment"]["high_probability"] == 0.91
+    assert extracted[deal_id]["features"]["Authority"] == "High"
+    assert "evidence" not in extracted[deal_id]
+
+
+def test_meeting_run_keeps_features_when_ml_prediction_failed():
+    member = _member()
+    deal_id = uuid4()
+    run = _meeting_generation_run(member, deal_id, "예산을 검토했습니다.")
+    [analysis] = run.output_snapshot["analyses"]
+    analysis["assessment"] = None
+    analysis["error"] = "deal_prediction_failed"
+
+    extracted = reports_api.agent_run_service.meeting_deal_evidence(run, [deal_id])
+
+    assert extracted[deal_id]["features"]["Budgt_alloc"] == "Yes"
+    assert extracted[deal_id]["deal_assessment"] is None
+    assert extracted[deal_id]["analysis_error"] == "deal_prediction_failed"
+
+
+@pytest.mark.anyio
+async def test_finalize_rejects_an_expired_generation_run():
+    member = _member()
+    activity_id = uuid4()
+    deal_id = uuid4()
+    transcript = "예산을 검토했습니다."
+    run = _meeting_generation_run(member, deal_id, transcript)
+    run.scope_key = f"meeting:{activity_id}"
+    run.payload_expires_at = NOW
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=run.id,
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=activity_id,
+        deal_sections=[
+            {
+                "sales_deal_id": deal_id,
+                "deal_snapshot": {"id": deal_id, "label": "D-1"},
+                "content": {"values": {"body": "최종 본문"}},
+                "body": "최종 본문",
+            }
+        ],
+        template_snapshot=TEMPLATE,
+        content={},
+        transcript=transcript,
     )
+
+    with pytest.raises(HTTPException) as caught:
+        await reports_api._finalize_run(_Db(_Result(scalar=run)), member, payload)
+
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "report_generation_not_usable"
+
+
+@pytest.mark.anyio
+async def test_period_finalize_rejects_a_different_source_revision_before_submission(
+    monkeypatch,
+):
+    member = _member()
+    source_report_id = uuid4()
+    generated_submission_id = uuid4()
+    current_submission_id = uuid4()
+    run = _meeting_generation_run(member, uuid4(), "생성 입력")
+    run.agent_code = "report_writing"
+    run.scope_key = "daily:2026-08-17"
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "period_start": None,
+        "period_end": None,
+        "template_snapshot": TEMPLATE,
+        "content": {"values": {"body": "생성 당시 본문"}},
+        "guidance": None,
+    }
+    run.source_refs = {
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "period_start": None,
+        "period_end": None,
+        "report_sources": [
+            {
+                "position": 0,
+                "source_activity_id": None,
+                "source_report_submission_id": str(generated_submission_id),
+            }
+        ],
+    }
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=run.id,
+        report_kind="daily",
+        report_date=date(2026, 8, 17),
+        template_snapshot=TEMPLATE,
+        content={
+            "values": {"body": "사람이 확정한 본문"},
+            "activities": [
+                {
+                    "source": "업무보고서",
+                    "included": True,
+                    "refId": str(source_report_id),
+                }
+            ],
+        },
+        body="사람이 확정한 본문",
+    )
+    db = _Db()
+    create_submission = AsyncMock()
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        reports_api, "_existing_finalize_after_rollback", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(reports_api, "_finalize_run", AsyncMock(return_value=run))
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "sync_report_sources_from_legacy_content",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "current_source_ref_snapshot",
+        AsyncMock(
+            return_value=[
+                {
+                    "position": 0,
+                    "source_activity_id": None,
+                    "source_report_submission_id": str(current_submission_id),
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(reports_api.report_submissions, "create_submission", create_submission)
+
+    with pytest.raises(HTTPException) as caught:
+        await reports_api.finalize_report(
+            payload,
+            Response(),
+            BackgroundTasks(),
+            member,
+            db,
+        )
+
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "report_generation_source_changed"
+    create_submission.assert_not_awaited()
+    assert run.report_id is None
+    assert run.input_snapshot and run.output_snapshot is not None
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("changed", ["guidance", "attachments", "template", "report_date"])
+async def test_period_finalize_rejects_changed_noneditable_generation_input(
+    monkeypatch,
+    changed,
+):
+    member = _member()
+    report = _report(member)
+    attachment = {
+        "id": "attachment-1",
+        "name": "memo.txt",
+        "state": "done",
+        "extract": "생성에 사용한 첨부",
+    }
+    run = _meeting_generation_run(member, uuid4(), "생성 입력")
+    run.agent_code = "report_writing"
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": report.report_date.isoformat(),
+        "period_start": None,
+        "period_end": None,
+        "template_snapshot": TEMPLATE,
+        "content": {
+            "values": {"body": "생성 당시 본문"},
+            "attachments": [attachment],
+        },
+        "guidance": "생성 당시 직접 입력",
+    }
+    run.source_refs = {"report_sources": []}
+    template = TEMPLATE
+    content = {
+        "values": {"body": "사람이 수정한 본문"},
+        "attachments": [attachment],
+    }
+    transcript = "생성 당시 직접 입력"
+    report_date = report.report_date
+    if changed == "guidance":
+        transcript = "생성 뒤 바꾼 직접 입력"
+    elif changed == "attachments":
+        content = {
+            **content,
+            "attachments": [{**attachment, "extract": "생성 뒤 바꾼 첨부"}],
+        }
+    elif changed == "template":
+        template = {**TEMPLATE, "name": "생성 뒤 바꾼 양식"}
+    else:
+        report_date += timedelta(days=1)
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="daily",
+        report_date=report_date,
+        template_snapshot=template,
+        content=content,
+        title="사람이 정한 제목",
+        body="사람이 수정한 본문",
+        transcript=transcript,
+    )
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "current_source_ref_snapshot",
+        AsyncMock(return_value=[]),
+    )
+
+    with pytest.raises(HTTPException) as caught:
+        await reports_api._validate_generation_source_refs(AsyncMock(), report, payload, run)
+
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "report_generation_source_changed"
+
+
+@pytest.mark.anyio
+async def test_period_finalize_allows_human_title_and_body_edits_after_generation(monkeypatch):
+    member = _member()
+    report = _report(member)
+    run = _meeting_generation_run(member, uuid4(), "생성 입력")
+    run.agent_code = "report_writing"
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": report.report_date.isoformat(),
+        "period_start": None,
+        "period_end": None,
+        "template_snapshot": TEMPLATE,
+        "content": {"title": "생성 전 제목", "values": {"body": "생성 전 본문"}},
+        "guidance": None,
+    }
+    run.source_refs = {"report_sources": []}
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={"title": "최종 제목", "values": {"body": "최종 본문"}},
+        title="최종 제목",
+        body="최종 본문",
+    )
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "current_source_ref_snapshot",
+        AsyncMock(return_value=[]),
+    )
+
+    await reports_api._validate_generation_source_refs(AsyncMock(), report, payload, run)
+
+
+@pytest.mark.anyio
+async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatch):
+    class FinalizeDb(_Db):
+        async def execute(self, statement):
+            if "from public.report_deal" in str(statement).lower():
+                return _Result(
+                    scalar_values=[item for item in self.added if isinstance(item, ReportDeal)]
+                )
+            return await super().execute(statement)
+
+    member = _member()
+    activity_id = uuid4()
+    deal_id = uuid4()
+    transcript = "예산이 승인되었습니다."
+    run = _meeting_generation_run(member, deal_id, transcript)
+    run.scope_key = f"meeting:{activity_id}"
+    db = FinalizeDb()
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=run.id,
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=activity_id,
+        deal_sections=[
+            {
+                "sales_deal_id": deal_id,
+                "deal_snapshot": {"id": deal_id, "label": "D-1"},
+                "content": {"values": {"body": "사람이 확정한 본문"}},
+                "body": "사람이 확정한 본문",
+            }
+        ],
+        template_snapshot=TEMPLATE,
+        content={
+            "ai_values": {"body": "클라이언트 위조 초안"},
+            "ai_evidence": "클라이언트 위조 근거",
+            "ai_generated_at": NOW.isoformat(),
+            "meeting_shared": {"common_report": {"body": "클라이언트 위조 공통"}},
+        },
+        transcript=transcript,
+    )
+
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(reports_api, "_finalize_run", AsyncMock(return_value=run))
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock(return_value=uuid4()))
+
+    async def detail(_db, _member_value, report_id):
+        return SimpleNamespace(id=report_id)
+
     queued = []
 
-    async def activity_row(_db, actor, activity_id):
-        assert actor is member and activity_id == report.source_activity_id
-        if invalid == "activity":
-            raise HTTPException(status_code=404, detail="activity_not_found")
-        return (None, None, None, company_id)
+    def queue(_background, selected_deal_id, trigger):
+        assert db.commit_count == 1
+        queued.append((selected_deal_id, trigger))
 
-    async def deal_row(_db, actor, deal_id):
-        assert actor is member and deal_id == section.sales_deal_id
-        if invalid == "deal":
-            raise HTTPException(status_code=404, detail="deal_not_found")
-        return (
-            SimpleNamespace(customer_company_id=uuid4() if invalid == "company" else company_id),
-        )
+    monkeypatch.setattr(reports_api, "_detail", detail)
+    monkeypatch.setattr(reports_api.contract_next_meeting_pipeline, "queue", queue)
+    response = Response()
 
-    monkeypatch.setattr(reports_api, "_activity_row", activity_row)
-    monkeypatch.setattr(reports_api, "_sales_deal_row", deal_row)
-    monkeypatch.setattr(
-        reports_api.contract_next_meeting_pipeline, "queue", lambda *args: queued.append(args)
+    result = await reports_api.finalize_report(
+        payload,
+        response,
+        BackgroundTasks(),
+        member,
+        db,
     )
-    with _client(db, member) as client:
-        response = client.post(
-            f"/api/reports/{report.id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft", "expected_version": 1},
+
+    report = next(item for item in db.added if isinstance(item, Report))
+    section = next(item for item in db.added if isinstance(item, ReportDeal))
+    submission = next(item for item in db.added if isinstance(item, ReportSubmission))
+    assert result.id == report.id
+    assert report.status_code == "submitted"
+    assert not set(reports_api._SERVER_OWNED_CONTENT_KEYS) & report.content.keys()
+    assert report.current_submission_id == submission.id
+    assert submission.agent_run_id == run.id
+    assert section.ai_evidence["deal_assessment"]["label"] == "high"
+    assert "ai_evidence" not in submission.snapshot["deals"][0]
+    assert run.report_id == report.id
+    assert run.input_snapshot == {} and run.output_snapshot is None
+    assert db.commit_count == 1 and db.rollback_count == 0
+    assert queued[0][0] == deal_id
+
+
+@pytest.mark.anyio
+async def test_finalize_existing_report_checks_version_before_mutation(monkeypatch):
+    member = _member()
+    report = _report(member, status_code="changes_requested")
+    report.version = 2
+    db = _Db()
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_id=report.id,
+        expected_version=1,
+        expected_status_code="changes_requested",
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={"values": {"body": "수정본"}},
+        body="수정본",
+    )
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        reports_api, "_existing_finalize_after_rollback", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(reports_api, "_locked_report", AsyncMock(return_value=report))
+
+    with pytest.raises(HTTPException) as caught:
+        await reports_api.finalize_report(
+            payload,
+            Response(),
+            BackgroundTasks(),
+            member,
+            db,
         )
 
-    assert response.status_code == 404
-    assert report.status_code == "draft"
-    assert db.flush_count == db.commit_count == 0
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "report_version_conflict"
+    assert report.status_code == "changes_requested"
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
+@pytest.mark.anyio
+async def test_resubmit_without_generation_keeps_existing_ai_provenance(monkeypatch):
+    member = _member()
+    report = _report(member, status_code="changes_requested")
+    report.source_snapshot = {"agent_run_id": str(uuid4())}
+    report.ai_evidence = {"prompt_version": "report_writing.v1"}
+    original_source = dict(report.source_snapshot)
+    original_evidence = dict(report.ai_evidence)
+    db = _Db(_Result(scalar_values=[]))
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_id=report.id,
+        expected_version=1,
+        expected_status_code="changes_requested",
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={"values": {"body": "사람이 수정한 확정본"}},
+        body="사람이 수정한 확정본",
+    )
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(reports_api, "_finalize_run", AsyncMock(return_value=None))
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(reports_api, "_locked_report", AsyncMock(return_value=report))
+    monkeypatch.setattr(reports_api, "_replace_report_activities", AsyncMock())
+    monkeypatch.setattr(
+        reports_api.report_sources, "sync_report_sources_from_legacy_content", AsyncMock()
+    )
+    monkeypatch.setattr(
+        reports_api,
+        "_detail",
+        AsyncMock(return_value=SimpleNamespace(id=report.id)),
+    )
+
+    await reports_api.finalize_report(payload, Response(), BackgroundTasks(), member, db)
+
+    assert report.source_snapshot == original_source
+    assert report.ai_evidence == original_evidence
+    assert report.status_code == "submitted"
+
+
+@pytest.mark.anyio
+async def test_finalize_existing_report_cannot_change_its_logical_date(monkeypatch):
+    member = _member()
+    report = _report(member, status_code="draft")
+    db = _Db()
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_id=report.id,
+        expected_version=1,
+        expected_status_code="draft",
+        report_kind="daily",
+        report_date=report.report_date + timedelta(days=1),
+        template_snapshot=TEMPLATE,
+        content={"values": {"body": "확정본"}},
+        body="확정본",
+    )
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        reports_api, "_existing_finalize_after_rollback", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(reports_api, "_locked_report", AsyncMock(return_value=report))
+
+    with pytest.raises(HTTPException) as caught:
+        await reports_api.finalize_report(
+            payload,
+            Response(),
+            BackgroundTasks(),
+            member,
+            db,
+        )
+
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "report_identity_changed"
+    assert report.report_date != payload.report_date
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
+@pytest.mark.anyio
+async def test_finalize_idempotent_replay_returns_existing_submission(monkeypatch):
+    member = _member()
+    report = _report(member, status_code="submitted")
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={"values": {"body": "확정본"}},
+        body="확정본",
+    )
+    submission = ReportSubmission(
+        id=uuid4(),
+        report_id=report.id,
+        revision_no=1,
+        report_version=1,
+        team_id=member.team_id,
+        submitted_by_member_id=member.id,
+        agent_run_id=None,
+        idempotency_key=payload.idempotency_key,
+        request_hash=reports_api._finalize_request_hash(payload),
+        snapshot={},
+        snapshot_sha256="0" * 64,
+        review_status="pending",
+        reviewed_by_member_id=None,
+        reviewed_at=None,
+        review_note=None,
+        submitted_at=NOW,
+    )
+    db = _Db(_Result(scalar=submission))
+
+    async def detail(_db, _member_value, report_id):
+        return SimpleNamespace(id=report_id)
+
+    monkeypatch.setattr(reports_api, "_detail", detail)
+    response = Response()
+    result = await reports_api.finalize_report(
+        payload,
+        response,
+        BackgroundTasks(),
+        member,
+        db,
+    )
+
+    assert result.id == report.id
+    assert response.headers["Location"] == f"/api/reports/{report.id}"
+    assert db.added == []
+    assert db.commit_count == 0 and db.rollback_count == 0
+
+
+@pytest.mark.anyio
+async def test_finalize_concurrent_replay_returns_winning_submission(monkeypatch):
+    member = _member()
+    member_id = member.id
+    refreshed_member = _member(team_id=member.team_id)
+    report = _report(member, status_code="submitted")
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={"values": {"body": "확정본"}},
+        body="확정본",
+    )
+    existing = SimpleNamespace(id=report.id)
+    seen_members = []
+
+    async def existing_finalize(_db, current_member, *_args):
+        seen_members.append(current_member)
+        return None if len(seen_members) == 1 else existing
+
+    async def refreshed(_db, current_member_id):
+        assert current_member_id == member_id
+        return refreshed_member
+
+    monkeypatch.setattr(reports_api, "_existing_finalize", existing_finalize)
+    monkeypatch.setattr(reports_api, "active_member", refreshed)
+    monkeypatch.setattr(
+        reports_api,
+        "_finalize_run",
+        AsyncMock(side_effect=HTTPException(409, "report_generation_not_usable")),
+    )
+    db = _Db()
+    response = Response()
+
+    result = await reports_api.finalize_report(
+        payload,
+        response,
+        BackgroundTasks(),
+        member,
+        db,
+    )
+
+    assert result is existing
+    assert seen_members == [member, refreshed_member]
+    assert response.headers["Location"] == f"/api/reports/{report.id}"
     assert db.rollback_count == 1
-    assert queued == []
 
 
 def test_member_scope_hides_other_authors_report():
@@ -1116,77 +1509,46 @@ def test_member_scope_hides_other_authors_report():
     sql = str(hidden_db.statements[0])
     assert "report.author_member_id" in sql
 
-    locked_db = _Db(_Result(scalar=None))
-    with _client(locked_db, member) as client:
-        missing = client.post(
-            f"/api/reports/{report_id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft", "expected_version": 1},
-        )
-    assert missing.status_code == 404
-    assert missing.json() == {"detail": "report_not_found"}
-    assert locked_db.rollback_count == 1
 
-
-def _attach(db: _Db, member: Member, activity_id: UUID):
-    """일정 하나를 묶어 보고서를 만들어 본다."""
-    with _client(db, member) as client:
-        return client.post(
-            "/api/reports",
-            headers={"Origin": ORIGIN},
-            json={
-                "report_kind": "daily",
-                "report_date": "2026-08-17",
-                "template_snapshot": TEMPLATE,
-                "content": CONTENT,
-                "activity_ids": [str(activity_id)],
-            },
-        )
-
-
-def test_member_cannot_attach_another_owners_activity():
-    """남의 일정에는 보고서를 달 수 없다. 같은 팀이라 없는 척하지 않고 403 으로 답한다."""
-    member = _member()
+@pytest.mark.anyio
+@pytest.mark.parametrize("role", ["member", "manager"])
+async def test_report_activities_must_belong_to_the_author(role):
+    member = _member(role=role)
     foreign = _activity(_member(team_id=member.team_id))
-
     db = _Db(_Result(rows=[(foreign.id, foreign.owner_member_id)]))
-    response = _attach(db, member, foreign.id)
 
-    assert response.status_code == 403
-    assert response.json() == {"detail": "activity_not_owned"}
-    assert db.commit_count == 0
-    assert db.rollback_count == 1
+    with pytest.raises(HTTPException) as caught:
+        await reports_api._own_activity_ids(db, member, [foreign.id])
 
-    sql = str(db.statements[0])
-    assert "activity.owner_member_id" in sql
-    assert "activity.deleted_at IS NULL" in sql
+    assert caught.value.status_code == 403
+    assert caught.value.detail == "activity_not_owned"
 
 
-def test_manager_cannot_attach_a_teammate_activity():
-    """보고는 남이 한 일을 대신 적는 문서가 아니다. 팀장도 같은 규칙을 받는다."""
-    manager = _member(role="manager")
-    teammate = _activity(_member(team_id=manager.team_id))
+@pytest.mark.anyio
+async def test_unknown_report_activity_is_hidden():
+    member = _member()
+    with pytest.raises(HTTPException) as caught:
+        await reports_api._own_activity_ids(_Db(_Result(rows=[])), member, [uuid4()])
 
-    db = _Db(_Result(rows=[(teammate.id, teammate.owner_member_id)]))
-    response = _attach(db, manager, teammate.id)
-
-    assert response.status_code == 403
-    assert response.json() == {"detail": "activity_not_owned"}
-    assert db.commit_count == 0
-    assert db.rollback_count == 1
+    assert caught.value.status_code == 404
+    assert caught.value.detail == "activity_not_found"
 
 
 def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
     manager = _member(role="manager")
     teammate = _activity(_member(team_id=manager.team_id))
     deal_id = uuid4()
-    db = _Db(_Result(rows=[(teammate.id, teammate.owner_member_id)]))
+    db = _Db(
+        _Result(scalar=None),
+        _Result(rows=[(teammate.id, teammate.owner_member_id)]),
+    )
 
     with _client(db, manager) as client:
         response = client.post(
-            "/api/reports",
+            "/api/reports/finalize",
             headers={"Origin": ORIGIN},
             json={
+                "idempotency_key": str(uuid4()),
                 "report_kind": "meeting",
                 "report_date": "2026-08-17",
                 "source_activity_id": str(teammate.id),
@@ -1195,6 +1557,7 @@ def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
                         "sales_deal_id": str(deal_id),
                         "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
                         "content": {"values": {"body": "본문"}},
+                        "body": "본문",
                     }
                 ],
                 "activity_ids": [],
@@ -1209,123 +1572,17 @@ def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
     assert db.commit_count == 0
 
 
-def test_unknown_activity_is_reported_as_not_found_before_ownership():
-    """다른 팀이거나 지워진 일정은 소유를 따지기 전에 404 로 끊는다."""
-    manager = _member(role="manager")
-
-    db = _Db(_Result(rows=[]))
-    response = _attach(db, manager, uuid4())
-
-    assert response.status_code == 404
-    assert response.json() == {"detail": "activity_not_found"}
-    assert db.commit_count == 0
-
-
-def test_manager_can_attach_own_activity():
-    """자기가 한 일이면 팀장도 그대로 쓴다."""
-    manager = _member(role="manager")
-    own = _activity(manager)
-
-    class _OwnActivityDb(_Db):
-        async def execute(self, statement):
-            self.statements.append(statement)
-            # 첫 쿼리는 일정 소유 확인, 그 뒤 둘이 상세 조회다.
-            if len(self.statements) == 1:
-                return _Result(rows=[(own.id, own.owner_member_id)])
-            if len(self.statements) == 2:
-                report = next(value for value in self.added if isinstance(value, Report))
-                return _Result(rows=[_row(report, manager)])
-            return _Result(rows=[])
-
-    db = _OwnActivityDb()
-    response = _attach(db, manager, own.id)
-
-    assert response.status_code == 201
-    assert response.json()["author_member_id"] == str(manager.id)
-    assert db.commit_count == 1
-
-
-def test_update_keeps_activities_linked_before_the_ownership_rule():
-    """규칙이 생기기 전에 묶어 둔 남의 일정은 수정 때 그대로 둔다.
-
-    통째로 막으면 팀장이 만들어 둔 보고서가 손댈 수 없는 문서가 된다.
-    """
-    manager = _member(role="manager")
-    report = _report(manager)
-    legacy = _activity(_member(team_id=manager.team_id))
-
-    db = _Db(
-        _Result(scalar=report),
-        # _linked_activity_ids: 이미 묶여 있던 일정
-        _Result(scalar_values=[legacy.id]),
-        _Result(rows=[_row(report, manager)]),
-        _Result(rows=[]),
-    )
-    with _client(db, manager) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "activity_ids": [str(legacy.id)]},
-        )
-
-    assert response.status_code == 200
-    assert response.json()["version"] == 1
-    assert db.commit_count == 1
-
-
-def test_manager_cannot_edit_or_submit_a_teammate_report():
-    """보고서는 쓴 사람이 고치고 제출하고 지운다. 팀장도 대신 손대지 않는다.
-
-    팀장은 팀원의 보고서를 목록에서 보고 있으므로 404 가 아니라 403 으로 답한다.
-    """
+@pytest.mark.anyio
+async def test_manager_cannot_write_a_teammate_report():
     manager = _member(role="manager")
     teammate = _member(team_id=manager.team_id)
     report = _report(teammate)
 
-    for call in (
-        lambda client: client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "note": "팀장이 대신 고쳐 본다"},
-        ),
-        lambda client: client.post(
-            f"/api/reports/{report.id}/submit",
-            headers={"Origin": ORIGIN},
-            json={"expected_status_code": "draft", "expected_version": 1},
-        ),
-        lambda client: client.delete(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-        ),
-    ):
-        db = _Db(_Result(scalar=report))
-        with _client(db, manager) as client:
-            response = call(client)
-        assert response.status_code == 403
-        assert response.json() == {"detail": "report_not_owned"}
-        assert db.commit_count == 0
-        assert db.rollback_count == 1
+    with pytest.raises(HTTPException) as caught:
+        await reports_api._locked_report(_Db(_Result(scalar=report)), manager, report.id)
 
-
-def test_manager_can_still_edit_own_report():
-    """자기가 쓴 보고서는 팀장도 그대로 고친다."""
-    manager = _member(role="manager")
-    report = _report(manager)
-
-    db = _Db(
-        _Result(scalar=report),
-        _Result(rows=[_row(report, manager)]),
-        _Result(rows=[]),
-    )
-    with _client(db, manager) as client:
-        response = client.patch(
-            f"/api/reports/{report.id}",
-            headers={"Origin": ORIGIN},
-            json={"expected_version": 1, "note": "내가 쓴 보고서"},
-        )
-
-    assert response.status_code == 200
-    assert db.commit_count == 1
+    assert caught.value.status_code == 403
+    assert caught.value.detail == "report_not_owned"
 
 
 def test_manager_author_filter_is_limited_to_same_team():
@@ -1342,26 +1599,6 @@ def test_manager_author_filter_is_limited_to_same_team():
         unknown = client.get(f"/api/reports?author_member_id={uuid4()}")
     assert unknown.status_code == 403
     assert unknown.json() == {"detail": "scope_not_allowed"}
-
-
-def test_write_failure_rolls_back_transaction():
-    member = _member()
-    db = _Db(flush_error=RuntimeError("synthetic failure"))
-
-    with _client(db, member) as client, pytest.raises(RuntimeError, match="synthetic failure"):
-        client.post(
-            "/api/reports",
-            headers={"Origin": ORIGIN},
-            json={
-                "report_kind": "daily",
-                "report_date": "2026-08-17",
-                "template_snapshot": TEMPLATE,
-                "content": CONTENT,
-            },
-        )
-
-    assert db.commit_count == 0
-    assert db.rollback_count == 1
 
 
 def test_source_activity_and_sales_deal_filters_reach_the_query():
@@ -1412,26 +1649,28 @@ async def test_meeting_deal_must_belong_to_the_meeting_company(monkeypatch):
 
     monkeypatch.setattr(reports_api, "_activity_row", activity_row)
     monkeypatch.setattr(reports_api, "_sales_deal_row", deal_row)
-    await reports_api._validate_meeting_deal(_Db(), member, activity_id, sales_deal_id)
+    await reports_api._validate_meeting_sales_deal_ids(_Db(), member, activity_id, [sales_deal_id])
 
     async def other_company_deal(_db, _member, _sales_deal_id):
         return (SimpleNamespace(customer_company_id=uuid4()),)
 
     monkeypatch.setattr(reports_api, "_sales_deal_row", other_company_deal)
     with pytest.raises(HTTPException) as caught:
-        await reports_api._validate_meeting_deal(_Db(), member, activity_id, sales_deal_id)
+        await reports_api._validate_meeting_sales_deal_ids(
+            _Db(), member, activity_id, [sales_deal_id]
+        )
     assert caught.value.status_code == 404
     assert caught.value.detail == "sales_deal_not_found"
 
 
-def test_asyncpg_unique_violation_is_recognized():
+def test_asyncpg_unique_constraint_name_is_read():
     cause = RuntimeError("duplicate")
     cause.constraint_name = reports_api._MEETING_UNIQUE_INDEX
     original = RuntimeError("adapter")
     original.__cause__ = cause
     error = IntegrityError("insert", {}, original)
 
-    assert reports_api._duplicate_meeting(error)
+    assert reports_api._integrity_constraint(error) == reports_api._MEETING_UNIQUE_INDEX
 
 
 def test_approver_and_hospital_filters_reach_the_query():

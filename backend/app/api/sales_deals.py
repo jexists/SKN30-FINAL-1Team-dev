@@ -512,6 +512,8 @@ async def _team_contact(
         .join(Member, CustomerContact.owner_member_id == Member.id)
         .where(
             CustomerContact.id == customer_contact_id,
+            # 지운 고객은 딜의 담당자로 새로 세울 수 없다.
+            CustomerContact.deleted_at.is_(None),
             CustomerCompany.team_id == member.team_id,
             Member.team_id == member.team_id,
             Member.active.is_(True),
@@ -605,6 +607,8 @@ async def _team_participants(
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
         .where(
             CustomerContact.id.in_(unique_ids),
+            # 지운 고객은 미팅 대상자로 새로 넣을 수 없다.
+            CustomerContact.deleted_at.is_(None),
             CustomerContact.company_id == company_id,
             CustomerCompany.team_id == member.team_id,
         )

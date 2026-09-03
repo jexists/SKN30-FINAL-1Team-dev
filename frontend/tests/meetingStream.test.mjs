@@ -15,7 +15,6 @@ const created = {
   report_id: 'report-1',
   status_code: 'running',
   current_stage_code: 'report_writing',
-  apply_status: 'pending',
   attempt_count: 1,
   output_snapshot: null,
   error_code: null,
@@ -39,7 +38,6 @@ const completed = {
   ...created,
   status_code: 'completed',
   current_stage_code: 'completed',
-  apply_status: 'applied',
   output_snapshot: { reports: '검증된 최종 보고서' },
 }
 
@@ -161,17 +159,12 @@ test('초안 뒤 실행이 실패·취소되면 초안을 저장 결과로 승�
   }
 })
 
-test('실행 중 보고서가 바뀌어 stale이면 AI 결과를 반환하지 않는다', async () => {
-  await assert.rejects(
-    waitForMeetingRun(
-      { ...completed, apply_status: 'stale' },
-      {
-        eventsUrl: '/events',
-        readRun: () => assert.fail('종료 실행은 조회하지 않습니다.'),
-      },
-    ),
-    /meeting_report_changed/,
-  )
+test('완료된 AgentRun 후보는 canonical 적용 상태 없이 즉시 반환한다', async () => {
+  const result = await waitForMeetingRun(completed, {
+    eventsUrl: '/events',
+    readRun: () => assert.fail('종료 실행은 조회하지 않습니다.'),
+  })
+  assert.deepEqual(result.output_snapshot, completed.output_snapshot)
 })
 
 test('스트림 오류는 새 실행 없이 같은 run 조회로 한 번만 전환한다', async (t) => {

@@ -110,7 +110,12 @@ async def find_matches(
     result = await db.execute(
         select(CustomerContact, CustomerCompany)
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
-        .where(CustomerCompany.team_id == member.team_id, or_(*conditions))
+        # 지운 고객은 중복 후보로 내놓지 않는다. 다시 등록하려는 참이다.
+        .where(
+            CustomerContact.deleted_at.is_(None),
+            CustomerCompany.team_id == member.team_id,
+            or_(*conditions),
+        )
         .limit(limit)
     )
     matches: list[dict[str, object]] = []

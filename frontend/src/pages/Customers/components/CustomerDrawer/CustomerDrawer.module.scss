@@ -273,3 +273,67 @@
 }
 
 // Button 의 primary 와 같은 모양입니다. 링크라 태그만 다릅니다.
+
+// 머리말의 '…' 더보기. RecordDrawer 의 일정 메뉴와 같은 모양입니다.
+.menuBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    svg {
+      flex: none;
+      color: var(--muted);
+    }
+
+    &:hover {
+      background: var(--fill-2);
+    }
+  }
+
+  // 지우는 것은 되돌릴 수 없어 색으로 한 번 더 세웁니다.
+  .danger {
+    color: var(--red-ink);
+
+    svg {
+      color: currentcolor;
+    }
+
+    &:hover {
+      background: var(--red-tint);
+    }
+  }
+}

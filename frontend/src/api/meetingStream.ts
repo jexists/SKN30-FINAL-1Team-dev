@@ -5,6 +5,12 @@ import type { AgentRunResponse, MeetingPreview, MeetingProgress } from '@/types'
 export const MEETING_WAIT_MS = 25 * 60 * 1_000
 const POLL_INTERVAL_MS = 2_000
 
+export class AgentRunTerminalError extends Error {}
+
+export function isAgentRunTerminalError(error: unknown): error is AgentRunTerminalError {
+  return error instanceof AgentRunTerminalError
+}
+
 /** 연결·서버의 일시 장애만 재조회합니다. 권한/업무 오류와 취소는 즉시 종료합니다. */
 export function isRetryableMeetingReadError(error: unknown): boolean {
   if (!isAxiosError(error) || isCancel(error) || error.code === 'ERR_CANCELED') return false
@@ -106,15 +112,12 @@ export function waitForMeetingRun<T>(
     function terminal(run: AgentRunResponse<T>): boolean {
       if (run.id !== created.id) return false
       if (run.status_code === 'failed' || run.status_code === 'cancelled') {
-        finish(new Error(run.error_code ?? run.error_message ?? 'agent_run_failed'))
+        finish(new AgentRunTerminalError(run.error_code ?? run.error_message ?? 'agent_run_failed'))
         return true
       }
       if (run.status_code === 'completed' || run.status_code === 'partial') {
-        if (run.apply_status === 'stale') finish(new Error('meeting_report_changed'))
-        else if (run.apply_status !== 'applied') finish(new Error('meeting_result_not_applied'))
-        else if (run.output_snapshot)
-          finish(undefined, { ...run, output_snapshot: run.output_snapshot })
-        else finish(new Error('agent_run_failed'))
+        if (run.output_snapshot) finish(undefined, { ...run, output_snapshot: run.output_snapshot })
+        else finish(new AgentRunTerminalError('agent_run_failed'))
         return true
       }
       return false

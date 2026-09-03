@@ -29,17 +29,17 @@ class AgentRun(Base):
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     request_hash: Mapped[str | None]
+    scope_key: Mapped[str | None]
     source_refs: Mapped[Any] = mapped_column(JSONB, nullable=False)
     input_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
     output_snapshot: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     evidence: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     error_message: Mapped[str | None]
     error_code: Mapped[str | None]
-    apply_status: Mapped[str] = mapped_column(server_default=text("'not_applicable'::text"))
     current_stage_code: Mapped[str] = mapped_column(server_default=text("'queued'::text"))
     attempt_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
-    base_report_version: Mapped[int | None] = mapped_column(BigInteger)
-    base_generation_input_version: Mapped[int | None] = mapped_column(BigInteger)
+    payload_expires_at: Mapped[datetime | None]
+    payload_redacted_at: Mapped[datetime | None]
     lease_owner: Mapped[str | None]
     lease_expires_at: Mapped[datetime | None]
     heartbeat_at: Mapped[datetime | None]

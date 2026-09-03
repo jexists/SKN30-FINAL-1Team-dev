@@ -11,6 +11,8 @@ import json
 from time import perf_counter
 
 import httpx
+import openai
+from langchain_openai import StreamChunkTimeoutError
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
@@ -23,6 +25,67 @@ class LLMError(Exception):
 
 class LLMNotConfigured(LLMError):
     """LLM_API_URL, LLM_API_KEY, LLM_MODEL 중 빠진 값이 있다."""
+
+
+_TRANSIENT_REQUEST_ERRORS = (
+    httpx.NetworkError,
+    httpx.TimeoutException,
+    httpx.ProxyError,
+    httpx.RemoteProtocolError,
+    openai.APIConnectionError,
+    StreamChunkTimeoutError,
+)
+_TRANSIENT_REQUEST_ERROR_NAMES = {
+    "APIConnectionError",
+    "APITimeoutError",
+    "CloseError",
+    "ConnectError",
+    "ConnectTimeout",
+    "NetworkError",
+    "PoolTimeout",
+    "ProxyError",
+    "ReadError",
+    "ReadTimeout",
+    "RemoteProtocolError",
+    "StreamChunkTimeoutError",
+    "TimeoutException",
+    "WriteError",
+    "WriteTimeout",
+}
+
+
+def llm_boundary_error_code(error: BaseException) -> str | None:
+    """SDK/HTTP 예외 체인을 비밀값 없는 LLM 경계 코드로 바꾼다.
+
+    OpenAI·LangChain·httpx가 발생시킨 연결 오류와 HTTP 상태 오류만
+    분류한다. 출력 검증·앱 로직 오류는 ``None``으로 남겨 재시도하지
+    않도록 한다. 예외 메시지는 코드에 포함하지 않는다.
+    """
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, openai.APIStatusError):
+            return f"llm_provider_error:{current.status_code}"
+        if isinstance(current, httpx.HTTPStatusError):
+            return f"llm_provider_error:{current.response.status_code}"
+        if isinstance(current, _TRANSIENT_REQUEST_ERRORS):
+            return f"llm_request_failed:{type(current).__name__}"
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def is_transient_llm_error(error_code: str) -> bool:
+    """LLM 경계 코드 중 연결 장애·429·5xx인 경우만 재시도 가능하다."""
+    if error_code.startswith("llm_request_failed:"):
+        return error_code.rsplit(":", 1)[-1] in _TRANSIENT_REQUEST_ERROR_NAMES
+    if error_code.startswith("llm_provider_error:"):
+        try:
+            status_code = int(error_code.rsplit(":", 1)[-1])
+        except ValueError:
+            return False
+        return status_code == 429 or 500 <= status_code <= 599
+    return False
 
 
 def safe_token_usage(usage: object) -> dict[str, int]:
@@ -145,7 +208,8 @@ async def generate_structured[Schema: BaseModel](
             elapsed_ms=round((perf_counter() - started) * 1000),
         )
         # 공급자 URL 과 key 가 메시지에 섞이지 않도록 예외 종류만 남긴다.
-        raise LLMError(f"llm_request_failed:{type(error).__name__}") from error
+        code = llm_boundary_error_code(error) or f"llm_request_failed:{type(error).__name__}"
+        raise LLMError(code) from error
     except asyncio.CancelledError:
         log_agent_event(
             "llm.request_cancelled",

@@ -24,7 +24,7 @@
 - Query와 JSON 필드명은 `snake_case`를 사용한다.
 - 업무 리소스 URL은 단수형 DB 테이블명과 독립적으로 복수 명사를 사용한다. 예: `/api/customer-companies`, `/api/support-requests`, `/api/agent-runs`.
 - 종속 리소스는 부모 아래에 둔다. 예: `/api/support-requests/{request_id}/responses`.
-- 상태 전이는 마지막 경로에 동사를 사용한다. 예: `POST /api/reports/{report_id}/submit`.
+- 상태 전이는 마지막 경로에 동사를 사용한다. 예: `POST /api/reports/finalize`.
 - 모든 내부 `id`와 `*_id`는 하이픈을 포함한 소문자 UUID 문자열이다. 신규 ID는 서버가 UUID v4로 생성한다.
 - `deal_no`, `order_no`, `document_no` 같은 업무 번호는 표시·검색용 값이며 내부 ID를 대신하지 않는다.
 - 생성 요청에서 서버 생성 ID, 업무 번호, `team_id`, 작성자 ID, 생성·수정 시각을 받지 않는다.
@@ -229,22 +229,21 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 
 ## 14. LLM과 Agent
 
-이 절은 후속 Agent API가 따라야 할 계약이다. 현재 17절의 라우터에는 `/api/agent-runs`가 아직 등록되어 있지 않다.
+이 절은 Agent API가 따라야 할 계약이다. 보고서 생성은 `/api/report-generations`, 그 밖의 Agent 실행은 `/api/agent-runs`로 시작한다.
 
 - Agent 요청에도 프론트 요청과 동일한 입력 검증, 팀 범위와 권한 검사를 적용한다.
 - 장시간 작업 시작은 `202 Accepted`, 실행 리소스 `Location`, 권장 polling 간격 `Retry-After`를 반환한다.
 - 클라이언트는 `GET /api/agent-runs/{agent_run_id}`로 polling한다.
-- Agent 공통 상태는 `queued`, `running`, `completed`, `failed`다.
+- Agent 공통 상태는 `queued`, `running`, `completed`, `partial`, `failed`, `cancelled`다.
 - `queued`에서는 `started_at=null`, 실행 종료 전에는 `finished_at=null`이다.
 - polling 응답에서 작업 자체가 실패했어도 조회는 `200`이고 `status_code=failed`와 안전한 오류 코드를 반환한다.
 - `completed`는 제안·초안 생성 완료이며 업무 데이터 반영 완료가 아니다.
-- Agent가 제안한 고객, 영업 딜의 견적·계약 정보, 일정, 보고서 변경은 인증된 사용자의 별도 확정 요청 후 반영한다.
-- `meeting_analysis.output_snapshot.support_candidates`는 제안이며 사용자 확정 전에는 `support_request`를 만들지 않는다. 확정된 후보만 C/S 요청 생성 API로 저장한다.
+- Agent가 제안한 고객, 영업 딜의 견적·계약 정보, 일정, 보고서 변경은 인증된 사용자의 별도 확정 요청 후 반영한다. 보고서는 `POST /api/reports/finalize`만 영속화한다.
 - 검증 실패, 사용자 거절 또는 Agent 실패 시 확정 업무 데이터는 변경하지 않되 실패 실행 이력은 `agent_run`에 남긴다.
 - 입력·출력·근거에는 비밀번호, 토큰, 불필요한 개인정보와 권한 밖 원문을 복제하지 않는다.
 - 업로드 문서와 고객 입력은 명령이 아니라 신뢰하지 않는 데이터로 취급한다.
 - Agent 간 호출은 `parent_run_id`로 연결하고 각 실행의 권한과 근거를 독립적으로 기록한다.
-- MVP 전송 방식은 polling 하나만 사용한다. 측정상 polling이 부족할 때 SSE나 webhook을 추가한다.
+- 일반 실행은 polling하고 미팅 생성 진행 상황은 같은 실행의 SSE를 함께 사용할 수 있다. 연결이 끊겨도 새 실행을 만들지 않고 실행 ID로 다시 조회한다.
 
 ## 15. 최소 보안과 로그
 
@@ -279,7 +278,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 인증 | `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` | `SessionRead`; logout `204` |
 | 고객 상태 선택지 | `GET /api/customer-contact-statuses` | active 팀 설정, `position` 순 |
 | 고객사 | `GET/POST /api/customer-companies`, `GET/PATCH /api/customer-companies/{company_id}` | 목록은 `q,skip,limit`; 회사 수정은 manager |
-| 고객 담당자 | `GET/POST /api/customer-contacts`, `GET/PATCH /api/customer-contacts/{contact_id}` | 요청은 `status_code`, 응답은 상태 UUID·code·name·tone 포함 |
+| 고객 담당자 | `GET/POST /api/customer-contacts`, `GET/PATCH/DELETE /api/customer-contacts/{contact_id}` | 요청은 `status_code`, 응답은 상태 UUID·code·name·tone 포함. `DELETE`는 팀장만(아니면 403 `manager_required`) 이고 행을 지우지 않고 `deleted_at`을 채운다 |
 | 일정 선택지 | `GET /api/activity-categories`, `GET /api/activity-action-tags` | active 팀 설정만, `position` 순 |
 | 일정 | `GET/POST /api/activities`, `GET/PATCH/DELETE /api/activities/{activity_id}` | 목록은 `start_date` 필수, `end_date,owner_member_id,skip,limit`; 응답에 category/tag UUID·code·name·tone |
 | 파이프라인 | `GET /api/sales-pipelines`, `GET /api/sales-pipelines/{sales_pipeline_id}/stages` | published와 archived 조회; default 우선, 단계는 `position` 순 |
@@ -293,10 +292,11 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | C/S | `GET/POST /api/support-requests`, `GET /api/support-requests/{request_id}` | 목록은 `q,status_code,assignee_member_id,skip,limit`; 상태 `received|diagnosing|in_progress|completed`; 생성 시 고객사와 계약건(`sales_deal_id`) 필수이며 둘이 어긋나면 `409 company_deal_mismatch` |
 | C/S 전이·답변 | `POST /api/support-requests/{request_id}/transition`, `POST /api/support-requests/{request_id}/responses` | expected 상태 비교; 답변 생성 `201` |
 | 일정 완료 | `POST /api/activities/{activity_id}/complete` | 본문 없음; 완료 시각은 서버가 정함 |
-| 보고서 | `GET/POST /api/reports`, `GET/PATCH/DELETE /api/reports/{report_id}` | 목록은 `q,report_kind,status_code,start_date,end_date,author_member_id,skip,limit` |
-| 보고서 제출 | `POST /api/reports/{report_id}/submit` | `expected_status_code` 비교; `draft`만 제출 가능 |
+| 보고서 조회·삭제 | `GET /api/reports`, `GET/DELETE /api/reports/{report_id}` | 목록은 `q,report_kind,status_code,start_date,end_date,author_member_id,skip,limit`; 삭제는 제출 이력 없는 레거시 편집본만 허용 |
+| 보고서 확정 | `POST /api/reports/finalize` | 사람이 승인한 최종값만 저장·제출; 기존 편집본은 기대 상태·버전 CAS, 모든 요청은 멱등키 사용 |
+| 보고서 검토 | `POST /api/reports/{report_id}/review` | 팀장이 현재 불변 제출본을 승인하거나 수정 요청 |
 | 공지·지시 | `GET /api/notices`, `GET /api/notices/{notice_id}` | 목록은 `scope,q,published_from,published_to,skip,limit` |
-| 보고서 초안 실행 | `POST /api/agent-runs`, `GET /api/agent-runs/{agent_run_id}` | `202` + `Location` + `Retry-After`; polling 으로 상태 확인 |
+| 보고서 초안 실행 | `POST /api/report-generations`, `GET /api/report-generations/latest`, `GET /api/agent-runs/{agent_run_id}` | `Report`를 만들지 않는 임시 실행; `202` + `Location` + `Retry-After` |
 | 대시보드 | `GET /api/dashboard` | `date?,owner_member_id*?,notice_limit=3,renewal_within_days?`; 카드 집계와 주간 밴드를 한 번에 반환 |
 | 자료실 | `GET/POST /api/documents`, `GET/PATCH /api/documents/{document_id}` | 목록은 `q,category_code,customer_company_id,sales_deal_id,created_by_member_id,skip,limit` |
 | 자료 파일 | `POST /api/documents/{document_id}/files`, `GET /api/documents/{document_id}/files/{file_id}/download` | `multipart/form-data` 업로드; 다운로드는 짧은 서명 URL |
@@ -312,16 +312,16 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 
 ### 보고서의 상태와 작성 범위
 
-- 보고서 종류는 유스케이스의 미팅·일자별·주간에 대응하는 `meeting`, `daily`, `weekly`다.
-- 상태는 `draft`, `submitted`, `approved`, `rejected`, `changes_requested`다. 검토 결과 세 가지는 유스케이스 RPT-004의 확인·반려·수정 요청에 대응한다.
-- 현재 API가 만드는 값은 `draft`와 `submitted` 둘이다. 검토 상태 전이는 팀장 기능이라 아직 없다.
-- 생성은 항상 `draft`로 시작한다. 요청으로 `status_code`나 작성자를 정할 수 없다.
-- 수정과 삭제는 `draft`와 `changes_requested`에서만 허용하고 그 밖의 상태는 `409 report_not_editable`이다.
-- 제출은 `draft` 또는 `changes_requested`에서 시작한다. 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다.
-- `weekly`는 `period_start`와 `period_end`가 모두 필요하고 `period_end >= period_start`여야 한다.
-- `meeting`은 근거가 되는 `source_activity_id`가 필요하다.
-- `activity_ids`로 묶는 일정은 같은 팀에서 조회 가능한 일정만 허용하며 아니면 `404 activity_not_found`다.
-- 검토(`approved`, `rejected`)와 `reviewed_by_member_id` 설정은 팀장 기능이라 이번 범위에 없다.
+- 보고서 종류는 `meeting`, `daily`, `weekly`, `monthly`다.
+- 새 생성과 재생성은 임시 `AgentRun`만 만들며 `Report`를 미리 만들거나 수정하지 않는다.
+- 작성자는 최종 화면 값 전체를 `POST /api/reports/finalize`로 한 번 보낸다. 새 보고서는 곧바로 `submitted`로 생성되고 보고서·딜·출처·불변 제출본이 같은 트랜잭션에서 저장된다.
+- 팀장이 수정 요청한 `changes_requested` 보고서와 기존 `draft` 호환 행은 `report_id`, `expected_status_code`, `expected_version`을 함께 보내 같은 endpoint에서 재확정한다.
+- 상태는 `draft`, `submitted`, `approved`, `changes_requested`다. `rejected`는 구버전 조회 필터에서만 받아 0건으로 처리한다.
+- 제출 이력이 없는 `draft` 또는 `changes_requested` 레거시 행만 삭제할 수 있다. 일반 수정·생성·제출 endpoint는 없다.
+- `weekly`와 `monthly`는 유효한 `period_start`·`period_end`가 모두 필요하다.
+- `meeting`은 근거 일정과 한 개 이상의 딜 섹션이 필요하며 둘은 같은 고객사여야 한다.
+- `activity_ids`와 미팅 근거 일정은 같은 팀의 작성자 본인 소유여야 한다.
+- 팀장 검토는 현재 불변 제출본 ID를 비교해 `approved` 또는 `changes_requested`로 전이한다.
 ### 공지와 개인 지시의 조회 범위
 
 - `notice.recipient_member_id`가 NULL이면 팀 공지, 값이 있으면 그 사람에게 온 개인 지시다.
@@ -334,12 +334,14 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 
 ### 보고서 초안 실행
 
-- 현재 사람이 시작할 수 있는 `agent_code`는 `report_writing` 하나다. 멀티에이전트는 아직 없다.
+- 미팅은 `meeting_processing`, 일일·주간·월간은 `report_writing` 실행을 서버가 요청 종류로 결정한다. 클라이언트가 agent code를 고르지 않는다.
 - `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL` 중 하나라도 비면 `503 llm_not_configured`다.
-- 대상 보고서는 조회 가능한 `draft`여야 한다. 제출된 보고서는 `409 report_not_editable`이다.
-- 시작은 `202`와 `Location`, `Retry-After`를 반환하고 클라이언트는 `GET /api/agent-runs/{agent_run_id}`로 polling한다.
+- `POST /api/report-generations`는 보고서를 저장하지 않고 사용자 입력과 권한 검증된 생성 근거를 TTL이 있는 `AgentRun`에 고정한다.
+- 시작은 `202`와 `Location`, `Retry-After`를 반환하고 클라이언트는 polling 또는 미팅 SSE로 같은 실행을 이어 본다.
 - `idempotency_key`는 필수다. 같은 요청자가 같은 키로 다시 보내면 새 실행을 만들지 않고 기존 실행을 돌려준다.
-- 결과는 제안일 뿐이다. `output_snapshot`에만 남고 `report.content`는 사람이 `PATCH /api/reports/{report_id}`로 확정하기 전까지 바뀌지 않는다.
+- 결과는 제안일 뿐이다. 사용자가 최종 승인해 `/api/reports/finalize`가 성공하기 전에는 `Report`가 바뀌지 않는다.
+- 재접속은 같은 사용자와 논리 범위의 `GET /api/report-generations/latest`로 안전한 생성 입력과 최신 실행을 복구한다.
+- 확정하거나 TTL이 지나면 원문·CRM·AI payload를 제거하고 감사 메타데이터만 남긴다.
 - 실행이 실패해도 조회는 `200`이고 `status_code=failed`와 안전한 오류 코드를 반환한다.
 - 오류 코드에는 공급자 URL과 API key를 넣지 않는다. `llm_request_failed:<예외종류>`, `llm_provider_error:<상태>`, `llm_output_schema_mismatch` 형태만 쓴다.
 - 실행 이력은 같은 팀 안에서 요청자 본인 것만 조회한다.

@@ -33,7 +33,7 @@
   }
 }
 
-// 고객을 넣는 길들. 줄 끝에 붙어 다른 도구와 확실히 갈립니다.
+// 고객을 넣는 길. 줄 끝에 붙어 다른 도구와 확실히 갈립니다.
 .add {
   flex: none;
   display: flex;
@@ -47,33 +47,5 @@
   @include sm {
     margin-left: 0;
     padding-left: 0;
-  }
-}
-
-/*
- * 손이 아닌 다른 경로로 넣는 두 가지. 낱개로 띄우면 줄 끝이 비슷한 버튼 넷이 되어
- * 어디가 주된 길인지 사라집니다. 테두리 하나를 나눠 쓰게 붙여 한 덩어리로 읽힙니다.
- */
-.segment {
-  display: flex;
-
-  // Button 의 .root 와 클래스 수가 같으면 파일 순서가 승부를 가릅니다.
-  // 클래스를 겹쳐 우선순위를 한 단계 올려 두고 순서에 기대지 않습니다.
-  &#{&} > :first-child {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-  }
-
-  &#{&} > :last-child {
-    margin-left: -1px;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  }
-
-  // 겹쳐 둔 테두리 탓에 호버한 쪽의 파란 선이 옆 버튼에 가립니다.
-  > :hover,
-  > :focus-visible {
-    position: relative;
-    z-index: 1;
   }
 }

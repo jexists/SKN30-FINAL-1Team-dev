@@ -250,6 +250,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+.reportBody {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.emptyBody {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .count {
   color: var(--muted);
   font-size: 12px;

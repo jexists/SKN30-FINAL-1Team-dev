@@ -46,6 +46,8 @@ export interface Customer {
   companyId?: string
   ownerMemberId?: string
   regionCode?: string | null
+  /** 유입 경로의 원래 코드. source 는 사람이 읽는 라벨이라 수정 폼이 되돌려 쓸 수 없습니다. */
+  sourceCode?: CustomerSourceCode | null
   /** 담당자 전체. 첫 번째가 owner 와 같은 대표 담당자입니다. */
   owners?: CustomerOwner[]
 }
@@ -123,6 +125,12 @@ export interface CustomerContactCreateRequest {
   /** 팀장만 보낼 수 있습니다. 비우면 등록한 사람이 담당자가 됩니다. */
   assignee_member_ids?: string[]
 }
+
+/**
+ * 고객 수정. 등록과 같은 항목을 보내되 상태는 다루지 않습니다.
+ * 보낸 칸만 바뀌므로 화면이 늘 전부 채워 보냅니다.
+ */
+export type CustomerContactUpdateRequest = Omit<CustomerContactCreateRequest, 'status_code'>
 
 export interface PageResponse<T> {
   items: T[]

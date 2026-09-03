@@ -14,6 +14,7 @@ interface Props {
    * 애초에 고를 것이 없는 목록(주간·월간)에서는 체크 모양이 고를 수 있다는 오해를 만듭니다.
    */
   showMark?: boolean
+  disabled?: boolean
   /** 항목 오른쪽에 붙는 상태·바로가기. 원본 보고서가 있는 자료에서 씁니다. */
   renderAside?: (item: ReportActivity) => ReactNode
   onToggle?: (id: string) => void
@@ -23,6 +24,7 @@ export default function ActivityList({
   activities,
   readOnly = false,
   showMark = true,
+  disabled = false,
   renderAside,
   onToggle,
 }: Props) {
@@ -53,6 +55,7 @@ export default function ActivityList({
                 <button
                   type="button"
                   className={styles.check}
+                  disabled={disabled}
                   aria-pressed={item.included}
                   aria-label={`${item.title} 보고서에 포함`}
                   onClick={() => onToggle?.(item.id)}

@@ -4,10 +4,10 @@ import { ChevronDownIcon } from '@/components/icons'
 import StageChip from '@/components/StageChip'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
-import type { MeetingDealRef, MeetingProgress, ReportTemplate } from '@/types'
+import type { MeetingDealRef, MeetingProgress } from '@/types'
 
+import { isInsufficientDealPrediction } from '../../generatedDraft'
 import type { DealDraftState } from '../../useMeetingDraft'
-import AiOriginalPanel from '../AiOriginalPanel'
 import ReportSheet from '../ReportSheet'
 
 import styles from './DealReportCard.module.scss'
@@ -18,17 +18,14 @@ interface Props {
   savedDeal?: MeetingDealRef
   draft: DealDraftState
   progress?: MeetingProgress | null
-  template: ReportTemplate
   when: string
   saving: boolean
   generating: boolean
   canGenerate: boolean
   readOnly: boolean
   onTitleChange: (value: string) => void
-  onChange: (values: Record<string, string>, missingSections: string[]) => void
-  onRestoreSections: () => void
+  onChange: (body: string) => void
   onStartManual: () => void
-  onApplyAi: () => void
   onGenerate: () => void
 }
 
@@ -38,6 +35,9 @@ function assessmentBadge(draft: DealDraftState): {
   title?: string
 } {
   if (draft.analysisPhase === 'running') return { label: 'ML 분석 중', tone: 'blue' }
+  if (isInsufficientDealPrediction(draft.analysisError)) {
+    return { label: '판단 정보 부족', tone: 'neutral' }
+  }
   if (draft.analysisPhase === 'failed') {
     return { label: 'ML 분석 실패', tone: 'red', title: draft.analysisError ?? undefined }
   }
@@ -65,7 +65,6 @@ export default function DealReportCard({
   savedDeal,
   draft,
   progress,
-  template,
   when,
   saving,
   generating,
@@ -73,9 +72,7 @@ export default function DealReportCard({
   readOnly,
   onTitleChange,
   onChange,
-  onRestoreSections,
   onStartManual,
-  onApplyAi,
   onGenerate,
 }: Props) {
   const [open, setOpen] = useState(true)
@@ -85,8 +82,8 @@ export default function DealReportCard({
   const dealTitle = deal ? deal.title.trim() || deal.product : savedDeal?.note
   const editable = draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
   const locked = !editable || readOnly || generating || saving
-  const generationDisabled = draft.statusCode !== 'draft' || !canGenerate
-  const hasAiOriginal = Object.keys(draft.aiValues).length > 0
+  const generationDisabled =
+    !['draft', 'changes_requested'].includes(draft.statusCode) || !canGenerate
 
   return (
     <article className={styles.card}>
@@ -114,37 +111,16 @@ export default function DealReportCard({
       </button>
 
       <div id={bodyId} className={`${styles.body} ${open ? '' : styles.isClosed}`}>
-        {hasAiOriginal && (
-          <details className={styles.original}>
-            <summary>
-              AI 원본 보기
-              {draft.pendingAi && <span>새 결과</span>}
-            </summary>
-            <AiOriginalPanel
-              template={template}
-              values={draft.aiValues}
-              evidence={draft.aiEvidence}
-              generatedAt={draft.aiGeneratedAt}
-              pending={draft.pendingAi}
-              disabled={locked || saving}
-              onApply={onApplyAi}
-            />
-          </details>
-        )}
-
         <ReportSheet
           embedded
           phase={draft.phase}
-          template={template}
           titleId={`report-title-${dealId}`}
           title={draft.title}
           onTitleChange={onTitleChange}
           when={when}
-          values={draft.values}
+          body={draft.values.body ?? ''}
           docKey={draft.docKey}
           onChange={onChange}
-          sectionIssues={draft.sectionIssues}
-          onRestoreSections={onRestoreSections}
           evidence={draft.evidence}
           generationProgress={progress}
           generationPreview={progress?.previews.find(
@@ -155,7 +131,6 @@ export default function DealReportCard({
           generationDisabled={generationDisabled}
           locked={locked}
           saving={saving || generating}
-          hasAiOriginal={hasAiOriginal}
           onStartManual={onStartManual}
           onRegenerate={onGenerate}
           regenerateLabel="미팅 전체 다시 생성"

@@ -45,6 +45,8 @@ _fields = frozenset(
         "missing_evidence_ids",
         "unexpected_evidence_ids",
         "semantic_review_count",
+        "evidence_batch_count",
+        "support_batch_count",
         "review_candidate_count",
         "review_change_count",
         "segment_id",
@@ -74,6 +76,9 @@ _report_validation_codes = frozenset(
         "report_transcript_hash_mismatch",
         "report_body_empty",
         "report_evidence_duplicate",
+        "report_title_empty",
+        "report_deal_title_missing",
+        "report_deal_no_evidence_marker_missing",
     }
 )
 

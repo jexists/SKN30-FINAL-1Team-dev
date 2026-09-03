@@ -5,6 +5,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from app.agents import report_writing_deep as agent
+from app.schemas.reports import REPORT_BODY_MAX_LENGTH
 from app.services.llm import LLMError, LLMNotConfigured
 
 DEAL_A, DEAL_B, OTHER_DEAL = (UUID(int=value) for value in (1, 2, 3))
@@ -47,6 +48,7 @@ def _case(*, unassigned=True):
         deal_reports=[
             agent.DealReport(
                 sales_deal_id=deal,
+                title=f"{deal} 논의",
                 body=f"{rows[index][0]} {rows[5][0]}",
                 evidence_ids=[f"S{index + 1:04d}", "S0006"],
             )
@@ -135,6 +137,23 @@ def test_input_rejects_tampered_source(part, error):
 def test_report_body_rejects_invalid_structure(body, refs, error):
     with pytest.raises(ValidationError, match=error):
         agent.ReportBody(body=body, evidence_ids=refs)
+
+
+@pytest.mark.parametrize("kind", ["shared", "deal"])
+def test_generated_body_matches_the_final_submission_length_limit(kind):
+    def build(body):
+        if kind == "shared":
+            return agent.ReportBody(body=body, evidence_ids=[])
+        return agent.DealReport(
+            sales_deal_id=DEAL_A,
+            title="논의",
+            body=body,
+            evidence_ids=[],
+        )
+
+    assert len(build("가" * REPORT_BODY_MAX_LENGTH).body) == REPORT_BODY_MAX_LENGTH
+    with pytest.raises(ValidationError, match="string_too_long"):
+        build("가" * (REPORT_BODY_MAX_LENGTH + 1))
 
 
 @pytest.mark.parametrize("ids", [(DEAL_A,), (DEAL_A, DEAL_A), (DEAL_A, OTHER_DEAL)])
@@ -246,14 +265,71 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
     assert model.request_timeout.connect == 10.0
 
 
+def test_executive_report_prompt_version_is_explicit():
+    assert agent.PROMPT_VERSION == "report_writing.deep.v9"
+    skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
+    assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
+
+
 def test_deal_schema_emits_identity_before_live_body():
     assert list(agent.DealReport.model_json_schema()["properties"]) == [
         "sales_deal_id",
+        "title",
         "body",
         "evidence_ids",
     ]
     with pytest.raises(ValidationError, match="report_evidence_duplicate"):
         agent.DealReport(sales_deal_id=DEAL_A, body="내용", evidence_ids=["S0001", "S0001"])
+
+
+def test_new_reports_require_title_but_legacy_snapshot_still_deserializes():
+    source, draft = _case()
+    payload = draft.model_dump(mode="json")
+    payload["deal_reports"][0].pop("title")
+    legacy = agent.FreeformMeetingReports.model_validate(payload)
+
+    assert legacy.deal_reports[0].title is None
+    with pytest.raises(ValueError, match="report_deal_title_missing"):
+        agent.validate_reports(source, legacy)
+    agent.validate_reports(source, legacy, require_titles=False)
+
+
+@pytest.mark.parametrize("field", ["title", "body"])
+def test_selected_deal_without_current_evidence_requires_exact_marker(field):
+    source, draft = _case()
+    payload = source.model_dump(mode="json")
+    for item in payload["evidence"]["items"][4:6]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(payload)
+    draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
+    draft.deal_reports[1].title = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].evidence_ids = []
+    agent.validate_reports(source, draft)
+
+    for invalid in (
+        "이전 보고서의 논의만 있음",
+        f"{agent.NO_DEAL_EVIDENCE_TEXT}. 과거에는 예산을 검토했다.",
+    ):
+        setattr(draft.deal_reports[1], field, invalid)
+        with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
+            agent.validate_reports(source, draft)
+
+
+def test_selected_deal_without_evidence_reports_marker_error_for_missing_title():
+    source, draft = _case()
+    payload = source.model_dump(mode="json")
+    for item in payload["evidence"]["items"][4:6]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(payload)
+    draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
+    draft.deal_reports[1].title = None
+    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].evidence_ids = []
+
+    with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
+        agent.validate_reports(source, draft)
 
 
 def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_common():

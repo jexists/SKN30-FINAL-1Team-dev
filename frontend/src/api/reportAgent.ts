@@ -1,112 +1,133 @@
 import { client } from './client'
-import { MEETING_WAIT_MS, waitForMeetingRun } from './meetingStream'
+import {
+  AgentRunTerminalError,
+  isAgentRunTerminalError,
+  MEETING_WAIT_MS,
+  waitForMeetingRun,
+} from './meetingStream'
+
+export { isAgentRunTerminalError }
 
 import type {
   AgentRunResponse,
   AgentRunStatus,
-  DealAssessment,
-  MeetingAnalysisSnapshot,
-  MeetingAssignmentOverride,
   MeetingProcessingOutput,
   MeetingProgress,
-  ReportDraftSnapshot,
+  ReportFinalizeRequest,
+  ReportGenerationRequest,
+  ReportGenerationScope,
   ReportResponse,
 } from '@/types'
 
 const POLL_INTERVAL_MS = 2_000
 
-const wait = (milliseconds: number) =>
-  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
-
-export interface ReportDraftResult {
-  values: Record<string, string>
-  evidence?: string
-}
+const wait = (milliseconds: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('화면을 떠나 대기를 종료했습니다.', 'AbortError'))
+      return
+    }
+    const aborted = () => {
+      globalThis.clearTimeout(timer)
+      reject(new DOMException('화면을 떠나 대기를 종료했습니다.', 'AbortError'))
+    }
+    const timer = globalThis.setTimeout(() => {
+      signal?.removeEventListener('abort', aborted)
+      resolve()
+    }, milliseconds)
+    signal?.addEventListener('abort', aborted, { once: true })
+  })
 
 type CompletedAgentRun<T> = Omit<AgentRunResponse<T>, 'output_snapshot'> & {
   output_snapshot: T
 }
 
-async function runAgent<T>(
-  agentCode: 'report_writing' | 'meeting_analysis',
-  reportId: string,
-  onStatus?: (status: AgentRunStatus) => void,
-): Promise<CompletedAgentRun<T>> {
-  const { data: created } = await client.post<AgentRunResponse<T>>('/agent-runs', {
-    agent_code: agentCode,
-    report_id: reportId,
-    idempotency_key: crypto.randomUUID(),
-  })
-
-  return pollRun(created, onStatus)
+export interface IdempotencyAttempt {
+  signature: string
+  key: string
 }
 
-async function pollRun<T>(
+/** 같은 내용의 응답 유실 재시도에는 같은 키를, 내용이 바뀌면 새 키를 줍니다. */
+export function idempotencyAttemptFor(
+  current: IdempotencyAttempt | undefined,
+  payload: unknown,
+): IdempotencyAttempt {
+  const signature = JSON.stringify(payload, (_key, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+        )
+      : value,
+  )
+  return current?.signature === signature ? current : { signature, key: crypto.randomUUID() }
+}
+
+/** 성공하거나 확정 실패한 현재 시도만 닫습니다. 더 늦게 끝난 옛 요청은 건드리지 않습니다. */
+export function finishIdempotencyAttempt(
+  current: IdempotencyAttempt | undefined,
+  key: string,
+): IdempotencyAttempt | undefined {
+  return current?.key === key ? undefined : current
+}
+
+/** Canonical 보고서가 있으면 재접속 후보를 사람 확인 없이 덮지 않습니다. */
+export function requiresRecoveryConfirmation(reportId?: string): boolean {
+  return Boolean(reportId)
+}
+
+export async function createReportGeneration<T>(
+  request: ReportGenerationRequest,
+): Promise<AgentRunResponse<T>> {
+  return (await client.post<AgentRunResponse<T>>('/report-generations', request)).data
+}
+
+export async function latestReportGeneration<T>(
+  scope: ReportGenerationScope,
+  signal?: AbortSignal,
+): Promise<AgentRunResponse<T>> {
+  return (
+    await client.get<AgentRunResponse<T>>('/report-generations/latest', {
+      params: scope,
+      signal,
+    })
+  ).data
+}
+
+export async function finalizeReport(
+  request: ReportFinalizeRequest,
+  signal?: AbortSignal,
+): Promise<ReportResponse> {
+  return (await client.post<ReportResponse>('/reports/finalize', request, { signal })).data
+}
+
+export async function waitForReportGeneration<T>(
   created: AgentRunResponse<T>,
   onStatus?: (status: AgentRunStatus) => void,
+  signal?: AbortSignal,
+  pollIntervalMs = POLL_INTERVAL_MS,
 ): Promise<CompletedAgentRun<T>> {
   let run = created
   const deadline = Date.now() + MEETING_WAIT_MS
   onStatus?.(run.status_code)
   while (run.status_code === 'queued' || run.status_code === 'running') {
     if (Date.now() >= deadline) throw new Error('agent_run_timeout')
-    await wait(Math.min(POLL_INTERVAL_MS, deadline - Date.now()))
+    await wait(Math.min(pollIntervalMs, deadline - Date.now()), signal)
     const remaining = deadline - Date.now()
     if (remaining <= 0) throw new Error('agent_run_timeout')
     run = (
       await client.get<AgentRunResponse<T>>(`/agent-runs/${run.id}`, {
         timeout: Math.min(client.defaults.timeout || 10_000, remaining),
+        signal,
       })
     ).data
     onStatus?.(run.status_code)
   }
 
   const output = run.output_snapshot
-  if (run.status_code !== 'completed' || !output) {
-    throw new Error(run.error_message ?? 'agent_run_failed')
+  if (!['completed', 'partial'].includes(run.status_code) || !output) {
+    throw new AgentRunTerminalError(run.error_code ?? run.error_message ?? 'agent_run_failed')
   }
   return { ...run, output_snapshot: output }
-}
-
-/**
- * @param onStatus 폴링할 때마다 서버가 말한 상태. 기다리는 화면이 지금 어디쯤인지
- *                 말해 줄 때 씁니다. 서버는 이 세 가지 말고는 알려 주지 않습니다.
- */
-export async function generateReportDraft(
-  reportId: string,
-  onStatus?: (status: AgentRunStatus) => void,
-): Promise<ReportDraftResult> {
-  const run = await runAgent<ReportDraftSnapshot>('report_writing', reportId, onStatus)
-  const output = run.output_snapshot
-
-  return {
-    values: Object.fromEntries((output.fields ?? []).map((field) => [field.field_id, field.value])),
-    evidence: run.evidence?.summary ?? output.summary,
-  }
-}
-
-/** 미팅분석 에이전트와 ML 모델이 만든 딜별 판정입니다. Report 자체는 고치지 않습니다. */
-export async function analyzeMeetingReport(reportId: string): Promise<DealAssessment> {
-  const run = await runAgent<MeetingAnalysisSnapshot>('meeting_analysis', reportId)
-  return run.output_snapshot.deal_assessment
-}
-
-/** 선택된 딜 전체가 같은 원문·근거 장부로 처리되는 미팅 실행입니다. */
-export async function processMeeting(
-  reportId: string,
-  overrides?: { parent_run_id: string; assignment_overrides: MeetingAssignmentOverride[] },
-  onProgress?: (progress: MeetingProgress) => void,
-  signal?: AbortSignal,
-) {
-  const { data } = await client.post<AgentRunResponse<MeetingProcessingOutput>>(
-    `/reports/${reportId}/generations`,
-    {
-      idempotency_key: crypto.randomUUID(),
-      ...overrides,
-    },
-    { signal },
-  )
-  return waitForMeetingProcessing(data, onProgress, signal)
 }
 
 export function waitForMeetingProcessing(
@@ -127,31 +148,12 @@ export function waitForMeetingProcessing(
   })
 }
 
-export async function readReport(reportId: string): Promise<ReportResponse> {
-  return (await client.get<ReportResponse>(`/reports/${reportId}`)).data
-}
-
 export async function latestMeetingProcessing(
-  reportId: string,
+  sourceActivityId: string,
+  signal?: AbortSignal,
 ): Promise<AgentRunResponse<MeetingProcessingOutput>> {
-  return (
-    await client.get<AgentRunResponse<MeetingProcessingOutput>>(
-      `/reports/${reportId}/generations/latest`,
-    )
-  ).data
-}
-
-export async function saveMeetingNotes(
-  runId: string,
-  expectedRevision: string,
-  commonBody: string | null,
-  unassignedBody: string | null,
-): Promise<ReportResponse> {
-  return (
-    await client.patch<ReportResponse>(`/agent-runs/${runId}/meeting-notes`, {
-      expected_revision: expectedRevision,
-      common_body: commonBody,
-      unassigned_body: unassignedBody,
-    })
-  ).data
+  return latestReportGeneration<MeetingProcessingOutput>(
+    { report_kind: 'meeting', source_activity_id: sourceActivityId },
+    signal,
+  )
 }

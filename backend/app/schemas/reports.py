@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
@@ -10,17 +11,31 @@ from pydantic import (
     model_validator,
 )
 
+REPORT_TITLE_MAX_LENGTH = 254
+REPORT_JSON_MAX_BYTES = 256 * 1024
+
 Text = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=254),
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=REPORT_TITLE_MAX_LENGTH,
+    ),
 ]
 LongText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=5_000),
 ]
+REPORT_BODY_MAX_LENGTH = 50_000
 ReportBody = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=50_000),
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=REPORT_BODY_MAX_LENGTH,
+    ),
 ]
 Transcript = Annotated[
     str,
@@ -63,6 +78,54 @@ class _WriteModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def validate_body_template(template_snapshot: dict[str, Any]) -> None:
+    fields = template_snapshot.get("fields")
+    if (
+        not isinstance(fields, list)
+        or len(fields) != 1
+        or not isinstance(fields[0], dict)
+        or fields[0].get("id") != "body"
+    ):
+        raise ValueError("report_template_body_only")
+
+
+def validate_body_values(content: dict[str, Any]) -> None:
+    values = content.get("values")
+    if values is None:
+        return
+    if not isinstance(values, dict):
+        raise ValueError("report_values_invalid")
+    if set(values) - {"body"}:
+        raise ValueError("report_values_body_only")
+    if "body" in values and not isinstance(values["body"], str):
+        raise ValueError("report_body_invalid")
+
+
+def validate_content_title(content: dict[str, Any]) -> None:
+    if "title" not in content or content["title"] is None:
+        return
+    title = content["title"]
+    if (
+        not isinstance(title, str)
+        or not title.strip()
+        or len(title.strip()) > REPORT_TITLE_MAX_LENGTH
+    ):
+        raise ValueError("report_title_invalid")
+
+
+def validate_report_json_size(**fields: Any) -> None:
+    """Apply one byte limit to every client-controlled report JSON field."""
+    for field_name, value in fields.items():
+        serialized = json.dumps(
+            value,
+            ensure_ascii=False,
+            default=str,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if len(serialized) > REPORT_JSON_MAX_BYTES:
+            raise ValueError(f"{field_name}_too_large")
+
+
 def _check_period(kind: ReportKind, start: date | None, end: date | None) -> None:
     if kind in {"meeting", "daily"}:
         if start is not None or end is not None:
@@ -86,13 +149,18 @@ class ReportDealWrite(_WriteModel):
     content: dict[str, Any]
     position: int | None = Field(default=None, ge=0, le=99)
     title: Text | None = None
-    body: ReportBody | None = None
+    body: ReportBody
     structured_values: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _validate_snapshot_id(self) -> Self:
         if self.deal_snapshot.id != self.sales_deal_id:
             raise ValueError("deal_snapshot_id_mismatch")
+        validate_body_values(self.content)
+        validate_content_title(self.content)
+        validate_report_json_size(content=self.content)
+        if self.structured_values:
+            raise ValueError("structured_values_not_supported")
         return self
 
 
@@ -111,7 +179,9 @@ class ReportDealRead(BaseModel):
     updated_at: datetime
 
 
-class ReportCreate(_WriteModel):
+class ReportFinalize(_WriteModel):
+    """사람이 승인한 최종값을 한 번에 저장하고 제출하는 요청."""
+
     report_kind: ReportKind
     report_date: date
     period_start: date | None = None
@@ -130,10 +200,24 @@ class ReportCreate(_WriteModel):
     transcript: Transcript | None = None
     note: LongText | None = None
     activity_ids: list[UUID] = Field(default_factory=list)
+    idempotency_key: UUID
+    agent_run_id: UUID | None = None
+    report_id: UUID | None = None
+    expected_version: int | None = Field(default=None, ge=1)
+    expected_status_code: SubmittableStatus | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
         _check_period(self.report_kind, self.period_start, self.period_end)
+        validate_body_template(self.template_snapshot)
+        validate_body_values(self.content)
+        validate_content_title(self.content)
+        validate_report_json_size(
+            template_snapshot=self.template_snapshot,
+            content=self.content,
+        )
+        if self.structured_values:
+            raise ValueError("structured_values_not_supported")
         # 업무보고서는 근거 일정이 곧 보고 대상이라 반드시 있어야 합니다.
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
@@ -142,8 +226,19 @@ class ReportCreate(_WriteModel):
                 raise ValueError("deal_sections_required")
             if self.sales_deal_id is not None:
                 raise ValueError("sales_deal_not_supported")
-        elif self.sales_deal_id is not None or self.deal_sections:
-            raise ValueError("deal_sections_not_supported")
+            if self.body is not None:
+                raise ValueError("report_body_not_supported")
+            if self.activity_ids:
+                raise ValueError("activity_ids_not_supported")
+        else:
+            if self.body is None:
+                raise ValueError("report_body_required")
+            if self.sales_deal_id is not None or self.deal_sections:
+                raise ValueError("deal_sections_not_supported")
+            if self.source_activity_id is not None:
+                raise ValueError("source_activity_not_supported")
+            if self.common_body is not None or self.unassigned_body is not None:
+                raise ValueError("meeting_shared_not_supported")
         deal_ids = [section.sales_deal_id for section in self.deal_sections]
         if len(set(deal_ids)) != len(deal_ids):
             raise ValueError("duplicate_deal_sections")
@@ -157,53 +252,16 @@ class ReportCreate(_WriteModel):
             raise ValueError("duplicate_activity_ids")
         return self
 
-
-class ReportPatch(_WriteModel):
-    expected_version: int = Field(ge=1)
-    report_date: date | None = None
-    period_start: date | None = None
-    period_end: date | None = None
-    recipient_member_id: UUID | None = None
-    template_snapshot: dict[str, Any] | None = None
-    content: dict[str, Any] | None = None
-    title: Text | None = None
-    body: ReportBody | None = None
-    common_body: ReportBody | None = None
-    unassigned_body: ReportBody | None = None
-    structured_values: dict[str, Any] = Field(default_factory=dict)
-    transcript: Transcript | None = None
-    note: LongText | None = None
-    activity_ids: list[UUID] | None = None
-    deal_sections: list[ReportDealWrite] | None = Field(default=None, max_length=100)
-
     @model_validator(mode="after")
-    def _validate(self) -> Self:
-        for field_name in ("report_date", "template_snapshot"):
-            if field_name in self.model_fields_set and getattr(self, field_name) is None:
-                raise ValueError(f"{field_name}_required")
-        if self.period_start is not None and self.period_end is not None:
-            if self.period_end < self.period_start:
-                raise ValueError("invalid_report_period")
-        if self.activity_ids is not None and len(set(self.activity_ids)) != len(self.activity_ids):
-            raise ValueError("duplicate_activity_ids")
-        if self.deal_sections is not None:
-            if not self.deal_sections:
-                raise ValueError("deal_sections_required")
-            deal_ids = [section.sales_deal_id for section in self.deal_sections]
-            if len(set(deal_ids)) != len(deal_ids):
-                raise ValueError("duplicate_deal_sections")
-            positions = [
-                section.position if section.position is not None else index
-                for index, section in enumerate(self.deal_sections)
-            ]
-            if len(set(positions)) != len(positions):
-                raise ValueError("duplicate_deal_positions")
+    def _validate_existing_revision(self) -> Self:
+        expected = self.expected_version is not None or self.expected_status_code is not None
+        if self.report_id is None and expected:
+            raise ValueError("report_id_required")
+        if self.report_id is not None and (
+            self.expected_version is None or self.expected_status_code is None
+        ):
+            raise ValueError("report_revision_expectation_required")
         return self
-
-
-class ReportSubmit(_WriteModel):
-    expected_status_code: SubmittableStatus
-    expected_version: int = Field(ge=1)
 
 
 class ReportReview(_WriteModel):
@@ -250,7 +308,6 @@ class ReportRead(BaseModel):
     status_code: ReportStatus
     version: int
     generation_input_version: int
-    last_applied_agent_run_id: UUID | None
     current_submission_id: UUID | None
     template_snapshot: dict[str, Any]
     content: dict[str, Any]

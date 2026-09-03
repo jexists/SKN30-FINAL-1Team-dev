@@ -1,0 +1,112 @@
+/* ---- 고르기 ---- */
+
+// Documents 의 업로드 드롭존과 같은 모양입니다. 여기서는 파일 하나만 받습니다.
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s7) var(--s4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: center;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out);
+
+  strong {
+    color: var(--ink);
+    font-size: 14px;
+  }
+
+  p {
+    font-size: 13px;
+  }
+}
+
+// 끌어온 파일이 이 자리에 놓인다는 것을 색으로 알립니다.
+.isDragging {
+  border-color: var(--blue);
+  background: var(--blue-tint);
+}
+
+.limit {
+  font-size: 11px;
+}
+
+/* ---- 고른 파일 한 줄 ---- */
+
+.picked {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+// 파일명이 길어도 오른쪽 버튼들은 자리를 잃지 않습니다.
+.file {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.meta {
+  font-size: 11px;
+}
+
+.remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--red-tint);
+    color: var(--red-ink);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.progress {
+  display: grid;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+.step {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.error {
+  margin-top: var(--s2);
+  color: var(--red-ink);
+  font-size: 12px;
+}

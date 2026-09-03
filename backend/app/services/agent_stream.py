@@ -6,6 +6,8 @@ from contextvars import ContextVar
 from typing import Any
 from uuid import UUID
 
+from app.schemas.reports import REPORT_BODY_MAX_LENGTH
+
 # ponytail: 기존 실행기와 같은 단일 worker의 임시 미리보기다. 다중 worker에서는
 # 공유 pub/sub로 교체한다. 캐시를 못 찾으면 클라이언트는 DB 완료 상태만 기다린다.
 _states: OrderedDict[str, dict[str, Any]] = OrderedDict()
@@ -73,7 +75,7 @@ def publish_progress(stage: str | None = None, *, preview: dict | None = None, *
             return
         if (
             not isinstance(body, str)
-            or len(body) > 100_000
+            or len(body) > REPORT_BODY_MAX_LENGTH
             or type(revision) is not int
             or revision < 0
         ):

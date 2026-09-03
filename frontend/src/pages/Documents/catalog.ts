@@ -3,10 +3,10 @@ import type { DocumentCategory, DocumentFileKind, DocumentVersion, SalesDocument
 export type CategoryTone = 'blue' | 'purple' | 'green' | 'orange' | 'gray'
 
 export const DOCUMENT_CATEGORIES: DocumentCategory[] = [
+  '견적서',
   '계약서',
   '발주서',
   '상품설명서',
-  '견적서',
   '기타',
 ]
 

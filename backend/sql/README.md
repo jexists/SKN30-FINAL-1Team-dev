@@ -224,6 +224,29 @@
   적용 여부를 확인 가능한 범위에서만 백필합니다. **현재 연결된 개발 DB에는 0017 다음으로
   2026-09-01 적용했으며 운영 DB에는 적용하지 않았습니다.**
 
+- `20260902_0019_transient_report_generation.sql`: 보고서 생성 중에는 `report`를 만들지 않고
+  24시간짜리 `agent_run` 입력·결과만 보관하며, 사람의 최종 확정은 멱등키가 붙은 불변
+  `report_submission`과 함께 저장합니다. 화면 재접속 scope·payload 만료 컬럼을 추가하며,
+  Blue/green 호환을 위해 구 자동 적용 컬럼·인덱스와 `meeting_deal_analysis`는 남겨 둡니다.
+  이 호환 객체는 구 컨테이너 종료 뒤 별도 정리 migration에서만 제거합니다. **현재 연결된
+  개발 DB에는 2026-09-03 적용했고 `agent_worker --check-schema`까지 통과했으며,
+  운영 DB에는 적용하지 않았습니다.**
+
+- `20260903_0020_report_freeform_body.sql`: 미팅·일일·주간·월간 보고서를 `body` 하나인
+  자유 본문 양식으로 통일합니다. 기존 본문은 그대로 두고, 본문이 빈 구 보고서는
+  저장 양식에 선언된 사람 확정 값만 필드 순서대로 이어 붙입니다. AI 초안·원문·메타데이터는
+  본문으로 옮기지 않습니다. 단일 딜이 확정된 구 미팅만 `report_deal`로 옮기며, 값이
+  충돌하거나 body-only가 아닌 불변 제출본이 있으면 삭제 대신 전체 migration을 중단합니다.
+  **개발 DB에는 검토 전 초안이 적용됐지만 현재 PR의 최종 SQL은 적용하지 않았습니다.
+  운영 DB에도 적용하지 않았습니다. 적용 전 백업/PITR 확인이 필수입니다.**
+
+- `20260903_0021_customer_contact_soft_delete.sql`: `customer_contact`에 `deleted_at`과
+  살아 있는 행만 담는 부분 인덱스를 더합니다. 고객 삭제(팀장 전용)를 행 삭제가 아니라
+  `deleted_at` 표시로 처리하기 위한 것입니다. `activity`·`sales_deal`·`sales_deal_participant`가
+  `ON DELETE` 옵션 없이 이 표를 참조해 실제 DELETE는 외래키에 막히고, 참조를 먼저 끊으면
+  딜·일정에서 만난 사람의 기록이 사라집니다. 기존 행은 전부 `NULL`(살아 있음)이라 백필이
+  없습니다. **아직 어느 DB에도 적용하지 않았습니다.**
+
 - `20260902_0019_activity_customer_company.sql`: 일정에 고객사 칸 `activity.customer_company_id`
   (NOT NULL)를 더하고, 그 앞에서 대표 담당자가 빈 딜·일정을 정리합니다. 담당자가 비어 있으면
   계약관리 에이전트가 다음 미팅을 추천할 때 일정에 넣을 사람을 못 정해 AI 브리핑이 만들어지지
@@ -278,6 +301,9 @@
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0017_report_workflow_v2_foundation.sql` | session pooler | 성공. 정리 후 report 699행과 report_deal 461행을 유지하고 report_submission·report_source·meeting_deal_analysis 및 제약조건·인덱스를 추가. 일일보고서 중복 0건 확인 |
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0018_agent_run_queue.sql` | session pooler | 성공. 정리 후 agent_run 537행을 유지하고 큐 컬럼·제약조건·인덱스를 추가. `agent_worker --check-schema` 통과 |
 | 2026-09-02 | 현재 연결된 개발 DB | `20260902_0019_activity_customer_company.sql` | session pooler | **미적용(대기).** 트랜잭션 안에서 돌려 보고 롤백한 결과만 확인했습니다. 딜 담당자 NULL 19→0 / 일정 담당자 NULL 48→0(활성 33 + 소프트 삭제 15) / 일정 고객사 NULL 0. 삭제는 딜 9(416→407) · 일정 34(1993→1959) · 보고서 14(707→693) · `contract_next_meeting_suggestion` 3(90→87)이고, 딜에 걸린 자료 7건과 `report_deal` 472행은 그대로였습니다. 이 브랜치를 배포하기 직전에 적용합니다 |
+| 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_transient_report_generation.sql` | session pooler | 성공. 생성 payload 만료·재접속 scope·멱등 확정 컬럼과 보호 함수를 추가하고 `agent_worker --check-schema` 통과 |
+| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_report_freeform_body.sql` 검토 전 초안 | session pooler | 일일 204·주간 51·월간 20건을 본문으로 이관하고 report_deal 본문 83→453건. 현재 PR의 fail-closed 검증과 구 단일 딜 미팅 이관이 들어가기 전 SQL이므로, 개발 반영 때는 0020 직전 백업으로 복구한 뒤 최종 SQL을 적용해야 함 |
+| 2026-09-03 | — | `20260903_0021_customer_contact_soft_delete.sql` | — | 대기. 고객 삭제용 `customer_contact.deleted_at`과 부분 인덱스. 적용 요청을 아직 받지 않았습니다 |
 
 ## 개발 DB 재구축 런북
 

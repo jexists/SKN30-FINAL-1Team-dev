@@ -5,7 +5,7 @@
 import { useId } from 'react'
 
 import Button from '@/components/Button'
-import type { MeetingPreview, MeetingProgress, ReportTemplate } from '@/types'
+import type { MeetingPreview, MeetingProgress } from '@/types'
 
 import type { MeetingPhase } from '../../useMeetingDraft'
 import GenerationProgress from '../GenerationProgress'
@@ -15,19 +15,15 @@ import styles from './ReportSheet.module.scss'
 
 interface Props {
   phase: MeetingPhase
-  template: ReportTemplate
   titleId?: string
   title: string
   onTitleChange: (value: string) => void
   /** 미팅한 날. 제목 아래에 한 줄로 놓습니다. */
   when: string
-  values: Record<string, string>
+  body: string
   /** 편집기를 다시 세워야 할 때 올라갑니다. */
   docKey: number
-  onChange: (values: Record<string, string>, missingSections: string[]) => void
-  /** 문서에서 사라진 항목 제목. 있으면 저장을 막습니다. */
-  sectionIssues: string[]
-  onRestoreSections: () => void
+  onChange: (body: string) => void
   evidence?: string
   /** 서버가 보낸 실행 상태와 검토 전 초안. 최종 편집기 값으로 쓰지 않습니다. */
   generationProgress?: MeetingProgress | null
@@ -39,7 +35,6 @@ interface Props {
   generationDisabled?: boolean
   locked: boolean
   saving: boolean
-  hasAiOriginal: boolean
   onStartManual: () => void
   onRegenerate: () => void
   regenerateLabel?: string
@@ -49,16 +44,13 @@ interface Props {
 
 export default function ReportSheet({
   phase,
-  template,
   titleId,
   title,
   onTitleChange,
   when,
-  values,
+  body,
   docKey,
   onChange,
-  sectionIssues,
-  onRestoreSections,
   evidence,
   generationProgress,
   generationPreview,
@@ -67,7 +59,6 @@ export default function ReportSheet({
   generationDisabled = false,
   locked,
   saving,
-  hasAiOriginal,
   onStartManual,
   onRegenerate,
   regenerateLabel = 'AI 다시 생성',
@@ -76,7 +67,6 @@ export default function ReportSheet({
   const generatedTitleId = useId()
   const inputId = titleId ?? generatedTitleId
   const empty = phase === 'idle'
-  const broken = sectionIssues.length > 0
 
   return (
     <div className={`${styles.root} ${embedded ? styles.embedded : ''}`}>
@@ -129,17 +119,11 @@ export default function ReportSheet({
               <GenerationProgress
                 progress={generationProgress}
                 preview={generationPreview}
-                fieldCount={template.fields.length}
+                fieldCount={1}
               />
             ) : (
               <>
-                <ReportDocument
-                  template={template}
-                  values={values}
-                  docKey={docKey}
-                  disabled={locked}
-                  onChange={onChange}
-                />
+                <ReportDocument body={body} docKey={docKey} disabled={locked} onChange={onChange} />
                 {evidence && <p className={styles.evidence}>{evidence}</p>}
               </>
             )}
@@ -147,7 +131,7 @@ export default function ReportSheet({
         )}
       </article>
 
-      {hasAiOriginal && (
+      {!empty && (
         <div className={styles.actions}>
           <Button
             variant="outline"
@@ -156,27 +140,6 @@ export default function ReportSheet({
             onClick={onRegenerate}
           >
             {regenerateLabel}
-          </Button>
-        </div>
-      )}
-
-      {/*
-        항목 제목이 사라지면 그 아래 글이 어느 항목인지 알 수 없습니다. 짐작해서
-        저장하면 조용히 엉뚱한 자리에 들어가므로, 여기서 멈추고 되돌릴 길을 줍니다.
-      */}
-      {broken && (
-        <div className={styles.broken} role="alert">
-          <p>
-            {sectionIssues.join(', ')} 제목이 문서에서 사라졌습니다. 되살린 뒤 저장할 수 있습니다.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            disabled={locked || saving || phase === 'generating'}
-            onClick={onRestoreSections}
-          >
-            제목 되살리기
           </Button>
         </div>
       )}

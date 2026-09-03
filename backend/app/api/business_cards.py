@@ -159,6 +159,8 @@ async def archive_business_card(
             .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
             .where(
                 CustomerContact.id == contact_id,
+                # 지운 고객에는 명함 원본을 새로 보관하지 않는다.
+                CustomerContact.deleted_at.is_(None),
                 CustomerCompany.team_id == member.team_id,
             )
         )

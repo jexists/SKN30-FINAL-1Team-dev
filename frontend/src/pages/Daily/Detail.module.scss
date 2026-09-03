@@ -63,6 +63,17 @@
   }
 }
 
+.review {
+  border-color: color-mix(in srgb, var(--orange-ink) 22%, var(--line));
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+
+  p {
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
+}
+
 .missing {
   @include card;
 

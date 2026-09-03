@@ -24,8 +24,8 @@ from app.schemas.reports import ReportReview
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
-TEMPLATE = {"fields": [{"id": "summary", "label": "요약"}]}
-CONTENT = {"summary": "합성 보고 내용"}
+TEMPLATE = {"fields": [{"id": "body", "label": "본문"}]}
+CONTENT = {"values": {"body": "합성 보고 내용"}}
 _MISSING = object()
 
 
@@ -126,7 +126,6 @@ def _report(author: Member, *, status_code: str = "submitted") -> Report:
         ai_evidence=None,
         version=1,
         generation_input_version=1,
-        last_applied_agent_run_id=None,
         current_submission_id=uuid4(),
         note="활동 3건",
         review_note=None,

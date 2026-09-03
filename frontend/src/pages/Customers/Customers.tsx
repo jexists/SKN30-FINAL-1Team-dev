@@ -3,18 +3,24 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { errorMessage, transportMessage } from '@/api/errorMessage'
+import { useCurrentUser } from '@/auth/sessionContext'
+import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
+import Modal from '@/components/Modal'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
 import { useScopeOwnerIds, useShowOwner } from '@/shared/scope'
+import { showToast } from '@/shared/toast'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
 
 import type { BusinessCardDraft } from './businessCard'
+import type { BusinessLicenseDraft } from './businessLicense'
 import { COLUMN_BY_ID } from './columns'
 import { toCustomer } from './contact'
 import { exportCustomers, TooManyCustomersError } from './exportCustomers'
 import useColumnPrefs from './useColumnPrefs'
 import BusinessCardModal from './components/BusinessCardModal'
+import BusinessLicenseModal from './components/BusinessLicenseModal'
 import CustomerDrawer from './components/CustomerDrawer'
 import CustomerFormModal from './components/CustomerFormModal'
 import CustomerTable from './components/CustomerTable'
@@ -26,8 +32,11 @@ import styles from './Customers.module.scss'
 
 export type SortState = { id: string; dir: 'asc' | 'desc' } | null
 
-/** 한 번에 하나만 열립니다. 명함으로 읽은 값은 그대로 등록 폼으로 넘어갑니다. */
-type OpenDialog = 'create' | 'import' | 'card' | null
+/**
+ * 한 번에 하나만 열립니다. 명함·사업자등록증에서 읽은 값은 그대로 등록 폼으로 넘어갑니다.
+ * TableToolbar 의 등록 메뉴가 돌려주는 말과 같은 값입니다.
+ */
+type OpenDialog = 'create' | 'import' | 'card' | 'license' | null
 
 function loadErrorMessage(error: unknown): string {
   const fallback = '고객 목록을 불러오지 못했습니다.'
@@ -45,12 +54,20 @@ export default function Customers() {
   const [page, setPage] = useState(1)
   const [dialog, setDialog] = useState<OpenDialog>(null)
   const [cardDraft, setCardDraft] = useState<BusinessCardDraft | null>(null)
+  const [licenseDraft, setLicenseDraft] = useState<BusinessLicenseDraft | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [exporting, setExporting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Customer | null>(null)
+  const [deleting, setDeleting] = useState<Customer | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // 삭제는 팀장만 합니다. 메뉴에서 감추기만 하고 실제로 막는 일은 백엔드가 합니다.
+  const { isManager } = useCurrentUser()
 
   const { prefs, toggleColumn, moveColumn, setWidth, reset } = useColumnPrefs()
   // 한 사람만 보고 있으면 담당자 칸이 줄마다 같은 이름이라 아예 감춥니다. 팀원은 늘 그렇습니다.
@@ -152,6 +169,7 @@ export default function Customers() {
   const closeDialog = useCallback(() => {
     setDialog(null)
     setCardDraft(null)
+    setLicenseDraft(null)
   }, [])
 
   /** 목록을 처음부터 다시 받습니다. 방금 넣은 고객이 검색어에 걸리지 않을 수 있습니다. */
@@ -177,6 +195,13 @@ export default function Customers() {
     setDialog('create')
   }, [])
 
+  // 사업자등록증에서 읽은 값도 바로 저장하지 않습니다. 담당자 이름·연락처는
+  // 등록증에 없으므로 등록 폼에서 사람이 채웁니다.
+  const onLicenseDrafted = useCallback((draft: BusinessLicenseDraft) => {
+    setLicenseDraft(draft)
+    setDialog('create')
+  }, [])
+
   const onCustomerCreated = useCallback(
     (_contact: CustomerContactResponse, warning?: string) => {
       reload()
@@ -184,6 +209,47 @@ export default function Customers() {
     },
     [reload],
   )
+
+  /**
+   * 고친 줄만 갈아 끼웁니다. 목록을 다시 받으면 열려 있던 상세가 닫히는데
+   * (아래 로딩 효과가 openId 를 비웁니다), 방금 고친 값은 그 자리에서 보여야 합니다.
+   */
+  const onCustomerUpdated = useCallback((contact: CustomerContactResponse) => {
+    const updated = toCustomer(contact)
+    setRows((previous) => previous.map((row) => (row.id === updated.id ? updated : row)))
+    setEditing(null)
+    showToast('고객 정보를 수정했습니다.')
+  }, [])
+
+  const closeDeleteModal = useCallback(() => {
+    if (isDeleting) return
+    setDeleting(null)
+    setDeleteError(null)
+  }, [isDeleting])
+
+  const confirmDelete = useCallback(() => {
+    if (deleting === null || isDeleting) return
+    const target = deleting
+
+    setIsDeleting(true)
+    setDeleteError(null)
+
+    void client
+      .delete(`/customer-contacts/${target.id}`)
+      .then(() => {
+        setDeleting(null)
+        setOpenId(null)
+        // 눈앞에서 먼저 지우고, 쪽수와 합계는 다시 받아 맞춥니다.
+        setRows((previous) => previous.filter((row) => row.id !== target.id))
+        setTotal((previous) => Math.max(0, previous - 1))
+        setReloadKey((value) => value + 1)
+        showToast('고객을 삭제했습니다.')
+      })
+      .catch((error: unknown) => {
+        setDeleteError(errorMessage(error, '고객을 삭제하지 못했습니다.'))
+      })
+      .finally(() => setIsDeleting(false))
+  }, [deleting, isDeleting])
 
   // 내보내기는 화면 밖의 줄까지 모두 모읍니다. 페이지 한 장만 담으면 파일이 거짓말을 합니다.
   const exportRef = useRef<AbortController | null>(null)
@@ -237,9 +303,7 @@ export default function Customers() {
         onMoveColumn={moveColumn}
         onResetColumns={reset}
         hiddenColumns={hiddenColumns}
-        onCreate={() => setDialog('create')}
-        onImport={() => setDialog('import')}
-        onScanCard={() => setDialog('card')}
+        onAdd={setDialog}
         onExport={onExport}
         exporting={exporting}
         canExport={total > 0}
@@ -286,24 +350,40 @@ export default function Customers() {
           onCreated={onCustomerCreated}
           duplicateMatches={cardDraft?.matches}
           archiveImage={cardDraft?.sourceImage}
+          // 등록증에는 담당자가 없습니다. 사람 칸은 명함일 때만 채웁니다.
           initial={
-            cardDraft === null
-              ? undefined
-              : {
+            cardDraft
+              ? {
                   name: cardDraft.name,
                   dept: cardDraft.dept,
                   title: cardDraft.title,
                   email: cardDraft.email,
                   phone: cardDraft.phone,
                 }
+              : undefined
           }
           initialCompany={
-            cardDraft?.org.trim() ? { kind: 'new', name: cardDraft.org.trim() } : undefined
+            cardDraft?.org.trim()
+              ? { kind: 'new', name: cardDraft.org.trim() }
+              : licenseDraft?.company.trim()
+                ? { kind: 'new', name: licenseDraft.company.trim() }
+                : undefined
+          }
+          initialBusinessNo={licenseDraft?.businessNo}
+          // 등록증의 소재지는 한 줄로 옵니다. 우편번호가 필요하면 주소 검색으로 다시 고릅니다.
+          initialAddress={
+            licenseDraft?.address.trim()
+              ? { postcode: '', address: licenseDraft.address.trim(), addressDetail: '' }
+              : undefined
           }
         />
       )}
 
       {dialog === 'import' && <ImportModal onClose={closeDialog} onImported={onImported} />}
+
+      {dialog === 'license' && (
+        <BusinessLicenseModal onClose={closeDialog} onDrafted={onLicenseDrafted} />
+      )}
 
       {dialog === 'card' && (
         <BusinessCardModal
@@ -313,7 +393,57 @@ export default function Customers() {
         />
       )}
 
-      {openCustomer && <CustomerDrawer customer={openCustomer} onClose={() => setOpenId(null)} />}
+      {openCustomer && (
+        <CustomerDrawer
+          customer={openCustomer}
+          canDelete={isManager}
+          onEdit={() => setEditing(openCustomer)}
+          onDelete={() => {
+            setDeleteError(null)
+            setDeleting(openCustomer)
+          }}
+          onClose={() => setOpenId(null)}
+        />
+      )}
+
+      {editing && (
+        <CustomerFormModal
+          customer={editing}
+          onClose={() => setEditing(null)}
+          onCreated={onCustomerCreated}
+          onUpdated={onCustomerUpdated}
+        />
+      )}
+
+      {deleting && (
+        <Modal
+          title="고객을 삭제하시겠습니까?"
+          description={`${deleting.org} · ${deleting.name}`}
+          onClose={closeDeleteModal}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isDeleting}
+                onClick={closeDeleteModal}
+              >
+                취소
+              </Button>
+              <Button type="button" disabled={isDeleting} onClick={confirmDelete}>
+                {isDeleting ? '삭제 중…' : '삭제'}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>삭제한 고객 정보는 복구할 수 없습니다.</p>
+          {deleteError && (
+            <p className={styles.confirmError} role="alert">
+              {deleteError}
+            </p>
+          )}
+        </Modal>
+      )}
     </section>
   )
 }

@@ -1,7 +1,6 @@
 import type {
   ApiReportStatus,
   DealAssessment,
-  MeetingEvidenceLedger,
   MeetingSharedNotes,
   ReportAttachment,
   ReportStatus,
@@ -34,11 +33,6 @@ export interface MeetingDealSection {
   title: string
   values: Record<string, string>
   evidence?: string
-  aiValues: Record<string, string>
-  aiEvidence?: string
-  aiGeneratedAt?: string
-  /** 서버가 저장한 미팅 분석 원본. 사람이 본문을 저장해도 그대로 돌려보냅니다. */
-  analysisEvidence: Record<string, unknown> | null
   assessment?: DealAssessment
   analysisError?: string
   reportError?: string
@@ -75,9 +69,7 @@ export interface MeetingReportSeed {
   transcript: string
   attachments: ReportAttachment[]
   dealSections: MeetingDealSection[]
-  meetingRunId?: string
   meetingShared?: MeetingSharedNotes
-  evidenceLedger?: MeetingEvidenceLedger
 }
 
 /** 실제 날짜가 붙은 업무보고서. date 는 미팅한 날입니다. */

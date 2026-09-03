@@ -5,7 +5,7 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
 import { EditIcon } from '@/components/icons'
-import ReportFields from '@/components/ReportFields'
+import ReportBody from '@/components/ReportBody'
 import { SkeletonDetail } from '@/components/Skeleton'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
@@ -16,6 +16,7 @@ import type { MeetingDealSection } from '@/types'
 
 import MeetingFacts from './components/MeetingFacts'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
+import { isInsufficientDealPrediction } from './generatedDraft'
 import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
 import { toMeetingReport } from './useMeetingReports'
 
@@ -26,6 +27,9 @@ function assessmentBadge(section: MeetingDealSection): {
   tone: StatusTone
   title?: string
 } {
+  if (isInsufficientDealPrediction(section.analysisError)) {
+    return { label: '판단 정보 부족', tone: 'neutral' }
+  }
   if (section.analysisError) {
     return { label: 'ML 분석 실패', tone: 'red', title: section.analysisError }
   }
@@ -164,17 +168,18 @@ export default function Detail() {
                       </span>
                     </div>
 
-                    {report.template.fields.length === 0 ? (
-                      <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
+                    {section.values.body?.trim() ? (
+                      <ReportBody className={styles.reportBody} body={section.values.body} />
                     ) : (
-                      <ReportFields template={report.template} values={section.values} readOnly />
+                      <p className={styles.emptyBody}>작성된 내용이 없습니다.</p>
                     )}
                     {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
-                    {section.analysisError && (
-                      <p className={styles.sectionError} role="status">
-                        ML 분석: {section.analysisError}
-                      </p>
-                    )}
+                    {section.analysisError &&
+                      !isInsufficientDealPrediction(section.analysisError) && (
+                        <p className={styles.sectionError} role="status">
+                          ML 분석: {section.analysisError}
+                        </p>
+                      )}
                     {section.reportError && (
                       <p className={styles.sectionError} role="status">
                         보고서 생성: {section.reportError}

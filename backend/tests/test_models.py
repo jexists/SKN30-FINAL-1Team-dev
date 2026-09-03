@@ -22,7 +22,7 @@ EXPECTED_COLUMN_COUNTS = {
     # 20260826_0009 로 customer_company 에 postcode/address/address_detail 이 늘었다.
     "customer_company": 9,
     # 20260824_0004 로 customer_contact 에 visited 가 늘었다.
-    "customer_contact": 14,
+    "customer_contact": 15,
     "customer_contact_assignee": 3,
     "customer_contact_status": 9,
     # 20260824_0004 로 product 에 category_code/unit_price/shelf_life_months/memo/
@@ -64,12 +64,11 @@ EXPECTED_COLUMN_COUNTS = {
     "purchase_order_item": 6,
     "sales_target": 5,
     # report는 수정 가능한 aggregate, report_submission은 확정 당시 불변 스냅샷이다.
-    # report_deal은 딜별 본문 N행, meeting_deal_analysis는 실행별 ML 결과를 보관한다.
-    "report": 32,
+    # 생성 중 결과는 AgentRun에만 있고 확정된 딜별 ML 결과는 report_deal에 붙는다.
+    "report": 31,
     "report_deal": 13,
-    "report_submission": 13,
+    "report_submission": 16,
     "report_source": 4,
-    "meeting_deal_analysis": 10,
     "report_activity": 2,
     # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
     "document": 14,
@@ -84,7 +83,10 @@ EXPECTED_COLUMN_COUNTS = {
 
 # Supabase에 이미 남아 있지만 현재 애플리케이션이 사용하지 않는 과거 테이블입니다.
 # 삭제 대신 명시적으로 허용하고, 현재 모델 테이블이 DB에서 빠지는 경우는 계속 실패시킵니다.
-KNOWN_LEGACY_DATABASE_TABLES = {"contract_next_meeting_suggestion"}
+KNOWN_LEGACY_DATABASE_TABLES = {
+    "contract_next_meeting_suggestion",
+    "meeting_deal_analysis",
+}
 
 # 원격 Supabase에 이전 마이그레이션의 잔여 컬럼이 남아 있을 수 있습니다.
 # 모델 컬럼 누락은 계속 실패시키고, 아래에 기록한 추가 컬럼만 허용합니다.
@@ -120,14 +122,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 451
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 444
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 111
+    assert len(foreign_key_constraints) == 109
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

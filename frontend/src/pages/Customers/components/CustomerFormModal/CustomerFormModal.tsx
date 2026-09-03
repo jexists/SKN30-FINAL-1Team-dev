@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
@@ -10,10 +10,12 @@ import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
 import { SOURCE_LABEL } from '@/pages/Customers/contact'
 import type {
+  Customer,
   CustomerCompanyCreateRequest,
   CustomerCompanyResponse,
   CustomerContactCreateRequest,
   CustomerContactResponse,
+  CustomerContactUpdateRequest,
   CustomerSourceCode,
 } from '@/types'
 import { businessNoDigits, formatBusinessNo } from '@/utils/format'
@@ -25,10 +27,27 @@ interface CustomerFormModalProps {
   onClose: () => void
   /** 방금 만든 고객. 부른 쪽이 그대로 골라 둘 수 있게 넘깁니다. */
   onCreated: (contact: CustomerContactResponse, warning?: string) => void
+  /**
+   * 고칠 고객. 주면 수정 폼이 됩니다. 항목은 등록과 같고 상태만 다루지 않습니다.
+   * 상태를 바꾸는 화면이 아직 없어 여기서 새로 만들지 않습니다.
+   */
+  customer?: Customer
+  /** 수정한 결과. 부른 쪽이 목록·상세의 그 줄만 갈아 끼웁니다. */
+  onUpdated?: (contact: CustomerContactResponse) => void
   /** 명함에서 읽어 온 값. 사람이 확인하고 고칠 수 있게 칸만 채워 둡니다. */
   initial?: Partial<Draft>
   /** 부른 쪽에서 이미 정해진 회사. 검색창에 미리 올려 둡니다. */
   initialCompany?: CompanySelection
+  /**
+   * 사업자등록증에서 읽어 온 등록번호. 새로 만드는 회사일 때만 씁니다.
+   * 이미 있는 회사는 그 회사의 값이 이깁니다.
+   */
+  initialBusinessNo?: string
+  /**
+   * 사업자등록증에서 읽어 온 주소. 새로 만드는 회사일 때만 씁니다.
+   * 이미 있는 회사는 그 회사의 값이 이깁니다.
+   */
+  initialAddress?: AddressValue
   /** 명함 인식 뒤 발견한 기존 담당자 후보. 자동 병합하지 않습니다. */
   duplicateMatches?: BusinessCardMatch[]
   /** 명함 OCR에 사용한 원본. 고객 등록 뒤 자료실에 보관합니다. */
@@ -104,34 +123,89 @@ async function resolveCompanyId(
   return data.id
 }
 
+/** 수정 폼의 첫 값. 목록이 이미 들고 있는 고객을 입력칸 모양으로 되돌립니다. */
+function customerDraft(customer: Customer): Draft {
+  return {
+    name: customer.name,
+    dept: customer.dept,
+    title: customer.title,
+    email: customer.email,
+    phone: customer.phone,
+    memo: customer.memo,
+  }
+}
+
 export default function CustomerFormModal({
   onClose,
   onCreated,
+  customer,
+  onUpdated,
   initial,
   initialCompany,
+  initialBusinessNo,
+  initialAddress,
   duplicateMatches = [],
   archiveImage,
 }: CustomerFormModalProps) {
   const { isManager, memberId } = useCurrentUser()
+  const editing = customer !== undefined
 
-  const [draft, setDraft] = useState<Draft>({ ...EMPTY, ...initial })
+  const [draft, setDraft] = useState<Draft>(
+    customer ? customerDraft(customer) : { ...EMPTY, ...initial },
+  )
   // 아직 만나기 전입니다. 방문은 담당자가 다녀온 뒤에 직접 켭니다.
-  const [visited, setVisited] = useState(false)
+  const [visited, setVisited] = useState(customer?.visited ?? false)
   // 유입경로. 빈 문자열은 미지정입니다.
-  const [sourceCode, setSourceCode] = useState<CustomerSourceCode | ''>('')
+  const [sourceCode, setSourceCode] = useState<CustomerSourceCode | ''>(customer?.sourceCode ?? '')
   const [company, setCompany] = useState<CompanySelection | null>(initialCompany ?? null)
   const [businessNo, setBusinessNo] = useState(() =>
     initialCompany?.kind === 'existing'
       ? (formatBusinessNo(initialCompany.company.business_no) ?? '')
-      : '',
+      : (initialBusinessNo ?? ''),
   )
   const [address, setAddress] = useState<AddressValue>(() =>
-    initialCompany?.kind === 'existing' ? companyAddress(initialCompany.company) : EMPTY_ADDRESS,
+    initialCompany?.kind === 'existing'
+      ? companyAddress(initialCompany.company)
+      : (initialAddress ?? EMPTY_ADDRESS),
   )
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([memberId])
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(() => {
+    if (!customer) return [memberId]
+    const owners = customer.owners?.map((owner) => owner.id) ?? []
+    return owners.length > 0 ? owners : [customer.ownerMemberId ?? memberId]
+  })
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // 수정 폼은 회사 전체를 받아 와야 검색칸에 올릴 수 있습니다. 목록이 들고 있는 것은
+  // 회사 id 와 이름뿐이고, 사업자번호·주소는 회사에 붙어 있습니다.
+  const [companyLoading, setCompanyLoading] = useState(editing)
+
+  const companyId = customer?.companyId
+  useEffect(() => {
+    if (companyId === undefined) return
+    const controller = new AbortController()
+
+    setCompanyLoading(true)
+    void client
+      .get<CustomerCompanyResponse>(`/customer-companies/${companyId}`, {
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return
+        setCompany({ kind: 'existing', company: data })
+        setBusinessNo(formatBusinessNo(data.business_no) ?? '')
+        setAddress(companyAddress(data))
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setSubmitError(errorMessage(error, '고객사 정보를 불러오지 못했습니다.'))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCompanyLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [companyId])
 
   const clearError = (key: ErrorKey) => {
     setErrors((previous) => ({ ...previous, [key]: undefined }))
@@ -156,7 +230,7 @@ export default function CustomerFormModal({
   }
 
   const submit = async () => {
-    if (submitting) return
+    if (submitting || companyLoading) return
 
     const found = validate({ draft, company, businessNo, assigneeIds })
     setErrors(found)
@@ -166,20 +240,32 @@ export default function CustomerFormModal({
     setSubmitError(null)
 
     try {
-      const payload: CustomerContactCreateRequest = {
+      const fields: CustomerContactUpdateRequest = {
         company_id: await resolveCompanyId(company, businessNo, address),
         name: draft.name.trim(),
         department: optional(draft.dept),
         job_title: optional(draft.title),
         email: optional(draft.email),
         phone: draft.phone.trim(),
-        status_code: 'new',
         source_code: sourceCode === '' ? null : sourceCode,
         memo: optional(draft.memo),
         visited,
         // 팀원은 담당자를 고를 수 없습니다. 백엔드가 등록한 사람으로 채웁니다.
         ...(isManager ? { assignee_member_ids: assigneeIds } : {}),
       }
+
+      if (customer) {
+        const { data } = await client.patch<CustomerContactResponse>(
+          `/customer-contacts/${customer.id}`,
+          fields,
+        )
+        setSubmitting(false)
+        onUpdated?.(data)
+        return
+      }
+
+      // 상태는 등록할 때만 정해집니다. 수정 폼에는 상태 칸이 없습니다.
+      const payload: CustomerContactCreateRequest = { ...fields, status_code: 'new' }
       const { data } = await client.post<CustomerContactResponse>('/customer-contacts', payload)
       let warning: string | undefined
       if (archiveImage) {
@@ -197,7 +283,12 @@ export default function CustomerFormModal({
       setSubmitting(false)
       onCreated(data, warning)
     } catch (error: unknown) {
-      setSubmitError(errorMessage(error, '고객을 등록하지 못했습니다.'))
+      setSubmitError(
+        errorMessage(
+          error,
+          editing ? '고객 정보를 수정하지 못했습니다.' : '고객을 등록하지 못했습니다.',
+        ),
+      )
       setSubmitting(false)
     }
   }
@@ -208,7 +299,7 @@ export default function CustomerFormModal({
 
   return (
     <Modal
-      title="고객 등록"
+      title={editing ? '고객 수정' : '고객 등록'}
       onClose={close}
       onSubmit={submit}
       footer={
@@ -216,8 +307,8 @@ export default function CustomerFormModal({
           <Button type="button" variant="outline" disabled={submitting} onClick={close}>
             취소
           </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? '등록 중…' : '고객 등록'}
+          <Button type="submit" disabled={submitting || companyLoading}>
+            {editing ? (submitting ? '저장 중…' : '저장') : submitting ? '등록 중…' : '고객 등록'}
           </Button>
         </>
       }
@@ -241,7 +332,7 @@ export default function CustomerFormModal({
             value={company}
             onChange={pickCompany}
             allowCreate
-            disabled={submitting}
+            disabled={submitting || companyLoading}
             invalid={errors.company !== undefined}
           />
         </Field>

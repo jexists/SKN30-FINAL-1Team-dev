@@ -100,6 +100,8 @@ export interface DailyReport extends DailyReportSeed {
   apiStatus?: ApiReportStatus
   version?: number
   currentSubmissionId?: string | null
+  /** 팀장이 마지막 검토에서 돌려보낸 이유. 작성자의 note 와 다른 값입니다. */
+  reviewNote?: string
 }
 
 export type ApiReportKind = 'meeting' | 'daily' | 'weekly' | 'monthly'
@@ -121,11 +123,11 @@ export interface ReportDealSectionWrite {
   content: Record<string, unknown>
   position?: number | null
   title?: string | null
-  body?: string | null
+  body: string
   structured_values?: Record<string, unknown>
 }
 
-export interface ReportDealSectionResponse extends ReportDealSectionWrite {
+export interface ReportDealSectionResponse extends Omit<ReportDealSectionWrite, 'body'> {
   position: number | null
   deal_no_snapshot: string | null
   deal_title_snapshot: string | null
@@ -154,7 +156,6 @@ export interface ReportResponse {
   version: number
   generation_input_version: number
   current_submission_id: string | null
-  last_applied_agent_run_id: string | null
   template_snapshot: Record<string, unknown>
   content: Record<string, unknown>
   customer_company_id: string | null
@@ -208,13 +209,57 @@ export interface ReportWriteRequest {
   deal_sections: ReportDealSectionWrite[]
 }
 
+/** Canonical 보고서를 만들기 전 AgentRun에만 보관하는 생성 입력입니다. */
+export interface ReportGenerationRequest {
+  idempotency_key: string
+  report_kind: ApiReportKind
+  report_date: string
+  period_start?: string
+  period_end?: string
+  source_activity_id?: string
+  sales_deal_ids?: string[]
+  template_snapshot: ReportTemplate
+  content: Record<string, unknown>
+  transcript?: string
+  guidance?: string
+}
+
+/** 미확정 AgentRun에 보관되어 재접속 시 작성 화면을 되살리는 원 생성 입력입니다. */
+export interface ReportGenerationInput {
+  report_kind: ApiReportKind
+  report_date: string
+  period_start: string | null
+  period_end: string | null
+  source_activity_id: string | null
+  sales_deal_ids: string[]
+  template_snapshot: ReportTemplate
+  content: Record<string, unknown>
+  transcript: string | null
+  guidance: string | null
+}
+
+/** 같은 논리 보고서 범위의 마지막 미확정 AgentRun을 찾는 조건입니다. */
+export interface ReportGenerationScope {
+  report_kind: ApiReportKind
+  report_date?: string
+  period_start?: string
+  period_end?: string
+  source_activity_id?: string
+}
+
+/** 사람이 확인한 최종값을 한 번에 저장하고 제출합니다. */
+export interface ReportFinalizeRequest extends ReportWriteRequest {
+  idempotency_key: string
+  agent_run_id?: string
+  report_id?: string
+  expected_version?: number
+  expected_status_code?: 'draft' | 'changes_requested'
+}
+
 export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'
 
-export type AgentRunApplyStatus = 'pending' | 'applied' | 'stale' | 'not_applicable'
-
 export interface ReportDraftSnapshot {
-  fields?: { field_id: string; value: string }[]
-  summary?: string
+  fields: { field_id: string; value: string }[]
 }
 
 export interface DealAssessment {
@@ -246,25 +291,16 @@ export interface MeetingEvidenceLedger {
 export interface MeetingReportBody {
   body: string
   evidence_ids: string[]
-  ai_body?: string
-  edited?: boolean
 }
 
 export interface MeetingSharedNotes {
-  run_id: string
-  revision: string
   common_report: MeetingReportBody | null
   unassigned_report: MeetingReportBody | null
 }
 
-export interface MeetingAssignmentOverride {
-  segment_id: string
-  applicability: { scope: 'deal'; deal_ids: string[] }
-}
-
 export interface MeetingProcessingOutput {
   reports: {
-    deal_reports: (MeetingReportBody & { sales_deal_id: string })[]
+    deal_reports: (MeetingReportBody & { sales_deal_id: string; title: string | null })[]
     common_report: MeetingReportBody | null
     unassigned_report: MeetingReportBody | null
   } | null
@@ -276,6 +312,7 @@ export interface MeetingProcessingOutput {
   }[]
   evidence: MeetingEvidenceLedger
   errors: Record<string, string>
+  context_lookups?: Record<string, unknown>[]
 }
 
 /** 검토·적용 전 화면에서만 보여 주는 문장입니다. ReportWriteRequest에 포함하지 않습니다. */
@@ -295,20 +332,17 @@ export interface MeetingProgress {
   review_limit?: number
 }
 
-export interface MeetingAnalysisSnapshot {
-  deal_assessment: DealAssessment
-}
-
 export interface AgentRunResponse<T = ReportDraftSnapshot> {
   id: string
   report_id: string | null
+  source_refs: Record<string, unknown>
+  generation_input: ReportGenerationInput | null
   status_code: AgentRunStatus
-  current_stage_code: string
-  apply_status: AgentRunApplyStatus
+  current_stage_code: string | null
   attempt_count: number
   output_snapshot: T | null
-  evidence: { summary?: string } | null
+  evidence: Record<string, unknown> | null
   error_code: string | null
   error_message: string | null
-  created_at: string
+  created_at: string | null
 }

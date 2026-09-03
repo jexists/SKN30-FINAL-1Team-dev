@@ -11,7 +11,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +22,7 @@ from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import sales_context
 from app.services.embeddings import EmbeddingError
-from app.services.report_sources import _NON_BODY_KEYS, _shared_body
+from app.services.report_sources import _body_values, _shared_body
 from app.services.storage import StorageError
 
 _SEOUL = ZoneInfo("Asia/Seoul")
@@ -348,20 +348,18 @@ async def _recent_finalized_reports(
     output = []
     shared_by_activity = {}
     for report, section in rows:
-        if not isinstance(report.content, dict) or not isinstance(section.content, dict):
-            raise HTTPException(422, "report_source_content_invalid")
-        content = {key: value for key, value in report.content.items() if key not in _NON_BODY_KEYS}
-        content.update(
-            {key: value for key, value in section.content.items() if key not in _NON_BODY_KEYS}
-        )
-        shared = report.content.get("meeting_shared")
-        if shared is not None:
-            if not isinstance(shared, dict) or report.source_activity_id is None:
+        content = {"values": _body_values(getattr(section, "body", None))}
+        title = getattr(section, "title", None)
+        if isinstance(title, str):
+            content["title"] = title
+        common_body = getattr(report, "common_body", None)
+        unassigned_body = getattr(report, "unassigned_body", None)
+        if common_body is not None or unassigned_body is not None:
+            if report.source_activity_id is None:
                 raise HTTPException(422, "report_source_shared_invalid")
-            # 딜 본문은 유지하고 공통/미지정 맥락만 별도 전달한다. AI·ML 메타는 제외한다.
             content["meeting_shared"] = {
-                "common_report": _shared_body(shared.get("common_report")),
-                "unassigned_report": _shared_body(shared.get("unassigned_report")),
+                "common_report": _shared_body(common_body),
+                "unassigned_report": _shared_body(unassigned_body),
             }
             previous = shared_by_activity.get(report.source_activity_id)
             if previous is not None and previous != content["meeting_shared"]:
@@ -521,11 +519,20 @@ async def build_briefing_snapshot(
             select(Activity, CustomerCompany)
             .join(CustomerContact, Activity.customer_contact_id == CustomerContact.id)
             .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
+            .outerjoin(SalesDeal, Activity.sales_deal_id == SalesDeal.id)
             .where(
                 Activity.id == activity_id,
                 Activity.team_id == member.team_id,
                 Activity.deleted_at.is_(None),
                 CustomerCompany.team_id == member.team_id,
+                or_(
+                    Activity.sales_deal_id.is_(None),
+                    and_(
+                        SalesDeal.team_id == member.team_id,
+                        SalesDeal.customer_company_id == CustomerCompany.id,
+                        SalesDeal.deleted_at.is_(None),
+                    ),
+                ),
             )
         )
     ).one_or_none()

@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import MultipleResultsFound
 
 from app.agents import contract_management
 from app.models.agent import AgentRun
@@ -37,6 +38,8 @@ class _Result:
         return self.scalar
 
     def one_or_none(self):
+        if len(self.rows) > 1:
+            raise MultipleResultsFound
         return self.rows[0] if self.rows else None
 
     def all(self):
@@ -370,11 +373,15 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
         id=uuid4(),
         source_activity_id=None,
         report_date=date(2026, 8, 17),
+        common_body=None,
+        unassigned_body=None,
         content={"hospital": "한빛병원"},
     )
     section = SimpleNamespace(
         sales_deal_id=sales_deal_id,
-        content={"summary": "승인 보고서"},
+        title=None,
+        body="승인 보고서",
+        content={"values": {"body": "승인 보고서"}},
     )
     db = _Db(_Result(rows=[(report, section)]))
 
@@ -382,7 +389,7 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
 
     assert recent[0]["sales_deal_id"] == str(sales_deal_id)
     assert recent[0]["source_activity_id"] is None
-    assert recent[0]["content"] == {**report.content, **section.content}
+    assert recent[0]["content"] == {"values": {"body": "승인 보고서"}}
     sql = str(db.statements[0])
     assert "report_deal.sales_deal_id IN" in sql
     assert "JOIN public.activity" not in sql
@@ -459,12 +466,19 @@ async def test_contract_report_context_includes_shared_bodies_without_ml_or_ai(m
         id=uuid4(),
         source_activity_id=uuid4(),
         report_date=date(2026, 8, 17),
+        common_body=shared["common_report"]["body"],
+        unassigned_body=shared["unassigned_report"]["body"],
         content={"meeting_shared": shared},
         transcript="여러 딜의 전체 미팅 원문",
         ai_evidence={"deal_assessment": {"label": "high"}},
         source_snapshot={"evidence": "원문 근거 장부"},
     )
-    section = SimpleNamespace(sales_deal_id=sales_deal_id, content=content)
+    section = SimpleNamespace(
+        sales_deal_id=sales_deal_id,
+        title=content["title"],
+        body=content["values"]["body"],
+        content=content,
+    )
     db = _Db(_Result(rows=[(report, section)]))
 
     recent = await snapshots._recent_finalized_reports(db, member, [sales_deal_id])
@@ -520,6 +534,8 @@ async def test_contract_report_context_checks_shared_body_consistency(
             id=uuid4(),
             source_activity_id=activity_id if index == 0 or same_activity else uuid4(),
             report_date=date(2026, 8, 17),
+            common_body="공통 본문",
+            unassigned_body="미지정 본문",
             content={
                 "meeting_shared": {
                     "run_id": str(uuid4()),
@@ -536,11 +552,15 @@ async def test_contract_report_context_checks_shared_body_consistency(
     sections = [
         SimpleNamespace(
             sales_deal_id=uuid4(),
+            title=None,
+            body=f"딜 {index + 1}의 확정 본문",
             content={"values": {"body": f"딜 {index + 1}의 확정 본문"}},
         )
         for index in range(2)
     ]
     if changed_body is not None:
+        field = "common_body" if changed_body == "common_report" else "unassigned_body"
+        setattr(reports[1], field, "서로 다른 본문")
         reports[1].content["meeting_shared"][changed_body]["body"] = "서로 다른 본문"
     originals = copy.deepcopy([report.content for report in reports])
     db = _Db(_Result(rows=list(zip(reports, sections, strict=True))))
@@ -556,42 +576,37 @@ async def test_contract_report_context_checks_shared_body_consistency(
         assert len(recent) == 2
         for source, section, result in zip(reports, sections, recent, strict=True):
             assert result["sales_deal_id"] == str(section.sales_deal_id)
-            assert result["content"]["values"] == section.content["values"]
+            assert result["content"]["values"] == {"body": section.body}
             assert result["content"]["meeting_shared"] == {
-                name: {"body": source.content["meeting_shared"][name]["body"]}
-                for name in ("common_report", "unassigned_report")
+                "common_report": {"body": source.common_body},
+                "unassigned_report": {"body": source.unassigned_body},
             }
     assert [report.content for report in reports] == originals
 
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    "content,has_activity,detail",
+    "body,common_body,unassigned_body,has_activity,detail",
     [
-        (None, True, "report_source_content_invalid"),
-        ({"meeting_shared": "손상된 값"}, True, "report_source_shared_invalid"),
-        ({"meeting_shared": {"common_report": {}}}, True, "report_source_shared_invalid"),
-        (
-            {"meeting_shared": {"unassigned_report": {"body": 123}}},
-            True,
-            "report_source_shared_invalid",
-        ),
-        (
-            {"meeting_shared": {"common_report": {"body": "공통 내용"}}},
-            False,
-            "report_source_shared_invalid",
-        ),
+        (123, None, None, True, "report_source_content_invalid"),
+        ("본문", {}, None, True, "report_source_shared_invalid"),
+        ("본문", None, 123, True, "report_source_shared_invalid"),
+        ("본문", "공통 내용", None, False, "report_source_shared_invalid"),
     ],
 )
-async def test_contract_report_context_rejects_malformed_shared(content, has_activity, detail):
+async def test_contract_report_context_rejects_malformed_normalized_body(
+    body, common_body, unassigned_body, has_activity, detail
+):
     member = _member()
     report = SimpleNamespace(
         id=uuid4(),
         source_activity_id=uuid4() if has_activity else None,
         report_date=date(2026, 8, 17),
-        content=content,
+        common_body=common_body,
+        unassigned_body=unassigned_body,
+        content={},
     )
-    section = SimpleNamespace(sales_deal_id=uuid4(), content={})
+    section = SimpleNamespace(sales_deal_id=uuid4(), title=None, body=body, content={})
     with pytest.raises(HTTPException) as error:
         await snapshots._recent_finalized_reports(
             _Db(_Result(rows=[(report, section)])), member, [section.sales_deal_id]
@@ -898,11 +913,8 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
 
     monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
 
-    snapshot = await snapshots.build_briefing_snapshot(
-        _briefing_db(member, company, activity, [(deal, _stage())]),
-        member,
-        activity.id,
-    )
+    db = _briefing_db(member, company, activity, [(deal, _stage())])
+    snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
 
     assert captured["sales_deal_id"] == deal.id
     assert captured["customer_company_id"] == company.id
@@ -910,6 +922,7 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
     # 검색어는 결정적으로 조립한다 — 여기서 LLM 을 한 번 더 부르지 않는다.
     assert captured["query"] == "테스트 병원 계약 갱신 미팅 초음파 장비 계약"
     assert snapshot["document_context"] == context
+    assert "sales_deal.customer_company_id = public.customer_company.id" in str(db.statements[0])
 
 
 @pytest.mark.anyio

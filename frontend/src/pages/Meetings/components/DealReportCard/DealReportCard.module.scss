@@ -98,28 +98,6 @@
   display: none;
 }
 
-.original {
-  margin: var(--s4) var(--s5) 0;
-  padding: var(--s3) var(--s4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-
-  summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: var(--ink-2);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-
-    span {
-      color: var(--purple-ink);
-    }
-  }
-}
-
 @include sm {
   .header {
     min-height: 70px;
@@ -146,8 +124,7 @@
     padding: 0 0 var(--s3);
   }
 
-  .caret,
-  .original {
+  .caret {
     display: none;
   }
 
