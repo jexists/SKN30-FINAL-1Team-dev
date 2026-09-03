@@ -9,10 +9,11 @@ API key 는 서버 환경변수에서만 읽고 응답이나 로그에 남기지
 import asyncio
 import json
 from time import perf_counter
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 import openai
-from langchain_openai import StreamChunkTimeoutError
+from langchain_openai import ChatOpenAI, StreamChunkTimeoutError
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
@@ -25,6 +26,37 @@ class LLMError(Exception):
 
 class LLMNotConfigured(LLMError):
     """LLM_API_URL, LLM_API_KEY, LLM_MODEL 중 빠진 값이 있다."""
+
+
+def configured_chat_model() -> ChatOpenAI:
+    """LangChain 에이전트가 공유하는 OpenAI 호환 채팅 모델을 만든다."""
+    if not settings.llm_configured or not settings.llm_api_key.get_secret_value().strip():
+        raise LLMNotConfigured("llm_not_configured")
+    endpoint = urlsplit(settings.llm_api_url)
+    path = endpoint.path.rstrip("/")
+    suffix = next((s for s in ("/responses", "/chat/completions") if path.endswith(s)), None)
+    if (
+        suffix is None
+        or endpoint.scheme not in {"https", "http"}
+        or not endpoint.netloc
+        or endpoint.username
+        or endpoint.password
+        or endpoint.query
+        or endpoint.fragment
+    ):
+        raise LLMError("report_agent_unsupported_endpoint")
+    return ChatOpenAI(
+        model=settings.llm_model,
+        api_key=settings.llm_api_key,
+        base_url=urlunsplit((endpoint.scheme, endpoint.netloc, path[: -len(suffix)], "", "")),
+        use_responses_api=suffix == "/responses",
+        timeout=httpx.Timeout(max(180.0, settings.llm_timeout_seconds), connect=10.0),
+        max_retries=0,
+        max_completion_tokens=12_000,
+        streaming=True,
+        stream_usage=True,
+        stream_chunk_timeout=max(180.0, settings.llm_timeout_seconds),
+    )
 
 
 _TRANSIENT_REQUEST_ERRORS = (

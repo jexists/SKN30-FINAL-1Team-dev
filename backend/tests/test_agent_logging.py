@@ -145,9 +145,15 @@ def test_progress_records_actual_counts_timing_tokens_not_source(caplog):
             "report_writing.model_call",
             outcome="completed",
             call_count=4,
-            call_limit=100,
+            model_call_count=4,
+            call_limit=44,
+            tool_call_count=12,
+            required_delegation_count=3,
+            delegation_count=4,
             review_attempt=2,
-            review_limit=10,
+            review_limit=2,
+            repair_count=1,
+            repair_limit=1,
             elapsed_ms=45_200,
             timeout_seconds=180,
             input_tokens=120,
@@ -158,8 +164,12 @@ def test_progress_records_actual_counts_timing_tokens_not_source(caplog):
         )
     event = json.loads(caplog.records[-1].getMessage().removeprefix("agent_progress "))
     assert event["run_id"] == "test-run" and event["call_count"] == 4
+    assert event["model_call_count"] == 4
+    assert event["tool_call_count"] == 12 and event["delegation_count"] == 4
+    assert event["required_delegation_count"] == 3
     assert event["elapsed_ms"] == 45_200 and event["total_tokens"] == 195
-    assert event["review_attempt"] == 2 and event["review_limit"] == 10
+    assert event["review_attempt"] == 2 and event["review_limit"] == 2
+    assert event["repair_count"] == 1 and event["repair_limit"] == 1
     assert "PRIVATE_" not in caplog.text
 
 
