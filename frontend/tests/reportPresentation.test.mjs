@@ -702,6 +702,29 @@ test('달력 보고서는 30건을 넘어도 다음 쪽을 끝까지 이어 받�
   }
 })
 
+test('달력 보고서 조회는 서버 쪽 번호가 전진하지 않으면 즉시 중단한다', async () => {
+  const originalAdapter = client.defaults.adapter
+  client.defaults.adapter = async (config) => ({
+    data: {
+      items: [],
+      skip: config.params.skip,
+      limit: 30,
+      total: 99,
+      has_more: true,
+      next_skip: config.params.skip,
+    },
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config,
+  })
+  try {
+    await assert.rejects(fetchAllReportPages({ report_kind: ['daily'] }), /invalid_pagination/)
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+})
+
 test('V2 이전 제출본은 submission id 없이 검토 요청해 서버가 스냅샷하게 한다', async () => {
   const originalAdapter = client.defaults.adapter
   let sent
