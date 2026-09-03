@@ -280,18 +280,25 @@ async def _contact_info(
     return row
 
 
-async def _team_company(db: AsyncSession, member: Member, company_id: UUID) -> None:
+async def _team_company(db: AsyncSession, member: Member, company_id: UUID) -> str:
+    """팀의 고객사인지 보고 이름을 돌려준다.
+
+    이름까지 함께 읽는 것은 등록 응답 때문이다. 담당자 없이 고객사만 지정하면 응답이
+    담당자 조회 결과에서 회사를 가져올 수 없어, 저장된 값과 달리 회사가 빈 채로 나갔다.
+    """
     result = await db.execute(
-        select(CustomerCompany.id).where(
+        select(CustomerCompany.name).where(
             CustomerCompany.id == company_id,
             CustomerCompany.team_id == member.team_id,
         )
     )
-    if result.scalar_one_or_none() is None:
+    name = result.scalar_one_or_none()
+    if name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="customer_company_not_found",
         )
+    return name
 
 
 async def _resolve_company_id(
@@ -299,8 +306,8 @@ async def _resolve_company_id(
     member: Member,
     company_id: UUID | None,
     contact_info: tuple[CustomerContact, UUID, str] | None,
-) -> UUID:
-    """일정이 붙을 고객사를 정한다.
+) -> tuple[UUID, str]:
+    """일정이 붙을 고객사를 정한다. 등록 응답이 쓸 수 있게 이름도 함께 돌려준다.
 
     담당자가 있으면 회사는 그 사람의 회사다 — 따로 보낸 값이 다르면 조용히 한쪽을 고르지 않고
     막는다. 담당자가 없으면 회사만이라도 있어야 한다. 둘 다 없으면 그 일정은 어느 고객사 것인지
@@ -313,14 +320,13 @@ async def _resolve_company_id(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="customer_company_mismatch",
             )
-        return contact_company_id
+        return contact_company_id, contact_info[2]
     if company_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="customer_company_required",
         )
-    await _team_company(db, member, company_id)
-    return company_id
+    return company_id, await _team_company(db, member, company_id)
 
 
 def _require_sales_deal(sales_deal: SalesDeal | None, company_id: UUID) -> UUID:
@@ -615,7 +621,7 @@ async def create_activity(
         values.pop("category_code")
         values.pop("action_tag")
         schedule_management_run_id = values.pop("schedule_management_run_id")
-        values["customer_company_id"] = await _resolve_company_id(
+        values["customer_company_id"], company_name = await _resolve_company_id(
             db, member, values["customer_company_id"], contact_info
         )
         values["sales_deal_id"] = _require_sales_deal(sales_deal, values["customer_company_id"])
@@ -637,8 +643,10 @@ async def create_activity(
             activity,
             member.display_name,
             None if contact_info is None else contact_info[0],
-            None if contact_info is None else contact_info[1],
-            None if contact_info is None else contact_info[2],
+            # 담당자가 없어도 고객사는 정해져 있다. 담당자 조회 결과에서만 가져오면
+            # 저장된 값과 달리 응답의 회사가 빈 채로 나간다.
+            activity.customer_company_id,
+            company_name,
             None if product is None else product.name,
             category,
             action_tag,
@@ -800,7 +808,7 @@ async def update_activity(
                 if contact_info is not None
                 else values.get("customer_company_id", activity.customer_company_id)
             )
-            values["customer_company_id"] = await _resolve_company_id(
+            values["customer_company_id"], _company_name = await _resolve_company_id(
                 db, member, company_id, contact_info
             )
             sales_deal = (

@@ -660,7 +660,7 @@ def test_create_requires_a_sales_deal_from_the_same_company():
 
     missing_db = _Db(
         _Result(scalar=_category(member.team_id)),
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
     )
     with _client(missing_db, member) as client:
         missing = client.post(
@@ -683,7 +683,7 @@ def test_create_requires_a_sales_deal_from_the_same_company():
     mismatch_db = _Db(
         _Result(scalar=other_company_deal),  # _team_sales_deal
         _Result(scalar=_category(member.team_id)),
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
     )
     with _client(mismatch_db, member) as client:
         mismatch = client.post(
@@ -702,6 +702,42 @@ def test_create_requires_a_sales_deal_from_the_same_company():
     assert not mismatch_db.added
 
 
+def test_create_without_a_contact_still_answers_with_the_company():
+    """담당자 없이 고객사만 지정한 등록도 응답에 회사가 실려야 한다.
+
+    저장은 되는데 응답만 비어 나가면 화면이 방금 만든 일정을 잘못 그린다. 회사를
+    담당자 조회 결과에서만 가져오던 탓이었다.
+    """
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
+    db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
+        _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
+                "category_code": "visit",
+                "title": "담당자 없이 회사만",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["customer_contact_id"] is None
+    assert body["customer_company_id"] == str(company.id)
+    assert body["customer_company_name"] == company.name
+    assert db.added[0].customer_company_id == company.id
+
+
 def test_patch_cannot_empty_the_sales_deal_or_leave_it_on_another_company():
     """등록에서 막은 값을 수정으로 우회할 수 없어야 한다."""
     member = _member()
@@ -710,7 +746,7 @@ def test_patch_cannot_empty_the_sales_deal_or_leave_it_on_another_company():
 
     cleared_db = _Db(
         _Result(scalar=activity),
-        _Result(scalar=activity.customer_company_id),  # _team_company
+        _Result(scalar="합성 고객사"),  # _team_company: 이름을 돌려준다
     )
     with _client(cleared_db, member) as client:
         cleared = client.patch(
@@ -728,7 +764,7 @@ def test_patch_cannot_empty_the_sales_deal_or_leave_it_on_another_company():
     moved.sales_deal_id = stale_deal.id
     moved_db = _Db(
         _Result(scalar=moved),
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=stale_deal),  # _team_sales_deal
     )
     with _client(moved_db, member) as client:
@@ -861,7 +897,7 @@ def test_write_failure_rolls_back_transaction():
     db = _Db(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=_category(member.team_id)),
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         flush_error=RuntimeError("synthetic failure"),
     )
 
@@ -912,7 +948,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
     db = _Db(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
@@ -977,7 +1013,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
     db = _Db(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
@@ -1046,7 +1082,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
     db = _ExpiringDb(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
@@ -1099,7 +1135,7 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
     db = _Db(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=suggestion),  # _claim_suggestion: 아직 pending
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
@@ -1138,7 +1174,7 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
     db = _Db(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 범위 안에 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회
         _Result(scalar=None),  # _parent_run_or_409
@@ -1183,7 +1219,7 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
     db = _Db(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=suggestion),  # _claim_suggestion: 이미 accepted
     )
 
