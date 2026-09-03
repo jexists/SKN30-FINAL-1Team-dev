@@ -569,8 +569,12 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
   const submitted = meetingFinalizeRequestOf(
     { ...draft, reportId: 'submitted-report', version: 3, statusCode: 'submitted' },
     'submitted-revision-key',
+    'submitted-regeneration-run',
   )
+  assert.equal(submitted.report_id, 'submitted-report')
+  assert.equal(submitted.expected_version, 3)
   assert.equal(submitted.expected_status_code, 'submitted')
+  assert.equal(submitted.agent_run_id, 'submitted-regeneration-run')
   assert.throws(
     () =>
       meetingFinalizeRequestOf(

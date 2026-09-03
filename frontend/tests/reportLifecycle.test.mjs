@@ -18,6 +18,9 @@ const {
   waitForReportGeneration,
 } = await vite.ssrLoadModule('/src/api/reportAgent.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
+const { canRecoverMeetingGeneration } = await vite.ssrLoadModule(
+  '/src/pages/Meetings/useMeetingReports.ts',
+)
 
 const template = {
   id: 'builtin-daily-freeform',
@@ -132,8 +135,12 @@ test('미팅 복구 입력이 현재 일정과 다르면 오류 배너 없이 �
     'utf8',
   )
 
-  assert.match(source, /reason\.message !== 'report_generation_input_missing'/)
-  assert.match(source, /recoveryAbort\.current = null\n            setRecovering\(false\)/)
+  assert.match(source, /reason\.message === 'report_generation_input_missing'/)
+  assert.match(source, /!missingInput/)
+  assert.match(
+    source,
+    /\.finally\(\(\) => \{[\s\S]*?recoveryAbort\.current = null[\s\S]*?setRecovering\(false\)/,
+  )
 })
 
 test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에서 제외한다', async () => {
@@ -149,7 +156,7 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /setTranscript: changeTranscript/)
 })
 
-test('저장된 보고서는 과거 생성 후보를 조회하거나 복구 팝업으로 덮지 않는다', async () => {
+test('제출된 미팅 보고서는 저장 후 시작한 같은 딜 재생성만 복구한다', async () => {
   const meeting = await readFile(
     new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
     'utf8',
@@ -159,8 +166,39 @@ test('저장된 보고서는 과거 생성 후보를 조회하거나 복구 팝�
     'utf8',
   )
   const daily = await readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8')
+  const savedReport = {
+    ownerMemberId: 'member-1',
+    apiStatus: 'submitted',
+    updatedAt: '2026-09-03T06:00:00Z',
+    dealSections: [{ salesDealId: 'deal-1' }],
+  }
+  const regenerated = {
+    created_at: '2026-09-03T06:00:01Z',
+    status_code: 'completed',
+    generation_input: { sales_deal_ids: ['deal-1', 'deal-2'] },
+  }
 
-  assert.match(meeting, /if \(savedReport\) \{[\s\S]*?setRecovering\(false\)[\s\S]*?return/)
+  assert.equal(canRecoverMeetingGeneration(regenerated, savedReport, 'member-1'), true)
+  assert.equal(
+    canRecoverMeetingGeneration(
+      { ...regenerated, created_at: '2026-09-03T05:59:59Z' },
+      savedReport,
+      'member-1',
+    ),
+    false,
+  )
+  assert.equal(
+    canRecoverMeetingGeneration(
+      { ...regenerated, generation_input: { sales_deal_ids: ['deal-2'] } },
+      savedReport,
+      'member-1',
+    ),
+    false,
+  )
+  assert.match(
+    meeting,
+    /meetingInputOf\(run, agendaId\)[\s\S]*?canRecoverMeetingGeneration\(run, savedReport, memberId\)[\s\S]*?resumeGeneration\(run, controller\)/,
+  )
   assert.match(period, /if \(canonical\) \{[\s\S]*?setRecovering\(false\)[\s\S]*?return/)
   assert.doesNotMatch(`${meeting}\n${daily}`, /이전에 생성하던 후보|후보 복구/)
 })

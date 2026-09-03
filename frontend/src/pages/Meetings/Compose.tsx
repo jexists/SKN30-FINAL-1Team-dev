@@ -42,6 +42,7 @@ import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './u
 import useMeetingReports, {
   type MeetingDealDraftPayload,
   type MeetingDraftPayload,
+  canRecoverMeetingGeneration,
   meetingGenerationRequestOf,
   useMeetingReportOfAgenda,
 } from './useMeetingReports'
@@ -165,11 +166,6 @@ export default function Compose() {
 
   useEffect(() => {
     if (!draftReady || recoveredAgendaId.current === agendaId) return
-    if (savedReport) {
-      recoveredAgendaId.current = agendaId
-      setRecovering(false)
-      return
-    }
     recoveredAgendaId.current = agendaId
     const controller = new AbortController()
     recoveryAbort.current = controller
@@ -177,34 +173,29 @@ export default function Compose() {
     void latestMeetingProcessing(agendaId, controller.signal)
       .then((run) => {
         if (controller.signal.aborted || generationAbort.current) return
-        try {
-          meetingInputOf(run, agendaId)
-        } catch (reason) {
-          if (!(reason instanceof Error) || reason.message !== 'report_generation_input_missing') {
-            throw reason
-          }
-          if (recoveryAbort.current === controller) {
-            recoveryAbort.current = null
-            setRecovering(false)
-          }
-          return
-        }
+        meetingInputOf(run, agendaId)
+        if (!canRecoverMeetingGeneration(run, savedReport, memberId)) return
         return resumeGeneration(run, controller)
       })
       .catch((reason: unknown) => {
+        const missingInput =
+          reason instanceof Error && reason.message === 'report_generation_input_missing'
         if (
           !controller.signal.aborted &&
+          !missingInput &&
           (!isAxiosError(reason) || reason.response?.status !== 404)
         ) {
           setRunError(errorMessage(reason, '진행 중인 보고서 상태를 확인하지 못했습니다.'))
         }
+      })
+      .finally(() => {
         if (recoveryAbort.current === controller) {
           recoveryAbort.current = null
           setRecovering(false)
         }
       })
     return () => controller.abort()
-  }, [agendaId, draftReady, savedReport, resumeGeneration])
+  }, [agendaId, draftReady, memberId, savedReport, resumeGeneration])
   const deals = useCompanyDeals(item?.customerCompanyId)
   const [confirm, setConfirm] = useState<Confirm>(null)
 

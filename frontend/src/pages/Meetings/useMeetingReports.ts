@@ -7,6 +7,7 @@ import { meetingFreeformTemplate } from '@/shared/meetings'
 import { isAuthorEditableReportStatus } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
+  AgentRunResponse,
   MeetingDealSection,
   MeetingDealRef,
   MeetingReport,
@@ -163,6 +164,24 @@ export function meetingGenerationSeedOf(input: ReportGenerationInput) {
       ? (content.attachments as ReportAttachment[])
       : [],
   }
+}
+
+export function canRecoverMeetingGeneration(
+  run: Pick<AgentRunResponse, 'created_at' | 'generation_input' | 'status_code'>,
+  savedReport: MeetingReport | undefined,
+  memberId: string,
+): boolean {
+  if (!savedReport) return true
+  if (!run.created_at || !savedReport.updatedAt) return false
+  const selectedDealIds = new Set(run.generation_input?.sales_deal_ids ?? [])
+  return (
+    savedReport.ownerMemberId === memberId &&
+    isAuthorEditableReportStatus(savedReport.apiStatus) &&
+    run.status_code !== 'failed' &&
+    run.status_code !== 'cancelled' &&
+    Date.parse(run.created_at) > Date.parse(savedReport.updatedAt) &&
+    savedReport.dealSections.every((section) => selectedDealIds.has(section.salesDealId))
+  )
 }
 
 /** 이 일정에서 사용자가 이미 확정했거나 반려받은 보고서 한 건을 찾습니다. */
