@@ -418,6 +418,7 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
     product = _product(member.team_id)
+    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     action_tag = _action_tag(member.team_id, code="demo_in_progress")
     db = _Db(
@@ -673,8 +674,10 @@ def test_cross_team_activity_is_hidden_and_delete_is_soft():
 
 def test_write_failure_rolls_back_transaction():
     member = _member()
+    company = _company(member.team_id)
     db = _Db(
         _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.id),  # _team_company
         flush_error=RuntimeError("synthetic failure"),
     )
 
@@ -686,6 +689,7 @@ def test_write_failure_rolls_back_transaction():
                 "category_code": "visit",
                 "title": "합성 일정",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "customer_company_id": str(company.id),
             },
         )
 
@@ -711,6 +715,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
     )
 
     member = _member()
+    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     parent_run = SimpleNamespace(
         id=uuid4(),
@@ -720,6 +725,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
     )
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
@@ -734,6 +740,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "customer_company_id": str(company.id),
                 "schedule_management_run_id": str(parent_run.id),
             },
         )
@@ -770,6 +777,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
     )
 
     member = _member()
+    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     parent_run = SimpleNamespace(
         id=uuid4(),
@@ -779,6 +787,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
     )
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
@@ -793,6 +802,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "customer_company_id": str(company.id),
                 "schedule_management_run_id": str(parent_run.id),
             },
         )
@@ -815,10 +825,12 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
 
     member = _member()
+    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     missing_run_id = uuid4()
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
@@ -833,6 +845,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "customer_company_id": str(company.id),
                 "schedule_management_run_id": str(missing_run_id),
             },
         )
@@ -861,11 +874,13 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
 
     member = _member()
+    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     schedule_run_id = uuid4()
     suggestion = _pending_suggestion(member, schedule_run_id)
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.id),  # _team_company
         _Result(scalar=suggestion),  # _claim_suggestion: 아직 pending
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
@@ -880,6 +895,7 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "customer_company_id": str(company.id),
                 "schedule_management_run_id": str(schedule_run_id),
             },
         )
@@ -896,9 +912,11 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
 
     member = _member()
+    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.id),  # _team_company
         _Result(scalar=None),  # _claim_suggestion: 범위 안에 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회
         _Result(scalar=None),  # _parent_run_or_409
@@ -913,13 +931,14 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "customer_company_id": str(company.id),
                 "schedule_management_run_id": str(uuid4()),
             },
         )
 
     # 범위 밖이면 남의 제안을 건드리지 않고 등록만 진행한다.
     assert response.status_code == 201
-    claim_sql = str(db.statements[1])
+    claim_sql = str(db.statements[2])
     assert "contract_next_meeting_suggestion.team_id" in claim_sql
     assert "sales_deal.owner_member_id" in claim_sql  # role_code == "member"
     # of= 로 지정한 대상은 PostgreSQL 방언에서만 "OF ..." 로 붙어, 기본 컴파일에는
@@ -932,12 +951,14 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
 
     member = _member()
+    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     schedule_run_id = uuid4()
     suggestion = _pending_suggestion(member, schedule_run_id)
     suggestion.status_code = "accepted"  # 먼저 온 요청이 이미 가져갔다
     db = _Db(
         _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.id),  # _team_company
         _Result(scalar=suggestion),  # _claim_suggestion: 이미 accepted
     )
 
@@ -949,6 +970,7 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "customer_company_id": str(company.id),
                 "schedule_management_run_id": str(schedule_run_id),
             },
         )

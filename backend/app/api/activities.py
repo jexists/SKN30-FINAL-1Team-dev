@@ -51,7 +51,7 @@ def _joined_select(*entities):
         .join(_owner, Activity.owner_member_id == _owner.id)
         .outerjoin(_contact, Activity.customer_contact_id == _contact.id)
         .outerjoin(_contact_owner, _contact.owner_member_id == _contact_owner.id)
-        .outerjoin(_company, _contact.company_id == _company.id)
+        .outerjoin(_company, Activity.customer_company_id == _company.id)
         .outerjoin(_product, Activity.product_id == _product.id)
         .outerjoin(_sales_deal, Activity.sales_deal_id == _sales_deal.id)
         .join(_activity_category, Activity.activity_category_id == _activity_category.id)
@@ -271,6 +271,49 @@ async def _contact_info(
             detail="customer_contact_not_found",
         )
     return row
+
+
+async def _team_company(db: AsyncSession, member: Member, company_id: UUID) -> None:
+    result = await db.execute(
+        select(CustomerCompany.id).where(
+            CustomerCompany.id == company_id,
+            CustomerCompany.team_id == member.team_id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="customer_company_not_found",
+        )
+
+
+async def _resolve_company_id(
+    db: AsyncSession,
+    member: Member,
+    company_id: UUID | None,
+    contact_info: tuple[CustomerContact, UUID, str] | None,
+) -> UUID:
+    """일정이 붙을 고객사를 정한다.
+
+    담당자가 있으면 회사는 그 사람의 회사다 — 따로 보낸 값이 다르면 조용히 한쪽을 고르지 않고
+    막는다. 담당자가 없으면 회사만이라도 있어야 한다. 둘 다 없으면 그 일정은 어느 고객사 것인지
+    알 수 없고, AI 브리핑도 만들 수 없다.
+    """
+    if contact_info is not None:
+        contact_company_id = contact_info[1]
+        if company_id is not None and company_id != contact_company_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="customer_company_mismatch",
+            )
+        return contact_company_id
+    if company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="customer_company_required",
+        )
+    await _team_company(db, member, company_id)
+    return company_id
 
 
 async def _team_product(db: AsyncSession, member: Member, product_id: UUID) -> Product:
@@ -523,6 +566,9 @@ async def create_activity(
         values.pop("category_code")
         values.pop("action_tag")
         schedule_management_run_id = values.pop("schedule_management_run_id")
+        values["customer_company_id"] = await _resolve_company_id(
+            db, member, values["customer_company_id"], contact_info
+        )
         if schedule_management_run_id is not None:
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
@@ -671,8 +717,21 @@ async def update_activity(
     try:
         activity = await _locked_activity(db, member, activity_id)
         values = payload.model_dump(exclude_unset=True)
-        if values.get("customer_contact_id") is not None:
-            await _contact_info(db, member, values["customer_contact_id"])
+        if "customer_contact_id" in values or "customer_company_id" in values:
+            # 담당자나 고객사 중 하나만 바꿔도 둘의 짝이 어긋날 수 있어 함께 다시 정한다.
+            contact_id = values.get("customer_contact_id", activity.customer_contact_id)
+            contact_info = (
+                None if contact_id is None else await _contact_info(db, member, contact_id)
+            )
+            # 담당자가 있으면 회사는 거기서 나온다. 담당자를 지우기만 했다면 원래 회사를 남긴다.
+            company_id = (
+                values.get("customer_company_id")
+                if contact_info is not None
+                else values.get("customer_company_id", activity.customer_company_id)
+            )
+            values["customer_company_id"] = await _resolve_company_id(
+                db, member, company_id, contact_info
+            )
         if values.get("product_id") is not None:
             await _team_product(db, member, values["product_id"])
         if values.get("sales_deal_id") is not None:
