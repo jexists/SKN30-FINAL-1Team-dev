@@ -14,11 +14,13 @@ import { showToast } from '@/shared/toast'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
 
 import type { BusinessCardDraft } from './businessCard'
+import type { BusinessLicenseDraft } from './businessLicense'
 import { COLUMN_BY_ID } from './columns'
 import { toCustomer } from './contact'
 import { exportCustomers, TooManyCustomersError } from './exportCustomers'
 import useColumnPrefs from './useColumnPrefs'
 import BusinessCardModal from './components/BusinessCardModal'
+import BusinessLicenseModal from './components/BusinessLicenseModal'
 import CustomerDrawer from './components/CustomerDrawer'
 import CustomerFormModal from './components/CustomerFormModal'
 import CustomerTable from './components/CustomerTable'
@@ -30,8 +32,11 @@ import styles from './Customers.module.scss'
 
 export type SortState = { id: string; dir: 'asc' | 'desc' } | null
 
-/** 한 번에 하나만 열립니다. 명함으로 읽은 값은 그대로 등록 폼으로 넘어갑니다. */
-type OpenDialog = 'create' | 'import' | 'card' | null
+/**
+ * 한 번에 하나만 열립니다. 명함·사업자등록증에서 읽은 값은 그대로 등록 폼으로 넘어갑니다.
+ * TableToolbar 의 등록 메뉴가 돌려주는 말과 같은 값입니다.
+ */
+type OpenDialog = 'create' | 'import' | 'card' | 'license' | null
 
 function loadErrorMessage(error: unknown): string {
   const fallback = '고객 목록을 불러오지 못했습니다.'
@@ -49,6 +54,7 @@ export default function Customers() {
   const [page, setPage] = useState(1)
   const [dialog, setDialog] = useState<OpenDialog>(null)
   const [cardDraft, setCardDraft] = useState<BusinessCardDraft | null>(null)
+  const [licenseDraft, setLicenseDraft] = useState<BusinessLicenseDraft | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -163,6 +169,7 @@ export default function Customers() {
   const closeDialog = useCallback(() => {
     setDialog(null)
     setCardDraft(null)
+    setLicenseDraft(null)
   }, [])
 
   /** 목록을 처음부터 다시 받습니다. 방금 넣은 고객이 검색어에 걸리지 않을 수 있습니다. */
@@ -185,6 +192,13 @@ export default function Customers() {
   // 명함에서 읽은 값은 바로 저장하지 않습니다. 사람이 등록 폼에서 확인하고 고칩니다.
   const onRecognized = useCallback((draft: BusinessCardDraft) => {
     setCardDraft(draft)
+    setDialog('create')
+  }, [])
+
+  // 사업자등록증에서 읽은 값도 바로 저장하지 않습니다. 담당자 이름·연락처는
+  // 등록증에 없으므로 등록 폼에서 사람이 채웁니다.
+  const onLicenseDrafted = useCallback((draft: BusinessLicenseDraft) => {
+    setLicenseDraft(draft)
     setDialog('create')
   }, [])
 
@@ -289,9 +303,7 @@ export default function Customers() {
         onMoveColumn={moveColumn}
         onResetColumns={reset}
         hiddenColumns={hiddenColumns}
-        onCreate={() => setDialog('create')}
-        onImport={() => setDialog('import')}
-        onScanCard={() => setDialog('card')}
+        onAdd={setDialog}
         onExport={onExport}
         exporting={exporting}
         canExport={total > 0}
@@ -338,6 +350,7 @@ export default function Customers() {
           onCreated={onCustomerCreated}
           duplicateMatches={cardDraft?.matches}
           archiveImage={cardDraft?.sourceImage}
+          // 등록증에는 담당자가 없습니다. 사람 칸은 명함일 때만 채웁니다.
           initial={
             cardDraft
               ? {
@@ -350,12 +363,27 @@ export default function Customers() {
               : undefined
           }
           initialCompany={
-            cardDraft?.org.trim() ? { kind: 'new', name: cardDraft.org.trim() } : undefined
+            cardDraft?.org.trim()
+              ? { kind: 'new', name: cardDraft.org.trim() }
+              : licenseDraft?.company.trim()
+                ? { kind: 'new', name: licenseDraft.company.trim() }
+                : undefined
+          }
+          initialBusinessNo={licenseDraft?.businessNo}
+          // 등록증의 소재지는 한 줄로 옵니다. 우편번호가 필요하면 주소 검색으로 다시 고릅니다.
+          initialAddress={
+            licenseDraft?.address.trim()
+              ? { postcode: '', address: licenseDraft.address.trim(), addressDetail: '' }
+              : undefined
           }
         />
       )}
 
       {dialog === 'import' && <ImportModal onClose={closeDialog} onImported={onImported} />}
+
+      {dialog === 'license' && (
+        <BusinessLicenseModal onClose={closeDialog} onDrafted={onLicenseDrafted} />
+      )}
 
       {dialog === 'card' && (
         <BusinessCardModal

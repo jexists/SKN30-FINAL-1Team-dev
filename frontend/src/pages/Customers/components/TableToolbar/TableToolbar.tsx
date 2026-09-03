@@ -1,13 +1,14 @@
 import { useState } from 'react'
 
 import Button from '@/components/Button'
-import { CardIcon, ColumnsIcon, DownloadIcon, PlusIcon, SheetIcon } from '@/components/icons'
+import { ColumnsIcon, DownloadIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import SearchInput from '@/components/SearchInput'
 import { BP_PHONE } from '@/constants/breakpoints'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
 import type { ColumnPrefs } from '../../useColumnPrefs'
+import AddCustomerMenu, { type AddCustomerWay } from '../AddCustomerMenu'
 import ColumnSettings from '../ColumnSettings'
 
 import styles from './TableToolbar.module.scss'
@@ -21,9 +22,8 @@ interface TableToolbarProps {
   onResetColumns: () => void
   /** 이 화면에서 아예 쓰지 않는 컬럼. 설정 목록에도 나오지 않습니다. */
   hiddenColumns?: string[]
-  onCreate: () => void
-  onImport: () => void
-  onScanCard: () => void
+  /** 고객을 넣는 길을 골랐습니다. 어느 화면을 띄울지는 부른 쪽이 정합니다. */
+  onAdd: (way: AddCustomerWay) => void
   onExport: () => void
   /** 내보낼 줄을 모으는 동안. 버튼이 두 번 눌리지 않게 막습니다. */
   exporting?: boolean
@@ -39,9 +39,7 @@ export default function TableToolbar({
   onMoveColumn,
   onResetColumns,
   hiddenColumns,
-  onCreate,
-  onImport,
-  onScanCard,
+  onAdd,
   onExport,
   exporting = false,
   canExport = true,
@@ -102,35 +100,11 @@ export default function TableToolbar({
       </div>
 
       {/*
-        고객을 넣는 세 갈래. 결과가 같은 일이라 한 덩어리로 묶고, 손으로 넣는 길만
-        기본 버튼으로 둡니다. 넷을 따로 띄우면 무엇이 주된 길인지 사라집니다.
+        고객을 넣는 네 갈래. 결과가 같은 일이라 버튼 하나로 모으고, 무엇으로 넣을지는
+        메뉴에서 고릅니다. 넷을 따로 띄우면 무엇이 주된 길인지 사라집니다.
       */}
       <div className={styles.add}>
-        <div className={styles.segment}>
-          <Button
-            variant="outline"
-            className={styles.foldLabel}
-            aria-label="명함으로 고객 등록"
-            onClick={onScanCard}
-          >
-            <CardIcon width={15} height={15} />
-            <span>명함 등록</span>
-          </Button>
-          <Button
-            variant="outline"
-            className={styles.foldLabel}
-            aria-label="엑셀로 고객 등록"
-            onClick={onImport}
-          >
-            <SheetIcon width={15} height={15} />
-            <span>엑셀 등록</span>
-          </Button>
-        </div>
-
-        <Button onClick={onCreate}>
-          <PlusIcon width={16} height={16} />
-          고객 등록
-        </Button>
+        <AddCustomerMenu onSelect={onAdd} />
       </div>
     </div>
   )

@@ -38,6 +38,16 @@ interface CustomerFormModalProps {
   initial?: Partial<Draft>
   /** 부른 쪽에서 이미 정해진 회사. 검색창에 미리 올려 둡니다. */
   initialCompany?: CompanySelection
+  /**
+   * 사업자등록증에서 읽어 온 등록번호. 새로 만드는 회사일 때만 씁니다.
+   * 이미 있는 회사는 그 회사의 값이 이깁니다.
+   */
+  initialBusinessNo?: string
+  /**
+   * 사업자등록증에서 읽어 온 주소. 새로 만드는 회사일 때만 씁니다.
+   * 이미 있는 회사는 그 회사의 값이 이깁니다.
+   */
+  initialAddress?: AddressValue
   /** 명함 인식 뒤 발견한 기존 담당자 후보. 자동 병합하지 않습니다. */
   duplicateMatches?: BusinessCardMatch[]
   /** 명함 OCR에 사용한 원본. 고객 등록 뒤 자료실에 보관합니다. */
@@ -132,6 +142,8 @@ export default function CustomerFormModal({
   onUpdated,
   initial,
   initialCompany,
+  initialBusinessNo,
+  initialAddress,
   duplicateMatches = [],
   archiveImage,
 }: CustomerFormModalProps) {
@@ -149,10 +161,12 @@ export default function CustomerFormModal({
   const [businessNo, setBusinessNo] = useState(() =>
     initialCompany?.kind === 'existing'
       ? (formatBusinessNo(initialCompany.company.business_no) ?? '')
-      : '',
+      : (initialBusinessNo ?? ''),
   )
   const [address, setAddress] = useState<AddressValue>(() =>
-    initialCompany?.kind === 'existing' ? companyAddress(initialCompany.company) : EMPTY_ADDRESS,
+    initialCompany?.kind === 'existing'
+      ? companyAddress(initialCompany.company)
+      : (initialAddress ?? EMPTY_ADDRESS),
   )
   const [assigneeIds, setAssigneeIds] = useState<string[]>(() => {
     if (!customer) return [memberId]
