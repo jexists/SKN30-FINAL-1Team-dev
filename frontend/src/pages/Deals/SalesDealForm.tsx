@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 import { client } from '@/api/client'
 import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
+import ContactPicker, { toContactOption, type ContactOption } from '@/components/ContactPicker'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import CustomerFormModal from '@/pages/Customers/components/CustomerFormModal'
 import type {
-  CustomerCompanyCreateRequest,
   CustomerCompanyResponse,
+  CustomerContactResponse,
   CustomerSourceCode,
   ProductResponse,
   SalesDealTypeResponse,
@@ -23,12 +26,21 @@ interface Props {
   columns: SalesDealColumn[]
   /** 추가할 단계. 보드에서 + 를 누른 칸이며, 수정은 딜이 서 있는 단계입니다. */
   stageId?: string
+  /**
+   * 새 딜의 고객사·담당자를 부르는 쪽이 이미 정해 온 경우입니다. 일정 등록처럼 회사와
+   * 사람이 먼저 정해진 자리에서 씁니다. 주면 두 칸은 잠깁니다 — 여기서 다른 회사를
+   * 고를 수 있으면 부르는 쪽이 들고 있는 값과 어긋나기 때문입니다.
+   */
+  initialCompany?: CustomerCompanyResponse
+  initialContact?: ContactOption
   onSubmit: (input: SalesDealSaveInput) => Promise<void>
   onClose: () => void
 }
 
 interface FormState {
   company: CompanySelection | null
+  /** 이 딜의 대표 담당자. 회사를 바꾸면 그 전 회사 사람이 남지 않게 함께 비웁니다. */
+  contact: ContactOption | null
   product: RecordOption | null
   title: string
   stageId: string
@@ -42,32 +54,51 @@ const DEFAULT_OPENED_ON = iso(addDays(TODAY, 1))
 
 type Errors = Partial<Record<keyof FormState, string>>
 
-/** 고른 회사의 id. 새로 등록하기로 한 회사는 이 시점에 만듭니다. */
-async function resolveCompanyId(company: CompanySelection): Promise<string> {
-  if (company.kind === 'existing') return company.company.id
-
-  // 이 화면은 회사 이름만 묻습니다. 사업자번호와 주소는 고객 등록에서 채웁니다.
-  const payload: CustomerCompanyCreateRequest = {
-    name: company.name,
-    region_code: null,
-    business_no: null,
-    postcode: null,
-    address: null,
-    address_detail: null,
-  }
-  // 그 사이 남이 같은 이름을 만들었으면 백엔드가 기존 행을 돌려줍니다.
-  const { data } = await client.post<CustomerCompanyResponse>('/customer-companies', payload)
-  return data.id
+/**
+ * 고른 회사의 id. 아직 없는 회사는 고객 등록으로 넘겨 회사와 담당자를 함께 만들므로
+ * 이 칸에 남는 것은 늘 이미 있는 회사입니다.
+ */
+function companyId(company: CompanySelection | null): string | null {
+  return company?.kind === 'existing' ? company.company.id : null
 }
 
-export default function SalesDealForm({ deal, columns, stageId, onSubmit, onClose }: Props) {
+export default function SalesDealForm({
+  deal,
+  columns,
+  stageId,
+  initialCompany,
+  initialContact,
+  onSubmit,
+  onClose,
+}: Props) {
+  // 부르는 쪽이 회사와 사람을 정해 왔으면 두 칸을 고칠 수 없게 잠급니다.
+  const customerLocked = initialCompany !== undefined
   const [form, setForm] = useState<FormState>(() => ({
     // 딜은 회사 id 와 이름만 들고 있습니다. 아래에서 한 건을 읽어 채웁니다.
-    company: null,
+    company: initialCompany ? { kind: 'existing', company: initialCompany } : null,
+    // 목록이 주는 것은 담당자의 id 와 이름뿐입니다. 칸에 이름만 보이면 되므로 나머지는
+    // 비워 둡니다. 사람을 다시 고르면 온전한 값으로 덮입니다.
+    contact:
+      initialContact ??
+      (deal?.contactId && deal.contactName
+        ? {
+            id: deal.contactId,
+            name: deal.contactName,
+            companyId: deal.customerCompanyId,
+            org: '',
+            dept: '',
+            title: '',
+          }
+        : null),
     product: deal?.productId ? { id: deal.productId, label: deal.product } : null,
     title: deal?.title ?? '',
     stageId: stageId ?? columns[0]?.id ?? '',
   }))
+  // 아직 없는 고객사·담당자는 이 자리에서 등록합니다. null 이면 등록 모달이 닫힌 상태입니다.
+  const [creating, setCreating] = useState<{
+    company: CompanySelection | null
+    name: string
+  } | null>(null)
   // 딜 유형은 이 모달의 저장에만 쓰입니다. 목록·보드는 쓰지 않아 여기서 받습니다.
   const [dealTypes, setDealTypes] = useState<SalesDealTypeResponse[]>([])
   const [optionsLoading, setOptionsLoading] = useState(true)
@@ -118,6 +149,34 @@ export default function SalesDealForm({ deal, columns, stageId, onSubmit, onClos
     setErrors((current) => ({ ...current, [key]: undefined }))
   }
 
+  // 아직 없는 회사를 고른 것은 "여기 없으니 새로 만들겠다" 는 뜻입니다. 딜에는 담당자도
+  // 필요하므로 회사만 만들어 두지 않고 고객 등록으로 넘겨 둘을 한 번에 만듭니다.
+  const pickCompany = (next: CompanySelection | null) => {
+    if (next?.kind === 'new') {
+      setCreating({ company: next, name: '' })
+      return
+    }
+    // 회사를 바꾸면 그 전 회사 사람이 담당자로 남아 있으면 안 됩니다.
+    setForm((current) => ({ ...current, company: next, contact: null }))
+    setErrors((current) => ({ ...current, company: undefined, contact: undefined }))
+  }
+
+  // 방금 등록한 담당자. 회사까지 함께 돌아오므로 두 칸이 한 번에 채워집니다.
+  const takeCreated = async (contact: CustomerContactResponse) => {
+    setCreating(null)
+    set('contact', toContactOption(contact))
+
+    // 고객사 칸은 회사 한 벌을 그대로 들고 있어야 해, 수정으로 열 때와 같이 읽어 옵니다.
+    try {
+      const { data } = await client.get<CustomerCompanyResponse>(
+        `/customer-companies/${contact.company_id}`,
+      )
+      set('company', { kind: 'existing', company: data })
+    } catch {
+      // 회사를 못 읽어도 담당자는 이미 골라졌습니다. 칸만 비어 보입니다.
+    }
+  }
+
   const close = () => {
     if (!submittingRef.current) onClose()
   }
@@ -126,13 +185,23 @@ export default function SalesDealForm({ deal, columns, stageId, onSubmit, onClos
     if (submittingRef.current) return
 
     const found: Errors = {}
-    if (form.company === null) found.company = '고객사를 선택해 주세요.'
+    const selectedCompanyId = companyId(form.company)
+    if (selectedCompanyId === null) found.company = '고객사를 선택해 주세요.'
+    // AI 가 다음 미팅을 추천할 때 일정에 적을 사람입니다. 비어 있으면 그 딜은 브리핑이
+    // 만들어지지 않으므로 딜을 만들 때 함께 정합니다.
+    if (form.contact === null) found.contact = '담당자를 선택해 주세요.'
     if (form.product === null) found.product = '제품을 선택해 주세요.'
     if (form.stageId === '') found.stageId = '파이프라인 단계를 선택해 주세요.'
     if (form.title.length > 254) found.title = '제목은 254자까지 입력할 수 있습니다.'
 
     setErrors(found)
-    if (form.company === null || form.product === null || Object.keys(found).length > 0) return
+    if (
+      selectedCompanyId === null ||
+      form.contact === null ||
+      form.product === null ||
+      Object.keys(found).length > 0
+    )
+      return
 
     submittingRef.current = true
     setSubmitting(true)
@@ -140,7 +209,8 @@ export default function SalesDealForm({ deal, columns, stageId, onSubmit, onClos
     try {
       // 화면에서 묻지 않는 값입니다. 추가는 기본값으로, 수정은 원래 값 그대로 보냅니다.
       await onSubmit({
-        customerCompanyId: await resolveCompanyId(form.company),
+        customerCompanyId: selectedCompanyId,
+        customerContactId: form.contact.id,
         productId: form.product.id,
         title: form.title.trim() || null,
         amount: deal?.amount ?? 0,
@@ -197,10 +267,26 @@ export default function SalesDealForm({ deal, columns, stageId, onSubmit, onClos
             allowCreate
             label="고객사"
             placeholder="회사 이름으로 검색"
-            disabled={submitting}
             invalid={errors.company !== undefined}
+            disabled={submitting || customerLocked}
             value={form.company}
-            onChange={(next) => set('company', next)}
+            onChange={pickCompany}
+          />
+        </Field>
+
+        <Field label="담당자" required error={errors.contact}>
+          <ContactPicker
+            allowCreate
+            label="담당자"
+            placeholder={
+              companyId(form.company) === null ? '고객사를 먼저 선택하세요' : '이름으로 검색'
+            }
+            companyId={companyId(form.company)}
+            disabled={submitting || customerLocked}
+            invalid={errors.contact !== undefined}
+            value={form.contact}
+            onChange={(next) => set('contact', next)}
+            onCreate={(name) => setCreating({ company: form.company, name })}
           />
         </Field>
 
@@ -246,6 +332,19 @@ export default function SalesDealForm({ deal, columns, stageId, onSubmit, onClos
           {submitError}
         </p>
       )}
+
+      {/* 이 모달 본문은 <form> 이라 등록 폼을 그 안에 두면 폼이 겹칩니다. 바깥 스크림의
+          backdrop-filter 도 fixed 자식의 기준 상자를 바꿔 위치가 어긋납니다. body 로 꺼냅니다. */}
+      {creating &&
+        createPortal(
+          <CustomerFormModal
+            onClose={() => setCreating(null)}
+            onCreated={(contact) => void takeCreated(contact)}
+            initial={{ name: creating.name }}
+            initialCompany={creating.company ?? undefined}
+          />,
+          document.body,
+        )}
     </Modal>
   )
 }
