@@ -17,7 +17,7 @@ from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.activities import ActivityCreate, ActivityPageParams, ActivityPatch
 from app.services import agent_runs as agent_run_service
-from app.services import contract_schedule_snapshots
+from app.services import contract_next_meeting_pipeline, contract_schedule_snapshots
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, tzinfo=UTC)
@@ -437,7 +437,10 @@ def test_manager_owner_filter_is_limited_to_active_same_team_members():
     assert len(invalid_db.statements) == 1
 
 
-def test_create_uses_authenticated_owner_and_same_team_references():
+def test_create_uses_authenticated_owner_and_same_team_references(monkeypatch):
+    # 딜이 붙은 등록은 계약 에이전트를 백그라운드로 부른다. TestClient 는 그 작업을
+    # 응답 뒤에 그대로 돌리므로, 막지 않으면 목이 아니라 진짜 DB 로 붙는다.
+    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
     member = _member()
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
@@ -702,12 +705,13 @@ def test_create_requires_a_sales_deal_from_the_same_company():
     assert not mismatch_db.added
 
 
-def test_create_without_a_contact_still_answers_with_the_company():
+def test_create_without_a_contact_still_answers_with_the_company(monkeypatch):
     """담당자 없이 고객사만 지정한 등록도 응답에 회사가 실려야 한다.
 
     저장은 되는데 응답만 비어 나가면 화면이 방금 만든 일정을 잘못 그린다. 회사를
     담당자 조회 결과에서만 가져오던 탓이었다.
     """
+    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
     member = _member()
     company = _company(member.team_id)
     deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
