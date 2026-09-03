@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from test_report_writing_deep import ScriptedModel, call
 
 from app.agents import period_report_writing_deep as period
+from app.agents import report_writing
 from app.agents import report_writing_deep as meeting_writer
 from app.agents.report_writing import ReportDraftOutput
 from app.services.llm import LLMError
@@ -96,6 +97,13 @@ def draft():
             }
         ]
     }
+
+
+def test_period_prompt_requires_an_internal_report_instead_of_a_schedule_summary():
+    assert report_writing.PROMPT_VERSION == "report_writing.v14"
+    assert "일정·자료의 존재를 다시 읊는 요약문이 아니라" in period.FACT_RULES
+    assert "당일 업무 결과, 고객 반응·결정 조건" in period.FACT_RULES
+    assert "날짜나 자료 존재만 요약했다면 핵심 누락" in period.REVIEW_PROMPT
 
 
 def period_sample(kind: str):

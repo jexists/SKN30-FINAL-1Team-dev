@@ -70,11 +70,6 @@ export function finishIdempotencyAttempt(
   return current?.key === key ? undefined : current
 }
 
-/** Canonical 보고서가 있으면 재접속 후보를 사람 확인 없이 덮지 않습니다. */
-export function requiresRecoveryConfirmation(reportId?: string): boolean {
-  return Boolean(reportId)
-}
-
 export async function createReportGeneration<T>(
   request: ReportGenerationRequest,
 ): Promise<AgentRunResponse<T>> {

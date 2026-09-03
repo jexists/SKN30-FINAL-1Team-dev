@@ -17,7 +17,7 @@ from app.services.agent_logging import log_agent_error
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, is_transient_llm_error
 
-PROMPT_VERSION = "meeting_processing.v10"
+PROMPT_VERSION = "meeting_processing.v11"
 RUN_TIMEOUT_SECONDS = 1_200
 
 

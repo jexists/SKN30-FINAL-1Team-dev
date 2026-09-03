@@ -4,6 +4,7 @@ import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
 import { meetingFreeformTemplate } from '@/shared/meetings'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
   MeetingDealSection,
@@ -243,10 +244,9 @@ export function meetingFinalizeRequestOf(
   idempotencyKey: string,
   agentRunId?: string,
 ): ReportFinalizeRequest {
-  const revisionStatus =
-    draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
-      ? draft.statusCode
-      : undefined
+  const revisionStatus = isAuthorEditableReportStatus(draft.statusCode)
+    ? draft.statusCode
+    : undefined
   if (
     (draft.statusCode === 'changes_requested' || draft.reportId) &&
     (!draft.reportId || !draft.version || !revisionStatus)
@@ -325,7 +325,7 @@ export default function useMeetingReports() {
         return toMeetingReport(response)
       } catch (reason: unknown) {
         if (!signal?.aborted) {
-          setError(errorMessage(reason, '미팅 기록을 확정하지 못했습니다.'))
+          setError(errorMessage(reason, '미팅 보고서 작성을 완료하지 못했습니다.'))
         }
         throw reason
       } finally {

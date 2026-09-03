@@ -30,7 +30,7 @@ from app.services.agent_logging import agent_operation, log_agent_error, log_age
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, LLMNotConfigured, llm_boundary_error_code
 
-PROMPT_VERSION = "report_writing.deep.v9"
+PROMPT_VERSION = "report_writing.deep.v10"
 RUN_TIMEOUT_SECONDS = 900
 MAX_MODEL_CALLS = 6
 MAX_REVIEWS = 1
@@ -49,8 +49,11 @@ FACT_RULES = """
 부정, 조건, 불확실성, 발언 주체를 보존하고 회사 배경을 모든 딜의 확정 사실로 바꾸지 마라.
 다른 딜의 근거를 섞지 마라. ML 예측을 사실이나 보고서 작성 근거로 쓰지 않는다.
 unresolved와 out_of_scope 내용은 삭제하거나 임의로 딜에 배정하지 않는다.
-이는 공통 사실도 아니다. unassigned_report에 '딜 미지정 · 확인 필요'라고 설명하고
-해당 segment.text를 모두 원문 그대로 인용한다. 의미를 모르면 모른다고 쓴다.
+이는 공통 사실도 아니다. unresolved, out_of_scope, segment, evidence는 내부 분류명이라
+보고서 본문에 쓰지 않는다. unassigned_report는 화면이 이미 '딜 미지정 · 확인 필요'로
+표시하므로 제목을 반복하지 마라. 해당 segment.text를 자연스러운 보고 문장 안에 원문
+그대로 포함하고, 어느 딜이나 의미가 불명확한지만 짧게 덧붙인다. '선택된 딜에 귀속되지
+않은 발언', '임의로 판단하지 않는다' 같은 분류·처리 절차를 설명하지 마라.
 미팅은 회사 단위이며 선택된 딜은 미팅에서 다룬 안건이다. 회사·미팅 공통 내용은
 귀속 실패가 아니다. 공통 방문 일정 등을 '어느 딜인지 모른다'고 설명하지 마라.
 공통 근거 전체를 common_report에 한 번 작성한다. 특정 딜 본문에만 넣어 대신하지 마라.
@@ -285,8 +288,9 @@ def _structural_issues(
                 unassigned,
                 refs,
                 "unassigned_report를 만들거나 수정하여 expected_ids만 정확히 넣어라. "
-                "본문에 '딜 미지정 · 확인 필요'를 밝히고 required_raw_quotes를 그대로 "
-                "인용하라. 대상을 추측하거나 common_report/딜 보고서로 이동하지 마라.",
+                "UI 제목이나 내부 분류명을 본문에 반복하지 말고 required_raw_quotes를 "
+                "자연스러운 보고 문장 안에 그대로 포함하라. 대상을 추측하거나 "
+                "common_report/딜 보고서로 이동하지 마라.",
                 quote_ids=unassigned,
             )
         if draft.unassigned_report:
@@ -301,8 +305,9 @@ def _structural_issues(
                     "unassigned_report.body",
                     unassigned,
                     unassigned - missing_quotes,
-                    "required_raw_quotes의 text를 요약·교정 없이 그대로 본문에 인용하고 "
-                    "귀속/의미가 불확실함을 설명하라. 없는 정보를 만들어 해결하지 마라.",
+                    "required_raw_quotes의 text를 요약·교정 없이 자연스러운 보고 문장 안에 "
+                    "포함하고 귀속/의미가 불확실함만 짧게 설명하라. 내부 분류나 처리 절차를 "
+                    "노출하지 말고 없는 정보를 만들어 해결하지 마라.",
                     quote_ids=missing_quotes,
                 )
         covered.update(refs)

@@ -4,6 +4,7 @@ import { ChevronDownIcon } from '@/components/icons'
 import StageChip from '@/components/StageChip'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import type { MeetingDealRef, MeetingProgress } from '@/types'
 
 import { isInsufficientDealPrediction } from '../../generatedDraft'
@@ -80,10 +81,9 @@ export default function DealReportCard({
   const badge = assessmentBadge(draft)
   const dealLabel = deal?.no ?? savedDeal?.label ?? dealId
   const dealTitle = deal ? deal.title.trim() || deal.product : savedDeal?.note
-  const editable = draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
+  const editable = isAuthorEditableReportStatus(draft.statusCode)
   const locked = !editable || readOnly || generating || saving
-  const generationDisabled =
-    !['draft', 'changes_requested'].includes(draft.statusCode) || !canGenerate
+  const generationDisabled = !isAuthorEditableReportStatus(draft.statusCode) || !canGenerate
 
   return (
     <article className={styles.card}>

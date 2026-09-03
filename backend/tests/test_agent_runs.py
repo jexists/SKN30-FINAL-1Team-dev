@@ -498,6 +498,7 @@ def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
         owner_member_id=member.id,
         starts_at=NOW,
         ends_at=NOW + timedelta(hours=1),
+        completed_at=None,
         deleted_at=None,
         title="고객 미팅",
         location="회의실",
@@ -529,7 +530,7 @@ def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
         json.dumps(snapshot)
     source = run.input_snapshot["report_sources"]["activities"][0]
     assert source["id"] == str(activity_id)
-    assert source["starts_at"] == NOW.isoformat()
+    assert source["starts_at"] == "2026-08-17T18:00:00+09:00"
     assert run.source_refs["report_sources"] == [
         {
             "position": 0,

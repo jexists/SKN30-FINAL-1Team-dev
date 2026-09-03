@@ -9,7 +9,7 @@ from app.services.llm import LLMError
 
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
-PROMPT_VERSION = "report_writing.v13"
+PROMPT_VERSION = "report_writing.v14"
 
 
 class ReportDraftField(BaseModel):

@@ -93,8 +93,8 @@ def draft():
         ],
         "common_report": {"body": "구매팀과 미팅을 진행했다.", "evidence_ids": ["S0001"]},
         "unassigned_report": {
-            "body": "딜 미지정 · 확인 필요: ‘그거 다시 보내달래.’, ‘기타 메모 ???’. "
-            "대상 딜과 의미를 확인해야 한다.",
+            "body": "‘그거 다시 보내달래.’라는 요청이 있었으나 대상 딜은 확인이 필요하다. "
+            "‘기타 메모 ???’는 의미가 불명확하다.",
             "evidence_ids": ["S0003", "S0004"],
         },
     }
@@ -113,6 +113,9 @@ def test_pipeline_writes_once_and_reviews_once_without_runtime_tools():
     result = asyncio.run(writer.run(source, model=model))
 
     assert result.model_dump(mode="json") == draft()
+    assert "딜 미지정 · 확인 필요" not in result.unassigned_report.body
+    assert "out_of_scope" not in result.unassigned_report.body
+    assert "unresolved" not in result.unassigned_report.body
     assert source.model_dump(mode="json") == original
     assert len(model._seen) == 2
     assert model._tool_sets == [{"FreeformMeetingReports"}, {"ReportReview"}]

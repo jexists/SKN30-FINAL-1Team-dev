@@ -1,7 +1,14 @@
-import type { DailyReport, ReportKind, ReportTemplate } from '@/types'
+import type { ApiReportStatus, DailyReport, ReportKind, ReportTemplate } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
 export const APPROVERS: readonly string[] = []
+
+/** 작성자는 제출 후에도 팀장 승인 전까지 보고서를 고칠 수 있습니다. */
+export function isAuthorEditableReportStatus(
+  status: ApiReportStatus | undefined,
+): status is 'draft' | 'submitted' | 'changes_requested' {
+  return status === 'draft' || status === 'submitted' || status === 'changes_requested'
+}
 
 export const dailyTemplate: ReportTemplate = {
   id: 'builtin-daily-freeform',

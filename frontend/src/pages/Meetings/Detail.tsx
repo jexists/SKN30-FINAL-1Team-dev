@@ -11,6 +11,7 @@ import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
 import DailyListLink from '@/pages/Daily/components/DailyListLink'
 import { useReportDetail } from '@/shared/reportQuery'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import { fmtDay, parseISO } from '@/utils/date'
 import type { MeetingDealSection } from '@/types'
 
@@ -91,7 +92,7 @@ export default function Detail() {
     )
   }
 
-  const editable = report.apiStatus === 'draft' || report.apiStatus === 'changes_requested'
+  const editable = isAuthorEditableReportStatus(report.apiStatus)
 
   return (
     <section>

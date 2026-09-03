@@ -5,6 +5,7 @@
 import { useId } from 'react'
 
 import Button from '@/components/Button'
+import Skeleton from '@/components/Skeleton'
 import type { MeetingPreview, MeetingProgress } from '@/types'
 
 import type { MeetingPhase } from '../../useMeetingDraft'
@@ -101,17 +102,23 @@ export default function ReportSheet({
         ) : (
           <>
             <div className={styles.titleBlock}>
-              <label className="sr-only" htmlFor={inputId}>
-                보고서 제목
-              </label>
-              <input
-                id={inputId}
-                className={styles.title}
-                value={title}
-                disabled={locked}
-                placeholder="보고서 제목을 적으세요"
-                onChange={(event) => onTitleChange(event.target.value)}
-              />
+              {phase === 'generating' ? (
+                <Skeleton width="68%" height={39} radius="var(--r-sm)" />
+              ) : (
+                <>
+                  <label className="sr-only" htmlFor={inputId}>
+                    보고서 제목
+                  </label>
+                  <input
+                    id={inputId}
+                    className={styles.title}
+                    value={title}
+                    disabled={locked}
+                    placeholder="보고서 제목을 적으세요"
+                    onChange={(event) => onTitleChange(event.target.value)}
+                  />
+                </>
+              )}
               <p className={styles.when}>{when}</p>
             </div>
 

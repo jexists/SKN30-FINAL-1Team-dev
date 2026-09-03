@@ -137,6 +137,7 @@ async def sync_report_sources_from_legacy_content(
         await db.execute(delete(ReportSource).where(ReportSource.report_id == report.id))
     for row in rows:
         db.add(row)
+    await db.flush()
     return True
 
 
@@ -307,8 +308,11 @@ async def _source_activities(
                 "source": "캘린더",
                 "included": True,
                 "title": activity.title,
-                "starts_at": activity.starts_at,
-                "ends_at": activity.ends_at,
+                "starts_at": activity.starts_at.astimezone(_SEOUL),
+                "ends_at": activity.ends_at.astimezone(_SEOUL) if activity.ends_at else None,
+                "completed_at": (
+                    activity.completed_at.astimezone(_SEOUL) if activity.completed_at else None
+                ),
                 "location": activity.location,
                 "note": activity.note,
             }

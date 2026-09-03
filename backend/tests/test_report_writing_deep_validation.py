@@ -59,7 +59,10 @@ def _case(*, unassigned=True):
             evidence_ids=["S0001", "S0002", "S0003"],
         ),
         unassigned_report=agent.ReportBody(
-            body="딜 미지정 · 확인 필요: " + "\n".join(text for text, _, _ in rows[6:]),
+            body=(
+                f"“{rows[6][0]}”라는 요청이 있었으나 어느 딜의 내용인지는 확인이 필요하다. "
+                f"“{rows[7][0]}”는 별도 언급으로 남았다."
+            ),
             evidence_ids=["S0007", "S0008"],
         )
         if unassigned
@@ -266,10 +269,11 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.deep.v9"
+    assert agent.PROMPT_VERSION == "report_writing.deep.v10"
     skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
     assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
     assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
+    assert "내부 분류·처리 절차나 화면 제목을 본문에 쓰지 않는다" in skill
 
 
 def test_deal_schema_emits_identity_before_live_body():

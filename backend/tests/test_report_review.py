@@ -342,6 +342,25 @@ def test_new_submission_review_still_requires_the_seen_revision_id():
     assert db.commit_count == 0 and db.rollback_count == 1
 
 
+def test_review_rejects_a_superseded_submission_revision():
+    manager = _member(role="manager")
+    author = _member(team_id=manager.team_id)
+    report = _report(author)
+    db = _Db(_Result(scalar=report))
+
+    response = _review(
+        db,
+        manager,
+        report,
+        decision="approve",
+        expected_submission_id=str(uuid4()),
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "report_submission_conflict"}
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
 def test_rejection_returns_the_report_to_an_editable_state():
     """반려는 changes_requested 다. 팀원이 고쳐서 다시 낼 수 있어야 한다."""
     manager = _member(role="manager")

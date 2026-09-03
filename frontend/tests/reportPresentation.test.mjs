@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { after, test } from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -31,9 +32,8 @@ const {
   periodGenerationSeedOf,
   toReport,
 } = await vite.ssrLoadModule('/src/pages/Daily/useDailyReports.ts')
-const { mergeGeneratedValues, mergeSourceActivities } = await vite.ssrLoadModule(
-  '/src/pages/Daily/useDailyDraft.ts',
-)
+const { generationSourcesAreAvailable, mergeGeneratedValues, mergeSourceActivities } =
+  await vite.ssrLoadModule('/src/pages/Daily/useDailyDraft.ts')
 const {
   hasMeetingDraftContent,
   invalidateMeetingGeneration,
@@ -55,9 +55,9 @@ const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
 
 const dealId = '10000000-0000-4000-8000-000000000001'
-const dealSection = (values = {}, id = dealId) => ({
+const dealSection = (values = {}, id = dealId, label = id === dealId ? 'DEAL-1' : 'DEAL-2') => ({
   sales_deal_id: id,
-  deal_snapshot: { id, label: id === dealId ? 'DEAL-1' : 'DEAL-2' },
+  deal_snapshot: { id, label },
   content: { product: '합성 제품', title: '합성 딜 보고서', values },
   body: typeof values.body === 'string' ? values.body : null,
   ai_evidence: null,
@@ -73,7 +73,7 @@ const response = (values = {}, fields = [], dealSections = [dealSection(values)]
   report_date: '2026-08-31',
   status_code: 'approved',
   template_snapshot: { id: 'synthetic-template', fields },
-  content: { title: '합성 보고서' },
+  content: { title: '합성 보고서', hospital: '합성 고객사' },
   deal_sections: dealSections,
 })
 const periodResponse = ({
@@ -130,7 +130,7 @@ test('기간 보고서 상세는 저장 스냅샷과 구조화 값을 무시하�
   assert.deepEqual(toReport(contentOnly).values, { body: '' })
 })
 
-test('기간 보고서 상세의 수정 진입은 본인 draft와 changes_requested에만 열린다', () => {
+test('기간 보고서는 본인 작성본이면 승인 전까지 수정할 수 있다', () => {
   const draft = toReport(periodResponse({ status: 'draft' }))
   const returned = toReport(
     periodResponse({ status: 'changes_requested', reviewNote: '수치를 보완해 주세요.' }),
@@ -141,6 +141,10 @@ test('기간 보고서 상세의 수정 진입은 본인 draft와 changes_reques
   assert.equal(canEditPeriodReport(draft, 'another-member'), false)
   assert.equal(
     canEditPeriodReport(toReport(periodResponse({ status: 'submitted' })), 'synthetic-author'),
+    true,
+  )
+  assert.equal(
+    canEditPeriodReport(toReport(periodResponse({ status: 'approved' })), 'synthetic-author'),
     false,
   )
   assert.equal(returned.reviewNote, '수치를 보완해 주세요.')
@@ -157,24 +161,113 @@ test('팀장의 기간 보고서 작성 조회는 전역 팀 범위와 무관하
   }
 })
 
-test('일정 연결·독립 미팅 자료 모두 설명 첫 줄의 공백과 CRLF를 제거한다', () => {
-  const cases = [
-    [{ body: '  본문 첫 줄  \r\n둘째 줄', decision: '낮은 우선순위' }, '본문 첫 줄'],
-    [{ decision: '구형 결정 사항' }, '미팅 기록 확정'],
-    [{ note: '구형 메모' }, '미팅 기록 확정'],
-    [{ body: ' \t\r\n둘째 줄' }, '미팅 기록 확정'],
-    [{ body: '', decision: '', note: '  ' }, '미팅 기록 확정'],
-    [{}, '미팅 기록 확정'],
-  ]
-  for (const [values, expected] of cases) {
-    const report = toMeetingReport(response(values))
-    for (const agenda of [[], [{ id: report.agendaId, date: report.date }]]) {
-      const result = sourcesFor('일일', report.date, [report], [], agenda)
-      assert.equal(result.activities.length, 1)
-      assert.equal(result.activities[0].desc, expected)
-      assert.match(result.values.get(`meet-${report.id}`).body, /DEAL-1/)
-    }
+test('일정 연결·독립 미팅 자료는 모든 연결 딜을 접힌 보고서로 제공한다', () => {
+  const secondId = '10000000-0000-4000-8000-000000000002'
+  const thirdId = '10000000-0000-4000-8000-000000000003'
+  const raw = response(
+    {},
+    [],
+    [
+      dealSection({ body: '첫 딜 본문' }),
+      dealSection({ body: '둘째 딜 본문' }, secondId, 'DEAL-2'),
+      dealSection({ body: '셋째 딜 본문' }, thirdId, 'DEAL-3'),
+    ],
+  )
+  raw.common_body = '공통 기록'
+  raw.unassigned_body = '딜 미지정 기록'
+  raw.current_submission_id = 'submission-1'
+  const report = toMeetingReport(raw)
+
+  for (const agenda of [[], [{ id: report.agendaId, date: report.date }]]) {
+    const result = sourcesFor('일일', report.date, [report], [], agenda)
+    const activity = result.activities[0]
+    const meta = result.meta.get(`meet-${report.id}`)
+    const sourceBody = result.values.get(`meet-${report.id}`).body
+
+    assert.equal(result.activities.length, 1)
+    assert.equal(activity.title, '합성 보고서')
+    assert.equal(activity.desc, '합성 고객사')
+    assert.equal(activity.sourceSubmissionId, 'submission-1')
+    assert.doesNotMatch(`${activity.title}\n${activity.desc}`, /공통 기록|딜 미지정 기록|딜별 본문/)
+    assert.equal(meta.to, undefined)
+    assert.deepEqual(
+      meta.previewSections.map(({ label, title, body }) => ({ label, title, body })),
+      [
+        { label: 'DEAL-1', title: '합성 딜 보고서', body: '첫 딜 본문' },
+        { label: 'DEAL-2', title: '합성 딜 보고서', body: '둘째 딜 본문' },
+        { label: 'DEAL-3', title: '합성 딜 보고서', body: '셋째 딜 본문' },
+      ],
+    )
+    assert.match(sourceBody, /공통 기록/)
+    assert.match(sourceBody, /딜 미지정 기록/)
+    assert.match(sourceBody, /첫 딜 본문/)
+    assert.match(sourceBody, /둘째 딜 본문/)
+    assert.match(sourceBody, /셋째 딜 본문/)
   }
+})
+
+test('검토 대기 미팅 보고서도 일정 요약 대신 일일보고 자료로 사용한다', () => {
+  const raw = response({ body: '고객 조건과 다음 조치가 담긴 미팅 본문' })
+  raw.status_code = 'submitted'
+  const report = toMeetingReport(raw)
+  const result = sourcesFor(
+    '일일',
+    report.date,
+    [report],
+    [],
+    [{ id: report.agendaId, date: report.date, title: '일정 제목' }],
+  )
+
+  assert.equal(result.activities.length, 1)
+  assert.equal(result.activities[0].source, '업무보고서')
+  assert.equal(result.activities[0].refId, report.id)
+  assert.equal(result.meta.get(`meet-${report.id}`).status, '검토 대기')
+  assert.match(result.values.get(`meet-${report.id}`).body, /고객 조건과 다음 조치/)
+})
+
+test('주간·월간 자료에도 하위 보고서의 불변 제출본 ID를 보존한다', () => {
+  const child = toReport({
+    ...periodResponse({ status: 'submitted', body: '하위 보고서 본문' }),
+    current_submission_id: 'daily-submission-1',
+  })
+  const result = sourcesFor('주간', child.date, [], [child], [])
+
+  assert.equal(result.activities[0].sourceSubmissionId, 'daily-submission-1')
+})
+
+test('현재 선택 자료와 불변 제출본이 달라진 이전 생성 후보는 복구하지 않는다', () => {
+  const calendar = [{ id: 'cal-agenda-1', source: '캘린더', included: true, refId: 'agenda-1' }]
+  const meeting = [
+    {
+      id: 'meet-report-1',
+      source: '업무보고서',
+      included: true,
+      refId: 'report-1',
+      sourceSubmissionId: 'submission-1',
+    },
+  ]
+  const added = [
+    ...meeting,
+    {
+      id: 'meet-report-2',
+      source: '업무보고서',
+      included: true,
+      refId: 'report-2',
+      sourceSubmissionId: 'submission-2',
+    },
+  ]
+  const revised = [{ ...meeting[0], sourceSubmissionId: 'submission-2' }]
+  const renamed = [{ ...meeting[0], title: '현재 미팅 제목', desc: '현재 고객사' }]
+  const reversed = [...added].reverse()
+  const recoveredWithExclusion = [meeting[0], { ...added[1], included: false }]
+  const mergedWithExclusion = mergeSourceActivities(added, recoveredWithExclusion)
+
+  assert.equal(generationSourcesAreAvailable(calendar, meeting), false)
+  assert.equal(generationSourcesAreAvailable(meeting, added), false)
+  assert.equal(generationSourcesAreAvailable(meeting, revised), false)
+  assert.equal(generationSourcesAreAvailable(added, reversed), false)
+  assert.equal(generationSourcesAreAvailable(meeting, renamed), true)
+  assert.equal(generationSourcesAreAvailable(recoveredWithExclusion, mergedWithExclusion), true)
 })
 
 test('늦게 도착한 보고서 자료는 초기 초안에 반영하고 기존 선택은 보존한다', () => {
@@ -388,7 +481,7 @@ test('팀장 검토 화면은 저장된 Markdown을 서식으로 표시하되 ra
   assert.match(view, /&lt;script&gt;/)
 })
 
-test('미팅 공통·미지정 기록은 목록 검색과 일일보고 자료 설명에도 포함한다', () => {
+test('미팅 공통·미지정 기록은 목록 검색에 포함한다', () => {
   const raw = response({})
   raw.common_body = '공통 검색 전용 문구'
   raw.unassigned_body = '미지정 설명 첫 줄\n둘째 줄'
@@ -397,10 +490,6 @@ test('미팅 공통·미지정 기록은 목록 검색과 일일보고 자료 �
 
   assert.match(row.haystack, /공통 검색 전용 문구/)
   assert.match(row.haystack, /미지정 설명 첫 줄/)
-
-  report.meetingShared.common_report = null
-  const sources = sourcesFor('일일', report.date, [report], [], [])
-  assert.equal(sources.activities[0].desc, '미지정 설명 첫 줄')
 })
 
 test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 보고서와 revision을 보낸다', () => {
@@ -477,6 +566,11 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
   assert.equal(legacyDraft.report_id, 'legacy-draft')
   assert.equal(legacyDraft.expected_version, 2)
   assert.equal(legacyDraft.expected_status_code, 'draft')
+  const submitted = meetingFinalizeRequestOf(
+    { ...draft, reportId: 'submitted-report', version: 3, statusCode: 'submitted' },
+    'submitted-revision-key',
+  )
+  assert.equal(submitted.expected_status_code, 'submitted')
   assert.throws(
     () =>
       meetingFinalizeRequestOf(
@@ -553,6 +647,11 @@ test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하�
   assert.equal(legacyDraft.report_id, 'legacy-period-draft')
   assert.equal(legacyDraft.expected_version, 4)
   assert.equal(legacyDraft.expected_status_code, 'draft')
+  const submitted = periodFinalizeRequestOf(
+    { ...draft, reportId: 'submitted-period', version: 5, statusCode: 'submitted' },
+    'submitted-period-key',
+  )
+  assert.equal(submitted.expected_status_code, 'submitted')
 })
 
 test('재접속 입력은 원문·첨부·자료와 canonical body만 되살린다', () => {
@@ -635,7 +734,7 @@ test('재접속 입력은 원문·첨부·자료와 canonical body만 되살린�
   )
 })
 
-test('일정의 수정중 초안은 Compose로, 제출한 보고서는 단일 상세로 연결한다', () => {
+test('일정의 보고서는 승인 전까지 Compose로 연결한다', () => {
   const draft = toMeetingReport({ ...response({ body: '초안' }), status_code: 'draft' })
   const submitted = toMeetingReport({
     ...response({ body: '제출본' }),
@@ -645,8 +744,26 @@ test('일정의 수정중 초안은 Compose로, 제출한 보고서는 단일 �
   assert.equal(draft.status, '수정중')
   assert.equal(meetingLinkFor(draft.agendaId, [draft]).to, `/meetings/new?agenda=${draft.agendaId}`)
   assert.equal(meetingLinkFor(draft.agendaId, [draft]).label, '이어서 작성')
-  assert.equal(meetingLinkFor(submitted.agendaId, [submitted]).to, `/meetings/${submitted.id}`)
-  assert.equal(meetingLinkFor(submitted.agendaId, [submitted]).label, '보고서 열기')
+  assert.equal(
+    meetingLinkFor(submitted.agendaId, [submitted]).to,
+    `/meetings/new?agenda=${submitted.agendaId}`,
+  )
+  assert.equal(meetingLinkFor(submitted.agendaId, [submitted]).label, '수정하기')
+})
+
+test('대시보드의 두 일정 진입점도 공통 승인 전 수정 규칙을 사용한다', async () => {
+  const dayAgenda = await readFile(
+    new URL('../src/pages/Dashboard/components/DayAgenda/DayAgenda.tsx', import.meta.url),
+    'utf8',
+  )
+  const agendaReport = await readFile(
+    new URL('../src/shared/agendaReport.ts', import.meta.url),
+    'utf8',
+  )
+
+  for (const source of [dayAgenda, agendaReport]) {
+    assert.match(source, /isAuthorEditableReportStatus\(/)
+  }
 })
 
 test('전체 목록과 달력은 일반 draft를 유지하고 미팅 draft만 제외한다', () => {
@@ -757,4 +874,34 @@ test('공통·미지정 기록은 읽기 전용 제목과 편집용 연결 label
   const labels = [...edit.matchAll(/<label for="([^"]+)">/g)]
   assert.equal(labels.length, 2)
   for (const [, id] of labels) assert(edit.includes(`<textarea id="${id}"`))
+})
+
+test('미팅 공통 기록은 재생성 중 이전 내용 대신 진행 상태를 표시한다', () => {
+  const view = renderToStaticMarkup(
+    createElement(MeetingSharedPanel, {
+      shared: { common_report: { body: '기존 공통 기록', evidence_ids: [] } },
+      generating: true,
+    }),
+  )
+
+  assert.match(view, /aria-busy="true"/)
+  assert.match(view, /role="status"/)
+  assert.match(view, /aria-live="polite"/)
+  assert.match(view, /미팅 처리를 준비하는 중입니다/)
+  assert.doesNotMatch(view, /기존 공통 기록/)
+})
+
+test('딜별 보고서는 재생성 중 이전 제목 대신 로딩 자리를 표시한다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Meetings/components/ReportSheet/ReportSheet.tsx', import.meta.url),
+    'utf8',
+  )
+  const titleBlock = source.slice(
+    source.indexOf('<div className={styles.titleBlock}>'),
+    source.indexOf('<p className={styles.when}>'),
+  )
+
+  assert.match(titleBlock, /phase === 'generating'/)
+  assert.match(titleBlock, /<Skeleton width="68%" height=\{39\}/)
+  assert.match(titleBlock, /:\s*\([\s\S]*<input/)
 })

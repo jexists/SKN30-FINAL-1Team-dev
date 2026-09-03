@@ -15,7 +15,6 @@ const {
   finishIdempotencyAttempt,
   idempotencyAttemptFor,
   latestReportGeneration,
-  requiresRecoveryConfirmation,
   waitForReportGeneration,
 } = await vite.ssrLoadModule('/src/api/reportAgent.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
@@ -150,10 +149,20 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /setTranscript: changeTranscript/)
 })
 
-test('재접속 후보는 canonical 보고서가 없을 때만 자동 적용한다', () => {
-  assert.equal(requiresRecoveryConfirmation(undefined), false)
-  assert.equal(requiresRecoveryConfirmation('changes-requested-report'), true)
-  assert.equal(requiresRecoveryConfirmation('legacy-draft-report'), true)
+test('저장된 보고서는 과거 생성 후보를 조회하거나 복구 팝업으로 덮지 않는다', async () => {
+  const meeting = await readFile(
+    new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
+    'utf8',
+  )
+  const period = await readFile(
+    new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url),
+    'utf8',
+  )
+  const daily = await readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8')
+
+  assert.match(meeting, /if \(savedReport\) \{[\s\S]*?setRecovering\(false\)[\s\S]*?return/)
+  assert.match(period, /if \(canonical\) \{[\s\S]*?setRecovering\(false\)[\s\S]*?return/)
+  assert.doesNotMatch(`${meeting}\n${daily}`, /이전에 생성하던 후보|후보 복구/)
 })
 
 test('생성·재접속은 AgentRun API만 쓰고 canonical 저장은 finalize 한 번뿐이다', async () => {

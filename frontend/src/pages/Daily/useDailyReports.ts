@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
-import { templateFor } from '@/shared/reports'
+import { isAuthorEditableReportStatus, templateFor } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import { getOwnMemberIds } from '@/shared/scope'
 import type {
@@ -58,10 +58,7 @@ function valuesOf(value: unknown): Record<string, string> {
 
 /** 작성자 본인의 수정 가능한 초안인지 상세와 테스트가 같은 규칙으로 판단합니다. */
 export function canEditPeriodReport(report: DailyReport, memberId: string): boolean {
-  return (
-    report.ownerMemberId === memberId &&
-    (report.apiStatus === 'draft' || report.apiStatus === 'changes_requested')
-  )
+  return report.ownerMemberId === memberId && isAuthorEditableReportStatus(report.apiStatus)
 }
 
 function activitiesOf(item: ReportResponse): ReportActivity[] {
@@ -206,10 +203,9 @@ export function periodFinalizeRequestOf(
   idempotencyKey: string,
   agentRunId?: string,
 ): ReportFinalizeRequest {
-  const revisionStatus =
-    draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
-      ? draft.statusCode
-      : undefined
+  const revisionStatus = isAuthorEditableReportStatus(draft.statusCode)
+    ? draft.statusCode
+    : undefined
   if (
     (draft.statusCode === 'changes_requested' || draft.reportId) &&
     (!draft.reportId || !draft.version || !revisionStatus)

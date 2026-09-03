@@ -14,6 +14,7 @@ import DayHeader from '@/components/DayHeader'
 import ErrorToast from '@/components/ErrorToast'
 import { ChevronRightIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
+import ReportBody from '@/components/ReportBody'
 import ReportFields from '@/components/ReportFields'
 import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
@@ -79,7 +80,7 @@ export default function Compose() {
   const copy = COPY[kind]
   const periodLabel = periodLabelFor(kind, dateISO)
   const existing = draft.existing
-  const locked = existing?.status === '검토 대기' || existing?.status === '확정'
+  const locked = existing?.status === '확정'
   // 아직 오지 않은 기간은 쓸 것이 없습니다. 주소를 직접 쳐도 막습니다.
   const isFuture = dateISO > TODAY_ISO
   // 일일만 체크해서 고릅니다. 주간·월간은 쓴 보고서가 그대로 섭니다.
@@ -194,7 +195,7 @@ export default function Compose() {
 
       <ErrorToast message={loadError} onRetry={draft.reload} />
 
-      {/* 이미 있는 보고서는 덮어쓰지 않고 이어서 씁니다. 낸 뒤라면 잠급니다. */}
+      {/* 이미 있는 보고서는 덮어쓰지 않고 이어서 씁니다. 승인 뒤에만 잠급니다. */}
       {existing && !locked && (
         <p className={styles.saved}>
           이 기간에 {existing.status}인 보고서가 있어 이어서 씁니다. 새 보고서를 만들지 않습니다.
@@ -265,6 +266,36 @@ export default function Compose() {
                       {meta.tracked && <ReportStatusBadge status={meta.status} />}
                       {meta.to && meta.label && <Link to={meta.to}>{meta.label}</Link>}
                     </>
+                  )
+                }}
+                renderDetails={(item) => {
+                  const sections = draft.meta.get(item.id)?.previewSections
+                  if (!sections?.length) return null
+                  return (
+                    <div className={styles.sourceReports}>
+                      {sections.map((section, index) => (
+                        <details className={styles.sourceReport} key={`${section.id}-${index}`}>
+                          <summary>
+                            <span className={styles.sourceDeal}>
+                              <strong>{section.title || section.label}</strong>
+                              {section.title && <span>{section.label}</span>}
+                            </span>
+                            <span className={styles.sourceReportAction}>
+                              <span className={styles.sourceReportClosed}>보고서 내용 보기</span>
+                              <span className={styles.sourceReportOpen}>보고서 내용 접기</span>
+                              <ChevronRightIcon />
+                            </span>
+                          </summary>
+                          <div className={styles.sourceReportBody}>
+                            {section.body.trim() ? (
+                              <ReportBody body={section.body} />
+                            ) : (
+                              <p className={styles.sourceReportEmpty}>작성된 내용이 없습니다.</p>
+                            )}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
                   )
                 }}
                 onToggle={draft.toggleActivity}
@@ -361,26 +392,6 @@ export default function Compose() {
           </div>
         </div>
       </div>
-
-      {draft.pendingRecovery && (
-        <Modal
-          title="이전에 생성하던 후보를 복구할까요?"
-          description="복구하면 당시 자료 선택·첨부·직접 입력과 생성 결과가 현재 보고서 위에 올라옵니다."
-          onClose={draft.discardPendingRecovery}
-          footer={
-            <>
-              <Button variant="outline" type="button" onClick={draft.discardPendingRecovery}>
-                현재 내용 유지
-              </Button>
-              <Button type="button" onClick={draft.acceptPendingRecovery}>
-                후보 복구
-              </Button>
-            </>
-          }
-        >
-          <p>사용자가 복구를 선택하기 전까지 저장된 보고서 내용은 바뀌지 않습니다.</p>
-        </Modal>
-      )}
 
       {confirm?.kind === 'regenerate' && (
         <Modal

@@ -13,6 +13,7 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import { meetingComposePath, meetingReportPath } from '@/constants/routes'
 import { savedForAgenda } from '@/pages/Meetings/useMeetingReports'
 import { isOwnAgendaItem } from '@/shared/agenda'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import type { AgendaItem } from '@/types'
 
 export interface AgendaReportLink {
@@ -60,7 +61,7 @@ export function useAgendaReportLink(item: AgendaItem | null) {
           !!row &&
           canWrite &&
           row.author_member_id === memberId &&
-          (row.status_code === 'draft' || row.status_code === 'changes_requested')
+          isAuthorEditableReportStatus(row.status_code)
         setLink(
           row
             ? {
