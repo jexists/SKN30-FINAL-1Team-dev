@@ -41,8 +41,8 @@ const DEFAULT_RANGE = '6'
 const ALL_PIPELINES = 'all'
 
 export default function Deals() {
-  const [openId, setOpenId] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
+  const openId = params.get('deal')
   const requestedPipelineId = params.get('pipeline') || DEFAULT_PIPELINE
   // 여러 사람이 섞여 보일 때만 담당 영업 칸을 세웁니다. 한 명만 보고 있으면 모든 줄이
   // 같은 이름이고, 팀원은 서버가 본인 것만 돌려줍니다.
@@ -74,6 +74,7 @@ export default function Deals() {
     },
     [params, setParams],
   )
+  const setOpenId = useCallback((id: string | null) => setParam('deal', id ?? ''), [setParam])
 
   const setPipeline = useCallback(
     (value: string) => {
@@ -142,7 +143,7 @@ export default function Deals() {
         setOpenId(null)
       })
     },
-    [loadDocumentStatuses],
+    [loadDocumentStatuses, setOpenId],
   )
 
   const pipelineOptions = useMemo(

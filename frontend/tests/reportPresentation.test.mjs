@@ -12,6 +12,7 @@ const vite = await createServer({
 })
 after(() => vite.close())
 const { meetingLinkFor, sourcesFor } = await vite.ssrLoadModule('/src/pages/Daily/sources.ts')
+const { dealDetailPath } = await vite.ssrLoadModule('/src/constants/routes.ts')
 const { fromMeetingReport } = await vite.ssrLoadModule('/src/pages/Daily/rows.ts')
 const { fetchAllReportPages, historyQueryScopes } = await vite.ssrLoadModule(
   '/src/pages/Daily/useReportHistory.ts',
@@ -53,6 +54,10 @@ const { ReportReviewContents } = await vite.ssrLoadModule(
 )
 const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
+
+test('딜 상세 링크는 식별자를 인코딩해 영업 현황 드로어를 바로 연다', () => {
+  assert.equal(dealDetailPath('deal/id?tab=1'), '/deals?deal=deal%2Fid%3Ftab%3D1')
+})
 
 const dealId = '10000000-0000-4000-8000-000000000001'
 const dealSection = (values = {}, id = dealId, label = id === dealId ? 'DEAL-1' : 'DEAL-2') => ({

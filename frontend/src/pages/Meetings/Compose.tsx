@@ -548,16 +548,18 @@ export default function Compose() {
               const state = draft.draftsByDeal[dealId]
               if (!state) return null
               const deal = deals.deals.find((one) => one.id === dealId)
+              const savedSection = savedByDeal.get(dealId)
+              const product = deal?.product ?? savedSection?.product
 
               return (
                 <DealReportCard
                   key={dealId}
                   dealId={dealId}
                   deal={deal}
-                  savedDeal={savedByDeal.get(dealId)?.salesDeal}
+                  savedDeal={savedSection?.salesDeal}
                   draft={state}
                   progress={draft.processingProgress}
-                  when={when}
+                  when={`${when}${product ? ` · ${product}` : ''}`}
                   saving={pending}
                   generating={generating || recovering}
                   canGenerate={draft.canGenerate && generatable}

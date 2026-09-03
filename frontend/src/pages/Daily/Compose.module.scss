@@ -230,6 +230,12 @@
   }
 }
 
+@media screen {
+  .sheet :global(textarea) {
+    min-height: clamp(18rem, 45dvh, 32rem);
+  }
+}
+
 /*
  * AI 가 보고서를 만들지 못했을 때. 결과가 나왔어야 할 자리에서 이유를 냅니다.
  * 왼쪽 구석의 작은 글씨는 기다리다 지친 사람의 눈에 들어오지 않습니다.

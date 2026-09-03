@@ -1,8 +1,9 @@
 import { useId, useState } from 'react'
+import { Link } from 'react-router'
 
 import { ChevronDownIcon } from '@/components/icons'
-import StageChip from '@/components/StageChip'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
+import { dealDetailPath } from '@/constants/routes'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import { isAuthorEditableReportStatus } from '@/shared/reports'
 import type { MeetingDealRef, MeetingProgress } from '@/types'
@@ -87,28 +88,37 @@ export default function DealReportCard({
 
   return (
     <article className={styles.card}>
-      <button
-        type="button"
-        className={`${styles.header} ${open ? styles.isOpen : ''}`}
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className={styles.identity}>
+      <header className={`${styles.header} ${open ? styles.isOpen : ''}`}>
+        <button
+          type="button"
+          className={styles.disclosure}
+          aria-label={`${dealLabel} 보고서 ${open ? '접기' : '펼치기'}`}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen((value) => !value)}
+        >
           <ChevronDownIcon className={styles.caret} width={17} height={17} />
+        </button>
+
+        <Link
+          className={styles.identity}
+          to={dealDetailPath(dealId)}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`${dealLabel} 딜 상세 새 탭에서 열기`}
+        >
           <span className={styles.dealText}>
             <span className={styles.dealLine}>
               <strong>{dealLabel}</strong>
-              {deal && <StageChip tone={deal.stageTone}>{deal.stageName}</StageChip>}
             </span>
             {dealTitle && <span className={styles.dealTitle}>{dealTitle}</span>}
           </span>
-        </span>
+        </Link>
 
         <span className={styles.result} title={badge.title}>
           <StatusBadge label={badge.label} tone={badge.tone} />
         </span>
-      </button>
+      </header>
 
       <div id={bodyId} className={`${styles.body} ${open ? '' : styles.isClosed}`}>
         <ReportSheet
