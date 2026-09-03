@@ -23,8 +23,6 @@ interface Props {
   columns: SalesDealColumn[]
   /** 추가할 단계. 보드에서 + 를 누른 칸이며, 수정은 딜이 서 있는 단계입니다. */
   stageId?: string
-  dealTypes: SalesDealTypeResponse[]
-  optionsLoading?: boolean
   onSubmit: (input: SalesDealSaveInput) => Promise<void>
   onClose: () => void
 }
@@ -62,15 +60,7 @@ async function resolveCompanyId(company: CompanySelection): Promise<string> {
   return data.id
 }
 
-export default function SalesDealForm({
-  deal,
-  columns,
-  stageId,
-  dealTypes,
-  optionsLoading = false,
-  onSubmit,
-  onClose,
-}: Props) {
+export default function SalesDealForm({ deal, columns, stageId, onSubmit, onClose }: Props) {
   const [form, setForm] = useState<FormState>(() => ({
     // 딜은 회사 id 와 이름만 들고 있습니다. 아래에서 한 건을 읽어 채웁니다.
     company: null,
@@ -78,10 +68,29 @@ export default function SalesDealForm({
     title: deal?.title ?? '',
     stageId: stageId ?? columns[0]?.id ?? '',
   }))
+  // 딜 유형은 이 모달의 저장에만 쓰입니다. 목록·보드는 쓰지 않아 여기서 받습니다.
+  const [dealTypes, setDealTypes] = useState<SalesDealTypeResponse[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(true)
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
+
+  useEffect(() => {
+    let live = true
+    void client
+      .get<SalesDealTypeResponse[]>('/sales-deal-types')
+      .then(({ data }) => {
+        if (live) setDealTypes(data)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (live) setOptionsLoading(false)
+      })
+    return () => {
+      live = false
+    }
+  }, [])
 
   // 수정 화면의 고객사 칸이 빈칸으로 보이지 않게 지금 회사를 읽어 넣습니다.
   // 못 읽으면 비어 있는 채로 두고, 사람이 다시 고르면 됩니다.

@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     database_url: str = ""
 
     # 로그인 시도 제한은 IP 단위로만 겁니다. 계정 단위 버킷은 두지 않습니다.
-    login_max_attempts: int = Field(default=5, ge=1, le=20)
-    login_window_seconds: int = Field(default=60, ge=10, le=3_600)
+    login_max_attempts: int = Field(default=10, ge=1, le=20)
+    login_window_seconds: int = Field(default=30, ge=10, le=3_600)
 
     # refresh 쿠키 수명. 갱신할 때마다 다시 내려 미사용 기간만 만료로 이어집니다.
     # Supabase Dashboard 의 Inactivity timeout 과 같은 값으로 맞춥니다.

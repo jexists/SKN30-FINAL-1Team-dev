@@ -31,8 +31,15 @@ export interface ScheduleCandidate {
   reason: string
 }
 
+/** 브리핑 본문이 인용한 근거 하나. id 는 종류에 따라 딜·보고서·문서의 id 다. */
+export interface SourceRef {
+  type: 'sales_deal' | 'report' | 'support_request' | 'activity' | 'document'
+  id: string
+}
+
 export interface ContractBriefingOutput {
   contract_summary: string
+  source_refs: SourceRef[]
   risks: ContractRisk[]
   missing_information: string[]
   recommended_actions: string[]

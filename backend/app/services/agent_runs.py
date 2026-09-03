@@ -111,6 +111,14 @@ def _request_source_refs(payload: AgentRunCreate) -> dict[str, Any]:
     return refs
 
 
+def _briefing_document_ids(input_snapshot: dict[str, Any]) -> list[str]:
+    """브리핑이 근거로 조회한 문서 id. 실행 이력에서 되짚을 수 있게 남긴다."""
+    sources = (input_snapshot.get("document_context") or {}).get("sources") or []
+    return list(
+        dict.fromkeys(str(item["document_id"]) for item in sources if item.get("document_id"))
+    )
+
+
 def _scope(member: Member):
     """같은 팀에서 관리자는 전체를, 일반 구성원은 본인 실행만 본다."""
     conditions = [AgentRun.team_id == member.team_id]
@@ -282,6 +290,9 @@ async def _build_run_input(
             db, member, payload.activity_id
         )
         source_refs["customer_company_id"] = input_snapshot["customer_company"]["id"]
+        document_ids = _briefing_document_ids(input_snapshot)
+        if document_ids:
+            source_refs["document_ids"] = document_ids
         return (
             contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
             input_snapshot,
@@ -534,6 +545,9 @@ async def prepare_claimed(
         if getattr(result, "rowcount", 1) == 0:
             raise RuntimeError("agent_run_lease_lost")
         await session.commit()
+    # 여기서 만든 입력을 DB 에만 두면 호출자가 든 run 은 빈 스냅샷을 계속 들고 있다.
+    # evidence() 처럼 입력을 보고 지표를 세는 쪽이 늘 0 을 기록하게 된다.
+    run.input_snapshot = input_snapshot
     return run.agent_code, input_snapshot, run.requested_by_member_id
 
 
@@ -558,7 +572,10 @@ async def dispatch(
     raise ValueError("unsupported_agent")
 
 
-def evidence(agent_code: str, output: Any) -> dict[str, Any]:
+def evidence(
+    agent_code: str, output: Any, input_snapshot: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """실행 이력에 남길 요약. 결과만으로 설명되지 않는 값은 입력 스냅샷에서 가져온다."""
     if agent_code == "report_writing":
         return {"prompt_version": report_writing.PROMPT_VERSION, "summary": output.summary}
     if agent_code == "meeting_analysis":
@@ -587,9 +604,13 @@ def evidence(agent_code: str, output: Any) -> dict[str, Any]:
             "risk_count": len(output.risks),
         }
     if agent_code == "contract_management_briefing":
+        context = (input_snapshot or {}).get("document_context") or {}
         return {
             "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
             "risk_count": len(output.risks),
+            # 근거가 비어 있을 때 자료가 없었는지 검색이 안 됐는지 구분한다.
+            "document_count": len(context.get("summaries") or []),
+            "chunk_count": len(context.get("sources") or []),
         }
     return {
         "prompt_version": schedule_management.PROMPT_VERSION,

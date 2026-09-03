@@ -20,7 +20,6 @@ import styles from './DocumentDrawer.module.scss'
 interface Props {
   doc: SalesDocument
   onClose: () => void
-  canUpload: boolean
   onNewVersion: () => void
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
   onLoadSummary: (fileId: string) => Promise<DocumentSummaryResponse>
@@ -33,7 +32,6 @@ interface Props {
 export default function DocumentDrawer({
   doc,
   onClose,
-  canUpload,
   onNewVersion,
   onSummarize,
   onLoadSummary,
@@ -174,11 +172,9 @@ export default function DocumentDrawer({
         </>
       }
       footer={
-        canUpload && (
-          <Button variant="outline" onClick={onNewVersion}>
-            <UploadIcon width={14} height={14} />새 버전 올리기
-          </Button>
-        )
+        <Button variant="outline" onClick={onNewVersion}>
+          <UploadIcon width={14} height={14} />새 버전 올리기
+        </Button>
       }
     >
       <ErrorToast

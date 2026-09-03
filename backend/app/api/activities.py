@@ -16,6 +16,8 @@ from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.activities import (
     ActivityCreate,
+    ActivityDocumentRead,
+    ActivityDocumentsRead,
     ActivityOptionRead,
     ActivityPage,
     ActivityPageParams,
@@ -23,8 +25,8 @@ from app.schemas.activities import (
     ActivityRead,
 )
 from app.schemas.agent_runs import AgentRunCreate
+from app.services import activity_documents, contract_next_meeting_pipeline
 from app.services import agent_runs as agent_run_service
-from app.services import contract_next_meeting_pipeline
 
 router = APIRouter(tags=["activities"])
 
@@ -107,6 +109,11 @@ def _scope(member: Member, owner_ids: tuple[UUID, ...] | None = None):
 
 def _seoul(value: datetime | None) -> datetime | None:
     return None if value is None else value.astimezone(_SEOUL)
+
+
+def _activity_document_read(item: dict) -> ActivityDocumentRead:
+    """저장된 UTC 시각을 화면과 같은 서울 시간으로 바꿔 내보낸다."""
+    return ActivityDocumentRead.model_validate({**item, "uploaded_at": _seoul(item["uploaded_at"])})
 
 
 def _activity_read(
@@ -453,6 +460,32 @@ async def get_activity(
     row = await _activity_row(db, member, activity_id)
     briefing = await _activity_briefing(db, member, activity_id)
     return _activity_read(*row, ai_briefing=briefing)
+
+
+@router.get("/activities/{activity_id}/documents", response_model=ActivityDocumentsRead)
+async def list_activity_documents(
+    activity_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> ActivityDocumentsRead:
+    """미팅에 관련된 자료실 문서.
+
+    AI 브리핑과 분리된 조회다. 브리핑은 실행 시점에 박제되지만 이 목록은 열 때마다 다시
+    조회하므로, 브리핑을 만든 뒤에 올라온 자료도 곧바로 보인다.
+    """
+    activity, _display_name, _contact, company_id, *_rest = await _activity_row(
+        db, member, activity_id
+    )
+    groups = await activity_documents.list_for_activity(
+        db,
+        team_id=member.team_id,
+        activity=activity,
+        customer_company_id=company_id,
+    )
+    return ActivityDocumentsRead(
+        related=[_activity_document_read(item) for item in groups["related"]],
+        product=[_activity_document_read(item) for item in groups["product"]],
+    )
 
 
 @router.post(

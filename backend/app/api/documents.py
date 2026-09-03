@@ -425,6 +425,7 @@ async def search_document_chunks(
     limit: Annotated[int, Query(ge=1, le=20)] = 5,
     document_id: UUID | None = None,
     sales_deal_id: UUID | None = None,
+    customer_company_id: UUID | None = None,
 ) -> list[DocumentChunkRead]:
     """영업·계약관리 Agent가 자료요약 결과를 조회하는 RAG 접점."""
     results = await document_processing.search_chunks(
@@ -434,6 +435,7 @@ async def search_document_chunks(
         limit=limit,
         document_id=document_id,
         sales_deal_id=sales_deal_id,
+        customer_company_id=customer_company_id,
     )
     return [
         DocumentChunkRead(
@@ -463,6 +465,7 @@ async def get_briefing_context(
     limit: Annotated[int, Query(ge=1, le=20)] = 5,
     document_id: UUID | None = None,
     sales_deal_id: UUID | None = None,
+    customer_company_id: UUID | None = None,
 ) -> DocumentBriefingContextRead:
     """영업·계약관리 Agent가 브리핑에 사용할 요약·RAG 문맥을 반환한다."""
     context = await sales_context.retrieve_briefing_context(
@@ -472,6 +475,7 @@ async def get_briefing_context(
         limit=limit,
         document_id=document_id,
         sales_deal_id=sales_deal_id,
+        customer_company_id=customer_company_id,
     )
     return DocumentBriefingContextRead.model_validate(context)
 

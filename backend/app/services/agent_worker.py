@@ -181,7 +181,7 @@ async def _complete(
             "status_code": status_code,
             "current_stage_code": status_code,
             "output_snapshot": output.model_dump(mode="json"),
-            "evidence": agent_runs.evidence(run.agent_code, output),
+            "evidence": agent_runs.evidence(run.agent_code, output, run.input_snapshot),
             "error_code": "agent_run_partial" if is_partial else None,
             "error_message": None,
             "lease_owner": None,
@@ -212,7 +212,7 @@ async def _persist_meeting_output(
     sessionmaker = agent_runs.get_sessionmaker()
     async with sessionmaker() as session:
         output_snapshot = output.model_dump(mode="json")
-        run_evidence = agent_runs.evidence(run.agent_code, output)
+        run_evidence = agent_runs.evidence(run.agent_code, output, run.input_snapshot)
         result = await session.execute(
             update(AgentRun)
             .where(

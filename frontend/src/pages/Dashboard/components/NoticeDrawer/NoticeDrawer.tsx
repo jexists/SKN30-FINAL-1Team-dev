@@ -12,7 +12,7 @@ import { useState } from 'react'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
-import { InlineLoader } from '@/components/Skeleton'
+import Skeleton from '@/components/Skeleton'
 import StatusBadge from '@/components/StatusBadge'
 import { errorMessage } from '@/api/errorMessage'
 import { postedFull } from '@/shared/notices'
@@ -33,6 +33,12 @@ interface Props {
   onStatusChange?: () => void
   onClose: () => void
 }
+
+/** 본문 자리표시자. 문단 하나가 배열 하나이고, 값은 글줄의 너비입니다. */
+const BODY_LINES = [
+  ['100%', '96%', '88%', '54%'],
+  ['100%', '92%', '67%'],
+]
 
 /** 2026-08-31T09:30:00+09:00 → 2026.08.31 09:30 */
 function stamp(value: string | null): string {
@@ -148,7 +154,18 @@ export default function NoticeDrawer({ label, notice, onStatusChange, onClose }:
             </Button>
           </p>
         ) : loading || body === null ? (
-          <InlineLoader label="전문을 불러오는 중입니다." />
+          /* 본문은 글줄입니다. 한 덩어리로 덮으면 무엇이 오는지 읽히지 않아
+             실제 문단과 같은 줄 간격으로 줄을 세웁니다. 문단 끝줄은 짧게 둡니다. */
+          <div className={styles.pending} role="status">
+            <span className="sr-only">전문을 불러오는 중입니다.</span>
+            {BODY_LINES.map((paragraph, at) => (
+              <p key={at} className={styles.pendingParagraph}>
+                {paragraph.map((width, line) => (
+                  <Skeleton key={line} width={width} height={11} />
+                ))}
+              </p>
+            ))}
+          </div>
         ) : (
           /* 본문은 팀장이 편집기로 쓴 HTML 입니다. 서버(app/services/html_sanitize.py)가
              저장할 때 허용 태그만 남기므로 여기서 다시 자르지 않고 그대로 그립니다.

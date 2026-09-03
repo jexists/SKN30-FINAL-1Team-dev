@@ -36,6 +36,9 @@ class _Result:
         assert self.scalar is not _MISSING
         return self.scalar
 
+    def one_or_none(self):
+        return self.rows[0] if self.rows else None
+
     def all(self):
         return self.rows
 
@@ -926,3 +929,109 @@ async def test_next_meeting_snapshot_rejects_a_deal_outside_the_company():
 
     assert error.value.status_code == 404
     assert error.value.detail == "sales_deal_not_found"
+
+
+# ---- build_briefing_snapshot: 자료요약 RAG 연결 ----
+
+
+def _briefing_db(member, company, activity, deals):
+    """build_briefing_snapshot 이 순서대로 실행하는 세 쿼리에 대한 답."""
+    return _Db(
+        _Result(rows=[(activity, company)]),  # 일정 + 고객사
+        _Result(scalar=company),  # _company_or_404
+        _Result(rows=deals),  # _open_deals
+    )
+
+
+def _briefing_fixture():
+    member = _member()
+    company = CustomerCompany(
+        id=uuid4(),
+        team_id=member.team_id,
+        name="테스트 병원",
+    )
+    deal = _deal(member, customer_company_id=company.id, title="초음파 장비 계약")
+    activity = Activity(
+        id=uuid4(),
+        team_id=member.team_id,
+        owner_member_id=member.id,
+        sales_deal_id=deal.id,
+        title="계약 갱신 미팅",
+        starts_at=datetime(2026, 9, 3, 5, tzinfo=UTC),
+        ends_at=datetime(2026, 9, 3, 6, tzinfo=UTC),
+        all_day=False,
+        location="본원 3층",
+        deleted_at=None,
+    )
+    return member, company, deal, activity
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypatch):
+    """자료는 딜에만 붙기도 하고 고객사에만 붙기도 해서 둘 다 넘겨야 한다."""
+    member, company, deal, activity = _briefing_fixture()
+    captured = {}
+    context = {"query": "테스트 병원", "summaries": [], "sources": [{"document_id": "doc-1"}]}
+
+    async def _retrieve(_db, **kwargs):
+        captured.update(kwargs)
+        return context
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())]),
+        member,
+        activity.id,
+    )
+
+    assert captured["sales_deal_id"] == deal.id
+    assert captured["customer_company_id"] == company.id
+    assert captured["team_id"] == member.team_id
+    # 검색어는 결정적으로 조립한다 — 여기서 LLM 을 한 번 더 부르지 않는다.
+    assert captured["query"] == "테스트 병원 계약 갱신 미팅 초음파 장비 계약"
+    assert snapshot["document_context"] == context
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_sends_meeting_time_in_seoul(monkeypatch):
+    """화면이 서울 시간으로 보여 주는 미팅을 LLM 이 UTC 로 받으면 본문 시각이 어긋난다."""
+    member, company, deal, activity = _briefing_fixture()
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())]),
+        member,
+        activity.id,
+    )
+
+    # 2026-09-03 05:00 UTC == 같은 날 14:00 KST
+    assert snapshot["approved_next_meeting"]["starts_at"] == "2026-09-03T14:00:00+09:00"
+    assert snapshot["approved_next_meeting"]["ends_at"] == "2026-09-03T15:00:00+09:00"
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_keeps_working_when_document_search_fails(monkeypatch):
+    """자료요약이 멈춰도 브리핑은 나와야 한다 — 빈 문맥으로 되돌린다."""
+    member, company, deal, activity = _briefing_fixture()
+
+    async def _retrieve(_db, **_kwargs):
+        raise snapshots.EmbeddingError("embedding_provider_error:500")
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())]),
+        member,
+        activity.id,
+    )
+
+    assert snapshot["document_context"]["summaries"] == []
+    assert snapshot["document_context"]["sources"] == []
+    # 브리핑 본체는 그대로 만들어진다.
+    assert snapshot["customer_company"]["name"] == "테스트 병원"
+    assert snapshot["approved_next_meeting"]["activity_id"] == str(activity.id)

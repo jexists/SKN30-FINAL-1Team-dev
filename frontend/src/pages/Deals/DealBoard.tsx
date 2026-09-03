@@ -61,7 +61,6 @@ export default function DealBoard() {
     activePipeline,
     columns,
     cards,
-    dealTypes,
     loading,
     error,
     reload,
@@ -404,8 +403,6 @@ export default function DealBoard() {
         <SalesDealForm
           columns={columns}
           stageId={addingColumn.id}
-          dealTypes={dealTypes}
-          optionsLoading={loading}
           onClose={() => setAddingTo(null)}
           onSubmit={async (input) => {
             await createSalesDeal(input)
@@ -419,8 +416,6 @@ export default function DealBoard() {
           deal={editingDeal}
           columns={columns}
           stageId={editingDeal.stageId}
-          dealTypes={dealTypes}
-          optionsLoading={loading}
           onClose={() => setEditingId(null)}
           onSubmit={async (input) => {
             await updateSalesDeal(editingDeal.id, input)

@@ -1216,3 +1216,63 @@ async def test_meeting_output_resume_skips_llm_and_finishes_apply_atomically(mon
     assert run.apply_status == "applied"
     assert run.lease_owner is None
     assert apply_db.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_prepare_claimed_refreshes_the_run_input_snapshot(monkeypatch):
+    """worker 가 만든 입력을 run 에 반영하지 않으면 evidence 가 늘 0 을 기록한다."""
+    member_id, team_id = uuid4(), uuid4()
+    built = {"document_context": {"summaries": [{"file_id": "f"}], "sources": [{"chunk_id": "c"}]}}
+    request_snapshot = {
+        "agent_code": "contract_management_briefing",
+        "activity_id": str(uuid4()),
+        "idempotency_key": str(uuid4()),
+    }
+    run = SimpleNamespace(
+        id=uuid4(),
+        team_id=team_id,
+        agent_code="contract_management_briefing",
+        requested_by_member_id=member_id,
+        request_snapshot=request_snapshot,
+        request_hash=agent_run_service._request_hash(request_snapshot),
+        input_snapshot={},
+        base_report_version=None,
+        base_generation_input_version=None,
+    )
+
+    class _Session:
+        async def execute(self, _statement):
+            if not hasattr(self, "_seen"):
+                self._seen = True
+                return SimpleNamespace(
+                    scalar_one_or_none=lambda: SimpleNamespace(id=member_id, team_id=team_id)
+                )
+            return SimpleNamespace(rowcount=1)
+
+        async def commit(self):
+            return None
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+    async def _build(_payload, _member, _session):
+        return ("v4", built, {}, None, None, None)
+
+    monkeypatch.setattr(agent_run_service, "get_sessionmaker", lambda: _Session)
+    monkeypatch.setattr(agent_run_service, "_build_run_input", _build)
+
+    _code, input_snapshot, _requester = await agent_run_service.prepare_claimed(run, "worker-1")
+
+    assert input_snapshot == built
+    # 호출자가 든 run 도 같은 입력을 봐야 한다.
+    assert run.input_snapshot == built
+    evidence = agent_run_service.evidence(
+        "contract_management_briefing",
+        SimpleNamespace(risks=[]),
+        run.input_snapshot,
+    )
+    assert evidence["document_count"] == 1
+    assert evidence["chunk_count"] == 1

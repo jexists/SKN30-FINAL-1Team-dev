@@ -18,7 +18,6 @@ import type {
   SalesDealResponse,
   TabbedPageResponse,
   SalesDealStatus,
-  SalesDealTypeResponse,
   SalesPipelineOutcomeCode,
   SalesPipelinePhaseCode,
   SalesPipelineResponse,
@@ -386,9 +385,9 @@ export default function useSalesDeals(
   const [cards, setCards] = useState<SalesDeal[]>([])
   const [total, setTotal] = useState(0)
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [dealTypes, setDealTypes] = useState<SalesDealTypeResponse[]>([])
-  // 견적·계약 상태. 이름과 색은 서버가 정합니다. 목록의 탭과 딜 상세의 서류 칸이
-  // 함께 쓰므로 어느 화면이든 둘 다 받아 둡니다. 팀마다 다섯 줄씩이라 가볍습니다.
+  // 견적·계약 상태. 이름과 색은 서버가 정합니다. 그 국면을 보는 화면(견적현황·계약현황)
+  // 은 탭이 바로 쓰므로 처음에 받고, 영업현황·보드는 서류 모달을 열 때만 필요하므로
+  // `loadDocumentStatuses` 로 그때 받습니다.
   const [quoteStatuses, setQuoteStatuses] = useState<DocumentStatusResponse[]>([])
   const [contractStatuses, setContractStatuses] = useState<DocumentStatusResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -401,6 +400,8 @@ export default function useSalesDeals(
   const [detailReloadKey, setDetailReloadKey] = useState(0)
 
   const pendingRef = useRef(new Set<string>())
+  // 이미 받았거나 받는 중인 상태 목록. 모달을 여닫을 때마다 다시 부르지 않습니다.
+  const documentStatusRef = useRef<Partial<Record<DealDocumentKind, Promise<void>>>>({})
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(() => new Set())
   const [mutationError, setMutationError] = useState<string | null>(null)
   const ownerIds = useScopeOwnerIds()
@@ -440,33 +441,29 @@ export default function useSalesDeals(
             ? stagePipeline?.id
             : requested?.id
 
-        const [stageItems, dealItems, dealTypeItems, quoteStatusItems, contractStatusItems] =
-          await Promise.all([
-            stagePipeline
-              ? client
-                  .get<SalesPipelineStageResponse[]>(
-                    `/sales-pipelines/${stagePipeline.id}/stages`,
-                    {
-                      signal: controller.signal,
-                    },
-                  )
-                  .then((response) => response.data)
-              : Promise.resolve([]),
-            // 조회 조건을 받은 목록 화면은 아래 효과가 한 쪽만 받습니다. 여기서 전건을
-            // 받는 것은 칸반과 매출 요약처럼 전건 집계가 필요한 쪽뿐입니다.
-            paging
-              ? Promise.resolve([])
-              : fetchAllSalesDeals(controller.signal, filteredPipelineId, documentKind, ownerIds),
-            client
-              .get<SalesDealTypeResponse[]>('/sales-deal-types', { signal: controller.signal })
-              .then((response) => response.data),
-            client
-              .get<DocumentStatusResponse[]>(STATUS_PATH.quote, { signal: controller.signal })
-              .then((response) => response.data),
-            client
-              .get<DocumentStatusResponse[]>(STATUS_PATH.contract, { signal: controller.signal })
-              .then((response) => response.data),
-          ])
+        const [stageItems, dealItems, documentStatusItems] = await Promise.all([
+          stagePipeline
+            ? client
+                .get<SalesPipelineStageResponse[]>(`/sales-pipelines/${stagePipeline.id}/stages`, {
+                  signal: controller.signal,
+                })
+                .then((response) => response.data)
+            : Promise.resolve([]),
+          // 조회 조건을 받은 목록 화면은 아래 효과가 한 쪽만 받습니다. 여기서 전건을
+          // 받는 것은 칸반과 매출 요약처럼 전건 집계가 필요한 쪽뿐입니다.
+          paging
+            ? Promise.resolve([])
+            : fetchAllSalesDeals(controller.signal, filteredPipelineId, documentKind, ownerIds),
+          // 탭이 이 국면의 상태로 서므로 화면과 함께 받습니다. 국면을 보지 않는 화면은
+          // 받지 않습니다.
+          documentKind
+            ? client
+                .get<DocumentStatusResponse[]>(STATUS_PATH[documentKind], {
+                  signal: controller.signal,
+                })
+                .then((response) => response.data)
+            : Promise.resolve([]),
+        ])
 
         if (controller.signal.aborted) return
         setPipelines(pipelineItems)
@@ -474,9 +471,8 @@ export default function useSalesDeals(
         setStagePipelineId(stagePipeline?.id ?? null)
         setColumns(stageItems.map(toColumn))
         if (!paging) setCards(dealItems)
-        setDealTypes(dealTypeItems)
-        setQuoteStatuses(quoteStatusItems)
-        setContractStatuses(contractStatusItems)
+        if (documentKind === 'quote') setQuoteStatuses(documentStatusItems)
+        if (documentKind === 'contract') setContractStatuses(documentStatusItems)
         setOptionsReady(true)
       })
       .catch((caught: unknown) => {
@@ -565,6 +561,27 @@ export default function useSalesDeals(
   const reload = useCallback(() => setReloadKey((value) => value + 1), [])
   const reloadDetail = useCallback(() => setDetailReloadKey((value) => value + 1), [])
   const clearMutationError = useCallback(() => setMutationError(null), [])
+
+  /**
+   * 서류 모달이 쓸 상태 목록을 그때 받습니다.
+   *
+   * 견적·계약 모달은 열릴 때의 목록으로 첫 상태를 정하므로, 모달을 세우기 전에 이
+   * 약속이 끝나야 합니다. 실패해도 되돌려주고 모달은 뜨며, 상태 칸이 비어 저장이
+   * 막힙니다.
+   */
+  const loadDocumentStatuses = useCallback(async (kind: DealDocumentKind) => {
+    documentStatusRef.current[kind] ??= client
+      .get<DocumentStatusResponse[]>(STATUS_PATH[kind])
+      .then(({ data }) => {
+        if (kind === 'quote') setQuoteStatuses(data)
+        else setContractStatuses(data)
+      })
+      .catch(() => {
+        documentStatusRef.current[kind] = undefined
+        setMutationError('견적·계약 상태 목록을 불러오지 못했습니다. 다시 시도해 주세요.')
+      })
+    await documentStatusRef.current[kind]
+  }, [])
 
   const syncSalesDeals = useCallback(async () => {
     try {
@@ -694,7 +711,6 @@ export default function useSalesDeals(
     cards,
     total,
     counts,
-    dealTypes,
     loading,
     error,
     reload,
@@ -709,6 +725,7 @@ export default function useSalesDeals(
     isPending,
     quoteStatuses,
     contractStatuses,
+    loadDocumentStatuses,
     // 이 화면이 보는 국면의 상태. 탭이 씁니다.
     documentStatuses:
       documentKind === 'quote'

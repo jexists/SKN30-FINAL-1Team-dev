@@ -167,6 +167,31 @@ class ActivityOptionRead(BaseModel):
     position: int
 
 
+class ActivityDocumentRead(BaseModel):
+    """미팅 화면에 세울 자료 한 건. 최신 완료 버전 파일 하나만 딸려 나간다."""
+
+    document_id: UUID
+    document_no: str
+    category_code: str
+    title: str
+    file_id: UUID
+    file_name: str
+    # 자료요약 Agent 의 요약. 요약이 아직 없는 파일도 있어 비어 있을 수 있다.
+    summary_markdown: str | None
+    uploaded_at: SafeDateTime
+
+
+class ActivityDocumentsRead(BaseModel):
+    """미팅에 관련된 자료. AI 브리핑과 분리된 조회라 실행 이력을 만들지 않는다.
+
+    ``related`` 는 이 딜·고객사 자료, ``product`` 는 이 미팅이 다루는 상품 자료다.
+    상품 자료는 고객사와 무관한 공용 자료라 화면에서도 섞지 않고 나눠 보여준다.
+    """
+
+    related: list[ActivityDocumentRead] = Field(default_factory=list)
+    product: list[ActivityDocumentRead] = Field(default_factory=list)
+
+
 class ActivityPage(BaseModel):
     items: list[ActivityRead]
     skip: int

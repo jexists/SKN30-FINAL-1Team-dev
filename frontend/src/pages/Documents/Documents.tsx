@@ -262,14 +262,12 @@ export default function Documents() {
           onChange={(value) => setParam('range', value, DEFAULT_RANGE)}
         />
 
-        {isManager && (
-          <div className={styles.actions}>
-            <Button disabled={pending} onClick={() => setUploading('new')}>
-              <UploadIcon width={15} height={15} />
-              파일 업로드
-            </Button>
-          </div>
-        )}
+        <div className={styles.actions}>
+          <Button disabled={pending} onClick={() => setUploading('new')}>
+            <UploadIcon width={15} height={15} />
+            파일 업로드
+          </Button>
+        </div>
       </div>
 
       <CategoryTabs
@@ -291,7 +289,6 @@ export default function Documents() {
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
         showOwner={showOwner}
-        canUpload={isManager}
         onUpload={() => setUploading('new')}
       />
 
@@ -303,7 +300,6 @@ export default function Documents() {
         <DocumentDrawer
           doc={openDoc}
           onClose={() => setOpenId(null)}
-          canUpload={isManager}
           onNewVersion={() => setUploading(openDoc.id)}
           onSummarize={summarizeOpenDocument}
           onLoadSummary={loadOpenDocumentSummary}
