@@ -284,6 +284,8 @@ async def _validate_links(db: AsyncSession, member: Member, values: dict) -> Non
                 .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
                 .where(
                     CustomerContact.id == contact_id,
+                    # 지운 고객에는 자료를 새로 걸 수 없다.
+                    CustomerContact.deleted_at.is_(None),
                     CustomerCompany.team_id == member.team_id,
                 )
             )

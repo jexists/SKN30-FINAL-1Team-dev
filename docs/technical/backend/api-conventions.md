@@ -278,7 +278,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 | 인증 | `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` | `SessionRead`; logout `204` |
 | 고객 상태 선택지 | `GET /api/customer-contact-statuses` | active 팀 설정, `position` 순 |
 | 고객사 | `GET/POST /api/customer-companies`, `GET/PATCH /api/customer-companies/{company_id}` | 목록은 `q,skip,limit`; 회사 수정은 manager |
-| 고객 담당자 | `GET/POST /api/customer-contacts`, `GET/PATCH /api/customer-contacts/{contact_id}` | 요청은 `status_code`, 응답은 상태 UUID·code·name·tone 포함 |
+| 고객 담당자 | `GET/POST /api/customer-contacts`, `GET/PATCH/DELETE /api/customer-contacts/{contact_id}` | 요청은 `status_code`, 응답은 상태 UUID·code·name·tone 포함. `DELETE`는 팀장만(아니면 403 `manager_required`) 이고 행을 지우지 않고 `deleted_at`을 채운다 |
 | 일정 선택지 | `GET /api/activity-categories`, `GET /api/activity-action-tags` | active 팀 설정만, `position` 순 |
 | 일정 | `GET/POST /api/activities`, `GET/PATCH/DELETE /api/activities/{activity_id}` | 목록은 `start_date` 필수, `end_date,owner_member_id,skip,limit`; 응답에 category/tag UUID·code·name·tone |
 | 파이프라인 | `GET /api/sales-pipelines`, `GET /api/sales-pipelines/{sales_pipeline_id}/stages` | published와 archived 조회; default 우선, 단계는 `position` 순 |

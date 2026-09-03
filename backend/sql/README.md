@@ -240,6 +240,13 @@
   **개발 DB에는 검토 전 초안이 적용됐지만 현재 PR의 최종 SQL은 적용하지 않았습니다.
   운영 DB에도 적용하지 않았습니다. 적용 전 백업/PITR 확인이 필수입니다.**
 
+- `20260903_0021_customer_contact_soft_delete.sql`: `customer_contact`에 `deleted_at`과
+  살아 있는 행만 담는 부분 인덱스를 더합니다. 고객 삭제(팀장 전용)를 행 삭제가 아니라
+  `deleted_at` 표시로 처리하기 위한 것입니다. `activity`·`sales_deal`·`sales_deal_participant`가
+  `ON DELETE` 옵션 없이 이 표를 참조해 실제 DELETE는 외래키에 막히고, 참조를 먼저 끊으면
+  딜·일정에서 만난 사람의 기록이 사라집니다. 기존 행은 전부 `NULL`(살아 있음)이라 백필이
+  없습니다. **아직 어느 DB에도 적용하지 않았습니다.**
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -280,6 +287,7 @@
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0018_agent_run_queue.sql` | session pooler | 성공. 정리 후 agent_run 537행을 유지하고 큐 컬럼·제약조건·인덱스를 추가. `agent_worker --check-schema` 통과 |
 | 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_transient_report_generation.sql` | session pooler | 성공. 생성 payload 만료·재접속 scope·멱등 확정 컬럼과 보호 함수를 추가하고 `agent_worker --check-schema` 통과 |
 | 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_report_freeform_body.sql` 검토 전 초안 | session pooler | 일일 204·주간 51·월간 20건을 본문으로 이관하고 report_deal 본문 83→453건. 현재 PR의 fail-closed 검증과 구 단일 딜 미팅 이관이 들어가기 전 SQL이므로, 개발 반영 때는 0020 직전 백업으로 복구한 뒤 최종 SQL을 적용해야 함 |
+| 2026-09-03 | — | `20260903_0021_customer_contact_soft_delete.sql` | — | 대기. 고객 삭제용 `customer_contact.deleted_at`과 부분 인덱스. 적용 요청을 아직 받지 않았습니다 |
 
 ## 개발 DB 재구축 런북
 

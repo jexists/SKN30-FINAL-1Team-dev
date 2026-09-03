@@ -256,6 +256,8 @@ async def _contact_info(
 ) -> tuple[CustomerContact, UUID, str]:
     conditions = [
         CustomerContact.id == contact_id,
+        # 지운 고객은 새 일정의 대상으로 고를 수 없다. 이미 걸려 있던 일정은 그대로 둔다.
+        CustomerContact.deleted_at.is_(None),
         CustomerCompany.team_id == member.team_id,
         Member.team_id == member.team_id,
         Member.active.is_(True),

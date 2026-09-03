@@ -1012,3 +1012,82 @@ def test_write_still_rejects_an_unknown_source_code():
             phone="010-0000-0000",
             source_code="manual",
         )
+
+
+def test_member_cannot_delete_a_customer_before_any_query():
+    """팀원의 삭제는 조회 전에 막힌다. 있는 고객인지가 응답으로 새면 안 된다."""
+    member = _member()
+    db = _Db()
+
+    with _client(db, member) as client:
+        response = client.delete(
+            f"/api/customer-contacts/{uuid4()}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "manager_required"}
+    assert not db.statements
+    assert db.commit_count == 0
+
+
+def test_manager_deleting_an_unknown_customer_gets_404():
+    manager = _member(role="manager")
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, manager) as client:
+        response = client.delete(
+            f"/api/customer-contacts/{uuid4()}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "customer_contact_not_found"}
+    assert db.commit_count == 0
+
+
+def test_manager_delete_marks_the_customer_and_keeps_the_row():
+    """행을 지우지 않고 deleted_at 만 채운다. 딜·일정이 이 고객을 참조하고 있다."""
+    manager = _member(role="manager")
+    company = _company(manager.team_id)
+    contact = _contact(company.id, manager.id)
+    db = _Db(_Result(scalar=contact))
+
+    with _client(db, manager) as client:
+        response = client.delete(
+            f"/api/customer-contacts/{contact.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 204
+    assert contact.deleted_at is not None
+    assert db.commit_count == 1
+    assert db.rollback_count == 0
+    # 담당자 행은 그대로 둔다. 지우는 문장이 나가지 않아야 한다.
+    assert len(db.statements) == 1
+    assert "DELETE" not in str(db.statements[0])
+
+
+def test_deleted_customers_are_hidden_from_list_and_detail():
+    manager = _member(role="manager")
+    company = _company(manager.team_id)
+    contact = _contact(company.id, manager.id)
+    contact_status = _contact_status(manager.team_id, status_id=contact.customer_contact_status_id)
+
+    list_db = _Db(
+        _Result(scalar=1),
+        _Result(rows=[_contact_row(contact, company, manager, contact_status)]),
+        _assignee_result((contact, manager)),
+    )
+    with _client(list_db, manager) as client:
+        assert client.get("/api/customer-contacts").status_code == 200
+
+    detail_db = _Db(
+        _Result(rows=[_contact_row(contact, company, manager, contact_status)]),
+        _assignee_result((contact, manager)),
+    )
+    with _client(detail_db, manager) as client:
+        assert client.get(f"/api/customer-contacts/{contact.id}").status_code == 200
+
+    for statement in (list_db.statements[0], list_db.statements[1], detail_db.statements[0]):
+        assert "customer_contact.deleted_at IS NULL" in str(statement)
