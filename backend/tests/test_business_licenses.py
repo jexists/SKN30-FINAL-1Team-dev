@@ -52,9 +52,7 @@ async def test_extract_falls_back_to_explicit_license_labels(monkeypatch):
 
     draft = await business_licenses.extract(
         ocr_text=(
-            "사업자등록증\n"
-            "법 인 명 ( 단 체 명 ) : 합성 주식회사\n"
-            "사업장 소 재 지 : 서울시 합성구"
+            "사업자등록증\n법 인 명 ( 단 체 명 ) : 합성 주식회사\n사업장 소 재 지 : 서울시 합성구"
         )
     )
 
