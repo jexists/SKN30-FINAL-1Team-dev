@@ -1,11 +1,18 @@
-import json
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from app.schemas.reports import ReportKind, Transcript
+from app.schemas.reports import (
+    REPORT_JSON_MAX_BYTES,
+    ReportKind,
+    Transcript,
+    validate_body_template,
+    validate_body_values,
+    validate_content_title,
+    validate_report_json_size,
+)
 
 AgentCode = Literal[
     "report_writing",
@@ -30,7 +37,7 @@ Guidance = Annotated[
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=2_000),
 ]
 
-REPORT_GENERATION_JSON_MAX_BYTES = 256 * 1024
+REPORT_GENERATION_JSON_MAX_BYTES = REPORT_JSON_MAX_BYTES
 
 # agent_code 별로 허용되는 식별 필드만 채울 수 있다. 나머지는 반드시 비워야 한다.
 # 값이 dict 형태면 그 필드가 필수라는 뜻이고, "optional" 이면 있어도 없어도 된다.
@@ -163,13 +170,18 @@ class ReportGenerationCreate(ReportGenerationInput):
     idempotency_key: UUID
 
     @model_validator(mode="after")
+    def _validate_body_contract(self):
+        validate_body_template(self.template_snapshot)
+        validate_body_values(self.content)
+        validate_content_title(self.content)
+        return self
+
+    @model_validator(mode="after")
     def _validate_json_size(self):
-        for field_name in ("template_snapshot", "content"):
-            serialized = json.dumps(
-                getattr(self, field_name), ensure_ascii=False, default=str, separators=(",", ":")
-            ).encode("utf-8")
-            if len(serialized) > REPORT_GENERATION_JSON_MAX_BYTES:
-                raise ValueError(f"{field_name}_too_large")
+        validate_report_json_size(
+            template_snapshot=self.template_snapshot,
+            content=self.content,
+        )
         return self
 
 

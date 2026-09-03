@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.config import settings
 from app.schemas.meeting_content import MeetingContentInput, MeetingEvidenceLedger, SegmentId
+from app.schemas.reports import REPORT_BODY_MAX_LENGTH
 from app.services.agent_logging import agent_operation, log_agent_error, log_agent_event
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, LLMNotConfigured, llm_boundary_error_code
@@ -100,7 +101,7 @@ class ReportWritingInput(BaseModel):
 class ReportBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    body: str = Field(min_length=1, max_length=100_000)
+    body: str = Field(min_length=1, max_length=REPORT_BODY_MAX_LENGTH)
     evidence_ids: list[SegmentId] = Field(max_length=5_000)
 
     @model_validator(mode="after")
@@ -118,7 +119,7 @@ class DealReport(BaseModel):
     # 구버전 output_snapshot에는 title이 없다. 새 생성은 구조 검사에서 필수로 강제한다.
     sales_deal_id: UUID
     title: str | None = Field(default=None, min_length=1, max_length=254)
-    body: str = Field(min_length=1, max_length=100_000)
+    body: str = Field(min_length=1, max_length=REPORT_BODY_MAX_LENGTH)
     evidence_ids: list[SegmentId] = Field(max_length=5_000)
 
     @model_validator(mode="after")
@@ -444,7 +445,7 @@ class _RunBudget(AsyncCallbackHandler):
             key = (section, deal_id)
             if (
                 not isinstance(body, str)
-                or len(body) > 100_000
+                or len(body) > REPORT_BODY_MAX_LENGTH
                 or body == self._bodies.get(key, "")
             ):
                 continue

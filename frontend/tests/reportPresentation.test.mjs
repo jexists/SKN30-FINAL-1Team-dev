@@ -12,7 +12,9 @@ const vite = await createServer({
 after(() => vite.close())
 const { meetingLinkFor, sourcesFor } = await vite.ssrLoadModule('/src/pages/Daily/sources.ts')
 const { fromMeetingReport } = await vite.ssrLoadModule('/src/pages/Daily/rows.ts')
-const { historyQueryScopes } = await vite.ssrLoadModule('/src/pages/Daily/useReportHistory.ts')
+const { fetchAllReportPages, historyQueryScopes } = await vite.ssrLoadModule(
+  '/src/pages/Daily/useReportHistory.ts',
+)
 const {
   meetingBodyOf,
   meetingFinalizeRequestOf,
@@ -23,7 +25,6 @@ const {
 } = await vite.ssrLoadModule('/src/pages/Meetings/useMeetingReports.ts')
 const {
   canEditPeriodReport,
-  detailTemplateOf,
   ownPeriodReportQuery,
   periodFinalizeRequestOf,
   periodGenerationRequestOf,
@@ -33,9 +34,13 @@ const {
 const { mergeGeneratedValues, mergeSourceActivities } = await vite.ssrLoadModule(
   '/src/pages/Daily/useDailyDraft.ts',
 )
-const { hasMeetingDraftContent, mergeMeetingGeneratedValues } = await vite.ssrLoadModule(
-  '/src/pages/Meetings/useMeetingDraft.ts',
-)
+const {
+  hasMeetingDraftContent,
+  invalidateMeetingGeneration,
+  isMeetingBodyBlank,
+  mergeMeetingGeneratedValues,
+} = await vite.ssrLoadModule('/src/pages/Meetings/useMeetingDraft.ts')
+const { toHtml, toMarkdown } = await vite.ssrLoadModule('/src/pages/Meetings/reportDocument.ts')
 const { default: ReportFields } = await vite.ssrLoadModule(
   '/src/components/ReportFields/ReportFields.tsx',
 )
@@ -54,6 +59,7 @@ const dealSection = (values = {}, id = dealId) => ({
   sales_deal_id: id,
   deal_snapshot: { id, label: id === dealId ? 'DEAL-1' : 'DEAL-2' },
   content: { product: '합성 제품', title: '합성 딜 보고서', values },
+  body: typeof values.body === 'string' ? values.body : null,
   ai_evidence: null,
   created_at: '2026-08-31T10:00:00Z',
   updated_at: '2026-08-31T10:00:00Z',
@@ -100,27 +106,28 @@ const periodResponse = ({
   activities: [],
 })
 
-test('기간 보고서 상세는 구조화 요약과 별도 본문을 함께 보이고 같은 본문은 중복하지 않는다', () => {
+test('기간 보고서 상세는 저장 스냅샷과 구조화 값을 무시하고 canonical 본문만 표시한다', () => {
   const report = toReport(
     periodResponse({ body: '실제 canonical 본문', structuredValues: { summary: '기존 요약' } }),
   )
   const view = renderToStaticMarkup(
     createElement(ReportFields, {
-      template: detailTemplateOf(report),
+      template: report.template,
       values: report.values,
       readOnly: true,
     }),
   )
-  assert.match(view, /기존 요약/)
-  assert.match(view, /실제 canonical 본문/)
-
-  const duplicated = toReport(
-    periodResponse({ body: '같은 내용', structuredValues: { summary: '같은 내용' } }),
-  )
   assert.deepEqual(
-    detailTemplateOf(duplicated).fields.map((field) => field.id),
-    ['summary'],
+    report.template.fields.map((field) => field.id),
+    ['body'],
   )
+  assert.deepEqual(report.values, { body: '실제 canonical 본문' })
+  assert.match(view, /실제 canonical 본문/)
+  assert.doesNotMatch(view, /기존 요약/)
+
+  const contentOnly = periodResponse()
+  contentOnly.content = { values: { body: '구형 content 본문' } }
+  assert.deepEqual(toReport(contentOnly).values, { body: '' })
 })
 
 test('기간 보고서 상세의 수정 진입은 본인 draft와 changes_requested에만 열린다', () => {
@@ -153,8 +160,8 @@ test('팀장의 기간 보고서 작성 조회는 전역 팀 범위와 무관하
 test('일정 연결·독립 미팅 자료 모두 설명 첫 줄의 공백과 CRLF를 제거한다', () => {
   const cases = [
     [{ body: '  본문 첫 줄  \r\n둘째 줄', decision: '낮은 우선순위' }, '본문 첫 줄'],
-    [{ decision: ' 결정 사항 \r\n둘째 줄' }, '결정 사항'],
-    [{ note: '\t메모 첫 줄\t\r\n둘째 줄' }, '메모 첫 줄'],
+    [{ decision: '구형 결정 사항' }, '미팅 기록 확정'],
+    [{ note: '구형 메모' }, '미팅 기록 확정'],
     [{ body: ' \t\r\n둘째 줄' }, '미팅 기록 확정'],
     [{ body: '', decision: '', note: '  ' }, '미팅 기록 확정'],
     [{}, '미팅 기록 확정'],
@@ -207,28 +214,42 @@ test('늦게 도착한 보고서 자료는 초기 초안에 반영하고 기존 
   assert.equal(refreshed[0].included, false)
 })
 
-test('미팅 목록 요약은 저장 양식 순서와 비어 있지 않은 값을 먼저 사용한다', () => {
-  const field = (id) => ({ id, label: id, type: 'textarea' })
-  const report = toMeetingReport(
-    response({ custom: '  저장 양식 본문  ', body: '기본 본문', second: '둘째 항목' }, [
-      field('custom'),
-      field('second'),
-    ]),
+test('미팅 목록은 공통·미지정·딜별 canonical 본문 전문을 순서대로 보존한다', () => {
+  const raw = response({ custom: '구형 값', body: '딜 본문 첫 문단\n둘째 문단' }, [
+    { id: 'custom', label: '구형 필드', type: 'textarea' },
+  ])
+  raw.common_body = '공통 본문'
+  raw.unassigned_body = '미지정 본문'
+  const row = fromMeetingReport(toMeetingReport(raw))
+
+  assert.equal(row.body, '공통 본문\n\n미지정 본문\n\n딜 본문 첫 문단\n둘째 문단')
+  assert.doesNotMatch(row.body, /구형 값/)
+})
+
+test('미팅 편집기는 canonical Markdown 본문 하나를 HTML과 왕복한다', () => {
+  const markdown = '## 미팅 결과\n\n첫 문단입니다.\n\n- 후속 연락\n- 견적 전달'
+  const html = toHtml(markdown)
+
+  assert.match(html, /<h2>미팅 결과<\/h2>/)
+  assert.match(html, /<li>후속 연락<\/li>/)
+  assert.equal(toMarkdown(html), markdown)
+  assert.equal(toMarkdown(toHtml('첫째 줄\n둘째 줄')), '첫째 줄\n둘째 줄')
+
+  const unsafe = toHtml(
+    '[외부 링크](javascript:alert(1)) ![외부 이미지](https://example.invalid/a.png)\n\n<script>alert(1)</script>',
   )
-  assert.equal(fromMeetingReport(report).summary, '저장 양식 본문')
-  const values = report.dealSections[0].values
-  values.custom = '  '
-  assert.equal(fromMeetingReport(report).summary, '둘째 항목')
-  values.second = '\t'
-  assert.equal(fromMeetingReport(report).summary, '기본 본문')
-  values.body = ''
-  values.reaction = '  고객 반응  '
-  assert.equal(fromMeetingReport(report).summary, '고객 반응')
-  values.reaction = ''
-  values.note = ' 메모 '
-  assert.equal(fromMeetingReport(report).summary, '메모')
-  values.note = ''
-  assert.equal(fromMeetingReport(report).summary, '')
+  assert.doesNotMatch(unsafe, /(?:href|src)=|<script/i)
+  assert.match(unsafe, /&lt;script&gt;/)
+})
+
+test('미팅 생성 근거가 바뀌면 이전 run 연결만 버리고 사람이 검토 중인 본문은 유지한다', () => {
+  const shared = { common_report: { body: '검토 중인 공통 본문', evidence_ids: [] } }
+
+  assert.deepEqual(invalidateMeetingGeneration({ runId: 'old-run', shared }), {
+    runId: undefined,
+    shared,
+  })
+  assert.equal(invalidateMeetingGeneration(null), null)
 })
 
 test('미팅 응답 한 건에서 공통 기록과 모든 딜 섹션을 분리해 복원한다', () => {
@@ -259,59 +280,40 @@ test('미팅 응답 한 건에서 공통 기록과 모든 딜 섹션을 분리�
   assert.match(sources.values.get(`meet-${report.id}`).body, /두 번째 딜 본문/)
 })
 
-test('legacy 구조화 미팅은 custom 값을 보존하고 생성 본문을 별도 body로 제출한다', () => {
-  const fields = [
-    {
-      id: 'attendees',
-      label: '참석자',
-      type: 'text',
-      required: true,
-      aiFilled: true,
-    },
-    {
-      id: 'reaction',
-      label: '고객 반응',
-      type: 'textarea',
-      required: true,
-      aiFilled: true,
-    },
-    {
-      id: 'manager_note',
-      label: '관리자 메모',
-      type: 'textarea',
-      required: false,
-      aiFilled: false,
-    },
-  ]
+test('미팅 응답·생성·확정은 저장된 구형 필드 대신 canonical body 하나만 사용한다', () => {
   const legacySection = {
-    ...dealSection({}),
-    body: null,
+    ...dealSection({ body: 'content의 canonical 본문', attendees: '구형 참석자' }),
+    body: 'DB canonical 본문',
     structured_values: {
       attendees: '기존 참석자',
       reaction: '기존 고객 반응',
-      manager_note: '사람이 쓴 메모',
     },
   }
-  const raw = response({}, fields, [legacySection])
+  const raw = response(
+    {},
+    [{ id: 'attendees', label: '구형 참석자', type: 'text' }],
+    [legacySection],
+  )
   raw.status_code = 'draft'
   raw.version = 4
   const report = toMeetingReport(raw)
-  const restored = report.dealSections[0].values
 
-  assert.deepEqual(restored, legacySection.structured_values)
+  assert.deepEqual(report.dealSections[0].values, { body: 'DB canonical 본문' })
   assert.deepEqual(
     report.template.fields.map((field) => field.id),
-    ['attendees', 'reaction', 'manager_note', 'body'],
+    ['body'],
+  )
+  assert.deepEqual(
+    toMeetingReport(
+      response({}, [], [{ ...dealSection({ body: '구형 content 본문' }), body: null }]),
+    ).dealSections[0].values,
+    { body: '' },
   )
 
-  const generated = mergeMeetingGeneratedValues(restored, '새 AI 미팅 본문')
-  assert.deepEqual(generated, {
-    attendees: '기존 참석자',
-    reaction: '기존 고객 반응',
-    manager_note: '사람이 쓴 메모',
-    body: '새 AI 미팅 본문',
-  })
+  const generated = mergeMeetingGeneratedValues('새 AI 미팅 본문')
+  assert.deepEqual(generated, { body: '새 AI 미팅 본문' })
   assert.equal(meetingBodyOf(generated), '새 AI 미팅 본문')
+  assert.equal(meetingBodyOf({}), '')
 
   const draft = {
     reportId: report.id,
@@ -319,7 +321,6 @@ test('legacy 구조화 미팅은 custom 값을 보존하고 생성 본문을 별
     statusCode: 'draft',
     agendaId: report.agendaId,
     date: report.date,
-    template: report.template,
     time: report.time,
     hospital: report.hospital,
     dept: report.dept,
@@ -338,23 +339,13 @@ test('legacy 구조화 미팅은 custom 값을 보존하고 생성 본문을 별
       },
     ],
   }
-  const finalized = meetingFinalizeRequestOf(draft, 'legacy-structured-finalize')
+  const finalized = meetingFinalizeRequestOf(draft, 'body-finalize')
 
   assert.equal(finalized.deal_sections[0].body, '새 AI 미팅 본문')
-  assert.deepEqual(finalized.deal_sections[0].structured_values, legacySection.structured_values)
-  assert.deepEqual(finalized.deal_sections[0].content.values, generated)
+  assert.deepEqual(finalized.deal_sections[0].structured_values, {})
+  assert.deepEqual(finalized.deal_sections[0].content.values, { body: '새 AI 미팅 본문' })
   assert.equal(finalized.report_id, report.id)
   assert.equal(finalized.expected_status_code, 'draft')
-
-  const resumed = meetingFinalizeRequestOf(
-    {
-      ...draft,
-      dealSections: [{ ...draft.dealSections[0], values: restored }],
-    },
-    'legacy-structured-resume',
-  )
-  assert.equal(resumed.deal_sections[0].body, null)
-  assert.deepEqual(resumed.deal_sections[0].structured_values, legacySection.structured_values)
 })
 
 test('팀장 검토 화면은 공통·미지정 기록과 모든 딜 본문을 함께 표시한다', () => {
@@ -381,6 +372,22 @@ test('팀장 검토 화면은 공통·미지정 기록과 모든 딜 본문을 �
   assert.match(view, /둘째 딜 검토 본문/)
 })
 
+test('팀장 검토 화면은 저장된 Markdown을 서식으로 표시하되 raw HTML은 실행하지 않는다', () => {
+  const raw = response(
+    {},
+    [{ id: 'body', label: '본문' }],
+    [dealSection({ body: '**중요 합의**\n\n- 후속 연락\n\n<script>alert(1)</script>' })],
+  )
+  const view = renderToStaticMarkup(
+    createElement(ReportReviewContents, { report: toMeetingReport(raw) }),
+  )
+
+  assert.match(view, /<strong>중요 합의<\/strong>/)
+  assert.match(view, /<li>후속 연락<\/li>/)
+  assert.doesNotMatch(view, /<script/i)
+  assert.match(view, /&lt;script&gt;/)
+})
+
 test('미팅 공통·미지정 기록은 목록 검색과 일일보고 자료 설명에도 포함한다', () => {
   const raw = response({})
   raw.common_body = '공통 검색 전용 문구'
@@ -400,7 +407,6 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
   const draft = {
     agendaId: 'synthetic-meeting',
     date: '2026-08-31',
-    template: { id: 'template-1', name: '합성 양식', owner: '합성', updated: '', fields: [] },
     time: '10:00',
     hospital: '합성 고객사',
     dept: '구매팀',
@@ -436,6 +442,11 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
     content: canonical.content,
     transcript: '합성 원문',
   })
+  assert.equal(canonical.template_snapshot.id, 'builtin-meeting-freeform')
+  assert.deepEqual(
+    canonical.template_snapshot.fields.map((field) => field.id),
+    ['body'],
+  )
   assert.equal('deal_sections' in generation, false)
   assert.equal(finalized.idempotency_key, 'meeting-finalize-key')
   assert.equal(finalized.agent_run_id, 'meeting-run')
@@ -476,22 +487,12 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
   )
 })
 
-test('기간 생성은 guidance와 범위만 AgentRun에 보내고 최종 확정에서 전체 값을 제출한다', () => {
+test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하나만 제출한다', () => {
   const draft = {
     date: '2026-08-31',
     kind: '주간',
     approver: '합성 팀장',
-    template: {
-      id: 'weekly-template',
-      name: '주간 양식',
-      owner: '합성',
-      updated: '',
-      fields: [
-        { id: 'summary', label: '요약', type: 'textarea', aiFilled: true },
-        { id: 'memo', label: '메모', type: 'textarea', aiFilled: false },
-      ],
-    },
-    values: { summary: '기존 요약', memo: '사람 메모' },
+    values: { body: '주간 보고서 전문' },
     activities: [
       {
         id: 'activity-1',
@@ -513,15 +514,20 @@ test('기간 생성은 guidance와 범위만 AgentRun에 보내고 최종 확정
   assert.equal(generation.period_start, '2026-08-30')
   assert.equal(generation.period_end, '2026-09-05')
   assert.equal(generation.guidance, '직접 쓴 생성 지침')
-  assert.deepEqual(generation.content.values, draft.values)
+  assert.equal(generation.template_snapshot.id, 'builtin-weekly-freeform')
+  assert.deepEqual(
+    generation.template_snapshot.fields.map((field) => field.id),
+    ['body'],
+  )
+  assert.deepEqual(generation.content.values, { body: '주간 보고서 전문' })
   assert.equal('transcript' in generation, false)
   assert.equal('source_activity_id' in generation, false)
   assert.equal('sales_deal_ids' in generation, false)
 
   assert.equal(finalized.idempotency_key, 'period-finalize-key')
   assert.equal(finalized.agent_run_id, 'period-run')
-  assert.equal(finalized.body, null)
-  assert.deepEqual(finalized.structured_values, draft.values)
+  assert.equal(finalized.body, '주간 보고서 전문')
+  assert.deepEqual(finalized.structured_values, {})
   assert.equal(finalized.transcript, '직접 쓴 생성 지침')
 
   const revision = periodFinalizeRequestOf(
@@ -549,7 +555,7 @@ test('기간 생성은 guidance와 범위만 AgentRun에 보내고 최종 확정
   assert.equal(legacyDraft.expected_status_code, 'draft')
 })
 
-test('재접속 입력은 원문·첨부·자료를 되살리고 AI 결과는 직접 입력 필드를 보존한다', () => {
+test('재접속 입력은 원문·첨부·자료와 canonical body만 되살린다', () => {
   const template = {
     id: 'recovery-template',
     name: '복구 양식',
@@ -578,7 +584,7 @@ test('재접속 입력은 원문·첨부·자료를 되살리고 AI 결과는 �
     template_snapshot: template,
     content: {
       approver: '복구 팀장',
-      values: { summary: '생성 전 요약', memo: '사람이 쓴 메모' },
+      values: { body: '생성 전 본문', summary: '무시할 구형 요약' },
       activities: [activity],
       attachments: [attachment],
     },
@@ -588,12 +594,13 @@ test('재접속 입력은 원문·첨부·자료를 되살리고 AI 결과는 �
   assert.equal(periodSeed.transcript, '복구할 직접 입력')
   assert.deepEqual(periodSeed.activities, [activity])
   assert.deepEqual(periodSeed.attachments, [attachment])
+  assert.deepEqual(periodSeed.values, { body: '생성 전 본문' })
   assert.deepEqual(
-    mergeGeneratedValues(template, periodSeed.values, [
-      { field_id: 'summary', value: '복구한 AI 요약' },
-      { field_id: 'memo', value: '덮어쓰면 안 되는 값' },
+    mergeGeneratedValues([
+      { field_id: 'summary', value: '무시할 구형 AI 요약' },
+      { field_id: 'body', value: '복구한 AI 본문' },
     ]),
-    { summary: '복구한 AI 요약', memo: '사람이 쓴 메모' },
+    { body: '복구한 AI 본문' },
   )
 
   const meetingSeed = meetingGenerationSeedOf({
@@ -611,10 +618,11 @@ test('재접속 입력은 원문·첨부·자료를 되살리고 AI 결과는 �
   assert.deepEqual(meetingSeed.salesDealIds, [dealId])
   assert.equal(meetingSeed.transcript, '복구할 미팅 원문')
   assert.deepEqual(meetingSeed.attachments, [attachment])
-  assert.deepEqual(
-    meetingSeed.template.fields.map((field) => field.id),
-    ['summary', 'memo', 'body'],
-  )
+  assert.equal('template' in meetingSeed, false)
+
+  assert.equal(isMeetingBodyBlank({ body: '' }), true)
+  assert.equal(isMeetingBodyBlank({ body: '   ' }), true)
+  assert.equal(isMeetingBodyBlank({ body: '수동 작성 본문' }), false)
 
   assert.equal(
     hasMeetingDraftContent(
@@ -659,6 +667,39 @@ test('전체 목록과 달력은 일반 draft를 유지하고 미팅 draft만 �
     },
     { report_kind: ['meeting'], status_code: ['approved'] },
   ])
+})
+
+test('달력 보고서는 30건을 넘어도 다음 쪽을 끝까지 이어 받는다', async () => {
+  const originalAdapter = client.defaults.adapter
+  const skips = []
+  client.defaults.adapter = async (config) => {
+    const skip = config.params.skip
+    skips.push(skip)
+    const first = skip === 0
+    return {
+      data: {
+        items: Array.from({ length: first ? 30 : 1 }, (_, index) => ({
+          id: `report-${skip + index}`,
+        })),
+        skip,
+        limit: 30,
+        total: 31,
+        has_more: first,
+        next_skip: first ? 30 : null,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  try {
+    const reports = await fetchAllReportPages({ report_kind: ['daily'] })
+    assert.equal(reports.length, 31)
+    assert.deepEqual(skips, [0, 30])
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
 })
 
 test('V2 이전 제출본은 submission id 없이 검토 요청해 서버가 스냅샷하게 한다', async () => {

@@ -46,11 +46,11 @@ direct_activity와 attachment는 각각 선택된 직접 활동 한 건과 첨�
 예정·요청·가능성을 확정 약속으로 강화하거나 이전 이력을 오늘의 사건으로 바꾸지 마라.
 선택하지 않은 자료를 쓰지 않는다. 수기 기록과 첨부 내용은 그 출처로 구분한다.
 캘린더 일정만으로 실제 미팅 완료나 고객 합의를 단정하지 마라.
-current_values는 수정 중인 초안이다. 근거 자료와 다르면 근거를 따르고 새 사실로 쓰지 마라.
+current_body는 수정 중인 줄글 초안이다. 근거 자료와 다르면 근거를 따르고 새 사실로 쓰지 마라.
 자료가 없어도 직접 입력 등 확인 가능한 내용만으로 작성할 수 있다.
 정보가 없는 것은 오류가 아니다. 미확인 상태를 정확히 쓰거나 근거 없는 항목은 비워라.
-fields에는 ai_field_ids의 ID만 빠짐없이 정확히 한 번씩 반환한다.
-각 value는 최대 5,000자다. body 한 칸 양식이면 자연스러운 한국어 줄글과 문단으로 쓴다.
+fields에는 field_id가 body인 값 하나만 반환한다.
+value는 최대 5,000자의 자연스러운 한국어 줄글과 문단으로 쓴다.
 고정 소제목·목록·항목별 양식을 만들거나 내일 계획·시사점을 억지로 추가하지 마라.
 """.strip()
 
@@ -108,6 +108,13 @@ def _source(snapshot: dict[str, Any]) -> dict[str, Any]:
     raw_attachments = content.get("attachments", [])
     if not isinstance(raw_attachments, list):
         raise LLMError("period_report_attachments_invalid")
+    values = content.get("values")
+    if values is not None and (
+        not isinstance(values, dict)
+        or set(values) - {"body"}
+        or ("body" in values and not isinstance(values["body"], str))
+    ):
+        raise LLMError("period_report_values_invalid")
 
     source = copy.deepcopy(
         {
@@ -115,8 +122,7 @@ def _source(snapshot: dict[str, Any]) -> dict[str, Any]:
             "report_date": snapshot["report_date"],
             "period_start": snapshot.get("period_start"),
             "period_end": snapshot.get("period_end"),
-            "template_snapshot": snapshot["template_snapshot"],
-            "current_values": content.get("values", {}),
+            "current_body": (values or {}).get("body"),
             "transcript": snapshot.get("transcript"),
             "guidance": snapshot.get("guidance"),
             "activities": activities,
@@ -130,22 +136,15 @@ def _source(snapshot: dict[str, Any]) -> dict[str, Any]:
             "report_sources": report_sources,
         }
     )
-    fields = source["template_snapshot"].get("fields")
+    template = snapshot.get("template_snapshot")
+    fields = template.get("fields") if isinstance(template, dict) else None
     if (
         not isinstance(fields, list)
-        or not 1 <= len(fields) <= 50
-        or any(
-            not isinstance(field, dict)
-            or not isinstance(field.get("id"), str)
-            or not 1 <= len(field["id"]) <= 128
-            for field in fields
-        )
-        or len({field["id"] for field in fields}) != len(fields)
+        or len(fields) != 1
+        or not isinstance(fields[0], dict)
+        or fields[0].get("id") != "body"
     ):
         raise LLMError("period_report_template_invalid")
-    source["ai_field_ids"] = [field["id"] for field in fields if field.get("aiFilled") is True]
-    if not source["ai_field_ids"]:
-        raise LLMError("period_report_ai_fields_required")
     return source
 
 
@@ -226,18 +225,16 @@ def _run_context(source: dict[str, Any]) -> dict[str, Any]:
             "report_date",
             "period_start",
             "period_end",
-            "template_snapshot",
-            "ai_field_ids",
-            "current_values",
+            "current_body",
             "transcript",
             "guidance",
         )
     }
 
 
-def _structural_issues(source: dict[str, Any], draft: ReportDraftOutput) -> list[dict[str, Any]]:
-    """AI 작성 대상 필드의 누락·중복·범위 이탈을 의미 검토와 별도로 검사한다."""
-    expected = source["ai_field_ids"]
+def _structural_issues(draft: ReportDraftOutput) -> list[dict[str, Any]]:
+    """본문 필드의 누락·중복·범위 이탈을 의미 검토와 별도로 검사한다."""
+    expected = ["body"]
     actual = [field.field_id for field in draft.fields]
     if len(actual) != len(set(actual)) or set(actual) != set(expected):
         return [
@@ -245,7 +242,7 @@ def _structural_issues(source: dict[str, Any], draft: ReportDraftOutput) -> list
                 "path": "fields",
                 "expected_ids": expected,
                 "actual_ids": actual,
-                "repair_action": "ai_field_ids의 각 field_id만 빠짐없이 정확히 한 번 반환하라.",
+                "repair_action": "field_id가 body인 값 하나만 반환하라.",
             }
         ]
     if expected == ["body"] and not draft.fields[0].value.strip():
@@ -316,7 +313,7 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
                     "period_report_agent_output_invalid",
                 )
                 structural_attempts = 1
-                structural_issues = _structural_issues(source, draft)
+                structural_issues = _structural_issues(draft)
                 if structural_issues:
                     log_agent_event(
                         "period_report_writing.validation",
@@ -364,7 +361,7 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
                     )
                     structural_attempts += 1
 
-                final_issues = _structural_issues(source, draft)
+                final_issues = _structural_issues(draft)
                 if final_issues:
                     log_agent_event(
                         "period_report_writing.validation",

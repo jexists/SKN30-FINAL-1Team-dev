@@ -123,11 +123,11 @@ export interface ReportDealSectionWrite {
   content: Record<string, unknown>
   position?: number | null
   title?: string | null
-  body?: string | null
+  body: string
   structured_values?: Record<string, unknown>
 }
 
-export interface ReportDealSectionResponse extends ReportDealSectionWrite {
+export interface ReportDealSectionResponse extends Omit<ReportDealSectionWrite, 'body'> {
   position: number | null
   deal_no_snapshot: string | null
   deal_title_snapshot: string | null

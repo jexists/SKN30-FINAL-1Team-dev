@@ -133,87 +133,6 @@ def _text(value) -> str | None:
     return value or None
 
 
-def _legacy_values(content) -> dict:
-    return _dict(_dict(content).get("values"))
-
-
-def _legacy_shared_body(content, key: str) -> str | None:
-    shared = _dict(_dict(content).get("meeting_shared"))
-    return _text(_dict(shared.get(key)).get("body"))
-
-
-def _normalized_report_values(
-    content: dict,
-    *,
-    title=None,
-    body=None,
-    common_body=None,
-    unassigned_body=None,
-    structured_values=None,
-) -> dict:
-    """Derive normalized columns from explicit fields, then legacy JSON."""
-    values = _legacy_values(content)
-    structured = _dict(structured_values)
-    if structured_values is None:
-        structured = {key: value for key, value in values.items() if key != "body"}
-    return {
-        "title": _text(title) or _text(content.get("title")),
-        "body": _text(body) or _text(values.get("body")) or _text(content.get("body")),
-        "common_body": _text(common_body) or _legacy_shared_body(content, "common_report"),
-        "unassigned_body": _text(unassigned_body)
-        or _legacy_shared_body(content, "unassigned_report"),
-        "structured_values": structured,
-    }
-
-
-def _sync_legacy_report_content(
-    content: dict,
-    normalized: dict,
-    *,
-    sync_title: bool,
-    sync_body: bool,
-    sync_common: bool,
-    sync_unassigned: bool,
-    sync_structured: bool,
-) -> dict:
-    """Keep old UI readers working while normalized columns become canonical."""
-    output = dict(content)
-    if sync_title:
-        if normalized["title"] is None:
-            output.pop("title", None)
-        else:
-            output["title"] = normalized["title"]
-    if sync_body or sync_structured:
-        values = (
-            dict(normalized["structured_values"]) if sync_structured else _legacy_values(output)
-        )
-        if normalized["body"] is None:
-            values.pop("body", None)
-        else:
-            values["body"] = normalized["body"]
-        output["values"] = values
-    if sync_common or sync_unassigned:
-        shared = _dict(output.get("meeting_shared"))
-        for should_sync, field, key in (
-            (sync_common, "common_body", "common_report"),
-            (sync_unassigned, "unassigned_body", "unassigned_report"),
-        ):
-            if not should_sync:
-                continue
-            body_value = normalized[field]
-            if body_value is None:
-                shared.pop(key, None)
-            else:
-                item = _dict(shared.get(key))
-                item["body"] = body_value
-                shared[key] = item
-        if shared:
-            output["meeting_shared"] = shared
-        else:
-            output.pop("meeting_shared", None)
-    return output
-
-
 def _report_read(
     report: Report,
     author_display_name: str,
@@ -382,27 +301,14 @@ def _section_content(
 
 def _normalized_section_payload(payload: ReportDealWrite, position: int) -> dict:
     content = _section_content(payload.content)
-    values = _legacy_values(content)
     explicit = payload.model_fields_set
     title = payload.title if "title" in explicit else _text(content.get("title"))
-    body = payload.body if "body" in explicit else _text(values.get("body"))
-    structured = (
-        dict(payload.structured_values)
-        if "structured_values" in explicit
-        else {key: value for key, value in values.items() if key != "body"}
-    )
     if "title" in explicit:
         if title is None:
             content.pop("title", None)
         else:
             content["title"] = title
-    if "body" in explicit or "structured_values" in explicit:
-        legacy_values = dict(structured) if "structured_values" in explicit else values
-        if body is None:
-            legacy_values.pop("body", None)
-        else:
-            legacy_values["body"] = body
-        content["values"] = legacy_values
+    content["values"] = {"body": payload.body}
     snapshot = payload.deal_snapshot.model_dump(mode="json")
     return {
         "position": payload.position if payload.position is not None else position,
@@ -410,8 +316,8 @@ def _normalized_section_payload(payload: ReportDealWrite, position: int) -> dict
         "deal_no_snapshot": payload.deal_snapshot.label,
         "deal_title_snapshot": _text(payload.deal_snapshot.note),
         "title": title,
-        "body": body,
-        "structured_values": structured,
+        "body": payload.body,
+        "structured_values": {},
         "content": content,
     }
 
@@ -874,22 +780,72 @@ async def _finalize_run(
     return run
 
 
+async def _validate_generation_source_refs(
+    db: AsyncSession,
+    report: Report,
+    payload: ReportFinalize,
+    run: AgentRun | None,
+) -> None:
+    """Require final provenance and non-editable LLM inputs to match generation."""
+    if run is None or report.report_kind == "meeting":
+        return
+    request = run.request_snapshot if isinstance(run.request_snapshot, dict) else {}
+    request_content = request.get("content") if isinstance(request.get("content"), dict) else {}
+    current_content = payload.content if isinstance(payload.content, dict) else {}
+
+    def attachments(content: dict) -> list[dict]:
+        raw = content.get("attachments", [])
+        if not isinstance(raw, list):
+            return []
+        return [
+            {"id": item.get("id"), "name": item.get("name"), "extract": item["extract"]}
+            for item in raw
+            if isinstance(item, dict)
+            and item.get("state") == "done"
+            and isinstance(item.get("extract"), str)
+        ]
+
+    immutable_input_changed = any(
+        (
+            request.get("report_kind") != payload.report_kind,
+            request.get("report_date") != payload.report_date.isoformat(),
+            request.get("period_start")
+            != (payload.period_start.isoformat() if payload.period_start else None),
+            request.get("period_end")
+            != (payload.period_end.isoformat() if payload.period_end else None),
+            request.get("template_snapshot") != payload.template_snapshot,
+            request.get("guidance") != payload.transcript,
+            attachments(request_content) != attachments(current_content),
+        )
+    )
+    expected = run.source_refs.get("report_sources") if isinstance(run.source_refs, dict) else None
+    current = await report_sources.current_source_ref_snapshot(db, report.id)
+    if immutable_input_changed or not isinstance(expected, list) or current != expected:
+        raise HTTPException(409, "report_generation_source_changed")
+
+
 def _finalize_values(payload: ReportFinalize) -> tuple[dict, dict]:
     content = _section_content(payload.content)
     explicit = payload.model_fields_set
-    normalized = _normalized_report_values(content)
+    normalized = {
+        "title": _text(content.get("title")),
+        "body": None,
+        "common_body": None,
+        "unassigned_body": None,
+        "structured_values": {},
+    }
     for field_name in ("title", "body", "common_body", "unassigned_body", "structured_values"):
         if field_name in explicit:
             normalized[field_name] = getattr(payload, field_name)
-    content = _sync_legacy_report_content(
-        content,
-        normalized,
-        sync_title="title" in explicit,
-        sync_body="body" in explicit,
-        sync_common="common_body" in explicit,
-        sync_unassigned="unassigned_body" in explicit,
-        sync_structured="structured_values" in explicit,
-    )
+    if "title" in explicit:
+        if normalized["title"] is None:
+            content.pop("title", None)
+        else:
+            content["title"] = normalized["title"]
+    if normalized["body"] is None:
+        content.pop("values", None)
+    else:
+        content["values"] = {"body": normalized["body"]}
     return content, normalized
 
 
@@ -1055,6 +1011,7 @@ async def finalize_report(
 
         if report.report_kind != "meeting":
             await report_sources.sync_report_sources_from_legacy_content(db, member, report)
+        await _validate_generation_source_refs(db, report, payload, run)
         sections = list(
             (
                 await db.execute(

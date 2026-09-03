@@ -27,7 +27,6 @@ import type {
   ReportDraftSnapshot,
   ReportGenerationInput,
   ReportKind,
-  ReportTemplate,
 } from '@/types'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 
@@ -42,24 +41,9 @@ import {
 
 export type DraftPhase = 'idle' | 'generating' | 'ready' | 'submitted'
 
-const emptyValues = (template: ReportTemplate) =>
-  Object.fromEntries(template.fields.map((f) => [f.id, '']))
-
-/** 생성 후보는 AI 작성 필드만 바꾸고 사람이 직접 쓰는 필드는 그대로 둡니다. */
-export function mergeGeneratedValues(
-  template: ReportTemplate,
-  previous: Record<string, string>,
-  fields: { field_id: string; value: string }[],
-) {
-  const drafted = Object.fromEntries(fields.map((field) => [field.field_id, field.value]))
-  return {
-    ...previous,
-    ...Object.fromEntries(
-      template.fields
-        .filter((field) => field.aiFilled)
-        .map((field) => [field.id, drafted[field.id] ?? '']),
-    ),
-  }
+/** 기간 보고서 생성 후보는 canonical 본문 한 칸만 받습니다. */
+export function mergeGeneratedValues(fields: { field_id: string; value: string }[]) {
+  return { body: fields.find((field) => field.field_id === 'body')?.value ?? '' }
 }
 
 /** 늦게 도착한 원본에는 현재 선택만 얹습니다. */
@@ -132,6 +116,7 @@ export default function useDailyDraft(
     error: existingError,
     reload: reloadExisting,
   } = useReportOfPeriod(kind, dateISO)
+  const sourcesLoading = agendaLoading || meetingLoading || reportLoading
   const sources = useMemo(
     () => sourcesFor(kind, dateISO, meetings, reports, agendaItems),
     [kind, dateISO, meetings, reports, agendaItems],
@@ -154,10 +139,9 @@ export default function useDailyDraft(
     canonicalSeed.current.report = matchingExisting
   }
   const canonical = canonicalSeed.current.report
-  const initialTemplate = canonical?.template ?? templateFor(kind)
+  const template = templateFor(kind)
 
   const [phase, setPhase] = useState<DraftPhase>('idle')
-  const [template, setTemplate] = useState<ReportTemplate>(initialTemplate)
   const [activities, setActivities] = useState<ReportActivity[]>(() => sources.activities)
   /** 자료에 없는 것을 직접 적는 칸. AI 가 이것도 함께 읽습니다. */
   const [transcript, setTranscript] = useState('')
@@ -166,7 +150,7 @@ export default function useDailyDraft(
     setTranscript((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text)),
   )
   const { setAttachments, setAttachmentError } = files
-  const [values, setValues] = useState<Record<string, string>>(() => emptyValues(initialTemplate))
+  const [values, setValues] = useState<Record<string, string>>({ body: '' })
   const [approver, setApprover] = useState<string>(APPROVERS[0] ?? '')
   const [aiFilledIds, setAiFilledIds] = useState<ReadonlySet<string>>(new Set())
   const [dirtyIds, setDirtyIds] = useState<ReadonlySet<string>>(new Set())
@@ -190,7 +174,6 @@ export default function useDailyDraft(
     // 쓰다 만 보고서의 선택을 그대로 살립니다. 자료 목록은 지금 것을 쓰되
     // 무엇을 골랐는지만 이어받습니다. 그 사이 새로 생긴 자료도 함께 보여야 합니다.
     const saved = canonical
-    const nextTemplate = saved?.template ?? templateFor(kind)
     const collected = sourcesFor(
       kind,
       dateISO,
@@ -203,8 +186,7 @@ export default function useDailyDraft(
     setAttachments(saved?.attachments ?? [])
     setAttachmentError(null)
     setTranscript(saved?.transcript ?? '')
-    setTemplate(nextTemplate)
-    setValues(saved ? { ...emptyValues(nextTemplate), ...saved.values } : emptyValues(nextTemplate))
+    setValues({ body: saved?.values.body ?? '' })
     setApprover(saved?.approver ?? APPROVERS[0] ?? '')
     setAiFilledIds(new Set())
     setDirtyIds(new Set())
@@ -217,15 +199,16 @@ export default function useDailyDraft(
   }, [kind, dateISO, pickId, setAttachments, setAttachmentError, canonical])
 
   useEffect(() => {
+    if (sourcesLoading) return
     reset()
-  }, [reset])
+  }, [reset, sourcesLoading])
 
   // 첫 렌더 뒤 도착한 자료만 초기 초안에 보탭니다. 사용자가 선택했거나 생성에 쓴
   // 스냅샷은 이후 조회 결과로 바꾸지 않습니다.
   useEffect(() => {
-    if (sourceSelectionFrozen.current) return
+    if (sourcesLoading || sourceSelectionFrozen.current) return
     setActivities((previous) => mergeSourceActivities(sources.activities, previous, pickId))
-  }, [sources.activities, pickId])
+  }, [sourcesLoading, sources.activities, pickId])
 
   const toggleActivity = useCallback((id: string) => {
     sourceSelectionFrozen.current = true
@@ -241,15 +224,17 @@ export default function useDailyDraft(
 
   /** AI 가 채우는 항목이 있는 양식에서만 초안 생성이 의미가 있습니다. */
   const hasAiFields = useMemo(() => template.fields.some((f) => f.aiFilled), [template])
+  const hasInput =
+    included.length > 0 ||
+    transcript.trim().length > 0 ||
+    files.attachments.length > 0 ||
+    Boolean(values.body?.trim())
 
   /**
    * 정리할 것이 하나는 있어야 합니다. 고른 자료든, 직접 적은 내용이든, 첨부든
    * 무엇이든 하나입니다 — 자료가 없는 기간이라도 적어서 쓸 수 있어야 합니다.
    */
-  const canGenerate =
-    !recovering &&
-    hasAiFields &&
-    (included.length > 0 || transcript.trim().length > 0 || files.attachments.length > 0)
+  const canGenerate = !recovering && hasAiFields && hasInput
 
   const generationPayload = useCallback(
     () => ({
@@ -261,63 +246,34 @@ export default function useDailyDraft(
       approver,
       values,
       activities,
-      template,
       attachments: files.attachments,
       transcript,
     }),
-    [
-      canonical,
-      dateISO,
-      kind,
-      approver,
-      values,
-      activities,
-      template,
-      files.attachments,
-      transcript,
-    ],
+    [canonical, dateISO, kind, approver, values, activities, files.attachments, transcript],
   )
 
   const acceptGeneration = useCallback(
-    (
-      runId: string,
-      fields: { field_id: string; value: string }[],
-      candidateTemplate = template,
-    ) => {
-      const drafted = Object.fromEntries(fields.map((field) => [field.field_id, field.value]))
-      setValues((previous) => mergeGeneratedValues(candidateTemplate, previous, fields))
-      setAiFilledIds(
-        new Set(
-          candidateTemplate.fields
-            .filter((field) => field.aiFilled && drafted[field.id])
-            .map((field) => field.id),
-        ),
-      )
-      setDirtyIds(
-        (previous) =>
-          new Set(
-            [...previous].filter(
-              (id) => !candidateTemplate.fields.some((field) => field.id === id && field.aiFilled),
-            ),
-          ),
-      )
+    (runId: string, fields: { field_id: string; value: string }[]) => {
+      const generated = mergeGeneratedValues(fields)
+      setValues(generated)
+      setAiFilledIds(generated.body ? new Set(['body']) : new Set())
+      setDirtyIds(new Set())
       setGenerationRunId(runId)
       setGenerationError(null)
       setPhase('ready')
     },
-    [template],
+    [],
   )
 
   const restoreGenerationInput = useCallback(
     (input: ReportGenerationInput) => {
       const restored = periodGenerationSeedOf(input)
       sourceSelectionFrozen.current = true
-      setTemplate(restored.template)
       setActivities(restored.activities)
       setAttachments(restored.attachments)
       setAttachmentError(null)
       setTranscript(restored.transcript)
-      setValues({ ...emptyValues(restored.template), ...restored.values })
+      setValues(restored.values)
       setApprover(restored.approver || APPROVERS[0] || '')
       setAiFilledIds(new Set())
       setDirtyIds(new Set())
@@ -339,7 +295,7 @@ export default function useDailyDraft(
   const resumeGeneration = useCallback(
     async (run: AgentRunResponse<ReportDraftSnapshot>, controller: AbortController) => {
       const input = periodInputOf(run, kind, dateISO)
-      const restored = restoreGenerationInput(input)
+      restoreGenerationInput(input)
       try {
         if (run.status_code === 'failed' || run.status_code === 'cancelled') {
           throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
@@ -350,7 +306,7 @@ export default function useDailyDraft(
           : run
         if (!completed.output_snapshot) throw new Error('agent_run_failed')
         if (!controller.signal.aborted) {
-          acceptGeneration(completed.id, completed.output_snapshot.fields, restored.template)
+          acceptGeneration(completed.id, completed.output_snapshot.fields)
         }
       } catch (reason: unknown) {
         if (!controller.signal.aborted) {
@@ -409,7 +365,7 @@ export default function useDailyDraft(
   }, [canGenerate, generationPayload, acceptGeneration, canonical, values])
 
   useEffect(() => {
-    if (existingLoading || recoveredScope.current === scopeKey) return
+    if (existingLoading || sourcesLoading || recoveredScope.current === scopeKey) return
     if (canonical?.apiStatus === 'submitted' || canonical?.apiStatus === 'approved') {
       setRecovering(false)
       return
@@ -453,8 +409,22 @@ export default function useDailyDraft(
           setRecovering(false)
         }
       })
-    return () => controller.abort()
-  }, [kind, dateISO, scopeKey, existingLoading, canonical?.id, canonical?.apiStatus])
+    return () => {
+      controller.abort()
+      if (recoveryAbort.current === controller) {
+        recoveryAbort.current = null
+        recoveredScope.current = ''
+      }
+    }
+  }, [
+    kind,
+    dateISO,
+    scopeKey,
+    existingLoading,
+    sourcesLoading,
+    canonical?.id,
+    canonical?.apiStatus,
+  ])
 
   useEffect(
     () => () => {
@@ -472,14 +442,12 @@ export default function useDailyDraft(
    */
   const missing = useMemo(() => {
     const reasons: string[] = []
-    if (included.length === 0 && transcript.trim() === '' && files.attachments.length === 0) {
-      reasons.push('자료 1건 이상')
-    }
+    if (!hasInput) reasons.push('자료 1건 이상')
     for (const field of template.fields) {
       if (field.required && !values[field.id]?.trim()) reasons.push(field.label)
     }
     return reasons
-  }, [included, transcript, files.attachments, values, template])
+  }, [hasInput, values, template])
 
   return {
     phase,
@@ -523,7 +491,7 @@ export default function useDailyDraft(
     reset,
     /** 이 기간에 이미 있는 보고서. 이어 쓰는 중인지 화면이 이 값으로 안내합니다. */
     existing: canonical,
-    loading: agendaLoading || meetingLoading || reportLoading || existingLoading,
+    loading: sourcesLoading || existingLoading,
     error: agendaError ?? meetingError ?? reportError ?? existingError,
     reload: () => {
       recoveredScope.current = ''

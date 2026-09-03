@@ -14,7 +14,7 @@ import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod } from './periods'
 import { activityLink } from './sources'
-import { canEditPeriodReport, detailTemplateOf, toReport } from './useDailyReports'
+import { canEditPeriodReport, toReport } from './useDailyReports'
 
 import styles from './Detail.module.scss'
 
@@ -61,7 +61,6 @@ export default function Detail() {
   }
 
   const editable = canEditPeriodReport(report, memberId)
-  const detailTemplate = detailTemplateOf(report)
 
   return (
     <section>
@@ -92,11 +91,7 @@ export default function Detail() {
 
         <article className={styles.panel}>
           <h2>보고 내용</h2>
-          {detailTemplate.fields.length === 0 ? (
-            <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
-          ) : (
-            <ReportFields template={detailTemplate} values={report.values} readOnly />
-          )}
+          <ReportFields template={report.template} values={report.values} readOnly />
         </article>
 
         <article className={styles.panel}>

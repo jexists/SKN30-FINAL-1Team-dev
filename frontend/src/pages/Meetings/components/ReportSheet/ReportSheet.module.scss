@@ -18,10 +18,6 @@
     padding: var(--s3) var(--s5) var(--s4);
     background: none;
   }
-
-  .broken {
-    margin: 0 var(--s5) var(--s4);
-  }
 }
 
 /*
@@ -132,7 +128,7 @@
   line-height: 1.7;
 }
 
-/* 후보 재생성과 섹션 복구처럼 이 카드에만 해당하는 보조 조작입니다. */
+/* 후보 재생성처럼 이 카드에만 해당하는 보조 조작입니다. */
 .actions {
   position: sticky;
   bottom: 0;
@@ -186,23 +182,6 @@
 
   p {
     color: var(--red-ink);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
-/* 문서 뼈대가 깨졌을 때. 저장을 막는 이유와 되돌릴 길을 한자리에 둡니다. */
-.broken {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-  padding: var(--s3);
-  border-radius: var(--r-sm);
-  background: var(--orange-tint);
-
-  p {
-    color: var(--orange-ink);
     font-size: 12px;
     line-height: 1.5;
   }

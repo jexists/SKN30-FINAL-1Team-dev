@@ -38,7 +38,7 @@ import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
 import useCompanyDeals from './useCompanyDeals'
-import useMeetingDraft, { hasMeetingDraftContent } from './useMeetingDraft'
+import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './useMeetingDraft'
 import useMeetingReports, {
   type MeetingDealDraftPayload,
   type MeetingDraftPayload,
@@ -184,7 +184,18 @@ export default function Compose() {
     void latestMeetingProcessing(agendaId, controller.signal)
       .then((run) => {
         if (controller.signal.aborted || generationAbort.current) return
-        meetingInputOf(run, agendaId)
+        try {
+          meetingInputOf(run, agendaId)
+        } catch (reason) {
+          if (!(reason instanceof Error) || reason.message !== 'report_generation_input_missing') {
+            throw reason
+          }
+          if (recoveryAbort.current === controller) {
+            recoveryAbort.current = null
+            setRecovering(false)
+          }
+          return
+        }
         if (requiresRecoveryConfirmation(savedReport?.id)) {
           setPendingRecovery(run)
           if (recoveryAbort.current === controller) {
@@ -298,7 +309,6 @@ export default function Compose() {
       version: first.reportVersion ?? savedReport?.version,
       statusCode: savedReport?.apiStatus ?? first.statusCode,
       agendaId: item.id,
-      template: savedReport?.template ?? first.template,
       date: item.date,
       time: item.time,
       hospital: item.hospital,
@@ -327,9 +337,8 @@ export default function Compose() {
       canEditDeal(id) &&
       ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
   )
-  const emptyDealIds = editableDealIds.filter((id) => draft.draftsByDeal[id]?.phase === 'idle')
-  const brokenDealIds = editableDealIds.filter(
-    (id) => (draft.draftsByDeal[id]?.sectionIssues.length ?? 0) > 0,
+  const emptyDealIds = editableDealIds.filter((id) =>
+    isMeetingBodyBlank(draft.draftsByDeal[id]?.values ?? {}),
   )
   const hasDraftContent = hasMeetingDraftContent(
     draft.salesDealIds,
@@ -399,8 +408,7 @@ export default function Compose() {
       busy ||
       submitAbort.current ||
       editableDealIds.length !== draft.salesDealIds.length ||
-      emptyDealIds.length > 0 ||
-      brokenDealIds.length > 0
+      emptyDealIds.length > 0
     )
       return
 
@@ -541,8 +549,7 @@ export default function Compose() {
                 disabled={
                   busy ||
                   editableDealIds.length !== draft.salesDealIds.length ||
-                  emptyDealIds.length > 0 ||
-                  brokenDealIds.length > 0
+                  emptyDealIds.length > 0
                 }
                 onClick={() => void submitAll()}
               >
@@ -577,15 +584,13 @@ export default function Compose() {
                   savedDeal={savedByDeal.get(dealId)?.salesDeal}
                   draft={state}
                   progress={draft.processingProgress}
-                  template={state.template}
                   when={when}
                   saving={pending}
                   generating={generating || recovering}
                   canGenerate={draft.canGenerate && generatable}
                   readOnly={!canEditDeal(dealId)}
                   onTitleChange={(value) => draft.setTitle(dealId, value)}
-                  onChange={(values, missing) => draft.applyDocument(dealId, values, missing)}
-                  onRestoreSections={() => draft.restoreSections(dealId)}
+                  onChange={(body) => draft.applyDocument(dealId, body)}
                   onStartManual={() => draft.startManual(dealId)}
                   onGenerate={requestGeneration}
                 />

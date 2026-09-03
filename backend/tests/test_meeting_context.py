@@ -331,10 +331,11 @@ def test_frozen_company_history_has_larger_explicit_limit_and_no_deal_scope(samp
     assert "same_company" in result["scope"]
 
 
-def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample):
+def test_previous_reports_read_only_body_without_legacy_or_raw_values(sample):
     meeting_at = sample["activity"].starts_at - timedelta(days=1)
     row = list(_submission_row(sample["ids"][0], meeting_at, body="확정한 이전 딜 내용"))
     row[6]["deals"][0]["structured_values"] = {
+        "next_step": "구형 후속 조치",
         "transcript": "원문 금지",
         "rawTranscript": "원문 변형도 금지",
         "AI-Values": "AI 값 변형도 금지",
@@ -349,6 +350,7 @@ def test_previous_reports_read_only_deal_values_without_raw_ml_or_shared(sample)
     result = build(sample, db)["crm_context"]["previous_reports"][0]
 
     assert result["items"][0]["values"] == {"body": "확정한 이전 딜 내용"}
+    assert row[6]["deals"][0]["structured_values"]["next_step"] == "구형 후속 조치"
     assert result["items"][0]["submission_id"] == str(row[1])
     assert result["items"][0]["report_id"] == str(row[2])
     assert result["items"][0]["meeting_at"] == meeting_at.isoformat()
@@ -408,6 +410,7 @@ def test_previous_submissions_are_loaded_once_and_partitioned_by_deal(sample):
 
 def test_report_values_have_explicit_text_limit_and_no_legacy_root_fallback():
     assert service._report_values(None) == ({}, False)
+    assert service._report_values({"next_step": "구형 필드"}) == ({}, False)
     cleaned, truncated = service._report_values({"body": "가" * (service.REPORT_TEXT_LIMIT + 5)})
     assert len(cleaned["body"]) == service.REPORT_TEXT_LIMIT
     assert truncated is True

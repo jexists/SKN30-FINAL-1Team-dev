@@ -3,8 +3,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
-import { meetingBodyField } from '@/shared/meetings'
-import { reportTemplateFromSnapshot } from '@/shared/reports'
+import { meetingFreeformTemplate } from '@/shared/meetings'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
   MeetingDealSection,
@@ -17,7 +16,6 @@ import type {
   ReportFinalizeRequest,
   ReportGenerationInput,
   ReportGenerationRequest,
-  ReportTemplate,
   ReportWriteRequest,
   MeetingReportStatus,
 } from '@/types'
@@ -36,14 +34,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : ''
-}
-
-function valuesOf(value: unknown): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(record(value)).filter(
-      (entry): entry is [string, string] => typeof entry[1] === 'string',
-    ),
-  )
 }
 
 /** 저장 당시 딜 이름표. 손상된 이름표도 딜 ID 자체로 구분할 수 있게 복구합니다. */
@@ -69,21 +59,15 @@ function dealSectionOf(
   aiEvidence: unknown,
   explicitTitle?: string | null,
   explicitBody?: string | null,
-  structuredValues?: Record<string, unknown>,
 ): MeetingDealSection {
   const content = record(value)
   const analysisEvidence = aiEvidence == null ? null : record(aiEvidence)
-  const values = {
-    ...valuesOf(content.values ?? content),
-    ...valuesOf(structuredValues),
-    ...(explicitBody ? { body: explicitBody } : {}),
-  }
   return {
     salesDealId,
     salesDeal: dealOf(dealSnapshot, salesDealId),
     product: text(content.product),
     title: explicitTitle || text(content.title),
-    values,
+    values: { body: explicitBody ?? '' },
     evidence: text(content.evidence) || undefined,
     ...readMeetingAnalysis(analysisEvidence ?? {}),
   }
@@ -105,7 +89,6 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
       section.ai_evidence,
       section.title,
       section.body,
-      section.structured_values,
     ),
   )
   return {
@@ -116,9 +99,7 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     off: Math.round((parseISO(item.report_date).getTime() - TODAY.getTime()) / DAY),
     date: item.report_date,
     time: text(content.time),
-    template: meetingTemplateWithBody(
-      reportTemplateFromSnapshot(item.template_snapshot, '미팅 보고 양식'),
-    ),
+    template: meetingFreeformTemplate,
     hospital: text(content.hospital),
     dept: text(content.dept),
     contact: text(content.contact),
@@ -155,7 +136,6 @@ export interface MeetingDraftPayload {
   statusCode?: ReportResponse['status_code']
   agendaId: string
   date: string
-  template: ReportTemplate
   time: string
   hospital: string
   dept: string
@@ -169,22 +149,14 @@ export interface MeetingDraftPayload {
   unassignedBody?: string | null
 }
 
-/** 구 구조화 양식에는 의미를 추측하지 않고 자유형 생성 본문 칸만 덧붙입니다. */
-export function meetingTemplateWithBody(template: ReportTemplate): ReportTemplate {
-  return template.fields.some((field) => field.id === 'body')
-    ? template
-    : { ...template, fields: [...template.fields, { ...meetingBodyField, required: false }] }
-}
-
-export function meetingBodyOf(values: Record<string, string>): string | null {
-  return values.body?.trim() || null
+export function meetingBodyOf(values: Record<string, string>): string {
+  return values.body?.trim() || ''
 }
 
 export function meetingGenerationSeedOf(input: ReportGenerationInput) {
   const content = record(input.content)
   return {
     salesDealIds: input.sales_deal_ids,
-    template: meetingTemplateWithBody(input.template_snapshot),
     transcript: input.transcript ?? '',
     attachments: Array.isArray(content.attachments)
       ? (content.attachments as ReportAttachment[])
@@ -205,7 +177,6 @@ export async function savedForAgenda(
 }
 
 export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest {
-  const template = meetingTemplateWithBody(draft.template)
   return {
     report_kind: 'meeting',
     report_date: draft.date,
@@ -214,7 +185,7 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
     source_activity_id: draft.agendaId,
     sales_deal_id: null,
     recipient_member_id: null,
-    template_snapshot: template,
+    template_snapshot: meetingFreeformTemplate,
     content: {
       time: draft.time,
       hospital: draft.hospital,
@@ -239,13 +210,11 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
       position,
       title: section.title || null,
       body: meetingBodyOf(section.values),
-      structured_values: Object.fromEntries(
-        Object.entries(section.values).filter(([key]) => key !== 'body'),
-      ),
+      structured_values: {},
       content: {
         product: section.product,
         title: section.title,
-        values: section.values,
+        values: { body: section.values.body ?? '' },
         evidence: section.evidence ?? null,
       },
     })),

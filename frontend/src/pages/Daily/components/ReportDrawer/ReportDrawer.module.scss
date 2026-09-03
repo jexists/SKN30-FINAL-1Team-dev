@@ -109,21 +109,14 @@
   font-weight: 600;
 }
 
-// 요약은 세 줄까지만. 전문은 상세 화면에서 봅니다.
-.summary {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  overflow: hidden;
+.reportBody {
   margin-top: var(--s2);
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.6;
-  white-space: pre-line;
 }
 
-.summaryEmpty {
+.bodyEmpty {
   margin-top: var(--s2);
   color: var(--muted);
   font-size: 13px;

@@ -16,6 +16,7 @@ MIGRATION = Path(__file__).parents[1] / "sql/20260901_0017_report_workflow_v2_fo
 TRANSIENT_MIGRATION = (
     Path(__file__).parents[1] / "sql/20260902_0019_transient_report_generation.sql"
 )
+FREEFORM_MIGRATION = Path(__file__).parents[1] / "sql/20260903_0020_report_freeform_body.sql"
 
 
 def test_report_workflow_v2_models_expose_the_additive_contract():
@@ -137,3 +138,40 @@ def test_transient_generation_migration_is_additive_and_guards_provenance():
     assert sql.count("conrelid = 'public.report_submission'::regclass") == 3
     assert "DROP COLUMN" not in sql
     assert "DROP TABLE" not in sql
+
+
+def test_freeform_migration_is_fail_closed_and_normalizes_legacy_values():
+    sql = FREEFORM_MIGRATION.read_text(encoding="utf-8")
+
+    assert "LOCK TABLE public.report, public.report_deal, public.report_submission" in sql
+    assert "report body migration would discard or guess legacy values" in sql
+    assert "meeting shared body requires reconciliation" in sql
+    assert "legacy immutable report submissions require reconciliation" in sql
+    assert "report body migration postcondition failed" in sql
+    assert "CREATE TEMP TABLE legacy_single_deal_report" in sql
+    assert "UPDATE public.report_submission" not in sql
+    assert "AND nullif(btrim(report.body), '') IS NULL" in sql
+    assert "AND nullif(btrim(section.body), '') IS NULL" in sql
+    assert sql.count("WITH ORDINALITY AS field(value, position)") == 4
+    assert sql.count("structured_values = '{}'::jsonb") >= 3
+    assert "jsonb_build_object('body', report.body)" in sql
+    assert "jsonb_build_object('body', section.body)" in sql
+    assert "report.report_kind IN ('meeting', 'daily', 'weekly', 'monthly')" in sql
+    assert "source.structured_values ->> field_id.id" in sql
+    assert "source.content -> 'values' ->> field_id.id" in sql
+    assert "source.content ->> field_id.id" in sql
+    assert "string_agg(selected.body, E'\\n\\n' ORDER BY field.position)" in sql
+    assert "content -> 'ai_values'" not in sql
+    assert "content ->> 'transcript'" not in sql
+    assert sql.count("'aivalues'") >= 5
+    assert sql.count("'outputsnapshot'") >= 5
+    assert sql.index("UPDATE public.report_deal AS section\nSET body") < sql.index(
+        "SET template_snapshot"
+    )
+    for template_id in (
+        "builtin-meeting-freeform",
+        "builtin-daily-freeform",
+        "builtin-weekly-freeform",
+        "builtin-monthly-freeform",
+    ):
+        assert template_id in sql

@@ -41,6 +41,7 @@ _RESERVED_FIELD_IDS = {
     "meeting_shared",
     "ml",
     "ml_result",
+    "output_snapshot",
     "raw_payload",
     "raw_transcript",
     "request_snapshot",
@@ -93,83 +94,36 @@ def _approved_structured_values(value: Any) -> dict[str, Any]:
     return output
 
 
-def _legacy_values(content: Any) -> dict[str, Any]:
+def _content_values(content: Any) -> dict[str, Any]:
     values = _mapping(content).get("values")
     return _mapping(values)
 
 
-def _legacy_shared_body(content: Any, key: str) -> str | None:
-    shared = _mapping(content).get("meeting_shared")
-    item = _mapping(shared).get(key)
-    return _text(_mapping(item).get("body"))
-
-
-def _declared_legacy_values(report: Report, content: dict[str, Any]) -> dict[str, Any]:
-    """Recover only top-level values named by the report's frozen template."""
-    fields = _mapping(getattr(report, "template_snapshot", None)).get("fields")
-    if not isinstance(fields, list):
-        return {}
-    output: dict[str, Any] = {}
-    for raw_field in fields:
-        field_id = _mapping(raw_field).get("id")
-        if not isinstance(field_id, str) or field_id == "body" or field_id not in content:
-            continue
-        if is_reserved_submission_field(field_id):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="report_submission_reserved_field",
-            )
-        output[field_id] = content[field_id]
-    return _approved_structured_values(output)
-
-
 def effective_report_fields(report: Report) -> dict[str, Any]:
-    """Return normalized human-facing fields, with a read-only legacy fallback."""
+    """Return normalized human-approved fields while rejecting reserved legacy data."""
     content = _mapping(report.content)
-    values = _legacy_values(content)
-    structured = _approved_structured_values(getattr(report, "structured_values", None))
-    if not structured:
-        structured = _approved_structured_values(
-            {
-                key: value
-                for key, value in values.items()
-                if key != "body" and not is_reserved_submission_field(key)
-            }
-        )
-    if not structured:
-        # Old period reports stored template fields directly under ``content``.  A template-id
-        # allowlist keeps AI drafts, transcripts, activities, and metadata out of submissions.
-        structured = _declared_legacy_values(report, content)
+    values = _content_values(content)
+    _approved_structured_values(getattr(report, "structured_values", None))
+    _approved_structured_values(values)
     return {
         "title": _text(getattr(report, "title", None)) or _text(content.get("title")),
-        "body": _text(getattr(report, "body", None))
-        or _text(values.get("body"))
-        or _text(content.get("body")),
-        "common_body": _text(getattr(report, "common_body", None))
-        or _legacy_shared_body(content, "common_report"),
-        "unassigned_body": _text(getattr(report, "unassigned_body", None))
-        or _legacy_shared_body(content, "unassigned_report"),
-        "structured_values": structured,
+        "body": _text(getattr(report, "body", None)),
+        "common_body": _text(getattr(report, "common_body", None)),
+        "unassigned_body": _text(getattr(report, "unassigned_body", None)),
+        "structured_values": {},
     }
 
 
 def effective_deal_fields(section: ReportDeal) -> dict[str, Any]:
-    """Return normalized deal output, preserving legacy ``content.values`` rows."""
+    """Return the human-approved deal body while rejecting reserved legacy data."""
     content = _mapping(section.content)
-    values = _legacy_values(content)
-    structured = _approved_structured_values(getattr(section, "structured_values", None))
-    if not structured:
-        structured = _approved_structured_values(
-            {
-                key: value
-                for key, value in values.items()
-                if key != "body" and not is_reserved_submission_field(key)
-            }
-        )
+    values = _content_values(content)
+    _approved_structured_values(getattr(section, "structured_values", None))
+    _approved_structured_values(values)
     return {
         "title": _text(getattr(section, "title", None)) or _text(content.get("title")),
-        "body": _text(getattr(section, "body", None)) or _text(values.get("body")),
-        "structured_values": structured,
+        "body": _text(getattr(section, "body", None)),
+        "structured_values": {},
     }
 
 
@@ -180,6 +134,7 @@ def build_submission_snapshot(
 ) -> dict[str, Any]:
     """Build the canonical, transcript-free payload hashed and stored at submit time."""
     normalized = effective_report_fields(report)
+    template_snapshot = _approved_structured_values(report.template_snapshot)
     ordered = sorted(
         sections,
         key=lambda item: (
@@ -216,7 +171,7 @@ def build_submission_snapshot(
         "report_date": report.report_date,
         "period_start": report.period_start,
         "period_end": report.period_end,
-        "template_snapshot": _mapping(report.template_snapshot),
+        "template_snapshot": template_snapshot,
         **normalized,
         "deals": deals,
         "source_refs": [
@@ -246,7 +201,7 @@ def snapshot_sha256(snapshot: dict[str, Any]) -> str:
 
 
 def validate_submission_content(report: Report, sections: list[ReportDeal]) -> None:
-    """Reject a meeting section only when all human-visible fields are blank."""
+    """Reject a meeting section without a human-approved body."""
     if report.report_kind != "meeting":
         return
     if not sections:
@@ -254,15 +209,11 @@ def validate_submission_content(report: Report, sections: list[ReportDeal]) -> N
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="deal_sections_required",
         )
-    for section in sections:
-        fields = effective_deal_fields(section)
-        if fields["body"] is None and not any(
-            _text(value) is not None for value in fields["structured_values"].values()
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="report_deal_content_required",
-            )
+    if any(effective_deal_fields(section)["body"] is None for section in sections):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="report_deal_body_required",
+        )
 
 
 async def create_submission(

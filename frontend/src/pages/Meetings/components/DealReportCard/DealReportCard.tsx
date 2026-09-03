@@ -4,7 +4,7 @@ import { ChevronDownIcon } from '@/components/icons'
 import StageChip from '@/components/StageChip'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
-import type { MeetingDealRef, MeetingProgress, ReportTemplate } from '@/types'
+import type { MeetingDealRef, MeetingProgress } from '@/types'
 
 import { isInsufficientDealPrediction } from '../../generatedDraft'
 import type { DealDraftState } from '../../useMeetingDraft'
@@ -18,15 +18,13 @@ interface Props {
   savedDeal?: MeetingDealRef
   draft: DealDraftState
   progress?: MeetingProgress | null
-  template: ReportTemplate
   when: string
   saving: boolean
   generating: boolean
   canGenerate: boolean
   readOnly: boolean
   onTitleChange: (value: string) => void
-  onChange: (values: Record<string, string>, missingSections: string[]) => void
-  onRestoreSections: () => void
+  onChange: (body: string) => void
   onStartManual: () => void
   onGenerate: () => void
 }
@@ -67,7 +65,6 @@ export default function DealReportCard({
   savedDeal,
   draft,
   progress,
-  template,
   when,
   saving,
   generating,
@@ -75,7 +72,6 @@ export default function DealReportCard({
   readOnly,
   onTitleChange,
   onChange,
-  onRestoreSections,
   onStartManual,
   onGenerate,
 }: Props) {
@@ -118,16 +114,13 @@ export default function DealReportCard({
         <ReportSheet
           embedded
           phase={draft.phase}
-          template={template}
           titleId={`report-title-${dealId}`}
           title={draft.title}
           onTitleChange={onTitleChange}
           when={when}
-          values={draft.values}
+          body={draft.values.body ?? ''}
           docKey={draft.docKey}
           onChange={onChange}
-          sectionIssues={draft.sectionIssues}
-          onRestoreSections={onRestoreSections}
           evidence={draft.evidence}
           generationProgress={progress}
           generationPreview={progress?.previews.find(

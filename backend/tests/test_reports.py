@@ -19,6 +19,8 @@ from app.models.content import Report, ReportDeal, ReportSubmission
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
+    REPORT_JSON_MAX_BYTES,
+    REPORT_TITLE_MAX_LENGTH,
     ReportDealWrite,
     ReportFinalize,
     ReportPageParams,
@@ -28,8 +30,8 @@ from app.services import report_sources, report_submissions
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
 START = datetime(2026, 8, 17, 1, tzinfo=UTC)
-TEMPLATE = {"fields": [{"id": "summary", "label": "요약"}]}
-CONTENT = {"summary": "합성 보고 내용"}
+TEMPLATE = {"fields": [{"id": "body", "label": "본문"}]}
+CONTENT = {"values": {"body": "합성 보고 내용"}}
 _MISSING = object()
 
 
@@ -147,7 +149,7 @@ def _report(member: Member, *, kind: str = "daily", status_code: str = "draft") 
         status_code=status_code,
         content=CONTENT,
         title=None,
-        body=None,
+        body="합성 보고 내용",
         common_body=None,
         unassigned_body=None,
         structured_values={},
@@ -357,6 +359,7 @@ def test_finalize_request_rejects_unsafe_values(invalid):
         "report_date": "2026-08-17",
         "template_snapshot": TEMPLATE,
         "content": CONTENT,
+        "body": "합성 보고 내용",
         **invalid,
     }
     with pytest.raises(ValidationError):
@@ -364,6 +367,136 @@ def test_finalize_request_rejects_unsafe_values(invalid):
 
     with pytest.raises(ValidationError):
         ReportPageParams(start_date="2026-08-17", end_date="2026-08-10")
+
+
+@pytest.mark.parametrize(
+    ("override", "error"),
+    [
+        ({"template_snapshot": {"fields": [{"id": "summary"}]}}, "report_template_body_only"),
+        ({"content": {"values": {"summary": "구형 요약"}}}, "report_values_body_only"),
+        ({"structured_values": {"summary": "구형 요약"}}, "structured_values_not_supported"),
+        ({"body": None}, "report_body_required"),
+    ],
+)
+def test_period_finalize_rejects_non_body_contract(override, error):
+    payload = {
+        "idempotency_key": uuid4(),
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": CONTENT,
+        "body": "합성 보고 내용",
+        **override,
+    }
+    with pytest.raises(ValidationError, match=error):
+        ReportFinalize(**payload)
+
+
+@pytest.mark.parametrize(
+    ("kind", "override", "error"),
+    [
+        ("meeting", {"body": "숨은 상위 본문"}, "report_body_not_supported"),
+        ("meeting", {"activity_ids": [uuid4()]}, "activity_ids_not_supported"),
+        ("daily", {"source_activity_id": uuid4()}, "source_activity_not_supported"),
+        ("daily", {"common_body": "숨은 공통 본문"}, "meeting_shared_not_supported"),
+        ("daily", {"unassigned_body": "숨은 미지정 본문"}, "meeting_shared_not_supported"),
+    ],
+)
+def test_finalize_rejects_hidden_fields_for_the_other_report_kind(kind, override, error):
+    if kind == "meeting":
+        deal_id = uuid4()
+        payload = {
+            "idempotency_key": uuid4(),
+            "report_kind": "meeting",
+            "report_date": "2026-08-17",
+            "source_activity_id": uuid4(),
+            "deal_sections": [
+                {
+                    "sales_deal_id": deal_id,
+                    "deal_snapshot": {"id": deal_id, "label": "D-1"},
+                    "content": {"values": {"body": "본문"}},
+                    "body": "본문",
+                }
+            ],
+            "template_snapshot": TEMPLATE,
+            "content": CONTENT,
+            "body": None,
+            "activity_ids": [],
+        }
+    else:
+        payload = {
+            "idempotency_key": uuid4(),
+            "report_kind": "daily",
+            "report_date": "2026-08-17",
+            "source_activity_id": None,
+            "template_snapshot": TEMPLATE,
+            "content": CONTENT,
+            "body": "본문",
+            "common_body": None,
+            "unassigned_body": None,
+        }
+    ReportFinalize(**payload)
+
+    with pytest.raises(ValidationError, match=error):
+        ReportFinalize(**{**payload, **override})
+
+
+@pytest.mark.parametrize("field_name", ["template_snapshot", "content"])
+def test_finalize_reuses_the_generation_json_byte_limit(field_name):
+    oversized = {"value": "가" * REPORT_JSON_MAX_BYTES}
+    if field_name == "template_snapshot":
+        oversized["fields"] = [{"id": "body"}]
+    payload = {
+        "idempotency_key": uuid4(),
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "template_snapshot": TEMPLATE,
+        "content": CONTENT,
+        "body": "본문",
+        field_name: oversized,
+    }
+
+    with pytest.raises(ValidationError, match=f"{field_name}_too_large"):
+        ReportFinalize(**payload)
+
+
+def test_deal_content_reuses_the_generation_json_byte_limit():
+    deal_id = uuid4()
+    with pytest.raises(ValidationError, match="content_too_large"):
+        ReportDealWrite(
+            sales_deal_id=deal_id,
+            deal_snapshot={"id": deal_id, "label": "D-1"},
+            content={"value": "가" * REPORT_JSON_MAX_BYTES},
+            body="본문",
+        )
+
+
+@pytest.mark.parametrize("target", ["finalize", "deal"])
+def test_content_title_cannot_bypass_the_canonical_title_limit(target):
+    accepted = "가" * REPORT_TITLE_MAX_LENGTH
+    rejected = accepted + "가"
+
+    def build(title):
+        if target == "finalize":
+            return ReportFinalize(
+                idempotency_key=uuid4(),
+                report_kind="daily",
+                report_date="2026-08-17",
+                template_snapshot=TEMPLATE,
+                content={"title": title, "values": {"body": "본문"}},
+                body="본문",
+            )
+        deal_id = uuid4()
+        return ReportDealWrite(
+            sales_deal_id=deal_id,
+            deal_snapshot={"id": deal_id, "label": "D-1"},
+            content={"title": title},
+            body="본문",
+        )
+
+    assert len(build(accepted).content["title"]) == REPORT_TITLE_MAX_LENGTH
+    with pytest.raises(ValidationError, match="report_title_invalid"):
+        build(rejected)
 
 
 def test_finalize_accepts_a_valid_meeting():
@@ -378,6 +511,7 @@ def test_finalize_accepts_a_valid_meeting():
                 "sales_deal_id": deal_id,
                 "deal_snapshot": {"id": deal_id, "label": "D-1"},
                 "content": {"values": {"body": "딜별 본문"}},
+                "body": "딜별 본문",
             }
         ],
         template_snapshot=TEMPLATE,
@@ -386,6 +520,9 @@ def test_finalize_accepts_a_valid_meeting():
 
     assert payload.sales_deal_id is None
     assert payload.deal_sections[0].sales_deal_id == deal_id
+    content, normalized = reports_api._finalize_values(payload)
+    assert normalized["body"] is None
+    assert "values" not in content
 
 
 def test_finalize_hash_preserves_omitted_vs_explicit_null():
@@ -395,15 +532,16 @@ def test_finalize_hash_preserves_omitted_vs_explicit_null():
         "report_date": "2026-08-17",
         "template_snapshot": TEMPLATE,
         "content": {"values": {"body": "legacy body"}},
+        "body": "본문",
     }
     omitted = ReportFinalize(**values)
-    cleared = ReportFinalize(**values, body=None)
+    cleared = ReportFinalize(**values, title=None)
 
     assert reports_api._finalize_request_hash(omitted) != reports_api._finalize_request_hash(
         cleared
     )
-    assert reports_api._finalize_values(omitted)[1]["body"] == "legacy body"
-    assert reports_api._finalize_values(cleared)[1]["body"] is None
+    assert reports_api._finalize_values(omitted)[1]["body"] == "본문"
+    assert reports_api._finalize_values(cleared)[1]["title"] is None
 
 
 def test_deal_snapshot_requires_matching_id_and_safe_fields():
@@ -412,6 +550,7 @@ def test_deal_snapshot_requires_matching_id_and_safe_fields():
         sales_deal_id=deal_id,
         deal_snapshot={"id": str(deal_id), "label": "  D-1  ", "note": "  합성 딜  "},
         content={},
+        body="본문",
     )
     assert valid.deal_snapshot.model_dump(mode="json") == {
         "id": str(deal_id),
@@ -424,7 +563,7 @@ def test_deal_snapshot_requires_matching_id_and_safe_fields():
         {"id": str(deal_id), "label": "D-1", "unknown": "unsafe"},
     ):
         with pytest.raises(ValidationError):
-            ReportDealWrite(sales_deal_id=deal_id, deal_snapshot=snapshot, content={})
+            ReportDealWrite(sales_deal_id=deal_id, deal_snapshot=snapshot, content={}, body="본문")
 
 
 @pytest.mark.parametrize("expected_status", ["draft", "changes_requested"])
@@ -438,6 +577,7 @@ def test_finalize_accepts_cas_for_existing_editable_reports(expected_status):
         report_date=date(2026, 8, 17),
         template_snapshot=TEMPLATE,
         content=CONTENT,
+        body="합성 보고 내용",
     )
 
     assert payload.expected_status_code == expected_status
@@ -451,11 +591,13 @@ def test_deal_positions_validate_the_effective_default_positions():
             "position": 1,
             "deal_snapshot": {"id": str(first), "label": "D-1"},
             "content": {},
+            "body": "첫 본문",
         },
         {
             "sales_deal_id": str(second),
             "deal_snapshot": {"id": str(second), "label": "D-2"},
             "content": {},
+            "body": "둘째 본문",
         },
     ]
 
@@ -492,6 +634,7 @@ async def test_deal_section_replace_preserves_server_ai_fields_and_ml_evidence()
             "ai_evidence": "위조",
             "ai_generated_at": "위조",
         },
+        body="사람이 수정한 본문",
     )
 
     await reports_api._replace_report_deals(db, report.id, [payload])
@@ -508,6 +651,7 @@ async def test_deal_section_replace_preserves_server_ai_fields_and_ml_evidence()
             sales_deal_id=section.sales_deal_id,
             deal_snapshot={"id": str(section.sales_deal_id), "label": "D-1"},
             content={},
+            body="본문",
             ai_evidence={"deal_assessment": {"label": "spoofed"}},
         )
 
@@ -545,37 +689,34 @@ def test_changes_requested_report_with_submission_history_is_not_deletable():
     assert db.rollback_count == 1
 
 
-def test_deal_structured_values_preserve_body_in_legacy_mirror():
+def test_deal_write_rejects_non_body_values():
     deal_id = uuid4()
-    payload = ReportDealWrite(
-        sales_deal_id=deal_id,
-        deal_snapshot={"id": deal_id, "label": "D-1"},
-        content={"values": {"body": "딜 본문", "old": "value"}},
-        structured_values={"next": "value"},
-    )
+    base = {
+        "sales_deal_id": deal_id,
+        "deal_snapshot": {"id": deal_id, "label": "D-1"},
+        "body": "딜 본문",
+    }
+    with pytest.raises(ValidationError, match="report_values_body_only"):
+        ReportDealWrite(**base, content={"values": {"body": "딜 본문", "old": "value"}})
+    with pytest.raises(ValidationError, match="structured_values_not_supported"):
+        ReportDealWrite(**base, content={}, structured_values={"next": "value"})
 
-    normalized = reports_api._normalized_section_payload(payload, 0)
 
-    assert normalized["content"]["values"] == {"next": "value", "body": "딜 본문"}
-
-
-def test_structured_legacy_meeting_content_is_valid_without_a_freeform_body():
+def test_legacy_meeting_values_do_not_replace_normalized_body():
     member = _member()
     report = _report(member, kind="meeting")
     section = _section(report)
     section.body = None
-    section.content = {"values": {"attendees": "기존 참석자", "reaction": "기존 반응"}}
+    section.content = {"values": {"body": "구버전 본문"}}
     section.structured_values = {"attendees": "기존 참석자", "reaction": "기존 반응"}
 
-    report_submissions.validate_submission_content(report, [section])
-    snapshot = report_submissions.build_submission_snapshot(report, [section])
-
-    assert snapshot["deals"][0]["body"] is None
-    assert snapshot["deals"][0]["structured_values"] == section.structured_values
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.validate_submission_content(report, [section])
+    assert caught.value.detail == "report_deal_body_required"
 
 
 @pytest.mark.anyio
-async def test_structured_pre_v2_meeting_materializes_for_review_without_body():
+async def test_structured_pre_v2_meeting_without_body_is_not_materialized():
     member = _member()
     report = _report(member, kind="meeting", status_code="submitted")
     report.current_submission_id = None
@@ -590,11 +731,10 @@ async def test_structured_pre_v2_meeting_materializes_for_review_without_body():
 
     db = LegacyDb(_Result(scalar_values=[section]))
 
-    submission = await report_sources.materialize_legacy_submission(db, report)
-
-    assert report.current_submission_id == submission.id
-    assert submission.snapshot["deals"][0]["body"] is None
-    assert submission.snapshot["deals"][0]["structured_values"] == section.structured_values
+    with pytest.raises(HTTPException) as caught:
+        await report_sources.materialize_legacy_submission(db, report)
+    assert caught.value.detail == "report_deal_body_required"
+    assert report.current_submission_id is None
 
 
 def test_blank_meeting_section_still_cannot_be_finalized():
@@ -608,7 +748,7 @@ def test_blank_meeting_section_still_cannot_be_finalized():
     with pytest.raises(HTTPException) as caught:
         report_submissions.validate_submission_content(report, [section])
 
-    assert caught.value.detail == "report_deal_content_required"
+    assert caught.value.detail == "report_deal_body_required"
 
 
 @pytest.mark.anyio
@@ -631,12 +771,14 @@ async def test_reordering_report_deals_clears_positions_before_swapping():
             position=0,
             deal_snapshot=second.deal_snapshot,
             content=second.content,
+            body=second.body,
         ),
         ReportDealWrite(
             sales_deal_id=first.sales_deal_id,
             position=1,
             deal_snapshot=first.deal_snapshot,
             content=first.content,
+            body=first.body,
         ),
     ]
 
@@ -707,12 +849,37 @@ async def test_resubmit_creates_an_immutable_second_revision():
     assert first.snapshot["transcript_sha256"] is not None
 
 
-@pytest.mark.parametrize("field_id", ["transcript", "Attachments", "AI-Values"])
-def test_submission_rejects_reserved_legacy_template_fields(field_id):
+@pytest.mark.parametrize("field_id", ["transcript", "Attachments", "AI-Values", "Output-Snapshot"])
+def test_submission_rejects_reserved_legacy_values(field_id):
     member = _member()
     report = _report(member)
-    report.template_snapshot = {"fields": [{"id": field_id, "label": "위조 필드"}]}
-    report.content = {field_id: {"raw": "민감 원문"}}
+    report.content = {"values": {field_id: {"raw": "민감 원문"}}}
+
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.build_submission_snapshot(report, [])
+
+    assert caught.value.status_code == 422
+    assert caught.value.detail == "report_submission_reserved_field"
+
+
+@pytest.mark.parametrize(
+    "template_snapshot",
+    [
+        {"fields": [{"id": "body"}], "request_snapshot": {"transcript": "원문"}},
+        {
+            "fields": [
+                {
+                    "id": "body",
+                    "config": {"Output-Snapshot": {"rawTranscript": "원문"}},
+                }
+            ]
+        },
+    ],
+)
+def test_submission_rejects_reserved_fields_anywhere_in_the_template(template_snapshot):
+    member = _member()
+    report = _report(member)
+    report.template_snapshot = template_snapshot
 
     with pytest.raises(HTTPException) as caught:
         report_submissions.build_submission_snapshot(report, [])
@@ -739,33 +906,31 @@ def test_submission_rejects_reserved_normalized_values_at_any_depth(target):
     assert caught.value.detail == "report_submission_reserved_field"
 
 
-def test_submission_keeps_legitimate_declared_legacy_fields():
+def test_submission_does_not_restore_legacy_top_level_template_fields():
     member = _member()
     report = _report(member)
     report.template_snapshot = {"fields": [{"id": "summary", "label": "요약"}]}
-    report.content = {"summary": "사람이 승인한 요약"}
+    report.content = {"summary": "사람이 승인한 요약", "body": "구버전 본문"}
+    report.body = "정규 본문"
 
     snapshot = report_submissions.build_submission_snapshot(report, [])
 
-    assert snapshot["structured_values"] == {"summary": "사람이 승인한 요약"}
+    assert snapshot["structured_values"] == {}
+    assert snapshot["body"] == "정규 본문"
 
 
-def test_submission_drops_reserved_top_level_legacy_values():
+def test_submission_rejects_reserved_top_level_legacy_values():
     member = _member()
     report = _report(member, kind="meeting")
     section = _section(report)
-    section.body = None
     report.content = {"values": {"summary": "사람이 승인한 요약", "transcript": "구버전 원문"}}
     section.content = {
         "values": {"body": "사람이 승인한 본문", "ai_values": {"body": "구버전 초안"}}
     }
 
-    snapshot = report_submissions.build_submission_snapshot(report, [section])
-
-    assert snapshot["structured_values"] == {"summary": "사람이 승인한 요약"}
-    assert snapshot["deals"][0]["body"] == "사람이 승인한 본문"
-    assert "transcript" not in snapshot["structured_values"]
-    assert "ai_values" not in snapshot["deals"][0]["structured_values"]
+    with pytest.raises(HTTPException) as caught:
+        report_submissions.build_submission_snapshot(report, [section])
+    assert caught.value.detail == "report_submission_reserved_field"
 
 
 def test_meeting_run_evidence_is_matched_by_server_deal_id():
@@ -816,6 +981,7 @@ async def test_finalize_rejects_an_expired_generation_run():
                 "sales_deal_id": deal_id,
                 "deal_snapshot": {"id": deal_id, "label": "D-1"},
                 "content": {"values": {"body": "최종 본문"}},
+                "body": "최종 본문",
             }
         ],
         template_snapshot=TEMPLATE,
@@ -828,6 +994,206 @@ async def test_finalize_rejects_an_expired_generation_run():
 
     assert caught.value.status_code == 409
     assert caught.value.detail == "report_generation_not_usable"
+
+
+@pytest.mark.anyio
+async def test_period_finalize_rejects_a_different_source_revision_before_submission(
+    monkeypatch,
+):
+    member = _member()
+    source_report_id = uuid4()
+    generated_submission_id = uuid4()
+    current_submission_id = uuid4()
+    run = _meeting_generation_run(member, uuid4(), "생성 입력")
+    run.agent_code = "report_writing"
+    run.scope_key = "daily:2026-08-17"
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "period_start": None,
+        "period_end": None,
+        "template_snapshot": TEMPLATE,
+        "content": {"values": {"body": "생성 당시 본문"}},
+        "guidance": None,
+    }
+    run.source_refs = {
+        "report_kind": "daily",
+        "report_date": "2026-08-17",
+        "period_start": None,
+        "period_end": None,
+        "report_sources": [
+            {
+                "position": 0,
+                "source_activity_id": None,
+                "source_report_submission_id": str(generated_submission_id),
+            }
+        ],
+    }
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=run.id,
+        report_kind="daily",
+        report_date=date(2026, 8, 17),
+        template_snapshot=TEMPLATE,
+        content={
+            "values": {"body": "사람이 확정한 본문"},
+            "activities": [
+                {
+                    "source": "업무보고서",
+                    "included": True,
+                    "refId": str(source_report_id),
+                }
+            ],
+        },
+        body="사람이 확정한 본문",
+    )
+    db = _Db()
+    create_submission = AsyncMock()
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        reports_api, "_existing_finalize_after_rollback", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(reports_api, "_finalize_run", AsyncMock(return_value=run))
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "sync_report_sources_from_legacy_content",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "current_source_ref_snapshot",
+        AsyncMock(
+            return_value=[
+                {
+                    "position": 0,
+                    "source_activity_id": None,
+                    "source_report_submission_id": str(current_submission_id),
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(reports_api.report_submissions, "create_submission", create_submission)
+
+    with pytest.raises(HTTPException) as caught:
+        await reports_api.finalize_report(
+            payload,
+            Response(),
+            BackgroundTasks(),
+            member,
+            db,
+        )
+
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "report_generation_source_changed"
+    create_submission.assert_not_awaited()
+    assert run.report_id is None
+    assert run.input_snapshot and run.output_snapshot is not None
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("changed", ["guidance", "attachments", "template", "report_date"])
+async def test_period_finalize_rejects_changed_noneditable_generation_input(
+    monkeypatch,
+    changed,
+):
+    member = _member()
+    report = _report(member)
+    attachment = {
+        "id": "attachment-1",
+        "name": "memo.txt",
+        "state": "done",
+        "extract": "생성에 사용한 첨부",
+    }
+    run = _meeting_generation_run(member, uuid4(), "생성 입력")
+    run.agent_code = "report_writing"
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": report.report_date.isoformat(),
+        "period_start": None,
+        "period_end": None,
+        "template_snapshot": TEMPLATE,
+        "content": {
+            "values": {"body": "생성 당시 본문"},
+            "attachments": [attachment],
+        },
+        "guidance": "생성 당시 직접 입력",
+    }
+    run.source_refs = {"report_sources": []}
+    template = TEMPLATE
+    content = {
+        "values": {"body": "사람이 수정한 본문"},
+        "attachments": [attachment],
+    }
+    transcript = "생성 당시 직접 입력"
+    report_date = report.report_date
+    if changed == "guidance":
+        transcript = "생성 뒤 바꾼 직접 입력"
+    elif changed == "attachments":
+        content = {
+            **content,
+            "attachments": [{**attachment, "extract": "생성 뒤 바꾼 첨부"}],
+        }
+    elif changed == "template":
+        template = {**TEMPLATE, "name": "생성 뒤 바꾼 양식"}
+    else:
+        report_date += timedelta(days=1)
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="daily",
+        report_date=report_date,
+        template_snapshot=template,
+        content=content,
+        title="사람이 정한 제목",
+        body="사람이 수정한 본문",
+        transcript=transcript,
+    )
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "current_source_ref_snapshot",
+        AsyncMock(return_value=[]),
+    )
+
+    with pytest.raises(HTTPException) as caught:
+        await reports_api._validate_generation_source_refs(AsyncMock(), report, payload, run)
+
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "report_generation_source_changed"
+
+
+@pytest.mark.anyio
+async def test_period_finalize_allows_human_title_and_body_edits_after_generation(monkeypatch):
+    member = _member()
+    report = _report(member)
+    run = _meeting_generation_run(member, uuid4(), "생성 입력")
+    run.agent_code = "report_writing"
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": report.report_date.isoformat(),
+        "period_start": None,
+        "period_end": None,
+        "template_snapshot": TEMPLATE,
+        "content": {"title": "생성 전 제목", "values": {"body": "생성 전 본문"}},
+        "guidance": None,
+    }
+    run.source_refs = {"report_sources": []}
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={"title": "최종 제목", "values": {"body": "최종 본문"}},
+        title="최종 제목",
+        body="최종 본문",
+    )
+    monkeypatch.setattr(
+        reports_api.report_sources,
+        "current_source_ref_snapshot",
+        AsyncMock(return_value=[]),
+    )
+
+    await reports_api._validate_generation_source_refs(AsyncMock(), report, payload, run)
 
 
 @pytest.mark.anyio
@@ -858,6 +1224,7 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
                 "sales_deal_id": deal_id,
                 "deal_snapshot": {"id": deal_id, "label": "D-1"},
                 "content": {"values": {"body": "사람이 확정한 본문"}},
+                "body": "사람이 확정한 본문",
             }
         ],
         template_snapshot=TEMPLATE,
@@ -926,7 +1293,8 @@ async def test_finalize_existing_report_checks_version_before_mutation(monkeypat
         report_kind="daily",
         report_date=report.report_date,
         template_snapshot=TEMPLATE,
-        content={"values": {"summary": "수정본"}},
+        content={"values": {"body": "수정본"}},
+        body="수정본",
     )
     monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
     monkeypatch.setattr(
@@ -967,7 +1335,8 @@ async def test_resubmit_without_generation_keeps_existing_ai_provenance(monkeypa
         report_kind="daily",
         report_date=report.report_date,
         template_snapshot=TEMPLATE,
-        content={"values": {"summary": "사람이 수정한 확정본"}},
+        content={"values": {"body": "사람이 수정한 확정본"}},
+        body="사람이 수정한 확정본",
     )
     monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
     monkeypatch.setattr(reports_api, "_finalize_run", AsyncMock(return_value=None))
@@ -1003,7 +1372,8 @@ async def test_finalize_existing_report_cannot_change_its_logical_date(monkeypat
         report_kind="daily",
         report_date=report.report_date + timedelta(days=1),
         template_snapshot=TEMPLATE,
-        content={"values": {"summary": "확정본"}},
+        content={"values": {"body": "확정본"}},
+        body="확정본",
     )
     monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
     monkeypatch.setattr(
@@ -1036,7 +1406,8 @@ async def test_finalize_idempotent_replay_returns_existing_submission(monkeypatc
         report_kind="daily",
         report_date=report.report_date,
         template_snapshot=TEMPLATE,
-        content={"values": {"summary": "확정본"}},
+        content={"values": {"body": "확정본"}},
+        body="확정본",
     )
     submission = ReportSubmission(
         id=uuid4(),
@@ -1088,7 +1459,8 @@ async def test_finalize_concurrent_replay_returns_winning_submission(monkeypatch
         report_kind="daily",
         report_date=report.report_date,
         template_snapshot=TEMPLATE,
-        content={"values": {"summary": "확정본"}},
+        content={"values": {"body": "확정본"}},
+        body="확정본",
     )
     existing = SimpleNamespace(id=report.id)
     seen_members = []
@@ -1185,6 +1557,7 @@ def test_meeting_source_ownership_cannot_be_bypassed_with_empty_activity_ids():
                         "sales_deal_id": str(deal_id),
                         "deal_snapshot": {"id": str(deal_id), "label": "D-1"},
                         "content": {"values": {"body": "본문"}},
+                        "body": "본문",
                     }
                 ],
                 "activity_ids": [],

@@ -1,16 +1,12 @@
 // 팀장이 일정에 붙은 보고서를 열어 확정하거나 반려하는 자리.
 //
-// 본문 항목을 여기서 다시 나열하지 않습니다. 미팅 목적·주요 논의사항·고객 요구사항 같은
-// 것은 작성 화면이 쓴 양식(template_snapshot) 안에 이미 있고, ReportFields 가 그 양식대로
-// 그려 줍니다. 여기서 항목을 따로 적어 두면 양식이 바뀔 때마다 두 곳을 같이 고쳐야 합니다.
-//
 // 팀원에게는 이 드로어를 열지 않습니다. 자기 보고서는 업무보고서 상세로 갑니다.
 import { useState } from 'react'
 import { Link } from 'react-router'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
-import ReportFields from '@/components/ReportFields'
+import ReportBody from '@/components/ReportBody'
 import StatusBadge from '@/components/StatusBadge'
 import { InlineLoader } from '@/components/Skeleton'
 import { useCurrentUser } from '@/auth/sessionContext'
@@ -64,7 +60,11 @@ export function ReportReviewContents({ report }: { report: MeetingReport }) {
                   .join(' · ')}
               </p>
             )}
-            <ReportFields template={report.template} values={section.values} readOnly />
+            {section.values.body?.trim() ? (
+              <ReportBody className={styles.body} body={section.values.body} />
+            ) : (
+              <p className={styles.hint}>작성된 내용이 없습니다.</p>
+            )}
             {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
           </section>
         ))

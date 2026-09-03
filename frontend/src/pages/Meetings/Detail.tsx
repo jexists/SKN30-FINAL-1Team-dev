@@ -5,7 +5,7 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
 import { EditIcon } from '@/components/icons'
-import ReportFields from '@/components/ReportFields'
+import ReportBody from '@/components/ReportBody'
 import { SkeletonDetail } from '@/components/Skeleton'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
@@ -168,10 +168,10 @@ export default function Detail() {
                       </span>
                     </div>
 
-                    {report.template.fields.length === 0 ? (
-                      <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
+                    {section.values.body?.trim() ? (
+                      <ReportBody className={styles.reportBody} body={section.values.body} />
                     ) : (
-                      <ReportFields template={report.template} values={section.values} readOnly />
+                      <p className={styles.emptyBody}>작성된 내용이 없습니다.</p>
                     )}
                     {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
                     {section.analysisError &&

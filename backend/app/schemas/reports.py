@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
@@ -10,17 +11,31 @@ from pydantic import (
     model_validator,
 )
 
+REPORT_TITLE_MAX_LENGTH = 254
+REPORT_JSON_MAX_BYTES = 256 * 1024
+
 Text = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=254),
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=REPORT_TITLE_MAX_LENGTH,
+    ),
 ]
 LongText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=5_000),
 ]
+REPORT_BODY_MAX_LENGTH = 50_000
 ReportBody = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=50_000),
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=REPORT_BODY_MAX_LENGTH,
+    ),
 ]
 Transcript = Annotated[
     str,
@@ -63,6 +78,54 @@ class _WriteModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def validate_body_template(template_snapshot: dict[str, Any]) -> None:
+    fields = template_snapshot.get("fields")
+    if (
+        not isinstance(fields, list)
+        or len(fields) != 1
+        or not isinstance(fields[0], dict)
+        or fields[0].get("id") != "body"
+    ):
+        raise ValueError("report_template_body_only")
+
+
+def validate_body_values(content: dict[str, Any]) -> None:
+    values = content.get("values")
+    if values is None:
+        return
+    if not isinstance(values, dict):
+        raise ValueError("report_values_invalid")
+    if set(values) - {"body"}:
+        raise ValueError("report_values_body_only")
+    if "body" in values and not isinstance(values["body"], str):
+        raise ValueError("report_body_invalid")
+
+
+def validate_content_title(content: dict[str, Any]) -> None:
+    if "title" not in content or content["title"] is None:
+        return
+    title = content["title"]
+    if (
+        not isinstance(title, str)
+        or not title.strip()
+        or len(title.strip()) > REPORT_TITLE_MAX_LENGTH
+    ):
+        raise ValueError("report_title_invalid")
+
+
+def validate_report_json_size(**fields: Any) -> None:
+    """Apply one byte limit to every client-controlled report JSON field."""
+    for field_name, value in fields.items():
+        serialized = json.dumps(
+            value,
+            ensure_ascii=False,
+            default=str,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if len(serialized) > REPORT_JSON_MAX_BYTES:
+            raise ValueError(f"{field_name}_too_large")
+
+
 def _check_period(kind: ReportKind, start: date | None, end: date | None) -> None:
     if kind in {"meeting", "daily"}:
         if start is not None or end is not None:
@@ -86,13 +149,18 @@ class ReportDealWrite(_WriteModel):
     content: dict[str, Any]
     position: int | None = Field(default=None, ge=0, le=99)
     title: Text | None = None
-    body: ReportBody | None = None
+    body: ReportBody
     structured_values: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _validate_snapshot_id(self) -> Self:
         if self.deal_snapshot.id != self.sales_deal_id:
             raise ValueError("deal_snapshot_id_mismatch")
+        validate_body_values(self.content)
+        validate_content_title(self.content)
+        validate_report_json_size(content=self.content)
+        if self.structured_values:
+            raise ValueError("structured_values_not_supported")
         return self
 
 
@@ -141,6 +209,15 @@ class ReportFinalize(_WriteModel):
     @model_validator(mode="after")
     def _validate(self) -> Self:
         _check_period(self.report_kind, self.period_start, self.period_end)
+        validate_body_template(self.template_snapshot)
+        validate_body_values(self.content)
+        validate_content_title(self.content)
+        validate_report_json_size(
+            template_snapshot=self.template_snapshot,
+            content=self.content,
+        )
+        if self.structured_values:
+            raise ValueError("structured_values_not_supported")
         # 업무보고서는 근거 일정이 곧 보고 대상이라 반드시 있어야 합니다.
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
@@ -149,8 +226,19 @@ class ReportFinalize(_WriteModel):
                 raise ValueError("deal_sections_required")
             if self.sales_deal_id is not None:
                 raise ValueError("sales_deal_not_supported")
-        elif self.sales_deal_id is not None or self.deal_sections:
-            raise ValueError("deal_sections_not_supported")
+            if self.body is not None:
+                raise ValueError("report_body_not_supported")
+            if self.activity_ids:
+                raise ValueError("activity_ids_not_supported")
+        else:
+            if self.body is None:
+                raise ValueError("report_body_required")
+            if self.sales_deal_id is not None or self.deal_sections:
+                raise ValueError("deal_sections_not_supported")
+            if self.source_activity_id is not None:
+                raise ValueError("source_activity_not_supported")
+            if self.common_body is not None or self.unassigned_body is not None:
+                raise ValueError("meeting_shared_not_supported")
         deal_ids = [section.sales_deal_id for section in self.deal_sections]
         if len(set(deal_ids)) != len(deal_ids):
             raise ValueError("duplicate_deal_sections")

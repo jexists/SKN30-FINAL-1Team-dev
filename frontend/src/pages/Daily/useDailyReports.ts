@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
-import { reportTemplateFromSnapshot } from '@/shared/reports'
+import { templateFor } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import { getOwnMemberIds } from '@/shared/scope'
 import type {
@@ -16,7 +16,6 @@ import type {
   ReportFinalizeRequest,
   ReportGenerationInput,
   ReportGenerationRequest,
-  ReportTemplate,
   ReportStatus,
   ReportWriteRequest,
 } from '@/types'
@@ -57,43 +56,6 @@ function valuesOf(value: unknown): Record<string, string> {
   )
 }
 
-/**
- * 상세 화면은 저장 당시 양식 필드와 정규화된 본문을 함께 보여 줍니다.
- *
- * 레거시 보고서 양식에는 `body` 필드가 없을 수 있으므로 실제 본문이 따로 있으면 끝에
- * 보강합니다. 구조화 필드와 본문이 같은 문자열이면 같은 내용을 두 번 세우지 않습니다.
- */
-export function detailTemplateOf(report: Pick<DailyReport, 'template' | 'values'>): ReportTemplate {
-  const body = report.values.body?.trim()
-  if (!body) return report.template
-
-  const duplicatedByStructuredField = report.template.fields.some(
-    (field) => field.id !== 'body' && report.values[field.id]?.trim() === body,
-  )
-  let includedBody = false
-  const fields = report.template.fields.filter((field) => {
-    if (field.id !== 'body') return true
-    if (duplicatedByStructuredField || includedBody) return false
-    includedBody = true
-    return true
-  })
-
-  if (!duplicatedByStructuredField && !includedBody) {
-    fields.push({
-      id: 'body',
-      label: '보고서 본문',
-      type: 'textarea',
-      required: false,
-      aiFilled: false,
-    })
-  }
-
-  return fields.length === report.template.fields.length &&
-    fields.every((field, index) => field === report.template.fields[index])
-    ? report.template
-    : { ...report.template, fields }
-}
-
 /** 작성자 본인의 수정 가능한 초안인지 상세와 테스트가 같은 규칙으로 판단합니다. */
 export function canEditPeriodReport(report: DailyReport, memberId: string): boolean {
   return (
@@ -130,7 +92,7 @@ export function toReport(item: ReportResponse): DailyReport {
     date: item.report_date,
     kind,
     period: periodLabelFor(kind, item.report_date),
-    template: reportTemplateFromSnapshot(item.template_snapshot, `${kind} 보고 양식`),
+    template: templateFor(kind),
     approver:
       item.recipient_display_name ??
       (typeof content.approver === 'string' ? content.approver : '결재자 미지정'),
@@ -138,11 +100,7 @@ export function toReport(item: ReportResponse): DailyReport {
     apiStatus: item.status_code,
     version: item.version,
     currentSubmissionId: item.current_submission_id,
-    values: {
-      ...valuesOf(content.values ?? item.content),
-      ...valuesOf(item.structured_values),
-      ...(item.body ? { body: item.body } : {}),
-    },
+    values: { body: item.body ?? '' },
     activities: activitiesOf(item),
     attachments: attachmentsOf(content.attachments),
     transcript: item.transcript ?? '',
@@ -158,7 +116,6 @@ export interface DraftPayload {
   date: string
   kind: ReportKind
   approver: string
-  template: ReportTemplate
   values: Record<string, string>
   activities: DailyReport['activities']
   attachments: DailyReport['attachments']
@@ -168,10 +125,10 @@ export interface DraftPayload {
 
 export function periodGenerationSeedOf(input: ReportGenerationInput) {
   const content = record(input.content)
+  const values = valuesOf(content.values)
   return {
-    template: input.template_snapshot,
     approver: typeof content.approver === 'string' ? content.approver : '',
-    values: valuesOf(content.values),
+    values: { body: values.body ?? '' },
     activities: Array.isArray(content.activities) ? (content.activities as ReportActivity[]) : [],
     attachments: attachmentsOf(content.attachments),
     transcript: input.guidance ?? '',
@@ -194,6 +151,7 @@ export function ownPeriodReportQuery(kind: ReportKind, dateISO: string) {
 export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
   const [from, to] = periodRange(draft.kind, draft.date)
   const included = draft.activities.filter((activity) => activity.included)
+  const body = draft.values.body ?? ''
   return {
     report_kind: API_KIND[draft.kind],
     report_date: periodStart(draft.kind, draft.date),
@@ -202,20 +160,18 @@ export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
     source_activity_id: null,
     sales_deal_id: null,
     recipient_member_id: null,
-    template_snapshot: draft.template,
+    template_snapshot: templateFor(draft.kind),
     content: {
       approver: draft.approver,
-      values: draft.values,
+      values: { body },
       activities: draft.activities,
       attachments: draft.attachments,
     },
     title: periodLabelFor(draft.kind, draft.date),
-    body: draft.values.body?.trim() || null,
+    body: body.trim() || null,
     common_body: null,
     unassigned_body: null,
-    structured_values: Object.fromEntries(
-      Object.entries(draft.values).filter(([key]) => key !== 'body'),
-    ),
+    structured_values: {},
     transcript: draft.transcript.trim() || null,
     note:
       draft.attachments.length > 0

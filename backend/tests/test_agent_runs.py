@@ -32,7 +32,7 @@ from app.services import agent_worker, contract_schedule_snapshots
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
-TEMPLATE = {"fields": [{"id": "summary", "label": "요약"}]}
+TEMPLATE = {"fields": [{"id": "body", "label": "본문"}]}
 _MISSING = object()
 
 
@@ -417,10 +417,32 @@ def test_report_generation_input_has_one_typed_scope():
 
 @pytest.mark.parametrize("field_name", ["template_snapshot", "content"])
 def test_report_generation_rejects_oversized_json_fields(field_name):
-    payload = _daily_payload(**{field_name: {"value": "가" * REPORT_GENERATION_JSON_MAX_BYTES}})
+    oversized = (
+        {"fields": [{"id": "body"}], "value": "가" * REPORT_GENERATION_JSON_MAX_BYTES}
+        if field_name == "template_snapshot"
+        else {"value": "가" * REPORT_GENERATION_JSON_MAX_BYTES}
+    )
+    payload = _daily_payload(**{field_name: oversized})
 
     with pytest.raises(ValidationError, match=f"{field_name}_too_large"):
         ReportGenerationCreate.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value", "error"),
+    [
+        (
+            "template_snapshot",
+            {"fields": [{"id": "summary"}]},
+            "report_template_body_only",
+        ),
+        ("content", {"values": {"summary": "구형 요약"}}, "report_values_body_only"),
+        ("content", {"title": "가" * 255}, "report_title_invalid"),
+    ],
+)
+def test_new_report_generation_rejects_non_body_contract(field_name, value, error):
+    with pytest.raises(ValidationError, match=error):
+        ReportGenerationCreate.model_validate(_daily_payload(**{field_name: value}))
 
 
 def test_report_generation_rejects_missing_llm_before_db(llm_missing):
@@ -483,7 +505,6 @@ def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
     )
     db = _Db(
         _Result(scalar=None),
-        _Result(scalars=[]),
         _Result(scalars=[activity]),
     )
     payload = _daily_payload(
@@ -509,6 +530,13 @@ def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
     source = run.input_snapshot["report_sources"]["activities"][0]
     assert source["id"] == str(activity_id)
     assert source["starts_at"] == NOW.isoformat()
+    assert run.source_refs["report_sources"] == [
+        {
+            "position": 0,
+            "source_activity_id": str(activity_id),
+            "source_report_submission_id": None,
+        }
+    ]
 
 
 def test_generation_input_restores_only_requesters_ui_values():

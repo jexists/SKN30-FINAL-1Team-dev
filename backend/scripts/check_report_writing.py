@@ -1,4 +1,4 @@
-"""합성 미팅 입력으로 실제 보고서 작성 에이전트를 확인한다."""
+"""합성 업무 입력으로 실제 기간 보고서 작성 에이전트를 확인한다."""
 
 import asyncio
 import json
@@ -7,10 +7,7 @@ import sys
 
 TEMPLATE = {
     "fields": [
-        {"id": "attendees", "label": "참석자"},
-        {"id": "reaction", "label": "고객 반응"},
-        {"id": "decision", "label": "결정 사항"},
-        {"id": "next", "label": "후속 조치"},
+        {"id": "body", "label": "보고서 본문"},
     ]
 }
 
@@ -26,28 +23,31 @@ async def check() -> None:
 
     output = await report_writing.run(
         {
-            "report_kind": "meeting",
+            "report_kind": "daily",
             "report_date": "2026-08-21",
             "template_snapshot": TEMPLATE,
-            "content": {"values": {field["id"]: "" for field in TEMPLATE["fields"]}},
-            "transcript": (
-                "합성 테스트 미팅입니다. 영업 담당자 박민수와 고객 담당자 김영희가 참석했습니다. "
-                "고객은 제품 도입에 긍정적이며 견적서를 검토하기로 했습니다. "
-                "다음 주 수요일까지 견적서를 전달하고 후속 미팅을 잡기로 했습니다."
-            ),
-            "guidance": None,
+            "content": {
+                "values": {
+                    "body": (
+                        "합성 테스트 업무다. 영업 담당자 박민수와 고객 담당자 김영희가 "
+                        "미팅했고, 고객은 제품 도입에 긍정적이며 견적서를 검토하기로 했다. "
+                        "다음 주 수요일까지 견적서를 전달하고 후속 미팅을 잡기로 했다."
+                    )
+                }
+            },
+            "transcript": None,
+            "guidance": "확정된 사실과 예정된 후속 조치를 구분해 자연스러운 줄글로 정리하세요.",
         }
     )
 
     print("[실제 보고서 작성 응답]")
     print(json.dumps(output.model_dump(), ensure_ascii=False, indent=2))
 
-    expected_ids = {field["id"] for field in TEMPLATE["fields"]}
     actual_ids = [field.field_id for field in output.fields]
-    if len(actual_ids) != len(expected_ids) or set(actual_ids) != expected_ids:
-        raise ValueError(f"중복·누락·예상 밖 field_id: {actual_ids}")
-    if not output.summary.strip():
-        raise ValueError("summary가 비어 있습니다.")
+    if actual_ids != ["body"]:
+        raise ValueError(f"body 하나가 아닌 field_id: {actual_ids}")
+    if not output.fields[0].value.strip():
+        raise ValueError("body가 비어 있습니다.")
 
 
 def main() -> int:

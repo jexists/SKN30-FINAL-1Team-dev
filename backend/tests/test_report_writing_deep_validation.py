@@ -5,6 +5,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from app.agents import report_writing_deep as agent
+from app.schemas.reports import REPORT_BODY_MAX_LENGTH
 from app.services.llm import LLMError, LLMNotConfigured
 
 DEAL_A, DEAL_B, OTHER_DEAL = (UUID(int=value) for value in (1, 2, 3))
@@ -136,6 +137,23 @@ def test_input_rejects_tampered_source(part, error):
 def test_report_body_rejects_invalid_structure(body, refs, error):
     with pytest.raises(ValidationError, match=error):
         agent.ReportBody(body=body, evidence_ids=refs)
+
+
+@pytest.mark.parametrize("kind", ["shared", "deal"])
+def test_generated_body_matches_the_final_submission_length_limit(kind):
+    def build(body):
+        if kind == "shared":
+            return agent.ReportBody(body=body, evidence_ids=[])
+        return agent.DealReport(
+            sales_deal_id=DEAL_A,
+            title="논의",
+            body=body,
+            evidence_ids=[],
+        )
+
+    assert len(build("가" * REPORT_BODY_MAX_LENGTH).body) == REPORT_BODY_MAX_LENGTH
+    with pytest.raises(ValidationError, match="string_too_long"):
+        build("가" * (REPORT_BODY_MAX_LENGTH + 1))
 
 
 @pytest.mark.parametrize("ids", [(DEAL_A,), (DEAL_A, DEAL_A), (DEAL_A, OTHER_DEAL)])

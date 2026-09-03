@@ -21,11 +21,19 @@ const {
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
 
 const template = {
-  id: 'template-1',
-  name: '합성 양식',
-  owner: '합성',
+  id: 'builtin-daily-freeform',
+  name: '일일보고서',
+  owner: '',
   updated: '',
-  fields: [{ id: 'summary', label: '요약', type: 'textarea', aiFilled: true }],
+  fields: [
+    {
+      id: 'body',
+      label: '보고서 본문',
+      type: 'textarea',
+      required: true,
+      aiFilled: true,
+    },
+  ],
 }
 const generationInput = {
   report_kind: 'daily',
@@ -88,14 +96,58 @@ test('기간 보고서 복구 polling은 복구 입력으로 화면 상태가 �
     'utf8',
   )
   const recoveryEffect = source.slice(
-    source.indexOf('if (existingLoading || recoveredScope.current === scopeKey)'),
+    source.indexOf('if (existingLoading || sourcesLoading || recoveredScope.current === scopeKey)'),
     source.indexOf('useEffect(\n    () => () =>'),
   )
   const dependencies = recoveryEffect.slice(recoveryEffect.lastIndexOf('}, ['))
 
   assert.match(source, /const resumeGenerationRef = useRef\(resumeGeneration\)/)
   assert.match(recoveryEffect, /resumeGenerationRef\.current\(run, controller\)/)
+  assert.match(recoveryEffect, /recoveredScope\.current = ''/)
   assert.doesNotMatch(dependencies, /\bresumeGeneration\b/)
+})
+
+test('기간 보고서 초기화와 자료 병합은 자료 조회가 끝난 뒤에만 실행한다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(
+    source,
+    /useEffect\(\(\) => \{\n    if \(sourcesLoading\) return\n    reset\(\)\n  \}, \[reset, sourcesLoading\]\)/,
+  )
+  assert.match(source, /if \(sourcesLoading \|\| sourceSelectionFrozen\.current\) return/)
+  assert.match(
+    source,
+    /if \(existingLoading \|\| sourcesLoading \|\| recoveredScope\.current === scopeKey\) return/,
+  )
+  assert.match(source, /Boolean\(values\.body\?\.trim\(\)\)/)
+  assert.match(source, /const canGenerate = !recovering && hasAiFields && hasInput/)
+  assert.match(source, /if \(!hasInput\) reasons\.push\('자료 1건 이상'\)/)
+})
+
+test('미팅 복구 입력이 현재 일정과 다르면 오류 배너 없이 복구 대상에서 제외한다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(source, /reason\.message !== 'report_generation_input_missing'/)
+  assert.match(source, /recoveryAbort\.current = null\n            setRecovering\(false\)/)
+})
+
+test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에서 제외한다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Meetings/useMeetingDraft.ts', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(source, /const changeTranscript[\s\S]*?invalidateGeneration\(\)/)
+  assert.match(source, /const toggleSalesDeal[\s\S]*?invalidateGeneration\(\)/)
+  assert.match(source, /const addAttachments[\s\S]*?invalidateGeneration\(\)/)
+  assert.match(source, /const removeAttachment[\s\S]*?invalidateGeneration\(\)/)
+  assert.match(source, /setTranscript: changeTranscript/)
 })
 
 test('재접속 후보는 canonical 보고서가 없을 때만 자동 적용한다', () => {
@@ -112,7 +164,7 @@ test('생성·재접속은 AgentRun API만 쓰고 canonical 저장은 finalize �
     const data =
       config.url === '/reports/finalize'
         ? { id: 'final-report' }
-        : run('completed', { fields: [{ field_id: 'summary', value: '완료' }] })
+        : run('completed', { fields: [{ field_id: 'body', value: '완료 본문' }] })
     return { data, status: 200, statusText: 'OK', headers: {}, config }
   }
   try {

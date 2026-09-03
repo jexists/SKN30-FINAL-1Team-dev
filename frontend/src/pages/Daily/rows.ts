@@ -16,8 +16,8 @@ export interface ListRow {
   /** 줄 앞의 종류 칩. '일일'·'주간'·'월간'·'미팅' */
   kindLabel: string
   title: string
-  /** 드로어 본문에 한 문단으로 뜨는 요약 */
-  summary: string
+  /** 드로어에 생략 없이 표시하는 보고서 본문 */
+  body: string
   /** 제목 아래 한 줄. 활동·첨부 건수이거나 메모입니다. */
   meta: string
   /** 오른쪽 끝 값. 일일은 보고 대상, 미팅은 고객사입니다. */
@@ -36,8 +36,6 @@ export interface ListRow {
 const lower = (parts: (string | undefined)[]) => parts.filter(Boolean).join(' ').toLowerCase()
 
 export function fromDailyReport(report: DailyReport): ListRow {
-  // 저장 당시 양식의 첫 필드로 기존 보고서와 자유본문을 모두 표시합니다.
-  const [first] = report.template.fields
   const files = report.attachments.length
   const acts = report.activities.filter((a) => a.included).length
 
@@ -46,7 +44,7 @@ export function fromDailyReport(report: DailyReport): ListRow {
     date: report.date,
     kindLabel: report.kind,
     title: reportTitle(report),
-    summary: first ? (report.values[first.id]?.trim() ?? '') : '',
+    body: report.values.body ?? '',
     meta:
       acts > 0 || files > 0
         ? `활동 ${acts}건${files > 0 ? ` · 첨부 ${files}건` : ''}`
@@ -69,16 +67,13 @@ export function fromDailyReport(report: DailyReport): ListRow {
 export function fromMeetingReport(report: MeetingReport): ListRow {
   const files = report.attachments.length
   const dealLabels = report.dealSections.map((section) => section.salesDeal.label)
-  const templateSummary = report.dealSections
-    .flatMap((section) => report.template.fields.map((field) => section.values[field.id]?.trim()))
-    .find(Boolean)
-  const fallbackSummary = report.dealSections
-    .flatMap((section) => [
-      section.values.body?.trim(),
-      section.values.reaction?.trim(),
-      section.values.note?.trim(),
-    ])
-    .find(Boolean)
+  const body = [
+    report.meetingShared?.common_report?.body,
+    report.meetingShared?.unassigned_report?.body,
+    ...report.dealSections.map((section) => section.values.body),
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join('\n\n')
 
   return {
     id: report.id,
@@ -86,7 +81,7 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     kindLabel: '미팅',
     // 미팅 제목은 그 자리에서 정한 말이라 어느 병원인지가 붙어야 알아봅니다.
     title: [report.hospital, report.title].filter(Boolean).join(' · '),
-    summary: templateSummary || fallbackSummary || '',
+    body,
     meta: [
       `${report.time} · ${report.contact}`,
       dealLabels.length > 0 ? `딜 ${dealLabels.length}건` : '',

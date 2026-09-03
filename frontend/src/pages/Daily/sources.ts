@@ -71,10 +71,7 @@ function meetingValues(report: MeetingReport): Record<string, string> {
     report.meetingShared?.common_report?.body,
     report.meetingShared?.unassigned_report?.body,
     ...report.dealSections.map((section) =>
-      [
-        `[${section.salesDeal.label}] ${section.title}`.trim(),
-        ...Object.values(section.values).filter((value) => value.trim()),
-      ].join('\n'),
+      [`[${section.salesDeal.label}] ${section.title}`.trim(), section.values.body].join('\n'),
     ),
   ].filter((value): value is string => !!value?.trim())
   return { body: parts.join('\n\n') }
@@ -84,9 +81,7 @@ function meetingDescription(report: MeetingReport): string {
   const text =
     report.meetingShared?.common_report?.body ||
     report.meetingShared?.unassigned_report?.body ||
-    report.dealSections
-      .flatMap((section) => [section.values.body, section.values.decision, section.values.note])
-      .find((value) => value?.trim())
+    report.dealSections.map((section) => section.values.body).find((value) => value?.trim())
   const firstLine = text?.split('\n')[0]
   return firstLine?.trim() || '미팅 기록 확정'
 }

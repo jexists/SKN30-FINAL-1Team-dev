@@ -30,7 +30,7 @@ from app.models.configuration import (
     PurchaseOrderStatus,
     SalesDealType,
 )
-from app.models.content import Report, ReportActivity
+from app.models.content import Report, ReportActivity, ReportDeal
 from app.models.crm import (
     Activity,
     CustomerCompany,
@@ -1735,63 +1735,62 @@ def _template(tid: str, name: str, fields: list[dict[str, Any]]) -> dict[str, An
     return {"id": tid, "name": name, "owner": "", "updated": "", "fields": fields}
 
 
-# 화면이 쓰는 기본 양식 그대로다. frontend/src/shared/meetings.ts, reports.ts 와 같아야
-# 저장된 보고서를 열었을 때 항목이 어긋나지 않는다.
+# 화면이 쓰는 자유 본문 양식 그대로다. frontend/src/shared/meetings.ts,
+# reports.ts와 id·이름이 같아야 샘플을 다시 넣어도 구 항목 양식으로 되돌아가지 않는다.
 MEETING_TEMPLATE = _template(
-    "builtin-meeting",
-    "기본 미팅 기록 양식",
+    "builtin-meeting-freeform",
+    "미팅 보고서",
     [
-        _field("attendees", "참석자", "text", True, True, "참석자를 입력하세요."),
         _field(
-            "reaction", "고객 반응", "textarea", True, True, "제품·조건에 대한 반응을 입력하세요."
-        ),
-        _field("decision", "결정사항", "textarea", True, True, "합의한 내용을 입력하세요."),
-        _field(
-            "next",
-            "다음 행동 · 기한",
+            "body",
+            "보고서 본문",
             "textarea",
             True,
             True,
-            "누가 언제까지 무엇을 하는지 입력하세요.",
+            "미팅에서 논의한 내용을 입력하세요.",
         ),
-        _field("note", "특이사항", "text", False, False, "직접 확인한 내용만 입력하세요."),
     ],
 )
 DAILY_TEMPLATE = _template(
-    "builtin-daily",
-    "기본 일일보고 양식",
+    "builtin-daily-freeform",
+    "일일보고서",
     [
-        _field("summary", "업무 요약", "textarea", True, True, "오늘 진행한 활동을 요약합니다."),
         _field(
-            "issue", "특이사항 · 이슈", "textarea", False, True, "지연, 고객 불만, 예산 보류 등"
-        ),
-        _field("next", "내일 계획", "textarea", True, True, "내일 처리할 후속 업무"),
-        _field(
-            "competitor",
-            "경쟁사 동향",
-            "text",
-            False,
-            False,
-            "직접 확인한 내용이 있으면 입력하세요.",
+            "body",
+            "보고서 본문",
+            "textarea",
+            True,
+            True,
+            "하루 동안 진행한 업무와 미팅 내용을 자유롭게 작성하세요.",
         ),
     ],
 )
 WEEKLY_TEMPLATE = _template(
-    "builtin-weekly",
-    "기본 주간보고 양식",
+    "builtin-weekly-freeform",
+    "주간보고서",
     [
-        _field("result", "주간 성과", "textarea", True, True),
-        _field("plan", "다음 주 계획", "textarea", True, True),
-        _field("risk", "리스크", "textarea", False, True),
+        _field(
+            "body",
+            "보고서 본문",
+            "textarea",
+            True,
+            True,
+            "한 주 동안의 성과와 다음 계획을 자유롭게 작성하세요.",
+        ),
     ],
 )
 MONTHLY_TEMPLATE = _template(
-    "builtin-monthly",
-    "기본 월간보고 양식",
+    "builtin-monthly-freeform",
+    "월간보고서",
     [
-        _field("perf", "월간 실적", "textarea", True, True),
-        _field("gap", "목표 대비", "textarea", True, False),
-        _field("focus", "다음 달 중점", "textarea", False, True),
+        _field(
+            "body",
+            "보고서 본문",
+            "textarea",
+            True,
+            True,
+            "한 달 동안의 실적과 다음 계획을 자유롭게 작성하세요.",
+        ),
     ],
 )
 
@@ -1917,6 +1916,22 @@ async def upsert(session: AsyncSession, model: Any, values: dict[str, Any]) -> N
 async def link(session: AsyncSession, model: Any, values: dict[str, Any]) -> None:
     """복합 기본키를 쓰는 연결 표. 이미 있으면 그대로 둔다."""
     await session.execute(insert(model).values(**values).on_conflict_do_nothing())
+
+
+async def upsert_report_deal(session: AsyncSession, values: dict[str, Any]) -> None:
+    """미팅 보고서의 복합 키 딜 섹션을 다시 실행해도 같은 본문으로 갱신한다."""
+    stmt = insert(ReportDeal).values(**values)
+    updates = {
+        key: getattr(stmt.excluded, key)
+        for key in values
+        if key not in {"report_id", "sales_deal_id"}
+    }
+    await session.execute(
+        stmt.on_conflict_do_update(
+            index_elements=[ReportDeal.report_id, ReportDeal.sales_deal_id],
+            set_=updates,
+        )
+    )
 
 
 async def guard_team(session: AsyncSession, model: Any, ids: list[UUID], team_id: UUID) -> None:
@@ -2258,15 +2273,39 @@ class Seeder:
         template: dict[str, Any],
         content: dict[str, Any],
         *,
+        title: str,
+        body: str,
         period: tuple[date, date] | None = None,
         source_activity: UUID | None = None,
         sales_deal_id: UUID | None = None,
+        deal_snapshot: dict[str, Any] | None = None,
         activity_ids: tuple[UUID, ...] = (),
         note: str | None = None,
         transcript: str | None = None,
     ) -> None:
         status, reviewer, reviewed_at = self._review(author, day)
         report_id = self.sid("report", key)
+        is_meeting = kind == "meeting"
+        if is_meeting and (sales_deal_id is None or deal_snapshot is None):
+            raise ValueError("meeting report requires a deal snapshot")
+
+        canonical_values = {"body": body}
+        report_content = {**content, "values": canonical_values}
+        if is_meeting:
+            report_content = {
+                key: value
+                for key, value in content.items()
+                if key
+                not in {
+                    "product",
+                    "values",
+                    "sales_deal",
+                    "evidence",
+                    "ai_values",
+                    "ai_evidence",
+                    "ai_generated_at",
+                }
+            }
         await upsert(
             self.db,
             Report,
@@ -2279,13 +2318,18 @@ class Seeder:
                 else self.members[MANAGER],
                 "template_snapshot": template,
                 "source_activity_id": source_activity,
-                "sales_deal_id": sales_deal_id,
+                "sales_deal_id": None if is_meeting else sales_deal_id,
                 "report_kind": kind,
                 "report_date": day,
                 "period_start": period[0] if period else None,
                 "period_end": period[1] if period else None,
                 "status_code": status,
-                "content": content,
+                "content": report_content,
+                "title": title,
+                "body": None if is_meeting else body,
+                "common_body": None,
+                "unassigned_body": None,
+                "structured_values": {},
                 "transcript": transcript,
                 "source_snapshot": None,
                 "ai_evidence": None,
@@ -2296,6 +2340,34 @@ class Seeder:
                 "updated_at": reviewed_at or at(day, 18),
             },
         )
+        if is_meeting:
+            assert sales_deal_id is not None and deal_snapshot is not None
+            await upsert_report_deal(
+                self.db,
+                {
+                    "report_id": report_id,
+                    "sales_deal_id": sales_deal_id,
+                    "deal_snapshot": deal_snapshot,
+                    "content": {
+                        **{
+                            key: content[key]
+                            for key in ("product", "title", "evidence")
+                            if key in content
+                        },
+                        "values": canonical_values,
+                    },
+                    "position": 0,
+                    "deal_no_snapshot": deal_snapshot["label"],
+                    "deal_title_snapshot": deal_snapshot.get("note") or None,
+                    "title": title,
+                    "body": body,
+                    "structured_values": {},
+                    "ai_evidence": None,
+                    "created_at": at(day, 18),
+                    "updated_at": reviewed_at or at(day, 18),
+                },
+            )
+            self.bump("report_deal")
         for activity_id in activity_ids:
             await link(
                 self.db, ReportActivity, {"report_id": report_id, "activity_id": activity_id}
@@ -2319,17 +2391,15 @@ class Seeder:
                 text.format(product=seed.product, qty=seed.qty, amount=won(deal["amount"]))
                 for text in MEETING_NOTES[step]
             )
-            values = {
-                "attendees": f"{contact.name} {contact.job_title}, {record['owner']} 담당",
-                "reaction": reaction,
-                "decision": decision,
-                "next": following,
-                "note": "",
-            }
             evidence = f"{decision} {following}"
-            status, _reviewer, _reviewed = self._review(record["owner"], record["day"])
-            # 아직 손대는 중인 초안에는 AI 초안이 아직 없다.
-            ai_values = {} if status == "draft" else dict(values)
+            body = " ".join(
+                (
+                    f"{contact.name} {contact.job_title}와 {record['owner']} 담당자가 미팅했다.",
+                    reaction,
+                    decision,
+                    following,
+                )
+            )
             await self._report(
                 f"MT-{record['key']}",
                 record["owner"],
@@ -2344,15 +2414,18 @@ class Seeder:
                     "product": seed.product,
                     "place": f"{contact.company} {contact.department}",
                     "title": record["title"],
-                    "values": values,
                     "attachments": [],
                     "evidence": evidence,
-                    "ai_values": ai_values,
-                    "ai_evidence": evidence if ai_values else None,
-                    "ai_generated_at": at(record["day"], 18).isoformat() if ai_values else None,
                 },
+                title=record["title"],
+                body=body,
                 source_activity=record["id"],
                 sales_deal_id=deal["id"],
+                deal_snapshot={
+                    "id": str(deal["id"]),
+                    "label": deal["deal_no"],
+                    "note": f"{contact.company} {seed.product} {seed.qty}대",
+                },
                 activity_ids=(record["id"],),
             )
 
@@ -2399,15 +2472,11 @@ class Seeder:
             )
             for day in days[-10:]:
                 records = sorted(self.by_day[(owner, day)], key=lambda item: item["hour"])
-                titles = "\n".join(f"- {record['title']}" for record in records)
+                titles = ", ".join(record["title"] for record in records)
                 held = {self.deals[record["deal"]]["seed"] for record in records}
                 stalled = [seed for seed in held if seed.closed is not None]
-                issue = (
-                    "\n".join(
-                        f"- {self.contacts[seed.contact].company}: {seed.memo}" for seed in stalled
-                    )
-                    if stalled
-                    else "특이사항 없습니다."
+                issue = " ".join(
+                    f"{self.contacts[seed.contact].company} 건은 {seed.memo}" for seed in stalled
                 )
                 nxt = sorted(
                     (
@@ -2418,10 +2487,17 @@ class Seeder:
                     ),
                     key=lambda item: (item["day"], item["hour"]),
                 )[:3]
-                plan = (
-                    "\n".join(f"- {item['day']:%m월 %d일} {item['title']}" for item in nxt)
-                    if nxt
-                    else "- 미회신 견적 팔로업"
+                plan = ", ".join(f"{item['day']:%m월 %d일} {item['title']}" for item in nxt)
+                body = " ".join(
+                    (
+                        f"오늘은 {titles} 업무를 진행했다.",
+                        f"특이사항으로 {issue}" if issue else "특이사항은 없었다.",
+                        (
+                            f"다음 일정으로 {plan} 업무를 진행할 예정이다."
+                            if plan
+                            else "다음에는 미회신 견적을 팔로업할 예정이다."
+                        ),
+                    )
                 )
                 await self._report(
                     f"DR-{owner}-{day:%Y%m%d}",
@@ -2431,15 +2507,11 @@ class Seeder:
                     DAILY_TEMPLATE,
                     {
                         "approver": f"{MANAGER} 팀장",
-                        "values": {
-                            "summary": titles,
-                            "issue": issue,
-                            "next": plan,
-                            "competitor": "",
-                        },
                         "activities": self._activity_entries(records),
                         "attachments": [],
                     },
+                    title=f"{day.month}월 {day.day}일 일일업무보고",
+                    body=body,
                     note=f"활동 {len(records)}건",
                     activity_ids=tuple(record["id"] for record in records),
                 )
@@ -2475,16 +2547,16 @@ class Seeder:
                     and deal["seed"].quote is not None
                     and start <= deal["seed"].quote <= end
                 ]
-                result = [f"- 고객 활동 {len(records)}건"]
+                result = [f"이번 주에는 고객 활동 {len(records)}건을 진행했다."]
                 if quoted:
                     result.append(
-                        "- 견적 발송 "
-                        + ", ".join(f"{deal['company']} {won(deal['amount'])}" for deal in quoted)
+                        ", ".join(f"{deal['company']} {won(deal['amount'])}" for deal in quoted)
+                        + " 규모의 견적을 발송했다."
                     )
                 if signed:
                     result.append(
-                        "- 계약 체결 "
-                        + ", ".join(f"{deal['company']} {won(deal['amount'])}" for deal in signed)
+                        ", ".join(f"{deal['company']} {won(deal['amount'])}" for deal in signed)
+                        + " 규모의 계약을 체결했다."
                     )
                 open_quotes = [
                     deal
@@ -2494,13 +2566,19 @@ class Seeder:
                     and deal["seed"].signed is None
                     and deal["seed"].closed is None
                 ]
-                risk = (
-                    "\n".join(
-                        f"- {deal['company']} 견적 유효기간 {deal['seed'].quote_valid:%m월 %d일}"
-                        for deal in open_quotes[:3]
+                risk = ", ".join(
+                    f"{deal['company']} 견적 유효기간은 {deal['seed'].quote_valid:%m월 %d일}"
+                    for deal in open_quotes[:3]
+                )
+                body = " ".join(
+                    (
+                        *result,
+                        "다음 주에는 미회신 견적을 팔로업하고 진행 중인 발주의 "
+                        "입고일을 확인할 예정이다.",
+                        f"확인이 필요한 일정은 {risk}이다."
+                        if risk
+                        else "현재 별도로 확인할 리스크는 없다.",
                     )
-                    if open_quotes
-                    else "특이 리스크 없습니다."
                 )
                 await self._report(
                     f"WR-{owner}-{start:%Y%m%d}",
@@ -2510,14 +2588,11 @@ class Seeder:
                     WEEKLY_TEMPLATE,
                     {
                         "approver": f"{MANAGER} 팀장",
-                        "values": {
-                            "result": "\n".join(result),
-                            "plan": "- 미회신 견적 팔로업\n- 진행 중 발주 입고일 확인",
-                            "risk": risk,
-                        },
                         "activities": self._activity_entries(records),
                         "attachments": [],
                     },
+                    title=f"{start.month}월 {start.day}일 – {end.month}월 {end.day}일 주간업무보고",
+                    body=body,
                     period=(start, end),
                     note=f"활동 {len(records)}건",
                     activity_ids=tuple(record["id"] for record in records),
@@ -2541,7 +2616,17 @@ class Seeder:
                 )
                 if not records:
                     continue
-                rate = f"{amount / target * 100:.1f}%" if target else "목표 미설정"
+                target_result = (
+                    f"목표 {won(target)} 대비 달성률은 {amount / target * 100:.1f}%다."
+                    if target
+                    else "이번 달 목표는 설정되지 않았다."
+                )
+                body = (
+                    f"이번 달에는 고객 활동 {len(records)}건을 진행해 계약 {count}건, "
+                    f"{won(amount)}의 실적을 냈다. {target_result} 다음 달에는 진행 중인 "
+                    "견적을 계약으로 전환하고 확정 건의 "
+                    "발주와 납품 일정을 관리할 예정이다."
+                )
                 await self._report(
                     f"MR-{owner}-{month:%Y%m}",
                     owner,
@@ -2550,14 +2635,11 @@ class Seeder:
                     MONTHLY_TEMPLATE,
                     {
                         "approver": f"{MANAGER} 팀장",
-                        "values": {
-                            "perf": f"- 계약 {count}건 {won(amount)}\n- 고객 활동 {len(records)}건",
-                            "gap": f"- 목표 {won(target)} 대비 달성률 {rate}",
-                            "focus": "- 견적 진행 건의 계약 전환\n- 확정 건의 발주·납품 일정 관리",
-                        },
                         "activities": self._activity_entries(records),
                         "attachments": [],
                     },
+                    title=f"{month.year}년 {month.month}월 월간업무보고",
+                    body=body,
                     period=(month, end),
                     note=f"계약 {count}건 · 활동 {len(records)}건",
                 )
@@ -2578,6 +2660,8 @@ class Seeder:
                     "sales_deal_id": deal["id"],
                     "supplier_name": seed.supplier,
                     "purchase_order_status_id": self.order_status[seed.status],
+                    "created_by_member_id": self.members[deal["owner"]],
+                    "expected_customer_company_id": self.companies[deal["company"]],
                     "ordered_on": seed.ordered,
                     "due_on": seed.due,
                     "expected_receipt_on": seed.receipt,

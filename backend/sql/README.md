@@ -228,9 +228,17 @@
   24시간짜리 `agent_run` 입력·결과만 보관하며, 사람의 최종 확정은 멱등키가 붙은 불변
   `report_submission`과 함께 저장합니다. 화면 재접속 scope·payload 만료 컬럼을 추가하며,
   Blue/green 호환을 위해 구 자동 적용 컬럼·인덱스와 `meeting_deal_analysis`는 남겨 둡니다.
-  이 호환 객체는 구 컨테이너 종료 뒤 별도 정리 migration에서만 제거합니다. **0018 다음에 적용하고 worker 시작 전에
-  `uv run python -m app.services.agent_worker --check-schema`를 실행합니다. 아직 DB에는 적용하지
-  않았습니다.**
+  이 호환 객체는 구 컨테이너 종료 뒤 별도 정리 migration에서만 제거합니다. **현재 연결된
+  개발 DB에는 2026-09-03 적용했고 `agent_worker --check-schema`까지 통과했으며,
+  운영 DB에는 적용하지 않았습니다.**
+
+- `20260903_0020_report_freeform_body.sql`: 미팅·일일·주간·월간 보고서를 `body` 하나인
+  자유 본문 양식으로 통일합니다. 기존 본문은 그대로 두고, 본문이 빈 구 보고서는
+  저장 양식에 선언된 사람 확정 값만 필드 순서대로 이어 붙입니다. AI 초안·원문·메타데이터는
+  본문으로 옮기지 않습니다. 단일 딜이 확정된 구 미팅만 `report_deal`로 옮기며, 값이
+  충돌하거나 body-only가 아닌 불변 제출본이 있으면 삭제 대신 전체 migration을 중단합니다.
+  **개발 DB에는 검토 전 초안이 적용됐지만 현재 PR의 최종 SQL은 적용하지 않았습니다.
+  운영 DB에도 적용하지 않았습니다. 적용 전 백업/PITR 확인이 필수입니다.**
 
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
@@ -270,6 +278,8 @@
 | 2026-09-01 | 현재 연결된 개발 DB | 중복 일일보고서 정리 | session pooler | 적용을 막던 테스트용 일일보고서 초안 5건과 그 실행 기록 `agent_run` 5건 삭제. 확정 보고서·미팅보고서·CRM 데이터는 삭제하지 않음 |
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0017_report_workflow_v2_foundation.sql` | session pooler | 성공. 정리 후 report 699행과 report_deal 461행을 유지하고 report_submission·report_source·meeting_deal_analysis 및 제약조건·인덱스를 추가. 일일보고서 중복 0건 확인 |
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0018_agent_run_queue.sql` | session pooler | 성공. 정리 후 agent_run 537행을 유지하고 큐 컬럼·제약조건·인덱스를 추가. `agent_worker --check-schema` 통과 |
+| 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_transient_report_generation.sql` | session pooler | 성공. 생성 payload 만료·재접속 scope·멱등 확정 컬럼과 보호 함수를 추가하고 `agent_worker --check-schema` 통과 |
+| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_report_freeform_body.sql` 검토 전 초안 | session pooler | 일일 204·주간 51·월간 20건을 본문으로 이관하고 report_deal 본문 83→453건. 현재 PR의 fail-closed 검증과 구 단일 딜 미팅 이관이 들어가기 전 SQL이므로, 개발 반영 때는 0020 직전 백업으로 복구한 뒤 최종 SQL을 적용해야 함 |
 
 ## 개발 DB 재구축 런북
 

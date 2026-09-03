@@ -20,7 +20,6 @@ from app.models.crm import Activity
 from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.customers import CustomerSource
-from app.services.report_submissions import is_reserved_submission_field
 
 SELECTED_DEAL_LIMIT = 100
 RELATED_ITEM_LIMIT = 100
@@ -314,41 +313,10 @@ def _report_values(values):
     """이전 딜 보고서 본문 값만 최대 8,000자로 제한한다. 루트 content는 받지 않는다."""
     if not isinstance(values, dict):
         return {}, False
-    cleaned, remaining, truncated = {}, REPORT_TEXT_LIMIT, False
-    excluded = {
-        "transcript",
-        "raw_transcript",
-        "ml",
-        "ml_result",
-        "meeting_analysis",
-        "meeting_shared",
-        "common_report",
-        "unassigned_report",
-        "ai_evidence",
-        "ai_values",
-        "attachments",
-        "activities",
-        "crm_context",
-        "evidence",
-        "input_snapshot",
-        "output_snapshot",
-        "source_snapshot",
-    }
-    for key, value in values.items():
-        if (
-            not isinstance(key, str)
-            or key.lower() in excluded
-            or is_reserved_submission_field(key)
-            or not isinstance(value, str)
-        ):
-            continue
-        if len(cleaned) >= 50 or remaining <= 0:
-            truncated = True
-            break
-        cleaned[key] = value[:remaining]
-        truncated |= len(value) > remaining
-        remaining -= len(cleaned[key])
-    return cleaned, truncated
+    body = values.get("body")
+    if not isinstance(body, str):
+        return {}, False
+    return {"body": body[:REPORT_TEXT_LIMIT]}, len(body) > REPORT_TEXT_LIMIT
 
 
 async def _previous_reports_by_deal(db, member, activity, sales_deal_ids):
@@ -482,11 +450,7 @@ async def _previous_reports_by_deal(db, member, activity, sales_deal_ids):
         if len(items) >= PREVIOUS_REPORT_LIMIT:
             truncated[sales_deal_id] = True
             continue
-        deal_values = deal.get("structured_values")
-        deal_values = dict(deal_values) if isinstance(deal_values, dict) else {}
-        if isinstance(deal.get("body"), str):
-            deal_values["body"] = deal["body"]
-        cleaned, shortened = _report_values(deal_values)
+        cleaned, shortened = _report_values(deal)
         items.append(
             {
                 "submission_id": submission_id,

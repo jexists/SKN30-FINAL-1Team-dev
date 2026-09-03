@@ -96,7 +96,6 @@ export default function Compose() {
     approver: draft.approver,
     values: draft.values,
     activities: draft.activities,
-    template: draft.template,
     attachments: draft.attachments,
     transcript: draft.transcript,
   }

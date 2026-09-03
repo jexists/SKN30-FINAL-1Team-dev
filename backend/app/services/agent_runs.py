@@ -356,24 +356,10 @@ async def _report_generation_input(
         reviewed_at=None,
     )
     snapshot = report_writing.input_snapshot(transient, payload.guidance)
-    snapshot["report_sources"] = await report_sources.build_report_sources(db, member, transient)
-    activities = payload.content.get("activities", [])
-    calendar_ids: list[UUID] = []
-    for item in activities if isinstance(activities, list) else []:
-        if not isinstance(item, dict) or item.get("included") is not True:
-            continue
-        if item.get("source") != "캘린더":
-            continue
-        try:
-            calendar_ids.append(UUID(str(item["refId"])))
-        except (KeyError, TypeError, ValueError) as error:
-            raise HTTPException(422, "report_source_id_invalid") from error
-    if len(set(calendar_ids)) != len(calendar_ids):
-        raise HTTPException(422, "report_source_duplicate")
-    if calendar_ids:
-        snapshot["report_sources"]["activities"] = await report_sources._source_activities(
-            db, member, transient, calendar_ids
-        )
+    snapshot["report_sources"], frozen_refs = await report_sources.freeze_report_sources(
+        db, member, transient
+    )
+    refs["report_sources"] = frozen_refs
     return "report_writing", snapshot, refs
 
 

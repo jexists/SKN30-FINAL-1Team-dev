@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
-import { meetingFreeformTemplate } from '@/shared/meetings'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgendaItem,
@@ -15,7 +14,6 @@ import type {
   MeetingReview,
   MeetingSharedNotes,
   ReportGenerationInput,
-  ReportTemplate,
 } from '@/types'
 
 import { generatedDealOf } from './generatedDraft'
@@ -29,29 +27,31 @@ export interface DealDraftState {
   reportVersion?: number
   statusCode: ApiReportStatus
   review: MeetingReview
-  template: ReportTemplate
   phase: MeetingPhase
   title: string
   values: Record<string, string>
   evidence?: string
   touched: boolean
   docKey: number
-  sectionIssues: string[]
   generationError: string | null
   analysisPhase: AnalysisPhase
   assessment?: DealAssessment
   analysisError: string | null
 }
 
-interface MeetingResultState {
+export interface MeetingResultState {
   runId?: string
   shared?: MeetingSharedNotes
 }
 
-const emptyValues = (template: ReportTemplate) =>
-  Object.fromEntries(template.fields.map((field) => [field.id, '']))
-const isBlank = (values: Record<string, string>) =>
-  Object.values(values).every((value) => !value.trim())
+/** 원문·첨부·선택 딜이 바뀌면 이전 입력의 AgentRun을 최종 제출에 연결하지 않습니다. */
+export function invalidateMeetingGeneration(
+  result: MeetingResultState | null,
+): MeetingResultState | null {
+  return result?.runId ? { ...result, runId: undefined } : result
+}
+
+export const isMeetingBodyBlank = (values: Record<string, string>) => !(values.body ?? '').trim()
 
 /** 제목만 고친 경우도 AI 재생성이 사람 수정을 덮기 전에 확인해야 합니다. */
 export function hasMeetingDraftContent(
@@ -67,12 +67,9 @@ export function hasMeetingDraftContent(
   )
 }
 
-/** 자유형 생성 본문만 바꾸고 기존 구조화 값은 그대로 보존합니다. */
-export function mergeMeetingGeneratedValues(
-  previous: Record<string, string>,
-  body: string,
-): Record<string, string> {
-  return { ...previous, body }
+/** 미팅 생성 후보도 canonical 본문 한 칸만 받습니다. */
+export function mergeMeetingGeneratedValues(body: string): Record<string, string> {
+  return { body }
 }
 
 function stateOf(
@@ -80,21 +77,18 @@ function stateOf(
   saved?: MeetingReport,
   section?: MeetingDealSection,
 ): DealDraftState {
-  const template = saved?.template ?? meetingFreeformTemplate
-  const values = { ...emptyValues(template), ...section?.values }
+  const values = { body: section?.values.body ?? '' }
   return {
     reportId: saved?.id,
     reportVersion: saved?.version,
     statusCode: saved?.apiStatus ?? 'draft',
     review: saved?.review ?? 'writing',
-    template,
-    phase: isBlank(values) ? 'idle' : 'ready',
+    phase: isMeetingBodyBlank(values) ? 'idle' : 'ready',
     title: section?.title || fallbackTitle,
     values,
     evidence: section?.evidence,
     touched: false,
     docKey: 0,
-    sectionIssues: [],
     generationError: section?.reportError ?? null,
     analysisPhase: section?.analysisError ? 'failed' : section?.assessment ? 'completed' : 'idle',
     assessment: section?.assessment,
@@ -117,15 +111,29 @@ export default function useMeetingDraft(
 ) {
   const initializedAgendaId = useRef<string | null>(null)
   const [transcript, setTranscript] = useState('')
-  const files = useAttachments((text) =>
-    setTranscript((previous) => (previous.trim() ? previous.trim() + '\n\n' + text : text)),
-  )
   const [salesDealIds, setSalesDealIds] = useState<string[]>([])
   const [draftsByDeal, setDraftsByDeal] = useState<Record<string, DealDraftState>>({})
   const [meetingResult, setMeetingResult] = useState<MeetingResultState | null>(null)
+  const invalidateGeneration = useCallback(() => setMeetingResult(invalidateMeetingGeneration), [])
+  const changeTranscript = useCallback(
+    (value: string) => {
+      setTranscript(value)
+      invalidateGeneration()
+    },
+    [invalidateGeneration],
+  )
+  const files = useAttachments((text) => {
+    setTranscript((previous) => (previous.trim() ? previous.trim() + '\n\n' + text : text))
+    invalidateGeneration()
+  })
   // 스트리밍 중 문장은 미리보기로만 두고, 완료된 AgentRun 후보만 편집 상태에 올립니다.
   const [processingProgress, setProcessingProgress] = useState<MeetingProgress | null>(null)
-  const { setAttachments, setAttachmentError } = files
+  const {
+    addAttachments: addFiles,
+    removeAttachment: removeFile,
+    setAttachments,
+    setAttachmentError,
+  } = files
   const fallbackTitle = item?.title ?? ''
 
   const initialize = useCallback(() => {
@@ -172,6 +180,7 @@ export default function useMeetingDraft(
 
   const toggleSalesDeal = useCallback(
     (dealId: string) => {
+      invalidateGeneration()
       setSalesDealIds((previous) =>
         previous.includes(dealId) ? previous.filter((id) => id !== dealId) : [...previous, dealId],
       )
@@ -179,7 +188,22 @@ export default function useMeetingDraft(
         previous[dealId] ? previous : { ...previous, [dealId]: stateOf(fallbackTitle) },
       )
     },
-    [fallbackTitle],
+    [fallbackTitle, invalidateGeneration],
+  )
+
+  const addAttachments = useCallback(
+    (picked: FileList | File[]) => {
+      invalidateGeneration()
+      return addFiles(picked)
+    },
+    [addFiles, invalidateGeneration],
+  )
+  const removeAttachment = useCallback(
+    (id: string) => {
+      invalidateGeneration()
+      removeFile(id)
+    },
+    [invalidateGeneration, removeFile],
   )
 
   const restoreGenerationInput = useCallback(
@@ -191,17 +215,10 @@ export default function useMeetingDraft(
       setSalesDealIds(restored.salesDealIds)
       setDraftsByDeal((previous) =>
         Object.fromEntries(
-          restored.salesDealIds.map((dealId) => {
-            const current = previous[dealId] ?? stateOf(fallbackTitle)
-            return [
-              dealId,
-              {
-                ...current,
-                template: restored.template,
-                values: { ...emptyValues(restored.template), ...current.values },
-              },
-            ]
-          }),
+          restored.salesDealIds.map((dealId) => [
+            dealId,
+            previous[dealId] ?? stateOf(fallbackTitle),
+          ]),
         ),
       )
     },
@@ -243,14 +260,17 @@ export default function useMeetingDraft(
                 ...(generated.report
                   ? {
                       title: generated.report.title ?? fallbackTitle,
-                      values: mergeMeetingGeneratedValues(current.values, generated.report.body),
+                      values: mergeMeetingGeneratedValues(generated.report.body),
                       evidence: undefined,
                       touched: false,
-                      sectionIssues: [],
                       docKey: current.docKey + 1,
                       phase: 'ready' as const,
                     }
-                  : { phase: isBlank(current.values) ? ('idle' as const) : ('ready' as const) }),
+                  : {
+                      phase: isMeetingBodyBlank(current.values)
+                        ? ('idle' as const)
+                        : ('ready' as const),
+                    }),
                 generationError: generated.report
                   ? null
                   : reportError || '보고서 생성에 실패했습니다. 기존 작성 내용은 유지됩니다.',
@@ -285,7 +305,7 @@ export default function useMeetingDraft(
       for (const id of dealIds)
         updateDeal(id, (draft) => ({
           ...draft,
-          phase: isBlank(draft.values) ? 'idle' : 'ready',
+          phase: isMeetingBodyBlank(draft.values) ? 'idle' : 'ready',
           generationError: errorMessage(reason, '미팅 처리를 완료하지 못했습니다.'),
           analysisPhase: draft.assessment ? 'completed' : 'failed',
           analysisError: draft.assessment ? null : '새 분석 결과를 받지 못했습니다.',
@@ -296,10 +316,10 @@ export default function useMeetingDraft(
 
   return {
     transcript,
-    setTranscript,
+    setTranscript: changeTranscript,
     attachments: files.attachments,
-    addAttachments: files.addAttachments,
-    removeAttachment: files.removeAttachment,
+    addAttachments,
+    removeAttachment,
     attachmentError: files.attachmentError,
     salesDealIds,
     toggleSalesDeal,
@@ -310,14 +330,8 @@ export default function useMeetingDraft(
     receiveProgress: setProcessingProgress,
     setTitle: (id: string, title: string) =>
       updateDeal(id, (draft) => ({ ...draft, title, touched: true })),
-    applyDocument: (id: string, values: Record<string, string>, sectionIssues: string[]) =>
-      updateDeal(id, (draft) => ({ ...draft, values, sectionIssues, touched: true })),
-    restoreSections: (id: string) =>
-      updateDeal(id, (draft) => ({
-        ...draft,
-        sectionIssues: [],
-        docKey: draft.docKey + 1,
-      })),
+    applyDocument: (id: string, body: string) =>
+      updateDeal(id, (draft) => ({ ...draft, values: { body }, touched: true })),
     startManual: (id: string) => updateDeal(id, (draft) => ({ ...draft, phase: 'ready' })),
     beginGeneration,
     acceptGenerated,

@@ -208,12 +208,8 @@ def test_pipeline_writes_and_reviews_once_with_all_units_inline():
     assert "보안 승인 후 예산" in str(payload["source"]["source_units"])
 
 
-def test_only_ai_filled_fields_are_generated_and_structurally_checked():
+def test_only_body_field_is_generated_and_structurally_checked():
     source = sample()
-    source["template_snapshot"]["fields"].append(
-        {"id": "manager_note", "label": "관리자 메모", "type": "textarea", "aiFilled": False}
-    )
-    source["content"]["values"]["manager_note"] = "사람이 쓴 값"
     bad = {
         "fields": [
             *draft()["fields"],
@@ -278,8 +274,12 @@ def test_repair_must_pass_final_ai_field_validation():
             "period_report_template_invalid",
         ),
         (
-            lambda value: value["template_snapshot"]["fields"][0].update(aiFilled=False),
-            "period_report_ai_fields_required",
+            lambda value: value["template_snapshot"]["fields"].append({"id": "summary"}),
+            "period_report_template_invalid",
+        ),
+        (
+            lambda value: value["content"]["values"].update(summary="구형 요약"),
+            "period_report_values_invalid",
         ),
     ],
 )
