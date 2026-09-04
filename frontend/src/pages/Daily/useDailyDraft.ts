@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
@@ -14,12 +15,11 @@ import {
   idempotencyAttemptFor,
   isAgentRunTerminalError,
   latestReportGeneration,
-  requiresRecoveryConfirmation,
   waitForReportGeneration,
 } from '@/api/reportAgent'
 import type { IdempotencyAttempt } from '@/api/reportAgent'
 import { useAgendaState } from '@/shared/agenda'
-import { APPROVERS, templateFor } from '@/shared/reports'
+import { APPROVERS, canRecoverReportGeneration, templateFor } from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgentRunResponse,
@@ -60,6 +60,20 @@ export function mergeSourceActivities(
   }))
 }
 
+/** 생성 당시와 현재의 선택 자료·불변 제출본이 정확히 같을 때만 후보를 복구합니다. */
+export function generationSourcesAreAvailable(
+  recovered: ReportActivity[],
+  available: ReportActivity[],
+) {
+  const key = (activity: ReportActivity) =>
+    `${activity.source}:${activity.refId ?? activity.id}:${activity.sourceSubmissionId ?? ''}`
+  const previous = recovered.filter((activity) => activity.included).map(key)
+  const current = available.filter((activity) => activity.included).map(key)
+  return (
+    previous.length === current.length && previous.every((value, index) => value === current[index])
+  )
+}
+
 interface DraftOptions {
   /** 미리 켜 둘 자료의 원본 id. 특정 일정에서 넘어올 때 씁니다. */
   pickId?: string
@@ -88,6 +102,7 @@ export default function useDailyDraft(
   options: DraftOptions = {},
 ) {
   const { pickId } = options
+  const { memberId } = useCurrentUser()
 
   const {
     items: agendaItems,
@@ -162,8 +177,6 @@ export default function useDailyDraft(
   const recoveryAbort = useRef<AbortController | null>(null)
   const recoveredScope = useRef('')
   const [recovering, setRecovering] = useState(true)
-  const [pendingRecovery, setPendingRecovery] =
-    useState<AgentRunResponse<ReportDraftSnapshot> | null>(null)
 
   // 기간이나 종류가 바뀌면 자료를 다시 모으고 처음 상태로 돌아갑니다.
   // 쓰던 내용을 지워도 되는지는 화면이 먼저 묻습니다.
@@ -192,7 +205,6 @@ export default function useDailyDraft(
     setDirtyIds(new Set())
     setGenerationError(null)
     setGenerationRunId(undefined)
-    setPendingRecovery(null)
     setRecovering(true)
     // 이어 쓰는 보고서는 이미 쓴 내용이 있으므로 입력칸을 바로 펴 줍니다.
     setPhase(saved ? 'ready' : 'idle')
@@ -269,7 +281,8 @@ export default function useDailyDraft(
     (input: ReportGenerationInput) => {
       const restored = periodGenerationSeedOf(input)
       sourceSelectionFrozen.current = true
-      setActivities(restored.activities)
+      // 생성 당시 선택은 유지하되 제목·고객사 같은 표시값은 현재 원본을 씁니다.
+      setActivities(mergeSourceActivities(sources.activities, restored.activities, pickId))
       setAttachments(restored.attachments)
       setAttachmentError(null)
       setTranscript(restored.transcript)
@@ -289,7 +302,7 @@ export default function useDailyDraft(
       )
       return restored
     },
-    [setAttachments, setAttachmentError],
+    [sources.activities, pickId, setAttachments, setAttachmentError],
   )
 
   const resumeGeneration = useCallback(
@@ -366,10 +379,6 @@ export default function useDailyDraft(
 
   useEffect(() => {
     if (existingLoading || sourcesLoading || recoveredScope.current === scopeKey) return
-    if (canonical?.apiStatus === 'submitted' || canonical?.apiStatus === 'approved') {
-      setRecovering(false)
-      return
-    }
     recoveredScope.current = scopeKey
     const controller = new AbortController()
     recoveryAbort.current = controller
@@ -387,15 +396,11 @@ export default function useDailyDraft(
     void latestReportGeneration<ReportDraftSnapshot>(scope, controller.signal)
       .then((run) => {
         if (controller.signal.aborted || generationAbort.current) return
-        periodInputOf(run, kind, dateISO)
-        if (requiresRecoveryConfirmation(canonical?.id)) {
-          setPendingRecovery(run)
-          if (recoveryAbort.current === controller) {
-            recoveryAbort.current = null
-            setRecovering(false)
-          }
-          return
-        }
+        const input = periodInputOf(run, kind, dateISO)
+        if (!canRecoverReportGeneration(run, canonical, memberId)) return
+        const recovered = periodGenerationSeedOf(input).activities
+        const current = mergeSourceActivities(sources.activities, recovered, pickId)
+        if (!generationSourcesAreAvailable(recovered, current)) return
         return resumeGenerationRef.current(run, controller)
       })
       .catch((reason: unknown) => {
@@ -422,8 +427,10 @@ export default function useDailyDraft(
     scopeKey,
     existingLoading,
     sourcesLoading,
-    canonical?.id,
-    canonical?.apiStatus,
+    sources.activities,
+    pickId,
+    canonical,
+    memberId,
   ])
 
   useEffect(
@@ -474,17 +481,6 @@ export default function useDailyDraft(
     canGenerate,
     generate,
     recovering,
-    pendingRecovery,
-    acceptPendingRecovery: () => {
-      if (!pendingRecovery) return
-      const run = pendingRecovery
-      setPendingRecovery(null)
-      const controller = new AbortController()
-      recoveryAbort.current = controller
-      setRecovering(true)
-      void resumeGeneration(run, controller)
-    },
-    discardPendingRecovery: () => setPendingRecovery(null),
     generationRunId,
     generationError,
     missing,

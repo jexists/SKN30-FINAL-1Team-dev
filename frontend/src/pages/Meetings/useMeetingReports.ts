@@ -4,8 +4,10 @@ import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
 import { meetingFreeformTemplate } from '@/shared/meetings'
+import { canRecoverReportGeneration, isAuthorEditableReportStatus } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
 import type {
+  AgentRunResponse,
   MeetingDealSection,
   MeetingDealRef,
   MeetingReport,
@@ -164,6 +166,17 @@ export function meetingGenerationSeedOf(input: ReportGenerationInput) {
   }
 }
 
+export function canRecoverMeetingGeneration(
+  run: Pick<AgentRunResponse, 'created_at' | 'generation_input' | 'status_code'>,
+  savedReport: MeetingReport | undefined,
+  memberId: string,
+): boolean {
+  if (!savedReport) return true
+  if (!canRecoverReportGeneration(run, savedReport, memberId)) return false
+  const selectedDealIds = new Set(run.generation_input?.sales_deal_ids ?? [])
+  return savedReport.dealSections.every((section) => selectedDealIds.has(section.salesDealId))
+}
+
 /** 이 일정에서 사용자가 이미 확정했거나 반려받은 보고서 한 건을 찾습니다. */
 export async function savedForAgenda(
   agendaId: string,
@@ -243,10 +256,9 @@ export function meetingFinalizeRequestOf(
   idempotencyKey: string,
   agentRunId?: string,
 ): ReportFinalizeRequest {
-  const revisionStatus =
-    draft.statusCode === 'draft' || draft.statusCode === 'changes_requested'
-      ? draft.statusCode
-      : undefined
+  const revisionStatus = isAuthorEditableReportStatus(draft.statusCode)
+    ? draft.statusCode
+    : undefined
   if (
     (draft.statusCode === 'changes_requested' || draft.reportId) &&
     (!draft.reportId || !draft.version || !revisionStatus)
@@ -325,7 +337,7 @@ export default function useMeetingReports() {
         return toMeetingReport(response)
       } catch (reason: unknown) {
         if (!signal?.aborted) {
-          setError(errorMessage(reason, '미팅 기록을 확정하지 못했습니다.'))
+          setError(errorMessage(reason, '미팅 보고서 작성을 완료하지 못했습니다.'))
         }
         throw reason
       } finally {

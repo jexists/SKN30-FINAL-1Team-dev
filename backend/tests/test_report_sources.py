@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from datetime import date
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -435,6 +435,31 @@ def test_normalized_direct_activity_is_not_silently_dropped(sample, monkeypatch)
     lookup.assert_not_awaited()
 
 
+def test_direct_activity_times_are_given_to_the_writer_in_seoul_time(sample):
+    member, parent, _, _ = sample
+    parent.report_date = date(2026, 9, 3)
+    activity_id = uuid4()
+    activity = SimpleNamespace(
+        id=activity_id,
+        title="합성 미팅",
+        starts_at=datetime(2026, 9, 3, 0, tzinfo=UTC),
+        ends_at=datetime(2026, 9, 3, 1, tzinfo=UTC),
+        completed_at=datetime(2026, 9, 3, 2, tzinfo=UTC),
+        location="온라인",
+        note=None,
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [activity]
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+
+    rows = asyncio.run(service._source_activities(db, member, parent, [activity_id]))
+
+    assert rows[0]["starts_at"].isoformat() == "2026-09-03T09:00:00+09:00"
+    assert rows[0]["ends_at"].isoformat() == "2026-09-03T10:00:00+09:00"
+    assert rows[0]["completed_at"].isoformat() == "2026-09-03T11:00:00+09:00"
+
+
 def test_new_period_save_materializes_selected_submission_as_canonical_source(sample, monkeypatch):
     member, parent, sources, _ = sample
     source = sources[0]
@@ -455,6 +480,7 @@ def test_new_period_save_materializes_selected_submission_as_canonical_source(sa
     assert stored.position == 0
     assert stored.source_activity_id is None
     assert stored.source_report_submission_id == source.current_submission_id
+    db.flush.assert_awaited_once()
 
 
 def test_missing_activity_selection_clears_existing_canonical_sources(sample, monkeypatch):

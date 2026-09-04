@@ -15,10 +15,12 @@ const {
   finishIdempotencyAttempt,
   idempotencyAttemptFor,
   latestReportGeneration,
-  requiresRecoveryConfirmation,
   waitForReportGeneration,
 } = await vite.ssrLoadModule('/src/api/reportAgent.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
+const { canRecoverMeetingGeneration } = await vite.ssrLoadModule(
+  '/src/pages/Meetings/useMeetingReports.ts',
+)
 
 const template = {
   id: 'builtin-daily-freeform',
@@ -133,8 +135,12 @@ test('미팅 복구 입력이 현재 일정과 다르면 오류 배너 없이 �
     'utf8',
   )
 
-  assert.match(source, /reason\.message !== 'report_generation_input_missing'/)
-  assert.match(source, /recoveryAbort\.current = null\n            setRecovering\(false\)/)
+  assert.match(source, /reason\.message === 'report_generation_input_missing'/)
+  assert.match(source, /!missingInput/)
+  assert.match(
+    source,
+    /\.finally\(\(\) => \{[\s\S]*?recoveryAbort\.current = null[\s\S]*?setRecovering\(false\)/,
+  )
 })
 
 test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에서 제외한다', async () => {
@@ -150,10 +156,62 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /setTranscript: changeTranscript/)
 })
 
-test('재접속 후보는 canonical 보고서가 없을 때만 자동 적용한다', () => {
-  assert.equal(requiresRecoveryConfirmation(undefined), false)
-  assert.equal(requiresRecoveryConfirmation('changes-requested-report'), true)
-  assert.equal(requiresRecoveryConfirmation('legacy-draft-report'), true)
+test('제출된 보고서는 저장 후 시작한 같은 자료 재생성만 복구한다', async () => {
+  const meeting = await readFile(
+    new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
+    'utf8',
+  )
+  const period = await readFile(
+    new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url),
+    'utf8',
+  )
+  const daily = await readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8')
+  const savedReport = {
+    ownerMemberId: 'member-1',
+    apiStatus: 'submitted',
+    updatedAt: '2026-09-03T06:00:00Z',
+    dealSections: [{ salesDealId: 'deal-1' }],
+  }
+  const regenerated = {
+    created_at: '2026-09-03T06:00:01Z',
+    status_code: 'completed',
+    generation_input: { sales_deal_ids: ['deal-1', 'deal-2'] },
+  }
+
+  assert.equal(canRecoverMeetingGeneration(regenerated, savedReport, 'member-1'), true)
+  assert.equal(
+    canRecoverMeetingGeneration(
+      { ...regenerated, created_at: '2026-09-03T05:59:59Z' },
+      savedReport,
+      'member-1',
+    ),
+    false,
+  )
+  assert.equal(
+    canRecoverMeetingGeneration(
+      { ...regenerated, generation_input: { sales_deal_ids: ['deal-2'] } },
+      savedReport,
+      'member-1',
+    ),
+    false,
+  )
+  assert.equal(
+    canRecoverMeetingGeneration({ ...regenerated, status_code: 'failed' }, savedReport, 'member-1'),
+    false,
+  )
+  assert.equal(
+    canRecoverMeetingGeneration(regenerated, { ...savedReport, apiStatus: 'approved' }, 'member-1'),
+    false,
+  )
+  assert.match(
+    meeting,
+    /meetingInputOf\(run, agendaId\)[\s\S]*?canRecoverMeetingGeneration\(run, savedReport, memberId\)[\s\S]*?resumeGeneration\(run, controller\)/,
+  )
+  assert.match(
+    period,
+    /periodInputOf\(run, kind, dateISO\)[\s\S]*?canRecoverReportGeneration\(run, canonical, memberId\)[\s\S]*?resumeGenerationRef\.current\(run, controller\)/,
+  )
+  assert.doesNotMatch(`${meeting}\n${daily}`, /이전에 생성하던 후보|후보 복구/)
 })
 
 test('생성·재접속은 AgentRun API만 쓰고 canonical 저장은 finalize 한 번뿐이다', async () => {

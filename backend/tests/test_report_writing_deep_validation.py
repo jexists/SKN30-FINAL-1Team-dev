@@ -6,6 +6,7 @@ from pydantic import SecretStr, ValidationError
 
 from app.agents import report_writing_deep as agent
 from app.schemas.reports import REPORT_BODY_MAX_LENGTH
+from app.services import llm as llm_service
 from app.services.llm import LLMError, LLMNotConfigured
 
 DEAL_A, DEAL_B, OTHER_DEAL = (UUID(int=value) for value in (1, 2, 3))
@@ -59,7 +60,10 @@ def _case(*, unassigned=True):
             evidence_ids=["S0001", "S0002", "S0003"],
         ),
         unassigned_report=agent.ReportBody(
-            body="딜 미지정 · 확인 필요: " + "\n".join(text for text, _, _ in rows[6:]),
+            body=(
+                "추가 견적 요청은 대상 딜 확인이 필요합니다. "
+                "선택 범위 밖의 C 장비는 다음 미팅에서 다룰 예정입니다."
+            ),
             evidence_ids=["S0007", "S0008"],
         )
         if unassigned
@@ -194,13 +198,13 @@ def test_reports_reject_missing_or_mixed_evidence(target, refs, error):
         agent.validate_reports(source, draft)
 
 
-@pytest.mark.parametrize("segment_index", [6, 7])
-def test_unresolved_and_out_of_scope_must_keep_original_text(segment_index):
+def test_unassigned_report_may_paraphrase_while_preserving_complete_evidence_ids():
     source, draft = _case()
-    text = source.evidence.items[segment_index].segment.text
-    draft.unassigned_report.body = draft.unassigned_report.body.replace(text, "요약으로 대체")
-    with pytest.raises(ValueError, match="report_unassigned_original_missing"):
-        agent.validate_reports(source, draft)
+
+    assert all(
+        item.segment.text not in draft.unassigned_report.body for item in source.evidence.items[6:]
+    )
+    agent.validate_reports(source, draft)
 
 
 def test_unassigned_report_is_required_only_when_there_is_unassigned_evidence():
@@ -218,10 +222,13 @@ def test_unassigned_report_is_required_only_when_there_is_unassigned_evidence():
 
 @pytest.fixture
 def model_settings(monkeypatch):
-    monkeypatch.setattr(agent.settings, "llm_api_url", "https://provider.invalid/v1/responses")
-    monkeypatch.setattr(agent.settings, "llm_api_key", SecretStr("synthetic-test-key"))
-    monkeypatch.setattr(agent.settings, "llm_model", "synthetic-model")
-    monkeypatch.setattr(agent.settings, "llm_timeout_seconds", 7.0)
+    monkeypatch.setattr(
+        llm_service.settings, "llm_api_url", "https://provider.invalid/v1/responses"
+    )
+    monkeypatch.setattr(llm_service.settings, "llm_api_key", SecretStr("synthetic-test-key"))
+    monkeypatch.setattr(llm_service.settings, "openai_api_key", SecretStr(""))
+    monkeypatch.setattr(llm_service.settings, "llm_model", "synthetic-model")
+    monkeypatch.setattr(llm_service.settings, "llm_timeout_seconds", 7.0)
 
 
 @pytest.mark.parametrize(
@@ -234,7 +241,6 @@ def model_settings(monkeypatch):
             "https://provider.invalid/api/v2",
             False,
         ),
-        ("http://localhost:1234/v1/chat/completions", "http://localhost:1234/v1", False),
     ],
 )
 def test_model_config_preserves_api_base_without_endpoint_suffix(
@@ -244,8 +250,8 @@ def test_model_config_preserves_api_base_without_endpoint_suffix(
     base,
     responses,
 ):
-    monkeypatch.setattr(agent.settings, "llm_api_url", endpoint)
-    model = agent._configured_model()
+    monkeypatch.setattr(llm_service.settings, "llm_api_url", endpoint)
+    model = llm_service.configured_chat_model()
     assert model.openai_api_base == base
     assert model.use_responses_api is responses
     assert model.model_name == "synthetic-model"
@@ -258,18 +264,21 @@ def test_model_config_preserves_api_base_without_endpoint_suffix(
 
 
 def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
-    monkeypatch.setattr(agent.settings, "llm_timeout_seconds", 240.0)
-    model = agent._configured_model()
+    monkeypatch.setattr(llm_service.settings, "llm_timeout_seconds", 240.0)
+    model = llm_service.configured_chat_model()
     assert model.request_timeout.read == 240.0
     assert model.stream_chunk_timeout == 240.0
     assert model.request_timeout.connect == 10.0
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.deep.v9"
+    assert agent.PROMPT_VERSION == "report_writing.deep.v12"
     skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "합니다체로 통일한다" in skill
+    assert "생성 과정을 해설하지 않는다" in skill
     assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
     assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
+    assert "내부 분류·처리 절차나 화면 제목을 본문에 쓰지 않는다" in skill
 
 
 def test_deal_schema_emits_identity_before_live_body():
@@ -355,7 +364,6 @@ def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_
     assert unassigned["unexpected_ids"] == ["S0004"]
     assert {item["segment_id"] for item in unassigned["required_raw_quotes"]} == {"S0007", "S0008"}
     assert all(item["repair_action"] for item in issues)
-    assert any(item["code"] == "report_unassigned_original_missing" for item in issues)
     with pytest.raises(ValueError, match="report_deal_evidence_mismatch"):
         agent.validate_reports(source, draft)
 
@@ -370,12 +378,13 @@ def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_
         "https://user:password@provider.invalid/v1/responses",
         "https://provider.invalid/v1/responses?mode=test",
         "https://provider.invalid/v1/responses#fragment",
+        "http://localhost:1234/v1/chat/completions",
     ],
 )
 def test_model_config_rejects_unsupported_urls(model_settings, monkeypatch, endpoint):
-    monkeypatch.setattr(agent.settings, "llm_api_url", endpoint)
+    monkeypatch.setattr(llm_service.settings, "llm_api_url", endpoint)
     with pytest.raises(LLMError, match="report_agent_unsupported_endpoint"):
-        agent._configured_model()
+        llm_service.configured_chat_model()
 
 
 @pytest.mark.parametrize(
@@ -388,6 +397,6 @@ def test_model_config_rejects_unsupported_urls(model_settings, monkeypatch, endp
     ],
 )
 def test_model_config_rejects_missing_credentials(model_settings, monkeypatch, field, value):
-    monkeypatch.setattr(agent.settings, field, value)
+    monkeypatch.setattr(llm_service.settings, field, value)
     with pytest.raises(LLMNotConfigured, match="llm_not_configured"):
-        agent._configured_model()
+        llm_service.configured_chat_model()

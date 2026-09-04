@@ -49,6 +49,18 @@
   color: var(--muted);
 }
 
+.preview {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  margin-top: var(--s3);
+  margin-right: auto;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  object-fit: contain;
+}
+
 // 파일명이 길어도 오른쪽 버튼들은 자리를 잃지 않습니다.
 .file {
   display: flex;
@@ -92,17 +104,6 @@
     opacity: 0.5;
     cursor: default;
   }
-}
-
-.progress {
-  display: grid;
-  gap: var(--s2);
-  margin-top: var(--s3);
-}
-
-.step {
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .error {

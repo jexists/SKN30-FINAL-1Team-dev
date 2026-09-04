@@ -86,6 +86,9 @@ export const meetingReportPath = (id: string) => `${ROUTES.MEETINGS}/${id}`
 /** 영업 보드. 목록과 같은 데이터를 단계별 칸으로 봅니다. */
 export const dealBoardPath = () => `${ROUTES.DEALS}/board`
 
+/** 영업 딜 상세. 목록 위 상세 드로어를 바로 엽니다. */
+export const dealDetailPath = (id: string) => `${ROUTES.DEALS}?deal=${encodeURIComponent(id)}`
+
 /**
  * 견적 추가. 작성 폼이 목록 위에 뜨는 모달이라 목록 경로에 표를 달아 엽니다.
  * 화면 하나를 따로 두는 발주(orderNewPath)와 다른 점입니다.

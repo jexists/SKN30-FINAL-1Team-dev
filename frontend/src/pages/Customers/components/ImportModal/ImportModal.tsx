@@ -14,6 +14,7 @@ import { parseCsv } from '@/utils/csv'
 import { businessNoDigits } from '@/utils/format'
 
 import styles from './ImportModal.module.scss'
+import RecognitionLoading from '../RecognitionLoading'
 
 /** CSV 헤더 ↔ 고객 등록 폼의 칸. 내보내기가 쓰는 이름과 같아 왕복이 됩니다. */
 const HEADER_MAP = {
@@ -122,53 +123,63 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
   const [rows, setRows] = useState<Row[]>([])
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
+  const [parsing, setParsing] = useState(false)
   const [sending, setSending] = useState(false)
 
   const ready = rows.filter((row) => row.problem === null)
   const skipped = rows.filter((row) => row.problem !== null)
 
   const readFile = async (file: File) => {
+    if (parsing || sending) return
+
+    setParsing(true)
     setError(null)
     setParsed(null)
     setRows([])
     setProgress(null)
 
-    const table = parseCsv(await file.text())
-    if (table.length < 2) {
-      setError(
-        '첫 줄에 열 이름, 그 아래에 고객이 한 줄씩 있어야 합니다. 지금은 데이터 줄이 없습니다.',
-      )
-      return
+    try {
+      const table = parseCsv(await file.text())
+      if (table.length < 2) {
+        setError(
+          '첫 줄에 열 이름, 그 아래에 고객이 한 줄씩 있어야 합니다. 지금은 데이터 줄이 없습니다.',
+        )
+        return
+      }
+
+      const headers = table[0].map((header) => header.trim())
+      const fields = headers
+        .map((header, index) => ({ header, index, field: HEADER_MAP[header as Header] }))
+        .filter((column): column is Column => column.field !== undefined)
+
+      const missing = Object.keys(REQUIRED).filter(
+        (field) => !fields.some((column) => column.field === field),
+      ) as (keyof typeof REQUIRED)[]
+      if (missing.length > 0) {
+        const names = missing.map((field) => REQUIRED[field]).join(', ')
+        setError(`${names} 열을 찾지 못했습니다. 첫 줄의 열 이름을 확인하세요.`)
+        return
+      }
+
+      const at = new Map(fields.map((column) => [column.field, column.index]))
+      const body = table.slice(1)
+
+      companyIds.current.clear()
+      setParsed({
+        filename: file.name,
+        fields,
+        ignored: headers.filter(
+          (header) => HEADER_MAP[header as Header] === undefined && header !== '',
+        ),
+        rows: body,
+      })
+      // 첫 줄이 열 이름이므로 데이터 첫 줄은 파일에서 2번째 줄입니다.
+      setRows(body.map((cells, index) => readRow(cells, at, index + 2)))
+    } catch {
+      setError('엑셀 파일을 읽지 못했습니다. CSV(UTF-8) 파일인지 확인해 주세요.')
+    } finally {
+      setParsing(false)
     }
-
-    const headers = table[0].map((header) => header.trim())
-    const fields = headers
-      .map((header, index) => ({ header, index, field: HEADER_MAP[header as Header] }))
-      .filter((column): column is Column => column.field !== undefined)
-
-    const missing = Object.keys(REQUIRED).filter(
-      (field) => !fields.some((column) => column.field === field),
-    ) as (keyof typeof REQUIRED)[]
-    if (missing.length > 0) {
-      const names = missing.map((field) => REQUIRED[field]).join(', ')
-      setError(`${names} 열을 찾지 못했습니다. 첫 줄의 열 이름을 확인하세요.`)
-      return
-    }
-
-    const at = new Map(fields.map((column) => [column.field, column.index]))
-    const body = table.slice(1)
-
-    companyIds.current.clear()
-    setParsed({
-      filename: file.name,
-      fields,
-      ignored: headers.filter(
-        (header) => HEADER_MAP[header as Header] === undefined && header !== '',
-      ),
-      rows: body,
-    })
-    // 첫 줄이 열 이름이므로 데이터 첫 줄은 파일에서 2번째 줄입니다.
-    setRows(body.map((cells, index) => readRow(cells, at, index + 2)))
   }
 
   const resolveCompanyId = async (name: string, businessNo: string) => {
@@ -191,7 +202,7 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
   }
 
   const send = async () => {
-    if (sending || ready.length === 0) return
+    if (parsing || sending || ready.length === 0) return
 
     setSending(true)
     setError(null)
@@ -229,10 +240,11 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
   }
 
   const close = () => {
-    if (!sending) onClose()
+    if (!parsing && !sending) onClose()
   }
 
   const confirmLabel = () => {
+    if (parsing) return '인식중입니다…'
     if (sending) return `${progress?.done ?? 0} / ${ready.length}명 등록 중…`
     if (parsed === null) return '파일을 먼저 선택하세요'
     if (ready.length === 0) return '등록할 줄이 없습니다'
@@ -247,10 +259,10 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
       size="lg"
       footer={
         <>
-          <Button type="button" variant="outline" disabled={sending} onClick={close}>
+          <Button type="button" variant="outline" disabled={parsing || sending} onClick={close}>
             {progress === null ? '취소' : '닫기'}
           </Button>
-          <Button type="button" disabled={sending || ready.length === 0} onClick={send}>
+          <Button type="button" disabled={parsing || sending || ready.length === 0} onClick={send}>
             {confirmLabel()}
           </Button>
         </>
@@ -272,7 +284,7 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
       <button
         type="button"
         className={styles.drop}
-        disabled={sending}
+        disabled={parsing || sending}
         onClick={() => fileRef.current?.click()}
       >
         <UploadIcon width={28} height={28} strokeWidth={1.5} />
@@ -286,7 +298,22 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
         </p>
       )}
 
-      {parsed && (
+      {(parsing || sending) && (
+        <RecognitionLoading
+          description={
+            parsing
+              ? '엑셀 파일에서 고객 정보를 확인하고 있습니다.'
+              : `${progress?.done ?? 0} / ${progress?.total ?? ready.length}명 고객을 등록하고 있습니다.`
+          }
+          progress={
+            sending && progress && progress.total > 0
+              ? (progress.done / progress.total) * 100
+              : undefined
+          }
+        />
+      )}
+
+      {parsed && !parsing && (
         <div className={styles.result}>
           <p className={styles.summary}>
             <span className="tnum">{parsed.rows.length}</span>줄을 읽었습니다. 담당자는 등록하는

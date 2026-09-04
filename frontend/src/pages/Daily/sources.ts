@@ -5,6 +5,7 @@
 // 그래서 일일은 그날 일정과 업무보고서를, 주간은 그 주의 일일보고서를, 월간은
 // 그 달의 주간보고서를 모읍니다. 작성 화면은 여기서 나온 목록만 그립니다.
 import { dailyReportPath, meetingComposePath, meetingReportPath } from '@/constants/routes'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import type {
   AgendaItem,
   DailyReport,
@@ -29,6 +30,13 @@ export interface SourceMeta {
   tracked?: boolean
   to?: string
   label?: string
+  /** 작성 화면에서만 펼쳐 보는 딜별 보고서. 제출 자료에는 저장하지 않습니다. */
+  previewSections?: {
+    id: string
+    label: string
+    title: string
+    body: string
+  }[]
 }
 
 export interface DraftSources {
@@ -47,7 +55,7 @@ const ROLLED_UP: readonly ReportStatus[] = ['검토 대기', '확정']
 function actionFor(status: ReportStatus | MeetingReportStatus | null): string {
   if (status === null) return '작성'
   if (status === '작성중' || status === '수정중') return '이어서 작성'
-  if (status === '반려') return '수정하기'
+  if (status === '검토 대기' || status === '반려') return '수정하기'
   return '보고서 열기'
 }
 
@@ -57,12 +65,6 @@ function meetingStatus(reports: MeetingReport[]): MeetingReportStatus | null {
   if (reports.some((report) => report.status === '반려')) return '반려'
   if (reports.some((report) => report.status === '수정중')) return '수정중'
   return '검토 대기'
-}
-
-function meetingTitle(report: MeetingReport): string {
-  const labels = report.dealSections.map((section) => section.salesDeal.label).filter(Boolean)
-  const deals = labels.length > 2 ? `${labels[0]} 외 ${labels.length - 1}건` : labels.join(', ')
-  return [report.hospital, deals, report.title].filter(Boolean).join(' · ')
 }
 
 /** 상위 보고서에는 미팅 공통 기록과 모든 딜 본문을 한 자료로 넘깁니다. */
@@ -77,21 +79,23 @@ function meetingValues(report: MeetingReport): Record<string, string> {
   return { body: parts.join('\n\n') }
 }
 
-function meetingDescription(report: MeetingReport): string {
-  const text =
-    report.meetingShared?.common_report?.body ||
-    report.meetingShared?.unassigned_report?.body ||
-    report.dealSections.map((section) => section.values.body).find((value) => value?.trim())
-  const firstLine = text?.split('\n')[0]
-  return firstLine?.trim() || '미팅 기록 확정'
+function meetingSourceMeta(report: MeetingReport): SourceMeta {
+  return {
+    status: report.status,
+    tracked: true,
+    previewSections: report.dealSections.map((section) => ({
+      id: section.salesDealId,
+      label: section.salesDeal.label || section.salesDealId,
+      title: section.title,
+      body: section.values.body,
+    })),
+  }
 }
 
-/** 수정중 초안은 작성 화면으로, 제출한 미팅 보고서는 단일 상세로 갑니다. */
+/** 승인 전 보고서는 작성 화면으로, 승인한 미팅 보고서는 단일 상세로 갑니다. */
 export function meetingLinkFor(agendaId: string, reports: MeetingReport[] = []): SourceMeta {
   const status = meetingStatus(reports)
-  const editable = reports.find(
-    (report) => report.apiStatus === 'draft' || report.apiStatus === 'changes_requested',
-  )
+  const editable = reports.find((report) => isAuthorEditableReportStatus(report.apiStatus))
   const saved = editable ?? reports[0]
   return {
     status,
@@ -102,9 +106,9 @@ export function meetingLinkFor(agendaId: string, reports: MeetingReport[] = []):
 }
 
 /**
- * 일일보고의 자료. 그날 일정과 그날 확정한 업무보고서입니다.
+ * 일일보고의 자료. 그날 일정과 그날 제출한 업무보고서입니다.
  *
- * 같은 일정이 두 줄이 되지 않게, 확정된 업무보고서가 있으면 일정 원본 대신
+ * 같은 일정이 두 줄이 되지 않게, 제출된 업무보고서가 있으면 일정 원본 대신
  * 업무보고서를 싣습니다. 기록한 내용이 일정 제목보다 정확합니다.
  */
 function dailySources(
@@ -126,26 +130,24 @@ function dailySources(
 
   for (const item of agendaItems.filter((entry) => entry.date === dateISO)) {
     const reports = byAgenda.get(item.id) ?? []
-    const approved = reports.filter((report) => report.status === '확정')
+    const submitted = reports.filter(
+      (report) => report.status === '검토 대기' || report.status === '확정',
+    )
 
-    if (approved.length > 0) {
-      for (const report of approved) {
+    if (submitted.length > 0) {
+      for (const report of submitted) {
         const id = `meet-${report.id}`
         used.add(report.id)
         activities.push({
           id,
           source: '업무보고서',
-          title: meetingTitle(report),
-          desc: meetingDescription(report),
+          title: report.title,
+          desc: report.hospital,
           included: true,
           refId: report.id,
+          sourceSubmissionId: report.currentSubmissionId ?? undefined,
         })
-        meta.set(id, {
-          status: '확정',
-          tracked: true,
-          to: meetingReportPath(report.id),
-          label: '보고서 열기',
-        })
+        meta.set(id, meetingSourceMeta(report))
         values.set(id, meetingValues(report))
       }
       continue
@@ -163,23 +165,19 @@ function dailySources(
     meta.set(`cal-${item.id}`, meetingLinkFor(item.id, reports))
   }
 
-  // 일정이 지워졌거나 옮겨 간 미팅 기록. 확정한 것은 그날 있었던 일이므로 남깁니다.
+  // 일정이 지워졌거나 옮겨 간 미팅 기록. 제출한 것은 그날 있었던 일이므로 남깁니다.
   for (const report of meetings) {
-    if (report.status !== '확정' || used.has(report.id)) continue
+    if (!['검토 대기', '확정'].includes(report.status) || used.has(report.id)) continue
     activities.push({
       id: `meet-${report.id}`,
       source: '업무보고서',
-      title: meetingTitle(report),
-      desc: meetingDescription(report),
+      title: report.title,
+      desc: report.hospital,
       included: true,
       refId: report.id,
+      sourceSubmissionId: report.currentSubmissionId ?? undefined,
     })
-    meta.set(`meet-${report.id}`, {
-      status: '확정',
-      tracked: true,
-      to: meetingReportPath(report.id),
-      label: '보고서 열기',
-    })
+    meta.set(`meet-${report.id}`, meetingSourceMeta(report))
     values.set(`meet-${report.id}`, meetingValues(report))
   }
 
@@ -227,6 +225,7 @@ function rollupSources(kind: ReportKind, dateISO: string, reports: DailyReport[]
       desc: report.note,
       included: true,
       refId: report.id,
+      sourceSubmissionId: report.currentSubmissionId ?? undefined,
     })
     meta.set(id, {
       status: report.status,

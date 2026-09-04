@@ -110,6 +110,105 @@
   font-size: 11px;
 }
 
+.sourceReports {
+  display: grid;
+  gap: var(--s2);
+}
+
+.sourceReport {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s2) var(--s3);
+    list-style: none;
+    color: var(--ink-2);
+    font-size: 12px;
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 3px solid var(--blue-ring);
+      outline-offset: -3px;
+    }
+  }
+
+  &[open] {
+    .sourceReportClosed {
+      display: none;
+    }
+
+    .sourceReportOpen {
+      display: inline;
+    }
+
+    .sourceReportAction svg {
+      transform: rotate(90deg);
+    }
+  }
+}
+
+.sourceReportAction {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--blue);
+  font-weight: 600;
+
+  svg {
+    transition: transform var(--t-fast) var(--ease-out);
+  }
+}
+
+.sourceDeal {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    color: var(--ink);
+    font-size: 13px;
+    letter-spacing: -0.01em;
+  }
+
+  span {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.sourceReportOpen {
+  display: none;
+}
+
+.sourceReportBody {
+  padding: var(--s3);
+  border-top: 1px solid var(--line);
+  background: var(--fill);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.sourceReportEmpty {
+  color: var(--muted);
+}
+
 /* 목록은 날짜 머리말에서 한 칸 떨어져 섭니다. */
 .reference > :not(:first-child) {
   margin-top: var(--s4);
@@ -128,6 +227,12 @@
 
   @include md {
     padding: var(--s5) var(--s4);
+  }
+}
+
+@media screen {
+  .sheet :global(textarea) {
+    min-height: clamp(18rem, 45dvh, 32rem);
   }
 }
 

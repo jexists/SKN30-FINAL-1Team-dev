@@ -59,8 +59,8 @@ ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
 ReportStatus = Literal["draft", "submitted", "approved", "changes_requested"]
 # 조회 필터만 구버전 rejected를 받아 0건으로 처리한다. 신규 저장·응답 상태에는 허용하지 않는다.
 ReportFilterStatus = Literal["draft", "submitted", "approved", "changes_requested", "rejected"]
-# 제출을 시작할 수 있는 상태. 팀장이 수정 요청하면 팀원이 다시 고쳐 제출한다.
-SubmittableStatus = Literal["draft", "changes_requested"]
+# 작성자가 제출할 수 있는 상태. 승인 전에는 다시 고쳐 제출할 수 있다.
+SubmittableStatus = Literal["draft", "submitted", "changes_requested"]
 # 팀장이 검토할 수 있는 상태. 제출된 것만 본다.
 ReviewableStatus = Literal["submitted"]
 # 검토 결과. 반려는 rejected 가 아니라 changes_requested 로 간다. 반려한 보고서는
