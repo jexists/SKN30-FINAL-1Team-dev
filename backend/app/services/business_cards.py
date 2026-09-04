@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import re
 
-from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.crm import CustomerCompany, CustomerContact
+from app.models.crm import CustomerContact
 from app.models.workspace import Member
 from app.schemas.business_cards import BusinessCardDraft, BusinessCardFields
+from app.services import customer_duplicates
+from app.services.customer_duplicates import DuplicateProbe
 from app.services.llm import generate_structured
 
 SYSTEM_PROMPT = """너는 SalesLuv 명함 구조화 에이전트다.
@@ -80,6 +81,15 @@ def normalize_ocr_contact_text(value: str) -> str:
     return normalized
 
 
+def _probe(fields: BusinessCardFields) -> DuplicateProbe:
+    return DuplicateProbe(
+        company_name=fields.company_name,
+        name=fields.name,
+        phone=fields.phone,
+        email=fields.email,
+    )
+
+
 async def find_matches(
     db: AsyncSession,
     *,
@@ -87,54 +97,26 @@ async def find_matches(
     fields: BusinessCardFields,
     limit: int = 10,
 ) -> list[dict[str, object]]:
-    """같은 팀의 기존 담당자 중 중복 후보만 반환한다. 저장·병합은 하지 않는다."""
-    phone_digits = _phone_digits(fields.phone)
-    email = fields.email.strip().casefold()
-    name = fields.name.strip().casefold()
-    company = fields.company_name.strip().casefold()
-    conditions = []
-    if phone_digits:
-        conditions.append(
-            func.regexp_replace(CustomerContact.phone, r"[^0-9]", "", "g") == phone_digits
-        )
-    if email:
-        conditions.append(func.lower(CustomerContact.email) == email)
-    if name and company:
-        conditions.append(
-            (func.lower(CustomerContact.name) == name)
-            & (func.lower(CustomerCompany.name) == company)
-        )
-    if not conditions:
-        return []
+    """같은 팀의 기존 담당자 중 중복 후보만 반환한다. 저장·병합은 하지 않는다.
 
-    result = await db.execute(
-        select(CustomerContact, CustomerCompany)
-        .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
-        # 지운 고객은 중복 후보로 내놓지 않는다. 다시 등록하려는 참이다.
-        .where(
-            CustomerContact.deleted_at.is_(None),
-            CustomerCompany.team_id == member.team_id,
-            or_(*conditions),
-        )
-        .limit(limit)
+    중복 기준은 등록 방식 넷이 함께 쓰는 customer_duplicates 가 정한다. 명함만 다른 기준을
+    쓰면 명함으로 들어온 사람이 엑셀에서는 새 고객이 된다.
+    """
+    matches = await customer_duplicates.find_duplicates(
+        db, member=member, probe=_probe(fields), limit=limit
     )
-    matches: list[dict[str, object]] = []
-    for contact, company_row in result.all():
-        matched_by = match_labels(fields, contact=contact, company_name=company_row.name)
-        if not matched_by:
-            continue
-        matches.append(
-            {
-                "contact_id": contact.id,
-                "company_id": contact.company_id,
-                "company_name": company_row.name,
-                "name": contact.name,
-                "phone": contact.phone,
-                "email": contact.email,
-                "matched_by": matched_by,
-            }
-        )
-    return matches
+    return [
+        {
+            "contact_id": match.contact_id,
+            "company_id": match.company_id,
+            "company_name": match.company_name,
+            "name": match.name,
+            "phone": match.phone,
+            "email": match.email,
+            "matched_by": match.matched_by,
+        }
+        for match in matches
+    ]
 
 
 def match_labels(
@@ -144,21 +126,6 @@ def match_labels(
     company_name: str,
 ) -> list[str]:
     """후보가 어떤 값으로 겹쳤는지 설명한다."""
-    labels: list[str] = []
-    if _phone_digits(fields.phone) and _phone_digits(fields.phone) == _phone_digits(contact.phone):
-        labels.append("phone")
-    contact_email = (contact.email or "").strip().casefold()
-    if fields.email.strip() and fields.email.strip().casefold() == contact_email:
-        labels.append("email")
-    if (
-        fields.name.strip()
-        and fields.company_name.strip()
-        and fields.name.strip().casefold() == contact.name.strip().casefold()
-        and fields.company_name.strip().casefold() == company_name.strip().casefold()
-    ):
-        labels.append("name_company")
-    return labels
-
-
-def _phone_digits(value: str) -> str:
-    return re.sub(r"[^0-9]", "", value)
+    return customer_duplicates.match_labels(
+        _probe(fields), contact=contact, company_name=company_name
+    )
