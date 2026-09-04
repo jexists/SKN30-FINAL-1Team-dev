@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
@@ -11,13 +11,18 @@ import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { useScopeOwnerIds, useShowOwner } from '@/shared/scope'
 import { showToast } from '@/shared/toast'
-import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
+import type {
+  Customer,
+  CustomerContactBulkResult,
+  CustomerContactResponse,
+  PageResponse,
+} from '@/types'
 
 import type { BusinessCardDraft } from './businessCard'
 import type { BusinessLicenseDraft } from './businessLicense'
 import { COLUMN_BY_ID } from './columns'
 import { toCustomer } from './contact'
-import { exportCustomers, TooManyCustomersError } from './exportCustomers'
+import { exportCustomers } from './exportCustomers'
 import useColumnPrefs from './useColumnPrefs'
 import BusinessCardModal from './components/BusinessCardModal'
 import BusinessLicenseModal from './components/BusinessLicenseModal'
@@ -25,7 +30,6 @@ import CustomerDrawer from './components/CustomerDrawer'
 import CustomerFormModal from './components/CustomerFormModal'
 import CustomerTable from './components/CustomerTable'
 import ImportModal from './components/ImportModal'
-import SelectionBar from './components/SelectionBar'
 import TableToolbar from './components/TableToolbar'
 
 import styles from './Customers.module.scss'
@@ -59,8 +63,8 @@ export default function Customers() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [exporting, setExporting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [confirmingExport, setConfirmingExport] = useState(false)
   const [editing, setEditing] = useState<Customer | null>(null)
   const [deleting, setDeleting] = useState<Customer | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -162,7 +166,6 @@ export default function Customers() {
     })
   }, [rows])
 
-  const clearSelection = useCallback(() => setSelected(new Set()), [])
   const ignoreSort = useCallback(() => undefined, [])
 
   const closeDialog = useCallback(() => {
@@ -180,13 +183,25 @@ export default function Customers() {
     setReloadKey((value) => value + 1)
   }, [closeDialog])
 
-  const onImported = useCallback(
-    (added: number) => {
-      reload()
-      setNotice(`${added}명을 등록했습니다.`)
-    },
-    [reload],
-  )
+  /*
+   * 엑셀은 줄마다 결과가 갈립니다. 등록한 수만 말하면 나머지가 어디로 갔는지 모릅니다.
+   * 어느 줄이 왜 빠졌는지는 모달이 계속 보여 줘야 하므로 여기서 닫지 않고 목록만
+   * 다시 받습니다. 방금 넣은 고객이 검색어에 걸리지 않을 수 있어 첫 장으로 돌아갑니다.
+   */
+  const onImported = useCallback((result: CustomerContactBulkResult) => {
+    setQuery('')
+    setPage(1)
+    setReloadKey((value) => value + 1)
+    const skipped = [
+      result.duplicate > 0 ? `중복 ${result.duplicate}건` : null,
+      result.invalid > 0 ? `입력 오류 ${result.invalid}건` : null,
+      result.failed > 0 ? `실패 ${result.failed}건` : null,
+    ].filter((label): label is string => label !== null)
+    setNotice(
+      `총 ${result.total}건 중 ${result.success}명을 등록했습니다.` +
+        (skipped.length > 0 ? ` ${skipped.join(' · ')}은 등록하지 않았습니다.` : ''),
+    )
+  }, [])
 
   // 명함에서 읽은 값은 바로 저장하지 않습니다. 사람이 등록 폼에서 확인하고 고칩니다.
   const onRecognized = useCallback((draft: BusinessCardDraft) => {
@@ -262,34 +277,22 @@ export default function Customers() {
       .finally(() => setIsDeleting(false))
   }, [deleting, isDeleting])
 
-  // 내보내기는 화면 밖의 줄까지 모두 모읍니다. 페이지 한 장만 담으면 파일이 거짓말을 합니다.
-  const exportRef = useRef<AbortController | null>(null)
-  useEffect(() => () => exportRef.current?.abort(), [])
+  // 고른 줄만 내보냅니다. 페이지를 넘기면 선택이 풀리므로 지금 보이는 줄이 전부입니다.
+  const picked = useMemo(() => rows.filter((row) => selected.has(row.id)), [rows, selected])
 
   const onExport = useCallback(() => {
-    if (exporting) return
-    const controller = new AbortController()
-    exportRef.current = controller
+    if (picked.length === 0) {
+      showToast('내보낼 고객을 먼저 선택하세요.')
+      return
+    }
+    setConfirmingExport(true)
+  }, [picked])
 
-    setExporting(true)
-    setNotice(null)
-
-    void exportCustomers({ query, ownerIds, columns, signal: controller.signal })
-      .then((count) => {
-        if (!controller.signal.aborted) setNotice(`${count}명을 파일로 내려받았습니다.`)
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return
-        setNotice(
-          error instanceof TooManyCustomersError
-            ? `${error.message} 검색으로 범위를 좁힌 뒤 다시 받아 주세요.`
-            : errorMessage(error, '고객 목록을 내보내지 못했습니다.'),
-        )
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setExporting(false)
-      })
-  }, [columns, exporting, ownerIds, query])
+  const confirmExport = useCallback(() => {
+    const count = exportCustomers({ customers: picked, columns })
+    setConfirmingExport(false)
+    showToast(`${count}명을 내보냈습니다.`)
+  }, [columns, picked])
 
   // 첫 진입입니다. 툴바·탭·표가 차례로 나타나면 화면이 두세 번 들썩이므로
   // 화면 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
@@ -316,11 +319,8 @@ export default function Customers() {
         hiddenColumns={hiddenColumns}
         onAdd={setDialog}
         onExport={onExport}
-        exporting={exporting}
         canExport={total > 0}
       />
-
-      {selected.size > 0 && <SelectionBar count={selected.size} onClear={clearSelection} />}
 
       {notice && (
         <p className={styles.notice} role="status">
@@ -427,6 +427,27 @@ export default function Customers() {
           onCreated={onCustomerCreated}
           onUpdated={onCustomerUpdated}
         />
+      )}
+
+      {confirmingExport && (
+        <Modal
+          title="고객 데이터 다운로드"
+          onClose={() => setConfirmingExport(false)}
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setConfirmingExport(false)}>
+                취소
+              </Button>
+              <Button type="button" onClick={confirmExport}>
+                내보내기
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>
+            체크된 {picked.length}개의 고객 정보를 파일로 내려받습니다.
+          </p>
+        </Modal>
       )}
 
       {deleting && (

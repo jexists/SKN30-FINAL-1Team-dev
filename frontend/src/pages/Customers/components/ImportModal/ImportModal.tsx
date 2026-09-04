@@ -2,44 +2,28 @@ import { useRef, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
-import Button from '@/components/Button'
 import { UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import type {
-  CustomerCompanyCreateRequest,
-  CustomerCompanyResponse,
-  CustomerContactCreateRequest,
-} from '@/types'
-import { parseCsv } from '@/utils/csv'
-import { businessNoDigits } from '@/utils/format'
+import type { CustomerContactBulkItem, CustomerContactBulkResult } from '@/types'
+import { downloadCsv, parseCsv, toCsv } from '@/utils/csv'
+import { TODAY_ISO } from '@/utils/date'
 
+import {
+  HEADER_MAP,
+  HEADERS,
+  MAX_ROWS,
+  REQUIRED,
+  toBulkItem,
+  type Field,
+  type Header,
+} from '../../importCustomers'
 import styles from './ImportModal.module.scss'
 import RecognitionLoading from '../RecognitionLoading'
 
-/** CSV 헤더 ↔ 고객 등록 폼의 칸. 내보내기가 쓰는 이름과 같아 왕복이 됩니다. */
-const HEADER_MAP = {
-  회사: 'org',
-  '사업자 등록번호': 'businessNo',
-  이름: 'name',
-  전화: 'phone',
-  부서: 'dept',
-  직함: 'title',
-  이메일: 'email',
-  방문여부: 'visited',
-  메모: 'memo',
-} as const
-
-type Header = keyof typeof HEADER_MAP
-type Field = (typeof HEADER_MAP)[Header]
-
-const SAMPLE_HEADERS = Object.keys(HEADER_MAP).join(', ')
-const REQUIRED: Record<'name' | 'org' | 'phone', string> = {
-  name: '이름',
-  org: '회사',
-  phone: '전화',
+/** 빈 템플릿을 내려받습니다. 내보내기와 같은 CSV(UTF-8) 규칙을 씁니다. */
+function downloadTemplate() {
+  downloadCsv(`고객등록_템플릿_${TODAY_ISO}.csv`, toCsv(HEADERS, []))
 }
-const PREVIEW_ROWS = 5
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 interface Column {
   field: Field
@@ -47,38 +31,13 @@ interface Column {
   index: number
 }
 
-interface Parsed {
-  filename: string
-  /** 알아본 헤더의 열 위치 */
-  fields: Column[]
-  ignored: string[]
-  rows: string[][]
-}
-
-/** 한 줄을 읽어 본 결과. 보낼 수 없는 줄은 이유를 달고 남습니다. */
-interface Row {
-  line: number
-  values: Record<Field, string>
-  problem: string | null
-}
-
-interface Failure {
-  line: number
-  reason: string
-}
-
-interface Progress {
-  done: number
-  total: number
-  failures: Failure[]
-}
-
-function readRow(cells: string[], at: Map<Field, number>, line: number): Row {
+/** 알아본 열에서 한 줄의 값을 뽑습니다. 없는 열은 빈 값입니다. */
+function readValues(cells: string[], at: Map<Field, number>): Record<Field, string> {
   const pick = (field: Field) => {
     const index = at.get(field)
     return index === undefined ? '' : (cells[index] ?? '').trim()
   }
-  const values: Record<Field, string> = {
+  return {
     org: pick('org'),
     businessNo: pick('businessNo'),
     name: pick('name'),
@@ -89,54 +48,67 @@ function readRow(cells: string[], at: Map<Field, number>, line: number): Row {
     visited: pick('visited'),
     memo: pick('memo'),
   }
-
-  // 고객 등록 폼과 같은 규칙입니다. 여기서 걸러야 서버 왕복을 헛되이 쓰지 않습니다.
-  return { line, values, problem: problemOf(values) }
 }
 
-function problemOf(values: Record<Field, string>): string | null {
-  if (values.name === '') return '이름이 비어 있습니다.'
-  if (values.org === '') return '회사가 비어 있습니다.'
-  if (values.phone === '') return '전화가 비어 있습니다.'
-  if (values.email !== '' && !EMAIL.test(values.email)) {
-    return '이메일 형식이 맞지 않습니다. 예: name@company.com'
-  }
-  if (values.businessNo !== '' && businessNoDigits(values.businessNo).length !== 10) {
-    return '사업자 등록번호는 숫자 10자리입니다. 예: 123-45-67890'
-  }
-  return null
+/*
+ * 등록하지 못한 몫. 줄마다 무엇이 문제인지 늘어놓아도 사용자가 여기서 고칠 수는 없고,
+ * 몇 명이 왜 빠졌는지만 알면 파일을 고쳐 다시 올립니다. 그래서 한 갈래에 한 줄로 셉니다.
+ */
+function skipped(result: CustomerContactBulkResult): string[] {
+  const notes: string[] = []
+  if (result.duplicate > 0) notes.push(`${result.duplicate}명은 이미 등록된 고객입니다.`)
+  if (result.invalid > 0) notes.push(`${result.invalid}명은 입력한 내용에 오류가 있습니다.`)
+  if (result.failed > 0) notes.push(`${result.failed}명은 등록하지 못했습니다.`)
+  return notes
 }
-
-const optional = (value: string): string | null => value || null
 
 interface ImportModalProps {
   onClose: () => void
   /** 한 명이라도 들어왔을 때. 목록을 다시 받습니다. */
-  onImported: (added: number) => void
+  onImported: (result: CustomerContactBulkResult) => void
 }
 
 export default function ImportModal({ onClose, onImported }: ImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  // 같은 회사가 여러 줄에 나옵니다. 이름당 한 번만 서버에 묻고 결과를 들고 있습니다.
-  const companyIds = useRef(new Map<string, string>())
-  const [parsed, setParsed] = useState<Parsed | null>(null)
-  const [rows, setRows] = useState<Row[]>([])
+  const [filename, setFilename] = useState<string | null>(null)
+  const [count, setCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [progress, setProgress] = useState<Progress | null>(null)
+  const [result, setResult] = useState<CustomerContactBulkResult | null>(null)
   const [parsing, setParsing] = useState(false)
   const [sending, setSending] = useState(false)
 
-  const ready = rows.filter((row) => row.problem === null)
-  const skipped = rows.filter((row) => row.problem !== null)
+  /*
+   * 읽은 줄을 전부 한 번에 보냅니다. 어떤 줄을 등록할지는 줄마다 서버가 봅니다.
+   * 파일 안에서 같은 사람이 여러 번 나오는 경우도 한 요청 안에서 봐야 걸러집니다.
+   */
+  const send = async (items: CustomerContactBulkItem[]) => {
+    setSending(true)
+    try {
+      const { data } = await client.post<CustomerContactBulkResult>('/customer-contacts/bulk', {
+        items,
+      })
+      setResult(data)
+      onImported(data)
+    } catch (caught: unknown) {
+      setError(errorMessage(caught, '고객을 등록하지 못했습니다.'))
+    } finally {
+      setSending(false)
+    }
+  }
 
+  /*
+   * 파일을 고르면 그대로 보냅니다. 보내기 전에 한 번 더 보여 줘도 사용자가 손볼 것은
+   * 없고, 몇 명이 왜 빠졌는지는 등록한 뒤 결과에 남습니다.
+   * 여기서 막는 것은 아예 보낼 수 없는 파일뿐입니다.
+   */
   const readFile = async (file: File) => {
     if (parsing || sending) return
 
     setParsing(true)
     setError(null)
-    setParsed(null)
-    setRows([])
-    setProgress(null)
+    setFilename(file.name)
+    setCount(0)
+    setResult(null)
 
     try {
       const table = parseCsv(await file.text())
@@ -161,20 +133,20 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
         return
       }
 
-      const at = new Map(fields.map((column) => [column.field, column.index]))
       const body = table.slice(1)
+      if (body.length > MAX_ROWS) {
+        setError(
+          `한 번에 ${MAX_ROWS.toLocaleString()}명까지 등록할 수 있습니다. 파일을 나눠서 올려 주세요.`,
+        )
+        return
+      }
 
-      companyIds.current.clear()
-      setParsed({
-        filename: file.name,
-        fields,
-        ignored: headers.filter(
-          (header) => HEADER_MAP[header as Header] === undefined && header !== '',
-        ),
-        rows: body,
-      })
+      const at = new Map(fields.map((column) => [column.field, column.index]))
       // 첫 줄이 열 이름이므로 데이터 첫 줄은 파일에서 2번째 줄입니다.
-      setRows(body.map((cells, index) => readRow(cells, at, index + 2)))
+      const items = body.map((cells, index) => toBulkItem(index + 2, readValues(cells, at)))
+      setCount(items.length)
+      setParsing(false)
+      await send(items)
     } catch {
       setError('엑셀 파일을 읽지 못했습니다. CSV(UTF-8) 파일인지 확인해 주세요.')
     } finally {
@@ -182,115 +154,53 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
     }
   }
 
-  const resolveCompanyId = async (name: string, businessNo: string) => {
-    const cached = companyIds.current.get(name)
-    if (cached !== undefined) return cached
-
-    const payload: CustomerCompanyCreateRequest = {
-      name,
-      region_code: null,
-      business_no: businessNoDigits(businessNo) || null,
-      // 엑셀에는 주소 열이 없습니다. 회사 화면에서 나중에 채웁니다.
-      postcode: null,
-      address: null,
-      address_detail: null,
-    }
-    // 이미 있는 이름이면 백엔드가 기존 회사를 그대로 돌려줍니다.
-    const { data } = await client.post<CustomerCompanyResponse>('/customer-companies', payload)
-    companyIds.current.set(name, data.id)
-    return data.id
-  }
-
-  const send = async () => {
-    if (parsing || sending || ready.length === 0) return
-
-    setSending(true)
-    setError(null)
-
-    const failures: Failure[] = []
-    let done = 0
-    setProgress({ done, total: ready.length, failures })
-
-    // 한 줄씩 보냅니다. 한꺼번에 던지면 같은 회사를 여러 번 만들고 서버도 함께 밀립니다.
-    for (const row of ready) {
-      try {
-        const payload: CustomerContactCreateRequest = {
-          company_id: await resolveCompanyId(row.values.org, row.values.businessNo),
-          name: row.values.name,
-          department: optional(row.values.dept),
-          job_title: optional(row.values.title),
-          email: optional(row.values.email),
-          phone: row.values.phone,
-          status_code: 'new',
-          source_code: null,
-          memo: optional(row.values.memo),
-          // 방문이라고 적힌 줄만 방문입니다. 비어 있으면 아직 만나기 전입니다.
-          visited: row.values.visited === '방문',
-        }
-        await client.post('/customer-contacts', payload)
-        done += 1
-      } catch (caught: unknown) {
-        failures.push({ line: row.line, reason: errorMessage(caught, '등록하지 못했습니다.') })
-      }
-      setProgress({ done, total: ready.length, failures: [...failures] })
-    }
-
-    setSending(false)
-    if (done > 0) onImported(done)
-  }
-
   const close = () => {
     if (!parsing && !sending) onClose()
   }
 
-  const confirmLabel = () => {
-    if (parsing) return '인식중입니다…'
-    if (sending) return `${progress?.done ?? 0} / ${ready.length}명 등록 중…`
-    if (parsed === null) return '파일을 먼저 선택하세요'
-    if (ready.length === 0) return '등록할 줄이 없습니다'
-    return `${ready.length}명 등록`
-  }
+  const notes = result ? skipped(result) : []
+  /*
+   * 제목은 등록이 어떻게 끝났는지만 말하고, 몇 명이 어떻게 되었는지는 본문이 셉니다.
+   * 한 명도 못 들어왔는데 "완료"라고 하면 목록을 열어 보고 나서야 알게 됩니다.
+   */
+  const heading =
+    result === null
+      ? '엑셀로 고객 등록'
+      : result.success === 0
+        ? '등록 실패'
+        : notes.length > 0
+          ? '일부 등록 완료'
+          : '등록 완료'
 
   return (
-    <Modal
-      title="엑셀로 고객 등록"
-      description="Excel 에서 CSV(UTF-8)로 저장한 파일을 넣으면 한 줄이 고객 한 명이 됩니다."
-      onClose={close}
-      size="lg"
-      footer={
+    <Modal title={heading} description="" onClose={close} size={result === null ? 'lg' : 'md'}>
+      {/*
+        고르는 자리는 고를 때만 둡니다. 읽는 중에는 누를 수 없고 등록이 끝나면 같은 파일을
+        다시 올릴 일이 없어, 남겨 두면 아직 할 일이 있는 것처럼 읽힙니다.
+      */}
+      {result === null && !parsing && !sending && (
         <>
-          <Button type="button" variant="outline" disabled={parsing || sending} onClick={close}>
-            {progress === null ? '취소' : '닫기'}
-          </Button>
-          <Button type="button" disabled={parsing || sending || ready.length === 0} onClick={send}>
-            {confirmLabel()}
-          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void readFile(file)
+              // 같은 파일을 고쳐서 다시 고르면 change 가 뜨지 않습니다.
+              event.target.value = ''
+            }}
+          />
+          <button type="button" className={styles.drop} onClick={() => fileRef.current?.click()}>
+            <UploadIcon width={22} height={22} strokeWidth={1.5} />
+            <strong>{filename ?? 'CSV 파일 선택'}</strong>
+          </button>
+          <button type="button" className={styles.template} onClick={downloadTemplate}>
+            엑셀 템플릿 다운로드
+          </button>
         </>
-      }
-    >
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".csv,text/csv"
-        className="sr-only"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          if (file) void readFile(file)
-          // 같은 파일을 고쳐서 다시 고르면 change 가 뜨지 않습니다.
-          event.target.value = ''
-        }}
-      />
-
-      <button
-        type="button"
-        className={styles.drop}
-        disabled={parsing || sending}
-        onClick={() => fileRef.current?.click()}
-      >
-        <UploadIcon width={28} height={28} strokeWidth={1.5} />
-        <strong>{parsed ? parsed.filename : 'CSV 파일 선택'}</strong>
-        <span>열 이름: {SAMPLE_HEADERS}</span>
-      </button>
+      )}
 
       {error && (
         <p className={styles.error} role="alert">
@@ -303,90 +213,21 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
           description={
             parsing
               ? '엑셀 파일에서 고객 정보를 확인하고 있습니다.'
-              : `${progress?.done ?? 0} / ${progress?.total ?? ready.length}명 고객을 등록하고 있습니다.`
-          }
-          progress={
-            sending && progress && progress.total > 0
-              ? (progress.done / progress.total) * 100
-              : undefined
+              : `${count}명 고객을 등록하고 있습니다.`
           }
         />
       )}
 
-      {parsed && !parsing && (
-        <div className={styles.result}>
-          <p className={styles.summary}>
-            <span className="tnum">{parsed.rows.length}</span>줄을 읽었습니다. 담당자는 등록하는
-            사람으로, 상태는 신규로 넣습니다. 방문여부는 방문이라고 적힌 줄만 방문이 됩니다.
-            {parsed.ignored.length > 0 && (
-              <> 알아보지 못한 열은 건너뜁니다 — {parsed.ignored.join(', ')}</>
-            )}
-          </p>
-
-          {skipped.length > 0 && (
-            <ul className={styles.problems}>
-              {skipped.slice(0, PREVIEW_ROWS).map((row) => (
-                <li key={row.line}>
-                  <b className="tnum">{row.line}번째 줄</b> {row.problem}
-                </li>
-              ))}
-              {skipped.length > PREVIEW_ROWS && (
-                <li>
-                  보내지 않는 줄이 모두 {skipped.length}개입니다. 위 {PREVIEW_ROWS}개만 보여 줍니다.
-                </li>
-              )}
-            </ul>
-          )}
-
-          <div className={styles.previewWrap}>
-            <table className={styles.preview}>
-              <thead>
-                <tr>
-                  {parsed.fields.map((column) => (
-                    <th key={column.header} scope="col">
-                      {column.header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {parsed.rows.slice(0, PREVIEW_ROWS).map((cells, index) => (
-                  <tr key={index}>
-                    {parsed.fields.map((column) => (
-                      <td key={column.header}>{cells[column.index] ?? ''}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {parsed.rows.length > PREVIEW_ROWS && (
-            <p className={styles.more}>
-              위 {PREVIEW_ROWS}줄만 미리 보여 줍니다. 나머지 {parsed.rows.length - PREVIEW_ROWS}
-              줄도 함께 보냅니다.
-            </p>
-          )}
-        </div>
-      )}
-
-      {progress && (
+      {result && (
         <div className={styles.result} role="status">
-          <p className={styles.summary}>
-            <span className="tnum">{progress.done}</span>명을 등록했습니다.
-            {progress.failures.length > 0 && (
-              <> 등록하지 못한 줄이 {progress.failures.length}개 있습니다.</>
-            )}
+          <p className={styles.lead}>
+            {result.success > 0 ? `${result.success}명 등록했습니다.` : '등록한 고객이 없습니다.'}
           </p>
-          {progress.failures.length > 0 && (
-            <ul className={styles.problems}>
-              {progress.failures.slice(0, PREVIEW_ROWS).map((failure) => (
-                <li key={failure.line}>
-                  <b className="tnum">{failure.line}번째 줄</b> {failure.reason}
-                </li>
-              ))}
-            </ul>
-          )}
+          {notes.map((note) => (
+            <p key={note} className={styles.note}>
+              {note}
+            </p>
+          ))}
         </div>
       )}
     </Modal>

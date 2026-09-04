@@ -91,7 +91,7 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
   return (
     <Modal
       title="사업자 등록증으로 고객 등록"
-      description="사업자등록증 PDF 또는 이미지를 업로드하면 읽어 낸 값이 고객 등록 폼에 채워집니다."
+      description=""
       onClose={close}
       footer={
         <>

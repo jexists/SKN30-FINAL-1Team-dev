@@ -52,6 +52,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   assignee_member_not_found: '고른 담당자를 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   customer_company_not_found: '고객사를 찾지 못했습니다. 다시 시도해 주세요.',
   customer_contact_not_found: '고객을 찾지 못했습니다. 목록을 새로 불러와 주세요.',
+  customer_contact_duplicate: '이미 등록된 고객입니다. 기존 고객 정보를 확인해 주세요.',
   customer_contact_status_code_not_found: '고객 상태 설정을 확인해 주세요.',
   // 문자 인식(OCR)·AI 처리. 자료실과 명함이 같은 코드를 씁니다.
   ocr_not_configured: '문자 인식 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
