@@ -515,7 +515,7 @@ UQ는 `(owner_member_id, customer_company_id, target_month)`다.
 | `id` | `uuid` | NN | PK |
 | `report_id` | `uuid` | NULL | FK → `report.id` |
 | `document_id` | `uuid` | NULL | FK → `document.id` |
-| `version_no` | `integer` | NULL | 문서 파일이면 `>= 1`, 보고서 파일이면 NULL |
+| `version_no` | `integer` | NULL | 문서 파일이면 `>= 1`(버전 관리를 쓰지 않아 항상 1), 보고서 파일이면 NULL |
 | `file_name` | `text` | NN | 비어 있지 않음 |
 | `storage_key` | `text` | NN | UQ, 비어 있지 않음 |
 | `media_type` | `text` | NULL | 값이 있으면 비어 있지 않음 |

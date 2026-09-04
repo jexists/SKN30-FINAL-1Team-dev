@@ -9,7 +9,7 @@
 | `id` | UUID | PK | NO | – | 기본 키 |
 | `report_id` | UUID | FK → report.id | YES | – | 첨부된 보고서 ID |
 | `document_id` | UUID | FK → document.id | YES | – | 첨부된 자료 ID |
-| `version_no` | INTEGER | – | YES | – | 자료 안에서의 버전 번호 |
+| `version_no` | INTEGER | – | YES | – | 자료 파일은 항상 1. 버전 관리를 쓰지 않아 고정값이며 예전 자료에는 2 이상이 남아 있다 |
 | `file_name` | TEXT | – | NO | – | 원본 파일 이름 |
 | `storage_key` | TEXT | UNIQUE | NO | – | 스토리지 파일 키 |
 | `media_type` | TEXT | – | YES | – | 파일 MIME 타입 |
@@ -32,7 +32,7 @@
 
 ## Constraints
 
-- **UNIQUE** `file_document_id_version_no_key` — `UNIQUE (document_id, version_no)`
+- **UNIQUE** `file_document_id_version_no_key` — `UNIQUE (document_id, version_no)` (`version_no`가 1로 고정이라 자료 하나에 파일 하나를 보장한다)
 - **CHECK** `file_byte_size_check` — `CHECK ((byte_size >= 0))`
 - **CHECK** `file_document_version` — `CHECK ((((document_id IS NOT NULL) AND (version_no IS NOT NULL) AND (version_no >= 1)) OR ((report_id IS NOT NULL) AND (version_no IS NULL))))`
 - **CHECK** `file_exactly_one_parent` — `CHECK ((num_nonnulls(report_id, document_id) = 1))`
