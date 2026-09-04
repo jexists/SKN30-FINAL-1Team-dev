@@ -89,4 +89,8 @@ backend/pipeline/artifacts/*
 .claude/plans/
 .playwright-mcp/
 
+# sqlite 를 :memory: 로 열 때 도구가 남기는 세션 파일. 파일명에 콜론이 들어가
+# Windows 에서 체크아웃이 거부되고, CI 가 checkout 단계에서 통째로 실패한다.
+:memory:*
+
 # NOTE: uv.lock 과 package-lock.json 은 버전 고정이 목적이므로 커밋한다.
