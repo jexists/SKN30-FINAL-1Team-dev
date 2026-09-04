@@ -100,6 +100,21 @@ def reset_dependency_overrides():
     app.dependency_overrides.clear()
 
 
+def _silence_agents(monkeypatch) -> None:
+    """등록 뒤에 딸려 도는 에이전트를 막는다.
+
+    일정을 만들면 브리핑이 큐에 들어가고, 딜이 붙어 있으면 계약 에이전트도 부른다.
+    TestClient 는 백그라운드 작업을 응답 뒤에 그대로 돌리므로, 막지 않으면 목 DB 를
+    둔 테스트가 진짜 DB 로 붙는다. 이 테스트들이 보는 것은 등록 자체다.
+    """
+    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+
+    async def _no_briefing(*_args, **_kwargs):
+        return None, None
+
+    monkeypatch.setattr(agent_run_service, "create", _no_briefing)
+
+
 def _member(*, role: str = "member", team_id: UUID | None = None) -> Member:
     return Member(
         id=uuid4(),
@@ -438,9 +453,7 @@ def test_manager_owner_filter_is_limited_to_active_same_team_members():
 
 
 def test_create_uses_authenticated_owner_and_same_team_references(monkeypatch):
-    # 딜이 붙은 등록은 계약 에이전트를 백그라운드로 부른다. TestClient 는 그 작업을
-    # 응답 뒤에 그대로 돌리므로, 막지 않으면 목이 아니라 진짜 DB 로 붙는다.
-    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+    _silence_agents(monkeypatch)
     member = _member()
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
@@ -658,7 +671,7 @@ def test_patch_rejects_contact_and_existing_deal_from_different_companies():
 
 def test_create_accepts_an_activity_without_a_sales_deal(monkeypatch):
     """딜은 비워 둘 수 있다 — 인사차 방문처럼 영업 건과 무관한 만남이 있다."""
-    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+    _silence_agents(monkeypatch)
     member = _member()
     company = _company(member.team_id)
     db = _Db(
@@ -684,9 +697,54 @@ def test_create_accepts_an_activity_without_a_sales_deal(monkeypatch):
     assert db.commit_count == 1
 
 
+def test_create_queues_a_briefing_for_a_hand_made_activity(monkeypatch):
+    """AI 추천을 거치지 않고 손으로 만든 일정에도 브리핑을 붙인다.
+
+    브리핑은 미팅 전에 훑어보라고 만드는 것인데, 예전에는 AI 추천을 수락한 일정에만
+    붙어서 정작 사람이 직접 잡은 일정에는 없었다. 딜이 없어도 만들어진다 — 입력은
+    activity_id 하나로 고객사와 그 회사의 열린 딜까지 모인다.
+    """
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+    queued: list[dict] = []
+
+    async def _capture(payload, _member, _db):
+        queued.append(payload.model_dump(mode="json"))
+        return None, None
+
+    monkeypatch.setattr(agent_run_service, "create", _capture)
+
+    member = _member()
+    company = _company(member.team_id)
+    db = _Db(
+        _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.name),  # _team_company
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_company_id": str(company.id),
+                "category_code": "visit",
+                "title": "손으로 잡은 방문",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    assert response.status_code == 201
+    assert len(queued) == 1
+    assert queued[0]["agent_code"] == "contract_management_briefing"
+    assert queued[0]["activity_id"] == response.json()["id"]
+    # AI 제안을 거치지 않았으므로 부모 실행이 없다.
+    assert queued[0]["parent_run_id"] is None
+    assert response.json()["briefing_queue_warning"] is None
+
+
 def test_create_rejects_a_sales_deal_from_another_company(monkeypatch):
     """딜을 붙였다면 그 딜은 이 일정의 고객사 것이어야 한다."""
-    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+    _silence_agents(monkeypatch)
     member = _member()
     company = _company(member.team_id)
     other_company_deal = _deal(team_id=member.team_id, company_id=uuid4(), owner_id=member.id)
@@ -720,7 +778,7 @@ def test_create_without_a_contact_still_answers_with_the_company(monkeypatch):
     저장은 되는데 응답만 비어 나가면 화면이 방금 만든 일정을 잘못 그린다. 회사를
     담당자 조회 결과에서만 가져오던 탓이었다.
     """
-    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+    _silence_agents(monkeypatch)
     member = _member()
     company = _company(member.team_id)
     deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)

@@ -662,22 +662,29 @@ async def create_activity(
 
     # 일정 등록은 이미 커밋됐다 — 이 아래에서 브리핑 큐잉이 실패해도 등록 자체는 되돌리지
     # 않고, 실패 사유만 응답에 경고로 실어 보낸다.
+    # 브리핑은 어느 경로로 만든 일정이든 붙인다. 미팅 전에 훑어보라고 만드는 것인데
+    # AI 추천을 수락한 일정에만 붙어 있어, 사람이 직접 잡은 일정에는 없었다. 딜이 없어도
+    # 만들어진다 — 입력은 activity_id 하나로 고객사·그 회사의 열린 딜·자료실까지 모인다.
+    # AI 제안을 거친 일정만 parent_run_id 를 남긴다(agent_runs 가 그 필드를 선택으로 둔
+    # 이유다: "캘린더 직접 입력이나 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은
+    # 부모 없이 activity_id만으로 만든다").
+    try:
+        _, briefing_run_id = await agent_run_service.create(
+            AgentRunCreate(
+                agent_code="contract_management_briefing",
+                activity_id=activity_id,
+                parent_run_id=schedule_management_run_id,
+                idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity_id)),
+            ),
+            member,
+            db,
+        )
+        if briefing_run_id is not None:
+            background.add_task(agent_run_service.execute, briefing_run_id)
+    except HTTPException as error:
+        read.briefing_queue_warning = str(error.detail)
+
     if schedule_management_run_id is not None:
-        try:
-            _, briefing_run_id = await agent_run_service.create(
-                AgentRunCreate(
-                    agent_code="contract_management_briefing",
-                    activity_id=activity_id,
-                    parent_run_id=schedule_management_run_id,
-                    idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity_id)),
-                ),
-                member,
-                db,
-            )
-            if briefing_run_id is not None:
-                background.add_task(agent_run_service.execute, briefing_run_id)
-        except HTTPException as error:
-            read.briefing_queue_warning = str(error.detail)
         read.schedule_conflict_warning = await _conflict_warning(
             db,
             team_id=team_id,
