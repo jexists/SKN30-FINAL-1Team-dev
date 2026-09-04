@@ -10,11 +10,6 @@ interface Props {
   progress?: MeetingProgress | null
   generating?: boolean
   disabled?: boolean
-  /**
-   * 쓸 내용이 아직 없어도 칸을 띄웁니다. 딜을 고르지 않은 미팅은 여기가 유일한 기록
-   * 자리라, 비어 있다고 감추면 쓸 데가 없어집니다.
-   */
-  alwaysVisible?: boolean
   onChange?: (commonBody: string, unassignedBody: string) => void
 }
 
@@ -23,20 +18,13 @@ export default function MeetingSharedPanel({
   progress,
   generating = false,
   disabled = false,
-  alwaysVisible = false,
   onChange,
 }: Props) {
   const id = useId()
   const commonBody = shared?.common_report?.body ?? ''
   const unassignedBody = shared?.unassigned_report?.body ?? ''
   const previews = progress?.previews.filter((preview) => preview.section !== 'deal') ?? []
-  if (
-    !alwaysVisible &&
-    !shared?.common_report &&
-    !shared?.unassigned_report &&
-    !previews.length &&
-    !generating
-  )
+  if (!shared?.common_report && !shared?.unassigned_report && !previews.length && !generating)
     return null
 
   return (

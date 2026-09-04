@@ -222,11 +222,8 @@ class ReportFinalize(_WriteModel):
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
                 raise ValueError("source_activity_required")
-            # 딜은 고르지 않아도 된다. 인사차 방문처럼 특정 영업 건을 진전시키지 않는
-            # 만남이 있고, 그 방문도 기록으로 남아야 한다. 그때 내용은 딜별 칸이 아니라
-            # 공통·미배정 칸에 들어간다. 다만 셋 다 비면 빈 보고서라 막는다.
-            if not self.deal_sections and self.common_body is None and self.unassigned_body is None:
-                raise ValueError("meeting_body_required")
+            if not self.deal_sections:
+                raise ValueError("deal_sections_required")
             if self.sales_deal_id is not None:
                 raise ValueError("sales_deal_not_supported")
             if self.body is not None:

@@ -494,13 +494,6 @@ export default function Compose() {
               disabled={busy || !canEdit}
               onGenerate={requestGeneration}
             />
-            {draft.salesDealIds.length === 0 && (
-              <p className={styles.generationNote}>
-                딜을 고르지 않으면 AI 초안은 만들 수 없습니다 — 딜별로 정리하는 분석이라 대상이
-                있어야 합니다. 인사차 방문처럼 딜과 무관한 미팅은 아래 공통 기록에 직접 적고 저장해
-                주세요.
-              </p>
-            )}
             {draft.salesDealIds.length > 0 && !generatable && (
               <p className={styles.generationNote}>
                 선택한 딜 중 읽기 전용 또는 수정중 상태가 아닌 보고서가 있어 미팅 전체를 다시 생성할
@@ -515,42 +508,33 @@ export default function Compose() {
         </div>
 
         <section className={styles.work} aria-label="딜별 미팅보고서">
-          <div className={styles.saveBar} aria-busy={submitting}>
-            <div className={styles.saveCopy}>
-              <strong>미팅 보고서</strong>
-              <p>
-                {draft.salesDealIds.length > 0
-                  ? `공통 기록과 딜 ${draft.salesDealIds.length}건을 한 문서로 저장합니다.`
-                  : '딜을 고르지 않았습니다. 공통 기록만 한 문서로 저장합니다.'}
-              </p>
+          {draft.salesDealIds.length > 0 && (
+            <div className={styles.saveBar} aria-busy={submitting}>
+              <div className={styles.saveCopy}>
+                <strong>미팅 보고서</strong>
+                <p>공통 기록과 딜 {draft.salesDealIds.length}건을 한 문서로 저장합니다.</p>
+              </div>
+              <Button
+                type="button"
+                className={styles.saveAllButton}
+                aria-label="업무보고 작성 완료"
+                disabled={
+                  busy ||
+                  editableDealIds.length !== draft.salesDealIds.length ||
+                  emptyDealIds.length > 0
+                }
+                onClick={() => void submitAll()}
+              >
+                {submitting ? '완료 중…' : '업무보고 작성 완료'}
+              </Button>
             </div>
-            <Button
-              type="button"
-              className={styles.saveAllButton}
-              aria-label="업무보고 작성 완료"
-              disabled={
-                busy ||
-                editableDealIds.length !== draft.salesDealIds.length ||
-                emptyDealIds.length > 0 ||
-                // 딜이 없으면 빈 칸 검사가 걸리지 않는다. 서버도 셋 다 비면 막으므로
-                // 여기서 먼저 알린다.
-                !hasDraftContent
-              }
-              onClick={() => void submitAll()}
-            >
-              {submitting ? '완료 중…' : '업무보고 작성 완료'}
-            </Button>
-          </div>
-          {(result ||
-            draft.processingProgress ||
-            generating ||
-            draft.salesDealIds.length === 0) && (
+          )}
+          {(result || draft.processingProgress || generating) && (
             <MeetingSharedPanel
               shared={result?.shared ?? null}
               progress={draft.processingProgress}
               generating={generating}
               disabled={busy}
-              alwaysVisible={draft.salesDealIds.length === 0}
               onChange={canEdit ? draft.setShared : undefined}
             />
           )}
