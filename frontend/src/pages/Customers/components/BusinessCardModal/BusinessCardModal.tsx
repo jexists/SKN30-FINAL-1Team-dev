@@ -106,7 +106,7 @@ export default function BusinessCardModal({
   return (
     <Modal
       title="명함으로 고객 등록"
-      description="명함을 찍은 사진을 넣으면 이름·회사·연락처를 읽어 등록 폼에 채웁니다."
+      description=""
       onClose={close}
       footer={
         <>

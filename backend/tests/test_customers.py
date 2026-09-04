@@ -14,6 +14,7 @@ from app.models.configuration import CustomerContactStatus
 from app.models.crm import CustomerCompany, CustomerContact, CustomerContactAssignee
 from app.models.workspace import Member
 from app.schemas.customers import (
+    BULK_MAX_ROWS,
     CustomerCompanyCreate,
     CustomerCompanyPatch,
     CustomerContactCreate,
@@ -69,11 +70,17 @@ class _Db:
         self.flush_count = 0
         self.commit_count = 0
         self.rollback_count = 0
+        self.savepoints = 0
+        self.savepoint_rollbacks = 0
 
     async def execute(self, statement):
         self.statements.append(statement)
         assert self.results
-        return self.results.pop(0)
+        result = self.results.pop(0)
+        # 한 줄이 실패해도 나머지가 등록되는지 보려면 그 줄에서만 터뜨릴 수 있어야 한다.
+        if isinstance(result, Exception):
+            raise result
+        return result
 
     def add(self, value):
         self.added.append(value)
@@ -93,6 +100,25 @@ class _Db:
 
     async def rollback(self):
         self.rollback_count += 1
+
+    def begin_nested(self):
+        return _Savepoint(self)
+
+
+class _Savepoint:
+    """엑셀 일괄 등록이 줄마다 여는 저장점. 실패한 줄만 되돌린다."""
+
+    def __init__(self, db: "_Db"):
+        self.db = db
+
+    async def __aenter__(self):
+        self.db.savepoints += 1
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if exc_type is not None:
+            self.db.savepoint_rollbacks += 1
+        return False
 
 
 @pytest.fixture(autouse=True)
@@ -364,7 +390,7 @@ def test_contact_create_uses_current_owner_and_join_fields():
     member = _member()
     company = _company(member.team_id)
     contact_status = _contact_status(member.team_id, code="proposal")
-    db = _Db(_Result(scalar=company), _Result(scalar=contact_status))
+    db = _Db(_Result(scalar=company), _Result(rows=[]), _Result(scalar=contact_status))
 
     with _client(db, member) as client:
         response = client.post(
@@ -506,7 +532,7 @@ def test_contact_patch_revalidates_destination_company_team():
 def test_contact_status_write_resolves_only_active_same_team_lookup():
     member = _member()
     company = _company(member.team_id)
-    create_db = _Db(_Result(scalar=company), _Result(scalar=None))
+    create_db = _Db(_Result(scalar=company), _Result(rows=[]), _Result(scalar=None))
     with _client(create_db, member) as client:
         other_team = client.post(
             "/api/customer-contacts",
@@ -541,7 +567,7 @@ def test_contact_status_write_resolves_only_active_same_team_lookup():
         other_team.json() == deleted.json() == {"detail": "customer_contact_status_code_not_found"}
     )
     for statement, code in (
-        (create_db.statements[1], "other_team_status"),
+        (create_db.statements[2], "other_team_status"),
         (patch_db.statements[2], "deleted_status"),
     ):
         sql = str(statement)
@@ -610,7 +636,7 @@ def test_write_failure_rolls_back_transaction():
 def test_contact_create_records_creator_and_defaults_assignee_to_self():
     member = _member()
     company = _company(member.team_id)
-    db = _Db(_Result(scalar=company))
+    db = _Db(_Result(scalar=company), _Result(rows=[]))
 
     with _client(db, member) as client:
         response = client.post(
@@ -627,8 +653,8 @@ def test_contact_create_records_creator_and_defaults_assignee_to_self():
     body = response.json()
     assert body["owner_member_id"] == body["created_by_member_id"] == str(member.id)
     assert body["assignees"] == [{"id": str(member.id), "display_name": member.display_name}]
-    # 담당자를 안 보내면 팀원 목록을 읽을 이유가 없다.
-    assert len(db.statements) == 1
+    # 담당자를 안 보내면 팀원 목록을 읽을 이유가 없다. 회사 조회와 중복 확인 둘뿐이다.
+    assert len(db.statements) == 2
     assignee_rows = [row for row in db.added if isinstance(row, CustomerContactAssignee)]
     assert [row.member_id for row in assignee_rows] == [member.id]
     assert assignee_rows[0].customer_contact_id == db.added[0].id
@@ -641,7 +667,7 @@ def test_manager_assigns_several_owners_and_first_one_becomes_representative():
     first.display_name = "합성 담당자 가"
     second = _member(team_id=manager.team_id)
     second.display_name = "합성 담당자 나"
-    db = _Db(_Result(scalar=company), _Result(scalar_values=[second, first]))
+    db = _Db(_Result(scalar=company), _Result(rows=[]), _Result(scalar_values=[second, first]))
 
     with _client(db, manager) as client:
         response = client.post(
@@ -665,7 +691,7 @@ def test_manager_assigns_several_owners_and_first_one_becomes_representative():
     assert [row["id"] for row in body["assignees"]] == [str(first.id), str(second.id)]
     assignee_rows = [row for row in db.added if isinstance(row, CustomerContactAssignee)]
     assert [row.member_id for row in assignee_rows] == [first.id, second.id]
-    lookup = db.statements[1]
+    lookup = db.statements[2]
     assert manager.team_id in lookup.compile().params.values()
     assert "public.member.active IS true" in str(lookup)
 
@@ -675,7 +701,7 @@ def test_member_may_only_assign_themselves():
     company = _company(member.team_id)
     other = _member(team_id=member.team_id)
 
-    forbidden_db = _Db(_Result(scalar=company))
+    forbidden_db = _Db(_Result(scalar=company), _Result(rows=[]))
     with _client(forbidden_db, member) as client:
         forbidden = client.post(
             "/api/customer-contacts",
@@ -688,7 +714,7 @@ def test_member_may_only_assign_themselves():
             },
         )
 
-    allowed_db = _Db(_Result(scalar=company), _Result(scalar_values=[member]))
+    allowed_db = _Db(_Result(scalar=company), _Result(rows=[]), _Result(scalar_values=[member]))
     with _client(allowed_db, member) as client:
         allowed = client.post(
             "/api/customer-contacts",
@@ -713,7 +739,7 @@ def test_assignees_must_exist_in_the_team_and_cannot_be_empty():
     company = _company(manager.team_id)
     stranger = _member()
 
-    missing_db = _Db(_Result(scalar=company), _Result(scalar_values=[]))
+    missing_db = _Db(_Result(scalar=company), _Result(rows=[]), _Result(scalar_values=[]))
     with _client(missing_db, manager) as client:
         missing = client.post(
             "/api/customer-contacts",
@@ -726,7 +752,7 @@ def test_assignees_must_exist_in_the_team_and_cannot_be_empty():
             },
         )
 
-    empty_db = _Db(_Result(scalar=company))
+    empty_db = _Db(_Result(scalar=company), _Result(rows=[]))
     with _client(empty_db, manager) as client:
         empty = client.post(
             "/api/customer-contacts",
@@ -1091,3 +1117,347 @@ def test_deleted_customers_are_hidden_from_list_and_detail():
 
     for statement in (list_db.statements[0], list_db.statements[1], detail_db.statements[0]):
         assert "customer_contact.deleted_at IS NULL" in str(statement)
+
+
+def _bulk_item(row: int, **overrides) -> dict:
+    """엑셀 한 줄. 프론트가 CSV 를 읽어 보내는 모양 그대로다."""
+    item = {
+        "row": row,
+        "company_name": "합성 고객사",
+        "business_no": "",
+        "name": f"합성 고객{row}",
+        "department": "",
+        "job_title": "",
+        "email": "",
+        "phone": f"010-0000-{row:04d}",
+        "visited": "",
+        "memo": "",
+    }
+    item.update(overrides)
+    return item
+
+
+def _bulk_post(db: _Db, member: Member, items: list[dict]):
+    with _client(db, member) as client:
+        return client.post(
+            "/api/customer-contacts/bulk",
+            headers={"Origin": ORIGIN},
+            json={"items": items},
+        )
+
+
+def test_bulk_registers_rows_and_asks_for_each_company_only_once():
+    member = _member()
+    company = _company(member.team_id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        # 2번 줄: 중복 조회 → 회사 조회
+        _Result(rows=[]),
+        _Result(scalar=company),
+        # 3번 줄: 회사는 이미 찾아 뒀으므로 중복만 묻는다.
+        _Result(rows=[]),
+    )
+
+    response = _bulk_post(db, member, [_bulk_item(2), _bulk_item(3)])
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["total"], body["success"], body["duplicate"], body["invalid"], body["failed"]) == (
+        2,
+        2,
+        0,
+        0,
+        0,
+    )
+    assert [row["row"] for row in body["results"]] == [2, 3]
+    assert {row["status"] for row in body["results"]} == {"success"}
+    contacts = [row for row in db.added if isinstance(row, CustomerContact)]
+    assert [contact.company_id for contact in contacts] == [company.id, company.id]
+    # 담당자·등록자는 요청한 사람이고 상태는 신규다.
+    assert {contact.owner_member_id for contact in contacts} == {member.id}
+    assert {contact.created_by_member_id for contact in contacts} == {member.id}
+    assert {contact.customer_contact_status_id for contact in contacts} == {contact_status.id}
+    assert {contact.visited for contact in contacts} == {False}
+    assert db.commit_count == 1
+
+
+def test_bulk_creates_a_missing_company_and_keeps_the_existing_business_no():
+    member = _member()
+    existing = _company(member.team_id)
+    existing.business_no = "1234567890"
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        _Result(rows=[]),
+        # 새 회사다. 사업자등록번호를 그 회사에 넣는다.
+        _Result(scalar=None),
+        _Result(rows=[]),
+        # 이미 있는 회사다. 엑셀에 적힌 번호로 덮어쓰지 않는다.
+        _Result(scalar=existing),
+    )
+
+    response = _bulk_post(
+        db,
+        member,
+        [
+            _bulk_item(2, company_name="새 고객사", business_no="123-45-67890"),
+            _bulk_item(3, company_name=existing.name, business_no="999-88-77777"),
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] == 2
+    created = [row for row in db.added if isinstance(row, CustomerCompany)]
+    assert len(created) == 1
+    assert created[0].name == "새 고객사"
+    assert created[0].business_no == "1234567890"
+    assert existing.business_no == "1234567890"
+
+
+def test_bulk_skips_customers_that_already_exist():
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        _Result(rows=[(contact, company)]),
+    )
+
+    response = _bulk_post(
+        db,
+        member,
+        [_bulk_item(2, company_name=company.name, name=contact.name, phone=contact.phone)],
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["success"], body["duplicate"]) == (0, 1)
+    assert body["results"][0]["status"] == "duplicate"
+    assert body["results"][0]["reason_code"] == "duplicate_existing"
+    assert body["results"][0]["contact_id"] == str(contact.id)
+    # 중복은 사람에게 묻지 않고 그냥 등록하지 않는다.
+    assert [row for row in db.added if isinstance(row, CustomerContact)] == []
+
+
+def test_bulk_registers_a_repeated_row_only_once():
+    member = _member()
+    company = _company(member.team_id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        # 홍길동: 중복 조회 → 회사 조회
+        _Result(rows=[]),
+        _Result(scalar=company),
+        # 두 번째 홍길동은 파일 안에서 걸러 DB 를 묻지 않는다.
+        # 김철수: 중복 조회
+        _Result(rows=[]),
+    )
+
+    response = _bulk_post(
+        db,
+        member,
+        [
+            _bulk_item(2, name="홍길동", phone="010-1111-2222"),
+            _bulk_item(3, name="홍길동", phone="010 1111 2222"),
+            _bulk_item(4, name="김철수", phone="010-3333-4444"),
+        ],
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["success"], body["duplicate"]) == (2, 1)
+    assert [(row["row"], row["status"]) for row in body["results"]] == [
+        (2, "success"),
+        (3, "duplicate"),
+        (4, "success"),
+    ]
+    assert body["results"][1]["reason_code"] == "duplicate_in_file"
+    contacts = [row for row in db.added if isinstance(row, CustomerContact)]
+    assert [contact.name for contact in contacts] == ["홍길동", "김철수"]
+
+
+def test_bulk_reports_bad_rows_without_touching_the_database():
+    member = _member()
+    company = _company(member.team_id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        # 정상인 마지막 줄만 조회가 나간다.
+        _Result(rows=[]),
+        _Result(scalar=company),
+    )
+
+    response = _bulk_post(
+        db,
+        member,
+        [
+            _bulk_item(2, name=""),
+            _bulk_item(3, company_name="  "),
+            _bulk_item(4, phone=""),
+            _bulk_item(5, email="hong(at)test.com"),
+            _bulk_item(6, business_no="123-45"),
+            _bulk_item(7, memo="가" * 5_001),
+            _bulk_item(8),
+        ],
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["total"], body["success"], body["invalid"]) == (7, 1, 6)
+    assert [(row["row"], row["reason_code"]) for row in body["results"][:6]] == [
+        (2, "name_required"),
+        (3, "company_required"),
+        (4, "phone_required"),
+        (5, "email_invalid"),
+        (6, "business_no_invalid"),
+        (7, "memo_too_long"),
+    ]
+    assert body["results"][6]["status"] == "success"
+
+
+def test_bulk_keeps_going_when_one_row_fails():
+    member = _member()
+    company = _company(member.team_id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        _Result(rows=[]),
+        _Result(scalar=company),
+        _Result(rows=[]),
+        # 두 번째 줄의 회사 조회가 터진다. 이 줄만 실패해야 한다.
+        RuntimeError("합성 장애"),
+        _Result(rows=[]),
+    )
+
+    response = _bulk_post(
+        db,
+        member,
+        [
+            _bulk_item(2),
+            _bulk_item(3, company_name="터지는 고객사"),
+            _bulk_item(4),
+        ],
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["success"], body["failed"]) == (2, 1)
+    assert [(row["row"], row["status"]) for row in body["results"]] == [
+        (2, "success"),
+        (3, "failed"),
+        (4, "success"),
+    ]
+    assert body["results"][1]["reason_code"] == "create_failed"
+    assert db.commit_count == 1
+
+
+def test_bulk_accepts_an_empty_file_and_rejects_too_many_rows():
+    member = _member()
+
+    empty = _bulk_post(_Db(), member, [])
+    assert empty.status_code == 200
+    assert empty.json() == {
+        "total": 0,
+        "success": 0,
+        "duplicate": 0,
+        "invalid": 0,
+        "failed": 0,
+        "results": [],
+    }
+
+    too_many = _bulk_post(_Db(), member, [_bulk_item(row) for row in range(2, BULK_MAX_ROWS + 3)])
+    assert too_many.status_code == 422
+
+
+def test_bulk_marks_visited_only_for_rows_that_say_so():
+    member = _member()
+    company = _company(member.team_id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        _Result(rows=[]),
+        _Result(scalar=company),
+        _Result(rows=[]),
+    )
+
+    response = _bulk_post(
+        db, member, [_bulk_item(2, visited=" 방문 "), _bulk_item(3, visited="미방문")]
+    )
+
+    assert response.status_code == 200
+    contacts = [row for row in db.added if isinstance(row, CustomerContact)]
+    assert [contact.visited for contact in contacts] == [True, False]
+
+
+def test_single_create_refuses_a_customer_that_already_exists():
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    db = _Db(_Result(scalar=company), _Result(rows=[(contact, company)]))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": contact.name,
+                "phone": contact.phone,
+                "status_code": "new",
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "customer_contact_duplicate"
+    assert db.added == []
+    assert db.commit_count == 0
+
+
+def test_duplicate_check_reports_matches_without_saving_anything():
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    db = _Db(_Result(rows=[(contact, company)]))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/customer-contacts/duplicate-check",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_name": company.name,
+                "name": contact.name,
+                "phone": contact.phone,
+                "email": "",
+            },
+        )
+
+    assert response.status_code == 200
+    match = response.json()[0]
+    assert match["contact_id"] == str(contact.id)
+    assert match["company_name"] == company.name
+    # 화면이 "이 정보로 고칠까요" 를 물으려면 기존 값 전부가 필요하다.
+    assert match["department"] == contact.department
+    assert match["job_title"] == contact.job_title
+    assert match["memo"] == contact.memo
+    assert match["visited"] == contact.visited
+    assert sorted(match["matched_by"]) == ["name_company", "phone"]
+    assert db.added == []
+    assert db.commit_count == 0
+
+
+def test_duplicate_check_with_nothing_to_compare_asks_the_database_nothing():
+    member = _member()
+    db = _Db()
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/customer-contacts/duplicate-check",
+            headers={"Origin": ORIGIN},
+            json={"company_name": "", "name": "홍길동", "phone": "", "email": ""},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert db.statements == []

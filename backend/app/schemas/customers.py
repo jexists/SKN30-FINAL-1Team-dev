@@ -52,6 +52,9 @@ OptionCode = Annotated[
         pattern=r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
     ),
 ]
+# 엑셀 한 번에 받는 최대 줄 수. 프론트도 같은 수로 미리 막는다.
+BULK_MAX_ROWS = 1_000
+
 CustomerSource = Literal[
     "referral",
     "event",
@@ -220,3 +223,79 @@ class CustomerContactPageParams(CustomerPageParams):
 
     owner_member_id: list[UUID] | None = None
     company_id: UUID | None = None
+
+
+class CustomerDuplicateProbe(_WriteModel):
+    """중복인지 물어볼 값. 등록 방식 넷이 모두 이 모양으로 묻는다.
+
+    아직 저장할 값이 아니라 비교할 값이므로 형식을 강제하지 않는다. 형식이 틀린 이메일도
+    "겹치는 사람이 없다" 는 답을 받아야 폼의 검증 문구가 그대로 보인다.
+    """
+
+    company_name: str = Field(default="", max_length=254)
+    name: str = Field(default="", max_length=254)
+    phone: str = Field(default="", max_length=50)
+    email: str = Field(default="", max_length=254)
+
+
+class CustomerDuplicateRead(BaseModel):
+    """겹친 기존 고객. 화면이 "이 정보로 고칠까요" 를 물으려면 전 필드가 필요하다."""
+
+    contact_id: UUID
+    company_id: UUID
+    company_name: str
+    name: str
+    department: str | None
+    job_title: str | None
+    email: str | None
+    phone: str
+    memo: str | None
+    visited: bool
+    matched_by: list[str] = Field(min_length=1, max_length=3)
+
+
+class CustomerContactBulkItem(BaseModel):
+    """엑셀 한 줄. 형식 검증을 Pydantic 에 맡기지 않는다.
+
+    한 줄의 이메일이 틀렸다고 요청 전체가 422 로 떨어지면 나머지 정상 줄까지 등록되지
+    않는다. 길이만 막고, 필수값·이메일·사업자등록번호 형식은 서버가 줄마다 따로 본다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # 엑셀에서 몇 번째 줄이었는지. 결과를 그 줄에 도로 붙이는 데만 쓴다.
+    row: int = Field(ge=1, le=1_000_000)
+    company_name: str = Field(default="", max_length=1_000)
+    business_no: str = Field(default="", max_length=50)
+    name: str = Field(default="", max_length=1_000)
+    department: str = Field(default="", max_length=1_000)
+    job_title: str = Field(default="", max_length=1_000)
+    email: str = Field(default="", max_length=1_000)
+    phone: str = Field(default="", max_length=1_000)
+    visited: str = Field(default="", max_length=50)
+    memo: str = Field(default="", max_length=10_000)
+
+
+class CustomerContactBulkCreate(_WriteModel):
+    items: list[CustomerContactBulkItem] = Field(max_length=BULK_MAX_ROWS)
+
+
+class CustomerContactBulkRowResult(BaseModel):
+    row: int
+    # success 등록함 / duplicate 이미 있는 사람 / invalid 값이 틀림 / failed 등록하다 실패
+    status: Literal["success", "duplicate", "invalid", "failed"]
+    name: str
+    company_name: str
+    # 왜 그렇게 됐는지. api-conventions 10절대로 코드만 보내고 문구는 프론트가 정한다.
+    reason_code: str | None = None
+    # 등록했거나, 겹친 기존 고객의 id.
+    contact_id: UUID | None = None
+
+
+class CustomerContactBulkResult(BaseModel):
+    total: int
+    success: int
+    duplicate: int
+    invalid: int
+    failed: int
+    results: list[CustomerContactBulkRowResult]

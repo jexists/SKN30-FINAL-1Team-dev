@@ -1,3 +1,5 @@
+import re
+from collections import Counter
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -18,14 +20,22 @@ from app.schemas.customers import (
     CustomerCompanyPage,
     CustomerCompanyPatch,
     CustomerCompanyRead,
+    CustomerContactBulkCreate,
+    CustomerContactBulkItem,
+    CustomerContactBulkResult,
+    CustomerContactBulkRowResult,
     CustomerContactCreate,
     CustomerContactPage,
     CustomerContactPageParams,
     CustomerContactPatch,
     CustomerContactRead,
     CustomerContactStatusOptionRead,
+    CustomerDuplicateProbe,
+    CustomerDuplicateRead,
     CustomerPageParams,
 )
+from app.services import customer_duplicates
+from app.services.customer_duplicates import DuplicateProbe
 
 router = APIRouter(tags=["customers"])
 
@@ -509,6 +519,24 @@ async def create_customer_contact(
     db: DbSession,
 ) -> CustomerContactRead:
     company = await _get_company(db, member, payload.company_id)
+    # 화면이 확인을 건너뛰었거나 두 요청이 겹쳐도 같은 사람이 한 줄 더 생기지 않게 한다.
+    # 이 표에는 유일 제약이 없으므로 막는 자리는 여기뿐이다.
+    duplicates = await customer_duplicates.find_duplicates(
+        db,
+        member=member,
+        probe=DuplicateProbe(
+            company_name=company.name,
+            name=payload.name,
+            phone=payload.phone,
+            email=payload.email or "",
+        ),
+        limit=1,
+    )
+    if duplicates:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="customer_contact_duplicate",
+        )
     values = payload.model_dump()
     status_code = values.pop("status_code")
     contact_status = (
@@ -540,6 +568,227 @@ async def create_customer_contact(
             ContactAssigneeRead(id=assignee.id, display_name=assignee.display_name)
             for assignee in assignees
         ],
+    )
+
+
+@router.post("/customer-contacts/duplicate-check", response_model=list[CustomerDuplicateRead])
+async def check_customer_contact_duplicates(
+    payload: CustomerDuplicateProbe,
+    member: CurrentMember,
+    db: DbSession,
+) -> list[CustomerDuplicateRead]:
+    """등록하기 전에 같은 사람이 이미 있는지 묻는다. 아무것도 저장하지 않는다.
+
+    직접등록·명함등록·사업자등록증등록이 저장 직전에 여기를 지난다. 판단 기준은
+    customer_duplicates 하나이고, 실제로 막는 일은 POST /customer-contacts 가 한다.
+    """
+    matches = await customer_duplicates.find_duplicates(
+        db,
+        member=member,
+        probe=DuplicateProbe(
+            company_name=payload.company_name,
+            name=payload.name,
+            phone=payload.phone,
+            email=payload.email,
+        ),
+    )
+    return [CustomerDuplicateRead(**vars(match)) for match in matches]
+
+
+# 고객 등록 폼과 같은 규칙이다. 여기서 걸러야 한 줄의 오타가 나머지 줄까지 막지 않는다.
+_EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+# 각 칸이 담을 수 있는 길이. 단건 등록 스키마(Text·Phone·Memo)와 같은 값이다.
+_BULK_LIMITS: tuple[tuple[str, str, int], ...] = (
+    ("company_name", "company_too_long", 254),
+    ("name", "name_too_long", 254),
+    ("department", "department_too_long", 254),
+    ("job_title", "job_title_too_long", 254),
+    ("email", "email_too_long", 254),
+    ("phone", "phone_too_long", 50),
+    ("memo", "memo_too_long", 5_000),
+)
+
+
+def _bulk_problem(item: CustomerContactBulkItem) -> str | None:
+    """한 줄을 그대로 등록할 수 있는지 본다. 못 하면 그 까닭의 코드를 돌려준다."""
+    if not item.name.strip():
+        return "name_required"
+    if not item.company_name.strip():
+        return "company_required"
+    if not item.phone.strip():
+        return "phone_required"
+    email = item.email.strip()
+    if email and not _EMAIL.match(email):
+        return "email_invalid"
+    business_no = item.business_no.strip()
+    if business_no and len(re.sub(r"[^0-9]", "", business_no)) != 10:
+        return "business_no_invalid"
+    for field_name, code, limit in _BULK_LIMITS:
+        if len(getattr(item, field_name).strip()) > limit:
+            return code
+    return None
+
+
+async def _bulk_company(
+    db: AsyncSession,
+    member: Member,
+    cache: dict[str, CustomerCompany],
+    *,
+    name: str,
+    business_no: str,
+) -> CustomerCompany:
+    """줄에 적힌 회사를 찾고, 없으면 만든다.
+
+    같은 회사가 여러 줄에 나오므로 요청 한 번에 한 번만 묻는다. 이미 있는 회사의
+    사업자등록번호는 덮어쓰지 않는다. 고객 등록 폼도 같은 규칙이다.
+    """
+    cached = cache.get(name)
+    if cached is not None:
+        return cached
+
+    result = await db.execute(
+        select(CustomerCompany).where(
+            CustomerCompany.team_id == member.team_id,
+            CustomerCompany.name == name,
+        )
+    )
+    company = result.scalar_one_or_none()
+    if company is None:
+        digits = re.sub(r"[^0-9]", "", business_no)
+        company = CustomerCompany(
+            id=uuid4(),
+            team_id=member.team_id,
+            name=name,
+            region_code=None,
+            business_no=digits or None,
+            # 엑셀에는 주소 열이 없다. 회사 화면에서 나중에 채운다.
+            postcode=None,
+            address=None,
+            address_detail=None,
+        )
+        try:
+            async with db.begin_nested():
+                db.add(company)
+                await db.flush()
+        except IntegrityError:
+            # 그 사이 남이 같은 이름을 만들었다. 그 회사를 그대로 쓴다.
+            result = await db.execute(
+                select(CustomerCompany).where(
+                    CustomerCompany.team_id == member.team_id,
+                    CustomerCompany.name == name,
+                )
+            )
+            company = result.scalar_one()
+    cache[name] = company
+    return company
+
+
+@router.post("/customer-contacts/bulk", response_model=CustomerContactBulkResult)
+async def create_customer_contacts_bulk(
+    payload: CustomerContactBulkCreate,
+    member: CurrentMember,
+    db: DbSession,
+) -> CustomerContactBulkResult:
+    """엑셀 여러 줄을 한 번에 등록한다. 줄마다 따로 판단한다.
+
+    한 줄이 틀렸다고 나머지가 함께 실패하면 안 되므로 줄마다 저장점을 열고, 실패한 줄만
+    되돌린다. 중복은 사람에게 묻지 않고 등록하지 않은 채 결과에 남긴다. 파일 안에서 같은
+    사람이 여러 번 나오는 경우도 마찬가지다 — 먼저 나온 한 줄만 들어간다.
+    """
+    results: list[CustomerContactBulkRowResult] = []
+    contact_status = None
+    if payload.items:
+        contact_status = await _active_customer_contact_status(db, member, "new")
+    companies: dict[str, CustomerCompany] = {}
+    # 이번 요청에서 이미 등록한 사람들의 열쇠. 파일 안 중복을 여기서 본다.
+    seen: set[str] = set()
+
+    for item in payload.items:
+        company_name = item.company_name.strip()
+        name = item.name.strip()
+
+        def row(
+            status_code: str,
+            *,
+            reason: str | None = None,
+            contact_id: UUID | None = None,
+            item: CustomerContactBulkItem = item,
+            name: str = name,
+            company_name: str = company_name,
+        ) -> CustomerContactBulkRowResult:
+            return CustomerContactBulkRowResult(
+                row=item.row,
+                status=status_code,
+                name=name,
+                company_name=company_name,
+                reason_code=reason,
+                contact_id=contact_id,
+            )
+
+        problem = _bulk_problem(item)
+        if problem is not None:
+            results.append(row("invalid", reason=problem))
+            continue
+
+        probe = DuplicateProbe(
+            company_name=company_name,
+            name=name,
+            phone=item.phone.strip(),
+            email=item.email.strip(),
+        )
+        keys = customer_duplicates.duplicate_keys(probe)
+        if keys & seen:
+            results.append(row("duplicate", reason="duplicate_in_file"))
+            continue
+
+        matches = await customer_duplicates.find_duplicates(db, member=member, probe=probe, limit=1)
+        if matches:
+            results.append(
+                row("duplicate", reason="duplicate_existing", contact_id=matches[0].contact_id)
+            )
+            continue
+
+        try:
+            company = await _bulk_company(
+                db, member, companies, name=company_name, business_no=item.business_no
+            )
+            contact = CustomerContact(
+                id=uuid4(),
+                company_id=company.id,
+                owner_member_id=member.id,
+                created_by_member_id=member.id,
+                name=name,
+                department=item.department.strip() or None,
+                job_title=item.job_title.strip() or None,
+                email=item.email.strip() or None,
+                phone=item.phone.strip(),
+                customer_contact_status_id=None if contact_status is None else contact_status.id,
+                source_code=None,
+                memo=item.memo.strip() or None,
+                # 방문이라고 적힌 줄만 방문이다. 비어 있으면 아직 만나기 전이다.
+                visited=item.visited.strip() == "방문",
+            )
+            async with db.begin_nested():
+                db.add(contact)
+                db.add(CustomerContactAssignee(customer_contact_id=contact.id, member_id=member.id))
+                await db.flush()
+        except Exception:
+            results.append(row("failed", reason="create_failed"))
+            continue
+
+        seen |= keys
+        results.append(row("success", contact_id=contact.id))
+
+    await _flush_and_commit(db)
+    counts = Counter(result.status for result in results)
+    return CustomerContactBulkResult(
+        total=len(results),
+        success=counts["success"],
+        duplicate=counts["duplicate"],
+        invalid=counts["invalid"],
+        failed=counts["failed"],
+        results=results,
     )
 
 

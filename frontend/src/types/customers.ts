@@ -148,3 +148,62 @@ export interface PageResponse<T> {
 export interface TabbedPageResponse<T> extends PageResponse<T> {
   counts: Record<string, number>
 }
+
+/** 등록하기 전에 같은 사람이 있는지 묻는 값. 등록 방식 넷이 같은 모양으로 묻습니다. */
+export interface CustomerDuplicateProbe {
+  company_name: string
+  name: string
+  phone: string
+  email: string
+}
+
+/** 겹친 기존 고객. 값이 모두 같은지 판단해야 해서 전 필드를 받습니다. */
+export interface CustomerDuplicateResponse {
+  contact_id: string
+  company_id: string
+  company_name: string
+  name: string
+  department: string | null
+  job_title: string | null
+  email: string | null
+  phone: string
+  memo: string | null
+  visited: boolean
+  matched_by: string[]
+}
+
+/** 엑셀 한 줄. 형식 검사는 서버가 줄마다 합니다. */
+export interface CustomerContactBulkItem {
+  /** 엑셀에서 몇 번째 줄이었는지. 결과를 그 줄에 도로 붙이는 데 씁니다. */
+  row: number
+  company_name: string
+  business_no: string
+  name: string
+  department: string
+  job_title: string
+  email: string
+  phone: string
+  visited: string
+  memo: string
+}
+
+export type CustomerBulkRowStatus = 'success' | 'duplicate' | 'invalid' | 'failed'
+
+export interface CustomerContactBulkRowResult {
+  row: number
+  status: CustomerBulkRowStatus
+  name: string
+  company_name: string
+  /** 왜 그렇게 됐는지의 코드. 문구는 화면이 정합니다. */
+  reason_code: string | null
+  contact_id: string | null
+}
+
+export interface CustomerContactBulkResult {
+  total: number
+  success: number
+  duplicate: number
+  invalid: number
+  failed: number
+  results: CustomerContactBulkRowResult[]
+}

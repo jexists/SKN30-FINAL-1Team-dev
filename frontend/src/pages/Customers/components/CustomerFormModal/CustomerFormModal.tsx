@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { client } from '@/api/client'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, readErrorDetail } from '@/api/errorMessage'
 import { useCurrentUser } from '@/auth/sessionContext'
 import AddressField, { type AddressValue } from '@/components/AddressField'
 import Button from '@/components/Button'
@@ -16,11 +16,14 @@ import type {
   CustomerContactCreateRequest,
   CustomerContactResponse,
   CustomerContactUpdateRequest,
+  CustomerDuplicateResponse,
   CustomerSourceCode,
 } from '@/types'
 import { businessNoDigits, formatBusinessNo } from '@/utils/format'
 
 import type { BusinessCardMatch } from '../../businessCard'
+import { type DuplicateDraft } from '../../duplicate'
+import DuplicateConfirmModal from '../DuplicateConfirmModal'
 import styles from './CustomerFormModal.module.scss'
 
 interface CustomerFormModalProps {
@@ -90,6 +93,39 @@ function validate({ draft, company, businessNo, assigneeIds }: Form): Errors {
 }
 
 const optional = (value: string): string | null => value.trim() || null
+
+const companyName = (company: CompanySelection): string =>
+  company.kind === 'existing' ? company.company.name : company.name
+
+/** 이미 있는 사람인지 묻습니다. 조회가 막히면 등록을 멈추지 않고 백엔드 검증에 맡깁니다. */
+async function findDuplicate(
+  name: string,
+  fields: CustomerContactUpdateRequest,
+): Promise<CustomerDuplicateResponse | null> {
+  try {
+    const { data } = await client.post<CustomerDuplicateResponse[]>(
+      '/customer-contacts/duplicate-check',
+      { company_name: name, name: fields.name, phone: fields.phone, email: fields.email ?? '' },
+    )
+    return data[0] ?? null
+  } catch {
+    return null
+  }
+}
+
+/** 확인 모달이 보여 줄 값. 저장하려던 것과 같은 값입니다. */
+function draftOf(name: string, fields: CustomerContactUpdateRequest): DuplicateDraft {
+  return {
+    companyName: name,
+    name: fields.name,
+    department: fields.department ?? '',
+    jobTitle: fields.job_title ?? '',
+    email: fields.email ?? '',
+    phone: fields.phone,
+    memo: fields.memo ?? '',
+    visited: fields.visited,
+  }
+}
 
 const EMPTY_ADDRESS: AddressValue = { postcode: '', address: '', addressDetail: '' }
 
@@ -176,6 +212,15 @@ export default function CustomerFormModal({
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  /*
+   * 등록하려는 사람이 이미 있을 때 무엇을 물어볼지. 저장할 값과 겹친 기존 고객을 함께
+   * 들고 있어야 "이 값으로 고칠까요" 를 그대로 이어서 보낼 수 있습니다.
+   */
+  const [duplicate, setDuplicate] = useState<{
+    match: CustomerDuplicateResponse
+    draft: DuplicateDraft
+    fields: CustomerContactUpdateRequest
+  } | null>(null)
   // 수정 폼은 회사 전체를 받아 와야 검색칸에 올릴 수 있습니다. 목록이 들고 있는 것은
   // 회사 id 와 이름뿐이고, 사업자번호·주소는 회사에 붙어 있습니다.
   const [companyLoading, setCompanyLoading] = useState(editing)
@@ -245,8 +290,11 @@ export default function CustomerFormModal({
     setSubmitting(true)
     setSubmitError(null)
 
+    // 등록이 409 로 돌아왔을 때 같은 값으로 다시 물어야 해서 catch 에서도 봅니다.
+    let fields: CustomerContactUpdateRequest | null = null
+
     try {
-      const fields: CustomerContactUpdateRequest = {
+      fields = {
         company_id: await resolveCompanyId(company, businessNo, address),
         name: draft.name.trim(),
         department: optional(draft.dept),
@@ -270,6 +318,15 @@ export default function CustomerFormModal({
         return
       }
 
+      // 저장하기 전에 같은 사람이 이미 있는지 묻습니다. 있으면 새로 만들지 않고
+      // 기존 고객을 이 값으로 고칠지 되묻습니다. 백엔드도 등록 요청을 409 로 막습니다.
+      const existing = await findDuplicate(companyName(company), fields)
+      if (existing) {
+        setDuplicate({ match: existing, draft: draftOf(companyName(company), fields), fields })
+        setSubmitting(false)
+        return
+      }
+
       // 상태는 등록할 때만 정해집니다. 수정 폼에는 상태 칸이 없습니다.
       const payload: CustomerContactCreateRequest = { ...fields, status_code: 'new' }
       const { data } = await client.post<CustomerContactResponse>('/customer-contacts', payload)
@@ -289,12 +346,42 @@ export default function CustomerFormModal({
       setSubmitting(false)
       onCreated(data, warning)
     } catch (error: unknown) {
+      // 확인과 등록 사이에 남이 같은 사람을 넣었습니다. 같은 물음으로 이어 갑니다.
+      if (readErrorDetail(error) === 'customer_contact_duplicate' && fields !== null) {
+        const existing = await findDuplicate(companyName(company), fields)
+        if (existing) {
+          setDuplicate({ match: existing, draft: draftOf(companyName(company), fields), fields })
+          setSubmitting(false)
+          return
+        }
+      }
       setSubmitError(
         errorMessage(
           error,
           editing ? '고객 정보를 수정하지 못했습니다.' : '고객을 등록하지 못했습니다.',
         ),
       )
+      setSubmitting(false)
+    }
+  }
+
+  /** 기존 고객을 방금 확인한 값으로 고칩니다. 새 고객은 만들지 않습니다. */
+  const updateExisting = async () => {
+    if (duplicate === null || submitting) return
+
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const { data } = await client.patch<CustomerContactResponse>(
+        `/customer-contacts/${duplicate.match.contact_id}`,
+        duplicate.fields,
+      )
+      setSubmitting(false)
+      setDuplicate(null)
+      if (onUpdated) onUpdated(data)
+      else onCreated(data)
+    } catch (error: unknown) {
+      setSubmitError(errorMessage(error, '고객 정보를 수정하지 못했습니다.'))
       setSubmitting(false)
     }
   }
@@ -485,10 +572,24 @@ export default function CustomerFormModal({
         </Field>
       </div>
 
-      {submitError && (
+      {submitError && !duplicate && (
         <p className={styles.error} role="alert">
           {submitError}
         </p>
+      )}
+
+      {duplicate && (
+        <DuplicateConfirmModal
+          draft={duplicate.draft}
+          match={duplicate.match}
+          updating={submitting}
+          error={submitError}
+          onUpdate={() => void updateExisting()}
+          onClose={() => {
+            setDuplicate(null)
+            setSubmitError(null)
+          }}
+        />
       )}
     </Modal>
   )
