@@ -94,3 +94,11 @@
   color: var(--muted);
   font-size: 12px;
 }
+
+// 딜은 비워 둘 수 있습니다. 별표 자리에 그 사실을 적어 두지 않으면 필수로 읽힙니다.
+.optional {
+  margin-left: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}

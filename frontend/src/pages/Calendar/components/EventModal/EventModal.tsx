@@ -243,12 +243,6 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
       setCustomerError('고객을 선택하세요.')
       return
     }
-    // 딜이 없으면 이 일정은 파이프라인에도 계약관리 에이전트에도 걸리지 않습니다.
-    // 고를 딜이 없으면 아래 "새 딜 만들기" 로 만들어서 잇습니다.
-    if (deal === null) {
-      setDealError('딜을 선택하세요.')
-      return
-    }
 
     // 소요는 시작과 끝의 차이입니다. 목록·드로어는 이 문구만 읽습니다.
     const minutes = Math.round((end.getTime() - start.getTime()) / MINUTE)
@@ -391,7 +385,7 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
 
         <div className={`${styles.field} ${styles.isWide}`}>
           <span className={styles.label}>
-            딜<b aria-hidden="true">*</b>
+            딜<span className={styles.optional}>선택</span>
           </span>
           <RecordPicker<SalesDealResponse>
             // 회사를 바꾸면 칸을 새로 답니다. RecordPicker 는 값이 null 로 비어도 입력칸의

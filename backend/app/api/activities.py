@@ -329,22 +329,20 @@ async def _resolve_company_id(
     return company_id, await _team_company(db, member, company_id)
 
 
-def _require_sales_deal(sales_deal: SalesDeal | None, company_id: UUID) -> UUID:
+def _resolve_sales_deal_id(sales_deal: SalesDeal | None, company_id: UUID) -> UUID | None:
     """이 일정이 무엇에 대한 영업 건인지 정한다.
 
-    딜이 비어 있으면 그 일정은 파이프라인에도 계약관리 에이전트에도 걸리지 않아 다시 찾을
-    자리가 없다. 신규 고객사처럼 고를 딜이 아직 없는 경우는 화면이 그 자리에서 딜을 만들어
-    이어 가므로, 비워 두는 길은 두지 않는다.
+    딜은 비워 둘 수 있다. 인사차 방문처럼 특정 영업 건을 진전시키지 않는 만남이 있고,
+    거기에 딜을 강제하면 있지도 않은 딜이 만들어져 파이프라인이 더러워진다. 대신 채울 수
+    있는 것은 부르는 쪽이 채워서 넘긴다 — 회사에 열린 딜이 하나뿐이면 등록에서, 미팅
+    보고서를 쓰면 그때 그 보고서가 고른 딜로 이어 붙는다.
 
-    딜의 고객사가 일정의 고객사와 다르면 조용히 한쪽을 고르지 않고 막는다. 담당자와 딜이
-    어긋나는 같은 상황을 _validate_customer_company 가 이미 contact_company_mismatch 로
-    막고 있어, 담당자 없이 고객사만 정한 일정도 같은 이름으로 돌려준다.
+    딜이 왔다면 그 딜의 고객사가 일정의 고객사와 같아야 한다. 담당자와 딜이 어긋나는 같은
+    상황을 _validate_customer_company 가 이미 contact_company_mismatch 로 막고 있어,
+    담당자 없이 고객사만 정한 일정도 같은 이름으로 돌려준다.
     """
     if sales_deal is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="sales_deal_required",
-        )
+        return None
     if sales_deal.customer_company_id != company_id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -624,7 +622,9 @@ async def create_activity(
         values["customer_company_id"], company_name = await _resolve_company_id(
             db, member, values["customer_company_id"], contact_info
         )
-        values["sales_deal_id"] = _require_sales_deal(sales_deal, values["customer_company_id"])
+        values["sales_deal_id"] = _resolve_sales_deal_id(
+            sales_deal, values["customer_company_id"]
+        )
         if schedule_management_run_id is not None:
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
@@ -817,9 +817,10 @@ async def update_activity(
             _validate_customer_company(
                 None if contact_info is None else contact_info[1], sales_deal
             )
-            # 딜을 비우는 수정도 등록과 같이 막는다. 고객사만 옮겨도 원래 딜이 다른 회사
-            # 것이 되므로 위에서 정한 고객사로 다시 본다.
-            values["sales_deal_id"] = _require_sales_deal(sales_deal, values["customer_company_id"])
+            # 고객사만 옮겨도 원래 딜이 다른 회사 것이 되므로 위에서 정한 고객사로 다시 본다.
+            values["sales_deal_id"] = _resolve_sales_deal_id(
+                sales_deal, values["customer_company_id"]
+            )
         if "category_code" in values:
             category_code = values.pop("category_code")
             category = await _active_activity_category(db, member, category_code)

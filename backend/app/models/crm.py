@@ -92,9 +92,10 @@ class Activity(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     product_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.product.id"))
-    # 이 일정이 무엇에 대한 영업 건인가. 비우면 파이프라인에도 계약관리 에이전트에도
-    # 걸리지 않아 다시 찾을 자리가 없다(20260903_0020).
-    sales_deal_id: Mapped[UUID] = mapped_column(ForeignKey("public.sales_deal.id"))
+    # 이 일정이 무엇에 대한 영업 건인가. 비워 둘 수 있다 — 인사차 방문처럼 특정 영업 건을
+    # 진전시키지 않는 만남이 있다. 다만 비어 있으면 계약관리 에이전트가 그 일정을 보지
+    # 못하므로, 채울 수 있는 경우는 등록과 보고서 저장에서 자동으로 채운다.
+    sales_deal_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.sales_deal.id"))
     purchase_order_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.purchase_order.id"))
 
 
