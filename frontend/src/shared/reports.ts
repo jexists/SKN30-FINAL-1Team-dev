@@ -1,7 +1,37 @@
-import type { DailyReport, ReportKind, ReportTemplate } from '@/types'
+import type {
+  AgentRunResponse,
+  ApiReportStatus,
+  DailyReport,
+  ReportKind,
+  ReportTemplate,
+} from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
 export const APPROVERS: readonly string[] = []
+
+/** 작성자는 제출 후에도 팀장 승인 전까지 보고서를 고칠 수 있습니다. */
+export function isAuthorEditableReportStatus(
+  status: ApiReportStatus | undefined,
+): status is 'draft' | 'submitted' | 'changes_requested' {
+  return status === 'draft' || status === 'submitted' || status === 'changes_requested'
+}
+
+export function canRecoverReportGeneration(
+  run: Pick<AgentRunResponse, 'created_at' | 'status_code'>,
+  savedReport:
+    { ownerMemberId: string; apiStatus?: ApiReportStatus; updatedAt?: string } | undefined,
+  memberId: string,
+): boolean {
+  if (!savedReport) return true
+  if (!run.created_at || !savedReport.updatedAt) return false
+  return (
+    savedReport.ownerMemberId === memberId &&
+    isAuthorEditableReportStatus(savedReport.apiStatus) &&
+    run.status_code !== 'failed' &&
+    run.status_code !== 'cancelled' &&
+    Date.parse(run.created_at) > Date.parse(savedReport.updatedAt)
+  )
+}
 
 export const dailyTemplate: ReportTemplate = {
   id: 'builtin-daily-freeform',

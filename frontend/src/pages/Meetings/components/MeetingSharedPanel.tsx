@@ -8,6 +8,7 @@ import GenerationProgress from './GenerationProgress'
 interface Props {
   shared: MeetingSharedNotes | null
   progress?: MeetingProgress | null
+  generating?: boolean
   disabled?: boolean
   onChange?: (commonBody: string, unassignedBody: string) => void
 }
@@ -15,6 +16,7 @@ interface Props {
 export default function MeetingSharedPanel({
   shared,
   progress,
+  generating = false,
   disabled = false,
   onChange,
 }: Props) {
@@ -22,14 +24,20 @@ export default function MeetingSharedPanel({
   const commonBody = shared?.common_report?.body ?? ''
   const unassignedBody = shared?.unassigned_report?.body ?? ''
   const previews = progress?.previews.filter((preview) => preview.section !== 'deal') ?? []
-  if (!shared?.common_report && !shared?.unassigned_report && !previews.length) return null
+  if (!shared?.common_report && !shared?.unassigned_report && !previews.length && !generating)
+    return null
 
   return (
-    <section className={styles.panel} aria-label="미팅 공통·미지정 기록">
+    <section className={styles.panel} aria-label="미팅 공통·미지정 기록" aria-busy={generating}>
       <div className={styles.heading}>
         <h2>미팅 공통 기록</h2>
         <span>공통 내용 아래에 딜 미지정 내용을 함께 표시</span>
       </div>
+      {generating && previews.length === 0 && (
+        <div className={styles.section}>
+          <GenerationProgress progress={progress} fieldCount={1} />
+        </div>
+      )}
       {previews.map((preview) => (
         <div className={styles.section} key={preview.section}>
           <p className={styles.note}>
@@ -39,46 +47,47 @@ export default function MeetingSharedPanel({
         </div>
       ))}
 
-      {[
-        {
-          key: 'common',
-          title: '공통 내용',
-          report: shared?.common_report,
-          value: commonBody,
-          change: (value: string) => onChange?.(value, unassignedBody),
-        },
-        {
-          key: 'unassigned',
-          title: '딜 미지정 · 확인 필요',
-          report: shared?.unassigned_report,
-          value: unassignedBody,
-          change: (value: string) => onChange?.(commonBody, value),
-        },
-      ]
-        .filter((part) => part.report)
-        .map((part) => (
-          <div className={styles.section} key={part.key}>
-            {onChange ? (
-              <>
-                <label htmlFor={id + part.key}>{part.title}</label>
-                <textarea
-                  id={id + part.key}
-                  rows={4}
-                  value={part.value}
-                  disabled={disabled}
-                  placeholder="기록된 내용이 없습니다."
-                  onChange={(event) => part.change(event.target.value)}
-                />
-                <p className={styles.printText}>{part.value || '기록된 내용 없음'}</p>
-              </>
-            ) : (
-              <>
-                <h3>{part.title}</h3>
-                <p className={styles.text}>{part.value}</p>
-              </>
-            )}
-          </div>
-        ))}
+      {!generating &&
+        [
+          {
+            key: 'common',
+            title: '공통 내용',
+            report: shared?.common_report,
+            value: commonBody,
+            change: (value: string) => onChange?.(value, unassignedBody),
+          },
+          {
+            key: 'unassigned',
+            title: '딜 미지정 · 확인 필요',
+            report: shared?.unassigned_report,
+            value: unassignedBody,
+            change: (value: string) => onChange?.(commonBody, value),
+          },
+        ]
+          .filter((part) => part.report)
+          .map((part) => (
+            <div className={styles.section} key={part.key}>
+              {onChange ? (
+                <>
+                  <label htmlFor={id + part.key}>{part.title}</label>
+                  <textarea
+                    id={id + part.key}
+                    rows={4}
+                    value={part.value}
+                    disabled={disabled}
+                    placeholder="기록된 내용이 없습니다."
+                    onChange={(event) => part.change(event.target.value)}
+                  />
+                  <p className={styles.printText}>{part.value || '기록된 내용 없음'}</p>
+                </>
+              ) : (
+                <>
+                  <h3>{part.title}</h3>
+                  <p className={styles.text}>{part.value}</p>
+                </>
+              )}
+            </div>
+          ))}
     </section>
   )
 }

@@ -17,7 +17,6 @@ from langchain_core.outputs import LLMResult
 from langsmith import tracing_context
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.agents.report_writing_deep import _configured_model
 from app.schemas.meeting_content import (
     MeetingContentAnalysisOutput,
     MeetingContentInput,
@@ -31,6 +30,7 @@ from app.services.agent_logging import agent_log_context, log_agent_error, log_a
 from app.services.agent_stream import publish_progress
 from app.services.llm import (
     LLMError,
+    configured_chat_model,
     generate_structured,
     llm_boundary_error_code,
     safe_token_usage,
@@ -770,7 +770,7 @@ async def run(
                     ledger = await _refine(
                         agent_input,
                         ledger,
-                        model if model is not None else _configured_model(),
+                        model if model is not None else configured_chat_model(),
                         budget,
                         on_lookup,
                     )

@@ -566,7 +566,7 @@ def test_deal_snapshot_requires_matching_id_and_safe_fields():
             ReportDealWrite(sales_deal_id=deal_id, deal_snapshot=snapshot, content={}, body="본문")
 
 
-@pytest.mark.parametrize("expected_status", ["draft", "changes_requested"])
+@pytest.mark.parametrize("expected_status", ["draft", "submitted", "changes_requested"])
 def test_finalize_accepts_cas_for_existing_editable_reports(expected_status):
     payload = ReportFinalize(
         idempotency_key=uuid4(),
@@ -1319,9 +1319,14 @@ async def test_finalize_existing_report_checks_version_before_mutation(monkeypat
 
 
 @pytest.mark.anyio
-async def test_resubmit_without_generation_keeps_existing_ai_provenance(monkeypatch):
+@pytest.mark.parametrize("editable_status", ["submitted", "changes_requested"])
+async def test_resubmit_without_generation_keeps_existing_ai_provenance(
+    monkeypatch, editable_status
+):
     member = _member()
-    report = _report(member, status_code="changes_requested")
+    report = _report(member, status_code=editable_status)
+    previous_submission_id = uuid4()
+    report.current_submission_id = previous_submission_id
     report.source_snapshot = {"agent_run_id": str(uuid4())}
     report.ai_evidence = {"prompt_version": "report_writing.v1"}
     original_source = dict(report.source_snapshot)
@@ -1331,7 +1336,7 @@ async def test_resubmit_without_generation_keeps_existing_ai_provenance(monkeypa
         idempotency_key=uuid4(),
         report_id=report.id,
         expected_version=1,
-        expected_status_code="changes_requested",
+        expected_status_code=editable_status,
         report_kind="daily",
         report_date=report.report_date,
         template_snapshot=TEMPLATE,
@@ -1357,6 +1362,10 @@ async def test_resubmit_without_generation_keeps_existing_ai_provenance(monkeypa
     assert report.source_snapshot == original_source
     assert report.ai_evidence == original_evidence
     assert report.status_code == "submitted"
+    assert report.version == 2
+    submission = next(item for item in db.added if isinstance(item, ReportSubmission))
+    assert report.current_submission_id == submission.id
+    assert report.current_submission_id != previous_submission_id
 
 
 @pytest.mark.anyio

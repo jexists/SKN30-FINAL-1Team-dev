@@ -17,6 +17,8 @@ interface Props {
   disabled?: boolean
   /** 항목 오른쪽에 붙는 상태·바로가기. 원본 보고서가 있는 자료에서 씁니다. */
   renderAside?: (item: ReportActivity) => ReactNode
+  /** 항목 아래 전체 너비로 펼치는 보충 내용. */
+  renderDetails?: (item: ReportActivity) => ReactNode
   onToggle?: (id: string) => void
 }
 
@@ -26,6 +28,7 @@ export default function ActivityList({
   showMark = true,
   disabled = false,
   renderAside,
+  renderDetails,
   onToggle,
 }: Props) {
   const rows = readOnly ? activities.filter((a) => a.included) : activities
@@ -40,40 +43,44 @@ export default function ActivityList({
         </p>
       ) : (
         <ul className={styles.list}>
-          {rows.map((item) => (
-            <li
-              key={item.id}
-              className={`${styles.item} ${bare ? styles.bare : ''} ${
-                !readOnly && !item.included ? styles.isOff : ''
-              }`}
-            >
-              {bare ? null : readOnly ? (
-                <span className={styles.mark} aria-hidden="true">
-                  <CheckIcon />
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.check}
-                  disabled={disabled}
-                  aria-pressed={item.included}
-                  aria-label={`${item.title} 보고서에 포함`}
-                  onClick={() => onToggle?.(item.id)}
-                >
-                  <CheckIcon />
-                </button>
-              )}
+          {rows.map((item) => {
+            const details = renderDetails?.(item)
+            return (
+              <li
+                key={item.id}
+                className={`${styles.item} ${bare ? styles.bare : ''} ${
+                  !readOnly && !item.included ? styles.isOff : ''
+                }`}
+              >
+                {bare ? null : readOnly ? (
+                  <span className={styles.mark} aria-hidden="true">
+                    <CheckIcon />
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.check}
+                    disabled={disabled}
+                    aria-pressed={item.included}
+                    aria-label={`${item.title} 보고서에 포함`}
+                    onClick={() => onToggle?.(item.id)}
+                  >
+                    <CheckIcon />
+                  </button>
+                )}
 
-              <div className={styles.body}>
-                <strong className={styles.title}>{item.title}</strong>
-                <span className={styles.desc}>{item.desc}</span>
-              </div>
+                <div className={styles.body}>
+                  <strong className={styles.title}>{item.title}</strong>
+                  <span className={styles.desc}>{item.desc}</span>
+                </div>
 
-              <span className={styles.source}>{item.source}</span>
+                <span className={styles.source}>{item.source}</span>
 
-              {renderAside && <span className={styles.aside}>{renderAside(item)}</span>}
-            </li>
-          ))}
+                {renderAside && <span className={styles.aside}>{renderAside(item)}</span>}
+                {details && <div className={styles.details}>{details}</div>}
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

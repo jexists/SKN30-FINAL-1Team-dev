@@ -47,6 +47,8 @@ export interface ReportActivity {
    * 캘린더면 일정 id 입니다. 제출한 뒤에도 무엇을 근거로 썼는지 되짚을 수 있게 남깁니다.
    */
   refId?: string
+  /** 보고서 자료라면 생성에 사용한 불변 제출본 id 입니다. */
+  sourceSubmissionId?: string
 }
 
 export type AttachmentKind = 'audio' | 'image' | 'pdf'
@@ -100,6 +102,7 @@ export interface DailyReport extends DailyReportSeed {
   apiStatus?: ApiReportStatus
   version?: number
   currentSubmissionId?: string | null
+  updatedAt?: string
   /** 팀장이 마지막 검토에서 돌려보낸 이유. 작성자의 note 와 다른 값입니다. */
   reviewNote?: string
 }
@@ -253,7 +256,7 @@ export interface ReportFinalizeRequest extends ReportWriteRequest {
   agent_run_id?: string
   report_id?: string
   expected_version?: number
-  expected_status_code?: 'draft' | 'changes_requested'
+  expected_status_code?: 'draft' | 'submitted' | 'changes_requested'
 }
 
 export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'

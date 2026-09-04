@@ -9,10 +9,11 @@ API key 는 서버 환경변수에서만 읽고 응답이나 로그에 남기지
 import asyncio
 import json
 from time import perf_counter
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 import openai
-from langchain_openai import StreamChunkTimeoutError
+from langchain_openai import ChatOpenAI, StreamChunkTimeoutError
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
@@ -24,7 +25,57 @@ class LLMError(Exception):
 
 
 class LLMNotConfigured(LLMError):
-    """LLM_API_URL, LLM_API_KEY, LLM_MODEL 중 빠진 값이 있다."""
+    """LLM URL, API key 또는 모델 설정이 비어 있다."""
+
+
+def _validated_endpoint():
+    try:
+        endpoint = urlsplit(settings.llm_api_url)
+        hostname = endpoint.hostname
+    except ValueError:
+        raise LLMError("report_agent_unsupported_endpoint") from None
+    if (
+        not endpoint.netloc
+        or not hostname
+        or endpoint.username is not None
+        or endpoint.password is not None
+        or endpoint.query
+        or endpoint.fragment
+        or endpoint.scheme != "https"
+    ):
+        raise LLMError("report_agent_unsupported_endpoint")
+    return endpoint
+
+
+def _external_api_key() -> str:
+    api_key = settings.effective_llm_api_key.strip()
+    if not api_key:
+        raise LLMNotConfigured("llm_not_configured")
+    return api_key
+
+
+def configured_chat_model() -> ChatOpenAI:
+    """LangChain 에이전트가 공유하는 OpenAI 호환 채팅 모델을 만든다."""
+    if not settings.llm_configured:
+        raise LLMNotConfigured("llm_not_configured")
+    endpoint = _validated_endpoint()
+    path = endpoint.path.rstrip("/")
+    suffix = next((s for s in ("/responses", "/chat/completions") if path.endswith(s)), None)
+    base_path = path[: -len(suffix)] if suffix else None
+    if base_path is None:
+        raise LLMError("report_agent_unsupported_endpoint")
+    return ChatOpenAI(
+        model=settings.llm_model,
+        api_key=_external_api_key(),
+        base_url=urlunsplit((endpoint.scheme, endpoint.netloc, base_path, "", "")),
+        use_responses_api=suffix == "/responses",
+        timeout=httpx.Timeout(max(180.0, settings.llm_timeout_seconds), connect=10.0),
+        max_retries=0,
+        max_completion_tokens=12_000,
+        streaming=True,
+        stream_usage=True,
+        stream_chunk_timeout=max(180.0, settings.llm_timeout_seconds),
+    )
 
 
 _TRANSIENT_REQUEST_ERRORS = (
@@ -122,16 +173,6 @@ def _extract_text(payload: object) -> str:
     if chunks:
         return "".join(chunks)
 
-    # Ollama /api/chat 응답은 본문을 response가 아니라
-    # message.content에 넣고, /api/generate 응답은 최상위 response에 넣는다.
-    response_text = payload.get("response")
-    if isinstance(response_text, str) and response_text.strip():
-        return response_text
-    message = payload.get("message")
-    if isinstance(message, dict) and isinstance(message.get("content"), str):
-        if message["content"].strip():
-            return message["content"]
-
     # Chat Completions 형태로 응답하는 공급자도 받아 준다.
     for choice in payload.get("choices") or ():
         if isinstance(choice, dict):
@@ -152,39 +193,27 @@ async def generate_structured[Schema: BaseModel](
     """구조화 출력 하나를 받아 Pydantic 으로 검증해 돌려준다."""
     if not settings.llm_configured:
         raise LLMNotConfigured("llm_not_configured")
+    _validated_endpoint()
 
-    if settings.llm_provider == "ollama":
-        body = {
-            "model": settings.llm_model,
-            "messages": [
-                {"role": "system", "content": instructions},
-                {"role": "user", "content": input_text},
-            ],
-            "stream": False,
-            "format": schema.model_json_schema(),
-            "options": {"temperature": 0},
-        }
-        headers = {"Content-Type": "application/json"}
-    else:
-        body = {
-            "model": settings.llm_model,
-            "input": [
-                {"role": "system", "content": instructions},
-                {"role": "user", "content": input_text},
-            ],
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": schema_name,
-                    "schema": schema.model_json_schema(),
-                    "strict": False,
-                }
-            },
-        }
-        headers = {
-            "Authorization": f"Bearer {settings.effective_llm_api_key}",
-            "Content-Type": "application/json",
-        }
+    body = {
+        "model": settings.llm_model,
+        "input": [
+            {"role": "system", "content": instructions},
+            {"role": "user", "content": input_text},
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": schema_name,
+                "schema": schema.model_json_schema(),
+                "strict": False,
+            }
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {_external_api_key()}",
+        "Content-Type": "application/json",
+    }
 
     started = perf_counter()
     log_agent_event(

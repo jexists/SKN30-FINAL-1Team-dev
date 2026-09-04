@@ -1,8 +1,8 @@
-# 자료요약 Agent 무료형·로컬 실행
+# 자료요약 Agent 로컬 OCR·임베딩 실행
 
 ## 목적
 
-이 프로젝트는 외부 OCR·LLM·임베딩 API 없이도 문서요약 Agent의 전체 흐름을 실행할 수 있다. 기존 Azure·외부 LLM 경로는 삭제하지 않고 Provider 설정으로 선택한다.
+이 프로젝트는 문서 추출·OCR·임베딩을 로컬에서 실행할 수 있다. 요약에는 외부 LLM을 사용하며, OCR과 임베딩은 Provider 설정으로 외부·로컬 경로를 선택한다.
 
 ## 처리 구조
 
@@ -10,7 +10,7 @@
 텍스트 PDF       -> pdf-inspector 또는 pypdf
 스캔 PDF·이미지  -> PaddleOCR
 DOCX·PPTX·HTML   -> 기존 내장 파서 또는 Docling
-요약             -> Ollama /api/chat
+요약             -> 외부 Responses 호환 API
 임베딩           -> SentenceTransformers
 RAG              -> PostgreSQL + pgvector 또는 키워드 검색 fallback
 ```
@@ -49,27 +49,15 @@ uv sync --extra local
 
 로컬 OCR 결과는 공통 페이지 구조로 정규화되어 `text`, `txt`, `md`, `json` artifact와 RAG 청크의 페이지 참조로 이어진다. `text`와 `txt`는 같은 평문 결과를 확장자별로 제공한다.
 
-## Ollama 준비
-
-Ollama를 설치하고 로컬 모델을 준비한다.
-
-```bash
-ollama serve
-ollama pull <팀에서 검증한 한국어 모델>
-```
-
-모델 이름은 임의로 고정하지 않는다. 실제 계약서·견적서·명함 샘플에서 JSON 출력과 한국어 요약을 확인한 뒤 `.env`에 기록한다.
-
 ## `.env` 설정
 
 ```dotenv
 OCR_PROVIDER=local
 OCR_LOCAL_LANGUAGE=korean
 
-LLM_PROVIDER=ollama
-LLM_API_URL=http://localhost:11434/api/chat
-LLM_API_KEY=
-LLM_MODEL=<검증한 로컬 모델>
+LLM_API_URL=https://api.openai.com/v1/responses
+LLM_API_KEY=<외부 LLM API 키>
+LLM_MODEL=<검증한 외부 모델>
 
 EMBEDDING_PROVIDER=local
 EMBEDDING_LOCAL_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
@@ -78,7 +66,7 @@ EMBEDDING_LOCAL_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v
 ## 실행 순서
 
 1. 백엔드가 PostgreSQL·Supabase Storage에 연결되는지 확인한다.
-2. `ollama serve`가 실행 중인지 확인한다.
+2. 외부 LLM endpoint와 API key가 설정됐는지 확인한다.
 3. PaddleOCR·pdf-inspector·SentenceTransformers import를 확인한다.
 4. 자료실에 TXT·DOCX·PPTX·HTML·텍스트 PDF를 업로드한다.
 5. 스캔 PDF·이미지를 업로드하고 로컬 OCR 결과를 확인한다.
@@ -166,19 +154,18 @@ headless로 사용한다. PATH에 없으면 `.env`의 `HWP5TXT_PATH` 또는 `SOF
 | `OCR_PROVIDER=none` | 스캔 문서·이미지는 오류로 중단하고 조용히 저장하지 않음 |
 | `OCR_PROVIDER=azure` | Azure Document Intelligence 어댑터 사용 |
 | `OCR_PROVIDER=local` | PDF는 pdf-inspector 선택 OCR, 이미지는 PaddleOCR 사용 |
-| `LLM_PROVIDER=external` | 기존 외부 Responses 호환 API 사용 |
-| `LLM_PROVIDER=ollama` | 로컬 Ollama JSON schema 출력 사용 |
+| `LLM_API_URL` + `LLM_MODEL` + `LLM_API_KEY` 또는 `OPENAI_API_KEY` | 외부 Responses 호환 API 사용 |
 | `EMBEDDING_PROVIDER=none` | 키워드 기반 RAG fallback |
 | `EMBEDDING_PROVIDER=external` | 기존 OpenAI 호환 임베딩 API 사용 |
 | `EMBEDDING_PROVIDER=local` | SentenceTransformers 로컬 모델 사용 |
 
 ## 운영상 주의
 
-- 로컬형은 API 사용료가 없지만 서버·저장소·CPU·메모리 비용은 발생할 수 있다.
+- 로컬 OCR·임베딩에도 서버·저장소·CPU·메모리 비용이 발생하며 요약에는 외부 LLM API 비용이 발생한다.
 - 명함은 이름·회사·직책·전화·이메일을 자동 확정하지 않고 사용자 확인 단계를 둔다.
 - Mac·Windows에서 같은 모델·패키지 버전과 같은 입력 샘플을 사용해 재현성을 확인한다.
-- OCR·요약·임베딩 모델의 버전과 다운로드 경로를 기록한다.
-- 실제 운영 전에는 Azure·CLOVA를 fallback으로 둘지, 외부 전송을 허용하지 않을지 팀 정책으로 결정한다.
+- OCR·임베딩 모델의 버전과 다운로드 경로를 기록한다.
+- 실제 운영 전에는 OCR 원본을 Azure·CLOVA로 전송할 수 있는지 팀 정책으로 결정한다.
 
 ## 현재 통합 검증 결과
 

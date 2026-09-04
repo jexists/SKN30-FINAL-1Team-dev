@@ -14,7 +14,6 @@ import {
   idempotencyAttemptFor,
   isAgentRunTerminalError,
   latestMeetingProcessing,
-  requiresRecoveryConfirmation,
   waitForMeetingProcessing,
 } from '@/api/reportAgent'
 import Button, { buttonClass } from '@/components/Button'
@@ -23,6 +22,7 @@ import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import { showToast } from '@/shared/toast'
 import type { IdempotencyAttempt } from '@/api/reportAgent'
 import type {
@@ -42,6 +42,7 @@ import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './u
 import useMeetingReports, {
   type MeetingDealDraftPayload,
   type MeetingDraftPayload,
+  canRecoverMeetingGeneration,
   meetingGenerationRequestOf,
   useMeetingReportOfAgenda,
 } from './useMeetingReports'
@@ -81,8 +82,6 @@ export default function Compose() {
   const [submitting, setSubmitting] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [runErrors, setRunErrors] = useState<Record<string, string>>({})
-  const [pendingRecovery, setPendingRecovery] =
-    useState<AgentRunResponse<MeetingProcessingOutput> | null>(null)
   const agendaId = params.get('agenda') ?? ''
   useEffect(() => {
     setGenerating(false)
@@ -90,7 +89,6 @@ export default function Compose() {
     setSubmitting(false)
     setRunError(null)
     setRunErrors({})
-    setPendingRecovery(null)
     recoveredAgendaId.current = ''
     generationAttempt.current = undefined
     return () => {
@@ -168,15 +166,6 @@ export default function Compose() {
 
   useEffect(() => {
     if (!draftReady || recoveredAgendaId.current === agendaId) return
-    if (
-      savedReport &&
-      (savedReport.ownerMemberId !== memberId ||
-        !['draft', 'changes_requested'].includes(savedReport.apiStatus ?? ''))
-    ) {
-      recoveredAgendaId.current = agendaId
-      setRecovering(false)
-      return
-    }
     recoveredAgendaId.current = agendaId
     const controller = new AbortController()
     recoveryAbort.current = controller
@@ -184,35 +173,22 @@ export default function Compose() {
     void latestMeetingProcessing(agendaId, controller.signal)
       .then((run) => {
         if (controller.signal.aborted || generationAbort.current) return
-        try {
-          meetingInputOf(run, agendaId)
-        } catch (reason) {
-          if (!(reason instanceof Error) || reason.message !== 'report_generation_input_missing') {
-            throw reason
-          }
-          if (recoveryAbort.current === controller) {
-            recoveryAbort.current = null
-            setRecovering(false)
-          }
-          return
-        }
-        if (requiresRecoveryConfirmation(savedReport?.id)) {
-          setPendingRecovery(run)
-          if (recoveryAbort.current === controller) {
-            recoveryAbort.current = null
-            setRecovering(false)
-          }
-          return
-        }
+        meetingInputOf(run, agendaId)
+        if (!canRecoverMeetingGeneration(run, savedReport, memberId)) return
         return resumeGeneration(run, controller)
       })
       .catch((reason: unknown) => {
+        const missingInput =
+          reason instanceof Error && reason.message === 'report_generation_input_missing'
         if (
           !controller.signal.aborted &&
+          !missingInput &&
           (!isAxiosError(reason) || reason.response?.status !== 404)
         ) {
           setRunError(errorMessage(reason, '진행 중인 보고서 상태를 확인하지 못했습니다.'))
         }
+      })
+      .finally(() => {
         if (recoveryAbort.current === controller) {
           recoveryAbort.current = null
           setRecovering(false)
@@ -270,7 +246,7 @@ export default function Compose() {
     canWrite &&
     (!savedReport ||
       (savedReport.ownerMemberId === memberId &&
-        (savedReport.apiStatus === 'draft' || savedReport.apiStatus === 'changes_requested')))
+        isAuthorEditableReportStatus(savedReport.apiStatus)))
   const canEditDeal = (_dealId: string) => canEdit
   const lockedDealIds = savedReport?.review === 'approved' ? [...draft.salesDealIds] : []
   const fixedDealIds = draft.salesDealIds.filter(
@@ -327,15 +303,11 @@ export default function Compose() {
   const generatable =
     draft.salesDealIds.length > 0 &&
     draft.salesDealIds.every(
-      (id) =>
-        canEditDeal(id) &&
-        ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
+      (id) => canEditDeal(id) && isAuthorEditableReportStatus(draft.draftsByDeal[id]?.statusCode),
     )
   const result = draft.meetingResult
   const editableDealIds = draft.salesDealIds.filter(
-    (id) =>
-      canEditDeal(id) &&
-      ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
+    (id) => canEditDeal(id) && isAuthorEditableReportStatus(draft.draftsByDeal[id]?.statusCode),
   )
   const emptyDealIds = editableDealIds.filter((id) =>
     isMeetingBodyBlank(draft.draftsByDeal[id]?.values ?? {}),
@@ -420,11 +392,11 @@ export default function Compose() {
     try {
       const report = await finalizeReport(payloadForMeeting(), result?.runId, controller.signal)
       if (controller.signal.aborted || submitAbort.current !== controller) return
-      showToast('업무보고를 확정했습니다.')
+      showToast('업무보고 작성을 완료했습니다.')
       navigate(meetingReportPath(report.id), { replace: true })
     } catch (reason: unknown) {
       if (!controller.signal.aborted) {
-        setRunError(errorMessage(reason, '업무보고를 확정하지 못했습니다.'))
+        setRunError(errorMessage(reason, '업무보고 작성을 완료하지 못했습니다.'))
       }
     } finally {
       if (submitAbort.current === controller) {
@@ -545,7 +517,7 @@ export default function Compose() {
               <Button
                 type="button"
                 className={styles.saveAllButton}
-                aria-label="업무보고 확정"
+                aria-label="업무보고 작성 완료"
                 disabled={
                   busy ||
                   editableDealIds.length !== draft.salesDealIds.length ||
@@ -553,14 +525,15 @@ export default function Compose() {
                 }
                 onClick={() => void submitAll()}
               >
-                {submitting ? '확정 중…' : '업무보고 확정'}
+                {submitting ? '완료 중…' : '업무보고 작성 완료'}
               </Button>
             </div>
           )}
-          {(result || draft.processingProgress) && (
+          {(result || draft.processingProgress || generating) && (
             <MeetingSharedPanel
               shared={result?.shared ?? null}
               progress={draft.processingProgress}
+              generating={generating}
               disabled={busy}
               onChange={canEdit ? draft.setShared : undefined}
             />
@@ -575,16 +548,18 @@ export default function Compose() {
               const state = draft.draftsByDeal[dealId]
               if (!state) return null
               const deal = deals.deals.find((one) => one.id === dealId)
+              const savedSection = savedByDeal.get(dealId)
+              const product = deal?.product ?? savedSection?.product
 
               return (
                 <DealReportCard
                   key={dealId}
                   dealId={dealId}
                   deal={deal}
-                  savedDeal={savedByDeal.get(dealId)?.salesDeal}
+                  savedDeal={savedSection?.salesDeal}
                   draft={state}
                   progress={draft.processingProgress}
-                  when={when}
+                  when={`${when}${product ? ` · ${product}` : ''}`}
                   saving={pending}
                   generating={generating || recovering}
                   canGenerate={draft.canGenerate && generatable}
@@ -599,36 +574,6 @@ export default function Compose() {
           )}
         </section>
       </div>
-
-      {pendingRecovery && (
-        <Modal
-          title="이전에 생성하던 후보를 복구할까요?"
-          description="복구하면 당시 원문·첨부·선택 딜과 생성 결과가 현재 편집 내용 위에 올라옵니다."
-          onClose={() => setPendingRecovery(null)}
-          footer={
-            <>
-              <Button variant="outline" type="button" onClick={() => setPendingRecovery(null)}>
-                현재 내용 유지
-              </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  const run = pendingRecovery
-                  setPendingRecovery(null)
-                  const controller = new AbortController()
-                  recoveryAbort.current = controller
-                  setRecovering(true)
-                  void resumeGeneration(run, controller)
-                }}
-              >
-                후보 복구
-              </Button>
-            </>
-          }
-        >
-          <p>현재 보고서 내용은 사용자가 복구를 선택하기 전까지 바뀌지 않습니다.</p>
-        </Modal>
-      )}
 
       {confirm?.kind === 'regenerate' && (
         <Modal

@@ -40,8 +40,7 @@ class Settings(BaseSettings):
     # Supabase Dashboard 의 Inactivity timeout 과 같은 값으로 맞춥니다.
     refresh_cookie_max_age_seconds: int = Field(default=30 * 86_400, ge=3_600, le=90 * 86_400)
 
-    # LLM 공급자. API key 는 서버 프로세스 안에서만 쓰고 응답이나 로그에 남기지 않는다.
-    llm_provider: Literal["external", "ollama"] = "external"
+    # API key 는 서버 프로세스 안에서만 쓰고 응답이나 로그에 남기지 않는다.
     llm_api_url: str = ""
     llm_api_key: SecretStr = SecretStr("")
     # OpenAI를 직접 사용할 때의 관용적인 이름도 지원한다. LLM_API_KEY가
@@ -168,8 +167,6 @@ class Settings(BaseSettings):
     @property
     def llm_configured(self) -> bool:
         """LLM 호출에 필요한 값이 모두 있는지. 없으면 기능을 503 으로 막는다."""
-        if self.llm_provider == "ollama":
-            return bool(self.llm_api_url and self.llm_model)
         return bool(self.llm_api_url and self.effective_llm_api_key and self.llm_model)
 
     @property

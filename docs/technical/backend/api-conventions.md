@@ -335,7 +335,7 @@ GET /api/activities?owner_member_id=9f64618b-8ed8-4aed-9560-78b25228dbe5&owner_m
 ### 보고서 초안 실행
 
 - 미팅은 `meeting_processing`, 일일·주간·월간은 `report_writing` 실행을 서버가 요청 종류로 결정한다. 클라이언트가 agent code를 고르지 않는다.
-- `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL` 중 하나라도 비면 `503 llm_not_configured`다.
+- `LLM_API_URL`, `LLM_MODEL`, `LLM_API_KEY` 또는 `OPENAI_API_KEY` 중 필요한 값이 비면 `503 llm_not_configured`다.
 - `POST /api/report-generations`는 보고서를 저장하지 않고 사용자 입력과 권한 검증된 생성 근거를 TTL이 있는 `AgentRun`에 고정한다.
 - 시작은 `202`와 `Location`, `Retry-After`를 반환하고 클라이언트는 polling 또는 미팅 SSE로 같은 실행을 이어 본다.
 - `idempotency_key`는 필수다. 같은 요청자가 같은 키로 다시 보내면 새 실행을 만들지 않고 기존 실행을 돌려준다.
