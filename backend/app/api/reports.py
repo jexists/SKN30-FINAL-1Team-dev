@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
-from sqlalchemy import Text, delete, func, or_, select, update
+from sqlalchemy import Text, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -418,50 +418,6 @@ def _add_report_deals(
                 ),
             )
         )
-
-
-def _deal_fill_targets(payload: ReportFinalize, activity_ids: list[UUID]) -> list[UUID]:
-    """딜을 채워 볼 일정. 미팅 본체는 activity_ids 가 아니라 source_activity_id 로 온다."""
-    targets = list(activity_ids)
-    if payload.source_activity_id is not None and payload.source_activity_id not in targets:
-        targets.append(payload.source_activity_id)
-    return targets
-
-
-async def _fill_activity_sales_deal(
-    db: AsyncSession,
-    member: Member,
-    activity_ids: list[UUID],
-    deal_sections: list[ReportDealWrite],
-    customer_company_id: UUID | None,
-) -> None:
-    """보고서가 고른 딜을 그 미팅 일정에도 채운다.
-
-    일정 등록은 딜을 필수로 받지 않는다 — 인사차 방문처럼 영업 건과 무관한 만남이 있기
-    때문이다. 그런데 딜이 비어 있으면 계약관리 에이전트가 그 일정을 보지 못해, 이미 잡아 둔
-    미팅에 추천이 또 오고 마지막 접촉일이 틀리게 된다. 미팅 보고서를 쓸 때는 어차피 딜을
-    고르므로 사람에게 더 묻지 않고 그때 이어 붙인다.
-
-    이미 딜이 붙어 있는 일정은 건드리지 않는다 — 사람이 고른 값이 보고서 때문에 바뀌면
-    안 된다. 보고서에 딜이 여럿이면 화면에 놓인 순서가 앞선 것을 대표로 본다
-    (20260903_0022 의 백필과 같은 규칙).
-
-    미팅 보고서가 가리키는 일정은 source_activity_id 다 — 화면은 activity_ids 를 비워서
-    보낸다. 사람이 따로 붙인 일정은 회사가 다를 수 있어 회사를 한 번 더 건다.
-    """
-    if not activity_ids or not deal_sections or customer_company_id is None:
-        return
-    await db.execute(
-        update(Activity)
-        .where(
-            Activity.id.in_(activity_ids),
-            Activity.team_id == member.team_id,
-            Activity.customer_company_id == customer_company_id,
-            Activity.sales_deal_id.is_(None),
-            Activity.deleted_at.is_(None),
-        )
-        .values(sales_deal_id=deal_sections[0].sales_deal_id)
-    )
 
 
 async def _activities_by_report_ids(
@@ -1008,13 +964,6 @@ async def finalize_report(
             )
             for activity_id in activity_ids:
                 db.add(ReportActivity(report_id=report.id, activity_id=activity_id))
-            await _fill_activity_sales_deal(
-                db,
-                member,
-                _deal_fill_targets(payload, activity_ids),
-                payload.deal_sections,
-                customer_company_id,
-            )
             await db.flush()
         else:
             report = await _locked_report(db, member, payload.report_id)
@@ -1038,13 +987,6 @@ async def finalize_report(
                     ai_evidence_by_deal=ai_evidence_by_deal,
                 )
             await _replace_report_activities(db, report.id, activity_ids)
-            await _fill_activity_sales_deal(
-                db,
-                member,
-                _deal_fill_targets(payload, activity_ids),
-                payload.deal_sections,
-                customer_company_id,
-            )
             report.recipient_member_id = None if recipient is None else recipient.id
             report.template_snapshot = payload.template_snapshot
             report.customer_company_id = customer_company_id

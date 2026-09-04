@@ -1196,75 +1196,14 @@ async def test_period_finalize_allows_human_title_and_body_edits_after_generatio
     await reports_api._validate_generation_source_refs(AsyncMock(), report, payload, run)
 
 
-def test_deal_fill_targets_includes_the_meeting_itself():
-    """미팅 본체는 activity_ids 가 아니라 source_activity_id 로 온다.
-
-    화면은 미팅 보고서를 저장할 때 activity_ids 를 비워서 보낸다. 그것만 보면 정작 그
-    미팅 일정에는 딜이 채워지지 않는다.
-    """
-    meeting_id = uuid4()
-    attached_id = uuid4()
-    payload = SimpleNamespace(source_activity_id=meeting_id)
-
-    assert reports_api._deal_fill_targets(payload, []) == [meeting_id]
-    assert reports_api._deal_fill_targets(payload, [attached_id]) == [attached_id, meeting_id]
-    # 이미 들어 있으면 두 번 넣지 않는다.
-    assert reports_api._deal_fill_targets(payload, [meeting_id]) == [meeting_id]
-    # 미팅이 아닌 보고서는 본체가 없다.
-    assert reports_api._deal_fill_targets(
-        SimpleNamespace(source_activity_id=None), [attached_id]
-    ) == [attached_id]
-
-
-@pytest.mark.anyio
-async def test_report_deal_fills_the_meeting_activity_that_has_none():
-    """보고서가 고른 딜을 딜이 빈 미팅 일정에 채운다 — 이미 있는 값은 건드리지 않는다."""
-    member = _member()
-    company_id = uuid4()
-    deal_id = uuid4()
-    db = _Db(_Result())
-
-    await reports_api._fill_activity_sales_deal(
-        db,
-        member,
-        [uuid4()],
-        [SimpleNamespace(sales_deal_id=deal_id)],
-        company_id,
-    )
-
-    assert len(db.statements) == 1
-    sql = str(db.statements[0])
-    assert sql.startswith("UPDATE public.activity")
-    # 비어 있는 일정만, 같은 회사 것만, 살아 있는 것만 채운다.
-    assert "activity.sales_deal_id IS NULL" in sql
-    assert "activity.customer_company_id" in sql
-    assert "activity.deleted_at IS NULL" in sql
-
-    # 붙일 딜이 없거나 회사를 모르면 아무것도 하지 않는다.
-    quiet = _Db()
-    await reports_api._fill_activity_sales_deal(quiet, member, [uuid4()], [], company_id)
-    await reports_api._fill_activity_sales_deal(
-        quiet, member, [uuid4()], [SimpleNamespace(sales_deal_id=deal_id)], None
-    )
-    await reports_api._fill_activity_sales_deal(
-        quiet, member, [], [SimpleNamespace(sales_deal_id=deal_id)], company_id
-    )
-    assert quiet.statements == []
-
-
 @pytest.mark.anyio
 async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatch):
     class FinalizeDb(_Db):
         async def execute(self, statement):
-            sql = str(statement).lower()
-            if "from public.report_deal" in sql:
+            if "from public.report_deal" in str(statement).lower():
                 return _Result(
                     scalar_values=[item for item in self.added if isinstance(item, ReportDeal)]
                 )
-            # 보고서가 고른 딜을 미팅 일정에도 채우는 UPDATE. 이 테스트가 보는 것이 아니라
-            # 결과를 쓰지 않으므로 빈 값으로 넘긴다.
-            if sql.startswith("update public.activity"):
-                return _Result()
             return await super().execute(statement)
 
     member = _member()
