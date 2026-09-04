@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
-import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
-import { DownloadIcon, UploadIcon } from '@/components/icons'
+import { DownloadIcon } from '@/components/icons'
 import type { SalesDocument } from '@/types'
 import type { DocumentSummaryResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDay, parseISO } from '@/utils/date'
 
-import { KIND_LABEL, latestOf } from '../../catalog'
+import { KIND_LABEL, fileOf } from '../../catalog'
 import { linkLabel } from '../../columns'
-import { downloadArtifact, downloadVersion, type DocumentArtifact } from '../../download'
+import { downloadArtifact, downloadFile, type DocumentArtifact } from '../../download'
 import { pollSummary } from '@/api/polling'
 
 import styles from './DocumentDrawer.module.scss'
@@ -20,7 +19,6 @@ import styles from './DocumentDrawer.module.scss'
 interface Props {
   doc: SalesDocument
   onClose: () => void
-  onNewVersion: () => void
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
   onLoadSummary: (fileId: string) => Promise<DocumentSummaryResponse>
   /** 배치 접수 뒤에는 처리 시작 POST 없이 상태·결과만 조회합니다. */
@@ -32,7 +30,6 @@ interface Props {
 export default function DocumentDrawer({
   doc,
   onClose,
-  onNewVersion,
   onSummarize,
   onLoadSummary,
   autoLoadSummaryFileId,
@@ -46,16 +43,15 @@ export default function DocumentDrawer({
   const [summaryLoadRetry, setSummaryLoadRetry] = useState(0)
   const [artifactLoading, setArtifactLoading] = useState<DocumentArtifact | null>(null)
   const [approvalLoading, setApprovalLoading] = useState(false)
-  const latest = latestOf(doc)
+  const file = fileOf(doc)
   const rows: [string, string][] = [
     ['메모', doc.description || '—'],
     ['연결', linkLabel(doc) || '연결된 곳 없음'],
-    ['파일', latest.fileName],
-    ['크기', sizeLabel(latest.bytes)],
-    ['등록자', latest.owner],
-    ['등록일', fmtDay(parseISO(latest.uploaded))],
+    ['파일', file.fileName],
+    ['크기', sizeLabel(file.bytes)],
+    ['등록자', file.owner],
+    ['등록일', fmtDay(parseISO(file.uploaded))],
   ]
-  const history = [...doc.versions].reverse()
 
   const loadSavedSummary = useCallback(
     (fileId: string) => {
@@ -76,15 +72,15 @@ export default function DocumentDrawer({
   )
 
   useEffect(() => {
-    if (!latest.id) return
-    // 같은 드로어 컴포넌트가 다른 문서·버전으로 재사용될 수 있습니다. 새 파일의
+    if (!file.id) return
+    // 같은 드로어 컴포넌트가 다른 문서로 재사용될 수 있습니다. 새 파일의
     // 결과를 받기 전에 이전 파일의 요약이 잠깐 보이지 않도록 먼저 비웁니다.
     setSummary(null)
     setSummaryError(null)
     setSummaryLoading(false)
     setApprovalLoading(false)
-    loadSavedSummary(latest.id)
-  }, [latest.id, loadSavedSummary])
+    loadSavedSummary(file.id)
+  }, [file.id, loadSavedSummary])
 
   const requestSummary = useCallback(
     (fileId: string) => {
@@ -156,10 +152,10 @@ export default function DocumentDrawer({
   }, [autoLoadSummaryFileId, monitorQueuedSummary])
 
   async function handleArtifact(artifact: DocumentArtifact) {
-    if (!latest.id) return
+    if (!file.id) return
     setArtifactLoading(artifact)
     try {
-      await downloadArtifact(doc.id, latest.id, artifact)
+      await downloadArtifact(doc.id, file.id, artifact)
     } finally {
       setArtifactLoading(null)
     }
@@ -174,22 +170,16 @@ export default function DocumentDrawer({
         <>
           <i className={styles.pill}>{doc.category}</i>
           <i className={styles.pill}>{KIND_LABEL[doc.kind]}</i>
-          <i className={`${styles.pill} tnum`}>v{latest.version}</i>
         </>
-      }
-      footer={
-        <Button variant="outline" onClick={onNewVersion}>
-          <UploadIcon width={14} height={14} />새 버전 올리기
-        </Button>
       }
     >
       <ErrorToast
-        key={`${latest.id ?? 'empty'}-${summaryLoadRetry}`}
+        key={`${file.id ?? 'empty'}-${summaryLoadRetry}`}
         message={summaryLoadError}
         onRetry={() => {
-          if (!latest.id) return
+          if (!file.id) return
           setSummaryLoadRetry((value) => value + 1)
-          loadSavedSummary(latest.id)
+          loadSavedSummary(file.id)
         }}
       />
       <dl className={styles.rows}>
@@ -201,47 +191,25 @@ export default function DocumentDrawer({
         ))}
       </dl>
 
-      <h3 className={styles.sectionTitle}>버전 이력</h3>
-      <ul className={styles.history}>
-        {history.map((version) => (
-          <li key={version.version} className={styles.version}>
-            <div className={styles.versionHead}>
-              <strong className="tnum">v{version.version}</strong>
-              <span className={styles.fileName}>{version.fileName}</span>
-              {version.id ? (
-                <>
-                  <button
-                    type="button"
-                    className={styles.download}
-                    onClick={() => void downloadVersion(version)}
-                  >
-                    <DownloadIcon width={14} height={14} />
-                    내려받기
-                  </button>
-                  {version.id === latest.id && (
-                    <button
-                      type="button"
-                      className={styles.summarize}
-                      disabled={summaryLoading}
-                      onClick={() => requestSummary(version.id!)}
-                    >
-                      {summaryLoading ? '요약 중…' : 'OCR·요약 다시 실행'}
-                    </button>
-                  )}
-                </>
-              ) : (
-                <span>파일 없음</span>
-              )}
-            </div>
-            <p className={styles.versionMeta}>
-              <span className="tnum">{sizeLabel(version.bytes)}</span>
-              <span>{version.owner}</span>
-              <span className="tnum">{fmtDay(parseISO(version.uploaded))}</span>
-            </p>
-            {version.note && <p className={styles.note}>{version.note}</p>}
-          </li>
-        ))}
-      </ul>
+      {file.id ? (
+        <div className={styles.fileActions}>
+          <button type="button" className={styles.download} onClick={() => void downloadFile(file)}>
+            <DownloadIcon width={14} height={14} />
+            내려받기
+          </button>
+          <button
+            type="button"
+            className={styles.summarize}
+            disabled={summaryLoading}
+            onClick={() => requestSummary(file.id!)}
+          >
+            {summaryLoading ? '요약 중…' : 'OCR·요약 다시 실행'}
+          </button>
+        </div>
+      ) : (
+        <p className={styles.fileActions}>파일 없음</p>
+      )}
+      {file.note && <p className={styles.note}>{file.note}</p>}
 
       {(summaryLoading || summaryError || summary?.summary_markdown) && (
         <section className={styles.summary}>

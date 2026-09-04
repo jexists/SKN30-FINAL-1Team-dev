@@ -3,7 +3,7 @@
 //
 // 조건은 주소에 둡니다(q·supplier·range·status). 목록을 걸러 둔 채로 링크를 건네면
 // 받는 쪽도 같은 화면을 봅니다. 정렬과 페이지는 보는 사람 사정이라 주소에 남기지 않습니다.
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -15,7 +15,7 @@ import Modal from '@/components/Modal'
 import OrderDrawer from '@/components/OrderDrawer'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import StageChip from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { orderNewPath, orderPath } from '@/constants/routes'
@@ -51,9 +51,6 @@ export default function Orders() {
   const supplier = params.get('supplier') ?? ''
   const range = params.get('range') ?? DEFAULT_RANGE
   const status = params.get('status') ?? ''
-
-  // 타이핑 중에도 입력이 밀리지 않도록 목록 계산만 한 박자 늦춥니다.
-  const deferredQuery = useDeferredValue(query)
 
   const [page, setPage] = useState(1)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -95,14 +92,14 @@ export default function Orders() {
 
   const orderQuery = useMemo(
     () => ({
-      q: deferredQuery,
+      q: query,
       supplier,
       fromISO,
       status,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
-    [deferredQuery, supplier, fromISO, status, page],
+    [query, supplier, fromISO, status, page],
   )
 
   const {
@@ -182,7 +179,7 @@ export default function Orders() {
           value={query}
           placeholder="고객사·품목·발주번호 검색"
           label="발주 검색"
-          onChange={(next) => setParam('q', next)}
+          onSearch={(next) => setParam('q', next)}
         />
 
         <FilterSelect
@@ -235,69 +232,69 @@ export default function Orders() {
         </div>
       )}
 
-      {!error && loading && pageRows.length > 0 && (
-        <InlineLoader label="목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={error} onRetry={reload} />
 
-      <DataTable
-        rows={pageRows}
-        columns={columns}
-        rowKey={(order) => order.id}
-        handleColumn="hospital"
-        sort={null}
-        onSort={ignoreSort}
-        onOpen={(order) => setOpenId(order.id)}
-        caption="발주 목록."
-        renderCell={(id, order) => {
-          if (id === 'status') return statusChip(order)
-          if (id !== 'due' || !isLate(order)) return undefined
-          return (
-            <span className={styles.late}>
-              {fmtDotShort(parseISO(order.due))}
-              <i>{lateLabel(order)}</i>
-            </span>
-          )
-        }}
-        mini={(order) => ({
-          title: order.hospital,
-          badge: statusChip(order),
-          sub: orderItemLabel(order),
-          meta: [
-            <span key="m1" className="tnum">
-              {won(orderTotal(order))}
-            </span>,
-            <span key="m2" className="tnum">
-              납기 {fmtDotShort(parseISO(order.due))}
-            </span>,
-            isLate(order) ? (
-              <i key="m3" className={styles.lateOnly}>
-                {lateLabel(order)}
-              </i>
+      {!error && loading ? (
+        <TableSkeleton label="목록을 새로고침하는 중입니다." rows={pageRows.length} />
+      ) : (
+        <DataTable
+          rows={pageRows}
+          columns={columns}
+          rowKey={(order) => order.id}
+          handleColumn="hospital"
+          sort={null}
+          onSort={ignoreSort}
+          onOpen={(order) => setOpenId(order.id)}
+          caption="발주 목록."
+          renderCell={(id, order) => {
+            if (id === 'status') return statusChip(order)
+            if (id !== 'due' || !isLate(order)) return undefined
+            return (
+              <span className={styles.late}>
+                {fmtDotShort(parseISO(order.due))}
+                <i>{lateLabel(order)}</i>
+              </span>
+            )
+          }}
+          mini={(order) => ({
+            title: order.hospital,
+            badge: statusChip(order),
+            sub: orderItemLabel(order),
+            meta: [
+              <span key="m1" className="tnum">
+                {won(orderTotal(order))}
+              </span>,
+              <span key="m2" className="tnum">
+                납기 {fmtDotShort(parseISO(order.due))}
+              </span>,
+              isLate(order) ? (
+                <i key="m3" className={styles.lateOnly}>
+                  {lateLabel(order)}
+                </i>
+              ) : (
+                order.supplier
+              ),
+            ],
+          })}
+          empty={
+            isFiltered ? (
+              <>
+                <SearchIcon width={34} height={34} strokeWidth={1.5} />
+                <p>조건에 맞는 발주가 없습니다.</p>
+                <Button variant="outline" onClick={clearFilters}>
+                  검색·필터 초기화
+                </Button>
+              </>
             ) : (
-              order.supplier
-            ),
-          ],
-        })}
-        empty={
-          isFiltered ? (
-            <>
-              <SearchIcon width={34} height={34} strokeWidth={1.5} />
-              <p>조건에 맞는 발주가 없습니다.</p>
-              <Button variant="outline" onClick={clearFilters}>
-                검색·필터 초기화
-              </Button>
-            </>
-          ) : (
-            <>
-              <OrdersIcon width={34} height={34} strokeWidth={1.5} />
-              <p>아직 등록한 발주가 없습니다.</p>
-              <Button onClick={() => navigate(orderNewPath())}>발주 추가</Button>
-            </>
-          )
-        }
-      />
+              <>
+                <OrdersIcon width={34} height={34} strokeWidth={1.5} />
+                <p>아직 등록한 발주가 없습니다.</p>
+                <Button onClick={() => navigate(orderNewPath())}>발주 추가</Button>
+              </>
+            )
+          }
+        />
+      )}
 
       {pageRows.length > 0 && (
         <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />

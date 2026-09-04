@@ -15,7 +15,7 @@ import styles from './TableToolbar.module.scss'
 
 interface TableToolbarProps {
   query: string
-  onQueryChange: (value: string) => void
+  onSearch: (value: string) => void
   prefs: ColumnPrefs
   onToggleColumn: (id: string) => void
   onMoveColumn: (id: string, delta: -1 | 1) => void
@@ -33,7 +33,7 @@ interface TableToolbarProps {
 
 export default function TableToolbar({
   query,
-  onQueryChange,
+  onSearch,
   prefs,
   onToggleColumn,
   onMoveColumn,
@@ -55,7 +55,7 @@ export default function TableToolbar({
         value={query}
         placeholder="이름, 회사, 부서, 직함, 이메일, 전화 검색"
         label="고객 검색"
-        onChange={onQueryChange}
+        onSearch={onSearch}
       />
 
       {/* 표를 다루는 도구. 여기 있는 것들은 목록을 바꾸지 않습니다. */}

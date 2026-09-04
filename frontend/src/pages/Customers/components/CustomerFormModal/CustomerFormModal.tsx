@@ -218,13 +218,19 @@ export default function CustomerFormModal({
   }
 
   const pickCompany = (selection: CompanySelection | null) => {
+    // 기존 회사에서 벗어날 때만 비웁니다. 그 회사의 번호·주소를 다음 회사가 물려받으면
+    // 안 되기 때문입니다. 반대로 사업자등록증에서 읽어 채운 값은 회사 이름을 고르고
+    // 고치는 동안 그대로 둡니다. 오토컴플리트는 글자마다 선택을 지웁니다.
+    const leavingExistingCompany = company?.kind === 'existing'
     setCompany(selection)
-    // 이미 있는 회사의 사업자번호는 그 회사의 것입니다. 여기서 고치지 않습니다.
-    setBusinessNo(
-      selection?.kind === 'existing' ? (formatBusinessNo(selection.company.business_no) ?? '') : '',
-    )
-    // 주소도 회사의 것입니다. 회사가 바뀌면 함께 갈아 끼웁니다.
-    setAddress(selection?.kind === 'existing' ? companyAddress(selection.company) : EMPTY_ADDRESS)
+    if (selection?.kind === 'existing') {
+      // 이미 있는 회사의 사업자번호와 주소는 그 회사의 것입니다. 여기서 고치지 않습니다.
+      setBusinessNo(formatBusinessNo(selection.company.business_no) ?? '')
+      setAddress(companyAddress(selection.company))
+    } else if (leavingExistingCompany) {
+      setBusinessNo('')
+      setAddress(EMPTY_ADDRESS)
+    }
     clearError('company')
     clearError('businessNo')
   }
@@ -344,7 +350,8 @@ export default function CustomerFormModal({
             maxLength={12}
             // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
             readOnly={company?.kind === 'existing'}
-            disabled={submitting || company === null}
+            // 회사를 고르기 전이라도, 등록증에서 읽어 온 값은 고칠 수 있어야 합니다.
+            disabled={submitting || (company === null && businessNo === '')}
             onChange={(event) => {
               setBusinessNo(event.target.value)
               clearError('businessNo')
@@ -358,7 +365,8 @@ export default function CustomerFormModal({
             value={address}
             onChange={setAddress}
             readOnly={company?.kind === 'existing'}
-            disabled={submitting || company === null}
+            // 등록증에서 읽어 온 주소가 있으면 회사를 고르기 전에도 다시 고를 수 있습니다.
+            disabled={submitting || (company === null && address.address === '')}
           />
         </Field>
 

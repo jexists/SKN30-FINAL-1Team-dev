@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import ErrorToast from '@/components/ErrorToast'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import StatusBadge from '@/components/StatusBadge'
 import type { TeamMemberRow } from '@/types'
 import { wonFull } from '@/utils/format'
@@ -98,51 +98,49 @@ export default function Team() {
         </div>
       )}
 
-      {!error && loading && data !== null && (
-        <InlineLoader label="팀 정보를 새로고침하는 중입니다." />
-      )}
+      {!error && loading ? (
+        <TableSkeleton label="팀 정보를 새로고침하는 중입니다." rows={members.length} />
+      ) : (
+        <div className={styles.card}>
+          <div className={styles.scroller}>
+            <table className={styles.table}>
+              <caption className="sr-only">
+                팀 구성원 목록. 목표 매출과 달성률을 보고 상세에서 고칠 수 있습니다.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">팀원</th>
+                  <th scope="col">직책</th>
+                  <th scope="col">역할</th>
+                  <th scope="col" className={styles.right}>
+                    목표 매출
+                  </th>
+                  <th scope="col" className={styles.right}>
+                    현재 매출
+                  </th>
+                  <th scope="col">달성률</th>
+                  <th scope="col">상태</th>
+                  <th scope="col">
+                    <span className="sr-only">관리</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((member) => (
+                  <MemberRow
+                    key={member.id}
+                    member={member}
+                    isSelf={member.id === memberId}
+                    onOpen={() => setOpenId(member.id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-      <div className={styles.card}>
-        <div className={styles.scroller}>
-          <table className={styles.table}>
-            <caption className="sr-only">
-              팀 구성원 목록. 목표 매출과 달성률을 보고 상세에서 고칠 수 있습니다.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">팀원</th>
-                <th scope="col">직책</th>
-                <th scope="col">역할</th>
-                <th scope="col" className={styles.right}>
-                  목표 매출
-                </th>
-                <th scope="col" className={styles.right}>
-                  현재 매출
-                </th>
-                <th scope="col">달성률</th>
-                <th scope="col">상태</th>
-                <th scope="col">
-                  <span className="sr-only">관리</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((member) => (
-                <MemberRow
-                  key={member.id}
-                  member={member}
-                  isSelf={member.id === memberId}
-                  onOpen={() => setOpenId(member.id)}
-                />
-              ))}
-            </tbody>
-          </table>
+          {members.length === 0 && <p className={styles.empty}>팀에 등록된 구성원이 없습니다.</p>}
         </div>
-
-        {members.length === 0 && !loading && (
-          <p className={styles.empty}>팀에 등록된 구성원이 없습니다.</p>
-        )}
-      </div>
+      )}
 
       {members.some((member) => !member.active) && (
         <p className={styles.note}>

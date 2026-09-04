@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
@@ -8,7 +8,7 @@ import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import Modal from '@/components/Modal'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { useScopeOwnerIds, useShowOwner } from '@/shared/scope'
 import { showToast } from '@/shared/toast'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
@@ -74,7 +74,6 @@ export default function Customers() {
   // 저장된 설정은 건드리지 않습니다. 범위를 넓히면 그대로 돌아와야 합니다.
   const showOwner = useShowOwner()
   const hiddenColumns = useMemo(() => (showOwner ? [] : ['owner']), [showOwner])
-  const deferredQuery = useDeferredValue(query)
   const ownerIds = useScopeOwnerIds()
 
   // 정렬 API가 붙기 전에 현재 페이지만 정렬하면 전체 순서를 오해하게 됩니다.
@@ -91,7 +90,7 @@ export default function Customers() {
 
   useEffect(() => {
     const controller = new AbortController()
-    const needle = deferredQuery.trim()
+    const needle = query.trim()
 
     setLoading(true)
     setLoadError(null)
@@ -122,7 +121,7 @@ export default function Customers() {
       })
 
     return () => controller.abort()
-  }, [deferredQuery, page, reloadKey, ownerIds])
+  }, [query, page, reloadKey, ownerIds])
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const openCustomer = useMemo(() => rows.find((row) => row.id === openId) ?? null, [rows, openId])
@@ -133,7 +132,7 @@ export default function Customers() {
     resetPage()
   }, [ownerIds, resetPage])
 
-  const onQueryChange = useCallback(
+  const onSearch = useCallback(
     (next: string) => {
       setQuery(next)
       resetPage()
@@ -195,10 +194,22 @@ export default function Customers() {
     setDialog('create')
   }, [])
 
-  // 사업자등록증에서 읽은 값도 바로 저장하지 않습니다. 담당자 이름·연락처는
-  // 등록증에 없으므로 등록 폼에서 사람이 채웁니다.
+  // 사업자등록증에서 읽은 값도 바로 저장하지 않습니다. 이름 칸에는 대표자를 넣지만
+  // 실제 담당자는 다른 사람일 수 있어, 사람이 등록 폼에서 확인하고 고칩니다.
   const onLicenseDrafted = useCallback((draft: BusinessLicenseDraft) => {
     setLicenseDraft(draft)
+    // 못 읽은 칸은 사람이 채워야 합니다. 빈 폼만 열어 두면 무엇이 빠졌는지 모릅니다.
+    const unread = [
+      draft.company.trim() === '' ? '회사명' : null,
+      draft.address.trim() === '' ? '주소' : null,
+      draft.businessNo.trim() === '' ? '사업자등록번호' : null,
+      draft.representative.trim() === '' ? '대표자명' : null,
+    ].filter((label): label is string => label !== null)
+    setNotice(
+      unread.length > 0
+        ? `사업자등록증에서 ${unread.join('·')}을(를) 읽지 못했습니다. 직접 채워 주세요.`
+        : null,
+    )
     setDialog('create')
   }, [])
 
@@ -297,7 +308,7 @@ export default function Customers() {
 
       <TableToolbar
         query={query}
-        onQueryChange={onQueryChange}
+        onSearch={onSearch}
         prefs={prefs}
         onToggleColumn={toggleColumn}
         onMoveColumn={moveColumn}
@@ -317,28 +328,28 @@ export default function Customers() {
         </p>
       )}
 
-      {!loadError && loading && rows.length > 0 && (
-        <InlineLoader label="고객 목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={loadError} onRetry={() => setReloadKey((value) => value + 1)} />
 
-      <CustomerTable
-        columns={columns}
-        widths={prefs.widths}
-        onResize={setWidth}
-        rows={rows}
-        sort={null}
-        onSort={ignoreSort}
-        selected={selected}
-        onToggleRow={toggleRow}
-        onTogglePage={togglePage}
-        onOpen={setOpenId}
-        isFiltered={query.trim() !== ''}
-        hasAnyData={total > 0}
-        onClearFilters={clearQuery}
-        onCreate={() => setDialog('create')}
-      />
+      {!loadError && loading ? (
+        <TableSkeleton label="고객 목록을 새로고침하는 중입니다." rows={rows.length} />
+      ) : (
+        <CustomerTable
+          columns={columns}
+          widths={prefs.widths}
+          onResize={setWidth}
+          rows={rows}
+          sort={null}
+          onSort={ignoreSort}
+          selected={selected}
+          onToggleRow={toggleRow}
+          onTogglePage={togglePage}
+          onOpen={setOpenId}
+          isFiltered={query.trim() !== ''}
+          hasAnyData={total > 0}
+          onClearFilters={clearQuery}
+          onCreate={() => setDialog('create')}
+        />
+      )}
 
       {!loadError && total > 0 && (
         <Pagination page={page} pageCount={pageCount} total={total} onPage={setPage} />
@@ -350,7 +361,8 @@ export default function Customers() {
           onCreated={onCustomerCreated}
           duplicateMatches={cardDraft?.matches}
           archiveImage={cardDraft?.sourceImage}
-          // 등록증에는 담당자가 없습니다. 사람 칸은 명함일 때만 채웁니다.
+          // 등록증에 있는 사람은 대표자뿐입니다. 이름만 채우고 나머지 사람 칸은
+          // 명함일 때만 채웁니다. 대표자가 담당자가 아니면 폼에서 고칩니다.
           initial={
             cardDraft
               ? {
@@ -360,7 +372,9 @@ export default function Customers() {
                   email: cardDraft.email,
                   phone: cardDraft.phone,
                 }
-              : undefined
+              : licenseDraft?.representative.trim()
+                ? { name: licenseDraft.representative.trim() }
+                : undefined
           }
           initialCompany={
             cardDraft?.org.trim()

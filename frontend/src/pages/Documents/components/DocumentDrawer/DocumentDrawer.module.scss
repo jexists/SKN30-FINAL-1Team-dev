@@ -52,7 +52,7 @@
   }
 }
 
-/* ---- 버전 이력 ---- */
+/* ---- 파일 ---- */
 
 .sectionTitle {
   margin-top: var(--s5);
@@ -62,33 +62,13 @@
   font-weight: 600;
 }
 
-.history {
-  display: grid;
-  gap: var(--s2);
-}
-
-.version {
-  padding: var(--s3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-}
-
-.versionHead {
+.fileActions {
   display: flex;
   align-items: baseline;
-  gap: var(--s2);
-  font-size: 13px;
-}
-
-// 파일명이 길면 여기부터 줄어듭니다. 버전과 내려받기는 늘 보여야 합니다.
-.fileName {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: var(--s3);
+  margin-top: var(--s3);
   color: var(--ink-2);
+  font-size: 13px;
 }
 
 .download {
@@ -209,15 +189,6 @@
   flex: none;
   color: var(--muted);
   font-size: 11px;
-}
-
-.versionMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s3);
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .note {

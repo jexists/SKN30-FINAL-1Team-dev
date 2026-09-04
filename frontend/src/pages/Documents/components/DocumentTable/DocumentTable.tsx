@@ -12,9 +12,9 @@ import useMediaQuery from '@/hooks/useMediaQuery'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
-import { KIND_LABEL, latestOf, TONE_OF } from '../../catalog'
+import { KIND_LABEL, fileOf, TONE_OF } from '../../catalog'
 import { DOCUMENT_COLUMNS, linkLabel, type SortState } from '../../columns'
-import { downloadVersion } from '../../download'
+import { downloadFile } from '../../download'
 
 import styles from './DocumentTable.module.scss'
 
@@ -76,7 +76,7 @@ export default function DocumentTable({
     return (
       <ul className={styles.cardList}>
         {rows.map((doc) => {
-          const latest = latestOf(doc)
+          const file = fileOf(doc)
           return (
             <li key={doc.id} className={styles.miniCard} onClick={() => onOpen(doc.id)}>
               <div className={styles.miniHead}>
@@ -89,16 +89,15 @@ export default function DocumentTable({
               </div>
               <p className={styles.miniLink}>{linkLabel(doc) || KIND_LABEL[doc.kind]}</p>
               <div className={styles.miniMeta}>
-                <span className="tnum">v{latest.version}</span>
-                <span className="tnum">{sizeLabel(latest.bytes)}</span>
-                <span>{latest.owner}</span>
-                <span className="tnum">{fmtDotShort(parseISO(latest.uploaded))}</span>
+                <span className="tnum">{sizeLabel(file.bytes)}</span>
+                <span>{file.owner}</span>
+                <span className="tnum">{fmtDotShort(parseISO(file.uploaded))}</span>
                 <button
                   type="button"
                   className={styles.miniDownload}
                   onClick={(event) => {
                     event.stopPropagation()
-                    downloadVersion(latest)
+                    downloadFile(file)
                   }}
                 >
                   <DownloadIcon width={13} height={13} />
@@ -178,7 +177,7 @@ export default function DocumentTable({
                     ]
                       .filter(Boolean)
                       .join(' ')}
-                    title={col.id === 'title' ? latestOf(doc).fileName : col.text(doc)}
+                    title={col.id === 'title' ? fileOf(doc).fileName : col.text(doc)}
                   >
                     {/* 줄 전체를 누르지만 tr 은 키보드로 못 잡습니다. 파일명 칸이
                         그 손잡이이고, 하는 일은 줄을 누른 것과 같습니다. */}
@@ -203,14 +202,14 @@ export default function DocumentTable({
                     ) : col.id === 'link' && doc.link.kind === 'none' ? (
                       <span className={styles.none}>—</span>
                     ) : col.id === 'download' ? (
-                      // 상세를 열지 않고 최신 버전을 바로 받습니다. 줄 클릭과 겹치므로 멈춰 세웁니다.
+                      // 상세를 열지 않고 파일을 바로 받습니다. 줄 클릭과 겹치므로 멈춰 세웁니다.
                       <button
                         type="button"
                         className={styles.download}
-                        aria-label={`${latestOf(doc).fileName} 내려받기`}
+                        aria-label={`${fileOf(doc).fileName} 내려받기`}
                         onClick={(event) => {
                           event.stopPropagation()
-                          downloadVersion(latestOf(doc))
+                          downloadFile(fileOf(doc))
                         }}
                       >
                         <DownloadIcon width={15} height={15} />

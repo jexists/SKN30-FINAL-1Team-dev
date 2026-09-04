@@ -7,7 +7,7 @@ import type {
   DocumentFileResponse,
   DocumentResponse,
   DocumentSummaryResponse,
-  DocumentVersion,
+  DocumentFile,
   TabbedPageResponse,
   SalesDocument,
 } from '@/types'
@@ -19,7 +19,7 @@ import { pollSummary } from '@/api/polling'
 // 백그라운드 작업을 시작하므로, 느린 DB 응답만 흡수한 뒤 아래 폴링으로 상태를 확인합니다.
 const SUMMARY_START_TIMEOUT_MS = 30_000
 
-/** 등록자 고르는 칸에 세울 사람. 최신 버전을 올린 사람 기준입니다. */
+/** 등록자 고르는 칸에 세울 사람. 파일을 올린 사람 기준입니다. */
 export interface DocumentUploader {
   id: string
   name: string
@@ -44,14 +44,12 @@ export type DocumentMeta = Pick<SalesDocument, 'title' | 'category' | 'link' | '
 export interface DocumentDraft extends DocumentMeta {
   file: File
   owner: string
-  note: string
 }
 
-function versionOf(documentId: string, file: DocumentResponse['files'][number]): DocumentVersion {
+function fileOf(documentId: string, file: DocumentFileResponse): DocumentFile {
   return {
     id: file.id,
     documentId,
-    version: file.version_no,
     fileName: file.file_name,
     bytes: file.byte_size,
     owner: file.uploaded_by_display_name,
@@ -63,16 +61,13 @@ function versionOf(documentId: string, file: DocumentResponse['files'][number]):
 }
 
 function toDocument(item: DocumentResponse): SalesDocument {
-  const versions = [...item.files]
-    .sort((a, b) => a.version_no - b.version_no)
-    .map((file) => versionOf(item.id, file))
-  const latest = versions.at(-1)
+  const file = item.file === null ? null : fileOf(item.id, item.file)
   return {
     id: item.id,
     documentNo: item.document_no,
     title: item.title,
     category: CATEGORY_BY_CODE[item.category_code] ?? '기타',
-    kind: kindOfFile({ name: latest?.fileName ?? '' }),
+    kind: kindOfFile({ name: file?.fileName ?? '' }),
     link: item.product_id
       ? { kind: '상품', id: item.product_id, label: item.product_name ?? item.product_id }
       : item.sales_deal_id
@@ -87,20 +82,15 @@ function toDocument(item: DocumentResponse): SalesDocument {
             ? { kind: '발주', id: item.purchase_order_id, label: item.purchase_order_id }
             : { kind: 'none', id: '', label: '' },
     description: item.description ?? '',
-    versions:
-      versions.length > 0
-        ? versions
-        : [
-            {
-              documentId: item.id,
-              version: 0,
-              fileName: '파일 없음',
-              bytes: 0,
-              owner: item.created_by_display_name,
-              uploaded: item.created_at.slice(0, 10),
-              note: '',
-            },
-          ],
+    // 파일을 아직 올리지 않은 자료도 목록에는 서야 해서 빈 칸을 채워 둡니다.
+    file: file ?? {
+      documentId: item.id,
+      fileName: '파일 없음',
+      bytes: 0,
+      owner: item.created_by_display_name,
+      uploaded: item.created_at.slice(0, 10),
+      note: '',
+    },
   }
 }
 
@@ -126,14 +116,9 @@ function linkFields(link: SalesDocument['link']) {
   return { ...empty, purchase_order_id: link.id }
 }
 
-async function uploadFile(
-  documentId: string,
-  file: File,
-  note: string,
-): Promise<DocumentFileResponse> {
+async function uploadFile(documentId: string, file: File): Promise<DocumentFileResponse> {
   const form = new FormData()
   form.append('upload', file)
-  if (note) form.append('note', note)
   const { data } = await client.post<DocumentFileResponse>(`/documents/${documentId}/files`, form)
   return data
 }
@@ -147,9 +132,9 @@ export interface DocumentQuery {
   q: string
   /** 고른 분류 탭. 빈 문자열이면 전체입니다. */
   category: DocumentCategory | ''
-  /** 최신 버전을 올린 사람. 빈 문자열이면 전체입니다. */
+  /** 파일을 올린 사람. 빈 문자열이면 전체입니다. */
   uploaderMemberId: string
-  /** 최신 버전을 올린 날짜의 하한. null 이면 제한 없음입니다. */
+  /** 파일을 올린 날짜의 하한. null 이면 제한 없음입니다. */
   fromISO: string | null
   skip: number
   limit: number
@@ -233,31 +218,12 @@ export default function useDocuments(query?: DocumentQuery) {
         description: draft.description || null,
         ...links,
       })
-      const uploaded = await uploadFile(created.id, draft.file, draft.note)
+      const uploaded = await uploadFile(created.id, draft.file)
       const { data } = await client.get<DocumentResponse>(`/documents/${created.id}`)
       setDocuments((current) => [toDocument(data), ...current])
       return { document: data, fileId: uploaded.id }
     } catch (reason: unknown) {
       setError(mutationMessage(reason, '자료를 등록하지 못했습니다.'))
-      throw reason
-    } finally {
-      setPending(false)
-    }
-  }, [])
-
-  const addVersion = useCallback(async (id: string, file: File, _owner: string, note: string) => {
-    setPending(true)
-    setError(null)
-    try {
-      const uploaded = await uploadFile(id, file, note)
-      const { data } = await client.get<DocumentResponse>(`/documents/${id}`)
-      const updated = toDocument(data)
-      setDocuments((current) =>
-        current.map((document) => (document.id === id ? updated : document)),
-      )
-      return { document: data, fileId: uploaded.id }
-    } catch (reason: unknown) {
-      setError(mutationMessage(reason, '새 버전을 등록하지 못했습니다.'))
       throw reason
     } finally {
       setPending(false)
@@ -291,7 +257,7 @@ export default function useDocuments(query?: DocumentQuery) {
     [documents],
   )
 
-  const summarizeVersion = useCallback(
+  const summarizeFile = useCallback(
     async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
       return pollSummary({
         start: async () => {
@@ -356,9 +322,8 @@ export default function useDocuments(query?: DocumentQuery) {
     pending,
     reload: () => setReloadKey((value) => value + 1),
     addDocument,
-    addVersion,
     updateDocument,
-    summarizeVersion,
+    summarizeFile,
     queueSummaries,
     loadSummary,
     approveSummary,

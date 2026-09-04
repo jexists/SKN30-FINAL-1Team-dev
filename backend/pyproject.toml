@@ -15,8 +15,11 @@ dependencies = [
     # PaddleOCR/PaddleX currently requires NumPy < 2.4.
     "numpy==2.3.5",
     "pandas==3.0.5",
+    # 스캔 PDF를 이미지로 구워 한국어 OCR 경로로 보낸다. OCR 제공자와 무관하게 필요하다.
+    "pillow>=12.3.0",
     "pydantic-settings>=2.14.2",
     "pypdf>=5.0.0",
+    "pypdfium2>=5.13.0",
     "pyjwt[crypto]>=2.10.1",
     "python-multipart>=0.0.32",
     "scikit-learn==1.9.0",
@@ -31,9 +34,7 @@ local = [
     "onnxruntime>=1.29.0",
     "paddleocr>=3.7.0",
     "paddlepaddle>=3.3.1",
-    "pillow>=12.3.0",
     "opencv-python-headless>=4.10.0",
-    "pypdfium2>=5.13.0",
     # sentence-transformers가 끌어오는 transitive torch에는 아래 tool.uv.sources가
     # 적용되지 않는다. 직접 의존성으로 적어야 linux에서 CPU 휠을 받고, CUDA 런타임
     # 라이브러리 수 GB가 이미지에 들어가지 않는다.

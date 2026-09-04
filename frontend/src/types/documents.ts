@@ -18,46 +18,34 @@ export interface DocumentLink {
   label: string
 }
 
-/** 한 번의 업로드. 최신 것이 목록에 보이고 나머지는 드로어 이력에 남습니다. */
-export interface DocumentVersionSeed {
-  version: number
+/** 자료 하나에 딸린 파일 하나. */
+export interface DocumentFile {
+  /** 아직 올리지 않은 자료의 자리끼움에는 없습니다. */
+  id?: string
+  documentId?: string
   fileName: string
   /** 바이트. 화면에 찍을 때 sizeLabel() 로 바꿉니다. */
   bytes: number
   owner: string
-  /** 오늘로부터 며칠. 지난 일이므로 0 이하입니다. */
-  uploadedOff: number
-  /** 이 버전에서 무엇이 바뀌었는지 한 줄 */
-  note: string
-}
-
-export interface DocumentVersion extends Omit<DocumentVersionSeed, 'uploadedOff'> {
-  id?: string
-  documentId?: string
   /** YYYY-MM-DD */
   uploaded: string
-  /** 이 세션에서 올린 파일만 갖습니다. 시드에는 없어 내려받을 수 없습니다. */
-  blob?: File
+  /** 올릴 때 적은 한 줄 */
+  note: string
   processingStatus?: DocumentProcessingStatus
   processingError?: string | null
 }
 
-export interface SalesDocumentSeed {
+/** 자료실 문서 */
+export interface SalesDocument {
   id: string
+  documentNo?: string
   title: string
   category: DocumentCategory
   kind: DocumentFileKind
   link: DocumentLink
   /** 화면의 '메모'. 목록에서 이 자료가 무엇인지 알아볼 한 줄입니다. */
   description: string
-  /** 오래된 것부터. 마지막이 현재 버전입니다. */
-  versions: DocumentVersionSeed[]
-}
-
-/** 실제 날짜가 붙은 자료실 문서 */
-export interface SalesDocument extends Omit<SalesDocumentSeed, 'versions'> {
-  documentNo?: string
-  versions: DocumentVersion[]
+  file: DocumentFile
 }
 
 export type DocumentProcessingStatus =
@@ -65,7 +53,6 @@ export type DocumentProcessingStatus =
 
 export interface DocumentFileResponse {
   id: string
-  version_no: number
   file_name: string
   media_type: string | null
   byte_size: number
@@ -106,8 +93,7 @@ export interface DocumentResponse {
   created_by_member_id: string
   created_by_display_name: string
   created_at: string
-  files: DocumentFileResponse[]
-  latest_version_no: number | null
+  file: DocumentFileResponse | null
 }
 
 export interface DownloadResponse {

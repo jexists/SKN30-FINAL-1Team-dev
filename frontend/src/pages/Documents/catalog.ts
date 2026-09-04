@@ -1,4 +1,4 @@
-import type { DocumentCategory, DocumentFileKind, DocumentVersion, SalesDocument } from '@/types'
+import type { DocumentCategory, DocumentFile, DocumentFileKind, SalesDocument } from '@/types'
 
 export type CategoryTone = 'blue' | 'purple' | 'green' | 'orange' | 'gray'
 
@@ -67,6 +67,6 @@ export function guessCategory(fileName: string): DocumentCategory {
   return NAME_HINTS.find(([pattern]) => pattern.test(fileName))?.[1] ?? '기타'
 }
 
-export function latestOf(doc: SalesDocument): DocumentVersion {
-  return doc.versions[doc.versions.length - 1]
+export function fileOf(doc: SalesDocument): DocumentFile {
+  return doc.file
 }

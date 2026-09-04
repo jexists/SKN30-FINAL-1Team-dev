@@ -3,7 +3,7 @@
 import { useSearchParams } from 'react-router'
 
 import ErrorToast from '@/components/ErrorToast'
-import Skeleton, { InlineLoader } from '@/components/Skeleton'
+import Skeleton from '@/components/Skeleton'
 import useSalesDeals from '@/pages/Deals/useSalesDeals'
 
 import { downloadCsv, toCsv } from '@/utils/csv'
@@ -113,16 +113,21 @@ export default function Sales() {
 
       <ErrorToast message={error} onRetry={reload} />
 
-      <div className={styles.split}>
-        <GroupTable
-          by={by}
-          onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
-          summary={grouped}
-        />
-        <TargetGauge range={range} summary={byOrg} />
-      </div>
-      {!error && loading && cards.length > 0 && (
-        <InlineLoader label="매출 데이터를 새로고침하는 중입니다." />
+      {!error && loading ? (
+        <div className={styles.split} role="status">
+          <span className="sr-only">매출 데이터를 새로고침하는 중입니다.</span>
+          <Skeleton height={480} radius="var(--r-lg)" />
+          <Skeleton height={360} radius="var(--r-lg)" />
+        </div>
+      ) : (
+        <div className={styles.split}>
+          <GroupTable
+            by={by}
+            onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
+            summary={grouped}
+          />
+          <TargetGauge range={range} summary={byOrg} />
+        </div>
       )}
     </section>
   )

@@ -280,8 +280,7 @@ def test_business_card_archive_links_original_to_contact(monkeypatch):
             created_by_member_id=member.id,
             created_by_display_name=member.display_name,
             created_at="2026-08-25T00:00:00Z",
-            files=[],
-            latest_version_no=1,
+            file=None,
         )
 
     async def _next_document_no(*_args):

@@ -9,6 +9,8 @@ export interface BusinessLicenseDraft {
   company: string
   businessNo: string
   address: string
+  /** 등록증의 대표자. 담당자 이름 칸의 첫 값으로 씁니다. */
+  representative: string
 }
 
 interface BusinessLicenseScanAccepted {
@@ -23,6 +25,7 @@ interface BusinessLicenseScanStatus {
     company: string
     business_no: string
     address: string
+    representative: string
   } | null
 }
 
@@ -102,6 +105,7 @@ export async function extractBusinessLicense(file: File): Promise<BusinessLicens
       company: scan.fields.company,
       businessNo: scan.fields.business_no,
       address: scan.fields.address,
+      representative: scan.fields.representative,
     }
   } catch (error: unknown) {
     if (isAxiosError(error) && [502, 503].includes(error.response?.status ?? 0)) {

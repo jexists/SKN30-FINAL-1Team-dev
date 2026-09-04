@@ -14,6 +14,7 @@ class BusinessLicenseFields(BaseModel):
     company: str = Field(default="", max_length=254)
     business_no: str = Field(default="", max_length=30)
     address: str = Field(default="", max_length=500)
+    representative: str = Field(default="", max_length=100)
     confidence: float | None = Field(default=None, ge=0, le=1)
     unresolved_fields: list[str] = Field(default_factory=list, max_length=10)
 

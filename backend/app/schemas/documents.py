@@ -64,7 +64,6 @@ class DocumentFileRead(BaseModel):
     """storage_key 는 내부 저장소 주소라 내보내지 않는다."""
 
     id: UUID
-    version_no: int
     file_name: str
     media_type: str | None
     byte_size: int
@@ -166,8 +165,8 @@ class DocumentRead(BaseModel):
     created_by_member_id: UUID
     created_by_display_name: str
     created_at: datetime
-    files: list[DocumentFileRead]
-    latest_version_no: int | None
+    # 자료 하나에 파일 하나다. 아직 올리지 않았으면 없다.
+    file: DocumentFileRead | None
 
 
 class DocumentUploaderRead(BaseModel):
@@ -184,7 +183,7 @@ class DocumentPage(BaseModel):
     next_skip: int | None
     # 분류 탭 옆 건수 {분류 코드: 건수}. 고른 분류는 빼고 센 값이라 total 과 다르다.
     counts: dict[str, int] = Field(default_factory=dict)
-    # 담당자 고르는 칸에 세울 사람. 최신 버전을 올린 사람 기준이고, 쪽에 담긴 문서만
+    # 담당자 고르는 칸에 세울 사람. 파일을 올린 사람 기준이고, 쪽에 담긴 문서만
     # 보면 지금 쪽에 없는 사람을 고를 수 없어서 서버가 전체에서 뽑아 준다.
     uploaders: list[DocumentUploaderRead] = Field(default_factory=list)
 
@@ -197,7 +196,7 @@ class DocumentPageParams(BaseModel):
     customer_company_id: UUID | None = None
     sales_deal_id: UUID | None = None
     created_by_member_id: list[UUID] | None = None
-    # 아래 둘은 최신 버전 파일을 본다. 화면의 담당자·기간 필터가 "마지막으로 올린 사람과
+    # 아래 둘은 문서에 딸린 파일을 본다. 화면의 담당자·기간 필터가 "파일을 올린 사람과
     # 올린 날짜" 를 뜻하기 때문이다. 문서를 처음 만든 사람(created_by_member_id)과 다르다.
     latest_uploader_member_id: list[UUID] | None = None
     latest_uploaded_from: datetime | None = None
