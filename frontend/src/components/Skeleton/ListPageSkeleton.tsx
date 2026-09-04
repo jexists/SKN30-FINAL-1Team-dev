@@ -7,13 +7,9 @@
 // 개수와 선택지가 정해집니다. 표만 자리표시자로 두면 그 위 줄들이 뒤늦게 나타나
 // 화면이 두 번 들썩입니다.
 import Skeleton from './Skeleton'
+import { CONTROL_H, tableHeight } from './metrics'
 
 import styles from './ListPageSkeleton.module.scss'
-
-/** 실제 화면의 값들. 자리표시자를 걷을 때 화면이 밀리지 않게 그대로 씁니다. */
-const CONTROL_H = 36 // --control-h
-const HEAD_H = 40 // 표 머리글
-const ROW_H = 44 // 표 한 줄
 
 interface Props {
   /** 화면 낭독기가 읽을 말 */
@@ -48,7 +44,7 @@ export default function ListPageSkeleton({
 
       {tabs && <Skeleton width="62%" height={CONTROL_H} radius="var(--r-pill)" />}
 
-      <Skeleton height={HEAD_H + ROW_H * rows} radius="var(--r-lg)" />
+      <Skeleton height={tableHeight(rows)} radius="var(--r-lg)" />
 
       {pagination && (
         <div className={styles.pagination}>

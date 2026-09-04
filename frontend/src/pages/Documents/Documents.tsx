@@ -3,7 +3,7 @@
 //
 // 조건은 주소에 둡니다(q·owner·range·category). 목록을 걸러 둔 채로 링크를 건네면
 // 받는 쪽도 같은 화면을 봅니다. 정렬과 페이지는 보는 사람 사정이라 주소에 남기지 않습니다.
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
@@ -13,7 +13,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { UploadIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { useShowOwner } from '@/shared/scope'
 import type { DocumentCategory } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
@@ -50,9 +50,6 @@ export default function Documents() {
 
   const category = params.get('category') ?? ''
 
-  // 타이핑 중에도 입력이 밀리지 않도록 목록 계산만 한 박자 늦춥니다.
-  const deferredQuery = useDeferredValue(query)
-
   const [page, setPage] = useState(1)
   const [openId, setOpenId] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
@@ -82,14 +79,14 @@ export default function Documents() {
 
   const documentQuery = useMemo(
     () => ({
-      q: deferredQuery,
+      q: query,
       category: category as DocumentCategory | '',
       uploaderMemberId: owner,
       fromISO,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
-    [deferredQuery, category, owner, fromISO, page],
+    [query, category, owner, fromISO, page],
   )
 
   const {
@@ -239,7 +236,7 @@ export default function Documents() {
           value={query}
           placeholder="파일명·메모·연결 검색"
           label="자료 검색"
-          onChange={(next) => setParam('q', next)}
+          onSearch={(next) => setParam('q', next)}
         />
 
         {isManager && (
@@ -277,20 +274,20 @@ export default function Documents() {
         onChange={(next) => setParam('category', next)}
       />
 
-      {!error && loading && pageRows.length > 0 && (
-        <InlineLoader label="자료 목록을 새로고침하는 중입니다." />
+      {!error && loading ? (
+        <TableSkeleton label="자료 목록을 새로고침하는 중입니다." rows={pageRows.length} />
+      ) : (
+        <DocumentTable
+          rows={pageRows}
+          sort={null}
+          onSort={ignoreSort}
+          onOpen={setOpenId}
+          isFiltered={isFiltered}
+          onClearFilters={clearFilters}
+          showOwner={showOwner}
+          onUpload={() => setUploading('new')}
+        />
       )}
-
-      <DocumentTable
-        rows={pageRows}
-        sort={null}
-        onSort={ignoreSort}
-        onOpen={setOpenId}
-        isFiltered={isFiltered}
-        onClearFilters={clearFilters}
-        showOwner={showOwner}
-        onUpload={() => setUploading('new')}
-      />
 
       {pageRows.length > 0 && (
         <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />

@@ -1,5 +1,5 @@
 // 영업 현황 목록. 영업 딜과 파이프라인 단계를 API에서 읽고 실제 UUID로 쓰기를 처리합니다.
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -10,7 +10,7 @@ import { VisitIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import StageChip, { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { useShowOwner } from '@/shared/scope'
@@ -51,8 +51,6 @@ export default function Deals() {
   const query = params.get('q') ?? ''
   const range = params.get('range') ?? DEFAULT_RANGE
   const stage = params.get('stage') ?? ''
-  const deferredQuery = useDeferredValue(query)
-
   const [page, setPage] = useState(1)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'range' | null>(null)
   const [addingTo, setAddingTo] = useState<string | null>(null)
@@ -95,7 +93,7 @@ export default function Deals() {
 
   const dealQuery = useMemo(
     () => ({
-      q: deferredQuery,
+      q: query,
       stageId: stage,
       // 이 화면에는 담당자 칸이 없습니다. 서버가 보기 범위로 좁힙니다.
       ownerMemberId: '',
@@ -103,7 +101,7 @@ export default function Deals() {
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
-    [deferredQuery, stage, fromISO, page],
+    [query, stage, fromISO, page],
   )
 
   const {
@@ -219,7 +217,7 @@ export default function Deals() {
           value={query}
           placeholder="고객사·제품·영업번호 검색"
           label="영업 딜 검색"
-          onChange={(next) => setParam('q', next)}
+          onSearch={(next) => setParam('q', next)}
         />
 
         <FilterSelect
@@ -282,66 +280,66 @@ export default function Deals() {
         </div>
       )}
 
-      {!error && loading && pageRows.length > 0 && (
-        <InlineLoader label="목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={error} onRetry={reload} />
 
-      <DataTable
-        rows={pageRows}
-        columns={tableColumns}
-        rowKey={(card) => card.id}
-        handleColumn="org"
-        sort={null}
-        onSort={ignoreSort}
-        onOpen={(card) => setOpenId(card.id)}
-        caption="영업 현황 목록. 헤더를 눌러 정렬할 수 있습니다."
-        renderCell={(id, card) => {
-          if (id === 'stage') {
+      {!error && loading ? (
+        <TableSkeleton label="목록을 새로고침하는 중입니다." rows={pageRows.length} />
+      ) : (
+        <DataTable
+          rows={pageRows}
+          columns={tableColumns}
+          rowKey={(card) => card.id}
+          handleColumn="org"
+          sort={null}
+          onSort={ignoreSort}
+          onOpen={(card) => setOpenId(card.id)}
+          caption="영업 현황 목록. 헤더를 눌러 정렬할 수 있습니다."
+          renderCell={(id, card) => {
+            if (id === 'stage') {
+              const found = stageOf(card)
+              return found ? <StageChip tone={found.tone}>{found.name}</StageChip> : null
+            }
+            if (id === 'quoteStatus') return chipOr(card.quoteStatusTone, card.quoteStatusName)
+            if (id === 'contractStatus')
+              return chipOr(card.contractStatusTone, card.contractStatusName)
+            if (id === 'orderStatus') return chipOr(card.orderStatusTone, card.orderStatusName)
+            return undefined
+          }}
+          mini={(card) => {
             const found = stageOf(card)
-            return found ? <StageChip tone={found.tone}>{found.name}</StageChip> : null
+            return {
+              title: card.org,
+              badge: found ? <StageChip tone={found.tone}>{found.name}</StageChip> : undefined,
+              sub: card.product + ' · ' + card.kind,
+              meta: [
+                <span key="m1" className="tnum">
+                  {won(card.amount)}
+                </span>,
+                <span key="m2" className="tnum">
+                  {fmtDot(parseISO(card.date))}
+                </span>,
+                ...(showOwner ? [card.owner] : []),
+              ],
+            }
+          }}
+          empty={
+            isFiltered ? (
+              <>
+                <SearchIcon width={34} height={34} strokeWidth={1.5} />
+                <p>조건에 맞는 영업 딜이 없습니다.</p>
+                <Button variant="outline" onClick={clearFilters}>
+                  검색·필터 초기화
+                </Button>
+              </>
+            ) : (
+              <>
+                <VisitIcon width={34} height={34} strokeWidth={1.5} />
+                <p>아직 등록한 영업 딜이 없습니다.</p>
+              </>
+            )
           }
-          if (id === 'quoteStatus') return chipOr(card.quoteStatusTone, card.quoteStatusName)
-          if (id === 'contractStatus')
-            return chipOr(card.contractStatusTone, card.contractStatusName)
-          if (id === 'orderStatus') return chipOr(card.orderStatusTone, card.orderStatusName)
-          return undefined
-        }}
-        mini={(card) => {
-          const found = stageOf(card)
-          return {
-            title: card.org,
-            badge: found ? <StageChip tone={found.tone}>{found.name}</StageChip> : undefined,
-            sub: card.product + ' · ' + card.kind,
-            meta: [
-              <span key="m1" className="tnum">
-                {won(card.amount)}
-              </span>,
-              <span key="m2" className="tnum">
-                {fmtDot(parseISO(card.date))}
-              </span>,
-              ...(showOwner ? [card.owner] : []),
-            ],
-          }
-        }}
-        empty={
-          isFiltered ? (
-            <>
-              <SearchIcon width={34} height={34} strokeWidth={1.5} />
-              <p>조건에 맞는 영업 딜이 없습니다.</p>
-              <Button variant="outline" onClick={clearFilters}>
-                검색·필터 초기화
-              </Button>
-            </>
-          ) : (
-            <>
-              <VisitIcon width={34} height={34} strokeWidth={1.5} />
-              <p>아직 등록한 영업 딜이 없습니다.</p>
-            </>
-          )
-        }
-      />
+        />
+      )}
 
       {!error && !loading && pageRows.length > 0 && (
         <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />

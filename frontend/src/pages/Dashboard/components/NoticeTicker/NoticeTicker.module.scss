@@ -53,6 +53,17 @@
   color: var(--muted);
 }
 
+// 빈 카드. 목록이 잡던 3줄 자리를 그대로 채워 옆 카드와 높이를 맞춥니다.
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 119px;
+  margin: calc(var(--s3) - 9px) 0 -9px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .list {
   // 줄이 사방의 여백을 스스로 잡습니다. 목록을 그만큼 밖으로 당겨 두면 글자는
   // 원래 자리에 남고, 강조 배경만 넓게 깔립니다. 카드 테두리까지 붙이지는

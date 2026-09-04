@@ -313,7 +313,7 @@ export default function Daily() {
 
       <HistoryToolbar
         query={query}
-        onQueryChange={setQuery}
+        onSearch={setQuery}
         filters={filters}
         onFiltersChange={setFilters}
         approvers={approvers}

@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
@@ -8,7 +8,7 @@ import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import Modal from '@/components/Modal'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { useScopeOwnerIds, useShowOwner } from '@/shared/scope'
 import { showToast } from '@/shared/toast'
 import type { Customer, CustomerContactResponse, PageResponse } from '@/types'
@@ -74,7 +74,6 @@ export default function Customers() {
   // 저장된 설정은 건드리지 않습니다. 범위를 넓히면 그대로 돌아와야 합니다.
   const showOwner = useShowOwner()
   const hiddenColumns = useMemo(() => (showOwner ? [] : ['owner']), [showOwner])
-  const deferredQuery = useDeferredValue(query)
   const ownerIds = useScopeOwnerIds()
 
   // 정렬 API가 붙기 전에 현재 페이지만 정렬하면 전체 순서를 오해하게 됩니다.
@@ -91,7 +90,7 @@ export default function Customers() {
 
   useEffect(() => {
     const controller = new AbortController()
-    const needle = deferredQuery.trim()
+    const needle = query.trim()
 
     setLoading(true)
     setLoadError(null)
@@ -122,7 +121,7 @@ export default function Customers() {
       })
 
     return () => controller.abort()
-  }, [deferredQuery, page, reloadKey, ownerIds])
+  }, [query, page, reloadKey, ownerIds])
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const openCustomer = useMemo(() => rows.find((row) => row.id === openId) ?? null, [rows, openId])
@@ -133,7 +132,7 @@ export default function Customers() {
     resetPage()
   }, [ownerIds, resetPage])
 
-  const onQueryChange = useCallback(
+  const onSearch = useCallback(
     (next: string) => {
       setQuery(next)
       resetPage()
@@ -297,7 +296,7 @@ export default function Customers() {
 
       <TableToolbar
         query={query}
-        onQueryChange={onQueryChange}
+        onSearch={onSearch}
         prefs={prefs}
         onToggleColumn={toggleColumn}
         onMoveColumn={moveColumn}
@@ -317,28 +316,28 @@ export default function Customers() {
         </p>
       )}
 
-      {!loadError && loading && rows.length > 0 && (
-        <InlineLoader label="고객 목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={loadError} onRetry={() => setReloadKey((value) => value + 1)} />
 
-      <CustomerTable
-        columns={columns}
-        widths={prefs.widths}
-        onResize={setWidth}
-        rows={rows}
-        sort={null}
-        onSort={ignoreSort}
-        selected={selected}
-        onToggleRow={toggleRow}
-        onTogglePage={togglePage}
-        onOpen={setOpenId}
-        isFiltered={query.trim() !== ''}
-        hasAnyData={total > 0}
-        onClearFilters={clearQuery}
-        onCreate={() => setDialog('create')}
-      />
+      {!loadError && loading ? (
+        <TableSkeleton label="고객 목록을 새로고침하는 중입니다." rows={rows.length} />
+      ) : (
+        <CustomerTable
+          columns={columns}
+          widths={prefs.widths}
+          onResize={setWidth}
+          rows={rows}
+          sort={null}
+          onSort={ignoreSort}
+          selected={selected}
+          onToggleRow={toggleRow}
+          onTogglePage={togglePage}
+          onOpen={setOpenId}
+          isFiltered={query.trim() !== ''}
+          hasAnyData={total > 0}
+          onClearFilters={clearQuery}
+          onCreate={() => setDialog('create')}
+        />
+      )}
 
       {!loadError && total > 0 && (
         <Pagination page={page} pageCount={pageCount} total={total} onPage={setPage} />
