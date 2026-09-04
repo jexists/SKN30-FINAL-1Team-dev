@@ -60,6 +60,15 @@ source_units와 run_context는 서버가 권한·기간을 확인하고 실행 �
 반환값은 field_id가 body인 5,000자 이하의 비어 있지 않은 value 하나다.
 """.strip()
 
+GUIDANCE_CONTRACT = """
+run_context의 guidance는 이번 보고서 작성자가 직접 제공한 최신 추가·정정 자료다.
+guidance가 특정 발언의 딜·제품 귀속을 명시적으로 정정하면 그 발언에 한해 본문에 반영하라.
+그 발언에 대한 이전 하위 보고서의 미확정 표현은 유지하지 마라.
+이는 딜 미지정 상태 보존 규칙의 예외다.
+guidance에서 정정하지 않은 불확실성은 그대로 유지하라.
+정정 자체가 불명확할 때는 그 발언의 불확실성을 유지하고, 정정에 없는 새 사실은 만들지 마라.
+""".strip()
+
 SYSTEM_PROMPT = (
     "너는 기간 보고서 작성 감독자다. 본문 초안 작성은 서버가 지정한 task 하위 작성자에게 "
     "반드시 위임하고, 너는 하위 초안을 조립하고 검토할 뿐 직접 본문을 쓰지 마라. 제공된 "
@@ -329,7 +338,7 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
 
         reviewer = create_agent(
             model,
-            system_prompt=REVIEW_PROMPT + "\n\n" + role_skill_text,
+            system_prompt=REVIEW_PROMPT + "\n\n" + role_skill_text + "\n\n" + GUIDANCE_CONTRACT,
             response_format=ToolStrategy(ReportReview),
             middleware=[
                 ModelCallLimitMiddleware(
@@ -521,6 +530,8 @@ async def run(snapshot: dict[str, Any], *, model: BaseChatModel | None = None) -
                 "system_prompt": EVIDENCE_CONTRACT
                 + "\n\n"
                 + role_skill_text
+                + "\n\n"
+                + GUIDANCE_CONTRACT
                 + f"\n너는 서버가 확정한 {source['report_kind']} 종류의 `{writer_role}`다. "
                 "보고서 종류를 다시 분류하지 마라. 위에 주입된 공통·역할 스킬을 반드시 "
                 "따른다. read_report_sources()를 source_id 없이 한 번 호출해 동결된 선택 자료 "

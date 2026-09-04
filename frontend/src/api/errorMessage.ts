@@ -91,6 +91,8 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   report_has_submission_history: '확정 이력이 있는 보고서는 삭제할 수 없습니다.',
   meeting_notes_empty: '기록된 공통·미지정 내용은 비워서 저장할 수 없습니다.',
   meeting_notes_without_evidence: '근거가 없는 공통·미지정 항목에는 메모를 추가할 수 없습니다.',
+  report_agent_output_invalid:
+    'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
   // 상품 (/products)
   product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   product_image_not_found: '등록된 사진이 없습니다.',
@@ -151,6 +153,13 @@ const MESSAGE_BY_STATUS: Record<number, string> = {
  */
 export function messageForCode(code: string, fallback: string): string {
   return code in MESSAGE_BY_DETAIL ? MESSAGE_BY_DETAIL[code] : fallback
+}
+
+export function reportGenerationMessage(code: string): string {
+  return messageForCode(
+    code,
+    'AI 보고서 작성을 완료하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
+  )
 }
 
 export function errorMessage(error: unknown, fallback: string): string {

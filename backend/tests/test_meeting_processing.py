@@ -59,6 +59,67 @@ def test_input_snapshot_freezes_request_without_a_report(monkeypatch):
     assert "assignment_overrides" not in actual
 
 
+def test_no_deal_input_and_processing_keep_the_shared_report(monkeypatch):
+    member = _member()
+    activity_id = uuid4()
+    transcript = "고객사가 신규 사업 방향을 공유했습니다."
+
+    async def context(db, owner, source_activity_id, selected):
+        assert (db, owner, source_activity_id, selected) == (
+            None,
+            member,
+            activity_id,
+            [],
+        )
+        return {
+            "deals": [],
+            "crm_context": {"company": {"name": "합성 고객사"}},
+        }
+
+    monkeypatch.setattr(service.meeting_context, "build_context", context)
+    snapshot = asyncio.run(service.input_snapshot(None, member, activity_id, [], transcript))
+    source = meeting_content_analysis.MeetingContentInput.model_validate(snapshot["source"])
+    evidence = meeting_content_analysis.build_evidence_ledger(
+        source,
+        meeting_content_analysis.MeetingContentAnalysisOutput.model_validate(
+            {
+                "assignments": [
+                    {
+                        "segment_id": "S0001",
+                        "applicability": {"scope": "company_context"},
+                    }
+                ]
+            }
+        ),
+    )
+    reports = report_writing_deep.FreeformMeetingReports(
+        deal_reports=[],
+        common_report=report_writing_deep.ReportBody(
+            body="고객사가 신규 사업 방향을 공유했습니다.",
+            evidence_ids=["S0001"],
+        ),
+    )
+
+    async def analyze(value, *, on_lookup):
+        assert value["deals"] == []
+        return evidence
+
+    async def write(value):
+        assert value.evidence.selected_deal_ids == []
+        return reports
+
+    monkeypatch.setattr(meeting_content_analysis, "run", analyze)
+    monkeypatch.setattr(report_writing_deep, "run", write)
+
+    actual = asyncio.run(service.run(snapshot))
+
+    assert snapshot["source"]["selected_deal_ids"] == []
+    assert actual.analyses == []
+    assert actual.reports == reports
+    assert actual.reports.deal_reports == []
+    assert actual.evidence.selected_deal_ids == []
+
+
 @pytest.mark.parametrize("report_failure", [False, True])
 def test_run_shares_evidence_and_keeps_partial_results(monkeypatch, report_failure):
     source, snapshot = _snapshot()

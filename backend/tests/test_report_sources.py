@@ -106,7 +106,7 @@ def sample(monkeypatch):
                             "structured_values": {},
                         }
                     ]
-                    if source.report_kind == "meeting"
+                    if source.report_kind == "meeting" and source.sales_deal_id is not None
                     else []
                 ),
             }
@@ -207,6 +207,26 @@ def test_daily_loads_stored_values_and_deduplicates_meeting_shared(sample):
     assert "전체 원문" not in str(result) and "미검토 초안" not in str(result)
     assert "ml_result" not in str(result) and "evidence_ids" not in str(result)
     assert lookup.await_count == 2
+
+
+def test_daily_keeps_shared_body_from_a_no_deal_meeting(sample):
+    _, parent, sources, lookup = sample
+    source = sources[0]
+    source.sales_deal_id = None
+    source.common_body = "고객사가 신규 사업 방향을 공유했습니다."
+    refs(parent, [source])
+
+    result = run(sample)
+
+    assert result["reports"] == []
+    assert result["meetings"] == [
+        {
+            "activity_id": str(source.source_activity_id),
+            "common_report": {"body": source.common_body},
+            "unassigned_report": None,
+        }
+    ]
+    lookup.assert_awaited_once()
 
 
 def test_normalized_source_reads_the_immutable_submission_instead_of_mutable_report(

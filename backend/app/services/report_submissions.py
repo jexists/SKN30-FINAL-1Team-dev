@@ -201,13 +201,14 @@ def snapshot_sha256(snapshot: dict[str, Any]) -> str:
 
 
 def validate_submission_content(report: Report, sections: list[ReportDeal]) -> None:
-    """Reject a meeting section without a human-approved body."""
+    """Require an approved deal body or, for no-deal meetings, a shared body."""
     if report.report_kind != "meeting":
         return
-    if not sections:
+    fields = effective_report_fields(report)
+    if not sections and fields["common_body"] is None and fields["unassigned_body"] is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="deal_sections_required",
+            detail="meeting_body_required",
         )
     if any(effective_deal_fields(section)["body"] is None for section in sections):
         raise HTTPException(

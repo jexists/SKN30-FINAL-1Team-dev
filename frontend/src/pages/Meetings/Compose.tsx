@@ -1,13 +1,13 @@
 // 업무 보고서 작성 화면.
 //
-// 왼쪽은 미팅 공통 정보·원문이고, 오른쪽은 선택한 딜마다 하나씩 생기는 보고서입니다.
-// 저장할 때는 공통 기록과 모든 딜 카드를 미팅 보고서 한 건으로 묶습니다.
+// 왼쪽은 미팅 공통 정보·원문이고, 오른쪽은 공통 기록과 선택한 딜의 보고서입니다.
+// 저장할 때는 공통 기록과 선택된 딜 카드를 미팅 보고서 한 건으로 묶습니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { isAxiosError } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
   finishIdempotencyAttempt,
@@ -60,8 +60,7 @@ function meetingInputOf(
     !input ||
     input.report_kind !== 'meeting' ||
     input.source_activity_id !== agendaId ||
-    !input.transcript ||
-    input.sales_deal_ids.length === 0
+    !input.transcript
   ) {
     throw new Error('report_generation_input_missing')
   }
@@ -144,7 +143,7 @@ export default function Compose() {
         setRunErrors(completed.output_snapshot.errors)
       } catch (reason: unknown) {
         if (!controller.signal.aborted) {
-          if (dealIds.length) generationFailed(dealIds, reason)
+          generationFailed(dealIds, reason)
           setRunError(errorMessage(reason, '진행 중인 보고서를 복구하지 못했습니다.'))
         }
       } finally {
@@ -278,12 +277,10 @@ export default function Compose() {
   }
 
   const payloadForMeeting = (): MeetingDraftPayload => {
-    const first = draft.draftsByDeal[draft.salesDealIds[0]]
-    if (!first) throw new Error('meeting_draft_not_found')
     return {
-      reportId: savedReport?.id ?? first.reportId,
-      version: first.reportVersion ?? savedReport?.version,
-      statusCode: savedReport?.apiStatus ?? first.statusCode,
+      reportId: savedReport?.id,
+      version: savedReport?.version,
+      statusCode: savedReport?.apiStatus,
       agendaId: item.id,
       date: item.date,
       time: item.time,
@@ -301,7 +298,7 @@ export default function Compose() {
   }
 
   const generatable =
-    draft.salesDealIds.length > 0 &&
+    canEdit &&
     draft.salesDealIds.every(
       (id) => canEditDeal(id) && isAuthorEditableReportStatus(draft.draftsByDeal[id]?.statusCode),
     )
@@ -312,6 +309,10 @@ export default function Compose() {
   const emptyDealIds = editableDealIds.filter((id) =>
     isMeetingBodyBlank(draft.draftsByDeal[id]?.values ?? {}),
   )
+  const hasSharedBody = Boolean(
+    result?.shared?.common_report?.body.trim() || result?.shared?.unassigned_report?.body.trim(),
+  )
+  const missingBody = emptyDealIds.length > 0 || (draft.salesDealIds.length === 0 && !hasSharedBody)
   const hasDraftContent = hasMeetingDraftContent(
     draft.salesDealIds,
     draft.draftsByDeal,
@@ -379,8 +380,9 @@ export default function Compose() {
     if (
       busy ||
       submitAbort.current ||
+      !canEdit ||
       editableDealIds.length !== draft.salesDealIds.length ||
-      emptyDealIds.length > 0
+      missingBody
     )
       return
 
@@ -406,9 +408,9 @@ export default function Compose() {
     }
   }
 
-  const printable = draft.salesDealIds.some(
-    (dealId) => draft.draftsByDeal[dealId]?.phase === 'ready',
-  )
+  const printable =
+    hasSharedBody ||
+    draft.salesDealIds.some((dealId) => draft.draftsByDeal[dealId]?.phase === 'ready')
 
   return (
     <section className={styles.page}>
@@ -452,7 +454,7 @@ export default function Compose() {
           <p>일부 처리가 완료되지 않았습니다. 기존 작성 내용은 유지됩니다.</p>
           <ul>
             {Object.entries(runErrors).map(([step, message]) => (
-              <li key={step}>{message}</li>
+              <li key={step}>{reportGenerationMessage(message)}</li>
             ))}
           </ul>
         </div>
@@ -488,7 +490,7 @@ export default function Compose() {
               transcript={draft.transcript}
               onTranscriptChange={draft.setTranscript}
               canGenerate={draft.canGenerate && generatable}
-              generating={generating}
+              generating={generating || recovering}
               contentLabel="미팅 내용"
               generateLabel="미팅 전체 분석·보고서 작성"
               disabled={busy || !canEdit}
@@ -501,49 +503,51 @@ export default function Compose() {
               </p>
             )}
             <p className={styles.generationNote}>
-              한 번 실행하면 선택한 모든 딜을 함께 처리합니다. 작성한 내용이 있으면 새 후보로 바꾸기
-              전에 확인합니다.
+              미팅 공통 기록을 만들며, 관련 딜을 선택하면 딜별 보고서도 함께 처리합니다. 작성한
+              내용이 있으면 새 후보로 바꾸기 전에 확인합니다.
             </p>
           </div>
         </div>
 
-        <section className={styles.work} aria-label="딜별 미팅보고서">
-          {draft.salesDealIds.length > 0 && (
-            <div className={styles.saveBar} aria-busy={submitting}>
-              <div className={styles.saveCopy}>
-                <strong>미팅 보고서</strong>
-                <p>공통 기록과 딜 {draft.salesDealIds.length}건을 한 문서로 저장합니다.</p>
-              </div>
-              <Button
-                type="button"
-                className={styles.saveAllButton}
-                aria-label="업무보고 작성 완료"
-                disabled={
-                  busy ||
-                  editableDealIds.length !== draft.salesDealIds.length ||
-                  emptyDealIds.length > 0
-                }
-                onClick={() => void submitAll()}
-              >
-                {submitting ? '완료 중…' : '업무보고 작성 완료'}
-              </Button>
+        <section className={styles.work} aria-label="미팅 보고서">
+          <div className={styles.saveBar} aria-busy={submitting}>
+            <div className={styles.saveCopy}>
+              <strong>미팅 보고서</strong>
+              <p>
+                {draft.salesDealIds.length > 0
+                  ? `공통 기록과 딜 ${draft.salesDealIds.length}건을 한 문서로 저장합니다.`
+                  : '딜 미지정 미팅 기록을 한 문서로 저장합니다.'}
+              </p>
             </div>
-          )}
-          {(result || draft.processingProgress || generating) && (
+            <Button
+              type="button"
+              className={styles.saveAllButton}
+              aria-label="업무보고 작성 완료"
+              disabled={
+                busy ||
+                !canEdit ||
+                editableDealIds.length !== draft.salesDealIds.length ||
+                missingBody
+              }
+              onClick={() => void submitAll()}
+            >
+              {submitting ? '완료 중…' : '업무보고 작성 완료'}
+            </Button>
+          </div>
+          {(draft.salesDealIds.length === 0 ||
+            result ||
+            draft.processingProgress ||
+            generating) && (
             <MeetingSharedPanel
               shared={result?.shared ?? null}
               progress={draft.processingProgress}
-              generating={generating}
+              generating={generating || recovering}
               disabled={busy}
+              showCommon={draft.salesDealIds.length === 0}
               onChange={canEdit ? draft.setShared : undefined}
             />
           )}
-          {draft.salesDealIds.length === 0 ? (
-            <div className={styles.noDeals}>
-              <h2>보고서를 작성할 딜을 선택하세요</h2>
-              <p>왼쪽 영업 현황에서 하나 이상 선택하면 딜별 보고서 카드가 만들어집니다.</p>
-            </div>
-          ) : (
+          {draft.salesDealIds.length > 0 &&
             draft.salesDealIds.map((dealId) => {
               const state = draft.draftsByDeal[dealId]
               if (!state) return null
@@ -570,8 +574,7 @@ export default function Compose() {
                   onGenerate={requestGeneration}
                 />
               )
-            })
-          )}
+            })}
         </section>
       </div>
 

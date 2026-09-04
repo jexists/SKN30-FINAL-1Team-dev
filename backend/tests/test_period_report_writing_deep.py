@@ -117,7 +117,7 @@ def delegated_prefix(
 
 
 def test_period_prompt_requires_an_internal_report_instead_of_a_schedule_summary():
-    assert report_writing.PROMPT_VERSION == "report_writing.v16"
+    assert report_writing.PROMPT_VERSION == "report_writing.v17"
     assert "본문 초안 작성은 서버가 지정한 task 하위 작성자에게" in period.SYSTEM_PROMPT
     assert "직접 본문을 쓰지 마라" in period.SYSTEM_PROMPT
     assert "첫 검토의 의미 지적은 수정 조언" in period.SYSTEM_PROMPT
@@ -129,6 +129,15 @@ def test_period_prompt_requires_an_internal_report_instead_of_a_schedule_summary
     }
     assert "날짜나 자료 존재만 요약했다면 핵심 누락" in period.REVIEW_PROMPT
     assert "단순 문체 취향이 아니라 수정 대상" in period.REVIEW_PROMPT
+    assert (
+        "guidance는 이번 보고서 작성자가 직접 제공한 최신 추가·정정 자료"
+        in period.GUIDANCE_CONTRACT
+    )
+    assert (
+        "딜·제품 귀속을 명시적으로 정정하면 그 발언에 한해 본문에 반영" in period.GUIDANCE_CONTRACT
+    )
+    assert "딜 미지정 상태 보존 규칙의 예외" in period.GUIDANCE_CONTRACT
+    assert "정정하지 않은 불확실성은 그대로 유지" in period.GUIDANCE_CONTRACT
     skill = period._skill_text("daily")
     assert "# 기간 업무보고 공통 문체" in skill
     assert "# 일일업무보고 작성" in skill
@@ -263,6 +272,7 @@ def test_actual_deep_graph_delegates_reads_all_units_and_returns_reviewed_draft(
     assert all(not {"execute", "web_search"} & tools for tools in model._tool_sets)
     assert "# 기간 업무보고 공통 문체" in model._seen[1][0].content
     assert "# 일일업무보고 작성" in model._seen[1][0].content
+    assert period.GUIDANCE_CONTRACT in model._seen[1][0].content
     summary = next(
         json.loads(record.getMessage().removeprefix("agent_progress "))
         for record in caplog.records
@@ -513,6 +523,7 @@ def test_empty_source_units_are_delegated_with_run_context():
     assert delegated_source["source_units"] == []
     assert delegated_source["run_context"]["current_body"] == source["content"]["values"]["body"]
     assert delegated_source["run_context"]["transcript"] == source["transcript"]
+    assert delegated_source["run_context"]["guidance"] == source["guidance"]
 
 
 @pytest.mark.parametrize(

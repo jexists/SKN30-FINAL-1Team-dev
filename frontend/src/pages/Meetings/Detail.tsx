@@ -126,7 +126,11 @@ export default function Detail() {
             <span className={styles.dot} aria-hidden="true">
               ·
             </span>
-            <span>딜 {report.dealSections.length}건</span>
+            <span>
+              {report.dealSections.length > 0
+                ? `딜 ${report.dealSections.length}건`
+                : '관련 딜 없음'}
+            </span>
           </p>
         </div>
       </header>
@@ -140,9 +144,7 @@ export default function Detail() {
         <div className={styles.report}>
           <MeetingSharedPanel shared={report.meetingShared ?? null} />
           {report.dealSections.length === 0 ? (
-            <p className={styles.emptySections} role="alert">
-              저장된 딜별 보고서 내용을 찾을 수 없습니다.
-            </p>
+            !report.meetingShared && <p className={styles.emptySections}>작성된 내용이 없습니다.</p>
           ) : (
             <div className={styles.dealSections}>
               {report.dealSections.map((section, index) => {

@@ -401,6 +401,17 @@ def test_report_generation_input_has_one_typed_scope():
         transcript="고객이 다음 달 예산을 검토합니다.",
     )
     assert service.generation_scope_key(meeting).startswith("meeting:")
+    no_deal_meeting = ReportGenerationCreate(
+        idempotency_key=uuid4(),
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=uuid4(),
+        sales_deal_ids=[],
+        template_snapshot=TEMPLATE,
+        content={},
+        transcript="고객사가 신규 사업 방향을 공유했습니다.",
+    )
+    assert no_deal_meeting.sales_deal_ids == []
     with pytest.raises(ValidationError):
         ReportGenerationCreate(
             idempotency_key=uuid4(),

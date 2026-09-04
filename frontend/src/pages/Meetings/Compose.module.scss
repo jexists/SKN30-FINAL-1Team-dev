@@ -156,32 +156,6 @@
   }
 }
 
-.noDeals {
-  display: flex;
-  min-height: 220px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s2);
-  padding: var(--s6);
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  text-align: center;
-
-  h2 {
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  p {
-    max-width: 38ch;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.7;
-  }
-}
-
 /*
  * 입력판. 참고판과 같은 열에 놓여 있는 면입니다 — 테두리만 있고 그림자가 없습니다.
  * 떠 있는 면은 오른쪽 보고서 하나뿐이어야 어느 쪽이 결과인지 헷갈리지 않습니다.

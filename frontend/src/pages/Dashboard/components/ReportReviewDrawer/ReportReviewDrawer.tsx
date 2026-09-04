@@ -42,33 +42,33 @@ export function ReportReviewContents({ report }: { report: MeetingReport }) {
     <>
       <MeetingSharedPanel shared={report.meetingShared ?? null} />
 
-      {report.dealSections.length === 0 ? (
-        <section className={styles.section}>
-          <h3 className={styles.heading}>딜별 보고 내용</h3>
-          <p className={styles.hint}>저장된 딜별 보고서 내용을 찾을 수 없습니다.</p>
-        </section>
-      ) : (
-        report.dealSections.map((section, index) => (
-          <section className={styles.section} key={section.salesDealId}>
-            <h3 className={styles.heading}>
-              딜별 보고 {index + 1} · {section.salesDeal.label}
-            </h3>
-            {(section.salesDeal.note || section.product || section.title) && (
-              <p className={styles.hint}>
-                {[section.salesDeal.note, section.product, section.title]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            )}
-            {section.values.body?.trim() ? (
-              <ReportBody className={styles.body} body={section.values.body} />
-            ) : (
+      {report.dealSections.length === 0
+        ? !report.meetingShared && (
+            <section className={styles.section}>
+              <h3 className={styles.heading}>미팅 보고 내용</h3>
               <p className={styles.hint}>작성된 내용이 없습니다.</p>
-            )}
-            {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
-          </section>
-        ))
-      )}
+            </section>
+          )
+        : report.dealSections.map((section, index) => (
+            <section className={styles.section} key={section.salesDealId}>
+              <h3 className={styles.heading}>
+                딜별 보고 {index + 1} · {section.salesDeal.label}
+              </h3>
+              {(section.salesDeal.note || section.product || section.title) && (
+                <p className={styles.hint}>
+                  {[section.salesDeal.note, section.product, section.title]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              )}
+              {section.values.body?.trim() ? (
+                <ReportBody className={styles.body} body={section.values.body} />
+              ) : (
+                <p className={styles.hint}>작성된 내용이 없습니다.</p>
+              )}
+              {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
+            </section>
+          ))}
     </>
   )
 }

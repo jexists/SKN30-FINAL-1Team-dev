@@ -10,6 +10,7 @@ interface Props {
   progress?: MeetingProgress | null
   generating?: boolean
   disabled?: boolean
+  showCommon?: boolean
   onChange?: (commonBody: string, unassignedBody: string) => void
 }
 
@@ -18,13 +19,20 @@ export default function MeetingSharedPanel({
   progress,
   generating = false,
   disabled = false,
+  showCommon = false,
   onChange,
 }: Props) {
   const id = useId()
   const commonBody = shared?.common_report?.body ?? ''
   const unassignedBody = shared?.unassigned_report?.body ?? ''
   const previews = progress?.previews.filter((preview) => preview.section !== 'deal') ?? []
-  if (!shared?.common_report && !shared?.unassigned_report && !previews.length && !generating)
+  if (
+    !showCommon &&
+    !shared?.common_report &&
+    !shared?.unassigned_report &&
+    !previews.length &&
+    !generating
+  )
     return null
 
   return (
@@ -64,7 +72,7 @@ export default function MeetingSharedPanel({
             change: (value: string) => onChange?.(commonBody, value),
           },
         ]
-          .filter((part) => part.report)
+          .filter((part) => part.report || (showCommon && part.key === 'common'))
           .map((part) => (
             <div className={styles.section} key={part.key}>
               {onChange ? (

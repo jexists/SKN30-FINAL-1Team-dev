@@ -751,6 +751,37 @@ def test_blank_meeting_section_still_cannot_be_finalized():
     assert caught.value.detail == "report_deal_body_required"
 
 
+@pytest.mark.parametrize("shared_field", ["common_body", "unassigned_body"])
+def test_no_deal_meeting_shared_body_is_finalizeable_and_snapshotted(shared_field):
+    activity_id = uuid4()
+    shared_body = "고객사가 신규 사업 방향을 공유했습니다."
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=activity_id,
+        deal_sections=[],
+        template_snapshot=TEMPLATE,
+        content={},
+        transcript=shared_body,
+        **{shared_field: shared_body},
+    )
+
+    member = _member()
+    report = _report(member, kind="meeting")
+    report.source_activity_id = activity_id
+    report.body = None
+    report.content = {}
+    setattr(report, shared_field, shared_body)
+
+    report_submissions.validate_submission_content(report, [])
+    snapshot = report_submissions.build_submission_snapshot(report, [])
+
+    assert payload.deal_sections == []
+    assert snapshot["deals"] == []
+    assert snapshot[shared_field] == shared_body
+
+
 @pytest.mark.anyio
 async def test_reordering_report_deals_clears_positions_before_swapping():
     member = _member()

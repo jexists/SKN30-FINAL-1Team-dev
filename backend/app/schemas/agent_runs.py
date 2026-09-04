@@ -141,8 +141,6 @@ class ReportGenerationInput(BaseModel):
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
                 raise ValueError("source_activity_required")
-            if not self.sales_deal_ids:
-                raise ValueError("sales_deal_ids_required")
             if self.transcript is None:
                 raise ValueError("transcript_required")
             if self.period_start is not None or self.period_end is not None:
