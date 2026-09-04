@@ -113,9 +113,7 @@ async def _trade_history(db, member, activity, company_id, selected_deal_ids, li
     from app.api import sales_deals
 
     before = activity.starts_at
-    selected_deal_filter = (
-        [SalesDeal.id.not_in(selected_deal_ids)] if selected_deal_ids else []
-    )
+    selected_deal_filter = [SalesDeal.id.not_in(selected_deal_ids)] if selected_deal_ids else []
     rows = (
         await db.execute(
             sales_deals._joined_select(SalesDeal, sales_deals._product.name)

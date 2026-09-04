@@ -222,11 +222,7 @@ class ReportFinalize(_WriteModel):
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
                 raise ValueError("source_activity_required")
-            if (
-                not self.deal_sections
-                and self.common_body is None
-                and self.unassigned_body is None
-            ):
+            if not self.deal_sections and self.common_body is None and self.unassigned_body is None:
                 raise ValueError("meeting_body_required")
             if self.sales_deal_id is not None:
                 raise ValueError("sales_deal_not_supported")

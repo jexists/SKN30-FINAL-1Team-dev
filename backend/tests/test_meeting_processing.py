@@ -77,9 +77,7 @@ def test_no_deal_input_and_processing_keep_the_shared_report(monkeypatch):
         }
 
     monkeypatch.setattr(service.meeting_context, "build_context", context)
-    snapshot = asyncio.run(
-        service.input_snapshot(None, member, activity_id, [], transcript)
-    )
+    snapshot = asyncio.run(service.input_snapshot(None, member, activity_id, [], transcript))
     source = meeting_content_analysis.MeetingContentInput.model_validate(snapshot["source"])
     evidence = meeting_content_analysis.build_evidence_ledger(
         source,
