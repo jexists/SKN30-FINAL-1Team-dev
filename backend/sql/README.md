@@ -314,7 +314,7 @@
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0017_report_workflow_v2_foundation.sql` | session pooler | 성공. 정리 후 report 699행과 report_deal 461행을 유지하고 report_submission·report_source·meeting_deal_analysis 및 제약조건·인덱스를 추가. 일일보고서 중복 0건 확인 |
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0018_agent_run_queue.sql` | session pooler | 성공. 정리 후 agent_run 537행을 유지하고 큐 컬럼·제약조건·인덱스를 추가. `agent_worker --check-schema` 통과 |
 | 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_activity_customer_company.sql` | session pooler | 성공. 9/2 에 트랜잭션 안에서 돌려 보고 롤백해 수치를 확인한 뒤(딜 담당자 NULL 19→0 / 일정 담당자 NULL 48→0(활성 33 + 소프트 삭제 15) / 삭제 딜 9(416→407) · 일정 34(1993→1959) · 보고서 14(707→693) · `contract_next_meeting_suggestion` 3(90→87)), 9/3 에 실제로 적용했습니다. 적용 직전 리허설에서는 딜 담당자 NULL 20→0 / 일정 담당자 NULL 48→0 이고 삭제 건수는 9/2 와 같았습니다 — 그 사이 딜·일정이 몇 건 늘어 전체 행 수만 달라졌습니다. 적용 후 담당자 NULL 은 딜·일정 모두 0, 일정 고객사 NULL 0, `activity.customer_company_id` 생성 확인. 남은 행은 딜 408 · 일정 1962 · 보고서 673 · `contract_next_meeting_suggestion` 88 입니다. 자료·발주·불만·확정 스냅샷을 보는 `RAISE EXCEPTION` 가드는 걸리지 않았습니다 |
-| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0022_activity_contact_required.sql` | session pooler | **미적용(대기).** 지우는 행이 없는 마이그레이션입니다. 배포 직전에 트랜잭션 안에서 돌려 보고 수치를 채웁니다 |
+| 2026-09-04 | 현재 연결된 개발 DB | `20260903_0022_activity_contact_required.sql` | session pooler | **미적용(대기).** 트랜잭션 안에서 돌려 보고 롤백해 수치만 확인했습니다. **지우는 행이 없습니다** — 일정 1976 · 보고서 688 · 딜 413 이 그대로였습니다. 일정 딜 NULL 40→25 이고 채워진 15건은 보고서 역추적 10 · 고객사에 열린 딜이 하나뿐 5 로 갈렸습니다. 나머지 25건은 근거가 없어 비운 채로 남습니다. 담당자 NOT NULL 가드는 통과했습니다(딜·일정 모두 0). 다만 **적용 직전에 담당자가 빈 행을 한 번 더 확인해야 합니다** — 딜 등록 폼이 담당자를 묻기 시작하는 것은 이 브랜치 배포 뒤라, 그 사이에 만들어진 딜은 담당자가 비어 가드에 걸립니다. 실제로 9/4 에 그런 딜 1건(`꿈동물병원 LR-CORE1`)이 걸렸고, 이미 미팅 보고서에 엮여 있어 지우지 못하고 담당자를 채워 넘겼습니다 |
 
 ## 개발 DB 재구축 런북
 
