@@ -17,6 +17,7 @@ import type {
   CalendarEvent,
   CustomerCompanyResponse,
   CustomerContactResponse,
+  PageResponse,
   SalesDealResponse,
 } from '@/types'
 import { iso, parseISO } from '@/utils/date'
@@ -38,6 +39,9 @@ interface Props {
 function companyId(selection: CompanySelection | null): string | null {
   return selection?.kind === 'existing' ? selection.company.id : null
 }
+
+// 아직 끝나지 않은 딜. 취소·납품 완료까지 간 건에 새 미팅을 붙일 일은 없습니다.
+const OPEN_DEAL_PHASES = ['sales', 'quote', 'contract', 'order']
 
 /** 딜 칸에 적는 이름. 계약번호가 있으면 그것이 사람들이 부르는 번호입니다. */
 function toDealOption(deal: SalesDealResponse): RecordOption {
@@ -137,6 +141,36 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
 
     return () => controller.abort()
   }, [savedContactId])
+
+  // 새로 만드는 일정에서 회사를 고르면, 그 회사에 열린 딜이 하나뿐인지 봅니다. 하나뿐이면
+  // 고를 여지가 없으므로 미리 채워 둡니다 — 서버가 조용히 붙이지 않고 칸에 보여 주는 쪽이라,
+  // 인사차 방문처럼 딜과 무관한 일정이면 ⓧ 로 지우고 저장하면 됩니다.
+  const pickedCompanyId = companyId(company)
+  useEffect(() => {
+    if (mode !== 'create' || pickedCompanyId === null || deal !== null) return
+    const controller = new AbortController()
+
+    void client
+      .get<PageResponse<SalesDealResponse>>('/sales-deals', {
+        params: {
+          customer_company_id: pickedCompanyId,
+          phase_code: OPEN_DEAL_PHASES,
+          // 하나뿐인지만 보면 되므로 두 건까지만 받습니다.
+          limit: 2,
+        },
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
+        if (controller.signal.aborted || data.items.length !== 1) return
+        pickDeal(toDealOption(data.items[0]))
+      })
+      // 못 받으면 칸을 비운 채로 둡니다. 고르는 것은 언제든 사람이 할 수 있습니다.
+      .catch(() => {})
+
+    return () => controller.abort()
+    // deal 은 넣지 않습니다 — 채운 뒤 다시 돌아 이미 고른 값을 덮어쓰지 않게 합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, pickedCompanyId])
 
   // 고쳐 쓰려고 연 일정. 저장된 것은 딜 id 하나뿐이라 칸에 번호를 보이려면 한 건을
   // 읽어야 합니다. 실패하면 빈 칸으로 두고 다시 고르게 합니다.
