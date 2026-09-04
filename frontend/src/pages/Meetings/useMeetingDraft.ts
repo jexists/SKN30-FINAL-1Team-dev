@@ -138,7 +138,7 @@ export default function useMeetingDraft(
 
   const initialize = useCallback(() => {
     const ids = [...new Set(savedReport?.dealSections.map((section) => section.salesDealId) ?? [])]
-    if (ids.length === 0 && item?.salesDealId) ids.push(item.salesDealId)
+    if (!savedReport && item?.salesDealId) ids.push(item.salesDealId)
     const result = meetingResultOf(savedReport)
     setTranscript(savedReport?.transcript ?? '')
     setAttachments(savedReport?.attachments ?? [])
@@ -288,15 +288,15 @@ export default function useMeetingDraft(
           }),
         ),
       )
-      setMeetingResult({
+      setMeetingResult((current) => ({
         runId,
         shared: output.reports
           ? {
               common_report: output.reports.common_report,
               unassigned_report: output.reports.unassigned_report,
             }
-          : undefined,
-      })
+          : current?.shared,
+      }))
     },
     [fallbackTitle],
   )
@@ -339,24 +339,25 @@ export default function useMeetingDraft(
     acceptGenerated,
     generationFailed,
     setShared: (commonBody: string, unassignedBody: string) =>
-      setMeetingResult((current) =>
-        current
-          ? {
-              ...current,
-              shared: {
-                common_report: current.shared?.common_report
-                  ? { ...current.shared.common_report, body: commonBody }
-                  : null,
-                unassigned_report: current.shared?.unassigned_report
-                  ? { ...current.shared.unassigned_report, body: unassignedBody }
-                  : null,
-              },
-            }
-          : current,
-      ),
+      setMeetingResult((current) => {
+        const common = current?.shared?.common_report
+        const unassigned = current?.shared?.unassigned_report
+        return {
+          ...(current ?? {}),
+          shared: {
+            common_report:
+              commonBody.trim() || common
+                ? { ...(common ?? { evidence_ids: [] }), body: commonBody }
+                : null,
+            unassigned_report:
+              unassignedBody.trim() || unassigned
+                ? { ...(unassigned ?? { evidence_ids: [] }), body: unassignedBody }
+                : null,
+          },
+        }
+      }),
     canGenerate:
       transcript.trim().length > 0 &&
-      salesDealIds.length > 0 &&
       !files.attachments.some((attachment) => attachment.state === 'analyzing'),
   }
 }

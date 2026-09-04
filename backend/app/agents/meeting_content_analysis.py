@@ -36,7 +36,7 @@ from app.services.llm import (
     safe_token_usage,
 )
 
-PROMPT_VERSION = "meeting_content_analysis.v5"
+PROMPT_VERSION = "meeting_content_analysis.v6"
 RUN_TIMEOUT_SECONDS = 300
 MAX_MODEL_CALLS = 24
 MAX_LOOKUPS = 8
@@ -58,6 +58,8 @@ scope 규칙:
 - unresolved: 어느 딜에 해당하는지 근거가 부족한 내용. 추측해서 배정하지 않는다.
 - out_of_scope: 선택된 딜이나 미팅과 관련 없는 내용
 
+selected_deals=[]이면 deal 또는 all_selected_deals scope를 절대 사용하지 말고,
+모든 구간을 meeting_context, company_context, unresolved, out_of_scope 중 하나로 분류하라.
 scope가 deal일 때만 deal_ids를 채우고, 나머지는 빈 배열로 둔다.
 JSON 스키마에 맞는 결과만 출력한다."""
 
@@ -141,7 +143,7 @@ class MeetingContentAgentInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source: MeetingContentInput
-    deals: list[DealGroundingContext] = Field(min_length=1, max_length=100)
+    deals: list[DealGroundingContext] = Field(max_length=100)
     crm_context: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")

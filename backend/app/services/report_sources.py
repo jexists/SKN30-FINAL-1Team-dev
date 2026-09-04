@@ -416,8 +416,13 @@ async def _build_normalized_sources(
         source_activity_id = snapshot.get("source_activity_id")
         if snapshot["report_kind"] == "meeting":
             deals = snapshot.get("deals")
-            if not isinstance(deals, list) or not deals:
+            if not isinstance(deals, list):
                 raise HTTPException(422, "report_source_deal_sections_required")
+            if not deals and not any(
+                isinstance(body, str) and body.strip()
+                for body in (snapshot.get("common_body"), snapshot.get("unassigned_body"))
+            ):
+                raise HTTPException(422, "report_source_content_invalid")
             for deal in deals:
                 if not isinstance(deal, dict):
                     raise HTTPException(422, "report_source_content_invalid")

@@ -17,7 +17,7 @@ from app.services.agent_logging import log_agent_error
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, is_transient_llm_error
 
-PROMPT_VERSION = "meeting_processing.v13"
+PROMPT_VERSION = "meeting_processing.v14"
 RUN_TIMEOUT_SECONDS = 1_200
 
 
@@ -39,8 +39,6 @@ async def input_snapshot(
     transcript: str,
 ) -> dict[str, Any]:
     """사용자가 생성 버튼을 누른 시점의 원문과 권한 검증된 CRM을 고정한다."""
-    if not sales_deal_ids:
-        raise HTTPException(422, "deal_sections_required")
     context = await meeting_context.build_context(db, member, source_activity_id, sales_deal_ids)
     try:
         snapshot = meeting_content_analysis.input_snapshot(transcript, context["deals"])

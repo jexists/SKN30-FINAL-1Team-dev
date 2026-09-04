@@ -385,6 +385,20 @@ test('미팅 생성 근거가 바뀌면 이전 run 연결만 버리고 사람이
   assert.equal(invalidateMeetingGeneration(null), null)
 })
 
+test('미팅 보고서 생성만 실패하면 사람이 작성한 공통 본문을 지우지 않는다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Meetings/useMeetingDraft.ts', import.meta.url),
+    'utf8',
+  )
+  const acceptGenerated = source.slice(
+    source.indexOf('const acceptGenerated'),
+    source.indexOf('const generationFailed'),
+  )
+
+  assert.match(acceptGenerated, /setMeetingResult\(\(current\) =>/)
+  assert.match(acceptGenerated, /: current\?\.shared/)
+})
+
 test('미팅 응답 한 건에서 공통 기록과 모든 딜 섹션을 분리해 복원한다', () => {
   const secondId = '10000000-0000-4000-8000-000000000002'
   const sections = [
@@ -623,6 +637,43 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
       ),
     /report_revision_required/,
   )
+})
+
+test('딜 미지정 미팅은 공통 본문만으로 생성·확정·검토할 수 있다', () => {
+  const draft = {
+    agendaId: 'unassigned-meeting',
+    date: '2026-08-31',
+    time: '10:00',
+    hospital: '합성 고객사',
+    dept: '구매팀',
+    contact: '합성 담당자',
+    place: '회의실',
+    title: '첫 미팅',
+    transcript: '고객의 현재 과제와 의사결정 구조를 확인했다.',
+    attachments: [],
+    dealSections: [],
+    commonBody: '첫 미팅에서 확인한 핵심 정보',
+  }
+
+  const generation = meetingGenerationRequestOf(draft, 'unassigned-generation')
+  const finalized = meetingFinalizeRequestOf(draft, 'unassigned-finalize')
+  assert.deepEqual(generation.sales_deal_ids, [])
+  assert.deepEqual(finalized.deal_sections, [])
+  assert.equal(finalized.common_body, '첫 미팅에서 확인한 핵심 정보')
+
+  const raw = response({}, [], [])
+  raw.common_body = '첫 미팅에서 확인한 핵심 정보'
+  const report = toMeetingReport(raw)
+  const review = renderToStaticMarkup(createElement(ReportReviewContents, { report }))
+  assert.equal(report.dealSections.length, 0)
+  assert.match(review, /첫 미팅에서 확인한 핵심 정보/)
+  assert.doesNotMatch(review, /딜별 보고서 내용을 찾을 수 없습니다/)
+
+  const editor = renderToStaticMarkup(
+    createElement(MeetingSharedPanel, { shared: null, showCommon: true, onChange() {} }),
+  )
+  assert.match(editor, /<label[^>]*>공통 내용<\/label>/)
+  assert.match(editor, /<textarea/)
 })
 
 test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하나만 제출한다', () => {

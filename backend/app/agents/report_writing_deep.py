@@ -35,7 +35,7 @@ from app.services.agent_logging import agent_operation, log_agent_error, log_age
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, configured_chat_model, llm_boundary_error_code
 
-PROMPT_VERSION = "report_writing.deep.v13"
+PROMPT_VERSION = "report_writing.deep.v14"
 MAX_REVIEWS = 2
 MAX_REPAIRS = 1
 MAX_SEMANTIC_REVIEWS = 1
@@ -122,9 +122,15 @@ class DealReport(BaseModel):
 class FreeformMeetingReports(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    deal_reports: list[DealReport] = Field(min_length=1, max_length=100)
+    deal_reports: list[DealReport] = Field(max_length=100)
     common_report: ReportBody | None = None
     unassigned_report: ReportBody | None = None
+
+    @model_validator(mode="after")
+    def _check_content(self):
+        if not self.deal_reports and self.common_report is None and self.unassigned_report is None:
+            raise ValueError("meeting_report_body_required")
+        return self
 
 
 def _structural_issues(
@@ -808,6 +814,7 @@ async def _run(
             "작성 스킬을 읽지 말고, task 위임·결과 조립·검토만 수행하라. "
             "선택 딜마다 description 첫 줄이 'sales_deal_id=<UUID>'인 task 하나와, "
             "공통·딜 미지정용 'section=common_unassigned' task 하나를 작성자에게 맡겨라. "
+            "선택 딜이 없으면 딜 task를 만들지 말고 공통·딜 미지정 task 하나만 맡겨라. "
             "독립적인 초기 task는 한 번에 함께 호출해라. 하위 결과를 그대로 조립해 "
             "review_report로 검토하라. issues가 있으면 지적된 섹션만 "
             "'repair_sales_deal_id=<UUID>' 또는 'repair_section=common_unassigned'로 딱 한 번 "
@@ -863,7 +870,11 @@ async def _run(
                                     "selected_deal_ids": [
                                         str(value) for value in source.evidence.selected_deal_ids
                                     ],
-                                    "request": "모든 딜의 보고서와 공통·딜 미지정 내용을 작성해줘.",
+                                    "request": (
+                                        "모든 딜의 보고서와 공통·딜 미지정 내용을 작성해줘."
+                                        if source.evidence.selected_deal_ids
+                                        else "공통·딜 미지정 내용만 작성해줘."
+                                    ),
                                 },
                                 ensure_ascii=False,
                             ),

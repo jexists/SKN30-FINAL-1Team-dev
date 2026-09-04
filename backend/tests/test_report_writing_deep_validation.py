@@ -272,7 +272,7 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.deep.v13"
+    assert agent.PROMPT_VERSION == "report_writing.deep.v14"
     skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
     assert "합니다체로 통일한다" in skill
     assert "생성 과정을 해설하지 않는다" in skill

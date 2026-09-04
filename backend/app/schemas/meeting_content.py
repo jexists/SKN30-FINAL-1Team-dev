@@ -86,7 +86,7 @@ class MeetingContentInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     transcript: str = Field(strict=True, min_length=1, max_length=50_000)
-    selected_deal_ids: list[UUID] = Field(min_length=1, max_length=100)
+    selected_deal_ids: list[UUID] = Field(max_length=100)
     segments: list[SourceSegment] = Field(min_length=1, max_length=5_000)
 
     @model_validator(mode="after")
@@ -135,7 +135,7 @@ class MeetingEvidenceLedger(BaseModel):
         str,
         StringConstraints(strict=True, pattern=r"^[0-9a-f]{64}$"),
     ]
-    selected_deal_ids: list[UUID] = Field(min_length=1, max_length=100)
+    selected_deal_ids: list[UUID] = Field(max_length=100)
     items: list[MeetingEvidenceItem] = Field(min_length=1, max_length=5_000)
 
     @model_validator(mode="after")
@@ -149,6 +149,10 @@ class MeetingEvidenceLedger(BaseModel):
             raise ValueError("evidence_segment_duplicate")
         if any(not set(item.applicability.deal_ids) <= selected for item in self.items):
             raise ValueError("assignment_deal_not_selected")
+        if not selected and any(
+            item.applicability.scope == "all_selected_deals" for item in self.items
+        ):
+            raise ValueError("assignment_deal_scope_without_selection")
         return self
 
 

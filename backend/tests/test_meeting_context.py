@@ -231,7 +231,7 @@ def test_build_returns_grounding_and_serializable_current_crm(sample):
     assert not {"transcript", "ml", "golden"} & crm.keys()
 
 
-@pytest.mark.parametrize("ids", [[], ["not-uuid"], [uuid4()] * 2, [uuid4() for _ in range(101)]])
+@pytest.mark.parametrize("ids", [["not-uuid"], [uuid4()] * 2, [uuid4() for _ in range(101)]])
 def test_rejects_invalid_selection_before_loading_context(sample, ids):
     sample["ids"] = ids
     with pytest.raises(HTTPException) as error:

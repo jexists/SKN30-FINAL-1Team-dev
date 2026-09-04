@@ -183,6 +183,8 @@ async def run_for_deals(
     """딜별 분석. 시간 제한 안에 완료한 결과와 추출한 특성은 그대로 보존한다."""
     ledger = MeetingEvidenceLedger.model_validate(ledger.model_dump(mode="json"))
     crm_context = copy.deepcopy(crm_context)
+    if not ledger.selected_deal_ids:
+        return []
     semaphore = asyncio.Semaphore(3)
     extracted: dict[UUID, DealFeatures] = {}
 

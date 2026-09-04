@@ -39,8 +39,7 @@ async def _selection(db, member, activity_id, selected_deal_ids):
     if not member.active or member.role_code not in {"member", "manager"}:
         raise HTTPException(status_code=403, detail="member_not_allowed")
     if (
-        not selected_deal_ids
-        or len(selected_deal_ids) > SELECTED_DEAL_LIMIT
+        len(selected_deal_ids) > SELECTED_DEAL_LIMIT
         or any(not isinstance(value, UUID) for value in selected_deal_ids)
         or len(set(selected_deal_ids)) != len(selected_deal_ids)
     ):
@@ -65,6 +64,8 @@ async def _selected_deal_rows(db, member, selected_deal_ids):
     """권한 범위 안의 선택 딜을 한 번에 읽고 요청 순서로 반환한다."""
     from app.api import sales_deals
 
+    if not selected_deal_ids:
+        return []
     rows = (
         await db.execute(
             sales_deals._joined_select(*sales_deals._read_entities()).where(
@@ -112,13 +113,16 @@ async def _trade_history(db, member, activity, company_id, selected_deal_ids, li
     from app.api import sales_deals
 
     before = activity.starts_at
+    selected_deal_filter = (
+        [SalesDeal.id.not_in(selected_deal_ids)] if selected_deal_ids else []
+    )
     rows = (
         await db.execute(
             sales_deals._joined_select(SalesDeal, sales_deals._product.name)
             .where(
                 *sales_deals._scope(member),
                 SalesDeal.customer_company_id == company_id,
-                SalesDeal.id.not_in(selected_deal_ids),
+                *selected_deal_filter,
                 sales_deals._stage.phase_code == "closed",
                 sales_deals._stage.outcome_code == "confirmed",
                 # 완료 날짜에는 시간이 없으므로 같은 날의 완료도 과거로 추정하지 않는다.
@@ -324,6 +328,8 @@ async def _previous_reports_by_deal(db, member, activity, sales_deal_ids):
     from app.api import reports
     from app.services.report_submissions import snapshot_sha256
 
+    if not sales_deal_ids:
+        return []
     ranked = (
         select(
             ReportSubmission.id.label("submission_id"),
