@@ -57,7 +57,7 @@ async def _product_ids(db: AsyncSession, *, team_id: UUID, activity: Activity) -
 async def _documents(
     db: AsyncSession, *, team_id: UUID, scopes: list[Any]
 ) -> list[dict[str, object]]:
-    """연결 조건에 걸리는 문서를 최신 완료 버전 파일 하나씩으로 추린다.
+    """연결 조건에 걸리는 문서를 완료된 파일 하나씩으로 추린다.
 
     처리가 끝나지 않은 파일은 내용을 읽을 수 없어 근거로 쓸 수 없으므로 제외한다.
     """
@@ -72,11 +72,13 @@ async def _documents(
                 FileRow.processing_status == "completed",
                 or_(*scopes),
             )
-            # 문서마다 첫 행이 최신 버전이 되도록 정렬해 두고 아래에서 한 번씩만 담는다.
+            # 예전 자료에 여러 행이 남아 있어, 문서마다 첫 행만 담도록 정렬해 둔다.
             .order_by(
                 Document.created_at.desc(),
                 Document.id,
                 FileRow.version_no.desc().nullslast(),
+                FileRow.uploaded_at.desc(),
+                FileRow.id.desc(),
             )
         )
     ).all()

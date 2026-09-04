@@ -1,7 +1,7 @@
 """현재 자료요약 프롬프트로 기존 자료실 요약을 다시 생성하는 관리 명령.
 
-현재 문서 버전의 요약만 대상으로 합니다. 이전 버전은 자료실 드로어에서 직접 표시되지
-않고, 다시 처리하면 LLM·OCR 비용만 늘어날 수 있습니다.
+문서마다 자료실이 보여 주는 파일의 요약만 대상으로 합니다. 예전에 쌓여 남은 행은
+드로어에 나오지 않고, 다시 처리하면 LLM·OCR 비용만 늘어납니다.
 
 먼저 대상만 확인합니다.
     uv run python scripts/backfill_document_summaries.py --dry-run
@@ -24,7 +24,6 @@ from uuid import UUID, uuid4
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import select  # noqa: E402
-from sqlalchemy.orm import aliased  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
 from app.db.session import get_sessionmaker  # noqa: E402
@@ -46,18 +45,6 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
-def _latest_document_file():
-    newer = aliased(FileRow)
-    return ~(
-        select(newer.id)
-        .where(
-            newer.document_id == FileRow.document_id,
-            newer.version_no > FileRow.version_no,
-        )
-        .exists()
-    )
-
-
 async def _targets(team_id: UUID | None, limit: int | None) -> list[UUID]:
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session:
@@ -68,7 +55,7 @@ async def _targets(team_id: UUID | None, limit: int | None) -> list[UUID]:
                 FileRow.document_id.is_not(None),
                 FileRow.processing_status == "completed",
                 FileRow.summary_markdown.is_not(None),
-                _latest_document_file(),
+                document_processing.latest_completed_file(),
             )
             .order_by(FileRow.uploaded_at, FileRow.id)
         )
@@ -135,7 +122,7 @@ async def main(*, dry_run: bool, team_id: UUID | None, limit: int | None) -> int
         return 1
 
     targets = await _targets(team_id, limit)
-    print(f"현재 버전의 기존 요약 {len(targets)}건")
+    print(f"자료실이 보여 주는 파일의 기존 요약 {len(targets)}건")
     if dry_run:
         print("--dry-run 이라 실행하지 않았다.")
         return 0

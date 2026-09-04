@@ -165,9 +165,9 @@ async def test_briefing_context_is_json_serializable(monkeypatch):
 
 
 def test_latest_completed_file_excludes_older_versions():
-    """같은 문서를 다시 올리면 옛 버전 청크가 남는다 — 근거로 섞이면 안 된다."""
+    """예전에 같은 문서를 다시 올려 둔 행의 청크가 남는다 — 근거로 섞이면 안 된다."""
     rendered = str(document_processing.latest_completed_file())
-    # "더 새로운 완료 버전이 없다" 로 표현한다.
+    # "더 새로운 완료 행이 없다" 로 표현한다.
     assert "NOT (EXISTS" in rendered
     assert "version_no >" in rendered
     assert "document_id = " in rendered

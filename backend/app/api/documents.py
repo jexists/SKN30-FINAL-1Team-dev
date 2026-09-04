@@ -107,7 +107,6 @@ def _scope(member: Member, creator_ids: tuple[UUID, ...] | None = None):
 def _file_read(row: FileRow, uploader_display_name: str) -> DocumentFileRead:
     return DocumentFileRead(
         id=row.id,
-        version_no=row.version_no,
         file_name=row.file_name,
         media_type=row.media_type,
         byte_size=row.byte_size,
@@ -126,7 +125,7 @@ def _document_read(
     company_name: str | None,
     deal_no: str | None,
     product_name: str | None,
-    files: list[DocumentFileRead],
+    file: DocumentFileRead | None,
 ) -> DocumentRead:
     return DocumentRead(
         id=document.id,
@@ -145,13 +144,16 @@ def _document_read(
         created_by_member_id=document.created_by_member_id,
         created_by_display_name=created_by_display_name,
         created_at=_seoul(document.created_at),
-        files=files,
-        latest_version_no=max((f.version_no for f in files), default=None),
+        file=file,
     )
 
 
-def _latest_file_id():
-    """문서의 최신 버전 파일 id. 화면이 version_no 가 가장 큰 파일을 최신으로 봅니다."""
+def _document_file_id():
+    """문서에 딸린 파일 id.
+
+    자료 하나에 파일 하나라 고를 것이 없습니다. 예전 자료에는 여러 행이 남아 있어
+    한 행만 골라야 하고, 뒷날 버전을 다시 두게 되면 이 정렬이 그대로 기준이 됩니다.
+    """
     latest = aliased(FileRow)
     return (
         select(latest.id)
@@ -163,44 +165,49 @@ def _latest_file_id():
     )
 
 
-def _latest_file_is(*conditions):
-    """최신 버전 파일이 조건에 맞는 문서인지.
+def _document_file_is(*conditions):
+    """문서에 딸린 파일이 조건에 맞는지.
 
-    화면의 담당자·올린 날짜 필터가 최신 버전 파일을 봅니다. 아무 버전이나 맞으면 되게
-    하면 예전 버전을 올린 사람이나 예전 날짜로도 걸립니다.
+    화면의 담당자·올린 날짜 필터가 이 파일을 봅니다. 예전 자료에 남은 행까지 아무거나
+    맞으면 되게 하면 예전에 올린 사람이나 예전 날짜로도 걸립니다.
     """
     match = aliased(FileRow)
     return (
         select(1)
         .select_from(match)
-        .where(match.id == _latest_file_id(), *[condition(match) for condition in conditions])
+        .where(match.id == _document_file_id(), *[condition(match) for condition in conditions])
         .exists()
     )
 
 
-def _latest_uploader_is(member_ids: tuple[UUID, ...]):
-    return _latest_file_is(lambda match: match.uploaded_by_member_id.in_(member_ids))
+def _uploader_is(member_ids: tuple[UUID, ...]):
+    return _document_file_is(lambda match: match.uploaded_by_member_id.in_(member_ids))
 
 
-def _latest_uploaded_from(moment: datetime):
-    return _latest_file_is(lambda match: match.uploaded_at >= moment)
+def _uploaded_from(moment: datetime):
+    return _document_file_is(lambda match: match.uploaded_at >= moment)
 
 
-async def _files_by_document_ids(
+async def _file_by_document_ids(
     db: AsyncSession,
     document_ids: list[UUID],
-) -> dict[UUID, list[DocumentFileRead]]:
-    grouped: dict[UUID, list[DocumentFileRead]] = {doc_id: [] for doc_id in document_ids}
+) -> dict[UUID, DocumentFileRead | None]:
+    """문서마다 파일 한 개.
+
+    예전 자료에 여러 행이 남아 있으면 _document_file_id 와 같은 순서로 첫 행만 씁니다.
+    """
+    grouped: dict[UUID, DocumentFileRead | None] = {doc_id: None for doc_id in document_ids}
     if not document_ids:
         return grouped
     result = await db.execute(
         select(FileRow, _uploader.display_name)
         .join(_uploader, FileRow.uploaded_by_member_id == _uploader.id)
         .where(FileRow.document_id.in_(document_ids))
-        .order_by(FileRow.version_no.desc())
+        .order_by(FileRow.version_no.desc(), FileRow.uploaded_at.desc(), FileRow.id.desc())
     )
     for row, uploader_name in result.all():
-        grouped[row.document_id].append(_file_read(row, uploader_name))
+        if grouped[row.document_id] is None:
+            grouped[row.document_id] = _file_read(row, uploader_name)
     return grouped
 
 
@@ -219,7 +226,7 @@ async def _document_row(db: AsyncSession, member: Member, document_id: UUID):
 
 async def _detail(db: AsyncSession, member: Member, document_id: UUID) -> DocumentRead:
     row = await _document_row(db, member, document_id)
-    files = await _files_by_document_ids(db, [document_id])
+    files = await _file_by_document_ids(db, [document_id])
     return _document_read(*row, files[document_id])
 
 
@@ -343,9 +350,9 @@ async def list_documents(
     if page.sales_deal_id is not None:
         shared.append(Document.sales_deal_id == page.sales_deal_id)
     if page.latest_uploader_member_id is not None:
-        shared.append(_latest_uploader_is(tuple(dict.fromkeys(page.latest_uploader_member_id))))
+        shared.append(_uploader_is(tuple(dict.fromkeys(page.latest_uploader_member_id))))
     if page.latest_uploaded_from is not None:
-        shared.append(_latest_uploaded_from(page.latest_uploaded_from))
+        shared.append(_uploaded_from(page.latest_uploaded_from))
     if page.q is not None:
         pattern = _contains(page.q)
         shared.append(
@@ -356,7 +363,7 @@ async def list_documents(
                 _company.name.ilike(pattern, escape="\\"),
                 _deal.deal_no.ilike(pattern, escape="\\"),
                 _product.name.ilike(pattern, escape="\\"),
-                _latest_file_is(lambda match: match.file_name.ilike(pattern, escape="\\")),
+                _document_file_is(lambda match: match.file_name.ilike(pattern, escape="\\")),
             )
         )
 
@@ -388,7 +395,7 @@ async def list_documents(
             )
         ).all()
     }
-    # 담당자 선택지. 최신 버전을 올린 사람 기준이다.
+    # 담당자 선택지. 파일을 올린 사람 기준이다.
     _option = aliased(Member)
     _option_file = aliased(FileRow)
     uploaders = [
@@ -396,7 +403,7 @@ async def list_documents(
         for member_id, display_name in (
             await db.execute(
                 _joined_select(_option.id, _option.display_name)
-                .join(_option_file, _option_file.id == _latest_file_id())
+                .join(_option_file, _option_file.id == _document_file_id())
                 .join(_option, _option_file.uploaded_by_member_id == _option.id)
                 .where(*shared)
                 .group_by(_option.id, _option.display_name)
@@ -404,7 +411,7 @@ async def list_documents(
             )
         ).all()
     ]
-    file_map = await _files_by_document_ids(db, [row[0].id for row in rows])
+    file_map = await _file_by_document_ids(db, [row[0].id for row in rows])
     items = [_document_read(*row, file_map[row[0].id]) for row in rows]
     has_more = page.skip + len(items) < total
     return DocumentPage(
@@ -675,7 +682,7 @@ async def upload_document_file(
         ) from error
 
     try:
-        # 버전 번호는 서버가 트랜잭션 안에서 매긴다.
+        # 자료 하나에 파일 하나다. 문서 행을 잠가 두 요청이 동시에 넣지 못하게 한다.
         document = (
             await db.execute(
                 select(Document)
@@ -688,16 +695,21 @@ async def upload_document_file(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="document_not_found",
             )
-        current = (
-            await db.execute(
-                select(func.max(FileRow.version_no)).where(FileRow.document_id == document_id)
+        taken = (
+            await db.execute(select(FileRow.id).where(FileRow.document_id == document_id).limit(1))
+        ).scalar_one_or_none()
+        if taken is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="document_file_exists",
             )
-        ).scalar_one()
         row = FileRow(
             id=uuid4(),
             report_id=None,
             document_id=document_id,
-            version_no=(current or 0) + 1,
+            # 지금은 버전을 관리하지 않는다. DB 의 file_document_version 검사가 1 이상을
+            # 요구하고, (document_id, version_no) 유일 제약이 문서당 파일 하나를 지킨다.
+            version_no=1,
             file_name=(upload.filename or "").strip(),
             storage_key=storage_key,
             media_type=allowed.media_type,
@@ -726,10 +738,7 @@ async def upload_document_file(
                 action_code="file_uploaded",
                 actor_member_id=member.id,
                 before_snapshot=None,
-                after_snapshot={
-                    "version_no": row.version_no,
-                    "file_name": row.file_name,
-                },
+                after_snapshot={"file_name": row.file_name},
             )
         )
         read = _file_read(row, member.display_name)

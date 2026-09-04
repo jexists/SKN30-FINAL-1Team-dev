@@ -172,7 +172,7 @@ class ActivityOptionRead(BaseModel):
 
 
 class ActivityDocumentRead(BaseModel):
-    """미팅 화면에 세울 자료 한 건. 최신 완료 버전 파일 하나만 딸려 나간다."""
+    """미팅 화면에 세울 자료 한 건. 완료된 파일 하나만 딸려 나간다."""
 
     document_id: UUID
     document_no: str
