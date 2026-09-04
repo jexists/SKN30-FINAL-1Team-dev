@@ -12,7 +12,7 @@ from app.api.deps import CurrentMember, DbSession, owner_scope
 from app.models.agent import AgentRun, ContractNextMeetingSuggestion
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
-from app.models.sales import Product, SalesDeal, SalesPipelineStage
+from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.activities import (
     ActivityCreate,
@@ -351,40 +351,6 @@ def _resolve_sales_deal_id(sales_deal: SalesDeal | None, company_id: UUID) -> UU
     return sales_deal.id
 
 
-async def _sole_open_deal_id(
-    db: AsyncSession, member: Member, customer_company_id: UUID
-) -> UUID | None:
-    """이 고객사에 아직 끝나지 않은 딜이 하나뿐이면 그 딜.
-
-    딜을 고르지 않고 만든 일정에 붙여 줄 값이다. 고를 여지가 없는 경우라 사람이 정하는
-    것과 같은 답이 되고, 둘 이상이면 찍지 않는다 — 틀린 딜이 붙는 편이 안 붙는 것보다
-    나쁘다. 범위는 딜 조회와 같게 건다: 담당자 역할은 자기 딜만 본다.
-    """
-    conditions = [
-        SalesDeal.team_id == member.team_id,
-        SalesDeal.customer_company_id == customer_company_id,
-        SalesDeal.deleted_at.is_(None),
-        SalesPipelineStage.phase_code != "closed",
-    ]
-    if member.role_code == "member":
-        conditions.append(SalesDeal.owner_member_id == member.id)
-    result = await db.execute(
-        select(SalesDeal.id)
-        .join(
-            SalesPipelineStage,
-            and_(
-                SalesPipelineStage.sales_pipeline_id == SalesDeal.sales_pipeline_id,
-                SalesPipelineStage.id == SalesDeal.sales_pipeline_stage_id,
-            ),
-        )
-        .where(*conditions)
-        # 하나뿐인지만 보면 되므로 두 건까지만 읽는다.
-        .limit(2)
-    )
-    deal_ids = [deal_id for (deal_id,) in result.all()]
-    return deal_ids[0] if len(deal_ids) == 1 else None
-
-
 async def _team_product(db: AsyncSession, member: Member, product_id: UUID) -> Product:
     result = await db.execute(
         select(Product).where(
@@ -657,12 +623,6 @@ async def create_activity(
             db, member, values["customer_company_id"], contact_info
         )
         values["sales_deal_id"] = _resolve_sales_deal_id(sales_deal, values["customer_company_id"])
-        if values["sales_deal_id"] is None:
-            # 고를 여지가 없으면 대신 골라 준다. 수정에서는 하지 않는다 — 사람이 일부러
-            # 비운 것을 되살리게 된다.
-            values["sales_deal_id"] = await _sole_open_deal_id(
-                db, member, values["customer_company_id"]
-            )
         if schedule_management_run_id is not None:
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.

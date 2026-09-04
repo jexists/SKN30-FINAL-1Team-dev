@@ -664,7 +664,6 @@ def test_create_accepts_an_activity_without_a_sales_deal(monkeypatch):
     db = _Db(
         _Result(scalar=_category(member.team_id)),
         _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
-        _Result(rows=[]),  # _sole_open_deal_id: 이 회사에 열린 딜이 없다
     )
 
     with _client(db, member) as client:
@@ -683,52 +682,6 @@ def test_create_accepts_an_activity_without_a_sales_deal(monkeypatch):
     assert response.json()["sales_deal_id"] is None
     assert db.added[0].sales_deal_id is None
     assert db.commit_count == 1
-
-
-def test_create_fills_the_deal_when_the_company_has_exactly_one(monkeypatch):
-    """딜을 고르지 않아도, 고를 여지가 없으면 대신 골라 준다.
-
-    회사에 열린 딜이 하나뿐이면 사람이 정하는 것과 같은 답이다. 둘 이상이면 찍지 않는다 —
-    틀린 딜이 붙는 편이 안 붙는 것보다 나쁘다.
-    """
-    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
-    member = _member()
-    company = _company(member.team_id)
-    only_deal_id = uuid4()
-
-    def _post(db: _Db):
-        with _client(db, member) as client:
-            return client.post(
-                "/api/activities",
-                headers={"Origin": ORIGIN},
-                json={
-                    "customer_company_id": str(company.id),
-                    "category_code": "visit",
-                    "title": "딜을 고르지 않은 방문",
-                    "starts_at": "2026-08-17T10:00:00+09:00",
-                },
-            )
-
-    single_db = _Db(
-        _Result(scalar=_category(member.team_id)),
-        _Result(scalar=company.name),  # _team_company
-        _Result(rows=[(only_deal_id,)]),  # _sole_open_deal_id
-    )
-    assert _post(single_db).status_code == 201
-    assert single_db.added[0].sales_deal_id == only_deal_id
-    sql = str(single_db.statements[-1])
-    # 끝난 딜과 지운 딜은 후보가 아니고, 하나뿐인지만 보면 되므로 두 건까지만 읽는다.
-    assert "sales_pipeline_stage.phase_code !=" in sql
-    assert "sales_deal.deleted_at IS NULL" in sql
-    assert "LIMIT" in sql
-
-    many_db = _Db(
-        _Result(scalar=_category(member.team_id)),
-        _Result(scalar=company.name),
-        _Result(rows=[(uuid4(),), (uuid4(),)]),  # 둘 이상이면 고르지 않는다
-    )
-    assert _post(many_db).status_code == 201
-    assert many_db.added[0].sales_deal_id is None
 
 
 def test_create_rejects_a_sales_deal_from_another_company(monkeypatch):
