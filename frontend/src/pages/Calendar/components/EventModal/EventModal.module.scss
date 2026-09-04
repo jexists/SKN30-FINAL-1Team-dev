@@ -67,38 +67,3 @@
     background: var(--red-tint);
   }
 }
-
-// 신규 고객사에는 고를 딜이 없습니다. 목록이 비었을 때 여기서 막히지 않게 두는 길입니다.
-.createDeal {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    text-decoration: underline;
-  }
-
-  &:disabled {
-    color: var(--muted);
-    cursor: default;
-  }
-}
-
-// 고객을 아직 안 골라 새 딜을 만들 수 없을 때. 버튼 자리를 비워 두면 왜 없는지 모릅니다.
-.createDealHint {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-// 딜은 비워 둘 수 있습니다. 별표 자리에 그 사실을 적어 두지 않으면 필수로 읽힙니다.
-.optional {
-  margin-left: 5px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 500;
-}

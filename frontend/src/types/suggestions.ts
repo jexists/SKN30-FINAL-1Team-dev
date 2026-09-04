@@ -45,11 +45,6 @@ export interface AiSuggestion {
   proposalReason: string
   /** 추천 근거 배지. 예: ['계약 만료 임박', '재방문 필요'] */
   basis: string[]
-  /**
-   * 이 회사에 딜 없이 잡아 둔 방문이 있으면 그 안내. 추천을 막지는 않는다 — 회사 단위로
-   * 막으면 그 회사의 다른 딜까지 알림이 끊겨 놓치는 건이 생긴다.
-   */
-  scheduledVisitNote: string | null
   /** 승인 시 브리핑 실행을 이어붙이는 데 쓰는 일정관리 실행 id */
   scheduleRunId: string
   /** 고를 수 있는 시간 후보 전체. 위의 date/time/dur 은 이 중 선택된 것의 값이다 */

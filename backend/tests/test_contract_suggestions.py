@@ -197,7 +197,6 @@ def test_list_returns_stored_candidates_without_calling_the_llm():
     suggestion = _suggestion(deal, schedule_run.id)
     db = _Db(
         _Result(rows=[(suggestion, deal, company.name, member.display_name)]),
-        _Result(rows=[]),  # 이 회사에 딜 없이 잡아 둔 방문 없음
         _Result(scalar_values=[schedule_run]),
         _Result(scalar_values=[next_meeting_run]),
     )
@@ -216,66 +215,6 @@ def test_list_returns_stored_candidates_without_calling_the_llm():
     assert member.id in db.statements[0].compile().params.values()
 
 
-def test_list_reports_a_scheduled_visit_without_suppressing_the_suggestion():
-    """이 회사에 딜 없이 잡아 둔 방문이 있으면 알리되, 추천은 그대로 올린다.
-
-    딜이 붙은 일정은 추천 계산이 이미 보고 있어 추천 자체가 올라오지 않는다. 딜이 없는
-    일정은 그 계산에 잡히지 않는데, 회사 단위로 막아 버리면 그 회사의 다른 딜까지 알림이
-    끊겨 놓치는 건이 생긴다. 그래서 막지 않고 알리기만 한다.
-    """
-    member = _member()
-    company = _company(member.team_id)
-    deal = _deal(member, company)
-    next_meeting_run = _run(
-        member.team_id,
-        agent_code="contract_management_next_meeting",
-        output={
-            "risks": [],
-            "next_meeting_suggestion": {"sales_deal_id": str(deal.id), "reason": "후속 확인"},
-        },
-    )
-    schedule_run = _run(
-        member.team_id,
-        agent_code="schedule_management",
-        parent_run_id=next_meeting_run.id,
-        output={
-            "schedule_candidates": [
-                {
-                    "candidate_id": "candidate-1",
-                    "title": "후속 미팅",
-                    "starts_at": "2026-09-01T10:00:00+09:00",
-                    "ends_at": "2026-09-01T11:00:00+09:00",
-                    "priority": 1,
-                    "reason": "가장 이른 빈 시간",
-                }
-            ]
-        },
-    )
-    suggestion = _suggestion(deal, schedule_run.id)
-    visit_at = datetime(2026, 8, 25, 1, tzinfo=UTC)
-    db = _Db(
-        _Result(rows=[(suggestion, deal, company.name, member.display_name)]),
-        _Result(rows=[(company.id, visit_at, "인사차 방문")]),
-        _Result(scalar_values=[schedule_run]),
-        _Result(scalar_values=[next_meeting_run]),
-    )
-
-    with _client(db, member) as client:
-        response = client.get("/api/contract-next-meeting-suggestions", headers={"Origin": ORIGIN})
-
-    assert response.status_code == 200
-    [item] = response.json()
-    assert item["scheduled_company_visit"]["title"] == "인사차 방문"
-    # 알리기만 한다 — 추천은 목록에 그대로 남는다.
-    assert item["sales_deal_id"] == str(deal.id)
-
-    sql = str(db.statements[1])
-    # 딜이 붙은 일정은 추천 계산이 이미 보고 있어 여기서 세지 않는다.
-    assert "activity.sales_deal_id IS NULL" in sql
-    assert "activity.deleted_at IS NULL" in sql
-    assert "activity.starts_at >" in sql
-
-
 def test_list_skips_suggestions_whose_run_has_not_finished():
     """아직 돌고 있거나 실패한 실행은 보여줄 내용이 없다 — 다음 트리거가 다시 채운다."""
     member = _member()
@@ -285,7 +224,6 @@ def test_list_skips_suggestions_whose_run_has_not_finished():
     suggestion = _suggestion(deal, running_run.id)
     db = _Db(
         _Result(rows=[(suggestion, deal, company.name, member.display_name)]),
-        _Result(rows=[]),  # 이 회사에 딜 없이 잡아 둔 방문 없음
         _Result(scalar_values=[running_run]),
     )
 

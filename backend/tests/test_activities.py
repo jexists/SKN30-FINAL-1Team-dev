@@ -742,36 +742,6 @@ def test_create_queues_a_briefing_for_a_hand_made_activity(monkeypatch):
     assert response.json()["briefing_queue_warning"] is None
 
 
-def test_create_rejects_a_sales_deal_from_another_company(monkeypatch):
-    """딜을 붙였다면 그 딜은 이 일정의 고객사 것이어야 한다."""
-    _silence_agents(monkeypatch)
-    member = _member()
-    company = _company(member.team_id)
-    other_company_deal = _deal(team_id=member.team_id, company_id=uuid4(), owner_id=member.id)
-    db = _Db(
-        _Result(scalar=other_company_deal),  # _team_sales_deal
-        _Result(scalar=_category(member.team_id)),
-        _Result(scalar=company.name),  # _team_company
-    )
-
-    with _client(db, member) as client:
-        response = client.post(
-            "/api/activities",
-            headers={"Origin": ORIGIN},
-            json={
-                "customer_company_id": str(company.id),
-                "sales_deal_id": str(other_company_deal.id),
-                "category_code": "visit",
-                "title": "남의 회사 딜",
-                "starts_at": "2026-08-17T10:00:00+09:00",
-            },
-        )
-
-    assert response.status_code == 422
-    assert response.json() == {"detail": "contact_company_mismatch"}
-    assert not db.added
-
-
 def test_create_without_a_contact_still_answers_with_the_company(monkeypatch):
     """담당자 없이 고객사만 지정한 등록도 응답에 회사가 실려야 한다.
 
@@ -807,47 +777,6 @@ def test_create_without_a_contact_still_answers_with_the_company(monkeypatch):
     assert body["customer_company_id"] == str(company.id)
     assert body["customer_company_name"] == company.name
     assert db.added[0].customer_company_id == company.id
-
-
-def test_patch_can_clear_the_deal_but_not_move_it_to_another_company():
-    """딜은 비울 수 있다. 다만 남는 딜이 다른 회사 것이 되는 것은 막는다."""
-    member = _member()
-    company = _company(member.team_id)
-    activity = _activity(member)
-
-    cleared_db = _Db(
-        _Result(scalar=activity),
-        _Result(scalar="합성 고객사"),  # _team_company: 이름을 돌려준다
-        _Result(rows=[_row(activity, member)]),
-    )
-    with _client(cleared_db, member) as client:
-        cleared = client.patch(
-            f"/api/activities/{activity.id}",
-            headers={"Origin": ORIGIN},
-            json={"sales_deal_id": None},
-        )
-    assert cleared.status_code == 200
-    assert activity.sales_deal_id is None
-    assert cleared_db.commit_count == 1
-
-    # 고객사만 옮겨도 원래 딜이 다른 회사 것이 되므로 함께 다시 본다.
-    moved = _activity(member)
-    stale_deal = _deal(team_id=member.team_id, company_id=uuid4(), owner_id=member.id)
-    moved.sales_deal_id = stale_deal.id
-    moved_db = _Db(
-        _Result(scalar=moved),
-        _Result(scalar=company.name),  # _team_company
-        _Result(scalar=stale_deal),  # _team_sales_deal
-    )
-    with _client(moved_db, member) as client:
-        response = client.patch(
-            f"/api/activities/{moved.id}",
-            headers={"Origin": ORIGIN},
-            json={"customer_company_id": str(company.id), "customer_contact_id": None},
-        )
-    assert response.status_code == 422
-    assert response.json() == {"detail": "contact_company_mismatch"}
-    assert moved_db.commit_count == 0
 
 
 def test_activity_options_are_active_same_team_and_ordered():

@@ -170,10 +170,6 @@ export default function SuggestionPanel({
                 </div>
               )}
 
-              {s.scheduledVisitNote && (
-                <p className={styles.scheduledVisit}>{s.scheduledVisitNote}</p>
-              )}
-
               <div className={styles.basis}>
                 <i className={styles.kind}>{KIND_LABEL[s.kind]}</i>
                 {s.basis.map((b) => (

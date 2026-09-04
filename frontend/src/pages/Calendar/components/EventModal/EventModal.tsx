@@ -8,18 +8,9 @@ import ContactPicker, { toContactOption, type ContactOption } from '@/components
 import DateTimePicker from '@/components/DateTimePicker'
 import { TrashIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
 import CustomerFormModal from '@/pages/Customers/components/CustomerFormModal'
-import SalesDealForm from '@/pages/Deals/SalesDealForm'
-import useQuickDealCreate from '@/pages/Deals/useQuickDealCreate'
 import { showToast } from '@/shared/toast'
-import type {
-  CalendarEvent,
-  CustomerCompanyResponse,
-  CustomerContactResponse,
-  PageResponse,
-  SalesDealResponse,
-} from '@/types'
+import type { CalendarEvent, CustomerCompanyResponse, CustomerContactResponse } from '@/types'
 import { iso, parseISO } from '@/utils/date'
 
 import styles from './EventModal.module.scss'
@@ -38,14 +29,6 @@ interface Props {
 /** 고객사 칸이 들고 있는 회사의 id. 직접 등록은 쓰지 않아 늘 이미 있는 회사입니다. */
 function companyId(selection: CompanySelection | null): string | null {
   return selection?.kind === 'existing' ? selection.company.id : null
-}
-
-// 아직 끝나지 않은 딜. 취소·납품 완료까지 간 건에 새 미팅을 붙일 일은 없습니다.
-const OPEN_DEAL_PHASES = ['sales', 'quote', 'contract', 'order']
-
-/** 딜 칸에 적는 이름. 계약번호가 있으면 그것이 사람들이 부르는 번호입니다. */
-function toDealOption(deal: SalesDealResponse): RecordOption {
-  return { id: deal.id, label: deal.contract_no ?? deal.deal_no, note: deal.title }
 }
 
 // 폼은 시작·끝 두 시점으로 다루고, 저장은 '40분' 같은 소요 문구로 합니다.
@@ -103,16 +86,10 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
     company: CompanySelection | null
     name: string
   } | null>(null)
-  // 이 일정이 무엇에 대한 것인지. 고른 회사의 딜만 후보입니다.
-  const [deal, setDeal] = useState<RecordOption | null>(null)
-  // 고를 딜이 없을 때 이 자리에서 만듭니다. 파이프라인을 못 읽으면 열지 않습니다.
-  const [creatingDeal, setCreatingDeal] = useState(false)
-  const quickDeal = useQuickDealCreate()
 
   const [error, setError] = useState('')
   const [customerError, setCustomerError] = useState('')
   const [companyError, setCompanyError] = useState('')
-  const [dealError, setDealError] = useState('')
   const [rangeError, setRangeError] = useState('')
   const [requestError, setRequestError] = useState('')
   const [pending, setPending] = useState(false)
@@ -141,54 +118,6 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
 
     return () => controller.abort()
   }, [savedContactId])
-
-  // 새로 만드는 일정에서 회사를 고르면, 그 회사에 열린 딜이 하나뿐인지 봅니다. 하나뿐이면
-  // 고를 여지가 없으므로 미리 채워 둡니다 — 서버가 조용히 붙이지 않고 칸에 보여 주는 쪽이라,
-  // 인사차 방문처럼 딜과 무관한 일정이면 ⓧ 로 지우고 저장하면 됩니다.
-  const pickedCompanyId = companyId(company)
-  useEffect(() => {
-    if (mode !== 'create' || pickedCompanyId === null || deal !== null) return
-    const controller = new AbortController()
-
-    void client
-      .get<PageResponse<SalesDealResponse>>('/sales-deals', {
-        params: {
-          customer_company_id: pickedCompanyId,
-          phase_code: OPEN_DEAL_PHASES,
-          // 하나뿐인지만 보면 되므로 두 건까지만 받습니다.
-          limit: 2,
-        },
-        signal: controller.signal,
-      })
-      .then(({ data }) => {
-        if (controller.signal.aborted || data.items.length !== 1) return
-        pickDeal(toDealOption(data.items[0]))
-      })
-      // 못 받으면 칸을 비운 채로 둡니다. 고르는 것은 언제든 사람이 할 수 있습니다.
-      .catch(() => {})
-
-    return () => controller.abort()
-    // deal 은 넣지 않습니다 — 채운 뒤 다시 돌아 이미 고른 값을 덮어쓰지 않게 합니다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pickedCompanyId])
-
-  // 고쳐 쓰려고 연 일정. 저장된 것은 딜 id 하나뿐이라 칸에 번호를 보이려면 한 건을
-  // 읽어야 합니다. 실패하면 빈 칸으로 두고 다시 고르게 합니다.
-  const savedDealId = draft.salesDealId ?? null
-  useEffect(() => {
-    if (savedDealId === null) return
-    const controller = new AbortController()
-
-    void client
-      .get<SalesDealResponse>(`/sales-deals/${savedDealId}`, { signal: controller.signal })
-      .then(({ data }) => {
-        if (controller.signal.aborted) return
-        setDeal(toDealOption(data))
-      })
-      .catch(() => {})
-
-    return () => controller.abort()
-  }, [savedDealId])
 
   const set = <K extends keyof CalendarEvent>(key: K, value: CalendarEvent[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -227,15 +156,7 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
     }
     setCompany(next)
     pickCustomer(null)
-    pickDeal(null)
     setCompanyError('')
-  }
-
-  // 딜을 고르면 일정이 무엇에 대한 것인지가 정해집니다. 폼은 id 만 올립니다.
-  const pickDeal = (found: RecordOption | null) => {
-    setDeal(found)
-    setDealError('')
-    set('salesDealId', found?.id ?? null)
   }
 
   // 방금 등록한 고객. 회사까지 함께 돌아오므로 두 칸이 한 번에 채워집니다.
@@ -253,12 +174,6 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
     } catch {
       // 회사를 못 읽어도 고객은 이미 골라졌습니다. 칸만 비어 보입니다.
     }
-  }
-
-  // 방금 만든 딜. 이 자리에서 만든 것은 곧바로 이 일정의 딜이 됩니다.
-  const takeCreatedDeal = (created: { id: string; no: string; title: string }) => {
-    setCreatingDeal(false)
-    pickDeal({ id: created.id, label: created.no, note: created.title })
   }
 
   const submit = async () => {
@@ -417,55 +332,6 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
           )}
         </div>
 
-        <div className={`${styles.field} ${styles.isWide}`}>
-          <span className={styles.label}>
-            딜<span className={styles.optional}>선택</span>
-          </span>
-          <RecordPicker<SalesDealResponse>
-            // 회사를 바꾸면 칸을 새로 답니다. RecordPicker 는 값이 null 로 비어도 입력칸의
-            // 글자를 지우지 않습니다 — 고른 뒤 글자를 고치는 중에 지워지면 안 되기 때문입니다.
-            // 그래서 회사가 바뀔 때는 그 규칙을 우회해 앞 회사의 딜 번호가 남지 않게 합니다.
-            key={companyId(company) ?? 'no-company'}
-            path="/sales-deals"
-            label="딜"
-            placeholder={
-              companyId(company) === null ? '고객사를 먼저 선택하세요' : '계약번호나 제목으로 검색'
-            }
-            emptyText="일치하는 딜이 없습니다."
-            loadingText="딜을 불러오는 중입니다."
-            fallback="딜을 불러오지 못했습니다."
-            // 회사는 서버가 거릅니다. 전건을 받아 화면에서 거르면 첫 쪽이 30건으로 끊깁니다.
-            params={{ customer_company_id: companyId(company) ?? '' }}
-            value={deal}
-            disabled={pending || companyId(company) === null}
-            invalid={dealError !== ''}
-            toOption={toDealOption}
-            onChange={(next) => pickDeal(next)}
-          />
-          {/* 신규 고객사는 아직 딜이 없습니다. 여기서 막히지 않게 그 자리에서 만듭니다.
-              딜에도 담당자가 필요하고 그 사람은 이 일정의 고객과 같아야 하므로, 고객을
-              고르기 전에는 만들 수 없다고 알려 줍니다. */}
-          {companyId(company) !== null &&
-            quickDeal.ready &&
-            (customer === null ? (
-              <span className={styles.createDealHint}>고객을 고르면 새 딜을 만들 수 있습니다.</span>
-            ) : (
-              <button
-                type="button"
-                className={styles.createDeal}
-                disabled={pending}
-                onClick={() => setCreatingDeal(true)}
-              >
-                + 새 딜 만들기
-              </button>
-            ))}
-          {dealError && (
-            <span className={styles.error} role="alert">
-              {dealError}
-            </span>
-          )}
-        </div>
-
         <Field label="장소" wide>
           <input
             value={form.place ?? ''}
@@ -499,26 +365,6 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
             onCreated={(contact) => void takeCreated(contact)}
             initial={{ name: creating.name }}
             initialCompany={creating.company ?? undefined}
-          />,
-          document.body,
-        )}
-
-      {creatingDeal &&
-        company?.kind === 'existing' &&
-        createPortal(
-          <SalesDealForm
-            columns={quickDeal.columns}
-            initialCompany={company.company}
-            initialContact={customer ?? undefined}
-            onClose={() => setCreatingDeal(false)}
-            onSubmit={async (input) => {
-              const created = await quickDeal.createDeal(input)
-              takeCreatedDeal({
-                id: created.id,
-                no: created.contractNo ?? created.no,
-                title: created.title,
-              })
-            }}
           />,
           document.body,
         )}
