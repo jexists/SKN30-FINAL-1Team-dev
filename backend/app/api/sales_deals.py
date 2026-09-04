@@ -504,8 +504,15 @@ async def _team_contact(
     member: Member,
     customer_contact_id: UUID,
     company_id: UUID,
-    owner_member_id: UUID,
 ) -> CustomerContact:
+    """딜에 붙일 고객 담당자를 확인한다.
+
+    고를 수 있는 범위는 일정(activities._contact_info)과 같다 — 담당자 역할은 자기 고객만,
+    팀장은 팀 전체다. 예전에는 여기에 더해 "딜 주인과 고객 담당자가 같은 사람" 이어야 했는데,
+    딜 등록 화면이 담당자를 아예 보내지 않던 동안에는 드러나지 않던 규칙이었다. 담당자를
+    필수로 받게 되면서 팀장이 팀원의 고객으로 딜을 만드는 흔한 경우가 전부 막혔고, 같은
+    고객으로 일정은 잡히는데 딜은 못 만드는 상태가 되어 두 화면의 범위를 맞췄다.
+    """
     result = await db.execute(
         select(CustomerContact)
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
@@ -531,7 +538,7 @@ async def _team_contact(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="contact_company_mismatch",
         )
-    if contact.owner_member_id != owner_member_id:
+    if member.role_code == "member" and contact.owner_member_id != member.id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="contact_owner_mismatch",
@@ -1339,13 +1346,7 @@ async def create_sales_deal(
             )
         deal_type = await _team_deal_type(db, member, payload.deal_type_code)
         if payload.customer_contact_id is not None:
-            await _team_contact(
-                db,
-                member,
-                payload.customer_contact_id,
-                company.id,
-                member.id,
-            )
+            await _team_contact(db, member, payload.customer_contact_id, company.id)
         quote_status = (
             None
             if payload.quote_status_code is None
@@ -1464,13 +1465,7 @@ async def update_sales_deal(
         if customer_contact_id is not None and (
             "customer_contact_id" in values or "customer_company_id" in values
         ):
-            await _team_contact(
-                db,
-                member,
-                customer_contact_id,
-                company_id,
-                sales_deal.owner_member_id,
-            )
+            await _team_contact(db, member, customer_contact_id, company_id)
         if "deal_type_code" in payload.model_fields_set:
             assert payload.deal_type_code is not None
             deal_type = await _team_deal_type(db, member, payload.deal_type_code)

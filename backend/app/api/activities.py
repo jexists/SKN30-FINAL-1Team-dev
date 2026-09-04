@@ -280,18 +280,25 @@ async def _contact_info(
     return row
 
 
-async def _team_company(db: AsyncSession, member: Member, company_id: UUID) -> None:
+async def _team_company(db: AsyncSession, member: Member, company_id: UUID) -> str:
+    """팀의 고객사인지 보고 이름을 돌려준다.
+
+    이름까지 함께 읽는 것은 등록 응답 때문이다. 담당자 없이 고객사만 지정하면 응답이
+    담당자 조회 결과에서 회사를 가져올 수 없어, 저장된 값과 달리 회사가 빈 채로 나갔다.
+    """
     result = await db.execute(
-        select(CustomerCompany.id).where(
+        select(CustomerCompany.name).where(
             CustomerCompany.id == company_id,
             CustomerCompany.team_id == member.team_id,
         )
     )
-    if result.scalar_one_or_none() is None:
+    name = result.scalar_one_or_none()
+    if name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="customer_company_not_found",
         )
+    return name
 
 
 async def _resolve_company_id(
@@ -299,8 +306,8 @@ async def _resolve_company_id(
     member: Member,
     company_id: UUID | None,
     contact_info: tuple[CustomerContact, UUID, str] | None,
-) -> UUID:
-    """일정이 붙을 고객사를 정한다.
+) -> tuple[UUID, str]:
+    """일정이 붙을 고객사를 정한다. 등록 응답이 쓸 수 있게 이름도 함께 돌려준다.
 
     담당자가 있으면 회사는 그 사람의 회사다 — 따로 보낸 값이 다르면 조용히 한쪽을 고르지 않고
     막는다. 담당자가 없으면 회사만이라도 있어야 한다. 둘 다 없으면 그 일정은 어느 고객사 것인지
@@ -313,14 +320,13 @@ async def _resolve_company_id(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="customer_company_mismatch",
             )
-        return contact_company_id
+        return contact_company_id, contact_info[2]
     if company_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="customer_company_required",
         )
-    await _team_company(db, member, company_id)
-    return company_id
+    return company_id, await _team_company(db, member, company_id)
 
 
 async def _team_product(db: AsyncSession, member: Member, product_id: UUID) -> Product:
@@ -591,7 +597,7 @@ async def create_activity(
         values.pop("category_code")
         values.pop("action_tag")
         schedule_management_run_id = values.pop("schedule_management_run_id")
-        values["customer_company_id"] = await _resolve_company_id(
+        values["customer_company_id"], company_name = await _resolve_company_id(
             db, member, values["customer_company_id"], contact_info
         )
         if schedule_management_run_id is not None:
@@ -612,8 +618,10 @@ async def create_activity(
             activity,
             member.display_name,
             None if contact_info is None else contact_info[0],
-            None if contact_info is None else contact_info[1],
-            None if contact_info is None else contact_info[2],
+            # 담당자가 없어도 고객사는 정해져 있다. 담당자 조회 결과에서만 가져오면
+            # 저장된 값과 달리 응답의 회사가 빈 채로 나간다.
+            activity.customer_company_id,
+            company_name,
             None if product is None else product.name,
             category,
             action_tag,
@@ -631,22 +639,29 @@ async def create_activity(
 
     # 일정 등록은 이미 커밋됐다 — 이 아래에서 브리핑 큐잉이 실패해도 등록 자체는 되돌리지
     # 않고, 실패 사유만 응답에 경고로 실어 보낸다.
+    # 브리핑은 어느 경로로 만든 일정이든 붙인다. 미팅 전에 훑어보라고 만드는 것인데
+    # AI 추천을 수락한 일정에만 붙어 있어, 사람이 직접 잡은 일정에는 없었다. 딜이 없어도
+    # 만들어진다 — 입력은 activity_id 하나로 고객사·그 회사의 열린 딜·자료실까지 모인다.
+    # AI 제안을 거친 일정만 parent_run_id 를 남긴다(agent_runs 가 그 필드를 선택으로 둔
+    # 이유다: "캘린더 직접 입력이나 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은
+    # 부모 없이 activity_id만으로 만든다").
+    try:
+        _, briefing_run_id = await agent_run_service.create(
+            AgentRunCreate(
+                agent_code="contract_management_briefing",
+                activity_id=activity_id,
+                parent_run_id=schedule_management_run_id,
+                idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity_id)),
+            ),
+            member,
+            db,
+        )
+        if briefing_run_id is not None:
+            background.add_task(agent_run_service.execute, briefing_run_id)
+    except HTTPException as error:
+        read.briefing_queue_warning = str(error.detail)
+
     if schedule_management_run_id is not None:
-        try:
-            _, briefing_run_id = await agent_run_service.create(
-                AgentRunCreate(
-                    agent_code="contract_management_briefing",
-                    activity_id=activity_id,
-                    parent_run_id=schedule_management_run_id,
-                    idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity_id)),
-                ),
-                member,
-                db,
-            )
-            if briefing_run_id is not None:
-                background.add_task(agent_run_service.execute, briefing_run_id)
-        except HTTPException as error:
-            read.briefing_queue_warning = str(error.detail)
         read.schedule_conflict_warning = await _conflict_warning(
             db,
             team_id=team_id,
@@ -775,7 +790,7 @@ async def update_activity(
                 if contact_info is not None
                 else values.get("customer_company_id", activity.customer_company_id)
             )
-            values["customer_company_id"] = await _resolve_company_id(
+            values["customer_company_id"], _company_name = await _resolve_company_id(
                 db, member, company_id, contact_info
             )
             sales_deal = (
@@ -784,8 +799,6 @@ async def update_activity(
             _validate_customer_company(
                 None if contact_info is None else contact_info[1], sales_deal
             )
-        if values.get("product_id") is not None:
-            await _team_product(db, member, values["product_id"])
         if "category_code" in values:
             category_code = values.pop("category_code")
             category = await _active_activity_category(db, member, category_code)

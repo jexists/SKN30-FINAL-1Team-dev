@@ -66,6 +66,9 @@ function durLabel(minutes: number): string {
  * 묻는 것은 제목·날짜·고객사·고객·장소·메모 여섯 가지뿐입니다. 상태 태그는 이 자리에서
  * 고르지 않고, 새로 만드는 일정은 태그 없이 미팅으로 저장됩니다. 고쳐 쓰려고 연 일정은
  * 원래 붙어 있던 태그를 그대로 들고 갑니다.
+ *
+ * 딜은 묻지 않습니다. 어느 영업 건에 대한 미팅인지는 다녀와서 보고서를 쓸 때 정합니다 —
+ * 이 시점에는 아직 모를 수 있고, 딜과 무관한 미팅일 수도 있습니다.
  */
 export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDelete }: Props) {
   const [form, setForm] = useState<CalendarEvent>(draft)

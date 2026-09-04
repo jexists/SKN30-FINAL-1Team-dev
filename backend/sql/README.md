@@ -262,6 +262,16 @@
   코드는 INSERT 에 이 값을 넣지 않아 적용 뒤 배포 전까지는 일정 등록이 NOT NULL 에 막히므로,
   두 작업을 붙여서 합니다.
 
+- `20260903_0022_activity_contact_required.sql`: 딜과 일정의 대표 담당자를 필수로 잠급니다
+  (`activity.customer_contact_id` · `sales_deal.customer_contact_id`). `20260902_0019`가 범위 밖으로
+  미뤄 둔 부분입니다 — 담당자가 비면 계약관리 에이전트가 일정에 넣을 사람을 못 정해 AI 브리핑이
+  만들어지지 않습니다. 0019가 이미 비운 값이라 남아 있다면 그 뒤에 들어온 살아 있는 행이므로,
+  지우지 않고 예외로 멈춥니다. **지우는 행도, 채우는 값도 없습니다** — 일정의 딜은 건드리지
+  않습니다. 어느 딜에 대한 미팅인지는 다녀와서 보고서를 쓸 때 정하는 값입니다(#124).
+  **적용 직전에 담당자가 빈 행을 한 번 더 확인해야 합니다** — 딜 등록 폼이 담당자를 묻기
+  시작하는 것은 이 브랜치 배포 뒤라, 그 사이에 만들어진 딜은 담당자가 비어 가드에 걸립니다.
+  **DB 적용과 백엔드 배포를 붙여서 합니다.**
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -300,10 +310,8 @@
 | 2026-09-01 | 현재 연결된 개발 DB | 중복 일일보고서 정리 | session pooler | 적용을 막던 테스트용 일일보고서 초안 5건과 그 실행 기록 `agent_run` 5건 삭제. 확정 보고서·미팅보고서·CRM 데이터는 삭제하지 않음 |
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0017_report_workflow_v2_foundation.sql` | session pooler | 성공. 정리 후 report 699행과 report_deal 461행을 유지하고 report_submission·report_source·meeting_deal_analysis 및 제약조건·인덱스를 추가. 일일보고서 중복 0건 확인 |
 | 2026-09-01 | 현재 연결된 개발 DB | `20260901_0018_agent_run_queue.sql` | session pooler | 성공. 정리 후 agent_run 537행을 유지하고 큐 컬럼·제약조건·인덱스를 추가. `agent_worker --check-schema` 통과 |
-| 2026-09-02 | 현재 연결된 개발 DB | `20260902_0019_activity_customer_company.sql` | session pooler | **미적용(대기).** 트랜잭션 안에서 돌려 보고 롤백한 결과만 확인했습니다. 딜 담당자 NULL 19→0 / 일정 담당자 NULL 48→0(활성 33 + 소프트 삭제 15) / 일정 고객사 NULL 0. 삭제는 딜 9(416→407) · 일정 34(1993→1959) · 보고서 14(707→693) · `contract_next_meeting_suggestion` 3(90→87)이고, 딜에 걸린 자료 7건과 `report_deal` 472행은 그대로였습니다. 이 브랜치를 배포하기 직전에 적용합니다 |
-| 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_transient_report_generation.sql` | session pooler | 성공. 생성 payload 만료·재접속 scope·멱등 확정 컬럼과 보호 함수를 추가하고 `agent_worker --check-schema` 통과 |
-| 2026-09-03 | 현재 연결된 개발 DB | `20260903_0020_report_freeform_body.sql` 검토 전 초안 | session pooler | 일일 204·주간 51·월간 20건을 본문으로 이관하고 report_deal 본문 83→453건. 현재 PR의 fail-closed 검증과 구 단일 딜 미팅 이관이 들어가기 전 SQL이므로, 개발 반영 때는 0020 직전 백업으로 복구한 뒤 최종 SQL을 적용해야 함 |
-| 2026-09-03 | — | `20260903_0021_customer_contact_soft_delete.sql` | — | 대기. 고객 삭제용 `customer_contact.deleted_at`과 부분 인덱스. 적용 요청을 아직 받지 않았습니다 |
+| 2026-09-03 | 현재 연결된 개발 DB | `20260902_0019_activity_customer_company.sql` | session pooler | 성공. 9/2 에 트랜잭션 안에서 돌려 보고 롤백해 수치를 확인한 뒤(딜 담당자 NULL 19→0 / 일정 담당자 NULL 48→0(활성 33 + 소프트 삭제 15) / 삭제 딜 9(416→407) · 일정 34(1993→1959) · 보고서 14(707→693) · `contract_next_meeting_suggestion` 3(90→87)), 9/3 에 실제로 적용했습니다. 적용 직전 리허설에서는 딜 담당자 NULL 20→0 / 일정 담당자 NULL 48→0 이고 삭제 건수는 9/2 와 같았습니다 — 그 사이 딜·일정이 몇 건 늘어 전체 행 수만 달라졌습니다. 적용 후 담당자 NULL 은 딜·일정 모두 0, 일정 고객사 NULL 0, `activity.customer_company_id` 생성 확인. 남은 행은 딜 408 · 일정 1962 · 보고서 673 · `contract_next_meeting_suggestion` 88 입니다. 자료·발주·불만·확정 스냅샷을 보는 `RAISE EXCEPTION` 가드는 걸리지 않았습니다 |
+| 2026-09-04 | 현재 연결된 개발 DB | `20260903_0022_activity_contact_required.sql` | session pooler | **미적용(대기).** 담당자 NOT NULL 두 개만 겁니다 — 지우는 행도 채우는 값도 없습니다. 적용 직전에 `customer_contact_id IS NULL` 인 행을 확인하고 채운 뒤 적용합니다. 준비 중 9/4 에 그런 딜 1건(`꿈동물병원 LR-CORE1`)이 실제로 걸렸고, 만들어진 지 반나절 만에 미팅 보고서에 엮여 있어 지우지 못하고 담당자를 채워 넘겼습니다 |
 
 ## 개발 DB 재구축 런북
 

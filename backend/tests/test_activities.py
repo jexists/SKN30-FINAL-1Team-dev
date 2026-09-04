@@ -13,11 +13,11 @@ from app.main import app
 from app.models.agent import ContractNextMeetingSuggestion
 from app.models.configuration import ActivityActionTag, ActivityCategory
 from app.models.crm import Activity, CustomerCompany, CustomerContact
-from app.models.sales import Product
+from app.models.sales import Product, SalesDeal
 from app.models.workspace import Member
 from app.schemas.activities import ActivityCreate, ActivityPageParams, ActivityPatch
 from app.services import agent_runs as agent_run_service
-from app.services import contract_schedule_snapshots
+from app.services import contract_next_meeting_pipeline, contract_schedule_snapshots
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, tzinfo=UTC)
@@ -100,6 +100,21 @@ def reset_dependency_overrides():
     app.dependency_overrides.clear()
 
 
+def _silence_agents(monkeypatch) -> None:
+    """등록 뒤에 딸려 도는 에이전트를 막는다.
+
+    일정을 만들면 브리핑이 큐에 들어가고, 딜이 붙어 있으면 계약 에이전트도 부른다.
+    TestClient 는 백그라운드 작업을 응답 뒤에 그대로 돌리므로, 막지 않으면 목 DB 를
+    둔 테스트가 진짜 DB 로 붙는다. 이 테스트들이 보는 것은 등록 자체다.
+    """
+    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+
+    async def _no_briefing(*_args, **_kwargs):
+        return None, None
+
+    monkeypatch.setattr(agent_run_service, "create", _no_briefing)
+
+
 def _member(*, role: str = "member", team_id: UUID | None = None) -> Member:
     return Member(
         id=uuid4(),
@@ -142,12 +157,35 @@ def _product(team_id: UUID) -> Product:
     return Product(id=uuid4(), team_id=team_id, name="합성 상품", active=True)
 
 
-def _activity(member: Member, *, contact_id: UUID | None = None, product_id: UUID | None = None):
+def _deal(*, team_id: UUID, company_id: UUID, owner_id: UUID) -> SalesDeal:
+    """일정에 붙일 딜. 고객사가 일정의 고객사와 같아야 등록이 통과한다."""
+    return SalesDeal(
+        id=uuid4(),
+        team_id=team_id,
+        deal_no="SL-DL-TEST-0001",
+        customer_company_id=company_id,
+        customer_contact_id=uuid4(),
+        owner_member_id=owner_id,
+        deleted_at=None,
+    )
+
+
+def _activity(
+    member: Member,
+    *,
+    contact_id: UUID | None = None,
+    product_id: UUID | None = None,
+    sales_deal_id: UUID | None = None,
+    company_id: UUID | None = None,
+):
+    # 20260903_0020 뒤로 딜도 고객사도 빈 일정은 남지 않는다. 기본값을 비워 두면 딜을
+    # 다시 보게 만드는 수정 경로가 실제와 다른 상태에서 돌아간다.
     return Activity(
         id=uuid4(),
         team_id=member.team_id,
         owner_member_id=member.id,
         customer_contact_id=contact_id,
+        customer_company_id=company_id or uuid4(),
         end_user_contact_id=None,
         activity_category_id=uuid4(),
         title="합성 미팅",
@@ -163,7 +201,7 @@ def _activity(member: Member, *, contact_id: UUID | None = None, product_id: UUI
         created_at=NOW,
         updated_at=NOW,
         product_id=product_id,
-        sales_deal_id=None,
+        sales_deal_id=sales_deal_id or uuid4(),
         purchase_order_id=None,
     )
 
@@ -414,17 +452,19 @@ def test_manager_owner_filter_is_limited_to_active_same_team_members():
     assert len(invalid_db.statements) == 1
 
 
-def test_create_uses_authenticated_owner_and_same_team_references():
+def test_create_uses_authenticated_owner_and_same_team_references(monkeypatch):
+    _silence_agents(monkeypatch)
     member = _member()
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
     product = _product(member.team_id)
-    company = _company(member.team_id)
     category = _category(member.team_id, code="demo")
     action_tag = _action_tag(member.team_id, code="demo_in_progress")
+    deal = _deal(team_id=member.team_id, company_id=contact.company_id, owner_id=member.id)
     db = _Db(
         _Result(rows=[(contact, company.id, company.name)]),
         _Result(scalar=product),
+        _Result(scalar=deal),
         _Result(scalar=category),
         _Result(scalar=action_tag),
     )
@@ -436,6 +476,7 @@ def test_create_uses_authenticated_owner_and_same_team_references():
             json={
                 "customer_contact_id": str(contact.id),
                 "product_id": str(product.id),
+                "sales_deal_id": str(deal.id),
                 "category_code": "demo",
                 "title": "  합성 데모  ",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -458,6 +499,9 @@ def test_create_uses_authenticated_owner_and_same_team_references():
     assert response.json()["activity_category_name"] == category.name
     assert response.json()["activity_action_tag_name"] == action_tag.name
     assert activity.title == "합성 데모"
+    # 고객사는 담당자에게서 나오고, 딜은 그 고객사의 것이어야 한다.
+    assert activity.customer_company_id == contact.company_id
+    assert activity.sales_deal_id == deal.id
     assert db.flush_count == db.commit_count == 1
     assert db.rollback_count == 0
     assert member.team_id in db.statements[0].compile().params.values()
@@ -541,8 +585,11 @@ def test_activity_options_reject_other_team_or_deleted_lookups():
 
 def test_member_cannot_link_another_owners_sales_deal():
     member = _member()
+    company = _company(member.team_id)
     sales_deal_id = uuid4()
-    db = _Db(_Result(scalar=None))
+    db = _Db(
+        _Result(scalar=None),  # _team_sales_deal: 남의 딜은 보이지 않는다
+    )
 
     with _client(db, member) as client:
         response = client.post(
@@ -550,6 +597,7 @@ def test_member_cannot_link_another_owners_sales_deal():
             headers={"Origin": ORIGIN},
             json={
                 "sales_deal_id": str(sales_deal_id),
+                "customer_company_id": str(company.id),
                 "category_code": "visit",
                 "title": "합성 미팅",
                 "starts_at": "2026-08-17T10:00:00+09:00",
@@ -621,6 +669,116 @@ def test_patch_rejects_contact_and_existing_deal_from_different_companies():
     assert db.rollback_count == 1
 
 
+def test_create_accepts_an_activity_without_a_sales_deal(monkeypatch):
+    """딜은 비워 둘 수 있다 — 인사차 방문처럼 영업 건과 무관한 만남이 있다."""
+    _silence_agents(monkeypatch)
+    member = _member()
+    company = _company(member.team_id)
+    db = _Db(
+        _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_company_id": str(company.id),
+                "category_code": "visit",
+                "title": "인사차 방문",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["sales_deal_id"] is None
+    assert db.added[0].sales_deal_id is None
+    assert db.commit_count == 1
+
+
+def test_create_queues_a_briefing_for_a_hand_made_activity(monkeypatch):
+    """AI 추천을 거치지 않고 손으로 만든 일정에도 브리핑을 붙인다.
+
+    브리핑은 미팅 전에 훑어보라고 만드는 것인데, 예전에는 AI 추천을 수락한 일정에만
+    붙어서 정작 사람이 직접 잡은 일정에는 없었다. 딜이 없어도 만들어진다 — 입력은
+    activity_id 하나로 고객사와 그 회사의 열린 딜까지 모인다.
+    """
+    monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
+    monkeypatch.setattr(contract_next_meeting_pipeline, "queue", lambda *_a, **_k: None)
+    queued: list[dict] = []
+
+    async def _capture(payload, _member, _db):
+        queued.append(payload.model_dump(mode="json"))
+        return None, None
+
+    monkeypatch.setattr(agent_run_service, "create", _capture)
+
+    member = _member()
+    company = _company(member.team_id)
+    db = _Db(
+        _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.name),  # _team_company
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_company_id": str(company.id),
+                "category_code": "visit",
+                "title": "손으로 잡은 방문",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    assert response.status_code == 201
+    assert len(queued) == 1
+    assert queued[0]["agent_code"] == "contract_management_briefing"
+    assert queued[0]["activity_id"] == response.json()["id"]
+    # AI 제안을 거치지 않았으므로 부모 실행이 없다.
+    assert queued[0]["parent_run_id"] is None
+    assert response.json()["briefing_queue_warning"] is None
+
+
+def test_create_without_a_contact_still_answers_with_the_company(monkeypatch):
+    """담당자 없이 고객사만 지정한 등록도 응답에 회사가 실려야 한다.
+
+    저장은 되는데 응답만 비어 나가면 화면이 방금 만든 일정을 잘못 그린다. 회사를
+    담당자 조회 결과에서만 가져오던 탓이었다.
+    """
+    _silence_agents(monkeypatch)
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
+    db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
+        _Result(scalar=_category(member.team_id)),
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
+                "category_code": "visit",
+                "title": "담당자 없이 회사만",
+                "starts_at": "2026-08-17T10:00:00+09:00",
+            },
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["customer_contact_id"] is None
+    assert body["customer_company_id"] == str(company.id)
+    assert body["customer_company_name"] == company.name
+    assert db.added[0].customer_company_id == company.id
+
+
 def test_activity_options_are_active_same_team_and_ordered():
     member = _member()
     category = _category(member.team_id, code="custom_category")
@@ -662,9 +820,13 @@ def test_detail_and_patch_share_scope_and_patch_revalidates_range():
         detail = client.get(f"/api/activities/{activity.id}")
     assert detail.status_code == 200
 
+    # 담당자를 바꾸면 딜과 고객사의 짝을 다시 본다 — 그 사이 딜이 다른 회사 것이 될 수 있다.
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
+    activity.sales_deal_id = deal.id
     patch_db = _Db(
         _Result(scalar=activity),
         _Result(rows=[(contact, company.id, company.name)]),
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(rows=[_row(activity, member, contact, company)]),
     )
     with _client(patch_db, member) as client:
@@ -732,9 +894,11 @@ def test_cross_team_activity_is_hidden_and_delete_is_soft():
 def test_write_failure_rolls_back_transaction():
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=_category(member.team_id)),
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         flush_error=RuntimeError("synthetic failure"),
     )
 
@@ -747,6 +911,7 @@ def test_write_failure_rolls_back_transaction():
                 "title": "합성 일정",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
             },
         )
 
@@ -773,6 +938,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     parent_run = SimpleNamespace(
         id=uuid4(),
@@ -781,8 +947,9 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
         status_code="completed",
     )
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
@@ -798,6 +965,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
             },
         )
@@ -835,6 +1003,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     parent_run = SimpleNamespace(
         id=uuid4(),
@@ -843,8 +1012,9 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
         status_code="completed",
     )
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
@@ -860,6 +1030,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
             },
         )
@@ -906,11 +1077,13 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
             await super().rollback()
             expired = True
 
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     missing_run_id = uuid4()
     db = _ExpiringDb(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
@@ -926,6 +1099,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(missing_run_id),
             },
         )
@@ -955,12 +1129,14 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     schedule_run_id = uuid4()
     suggestion = _pending_suggestion(member, schedule_run_id)
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=suggestion),  # _claim_suggestion: 아직 pending
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
@@ -976,6 +1152,7 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),
             },
         )
@@ -993,10 +1170,12 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=None),  # _claim_suggestion: 범위 안에 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회
         _Result(scalar=None),  # _parent_run_or_409
@@ -1012,13 +1191,14 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(uuid4()),
             },
         )
 
     # 범위 밖이면 남의 제안을 건드리지 않고 등록만 진행한다.
     assert response.status_code == 201
-    claim_sql = str(db.statements[2])
+    claim_sql = str(db.statements[3])
     assert "contract_next_meeting_suggestion.team_id" in claim_sql
     assert "sales_deal.owner_member_id" in claim_sql  # role_code == "member"
     # of= 로 지정한 대상은 PostgreSQL 방언에서만 "OF ..." 로 붙어, 기본 컴파일에는
@@ -1032,13 +1212,15 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
 
     member = _member()
     company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
     category = _category(member.team_id, code="demo")
     schedule_run_id = uuid4()
     suggestion = _pending_suggestion(member, schedule_run_id)
     suggestion.status_code = "accepted"  # 먼저 온 요청이 이미 가져갔다
     db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
-        _Result(scalar=company.id),  # _team_company
+        _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=suggestion),  # _claim_suggestion: 이미 accepted
     )
 
@@ -1051,6 +1233,7 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
                 "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),
             },
         )

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import AgentRun
 from app.models.content import Report, ReportDeal
-from app.models.crm import Activity, CustomerCompany, CustomerContact, SupportRequest
+from app.models.crm import Activity, CustomerCompany, SupportRequest
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import sales_context
@@ -517,8 +517,9 @@ async def build_briefing_snapshot(
     row = (
         await db.execute(
             select(Activity, CustomerCompany)
-            .join(CustomerContact, Activity.customer_contact_id == CustomerContact.id)
-            .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
+            # 회사는 일정이 직접 들고 있다(20260902_0019). 담당자를 거쳐 찾던 것을 끊는다 —
+            # 그 조인은 담당자가 없는 일정을 조회에서 통째로 떨어뜨렸다.
+            .join(CustomerCompany, Activity.customer_company_id == CustomerCompany.id)
             .outerjoin(SalesDeal, Activity.sales_deal_id == SalesDeal.id)
             .where(
                 Activity.id == activity_id,

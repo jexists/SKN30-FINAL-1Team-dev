@@ -61,6 +61,8 @@ const STATUS_PATH: Record<DealDocumentKind, string> = {
 
 export interface SalesDealSaveInput {
   customerCompanyId: string
+  /** 이 딜의 대표 담당자. AI 가 다음 미팅을 추천할 때 일정에 적을 사람입니다. */
+  customerContactId: string
   productId: string
   /** 비우면 서버가 '회사명 제품명' 으로 채웁니다. */
   title: string | null
@@ -155,7 +157,7 @@ function mutationErrorMessage(error: unknown, action: string): string {
   return transportMessage(error) ?? fallback
 }
 
-function toColumn(stage: SalesPipelineStageResponse): SalesDealColumn {
+export function toColumn(stage: SalesPipelineStageResponse): SalesDealColumn {
   return {
     id: stage.id,
     name: stage.name,
@@ -324,10 +326,13 @@ async function fetchSalesDealPage(
   return { cards: data.items.map(toSalesDeal), total: data.total, counts: data.counts }
 }
 
-function toCreateRequest(input: SalesDealSaveInput, pipelineId: string): SalesDealCreateRequest {
+export function toCreateRequest(
+  input: SalesDealSaveInput,
+  pipelineId: string,
+): SalesDealCreateRequest {
   return {
     customer_company_id: input.customerCompanyId,
-    customer_contact_id: null,
+    customer_contact_id: input.customerContactId,
     product_id: input.productId,
     sales_pipeline_id: pipelineId,
     sales_pipeline_stage_id: input.stageId,
@@ -343,14 +348,14 @@ function toCreateRequest(input: SalesDealSaveInput, pipelineId: string): SalesDe
 
 function toPatchRequest(
   input: SalesDealSaveInput,
-  currentCustomerCompanyId: string | undefined,
   currentProductId: string | null | undefined,
   currentDealTypeCode: string | undefined,
 ): SalesDealPatchRequest {
   return {
     customer_company_id: input.customerCompanyId,
-    ...(currentCustomerCompanyId !== undefined &&
-      currentCustomerCompanyId !== input.customerCompanyId && { customer_contact_id: null }),
+    // 회사를 바꾸면 그 전 회사 사람이 담당자로 남아 있으면 안 됩니다. 폼이 회사를 바꿀 때
+    // 담당자를 비우고 다시 고르게 하므로, 여기서는 고른 사람을 그대로 올립니다.
+    customer_contact_id: input.customerContactId,
     ...(currentProductId !== input.productId && { product_id: input.productId }),
     ...(currentDealTypeCode !== input.dealTypeCode && { deal_type_code: input.dealTypeCode }),
     deal_amount: input.amount,
@@ -635,12 +640,7 @@ export default function useSalesDeals(
         const current = cards.find((card) => card.id === id)
         const { data } = await client.patch<SalesDealResponse>(
           '/sales-deals/' + id,
-          toPatchRequest(
-            input,
-            current?.customerCompanyId,
-            current?.productId,
-            current?.dealTypeCode,
-          ),
+          toPatchRequest(input, current?.productId, current?.dealTypeCode),
         )
         const updated = toSalesDeal(data)
         setCards((previous) => previous.map((card) => (card.id === id ? updated : card)))
