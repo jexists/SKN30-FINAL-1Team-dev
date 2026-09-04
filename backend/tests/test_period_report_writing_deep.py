@@ -134,8 +134,7 @@ def test_period_prompt_requires_an_internal_report_instead_of_a_schedule_summary
         in period.GUIDANCE_CONTRACT
     )
     assert (
-        "딜·제품 귀속을 명시적으로 정정하면 그 발언에 한해 본문에 반영"
-        in period.GUIDANCE_CONTRACT
+        "딜·제품 귀속을 명시적으로 정정하면 그 발언에 한해 본문에 반영" in period.GUIDANCE_CONTRACT
     )
     assert "딜 미지정 상태 보존 규칙의 예외" in period.GUIDANCE_CONTRACT
     assert "정정하지 않은 불확실성은 그대로 유지" in period.GUIDANCE_CONTRACT
