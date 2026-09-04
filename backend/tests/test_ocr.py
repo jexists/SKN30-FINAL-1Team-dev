@@ -571,3 +571,31 @@ async def test_extract_document_times_out_slow_local_ocr(monkeypatch):
             content=b"image",
             profile="business_card",
         )
+
+
+def test_render_pdf_page_png_produces_a_bounded_image():
+    """스캔 PDF를 한국어 OCR 경로로 보내려면 이미지로 구울 수 있어야 한다."""
+    pdf = Path(__file__).resolve().parents[2] / "data" / "sanitized_docs"
+    candidates = sorted(pdf.glob("*사업자등록증*.pdf"))
+    if not candidates:
+        pytest.skip("사업자등록증 샘플 PDF가 없다")
+
+    png = ocr.render_pdf_page_png(candidates[0].read_bytes())
+
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    assert len(png) <= ocr.settings.ocr_runpod_inline_max_bytes
+
+
+def test_render_pdf_page_png_rejects_broken_input():
+    with pytest.raises(ocr.OcrError, match="pdf_render_"):
+        ocr.render_pdf_page_png(b"not a pdf")
+
+
+def test_render_pdf_page_png_rejects_missing_page():
+    pdf = Path(__file__).resolve().parents[2] / "data" / "sanitized_docs"
+    candidates = sorted(pdf.glob("*사업자등록증*.pdf"))
+    if not candidates:
+        pytest.skip("사업자등록증 샘플 PDF가 없다")
+
+    with pytest.raises(ocr.OcrError, match="pdf_render_page_out_of_range"):
+        ocr.render_pdf_page_png(candidates[0].read_bytes(), page_number=99)

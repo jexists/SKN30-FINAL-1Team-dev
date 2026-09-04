@@ -44,6 +44,54 @@ def _ocr_semaphore() -> asyncio.Semaphore:
         return semaphore
 
 
+# 스캔 등록증 한 장을 읽기에 충분한 해상도. 더 키우면 전송 용량만 늘고 인식은 나아지지 않는다.
+PDF_RENDER_TARGET_SIDE = 2_200
+PDF_RENDER_MIN_SIDE = 1_100
+
+
+def render_pdf_page_png(content: bytes, *, page_number: int = 1) -> bytes:
+    """스캔 PDF 한 장을 PNG로 굽는다.
+
+    PDF는 pdf-inspector 경로로 가는데 그쪽에는 한국어 설정이 걸려 있지 않다.
+    이미지로 바꿔 보내면 PaddleOCR의 한국어 엔진 경로를 그대로 탄다.
+    """
+
+    try:
+        import pypdfium2
+        from PIL import Image  # noqa: F401 - pypdfium2가 to_pil에서 사용한다.
+    except ImportError as error:
+        raise OcrError("pdf_render_dependency_missing") from error
+
+    target_side = PDF_RENDER_TARGET_SIDE
+    try:
+        document = pypdfium2.PdfDocument(content)
+        try:
+            if page_number < 1 or page_number > len(document):
+                raise OcrError("pdf_render_page_out_of_range")
+            page = document[page_number - 1]
+            # 원본이 커도 작아도 같은 해상도로 맞춘다. 고정 배율은 용지 크기에 따라
+            # 결과가 흔들린다.
+            longest_point_side = max(page.get_width(), page.get_height()) or 1
+            while True:
+                rendered = page.render(scale=target_side / longest_point_side).to_pil()
+                buffer = BytesIO()
+                rendered.save(buffer, format="PNG")
+                png = buffer.getvalue()
+                if (
+                    len(png) <= settings.ocr_runpod_inline_max_bytes
+                    or target_side <= PDF_RENDER_MIN_SIDE
+                ):
+                    return png
+                # 인라인 전송 한도를 넘으면 한 단계만 줄여 다시 굽는다.
+                target_side = max(PDF_RENDER_MIN_SIDE, target_side // 2)
+        finally:
+            document.close()
+    except OcrError:
+        raise
+    except Exception as error:
+        raise OcrError(f"pdf_render_failed:{type(error).__name__}") from error
+
+
 async def _run_local(
     *,
     file_name: str,
