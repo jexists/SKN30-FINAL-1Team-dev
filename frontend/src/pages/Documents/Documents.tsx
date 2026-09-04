@@ -53,8 +53,7 @@ export default function Documents() {
   const [page, setPage] = useState(1)
   const [openId, setOpenId] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
-  /** 업로드 모달. 'new' 는 새 문서, 문서 id 면 그 문서의 새 버전입니다. */
-  const [uploading, setUploading] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [reviewQueue, setReviewQueue] = useState<{ documentId: string; fileId: string }[]>([])
   const [reviewQueueError, setReviewQueueError] = useState<string | null>(null)
 
@@ -100,9 +99,8 @@ export default function Documents() {
     pending,
     reload,
     addDocument,
-    addVersion,
     queueSummaries,
-    summarizeVersion,
+    summarizeFile,
     loadSummary,
     approveSummary,
   } = useDocuments(documentQuery)
@@ -133,32 +131,24 @@ export default function Documents() {
   }, [setParams])
 
   const openDoc = openId ? findDocument(openId) : undefined
-  const versionTarget = uploading && uploading !== 'new' ? findDocument(uploading) : undefined
 
   const onUpload = async (results: UploadResult[]) => {
     try {
       const nextReviews: { documentId: string; fileId: string }[] = []
       setReviewQueueError(null)
-      if (versionTarget) {
-        const [result] = results
-        const uploaded = await addVersion(versionTarget.id, result.file, profile.name, result.note)
+      for (const result of [...results].reverse()) {
+        const uploaded = await addDocument({
+          file: result.file,
+          owner: profile.name,
+          title: result.title,
+          category: result.category,
+          link: result.link,
+          description: result.description,
+        })
         nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
-      } else {
-        for (const result of [...results].reverse()) {
-          const uploaded = await addDocument({
-            file: result.file,
-            owner: profile.name,
-            note: result.note,
-            title: result.title,
-            category: result.category,
-            link: result.link,
-            description: result.description,
-          })
-          nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
-        }
       }
       await queueSummaries(nextReviews)
-      setUploading(null)
+      setUploading(false)
       setReviewQueue(nextReviews.reverse())
       if (nextReviews[0]) setOpenId(nextReviews[0].documentId)
     } catch {
@@ -171,9 +161,9 @@ export default function Documents() {
   const summarizeOpenDocument = useCallback(
     (fileId: string) =>
       openDoc
-        ? summarizeVersion(openDoc.id, fileId)
+        ? summarizeFile(openDoc.id, fileId)
         : Promise.reject(new Error('자료를 찾을 수 없습니다.')),
-    [openDoc, summarizeVersion],
+    [openDoc, summarizeFile],
   )
   const loadOpenDocumentSummary = useCallback(
     (fileId: string) =>
@@ -260,7 +250,7 @@ export default function Documents() {
         />
 
         <div className={styles.actions}>
-          <Button disabled={pending} onClick={() => setUploading('new')}>
+          <Button disabled={pending} onClick={() => setUploading(true)}>
             <UploadIcon width={15} height={15} />
             파일 업로드
           </Button>
@@ -285,7 +275,7 @@ export default function Documents() {
           isFiltered={isFiltered}
           onClearFilters={clearFilters}
           showOwner={showOwner}
-          onUpload={() => setUploading('new')}
+          onUpload={() => setUploading(true)}
         />
       )}
 
@@ -298,7 +288,6 @@ export default function Documents() {
           key={openDoc.id}
           doc={openDoc}
           onClose={() => setOpenId(null)}
-          onNewVersion={() => setUploading(openDoc.id)}
           onSummarize={summarizeOpenDocument}
           onLoadSummary={loadOpenDocumentSummary}
           autoLoadSummaryFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
@@ -308,12 +297,7 @@ export default function Documents() {
       )}
 
       {uploading && (
-        <UploadModal
-          target={versionTarget}
-          submitting={pending}
-          onClose={() => setUploading(null)}
-          onSubmit={onUpload}
-        />
+        <UploadModal submitting={pending} onClose={() => setUploading(false)} onSubmit={onUpload} />
       )}
     </section>
   )
