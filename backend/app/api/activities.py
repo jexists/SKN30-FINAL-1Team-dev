@@ -622,9 +622,7 @@ async def create_activity(
         values["customer_company_id"], company_name = await _resolve_company_id(
             db, member, values["customer_company_id"], contact_info
         )
-        values["sales_deal_id"] = _resolve_sales_deal_id(
-            sales_deal, values["customer_company_id"]
-        )
+        values["sales_deal_id"] = _resolve_sales_deal_id(sales_deal, values["customer_company_id"])
         if schedule_management_run_id is not None:
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
