@@ -272,13 +272,37 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.deep.v12"
+    assert agent.PROMPT_VERSION == "report_writing.deep.v13"
     skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
     assert "합니다체로 통일한다" in skill
     assert "생성 과정을 해설하지 않는다" in skill
     assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
     assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
     assert "내부 분류·처리 절차나 화면 제목을 본문에 쓰지 않는다" in skill
+
+
+def test_empty_shared_sections_may_be_omitted_but_required_evidence_is_still_checked():
+    source, draft = _case()
+    source_payload = source.model_dump(mode="json")
+    for item in source_payload["evidence"]["items"][:3]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(source_payload)
+    draft.deal_reports[0].body += " " + draft.common_report.body
+    draft.deal_reports[0].evidence_ids.extend(draft.common_report.evidence_ids)
+    draft.common_report = None
+    payload = draft.model_dump(mode="json")
+    payload.pop("common_report")
+
+    parsed = agent.FreeformMeetingReports.model_validate(payload)
+
+    assert parsed.common_report is None
+    assert agent.FreeformMeetingReports.model_json_schema()["required"] == ["deal_reports"]
+    agent.validate_reports(source, parsed)
+
+    payload.pop("unassigned_report")
+    parsed = agent.FreeformMeetingReports.model_validate(payload)
+    with pytest.raises(ValueError, match="report_unassigned_evidence_missing"):
+        agent.validate_reports(source, parsed)
 
 
 def test_deal_schema_emits_identity_before_live_body():

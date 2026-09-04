@@ -1,7 +1,7 @@
 // 미팅 원문·공통 메모는 한 벌, 편집 중인 최종본·ML 결과는 딜마다 한 벌입니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgendaItem,
@@ -273,7 +273,9 @@ export default function useMeetingDraft(
                     }),
                 generationError: generated.report
                   ? null
-                  : reportError || '보고서 생성에 실패했습니다. 기존 작성 내용은 유지됩니다.',
+                  : reportError
+                    ? reportGenerationMessage(reportError)
+                    : '보고서 생성에 실패했습니다. 기존 작성 내용은 유지됩니다.',
                 analysisPhase: generated.assessment
                   ? ('completed' as const)
                   : generated.analysisError

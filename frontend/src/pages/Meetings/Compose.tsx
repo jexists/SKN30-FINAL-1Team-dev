@@ -7,7 +7,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { isAxiosError } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
   finishIdempotencyAttempt,
@@ -452,7 +452,7 @@ export default function Compose() {
           <p>일부 처리가 완료되지 않았습니다. 기존 작성 내용은 유지됩니다.</p>
           <ul>
             {Object.entries(runErrors).map(([step, message]) => (
-              <li key={step}>{message}</li>
+              <li key={step}>{reportGenerationMessage(message)}</li>
             ))}
           </ul>
         </div>

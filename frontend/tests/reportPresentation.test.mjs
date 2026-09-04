@@ -54,6 +54,7 @@ const { ReportReviewContents } = await vite.ssrLoadModule(
 )
 const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
+const { reportGenerationMessage } = await vite.ssrLoadModule('/src/api/errorMessage.ts')
 
 test('딜 상세 링크는 식별자를 인코딩해 영업 현황 드로어를 바로 연다', () => {
   assert.equal(dealDetailPath('deal/id?tab=1'), '/deals?deal=deal%2Fid%3Ftab%3D1')
@@ -124,6 +125,24 @@ const periodResponse = ({
   note: null,
   review_note: reviewNote,
   activities: [],
+})
+
+test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사용자 문구로 바꾼다', async () => {
+  const message =
+    'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.'
+  assert.equal(reportGenerationMessage('report_agent_output_invalid'), message)
+  assert.doesNotMatch(reportGenerationMessage('future_internal_error_code'), /future_internal/)
+
+  const raw = response()
+  raw.deal_sections[0].ai_evidence = { report_error: 'report_agent_output_invalid' }
+  assert.equal(toMeetingReport(raw).dealSections[0].reportError, message)
+
+  const [draftSource, composeSource] = await Promise.all([
+    readFile(new URL('../src/pages/Meetings/useMeetingDraft.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
+  ])
+  assert.match(draftSource, /reportGenerationMessage\(reportError\)/)
+  assert.match(composeSource, /reportGenerationMessage\(message\)/)
 })
 
 test('기간 보고서 상세는 저장 스냅샷과 구조화 값을 무시하고 canonical 본문만 표시한다', () => {

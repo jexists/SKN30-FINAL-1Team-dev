@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { client } from '@/api/client'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
 import { meetingFreeformTemplate } from '@/shared/meetings'
 import { canRecoverReportGeneration, isAuthorEditableReportStatus } from '@/shared/reports'
@@ -64,6 +64,7 @@ function dealSectionOf(
 ): MeetingDealSection {
   const content = record(value)
   const analysisEvidence = aiEvidence == null ? null : record(aiEvidence)
+  const analysis = readMeetingAnalysis(analysisEvidence ?? {})
   return {
     salesDealId,
     salesDeal: dealOf(dealSnapshot, salesDealId),
@@ -71,7 +72,8 @@ function dealSectionOf(
     title: explicitTitle || text(content.title),
     values: { body: explicitBody ?? '' },
     evidence: text(content.evidence) || undefined,
-    ...readMeetingAnalysis(analysisEvidence ?? {}),
+    ...analysis,
+    reportError: analysis.reportError ? reportGenerationMessage(analysis.reportError) : undefined,
   }
 }
 

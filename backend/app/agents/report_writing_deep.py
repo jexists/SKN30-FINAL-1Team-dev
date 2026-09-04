@@ -35,7 +35,7 @@ from app.services.agent_logging import agent_operation, log_agent_error, log_age
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, configured_chat_model, llm_boundary_error_code
 
-PROMPT_VERSION = "report_writing.deep.v12"
+PROMPT_VERSION = "report_writing.deep.v13"
 MAX_REVIEWS = 2
 MAX_REPAIRS = 1
 MAX_SEMANTIC_REVIEWS = 1
@@ -123,8 +123,8 @@ class FreeformMeetingReports(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     deal_reports: list[DealReport] = Field(min_length=1, max_length=100)
-    common_report: ReportBody | None
-    unassigned_report: ReportBody | None
+    common_report: ReportBody | None = None
+    unassigned_report: ReportBody | None = None
 
 
 def _structural_issues(
