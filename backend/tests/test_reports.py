@@ -441,6 +441,35 @@ def test_finalize_rejects_hidden_fields_for_the_other_report_kind(kind, override
         ReportFinalize(**{**payload, **override})
 
 
+def test_finalize_allows_a_meeting_without_deals_but_not_an_empty_one():
+    """딜을 고르지 않은 미팅도 저장할 수 있다 — 인사차 방문처럼 영업 건과 무관한 만남이 있다.
+
+    그때 내용은 딜별 칸이 아니라 공통·미배정 칸에 들어간다. 셋 다 비면 빈 보고서라 막는다.
+    """
+    base = {
+        "idempotency_key": uuid4(),
+        "report_kind": "meeting",
+        "report_date": "2026-08-17",
+        "source_activity_id": uuid4(),
+        "deal_sections": [],
+        "template_snapshot": TEMPLATE,
+        "content": CONTENT,
+        "body": None,
+        "activity_ids": [],
+    }
+
+    # 공통 기록만 있어도 된다.
+    ReportFinalize(**{**base, "common_body": "원장님 인사드리고 왔습니다."})
+    # 미배정 칸만 있어도 된다.
+    ReportFinalize(
+        **{**base, "idempotency_key": uuid4(), "unassigned_body": "다음 달 예산 확정 예정"}
+    )
+
+    # 셋 다 비면 막는다.
+    with pytest.raises(ValidationError, match="meeting_body_required"):
+        ReportFinalize(**{**base, "idempotency_key": uuid4()})
+
+
 @pytest.mark.parametrize("field_name", ["template_snapshot", "content"])
 def test_finalize_reuses_the_generation_json_byte_limit(field_name):
     oversized = {"value": "가" * REPORT_JSON_MAX_BYTES}
