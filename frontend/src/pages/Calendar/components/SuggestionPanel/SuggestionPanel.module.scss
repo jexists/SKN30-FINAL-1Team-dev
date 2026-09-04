@@ -229,3 +229,16 @@
   color: var(--blue);
   font-weight: 600;
 }
+
+// 이 회사에 딜 없이 잡아 둔 방문. 추천을 막지 않고 알리기만 하므로, 근거 배지보다
+// 조용하게 두되 눈에는 걸리도록 왼쪽에 선을 세운다.
+.scheduledVisit {
+  margin: 0;
+  padding: 7px 10px;
+  border-left: 2px solid var(--orange);
+  border-radius: 0 6px 6px 0;
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+  font-size: 12px;
+  line-height: 1.5;
+}

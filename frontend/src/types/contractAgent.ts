@@ -51,6 +51,15 @@ export interface ContractBriefingOutput {
  * 결과다 — 캘린더가 이 값을 읽을 때는 LLM을 부르지 않는다.
  * backend/app/schemas/contract_suggestions.py 의 ContractNextMeetingSuggestionRead 를 옮긴다.
  */
+/**
+ * 딜이 붙지 않은 예정 방문. 딜이 붙은 일정은 추천 계산이 이미 보고 있어 추천 자체가
+ * 올라오지 않지만, 딜이 없는 일정은 그 계산에 잡히지 않는다.
+ */
+export interface ScheduledCompanyVisit {
+  starts_at: string
+  title: string
+}
+
 export interface ContractNextMeetingSuggestion {
   id: string
   sales_deal_id: string
@@ -65,6 +74,8 @@ export interface ContractNextMeetingSuggestion {
   risks: ContractRisk[]
   schedule_management_run_id: string
   schedule_candidates: ScheduleCandidate[]
+  /** 이 회사에 딜 없이 잡아 둔 가장 이른 방문. 추천을 막지는 않고 카드에 알리기만 한다. */
+  scheduled_company_visit: ScheduledCompanyVisit | null
   status_code: 'pending' | 'dismissed' | 'accepted'
   created_at: string
   updated_at: string

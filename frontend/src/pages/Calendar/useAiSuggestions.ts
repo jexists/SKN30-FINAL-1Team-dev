@@ -10,7 +10,9 @@ import type {
   AiSuggestionOption,
   CalendarEvent,
   ContractNextMeetingSuggestion,
+  ScheduledCompanyVisit,
 } from '@/types'
+import { fmtDay } from '@/utils/date'
 
 type NewEvent = Partial<Omit<CalendarEvent, 'id'>> & { date: string; title: string }
 type AddEvent = (draft: NewEvent) => Promise<AgendaItem>
@@ -32,6 +34,21 @@ function toOptions(item: ContractNextMeetingSuggestion): AiSuggestionOption[] {
         priority: candidate.priority,
       }
     })
+}
+
+/**
+ * 이 회사에 딜 없이 잡아 둔 방문을 한 줄로 적는다.
+ *
+ * 딜이 붙은 일정은 추천 계산이 이미 보고 있어 그 딜의 추천이 아예 올라오지 않는다. 딜이
+ * 없는 일정은 그 계산에 잡히지 않아, 이미 잡아 둔 방문이 있어도 추천이 계속 올라온다.
+ * 막지 않고 알리기만 하는 이유는 회사 단위로 막으면 그 회사의 다른 딜까지 알림이 끊겨
+ * 놓치는 건이 생기기 때문이다.
+ */
+function toScheduledVisitNote(visit: ScheduledCompanyVisit | null): string | null {
+  if (visit === null) return null
+  const at = new Date(visit.starts_at)
+  if (Number.isNaN(at.getTime())) return null
+  return `이 회사에 ${fmtDay(at)} 방문이 이미 잡혀 있습니다 (건 미지정)`
 }
 
 function toAiSuggestion(
@@ -61,6 +78,7 @@ function toAiSuggestion(
     activityTitle: chosen.title,
     proposalReason: item.reason,
     basis: [...new Set(item.risks.map((risk) => RISK_LABEL[risk.code]))],
+    scheduledVisitNote: toScheduledVisitNote(item.scheduled_company_visit),
     scheduleRunId: item.schedule_management_run_id,
     options,
     selectedCandidateId: chosen.candidateId,

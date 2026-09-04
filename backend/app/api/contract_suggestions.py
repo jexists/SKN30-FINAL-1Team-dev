@@ -6,10 +6,13 @@ from sqlalchemy import select
 
 from app.api.deps import CurrentMember, DbSession
 from app.models.agent import AgentRun, ContractNextMeetingSuggestion
-from app.models.crm import CustomerCompany, CustomerContact
+from app.models.crm import Activity, CustomerCompany, CustomerContact
 from app.models.sales import SalesDeal
 from app.models.workspace import Member
-from app.schemas.contract_suggestions import ContractNextMeetingSuggestionRead
+from app.schemas.contract_suggestions import (
+    ContractNextMeetingSuggestionRead,
+    ScheduledCompanyVisit,
+)
 
 router = APIRouter(tags=["contract-suggestions"])
 
@@ -22,6 +25,7 @@ def _read(
     owner_name: str,
     schedule_run: AgentRun,
     next_meeting_run: AgentRun | None,
+    scheduled_visit: ScheduledCompanyVisit | None,
 ) -> ContractNextMeetingSuggestionRead:
     next_meeting_output = (next_meeting_run.output_snapshot if next_meeting_run else None) or {}
     suggestion_detail = next_meeting_output.get("next_meeting_suggestion") or {}
@@ -39,6 +43,7 @@ def _read(
         risks=next_meeting_output.get("risks") or [],
         schedule_management_run_id=suggestion.schedule_management_run_id,
         schedule_candidates=(schedule_run.output_snapshot or {}).get("schedule_candidates") or [],
+        scheduled_company_visit=scheduled_visit,
         status_code=suggestion.status_code,
         created_at=suggestion.created_at,
         updated_at=suggestion.updated_at,
@@ -91,6 +96,30 @@ async def list_contract_next_meeting_suggestions(
             ).all()
         )
 
+    # 이 회사에 딜 없이 잡아 둔 방문. 추천을 막지는 않고 카드에 알리기만 한다 — 회사 단위로
+    # 막아 버리면 그 회사의 다른 딜까지 추천이 끊겨 놓치는 건이 생긴다. 딜이 붙은 일정은
+    # 이미 추천 계산이 보고 있으므로(_deal_ids_with_upcoming_activity) 여기서 세지 않는다.
+    company_ids = {deal.customer_company_id for _s, deal, _c, _o in rows}
+    visit_rows = (
+        await db.execute(
+            select(Activity.customer_company_id, Activity.starts_at, Activity.title)
+            .where(
+                Activity.team_id == member.team_id,
+                Activity.customer_company_id.in_(company_ids),
+                Activity.sales_deal_id.is_(None),
+                Activity.deleted_at.is_(None),
+                Activity.starts_at > datetime.now(UTC),
+            )
+            .order_by(Activity.customer_company_id, Activity.starts_at)
+        )
+    ).all()
+    # 가장 이른 것 하나만 보여 준다. 정렬해 두었으니 처음 만난 것이 그것이다.
+    scheduled_visits: dict[UUID, ScheduledCompanyVisit] = {}
+    for company_id, starts_at, title in visit_rows:
+        scheduled_visits.setdefault(
+            company_id, ScheduledCompanyVisit(starts_at=starts_at, title=title)
+        )
+
     schedule_run_ids = {suggestion.schedule_management_run_id for suggestion, _d, _c, _o in rows}
     schedule_runs = {
         run.id: run
@@ -132,6 +161,7 @@ async def list_contract_next_meeting_suggestions(
                 owner_name,
                 schedule_run,
                 next_meeting_run,
+                scheduled_visits.get(deal.customer_company_id),
             )
         )
     return results
