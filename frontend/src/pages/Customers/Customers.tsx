@@ -194,10 +194,22 @@ export default function Customers() {
     setDialog('create')
   }, [])
 
-  // 사업자등록증에서 읽은 값도 바로 저장하지 않습니다. 담당자 이름·연락처는
-  // 등록증에 없으므로 등록 폼에서 사람이 채웁니다.
+  // 사업자등록증에서 읽은 값도 바로 저장하지 않습니다. 이름 칸에는 대표자를 넣지만
+  // 실제 담당자는 다른 사람일 수 있어, 사람이 등록 폼에서 확인하고 고칩니다.
   const onLicenseDrafted = useCallback((draft: BusinessLicenseDraft) => {
     setLicenseDraft(draft)
+    // 못 읽은 칸은 사람이 채워야 합니다. 빈 폼만 열어 두면 무엇이 빠졌는지 모릅니다.
+    const unread = [
+      draft.company.trim() === '' ? '회사명' : null,
+      draft.address.trim() === '' ? '주소' : null,
+      draft.businessNo.trim() === '' ? '사업자등록번호' : null,
+      draft.representative.trim() === '' ? '대표자명' : null,
+    ].filter((label): label is string => label !== null)
+    setNotice(
+      unread.length > 0
+        ? `사업자등록증에서 ${unread.join('·')}을(를) 읽지 못했습니다. 직접 채워 주세요.`
+        : null,
+    )
     setDialog('create')
   }, [])
 
@@ -349,7 +361,8 @@ export default function Customers() {
           onCreated={onCustomerCreated}
           duplicateMatches={cardDraft?.matches}
           archiveImage={cardDraft?.sourceImage}
-          // 등록증에는 담당자가 없습니다. 사람 칸은 명함일 때만 채웁니다.
+          // 등록증에 있는 사람은 대표자뿐입니다. 이름만 채우고 나머지 사람 칸은
+          // 명함일 때만 채웁니다. 대표자가 담당자가 아니면 폼에서 고칩니다.
           initial={
             cardDraft
               ? {
@@ -359,7 +372,9 @@ export default function Customers() {
                   email: cardDraft.email,
                   phone: cardDraft.phone,
                 }
-              : undefined
+              : licenseDraft?.representative.trim()
+                ? { name: licenseDraft.representative.trim() }
+                : undefined
           }
           initialCompany={
             cardDraft?.org.trim()
