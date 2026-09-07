@@ -292,6 +292,7 @@ def _section_content(
     current: dict | None = None,
 ) -> dict:
     content = dict(incoming)
+    content.pop("attachments", None)
     for key in _SERVER_OWNED_CONTENT_KEYS:
         content.pop(key, None)
         if current is not None and key in current:
@@ -772,8 +773,9 @@ async def _finalize_run(
     ):
         raise HTTPException(409, "report_generation_not_usable")
     if payload.report_kind == "meeting":
+        request = run.request_snapshot if isinstance(run.request_snapshot, dict) else {}
         source = run.input_snapshot.get("source", {})
-        if source.get("transcript") != payload.transcript or set(
+        if request.get("transcript") != payload.transcript or set(
             source.get("selected_deal_ids", [])
         ) != {str(section.sales_deal_id) for section in payload.deal_sections}:
             raise HTTPException(409, "report_generation_source_changed")
@@ -790,21 +792,6 @@ async def _validate_generation_source_refs(
     if run is None or report.report_kind == "meeting":
         return
     request = run.request_snapshot if isinstance(run.request_snapshot, dict) else {}
-    request_content = request.get("content") if isinstance(request.get("content"), dict) else {}
-    current_content = payload.content if isinstance(payload.content, dict) else {}
-
-    def attachments(content: dict) -> list[dict]:
-        raw = content.get("attachments", [])
-        if not isinstance(raw, list):
-            return []
-        return [
-            {"id": item.get("id"), "name": item.get("name"), "extract": item["extract"]}
-            for item in raw
-            if isinstance(item, dict)
-            and item.get("state") == "done"
-            and isinstance(item.get("extract"), str)
-        ]
-
     immutable_input_changed = any(
         (
             request.get("report_kind") != payload.report_kind,
@@ -815,7 +802,6 @@ async def _validate_generation_source_refs(
             != (payload.period_end.isoformat() if payload.period_end else None),
             request.get("template_snapshot") != payload.template_snapshot,
             request.get("guidance") != payload.transcript,
-            attachments(request_content) != attachments(current_content),
         )
     )
     expected = run.source_refs.get("report_sources") if isinstance(run.source_refs, dict) else None

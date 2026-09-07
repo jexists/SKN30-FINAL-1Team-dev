@@ -18,6 +18,8 @@ const {
   waitForReportGeneration,
 } = await vite.ssrLoadModule('/src/api/reportAgent.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
+const { uploadReportAttachment } = await vite.ssrLoadModule('/src/api/reportAttachments.ts')
+const { kindOf } = await vite.ssrLoadModule('/src/shared/useAttachments.ts')
 const { canRecoverMeetingGeneration } = await vite.ssrLoadModule(
   '/src/pages/Meetings/useMeetingReports.ts',
 )
@@ -44,8 +46,9 @@ const generationInput = {
   period_end: null,
   source_activity_id: null,
   sales_deal_ids: [],
+  attachments: [],
   template_snapshot: template,
-  content: { values: {}, activities: [], attachments: [] },
+  content: { values: {}, activities: [] },
   transcript: null,
   guidance: '합성 입력',
 }
@@ -125,8 +128,75 @@ test('기간 보고서 초기화와 자료 병합은 자료 조회가 끝난 뒤
     /if \(existingLoading \|\| sourcesLoading \|\| recoveredScope\.current === scopeKey\) return/,
   )
   assert.match(source, /Boolean\(values\.body\?\.trim\(\)\)/)
-  assert.match(source, /const canGenerate = !recovering && hasAiFields && hasInput/)
+  assert.match(
+    source,
+    /const canGenerate = !recovering && !files\.pending && hasAiFields && hasInput/,
+  )
   assert.match(source, /if \(!hasInput\) reasons\.push\('자료 1건 이상'\)/)
+})
+
+test('보고서 첨부 API는 파일을 multipart로 올리고 일회용 추출 객체를 받는다', async () => {
+  const originalAdapter = client.defaults.adapter
+  const calls = []
+  const file = new File(['synthetic'], 'meeting.mp3', { type: 'audio/mpeg' })
+  client.defaults.adapter = async (config) => {
+    calls.push(config)
+    return {
+      data: {
+        id: '30000000-0000-4000-8000-000000000001',
+        kind: 'audio',
+        name: file.name,
+        byte_size: file.size,
+        extract: '합성 전사',
+      },
+      status: 201,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  try {
+    assert.deepEqual(await uploadReportAttachment(file), {
+      id: '30000000-0000-4000-8000-000000000001',
+      kind: 'audio',
+      name: file.name,
+      byte_size: file.size,
+      extract: '합성 전사',
+    })
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+
+  assert.equal(calls[0].url, '/report-attachments')
+  assert.equal(calls[0].timeout, 300_000)
+  assert.equal(calls[0].data.get('upload'), file)
+  assert.equal(calls.length, 1)
+})
+
+test('첨부 형식 판별은 MIME이 비어도 서버 허용 확장자를 사용한다', () => {
+  assert.equal(kindOf(new File([], 'voice.M4A')), 'audio')
+  assert.equal(kindOf(new File([], 'photo.jpeg')), 'image')
+  assert.equal(kindOf(new File([], 'brief.pdf')), 'pdf')
+  assert.equal(kindOf(new File([], 'animation.gif', { type: 'image/gif' })), null)
+  assert.equal(kindOf(new File([], 'notes.txt')), null)
+})
+
+test('첨부 훅은 업로드 중 제거된 파일의 늦은 응답을 되살리지 않는다', async () => {
+  const source = await readFile(new URL('../src/shared/useAttachments.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const MAX_ATTACHMENTS = 10/)
+  assert.match(source, /uploadReportAttachment\(file\)/)
+  assert.match(
+    source,
+    /!mounted\.current \|\|[\s\S]*?!current\.current\.some\(\(attachment\) => attachment\.id === item\.id\)[\s\S]*?return/,
+  )
+  assert.match(
+    source,
+    /pending: attachments\.some\(\(attachment\) => attachment\.state === 'analyzing'\)/,
+  )
+  assert.doesNotMatch(source, /onTranscribed|pendingCount/)
+  assert.doesNotMatch(source, /deleteReportAttachment|attachment_file_ids/)
+  assert.doesNotMatch(source, /transcribeAudio/)
 })
 
 test('미팅 복구 입력이 현재 일정과 다르면 오류 배너 없이 복구 대상에서 제외한다', async () => {
@@ -137,6 +207,8 @@ test('미팅 복구 입력이 현재 일정과 다르면 오류 배너 없이 �
 
   assert.match(source, /reason\.message === 'report_generation_input_missing'/)
   assert.match(source, /!missingInput/)
+  assert.match(source, /attachment\.kind === 'audio' && attachment\.extract\.trim\(\)/)
+  assert.match(source, /\(!input\.transcript && !hasAudio\)/)
   assert.match(
     source,
     /\.finally\(\(\) => \{[\s\S]*?recoveryAbort\.current = null[\s\S]*?setRecovering\(false\)/,
@@ -154,6 +226,25 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /const addAttachments[\s\S]*?invalidateGeneration\(\)/)
   assert.match(source, /const removeAttachment[\s\S]*?invalidateGeneration\(\)/)
   assert.match(source, /setTranscript: changeTranscript/)
+})
+
+test('첨부 업로드 중에는 기간·미팅 생성과 최종 제출을 시작하지 않는다', async () => {
+  const [dailyDraft, dailyCompose, meetingDraft, meetingCompose] = await Promise.all([
+    readFile(new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Meetings/useMeetingDraft.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(dailyDraft, /attachmentsPending: files\.pending/)
+  assert.match(dailyDraft, /setGenerationRunId\(undefined\)[\s\S]*?addFiles\(picked\)/)
+  assert.match(dailyDraft, /setGenerationRunId\(undefined\)[\s\S]*?removeFile\(id\)/)
+  assert.match(dailyCompose, /if \(draft\.attachmentsPending\) return/)
+  assert.match(dailyCompose, /draft\.recovering \|\|\n\s+draft\.attachmentsPending/)
+  assert.match(meetingDraft, /attachmentsPending: files\.pending/)
+  assert.match(meetingDraft, /attachment\.kind === 'audio' && attachment\.state === 'done'/)
+  assert.match(meetingCompose, /busy \|\|\n\s+draft\.attachmentsPending \|\|/)
+  assert.match(meetingCompose, /aria-busy=\{submitting \|\| draft\.attachmentsPending\}/)
 })
 
 test('제출된 보고서는 저장 후 시작한 같은 자료 재생성만 복구한다', async () => {
@@ -230,6 +321,7 @@ test('생성·재접속은 AgentRun API만 쓰고 canonical 저장은 finalize �
       idempotency_key: 'generation-key',
       report_kind: 'daily',
       report_date: '2026-08-31',
+      attachments: [],
       template_snapshot: template,
       content: generationInput.content,
       guidance: '합성 입력',
@@ -260,6 +352,7 @@ test('POST 성공 뒤 polling이 끊겨도 재시도 요청은 같은 idempotenc
   const input = {
     report_kind: 'daily',
     report_date: '2026-08-31',
+    attachments: [],
     template_snapshot: template,
     content: generationInput.content,
     guidance: '합성 입력',

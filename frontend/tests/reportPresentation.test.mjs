@@ -45,6 +45,9 @@ const { toHtml, toMarkdown } = await vite.ssrLoadModule('/src/pages/Meetings/rep
 const { default: ReportFields } = await vite.ssrLoadModule(
   '/src/components/ReportFields/ReportFields.tsx',
 )
+const { default: AttachmentPanel } = await vite.ssrLoadModule(
+  '/src/components/AttachmentPanel/AttachmentPanel.tsx',
+)
 const { initScope, resetScope } = await vite.ssrLoadModule('/src/shared/scope.ts')
 const { default: MeetingSharedPanel } = await vite.ssrLoadModule(
   '/src/pages/Meetings/components/MeetingSharedPanel.tsx',
@@ -54,10 +57,45 @@ const { ReportReviewContents } = await vite.ssrLoadModule(
 )
 const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
-const { reportGenerationMessage } = await vite.ssrLoadModule('/src/api/errorMessage.ts')
+const { messageForCode, reportGenerationMessage } = await vite.ssrLoadModule(
+  '/src/api/errorMessage.ts',
+)
 
 test('딜 상세 링크는 식별자를 인코딩해 영업 현황 드로어를 바로 연다', () => {
   assert.equal(dealDetailPath('deal/id?tab=1'), '/deals?deal=deal%2Fid%3Ftab%3D1')
+})
+
+test('첨부판은 허용 형식과 업로드 상태·조작 대상을 보조기기에 알린다', () => {
+  const view = renderToStaticMarkup(
+    createElement(AttachmentPanel, {
+      attachments: [
+        {
+          id: 'pending-audio',
+          kind: 'audio',
+          name: 'meeting.mp3',
+          byteSize: 12 * 1024,
+          state: 'analyzing',
+        },
+        {
+          id: 'ready-pdf',
+          kind: 'pdf',
+          name: 'proposal.pdf',
+          byteSize: 24 * 1024,
+          state: 'done',
+          extract: '분석 결과',
+        },
+      ],
+      onAttach() {},
+      onRemove() {},
+    }),
+  )
+
+  assert.match(view, /aria-busy="true"/)
+  assert.match(view, /accept="\.mp3,\.m4a,\.wav,\.webm,\.png,\.jpg,\.jpeg,\.webp,\.pdf"/)
+  assert.match(view, /aria-label="첨부 파일 선택"/)
+  assert.match(view, /role="status"[^>]*>12KB · 업로드·분석 중…/)
+  assert.match(view, /aria-label="meeting\.mp3 업로드 취소"/)
+  assert.match(view, /aria-controls="[^"]+-ready-pdf-extract"/)
 })
 
 test('딜 드로어를 열고 닫아도 현재 목록 페이지를 초기화하지 않는다', async () => {
@@ -132,6 +170,7 @@ test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사�
     'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.'
   assert.equal(reportGenerationMessage('report_agent_output_invalid'), message)
   assert.doesNotMatch(reportGenerationMessage('future_internal_error_code'), /future_internal/)
+  assert.match(messageForCode('report_attachment_ocr_too_large', '실패'), /페이지나 이미지/)
 
   const raw = response()
   raw.deal_sections[0].ai_evidence = { report_error: 'report_agent_output_invalid' }
@@ -547,6 +586,14 @@ test('미팅 공통·미지정 기록은 목록 검색에 포함한다', () => {
 })
 
 test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 보고서와 revision을 보낸다', () => {
+  const attachment = {
+    id: '30000000-0000-4000-8000-000000000001',
+    kind: 'pdf',
+    name: 'proposal.pdf',
+    byteSize: 12 * 1024,
+    state: 'done',
+    extract: '생성에만 쓰는 일회용 추출문',
+  }
   const draft = {
     agendaId: 'synthetic-meeting',
     date: '2026-08-31',
@@ -557,7 +604,7 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
     place: '회의실',
     title: '미팅 대표 제목',
     transcript: '합성 원문',
-    attachments: [],
+    attachments: [attachment],
     dealSections: [
       {
         salesDealId: dealId,
@@ -581,6 +628,15 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
     report_date: '2026-08-31',
     source_activity_id: 'synthetic-meeting',
     sales_deal_ids: [dealId],
+    attachments: [
+      {
+        id: attachment.id,
+        kind: attachment.kind,
+        name: attachment.name,
+        byte_size: attachment.byteSize,
+        extract: attachment.extract,
+      },
+    ],
     template_snapshot: canonical.template_snapshot,
     content: canonical.content,
     transcript: '합성 원문',
@@ -591,8 +647,22 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
     ['body'],
   )
   assert.equal('deal_sections' in generation, false)
+  assert.equal('attachments' in generation.content, false)
+  const audioOnly = meetingGenerationRequestOf(
+    {
+      ...draft,
+      transcript: '',
+      attachments: [{ ...attachment, kind: 'audio', name: 'meeting.mp3' }],
+    },
+    'audio-only-generation-key',
+  )
+  assert.equal('transcript' in audioOnly, false)
+  assert.equal(audioOnly.attachments[0].kind, 'audio')
   assert.equal(finalized.idempotency_key, 'meeting-finalize-key')
   assert.equal(finalized.agent_run_id, 'meeting-run')
+  assert.equal('attachments' in finalized, false)
+  assert.equal('attachments' in finalized.content, false)
+  assert.equal(JSON.stringify(finalized).includes(attachment.extract), false)
   assert.equal(finalized.sales_deal_id, null)
   assert.equal(finalized.content.title, '미팅 대표 제목')
   assert.equal(finalized.common_body, '공통 내용')
@@ -692,7 +762,31 @@ test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하�
         refId: '20000000-0000-4000-8000-000000000001',
       },
     ],
-    attachments: [{ id: 'file-1', name: 'memo.txt', state: 'ready' }],
+    attachments: [
+      {
+        id: '30000000-0000-4000-8000-000000000002',
+        kind: 'image',
+        name: 'memo.png',
+        byteSize: 24 * 1024,
+        state: 'done',
+        extract: '생성에만 쓰는 이미지 추출문',
+      },
+      {
+        id: '30000000-0000-4000-8000-000000000003',
+        kind: 'pdf',
+        name: 'failed.pdf',
+        byteSize: 1024,
+        state: 'failed',
+        extract: '실패한 첨부는 전송하지 않는다',
+      },
+      {
+        id: 'pending-file',
+        kind: 'audio',
+        name: 'pending.mp3',
+        byteSize: 2 * 1024,
+        state: 'analyzing',
+      },
+    ],
     transcript: '직접 쓴 생성 지침',
   }
   const generation = periodGenerationRequestOf(draft, 'period-generation-key')
@@ -703,6 +797,16 @@ test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하�
   assert.equal(generation.period_start, '2026-08-30')
   assert.equal(generation.period_end, '2026-09-05')
   assert.equal(generation.guidance, '직접 쓴 생성 지침')
+  assert.deepEqual(generation.attachments, [
+    {
+      id: draft.attachments[0].id,
+      kind: 'image',
+      name: 'memo.png',
+      byte_size: 24 * 1024,
+      extract: '생성에만 쓰는 이미지 추출문',
+    },
+  ])
+  assert.equal('attachments' in generation.content, false)
   assert.equal(generation.template_snapshot.id, 'builtin-weekly-freeform')
   assert.deepEqual(
     generation.template_snapshot.fields.map((field) => field.id),
@@ -715,6 +819,10 @@ test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하�
 
   assert.equal(finalized.idempotency_key, 'period-finalize-key')
   assert.equal(finalized.agent_run_id, 'period-run')
+  assert.equal('attachments' in finalized, false)
+  assert.equal('attachments' in finalized.content, false)
+  assert.equal(finalized.note, '활동 1건')
+  assert.equal(JSON.stringify(finalized).includes(draft.attachments[0].extract), false)
   assert.equal(finalized.body, '주간 보고서 전문')
   assert.deepEqual(finalized.structured_values, {})
   assert.equal(finalized.transcript, '직접 쓴 생성 지침')
@@ -767,7 +875,21 @@ test('재접속 입력은 원문·첨부·자료와 canonical body만 되살린�
     desc: '설명',
     included: true,
   }
-  const attachment = { id: 'attachment-1', name: 'meeting.txt', state: 'ready' }
+  const attachment = {
+    id: '30000000-0000-4000-8000-000000000004',
+    kind: 'audio',
+    name: 'meeting.mp3',
+    byte_size: 4321,
+    extract: '복구할 첨부 추출문',
+  }
+  const restoredAttachment = {
+    id: attachment.id,
+    kind: attachment.kind,
+    name: attachment.name,
+    byteSize: attachment.byte_size,
+    state: 'done',
+    extract: attachment.extract,
+  }
   const periodSeed = periodGenerationSeedOf({
     report_kind: 'daily',
     report_date: '2026-08-31',
@@ -775,19 +897,19 @@ test('재접속 입력은 원문·첨부·자료와 canonical body만 되살린�
     period_end: null,
     source_activity_id: null,
     sales_deal_ids: [],
+    attachments: [attachment],
     template_snapshot: template,
     content: {
       approver: '복구 팀장',
       values: { body: '생성 전 본문', summary: '무시할 구형 요약' },
       activities: [activity],
-      attachments: [attachment],
     },
     transcript: null,
     guidance: '복구할 직접 입력',
   })
   assert.equal(periodSeed.transcript, '복구할 직접 입력')
   assert.deepEqual(periodSeed.activities, [activity])
-  assert.deepEqual(periodSeed.attachments, [attachment])
+  assert.deepEqual(periodSeed.attachments, [restoredAttachment])
   assert.deepEqual(periodSeed.values, { body: '생성 전 본문' })
   assert.deepEqual(
     mergeGeneratedValues([
@@ -804,14 +926,15 @@ test('재접속 입력은 원문·첨부·자료와 canonical body만 되살린�
     period_end: null,
     source_activity_id: 'synthetic-meeting',
     sales_deal_ids: [dealId],
+    attachments: [attachment],
     template_snapshot: template,
-    content: { attachments: [attachment] },
-    transcript: '복구할 미팅 원문',
+    content: {},
+    transcript: null,
     guidance: null,
   })
   assert.deepEqual(meetingSeed.salesDealIds, [dealId])
-  assert.equal(meetingSeed.transcript, '복구할 미팅 원문')
-  assert.deepEqual(meetingSeed.attachments, [attachment])
+  assert.equal(meetingSeed.transcript, '')
+  assert.deepEqual(meetingSeed.attachments, [restoredAttachment])
   assert.equal('template' in meetingSeed, false)
 
   assert.equal(isMeetingBodyBlank({ body: '' }), true)

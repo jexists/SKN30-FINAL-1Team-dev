@@ -13,6 +13,9 @@ from pydantic import (
 
 REPORT_TITLE_MAX_LENGTH = 254
 REPORT_JSON_MAX_BYTES = 256 * 1024
+REPORT_ATTACHMENT_MAX_COUNT = 10
+REPORT_ATTACHMENT_NAME_MAX_LENGTH = 254
+REPORT_ATTACHMENT_EXTRACT_MAX_LENGTH = 50_000
 
 Text = Annotated[
     str,
@@ -54,6 +57,25 @@ SnapshotNote = Annotated[
 # 업무보고서는 일정 하나에 붙고, 주간과 월간은 기간을 덮는다.
 # 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 자료로 쓴다.
 ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
+ReportAttachmentKind = Literal["audio", "image", "pdf"]
+ReportAttachmentName = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=REPORT_ATTACHMENT_NAME_MAX_LENGTH,
+    ),
+]
+ReportAttachmentExtract = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        strict=True,
+        min_length=1,
+        max_length=REPORT_ATTACHMENT_EXTRACT_MAX_LENGTH,
+    ),
+]
 # 유스케이스 RPT-004 의 검토 결과는 확인·반려·수정 요청 세 가지다.
 # 팀원이 다루는 범위는 draft 와 submitted 두 개이고 검토 결과는 조회로만 나온다.
 ReportStatus = Literal["draft", "submitted", "approved", "changes_requested"]
@@ -177,6 +199,16 @@ class ReportDealRead(BaseModel):
     ai_evidence: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+
+
+class ReportAttachmentRead(_WriteModel):
+    """한 요청에서 검증·추출을 마친 일회용 보고서 첨부."""
+
+    id: UUID
+    kind: ReportAttachmentKind
+    name: ReportAttachmentName
+    byte_size: int = Field(strict=True, ge=1)
+    extract: ReportAttachmentExtract
 
 
 class ReportFinalize(_WriteModel):

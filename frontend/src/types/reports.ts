@@ -59,8 +59,7 @@ export interface ReportAttachment {
   id: string
   kind: AttachmentKind
   name: string
-  /** '2.4MB' 처럼 표시용입니다. */
-  size: string
+  byteSize: number
   state: AttachmentState
   /** 분석이 끝나면 채워집니다. 초안 생성의 입력이자 근거입니다. */
   extract?: string
@@ -212,6 +211,15 @@ export interface ReportWriteRequest {
   deal_sections: ReportDealSectionWrite[]
 }
 
+/** 업로드 응답과 AgentRun 생성·복구가 공유하는 일회용 첨부 객체입니다. */
+export interface ReportAttachmentPayload {
+  id: string
+  kind: AttachmentKind
+  name: string
+  byte_size: number
+  extract: string
+}
+
 /** Canonical 보고서를 만들기 전 AgentRun에만 보관하는 생성 입력입니다. */
 export interface ReportGenerationRequest {
   idempotency_key: string
@@ -221,6 +229,7 @@ export interface ReportGenerationRequest {
   period_end?: string
   source_activity_id?: string
   sales_deal_ids?: string[]
+  attachments: ReportAttachmentPayload[]
   template_snapshot: ReportTemplate
   content: Record<string, unknown>
   transcript?: string
@@ -235,6 +244,7 @@ export interface ReportGenerationInput {
   period_end: string | null
   source_activity_id: string | null
   sales_deal_ids: string[]
+  attachments: ReportAttachmentPayload[]
   template_snapshot: ReportTemplate
   content: Record<string, unknown>
   transcript: string | null

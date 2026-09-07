@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 
 import { TrashIcon, UploadIcon } from '@/components/icons'
 import type { AttachmentKind, ReportAttachment } from '@/types'
+import { sizeLabel } from '@/utils/attachment'
 
 import styles from './AttachmentPanel.module.scss'
 
@@ -29,6 +30,7 @@ export default function AttachmentPanel({
   onRemove,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const panelId = useId()
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
 
   const toggleExtract = (id: string) => {
@@ -40,7 +42,7 @@ export default function AttachmentPanel({
   }
 
   return (
-    <div>
+    <div aria-busy={attachments.some((item) => item.state === 'analyzing')}>
       {!readOnly && (
         <>
           <p className={styles.note}>{note}</p>
@@ -60,7 +62,9 @@ export default function AttachmentPanel({
               ref={fileRef}
               type="file"
               multiple
-              accept="audio/*,image/*,application/pdf"
+              accept=".mp3,.m4a,.wav,.webm,.png,.jpg,.jpeg,.webp,.pdf"
+              aria-label="첨부 파일 선택"
+              tabIndex={-1}
               className="sr-only"
               onChange={(event) => {
                 if (event.target.files) onAttach?.(event.target.files)
@@ -82,10 +86,13 @@ export default function AttachmentPanel({
 
               <div className={styles.body}>
                 <strong className={styles.name}>{item.name}</strong>
-                <span className={styles.meta}>
-                  {item.size}
-                  {item.state === 'analyzing' && ' · 분석 중…'}
-                  {item.state === 'failed' && ' · 분석 실패'}
+                <span
+                  className={styles.meta}
+                  role={item.state === 'analyzing' ? 'status' : undefined}
+                >
+                  {sizeLabel(item.byteSize)}
+                  {item.state === 'analyzing' && ' · 업로드·분석 중…'}
+                  {item.state === 'failed' && ' · 업로드·분석 실패'}
                 </span>
 
                 {item.state === 'done' && item.extract && (
@@ -94,11 +101,16 @@ export default function AttachmentPanel({
                       type="button"
                       className={styles.toggle}
                       aria-expanded={open.has(item.id)}
+                      aria-controls={`${panelId}-${item.id}-extract`}
                       onClick={() => toggleExtract(item.id)}
                     >
                       분석 완료 · 정리된 내용 {open.has(item.id) ? '접기' : '보기'}
                     </button>
-                    {open.has(item.id) && <p className={styles.extract}>{item.extract}</p>}
+                    {open.has(item.id) && (
+                      <p id={`${panelId}-${item.id}-extract`} className={styles.extract}>
+                        {item.extract}
+                      </p>
+                    )}
                   </>
                 )}
               </div>
@@ -107,7 +119,7 @@ export default function AttachmentPanel({
                 <button
                   type="button"
                   className={styles.remove}
-                  aria-label={`${item.name} 삭제`}
+                  aria-label={`${item.name} ${item.state === 'analyzing' ? '업로드 취소' : '삭제'}`}
                   onClick={() => onRemove?.(item.id)}
                 >
                   <TrashIcon />

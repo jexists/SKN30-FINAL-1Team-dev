@@ -312,14 +312,16 @@ async def _report_generation_input(
     db: AsyncSession,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     refs = _generation_source_refs(payload)
+    attachments = [item.model_dump(mode="json") for item in payload.attachments]
     if payload.report_kind == "meeting":
-        assert payload.source_activity_id is not None and payload.transcript is not None
+        assert payload.source_activity_id is not None
         snapshot = await meeting_processing.input_snapshot(
             db,
             member,
             payload.source_activity_id,
             payload.sales_deal_ids,
-            payload.transcript,
+            payload.effective_meeting_transcript(),
+            attachments,
         )
         return "meeting_processing", snapshot, refs
 
@@ -356,6 +358,7 @@ async def _report_generation_input(
         reviewed_at=None,
     )
     snapshot = report_writing.input_snapshot(transient, payload.guidance)
+    snapshot["attachments"] = attachments
     snapshot["report_sources"], frozen_refs = await report_sources.freeze_report_sources(
         db, member, transient
     )

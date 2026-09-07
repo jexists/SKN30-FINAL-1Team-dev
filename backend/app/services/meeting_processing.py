@@ -17,7 +17,7 @@ from app.services.agent_logging import log_agent_error
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError, is_transient_llm_error
 
-PROMPT_VERSION = "meeting_processing.v14"
+PROMPT_VERSION = "meeting_processing.v15"
 RUN_TIMEOUT_SECONDS = 1_200
 
 
@@ -37,6 +37,7 @@ async def input_snapshot(
     source_activity_id: UUID,
     sales_deal_ids: list[UUID],
     transcript: str,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """사용자가 생성 버튼을 누른 시점의 원문과 권한 검증된 CRM을 고정한다."""
     context = await meeting_context.build_context(db, member, source_activity_id, sales_deal_ids)
@@ -46,6 +47,7 @@ async def input_snapshot(
         raise HTTPException(422, "meeting_transcript_invalid") from None
     snapshot["crm_context"] = context["crm_context"]
     snapshot["activity_id"] = str(source_activity_id)
+    snapshot["attachments"] = copy.deepcopy(attachments or [])
     return snapshot
 
 
@@ -102,6 +104,7 @@ async def run(snapshot: dict[str, Any]) -> MeetingProcessingOutput:
                         transcript=snapshot["source"]["transcript"],
                         evidence=evidence,
                         crm_context=crm,
+                        attachments=snapshot.get("attachments", []),
                     )
                 )
                 publish_progress("report_complete")

@@ -10,7 +10,6 @@ import type {
   ApiReportStatus,
   DailyReport,
   ReportActivity,
-  ReportAttachment,
   ReportKind,
   ReportResponse,
   ReportFinalizeRequest,
@@ -19,6 +18,7 @@ import type {
   ReportStatus,
   ReportWriteRequest,
 } from '@/types'
+import { attachmentPayloadsOf, attachmentsFromPayload } from '@/utils/attachment'
 import { iso, parseISO, startOfWeek, TODAY } from '@/utils/date'
 
 import { periodLabelFor, periodRange, periodStart } from './periods'
@@ -74,10 +74,6 @@ function activitiesOf(item: ReportResponse): ReportActivity[] {
   }))
 }
 
-function attachmentsOf(value: unknown): ReportAttachment[] {
-  return Array.isArray(value) ? (value as ReportAttachment[]) : []
-}
-
 export function toReport(item: ReportResponse): DailyReport {
   const kind = KIND_BY_API[item.report_kind as Exclude<ApiReportKind, 'meeting'>]
   const content = record(item.content)
@@ -100,7 +96,8 @@ export function toReport(item: ReportResponse): DailyReport {
     updatedAt: item.updated_at,
     values: { body: item.body ?? '' },
     activities: activitiesOf(item),
-    attachments: attachmentsOf(content.attachments),
+    // 첨부는 생성 AgentRun에만 남는 일회용 입력입니다.
+    attachments: [],
     transcript: item.transcript ?? '',
     note: item.note ?? '',
     reviewNote: item.review_note ?? '',
@@ -128,7 +125,7 @@ export function periodGenerationSeedOf(input: ReportGenerationInput) {
     approver: typeof content.approver === 'string' ? content.approver : '',
     values: { body: values.body ?? '' },
     activities: Array.isArray(content.activities) ? (content.activities as ReportActivity[]) : [],
-    attachments: attachmentsOf(content.attachments),
+    attachments: attachmentsFromPayload(input.attachments),
     transcript: input.guidance ?? '',
   }
 }
@@ -163,7 +160,6 @@ export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
       approver: draft.approver,
       values: { body },
       activities: draft.activities,
-      attachments: draft.attachments,
     },
     title: periodLabelFor(draft.kind, draft.date),
     body: body.trim() || null,
@@ -171,10 +167,7 @@ export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
     unassigned_body: null,
     structured_values: {},
     transcript: draft.transcript.trim() || null,
-    note:
-      draft.attachments.length > 0
-        ? `활동 ${included.length}건 · 첨부 ${draft.attachments.length}건`
-        : `활동 ${included.length}건`,
+    note: `활동 ${included.length}건`,
     activity_ids: included
       .filter((activity) => activity.source === '캘린더' && activity.refId)
       .map((activity) => activity.refId as string),
@@ -193,6 +186,7 @@ export function periodGenerationRequestOf(
     report_date: request.report_date,
     ...(request.period_start ? { period_start: request.period_start } : {}),
     ...(request.period_end ? { period_end: request.period_end } : {}),
+    attachments: attachmentPayloadsOf(draft.attachments),
     template_snapshot: request.template_snapshot,
     content: request.content,
     ...(draft.transcript.trim() ? { guidance: draft.transcript.trim() } : {}),

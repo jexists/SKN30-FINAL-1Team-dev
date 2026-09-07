@@ -240,7 +240,7 @@ def _meeting_generation_run(member: Member, deal_id: UUID, transcript: str) -> A
         status_code="completed",
         llm_model_name="test-model",
         prompt_version="meeting_processing.v10",
-        request_snapshot={},
+        request_snapshot={"transcript": transcript},
         request_hash="0" * 64,
         scope_key=f"meeting:{uuid4()}",
         source_refs={},
@@ -630,6 +630,7 @@ async def test_deal_section_replace_preserves_server_ai_fields_and_ml_evidence()
         deal_snapshot={"id": str(section.sales_deal_id), "label": "D-1", "note": "수정"},
         content={
             "values": {"body": "사람이 수정한 본문"},
+            "attachments": [{"extract": "최종 보고서에 저장하면 안 되는 입력"}],
             "ai_values": {"body": "위조"},
             "ai_evidence": "위조",
             "ai_generated_at": "위조",
@@ -1028,6 +1029,37 @@ async def test_finalize_rejects_an_expired_generation_run():
 
 
 @pytest.mark.anyio
+async def test_meeting_finalize_compares_original_input_not_audio_effective_transcript():
+    member = _member()
+    activity_id = uuid4()
+    deal_id = uuid4()
+    run = _meeting_generation_run(member, deal_id, "음성에서 추출한 원문")
+    run.scope_key = f"meeting:{activity_id}"
+    run.request_snapshot = {"transcript": None}
+    run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=run.id,
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=activity_id,
+        deal_sections=[
+            {
+                "sales_deal_id": deal_id,
+                "deal_snapshot": {"id": deal_id, "label": "D-1"},
+                "content": {"values": {"body": "최종 본문"}},
+                "body": "최종 본문",
+            }
+        ],
+        template_snapshot=TEMPLATE,
+        content={},
+        transcript=None,
+    )
+
+    assert await reports_api._finalize_run(_Db(_Result(scalar=run)), member, payload) is run
+
+
+@pytest.mark.anyio
 async def test_period_finalize_rejects_a_different_source_revision_before_submission(
     monkeypatch,
 ):
@@ -1124,19 +1156,13 @@ async def test_period_finalize_rejects_a_different_source_revision_before_submis
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("changed", ["guidance", "attachments", "template", "report_date"])
+@pytest.mark.parametrize("changed", ["guidance", "template", "report_date"])
 async def test_period_finalize_rejects_changed_noneditable_generation_input(
     monkeypatch,
     changed,
 ):
     member = _member()
     report = _report(member)
-    attachment = {
-        "id": "attachment-1",
-        "name": "memo.txt",
-        "state": "done",
-        "extract": "생성에 사용한 첨부",
-    }
     run = _meeting_generation_run(member, uuid4(), "생성 입력")
     run.agent_code = "report_writing"
     run.request_snapshot = {
@@ -1145,27 +1171,16 @@ async def test_period_finalize_rejects_changed_noneditable_generation_input(
         "period_start": None,
         "period_end": None,
         "template_snapshot": TEMPLATE,
-        "content": {
-            "values": {"body": "생성 당시 본문"},
-            "attachments": [attachment],
-        },
+        "content": {"values": {"body": "생성 당시 본문"}},
         "guidance": "생성 당시 직접 입력",
     }
     run.source_refs = {"report_sources": []}
     template = TEMPLATE
-    content = {
-        "values": {"body": "사람이 수정한 본문"},
-        "attachments": [attachment],
-    }
+    content = {"values": {"body": "사람이 수정한 본문"}}
     transcript = "생성 당시 직접 입력"
     report_date = report.report_date
     if changed == "guidance":
         transcript = "생성 뒤 바꾼 직접 입력"
-    elif changed == "attachments":
-        content = {
-            **content,
-            "attachments": [{**attachment, "extract": "생성 뒤 바꾼 첨부"}],
-        }
     elif changed == "template":
         template = {**TEMPLATE, "name": "생성 뒤 바꾼 양식"}
     else:

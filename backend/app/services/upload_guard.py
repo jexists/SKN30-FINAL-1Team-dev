@@ -8,6 +8,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from app.schemas.reports import REPORT_ATTACHMENT_NAME_MAX_LENGTH
+
 # 허용 형식만 둔다. 실행 가능한 형식과 압축 파일은 넣지 않는다.
 # (확장자, 선언 MIME 집합, signature 검사 함수)
 _PDF = "application/pdf"
@@ -159,6 +161,7 @@ _AUDIO_ALLOWED: tuple[AllowedMediaType, ...] = (
     ),
 )
 _AUDIO_BY_EXTENSION = {allowed.extension: allowed for allowed in _AUDIO_ALLOWED}
+ALLOWED_AUDIO_EXTENSIONS = tuple(sorted(_AUDIO_BY_EXTENSION))
 
 
 def _is_png(content: bytes) -> bool:
@@ -271,6 +274,36 @@ def check_image_upload(
         declared_media_type=declared_media_type,
         content=content,
     )
+
+
+def check_report_attachment_upload(
+    *, file_name: str, declared_media_type: str | None, content: bytes
+) -> AllowedType | AllowedMediaType:
+    """모든 보고서 화면이 공유하는 음성·사진·PDF 업로드 검증."""
+    if len(file_name.strip()) > REPORT_ATTACHMENT_NAME_MAX_LENGTH:
+        raise UploadRejected("invalid_file_name", 422)
+    if (declared_media_type or "").split(";", 1)[0].strip().lower() == "application/octet-stream":
+        declared_media_type = None
+    extension = _extension_of(file_name)
+    if extension in _AUDIO_BY_EXTENSION:
+        return check_audio_upload(
+            file_name=file_name,
+            declared_media_type=declared_media_type,
+            content=content,
+        )
+    if extension in _IMAGE_BY_EXTENSION:
+        return check_image_upload(
+            file_name=file_name,
+            declared_media_type=declared_media_type,
+            content=content,
+        )
+    if extension == ".pdf":
+        return check_upload(
+            file_name=file_name,
+            declared_media_type=declared_media_type,
+            content=content,
+        )
+    raise UploadRejected("unsupported_file_extension", 415)
 
 
 def check_size(byte_size: int, limit: int) -> None:

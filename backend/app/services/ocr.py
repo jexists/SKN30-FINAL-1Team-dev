@@ -47,6 +47,11 @@ def _ocr_semaphore() -> asyncio.Semaphore:
 # 스캔 등록증 한 장을 읽기에 충분한 해상도. 더 키우면 전송 용량만 늘고 인식은 나아지지 않는다.
 PDF_RENDER_TARGET_SIDE = 2_200
 PDF_RENDER_MIN_SIDE = 1_100
+_OPENAI_OCR_PROMPT = (
+    "Extract all human-readable text from this document. Preserve reading order and line breaks. "
+    "Return only the extracted text, without commentary or markdown fences."
+)
+_OPENAI_OCR_URL = "https://api.openai.com/v1/responses"
 
 
 def render_pdf_page_png(content: bytes, *, page_number: int = 1) -> bytes:
@@ -172,6 +177,81 @@ async def _local_fallback(
     )
 
 
+def _openai_result(payload: dict[str, Any], *, file_name: str) -> ExtractedDocument:
+    text = payload.get("output_text")
+    if not isinstance(text, str) or not text.strip():
+        chunks: list[str] = []
+        for item in payload.get("output") or ():
+            if not isinstance(item, dict):
+                continue
+            for part in item.get("content") or ():
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    chunks.append(part["text"])
+        text = "\n".join(chunks)
+    if not isinstance(text, str) or not text.strip():
+        raise OcrError("openai_ocr_empty_result")
+    extracted = text.strip()
+    return ExtractedDocument(
+        plain_text=extracted,
+        markdown=extracted + "\n",
+        payload={
+            "version": 1,
+            "source_type": "openai_ocr",
+            "ocr_provider": "openai",
+            "source_file": file_name,
+        },
+    )
+
+
+async def _openai(
+    *, file_name: str, media_type: str | None, content: bytes
+) -> ExtractedDocument:
+    encoded = base64.b64encode(content).decode("ascii")
+    if media_type == "application/pdf" or Path(file_name).suffix.lower() == ".pdf":
+        input_item = {
+            "type": "input_file",
+            "filename": file_name,
+            "file_data": f"data:{media_type or 'application/pdf'};base64,{encoded}",
+        }
+    else:
+        input_item = {
+            "type": "input_image",
+            "detail": "auto",
+            "image_url": f"data:{media_type or 'image/png'};base64,{encoded}",
+        }
+    body = {
+        "model": settings.ocr_model,
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": _OPENAI_OCR_PROMPT}, input_item],
+            }
+        ],
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.effective_ocr_api_key}",
+        "Content-Type": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=settings.ocr_timeout_seconds) as client:
+            response = await client.post(
+                settings.ocr_api_url or _OPENAI_OCR_URL,
+                headers=headers,
+                json=body,
+            )
+    except httpx.HTTPError as error:
+        raise OcrError("openai_ocr_request_failed") from error
+    if response.status_code >= 400:
+        raise OcrError("openai_ocr_provider_error")
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise OcrError("openai_ocr_response_not_json") from error
+    if not isinstance(payload, dict):
+        raise OcrError("openai_ocr_response_invalid")
+    return _openai_result(payload, file_name=file_name)
+
+
 async def extract_document(
     *,
     file_name: str,
@@ -189,6 +269,22 @@ async def extract_document(
             content=content,
             profile=profile,
         )
+    if settings.ocr_provider == "openai":
+        try:
+            async with _ocr_semaphore():
+                return await _openai(
+                    file_name=file_name,
+                    media_type=media_type,
+                    content=content,
+                )
+        except OcrError as remote_error:
+            return await _local_fallback(
+                file_name=file_name,
+                media_type=media_type,
+                content=content,
+                profile=profile,
+                remote_error=remote_error,
+            )
     if settings.ocr_provider == "runpod":
         try:
             async with _ocr_semaphore():
