@@ -90,9 +90,8 @@ class SalesDeal(Base):
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     deal_no: Mapped[str]
     customer_company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
-    customer_contact_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("public.customer_contact.id")
-    )
+    # 이 딜의 대표 담당자. 다음 미팅 추천이 일정에 적을 사람이라 필수다(20260903_0020).
+    customer_contact_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_contact.id"))
     owner_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     product_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.product.id"))
     sales_pipeline_id: Mapped[UUID]

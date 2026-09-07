@@ -13,6 +13,18 @@
 `runsync`가 바로 완료되지 않고 job ID와 `IN_QUEUE`·`IN_PROGRESS`를 반환하는 경우, 백엔드가
 상태 조회 API를 폴링해 최종 `output.pages`를 받은 뒤 다음 처리 단계로 넘긴다.
 
+### [알려진 제약] PDF 경로는 `language`를 쓰지 않는다
+
+`language`는 이미지 경로(`_image_page` -> `_paddle_engine(language)`)에만 전달된다. PDF는
+`_pdf_pages`가 `pdf_inspector.process_pdf_with_ocr_bytes(content)`를 언어 인자 없이 부르므로
+스캔된 한글 PDF에서 한글이 깨지고 ASCII 숫자만 살아남는다. 텍스트 PDF는 임베디드 텍스트를
+뽑기 때문에 영향이 없다.
+
+백엔드는 이 워커를 재배포하지 않고 우회한다. 사업자등록증 인식은 회사명과 주소가 둘 다 비면
+`ocr.render_pdf_page_png`로 첫 장을 PNG로 구워 이미지 경로로 다시 보낸다
+(`app/services/business_license_scans.py`). 다음에 워커를 재배포할 때 `_pdf_pages`가 `language`를
+받아 쓰도록 고치면 이 우회를 걷어낼 수 있다.
+
 PDF는 워커 내부에서 페이지를 4개 단위로 나눠 처리한다. 긴 PDF 전체를 한 번에 OCR하지 않아
 GPU 메모리 부담을 낮추고, 각 페이지의 번호와 Markdown을 유지한다.
 

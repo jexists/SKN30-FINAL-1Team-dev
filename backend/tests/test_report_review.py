@@ -24,8 +24,8 @@ from app.schemas.reports import ReportReview
 
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
-TEMPLATE = {"fields": [{"id": "summary", "label": "요약"}]}
-CONTENT = {"summary": "합성 보고 내용"}
+TEMPLATE = {"fields": [{"id": "body", "label": "본문"}]}
+CONTENT = {"values": {"body": "합성 보고 내용"}}
 _MISSING = object()
 
 
@@ -126,7 +126,6 @@ def _report(author: Member, *, status_code: str = "submitted") -> Report:
         ai_evidence=None,
         version=1,
         generation_input_version=1,
-        last_applied_agent_run_id=None,
         current_submission_id=uuid4(),
         note="활동 3건",
         review_note=None,
@@ -337,6 +336,25 @@ def test_new_submission_review_still_requires_the_seen_revision_id():
                 "expected_submission_id": None,
             },
         )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "report_submission_conflict"}
+    assert db.commit_count == 0 and db.rollback_count == 1
+
+
+def test_review_rejects_a_superseded_submission_revision():
+    manager = _member(role="manager")
+    author = _member(team_id=manager.team_id)
+    report = _report(author)
+    db = _Db(_Result(scalar=report))
+
+    response = _review(
+        db,
+        manager,
+        report,
+        decision="approve",
+        expected_submission_id=str(uuid4()),
+    )
 
     assert response.status_code == 409
     assert response.json() == {"detail": "report_submission_conflict"}

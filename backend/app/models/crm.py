@@ -46,6 +46,9 @@ class CustomerContact(Base):
     # 담당자가 직접 켜고 끄는 표시. 활동 기록에서 파생하지 않는다.
     visited: Mapped[bool] = mapped_column(server_default=text("false"))
     registered_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    # 팀장이 지운 시각. 행은 남는다. 딜·일정이 이 고객을 참조하고 있어 지울 수 없고,
+    # 지난 기록에서 만난 사람의 이름이 사라져서도 안 된다.
+    deleted_at: Mapped[datetime | None]
 
 
 class CustomerContactAssignee(Base):
@@ -66,9 +69,10 @@ class Activity(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     owner_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
-    customer_contact_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("public.customer_contact.id")
-    )
+    # 이 일정에서 만나는 사람. 비면 AI 브리핑을 만들 수 없어 필수다(20260903_0020).
+    customer_contact_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_contact.id"))
+    # 담당자가 속한 회사. customer_contact_id 에서 유도되며 API 가 채운다.
+    customer_company_id: Mapped[UUID] = mapped_column(ForeignKey("public.customer_company.id"))
     end_user_contact_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_contact.id")
     )
@@ -88,6 +92,9 @@ class Activity(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     product_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.product.id"))
+    # 이 일정이 무엇에 대한 영업 건인가. 비워 둘 수 있다 — 인사차 방문처럼 특정 영업 건을
+    # 진전시키지 않는 만남이 있다. 다만 비어 있으면 계약관리 에이전트가 그 일정을 보지
+    # 못하므로, 채울 수 있는 경우는 등록과 보고서 저장에서 자동으로 채운다.
     sales_deal_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.sales_deal.id"))
     purchase_order_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.purchase_order.id"))
 

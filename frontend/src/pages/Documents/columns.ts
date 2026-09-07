@@ -7,7 +7,7 @@ import type { SalesDocument } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
-import { DOCUMENT_CATEGORIES, latestOf } from './catalog'
+import { DOCUMENT_CATEGORIES, fileOf } from './catalog'
 
 export interface DocumentColumn {
   id: string
@@ -38,15 +38,6 @@ export const DOCUMENT_COLUMNS: DocumentColumn[] = [
     text: (d) => d.category,
     sortValue: (d) => DOCUMENT_CATEGORIES.indexOf(d.category),
   },
-  {
-    id: 'version',
-    header: '버전',
-    width: 72,
-    numeric: true,
-    sortable: true,
-    text: (d) => `v${latestOf(d).version}`,
-    sortValue: (d) => latestOf(d).version,
-  },
   { id: 'link', header: '연결', width: 190, sortable: true, text: linkLabel },
   {
     id: 'size',
@@ -55,20 +46,20 @@ export const DOCUMENT_COLUMNS: DocumentColumn[] = [
     align: 'right',
     numeric: true,
     sortable: true,
-    text: (d) => sizeLabel(latestOf(d).bytes),
-    sortValue: (d) => latestOf(d).bytes,
+    text: (d) => sizeLabel(fileOf(d).bytes),
+    sortValue: (d) => fileOf(d).bytes,
   },
-  { id: 'owner', header: '등록자', width: 96, sortable: true, text: (d) => latestOf(d).owner },
+  { id: 'owner', header: '등록자', width: 96, sortable: true, text: (d) => fileOf(d).owner },
   {
     id: 'uploaded',
     header: '등록일',
     width: 96,
     numeric: true,
     sortable: true,
-    text: (d) => fmtDotShort(parseISO(latestOf(d).uploaded)),
-    sortValue: (d) => latestOf(d).uploaded,
+    text: (d) => fmtDotShort(parseISO(fileOf(d).uploaded)),
+    sortValue: (d) => fileOf(d).uploaded,
   },
-  // 상세를 열지 않고 최신 버전을 바로 받는 칸입니다. 표에서 버튼으로 그립니다.
+  // 상세를 열지 않고 파일을 바로 받는 칸입니다. 표에서 버튼으로 그립니다.
   { id: 'download', header: '받기', width: 68, align: 'right', text: () => '' },
 ]
 

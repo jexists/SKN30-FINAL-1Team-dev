@@ -1,12 +1,11 @@
-// 달력에서 날짜를 눌렀을 때 오른쪽에서 들어오는 요약 패널입니다.
+// 달력에서 날짜를 눌렀을 때 오른쪽에서 들어오는 보고서 패널입니다.
 // /daily 의 주간 달력과 /daily/history 의 월 달력이 같은 것을 씁니다.
-//
-// 전문은 여기 넣지 않습니다. 하단 "전체 보기" 로 /daily/:id 로 넘깁니다.
 import { useEffect, useId, useRef } from 'react'
 import { Link } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
 import OwnerName from '@/components/OwnerName'
+import ReportBody from '@/components/ReportBody'
 import { ChevronRightIcon, CloseIcon } from '@/components/icons'
 import { dailyComposePath } from '@/constants/routes'
 import { agendaFor } from '@/shared/agenda'
@@ -116,10 +115,10 @@ export default function ReportDrawer({ dateISO, rows, kind, onClose }: Props) {
 
                 <h3 className={styles.title}>{row.title}</h3>
 
-                {row.summary ? (
-                  <p className={styles.summary}>{row.summary}</p>
+                {row.body ? (
+                  <ReportBody className={styles.reportBody} body={row.body} />
                 ) : (
-                  <p className={styles.summaryEmpty}>내용이 비어 있습니다.</p>
+                  <p className={styles.bodyEmpty}>내용이 비어 있습니다.</p>
                 )}
 
                 <p className={styles.counts}>{row.meta}</p>

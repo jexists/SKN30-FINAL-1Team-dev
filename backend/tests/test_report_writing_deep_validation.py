@@ -5,6 +5,8 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from app.agents import report_writing_deep as agent
+from app.schemas.reports import REPORT_BODY_MAX_LENGTH
+from app.services import llm as llm_service
 from app.services.llm import LLMError, LLMNotConfigured
 
 DEAL_A, DEAL_B, OTHER_DEAL = (UUID(int=value) for value in (1, 2, 3))
@@ -47,6 +49,7 @@ def _case(*, unassigned=True):
         deal_reports=[
             agent.DealReport(
                 sales_deal_id=deal,
+                title=f"{deal} 논의",
                 body=f"{rows[index][0]} {rows[5][0]}",
                 evidence_ids=[f"S{index + 1:04d}", "S0006"],
             )
@@ -57,7 +60,10 @@ def _case(*, unassigned=True):
             evidence_ids=["S0001", "S0002", "S0003"],
         ),
         unassigned_report=agent.ReportBody(
-            body="딜 미지정 · 확인 필요: " + "\n".join(text for text, _, _ in rows[6:]),
+            body=(
+                "추가 견적 요청은 대상 딜 확인이 필요합니다. "
+                "선택 범위 밖의 C 장비는 다음 미팅에서 다룰 예정입니다."
+            ),
             evidence_ids=["S0007", "S0008"],
         )
         if unassigned
@@ -137,6 +143,23 @@ def test_report_body_rejects_invalid_structure(body, refs, error):
         agent.ReportBody(body=body, evidence_ids=refs)
 
 
+@pytest.mark.parametrize("kind", ["shared", "deal"])
+def test_generated_body_matches_the_final_submission_length_limit(kind):
+    def build(body):
+        if kind == "shared":
+            return agent.ReportBody(body=body, evidence_ids=[])
+        return agent.DealReport(
+            sales_deal_id=DEAL_A,
+            title="논의",
+            body=body,
+            evidence_ids=[],
+        )
+
+    assert len(build("가" * REPORT_BODY_MAX_LENGTH).body) == REPORT_BODY_MAX_LENGTH
+    with pytest.raises(ValidationError, match="string_too_long"):
+        build("가" * (REPORT_BODY_MAX_LENGTH + 1))
+
+
 @pytest.mark.parametrize("ids", [(DEAL_A,), (DEAL_A, DEAL_A), (DEAL_A, OTHER_DEAL)])
 def test_reports_require_each_selected_deal_once(ids):
     source, draft = _case()
@@ -175,13 +198,13 @@ def test_reports_reject_missing_or_mixed_evidence(target, refs, error):
         agent.validate_reports(source, draft)
 
 
-@pytest.mark.parametrize("segment_index", [6, 7])
-def test_unresolved_and_out_of_scope_must_keep_original_text(segment_index):
+def test_unassigned_report_may_paraphrase_while_preserving_complete_evidence_ids():
     source, draft = _case()
-    text = source.evidence.items[segment_index].segment.text
-    draft.unassigned_report.body = draft.unassigned_report.body.replace(text, "요약으로 대체")
-    with pytest.raises(ValueError, match="report_unassigned_original_missing"):
-        agent.validate_reports(source, draft)
+
+    assert all(
+        item.segment.text not in draft.unassigned_report.body for item in source.evidence.items[6:]
+    )
+    agent.validate_reports(source, draft)
 
 
 def test_unassigned_report_is_required_only_when_there_is_unassigned_evidence():
@@ -199,10 +222,13 @@ def test_unassigned_report_is_required_only_when_there_is_unassigned_evidence():
 
 @pytest.fixture
 def model_settings(monkeypatch):
-    monkeypatch.setattr(agent.settings, "llm_api_url", "https://provider.invalid/v1/responses")
-    monkeypatch.setattr(agent.settings, "llm_api_key", SecretStr("synthetic-test-key"))
-    monkeypatch.setattr(agent.settings, "llm_model", "synthetic-model")
-    monkeypatch.setattr(agent.settings, "llm_timeout_seconds", 7.0)
+    monkeypatch.setattr(
+        llm_service.settings, "llm_api_url", "https://provider.invalid/v1/responses"
+    )
+    monkeypatch.setattr(llm_service.settings, "llm_api_key", SecretStr("synthetic-test-key"))
+    monkeypatch.setattr(llm_service.settings, "openai_api_key", SecretStr(""))
+    monkeypatch.setattr(llm_service.settings, "llm_model", "synthetic-model")
+    monkeypatch.setattr(llm_service.settings, "llm_timeout_seconds", 7.0)
 
 
 @pytest.mark.parametrize(
@@ -215,7 +241,6 @@ def model_settings(monkeypatch):
             "https://provider.invalid/api/v2",
             False,
         ),
-        ("http://localhost:1234/v1/chat/completions", "http://localhost:1234/v1", False),
     ],
 )
 def test_model_config_preserves_api_base_without_endpoint_suffix(
@@ -225,8 +250,8 @@ def test_model_config_preserves_api_base_without_endpoint_suffix(
     base,
     responses,
 ):
-    monkeypatch.setattr(agent.settings, "llm_api_url", endpoint)
-    model = agent._configured_model()
+    monkeypatch.setattr(llm_service.settings, "llm_api_url", endpoint)
+    model = llm_service.configured_chat_model()
     assert model.openai_api_base == base
     assert model.use_responses_api is responses
     assert model.model_name == "synthetic-model"
@@ -239,21 +264,105 @@ def test_model_config_preserves_api_base_without_endpoint_suffix(
 
 
 def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
-    monkeypatch.setattr(agent.settings, "llm_timeout_seconds", 240.0)
-    model = agent._configured_model()
+    monkeypatch.setattr(llm_service.settings, "llm_timeout_seconds", 240.0)
+    model = llm_service.configured_chat_model()
     assert model.request_timeout.read == 240.0
     assert model.stream_chunk_timeout == 240.0
     assert model.request_timeout.connect == 10.0
 
 
+def test_executive_report_prompt_version_is_explicit():
+    assert agent.PROMPT_VERSION == "report_writing.deep.v14"
+    skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "합니다체로 통일한다" in skill
+    assert "생성 과정을 해설하지 않는다" in skill
+    assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
+    assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
+    assert "내부 분류·처리 절차나 화면 제목을 본문에 쓰지 않는다" in skill
+
+
+def test_empty_shared_sections_may_be_omitted_but_required_evidence_is_still_checked():
+    source, draft = _case()
+    source_payload = source.model_dump(mode="json")
+    for item in source_payload["evidence"]["items"][:3]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(source_payload)
+    draft.deal_reports[0].body += " " + draft.common_report.body
+    draft.deal_reports[0].evidence_ids.extend(draft.common_report.evidence_ids)
+    draft.common_report = None
+    payload = draft.model_dump(mode="json")
+    payload.pop("common_report")
+
+    parsed = agent.FreeformMeetingReports.model_validate(payload)
+
+    assert parsed.common_report is None
+    assert agent.FreeformMeetingReports.model_json_schema()["required"] == ["deal_reports"]
+    agent.validate_reports(source, parsed)
+
+    payload.pop("unassigned_report")
+    parsed = agent.FreeformMeetingReports.model_validate(payload)
+    with pytest.raises(ValueError, match="report_unassigned_evidence_missing"):
+        agent.validate_reports(source, parsed)
+
+
 def test_deal_schema_emits_identity_before_live_body():
     assert list(agent.DealReport.model_json_schema()["properties"]) == [
         "sales_deal_id",
+        "title",
         "body",
         "evidence_ids",
     ]
     with pytest.raises(ValidationError, match="report_evidence_duplicate"):
         agent.DealReport(sales_deal_id=DEAL_A, body="내용", evidence_ids=["S0001", "S0001"])
+
+
+def test_new_reports_require_title_but_legacy_snapshot_still_deserializes():
+    source, draft = _case()
+    payload = draft.model_dump(mode="json")
+    payload["deal_reports"][0].pop("title")
+    legacy = agent.FreeformMeetingReports.model_validate(payload)
+
+    assert legacy.deal_reports[0].title is None
+    with pytest.raises(ValueError, match="report_deal_title_missing"):
+        agent.validate_reports(source, legacy)
+    agent.validate_reports(source, legacy, require_titles=False)
+
+
+@pytest.mark.parametrize("field", ["title", "body"])
+def test_selected_deal_without_current_evidence_requires_exact_marker(field):
+    source, draft = _case()
+    payload = source.model_dump(mode="json")
+    for item in payload["evidence"]["items"][4:6]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(payload)
+    draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
+    draft.deal_reports[1].title = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].evidence_ids = []
+    agent.validate_reports(source, draft)
+
+    for invalid in (
+        "이전 보고서의 논의만 있음",
+        f"{agent.NO_DEAL_EVIDENCE_TEXT}. 과거에는 예산을 검토했다.",
+    ):
+        setattr(draft.deal_reports[1], field, invalid)
+        with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
+            agent.validate_reports(source, draft)
+
+
+def test_selected_deal_without_evidence_reports_marker_error_for_missing_title():
+    source, draft = _case()
+    payload = source.model_dump(mode="json")
+    for item in payload["evidence"]["items"][4:6]:
+        item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
+    source = agent.ReportWritingInput.model_validate(payload)
+    draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
+    draft.deal_reports[1].title = None
+    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].evidence_ids = []
+
+    with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
+        agent.validate_reports(source, draft)
 
 
 def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_common():
@@ -279,7 +388,6 @@ def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_
     assert unassigned["unexpected_ids"] == ["S0004"]
     assert {item["segment_id"] for item in unassigned["required_raw_quotes"]} == {"S0007", "S0008"}
     assert all(item["repair_action"] for item in issues)
-    assert any(item["code"] == "report_unassigned_original_missing" for item in issues)
     with pytest.raises(ValueError, match="report_deal_evidence_mismatch"):
         agent.validate_reports(source, draft)
 
@@ -294,12 +402,13 @@ def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_
         "https://user:password@provider.invalid/v1/responses",
         "https://provider.invalid/v1/responses?mode=test",
         "https://provider.invalid/v1/responses#fragment",
+        "http://localhost:1234/v1/chat/completions",
     ],
 )
 def test_model_config_rejects_unsupported_urls(model_settings, monkeypatch, endpoint):
-    monkeypatch.setattr(agent.settings, "llm_api_url", endpoint)
+    monkeypatch.setattr(llm_service.settings, "llm_api_url", endpoint)
     with pytest.raises(LLMError, match="report_agent_unsupported_endpoint"):
-        agent._configured_model()
+        llm_service.configured_chat_model()
 
 
 @pytest.mark.parametrize(
@@ -312,6 +421,6 @@ def test_model_config_rejects_unsupported_urls(model_settings, monkeypatch, endp
     ],
 )
 def test_model_config_rejects_missing_credentials(model_settings, monkeypatch, field, value):
-    monkeypatch.setattr(agent.settings, field, value)
+    monkeypatch.setattr(llm_service.settings, field, value)
     with pytest.raises(LLMNotConfigured, match="llm_not_configured"):
-        agent._configured_model()
+        llm_service.configured_chat_model()

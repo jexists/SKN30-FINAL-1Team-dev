@@ -121,7 +121,7 @@
 .field {
   @include form-field;
 
-  // 새 버전 올릴 때는 문서 이름·분류를 고칠 수 없습니다. 잠긴 칸을 표시합니다.
+  // 연결 대상을 아직 고르지 않아 채울 수 없는 칸을 잠긴 모습으로 표시합니다.
   input:disabled,
   select:disabled {
     background: var(--fill);

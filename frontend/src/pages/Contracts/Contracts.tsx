@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
@@ -11,7 +11,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { ContractIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { useShowOwner } from '@/shared/scope'
@@ -60,8 +60,6 @@ export default function Contracts() {
   const owner = isManager ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
   const stage = params.get('stage') ?? ''
-  const deferredQuery = useDeferredValue(query)
-
   const [page, setPage] = useState(1)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'owner' | 'range' | null>(null)
 
@@ -96,14 +94,14 @@ export default function Contracts() {
 
   const dealQuery = useMemo(
     () => ({
-      q: deferredQuery,
+      q: query,
       stageId: stage,
       ownerMemberId: owner,
       fromISO,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
-    [deferredQuery, stage, owner, fromISO, page],
+    [query, stage, owner, fromISO, page],
   )
 
   const {
@@ -207,7 +205,7 @@ export default function Contracts() {
           value={query}
           placeholder="고객사·제품·계약번호 검색"
           label="계약 검색"
-          onChange={(next) => setParam('q', next)}
+          onSearch={(next) => setParam('q', next)}
         />
 
         <FilterSelect
@@ -259,62 +257,64 @@ export default function Contracts() {
         />
       )}
 
-      {!error && loading && pageRows.length > 0 && (
-        <InlineLoader label="목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={error} onRetry={reload} />
 
-      <DataTable
-        rows={pageRows}
-        columns={columns}
-        rowKey={(contract) => contract.id}
-        handleColumn="org"
-        sort={null}
-        onSort={ignoreSort}
-        onOpen={(contract) => setOpenId(contract.id)}
-        caption="계약 목록. 헤더를 눌러 정렬할 수 있습니다."
-        renderCell={(id, contract) =>
-          id === 'stage'
-            ? chipOr(contract.contractStatusTone, contract.contractStatusName)
-            : undefined
-        }
-        mini={(contract) => {
-          return {
-            title: contract.org,
-            badge: chipOr(contract.contractStatusTone, contract.contractStatusName),
-            sub: contract.title,
-            meta: [
-              <span key="m1" className="tnum">
-                {contract.contractAmount === null ? '계약금액 미정' : won(contract.contractAmount)}
-              </span>,
-              <span key="m2" className="tnum">
-                {contract.contractSignedOn
-                  ? fmtDot(parseISO(contract.contractSignedOn))
-                  : '계약일 미정'}
-              </span>,
-              ...(showOwner ? [contract.owner] : []),
-            ],
+      {!error && loading ? (
+        <TableSkeleton label="목록을 새로고침하는 중입니다." rows={pageRows.length} />
+      ) : (
+        <DataTable
+          rows={pageRows}
+          columns={columns}
+          rowKey={(contract) => contract.id}
+          handleColumn="org"
+          sort={null}
+          onSort={ignoreSort}
+          onOpen={(contract) => setOpenId(contract.id)}
+          caption="계약 목록. 헤더를 눌러 정렬할 수 있습니다."
+          renderCell={(id, contract) =>
+            id === 'stage'
+              ? chipOr(contract.contractStatusTone, contract.contractStatusName)
+              : undefined
           }
-        }}
-        empty={
-          isFiltered ? (
-            <>
-              <SearchIcon width={34} height={34} strokeWidth={1.5} />
-              <p>조건에 맞는 계약이 없습니다.</p>
-              <Button variant="outline" onClick={clearFilters}>
-                검색·필터 초기화
-              </Button>
-            </>
-          ) : (
-            <>
-              <ContractIcon width={34} height={34} strokeWidth={1.5} />
-              <p>아직 계약을 작성한 영업 딜이 없습니다.</p>
-              <Button onClick={() => setParam('new', '1')}>계약 작성</Button>
-            </>
-          )
-        }
-      />
+          mini={(contract) => {
+            return {
+              title: contract.org,
+              badge: chipOr(contract.contractStatusTone, contract.contractStatusName),
+              sub: contract.title,
+              meta: [
+                <span key="m1" className="tnum">
+                  {contract.contractAmount === null
+                    ? '계약금액 미정'
+                    : won(contract.contractAmount)}
+                </span>,
+                <span key="m2" className="tnum">
+                  {contract.contractSignedOn
+                    ? fmtDot(parseISO(contract.contractSignedOn))
+                    : '계약일 미정'}
+                </span>,
+                ...(showOwner ? [contract.owner] : []),
+              ],
+            }
+          }}
+          empty={
+            isFiltered ? (
+              <>
+                <SearchIcon width={34} height={34} strokeWidth={1.5} />
+                <p>조건에 맞는 계약이 없습니다.</p>
+                <Button variant="outline" onClick={clearFilters}>
+                  검색·필터 초기화
+                </Button>
+              </>
+            ) : (
+              <>
+                <ContractIcon width={34} height={34} strokeWidth={1.5} />
+                <p>아직 계약을 작성한 영업 딜이 없습니다.</p>
+                <Button onClick={() => setParam('new', '1')}>계약 작성</Button>
+              </>
+            )
+          }
+        />
+      )}
 
       {!error && !loading && pageRows.length > 0 && (
         <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />

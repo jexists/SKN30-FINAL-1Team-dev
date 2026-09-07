@@ -39,5 +39,8 @@ jobs:
       - name: 포맷 검사 (prettier)
         run: npm run format:check
 
+      - name: 테스트
+        run: npm test
+
       - name: 빌드 (tsc -b + vite build)
         run: npm run build

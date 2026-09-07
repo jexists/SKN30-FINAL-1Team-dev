@@ -159,6 +159,8 @@ async def archive_business_card(
             .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
             .where(
                 CustomerContact.id == contact_id,
+                # 지운 고객에는 명함 원본을 새로 보관하지 않는다.
+                CustomerContact.deleted_at.is_(None),
                 CustomerCompany.team_id == member.team_id,
             )
         )
@@ -206,6 +208,7 @@ async def archive_business_card(
                 id=uuid4(),
                 report_id=None,
                 document_id=document_id,
+                # 버전은 관리하지 않는다. DB 의 file_document_version 검사가 1 이상을 요구한다.
                 version_no=1,
                 file_name=(image.filename or "business-card").strip(),
                 storage_key=storage_key,

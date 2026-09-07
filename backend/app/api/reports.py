@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -10,26 +12,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.activities import _activity_row
-from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.api.deps import CurrentMember, DbSession, active_member, owner_scope
 from app.api.sales_deals import _sales_deal_row
-from app.models.content import Report, ReportActivity, ReportDeal
+from app.models.agent import AgentRun
+from app.models.content import Report, ReportActivity, ReportDeal, ReportSubmission
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
     REVIEW_DECISION_STATUS,
     ReportActivityRead,
-    ReportCreate,
     ReportDealRead,
     ReportDealWrite,
     ReportFilterOptionParams,
     ReportFilterOptions,
+    ReportFinalize,
     ReportPage,
     ReportPageParams,
-    ReportPatch,
     ReportRead,
     ReportReview,
-    ReportSubmit,
 )
+from app.services import agent_runs as agent_run_service
 from app.services import contract_next_meeting_pipeline, report_sources, report_submissions
 
 router = APIRouter(tags=["reports"])
@@ -40,7 +42,6 @@ _recipient = aliased(Member)
 
 # 팀원이 고칠 수 있는 상태. 팀장이 수정 요청하면(유스케이스 RPT-004) 다시 편집·제출한다.
 _EDITABLE_STATUSES = ("draft", "changes_requested")
-_INITIAL_STATUS = "draft"
 _MEETING_UNIQUE_INDEX = "report_source_activity_meeting_key"
 _REPORT_UNIQUE_CONSTRAINTS = {
     _MEETING_UNIQUE_INDEX: "meeting_report_exists",
@@ -132,87 +133,6 @@ def _text(value) -> str | None:
     return value or None
 
 
-def _legacy_values(content) -> dict:
-    return _dict(_dict(content).get("values"))
-
-
-def _legacy_shared_body(content, key: str) -> str | None:
-    shared = _dict(_dict(content).get("meeting_shared"))
-    return _text(_dict(shared.get(key)).get("body"))
-
-
-def _normalized_report_values(
-    content: dict,
-    *,
-    title=None,
-    body=None,
-    common_body=None,
-    unassigned_body=None,
-    structured_values=None,
-) -> dict:
-    """Derive normalized columns from explicit fields, then legacy JSON."""
-    values = _legacy_values(content)
-    structured = _dict(structured_values)
-    if structured_values is None:
-        structured = {key: value for key, value in values.items() if key != "body"}
-    return {
-        "title": _text(title) or _text(content.get("title")),
-        "body": _text(body) or _text(values.get("body")) or _text(content.get("body")),
-        "common_body": _text(common_body) or _legacy_shared_body(content, "common_report"),
-        "unassigned_body": _text(unassigned_body)
-        or _legacy_shared_body(content, "unassigned_report"),
-        "structured_values": structured,
-    }
-
-
-def _sync_legacy_report_content(
-    content: dict,
-    normalized: dict,
-    *,
-    sync_title: bool,
-    sync_body: bool,
-    sync_common: bool,
-    sync_unassigned: bool,
-    sync_structured: bool,
-) -> dict:
-    """Keep old UI readers working while normalized columns become canonical."""
-    output = dict(content)
-    if sync_title:
-        if normalized["title"] is None:
-            output.pop("title", None)
-        else:
-            output["title"] = normalized["title"]
-    if sync_body or sync_structured:
-        values = (
-            dict(normalized["structured_values"]) if sync_structured else _legacy_values(output)
-        )
-        if normalized["body"] is None:
-            values.pop("body", None)
-        else:
-            values["body"] = normalized["body"]
-        output["values"] = values
-    if sync_common or sync_unassigned:
-        shared = _dict(output.get("meeting_shared"))
-        for should_sync, field, key in (
-            (sync_common, "common_body", "common_report"),
-            (sync_unassigned, "unassigned_body", "unassigned_report"),
-        ):
-            if not should_sync:
-                continue
-            body_value = normalized[field]
-            if body_value is None:
-                shared.pop(key, None)
-            else:
-                item = _dict(shared.get(key))
-                item["body"] = body_value
-                shared[key] = item
-        if shared:
-            output["meeting_shared"] = shared
-        else:
-            output.pop("meeting_shared", None)
-    return output
-
-
 def _report_read(
     report: Report,
     author_display_name: str,
@@ -239,7 +159,6 @@ def _report_read(
         generation_input_version=int(
             getattr(report, "generation_input_version", None) or _report_version(report)
         ),
-        last_applied_agent_run_id=getattr(report, "last_applied_agent_run_id", None),
         current_submission_id=getattr(report, "current_submission_id", None),
         template_snapshot=report.template_snapshot,
         content=report.content,
@@ -262,31 +181,6 @@ def _report_read(
     )
 
 
-async def _visible_activity_ids(
-    db: AsyncSession,
-    member: Member,
-    activity_ids: list[UUID],
-) -> tuple[UUID, ...]:
-    """보고서에 묶을 일정이 모두 같은 팀의 접근 가능한 일정인지 확인한다."""
-    if not activity_ids:
-        return ()
-    unique = tuple(dict.fromkeys(activity_ids))
-    conditions = [
-        Activity.id.in_(unique),
-        Activity.team_id == member.team_id,
-        Activity.deleted_at.is_(None),
-    ]
-    if member.role_code == "member":
-        conditions.append(Activity.owner_member_id == member.id)
-    result = await db.execute(select(Activity.id).where(*conditions))
-    if set(result.scalars().all()) != set(unique):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="activity_not_found",
-        )
-    return unique
-
-
 async def _visible_recipient(db: AsyncSession, member: Member, recipient_id: UUID) -> Member:
     result = await db.execute(
         select(Member).where(
@@ -303,16 +197,6 @@ async def _visible_recipient(db: AsyncSession, member: Member, recipient_id: UUI
             detail="recipient_not_found",
         )
     return recipient
-
-
-async def _validate_meeting_deal(
-    db: AsyncSession,
-    member: Member,
-    source_activity_id: UUID,
-    sales_deal_id: UUID,
-) -> None:
-    """선택한 딜이 접근 가능하고 미팅 고객사와 같은 고객사인지 확인한다."""
-    await _validate_meeting_sales_deal_ids(db, member, source_activity_id, [sales_deal_id])
 
 
 async def _validate_meeting_sales_deal_ids(
@@ -367,10 +251,6 @@ def _integrity_constraint(error: IntegrityError) -> str | None:
     )
 
 
-def _duplicate_meeting(error: IntegrityError) -> bool:
-    return _integrity_constraint(error) == _MEETING_UNIQUE_INDEX
-
-
 async def _deal_sections_by_report_ids(
     db: AsyncSession,
     report_ids: list[UUID],
@@ -421,27 +301,14 @@ def _section_content(
 
 def _normalized_section_payload(payload: ReportDealWrite, position: int) -> dict:
     content = _section_content(payload.content)
-    values = _legacy_values(content)
     explicit = payload.model_fields_set
     title = payload.title if "title" in explicit else _text(content.get("title"))
-    body = payload.body if "body" in explicit else _text(values.get("body"))
-    structured = (
-        dict(payload.structured_values)
-        if "structured_values" in explicit
-        else {key: value for key, value in values.items() if key != "body"}
-    )
     if "title" in explicit:
         if title is None:
             content.pop("title", None)
         else:
             content["title"] = title
-    if "body" in explicit or "structured_values" in explicit:
-        legacy_values = dict(structured) if "structured_values" in explicit else values
-        if body is None:
-            legacy_values.pop("body", None)
-        else:
-            legacy_values["body"] = body
-        content["values"] = legacy_values
+    content["values"] = {"body": payload.body}
     snapshot = payload.deal_snapshot.model_dump(mode="json")
     return {
         "position": payload.position if payload.position is not None else position,
@@ -449,8 +316,8 @@ def _normalized_section_payload(payload: ReportDealWrite, position: int) -> dict
         "deal_no_snapshot": payload.deal_snapshot.label,
         "deal_title_snapshot": _text(payload.deal_snapshot.note),
         "title": title,
-        "body": body,
-        "structured_values": structured,
+        "body": payload.body,
+        "structured_values": {},
         "content": content,
     }
 
@@ -459,6 +326,8 @@ async def _replace_report_deals(
     db: AsyncSession,
     report_id: UUID,
     deal_sections: list[ReportDealWrite],
+    *,
+    ai_evidence_by_deal: dict[UUID, dict | None] | None = None,
 ) -> tuple[bool, bool]:
     existing = {
         section.sales_deal_id: section
@@ -505,12 +374,18 @@ async def _replace_report_deals(
                     report_id=report_id,
                     sales_deal_id=payload.sales_deal_id,
                     **normalized,
-                    ai_evidence=None,
+                    ai_evidence=(
+                        ai_evidence_by_deal.get(payload.sales_deal_id)
+                        if ai_evidence_by_deal is not None
+                        else None
+                    ),
                 )
             )
             changed = True
             continue
         normalized["content"] = _section_content(normalized["content"], current.content)
+        if ai_evidence_by_deal is not None:
+            normalized["ai_evidence"] = ai_evidence_by_deal.get(payload.sales_deal_id)
         section_changed = any(
             getattr(current, field_name) != value for field_name, value in normalized.items()
         )
@@ -527,6 +402,8 @@ def _add_report_deals(
     db: AsyncSession,
     report_id: UUID,
     deal_sections: list[ReportDealWrite],
+    *,
+    ai_evidence_by_deal: dict[UUID, dict | None] | None = None,
 ) -> None:
     for position, payload in enumerate(deal_sections):
         db.add(
@@ -534,7 +411,11 @@ def _add_report_deals(
                 report_id=report_id,
                 sales_deal_id=payload.sales_deal_id,
                 **_normalized_section_payload(payload, position),
-                ai_evidence=None,
+                ai_evidence=(
+                    ai_evidence_by_deal.get(payload.sales_deal_id)
+                    if ai_evidence_by_deal is not None
+                    else None
+                ),
             )
         )
 
@@ -837,14 +718,188 @@ async def get_report(
     return await _detail(db, member, report_id)
 
 
-@router.post("/reports", response_model=ReportRead, status_code=status.HTTP_201_CREATED)
-async def create_report(
-    payload: ReportCreate,
+def _finalize_request_hash(payload: ReportFinalize) -> str:
+    encoded = json.dumps(
+        payload.model_dump(mode="json", exclude_unset=True),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _finalize_scope_key(payload: ReportFinalize) -> str:
+    if payload.report_kind == "meeting":
+        return f"meeting:{payload.source_activity_id}"
+    if payload.report_kind == "daily":
+        return f"daily:{payload.report_date.isoformat()}"
+    assert payload.period_start is not None and payload.period_end is not None
+    return (
+        f"{payload.report_kind}:{payload.period_start.isoformat()}:{payload.period_end.isoformat()}"
+    )
+
+
+async def _finalize_run(
+    db: AsyncSession,
+    member: Member,
+    payload: ReportFinalize,
+) -> AgentRun | None:
+    if payload.agent_run_id is None:
+        return None
+    run = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.id == payload.agent_run_id,
+                AgentRun.team_id == member.team_id,
+                AgentRun.requested_by_member_id == member.id,
+            )
+            .with_for_update(of=AgentRun)
+        )
+    ).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(404, "agent_run_not_found")
+    expected_code = "meeting_processing" if payload.report_kind == "meeting" else "report_writing"
+    if (
+        run.agent_code != expected_code
+        or run.status_code not in {"completed", "partial"}
+        or run.report_id is not None
+        or run.scope_key != _finalize_scope_key(payload)
+        or run.output_snapshot is None
+        or run.payload_redacted_at is not None
+        or run.payload_expires_at is None
+        or run.payload_expires_at <= datetime.now(UTC)
+    ):
+        raise HTTPException(409, "report_generation_not_usable")
+    if payload.report_kind == "meeting":
+        source = run.input_snapshot.get("source", {})
+        if source.get("transcript") != payload.transcript or set(
+            source.get("selected_deal_ids", [])
+        ) != {str(section.sales_deal_id) for section in payload.deal_sections}:
+            raise HTTPException(409, "report_generation_source_changed")
+    return run
+
+
+async def _validate_generation_source_refs(
+    db: AsyncSession,
+    report: Report,
+    payload: ReportFinalize,
+    run: AgentRun | None,
+) -> None:
+    """Require final provenance and non-editable LLM inputs to match generation."""
+    if run is None or report.report_kind == "meeting":
+        return
+    request = run.request_snapshot if isinstance(run.request_snapshot, dict) else {}
+    request_content = request.get("content") if isinstance(request.get("content"), dict) else {}
+    current_content = payload.content if isinstance(payload.content, dict) else {}
+
+    def attachments(content: dict) -> list[dict]:
+        raw = content.get("attachments", [])
+        if not isinstance(raw, list):
+            return []
+        return [
+            {"id": item.get("id"), "name": item.get("name"), "extract": item["extract"]}
+            for item in raw
+            if isinstance(item, dict)
+            and item.get("state") == "done"
+            and isinstance(item.get("extract"), str)
+        ]
+
+    immutable_input_changed = any(
+        (
+            request.get("report_kind") != payload.report_kind,
+            request.get("report_date") != payload.report_date.isoformat(),
+            request.get("period_start")
+            != (payload.period_start.isoformat() if payload.period_start else None),
+            request.get("period_end")
+            != (payload.period_end.isoformat() if payload.period_end else None),
+            request.get("template_snapshot") != payload.template_snapshot,
+            request.get("guidance") != payload.transcript,
+            attachments(request_content) != attachments(current_content),
+        )
+    )
+    expected = run.source_refs.get("report_sources") if isinstance(run.source_refs, dict) else None
+    current = await report_sources.current_source_ref_snapshot(db, report.id)
+    if immutable_input_changed or not isinstance(expected, list) or current != expected:
+        raise HTTPException(409, "report_generation_source_changed")
+
+
+def _finalize_values(payload: ReportFinalize) -> tuple[dict, dict]:
+    content = _section_content(payload.content)
+    explicit = payload.model_fields_set
+    normalized = {
+        "title": _text(content.get("title")),
+        "body": None,
+        "common_body": None,
+        "unassigned_body": None,
+        "structured_values": {},
+    }
+    for field_name in ("title", "body", "common_body", "unassigned_body", "structured_values"):
+        if field_name in explicit:
+            normalized[field_name] = getattr(payload, field_name)
+    if "title" in explicit:
+        if normalized["title"] is None:
+            content.pop("title", None)
+        else:
+            content["title"] = normalized["title"]
+    if normalized["body"] is None:
+        content.pop("values", None)
+    else:
+        content["values"] = {"body": normalized["body"]}
+    return content, normalized
+
+
+async def _existing_finalize(
+    db: AsyncSession,
+    member: Member,
+    idempotency_key: UUID,
+    request_hash: str,
+) -> ReportRead | None:
+    submission = (
+        await db.execute(
+            select(ReportSubmission).where(
+                ReportSubmission.submitted_by_member_id == member.id,
+                ReportSubmission.idempotency_key == idempotency_key,
+            )
+        )
+    ).scalar_one_or_none()
+    if submission is None:
+        return None
+    if submission.request_hash != request_hash:
+        raise HTTPException(409, "idempotency_key_reused")
+    return await _detail(db, member, submission.report_id)
+
+
+async def _existing_finalize_after_rollback(
+    db: AsyncSession,
+    member_id: UUID,
+    idempotency_key: UUID,
+    request_hash: str,
+) -> ReportRead | None:
+    """Rollback으로 만료된 ORM 객체 대신 현재 활성 구성원을 다시 읽는다."""
+    member = await active_member(db, member_id)
+    if member is None:
+        return None
+    return await _existing_finalize(db, member, idempotency_key, request_hash)
+
+
+@router.post("/reports/finalize", response_model=ReportRead, status_code=status.HTTP_201_CREATED)
+async def finalize_report(
+    payload: ReportFinalize,
     response: Response,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> ReportRead:
+    """사람이 승인한 최종값과 불변 제출본을 한 트랜잭션에서 저장한다."""
+    member_id = member.id
+    request_hash = _finalize_request_hash(payload)
+    if existing := await _existing_finalize(db, member, payload.idempotency_key, request_hash):
+        response.headers["Location"] = f"/api/reports/{existing.id}"
+        return existing
+
     try:
+        run = await _finalize_run(db, member, payload)
         recipient = (
             None
             if payload.recipient_member_id is None
@@ -856,354 +911,167 @@ async def create_report(
         if payload.report_kind == "meeting":
             assert payload.source_activity_id is not None
             customer_company_id = await _validate_meeting_deals(
-                db,
-                member,
-                payload.source_activity_id,
-                payload.deal_sections,
+                db, member, payload.source_activity_id, payload.deal_sections
             )
+        ai_evidence_by_deal = (
+            agent_run_service.meeting_deal_evidence(
+                run,
+                [section.sales_deal_id for section in payload.deal_sections],
+            )
+            if run is not None and payload.report_kind == "meeting"
+            else None
+        )
         activity_ids = await _own_activity_ids(db, member, payload.activity_ids)
+        content, normalized = _finalize_values(payload)
+        now = datetime.now(UTC)
 
-        content = {key: value for key, value in payload.content.items() if key != "meeting_shared"}
-        explicit = payload.model_fields_set
-        normalized = _normalized_report_values(content)
-        for field_name in (
-            "title",
-            "body",
-            "common_body",
-            "unassigned_body",
-            "structured_values",
-        ):
-            if field_name in explicit:
-                normalized[field_name] = getattr(payload, field_name)
-        content = _sync_legacy_report_content(
-            content,
-            normalized,
-            sync_title="title" in explicit,
-            sync_body="body" in explicit,
-            sync_common="common_body" in explicit,
-            sync_unassigned="unassigned_body" in explicit,
-            sync_structured="structured_values" in explicit,
-        )
+        if payload.report_id is None:
+            report = Report(
+                id=uuid4(),
+                team_id=member.team_id,
+                author_member_id=member.id,
+                recipient_member_id=None if recipient is None else recipient.id,
+                template_snapshot=payload.template_snapshot,
+                source_activity_id=payload.source_activity_id,
+                sales_deal_id=None,
+                customer_company_id=customer_company_id,
+                report_kind=payload.report_kind,
+                report_date=payload.report_date,
+                period_start=payload.period_start,
+                period_end=payload.period_end,
+                status_code="submitted",
+                content=content,
+                **normalized,
+                transcript=payload.transcript,
+                source_snapshot={"agent_run_id": str(run.id)} if run is not None else None,
+                ai_evidence=dict(run.evidence or {}) if run is not None else None,
+                version=1,
+                generation_input_version=1,
+                current_submission_id=None,
+                note=payload.note,
+                review_note=None,
+                reviewed_by_member_id=None,
+                reviewed_at=None,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(report)
+            _add_report_deals(
+                db,
+                report.id,
+                payload.deal_sections,
+                ai_evidence_by_deal=ai_evidence_by_deal,
+            )
+            for activity_id in activity_ids:
+                db.add(ReportActivity(report_id=report.id, activity_id=activity_id))
+            await db.flush()
+        else:
+            report = await _locked_report(db, member, payload.report_id)
+            assert payload.expected_version is not None and payload.expected_status_code is not None
+            _require_version(report, payload.expected_version)
+            if report.status_code != payload.expected_status_code:
+                raise HTTPException(409, "invalid_state_transition")
+            if (
+                report.report_kind != payload.report_kind
+                or report.source_activity_id != payload.source_activity_id
+                or report.report_date != payload.report_date
+                or report.period_start != payload.period_start
+                or report.period_end != payload.period_end
+            ):
+                raise HTTPException(409, "report_identity_changed")
+            if payload.report_kind == "meeting":
+                await _replace_report_deals(
+                    db,
+                    report.id,
+                    payload.deal_sections,
+                    ai_evidence_by_deal=ai_evidence_by_deal,
+                )
+            await _replace_report_activities(db, report.id, activity_ids)
+            report.recipient_member_id = None if recipient is None else recipient.id
+            report.template_snapshot = payload.template_snapshot
+            report.customer_company_id = customer_company_id
+            report.report_date = payload.report_date
+            report.period_start = payload.period_start
+            report.period_end = payload.period_end
+            report.status_code = "submitted"
+            report.content = content
+            for field_name, value in normalized.items():
+                setattr(report, field_name, value)
+            report.transcript = payload.transcript
+            if run is not None:
+                report.source_snapshot = {"agent_run_id": str(run.id)}
+                report.ai_evidence = dict(run.evidence or {})
+            report.note = payload.note
+            report.review_note = None
+            report.reviewed_by_member_id = None
+            report.reviewed_at = None
+            report.version = _report_version(report) + 1
+            report.updated_at = now
+            await db.flush()
 
-        report = Report(
-            id=uuid4(),
-            team_id=member.team_id,
-            author_member_id=member.id,
-            recipient_member_id=None if recipient is None else recipient.id,
-            template_snapshot=payload.template_snapshot,
-            source_activity_id=payload.source_activity_id,
-            # 신규 미팅 보고서는 딜을 자식 섹션에만 보관한다.
-            sales_deal_id=None,
-            customer_company_id=customer_company_id,
-            report_kind=payload.report_kind,
-            report_date=payload.report_date,
-            period_start=payload.period_start,
-            period_end=payload.period_end,
-            # 작성은 언제나 draft 로 시작한다. 제출은 별도 endpoint 를 거친다.
-            status_code=_INITIAL_STATUS,
-            content=content,
-            **normalized,
-            transcript=payload.transcript,
-            source_snapshot=None,
-            ai_evidence=None,
-            version=1,
-            generation_input_version=1,
-            last_applied_agent_run_id=None,
-            current_submission_id=None,
-            note=payload.note,
-            review_note=None,
-            reviewed_by_member_id=None,
-            reviewed_at=None,
+        if report.report_kind != "meeting":
+            await report_sources.sync_report_sources_from_legacy_content(db, member, report)
+        await _validate_generation_source_refs(db, report, payload, run)
+        sections = list(
+            (
+                await db.execute(
+                    select(ReportDeal)
+                    .where(ReportDeal.report_id == report.id)
+                    .order_by(ReportDeal.position.asc().nullslast(), ReportDeal.sales_deal_id)
+                )
+            )
+            .scalars()
+            .all()
         )
-        db.add(report)
-        _add_report_deals(db, report.id, payload.deal_sections)
-        await report_sources.sync_report_sources_from_legacy_content(db, member, report)
-        for activity_id in activity_ids:
-            db.add(ReportActivity(report_id=report.id, activity_id=activity_id))
+        submission = await report_submissions.create_submission(
+            db,
+            report,
+            member,
+            sections,
+            agent_run_id=run.id if run is not None else None,
+            idempotency_key=payload.idempotency_key,
+            request_hash=request_hash,
+        )
+        report.current_submission_id = submission.id
+        sales_deal_ids = [section.sales_deal_id for section in sections]
+        if run is not None:
+            run.report_id = report.id
+            agent_run_service.redact_payload(run, now=now)
         await db.flush()
         read = await _detail(db, member, report.id)
         await db.commit()
+    except HTTPException as error:
+        await db.rollback()
+        if error.status_code == status.HTTP_409_CONFLICT:
+            existing = await _existing_finalize_after_rollback(
+                db, member_id, payload.idempotency_key, request_hash
+            )
+            if existing is not None:
+                response.headers["Location"] = f"/api/reports/{existing.id}"
+                return existing
+        raise
     except IntegrityError as error:
         await db.rollback()
-        constraint = _integrity_constraint(error)
-        if constraint in _REPORT_UNIQUE_CONSTRAINTS:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=_REPORT_UNIQUE_CONSTRAINTS[constraint],
-            ) from error
-        raise
-    except Exception:
-        await db.rollback()
-        raise
-    response.headers["Location"] = f"/api/reports/{report.id}"
-    return read
-
-
-@router.patch("/reports/{report_id}", response_model=ReportRead)
-async def update_report(
-    report_id: UUID,
-    payload: ReportPatch,
-    member: CurrentMember,
-    db: DbSession,
-) -> ReportRead:
-    try:
-        report = await _locked_report(db, member, report_id)
-        if report.status_code not in _EDITABLE_STATUSES:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="report_not_editable",
-            )
-        _require_version(report, payload.expected_version)
-
-        values = payload.model_dump(exclude_unset=True)
-        values.pop("expected_version")
-        activity_ids = values.pop("activity_ids", None)
-        deal_sections = values.pop("deal_sections", None)
-        explicit = payload.model_fields_set
-        content_supplied = "content" in values
-        if content_supplied and isinstance(values.get("content"), dict):
-            # AI 원본은 서버 값을 유지한다. 공통 편집본은 전용 API에서만 갱신한다.
-            for key in _SERVER_OWNED_CONTENT_KEYS:
-                values["content"].pop(key, None)
-                if isinstance(report.content, dict) and key in report.content:
-                    values["content"][key] = report.content[key]
-
-        normalized_names = (
-            "title",
-            "body",
-            "common_body",
-            "unassigned_body",
-            "structured_values",
+        existing = await _existing_finalize_after_rollback(
+            db, member_id, payload.idempotency_key, request_hash
         )
-        current_content = _dict(report.content)
-        next_content = _dict(values.get("content", current_content))
-        legacy_normalized = _normalized_report_values(next_content)
-        normalized = {}
-        for field_name in normalized_names:
-            if field_name in explicit:
-                normalized[field_name] = values.pop(field_name)
-            elif content_supplied:
-                normalized[field_name] = legacy_normalized[field_name]
-            else:
-                normalized[field_name] = getattr(report, field_name)
-        if any(field_name in explicit for field_name in normalized_names):
-            next_content = _sync_legacy_report_content(
-                next_content,
-                normalized,
-                sync_title="title" in explicit,
-                sync_body="body" in explicit,
-                sync_common="common_body" in explicit,
-                sync_unassigned="unassigned_body" in explicit,
-                sync_structured="structured_values" in explicit,
-            )
-        if content_supplied or any(field_name in explicit for field_name in normalized_names):
-            values["content"] = next_content
-        values.update(normalized)
-
-        if "recipient_member_id" in values and values["recipient_member_id"] is not None:
-            await _visible_recipient(db, member, values["recipient_member_id"])
-
-        changed = False
-        generation_input_changed = False
-        if deal_sections is not None:
-            if report.report_kind != "meeting":
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="deal_sections_not_supported",
-                )
-            if report.source_activity_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="activity_not_found",
-                )
-            parsed_sections = [ReportDealWrite.model_validate(section) for section in deal_sections]
-            await _validate_meeting_deals(
-                db,
-                member,
-                report.source_activity_id,
-                parsed_sections,
-            )
-            deal_changed, deal_ids_changed = await _replace_report_deals(
-                db,
-                report.id,
-                parsed_sections,
-            )
-            changed = deal_changed
-            generation_input_changed = deal_ids_changed
-
-        period_start = values.get("period_start", report.period_start)
-        period_end = values.get("period_end", report.period_end)
-        if report.report_kind in {"meeting", "daily"} and (
-            period_start is not None or period_end is not None
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="period_not_supported",
-            )
-        if report.report_kind in {"weekly", "monthly"} and (
-            period_start is None or period_end is None
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="period_required",
-            )
-        if period_start is not None and period_end is not None and period_end < period_start:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="invalid_report_period",
-            )
-
-        for field_name, value in values.items():
-            if getattr(report, field_name) == value:
-                continue
-            if field_name == "transcript":
-                generation_input_changed = True
-            setattr(report, field_name, value)
-            changed = True
-
-        if activity_ids is not None:
-            linked = await _linked_activity_ids(db, report.id)
-            requested = tuple(dict.fromkeys(activity_ids))
-            if linked == set(requested):
-                visible = requested
-            else:
-                visible = await _visible_activity_ids(db, member, activity_ids)
-            # 새로 묶는 일정에만 소유를 따진다. 규칙이 생기기 전에 팀장이 팀원의
-            # 일정으로 만들어 둔 보고서가 있고, 그것을 통째로 막으면 손댈 수 없는
-            # 문서가 된다. 이미 묶여 있던 일정은 그대로 둔다.
-            await _own_activity_ids(db, member, [a for a in visible if a not in linked])
-            changed = (
-                await _replace_report_activities(
-                    db,
-                    report.id,
-                    visible,
-                    current_ids=linked,
-                )
-                or changed
-            )
-
-        if report.report_kind != "meeting" and (
-            content_supplied
-            or "report_date" in explicit
-            or "period_start" in explicit
-            or "period_end" in explicit
-        ):
-            changed = (
-                await report_sources.sync_report_sources_from_legacy_content(
-                    db,
-                    member,
-                    report,
-                )
-                or changed
-            )
-
-        if changed:
-            report.version = _report_version(report) + 1
-            if generation_input_changed:
-                report.generation_input_version = (
-                    int(getattr(report, "generation_input_version", None) or 1) + 1
-                )
-            report.updated_at = datetime.now(UTC)
-
-        await db.flush()
-        read = await _detail(db, member, report_id)
-        await db.commit()
-    except IntegrityError as error:
-        await db.rollback()
+        if existing is not None:
+            response.headers["Location"] = f"/api/reports/{existing.id}"
+            return existing
         constraint = _integrity_constraint(error)
         if constraint in _REPORT_UNIQUE_CONSTRAINTS:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=_REPORT_UNIQUE_CONSTRAINTS[constraint],
-            ) from error
+            raise HTTPException(409, _REPORT_UNIQUE_CONSTRAINTS[constraint]) from error
         raise
     except Exception:
         await db.rollback()
         raise
-    return read
 
-
-@router.post("/reports/{report_id}/submit", response_model=ReportRead)
-async def submit_report(
-    report_id: UUID,
-    payload: ReportSubmit,
-    background: BackgroundTasks,
-    member: CurrentMember,
-    db: DbSession,
-) -> ReportRead:
-    """작성자가 보고서를 확정하는 자리다. 계약관리·일정관리 에이전트 체인의 트리거이기도
-    하다(계약에이전트_설계.md 3장).
-
-    확정 자체는 이 트랜잭션에서 끝낸다. 체이닝은 이미 커밋된 뒤 백그라운드로 미루므로
-    실패해도 확정 자체는 되돌리지 않는다.
-    """
-    try:
-        report = await _locked_report(db, member, report_id)
-        _require_version(report, payload.expected_version)
-        if report.status_code != payload.expected_status_code:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="invalid_state_transition",
-            )
-        if report.status_code not in _EDITABLE_STATUSES:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="invalid_state_transition",
-            )
-        sales_deal_ids: list[UUID] = []
-        sections: list[ReportDeal] = []
-        if report.report_kind == "meeting":
-            if report.source_activity_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="activity_not_found",
-                )
-            sections = list(
-                (await db.execute(select(ReportDeal).where(ReportDeal.report_id == report.id)))
-                .scalars()
-                .all()
-            )
-            sales_deal_ids = [section.sales_deal_id for section in sections]
-            if not sales_deal_ids and report.sales_deal_id is not None:
-                # migration 전 레거시 보고서 제출 호환.
-                sales_deal_ids = [report.sales_deal_id]
-            if not sales_deal_ids:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="deal_sections_required",
-                )
-            # 저장 후 달라진 접근 권한·고객사 연결은 확정 전에 다시 확인한다.
-            report.customer_company_id = await _validate_meeting_sales_deal_ids(
-                db,
-                member,
-                report.source_activity_id,
-                sales_deal_ids,
-            )
-        else:
-            # 확정본에는 그 시점의 정렬된 출처 참조도 함께 고정한다.
-            await report_sources.sync_report_sources_from_legacy_content(db, member, report)
-        submission = await report_submissions.create_submission(db, report, member, sections)
-        report.current_submission_id = submission.id
-        report.status_code = "submitted"
-        report.version = _report_version(report) + 1
-        # A resubmission starts a fresh review; the previous decision remains on its immutable
-        # ReportSubmission row.
-        report.review_note = None
-        report.reviewed_by_member_id = None
-        report.reviewed_at = None
-        report.updated_at = datetime.now(UTC)
-        await db.flush()
-        read = await _detail(db, member, report_id)
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        raise
-
+    response.headers["Location"] = f"/api/reports/{read.id}"
     for sales_deal_id in sales_deal_ids:
         contract_next_meeting_pipeline.queue(
             background,
             sales_deal_id,
-            {"report_id": str(report_id), "sales_deal_id": str(sales_deal_id)},
+            {"report_id": str(read.id), "sales_deal_id": str(sales_deal_id)},
         )
     return read
 

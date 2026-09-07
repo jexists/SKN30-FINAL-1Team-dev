@@ -1,11 +1,5 @@
 // 영업 현황 보드. 컬럼은 서버의 영업 단계이고 카드 한 장이 영업 딜 하나입니다.
-import {
-  useCallback,
-  useDeferredValue,
-  useMemo,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from 'react'
+import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -14,7 +8,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { PlusIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, SkeletonBlocks } from '@/components/Skeleton'
+import { SkeletonBlocks } from '@/components/Skeleton'
 import usePointerDrag from '@/hooks/usePointerDrag'
 import { useShowOwner } from '@/shared/scope'
 import { addDays, iso, TODAY } from '@/utils/date'
@@ -81,7 +75,6 @@ export default function DealBoard() {
 
   const query = params.get('q') ?? ''
   const range = params.get('range') ?? DEFAULT_RANGE
-  const deferredQuery = useDeferredValue(query)
   const readOnly = activePipeline?.status_code === 'archived'
 
   const [addingTo, setAddingTo] = useState<string | null>(null)
@@ -135,14 +128,14 @@ export default function DealBoard() {
   const matches = useCallback(
     (card: SalesDeal) => {
       if (fromISO !== null && card.date < fromISO) return false
-      const needle = deferredQuery.trim().toLowerCase()
+      const needle = query.trim().toLowerCase()
       if (needle === '') return true
       return [card.no, card.org, card.product, card.owner, card.memo ?? '']
         .join(' ')
         .toLowerCase()
         .includes(needle)
     },
-    [deferredQuery, fromISO],
+    [query, fromISO],
   )
 
   const shownByColumn = useMemo(() => {
@@ -277,7 +270,7 @@ export default function DealBoard() {
           value={query}
           placeholder="고객사·제품·영업번호 검색"
           label="영업 딜 검색"
-          onChange={(next) => setParam('q', next)}
+          onSearch={(next) => setParam('q', next)}
         />
 
         <FilterSelect
@@ -329,7 +322,16 @@ export default function DealBoard() {
 
       <ErrorToast message={error} onRetry={reload} />
 
-      {columns.length === 0 ? (
+      {!error && loading ? (
+        <SkeletonBlocks
+          label="보드를 새로고침하는 중입니다."
+          count={columns.length}
+          height={BOARD_H}
+          width={COLUMN_W}
+          gap={12}
+          row
+        />
+      ) : columns.length === 0 ? (
         <p role="status">아직 설정된 영업 단계가 없습니다.</p>
       ) : (
         <>
@@ -364,10 +366,6 @@ export default function DealBoard() {
             ))}
           </div>
         </>
-      )}
-
-      {!error && loading && columns.length > 0 && (
-        <InlineLoader label="보드를 새로고침하는 중입니다." />
       )}
 
       {dragging && point && (

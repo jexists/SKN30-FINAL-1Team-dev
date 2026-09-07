@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -7,7 +7,7 @@ import ErrorToast from '@/components/ErrorToast'
 import { ComplaintIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton, SkeletonDetail } from '@/components/Skeleton'
+import { ListPageSkeleton, SkeletonDetail, TableSkeleton } from '@/components/Skeleton'
 import Tabs, { type TabItem } from '@/components/Tabs'
 import { BP_DESKTOP } from '@/constants/breakpoints'
 import useMediaQuery from '@/hooks/useMediaQuery'
@@ -47,7 +47,6 @@ export default function Complaints() {
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
   const status = params.get('status') ?? ''
-  const deferredQuery = useDeferredValue(query)
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -57,7 +56,7 @@ export default function Complaints() {
   // 검색어나 탭이 바뀌면 결과가 줄어 지금 쪽수가 범위를 넘을 수 있습니다.
   useEffect(() => {
     setPage(1)
-  }, [deferredQuery, status])
+  }, [query, status])
 
   const {
     requests: rows,
@@ -77,7 +76,7 @@ export default function Complaints() {
     transition,
     addResponse,
   } = useSupportRequests(openId, {
-    q: deferredQuery,
+    q: query,
     status: status as SupportStatusCode | '',
     skip: (page - 1) * PAGE_SIZE,
     limit: PAGE_SIZE,
@@ -144,7 +143,7 @@ export default function Complaints() {
           value={query}
           placeholder="제목·회사·계약번호·내용 검색"
           label="고객불만 검색"
-          onChange={(next) => setParam('q', next)}
+          onSearch={(next) => setParam('q', next)}
         />
 
         <div className={styles.actions}>
@@ -162,13 +161,11 @@ export default function Complaints() {
         onChange={(next) => setParam('status', next)}
       />
 
-      {!error && loading && rows.length > 0 && (
-        <InlineLoader label="고객불만 목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={error} onRetry={reload} />
 
-      {rows.length === 0 ? (
+      {!error && loading ? (
+        <TableSkeleton label="고객불만 목록을 새로고침하는 중입니다." rows={rows.length} />
+      ) : rows.length === 0 ? (
         <div className={styles.card}>
           <div className={styles.empty}>
             {isFiltered ? (

@@ -1,0 +1,36 @@
+.intro {
+  margin-bottom: var(--s3);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 지금 인식·입력한 값만 보여 줍니다. 기존 값과 나란히 놓고 비교하지 않습니다. */
+.fields {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: var(--s2) var(--s3);
+  margin: 0;
+  padding: var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: 13px;
+
+  dt {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ink);
+    word-break: break-all;
+  }
+}
+
+.error {
+  margin-top: var(--s3);
+  color: var(--red-ink);
+  font-size: 12px;
+}

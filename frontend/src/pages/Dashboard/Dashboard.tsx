@@ -101,6 +101,7 @@ export default function Dashboard() {
             <NoticeTicker
               label="팀장 지시사항"
               items={data.directives.items.map((item) => toNotice(item))}
+              emptyText="받은 지시사항이 없습니다"
               onOpen={(notice) => setOpen({ type: 'notice', label: '팀장 지시사항', notice })}
             />
           </div>

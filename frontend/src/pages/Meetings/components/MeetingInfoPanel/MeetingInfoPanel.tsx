@@ -52,7 +52,7 @@ export default function MeetingInfoPanel({
 
       <section className={styles.block}>
         <div className={styles.blockHead}>
-          <h2>영업 현황</h2>
+          <h2>관련 딜 (선택)</h2>
           {selectedDealIds.length > 0 && (
             <span className={styles.count}>{selectedDealIds.length}건 선택</span>
           )}

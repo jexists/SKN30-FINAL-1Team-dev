@@ -6,7 +6,6 @@ from app.models.content import (
     DocumentChunk,
     DocumentFileAudit,
     File,
-    MeetingDealAnalysis,
     Report,
     ReportDeal,
     ReportSource,
@@ -14,6 +13,10 @@ from app.models.content import (
 )
 
 MIGRATION = Path(__file__).parents[1] / "sql/20260901_0017_report_workflow_v2_foundation.sql"
+TRANSIENT_MIGRATION = (
+    Path(__file__).parents[1] / "sql/20260902_0019_transient_report_generation.sql"
+)
+FREEFORM_MIGRATION = Path(__file__).parents[1] / "sql/20260903_0020_report_freeform_body.sql"
 
 
 def test_report_workflow_v2_models_expose_the_additive_contract():
@@ -26,7 +29,6 @@ def test_report_workflow_v2_models_expose_the_additive_contract():
         "structured_values",
         "version",
         "generation_input_version",
-        "last_applied_agent_run_id",
         "current_submission_id",
     }
     assert set(ReportDeal.__table__.columns.keys()) >= {
@@ -44,6 +46,9 @@ def test_report_workflow_v2_models_expose_the_additive_contract():
         "report_version",
         "team_id",
         "submitted_by_member_id",
+        "agent_run_id",
+        "idempotency_key",
+        "request_hash",
         "snapshot",
         "snapshot_sha256",
         "review_status",
@@ -57,18 +62,6 @@ def test_report_workflow_v2_models_expose_the_additive_contract():
         "position",
         "source_activity_id",
         "source_report_submission_id",
-    }
-    assert set(MeetingDealAnalysis.__table__.columns.keys()) == {
-        "agent_run_id",
-        "sales_deal_id",
-        "report_id",
-        "feature_schema_version",
-        "features",
-        "prediction_label",
-        "probability",
-        "model_version",
-        "error_code",
-        "created_at",
     }
     assert str(Report.__table__.c.structured_values.server_default.arg) == "'{}'::jsonb"
     assert str(Report.__table__.c.version.server_default.arg) == "1"
@@ -91,21 +84,11 @@ def test_report_workflow_v2_foreign_keys_keep_aggregate_membership():
     ]
     assert report_current.deferrable is True
 
-    analysis_report = next(
-        constraint
-        for constraint in MeetingDealAnalysis.__table__.foreign_key_constraints
-        if any(element.parent.name == "report_id" for element in constraint.elements)
-    )
-    assert [element.parent.name for element in analysis_report.elements] == ["report_id"]
-    assert [element.target_fullname for element in analysis_report.elements] == ["public.report.id"]
-    assert next(iter(analysis_report.elements)).ondelete == "CASCADE"
-
 
 def test_nullable_jsonb_uses_sql_null_instead_of_json_null():
     nullable_json_columns = [
         Report.__table__.c.source_snapshot,
         Report.__table__.c.ai_evidence,
-        MeetingDealAnalysis.__table__.c.features,
         File.__table__.c.extracted_payload,
         File.__table__.c.summary_payload,
         DocumentChunk.__table__.c.embedding,
@@ -137,3 +120,58 @@ def test_report_workflow_v2_migration_preserves_legacy_and_history_boundaries():
     assert sql.count("(content -> 'values') - 'body'") == 2
     assert "count(DISTINCT customer_company_id) = 1" in sql
     assert "UPDATE public.report_deal SET ai_evidence = NULL" in sql
+
+
+def test_transient_generation_migration_is_additive_and_guards_provenance():
+    sql = TRANSIENT_MIGRATION.read_text(encoding="utf-8")
+
+    assert "agent_run_active_generation_scope_key" in sql
+    assert "payload_expires_at" in sql
+    assert "report_submission_submitter_idempotency_key" in sql
+    assert "CREATE OR REPLACE FUNCTION public.guard_report_submission_update()" in sql
+    assert "NEW.agent_run_id" in sql
+    assert "NEW.idempotency_key" in sql
+    assert "NEW.request_hash" in sql
+    assert "SET LOCAL lock_timeout" in sql
+    assert sql.count("CREATE INDEX IF NOT EXISTS") == 1
+    assert sql.count("CREATE UNIQUE INDEX IF NOT EXISTS") == 1
+    assert sql.count("conrelid = 'public.report_submission'::regclass") == 3
+    assert "DROP COLUMN" not in sql
+    assert "DROP TABLE" not in sql
+
+
+def test_freeform_migration_is_fail_closed_and_normalizes_legacy_values():
+    sql = FREEFORM_MIGRATION.read_text(encoding="utf-8")
+
+    assert "LOCK TABLE public.report, public.report_deal, public.report_submission" in sql
+    assert "report body migration would discard or guess legacy values" in sql
+    assert "meeting shared body requires reconciliation" in sql
+    assert "legacy immutable report submissions require reconciliation" in sql
+    assert "report body migration postcondition failed" in sql
+    assert "CREATE TEMP TABLE legacy_single_deal_report" in sql
+    assert "UPDATE public.report_submission" not in sql
+    assert "AND nullif(btrim(report.body), '') IS NULL" in sql
+    assert "AND nullif(btrim(section.body), '') IS NULL" in sql
+    assert sql.count("WITH ORDINALITY AS field(value, position)") == 4
+    assert sql.count("structured_values = '{}'::jsonb") >= 3
+    assert "jsonb_build_object('body', report.body)" in sql
+    assert "jsonb_build_object('body', section.body)" in sql
+    assert "report.report_kind IN ('meeting', 'daily', 'weekly', 'monthly')" in sql
+    assert "source.structured_values ->> field_id.id" in sql
+    assert "source.content -> 'values' ->> field_id.id" in sql
+    assert "source.content ->> field_id.id" in sql
+    assert "string_agg(selected.body, E'\\n\\n' ORDER BY field.position)" in sql
+    assert "content -> 'ai_values'" not in sql
+    assert "content ->> 'transcript'" not in sql
+    assert sql.count("'aivalues'") >= 5
+    assert sql.count("'outputsnapshot'") >= 5
+    assert sql.index("UPDATE public.report_deal AS section\nSET body") < sql.index(
+        "SET template_snapshot"
+    )
+    for template_id in (
+        "builtin-meeting-freeform",
+        "builtin-daily-freeform",
+        "builtin-weekly-freeform",
+        "builtin-monthly-freeform",
+    ):
+        assert template_id in sql

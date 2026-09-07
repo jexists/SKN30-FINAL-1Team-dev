@@ -14,7 +14,7 @@ import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod } from './periods'
 import { activityLink } from './sources'
-import { toReport } from './useDailyReports'
+import { canEditPeriodReport, toReport } from './useDailyReports'
 
 import styles from './Detail.module.scss'
 
@@ -28,7 +28,6 @@ export default function Detail() {
   const report = item ? toReport(item) : undefined
   // 보고서는 쓴 사람만 고칩니다. 팀장이 팀원의 보고서를 열어도 고치는 길은 서지 않습니다.
   const { memberId } = useCurrentUser()
-  const isMine = report?.ownerMemberId === memberId
 
   if (loading)
     return (
@@ -61,6 +60,8 @@ export default function Detail() {
     )
   }
 
+  const editable = canEditPeriodReport(report, memberId)
+
   return (
     <section>
       <h1 className="sr-only">{report.kind}업무보고 상세</h1>
@@ -73,21 +74,24 @@ export default function Detail() {
         <ReportStatusBadge status={report.status} />
         <span className={styles.approver}>보고 대상 {report.approver}</span>
 
-        {report.status === '반려' && isMine && (
+        {editable && (
           <Link className={styles.rewrite} to={dailyComposePath(report.date, report.kind)}>
-            수정해서 다시 제출
+            {report.apiStatus === 'draft' ? '이어서 작성' : '수정해서 다시 제출'}
           </Link>
         )}
       </header>
 
       <div className={styles.panels}>
+        {report.reviewNote && (
+          <article className={`${styles.panel} ${styles.review}`} role="note">
+            <h2>반려 사유</h2>
+            <p>{report.reviewNote}</p>
+          </article>
+        )}
+
         <article className={styles.panel}>
           <h2>보고 내용</h2>
-          {report.template.fields.length === 0 ? (
-            <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
-          ) : (
-            <ReportFields template={report.template} values={report.values} readOnly />
-          )}
+          <ReportFields template={report.template} values={report.values} readOnly />
         </article>
 
         <article className={styles.panel}>

@@ -1,18 +1,19 @@
 // 업무 보고서 작성 화면.
 //
-// 왼쪽은 미팅 공통 정보·원문이고, 오른쪽은 선택한 딜마다 하나씩 생기는 보고서입니다.
-// 저장할 때는 공통 기록과 모든 딜 카드를 미팅 보고서 한 건으로 묶습니다.
-import { useEffect, useRef, useState } from 'react'
+// 왼쪽은 미팅 공통 정보·원문이고, 오른쪽은 공통 기록과 선택한 딜의 보고서입니다.
+// 저장할 때는 공통 기록과 선택된 딜 카드를 미팅 보고서 한 건으로 묶습니다.
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { isAxiosError } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import {
+  createReportGeneration,
+  finishIdempotencyAttempt,
+  idempotencyAttemptFor,
+  isAgentRunTerminalError,
   latestMeetingProcessing,
-  processMeeting,
-  readReport,
-  saveMeetingNotes,
   waitForMeetingProcessing,
 } from '@/api/reportAgent'
 import Button, { buttonClass } from '@/components/Button'
@@ -21,75 +22,81 @@ import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import { showToast } from '@/shared/toast'
-import type { MeetingAssignmentOverride, MeetingDealRef, MeetingProgress } from '@/types'
+import type { IdempotencyAttempt } from '@/api/reportAgent'
+import type {
+  AgentRunResponse,
+  MeetingDealRef,
+  MeetingProcessingOutput,
+  ReportGenerationInput,
+} from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
-import { canReassignEvidence } from './generatedDraft'
-import {
-  acknowledgeMeetingGeneration,
-  startMeetingGeneration,
-  useMeetingGeneration,
-} from './meetingGenerationStore'
 import useCompanyDeals from './useCompanyDeals'
-import useMeetingDraft from './useMeetingDraft'
+import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './useMeetingDraft'
 import useMeetingReports, {
   type MeetingDealDraftPayload,
   type MeetingDraftPayload,
-  saveMeetingDraft,
-  toMeetingReport,
+  canRecoverMeetingGeneration,
+  meetingGenerationRequestOf,
   useMeetingReportOfAgenda,
 } from './useMeetingReports'
 
 import styles from './Compose.module.scss'
 
-type Confirm = { kind: 'apply'; dealId: string } | null
+type Confirm = { kind: 'regenerate' } | null
+
+function meetingInputOf(
+  run: AgentRunResponse<MeetingProcessingOutput>,
+  agendaId: string,
+): ReportGenerationInput {
+  const input = run.generation_input
+  if (
+    !input ||
+    input.report_kind !== 'meeting' ||
+    input.source_activity_id !== agendaId ||
+    !input.transcript
+  ) {
+    throw new Error('report_generation_input_missing')
+  }
+  return input
+}
 
 export default function Compose() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const { memberId, isManager } = useCurrentUser()
-  const notesAbort = useRef<AbortController | null>(null)
-  const saveAbort = useRef<AbortController | null>(null)
-  const recoveredReportId = useRef('')
-  const mirroredGeneration = useRef({
-    requestId: '',
-    progress: null as MeetingProgress | null,
-    reportId: '',
-    terminal: false,
-  })
-  const [savingNotes, setSavingNotes] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
+  const generationAbort = useRef<AbortController | null>(null)
+  const generationAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
+  const recoveryAbort = useRef<AbortController | null>(null)
+  const submitAbort = useRef<AbortController | null>(null)
+  const recoveredAgendaId = useRef('')
+  const [generating, setGenerating] = useState(false)
+  const [recovering, setRecovering] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [runErrors, setRunErrors] = useState<Record<string, string>>({})
-  const [notesDirty, setNotesDirty] = useState(false)
   const agendaId = params.get('agenda') ?? ''
-  const generation = useMeetingGeneration(agendaId)
-  const generating = generation?.status === 'running'
   useEffect(() => {
-    setSavingNotes(false)
-    setSavingAll(false)
+    setGenerating(false)
+    setRecovering(true)
     setSubmitting(false)
-    setNotesDirty(false)
     setRunError(null)
     setRunErrors({})
-    recoveredReportId.current = ''
-    mirroredGeneration.current = {
-      requestId: '',
-      progress: null,
-      reportId: '',
-      terminal: false,
-    }
+    recoveredAgendaId.current = ''
+    generationAttempt.current = undefined
     return () => {
-      notesAbort.current?.abort()
-      notesAbort.current = null
-      saveAbort.current?.abort()
-      saveAbort.current = null
+      generationAbort.current?.abort()
+      generationAbort.current = null
+      recoveryAbort.current?.abort()
+      recoveryAbort.current = null
+      submitAbort.current?.abort()
+      submitAbort.current = null
     }
   }, [agendaId])
   const {
@@ -104,95 +111,90 @@ export default function Compose() {
     error: loadError,
     reload,
   } = useMeetingReportOfAgenda(agendaId)
-  const { saveDraft, saveReport, error: saveError, pending } = useMeetingReports()
+  const { finalizeReport, error: saveError, pending } = useMeetingReports()
   const draftReady =
     !agendaLoading && !loading && !agendaError && !loadError && item?.id === agendaId
   const draft = useMeetingDraft(item, savedReport, draftReady)
-  const { beginGeneration, bindReport, receiveProgress, acceptGenerated, generationFailed } = draft
-  useEffect(() => {
-    if (!generation || !draftReady) return
-    const mirror = mirroredGeneration.current
-    if (mirror.requestId !== generation.requestId) {
-      mirror.requestId = generation.requestId
-      mirror.progress = null
-      mirror.reportId = ''
-      mirror.terminal = false
-      beginGeneration(generation.dealIds)
-      setRunError(null)
-      setRunErrors({})
-    }
-
-    if (generation.status === 'running') {
-      if (generation.savedReport && mirror.reportId !== generation.savedReport.id) {
-        mirror.reportId = generation.savedReport.id
-        bindReport(generation.savedReport)
-      }
-    }
-
-    if (generation.status === 'running') {
-      if (generation.progress && mirror.progress !== generation.progress) {
-        mirror.progress = generation.progress
-        receiveProgress(generation.progress)
-      }
-      return
-    }
-    if (mirror.terminal) return
-    mirror.terminal = true
-    if (generation.status === 'completed') {
-      acceptGenerated(generation.report, generation.writingFailed)
-      setRunErrors(generation.errors)
-    } else {
-      generationFailed(generation.dealIds, new Error(generation.error))
-      setRunError(generation.error)
-    }
-    acknowledgeMeetingGeneration(agendaId, generation.requestId)
-  }, [
-    generation,
-    draftReady,
-    agendaId,
+  const {
     beginGeneration,
-    bindReport,
     receiveProgress,
     acceptGenerated,
     generationFailed,
-  ])
+    restoreGenerationInput,
+  } = draft
+
+  const resumeGeneration = useCallback(
+    async (run: AgentRunResponse<MeetingProcessingOutput>, controller: AbortController) => {
+      let dealIds: string[] = []
+      try {
+        const input = meetingInputOf(run, agendaId)
+        dealIds = input.sales_deal_ids
+        restoreGenerationInput(input)
+        beginGeneration(dealIds)
+        if (run.status_code === 'failed' || run.status_code === 'cancelled') {
+          throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
+        }
+        const completed = ['queued', 'running'].includes(run.status_code)
+          ? await waitForMeetingProcessing(run, receiveProgress, controller.signal)
+          : run
+        if (!completed.output_snapshot) throw new Error('agent_run_failed')
+        if (controller.signal.aborted) return
+        acceptGenerated(completed.id, completed.output_snapshot)
+        setRunErrors(completed.output_snapshot.errors)
+      } catch (reason: unknown) {
+        if (!controller.signal.aborted) {
+          generationFailed(dealIds, reason)
+          setRunError(errorMessage(reason, '진행 중인 보고서를 복구하지 못했습니다.'))
+        }
+      } finally {
+        if (recoveryAbort.current === controller) {
+          recoveryAbort.current = null
+          setRecovering(false)
+        }
+      }
+    },
+    [
+      agendaId,
+      restoreGenerationInput,
+      beginGeneration,
+      receiveProgress,
+      acceptGenerated,
+      generationFailed,
+    ],
+  )
+
   useEffect(() => {
-    if (
-      !draftReady ||
-      !savedReport ||
-      generation ||
-      recoveredReportId.current === savedReport.id ||
-      savedReport.ownerMemberId !== memberId ||
-      !['draft', 'changes_requested'].includes(savedReport.apiStatus ?? '')
-    )
-      return
-    recoveredReportId.current = savedReport.id
-    void latestMeetingProcessing(savedReport.id)
+    if (!draftReady || recoveredAgendaId.current === agendaId) return
+    recoveredAgendaId.current = agendaId
+    const controller = new AbortController()
+    recoveryAbort.current = controller
+    setRecovering(true)
+    void latestMeetingProcessing(agendaId, controller.signal)
       .then((run) => {
-        if (!['queued', 'running'].includes(run.status_code)) return
-        const dealIds = savedReport.dealSections.map((section) => section.salesDealId)
-        startMeetingGeneration({
-          agendaId,
-          dealIds,
-          resumed: true,
-          execute: async (onProgress, onReportSaved) => {
-            onReportSaved(savedReport)
-            const completed = await waitForMeetingProcessing(run, onProgress)
-            const persisted = await readReport(savedReport.id)
-            return {
-              report: toMeetingReport(persisted),
-              writingFailed: completed.output_snapshot.reports === null,
-              errors: completed.output_snapshot.errors,
-            }
-          },
-        })
+        if (controller.signal.aborted || generationAbort.current) return
+        meetingInputOf(run, agendaId)
+        if (!canRecoverMeetingGeneration(run, savedReport, memberId)) return
+        return resumeGeneration(run, controller)
       })
       .catch((reason: unknown) => {
-        if (!isAxiosError(reason) || reason.response?.status !== 404) {
+        const missingInput =
+          reason instanceof Error && reason.message === 'report_generation_input_missing'
+        if (
+          !controller.signal.aborted &&
+          !missingInput &&
+          (!isAxiosError(reason) || reason.response?.status !== 404)
+        ) {
           setRunError(errorMessage(reason, '진행 중인 보고서 상태를 확인하지 못했습니다.'))
         }
       })
-  }, [agendaId, draftReady, generation, memberId, savedReport])
+      .finally(() => {
+        if (recoveryAbort.current === controller) {
+          recoveryAbort.current = null
+          setRecovering(false)
+        }
+      })
+    return () => controller.abort()
+  }, [agendaId, draftReady, memberId, savedReport, resumeGeneration])
   const deals = useCompanyDeals(item?.customerCompanyId)
   const [confirm, setConfirm] = useState<Confirm>(null)
 
@@ -243,13 +245,13 @@ export default function Compose() {
     canWrite &&
     (!savedReport ||
       (savedReport.ownerMemberId === memberId &&
-        (savedReport.apiStatus === 'draft' || savedReport.apiStatus === 'changes_requested')))
+        isAuthorEditableReportStatus(savedReport.apiStatus)))
   const canEditDeal = (_dealId: string) => canEdit
   const lockedDealIds = savedReport?.review === 'approved' ? [...draft.salesDealIds] : []
   const fixedDealIds = draft.salesDealIds.filter(
     (dealId) => draft.draftsByDeal[dealId]?.reportId !== undefined,
   )
-  const busy = pending || generating || savingNotes || savingAll || submitting
+  const busy = pending || generating || recovering || submitting
   const when = `${fmtDot(parseISO(item.date))} ${item.time}`
 
   const dealRef = (dealId: string): MeetingDealRef => {
@@ -275,14 +277,11 @@ export default function Compose() {
   }
 
   const payloadForMeeting = (): MeetingDraftPayload => {
-    const first = draft.draftsByDeal[draft.salesDealIds[0]]
-    if (!first) throw new Error('meeting_draft_not_found')
     return {
-      reportId: savedReport?.id ?? first.reportId,
-      version: first.reportVersion ?? savedReport?.version,
-      statusCode: savedReport?.apiStatus ?? first.statusCode,
+      reportId: savedReport?.id,
+      version: savedReport?.version,
+      statusCode: savedReport?.apiStatus,
       agendaId: item.id,
-      template: savedReport?.template ?? first.template,
       date: item.date,
       time: item.time,
       hospital: item.hospital,
@@ -293,179 +292,125 @@ export default function Compose() {
       transcript: draft.transcript,
       attachments: draft.attachments,
       dealSections: draft.salesDealIds.map(sectionPayloadFor),
+      commonBody: draft.meetingResult?.shared?.common_report?.body,
+      unassignedBody: draft.meetingResult?.shared?.unassigned_report?.body,
     }
   }
 
   const generatable =
-    draft.salesDealIds.length > 0 &&
+    canEdit &&
     draft.salesDealIds.every(
-      (id) => canEditDeal(id) && draft.draftsByDeal[id]?.statusCode === 'draft',
+      (id) => canEditDeal(id) && isAuthorEditableReportStatus(draft.draftsByDeal[id]?.statusCode),
     )
   const result = draft.meetingResult
-  const canReassign =
-    generatable &&
-    !!result?.evidence &&
-    canReassignEvidence(
-      result.evidence.transcript_sha256,
-      draft.transcriptSha256,
-      result.evidence.selected_deal_ids,
-      draft.salesDealIds,
-    )
-  const canEditNotes =
-    canWrite &&
-    !!result &&
-    !!result.shared?.revision &&
-    draft.salesDealIds.every(
-      (id) =>
-        canEditDeal(id) &&
-        ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
-    )
   const editableDealIds = draft.salesDealIds.filter(
-    (id) =>
-      canEditDeal(id) &&
-      ['draft', 'changes_requested'].includes(draft.draftsByDeal[id]?.statusCode),
+    (id) => canEditDeal(id) && isAuthorEditableReportStatus(draft.draftsByDeal[id]?.statusCode),
   )
-  const emptyDealIds = editableDealIds.filter((id) => draft.draftsByDeal[id]?.phase === 'idle')
-  const brokenDealIds = editableDealIds.filter(
-    (id) => (draft.draftsByDeal[id]?.sectionIssues.length ?? 0) > 0,
+  const emptyDealIds = editableDealIds.filter((id) =>
+    isMeetingBodyBlank(draft.draftsByDeal[id]?.values ?? {}),
   )
-  // 잠금 키는 딜이 아니라 미팅입니다. 사전저장부터 서버 apply까지 한 번만 실행합니다.
-  const generateAll = async (overrides: MeetingAssignmentOverride[] = []) => {
-    if (busy || !generatable || !draft.canGenerate) return false
-    if (notesDirty) {
-      setRunError('수정한 공통·미지정 메모를 먼저 저장한 뒤 다시 생성하세요.')
-      return false
-    }
-    if (overrides.length && !canReassign) return false
+  const hasSharedBody = Boolean(
+    result?.shared?.common_report?.body.trim() || result?.shared?.unassigned_report?.body.trim(),
+  )
+  const missingBody = emptyDealIds.length > 0 || (draft.salesDealIds.length === 0 && !hasSharedBody)
+  const hasDraftContent = hasMeetingDraftContent(
+    draft.salesDealIds,
+    draft.draftsByDeal,
+    result?.shared,
+  )
+
+  const generateAll = async () => {
+    if (busy || generationAbort.current || !generatable || !draft.canGenerate) return
+    recoveryAbort.current?.abort()
     const targets = [...draft.salesDealIds]
     const payload = payloadForMeeting()
-    const rerun = overrides.length
-      ? {
-          parent_run_id: result!.runId,
-          assignment_overrides: [...overrides],
-        }
-      : undefined
+    const attempt = idempotencyAttemptFor(generationAttempt.current, payload)
+    generationAttempt.current = attempt
+    const controller = new AbortController()
+    generationAbort.current = controller
+    setGenerating(true)
+    beginGeneration(targets)
     setRunError(null)
     setRunErrors({})
-    return startMeetingGeneration({
-      agendaId,
-      dealIds: targets,
-      execute: async (onProgress, onReportSaved) => {
-        const report = await saveMeetingDraft(payload)
-        onReportSaved(report)
-        const run = await processMeeting(report.id, rerun, (progress) => {
-          onProgress({
+    try {
+      const created = await createReportGeneration<MeetingProcessingOutput>(
+        meetingGenerationRequestOf(payload, attempt.key),
+      )
+      const run = await waitForMeetingProcessing(
+        created,
+        (progress) => {
+          receiveProgress({
             ...progress,
             previews: progress.previews.filter(
               (preview) => preview.section !== 'deal' || targets.includes(preview.sales_deal_id!),
             ),
           })
-        })
-        const persisted = await readReport(report.id)
-        return {
-          report: toMeetingReport(persisted),
-          writingFailed: run.output_snapshot.reports === null,
-          errors: run.output_snapshot.errors,
-        }
-      },
-    })
-  }
-
-  const saveShared = async (common: string | null, unassigned: string | null) => {
-    if (busy || !canEditNotes || !result) return
-    const controller = new AbortController()
-    notesAbort.current = controller
-    setSavingNotes(true)
-    setRunError(null)
-    try {
-      const report = await saveMeetingNotes(
-        result.runId,
-        result.shared!.revision,
-        common,
-        unassigned,
+        },
+        controller.signal,
       )
       if (controller.signal.aborted) return
-      draft.acceptShared(toMeetingReport(report))
-      showToast('미팅 공통·미지정 메모를 저장했습니다.')
+      acceptGenerated(run.id, run.output_snapshot)
+      generationAttempt.current = finishIdempotencyAttempt(generationAttempt.current, attempt.key)
+      setRunErrors(run.output_snapshot.errors)
     } catch (reason: unknown) {
-      if (controller.signal.aborted) return
-      setRunError(errorMessage(reason, '미팅 메모를 저장하지 못했습니다.'))
+      if (!controller.signal.aborted) {
+        if (isAgentRunTerminalError(reason)) {
+          generationAttempt.current = finishIdempotencyAttempt(
+            generationAttempt.current,
+            attempt.key,
+          )
+        }
+        generationFailed(targets, reason)
+        setRunError(errorMessage(reason, '미팅 처리를 완료하지 못했습니다.'))
+      }
     } finally {
-      if (notesAbort.current === controller) {
-        notesAbort.current = null
-        setSavingNotes(false)
+      if (generationAbort.current === controller) {
+        generationAbort.current = null
+        setGenerating(false)
       }
     }
   }
 
-  const saveAll = async () => {
-    if (
-      busy ||
-      saveAbort.current ||
-      editableDealIds.length !== draft.salesDealIds.length ||
-      emptyDealIds.length > 0 ||
-      brokenDealIds.length > 0
-    )
-      return
-
-    const controller = new AbortController()
-    saveAbort.current = controller
-    setSavingAll(true)
-    setRunError(null)
-
-    try {
-      const report = await saveDraft(payloadForMeeting(), controller.signal)
-      if (controller.signal.aborted || saveAbort.current !== controller) return
-      draft.bindReport(report)
-      showToast('미팅 보고서 초안을 임시저장했습니다.')
-    } catch (reason: unknown) {
-      if (!controller.signal.aborted) {
-        setRunError(errorMessage(reason, '미팅 보고서 초안을 임시저장하지 못했습니다.'))
-      }
-    } finally {
-      if (saveAbort.current === controller) {
-        saveAbort.current = null
-        setSavingAll(false)
-      }
-    }
+  const requestGeneration = () => {
+    if (hasDraftContent) setConfirm({ kind: 'regenerate' })
+    else void generateAll()
   }
 
   const submitAll = async () => {
     if (
       busy ||
-      saveAbort.current ||
+      submitAbort.current ||
+      !canEdit ||
       editableDealIds.length !== draft.salesDealIds.length ||
-      emptyDealIds.length > 0 ||
-      brokenDealIds.length > 0
+      missingBody
     )
       return
 
     const controller = new AbortController()
-    saveAbort.current = controller
+    submitAbort.current = controller
     setSubmitting(true)
     setRunError(null)
 
     try {
-      const report = await saveReport(payloadForMeeting(), controller.signal)
-      if (controller.signal.aborted || saveAbort.current !== controller) return
-      draft.bindReport(report)
-      showToast('업무보고를 확정했습니다.')
+      const report = await finalizeReport(payloadForMeeting(), result?.runId, controller.signal)
+      if (controller.signal.aborted || submitAbort.current !== controller) return
+      showToast('업무보고 작성을 완료했습니다.')
       navigate(meetingReportPath(report.id), { replace: true })
     } catch (reason: unknown) {
       if (!controller.signal.aborted) {
-        setRunError(errorMessage(reason, '업무보고를 확정하지 못했습니다.'))
+        setRunError(errorMessage(reason, '업무보고 작성을 완료하지 못했습니다.'))
       }
     } finally {
-      if (saveAbort.current === controller) {
-        saveAbort.current = null
+      if (submitAbort.current === controller) {
+        submitAbort.current = null
         setSubmitting(false)
       }
     }
   }
 
-  const printable = draft.salesDealIds.some(
-    (dealId) => draft.draftsByDeal[dealId]?.phase === 'ready',
-  )
+  const printable =
+    hasSharedBody ||
+    draft.salesDealIds.some((dealId) => draft.draftsByDeal[dealId]?.phase === 'ready')
 
   return (
     <section className={styles.page}>
@@ -506,10 +451,10 @@ export default function Compose() {
       )}
       {Object.keys(runErrors).length > 0 && (
         <div className={styles.mutationError} role="alert">
-          <p>일부 처리가 완료되지 않았습니다. 저장된 보고서와 기존 작성 내용은 유지됩니다.</p>
+          <p>일부 처리가 완료되지 않았습니다. 기존 작성 내용은 유지됩니다.</p>
           <ul>
             {Object.entries(runErrors).map(([step, message]) => (
-              <li key={step}>{message}</li>
+              <li key={step}>{reportGenerationMessage(message)}</li>
             ))}
           </ul>
         </div>
@@ -544,12 +489,12 @@ export default function Compose() {
               attachmentError={draft.attachmentError}
               transcript={draft.transcript}
               onTranscriptChange={draft.setTranscript}
-              canGenerate={draft.canGenerate && generatable && !notesDirty}
-              generating={generating}
+              canGenerate={draft.canGenerate && generatable}
+              generating={generating || recovering}
               contentLabel="미팅 내용"
               generateLabel="미팅 전체 분석·보고서 작성"
               disabled={busy || !canEdit}
-              onGenerate={() => void generateAll()}
+              onGenerate={requestGeneration}
             />
             {draft.salesDealIds.length > 0 && !generatable && (
               <p className={styles.generationNote}>
@@ -557,111 +502,86 @@ export default function Compose() {
                 수 없습니다.
               </p>
             )}
-            {notesDirty && (
-              <p className={styles.generationNote}>
-                수정한 공통·미지정 메모를 먼저 저장하면 다시 생성할 수 있습니다.
-              </p>
-            )}
             <p className={styles.generationNote}>
-              한 번 실행하면 선택한 모든 딜을 함께 처리합니다. 새 AI 원본은 직접 작성한 본문을
-              덮어쓰지 않습니다.
+              미팅 공통 기록을 만들며, 관련 딜을 선택하면 딜별 보고서도 함께 처리합니다. 작성한
+              내용이 있으면 새 후보로 바꾸기 전에 확인합니다.
             </p>
           </div>
         </div>
 
-        <section className={styles.work} aria-label="딜별 미팅보고서">
-          {draft.salesDealIds.length > 0 && (
-            <div className={styles.saveBar} aria-busy={savingAll || submitting}>
-              <div className={styles.saveCopy}>
-                <strong>미팅 보고서</strong>
-                <p>공통 기록과 딜 {draft.salesDealIds.length}건을 한 문서로 저장합니다.</p>
-              </div>
-              <Button
-                variant="outline"
-                type="button"
-                className={styles.saveAllButton}
-                aria-label="미팅 보고서 임시저장"
-                disabled={
-                  busy ||
-                  editableDealIds.length !== draft.salesDealIds.length ||
-                  emptyDealIds.length > 0 ||
-                  brokenDealIds.length > 0
-                }
-                onClick={() => void saveAll()}
-              >
-                {savingAll ? '저장 중…' : '임시저장'}
-              </Button>
-              <Button
-                type="button"
-                className={styles.saveAllButton}
-                aria-label="업무보고 확정"
-                disabled={
-                  busy ||
-                  editableDealIds.length !== draft.salesDealIds.length ||
-                  emptyDealIds.length > 0 ||
-                  brokenDealIds.length > 0
-                }
-                onClick={() => void submitAll()}
-              >
-                {submitting ? '확정 중…' : '업무보고 확정'}
-              </Button>
+        <section className={styles.work} aria-label="미팅 보고서">
+          <div className={styles.saveBar} aria-busy={submitting}>
+            <div className={styles.saveCopy}>
+              <strong>미팅 보고서</strong>
+              <p>
+                {draft.salesDealIds.length > 0
+                  ? `공통 기록과 딜 ${draft.salesDealIds.length}건을 한 문서로 저장합니다.`
+                  : '딜 미지정 미팅 기록을 한 문서로 저장합니다.'}
+              </p>
             </div>
-          )}
-          {(result || draft.processingProgress) && (
+            <Button
+              type="button"
+              className={styles.saveAllButton}
+              aria-label="업무보고 작성 완료"
+              disabled={
+                busy ||
+                !canEdit ||
+                editableDealIds.length !== draft.salesDealIds.length ||
+                missingBody
+              }
+              onClick={() => void submitAll()}
+            >
+              {submitting ? '완료 중…' : '업무보고 작성 완료'}
+            </Button>
+          </div>
+          {(draft.salesDealIds.length === 0 ||
+            result ||
+            draft.processingProgress ||
+            generating) && (
             <MeetingSharedPanel
               shared={result?.shared ?? null}
-              evidence={result?.evidence}
               progress={draft.processingProgress}
-              deals={draft.salesDealIds.map(dealRef)}
+              generating={generating || recovering}
               disabled={busy}
-              canReassign={canReassign}
-              onSave={canEditNotes ? saveShared : undefined}
-              onDirtyChange={setNotesDirty}
-              onAssign={canEdit ? (assignments) => void generateAll(assignments) : undefined}
+              showCommon={draft.salesDealIds.length === 0}
+              onChange={canEdit ? draft.setShared : undefined}
             />
           )}
-          {draft.salesDealIds.length === 0 ? (
-            <div className={styles.noDeals}>
-              <h2>보고서를 작성할 딜을 선택하세요</h2>
-              <p>왼쪽 영업 현황에서 하나 이상 선택하면 딜별 보고서 카드가 만들어집니다.</p>
-            </div>
-          ) : (
+          {draft.salesDealIds.length > 0 &&
             draft.salesDealIds.map((dealId) => {
               const state = draft.draftsByDeal[dealId]
               if (!state) return null
               const deal = deals.deals.find((one) => one.id === dealId)
+              const savedSection = savedByDeal.get(dealId)
+              const product = deal?.product ?? savedSection?.product
 
               return (
                 <DealReportCard
                   key={dealId}
                   dealId={dealId}
                   deal={deal}
-                  savedDeal={savedByDeal.get(dealId)?.salesDeal}
+                  savedDeal={savedSection?.salesDeal}
                   draft={state}
                   progress={draft.processingProgress}
-                  template={state.template}
-                  when={when}
+                  when={`${when}${product ? ` · ${product}` : ''}`}
                   saving={pending}
-                  generating={generating}
-                  canGenerate={draft.canGenerate && generatable && !notesDirty}
-                  readOnly={!canEditDeal(dealId) || savingNotes}
+                  generating={generating || recovering}
+                  canGenerate={draft.canGenerate && generatable}
+                  readOnly={!canEditDeal(dealId)}
                   onTitleChange={(value) => draft.setTitle(dealId, value)}
-                  onChange={(values, missing) => draft.applyDocument(dealId, values, missing)}
-                  onRestoreSections={() => draft.restoreSections(dealId)}
+                  onChange={(body) => draft.applyDocument(dealId, body)}
                   onStartManual={() => draft.startManual(dealId)}
-                  onApplyAi={() => setConfirm({ kind: 'apply', dealId })}
-                  onGenerate={() => void generateAll()}
+                  onGenerate={requestGeneration}
                 />
               )
-            })
-          )}
+            })}
         </section>
       </div>
 
-      {confirm?.kind === 'apply' && (
+      {confirm?.kind === 'regenerate' && (
         <Modal
-          title="새 AI 원본을 최종 보고서에 적용할까요?"
-          description="직접 고친 내용도 이 딜의 새 AI 원본으로 바뀝니다."
+          title="미팅 보고서를 다시 생성할까요?"
+          description="계속하면 공통 내용과 모든 딜 본문·제목이 새 후보로 바뀝니다."
           onClose={() => setConfirm(null)}
           footer={
             <>
@@ -671,17 +591,16 @@ export default function Compose() {
               <Button
                 type="button"
                 onClick={() => {
-                  draft.applyAi(confirm.dealId)
-                  showToast(`${dealRef(confirm.dealId).label}의 새 AI 원본을 적용했습니다.`)
                   setConfirm(null)
+                  void generateAll()
                 }}
               >
-                적용
+                다시 생성
               </Button>
             </>
           }
         >
-          <p>적용하지 않고 AI 원본을 참고하면서 보고서를 직접 고쳐도 됩니다.</p>
+          <p>현재 편집 중인 내용은 아직 업무보고서로 저장되지 않았습니다.</p>
         </Modal>
       )}
     </section>

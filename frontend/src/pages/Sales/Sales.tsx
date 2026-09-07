@@ -1,16 +1,16 @@
 // 매출 분석 한 화면. 위에 기간 줄, 아래 좌우 두 칸입니다.
-// 왼쪽은 계약을 회사별·지역별로 접은 리스트, 오른쪽은 목표선과 견준 이 기간 매출입니다.
+// 왼쪽은 계약을 묶어 접은 리스트, 오른쪽은 같은 묶음의 매출·추세·구성입니다.
 import { useSearchParams } from 'react-router'
 
 import ErrorToast from '@/components/ErrorToast'
-import Skeleton, { InlineLoader } from '@/components/Skeleton'
+import Skeleton from '@/components/Skeleton'
 import useSalesDeals from '@/pages/Deals/useSalesDeals'
 
 import { downloadCsv, toCsv } from '@/utils/csv'
 
 import GroupTable from './components/GroupTable'
 import PeriodBar from './components/PeriodBar'
-import TargetGauge from './components/TargetGauge'
+import RevenuePanel from './components/RevenuePanel'
 import {
   GROUP_HEADER,
   GROUP_LABEL,
@@ -23,6 +23,7 @@ import {
   type PeriodType,
 } from './periods'
 import useSalesSummary from './useSalesSummary'
+import useSalesTrend, { trendCaption } from './useSalesTrend'
 
 import styles from './Sales.module.scss'
 
@@ -35,9 +36,9 @@ export default function Sales() {
   const range = resolveRange(type, offset)
 
   const { cards, loading, error, reload } = useSalesDeals(null, null, 'list')
-  // 왼쪽 표는 탭이 고른 축으로, 오른쪽 패널은 언제나 회사별로 봅니다.
+  // 좌우 두 칸이 같은 축을 봅니다. 탭을 바꾸면 표와 패널이 함께 움직입니다.
   const grouped = useSalesSummary(cards, type, offset, by)
-  const byOrg = useSalesSummary(cards, type, offset, 'org')
+  const trend = useSalesTrend(cards, type, offset)
 
   /** 기간 탭을 바꾸면 이동량은 의미가 달라지므로 현재 기간으로 되돌립니다. */
   const setType = (next: PeriodType) => {
@@ -86,7 +87,7 @@ export default function Sales() {
   // 한 장을 통째로 자리표시자로 두고 다 받은 뒤 한 번에 바꿉니다.
   if (loading && cards.length === 0 && !error) {
     return (
-      <section aria-busy>
+      <section className={styles.page} aria-busy>
         <h1 className="sr-only">매출 분석</h1>
         <Skeleton className={styles.periodSkeleton} height={36} radius="var(--r-sm)" />
         <div className={styles.split}>
@@ -98,7 +99,7 @@ export default function Sales() {
   }
 
   return (
-    <section>
+    <section className={styles.page}>
       {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
       <h1 className="sr-only">매출 분석</h1>
 
@@ -113,16 +114,27 @@ export default function Sales() {
 
       <ErrorToast message={error} onRetry={reload} />
 
-      <div className={styles.split}>
-        <GroupTable
-          by={by}
-          onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
-          summary={grouped}
-        />
-        <TargetGauge range={range} summary={byOrg} />
-      </div>
-      {!error && loading && cards.length > 0 && (
-        <InlineLoader label="매출 데이터를 새로고침하는 중입니다." />
+      {!error && loading ? (
+        <div className={styles.split} role="status">
+          <span className="sr-only">매출 데이터를 새로고침하는 중입니다.</span>
+          <Skeleton height={480} radius="var(--r-lg)" />
+          <Skeleton height={360} radius="var(--r-lg)" />
+        </div>
+      ) : (
+        <div className={styles.split}>
+          <GroupTable
+            by={by}
+            onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
+            summary={grouped}
+          />
+          <RevenuePanel
+            range={range}
+            summary={grouped}
+            by={by}
+            trend={trend}
+            trendCaption={trendCaption(type)}
+          />
+        </div>
       )}
     </section>
   )

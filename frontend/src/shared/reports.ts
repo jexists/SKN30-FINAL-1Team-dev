@@ -1,7 +1,37 @@
-import type { DailyReport, ReportKind, ReportTemplate } from '@/types'
+import type {
+  AgentRunResponse,
+  ApiReportStatus,
+  DailyReport,
+  ReportKind,
+  ReportTemplate,
+} from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
 export const APPROVERS: readonly string[] = []
+
+/** 작성자는 제출 후에도 팀장 승인 전까지 보고서를 고칠 수 있습니다. */
+export function isAuthorEditableReportStatus(
+  status: ApiReportStatus | undefined,
+): status is 'draft' | 'submitted' | 'changes_requested' {
+  return status === 'draft' || status === 'submitted' || status === 'changes_requested'
+}
+
+export function canRecoverReportGeneration(
+  run: Pick<AgentRunResponse, 'created_at' | 'status_code'>,
+  savedReport:
+    { ownerMemberId: string; apiStatus?: ApiReportStatus; updatedAt?: string } | undefined,
+  memberId: string,
+): boolean {
+  if (!savedReport) return true
+  if (!run.created_at || !savedReport.updatedAt) return false
+  return (
+    savedReport.ownerMemberId === memberId &&
+    isAuthorEditableReportStatus(savedReport.apiStatus) &&
+    run.status_code !== 'failed' &&
+    run.status_code !== 'cancelled' &&
+    Date.parse(run.created_at) > Date.parse(savedReport.updatedAt)
+  )
+}
 
 export const dailyTemplate: ReportTemplate = {
   id: 'builtin-daily-freeform',
@@ -21,26 +51,36 @@ export const dailyTemplate: ReportTemplate = {
 }
 
 export const weeklyTemplate: ReportTemplate = {
-  id: 'builtin-weekly',
-  name: '기본 주간보고 양식',
+  id: 'builtin-weekly-freeform',
+  name: '주간보고서',
   owner: '',
   updated: '',
   fields: [
-    { id: 'result', label: '주간 성과', type: 'textarea', required: true, aiFilled: true },
-    { id: 'plan', label: '다음 주 계획', type: 'textarea', required: true, aiFilled: true },
-    { id: 'risk', label: '리스크', type: 'textarea', required: false, aiFilled: true },
+    {
+      id: 'body',
+      label: '보고서 본문',
+      type: 'textarea',
+      required: true,
+      aiFilled: true,
+      placeholder: '한 주 동안의 성과와 다음 계획을 자유롭게 작성하세요.',
+    },
   ],
 }
 
 export const monthlyTemplate: ReportTemplate = {
-  id: 'builtin-monthly',
-  name: '기본 월간보고 양식',
+  id: 'builtin-monthly-freeform',
+  name: '월간보고서',
   owner: '',
   updated: '',
   fields: [
-    { id: 'perf', label: '월간 실적', type: 'textarea', required: true, aiFilled: true },
-    { id: 'gap', label: '목표 대비', type: 'textarea', required: true, aiFilled: false },
-    { id: 'focus', label: '다음 달 중점', type: 'textarea', required: false, aiFilled: true },
+    {
+      id: 'body',
+      label: '보고서 본문',
+      type: 'textarea',
+      required: true,
+      aiFilled: true,
+      placeholder: '한 달 동안의 실적과 다음 계획을 자유롭게 작성하세요.',
+    },
   ],
 }
 
@@ -65,49 +105,4 @@ export function missingReportDates(reports: DailyReport[], days = 7): string[] {
   }
 
   return missing
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
-export function reportTemplateFromSnapshot(
-  snapshot: Record<string, unknown>,
-  fallbackName: string,
-): ReportTemplate {
-  const source = asRecord(snapshot)
-  const rawFields = Array.isArray(source.fields) ? source.fields : []
-  const fields: ReportTemplate['fields'] = rawFields.flatMap((value) => {
-    const field = asRecord(value)
-    if (typeof field.id !== 'string' || typeof field.label !== 'string') return []
-    const type =
-      field.type === 'text' || field.type === 'select' || field.type === 'textarea'
-        ? field.type
-        : 'textarea'
-    const options = Array.isArray(field.options)
-      ? field.options.filter((option): option is string => typeof option === 'string')
-      : undefined
-    return [
-      {
-        id: field.id,
-        label: field.label,
-        type,
-        required: field.required === true,
-        aiFilled: field.aiFilled === true,
-        placeholder: typeof field.placeholder === 'string' ? field.placeholder : undefined,
-        hint: typeof field.hint === 'string' ? field.hint : undefined,
-        options,
-      },
-    ]
-  })
-
-  return {
-    id: typeof source.id === 'string' ? source.id : 'snapshot',
-    name: typeof source.name === 'string' ? source.name : fallbackName,
-    owner: typeof source.owner === 'string' ? source.owner : '',
-    updated: typeof source.updated === 'string' ? source.updated : '',
-    fields,
-  }
 }

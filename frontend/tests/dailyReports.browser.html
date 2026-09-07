@@ -17,7 +17,7 @@
       import { createRoot } from 'react-dom/client'
       import ReportFields from '../src/components/ReportFields/ReportFields.tsx'
       import { fromDailyReport } from '../src/pages/Daily/rows.ts'
-      import { reportTemplateFromSnapshot, templateFor } from '../src/shared/reports.ts'
+      import { templateFor } from '../src/shared/reports.ts'
 
       window.IS_REACT_ACT_ENVIRONMENT = true
       const container = document.getElementById('test-root')
@@ -27,22 +27,6 @@
       function assert(condition, message) {
         if (!condition) throw new Error(message)
         checks.push(message)
-      }
-      const oldSnapshot = {
-        id: 'builtin-daily',
-        name: '기본 일일보고 양식',
-        fields: [
-          { id: 'summary', label: '업무 요약', type: 'textarea', required: true, aiFilled: true },
-          { id: 'issue', label: '특이사항 · 이슈', type: 'textarea', aiFilled: true },
-          { id: 'next', label: '내일 계획', type: 'textarea', required: true, aiFilled: true },
-          { id: 'competitor', label: '경쟁사 동향', type: 'text' },
-        ],
-      }
-      const oldValues = {
-        summary: '저장된 구형 업무 요약',
-        issue: '저장된 구형 특이사항',
-        next: '저장된 구형 내일 계획',
-        competitor: '저장된 구형 경쟁사 동향',
       }
       const report = (template, values) => ({
         id: 'synthetic-daily',
@@ -72,40 +56,26 @@
       }
       async function run() {
         const daily = templateFor('일일')
+        for (const [kind, id] of [
+          ['일일', 'builtin-daily-freeform'],
+          ['주간', 'builtin-weekly-freeform'],
+          ['월간', 'builtin-monthly-freeform'],
+        ]) {
+          const template = templateFor(kind)
+          assert(
+            template.id === id &&
+              template.fields.length === 1 &&
+              template.fields[0].id === 'body' &&
+              template.fields[0].type === 'textarea' &&
+              template.fields[0].required &&
+              template.fields[0].aiFilled,
+            `${kind}보고서는 AI 작성 가능한 필수 줄글 본문 1개`,
+          )
+        }
+        const fullBody = '첫 문단 전체입니다.\n\n둘째 문단도 목록 드로어에 그대로 표시합니다.'
         assert(
-          daily.id === 'builtin-daily-freeform' &&
-            daily.fields.length === 1 &&
-            daily.fields[0].id === 'body' &&
-            daily.fields[0].type === 'textarea' &&
-            daily.fields[0].required &&
-            daily.fields[0].aiFilled,
-          '새 일일보고서는 AI 작성 가능한 필수 줄글 본문 1개',
-        )
-        assert(
-          templateFor('주간')
-            .fields.map((field) => field.id)
-            .join() === 'result,plan,risk' &&
-            templateFor('월간')
-              .fields.map((field) => field.id)
-              .join() === 'perf,gap,focus',
-          '주간·월간 보고서 양식은 유지',
-        )
-        const before = JSON.stringify(oldSnapshot)
-        const restored = reportTemplateFromSnapshot(oldSnapshot, '복원 양식')
-        assert(
-          restored.id === 'builtin-daily' &&
-            restored.fields.map((field) => field.id).join() === 'summary,issue,next,competitor' &&
-            JSON.stringify(oldSnapshot) === before,
-          '저장된 구형 스냅샷은 변경 없이 4개 필드로 복원',
-        )
-        assert(
-          fromDailyReport(report(daily, { body: '  새 줄글 요약  ' })).summary === '새 줄글 요약' &&
-            fromDailyReport(report(restored, oldValues)).summary === oldValues.summary,
-          '목록 요약은 새 body와 구형 summary를 각각 보존',
-        )
-        assert(
-          fromDailyReport(report({ ...restored, fields: [] }, {})).summary === '',
-          '양식 필드가 없어도 목록 변환은 오류 없이 빈 요약 반환',
+          fromDailyReport(report(daily, { body: fullBody })).body === fullBody,
+          '목록 변환은 canonical body 전문을 보존',
         )
         await render(createElement(Editor))
         const textarea = container.querySelector('textarea')
@@ -134,14 +104,6 @@
           container.querySelectorAll('textarea,input,select').length === 0 &&
             container.textContent.includes(body),
           '새 본문은 읽기 화면에서도 줄글 내용 전체를 표시',
-        )
-        await render(
-          createElement(ReportFields, { template: restored, values: oldValues, readOnly: true }),
-        )
-        assert(
-          container.querySelectorAll('label').length === 4 &&
-            Object.values(oldValues).every((value) => container.textContent.includes(value)),
-          '구형 저장 보고서는 읽기 화면에서 네 항목 모두 유지',
         )
         await act(async () => root.unmount())
         result.textContent = `PASS ${checks.length}\n${checks.join('\n')}`

@@ -17,11 +17,18 @@ interface Props {
   /** 카드 머리에 찍히는 이름 */
   label?: string
   items?: Notice[]
+  /** 받은 것이 없을 때 카드 안에 서는 한 줄 */
+  emptyText?: string
   /** 줄을 누르면 전문을 펼칩니다. 목록은 한 줄로 잘려 있어 여기가 상세로 가는 유일한 길입니다. */
   onOpen: (notice: Notice) => void
 }
 
-export default function NoticeTicker({ label = '공지', items: notices = [], onOpen }: Props) {
+export default function NoticeTicker({
+  label = '공지',
+  items: notices = [],
+  emptyText = '올라온 공지가 없습니다',
+  onOpen,
+}: Props) {
   const [page, setPage] = useState(0)
   const [paused, setPaused] = useState(false)
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -34,8 +41,6 @@ export default function NoticeTicker({ label = '공지', items: notices = [], on
     const timer = setInterval(() => setPage((p) => (p + 1) % pageCount), ROLL_MS)
     return () => clearInterval(timer)
   }, [paused, reduceMotion, pageCount])
-
-  if (notices.length === 0) return null
 
   const current = notices.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
   const move = (step: number) => setPage((p) => (p + step + pageCount) % pageCount)
@@ -67,27 +72,32 @@ export default function NoticeTicker({ label = '공지', items: notices = [], on
         )}
       </header>
 
-      <ul className={styles.list} aria-live="polite">
-        {current.map((n) => (
-          <li key={n.id ?? n.text}>
-            <button type="button" onClick={() => onOpen(n)}>
-              <p>{n.text}</p>
-              {/* 팀장은 남에게 간 지시도 봅니다. 누구에게 간 것인지 시각 앞에 세웁니다. */}
-              <small>
-                {n.recipients ? `${recipientLabel(n.recipients)} · ` : ''}
-                {postedLabel(n)}
-              </small>
-              {/* 내가 받은 지시일 때만 섭니다. 열지 않고도 처리했는지 보이게 합니다. */}
-              {n.myStatus && (
-                <StatusBadge
-                  label={statusLabel(n.myStatus.status_code).label}
-                  tone={statusLabel(n.myStatus.status_code).tone}
-                />
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
+      {/* 받은 것이 없어도 자리는 지킵니다. 카드가 사라지면 옆 카드만 남아 줄이 기웁니다. */}
+      {notices.length === 0 ? (
+        <p className={styles.empty}>{emptyText}</p>
+      ) : (
+        <ul className={styles.list} aria-live="polite">
+          {current.map((n) => (
+            <li key={n.id ?? n.text}>
+              <button type="button" onClick={() => onOpen(n)}>
+                <p>{n.text}</p>
+                {/* 팀장은 남에게 간 지시도 봅니다. 누구에게 간 것인지 시각 앞에 세웁니다. */}
+                <small>
+                  {n.recipients ? `${recipientLabel(n.recipients)} · ` : ''}
+                  {postedLabel(n)}
+                </small>
+                {/* 내가 받은 지시일 때만 섭니다. 열지 않고도 처리했는지 보이게 합니다. */}
+                {n.myStatus && (
+                  <StatusBadge
+                    label={statusLabel(n.myStatus.status_code).label}
+                    tone={statusLabel(n.myStatus.status_code).tone}
+                  />
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

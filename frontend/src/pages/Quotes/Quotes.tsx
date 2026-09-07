@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
@@ -10,7 +10,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { PlusIcon, QuoteIcon, SearchIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { chipOr } from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { useShowOwner } from '@/shared/scope'
@@ -61,8 +61,6 @@ export default function Quotes() {
   const owner = isManager ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
   const stage = params.get('stage') ?? ''
-  const deferredQuery = useDeferredValue(query)
-
   const [page, setPage] = useState(1)
   const [openFilter, setOpenFilter] = useState<'pipeline' | 'owner' | 'range' | null>(null)
 
@@ -97,14 +95,14 @@ export default function Quotes() {
 
   const dealQuery = useMemo(
     () => ({
-      q: deferredQuery,
+      q: query,
       stageId: stage,
       ownerMemberId: owner,
       fromISO,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
-    [deferredQuery, stage, owner, fromISO, page],
+    [query, stage, owner, fromISO, page],
   )
 
   const {
@@ -208,7 +206,7 @@ export default function Quotes() {
           value={query}
           placeholder="고객사·제품·견적번호 검색"
           label="견적 검색"
-          onChange={(next) => setParam('q', next)}
+          onSearch={(next) => setParam('q', next)}
         />
 
         <FilterSelect
@@ -260,77 +258,77 @@ export default function Quotes() {
         />
       )}
 
-      {!error && loading && pageRows.length > 0 && (
-        <InlineLoader label="목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={error} onRetry={reload} />
 
-      <DataTable
-        rows={pageRows}
-        columns={columns}
-        rowKey={(quote) => quote.id}
-        handleColumn="org"
-        sort={null}
-        onSort={ignoreSort}
-        onOpen={(quote) => setOpenId(quote.id)}
-        caption="견적 목록. 헤더를 눌러 정렬할 수 있습니다."
-        renderCell={(id, quote) => {
-          if (id === 'stage') return chipOr(quote.quoteStatusTone, quote.quoteStatusName)
-          if (id !== 'validUntil' || !quote.quoteValidUntil || quote.quoteValidUntil >= TODAY_ISO)
-            return undefined
-          return (
-            <span className={styles.late}>
-              {fmtDotShort(parseISO(quote.quoteValidUntil))}
-              <i>만료</i>
-            </span>
-          )
-        }}
-        mini={(quote) => {
-          const expired = !!quote.quoteValidUntil && quote.quoteValidUntil < TODAY_ISO
-          return {
-            title: quote.org,
-            badge: chipOr(quote.quoteStatusTone, quote.quoteStatusName),
-            sub: quote.title,
-            meta: [
-              <span key="m1" className="tnum">
-                {quote.quoteAmount === null ? '견적금액 미정' : won(quote.quoteAmount)}
-              </span>,
-              <span key="m2" className="tnum">
-                {quote.quoteIssuedOn ? fmtDot(parseISO(quote.quoteIssuedOn)) : '견적일 미정'}
-              </span>,
-              expired ? (
-                <i key="m3" className={styles.lateOnly}>
-                  만료
-                </i>
-              ) : quote.quoteValidUntil ? (
-                <span key="m4" className="tnum">
-                  ~{fmtDotShort(parseISO(quote.quoteValidUntil))}
-                </span>
-              ) : (
-                <span key="m5">유효기한 미정</span>
-              ),
-            ],
+      {!error && loading ? (
+        <TableSkeleton label="목록을 새로고침하는 중입니다." rows={pageRows.length} />
+      ) : (
+        <DataTable
+          rows={pageRows}
+          columns={columns}
+          rowKey={(quote) => quote.id}
+          handleColumn="org"
+          sort={null}
+          onSort={ignoreSort}
+          onOpen={(quote) => setOpenId(quote.id)}
+          caption="견적 목록. 헤더를 눌러 정렬할 수 있습니다."
+          renderCell={(id, quote) => {
+            if (id === 'stage') return chipOr(quote.quoteStatusTone, quote.quoteStatusName)
+            if (id !== 'validUntil' || !quote.quoteValidUntil || quote.quoteValidUntil >= TODAY_ISO)
+              return undefined
+            return (
+              <span className={styles.late}>
+                {fmtDotShort(parseISO(quote.quoteValidUntil))}
+                <i>만료</i>
+              </span>
+            )
+          }}
+          mini={(quote) => {
+            const expired = !!quote.quoteValidUntil && quote.quoteValidUntil < TODAY_ISO
+            return {
+              title: quote.org,
+              badge: chipOr(quote.quoteStatusTone, quote.quoteStatusName),
+              sub: quote.title,
+              meta: [
+                <span key="m1" className="tnum">
+                  {quote.quoteAmount === null ? '견적금액 미정' : won(quote.quoteAmount)}
+                </span>,
+                <span key="m2" className="tnum">
+                  {quote.quoteIssuedOn ? fmtDot(parseISO(quote.quoteIssuedOn)) : '견적일 미정'}
+                </span>,
+                expired ? (
+                  <i key="m3" className={styles.lateOnly}>
+                    만료
+                  </i>
+                ) : quote.quoteValidUntil ? (
+                  <span key="m4" className="tnum">
+                    ~{fmtDotShort(parseISO(quote.quoteValidUntil))}
+                  </span>
+                ) : (
+                  <span key="m5">유효기한 미정</span>
+                ),
+              ],
+            }
+          }}
+          empty={
+            isFiltered ? (
+              <>
+                <SearchIcon width={34} height={34} strokeWidth={1.5} />
+                <p>조건에 맞는 견적이 없습니다.</p>
+                <Button variant="outline" onClick={clearFilters}>
+                  검색·필터 초기화
+                </Button>
+              </>
+            ) : (
+              <>
+                <QuoteIcon width={34} height={34} strokeWidth={1.5} />
+                <p>아직 견적을 작성한 영업 딜이 없습니다.</p>
+                <Button onClick={() => setParam('new', '1')}>견적 작성</Button>
+              </>
+            )
           }
-        }}
-        empty={
-          isFiltered ? (
-            <>
-              <SearchIcon width={34} height={34} strokeWidth={1.5} />
-              <p>조건에 맞는 견적이 없습니다.</p>
-              <Button variant="outline" onClick={clearFilters}>
-                검색·필터 초기화
-              </Button>
-            </>
-          ) : (
-            <>
-              <QuoteIcon width={34} height={34} strokeWidth={1.5} />
-              <p>아직 견적을 작성한 영업 딜이 없습니다.</p>
-              <Button onClick={() => setParam('new', '1')}>견적 작성</Button>
-            </>
-          )
-        }
-      />
+        />
+      )}
 
       {!error && !loading && pageRows.length > 0 && (
         <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />

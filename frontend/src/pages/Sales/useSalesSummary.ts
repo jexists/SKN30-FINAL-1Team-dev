@@ -34,15 +34,18 @@ function keyOf(deal: SalesDeal, by: GroupBy): string {
   return deal.org
 }
 
-function contractDate(deal: SalesDeal): string {
+// 아래 세 함수는 추세선(useSalesTrend)도 그대로 씁니다. 어느 날짜를 계약일로 볼지,
+// 무엇을 계약으로 셀지가 두 곳에서 갈리면 막대와 추세선이 다른 금액을 말하게 됩니다.
+
+export function contractDate(deal: SalesDeal): string {
   return deal.contractSignedOn ?? deal.closedOn ?? deal.date
 }
 
-function isContract(deal: SalesDeal): boolean {
+export function isContract(deal: SalesDeal): boolean {
   return deal.contractNo !== null || deal.stagePhase === 'contract' || deal.stagePhase === 'closed'
 }
 
-function actualOf(deals: SalesDeal[]): number {
+export function actualOf(deals: SalesDeal[]): number {
   return deals.reduce((sum, deal) => (deal.status === '확정' ? sum + deal.amount : sum), 0)
 }
 

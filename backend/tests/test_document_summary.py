@@ -3,7 +3,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from app.agents.document_summary import chunks
+from app.agents.document_summary import SYSTEM_PROMPT, chunks
 from app.services.document_extraction import ExtractionError, extract_document
 
 
@@ -12,6 +12,18 @@ def _zip_xml(path: str, xml: str) -> bytes:
     with ZipFile(stream, "w") as archive:
         archive.writestr(path, xml)
     return stream.getvalue()
+
+
+def test_document_summary_prompt_uses_korean_honorific_style():
+    assert "한국어 존댓말" in SYSTEM_PROMPT
+    assert "합니다체" in SYSTEM_PROMPT
+    assert "summary·key_points·sales_relevance·risk_flags" in SYSTEM_PROMPT
+
+
+def test_document_summary_prompt_requires_natural_prose_without_inventing_facts():
+    assert "자연스럽고 읽기 쉽게" in SYSTEM_PROMPT
+    assert "완결된 문장" in SYSTEM_PROMPT
+    assert "원인·평가·전망을 추가" in SYSTEM_PROMPT
 
 
 def test_text_and_html_extraction_create_markdown_and_json_payload():

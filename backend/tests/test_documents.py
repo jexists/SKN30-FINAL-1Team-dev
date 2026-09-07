@@ -280,22 +280,27 @@ def test_upload_removes_object_when_db_write_fails(storage_ready, monkeypatch):
     assert db.rollback_count == 1
 
 
-def test_duplicate_content_upload_is_kept_as_a_new_version(storage_ready, monkeypatch):
-    """같은 파일을 다시 올리면 기존 원본을 덮지 않고 다음 버전으로 보관한다."""
-    uploaded: list[bytes] = []
+def test_second_upload_to_a_document_is_rejected(storage_ready, monkeypatch):
+    """자료 하나에 파일 하나다. 이미 파일이 있으면 거절하고 방금 올린 객체를 지운다."""
+    uploaded: list[str] = []
+    removed: list[str] = []
 
     async def _upload(**kwargs):
-        uploaded.append(kwargs["content"])
+        uploaded.append(kwargs["storage_key"])
+
+    async def _remove(**kwargs):
+        removed.append(kwargs["storage_key"])
 
     monkeypatch.setattr(storage, "upload", _upload)
+    monkeypatch.setattr(storage, "remove", _remove)
 
     member = _member()
     document = _document(member)
     db = _Db(
         _Result(scalar=document),
-        _Result(scalar=0),
+        _Result(scalar=None),
         _Result(scalar=document),
-        _Result(scalar=1),
+        _Result(scalar=uuid4()),
     )
     with _client(db, member) as client:
         first = client.post(
@@ -310,10 +315,13 @@ def test_duplicate_content_upload_is_kept_as_a_new_version(storage_ready, monkey
         )
 
     assert first.status_code == 201
-    assert second.status_code == 201
-    assert first.json()["version_no"] == 1
-    assert second.json()["version_no"] == 2
-    assert uploaded == [PDF, PDF]
+    assert second.status_code == 409
+    assert second.json() == {"detail": "document_file_exists"}
+    # 버전을 매기지 않고 언제나 1 로 저장한다. DB 검사가 1 이상을 요구한다.
+    assert [row.version_no for row in db.added if isinstance(row, FileRow)] == [1]
+    # 거절한 요청이 올린 객체는 고아로 남기지 않는다.
+    assert len(uploaded) == 2
+    assert removed == [uploaded[1]]
 
 
 def test_download_never_exposes_storage_key(storage_ready, monkeypatch):
@@ -438,11 +446,8 @@ def test_process_route_reprocesses_completed_file_and_records_audit(monkeypatch)
 
 def test_process_batch_route_queues_all_files_for_server_processing(monkeypatch):
     member = _member()
-    document = _document(member)
-    first = _file(document, member)
-    second = _file(document, member)
-    second.id = uuid4()
-    second.version_no = 2
+    first = _file(_document(member), member)
+    second = _file(_document(member), member)
     scheduled: list[list[object]] = []
 
     async def _execute_batch(file_ids):
@@ -669,11 +674,12 @@ def test_other_team_document_is_hidden():
     assert member.team_id in db.statements[0].compile().params.values()
 
 
-def test_uploader_and_date_filters_look_at_the_latest_version_only():
-    """담당자·올린 날짜 필터는 최신 버전 파일을 본다.
+def test_uploader_and_date_filters_look_at_one_file_only():
+    """담당자·올린 날짜 필터는 문서에 딸린 파일 한 건만 본다.
 
-    화면의 표가 최신 버전의 올린 사람과 날짜를 보여 주므로 필터도 같은 파일을 봐야 한다.
-    아무 버전이나 맞으면 되게 하면, 예전 버전을 올린 사람으로 걸러도 문서가 나온다.
+    화면의 표가 그 파일의 올린 사람과 날짜를 보여 주므로 필터도 같은 파일을 봐야 한다.
+    예전 자료에 남은 행까지 아무거나 맞으면 되게 하면, 예전에 올린 사람으로 걸러도
+    문서가 나온다.
     """
     member = _member()
     db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]), _Result(rows=[]))
@@ -695,13 +701,13 @@ def test_uploader_and_date_filters_look_at_the_latest_version_only():
     count_sql = str(db.statements[0])
     counts_sql = str(db.statements[2])
 
-    # 최신 한 건만 보도록 상관 서브쿼리로 좁힌다. 별칭 번호는 쿼리마다 달라 이름만 본다.
+    # 한 건만 보도록 상관 서브쿼리로 좁힌다. 별칭 번호는 쿼리마다 달라 이름만 본다.
     assert "version_no DESC" in count_sql
     assert "LIMIT" in count_sql
     assert "document_id = public.document.id" in count_sql
     assert "uploaded_by_member_id IN" in count_sql
     assert "uploaded_at >=" in count_sql
-    # 검색은 연결한 딜·상품 이름과 최신 파일 이름까지 훑는다.
+    # 검색은 연결한 딜·상품 이름과 파일 이름까지 훑는다.
     assert "deal_no" in count_sql
     assert "file_name" in count_sql
 

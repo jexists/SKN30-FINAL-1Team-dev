@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from app.api import sales_deals as api
 from app.models.configuration import SalesDealType
-from app.models.crm import CustomerCompany
+from app.models.crm import CustomerCompany, CustomerContact
 from app.models.sales import (
     Product,
     SalesDeal,
@@ -755,3 +755,39 @@ def test_pipeline_status_filter_narrows_the_scope():
     assert SalesDealPageParams().sales_pipeline_status_code is None
     with pytest.raises(ValidationError):
         SalesDealPageParams(sales_pipeline_status_code=["draft"])
+
+
+def test_deal_contact_scope_matches_the_activity_screen():
+    """딜 주인과 고객 담당자가 달라도 된다 — 고를 수 있는 범위는 일정과 같다.
+
+    담당자 역할은 자기 고객만, 팀장은 팀 전체다. 예전에는 "딜 주인 == 고객 담당자" 를
+    요구해, 같은 고객으로 일정은 잡히는데 딜은 못 만드는 상태였다.
+    """
+    manager = _member(role="manager")
+    company_id = uuid4()
+    teammate_id = uuid4()
+    # 팀장이 아니라 팀원이 관리하는 고객이다.
+    contact = CustomerContact(
+        id=uuid4(),
+        company_id=company_id,
+        owner_member_id=teammate_id,
+        name="합성 고객",
+        registered_at=NOW,
+    )
+
+    allowed = asyncio.run(
+        api._team_contact(_Db(_Result(scalar=contact)), manager, contact.id, company_id)
+    )
+    assert allowed is contact
+
+    # 담당자 역할은 남의 고객을 딜에 붙일 수 없다. 일정과 같은 제한이다.
+    worker = _member(role="member", team_id=manager.team_id)
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(api._team_contact(_Db(_Result(scalar=contact)), worker, contact.id, company_id))
+    assert rejected.value.status_code == 422
+    assert rejected.value.detail == "contact_owner_mismatch"
+
+    # 회사가 어긋나면 역할과 무관하게 막는다.
+    with pytest.raises(HTTPException) as mismatched:
+        asyncio.run(api._team_contact(_Db(_Result(scalar=contact)), manager, contact.id, uuid4()))
+    assert mismatched.value.detail == "contact_company_mismatch"

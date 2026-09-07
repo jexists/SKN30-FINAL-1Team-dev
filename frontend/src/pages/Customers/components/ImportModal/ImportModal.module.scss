@@ -4,7 +4,7 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: var(--s6) var(--s4);
+  padding: var(--s5) var(--s4);
   border: 1px dashed var(--line-2);
   border-radius: var(--r-md);
   background: var(--surface-2);
@@ -24,13 +24,6 @@
     color: var(--ink);
     font-size: 14px;
   }
-
-  span {
-    max-width: 46ch;
-    font-size: 11px;
-    line-height: 1.5;
-    text-align: center;
-  }
 }
 
 .error {
@@ -44,69 +37,46 @@
 }
 
 .result {
-  margin-top: var(--s4);
+  padding: var(--s1) 0;
 }
 
-.summary {
-  margin-bottom: var(--s2);
-  color: var(--ink-2);
-  font-size: 12px;
+/*
+ * 결과 문장. 들어온 수가 먼저고 못 들어온 몫이 그 아래입니다. 굵은 것은 제목 하나로
+ * 충분하므로 본문은 같은 굵기로 두고 색으로만 순서를 매깁니다.
+ */
+.lead {
+  color: var(--ink);
+  font-size: 15px;
   line-height: 1.6;
 }
 
-.previewWrap {
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
+.note {
+  margin-top: var(--s1);
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.6;
 }
 
-.preview {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-
-  th,
-  td {
-    padding: 7px var(--s2);
-    white-space: nowrap;
-    text-align: left;
-    border-bottom: 1px solid var(--line);
-  }
-
-  th {
-    background: var(--surface-2);
-    color: var(--ink-2);
-    font-weight: 600;
-  }
-
-  td {
-    color: var(--muted);
-  }
-
-  tbody tr:last-child td {
-    border-bottom: 0;
-  }
-}
-
-.more {
-  margin-top: 6px;
+/*
+ * 템플릿 받는 자리. 드롭존 아래 한 줄로 두어 화면의 중심은 파일 고르기에 남깁니다.
+ * 파랑은 오른쪽 아래 기본 버튼이 이미 씁니다. 여기까지 파랗게 두면 파란 것이 둘이 되어
+ * 다음 단계가 어느 쪽인지 흐려지므로, 회색 밑줄로 필요할 때만 눈에 들어오게 둡니다.
+ */
+.template {
+  display: block;
+  margin: var(--s3) auto 0;
+  padding: var(--s1) var(--s2);
+  border: 0;
+  background: none;
   color: var(--muted);
-  font-size: 11px;
-}
-
-/* 보내지 않는 줄과 실패한 줄. 몇 번째 줄인지가 먼저 읽혀야 파일에서 찾습니다. */
-.problems {
-  margin-bottom: var(--s3);
-  padding: var(--s3);
-  border-radius: var(--r-sm);
-  background: var(--orange-tint);
-  color: var(--orange-ink);
   font-size: 12px;
-  line-height: 1.7;
-  list-style: none;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  cursor: pointer;
 
-  b {
-    margin-right: var(--s2);
-    font-weight: 700;
+  &:hover {
+    color: var(--ink-2);
+    text-decoration-color: currentcolor;
   }
 }

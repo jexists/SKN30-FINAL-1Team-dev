@@ -18,7 +18,7 @@
     }
   }
 
-  // 항목 제목. 문서의 뼈대라 지울 수 없고, 그래서 본문과 분명히 달라 보여야 합니다.
+  // 본문 안에서 사용자가 쓴 제목입니다.
   :global(h2) {
     margin: var(--s6) 0 var(--s2);
     color: var(--ink-2);
@@ -29,12 +29,6 @@
     &:first-child {
       margin-top: 0;
     }
-  }
-
-  // 손댈 수 없는 곳을 누르면 커서라도 바뀌어야 왜 안 되는지 짐작합니다.
-  :global(.mceNonEditable) {
-    cursor: default;
-    user-select: none;
   }
 
   :global(p) {
@@ -49,19 +43,6 @@
 
   :global(li) {
     margin-bottom: 2px;
-  }
-
-  /*
-   * 편집기는 맨 앞이 잠긴 블록이면 그 위에 빈 문단을 하나 만들어 둡니다. 커서를
-   * 놓을 자리를 주려는 것인데, 첫 항목 제목 위에 빈 줄이 하나 뜬 것처럼 보입니다.
-   * 비어 있는 동안만 접어 둡니다. 거기에 글을 쓰면 다시 보이고, 그 글은
-   * toValues 가 특이사항으로 넣습니다.
-   *
-   * 뒤에 제목이 올 때만 접습니다. 백지 문서에서는 이 문단이 글을 쓸 유일한
-   * 자리라, 그것까지 감추면 아무 데도 쓸 수 없습니다.
-   */
-  :global(.mce-content-body > p:first-child:has(> br:only-child):has(+ h2)) {
-    display: none;
   }
 }
 

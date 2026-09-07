@@ -355,7 +355,7 @@ gh workflow run deploy-frontend.yml --ref develop
 | `SUPABASE_SECRET_KEY` | 기능상 필요 | Storage 서버 접근 |
 | `SUPABASE_STORAGE_BUCKET` | 기능상 필요 | 업로드 버킷 |
 | `UPLOAD_MAX_BYTES` | 선택 | 업로드 크기 제한 |
-| `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL` | 기능상 필요 | LLM 기능 |
+| `LLM_API_URL`, `LLM_MODEL`, `LLM_API_KEY` 또는 `OPENAI_API_KEY` | 기능상 필요 | LLM 기능 |
 | `LLM_TIMEOUT_SECONDS` | 선택 | LLM timeout |
 | `STT_API_KEY`, `STT_MODEL` | 기능상 필요 | 음성 전사 기능 |
 | `STT_TIMEOUT_SECONDS`, `STT_MAX_BYTES` | 선택 | STT timeout·파일 제한 |

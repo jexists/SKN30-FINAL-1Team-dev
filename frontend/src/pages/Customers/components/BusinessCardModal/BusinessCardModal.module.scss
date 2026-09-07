@@ -93,21 +93,3 @@
   font-size: 12px;
   line-height: 1.6;
 }
-
-/**
- * 인식 진행 표시. 사진 아래에 서서 지금 무슨 일이 일어나는지 말합니다.
- *
- * 버튼 글자만 "읽는 중…" 으로 바꾸던 때는 업로드가 끊겨도 화면이 같아 보여
- * 사용자가 언제까지 기다려야 하는지 알 수 없었습니다.
- */
-.progress {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.step {
-  margin: 0;
-  color: var(--muted-2);
-  font-size: 13px;
-}

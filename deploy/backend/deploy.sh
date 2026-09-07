@@ -59,6 +59,7 @@ NEW_CONTAINER=""
 ACTIVE_WORKER=""
 NEW_WORKER=""
 NEW_PORT=""
+ACTIVE_WORKER_STOPPED="false"
 ENV_REPLACED="false"
 IMAGE_BUILT="false"
 PROMOTION_STARTED="false"
@@ -392,10 +393,8 @@ other_backend_port() {
     esac
 }
 
-container_uses_backend_port() {
+container_is_running() {
     local container_name="$1"
-    local expected_port="$2"
-    local binding
     local container_names
     local running
 
@@ -411,6 +410,14 @@ container_uses_backend_port() {
         return "${CONTAINER_STATE_ERROR_STATUS}"
     fi
     [[ "${running}" == "true" ]] || return 1
+}
+
+container_uses_backend_port() {
+    local container_name="$1"
+    local expected_port="$2"
+    local binding
+
+    container_is_running "${container_name}" || return $?
 
     if ! binding="$(docker container inspect \
         --format '{{with index .NetworkSettings.Ports "8000/tcp"}}{{range .}}{{.HostIp}}:{{.HostPort}}{{"\n"}}{{end}}{{end}}' \
@@ -593,8 +600,24 @@ cleanup() {
             "${NEW_CONTAINER}" >&2
     fi
     if [[ -n "${NEW_WORKER}" \
-        && "${DEPLOY_SUCCEEDED}" != "true" ]]; then
+        && "${DEPLOY_SUCCEEDED}" != "true" \
+        && "${UPSTREAM_SWITCHED}" != "true" ]]; then
         docker rm -f "${NEW_WORKER}" >/dev/null 2>&1 || true
+    elif [[ -n "${NEW_WORKER}" \
+        && "${DEPLOY_SUCCEEDED}" != "true" ]]; then
+        printf 'New AgentRun worker retained because upstream rollback failed: %s\n' \
+            "${NEW_WORKER}" >&2
+    fi
+    if [[ "${DEPLOY_SUCCEEDED}" != "true" \
+        && "${ACTIVE_WORKER_STOPPED}" == "true" \
+        && "${UPSTREAM_SWITCHED}" != "true" ]]; then
+        printf 'Restarting the previous AgentRun worker %s.\n' "${ACTIVE_WORKER}" >&2
+        if docker start "${ACTIVE_WORKER}" >/dev/null; then
+            ACTIVE_WORKER_STOPPED="false"
+        else
+            printf 'Unable to restart the previous AgentRun worker: %s\n' \
+                "${ACTIVE_WORKER}" >&2
+        fi
     fi
     if [[ "${IMAGE_BUILT}" == "true" \
         && "${DEPLOY_SUCCEEDED}" != "true" \
@@ -934,7 +957,30 @@ if ! validate_deal_model_runtime "${NEW_CONTAINER}"; then
 fi
 printf 'Validating the AgentRun queue schema.\n'
 if ! validate_agent_queue_schema_runtime "${NEW_CONTAINER}"; then
-    die "agent queue schema validation failed; apply migrations 0017 and 0018 first"
+    die "agent queue schema validation failed; apply migrations 0017, 0018, and 0019 first"
+fi
+
+if [[ -n "${ACTIVE_CONTAINER}" && "${ACTIVE_WORKER}" != "${NEW_WORKER}" ]]; then
+    if container_is_running "${ACTIVE_WORKER}"; then
+        printf 'Stopping the previous AgentRun worker %s before worker cutover.\n' \
+            "${ACTIVE_WORKER}"
+        if ! docker stop \
+            --time "${CONTAINER_STOP_TIMEOUT_SECONDS}" \
+            "${ACTIVE_WORKER}" >/dev/null; then
+            die "unable to stop the previous AgentRun worker"
+        fi
+        ACTIVE_WORKER_STOPPED="true"
+    else
+        worker_state=$?
+        if [[ "${worker_state}" == "${CONTAINER_STATE_ERROR_STATUS}" ]]; then
+            die "unable to inspect the previous AgentRun worker"
+        fi
+    fi
+fi
+printf 'Starting AgentRun worker %s before traffic promotion.\n' "${NEW_WORKER}"
+if ! start_agent_worker "${NEW_IMAGE}" "${NEW_WORKER}" \
+    || ! wait_for_agent_worker "${NEW_WORKER}"; then
+    die "unable to start the AgentRun worker before traffic promotion"
 fi
 
 PROMOTION_STARTED="true"
@@ -944,11 +990,6 @@ if [[ -n "${ACTIVE_CONTAINER}" ]]; then
     if ! switch_backend_upstream "${ACTIVE_PORT}" "${NEW_PORT}"; then
         die "unable to switch and reload the backend Nginx upstream"
     fi
-fi
-printf 'Starting AgentRun worker %s after traffic promotion.\n' "${NEW_WORKER}"
-if ! start_agent_worker "${NEW_IMAGE}" "${NEW_WORKER}" \
-    || ! wait_for_agent_worker "${NEW_WORKER}"; then
-    die "unable to start the AgentRun worker after traffic promotion"
 fi
 
 DEPLOY_SUCCEEDED="true"
@@ -980,16 +1021,10 @@ if [[ -n "${ACTIVE_CONTAINER}" ]]; then
             "${ACTIVE_CONTAINER}" >&2
     fi
 fi
-if [[ -n "${ACTIVE_CONTAINER}" && "${ACTIVE_WORKER}" != "${NEW_WORKER}" ]] \
+if [[ "${ACTIVE_WORKER_STOPPED}" == "true" ]] \
     && docker container inspect "${ACTIVE_WORKER}" >/dev/null 2>&1; then
-    printf 'Stopping the previous AgentRun worker %s.\n' "${ACTIVE_WORKER}"
-    if ! docker stop \
-        --time "${CONTAINER_STOP_TIMEOUT_SECONDS}" \
-        "${ACTIVE_WORKER}" >/dev/null; then
-        printf 'Backend deployment succeeded, but the previous worker did not stop cleanly: %s\n' \
-            "${ACTIVE_WORKER}" >&2
-    fi
     docker rm "${ACTIVE_WORKER}" >/dev/null 2>&1 || true
+    ACTIVE_WORKER_STOPPED="false"
 fi
 
 if ! prune_old_backend_images; then

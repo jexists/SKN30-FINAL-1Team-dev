@@ -1,5 +1,5 @@
 // 업무보고서 목록이 API 로 채워지지 않을 때 쓰는 시연용 합성 데이터입니다.
-import { meetingTemplate } from '@/shared/meetings'
+import { meetingFreeformTemplate } from '@/shared/meetings'
 import type { MeetingReport, MeetingReportSeed } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
@@ -27,15 +27,9 @@ export const meetingReportSeed: MeetingReportSeed[] = [
         product: 'CardioView X7',
         title: 'CardioView X7 제품 테스트',
         values: {
-          attendees: '박서준 교수 · 이민호 구매팀 과장',
-          reaction: '화면 가독성은 긍정적 · 유지보수 비용이 기존 장비보다 높다는 우려',
-          decision: '비교 견적과 유지보수 범위표를 전달하기로 했습니다.',
-          next: '다음 주 화요일까지 자료 전달 · 이후 후속 미팅 일정 조율',
-          note: '',
+          body: '박서준 교수와 이민호 구매팀 과장이 참석했습니다. 화면 가독성은 긍정적이었으나 유지보수 비용이 기존 장비보다 높다는 우려가 있었습니다. 비교 견적과 유지보수 범위표를 다음 주 화요일까지 전달하고 후속 미팅 일정을 조율하기로 했습니다.',
         },
         evidence: '원문 근거: “이민호 과장에게”, “다음 주 화요일까지”, “유지보수 비용이 높다”.',
-        aiValues: {},
-        analysisEvidence: null,
       },
     ],
   },
@@ -62,15 +56,9 @@ export const meetingReportSeed: MeetingReportSeed[] = [
         product: 'OrthoScan Mini',
         title: '학회 현장 구매 담당자 면담',
         values: {
-          attendees: '최수아 구매팀 책임',
-          reaction: '기존 시스템 연동 범위에 관심 · 도입 시점은 유보',
-          decision: '본원 데모를 진행하기로 했습니다.',
-          next: '보안 요구사항과 데이터 접근 권한을 확인한 뒤 본원 데모 일정 확정',
-          note: '하반기 예산 확정 전까지 승인 절차는 시작되지 않습니다.',
+          body: '최수아 구매팀 책임과 기존 시스템 연동 범위를 논의했습니다. 도입 승인은 하반기 예산 확정 이후로 유보됐습니다. 보안 요구사항과 데이터 접근 권한을 확인한 뒤 본원 데모 일정을 확정하기로 했습니다.',
         },
         evidence: '원문 근거: “하반기 예산 확정 이후”, “기존 시스템 연동 범위”.',
-        aiValues: {},
-        analysisEvidence: null,
       },
     ],
   },
@@ -88,6 +76,6 @@ export const fallbackMeetingReports: MeetingReport[] = meetingReportSeed
     ...seed,
     date: iso(addDays(TODAY, seed.off)),
     ownerMemberId: MEMBER_IDS[seed.owner] ?? seed.owner,
-    template: meetingTemplate,
+    template: meetingFreeformTemplate,
   }))
   .sort((a, b) => b.date.localeCompare(a.date))

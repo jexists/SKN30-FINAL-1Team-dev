@@ -253,18 +253,35 @@ schema_check_line="$(awk '/Validating the AgentRun queue schema/ { print NR; exi
     "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
 promotion_line="$(awk '/Switching Nginx upstream from port/ { print NR; exit }' \
     "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
-worker_start_line="$(awk '/Starting AgentRun worker .*after traffic promotion/ { print NR; exit }' \
+worker_stop_line="$(awk '/Stopping the previous AgentRun worker .*before worker cutover/ { print NR; exit }' \
+    "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
+worker_start_line="$(awk '/Starting AgentRun worker .*before traffic promotion/ { print NR; exit }' \
     "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
 deployment_success_line="$(awk '/^DEPLOY_SUCCEEDED="true"$/ { print NR; exit }' \
     "${PROJECT_ROOT}/deploy/backend/deploy.sh")"
 [[ "${schema_check_line}" =~ ^[0-9]+$ \
+    && "${worker_stop_line}" =~ ^[0-9]+$ \
     && "${promotion_line}" =~ ^[0-9]+$ \
     && "${worker_start_line}" =~ ^[0-9]+$ \
     && "${deployment_success_line}" =~ ^[0-9]+$ \
-    && schema_check_line -lt promotion_line \
-    && promotion_line -lt worker_start_line \
+    && schema_check_line -lt worker_stop_line \
+    && worker_stop_line -lt worker_start_line \
+    && worker_start_line -lt promotion_line \
     && worker_start_line -lt deployment_success_line ]] \
-    || fail "candidate worker must start only after successful traffic promotion"
+    || fail "workers must not overlap across the report-generation contract cutover"
+
+retained_output="$(
+    (
+        NEW_CONTAINER="candidate-backend"
+        NEW_WORKER="candidate-worker"
+        DEPLOY_SUCCEEDED="false"
+        UPSTREAM_SWITCHED="true"
+        cleanup 0
+    ) 2>&1
+)"
+[[ "${retained_output}" == *"New backend container retained"* \
+    && "${retained_output}" == *"New AgentRun worker retained"* ]] \
+    || fail "failed upstream rollback did not retain the matching backend and worker"
 
 rewritten_upstream_file="${TEST_TMP_DIR}/rewritten-upstream.conf"
 if ! rewrite_backend_upstream_port \
@@ -306,6 +323,22 @@ else
 fi
 [[ "${container_status}" == "${CONTAINER_STATE_ERROR_STATUS}" ]] \
     || fail "find_active_container did not propagate the Docker state error"
+unset -f docker
+
+docker() {
+    if [[ "$1" == "container" && "$2" == "ls" ]]; then
+        printf '%s\n' "${WORKER_8000_CONTAINER}"
+        return 0
+    fi
+    return 1
+}
+if container_is_running "${WORKER_8000_CONTAINER}"; then
+    fail "a worker inspect error was reported as running"
+else
+    container_status=$?
+fi
+[[ "${container_status}" == "${CONTAINER_STATE_ERROR_STATUS}" ]] \
+    || fail "a worker inspect error was not distinguished from a missing worker"
 unset -f docker
 
 printf 'runtime environment validation tests passed\n'

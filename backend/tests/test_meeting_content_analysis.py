@@ -2,6 +2,8 @@ import asyncio
 import json
 from uuid import uuid4
 
+import httpx
+import openai
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
@@ -88,6 +90,22 @@ async def test_run_returns_a_validated_evidence_ledger(monkeypatch):
     assert captured["schema_name"] == "meeting_content_assignments"
     assert "LP1000 견적을 요청했다." in captured["input_text"]
     assert str(deal_id) in captured["input_text"]
+
+
+@pytest.mark.anyio
+async def test_run_preserves_transient_sdk_error_code(monkeypatch):
+    deal_id = uuid4()
+    snapshot = meeting_content_analysis.input_snapshot("LP1000 견적을 요청했다.", [_deal(deal_id)])
+    request = httpx.Request("POST", "https://private-provider.invalid")
+    response = httpx.Response(429, request=request)
+
+    async def fail(*args, **kwargs):
+        raise openai.RateLimitError("private response", response=response, body=None)
+
+    monkeypatch.setattr(meeting_content_analysis, "_initial_analysis", fail)
+
+    with pytest.raises(LLMError, match="^llm_provider_error:429$"):
+        await meeting_content_analysis.run(snapshot)
 
 
 @pytest.mark.anyio
@@ -199,13 +217,49 @@ def _grounding_case():
     snapshot = meeting_content_analysis.input_snapshot(
         "LP1000 가격을 문의했다. 지난번 보여준 작은 제품도 자료 요청.",
         [_deal(deal_a), _deal(deal_b, title="휴대형 공급")],
-        crm_context={"company": {"name": "합성회사"}, "unrelated": "노출하지 않는 값"},
+        crm_context={
+            "company": {"name": "합성회사"},
+            "unrelated": "노출하지 않는 값",
+            "trade_history": [],
+            "trade_history_metadata": {"limit": 20},
+            "previous_reports": [
+                {"kind": "previous_reports", "sales_deal_id": str(deal_id), "items": []}
+                for deal_id in (deal_a, deal_b)
+            ],
+            "refinement_context": {
+                "company_trade_history": {"kind": "trade_history", "items": []},
+                "product_details": [
+                    {
+                        "kind": "product_details",
+                        "sales_deal_id": str(deal_id),
+                        "items": (
+                            [{"name": "휴대형", "memo": "작은 제품"}] if deal_id == deal_b else []
+                        ),
+                    }
+                    for deal_id in (deal_a, deal_b)
+                ],
+            },
+        },
     )
     initial = [
         _assignment("S0001", "deal", deal_a),
         _assignment("S0002", "unresolved"),
     ]
     return snapshot, deal_a, deal_b, initial
+
+
+def _set_frozen_context(snapshot, kind, result, deal_id=None):
+    crm = snapshot["crm_context"]
+    if kind == "trade_history":
+        crm["refinement_context"]["company_trade_history"] = result
+        return
+    key = "previous_reports" if kind == "previous_reports" else "product_details"
+    container = crm if key == "previous_reports" else crm["refinement_context"]
+    values = container[key]
+    normalized = {**result, "kind": kind, "sales_deal_id": str(deal_id)}
+    container[key] = [
+        normalized if str(item.get("sales_deal_id")) == str(deal_id) else item for item in values
+    ]
 
 
 def _ledger_case(transcript, deals, assignments):
@@ -561,24 +615,33 @@ async def test_refinement_receives_the_reviewed_ledger_as_its_context():
     snapshot = meeting_content_analysis.input_snapshot(
         "제품 A 입찰을 논의했다. 세 업체가 모두 참가한다. 지난번 작은 제품도 다시 물었다.",
         [_deal(deal_a, product_names=["제품 A"]), _deal(deal_b, product_names=["제품 B"])],
+        crm_context={
+            "previous_reports": [],
+            "refinement_context": {
+                "company_trade_history": {"kind": "trade_history", "items": []},
+                "product_details": [
+                    {
+                        "kind": "product_details",
+                        "sales_deal_id": str(deal_b),
+                        "items": [{"name": "제품 B", "description": "지난번 작은 제품"}],
+                    }
+                ],
+            },
+        },
     )
-
-    async def lookup(kind, deal_id):
-        assert (kind, deal_id) == ("product_details", deal_b)
-        return {"items": [{"name": "제품 B", "description": "지난번 작은 제품"}]}
 
     model = ScriptedGroundingModel(
         responses=[
             _call("MeetingContentAnalysisOutput", assignments=initial),
             _call("GroundingReview", revisions=[_revision("S0002", "deal", deal_a)]),
-            _call("product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput", assignments=[_assignment("S0003", "deal", deal_b)]
             ),
         ]
     )
 
-    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+    result = await meeting_content_analysis.run(snapshot, model=model)
 
     payload = json.loads(
         next(message.content for message in model._seen[2] if message.type == "human")
@@ -598,24 +661,22 @@ async def test_review_can_defer_uncertain_assignment_to_existing_lookup_loop():
     initial[1] = _assignment("S0002", "all_selected_deals")
     looked_up = []
 
-    async def lookup(kind, deal_id):
-        looked_up.append((kind, deal_id))
-        return {"items": []}
-
     model = ScriptedGroundingModel(
         responses=[
             _call("MeetingContentAnalysisOutput", assignments=initial),
             _call("GroundingReview", revisions=[_revision("S0002", "unresolved")]),
-            _call("previous_reports", sales_deal_id=str(deal_b)),
+            _call("read_previous_deal_reports", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]
             ),
         ]
     )
 
-    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+    result = await meeting_content_analysis.run(snapshot, on_lookup=looked_up.append, model=model)
 
-    assert looked_up == [("previous_reports", deal_b)]
+    assert [(item["kind"], item["sales_deal_id"]) for item in looked_up] == [
+        ("previous_reports", str(deal_b))
+    ]
     assert result.items[0].applicability.deal_ids == [deal_a]
     assert result.items[1].applicability.scope == "unresolved"
     assert len(model._seen) == 4
@@ -626,22 +687,20 @@ async def test_real_tool_loop_refines_only_unresolved_and_preserves_source():
     snapshot, deal_a, deal_b, initial = _grounding_case()
     looked_up = []
 
-    async def lookup(kind, deal_id):
-        looked_up.append((kind, deal_id))
-        return {"items": [{"product_name": "휴대형", "prior_demo": "작은 제품"}]}
-
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
-            _call("product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]
             ),
         ]
     )
-    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+    result = await meeting_content_analysis.run(snapshot, on_lookup=looked_up.append, model=model)
 
-    assert looked_up == [("product_details", deal_b)]
+    assert [(item["kind"], item["sales_deal_id"]) for item in looked_up] == [
+        ("product_details", str(deal_b))
+    ]
     assert result.items[0].applicability.deal_ids == [deal_a]
     assert result.items[1].applicability.deal_ids == [deal_b]
     assert [item.segment.model_dump(mode="json") for item in result.items] == snapshot["source"][
@@ -652,9 +711,9 @@ async def test_real_tool_loop_refines_only_unresolved_and_preserves_source():
     assert set.union(*model._tool_sets) == {
         "MeetingContentAnalysisOutput",
         "GroundingReview",
-        "trade_history",
-        "previous_reports",
-        "product_details",
+        "read_company_trade_history",
+        "read_previous_deal_reports",
+        "read_deal_product_details",
     }
 
 
@@ -666,21 +725,83 @@ async def test_no_new_evidence_keeps_unresolved_even_if_model_guesses(lookup_res
     snapshot, _, deal_b, initial = _grounding_case()
     calls = []
 
-    async def lookup(kind, deal_id):
-        calls.append((kind, deal_id))
-        return lookup_result
-
     responses = _initial_responses(initial)
     if lookup_result is not None:
-        responses.append(_call("previous_reports", sales_deal_id=str(deal_b)))
+        _set_frozen_context(snapshot, "previous_reports", lookup_result, deal_b)
+        responses.append(_call("read_previous_deal_reports", sales_deal_id=str(deal_b)))
+    else:
+        snapshot["crm_context"] = {}
     responses.append(
         _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)])
     )
     result = await meeting_content_analysis.run(
-        snapshot, lookup=lookup, model=ScriptedGroundingModel(responses=responses)
+        snapshot, on_lookup=calls.append, model=ScriptedGroundingModel(responses=responses)
     )
     assert result.items[1].applicability.scope == "unresolved"
-    assert len(calls) == (0 if lookup_result is None else 1)
+    assert len(calls) == (1 if lookup_result and lookup_result.get("items") == [] else 0)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("product_details", [None, {}])
+async def test_missing_or_invalid_product_source_is_cached_not_available(
+    monkeypatch, product_details
+):
+    snapshot, _, deal_b, initial = _grounding_case()
+    if product_details is None:
+        snapshot["crm_context"]["refinement_context"].pop("product_details")
+    else:
+        snapshot["crm_context"]["refinement_context"]["product_details"] = product_details
+    monkeypatch.setattr(meeting_content_analysis, "MAX_LOOKUPS", 1)
+    calls = []
+    model = ScriptedGroundingModel(
+        responses=[
+            *_initial_responses(initial),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "unresolved")]),
+        ]
+    )
+
+    result = await meeting_content_analysis.run(snapshot, on_lookup=calls.append, model=model)
+
+    tool_results = [
+        json.loads(message.content)
+        for message in model._seen[-1]
+        if message.type == "tool" and message.name == "read_deal_product_details"
+    ]
+    assert tool_results[0]["data"]["error"] == "context_not_available"
+    assert tool_results[0]["no_new_information"] is True
+    assert tool_results[1] == {**tool_results[0], "no_new_information": True}
+    assert calls == []
+    assert result.items[1].applicability.scope == "unresolved"
+
+
+@pytest.mark.anyio
+async def test_explicit_empty_product_source_is_a_cached_empty_lookup(monkeypatch):
+    snapshot, _, deal_b, initial = _grounding_case()
+    snapshot["crm_context"]["refinement_context"] = {"product_details": []}
+    monkeypatch.setattr(meeting_content_analysis, "MAX_LOOKUPS", 1)
+    calls = []
+    model = ScriptedGroundingModel(
+        responses=[
+            *_initial_responses(initial),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "unresolved")]),
+        ]
+    )
+
+    result = await meeting_content_analysis.run(snapshot, on_lookup=calls.append, model=model)
+
+    tool_results = [
+        json.loads(message.content)
+        for message in model._seen[-1]
+        if message.type == "tool" and message.name == "read_deal_product_details"
+    ]
+    assert len(calls) == 1 and calls[0]["data"]["items"] == []
+    assert len(tool_results) == 2
+    assert all(item["no_new_information"] is True for item in tool_results)
+    assert result.items[1].applicability.scope == "unresolved"
 
 
 @pytest.mark.anyio
@@ -688,11 +809,11 @@ async def test_no_unresolved_skips_lookup_but_reviews_shared_product_candidates(
     snapshot, _, deal_b, initial = _grounding_case()
     initial[1] = _assignment("S0002", "deal", deal_b)
 
-    async def lookup(*args):
+    def lookup(*args):
         pytest.fail("이미 귀속된 원문에는 추가 조회하지 않는다")
 
     model = ScriptedGroundingModel(responses=_initial_responses(initial))
-    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+    result = await meeting_content_analysis.run(snapshot, on_lookup=lookup, model=model)
     assert result.items[1].applicability.deal_ids == [deal_b]
     assert len(model._seen) == 2
 
@@ -702,13 +823,10 @@ async def test_no_unresolved_skips_lookup_but_reviews_shared_product_candidates(
 async def test_refinement_rejects_resolved_changes_or_new_segments(segment_id):
     snapshot, _, deal_b, initial = _grounding_case()
 
-    async def lookup(*args):
-        return {"items": [{"name": "휴대형"}]}
-
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
-            _call("product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput",
                 assignments=[_assignment(segment_id, "deal", deal_b)],
@@ -716,7 +834,7 @@ async def test_refinement_rejects_resolved_changes_or_new_segments(segment_id):
         ]
     )
     with pytest.raises(LLMError, match="^meeting_content_refinement_segments_mismatch$"):
-        await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+        await meeting_content_analysis.run(snapshot, model=model)
 
 
 @pytest.mark.anyio
@@ -725,24 +843,24 @@ async def test_tool_target_and_global_lookup_limit_are_enforced(monkeypatch):
     monkeypatch.setattr(meeting_content_analysis, "MAX_LOOKUPS", 3)
     calls = []
 
-    async def lookup(kind, deal_id):
-        calls.append((kind, deal_id))
-        return {"items": [{"name": "휴대형"}]}
-
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
-            _call("previous_reports", sales_deal_id=str(uuid4())),
-            _call("product_details", sales_deal_id=str(deal_b)),
-            _call("previous_reports", sales_deal_id=str(deal_b)),
-            _call("trade_history", sales_deal_id=str(deal_b)),
-            _call("product_details", sales_deal_id=str(deal_a)),
+            _call("read_previous_deal_reports", sales_deal_id=str(uuid4())),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call("read_previous_deal_reports", sales_deal_id=str(deal_b)),
+            _call("read_company_trade_history"),
+            _call("read_deal_product_details", sales_deal_id=str(deal_a)),
             _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "unresolved")]),
         ]
     )
-    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+    result = await meeting_content_analysis.run(snapshot, on_lookup=calls.append, model=model)
     assert len(calls) == 3
-    assert all(deal_id == deal_b for _, deal_id in calls)
+    assert [item["kind"] for item in calls] == [
+        "product_details",
+        "previous_reports",
+        "trade_history",
+    ]
     assert "deal_not_selected" in str(model._seen)
     assert "meeting_content_lookup_limit" in str(model._seen)
     assert result.items[1].applicability.scope == "unresolved"
@@ -752,13 +870,10 @@ async def test_tool_target_and_global_lookup_limit_are_enforced(monkeypatch):
 async def test_refinement_cannot_return_an_unselected_deal():
     snapshot, _, deal_b, initial = _grounding_case()
 
-    async def lookup(*args):
-        return {"items": [{"name": "휴대형"}]}
-
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
-            _call("product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput",
                 assignments=[_assignment("S0002", "deal", uuid4())],
@@ -766,27 +881,24 @@ async def test_refinement_cannot_return_an_unselected_deal():
         ]
     )
     with pytest.raises(LLMError, match="^meeting_content_refinement_deal_not_selected$"):
-        await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+        await meeting_content_analysis.run(snapshot, model=model)
 
 
 @pytest.mark.anyio
 async def test_model_budget_includes_initial_classification():
     snapshot, _, deal_b, initial = _grounding_case()
 
-    async def lookup(*args):
-        return {}
-
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
             *[
-                _call("product_details", sales_deal_id=str(deal_b))
+                _call("read_deal_product_details", sales_deal_id=str(deal_b))
                 for _ in range(meeting_content_analysis.MAX_MODEL_CALLS)
             ],
         ]
     )
     with pytest.raises(LLMError, match="^meeting_content_model_call_limit$"):
-        await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+        await meeting_content_analysis.run(snapshot, model=model)
     assert len(model._seen) == meeting_content_analysis.MAX_MODEL_CALLS
 
 
@@ -795,11 +907,6 @@ async def test_repeated_empty_lookup_runs_once_and_keeps_unresolved():
     snapshot, _, deal_b, initial = _grounding_case()
     calls = []
 
-    async def lookup(kind, deal_id):
-        calls.append((kind, deal_id))
-        await asyncio.sleep(0)
-        return {"items": []}
-
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
@@ -807,57 +914,57 @@ async def test_repeated_empty_lookup_runs_once_and_keeps_unresolved():
                 content="",
                 tool_calls=[
                     {
-                        "name": "previous_reports",
+                        "name": "read_previous_deal_reports",
                         "args": {"sales_deal_id": str(deal_b)},
                         "id": str(uuid4()),
                     }
                     for _ in range(2)
                 ],
             ),
-            _call("previous_reports", sales_deal_id=str(deal_b)),
+            _call("read_previous_deal_reports", sales_deal_id=str(deal_b)),
             _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "unresolved")]),
         ]
     )
 
-    ledger = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+    ledger = await meeting_content_analysis.run(snapshot, on_lookup=calls.append, model=model)
 
-    assert calls == [("previous_reports", deal_b)]
+    assert [(item["kind"], item["sales_deal_id"]) for item in calls] == [
+        ("previous_reports", str(deal_b))
+    ]
     assert ledger.items[1].applicability.scope == "unresolved"
     tool_results = [
         json.loads(message.content)
         for message in model._seen[-1]
-        if message.type == "tool" and message.name == "previous_reports"
+        if message.type == "tool" and message.name == "read_previous_deal_reports"
     ]
     assert len(tool_results) == 3
     assert all(result["no_new_information"] is True for result in tool_results)
 
 
 @pytest.mark.anyio
-async def test_transient_lookup_failure_is_not_cached():
+async def test_repeated_nonempty_snapshot_read_is_cached_and_recorded_once():
     snapshot, _, deal_b, initial = _grounding_case()
-    calls = 0
-
-    async def lookup(kind, deal_id):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            raise RuntimeError("private transient failure")
-        return {"items": [{"name": "휴대형"}]}
+    calls = []
 
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
-            _call("product_details", sales_deal_id=str(deal_b)),
-            _call("product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
             _call(
                 "MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]
             ),
         ]
     )
-    ledger = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
-    assert calls == 2
+    ledger = await meeting_content_analysis.run(snapshot, on_lookup=calls.append, model=model)
+    assert len(calls) == 1
     assert ledger.items[1].applicability.deal_ids == [deal_b]
-    assert "private transient failure" not in str(model._seen)
+    repeated = [
+        json.loads(message.content)
+        for message in model._seen[-1]
+        if message.type == "tool" and message.name == "read_deal_product_details"
+    ]
+    assert repeated[-1]["no_new_information"] is True
 
 
 @pytest.mark.anyio
@@ -870,19 +977,14 @@ async def test_sdk_calls_log_actual_usage_and_safe_start_finish_progress(monkeyp
         lambda stage=None, **metrics: progress.append((stage, metrics)),
     )
 
-    async def lookup(kind, deal_id):
-        return {"items": [{"name": "휴대형"}]}
-
     responses = [
         *_initial_responses(initial),
-        _call("product_details", sales_deal_id=str(deal_b)),
+        _call("read_deal_product_details", sales_deal_id=str(deal_b)),
         _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]),
     ]
     for message in responses:
         message.usage_metadata = {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30}
-    await meeting_content_analysis.run(
-        snapshot, lookup=lookup, model=ScriptedGroundingModel(responses=responses)
-    )
+    await meeting_content_analysis.run(snapshot, model=ScriptedGroundingModel(responses=responses))
 
     events = [
         json.loads(record.message.removeprefix("agent_progress "))
@@ -947,20 +1049,27 @@ async def test_sdk_budget_uses_top_level_usage_once_and_counts_no_blocked_call(m
 
 
 @pytest.mark.anyio
-async def test_timeout_and_tool_errors_do_not_expose_private_values(monkeypatch):
+async def test_timeout_and_recorder_errors_are_not_cached_or_exposed(monkeypatch):
     snapshot, _, deal_b, initial = _grounding_case()
+    calls = 0
 
-    async def lookup(*args):
+    def lookup(*args):
+        nonlocal calls
+        calls += 1
         raise RuntimeError("private CRM information")
 
     model = ScriptedGroundingModel(
         responses=[
             *_initial_responses(initial),
-            _call("product_details", sales_deal_id=str(deal_b)),
-            _call("MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "unresolved")]),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call("read_deal_product_details", sales_deal_id=str(deal_b)),
+            _call(
+                "MeetingContentAnalysisOutput", assignments=[_assignment("S0002", "deal", deal_b)]
+            ),
         ]
     )
-    result = await meeting_content_analysis.run(snapshot, lookup=lookup, model=model)
+    result = await meeting_content_analysis.run(snapshot, on_lookup=lookup, model=model)
+    assert calls == 2
     assert result.items[1].applicability.scope == "unresolved"
     assert "private CRM information" not in str(model._seen)
     assert "crm_lookup_failed" in str(model._seen)

@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -6,7 +6,7 @@ import ErrorToast from '@/components/ErrorToast'
 import { PlusIcon, ProductIcon, SearchIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { wonFull } from '@/utils/format'
 
 import { categoryLabel, shelfLifeLabel } from './catalog'
@@ -30,7 +30,6 @@ const TABLE_WIDTH = COLUMNS.reduce((sum, column) => sum + column.width, 0)
 export default function Products() {
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
-  const deferredQuery = useDeferredValue(query)
   const [adding, setAdding] = useState(false)
   const [page, setPage] = useState(1)
 
@@ -41,7 +40,7 @@ export default function Products() {
     error,
     reload,
     addProduct,
-  } = useProducts({ q: deferredQuery, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE })
+  } = useProducts({ q: query, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE })
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -75,7 +74,7 @@ export default function Products() {
           value={query}
           placeholder="제품명·분류·메모 검색"
           label="상품 검색"
-          onChange={setQuery}
+          onSearch={setQuery}
         />
         <div className={styles.actions}>
           <Button disabled={loading} onClick={() => setAdding(true)}>
@@ -85,13 +84,11 @@ export default function Products() {
         </div>
       </div>
 
-      {!error && loading && rows.length > 0 && (
-        <InlineLoader label="상품 목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={error} onRetry={reload} />
 
-      {rows.length === 0 ? (
+      {!error && loading ? (
+        <TableSkeleton label="상품 목록을 새로고침하는 중입니다." rows={rows.length} />
+      ) : rows.length === 0 ? (
         <div className={styles.card}>
           <div className={styles.empty}>
             {query.trim() !== '' ? (

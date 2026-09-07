@@ -53,6 +53,13 @@
   white-space: pre-wrap;
 }
 
+.body {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 .evidence {
   margin: 0;
   color: var(--ink-2);

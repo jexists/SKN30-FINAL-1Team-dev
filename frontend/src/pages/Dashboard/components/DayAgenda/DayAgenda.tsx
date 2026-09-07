@@ -13,6 +13,7 @@ import { meetingComposePath, meetingReportPath } from '@/constants/routes'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { isOwnAgendaItem, useAgendaFor } from '@/shared/agenda'
 import { reviewLabel } from '@/shared/reviewDecision'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
 import { useShowOwner } from '@/shared/scope'
 import type { AgendaItem } from '@/types'
 
@@ -84,11 +85,13 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
     // 내가 한 일에만 섭니다. 보고는 남이 한 일을 대신 적는 문서가 아니라서,
     // 팀 전체를 보고 있는 팀장에게도 팀원의 일정에는 이 길이 서지 않습니다.
     const needsReport = !reportsLoading && !report && isOwn
-    const canContinue =
+    const canEdit =
       !reportsLoading &&
       !!report &&
       report.ownerMemberId === memberId &&
-      (report.apiStatus === 'draft' || report.apiStatus === 'changes_requested')
+      isAuthorEditableReportStatus(report.apiStatus)
+    const reportAction =
+      canEdit && report?.apiStatus === 'draft' ? '계속 작성' : canEdit ? '수정' : '작성'
     const written = !reportsLoading && report?.apiStatus !== 'draft' ? report : undefined
 
     return (
@@ -108,15 +111,15 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
               앞에, 수정·삭제는 '...' 하나에 접어 그 뒤에 섭니다.
               줄 전체는 상세를 열므로 이 안의 클릭은 여기서 끊습니다. */}
           <div className={styles.actions} onClick={(event) => event.stopPropagation()}>
-            {/* 미작성 또는 수정중인 보고서는 그 일정의 작성 화면으로 엽니다. */}
-            {(needsReport || canContinue) && (
+            {/* 미작성 또는 승인 전 보고서는 그 일정의 작성 화면으로 엽니다. */}
+            {(needsReport || canEdit) && (
               <Link
                 to={meetingComposePath(it.id)}
                 className={styles.reportBtn}
-                aria-label={`${it.title} 업무보고서 ${canContinue ? '계속 작성' : '작성'}`}
+                aria-label={`${it.title} 업무보고서 ${reportAction}`}
               >
                 <DailyReportIcon width={13} height={13} />
-                {canContinue ? '계속 작성' : '보고서 작성'}
+                {reportAction === '계속 작성' ? reportAction : `보고서 ${reportAction}`}
               </Link>
             )}
 

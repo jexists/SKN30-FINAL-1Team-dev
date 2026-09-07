@@ -1,12 +1,13 @@
-// ErrorToast 와 같은 자리에 섭니다. 성공이든 오류든 안내는 늘 같은 곳에서
+// 화면 위쪽 한가운데에 섭니다. 성공이든 오류든 안내는 늘 같은 곳에서
 // 나와야 눈이 찾아 헤매지 않습니다.
 //
-// --sidebar-gutter 는 AppShell.module.scss 가 소유하고 여기서는 상속만
-// 받습니다. 사이드바를 접거나 펴도 본문 기준으로 가운데에 섭니다.
+// 이 호스트는 AppShell 밖(App.tsx)에 붙어 --sidebar-gutter 를 물려받지
+// 못하므로, 사이드바가 없는 로그인 화면까지 포함해 화면 전체를 기준으로
+// 가운데에 둡니다.
 .host {
   position: fixed;
   top: calc(var(--topbar-h) + var(--s3));
-  left: var(--sidebar-gutter);
+  left: 0;
   right: 0;
   z-index: var(--z-toast);
   display: flex;

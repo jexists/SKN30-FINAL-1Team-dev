@@ -5,17 +5,19 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
 import { EditIcon } from '@/components/icons'
-import ReportFields from '@/components/ReportFields'
+import ReportBody from '@/components/ReportBody'
 import { SkeletonDetail } from '@/components/Skeleton'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
-import { meetingComposePath, ROUTES } from '@/constants/routes'
+import { dealDetailPath, meetingComposePath, ROUTES } from '@/constants/routes'
 import DailyListLink from '@/pages/Daily/components/DailyListLink'
 import { useReportDetail } from '@/shared/reportQuery'
-import { fmtDay, parseISO } from '@/utils/date'
+import { isAuthorEditableReportStatus } from '@/shared/reports'
+import { fmtDay, fmtDot, parseISO } from '@/utils/date'
 import type { MeetingDealSection } from '@/types'
 
 import MeetingFacts from './components/MeetingFacts'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
+import { isInsufficientDealPrediction } from './generatedDraft'
 import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
 import { toMeetingReport } from './useMeetingReports'
 
@@ -26,6 +28,9 @@ function assessmentBadge(section: MeetingDealSection): {
   tone: StatusTone
   title?: string
 } {
+  if (isInsufficientDealPrediction(section.analysisError)) {
+    return { label: '판단 정보 부족', tone: 'neutral' }
+  }
   if (section.analysisError) {
     return { label: 'ML 분석 실패', tone: 'red', title: section.analysisError }
   }
@@ -87,7 +92,7 @@ export default function Detail() {
     )
   }
 
-  const editable = report.apiStatus === 'draft' || report.apiStatus === 'changes_requested'
+  const editable = isAuthorEditableReportStatus(report.apiStatus)
 
   return (
     <section>
@@ -121,7 +126,11 @@ export default function Detail() {
             <span className={styles.dot} aria-hidden="true">
               ·
             </span>
-            <span>딜 {report.dealSections.length}건</span>
+            <span>
+              {report.dealSections.length > 0
+                ? `딜 ${report.dealSections.length}건`
+                : '관련 딜 없음'}
+            </span>
           </p>
         </div>
       </header>
@@ -135,51 +144,58 @@ export default function Detail() {
         <div className={styles.report}>
           <MeetingSharedPanel shared={report.meetingShared ?? null} />
           {report.dealSections.length === 0 ? (
-            <p className={styles.emptySections} role="alert">
-              저장된 딜별 보고서 내용을 찾을 수 없습니다.
-            </p>
+            !report.meetingShared && <p className={styles.emptySections}>작성된 내용이 없습니다.</p>
           ) : (
             <div className={styles.dealSections}>
               {report.dealSections.map((section, index) => {
                 const badge = assessmentBadge(section)
                 const titleId = `deal-report-${section.salesDealId}-${index}`
                 return (
-                  <article className={styles.sheet} key={titleId} aria-labelledby={titleId}>
-                    <div className={styles.sectionHead}>
-                      <div>
-                        <p className={styles.dealLabel}>
-                          {section.salesDeal.label}
-                          {section.salesDeal.note && <span>{section.salesDeal.note}</span>}
-                        </p>
+                  <article className={styles.card} key={titleId} aria-labelledby={titleId}>
+                    <header className={styles.cardHead}>
+                      <Link
+                        className={styles.dealIdentity}
+                        to={dealDetailPath(section.salesDealId)}
+                      >
+                        <strong className={styles.dealLine}>{section.salesDeal.label}</strong>
+                        {section.salesDeal.note && (
+                          <span className={styles.dealTitle}>{section.salesDeal.note}</span>
+                        )}
+                      </Link>
+                      <span className={styles.assessment} title={badge.title}>
+                        <StatusBadge label={badge.label} tone={badge.tone} />
+                      </span>
+                    </header>
+
+                    <div className={styles.cardBody}>
+                      <div className={styles.titleBlock}>
                         <h2 className={styles.docTitle} id={titleId}>
                           {section.title || report.title}
                         </h2>
                         <p className={styles.docWhen}>
-                          {fmtDay(parseISO(report.date))} {report.time}
+                          {fmtDot(parseISO(report.date))} {report.time}
                           {section.product && ` · ${section.product}`}
                         </p>
                       </div>
-                      <span className={styles.assessment} title={badge.title}>
-                        <StatusBadge label={badge.label} tone={badge.tone} />
-                      </span>
-                    </div>
 
-                    {report.template.fields.length === 0 ? (
-                      <p role="alert">저장된 보고서 양식 필드를 해석할 수 없습니다.</p>
-                    ) : (
-                      <ReportFields template={report.template} values={section.values} readOnly />
-                    )}
-                    {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
-                    {section.analysisError && (
-                      <p className={styles.sectionError} role="status">
-                        ML 분석: {section.analysisError}
-                      </p>
-                    )}
-                    {section.reportError && (
-                      <p className={styles.sectionError} role="status">
-                        보고서 생성: {section.reportError}
-                      </p>
-                    )}
+                      {section.values.body?.trim() ? (
+                        <ReportBody className={styles.reportBody} body={section.values.body} />
+                      ) : (
+                        <p className={styles.emptyBody}>작성된 내용이 없습니다.</p>
+                      )}
+                      {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
+                      {section.analysisError &&
+                        !isInsufficientDealPrediction(section.analysisError) && (
+                          <p className={styles.sectionError} role="status">
+                            ML 분석: {section.analysisError}
+                          </p>
+                        )}
+                      {section.reportError && (
+                        <p className={styles.sectionError} role="status">
+                          보고서 생성: {section.reportError}
+                        </p>
+                      )}
+                    </div>
                   </article>
                 )
               })}

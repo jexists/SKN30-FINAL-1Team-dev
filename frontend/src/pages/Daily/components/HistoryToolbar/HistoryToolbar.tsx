@@ -25,7 +25,7 @@ import styles from './HistoryToolbar.module.scss'
 
 interface Props {
   query: string
-  onQueryChange: (next: string) => void
+  onSearch: (next: string) => void
   filters: HistoryFilters
   onFiltersChange: (next: HistoryFilters) => void
   approvers: string[]
@@ -37,7 +37,7 @@ interface Props {
 
 export default function HistoryToolbar({
   query,
-  onQueryChange,
+  onSearch,
   filters,
   onFiltersChange,
   approvers,
@@ -62,7 +62,7 @@ export default function HistoryToolbar({
         value={query}
         placeholder="보고서 검색"
         label="보고서 검색"
-        onChange={onQueryChange}
+        onSearch={onSearch}
       />
 
       <Popover

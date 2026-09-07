@@ -1,5 +1,6 @@
 export { default } from './Skeleton'
 export { default as ListPageSkeleton } from './ListPageSkeleton'
+export { default as TableSkeleton } from './TableSkeleton'
 export { default as SkeletonBlocks } from './SkeletonBlocks'
 export { default as SkeletonDetail } from './SkeletonDetail'
 export { default as InlineLoader } from './InlineLoader'

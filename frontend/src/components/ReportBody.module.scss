@@ -1,0 +1,45 @@
+.root {
+  white-space: normal;
+  overflow-wrap: anywhere;
+
+  :global(h1),
+  :global(h2),
+  :global(h3),
+  :global(h4),
+  :global(h5),
+  :global(h6),
+  :global(p),
+  :global(ul),
+  :global(ol),
+  :global(pre),
+  :global(blockquote) {
+    margin: 0 0 0.75em;
+  }
+
+  :global(ul),
+  :global(ol) {
+    padding-left: 1.5em;
+  }
+
+  :global(ul) {
+    list-style: disc;
+  }
+
+  :global(ol) {
+    list-style: decimal;
+  }
+
+  :global(h1),
+  :global(h2),
+  :global(h3),
+  :global(h4),
+  :global(h5),
+  :global(h6) {
+    font-size: 1em;
+    font-weight: 700;
+  }
+
+  > :global(:last-child) {
+    margin-bottom: 0;
+  }
+}

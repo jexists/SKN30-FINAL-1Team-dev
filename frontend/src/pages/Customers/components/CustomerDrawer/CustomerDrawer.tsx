@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { buttonClass } from '@/components/Button'
 import Drawer from '@/components/Drawer'
+import { EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
+import Popover from '@/components/Popover'
 import type { Customer } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 
@@ -9,6 +11,10 @@ import styles from './CustomerDrawer.module.scss'
 
 interface Props {
   customer: Customer
+  /** 삭제는 팀장만 합니다. 아니면 메뉴에서 아예 빼고, 막는 일은 백엔드가 다시 합니다. */
+  canDelete: boolean
+  onEdit: () => void
+  onDelete: () => void
   onClose: () => void
 }
 
@@ -28,7 +34,9 @@ function Block({ title, children }: BlockProps) {
 
 const shown = (value: string | null | undefined): string => value || '—'
 
-export default function CustomerDrawer({ customer, onClose }: Props) {
+export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, onClose }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   // 담당자가 여럿이면 상세에서는 전부 보여 줍니다. 좁은 표와 달리 자리가 있습니다.
   const ownerNames =
     customer.owners !== undefined && customer.owners.length > 0
@@ -51,6 +59,52 @@ export default function CustomerDrawer({ customer, onClose }: Props) {
       sub={[customer.org, customer.dept, customer.title].filter(Boolean).join(' · ')}
       resetKey={customer.id}
       onClose={onClose}
+      actions={
+        <Popover
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          align="end"
+          compact
+          label="고객 메뉴"
+          trigger={
+            <button
+              type="button"
+              className={styles.menuBtn}
+              aria-label="고객 메뉴"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((value) => !value)}
+            >
+              <MoreIcon width={18} height={18} />
+            </button>
+          }
+        >
+          <div className={styles.menu}>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                onEdit()
+              }}
+            >
+              <EditIcon width={15} height={15} />
+              수정
+            </button>
+            {canDelete && (
+              <button
+                type="button"
+                className={styles.danger}
+                onClick={() => {
+                  setMenuOpen(false)
+                  onDelete()
+                }}
+              >
+                <TrashIcon width={15} height={15} />
+                삭제
+              </button>
+            )}
+          </div>
+        </Popover>
+      }
       meta={
         <>
           <i

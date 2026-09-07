@@ -51,7 +51,7 @@ def _joined_select(*entities):
         .join(_owner, Activity.owner_member_id == _owner.id)
         .outerjoin(_contact, Activity.customer_contact_id == _contact.id)
         .outerjoin(_contact_owner, _contact.owner_member_id == _contact_owner.id)
-        .outerjoin(_company, _contact.company_id == _company.id)
+        .outerjoin(_company, Activity.customer_company_id == _company.id)
         .outerjoin(_product, Activity.product_id == _product.id)
         .outerjoin(_sales_deal, Activity.sales_deal_id == _sales_deal.id)
         .join(_activity_category, Activity.activity_category_id == _activity_category.id)
@@ -90,6 +90,11 @@ def _scope(member: Member, owner_ids: tuple[UUID, ...] | None = None):
                 _sales_deal.team_id == member.team_id,
                 _sales_deal.deleted_at.is_(None),
             ),
+        ),
+        or_(
+            Activity.customer_contact_id.is_(None),
+            Activity.sales_deal_id.is_(None),
+            _sales_deal.customer_company_id == _company.id,
         ),
     ]
     if member.role_code == "member":
@@ -251,6 +256,8 @@ async def _contact_info(
 ) -> tuple[CustomerContact, UUID, str]:
     conditions = [
         CustomerContact.id == contact_id,
+        # 지운 고객은 새 일정의 대상으로 고를 수 없다. 이미 걸려 있던 일정은 그대로 둔다.
+        CustomerContact.deleted_at.is_(None),
         CustomerCompany.team_id == member.team_id,
         Member.team_id == member.team_id,
         Member.active.is_(True),
@@ -271,6 +278,55 @@ async def _contact_info(
             detail="customer_contact_not_found",
         )
     return row
+
+
+async def _team_company(db: AsyncSession, member: Member, company_id: UUID) -> str:
+    """팀의 고객사인지 보고 이름을 돌려준다.
+
+    이름까지 함께 읽는 것은 등록 응답 때문이다. 담당자 없이 고객사만 지정하면 응답이
+    담당자 조회 결과에서 회사를 가져올 수 없어, 저장된 값과 달리 회사가 빈 채로 나갔다.
+    """
+    result = await db.execute(
+        select(CustomerCompany.name).where(
+            CustomerCompany.id == company_id,
+            CustomerCompany.team_id == member.team_id,
+        )
+    )
+    name = result.scalar_one_or_none()
+    if name is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="customer_company_not_found",
+        )
+    return name
+
+
+async def _resolve_company_id(
+    db: AsyncSession,
+    member: Member,
+    company_id: UUID | None,
+    contact_info: tuple[CustomerContact, UUID, str] | None,
+) -> tuple[UUID, str]:
+    """일정이 붙을 고객사를 정한다. 등록 응답이 쓸 수 있게 이름도 함께 돌려준다.
+
+    담당자가 있으면 회사는 그 사람의 회사다 — 따로 보낸 값이 다르면 조용히 한쪽을 고르지 않고
+    막는다. 담당자가 없으면 회사만이라도 있어야 한다. 둘 다 없으면 그 일정은 어느 고객사 것인지
+    알 수 없고, AI 브리핑도 만들 수 없다.
+    """
+    if contact_info is not None:
+        contact_company_id = contact_info[1]
+        if company_id is not None and company_id != contact_company_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="customer_company_mismatch",
+            )
+        return contact_company_id, contact_info[2]
+    if company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="customer_company_required",
+        )
+    return company_id, await _team_company(db, member, company_id)
 
 
 async def _team_product(db: AsyncSession, member: Member, product_id: UUID) -> Product:
@@ -359,6 +415,20 @@ def _validate_range(starts_at: datetime, ends_at: datetime | None) -> None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="invalid_activity_range",
+        )
+
+
+def _validate_customer_company(
+    contact_company_id: UUID | None, sales_deal: SalesDeal | None
+) -> None:
+    if (
+        contact_company_id is not None
+        and sales_deal is not None
+        and sales_deal.customer_company_id != contact_company_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="contact_company_mismatch",
         )
 
 
@@ -511,8 +581,12 @@ async def create_activity(
             if payload.product_id is None
             else await _team_product(db, member, payload.product_id)
         )
-        if payload.sales_deal_id is not None:
-            await _team_sales_deal(db, member, payload.sales_deal_id)
+        sales_deal = (
+            None
+            if payload.sales_deal_id is None
+            else await _team_sales_deal(db, member, payload.sales_deal_id)
+        )
+        _validate_customer_company(None if contact_info is None else contact_info[1], sales_deal)
         category = await _active_activity_category(db, member, payload.category_code)
         action_tag = (
             None
@@ -523,6 +597,9 @@ async def create_activity(
         values.pop("category_code")
         values.pop("action_tag")
         schedule_management_run_id = values.pop("schedule_management_run_id")
+        values["customer_company_id"], company_name = await _resolve_company_id(
+            db, member, values["customer_company_id"], contact_info
+        )
         if schedule_management_run_id is not None:
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
@@ -541,12 +618,20 @@ async def create_activity(
             activity,
             member.display_name,
             None if contact_info is None else contact_info[0],
-            None if contact_info is None else contact_info[1],
-            None if contact_info is None else contact_info[2],
+            # 담당자가 없어도 고객사는 정해져 있다. 담당자 조회 결과에서만 가져오면
+            # 저장된 값과 달리 응답의 회사가 빈 채로 나간다.
+            activity.customer_company_id,
+            company_name,
             None if product is None else product.name,
             category,
             action_tag,
         )
+        activity_id = activity.id
+        activity_sales_deal_id = activity.sales_deal_id
+        team_id = member.team_id
+        owner_member_id = member.id
+        starts_at = activity.starts_at
+        ends_at = activity.ends_at
         await db.commit()
     except Exception:
         await db.rollback()
@@ -554,35 +639,57 @@ async def create_activity(
 
     # 일정 등록은 이미 커밋됐다 — 이 아래에서 브리핑 큐잉이 실패해도 등록 자체는 되돌리지
     # 않고, 실패 사유만 응답에 경고로 실어 보낸다.
+    # 브리핑은 어느 경로로 만든 일정이든 붙인다. 미팅 전에 훑어보라고 만드는 것인데
+    # AI 추천을 수락한 일정에만 붙어 있어, 사람이 직접 잡은 일정에는 없었다. 딜이 없어도
+    # 만들어진다 — 입력은 activity_id 하나로 고객사·그 회사의 열린 딜·자료실까지 모인다.
+    # AI 제안을 거친 일정만 parent_run_id 를 남긴다(agent_runs 가 그 필드를 선택으로 둔
+    # 이유다: "캘린더 직접 입력이나 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은
+    # 부모 없이 activity_id만으로 만든다").
+    try:
+        _, briefing_run_id = await agent_run_service.create(
+            AgentRunCreate(
+                agent_code="contract_management_briefing",
+                activity_id=activity_id,
+                parent_run_id=schedule_management_run_id,
+                idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity_id)),
+            ),
+            member,
+            db,
+        )
+        if briefing_run_id is not None:
+            background.add_task(agent_run_service.execute, briefing_run_id)
+    except HTTPException as error:
+        read.briefing_queue_warning = str(error.detail)
+
     if schedule_management_run_id is not None:
-        try:
-            _, briefing_run_id = await agent_run_service.create(
-                AgentRunCreate(
-                    agent_code="contract_management_briefing",
-                    activity_id=activity.id,
-                    parent_run_id=schedule_management_run_id,
-                    idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity.id)),
-                ),
-                member,
-                db,
-            )
-            if briefing_run_id is not None:
-                background.add_task(agent_run_service.execute, briefing_run_id)
-        except HTTPException as error:
-            read.briefing_queue_warning = str(error.detail)
-        read.schedule_conflict_warning = await _conflict_warning(db, member, activity)
-    elif activity.sales_deal_id is not None:
+        read.schedule_conflict_warning = await _conflict_warning(
+            db,
+            team_id=team_id,
+            owner_member_id=owner_member_id,
+            activity_id=activity_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+    elif activity_sales_deal_id is not None:
         # AI 추천을 거치지 않은 수동 등록이다 — 이 딜이 AI 추천 체인을 한 번도 안 거쳤을
         # 수 있다는 신호로 보고 트리거한다(계약에이전트_설계.md 3장).
         contract_next_meeting_pipeline.queue(
-            background, activity.sales_deal_id, {"activity_id": str(activity.id)}
+            background, activity_sales_deal_id, {"activity_id": str(activity_id)}
         )
 
-    response.headers["Location"] = f"/api/activities/{activity.id}"
+    response.headers["Location"] = f"/api/activities/{activity_id}"
     return read
 
 
-async def _conflict_warning(db: AsyncSession, member: Member, activity: Activity) -> str | None:
+async def _conflict_warning(
+    db: AsyncSession,
+    *,
+    team_id: UUID,
+    owner_member_id: UUID,
+    activity_id: UUID,
+    starts_at: datetime,
+    ends_at: datetime | None,
+) -> str | None:
     """승인한 시간에 이 담당자의 다른 일정이 이미 있으면 안내 문구를 만든다.
 
     제안은 트리거 시점에 미리 계산해 둔 값이라, 그때는 비어 있던 자리에 승인하기 전까지
@@ -591,15 +698,14 @@ async def _conflict_warning(db: AsyncSession, member: Member, activity: Activity
     옮기도록 알리기만 한다.
     """
     # 종료가 없는(하루 종일) 일정은 그날 전체를 차지한 것으로 본다.
-    starts_at = activity.starts_at
-    ends_at = activity.ends_at or starts_at + timedelta(days=1)
+    ends_at = ends_at or starts_at + timedelta(days=1)
     rows = (
         await db.execute(
             select(Activity.title, Activity.starts_at)
             .where(
-                Activity.team_id == member.team_id,
-                Activity.owner_member_id == member.id,
-                Activity.id != activity.id,
+                Activity.team_id == team_id,
+                Activity.owner_member_id == owner_member_id,
+                Activity.id != activity_id,
                 Activity.deleted_at.is_(None),
                 Activity.starts_at < ends_at,
                 func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1)) > starts_at,
@@ -671,12 +777,28 @@ async def update_activity(
     try:
         activity = await _locked_activity(db, member, activity_id)
         values = payload.model_dump(exclude_unset=True)
-        if values.get("customer_contact_id") is not None:
-            await _contact_info(db, member, values["customer_contact_id"])
-        if values.get("product_id") is not None:
-            await _team_product(db, member, values["product_id"])
-        if values.get("sales_deal_id") is not None:
-            await _team_sales_deal(db, member, values["sales_deal_id"])
+        if {"customer_contact_id", "customer_company_id", "sales_deal_id"} & values.keys():
+            # 담당자·고객사·딜 중 하나만 바꿔도 셋의 짝이 어긋날 수 있어 함께 다시 정한다.
+            contact_id = values.get("customer_contact_id", activity.customer_contact_id)
+            sales_deal_id = values.get("sales_deal_id", activity.sales_deal_id)
+            contact_info = (
+                None if contact_id is None else await _contact_info(db, member, contact_id)
+            )
+            # 담당자가 있으면 회사는 거기서 나온다. 담당자를 지우기만 했다면 원래 회사를 남긴다.
+            company_id = (
+                values.get("customer_company_id")
+                if contact_info is not None
+                else values.get("customer_company_id", activity.customer_company_id)
+            )
+            values["customer_company_id"], _company_name = await _resolve_company_id(
+                db, member, company_id, contact_info
+            )
+            sales_deal = (
+                None if sales_deal_id is None else await _team_sales_deal(db, member, sales_deal_id)
+            )
+            _validate_customer_company(
+                None if contact_info is None else contact_info[1], sales_deal
+            )
         if "category_code" in values:
             category_code = values.pop("category_code")
             category = await _active_activity_category(db, member, category_code)

@@ -70,11 +70,11 @@ def _file(file_name: str, version_no: int, summary: str | None = None):
 
 
 @pytest.mark.anyio
-async def test_related_documents_keep_only_the_latest_file_version():
-    """문서 하나가 버전을 여러 개 들고 있어도 목록에는 한 줄만 선다."""
+async def test_related_documents_keep_only_one_file_per_document():
+    """예전 자료가 파일을 여러 개 들고 있어도 목록에는 한 줄만 선다."""
     document = _document("계약서")
     db = _Db(
-        # 정렬이 최신 버전을 먼저 주므로 첫 행만 담긴다.
+        # 정렬이 나중에 올린 것을 먼저 주므로 첫 행만 담긴다.
         _Result(rows=[(document, _file("계약서_v2.pdf", 2)), (document, _file("계약서.pdf", 1))]),
         _Result(scalar=None),  # 딜의 상품
         _Result(scalar_values=[]),  # 딜 견적 품목의 상품

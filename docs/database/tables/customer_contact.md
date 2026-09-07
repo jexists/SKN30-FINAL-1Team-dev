@@ -20,6 +20,7 @@
 | `customer_contact_status_id` | UUID | FK → customer_contact_status.id | YES | – | 담당자 상태 ID |
 | `created_by_member_id` | UUID | FK → member.id | NO | – | 등록한 구성원 ID (등록 후 변경 없음) |
 | `visited` | BOOLEAN | – | NO | `false` | 방문 여부 (수동 표시) |
+| `deleted_at` | TIMESTAMPTZ | – | YES | – | 삭제 시각 (팀장 전용 소프트 삭제). NULL이면 살아 있는 고객 |
 
 ## Constraints
 
@@ -35,6 +36,7 @@
 
 - `customer_contact_company_name_idx` — `btree (company_id, name)`
 - `customer_contact_owner_idx` — `btree (owner_member_id)`
+- `customer_contact_active_idx` — `btree (id) WHERE deleted_at IS NULL`
 
 ## Relations
 

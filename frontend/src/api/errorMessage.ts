@@ -52,6 +52,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   assignee_member_not_found: '고른 담당자를 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   customer_company_not_found: '고객사를 찾지 못했습니다. 다시 시도해 주세요.',
   customer_contact_not_found: '고객을 찾지 못했습니다. 목록을 새로 불러와 주세요.',
+  customer_contact_duplicate: '이미 등록된 고객입니다. 기존 고객 정보를 확인해 주세요.',
   customer_contact_status_code_not_found: '고객 상태 설정을 확인해 주세요.',
   // 문자 인식(OCR)·AI 처리. 자료실과 명함이 같은 코드를 씁니다.
   ocr_not_configured: '문자 인식 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
@@ -65,6 +66,16 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   business_card_scan_timeout: '명함 인식이 제한시간 안에 끝나지 않았습니다. 다시 시도해 주세요.',
   business_card_upload_timeout:
     '사진을 올리는 데 시간이 너무 오래 걸렸습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
+  // 사업자등록증 인식 (/customers)
+  business_license_scan_empty:
+    '사업자등록증에서 읽어 낸 값이 없습니다. 문서가 선명하게 보이도록 다시 올려 주세요.',
+  business_license_scan_not_found: '인식 결과가 만료되었습니다. 다시 시도해 주세요.',
+  business_license_scan_timeout:
+    '사업자등록증 인식이 제한시간 안에 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  business_license_upload_timeout:
+    '사업자등록증을 올리는 데 시간이 너무 오래 걸렸습니다. 네트워크 상태를 확인해 주세요.',
+  business_license_upload_invalid: '사업자등록증 파일 형식을 확인해 주세요.',
+  business_license_unsupported_file: 'PDF 또는 이미지 형식의 사업자등록증만 올릴 수 있습니다.',
   // 보고서 (/reports)
   activity_not_owned: '본인이 진행한 일정에만 보고서를 쓸 수 있습니다.',
   report_not_owned: '본인이 쓴 보고서만 고치거나 제출할 수 있습니다.',
@@ -81,6 +92,8 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   report_has_submission_history: '확정 이력이 있는 보고서는 삭제할 수 없습니다.',
   meeting_notes_empty: '기록된 공통·미지정 내용은 비워서 저장할 수 없습니다.',
   meeting_notes_without_evidence: '근거가 없는 공통·미지정 항목에는 메모를 추가할 수 없습니다.',
+  report_agent_output_invalid:
+    'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
   // 상품 (/products)
   product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   product_image_not_found: '등록된 사진이 없습니다.',
@@ -141,6 +154,13 @@ const MESSAGE_BY_STATUS: Record<number, string> = {
  */
 export function messageForCode(code: string, fallback: string): string {
   return code in MESSAGE_BY_DETAIL ? MESSAGE_BY_DETAIL[code] : fallback
+}
+
+export function reportGenerationMessage(code: string): string {
+  return messageForCode(
+    code,
+    'AI 보고서 작성을 완료하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
+  )
 }
 
 export function errorMessage(error: unknown, fallback: string): string {

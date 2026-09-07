@@ -2,7 +2,16 @@
 //
 // 테두리는 label 이 그리고 input 은 맨몸으로 그 안에 눕습니다. 그래야 돋보기를 눌러도
 // 입력으로 포커스가 가고, 포커스 링이 돋보기까지 감쌉니다.
+
+// 화면이 넘기는 폭(flex-basis·max-width)은 검색 버튼까지 감싼 이 form 이 받습니다.
+.form {
+  display: flex;
+  gap: var(--s2);
+  min-width: 0;
+}
+
 .root {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: var(--s2);

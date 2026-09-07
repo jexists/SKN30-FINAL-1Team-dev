@@ -10,11 +10,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
+import { PAGE_SIZE } from '@/constants/pagination'
 import useSearchPaging from '@/hooks/useSearchPaging'
 import { toMeetingReport } from '@/pages/Meetings/useMeetingReports'
-import { fetchReportPage } from '@/shared/reportQuery'
 import { useScopeOwnerIds } from '@/shared/scope'
-import type { ApiReportKind, ApiReportStatus, ReportResponse } from '@/types'
+import type { ApiReportKind, ApiReportStatus, PageResponse, ReportResponse } from '@/types'
 import { addMonths, iso, startOfMonth, startOfWeek, TODAY } from '@/utils/date'
 
 import { type HistoryFilters } from './historyFilters'
@@ -46,6 +46,25 @@ interface HistoryQueryScope {
 }
 
 const some = <T>(values: T[]) => (values.length > 0 ? values : undefined)
+
+/** 달력과 드로어가 현재 보이는 기간의 보고서를 끝까지 받습니다. */
+export async function fetchAllReportPages(
+  params: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ReportResponse[]> {
+  const items: ReportResponse[] = []
+  let skip = 0
+  while (true) {
+    const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
+      params: { ...params, skip, limit: PAGE_SIZE },
+      signal,
+    })
+    items.push(...data.items)
+    if (!data.has_more || data.next_skip === null) return items
+    if (data.next_skip <= skip) throw new Error('invalid_pagination')
+    skip = data.next_skip
+  }
+}
 
 /** 이 탭이 보는 보고서 종류. 서버가 이 목록으로 좁힙니다. */
 function kindsOf(period: Period): ApiReportKind[] {
@@ -168,13 +187,7 @@ export function useReportList(period: Period, query: string, filters: HistoryFil
   }
 }
 
-/**
- * 달력에 찍을 점. 검색어·필터를 걸지 않습니다. 그 달에 무엇이 있었는지가 목적입니다.
- *
- * ponytail: 보이는 구간이 한 달을 넘지 않아 한 쪽으로 끊습니다. 하루에 여러 건이
- * 쌓여 한 달이 30 건을 넘으면 뒤쪽 날의 점이 빠집니다. 그때는 날짜별로 접어 주는
- * 요약 API 를 서버에 두는 편이 맞습니다.
- */
+/** 달력에 찍을 점. 검색어·필터를 걸지 않습니다. 그 달에 무엇이 있었는지가 목적입니다. */
 export function useReportMarks(period: Period, fromISO: string, toISO: string) {
   const authorIds = useScopeOwnerIds()
   const [rows, setRows] = useState<ListRow[]>([])
@@ -191,7 +204,7 @@ export function useReportMarks(period: Period, fromISO: string, toISO: string) {
 
     void Promise.all(
       scopes.map((scope) =>
-        fetchReportPage(
+        fetchAllReportPages(
           {
             ...scope,
             author_member_id: ids,

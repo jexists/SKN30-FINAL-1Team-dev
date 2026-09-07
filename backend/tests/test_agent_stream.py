@@ -2,15 +2,24 @@
 
 import asyncio
 import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from test_agent_runs import _Db, _member, _Result, _run, _SessionContext
+from test_agent_runs import _Db, _member, _Result, _SessionContext
+from test_agent_runs import _run as _base_run
 
 from app.api import agent_runs as api
 from app.services import agent_stream as stream
+
+
+def _run(member, *, status_code):
+    run = _base_run(member, status_code=status_code)
+    run.scope_key = "daily:2026-08-17"
+    run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    return run
 
 
 def test_preview_isolated_bounded_replayed_and_replaced_not_appended():
@@ -127,7 +136,7 @@ def test_events_replay_current_preview_recheck_access_release_db_and_end(monkeyp
 
     monkeypatch.setattr(api, "get_current_member", authenticated)
     monkeypatch.setattr(api, "get_sessionmaker", lambda: lambda: _SessionContext(later))
-    monkeypatch.setattr(api, "RETRY_AFTER_SECONDS", 0)
+    monkeypatch.setattr(api, "RETRY_AFTER_SECONDS", 0.01)
 
     async def read():
         with stream.progress_context(run.id):
@@ -172,6 +181,70 @@ def test_events_refuse_unknown_or_unauthorized_run_before_preview():
     asyncio.run(read())
 
 
+@pytest.mark.parametrize("viewer", ["manager", "expired"])
+def test_report_preview_is_requester_only_and_expires_before_stream(viewer):
+    owner = _member()
+    run = _run(owner, status_code="running")
+    member = owner
+    if viewer == "manager":
+        member = _member(role="manager", team_id=owner.team_id)
+    else:
+        run.payload_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+
+    async def read():
+        with stream.progress_context(run.id):
+            stream.publish_progress(
+                preview={
+                    "section": "common",
+                    "sales_deal_id": None,
+                    "body": "노출되면 안 되는 본문",
+                    "revision": 1,
+                }
+            )
+            with pytest.raises(HTTPException) as caught:
+                await api.stream_agent_run(
+                    run.id,
+                    SimpleNamespace(),
+                    member,
+                    _Db(_Result(scalar=run)),
+                )
+            assert caught.value.status_code == 404
+
+    asyncio.run(read())
+
+
+def test_stream_stops_before_preview_when_payload_expires(monkeypatch):
+    member = _member()
+    run = SimpleNamespace(id=uuid4(), status_code="running")
+    checks = iter((True, False))
+
+    async def get(*_args):
+        return run
+
+    async def connected():
+        return False
+
+    monkeypatch.setattr(api.agent_run_service, "get", get)
+    monkeypatch.setattr(
+        api.agent_run_service,
+        "generation_payload_visible",
+        lambda *_args: next(checks),
+    )
+
+    async def read():
+        response = await api.stream_agent_run(
+            run.id,
+            SimpleNamespace(is_disconnected=connected),
+            member,
+            _Db(),
+        )
+        return [chunk async for chunk in response.body_iterator]
+
+    chunks = asyncio.run(read())
+    assert len(chunks) == 1
+    assert json.loads(chunks[0].split("data: ", 1)[1]) == {"detail": "agent_run_not_found"}
+
+
 def test_terminal_reconnect_uses_db_without_cached_preview():
     member = _member()
     run = _run(member, status_code="failed")
@@ -209,17 +282,26 @@ def test_stream_stops_when_current_access_is_revoked(monkeypatch):
     monkeypatch.setattr(api, "RETRY_AFTER_SECONDS", 0)
 
     async def read():
-        response = await api.stream_agent_run(
-            run.id,
-            SimpleNamespace(is_disconnected=connected),
-            member,
-            _Db(_Result(scalar=run)),
-        )
-        return [chunk async for chunk in response.body_iterator]
+        with stream.progress_context(run.id):
+            stream.publish_progress(
+                preview={
+                    "section": "common",
+                    "sales_deal_id": None,
+                    "body": "권한 회수 뒤에는 노출 금지",
+                    "revision": 1,
+                }
+            )
+            response = await api.stream_agent_run(
+                run.id,
+                SimpleNamespace(is_disconnected=connected),
+                member,
+                _Db(_Result(scalar=run)),
+            )
+            return [chunk async for chunk in response.body_iterator]
 
     chunks = asyncio.run(read())
     assert chunks[-1].startswith("event: error") and "member_not_linked" in chunks[-1]
-    assert not any(chunk.startswith("event: done") for chunk in chunks)
+    assert not any(chunk.startswith(("event: progress", "event: done")) for chunk in chunks)
 
 
 @pytest.mark.parametrize("timed_out", [False, True], ids=["recheck-unavailable", "deadline"])

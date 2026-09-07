@@ -94,6 +94,7 @@ async def run() -> dict[str, object]:
                     id=file_id,
                     report_id=None,
                     document_id=document_id,
+                    # 버전은 관리하지 않는다. DB 검사가 1 이상을 요구한다.
                     version_no=1,
                     file_name="synthetic-contract-e2e.pdf",
                     storage_key=storage_key,

@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -7,7 +7,7 @@ import { BellIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
-import { InlineLoader, ListPageSkeleton } from '@/components/Skeleton'
+import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import StatusBadge from '@/components/StatusBadge'
 import Tabs from '@/components/Tabs'
 import { progressLabel, rollupLabel } from '@/shared/noticeStatus'
@@ -36,7 +36,6 @@ export default function Notices() {
   const [params, setParams] = useSearchParams()
   const type = (params.get('type') === 'DIRECTIVE' ? 'DIRECTIVE' : 'NOTICE') satisfies NoticeType
   const query = params.get('q') ?? ''
-  const deferredQuery = useDeferredValue(query)
   const [page, setPage] = useState(1)
   const [form, setForm] = useState<FormState | null>(null)
   const [removing, setRemoving] = useState<NoticeManageListResponse | null>(null)
@@ -57,7 +56,7 @@ export default function Notices() {
     editNotice,
     removeNotice,
     toggleHidden,
-  } = useNotices({ type, q: deferredQuery, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE })
+  } = useNotices({ type, q: query, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE })
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -141,7 +140,7 @@ export default function Notices() {
           value={query}
           placeholder="제목·본문·태그·작성자 검색"
           label="공지 검색"
-          onChange={setQuery}
+          onSearch={setQuery}
         />
         <div className={styles.actions}>
           <Button disabled={loading} onClick={() => setForm({ mode: 'create' })}>
@@ -151,13 +150,11 @@ export default function Notices() {
         </div>
       </div>
 
-      {!error && loading && rows.length > 0 && (
-        <InlineLoader label="공지 목록을 새로고침하는 중입니다." />
-      )}
-
       <ErrorToast message={error} onRetry={reload} />
 
-      {rows.length === 0 ? (
+      {!error && loading ? (
+        <TableSkeleton label="공지 목록을 새로고침하는 중입니다." rows={rows.length} />
+      ) : rows.length === 0 ? (
         <div className={styles.card}>
           <div className={styles.empty}>
             {query.trim() !== '' ? (
