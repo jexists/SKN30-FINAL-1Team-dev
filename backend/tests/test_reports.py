@@ -1103,7 +1103,63 @@ async def test_meeting_finalize_compares_original_input_not_audio_effective_tran
         transcript=None,
     )
 
-    assert await reports_api._finalize_run(_Db(_Result(scalar=run)), member, payload) is run
+    assert (
+        await reports_api._finalize_run(
+            _Db(_Result(scalar=run), _Result(scalar=run), _Result(scalar=None)),
+            member,
+            payload,
+        )
+        is run
+    )
+
+
+@pytest.mark.anyio
+async def test_audio_only_meeting_finalizes_report_child_using_original_transcript_boundary():
+    member = _member()
+    activity_id = uuid4()
+    deal_id = uuid4()
+    parent = _meeting_generation_run(member, deal_id, "오디오에서 추출한 원문")
+    parent.scope_key = f"meeting:{activity_id}"
+    parent.request_snapshot = {"transcript": None}
+    parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    child = _meeting_generation_run(member, deal_id, "오디오에서 추출한 원문")
+    child.id = uuid4()
+    child.parent_run_id = parent.id
+    child.agent_code = "meeting_report_writing"
+    child.source_refs = {
+        "parent_run_id": str(parent.id),
+        "source_activity_id": str(activity_id),
+    }
+    child.scope_key = f"meeting_report_writing:{activity_id}"
+    child.request_snapshot = {"parent_run_id": str(parent.id), "kind": "report"}
+    child.payload_expires_at = parent.payload_expires_at
+
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=parent.id,
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=activity_id,
+        deal_sections=[
+            {
+                "sales_deal_id": deal_id,
+                "deal_snapshot": {"id": deal_id, "label": "D-1"},
+                "content": {"values": {"body": "최종 본문"}},
+                "body": "최종 본문",
+            }
+        ],
+        template_snapshot=TEMPLATE,
+        content={},
+        transcript=None,
+    )
+
+    result = await reports_api._finalize_run(
+        _Db(_Result(scalar=parent), _Result(scalar=parent), _Result(scalar=child)),
+        member,
+        payload,
+    )
+
+    assert result is child
 
 
 @pytest.mark.anyio

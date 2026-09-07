@@ -27,6 +27,7 @@ export function retryableMeetingReportChildId(
       source_activity_id: string | null
       transcript: string | null
       sales_deal_ids: string[]
+      attachments?: unknown[]
       template_snapshot?: unknown
       content?: unknown
       guidance?: string | null
@@ -45,6 +46,7 @@ export function retryableMeetingReportChildId(
     source_activity_id?: string
     transcript?: string
     sales_deal_ids?: string[]
+    attachments?: unknown[]
     template_snapshot?: unknown
     content?: unknown
     guidance?: string | null
@@ -60,6 +62,7 @@ export function retryableMeetingReportChildId(
       period_end: generationInput.period_end ?? null,
       source_activity_id: generationInput.source_activity_id ?? null,
       sales_deal_ids: generationInput.sales_deal_ids ?? [],
+      attachments: generationInput.attachments ?? [],
       template_snapshot: generationInput.template_snapshot,
       content: generationInput.content,
       transcript: generationInput.transcript ?? null,
@@ -72,6 +75,7 @@ export function retryableMeetingReportChildId(
         period_end: input.period_end ?? null,
         source_activity_id: input.source_activity_id ?? null,
         sales_deal_ids: input.sales_deal_ids ?? [],
+        attachments: input.attachments ?? [],
         template_snapshot: input.template_snapshot,
         content: input.content,
         transcript: input.transcript ?? null,

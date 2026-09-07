@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import copy
 import hashlib
 import json
 import socket
@@ -299,6 +300,11 @@ async def _enqueue_meeting_children(session: AsyncSession, parent: AgentRun, out
         "evidence": output.evidence.model_dump(mode="json"),
         "crm_context": output.crm_context,
     }
+    report_attachments = [
+        copy.deepcopy(item)
+        for item in parent.input_snapshot.get("attachments", [])
+        if isinstance(item, dict) and item.get("kind") != "audio"
+    ]
     existing = {
         row.agent_code
         for row in (
@@ -311,11 +317,14 @@ async def _enqueue_meeting_children(session: AsyncSession, parent: AgentRun, out
     for code, suffix in children:
         if code in existing:
             continue
+        child_snapshot = copy.deepcopy(evidence_snapshot)
+        if code == "meeting_report_writing" and report_attachments:
+            child_snapshot["attachments"] = report_attachments
         child_id = uuid4()
         request_snapshot = {"parent_run_id": str(parent.id), "kind": suffix}
         request_hash = hashlib.sha256(
             json.dumps(
-                evidence_snapshot,
+                child_snapshot,
                 ensure_ascii=False,
                 sort_keys=True,
                 separators=(",", ":"),
@@ -342,7 +351,7 @@ async def _enqueue_meeting_children(session: AsyncSession, parent: AgentRun, out
                     "parent_run_id": str(parent.id),
                     "evidence_transcript_sha256": output.evidence.transcript_sha256,
                 },
-                input_snapshot=evidence_snapshot,
+                input_snapshot=child_snapshot,
                 output_snapshot=None,
                 evidence=None,
                 error_message=None,

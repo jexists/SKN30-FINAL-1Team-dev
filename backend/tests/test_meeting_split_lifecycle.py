@@ -29,6 +29,7 @@ class _Db:
         self.results = list(results)
         self.statements = []
         self.commit_count = 0
+        self.added = []
 
     async def execute(self, statement):
         self.statements.append(statement)
@@ -36,6 +37,9 @@ class _Db:
 
     async def commit(self):
         self.commit_count += 1
+
+    def add(self, value):
+        self.added.append(value)
 
 
 class _Session:
@@ -242,3 +246,41 @@ async def test_analysis_completion_locks_parent_before_child_update(monkeypatch)
     assert "FROM PUBLIC.AGENT_RUN" in str(db.statements[0]).upper()
     assert str(db.statements[1]).upper().startswith("UPDATE PUBLIC.AGENT_RUN")
     assert db.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_enqueue_children_keeps_audio_in_effective_source_and_routes_documents_to_report():
+    parent = _run(code="meeting_processing")
+    parent.input_snapshot = {
+        "source": {"transcript": "사용자 원문\n\n오디오 전사"},
+        "deals": [],
+        "attachments": [
+            {"id": "audio-1", "kind": "audio", "extract": "오디오 전사"},
+            {"id": "pdf-1", "kind": "pdf", "extract": "계약 조건"},
+            {"id": "image-1", "kind": "image", "extract": "명함 메모"},
+        ],
+    }
+    output = SimpleNamespace(
+        evidence=SimpleNamespace(
+            transcript_sha256="a" * 64,
+            model_dump=lambda **_kwargs: {"transcript_sha256": "a" * 64, "items": []}
+        ),
+        crm_context={"company": {"name": "고객사"}},
+    )
+    db = _Db(_Result(rows=[]))
+
+    await agent_worker._enqueue_meeting_children(db, parent, output)
+
+    children = {child.agent_code: child for child in db.added}
+    assert children["meeting_report_writing"].input_snapshot["source"]["transcript"] == (
+        "사용자 원문\n\n오디오 전사"
+    )
+    assert children["meeting_report_writing"].input_snapshot["attachments"] == [
+        {"id": "pdf-1", "kind": "pdf", "extract": "계약 조건"},
+        {"id": "image-1", "kind": "image", "extract": "명함 메모"},
+    ]
+    assert "attachments" not in children["meeting_analysis"].input_snapshot
+    assert (
+        children["meeting_report_writing"].request_hash
+        != children["meeting_analysis"].request_hash
+    )

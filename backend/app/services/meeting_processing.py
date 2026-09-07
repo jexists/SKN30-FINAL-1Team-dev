@@ -171,6 +171,7 @@ async def run_report(snapshot: dict[str, Any]) -> report_writing_deep.FreeformMe
             transcript=snapshot["source"]["transcript"],
             evidence=evidence,
             crm_context=copy.deepcopy(snapshot.get("crm_context") or {}),
+            attachments=copy.deepcopy(snapshot.get("attachments") or []),
         )
     )
 

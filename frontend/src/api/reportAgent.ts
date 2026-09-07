@@ -111,6 +111,7 @@ function generationInputComparable(
     period_end: value.period_end ?? null,
     source_activity_id: value.source_activity_id ?? null,
     sales_deal_ids: value.sales_deal_ids ?? [],
+    attachments: value.attachments ?? [],
     template_snapshot: value.template_snapshot,
     content: value.content,
     transcript: value.transcript ?? null,
