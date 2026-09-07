@@ -48,6 +48,7 @@ def _member(
     name: str = "합성 영업 담당자",
     role: str = "member",
     team_id: UUID | None = None,
+    badge_color: str | None = None,
 ) -> Member:
     return Member(
         id=uuid4(),
@@ -56,6 +57,7 @@ def _member(
         role_code=role,
         job_title="영업 담당자",
         email="member@demo.test",
+        badge_color=badge_color,
         active=True,
     )
 
@@ -105,5 +107,18 @@ def test_team_members_do_not_expose_email():
             "display_name": caller.display_name,
             "job_title": caller.job_title,
             "role_code": caller.role_code,
+            "badge_color": None,
         }
     ]
+
+
+def test_team_members_carry_the_badge_color_so_every_screen_can_draw_the_name_tag():
+    """색은 이름표를 그리는 표시용 값이라 팀원도 받는다. 고치는 길은 팀 관리뿐이다."""
+    caller = _member(badge_color="#d6e4f7")
+    db = _Db(_Result([caller]))
+
+    with _client(db, caller) as client:
+        response = client.get("/api/team-members")
+
+    assert response.status_code == 200
+    assert response.json()[0]["badge_color"] == "#d6e4f7"

@@ -16,6 +16,13 @@ JobTitle = Annotated[
 ]
 RoleCode = Literal["member", "manager"]
 
+# 담당자 이름표 바탕색. 화면이 그대로 style 에 넣으므로 #rrggbb 만 받는다. 대문자로 와도
+# DB CHECK(소문자 16진)에 맞도록 아래에서 내려 둔다.
+BadgeColor = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, pattern=r"^#[0-9a-fA-F]{6}$"),
+]
+
 # bigint 로 들어가는 금액. 음수 목표는 없다.
 TargetAmount = Annotated[int, Field(ge=0, le=9_223_372_036_854_775_807)]
 
@@ -29,6 +36,8 @@ class TeamMemberRow(BaseModel):
     job_title: str | None
     role_code: RoleCode
     active: bool
+    # 팀장이 고른 이름표 색. NULL 이면 미지정이고 화면은 기본 회색을 쓴다.
+    badge_color: str | None
     target_amount: int
     confirmed_amount: int
     # 목표가 없으면 0% 가 아니라 null 이다. "미설정" 과 "미달성" 은 다르다.
@@ -58,6 +67,8 @@ class TeamMemberPatch(BaseModel):
     job_title: JobTitle | None = None
     role_code: RoleCode | None = None
     active: bool | None = None
+    # 다른 항목과 달리 null 을 받는다. 색을 지워 기본 회색으로 되돌리는 길이다.
+    badge_color: BadgeColor | None = None
     monthly_target_amount: TargetAmount | None = None
     # 어느 달의 목표를 고치는지. 주지 않으면 라우터가 이번 달로 채운다.
     target_month: date | None = None
@@ -69,6 +80,9 @@ class TeamMemberPatch(BaseModel):
                 raise ValueError(f"{field_name} cannot be null")
         if self.target_month is not None and self.target_month.day != 1:
             raise ValueError("target_month_must_be_first_day")
+        # 저장하는 표기를 하나로 맞춘다. #A1B2C3 과 #a1b2c3 이 섞이면 DB CHECK 에 걸린다.
+        if self.badge_color is not None:
+            self.badge_color = self.badge_color.lower()
         return self
 
 

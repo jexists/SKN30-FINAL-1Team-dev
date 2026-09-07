@@ -350,3 +350,57 @@ def test_patch_rejects_unsafe_values():
     with pytest.raises(ValidationError):
         # 모르는 필드는 조용히 버리지 않고 거절한다.
         TeamMemberPatch(monthly_targt_amount=1)
+
+    with pytest.raises(ValidationError):
+        # 이름표 색은 화면이 그대로 style 에 넣으므로 #rrggbb 만 받는다.
+        TeamMemberPatch(badge_color="blue")
+
+    with pytest.raises(ValidationError):
+        TeamMemberPatch(badge_color="#12")
+
+
+def test_patch_keeps_the_badge_color_the_manager_picked():
+    """고른 색을 연하게 바꾸지 않는다. 표기만 소문자로 맞춰 DB CHECK 와 어긋나지 않게 한다."""
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id)
+
+    db = _Db(
+        _Result(scalar=teammate),
+        _Result(rows=[]),
+        _Result(rows=[]),
+    )
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/team/members/{teammate.id}",
+            headers={"Origin": ORIGIN},
+            # 진한 원색이다. 파스텔로 환산하지 않는다.
+            json={"badge_color": "#1D4ED8"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["badge_color"] == "#1d4ed8"
+    assert teammate.badge_color == "#1d4ed8"
+    assert db.commit_count == 1
+
+
+def test_patch_can_clear_the_badge_color_back_to_the_default_gray():
+    """null 은 '색을 지운다' 는 뜻이다. 다른 필수 항목과 달리 여기서는 받는다."""
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id)
+    teammate.badge_color = "#1d4ed8"
+
+    db = _Db(
+        _Result(scalar=teammate),
+        _Result(rows=[]),
+        _Result(rows=[]),
+    )
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/team/members/{teammate.id}",
+            headers={"Origin": ORIGIN},
+            json={"badge_color": None},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["badge_color"] is None
+    assert teammate.badge_color is None

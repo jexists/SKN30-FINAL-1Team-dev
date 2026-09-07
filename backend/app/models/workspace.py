@@ -31,6 +31,8 @@ class Member(Base):
     job_title: Mapped[str | None]
     # auth.users.email 의 사본. 권한 판단에는 쓰지 않고 어드민 목록 표시에만 쓴다.
     email: Mapped[str | None]
+    # 담당자 이름표 바탕색(#rrggbb 소문자). NULL 이면 화면이 기본 회색을 쓴다.
+    badge_color: Mapped[str | None]
     active: Mapped[bool] = mapped_column(server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
