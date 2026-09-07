@@ -96,8 +96,7 @@ export function toReport(item: ReportResponse): DailyReport {
     updatedAt: item.updated_at,
     values: { body: item.body ?? '' },
     activities: activitiesOf(item),
-    // 첨부는 생성 AgentRun에만 남는 일회용 입력입니다.
-    attachments: [],
+    attachments: attachmentsFromPayload(item.attachments ?? []),
     transcript: item.transcript ?? '',
     note: item.note ?? '',
     reviewNote: item.review_note ?? '',
@@ -114,7 +113,7 @@ export interface DraftPayload {
   values: Record<string, string>
   activities: DailyReport['activities']
   attachments: DailyReport['attachments']
-  /** 자료에 없는 것을 직접 적은 내용. 에이전트가 자료와 함께 읽습니다. */
+  /** 구버전 보고서와 복구 입력에 있던 사용자 텍스트를 최종 저장 시 보존합니다. */
   transcript: string
 }
 
@@ -186,10 +185,12 @@ export function periodGenerationRequestOf(
     report_date: request.report_date,
     ...(request.period_start ? { period_start: request.period_start } : {}),
     ...(request.period_end ? { period_end: request.period_end } : {}),
-    attachments: attachmentPayloadsOf(draft.attachments),
+    attachments: attachmentPayloadsOf(draft.attachments).map((attachment) => ({
+      ...attachment,
+      purpose: 'reference',
+    })),
     template_snapshot: request.template_snapshot,
     content: request.content,
-    ...(draft.transcript.trim() ? { guidance: draft.transcript.trim() } : {}),
   }
 }
 
@@ -210,6 +211,7 @@ export function periodFinalizeRequestOf(
   return {
     ...reportRequestOf(draft),
     idempotency_key: idempotencyKey,
+    attachments: attachmentPayloadsOf(draft.attachments),
     ...(agentRunId ? { agent_run_id: agentRunId } : {}),
     ...(draft.reportId && draft.version && revisionStatus
       ? {

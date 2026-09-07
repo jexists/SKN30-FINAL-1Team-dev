@@ -1,29 +1,128 @@
 .root {
   display: flex;
   flex-direction: column;
+  gap: var(--s3);
 }
 
-/* 참고 열과 같이 제목과 여백으로만 묶습니다. 실선을 더 그으면 조각이 늘어납니다. */
 .block {
-  padding-bottom: var(--s6);
+  min-width: 0;
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 
-  &:last-of-type {
-    padding-bottom: 0;
+  @include md {
+    padding: var(--s4);
   }
 }
 
 .blockHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--s3);
   margin-bottom: var(--s3);
 
-  h2 {
+  h2,
+  .blockTitle {
     font-size: 13px;
     font-weight: 600;
     letter-spacing: -0.01em;
   }
+}
+
+.references {
+  summary {
+    cursor: pointer;
+  }
+
+  .blockHead {
+    display: inline-flex;
+    width: calc(100% - var(--s5));
+    vertical-align: top;
+    flex-wrap: wrap;
+    margin-bottom: var(--s1);
+  }
+}
+
+.sourceInput {
+  & + .sourceInput {
+    border-top: 1px solid var(--line);
+  }
+
+  > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-height: 36px;
+    padding: var(--s2) 0;
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    strong {
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    svg {
+      flex: none;
+      color: var(--muted);
+    }
+
+    &:focus-visible {
+      outline: 3px solid var(--blue-ring);
+      outline-offset: 2px;
+      border-radius: var(--r-xs);
+    }
+  }
+
+  &[open] > summary {
+    margin-bottom: var(--s2);
+
+    .caret {
+      transform: rotate(0);
+    }
+  }
+}
+
+.inputStatus {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.caret {
+  transform: rotate(-90deg);
+}
+
+.referenceAction {
+  margin-left: auto;
+  color: var(--blue);
+  font-size: 12px;
+}
+
+.note {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.required,
+.optional {
+  @include tag-pill;
+
+  font-size: 11px;
+}
+
+.required {
+  color: var(--blue);
+  background: var(--blue-tint);
 }
 
 .transcript {
@@ -47,19 +146,6 @@
     background: var(--fill);
     color: var(--muted);
   }
-}
-
-/* 넓은 열이라 버튼을 가로로 늘리면 눌러야 할 곳이 흐려집니다. 오른쪽 끝에 섭니다. */
-.foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--s3);
-  padding-top: var(--s4);
-}
-
-.generate {
-  min-width: 160px;
 }
 
 .error {

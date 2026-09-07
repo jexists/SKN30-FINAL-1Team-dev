@@ -108,8 +108,8 @@ export default function Detail() {
         </article>
 
         <article className={styles.panel}>
-          <h2>첨부 자료</h2>
-          <AttachmentPanel attachments={report.attachments} readOnly />
+          <h2>참고자료</h2>
+          <AttachmentPanel attachments={report.attachments} reportId={report.id} readOnly />
         </article>
       </div>
     </section>

@@ -17,9 +17,11 @@ from app.schemas.reports import (
     ReportAttachmentRead,
     ReportKind,
     Transcript,
+    effective_meeting_transcript,
     validate_body_template,
     validate_body_values,
     validate_content_title,
+    validate_report_attachments,
     validate_report_json_size,
 )
 
@@ -152,10 +154,7 @@ class ReportGenerationInput(BaseModel):
     guidance: Guidance | None = None
 
     def effective_meeting_transcript(self) -> str:
-        parts = ([self.transcript] if self.transcript is not None else []) + [
-            item.extract for item in self.attachments if item.kind == "audio"
-        ]
-        return "\n\n".join(parts)
+        return effective_meeting_transcript(self.transcript, self.attachments)
 
     @field_validator("content", mode="before")
     @classmethod
@@ -173,8 +172,6 @@ class ReportGenerationInput(BaseModel):
             effective_transcript = self.effective_meeting_transcript()
             if not effective_transcript:
                 raise ValueError("transcript_required")
-            if len(effective_transcript) > 50_000:
-                raise ValueError("meeting_transcript_too_large")
             if self.period_start is not None or self.period_end is not None:
                 raise ValueError("period_not_supported")
             if self.guidance is not None:
@@ -191,9 +188,7 @@ class ReportGenerationInput(BaseModel):
                 raise ValueError("invalid_report_period")
         if len(set(self.sales_deal_ids)) != len(self.sales_deal_ids):
             raise ValueError("sales_deal_ids_duplicate")
-        attachment_ids = [item.id for item in self.attachments]
-        if len(set(attachment_ids)) != len(attachment_ids):
-            raise ValueError("report_attachment_ids_duplicate")
+        validate_report_attachments(self.report_kind, self.attachments)
         return self
 
 

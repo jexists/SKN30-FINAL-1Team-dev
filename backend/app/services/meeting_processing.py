@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
 from app.models.workspace import Member
 from app.schemas.meeting_content import MeetingEvidenceLedger
+from app.schemas.reports import meeting_attachment_purpose
 from app.services import meeting_context
 from app.services.agent_logging import log_agent_error
 from app.services.agent_stream import publish_progress
@@ -78,7 +79,13 @@ async def run(snapshot: dict[str, Any]) -> MeetingProcessingOutput:
                         transcript=snapshot["source"]["transcript"],
                         evidence=evidence,
                         crm_context=crm,
-                        attachments=snapshot.get("attachments", []),
+                        attachments=[
+                            item
+                            for item in snapshot.get("attachments", [])
+                            if isinstance(item, dict)
+                            and meeting_attachment_purpose(item.get("kind"), item.get("purpose"))
+                            == "reference"
+                        ],
                     )
                 )
                 publish_progress("report_complete")

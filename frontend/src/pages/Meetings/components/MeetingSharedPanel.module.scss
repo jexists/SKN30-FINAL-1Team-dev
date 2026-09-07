@@ -1,9 +1,34 @@
 .panel {
+  flex: none;
   min-width: 0;
   padding: var(--s5);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
+}
+
+// 딜 보고서 위의 두 보조 기록은 넓은 작성 화면에서만 나란히 읽는다.
+@media (min-width: #{$bp-xl + 1px}) {
+  .supporting {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s3) var(--s4);
+    padding: var(--s4);
+
+    .heading {
+      grid-column: 1 / -1;
+      margin-bottom: 0;
+
+      h2 {
+        font-size: 13px;
+      }
+    }
+
+    .section {
+      min-width: 0;
+      margin-top: 0;
+    }
+  }
 }
 
 .heading {
@@ -71,11 +96,35 @@
   overflow-wrap: anywhere;
 }
 
+.needsReview {
+  padding-left: var(--s3);
+  border-left: 2px solid var(--orange);
+
+  > label,
+  > h3,
+  > .note {
+    color: var(--orange-ink);
+  }
+}
+
 .printText {
   display: none;
 }
 
 @media print {
+  .supporting {
+    display: block;
+
+    .section {
+      margin-top: var(--s4);
+    }
+  }
+
+  .needsReview {
+    padding-left: 0;
+    border: 0;
+  }
+
   .panel {
     margin-bottom: var(--s5);
     padding: 0;

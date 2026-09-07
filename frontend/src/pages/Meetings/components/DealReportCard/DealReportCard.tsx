@@ -87,7 +87,7 @@ export default function DealReportCard({
   const generationDisabled = !isAuthorEditableReportStatus(draft.statusCode) || !canGenerate
 
   return (
-    <article className={styles.card}>
+    <article className={`${styles.card} ${open ? styles.isOpen : ''}`}>
       <header className={`${styles.header} ${open ? styles.isOpen : ''}`}>
         <button
           type="button"

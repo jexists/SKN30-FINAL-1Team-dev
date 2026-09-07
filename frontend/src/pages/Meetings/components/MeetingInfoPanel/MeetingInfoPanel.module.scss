@@ -1,6 +1,7 @@
 .root {
   display: flex;
   flex-direction: column;
+  gap: var(--s3);
 }
 
 /*
@@ -8,25 +9,57 @@
  * 좁은 열에 가로선을 겹쳐 그으면 한 화면이 여러 조각으로 잘려 보입니다.
  */
 .block {
-  padding-bottom: var(--s7);
-
-  &:last-of-type {
-    padding-bottom: 0;
-  }
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line);
 }
 
 .blockHead {
-  display: flex;
+  display: inline-flex;
+  width: calc(100% - var(--s5));
+  vertical-align: top;
   align-items: center;
   justify-content: space-between;
   gap: var(--s3);
-  margin-bottom: var(--s3);
+  font-size: 13px;
+  font-weight: 600;
+}
 
-  h2 {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+.context {
+  display: grid;
+  gap: var(--s1);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+
+  span {
+    color: var(--ink-2);
   }
+}
+
+.disclosure {
+  summary {
+    color: var(--blue);
+    font-size: 12px;
+    line-height: 1.6;
+    cursor: pointer;
+  }
+
+  &[open] > summary {
+    margin-bottom: var(--s3);
+  }
+}
+
+.context + .disclosure {
+  margin-top: var(--s2);
+}
+
+.selectedNames {
+  display: block;
+  margin-top: var(--s1);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
 }
 
 .count {

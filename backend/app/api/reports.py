@@ -2,6 +2,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -15,12 +16,19 @@ from app.api.activities import _activity_row
 from app.api.deps import CurrentMember, DbSession, active_member, owner_scope
 from app.api.sales_deals import _sales_deal_row
 from app.models.agent import AgentRun
-from app.models.content import Report, ReportActivity, ReportDeal, ReportSubmission
+from app.models.content import (
+    Report,
+    ReportActivity,
+    ReportAttachment,
+    ReportDeal,
+    ReportSubmission,
+)
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.reports import (
     REVIEW_DECISION_STATUS,
     ReportActivityRead,
+    ReportAttachmentRead,
     ReportDealRead,
     ReportDealWrite,
     ReportFilterOptionParams,
@@ -30,9 +38,16 @@ from app.schemas.reports import (
     ReportPageParams,
     ReportRead,
     ReportReview,
+    effective_meeting_transcript,
 )
 from app.services import agent_runs as agent_run_service
-from app.services import contract_next_meeting_pipeline, report_sources, report_submissions
+from app.services import (
+    contract_next_meeting_pipeline,
+    report_attachments,
+    report_sources,
+    report_submissions,
+    storage,
+)
 
 router = APIRouter(tags=["reports"])
 
@@ -139,6 +154,7 @@ def _report_read(
     recipient_display_name: str | None,
     activities: list[ReportActivityRead],
     deal_sections: list[ReportDealRead],
+    attachments: list[ReportAttachmentRead] | None = None,
 ) -> ReportRead:
     return ReportRead(
         id=report.id,
@@ -169,6 +185,8 @@ def _report_read(
         unassigned_body=getattr(report, "unassigned_body", None),
         structured_values=_dict(getattr(report, "structured_values", None)),
         transcript=report.transcript,
+        direct_transcript=_dict(report.source_snapshot).get("direct_transcript"),
+        attachments=attachments or [],
         source_snapshot=report.source_snapshot,
         ai_evidence=report.ai_evidence,
         note=report.note,
@@ -598,7 +616,10 @@ async def _detail(db: AsyncSession, member: Member, report_id: UUID) -> ReportRe
         if report.report_kind == "meeting"
         else {report_id: []}
     )
-    return _report_read(*row, activities[report_id], deal_sections[report_id])
+    attachments = await report_attachments.for_reports(db, [report])
+    return _report_read(
+        *row, activities[report_id], deal_sections[report_id], attachments[report_id]
+    )
 
 
 @router.get("/report-filter-options", response_model=ReportFilterOptions)
@@ -696,8 +717,12 @@ async def list_reports(
     activity_map = await _activities_by_report_ids(db, [row[0].id for row in rows])
     meeting_ids = [row[0].id for row in rows if row[0].report_kind == "meeting"]
     deal_map = await _deal_sections_by_report_ids(db, meeting_ids)
+    attachment_map = await report_attachments.for_reports(db, [row[0] for row in rows])
     items = [
-        _report_read(*row, activity_map[row[0].id], deal_map.get(row[0].id, [])) for row in rows
+        _report_read(
+            *row, activity_map[row[0].id], deal_map.get(row[0].id, []), attachment_map[row[0].id]
+        )
+        for row in rows
     ]
     has_more = page.skip + len(items) < total
     return ReportPage(
@@ -719,6 +744,67 @@ async def get_report(
     return await _detail(db, member, report_id)
 
 
+@router.get("/reports/{report_id}/attachments/{attachment_id}/download")
+async def download_report_attachment(
+    report_id: UUID,
+    attachment_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+    submission_id: UUID | None = None,
+) -> Response:
+    """보고서와 해당 제출본의 원본 연결을 확인한 뒤 인증된 바이트 응답을 준다."""
+    report = (await _report_row(db, member, report_id))[0]
+    selected = submission_id or report.current_submission_id
+    if selected is None:
+        raise HTTPException(404, "report_attachment_not_found")
+    submission = (
+        await db.execute(
+            select(ReportSubmission).where(
+                ReportSubmission.id == selected,
+                ReportSubmission.report_id == report_id,
+                ReportSubmission.team_id == member.team_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if submission is None or not any(
+        item.id == attachment_id and item.original_stored
+        for item in report_attachments.read_snapshot(submission.attachments_snapshot)
+    ):
+        raise HTTPException(404, "report_attachment_not_found")
+    original = (
+        await db.execute(
+            select(ReportAttachment).where(
+                ReportAttachment.id == attachment_id,
+                ReportAttachment.report_id == report_id,
+                ReportAttachment.team_id == member.team_id,
+                ReportAttachment.uploaded_by_member_id == report.author_member_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if original is None or original.extracted_text is None:
+        raise HTTPException(404, "report_attachment_not_found")
+    try:
+        content = await storage.download(
+            storage_key=original.storage_key, max_bytes=original.byte_size
+        )
+    except storage.StorageError as error:
+        raise HTTPException(503, str(error)) from error
+    if len(content) != original.byte_size:
+        raise HTTPException(503, "report_attachment_content_changed")
+    return Response(
+        content=content,
+        media_type=original.media_type,
+        headers={
+            "Content-Disposition": (
+                "inline; filename=\"attachment\"; filename*=UTF-8''"
+                + quote(original.file_name, safe="")
+            ),
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 def _finalize_request_hash(payload: ReportFinalize) -> str:
     encoded = json.dumps(
         payload.model_dump(mode="json", exclude_unset=True),
@@ -738,6 +824,33 @@ def _finalize_scope_key(payload: ReportFinalize) -> str:
     return (
         f"{payload.report_kind}:{payload.period_start.isoformat()}:{payload.period_end.isoformat()}"
     )
+
+
+def _generation_attachments_changed(request: dict, payload: ReportFinalize) -> bool:
+    attachments = request.get("attachments", [])
+    if not isinstance(attachments, list):
+        return True
+    if "attachments" not in payload.model_fields_set:
+        # 구형 클라이언트는 finalize에 첨부를 보내지 않았다. 역할이 명시된 새 입력은 필수다.
+        return any(
+            isinstance(item, dict)
+            and (item.get("purpose") is not None or item.get("original_stored"))
+            for item in attachments
+        )
+    return attachments != [item.model_dump(mode="json") for item in payload.attachments]
+
+
+def _finalize_transcript(payload: ReportFinalize, run: AgentRun | None) -> str | None:
+    if payload.report_kind != "meeting":
+        return payload.transcript
+    if run is None:
+        return effective_meeting_transcript(payload.transcript, payload.attachments) or None
+    source = run.input_snapshot.get("source", {})
+    transcript = source.get("transcript") if isinstance(source, dict) else None
+    if not isinstance(transcript, str) or not transcript.strip() or len(transcript) > 50_000:
+        raise HTTPException(409, "report_generation_not_usable")
+    # 원문 첨부를 다시 합치지 않는다. 근거·ML이 분석한 동결 원문을 그대로 저장한다.
+    return transcript
 
 
 async def _finalize_run(
@@ -835,10 +948,10 @@ async def _finalize_run(
         or run.payload_expires_at <= datetime.now(UTC)
     ):
         raise HTTPException(409, "report_generation_not_usable")
+    request = request_run.request_snapshot if isinstance(request_run.request_snapshot, dict) else {}
+    if _generation_attachments_changed(request, payload):
+        raise HTTPException(409, "report_generation_source_changed")
     if payload.report_kind == "meeting":
-        request = (
-            request_run.request_snapshot if isinstance(request_run.request_snapshot, dict) else {}
-        )
         source = run.input_snapshot.get("source", {})
         if request.get("transcript") != payload.transcript or set(
             source.get("selected_deal_ids", [])
@@ -866,7 +979,8 @@ async def _validate_generation_source_refs(
             request.get("period_end")
             != (payload.period_end.isoformat() if payload.period_end else None),
             request.get("template_snapshot") != payload.template_snapshot,
-            request.get("guidance") != payload.transcript,
+            # 새 기간 생성에는 원문 입력이 없다. 과거 생성에 쓰인 지시만 계속 동결 검증한다.
+            request.get("guidance") is not None and request.get("guidance") != payload.transcript,
         )
     )
     expected = run.source_refs.get("report_sources") if isinstance(run.source_refs, dict) else None
@@ -951,6 +1065,7 @@ async def finalize_report(
 
     try:
         run = await _finalize_run(db, member, payload)
+        transcript = _finalize_transcript(payload, run)
         recipient = (
             None
             if payload.recipient_member_id is None
@@ -1013,7 +1128,7 @@ async def finalize_report(
                 status_code="submitted",
                 content=content,
                 **normalized,
-                transcript=payload.transcript,
+                transcript=transcript,
                 source_snapshot=(
                     {
                         "agent_run_id": str(run.id),
@@ -1075,7 +1190,7 @@ async def finalize_report(
             report.content = content
             for field_name, value in normalized.items():
                 setattr(report, field_name, value)
-            report.transcript = payload.transcript
+            report.transcript = transcript
             if run is not None:
                 report.source_snapshot = {
                     "agent_run_id": str(run.id),
@@ -1095,6 +1210,29 @@ async def finalize_report(
         if report.report_kind != "meeting":
             await report_sources.sync_report_sources_from_legacy_content(db, member, report)
         await _validate_generation_source_refs(db, report, payload, run)
+        attachment_inputs = payload.attachments
+        if "attachments" not in payload.model_fields_set:
+            if run is not None:
+                attachment_inputs = report_attachments.read_snapshot(
+                    _dict(run.request_snapshot).get("attachments")
+                )
+            elif payload.report_id is not None:
+                attachment_inputs = (await report_attachments.for_reports(db, [report]))[report.id]
+        originals = await report_attachments.validate_inputs(
+            db, member, attachment_inputs, report_id=report.id
+        )
+        attachments_snapshot = report_attachments.bind_to_report(
+            report, attachment_inputs, originals
+        )
+        if report.report_kind == "meeting" and (
+            "attachments" in payload.model_fields_set
+            or payload.report_id is None
+            or run is not None
+        ):
+            report.source_snapshot = {
+                **_dict(report.source_snapshot),
+                "direct_transcript": payload.transcript or "",
+            }
         sections = list(
             (
                 await db.execute(
@@ -1114,6 +1252,7 @@ async def finalize_report(
             agent_run_id=run.id if run is not None else None,
             idempotency_key=payload.idempotency_key,
             request_hash=request_hash,
+            attachments_snapshot=attachments_snapshot,
         )
         report.current_submission_id = submission.id
         sales_deal_ids = [section.sales_deal_id for section in sections]

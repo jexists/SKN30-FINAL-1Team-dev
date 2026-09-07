@@ -110,6 +110,26 @@
   font-size: 11px;
 }
 
+.inputTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+  font-size: 13px;
+  font-weight: 600;
+
+  span {
+    @include tag-pill;
+
+    font-size: 11px;
+  }
+}
+
+.generate {
+  width: 100%;
+  margin-top: var(--s4);
+}
+
 .sourceReports {
   display: grid;
   gap: var(--s2);

@@ -48,6 +48,11 @@ const { default: ReportFields } = await vite.ssrLoadModule(
 const { default: AttachmentPanel } = await vite.ssrLoadModule(
   '/src/components/AttachmentPanel/AttachmentPanel.tsx',
 )
+const { default: MeetingInputPanel } = await vite.ssrLoadModule(
+  '/src/pages/Meetings/components/MeetingInputPanel/MeetingInputPanel.tsx',
+)
+const { attachmentPayloadsOf, attachmentsFromPayload, meetingAttachmentPurposeOf } =
+  await vite.ssrLoadModule('/src/utils/attachment.ts')
 const { initScope, resetScope } = await vite.ssrLoadModule('/src/shared/scope.ts')
 const { default: MeetingSharedPanel } = await vite.ssrLoadModule(
   '/src/pages/Meetings/components/MeetingSharedPanel.tsx',
@@ -57,6 +62,7 @@ const { ReportReviewContents } = await vite.ssrLoadModule(
 )
 const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
+const { downloadReportAttachment } = await vite.ssrLoadModule('/src/api/reportAttachments.ts')
 const { messageForCode, reportGenerationMessage } = await vite.ssrLoadModule(
   '/src/api/errorMessage.ts',
 )
@@ -96,6 +102,207 @@ test('첨부판은 허용 형식과 업로드 상태·조작 대상을 보조기
   assert.match(view, /role="status"[^>]*>12KB · 업로드·분석 중…/)
   assert.match(view, /aria-label="meeting\.mp3 업로드 취소"/)
   assert.match(view, /aria-controls="[^"]+-ready-pdf-extract"/)
+})
+
+test('미팅 입력은 형식과 목적을 분리하고 직접 입력을 파일 밖에 둔다', () => {
+  const attachments = [
+    {
+      id: 'source-photo',
+      kind: 'image',
+      purpose: 'meeting_source',
+      name: '원문.jpg',
+      byteSize: 1,
+      state: 'done',
+      extract: '실제 기록',
+    },
+    {
+      id: 'reference-audio',
+      kind: 'audio',
+      purpose: 'reference',
+      name: '참고.mp3',
+      byteSize: 1,
+      state: 'done',
+      extract: '제품 설명',
+    },
+  ]
+  const view = renderToStaticMarkup(
+    createElement(MeetingInputPanel, {
+      attachments,
+      transcript: '직접 기록',
+      onAttach() {},
+      onRemoveAttachment() {},
+      onExtractChange() {},
+      onTranscriptChange() {},
+      attachmentError: null,
+      disabled: false,
+    }),
+  )
+  const [source, reference] = view.split('보고서 참고자료')
+  assert.match(source, /미팅 원문/)
+  assert.match(source, /원문\.jpg/)
+  assert.doesNotMatch(source, /참고\.mp3/)
+  assert.match(source, /<\/ul>[\s\S]*<label[^>]*for="transcript"[^>]*>직접 입력/)
+  assert.match(reference, /참고\.mp3/)
+  assert.match(reference, /미팅 발언으로 사용하지 않습니다/)
+  assert.doesNotMatch(reference, /<textarea/)
+})
+
+test('첨부 목적과 교정문은 왕복 보존하고 과거 목적 누락은 임의로 채우지 않는다', () => {
+  const attachments = [
+    {
+      id: 'source',
+      kind: 'image',
+      purpose: 'meeting_source',
+      name: '원문.jpg',
+      byteSize: 1,
+      state: 'done',
+      extract: '교정한 원문',
+      originalStored: true,
+    },
+    {
+      id: 'reference',
+      kind: 'audio',
+      purpose: 'reference',
+      name: '참고.mp3',
+      byteSize: 2,
+      state: 'done',
+      extract: '배경 설명',
+    },
+    {
+      id: 'legacy',
+      kind: 'audio',
+      name: '과거.mp3',
+      byteSize: 3,
+      state: 'done',
+      extract: '과거 기록',
+    },
+  ]
+  const restored = attachmentsFromPayload(attachmentPayloadsOf(attachments))
+  assert.deepEqual(restored, attachments)
+  assert.equal(meetingAttachmentPurposeOf(restored[0]), 'meeting_source')
+  assert.equal(meetingAttachmentPurposeOf(restored[1]), 'reference')
+  assert.equal(meetingAttachmentPurposeOf(restored[2]), 'meeting_source')
+  assert.equal('purpose' in attachmentPayloadsOf(restored)[2], false)
+  assert.equal('original_stored' in attachmentPayloadsOf(restored)[2], false)
+})
+
+test('보관된 원본은 교정문을 비워도 제출하며 완료 전 파일과 과거 빈 추출문은 제외한다', () => {
+  const file = {
+    id: 'stored-empty',
+    kind: 'image',
+    purpose: 'meeting_source',
+    name: '원문.png',
+    byteSize: 68,
+    state: 'done',
+    extract: '',
+    originalStored: true,
+  }
+  const payloads = attachmentPayloadsOf([
+    file,
+    { ...file, id: 'legacy-empty', originalStored: undefined },
+    { ...file, id: 'pending', state: 'analyzing' },
+    { ...file, id: 'failed', state: 'failed' },
+  ])
+  assert.equal(payloads.length, 1)
+  assert.equal(payloads[0].extract, '')
+  assert.equal(payloads[0].original_stored, true)
+  assert.deepEqual(attachmentsFromPayload(payloads), [file])
+})
+
+test('완료 첨부판은 보관된 파일의 원본 기능과 구버전 원본 없음 안내를 구분한다', () => {
+  const files = attachmentsFromPayload([
+    {
+      id: 'stored',
+      kind: 'image',
+      name: '보관.png',
+      byte_size: 68,
+      extract: '기록',
+      original_stored: true,
+    },
+    { id: 'legacy', kind: 'pdf', name: '과거.pdf', byte_size: 10, extract: '과거 추출문' },
+  ])
+  const view = renderToStaticMarkup(
+    createElement(AttachmentPanel, {
+      attachments: files,
+      reportId: 'synthetic-report',
+      readOnly: true,
+    }),
+  )
+  assert.equal((view.match(/>원본 보기<\/button>/g) ?? []).length, 1)
+  assert.equal((view.match(/>다운로드<\/button>/g) ?? []).length, 1)
+  assert.match(view, /원본 파일이 저장되지 않아 확인할 수 없습니다/)
+  assert.doesNotMatch(view, /type="file"|업로드 취소|aria-label=".* 삭제"/)
+})
+
+test('원본 조회는 인증 클라이언트의 blob을 받고 JSON 오류도 사용자 오류로 읽는다', async () => {
+  const originalAdapter = client.defaults.adapter
+  const binary = new Blob(['synthetic original'], { type: 'application/pdf' })
+  const signal = new AbortController().signal
+  try {
+    client.defaults.adapter = async (config) => {
+      assert.equal(config.url, '/reports/synthetic-report/attachments/synthetic-file/download')
+      assert.equal(config.responseType, 'blob')
+      assert.equal(config.timeout, 300_000)
+      assert.equal(config.signal, signal)
+      return { data: binary, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    assert.equal(
+      await downloadReportAttachment('synthetic-report', 'synthetic-file', signal),
+      binary,
+    )
+    client.defaults.adapter = async (config) => {
+      throw Object.assign(new Error('expired'), {
+        isAxiosError: true,
+        config,
+        response: {
+          status: 409,
+          data: new Blob([JSON.stringify({ detail: 'report_attachment_expired' })], {
+            type: 'application/json',
+          }),
+        },
+      })
+    }
+    await assert.rejects(
+      downloadReportAttachment('synthetic-report', 'synthetic-file'),
+      (error) => {
+        assert.equal(error.response.data.detail, 'report_attachment_expired')
+        assert.match(messageForCode(error.response.data.detail, '실패'), /다시.*첨부|다시.*올려/)
+        return true
+      },
+    )
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+})
+
+test('기간 새 생성은 구버전 오디오도 참고자료로 보내고 원문과 지침을 넣지 않는다', () => {
+  for (const kind of ['일일', '주간', '월간']) {
+    const request = periodGenerationRequestOf(
+      {
+        date: '2026-09-01',
+        kind,
+        approver: '',
+        values: { body: '이전 본문' },
+        activities: [],
+        transcript: '이전 지침',
+        attachments: [
+          {
+            id: 'legacy-audio',
+            kind: 'audio',
+            name: '설명.mp3',
+            byteSize: 100,
+            state: 'done',
+            extract: '참고할 제품 설명',
+          },
+        ],
+      },
+      'period-new',
+    )
+    assert.equal(request.attachments[0].purpose, 'reference')
+    assert.equal('guidance' in request, false)
+    assert.equal('transcript' in request, false)
+    assert.equal(request.content.values.body, '이전 본문')
+  }
 })
 
 test('딜 드로어를 열고 닫아도 현재 목록 페이지를 초기화하지 않는다', async () => {
@@ -163,6 +370,70 @@ const periodResponse = ({
   note: null,
   review_note: reviewNote,
   activities: [],
+})
+
+test('완료 미팅과 기간 보고서는 원본 목록을 복구하고 빈 직접 입력을 canonical 원문과 구분한다', () => {
+  const attachment = {
+    id: 'stored-source',
+    kind: 'image',
+    purpose: 'meeting_source',
+    name: '기록.png',
+    byte_size: 68,
+    extract: '파일에서 읽은 기록',
+    original_stored: true,
+  }
+  const raw = {
+    ...response(),
+    transcript: '파일에서 읽은 기록',
+    direct_transcript: '',
+    attachments: [attachment],
+  }
+  const meeting = toMeetingReport(raw)
+  assert.equal(meeting.transcript, '파일에서 읽은 기록')
+  assert.equal(meeting.directTranscript, '')
+  assert.deepEqual(attachmentPayloadsOf(meeting.attachments), [attachment])
+  assert.equal(toMeetingReport({ ...raw, direct_transcript: null }).directTranscript, undefined)
+  const seed = meetingGenerationSeedOf({
+    sales_deal_ids: [],
+    transcript: '',
+    attachments: [attachment],
+  })
+  assert.equal(seed.transcript, '')
+  assert.deepEqual(attachmentPayloadsOf(seed.attachments), [attachment])
+  for (const report_kind of ['daily', 'weekly', 'monthly']) {
+    const reference = { ...attachment, purpose: 'reference' }
+    const period = toReport({
+      ...periodResponse({ body: '보존할 본문' }),
+      report_kind,
+      attachments: [reference],
+    })
+    assert.deepEqual(attachmentPayloadsOf(period.attachments), [reference])
+    assert.equal(period.values.body, '보존할 본문')
+    const draft = {
+      date: period.date,
+      kind: period.kind,
+      approver: '',
+      values: period.values,
+      activities: [],
+      transcript: '',
+      attachments: period.attachments,
+    }
+    assert.deepEqual(periodFinalizeRequestOf(draft, 'synthetic-finalize').attachments, [reference])
+  }
+  const draft = {
+    agendaId: 'synthetic-meeting',
+    date: '2026-09-07',
+    time: '',
+    hospital: '',
+    dept: '',
+    contact: '',
+    place: '',
+    title: '보존할 제목',
+    transcript: '',
+    attachments: meeting.attachments,
+    dealSections: [],
+  }
+  assert.deepEqual(meetingFinalizeRequestOf(draft, 'synthetic-finalize').attachments, [attachment])
 })
 
 test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사용자 문구로 바꾼다', async () => {
@@ -660,9 +931,9 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
   assert.equal(audioOnly.attachments[0].kind, 'audio')
   assert.equal(finalized.idempotency_key, 'meeting-finalize-key')
   assert.equal(finalized.agent_run_id, 'meeting-run')
-  assert.equal('attachments' in finalized, false)
+  assert.deepEqual(finalized.attachments, generation.attachments)
   assert.equal('attachments' in finalized.content, false)
-  assert.equal(JSON.stringify(finalized).includes(attachment.extract), false)
+  assert.equal(JSON.stringify(finalized).includes(attachment.extract), true)
   assert.equal(finalized.sales_deal_id, null)
   assert.equal(finalized.content.title, '미팅 대표 제목')
   assert.equal(finalized.common_body, '공통 내용')
@@ -746,7 +1017,7 @@ test('딜 미지정 미팅은 공통 본문만으로 생성·확정·검토할 �
   assert.match(editor, /<textarea/)
 })
 
-test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하나만 제출한다', () => {
+test('기간 새 생성은 참고첨부·범위·본문만 쓰고 이전 사용자 텍스트는 최종 저장에 보존한다', () => {
   const draft = {
     date: '2026-08-31',
     kind: '주간',
@@ -796,11 +1067,12 @@ test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하�
   assert.equal(generation.report_kind, 'weekly')
   assert.equal(generation.period_start, '2026-08-30')
   assert.equal(generation.period_end, '2026-09-05')
-  assert.equal(generation.guidance, '직접 쓴 생성 지침')
+  assert.equal('guidance' in generation, false)
   assert.deepEqual(generation.attachments, [
     {
       id: draft.attachments[0].id,
       kind: 'image',
+      purpose: 'reference',
       name: 'memo.png',
       byte_size: 24 * 1024,
       extract: '생성에만 쓰는 이미지 추출문',
@@ -819,10 +1091,11 @@ test('기간 생성과 최종 확정은 guidance·범위와 canonical body 하�
 
   assert.equal(finalized.idempotency_key, 'period-finalize-key')
   assert.equal(finalized.agent_run_id, 'period-run')
-  assert.equal('attachments' in finalized, false)
+  assert.equal(finalized.attachments[0].extract, draft.attachments[0].extract)
+  assert.equal('purpose' in finalized.attachments[0], false)
   assert.equal('attachments' in finalized.content, false)
   assert.equal(finalized.note, '활동 1건')
-  assert.equal(JSON.stringify(finalized).includes(draft.attachments[0].extract), false)
+  assert.equal(JSON.stringify(finalized).includes(draft.attachments[0].extract), true)
   assert.equal(finalized.body, '주간 보고서 전문')
   assert.deepEqual(finalized.structured_values, {})
   assert.equal(finalized.transcript, '직접 쓴 생성 지침')

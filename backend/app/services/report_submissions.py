@@ -227,6 +227,7 @@ async def create_submission(
     agent_run_id: UUID | None = None,
     idempotency_key: UUID | None = None,
     request_hash: str | None = None,
+    attachments_snapshot: list[dict[str, Any]] | None = None,
 ) -> ReportSubmission:
     """Insert the next immutable revision.  The caller owns the surrounding transaction."""
     validate_submission_content(report, sections)
@@ -260,6 +261,7 @@ async def create_submission(
         request_hash=request_hash,
         snapshot=snapshot,
         snapshot_sha256=snapshot_sha256(snapshot),
+        attachments_snapshot=attachments_snapshot,
         review_status="pending",
         reviewed_by_member_id=None,
         reviewed_at=None,

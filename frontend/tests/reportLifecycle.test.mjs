@@ -213,8 +213,11 @@ test('미팅 복구 입력이 현재 일정과 다르면 오류 배너 없이 �
 
   assert.match(source, /reason\.message === 'report_generation_input_missing'/)
   assert.match(source, /!missingInput/)
-  assert.match(source, /attachment\.kind === 'audio' && attachment\.extract\.trim\(\)/)
-  assert.match(source, /\(!input\.transcript && !hasAudio\)/)
+  assert.match(
+    source,
+    /meetingAttachmentPurposeOf\(attachment\) === 'meeting_source' && attachment\.extract\.trim\(\)/,
+  )
+  assert.match(source, /\(!input\.transcript\?\.trim\(\) && !hasSource\)/)
   assert.match(
     source,
     /\.finally\(\(\) => \{[\s\S]*?recoveryAbort\.current = null[\s\S]*?setRecovering\(false\)/,
@@ -231,7 +234,34 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /const toggleSalesDeal[\s\S]*?invalidateGeneration\(\)/)
   assert.match(source, /const addAttachments[\s\S]*?invalidateGeneration\(\)/)
   assert.match(source, /const removeAttachment[\s\S]*?invalidateGeneration\(\)/)
+  assert.match(source, /const setAttachmentExtract[\s\S]*?invalidateGeneration\(\)/)
   assert.match(source, /setTranscript: changeTranscript/)
+})
+
+test('기간 작성은 미팅 원문 UI 없이 공통 첨부만 표시한다', async () => {
+  const source = await readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8')
+  assert.match(source, /<AttachmentPanel/)
+  assert.doesNotMatch(source, /MeetingInputPanel|<textarea|onTranscriptChange/)
+})
+
+test('미팅 첨부 목적이나 교정문이 바뀌면 동결된 생성 입력을 재사용하지 않는다', () => {
+  const attachment = {
+    id: 'source-1',
+    kind: 'image',
+    purpose: 'meeting_source',
+    name: '원문.jpg',
+    byte_size: 1024,
+    extract: '실제 기록',
+  }
+  const input = { ...generationInput, report_kind: 'meeting', attachments: [attachment] }
+  const request = { ...input, idempotency_key: 'new-attempt' }
+  assert.equal(sameReportGenerationInput(input, request), true)
+  for (const changed of [
+    { ...attachment, purpose: 'reference' },
+    { ...attachment, extract: '교정문' },
+  ]) {
+    assert.equal(sameReportGenerationInput(input, { ...request, attachments: [changed] }), false)
+  }
 })
 
 test('첨부 업로드 중에는 기간·미팅 생성과 최종 제출을 시작하지 않는다', async () => {
@@ -248,7 +278,10 @@ test('첨부 업로드 중에는 기간·미팅 생성과 최종 제출을 시�
   assert.match(dailyCompose, /if \(draft\.attachmentsPending\) return/)
   assert.match(dailyCompose, /draft\.recovering \|\|\n\s+draft\.attachmentsPending/)
   assert.match(meetingDraft, /attachmentsPending: files\.pending/)
-  assert.match(meetingDraft, /attachment\.kind === 'audio' && attachment\.state === 'done'/)
+  assert.match(
+    meetingDraft,
+    /meetingAttachmentPurposeOf\(attachment\) === 'meeting_source' &&\s+attachment\.state === 'done'/,
+  )
   assert.match(meetingCompose, /busy \|\|\n\s+draft\.attachmentsPending \|\|/)
   assert.match(meetingCompose, /aria-busy=\{submitting \|\| draft\.attachmentsPending\}/)
 })

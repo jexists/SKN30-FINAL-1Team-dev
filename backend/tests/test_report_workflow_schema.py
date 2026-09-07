@@ -51,6 +51,7 @@ def test_report_workflow_v2_models_expose_the_additive_contract():
         "request_hash",
         "snapshot",
         "snapshot_sha256",
+        "attachments_snapshot",
         "review_status",
         "reviewed_by_member_id",
         "reviewed_at",

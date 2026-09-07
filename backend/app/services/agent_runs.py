@@ -26,7 +26,12 @@ from app.schemas.agent_runs import (
     ReportGenerationInput,
     ReportGenerationScope,
 )
-from app.services import contract_schedule_snapshots, meeting_processing, report_sources
+from app.services import (
+    contract_schedule_snapshots,
+    meeting_processing,
+    report_attachments,
+    report_sources,
+)
 from app.services.llm import LLMError, is_transient_llm_error
 
 _SEOUL = ZoneInfo("Asia/Seoul")
@@ -319,7 +324,7 @@ async def _report_generation_input(
     db: AsyncSession,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     refs = _generation_source_refs(payload)
-    attachments = [item.model_dump(mode="json") for item in payload.attachments]
+    attachments = [item.model_dump(mode="json") for item in payload.attachments if item.extract]
     if payload.report_kind == "meeting":
         assert payload.source_activity_id is not None
         snapshot = await meeting_processing.input_snapshot(
@@ -400,13 +405,20 @@ async def create_report_generation(
         return _run_read(existing, requester_id), None
 
     try:
+        now = datetime.now(UTC)
+        await report_attachments.validate_inputs(
+            db,
+            member,
+            payload.attachments,
+            generation=payload,
+            expires_at=now + REPORT_GENERATION_RETENTION,
+        )
         agent_code, input_snapshot, source_refs = await _report_generation_input(
             payload, member, db
         )
         # ORM에서 읽은 UUID/datetime이 들어와도 JSONB 저장 경계에서는 JSON 값만 남긴다.
         input_snapshot = jsonable_encoder(input_snapshot)
         source_refs = jsonable_encoder(source_refs)
-        now = datetime.now(UTC)
         generation_input = payload.model_dump(mode="json", exclude={"idempotency_key"})
         run = AgentRun(
             id=uuid4(),

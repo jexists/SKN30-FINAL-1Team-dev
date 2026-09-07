@@ -1,96 +1,133 @@
-// 오른쪽 위. AI 에게 줄 것을 넣는 자리입니다.
-//
-// 넣는 것(첨부·미팅 내용)과 나오는 것(보고서)을 같은 열에 위아래로 두어, 누른 뒤
-// 무엇이 달라지는지 눈이 옮겨 가지 않고도 보입니다. 왼쪽은 참고만 하는 열입니다.
+// 미팅의 실제 기록과 보고서에만 쓰는 참고자료를 목적별로 나눕니다.
 import AttachmentPanel from '@/components/AttachmentPanel'
-import Button from '@/components/Button'
-import type { ReportAttachment } from '@/types'
+import { ChevronDownIcon, DocumentsIcon, EditIcon, PhoneIcon } from '@/components/icons'
+import type { AttachmentKind, AttachmentPurpose, ReportAttachment } from '@/types'
+import { meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import styles from './MeetingInputPanel.module.scss'
 
 interface Props {
   attachments: ReportAttachment[]
-  onAttach: (files: FileList | File[]) => void
+  onAttach: (
+    files: FileList | File[],
+    purpose: AttachmentPurpose,
+    acceptedKinds?: readonly AttachmentKind[],
+  ) => void
   onRemoveAttachment: (id: string) => void
+  onExtractChange: (id: string, extract: string) => void
   /** 첨부를 받지 못했거나 음성 변환이 실패한 이유. */
   attachmentError: string | null
   transcript: string
   onTranscriptChange: (value: string) => void
-  /** 'AI 보고서 작성' 을 누를 수 있는지. 미팅 내용이나 첨부가 있어야 누릅니다. */
-  canGenerate: boolean
-  generating: boolean
-  /** 내용 칸의 이름. 업무보고(일일·주간·월간)는 미팅이 아니라 그 기간을 적습니다. */
-  contentLabel?: string
-  generateLabel?: string
   disabled: boolean
-  onGenerate: () => void
 }
 
 export default function MeetingInputPanel({
   attachments,
   onAttach,
   onRemoveAttachment,
+  onExtractChange,
   attachmentError,
   transcript,
   onTranscriptChange,
-  canGenerate,
-  generating,
-  contentLabel = '미팅 내용 (선택)',
-  generateLabel = 'AI 보고서 작성',
   disabled,
-  onGenerate,
 }: Props) {
+  const sourceAttachments = attachments.filter(
+    (item) => meetingAttachmentPurposeOf(item) === 'meeting_source',
+  )
+  const references = attachments.filter((item) => meetingAttachmentPurposeOf(item) === 'reference')
+  const audioSources = sourceAttachments.filter((item) => item.kind === 'audio')
+  const documentSources = sourceAttachments.filter((item) => item.kind !== 'audio')
+
   return (
     <div className={styles.root}>
       <section className={styles.block}>
         <div className={styles.blockHead}>
-          <h2>첨부 자료</h2>
+          <h2>미팅 원문</h2>
+          <span className={styles.required}>필수</span>
         </div>
 
+        <details className={styles.sourceInput}>
+          <summary>
+            <PhoneIcon width={16} height={16} />
+            <strong>STT · 녹음</strong>
+            <span className={styles.inputStatus}>{audioSources.length}개</span>
+            <ChevronDownIcon className={styles.caret} width={14} height={14} />
+          </summary>
+          <AttachmentPanel
+            attachments={audioSources}
+            readOnly={disabled}
+            note=""
+            acceptedKinds={['audio']}
+            onAttach={(files, kinds) => onAttach(files, 'meeting_source', kinds)}
+            onRemove={onRemoveAttachment}
+            onExtractChange={onExtractChange}
+          />
+        </details>
+
+        <details className={styles.sourceInput}>
+          <summary>
+            <DocumentsIcon width={16} height={16} />
+            <strong>OCR · 이미지·PDF</strong>
+            <span className={styles.inputStatus}>{documentSources.length}개</span>
+            <ChevronDownIcon className={styles.caret} width={14} height={14} />
+          </summary>
+          <AttachmentPanel
+            attachments={documentSources}
+            readOnly={disabled}
+            note=""
+            acceptedKinds={['image', 'pdf']}
+            onAttach={(files, kinds) => onAttach(files, 'meeting_source', kinds)}
+            onRemove={onRemoveAttachment}
+            onExtractChange={onExtractChange}
+          />
+        </details>
+
+        <details className={styles.sourceInput}>
+          <summary>
+            <EditIcon width={16} height={16} />
+            <strong>직접 입력</strong>
+            <span className={styles.inputStatus}>{transcript.trim() ? '입력됨' : '내용 없음'}</span>
+            <ChevronDownIcon className={styles.caret} width={14} height={14} />
+          </summary>
+          <label className="sr-only" htmlFor="transcript">
+            직접 입력
+          </label>
+          <textarea
+            id="transcript"
+            className={styles.transcript}
+            rows={5}
+            value={transcript}
+            disabled={disabled}
+            placeholder="직접 기록한 미팅 내용을 추가하세요."
+            onChange={(event) => onTranscriptChange(event.target.value)}
+          />
+        </details>
+      </section>
+
+      <details className={`${styles.block} ${styles.references}`}>
+        <summary>
+          <span className={styles.blockHead}>
+            <span className={styles.blockTitle}>보고서 참고자료</span>
+            <span className={styles.optional}>선택 · {references.length}개</span>
+            <span className={styles.referenceAction}>첨부·보기</span>
+          </span>
+          <span className={styles.note}>배경자료로만 쓰며 미팅 발언으로 사용하지 않습니다.</span>
+        </summary>
         <AttachmentPanel
-          attachments={attachments}
+          attachments={references}
           readOnly={disabled}
           note=""
-          onAttach={onAttach}
+          onAttach={(files) => onAttach(files, 'reference')}
           onRemove={onRemoveAttachment}
         />
+      </details>
 
-        {attachmentError && (
-          <p className={styles.error} role="alert">
-            {attachmentError}
-          </p>
-        )}
-      </section>
-
-      <section className={styles.block}>
-        <div className={styles.blockHead}>
-          <h2>{contentLabel}</h2>
-        </div>
-
-        <label className="sr-only" htmlFor="transcript">
-          {contentLabel} 직접 입력
-        </label>
-        <textarea
-          id="transcript"
-          className={styles.transcript}
-          rows={8}
-          value={transcript}
-          disabled={disabled}
-          placeholder="누구와 무엇을 이야기했는지 그대로 적으세요."
-          onChange={(event) => onTranscriptChange(event.target.value)}
-        />
-      </section>
-
-      <div className={styles.foot}>
-        <Button
-          type="button"
-          className={styles.generate}
-          onClick={onGenerate}
-          disabled={disabled || !canGenerate || generating}
-        >
-          {generating ? `${generateLabel} 중…` : generateLabel}
-        </Button>
-      </div>
+      {attachmentError && (
+        <p className={styles.error} role="alert">
+          {attachmentError}
+        </p>
+      )}
     </div>
   )
 }

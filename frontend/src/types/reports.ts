@@ -52,17 +52,22 @@ export interface ReportActivity {
 }
 
 export type AttachmentKind = 'audio' | 'image' | 'pdf'
+export type AttachmentPurpose = 'meeting_source' | 'reference'
 export type AttachmentState = 'analyzing' | 'done' | 'failed'
 
 /** 음성·사진·PDF 첨부. 어디까지나 선택 사항입니다. */
 export interface ReportAttachment {
   id: string
   kind: AttachmentKind
+  /** 구버전 미팅 첨부는 음성만 원문으로 취급합니다. */
+  purpose?: AttachmentPurpose
   name: string
   byteSize: number
   state: AttachmentState
   /** 분석이 끝나면 채워집니다. 초안 생성의 입력이자 근거입니다. */
   extract?: string
+  /** 새 업로드의 원본 보관 표시. 구버전 입력에서는 누락을 유지합니다. */
+  originalStored?: true
 }
 
 export type ReportStatus = '작성중' | '검토 대기' | '확정' | '반려'
@@ -167,6 +172,9 @@ export interface ReportResponse {
   unassigned_body: string | null
   structured_values: Record<string, unknown>
   transcript: string | null
+  /** 미팅 합산 원문과 별도로 보관한 직접 입력. null은 과거 값이 불명확한 경우입니다. */
+  direct_transcript?: string | null
+  attachments?: ReportAttachmentPayload[]
   source_snapshot: Record<string, unknown> | null
   /** AI 가 어느 근거로 채웠는지. 보고서 상세가 그대로 펼쳐 보여 줍니다. */
   ai_evidence: Record<string, unknown> | null
@@ -211,13 +219,15 @@ export interface ReportWriteRequest {
   deal_sections: ReportDealSectionWrite[]
 }
 
-/** 업로드 응답과 AgentRun 생성·복구가 공유하는 일회용 첨부 객체입니다. */
+/** 업로드 응답과 AgentRun 생성·복구, 제출본이 공유하는 첨부 객체입니다. */
 export interface ReportAttachmentPayload {
   id: string
   kind: AttachmentKind
+  purpose?: AttachmentPurpose
   name: string
   byte_size: number
   extract: string
+  original_stored?: true
 }
 
 /** Canonical 보고서를 만들기 전 AgentRun에만 보관하는 생성 입력입니다. */
@@ -263,6 +273,7 @@ export interface ReportGenerationScope {
 /** 사람이 확인한 최종값을 한 번에 저장하고 제출합니다. */
 export interface ReportFinalizeRequest extends ReportWriteRequest {
   idempotency_key: string
+  attachments?: ReportAttachmentPayload[]
   agent_run_id?: string
   report_id?: string
   expected_version?: number

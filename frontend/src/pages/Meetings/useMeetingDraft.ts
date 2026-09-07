@@ -7,6 +7,8 @@ import type {
   AgendaItem,
   AgentRunChildResponse,
   ApiReportStatus,
+  AttachmentKind,
+  AttachmentPurpose,
   DealAssessment,
   MeetingDealSection,
   MeetingProcessingOutput,
@@ -16,6 +18,7 @@ import type {
   MeetingSharedNotes,
   ReportGenerationInput,
 } from '@/types'
+import { meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import { generatedDealOf, meetingAnalysisErrorMessage } from './generatedDraft'
 import { meetingGenerationSeedOf } from './useMeetingReports'
@@ -182,6 +185,7 @@ export default function useMeetingDraft(
   const {
     addAttachments: addFiles,
     removeAttachment: removeFile,
+    setAttachmentExtract: setFileExtract,
     setAttachments,
     setAttachmentError,
   } = files
@@ -191,7 +195,7 @@ export default function useMeetingDraft(
     const ids = [...new Set(savedReport?.dealSections.map((section) => section.salesDealId) ?? [])]
     if (!savedReport && item?.salesDealId) ids.push(item.salesDealId)
     const result = meetingResultOf(savedReport)
-    setTranscript(savedReport?.transcript ?? '')
+    setTranscript(savedReport?.directTranscript ?? savedReport?.transcript ?? '')
     setAttachments(savedReport?.attachments ?? [])
     setSalesDealIds(ids)
     setDraftsByDeal(
@@ -243,9 +247,13 @@ export default function useMeetingDraft(
   )
 
   const addAttachments = useCallback(
-    (picked: FileList | File[]) => {
+    (
+      picked: FileList | File[],
+      purpose: AttachmentPurpose,
+      acceptedKinds?: readonly AttachmentKind[],
+    ) => {
       invalidateGeneration()
-      return addFiles(picked)
+      return addFiles(picked, purpose, acceptedKinds)
     },
     [addFiles, invalidateGeneration],
   )
@@ -255,6 +263,13 @@ export default function useMeetingDraft(
       removeFile(id)
     },
     [invalidateGeneration, removeFile],
+  )
+  const setAttachmentExtract = useCallback(
+    (id: string, extract: string) => {
+      invalidateGeneration()
+      setFileExtract(id, extract)
+    },
+    [invalidateGeneration, setFileExtract],
   )
 
   const restoreGenerationInput = useCallback(
@@ -379,6 +394,7 @@ export default function useMeetingDraft(
     attachments: files.attachments,
     addAttachments,
     removeAttachment,
+    setAttachmentExtract,
     attachmentError: files.attachmentError,
     attachmentsPending: files.pending,
     salesDealIds,
@@ -420,7 +436,9 @@ export default function useMeetingDraft(
       (transcript.trim().length > 0 ||
         files.attachments.some(
           (attachment) =>
-            attachment.kind === 'audio' && attachment.state === 'done' && attachment.extract,
+            meetingAttachmentPurposeOf(attachment) === 'meeting_source' &&
+            attachment.state === 'done' &&
+            attachment.extract?.trim(),
         )),
   }
 }

@@ -66,8 +66,10 @@ export interface MeetingReportSeed {
   review: MeetingReview
   /** 저장·Agent 실행 가능 여부를 서버 코드 그대로 판단할 때 씁니다. */
   apiStatus?: ApiReportStatus
-  /** 직접 입력한 미팅 내용. 나중에 STT 결과가 들어올 자리입니다. */
+  /** 직접 입력과 원문 첨부를 합산한 저장 원문입니다. */
   transcript: string
+  /** 재편집은 파일 원문이 중복되지 않도록 원래 직접 입력만 복구합니다. */
+  directTranscript?: string
   attachments: ReportAttachment[]
   dealSections: MeetingDealSection[]
   meetingShared?: MeetingSharedNotes

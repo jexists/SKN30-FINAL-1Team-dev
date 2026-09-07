@@ -1,3 +1,4 @@
+import hashlib
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -89,6 +90,12 @@ class _Db:
             return _Result(scalar=max(revisions, default=0))
         if "from public.report_source" in statement_text:
             return _Result(scalar_values=[])
+        if "from public.report_attachment" in statement_text:
+            return _Result(scalar_values=[])
+        if "report_submission.id in" in statement_text:
+            return _Result(
+                scalar_values=[value for value in self.added if isinstance(value, ReportSubmission)]
+            )
         assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
         return self.results.pop(0)
 
@@ -1111,6 +1118,55 @@ async def test_meeting_finalize_compares_original_input_not_audio_effective_tran
         )
         is run
     )
+    assert reports_api._finalize_transcript(payload, run) == "음성에서 추출한 원문"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("changed", [None, "extract", "purpose", "removed", "omitted"])
+async def test_meeting_finalize_requires_frozen_attachment_inputs(changed):
+    member = _member()
+    activity_id = uuid4()
+    attachment = {
+        "id": str(uuid4()),
+        "kind": "image",
+        "name": "현장기록.jpg",
+        "byte_size": 1,
+        "extract": "확인한 OCR 원문",
+        "purpose": "meeting_source",
+    }
+    run = _meeting_generation_run(member, uuid4(), "직접 원문\n\n확인한 OCR 원문")
+    run.scope_key = f"meeting:{activity_id}"
+    run.request_snapshot = {"transcript": "직접 원문", "attachments": [attachment]}
+    run.input_snapshot["source"]["selected_deal_ids"] = []
+    run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    submitted = dict(attachment)
+    if changed == "extract":
+        submitted["extract"] = "생성 후 수정한 원문"
+    elif changed == "purpose":
+        submitted["purpose"] = "reference"
+    attachment_input = {"attachments": [] if changed == "removed" else [submitted]}
+    if changed == "omitted":
+        attachment_input = {}
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=run.id,
+        report_kind="meeting",
+        report_date="2026-08-17",
+        source_activity_id=activity_id,
+        template_snapshot=TEMPLATE,
+        content={},
+        common_body="검토한 최종 보고서",
+        transcript="직접 원문",
+        **attachment_input,
+    )
+    db = _Db(_Result(scalar=run), _Result(scalar=run), _Result(scalar=None))
+    if changed is None:
+        assert await reports_api._finalize_run(db, member, payload) is run
+        assert reports_api._finalize_transcript(payload, run) == "직접 원문\n\n확인한 OCR 원문"
+    else:
+        with pytest.raises(HTTPException) as caught:
+            await reports_api._finalize_run(db, member, payload)
+        assert caught.value.detail == "report_generation_source_changed"
 
 
 @pytest.mark.anyio
@@ -1341,6 +1397,7 @@ async def test_period_finalize_allows_human_title_and_body_edits_after_generatio
         content={"title": "최종 제목", "values": {"body": "최종 본문"}},
         title="최종 제목",
         body="최종 본문",
+        transcript="원문 UI 제거 전에 저장한 텍스트",
     )
     monkeypatch.setattr(
         reports_api.report_sources,
@@ -1349,10 +1406,12 @@ async def test_period_finalize_allows_human_title_and_body_edits_after_generatio
     )
 
     await reports_api._validate_generation_source_refs(AsyncMock(), report, payload, run)
+    assert reports_api._finalize_transcript(payload, run) == payload.transcript
 
 
 @pytest.mark.anyio
-async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatch):
+@pytest.mark.parametrize("source_kind", [None, "audio", "image", "pdf"])
+async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatch, source_kind):
     class FinalizeDb(_Db):
         async def execute(self, statement):
             if "from public.report_deal" in str(statement).lower():
@@ -1365,7 +1424,25 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     activity_id = uuid4()
     deal_id = uuid4()
     transcript = "예산이 승인되었습니다."
-    run = _meeting_generation_run(member, deal_id, transcript)
+    attachments = (
+        []
+        if source_kind is None
+        else [
+            {
+                "id": str(uuid4()),
+                "kind": source_kind,
+                "name": "미팅 기록",
+                "byte_size": 1,
+                "purpose": "meeting_source",
+                "extract": "검토한 추출 원문",
+            }
+        ]
+    )
+    canonical = transcript if source_kind is None else transcript + "\n\n검토한 추출 원문"
+    run = _meeting_generation_run(member, deal_id, canonical)
+    run.request_snapshot = {"transcript": transcript, "attachments": attachments}
+    evidence_hash = hashlib.sha256(canonical.encode()).hexdigest()
+    run.output_snapshot["evidence"]["transcript_sha256"] = evidence_hash
     run.scope_key = f"meeting:{activity_id}"
     db = FinalizeDb()
     payload = ReportFinalize(
@@ -1390,6 +1467,7 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
             "meeting_shared": {"common_report": {"body": "클라이언트 위조 공통"}},
         },
         transcript=transcript,
+        attachments=attachments,
     )
 
     monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
@@ -1423,6 +1501,11 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     submission = next(item for item in db.added if isinstance(item, ReportSubmission))
     assert result.id == report.id
     assert report.status_code == "submitted"
+    assert report.transcript == canonical
+    assert report.source_snapshot["direct_transcript"] == transcript
+    assert submission.attachments_snapshot == attachments
+    assert submission.snapshot["transcript_sha256"] == evidence_hash
+    assert "attachments" not in submission.snapshot and "attachments" not in report.content
     assert not set(reports_api._SERVER_OWNED_CONTENT_KEYS) & report.content.keys()
     assert report.current_submission_id == submission.id
     assert submission.agent_run_id == run.id
@@ -1432,6 +1515,106 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     assert run.input_snapshot == {} and run.output_snapshot is None
     assert db.commit_count == 1 and db.rollback_count == 0
     assert queued[0][0] == deal_id
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("direct", [None, "직접 입력한 원문"])
+async def test_manual_finalize_stores_source_extract_once_and_ignores_reference_audio(
+    monkeypatch, direct
+):
+    member = _member()
+    attachment = {
+        "id": str(uuid4()),
+        "kind": "pdf",
+        "name": "현장 기록.pdf",
+        "byte_size": 1,
+        "extract": "교정한 미팅 원문",
+        "purpose": "meeting_source",
+    }
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="meeting",
+        report_date="2026-08-17",
+        source_activity_id=uuid4(),
+        template_snapshot=TEMPLATE,
+        content={},
+        common_body="수동으로 쓴 보고서",
+        transcript=direct,
+        attachments=[
+            attachment,
+            {
+                **attachment,
+                "id": str(uuid4()),
+                "kind": "audio",
+                "purpose": "reference",
+                "extract": "미팅 발언이 아닌 제품 소개",
+            },
+        ],
+    )
+    db = _Db(_Result(scalar_values=[]))
+    monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
+    monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
+    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock(return_value=uuid4()))
+    monkeypatch.setattr(reports_api, "_detail", AsyncMock(return_value=SimpleNamespace(id=uuid4())))
+    await reports_api.finalize_report(payload, Response(), BackgroundTasks(), member, db)
+    report = next(item for item in db.added if isinstance(item, Report))
+    submission = next(item for item in db.added if isinstance(item, ReportSubmission))
+    canonical = (direct + "\n\n" if direct else "") + "교정한 미팅 원문"
+    assert report.transcript == canonical
+    assert (
+        submission.snapshot["transcript_sha256"] == hashlib.sha256(canonical.encode()).hexdigest()
+    )
+    assert "attachments" not in report.content and "attachments" not in submission.snapshot
+    assert report.source_snapshot["direct_transcript"] == (direct or "")
+    assert submission.attachments_snapshot == [
+        item.model_dump(mode="json") for item in payload.attachments
+    ]
+    # 저장한 직접 입력과 제출별 교정문을 복구하면 canonical에 추출문이 중복되지 않는다.
+    edited = payload.model_copy(update={"transcript": report.source_snapshot["direct_transcript"]})
+    assert reports_api._finalize_transcript(edited, None) == canonical
+
+
+@pytest.mark.parametrize("invalid", ["duplicate", "count", "combined", "bytes", "purpose"])
+def test_finalize_attachments_keep_generation_validation_boundaries(invalid):
+    attachment = {
+        "id": str(uuid4()),
+        "kind": "image",
+        "name": "미팅 기록",
+        "byte_size": 1,
+        "extract": "추출 원문",
+        "purpose": "meeting_source",
+    }
+    attachments = [attachment]
+    error = "report_attachment_ids_duplicate"
+    if invalid == "duplicate":
+        attachments.append(dict(attachment))
+    elif invalid == "count":
+        attachments = [{**attachment, "id": str(uuid4())} for _ in range(11)]
+        error = "at most 10"
+    elif invalid == "combined":
+        attachment["extract"] = "a" * 50_000
+        error = "meeting_transcript_too_large"
+    elif invalid == "bytes":
+        attachments = [
+            {**attachment, "id": str(uuid4()), "purpose": "reference", "extract": "가" * 50_000}
+            for _ in range(2)
+        ]
+        error = "attachments_too_large"
+    else:
+        attachment["purpose"] = "other"
+        error = "purpose"
+    with pytest.raises(ValidationError, match=error):
+        ReportFinalize(
+            idempotency_key=uuid4(),
+            report_kind="meeting",
+            report_date="2026-08-17",
+            source_activity_id=uuid4(),
+            template_snapshot=TEMPLATE,
+            content={},
+            common_body="수동 보고서",
+            transcript="직접 입력",
+            attachments=attachments,
+        )
 
 
 @pytest.mark.anyio

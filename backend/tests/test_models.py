@@ -67,7 +67,8 @@ EXPECTED_COLUMN_COUNTS = {
     # 생성 중 결과는 AgentRun에만 있고 확정된 딜별 ML 결과는 report_deal에 붙는다.
     "report": 31,
     "report_deal": 13,
-    "report_submission": 16,
+    "report_submission": 17,
+    "report_attachment": 11,
     "report_source": 4,
     "report_activity": 2,
     # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
@@ -122,14 +123,14 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 445
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 457
 
     foreign_key_constraints = [
         foreign_key
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 109
+    assert len(foreign_key_constraints) == 112
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

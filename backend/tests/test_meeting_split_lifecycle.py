@@ -259,6 +259,19 @@ async def test_enqueue_children_keeps_audio_in_effective_source_and_routes_docum
             {"id": "audio-1", "kind": "audio", "extract": "오디오 전사"},
             {"id": "pdf-1", "kind": "pdf", "extract": "계약 조건"},
             {"id": "image-1", "kind": "image", "extract": "명함 메모"},
+            {
+                "id": "source-image",
+                "kind": "image",
+                "purpose": "meeting_source",
+                "extract": "원문 이미지",
+            },
+            {"id": "source-pdf", "kind": "pdf", "purpose": "meeting_source", "extract": "원문 PDF"},
+            {
+                "id": "reference-audio",
+                "kind": "audio",
+                "purpose": "reference",
+                "extract": "제품 설명 음성",
+            },
         ],
     }
     output = SimpleNamespace(
@@ -279,6 +292,12 @@ async def test_enqueue_children_keeps_audio_in_effective_source_and_routes_docum
     assert children["meeting_report_writing"].input_snapshot["attachments"] == [
         {"id": "pdf-1", "kind": "pdf", "extract": "계약 조건"},
         {"id": "image-1", "kind": "image", "extract": "명함 메모"},
+        {
+            "id": "reference-audio",
+            "kind": "audio",
+            "purpose": "reference",
+            "extract": "제품 설명 음성",
+        },
     ]
     assert "attachments" not in children["meeting_analysis"].input_snapshot
     assert (

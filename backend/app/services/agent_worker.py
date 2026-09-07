@@ -17,7 +17,8 @@ from app.core.config import settings
 from app.models.agent import AgentRun
 from app.models.content import Report, ReportDeal
 from app.schemas.agent_runs import AgentCode
-from app.services import agent_runs
+from app.schemas.reports import meeting_attachment_purpose
+from app.services import agent_runs, report_attachments
 from app.services.agent_logging import agent_operation, collect_token_usage, log_agent_error
 from app.services.agent_stream import progress_context
 
@@ -47,7 +48,13 @@ REQUIRED_SCHEMA = {
     },
     "report": set(),
     "report_deal": set(),
-    "report_submission": {"agent_run_id", "idempotency_key", "request_hash"},
+    "report_submission": {
+        "agent_run_id",
+        "idempotency_key",
+        "request_hash",
+        "attachments_snapshot",
+    },
+    "report_attachment": {"id", "report_id", "team_id", "expires_at", "extracted_text"},
     "report_source": set(),
 }
 
@@ -303,7 +310,8 @@ async def _enqueue_meeting_children(session: AsyncSession, parent: AgentRun, out
     report_attachments = [
         copy.deepcopy(item)
         for item in parent.input_snapshot.get("attachments", [])
-        if isinstance(item, dict) and item.get("kind") != "audio"
+        if isinstance(item, dict)
+        and meeting_attachment_purpose(item.get("kind"), item.get("purpose")) == "reference"
     ]
     existing = {
         row.agent_code
@@ -629,6 +637,7 @@ async def run_once(lease_owner: str) -> bool:
     now = datetime.now(UTC)
     await _fail_exhausted_leases(now)
     await agent_runs.redact_expired_payloads(now)
+    await report_attachments.cleanup_expired(now=now)
     run = await claim(lease_owner)
     if run is None:
         return False
@@ -644,6 +653,7 @@ async def run_forever(lease_owner: str, poll_seconds: float = 2.0) -> None:
             now = datetime.now(UTC)
             await _fail_exhausted_leases(now)
             await agent_runs.redact_expired_payloads(now)
+            await report_attachments.cleanup_expired(now=now)
             next_cleanup = loop.time() + LEASE_SECONDS
         run = await claim(lease_owner)
         if run is None:
@@ -665,7 +675,7 @@ async def check_schema() -> None:
                     WHERE table_schema = 'public'
                       AND table_name IN (
                         'agent_run', 'report', 'report_deal',
-                        'report_submission', 'report_source'
+                        'report_submission', 'report_source', 'report_attachment'
                       )
                     """
                 )

@@ -3,8 +3,13 @@
  * 입력칸처럼 보이지 않아야 하므로 테두리도 배경도 주지 않습니다.
  */
 .root {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
   // 편집 중 파란 테두리를 그리는 기본 동작을 끕니다. 문서에 상자가 생깁니다.
   :global(.mce-content-body) {
+    flex: 1;
     outline: none;
     // 백지로 시작하면 빈 문단 하나뿐이라 누를 자리가 한 줄밖에 없습니다.
     // 시트 아래쪽을 눌러도 글을 쓸 수 있게 높이를 잡아 둡니다.
@@ -51,6 +56,7 @@
  * 편집기가 이 안에 그리므로 비어 있어도 높이를 잡아 둡니다.
  */
 .toolbar {
+  flex: none;
   min-height: var(--control-h);
   margin-bottom: var(--s3);
 
@@ -67,6 +73,10 @@
 
 /* 인쇄물에 편집 도구가 남지 않습니다. */
 @media print {
+  .root {
+    display: block;
+  }
+
   :global(.tox-tinymce-inline),
   :global(.tox-tinymce-aux) {
     display: none !important;
@@ -78,6 +88,7 @@
   }
 
   .root :global(.mce-content-body) {
+    min-height: 0;
     outline: none !important;
   }
 }

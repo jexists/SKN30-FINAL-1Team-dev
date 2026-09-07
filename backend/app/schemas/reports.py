@@ -58,6 +58,7 @@ SnapshotNote = Annotated[
 # 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 자료로 쓴다.
 ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
 ReportAttachmentKind = Literal["audio", "image", "pdf"]
+ReportAttachmentPurpose = Literal["meeting_source", "reference"]
 ReportAttachmentName = Annotated[
     str,
     StringConstraints(
@@ -72,7 +73,6 @@ ReportAttachmentExtract = Annotated[
     StringConstraints(
         strip_whitespace=True,
         strict=True,
-        min_length=1,
         max_length=REPORT_ATTACHMENT_EXTRACT_MAX_LENGTH,
     ),
 ]
@@ -202,13 +202,59 @@ class ReportDealRead(BaseModel):
 
 
 class ReportAttachmentRead(_WriteModel):
-    """한 요청에서 검증·추출을 마친 일회용 보고서 첨부."""
+    """검증·추출한 첨부와 사용자가 교정한 추출문."""
 
     id: UUID
     kind: ReportAttachmentKind
     name: ReportAttachmentName
     byte_size: int = Field(strict=True, ge=1)
     extract: ReportAttachmentExtract
+    # 누락 목적은 예전 파일 종류 규칙으로 해석한다. 직렬화도 생략해야 기존 실행 해시가 같다.
+    purpose: ReportAttachmentPurpose | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    # 보관형 업로드를 식별하는 불변 표식이다. 가용성과 권한은 서버 원본 행으로 확인한다.
+    original_stored: Literal[True] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def _require_legacy_extract(self) -> Self:
+        if not self.extract and not self.original_stored:
+            raise ValueError("report_attachment_extract_empty")
+        return self
+
+
+def meeting_attachment_purpose(
+    kind: str, purpose: ReportAttachmentPurpose | None
+) -> ReportAttachmentPurpose:
+    return purpose or ("meeting_source" if kind == "audio" else "reference")
+
+
+def effective_meeting_transcript(
+    transcript: str | None, attachments: list[ReportAttachmentRead]
+) -> str:
+    """직접 입력과 원문 첨부만 한 번 결합해 분석·최종 저장에 함께 쓴다."""
+    parts = ([transcript] if transcript else []) + [
+        item.extract
+        for item in attachments
+        if item.extract and meeting_attachment_purpose(item.kind, item.purpose) == "meeting_source"
+    ]
+    combined = "\n\n".join(parts)
+    if len(combined) > 50_000:
+        raise ValueError("meeting_transcript_too_large")
+    return combined
+
+
+def validate_report_attachments(
+    report_kind: ReportKind, attachments: list[ReportAttachmentRead]
+) -> None:
+    attachment_ids = [item.id for item in attachments]
+    if len(set(attachment_ids)) != len(attachment_ids):
+        raise ValueError("report_attachment_ids_duplicate")
+    # 기간 보고서의 구형 오디오는 원래도 참고자료였다. 명시한 원문 목적만 거절한다.
+    if report_kind != "meeting" and any(item.purpose == "meeting_source" for item in attachments):
+        raise ValueError("meeting_attachment_not_supported")
 
 
 class ReportFinalize(_WriteModel):
@@ -230,6 +276,9 @@ class ReportFinalize(_WriteModel):
     unassigned_body: ReportBody | None = None
     structured_values: dict[str, Any] = Field(default_factory=dict)
     transcript: Transcript | None = None
+    attachments: list[ReportAttachmentRead] = Field(
+        default_factory=list, max_length=REPORT_ATTACHMENT_MAX_COUNT
+    )
     note: LongText | None = None
     activity_ids: list[UUID] = Field(default_factory=list)
     idempotency_key: UUID
@@ -247,11 +296,14 @@ class ReportFinalize(_WriteModel):
         validate_report_json_size(
             template_snapshot=self.template_snapshot,
             content=self.content,
+            attachments=[item.model_dump(mode="json") for item in self.attachments],
         )
+        validate_report_attachments(self.report_kind, self.attachments)
         if self.structured_values:
             raise ValueError("structured_values_not_supported")
         # 업무보고서는 근거 일정이 곧 보고 대상이라 반드시 있어야 합니다.
         if self.report_kind == "meeting":
+            effective_meeting_transcript(self.transcript, self.attachments)
             if self.source_activity_id is None:
                 raise ValueError("source_activity_required")
             if not self.deal_sections and self.common_body is None and self.unassigned_body is None:
@@ -350,6 +402,8 @@ class ReportRead(BaseModel):
     unassigned_body: str | None
     structured_values: dict[str, Any]
     transcript: str | None
+    direct_transcript: str | None = None
+    attachments: list[ReportAttachmentRead] = Field(default_factory=list)
     source_snapshot: dict[str, Any] | None
     ai_evidence: dict[str, Any] | None
     note: str | None

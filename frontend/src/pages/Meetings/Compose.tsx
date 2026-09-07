@@ -35,6 +35,7 @@ import type {
   ReportGenerationInput,
 } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
+import { meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
@@ -59,14 +60,15 @@ function meetingInputOf(
   agendaId: string,
 ): ReportGenerationInput {
   const input = run.generation_input
-  const hasAudio = input?.attachments.some(
-    (attachment) => attachment.kind === 'audio' && attachment.extract.trim(),
+  const hasSource = input?.attachments.some(
+    (attachment) =>
+      meetingAttachmentPurposeOf(attachment) === 'meeting_source' && attachment.extract.trim(),
   )
   if (
     !input ||
     input.report_kind !== 'meeting' ||
     input.source_activity_id !== agendaId ||
-    (!input.transcript && !hasAudio)
+    (!input.transcript?.trim() && !hasSource)
   ) {
     throw new Error('report_generation_input_missing')
   }
@@ -554,50 +556,64 @@ export default function Compose() {
 
       <div className={styles.layout}>
         <div className={styles.side}>
-          <aside className={styles.reference}>
-            <div className={styles.refHead}>
-              <h2 className={styles.refTitle}>미팅 정보</h2>
-              {item.stage && <span className={styles.pill}>{item.stage}</span>}
-            </div>
+          <div className={styles.sideContent}>
+            <aside className={styles.reference}>
+              <div className={styles.refHead}>
+                <h2 className={styles.refTitle}>미팅 정보</h2>
+                {item.stage && <span className={styles.pill}>{item.stage}</span>}
+              </div>
 
-            <MeetingInfoPanel
-              item={item}
-              deals={deals.deals}
-              dealsLoading={deals.loading}
-              dealsError={deals.error}
-              onReloadDeals={deals.reload}
-              selectedDealIds={draft.salesDealIds}
-              fixedDealIds={fixedDealIds}
-              onToggleDeal={draft.toggleSalesDeal}
-              disabled={busy || !canEdit}
-            />
-          </aside>
+              <MeetingInfoPanel
+                item={item}
+                deals={deals.deals}
+                dealsLoading={deals.loading}
+                dealsError={deals.error}
+                onReloadDeals={deals.reload}
+                selectedDealIds={draft.salesDealIds}
+                fixedDealIds={fixedDealIds}
+                onToggleDeal={draft.toggleSalesDeal}
+                disabled={busy || !canEdit}
+              />
+            </aside>
 
-          <div className={styles.input}>
-            <MeetingInputPanel
-              attachments={draft.attachments}
-              onAttach={(files) => void draft.addAttachments(files)}
-              onRemoveAttachment={draft.removeAttachment}
-              attachmentError={draft.attachmentError}
-              transcript={draft.transcript}
-              onTranscriptChange={draft.setTranscript}
-              canGenerate={draft.canGenerate && generatable}
-              generating={generating || recovering}
-              contentLabel="미팅 내용"
-              generateLabel="미팅 전체 분석·보고서 작성"
-              disabled={busy || !canEdit}
-              onGenerate={requestGeneration}
-            />
-            {draft.salesDealIds.length > 0 && !generatable && (
+            <div className={styles.input}>
+              <MeetingInputPanel
+                attachments={draft.attachments}
+                onAttach={(files, purpose, acceptedKinds) =>
+                  void draft.addAttachments(files, purpose, acceptedKinds)
+                }
+                onRemoveAttachment={draft.removeAttachment}
+                onExtractChange={draft.setAttachmentExtract}
+                attachmentError={draft.attachmentError}
+                transcript={draft.transcript}
+                onTranscriptChange={draft.setTranscript}
+                disabled={busy || !canEdit}
+              />
+              {draft.salesDealIds.length > 0 && !generatable && (
+                <p className={styles.generationNote}>
+                  선택한 딜 중 읽기 전용 또는 수정중 상태가 아닌 보고서가 있어 미팅 전체를 다시
+                  생성할 수 없습니다.
+                </p>
+              )}
               <p className={styles.generationNote}>
-                선택한 딜 중 읽기 전용 또는 수정중 상태가 아닌 보고서가 있어 미팅 전체를 다시 생성할
-                수 없습니다.
+                미팅 공통 기록을 만들며, 관련 딜을 선택하면 딜별 보고서도 함께 처리합니다. 작성한
+                내용이 있으면 새 후보로 바꾸기 전에 확인합니다.
               </p>
-            )}
-            <p className={styles.generationNote}>
-              미팅 공통 기록을 만들며, 관련 딜을 선택하면 딜별 보고서도 함께 처리합니다. 작성한
-              내용이 있으면 새 후보로 바꾸기 전에 확인합니다.
-            </p>
+            </div>
+          </div>
+          <div className={styles.generateBar} aria-busy={generating || recovering}>
+            <Button
+              type="button"
+              className={styles.generate}
+              onClick={requestGeneration}
+              disabled={
+                busy || !canEdit || !draft.canGenerate || !generatable || generating || recovering
+              }
+            >
+              {generating || recovering
+                ? '미팅 전체 분석·보고서 작성 중…'
+                : '미팅 전체 분석·보고서 작성'}
+            </Button>
           </div>
         </div>
 
@@ -627,47 +643,49 @@ export default function Compose() {
               {submitting ? '완료 중…' : '업무보고 작성 완료'}
             </Button>
           </div>
-          {(draft.salesDealIds.length === 0 ||
-            result ||
-            draft.processingProgress ||
-            generating) && (
-            <MeetingSharedPanel
-              shared={result?.shared ?? null}
-              progress={draft.processingProgress}
-              generating={generating || recovering}
-              disabled={busy}
-              showCommon={draft.salesDealIds.length === 0}
-              onChange={canEdit ? draft.setShared : undefined}
-            />
-          )}
-          {draft.salesDealIds.length > 0 &&
-            draft.salesDealIds.map((dealId) => {
-              const state = draft.draftsByDeal[dealId]
-              if (!state) return null
-              const deal = deals.deals.find((one) => one.id === dealId)
-              const savedSection = savedByDeal.get(dealId)
-              const product = deal?.product ?? savedSection?.product
+          <div className={styles.reports}>
+            {(draft.salesDealIds.length === 0 ||
+              result ||
+              draft.processingProgress ||
+              generating) && (
+              <MeetingSharedPanel
+                shared={result?.shared ?? null}
+                progress={draft.processingProgress}
+                generating={generating || recovering}
+                disabled={busy}
+                showCommon={draft.salesDealIds.length === 0}
+                onChange={canEdit ? draft.setShared : undefined}
+              />
+            )}
+            {draft.salesDealIds.length > 0 &&
+              draft.salesDealIds.map((dealId) => {
+                const state = draft.draftsByDeal[dealId]
+                if (!state) return null
+                const deal = deals.deals.find((one) => one.id === dealId)
+                const savedSection = savedByDeal.get(dealId)
+                const product = deal?.product ?? savedSection?.product
 
-              return (
-                <DealReportCard
-                  key={dealId}
-                  dealId={dealId}
-                  deal={deal}
-                  savedDeal={savedSection?.salesDeal}
-                  draft={state}
-                  progress={draft.processingProgress}
-                  when={`${when}${product ? ` · ${product}` : ''}`}
-                  saving={pending}
-                  generating={generating || recovering}
-                  canGenerate={draft.canGenerate && generatable}
-                  readOnly={!canEditDeal(dealId)}
-                  onTitleChange={(value) => draft.setTitle(dealId, value)}
-                  onChange={(body) => draft.applyDocument(dealId, body)}
-                  onStartManual={() => draft.startManual(dealId)}
-                  onGenerate={requestGeneration}
-                />
-              )
-            })}
+                return (
+                  <DealReportCard
+                    key={dealId}
+                    dealId={dealId}
+                    deal={deal}
+                    savedDeal={savedSection?.salesDeal}
+                    draft={state}
+                    progress={draft.processingProgress}
+                    when={`${when}${product ? ` · ${product}` : ''}`}
+                    saving={pending}
+                    generating={generating || recovering}
+                    canGenerate={draft.canGenerate && generatable}
+                    readOnly={!canEditDeal(dealId)}
+                    onTitleChange={(value) => draft.setTitle(dealId, value)}
+                    onChange={(body) => draft.applyDocument(dealId, body)}
+                    onStartManual={() => draft.startManual(dealId)}
+                    onGenerate={requestGeneration}
+                  />
+                )
+              })}
+          </div>
         </section>
       </div>
 
