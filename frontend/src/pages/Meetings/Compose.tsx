@@ -4,7 +4,7 @@
 // 저장할 때는 공통 기록과 선택된 딜 카드를 미팅 보고서 한 건으로 묶습니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { isAxiosError } from 'axios'
+import { isAxiosError, isCancel } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
@@ -393,9 +393,21 @@ export default function Compose() {
     try {
       const request = meetingGenerationRequestOf(payload, attempt.key)
       let created: AgentRunResponse<MeetingProcessingOutput>
+      let previous: AgentRunResponse<MeetingProcessingOutput> | null = null
       try {
-        const previous = await latestMeetingProcessing(agendaId, controller.signal)
-        const failedReportId = sameReportGenerationInput(previous.generation_input, request)
+        previous = await latestMeetingProcessing(agendaId, controller.signal)
+      } catch (reason: unknown) {
+        if (
+          controller.signal.aborted ||
+          isCancel(reason) ||
+          !isAxiosError(reason) ||
+          (reason.response && reason.response.status < 500 && reason.response.status !== 404)
+        ) {
+          throw reason
+        }
+      }
+      const failedReportId =
+        previous && sameReportGenerationInput(previous.generation_input, request)
           ? ([...(previous.child_runs ?? [])]
               .reverse()
               .find(
@@ -404,19 +416,15 @@ export default function Compose() {
                   (child.status_code === 'failed' || child.status_code === 'cancelled'),
               )?.id ?? null)
           : null
-        created = failedReportId
-          ? await retryMeetingReport<MeetingProcessingOutput>(failedReportId)
-          : await createReportGeneration<MeetingProcessingOutput>(request)
-        analysisParentRunId =
-          typeof created.source_refs.parent_run_id === 'string'
-            ? created.source_refs.parent_run_id
-            : created.agent_code === 'meeting_processing'
-              ? created.id
-              : undefined
-      } catch (reason: unknown) {
-        if (!isAxiosError(reason) || reason.response?.status !== 404) throw reason
-        created = await createReportGeneration<MeetingProcessingOutput>(request)
-      }
+      created = failedReportId
+        ? await retryMeetingReport<MeetingProcessingOutput>(failedReportId)
+        : await createReportGeneration<MeetingProcessingOutput>(request)
+      analysisParentRunId =
+        typeof created.source_refs.parent_run_id === 'string'
+          ? created.source_refs.parent_run_id
+          : created.agent_code === 'meeting_processing'
+            ? created.id
+            : undefined
       const run = await waitForMeetingProcessing(
         created,
         (progress) => {

@@ -1114,13 +1114,19 @@ async def test_meeting_finalize_compares_original_input_not_audio_effective_tran
 
 
 @pytest.mark.anyio
-async def test_audio_only_meeting_finalizes_report_child_using_original_transcript_boundary():
+@pytest.mark.parametrize(
+    ("original_transcript", "payload_transcript"),
+    [(None, None), ("사용자가 입력한 원문", "사용자가 입력한 원문")],
+)
+async def test_meeting_finalize_report_child_uses_parent_transcript_boundary(
+    original_transcript, payload_transcript
+):
     member = _member()
     activity_id = uuid4()
     deal_id = uuid4()
     parent = _meeting_generation_run(member, deal_id, "오디오에서 추출한 원문")
     parent.scope_key = f"meeting:{activity_id}"
-    parent.request_snapshot = {"transcript": None}
+    parent.request_snapshot = {"transcript": original_transcript}
     parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     child = _meeting_generation_run(member, deal_id, "오디오에서 추출한 원문")
     child.id = uuid4()
@@ -1150,7 +1156,7 @@ async def test_audio_only_meeting_finalizes_report_child_using_original_transcri
         ],
         template_snapshot=TEMPLATE,
         content={},
-        transcript=None,
+        transcript=payload_transcript,
     )
 
     result = await reports_api._finalize_run(

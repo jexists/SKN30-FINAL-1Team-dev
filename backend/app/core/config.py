@@ -236,6 +236,21 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def validate_openai_ocr_endpoint(self) -> Self:
+        """OpenAI OCR에 명시한 endpoint는 자격 증명을 보호하는 HTTPS URL이어야 한다."""
+        if self.ocr_provider != "openai" or not self.ocr_api_url:
+            return self
+        parts = urlsplit(self.ocr_api_url)
+        if (
+            parts.scheme != "https"
+            or not parts.hostname
+            or parts.username is not None
+            or parts.password is not None
+        ):
+            raise ValueError("OpenAI OCR API URL은 사용자 정보 없는 HTTPS URL이어야 합니다.")
+        return self
+
+    @model_validator(mode="after")
     def validate_production_security(self) -> Self:
         """운영 환경의 필수 보안 설정과 URL 계약을 검증한다."""
         if self.app_env != "production":

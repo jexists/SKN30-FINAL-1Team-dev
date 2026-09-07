@@ -94,6 +94,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   meeting_notes_without_evidence: '근거가 없는 공통·미지정 항목에는 메모를 추가할 수 없습니다.',
   report_agent_output_invalid:
     'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
+  meeting_analysis_failed: '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
   report_attachment_extraction_failed:
     '첨부 파일에서 내용을 읽지 못했습니다. 파일을 확인한 뒤 다시 올려 주세요.',
   report_attachment_ocr_too_large:

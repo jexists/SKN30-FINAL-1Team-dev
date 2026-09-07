@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Attachment hook behavior test</title>
+  </head>
+  <body>
+    <pre id="result">Running…</pre>
+    <div id="test-root"></div>
+    <script type="module">
+      import { act, createElement } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import useAttachments from '../src/shared/useAttachments.ts'
+      import { client } from '../src/api/client.ts'
+
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      const result = document.getElementById('result')
+      const root = createRoot(document.getElementById('test-root'))
+      const pendingRequests = []
+      let hook
+
+      function Harness() {
+        hook = useAttachments()
+        return null
+      }
+
+      const responseFor = (file, id, config) => ({
+        data: {
+          id,
+          kind: 'audio',
+          name: file.name,
+          byte_size: file.size,
+          extract: '합성 전사',
+        },
+        status: 201,
+        statusText: 'OK',
+        headers: {},
+        config,
+      })
+
+      const check = (condition, message) => {
+        if (!condition) throw new Error(message)
+      }
+
+      async function run() {
+        const originalAdapter = client.defaults.adapter
+        client.defaults.adapter = (config) =>
+          new Promise((resolve) => pendingRequests.push({ config, resolve }))
+
+        try {
+          await act(async () => root.render(createElement(Harness)))
+          const first = new File(['audio'], 'meeting.mp3', { type: 'audio/mpeg' })
+          let firstUpload
+          await act(async () => {
+            firstUpload = hook.addAttachments([first])
+            await Promise.resolve()
+          })
+          check(hook.pending === true, '업로드 중 pending=true')
+          check(
+            hook.attachments.length === 1 && hook.attachments[0].state === 'analyzing',
+            '업로드 직후 analyzing',
+          )
+
+          await act(async () => {
+            const request = pendingRequests.shift()
+            request.resolve(responseFor(first, 'attachment-1', request.config))
+            await firstUpload
+          })
+          check(hook.pending === false, '업로드 완료 후 pending=false')
+          check(
+            hook.attachments.length === 1 && hook.attachments[0].state === 'done',
+            '업로드 완료 후 done',
+          )
+
+          const removed = new File(['audio'], 'removed.mp3', { type: 'audio/mpeg' })
+          let removedUpload
+          await act(async () => {
+            removedUpload = hook.addAttachments([removed])
+            await Promise.resolve()
+          })
+          const removedId = hook.attachments.find((item) => item.name === removed.name).id
+          await act(async () => {
+            hook.removeAttachment(removedId)
+            await Promise.resolve()
+          })
+          check(
+            hook.attachments.every((item) => item.id !== removedId),
+            '업로드 중 삭제 즉시 제거',
+          )
+          await act(async () => {
+            const request = pendingRequests.shift()
+            request.resolve(responseFor(removed, 'attachment-removed', request.config))
+            await removedUpload
+          })
+          check(
+            hook.attachments.every(
+              (item) => item.id !== 'attachment-removed' && item.id !== removedId,
+            ),
+            '지연 응답이 삭제된 첨부를 부활시키지 않음',
+          )
+          check(hook.pending === false, '삭제 후 pending=false')
+        } finally {
+          client.defaults.adapter = originalAdapter
+          await act(async () => root.unmount())
+        }
+      }
+
+      run()
+        .then(() => {
+          result.textContent = 'PASS attachment hook behavior'
+          document.title = 'PASS attachment hook behavior'
+        })
+        .catch((error) => {
+          result.textContent = `FAIL\n${error.stack}`
+          document.title = 'FAIL attachment hook behavior'
+        })
+    </script>
+  </body>
+</html>

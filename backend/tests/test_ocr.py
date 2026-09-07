@@ -55,6 +55,29 @@ def test_openai_is_the_default_ocr_provider_and_uses_openai_key():
     assert settings.ocr_configured is True
 
 
+def test_openai_ocr_accepts_explicit_https_endpoint():
+    settings = Settings(
+        app_env="test",
+        ocr_api_url="https://ocr.example.test/v1/responses",
+        openai_api_key="openai-test-key",
+    )
+
+    assert settings.ocr_configured is True
+
+
+@pytest.mark.parametrize(
+    "ocr_api_url",
+    [
+        "http://ocr.example.test/v1/responses",
+        "https://user:pass@ocr.example.test/v1",
+        "https:///v1/responses",
+    ],
+)
+def test_openai_ocr_rejects_insecure_or_userinfo_endpoint(ocr_api_url):
+    with pytest.raises(ValueError, match="HTTPS"):
+        Settings(app_env="test", ocr_api_url=ocr_api_url, openai_api_key="openai-test-key")
+
+
 def test_non_openai_provider_needs_its_own_endpoint_and_key():
     settings = Settings(
         app_env="test",

@@ -189,6 +189,7 @@ async def test_late_analysis_persists_partial_features_and_preserves_submission(
         parent=parent,
     )
 
+    assert section.ai_evidence["meeting_run_id"] == str(report_child.id)
     assert section.ai_evidence["analysis_run_id"]
     assert section.ai_evidence["analysis_status"] == "failed"
     assert section.ai_evidence["features"] == {"Budgt_alloc": "Yes"}

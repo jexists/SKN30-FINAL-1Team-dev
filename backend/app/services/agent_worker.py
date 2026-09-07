@@ -473,7 +473,7 @@ async def _persist_late_meeting_analysis(
             assessment = item.assessment.model_dump(mode="json") if item.assessment else None
             features = item.features.model_dump(mode="json") if item.features else None
         row.ai_evidence = {
-            "meeting_run_id": str(run.id),
+            "meeting_run_id": str(report_child.id),
             "analysis_run_id": str(run.id),
             "analysis_status": (
                 "failed" if error else ("pending" if item is None else "completed")

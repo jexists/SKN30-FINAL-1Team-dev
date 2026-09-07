@@ -710,6 +710,30 @@ test('지연 analysis 반영은 사용자가 편집한 보고서 본문을 보�
   assert.equal(merged['deal-1'].assessment.label, 'watch')
 })
 
+test('실시간 analysis 내부 오류 코드도 저장 복구와 같은 사용자 문구로 바꾼다', () => {
+  const draft = { 'deal-1': { analysisPhase: 'running', analysisError: null } }
+  const failedChild = {
+    status_code: 'failed',
+    error_code: 'meeting_analysis_failed',
+    error_message: null,
+    output_snapshot: null,
+  }
+  assert.equal(
+    mergeMeetingAnalysis(draft, failedChild)['deal-1'].analysisError,
+    '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
+  )
+  const failedItem = {
+    status_code: 'completed',
+    output_snapshot: {
+      analyses: [{ sales_deal_id: 'deal-1', assessment: null, error: 'meeting_analysis_failed' }],
+    },
+  }
+  assert.equal(
+    mergeMeetingAnalysis(draft, failedItem)['deal-1'].analysisError,
+    '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
+  )
+})
+
 test('report child 실패도 analysis sibling을 계속 소비하고 report 실패를 유지한다', async () => {
   const originalAdapter = client.defaults.adapter
   const analysisOutput = {

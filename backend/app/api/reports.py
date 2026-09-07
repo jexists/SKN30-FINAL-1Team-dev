@@ -758,6 +758,7 @@ async def _finalize_run(
     ).scalar_one_or_none()
     if run is None:
         raise HTTPException(404, "agent_run_not_found")
+    request_run = run
     if run.parent_run_id is not None:
         parent_lock = (
             await db.execute(
@@ -772,6 +773,7 @@ async def _finalize_run(
         ).scalar_one_or_none()
         if parent_lock is None:
             raise HTTPException(404, "agent_run_not_found")
+        request_run = parent_lock
         locked = (
             await db.execute(
                 select(AgentRun)
@@ -834,7 +836,9 @@ async def _finalize_run(
     ):
         raise HTTPException(409, "report_generation_not_usable")
     if payload.report_kind == "meeting":
-        request = run.request_snapshot if isinstance(run.request_snapshot, dict) else {}
+        request = (
+            request_run.request_snapshot if isinstance(request_run.request_snapshot, dict) else {}
+        )
         source = run.input_snapshot.get("source", {})
         if request.get("transcript") != payload.transcript or set(
             source.get("selected_deal_ids", [])

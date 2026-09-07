@@ -182,6 +182,7 @@ export default function useDailyDraft(
 
   const addAttachments = useCallback(
     (picked: FileList | File[]) => {
+      generationAbort.current?.abort()
       setGenerationRunId(undefined)
       return addFiles(picked)
     },
@@ -189,6 +190,7 @@ export default function useDailyDraft(
   )
   const removeAttachment = useCallback(
     (id: string) => {
+      generationAbort.current?.abort()
       setGenerationRunId(undefined)
       return removeFile(id)
     },

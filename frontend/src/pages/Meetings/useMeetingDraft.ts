@@ -17,7 +17,7 @@ import type {
   ReportGenerationInput,
 } from '@/types'
 
-import { generatedDealOf } from './generatedDraft'
+import { generatedDealOf, meetingAnalysisErrorMessage } from './generatedDraft'
 import { meetingGenerationSeedOf } from './useMeetingReports'
 
 export type MeetingPhase = 'idle' | 'generating' | 'ready'
@@ -125,13 +125,14 @@ export function mergeMeetingAnalysis(
         return [dealId, { ...draft, analysisPhase: 'running' as const, analysisError: null }]
       }
       if (child.status_code === 'failed' || child.status_code === 'cancelled') {
+        const error = child.error_code ?? child.error_message ?? 'meeting_analysis_failed'
         return [
           dealId,
           {
             ...draft,
             analysisPhase: 'failed' as const,
             assessment: undefined,
-            analysisError: child.error_code ?? child.error_message ?? 'meeting_analysis_failed',
+            analysisError: meetingAnalysisErrorMessage(error),
           },
         ]
       }
@@ -146,7 +147,7 @@ export function mergeMeetingAnalysis(
               ? ('failed' as const)
               : ('idle' as const),
           assessment: analysis?.assessment ?? undefined,
-          analysisError: analysis?.error ?? null,
+          analysisError: meetingAnalysisErrorMessage(analysis?.error) ?? null,
         },
       ]
     }),
