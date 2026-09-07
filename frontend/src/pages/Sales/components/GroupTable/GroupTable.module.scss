@@ -72,6 +72,14 @@ $cols: minmax(0, 1fr) 56px 130px 60px;
   }
 }
 
+/* 첫 칸. 묶음 이름 아래에 담당자 줄이 한 단 더 붙습니다. */
+.nameCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
 .name {
   display: inline-flex;
   align-items: center;
@@ -79,6 +87,33 @@ $cols: minmax(0, 1fr) 56px 130px 60px;
   min-width: 0;
   font-size: 14px;
   font-weight: 600;
+}
+
+/* 이 묶음을 누가 얼마나 세웠는지. 이름표는 다른 화면과 같은 색을 씁니다.
+   묶음 이름의 글머리(캐럿+색점)만큼 들여써서 이름 아래에 나란히 섭니다. */
+.groupOwners {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  padding-left: 24px;
+  color: var(--muted);
+  font-size: 11px;
+
+  i {
+    font-style: normal;
+  }
+}
+
+.groupOwner {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+
+  b {
+    font-weight: 600;
+  }
 }
 
 .caret {
@@ -178,6 +213,14 @@ $cols: minmax(0, 1fr) 56px 130px 60px;
     color: var(--muted);
     font-size: 11px;
   }
+}
+
+/* 계약 한 줄의 아랫단. 문서 종류 옆에 담당자 이름표가 섭니다. */
+.dealMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-width: 0;
 }
 
 .dealDate {

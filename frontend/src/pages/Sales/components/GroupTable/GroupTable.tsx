@@ -4,10 +4,12 @@
 import { useState } from 'react'
 
 import { ChevronDownIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Tabs from '@/components/Tabs'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
+import { useShowOwner } from '@/shared/scope'
 import { fmtDotShort, parseISO } from '@/utils/date'
-import { wonFull } from '@/utils/format'
+import { won, wonFull } from '@/utils/format'
 
 import { GROUP_BYS, GROUP_HEADER, GROUP_LABEL, type GroupBy } from '../../periods'
 import { colorOf } from '../../slices'
@@ -31,7 +33,40 @@ function StatusBadge({ status }: { status: SalesDeal['status'] }) {
   )
 }
 
-function ContractRows({ group, by }: { group: SalesGroup; by: GroupBy }) {
+/** 접힌 줄에 세울 담당자 수. 넘치면 +N 으로 접습니다. */
+const OWNER_CHIPS = 3
+
+/**
+ * 이 묶음을 누가 얼마나 세웠는지. 펼치지 않고도 읽히게 접힌 줄에 붙입니다.
+ *
+ * 금액까지 함께 답니다. 이름만 세우면 세 사람이 나눠 가진 줄과 한 사람이 거의 다
+ * 세운 줄이 똑같아 보입니다.
+ */
+function GroupOwners({ owners }: { owners: SalesGroup['owners'] }) {
+  if (owners.length === 0) return null
+
+  return (
+    <span className={styles.groupOwners}>
+      {owners.slice(0, OWNER_CHIPS).map((share) => (
+        <span key={share.memberId} className={styles.groupOwner}>
+          <OwnerName name={share.name} memberId={share.memberId} />
+          <b className="tnum">{won(share.actual)}</b>
+        </span>
+      ))}
+      {owners.length > OWNER_CHIPS && <i>+{owners.length - OWNER_CHIPS}</i>}
+    </span>
+  )
+}
+
+function ContractRows({
+  group,
+  by,
+  showOwner,
+}: {
+  group: SalesGroup
+  by: GroupBy
+  showOwner: boolean
+}) {
   if (group.contracts.length === 0) {
     return <p className={styles.none}>이 기간에 등록된 계약이 없습니다.</p>
   }
@@ -44,8 +79,9 @@ function ContractRows({ group, by }: { group: SalesGroup; by: GroupBy }) {
           {/* 그룹 이름과 같은 값을 한 줄 안에서 두 번 말하지 않습니다. */}
           <span className={styles.product}>
             {by === 'product' ? c.org : c.product}
-            <small>
-              {c.kind} · {c.owner}
+            <small className={styles.dealMeta}>
+              {c.kind}
+              {showOwner && <OwnerName name={c.owner} memberId={c.ownerMemberId} />}
             </small>
           </span>
           <StatusBadge status={c.status} />
@@ -62,6 +98,7 @@ function ContractRows({ group, by }: { group: SalesGroup; by: GroupBy }) {
 export default function GroupTable({ by, onByChange, summary }: GroupTableProps) {
   // 회사 키와 지역 키가 섞이지 않게 탭을 바꾸면 펼침을 접습니다.
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set())
+  const showOwner = useShowOwner()
 
   const toggle = (key: string) => {
     const next = new Set(openKeys)
@@ -115,10 +152,13 @@ export default function GroupTable({ by, onByChange, summary }: GroupTableProps)
                 aria-expanded={open}
                 onClick={() => toggle(group.key)}
               >
-                <span className={styles.name}>
-                  <ChevronDownIcon className={styles.caret} width={14} height={14} />
-                  <i className={styles.swatch} style={{ background: color }} />
-                  {group.key}
+                <span className={styles.nameCell}>
+                  <span className={styles.name}>
+                    <ChevronDownIcon className={styles.caret} width={14} height={14} />
+                    <i className={styles.swatch} style={{ background: color }} />
+                    {group.key}
+                  </span>
+                  {showOwner && <GroupOwners owners={group.owners} />}
                 </span>
                 <span className={`${styles.count} tnum`}>{group.contracts.length}건</span>
                 <span className={`${styles.amount} tnum`}>{wonFull(group.actual)}</span>
@@ -128,7 +168,7 @@ export default function GroupTable({ by, onByChange, summary }: GroupTableProps)
                 </span>
               </button>
 
-              {open && <ContractRows group={group} by={by} />}
+              {open && <ContractRows group={group} by={by} showOwner={showOwner} />}
             </li>
           )
         })}

@@ -2,11 +2,13 @@
 //
 // 왼쪽 표의 탭(회사별·지역별·상품별)을 그대로 따라갑니다. 같은 화면에서 왼쪽은
 // 지역을 말하는데 오른쪽만 회사를 말하면, 색이 같은 줄이 서로 다른 것을 가리킵니다.
+import { useOwnerColor } from '@/shared/ownerColors'
+import { useShowOwner } from '@/shared/scope'
 import { won, wonFull } from '@/utils/format'
 
 import { GROUP_LABEL, type GroupBy, type Range } from '../../periods'
-import { toSlices } from '../../slices'
-import { pct, type SalesSummary } from '../../useSalesSummary'
+import { REST_COLOR, toSlices } from '../../slices'
+import { pct, type OwnerShare, type SalesSummary } from '../../useSalesSummary'
 import type { TrendPoint } from '../../useSalesTrend'
 
 import styles from './RevenuePanel.module.scss'
@@ -59,6 +61,51 @@ function TrendBars({ points, caption }: { points: TrendPoint[]; caption: string 
   )
 }
 
+/**
+ * 담당자 한 줄. 색은 계열 팔레트가 아니라 팀장이 그 사람에게 준 색입니다.
+ *
+ * 순위마다 색을 새로 뽑으면 이번 달 1등과 지난달 1등이 같은 색이 되어, 다른 화면의
+ * 이름표 색과 뜻이 어긋납니다. 색을 아직 안 받은 사람은 회색으로 물러섭니다.
+ */
+function OwnerRank({ share, top, total }: { share: OwnerShare; top: number; total: number }) {
+  const color = useOwnerColor(share.memberId) ?? REST_COLOR
+
+  return (
+    <li>
+      <i style={{ background: color }} />
+      <span className={styles.rankName}>{share.name}</span>
+      <span className={styles.rankBar}>
+        <b
+          style={{ background: color, transform: `scaleX(${top > 0 ? share.actual / top : 0})` }}
+        />
+      </span>
+      <span className={`${styles.rankAmount} tnum`}>{won(share.actual)}</span>
+      <span className={`${styles.rankShare} tnum`}>{pct(share.actual, total).toFixed(1)}%</span>
+    </li>
+  )
+}
+
+/**
+ * 이 기간을 누가 얼마나 세웠는지.
+ *
+ * 위의 리본·순위는 회사·지역·상품을 말하므로 소제목으로 갈라 둡니다. 소제목이 없으면
+ * 같은 모양의 목록 두 개가 이어 붙어 아래쪽도 회사 이름인 줄 알고 읽게 됩니다.
+ */
+function OwnerRanks({ owners, total }: { owners: OwnerShare[]; total: number }) {
+  const top = Math.max(...owners.map((share) => share.actual), 0)
+
+  return (
+    <div className={styles.owners}>
+      <p className={styles.ownersCaption}>담당자별</p>
+      <ul className={styles.ranks}>
+        {owners.map((share) => (
+          <OwnerRank key={share.memberId} share={share} top={top} total={total} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function RevenuePanel({
   range,
   summary,
@@ -67,6 +114,7 @@ export default function RevenuePanel({
   trendCaption,
 }: RevenuePanelProps) {
   const { totals, delta, prevActual } = summary
+  const showOwner = useShowOwner()
   const slices = toSlices(summary.groups)
   // 순위 막대는 제일 큰 몫을 꽉 채웁니다. 합계 대비로 그리면 상위 몇 곳만 보이고
   // 나머지는 실오라기가 되어, 4등과 5등의 차이를 눈으로 못 잡습니다.
@@ -131,6 +179,10 @@ export default function RevenuePanel({
             ))}
           </ul>
         </div>
+      )}
+
+      {showOwner && totals.actual > 0 && (
+        <OwnerRanks owners={summary.owners} total={totals.actual} />
       )}
 
       {/* 이 기간을 먼저 읽고, 그 다음에 지난 기간과 견줍니다. 이 기간이 0원이어도

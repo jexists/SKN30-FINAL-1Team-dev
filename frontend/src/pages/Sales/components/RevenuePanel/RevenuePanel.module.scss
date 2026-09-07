@@ -232,6 +232,24 @@
   text-align: right;
 }
 
+/* ── 담당자별 ─────────────────────────────────────── */
+
+/* 위 구성과 같은 모양의 목록이라 실선으로 갈라 둡니다. 붙어 있으면 회사 목록이
+   그대로 이어지는 것처럼 읽힙니다. */
+.owners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--line);
+}
+
+.ownersCaption {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .empty {
   padding: var(--s7) 0;
   color: var(--muted);
