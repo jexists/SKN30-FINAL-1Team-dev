@@ -92,7 +92,7 @@ async def download(*, storage_key: str, max_bytes: int | None = None) -> bytes:
 
 
 async def remove(*, storage_key: str) -> bool:
-    """객체 삭제를 시도하고, 실제 성공 여부를 반환한다."""
+    """삭제됐거나 이미 없는 객체만 성공으로 반환한다."""
     _require_config()
     url = _endpoint(f"object/{settings.supabase_storage_bucket}/{storage_key}")
     try:
@@ -101,4 +101,10 @@ async def remove(*, storage_key: str) -> bool:
     except httpx.HTTPError:
         # 호출부가 재시도 가능한 상태를 남길 수 있도록 실패를 명시한다.
         return False
+    if response.status_code == 404:
+        try:
+            body = response.json()
+        except ValueError:
+            return False
+        return isinstance(body, dict) and body.get("code") == "NoSuchKey"
     return 200 <= response.status_code < 300

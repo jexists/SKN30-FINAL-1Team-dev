@@ -220,7 +220,7 @@ async def cleanup_expired(*, now: datetime | None = None) -> int:
                     .where(
                         ReportAttachment.report_id.is_(None), ReportAttachment.expires_at <= current
                     )
-                    .order_by(ReportAttachment.id)
+                    .order_by(ReportAttachment.expires_at, ReportAttachment.id)
                     .with_for_update(skip_locked=True)
                     .limit(100)
                 )
@@ -236,5 +236,8 @@ async def cleanup_expired(*, now: datetime | None = None) -> int:
             if removed:
                 await db.delete(row)
                 removed_count += 1
+            else:
+                # 만료 상태를 유지하면서 더 오래 기다린 행에 다음 sweep 차례를 넘긴다.
+                row.expires_at = current
         await db.commit()
     return removed_count

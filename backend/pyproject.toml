@@ -17,6 +17,7 @@ dependencies = [
     "pandas==3.0.5",
     # 스캔 PDF를 이미지로 구워 한국어 OCR 경로로 보낸다. OCR 제공자와 무관하게 필요하다.
     "pillow>=12.3.0",
+    "pydantic>=2.12",
     "pydantic-settings>=2.14.2",
     "pypdf>=5.0.0",
     "pypdfium2>=5.13.0",

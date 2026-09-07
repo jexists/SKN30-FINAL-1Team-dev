@@ -840,11 +840,23 @@ def _generation_attachments_changed(request: dict, payload: ReportFinalize) -> b
     return attachments != [item.model_dump(mode="json") for item in payload.attachments]
 
 
-def _finalize_transcript(payload: ReportFinalize, run: AgentRun | None) -> str | None:
+def _finalize_transcript(
+    payload: ReportFinalize,
+    run: AgentRun | None,
+    attachments: list[ReportAttachmentRead] | None = None,
+) -> str | None:
     if payload.report_kind != "meeting":
         return payload.transcript
     if run is None:
-        return effective_meeting_transcript(payload.transcript, payload.attachments) or None
+        try:
+            return (
+                effective_meeting_transcript(
+                    payload.transcript, payload.attachments if attachments is None else attachments
+                )
+                or None
+            )
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
     source = run.input_snapshot.get("source", {})
     transcript = source.get("transcript") if isinstance(source, dict) else None
     if not isinstance(transcript, str) or not transcript.strip() or len(transcript) > 50_000:
@@ -1065,7 +1077,6 @@ async def finalize_report(
 
     try:
         run = await _finalize_run(db, member, payload)
-        transcript = _finalize_transcript(payload, run)
         recipient = (
             None
             if payload.recipient_member_id is None
@@ -1128,7 +1139,6 @@ async def finalize_report(
                 status_code="submitted",
                 content=content,
                 **normalized,
-                transcript=transcript,
                 source_snapshot=(
                     {
                         "agent_run_id": str(run.id),
@@ -1190,7 +1200,6 @@ async def finalize_report(
             report.content = content
             for field_name, value in normalized.items():
                 setattr(report, field_name, value)
-            report.transcript = transcript
             if run is not None:
                 report.source_snapshot = {
                     "agent_run_id": str(run.id),
@@ -1221,14 +1230,11 @@ async def finalize_report(
         originals = await report_attachments.validate_inputs(
             db, member, attachment_inputs, report_id=report.id
         )
+        report.transcript = _finalize_transcript(payload, run, attachment_inputs)
         attachments_snapshot = report_attachments.bind_to_report(
             report, attachment_inputs, originals
         )
-        if report.report_kind == "meeting" and (
-            "attachments" in payload.model_fields_set
-            or payload.report_id is None
-            or run is not None
-        ):
+        if report.report_kind == "meeting":
             report.source_snapshot = {
                 **_dict(report.source_snapshot),
                 "direct_transcript": payload.transcript or "",

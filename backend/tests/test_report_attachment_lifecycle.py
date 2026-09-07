@@ -1,12 +1,14 @@
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException, Response
 from pydantic import ValidationError
+from sqlalchemy import create_engine, select
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Session as SqlSession
 from test_reports import _Db, _member, _report, _Result
 
 from app.api import reports as api
@@ -201,7 +203,8 @@ def test_empty_correction_keeps_original_without_becoming_meeting_evidence():
 async def test_cleanup_locks_only_expired_unbound_rows_and_keeps_failed_deletes(
     monkeypatch, remove_result
 ):
-    row = original(_member(), expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    now = datetime.now(UTC)
+    row = original(_member(), expires_at=now - timedelta(seconds=1))
     db = Db(_Result(scalar_values=[row]))
     monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: Session(db))
     remove = AsyncMock(
@@ -209,11 +212,51 @@ async def test_cleanup_locks_only_expired_unbound_rows_and_keeps_failed_deletes(
         side_effect=storage.StorageError("unavailable") if remove_result == "error" else None,
     )
     monkeypatch.setattr(storage, "remove", remove)
-    assert await service.cleanup_expired() == (1 if remove_result is True else 0)
+    assert await service.cleanup_expired(now=now) == (1 if remove_result is True else 0)
     assert bool(db.deleted) is (remove_result is True)
+    if remove_result is not True:
+        assert row.expires_at == now
     sql = str(db.statements[0].compile(dialect=postgresql.dialect()))
     assert "report_id IS NULL" in sql and "expires_at <=" in sql and "FOR UPDATE SKIP LOCKED" in sql
+    assert "ORDER BY public.report_attachment.expires_at, public.report_attachment.id" in sql
     assert db.commit_count == 1
+
+
+@pytest.mark.anyio
+async def test_failed_batch_does_not_starve_later_expired_originals(monkeypatch):
+    now = datetime.now(UTC)
+    member = _member()
+    rows = [
+        original(member, id=UUID(int=(0xA << 124) + index + 1), expires_at=now - timedelta(hours=1))
+        for index in range(101)
+    ]
+    engine = create_engine(
+        "sqlite://", execution_options={"schema_translate_map": {"public": None}}
+    )
+    ReportAttachment.__table__.create(engine)
+    try:
+        with SqlSession(engine, expire_on_commit=False) as session:
+            session.add_all(rows)
+            session.commit()
+            db = SimpleNamespace(
+                execute=AsyncMock(side_effect=session.execute),
+                delete=AsyncMock(side_effect=session.delete),
+                commit=AsyncMock(side_effect=session.commit),
+            )
+            monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: Session(db))
+            remove = AsyncMock(
+                side_effect=lambda *, storage_key: storage_key == rows[-1].storage_key
+            )
+            monkeypatch.setattr(storage, "remove", remove)
+            assert await service.cleanup_expired(now=now) == 0
+            assert remove.await_count == 100
+            assert all(row.expires_at == now for row in rows[:100])
+            assert await service.cleanup_expired(now=now + timedelta(seconds=1)) == 1
+            remaining = session.scalars(select(ReportAttachment)).all()
+            assert len(remaining) == 100 and rows[-1] not in remaining
+            assert all(row.expires_at <= now + timedelta(seconds=1) for row in remaining)
+    finally:
+        engine.dispose()
 
 
 @pytest.mark.anyio
@@ -307,9 +350,12 @@ async def test_only_official_submission_attachments_are_returned():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("resubmit", [False, True])
 @pytest.mark.parametrize("direct", [None, "직접 미팅 원문"])
 @pytest.mark.parametrize("kind", ["meeting", "daily", "weekly", "monthly"])
-async def test_finalize_binds_original_and_saves_replayable_input(monkeypatch, direct, kind):
+async def test_finalize_binds_original_and_saves_replayable_input(
+    monkeypatch, direct, kind, resubmit
+):
     member = _member()
     row = original(member)
 
@@ -329,7 +375,7 @@ async def test_finalize_binds_original_and_saves_replayable_input(monkeypatch, d
     monkeypatch.setattr(api.report_sources, "sync_report_sources_from_legacy_content", AsyncMock())
     monkeypatch.setattr(api, "_detail", AsyncMock(return_value=SimpleNamespace(id=uuid4())))
     item = attachment(row, purpose="meeting_source" if kind == "meeting" else "reference")
-    payload = ReportFinalize(
+    values = dict(
         idempotency_key=uuid4(),
         report_kind=kind,
         report_date="2026-09-07",
@@ -341,11 +387,39 @@ async def test_finalize_binds_original_and_saves_replayable_input(monkeypatch, d
         common_body="최종 미팅 보고서" if kind == "meeting" else None,
         body="최종 기간 보고서" if kind != "meeting" else None,
         transcript=direct,
-        attachments=[item],
     )
+    if resubmit:
+        report = _report(member, kind=kind, status_code="changes_requested")
+        for field in ("report_date", "period_start", "period_end", "source_activity_id"):
+            value = values[field]
+            setattr(
+                report,
+                field,
+                datetime.fromisoformat(value).date() if isinstance(value, str) else value,
+            )
+        report.source_snapshot = {"direct_transcript": "이전 직접 원문"}
+        row.report_id, row.expires_at = report.id, None
+        previous = ReportSubmission(
+            id=uuid4(),
+            report_id=report.id,
+            revision_no=1,
+            attachments_snapshot=[item.model_dump(mode="json")],
+        )
+        report.current_submission_id = previous.id
+        db.add(previous)
+        monkeypatch.setattr(api, "_locked_report", AsyncMock(return_value=report))
+        monkeypatch.setattr(api, "_replace_report_deals", AsyncMock())
+        monkeypatch.setattr(api, "_replace_report_activities", AsyncMock())
+        values.update(
+            report_id=report.id, expected_version=1, expected_status_code="changes_requested"
+        )
+    else:
+        values["attachments"] = [item]
+    payload = ReportFinalize(**values)
     await api.finalize_report(payload, Response(), BackgroundTasks(), member, db)
-    report = next(item for item in db.added if isinstance(item, Report))
-    submission = next(item for item in db.added if isinstance(item, ReportSubmission))
+    if not resubmit:
+        report = next(item for item in db.added if isinstance(item, Report))
+    submission = next(item for item in reversed(db.added) if isinstance(item, ReportSubmission))
     assert row.report_id == report.id and row.expires_at is None
     assert row.extracted_text == "원래 추출문"
     assert submission.attachments_snapshot[0]["extract"] == "교정한 문장"
@@ -361,6 +435,23 @@ async def test_finalize_binds_original_and_saves_replayable_input(monkeypatch, d
         )
     else:
         assert report.transcript == direct
+
+
+def test_restored_meeting_sources_keep_the_combined_transcript_limit():
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="meeting",
+        report_date="2026-09-07",
+        source_activity_id=uuid4(),
+        template_snapshot={"fields": [{"id": "body", "label": "본문"}]},
+        content={},
+        common_body="최종 보고서",
+        transcript="a" * 50_000,
+    )
+    with pytest.raises(HTTPException) as caught:
+        api._finalize_transcript(payload, None, [attachment(original(_member()))])
+    assert caught.value.status_code == 422
+    assert caught.value.detail == "meeting_transcript_too_large"
 
 
 @pytest.mark.anyio
