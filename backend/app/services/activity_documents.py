@@ -69,6 +69,7 @@ async def _documents(
             .join(FileRow, FileRow.document_id == Document.id)
             .where(
                 Document.team_id == team_id,
+                Document.deleted_at.is_(None),
                 FileRow.processing_status == "completed",
                 or_(*scopes),
             )

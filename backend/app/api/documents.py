@@ -100,6 +100,7 @@ def _scope(member: Member, creator_ids: tuple[UUID, ...] | None = None):
     """자료실은 팀 공유물이다. 팀원도 같은 팀 문서를 모두 본다."""
     conditions = [
         Document.team_id == member.team_id,
+        Document.deleted_at.is_(None),
         _creator.team_id == member.team_id,
         or_(Document.customer_company_id.is_(None), _company.team_id == member.team_id),
     ]
@@ -642,6 +643,50 @@ async def update_document(
         await db.rollback()
         raise
     return read
+
+
+@router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> None:
+    """자료를 지운다. 팀장만 할 수 있다.
+
+    역할을 쿼리보다 먼저 본다. 그래야 팀원이 남의 팀 자료 id 를 넣어도 404 대신 403 을
+    받고, 그 id 가 있는지 없는지가 새지 않는다. delete_customer_contact 와 같은 순서다.
+
+    행은 남기고 deleted_at 만 채운다. file 이 ON DELETE 옵션 없이 이 문서를 참조해 실제
+    DELETE 는 외래키에 막히고, 파일 행을 먼저 지우면 OCR·요약 결과와 감사 기록이 함께
+    사라진다. 스토리지 원본과 document_chunk 도 그대로 둔다 — 조회하는 쪽(_scope 와
+    search_chunks)이 이미 지운 자료를 걸러내므로 목록에도 RAG 답변에도 나오지 않는다.
+    """
+    if member.role_code != "manager":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="manager_required",
+        )
+    try:
+        document = (
+            await db.execute(
+                select(Document)
+                .where(Document.id == document_id, Document.team_id == member.team_id)
+                .with_for_update(of=Document)
+            )
+        ).scalar_one_or_none()
+        if document is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="document_not_found",
+            )
+        # 이미 지운 자료를 다시 지워도 그대로 성공이다. 두 번 눌렀다고 실패를 보일 것이 없다.
+        if document.deleted_at is None:
+            document.deleted_at = datetime.now(UTC)
+            await db.flush()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
 
 @router.post(

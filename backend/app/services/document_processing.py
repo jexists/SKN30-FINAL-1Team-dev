@@ -423,18 +423,25 @@ async def search_chunks(
     써야 할 자료가 대부분 빠진다.
 
     한 문서에서 파일 하나만 본다 — latest_completed_file() 참고.
+
+    지운 자료(document.deleted_at)는 청크가 남아 있어도 빼야 한다. 목록에서 사라진
+    자료가 AI 답변의 근거로 계속 나오면 안 되므로 Document 는 늘 조인한다.
     """
     conditions = [
         DocumentChunk.team_id == team_id,
         FileRow.processing_status == "completed",
         latest_completed_file(),
+        Document.deleted_at.is_(None),
     ]
     if document_id is not None:
         conditions.append(DocumentChunk.document_id == document_id)
-    statement = select(DocumentChunk).join(FileRow, FileRow.id == DocumentChunk.file_id)
+    statement = (
+        select(DocumentChunk)
+        .join(FileRow, FileRow.id == DocumentChunk.file_id)
+        .join(Document, Document.id == DocumentChunk.document_id)
+    )
     scopes = document_scopes(sales_deal_id, customer_company_id)
     if scopes:
-        statement = statement.join(Document, Document.id == DocumentChunk.document_id)
         conditions.append(or_(*scopes))
     rows = (await db.execute(statement.where(*conditions))).scalars().all()
     query_vector: list[float] | None = None

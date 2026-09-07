@@ -71,7 +71,7 @@ EXPECTED_COLUMN_COUNTS = {
     "report_source": 4,
     "report_activity": 2,
     # 20260825_0006 으로 명함 원본을 담당자와 연결하는 customer_contact_id 가 늘었다.
-    "document": 14,
+    "document": 15,
     # 20260828_0015 로 만료 시각과 승인자 정보가 늘었다.
     "file": 23,
     "document_chunk": 12,
@@ -122,7 +122,7 @@ def test_all_database_tables_are_mapped():
     assert {
         table.name: len(table.columns) for table in Base.metadata.sorted_tables
     } == EXPECTED_COLUMN_COUNTS
-    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 444
+    assert sum(len(table.columns) for table in Base.metadata.tables.values()) == 445
 
     foreign_key_constraints = [
         foreign_key

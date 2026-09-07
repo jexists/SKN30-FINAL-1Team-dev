@@ -260,3 +260,34 @@ async def test_approve_review_persists_final_results_and_rag_chunks(monkeypatch)
     assert chunks[0].page_start == 1
     assert len(audits) == 1
     assert audits[0].action_code == "summary_approved"
+
+
+@pytest.mark.anyio
+async def test_search_chunks_skips_deleted_documents():
+    """지운 자료의 청크는 RAG 검색에 나오지 않는다.
+
+    목록에서 사라진 자료가 AI 답변의 근거로 계속 쓰이면 안 되므로, 연결 조건이 없어도
+    document 를 조인해 deleted_at 을 본다.
+    """
+
+    class _Rows:
+        def scalars(self):
+            return self
+
+        def all(self):
+            return []
+
+    class _Recorder:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement):
+            self.statements.append(statement)
+            return _Rows()
+
+    db = _Recorder()
+    await document_processing.search_chunks(db, team_id=uuid4(), query="계약")
+
+    sql = str(db.statements[0])
+    assert "JOIN public.document" in sql
+    assert "document.deleted_at IS NULL" in sql
