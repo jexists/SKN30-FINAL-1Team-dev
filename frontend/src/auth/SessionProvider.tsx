@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { subscribeSessionExpired } from '@/api/connectionState'
+import { resetOwnerColors } from '@/shared/ownerColors'
 import { initScope, resetScope } from '@/shared/scope'
 
 import { type Session, SessionContext, type SessionStatus } from './sessionContext'
@@ -86,6 +87,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
         clearSignedInHint()
         setSession(null)
         resetScope()
+        resetOwnerColors()
         setStatus('unauthenticated')
       }),
     [],
@@ -108,6 +110,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     clearSignedInHint()
     setSession(null)
     resetScope()
+    resetOwnerColors()
     setStatus('unauthenticated')
   }, [])
 

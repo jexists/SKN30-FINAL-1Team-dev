@@ -74,6 +74,95 @@
   }
 }
 
+// 색 고르기 견본과 HEX 칸을 한 칸 안에 나란히 둡니다.
+//
+// 안쪽 규칙이 두 겹인 까닭은 FormField 가 `.field input` 으로 폭과 여백을 정해 두기
+// 때문입니다. 그 선택자가 클래스 하나보다 세므로 여기서도 두 겹으로 받습니다.
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+
+  // 견본은 정사각으로 두고, 남는 폭은 전부 HEX 칸이 가져갑니다.
+  .swatch {
+    flex: 0 0 var(--control-h);
+    width: var(--control-h);
+    height: var(--control-h);
+    padding: 3px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-xs);
+    background: var(--surface);
+    cursor: pointer;
+
+    &::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    &::-webkit-color-swatch {
+      border: none;
+      border-radius: 3px;
+    }
+
+    // 파이어폭스용입니다. 위 규칙에 함께 묶으면 크로뮴이 규칙 전체를 버립니다.
+    &::-moz-color-swatch {
+      border: none;
+      border-radius: 3px;
+    }
+
+    &:focus-visible {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-ring);
+      outline: none;
+    }
+  }
+
+  .input {
+    min-width: 0;
+    flex: 1 1 auto;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// 목표 매출의 환산 안내(.hint)와 같은 크기입니다. 다만 문장 안에 이름표가 서므로
+// 글자와 알약의 가운데를 맞춥니다.
+.colorNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--s2);
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+}
+
+// 되돌리는 일이라 버튼 모양을 두르지 않습니다. 저장·취소와 같은 무게로 서면
+// 그 둘만큼 중요한 선택처럼 보입니다.
+.clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    border-radius: var(--r-xs);
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+}
+
 // 입력칸의 숫자가 길어 눈으로 세기 어렵습니다. 원 단위로 한 번 더 읽어 줍니다.
 .amount {
   margin: 0;

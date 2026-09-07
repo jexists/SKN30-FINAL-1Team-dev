@@ -5,4 +5,6 @@ export interface TeamMemberOption {
   /** 부서는 팀 단위 값이라 팀원마다 같습니다. 구분에는 직함을 씁니다. */
   job_title: string | null
   role_code: 'member' | 'manager'
+  /** 담당자 이름표 바탕색(#rrggbb). null 이면 미지정이라 기본 회색을 씁니다. */
+  badge_color: string | null
 }

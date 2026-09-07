@@ -13,6 +13,8 @@ export interface TeamMemberRow {
   job_title: string | null
   role_code: Role
   active: boolean
+  /** 팀장이 고른 담당자 이름표 색(#rrggbb). null 이면 기본 회색입니다. */
+  badge_color: string | null
   target_amount: number
   confirmed_amount: number
   /** 목표를 세우지 않았으면 0% 가 아니라 null 입니다. 미설정과 미달성은 다릅니다. */
@@ -35,6 +37,8 @@ export interface TeamMemberPatchRequest {
   job_title?: string
   role_code?: Role
   active?: boolean
+  /** null 을 보내면 색을 지우고 기본 회색으로 되돌립니다. */
+  badge_color?: string | null
   monthly_target_amount?: number
   /** 어느 달의 목표를 고치는지. 그달 1일입니다. */
   target_month?: string

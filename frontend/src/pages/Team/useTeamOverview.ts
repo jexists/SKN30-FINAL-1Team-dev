@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
+import { refreshOwnerColors } from '@/shared/ownerColors'
 import type { TeamMemberPatchRequest, TeamMemberRow, TeamOverviewResponse } from '@/types'
 
 export default function useTeamOverview(targetMonth: string) {
@@ -48,6 +49,9 @@ export default function useTeamOverview(targetMonth: string) {
         ...patch,
         target_month: targetMonth,
       })
+      // 이름표 색은 이 화면 밖(일정·딜·일일보고)에서 쓰이므로 공용 명부도 함께 갱신합니다.
+      // 그러지 않으면 색을 고치고 넘어간 화면이 새로고침 전까지 옛 색으로 남습니다.
+      if (patch.badge_color !== undefined) void refreshOwnerColors()
       setReloadKey((previous) => previous + 1)
       return row
     },

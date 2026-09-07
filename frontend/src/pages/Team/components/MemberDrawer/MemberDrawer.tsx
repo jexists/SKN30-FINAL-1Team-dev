@@ -11,6 +11,7 @@ import { useState } from 'react'
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import FormField from '@/components/FormField'
+import OwnerName from '@/components/OwnerName'
 import StatusBadge from '@/components/StatusBadge'
 import { errorMessage } from '@/api/errorMessage'
 import { showToast } from '@/shared/toast'
@@ -30,18 +31,31 @@ interface Props {
 
 const ROLE_LABEL: Record<Role, string> = { manager: '팀장', member: '팀원' }
 
+/** 색을 정하지 않았을 때 견본이 보여 줄 색. 회색 이름표(--fill)와 같은 자리입니다. */
+const DEFAULT_SWATCH = '#e3e3e5'
+const HEX = /^#[0-9a-fA-F]{6}$/
+const COLOR_ERROR = '#RRGGBB 형식으로 적어 주세요.'
+
 export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onClose }: Props) {
   const [jobTitle, setJobTitle] = useState(member.job_title ?? '')
   const [role, setRole] = useState<Role>(member.role_code)
   const [active, setActive] = useState(member.active)
   const [monthlyTarget, setMonthlyTarget] = useState(member.target_amount)
+  // 빈 문자열이 '색 미지정' 입니다. 손으로 적는 칸이 있어 저장 못 할 값도 잠시 머뭅니다.
+  const [color, setColor] = useState(member.badge_color ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const colorValid = color === '' || HEX.test(color)
+  // 저장될 값입니다. 표기만 소문자로 맞추고 색 자체는 손대지 않습니다.
+  const nextColor = colorValid && color !== '' ? color.toLowerCase() : null
+  const savedColor = member.badge_color ?? null
 
   const dirty =
     jobTitle !== (member.job_title ?? '') ||
     role !== member.role_code ||
     active !== member.active ||
+    nextColor !== savedColor ||
     monthlyTarget !== member.target_amount
 
   const save = async () => {
@@ -58,6 +72,8 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
       }
       if (role !== member.role_code) patch.role_code = role
       if (active !== member.active) patch.active = active
+      // null 이 '색을 지우고 기본 회색으로' 입니다. 서버도 여기서만 null 을 받습니다.
+      if (nextColor !== savedColor) patch.badge_color = nextColor
       await onSave(member.id, patch)
       showToast(`${member.display_name} 님의 정보를 저장했습니다.`)
       onClose()
@@ -89,7 +105,7 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
           <Button variant="outline" disabled={saving} onClick={onClose}>
             취소
           </Button>
-          <Button disabled={!dirty || saving} onClick={() => void save()}>
+          <Button disabled={!dirty || !colorValid || saving} onClick={() => void save()}>
             {saving ? '저장 중…' : '저장'}
           </Button>
         </>
@@ -143,7 +159,51 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
               <option value="inactive">비활성</option>
             </select>
           </FormField>
+
+          {/* 색은 목록에서 담당자를 가르는 표시라 인사 정보와 함께 둡니다. 고른 색을 연하게
+              바꾸지 않고 그대로 씁니다. 읽히지 않을 만큼 어두우면 글자만 흰색이 됩니다. */}
+          <FormField label="담당자 색상" error={colorValid ? undefined : COLOR_ERROR}>
+            <div className={styles.colorRow}>
+              <input
+                type="color"
+                className={styles.swatch}
+                // 색을 정하지 않았으면 견본도 기본 회색을 보여 줍니다. 여기만 다른 색을
+                // 세워 두면 '미지정' 이라 적힌 옆에서 색이 정해진 것처럼 보입니다.
+                value={nextColor ?? DEFAULT_SWATCH}
+                aria-label="담당자 색상 고르기"
+                onChange={(event) => setColor(event.target.value)}
+              />
+              <input
+                className={styles.input}
+                value={color}
+                placeholder="미지정"
+                aria-label="담당자 색상 HEX 값"
+                spellCheck={false}
+                onChange={(event) => {
+                  const typed = event.target.value.trim()
+                  // '#' 을 빼고 적는 사람이 많습니다. 비어 있을 때는 붙이지 않아야 지울 수 있습니다.
+                  setColor(typed === '' || typed.startsWith('#') ? typed : `#${typed}`)
+                }}
+              />
+            </div>
+          </FormField>
         </div>
+
+        {/* 목표 매출의 환산 안내와 같은 자리, 같은 크기입니다. 이름표를 문장 안에 세워 두면
+            무엇이 어디에 쓰이는지 따로 이름 붙여 설명할 것이 없습니다.
+            지우기는 격자 밖에 둡니다. 라벨 안의 버튼을 누르면 색 고르기 창까지 함께 열립니다. */}
+        <p className={styles.colorNote}>
+          <span>
+            일정 목록에서 <OwnerName name={member.display_name} color={nextColor} /> 처럼 보입니다.
+          </span>
+          {/* 정해 둔 색이 있을 때만 나옵니다. 늘 흐릿하게 꺼져 있는 버튼은 자리만 차지합니다. */}
+          {color !== '' && (
+            <button type="button" className={styles.clear} onClick={() => setColor('')}>
+              기본 회색으로 되돌리기
+            </button>
+          )}
+        </p>
+
         {isSelf && (
           <p className={styles.hint}>
             자기 역할과 계정 상태는 바꿀 수 없습니다. 팀에 팀장이 없어지면 이 화면에 다시 들어올 수
