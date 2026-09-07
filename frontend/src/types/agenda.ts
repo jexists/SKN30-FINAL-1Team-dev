@@ -1,6 +1,6 @@
 import type { ContractBriefingOutput } from './contractAgent'
 
-/** 일정 종류. 배지 색이 여기에 묶여 있습니다. */
+/** 일정 종류. 등록 폼에서 고르지 않고 서버의 category_code 를 그대로 옮긴 값입니다. */
 export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth'
 
 export type ActivityCategoryCode =
@@ -114,6 +114,7 @@ export interface CalendarEvent {
   productId?: string | null
   product?: string
   owner?: string
+  ownerMemberId?: string
   startsAt?: string
   endsAt?: string | null
   allDay?: boolean

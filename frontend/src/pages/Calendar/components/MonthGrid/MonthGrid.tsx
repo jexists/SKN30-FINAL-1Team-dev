@@ -1,7 +1,14 @@
-import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useMemo,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 
 import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import { useOwnerColors } from '@/shared/ownerColors'
+import { useShowOwner } from '@/shared/scope'
 import type { CalendarEvent } from '@/types'
 import {
   addDays,
@@ -62,6 +69,30 @@ export default function MonthGrid({
   const month = cursor.getMonth()
   const keys = days.map(iso)
 
+  const showOwner = useShowOwner()
+  const ownerColors = useOwnerColors()
+
+  // 색과 이름의 짝을 여기서 한 번만 말합니다. 그래야 칩 30줄이 이름을 되풀이하지 않고
+  // 제목에 자리를 내줍니다. 고른 사람이 아니라 이 달에 실제로 일정이 있는 사람만
+  // 세웁니다. 화면에 없는 색은 읽을 것이 없습니다.
+  const firstISO = keys[0]
+  const lastISO = keys[keys.length - 1]
+  const owners = useMemo(() => {
+    if (!showOwner) return []
+    const found = new Map<string, string>()
+    for (const [date, list] of eventsByDate) {
+      // YYYY-MM-DD 는 글자 순서가 곧 날짜 순서라 그대로 견줍니다.
+      if (date < firstISO || date > lastISO) continue
+      for (const event of list) {
+        if (!event.ownerMemberId || !event.owner) continue
+        if (!found.has(event.ownerMemberId)) found.set(event.ownerMemberId, event.owner)
+      }
+    }
+    return [...found]
+      .map(([id, name]) => ({ id, name, color: ownerColors.get(id) ?? null }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  }, [showOwner, firstISO, lastISO, eventsByDate, ownerColors])
+
   // 다른 달로 넘어가 선택한 날이 화면에서 사라지면 탭으로 들어올 칸이 없어집니다.
   // 그럴 때는 보이는 달의 1일을 대신 탭 대상으로 둡니다.
   const focusISO = keys.includes(selectedISO) ? selectedISO : iso(startOfMonth(cursor))
@@ -121,14 +152,6 @@ export default function MonthGrid({
         </div>
 
         <div className={styles.tools}>
-          <span className={styles.legend}>
-            <span>
-              <i className={styles.dotMeeting} /> 미팅
-            </span>
-            <span>
-              <i className={styles.dotDelivery} /> 업무
-            </span>
-          </span>
           <Button variant="ghost" onClick={goToday}>
             오늘
           </Button>
@@ -138,6 +161,23 @@ export default function MonthGrid({
           </Button>
         </div>
       </header>
+
+      {owners.length > 0 && (
+        <div className={styles.owners}>
+          {owners.map((owner) => (
+            <span
+              key={owner.id}
+              className={styles.owner}
+              style={
+                owner.color === null ? undefined : ({ '--owner': owner.color } as CSSProperties)
+              }
+            >
+              <i className={owner.color === null ? styles.swatchBlank : styles.swatch} />
+              {owner.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className={styles.weekdays} aria-hidden="true">
         {WD.map((w, i) => (

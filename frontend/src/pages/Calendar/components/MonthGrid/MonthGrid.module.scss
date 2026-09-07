@@ -67,24 +67,6 @@
   }
 }
 
-.legend {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  font-size: 11px;
-  color: var(--muted);
-
-  span {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  @include sm {
-    display: none;
-  }
-}
-
 // 데스크톱은 칸 안 + 버튼으로 충분합니다.
 .createOnPhone {
   display: none;
@@ -94,18 +76,43 @@
   }
 }
 
-.dotMeeting {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--blue);
+// 색과 이름의 짝을 말하는 줄. 여러 사람이 섞여 보이는 동안에만 나타나므로,
+// 이 줄이 있다는 것 자체가 "지금 여럿을 겹쳐 보고 있다" 는 뜻이기도 합니다.
+.owners {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  margin-top: var(--s4);
 }
 
-.dotDelivery {
-  width: 5px;
-  height: 5px;
-  background: var(--orange);
-  transform: rotate(45deg);
+.owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.swatch,
+.swatchBlank {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.swatch {
+  background: var(--owner);
+}
+
+// 아직 색을 정하지 않은 사람. 빈 자리로 두어 팀 관리에서 채울 것이 있다고 말합니다.
+.swatchBlank {
+  border: 1px dashed var(--muted-2);
+}
+
+// 범례가 이미 머릿글과 격자를 벌려 두었습니다. 요일 줄까지 한 칸 더 두면 격자가 뜹니다.
+.owners + .weekdays {
+  margin-top: var(--s3);
 }
 
 .weekdays,

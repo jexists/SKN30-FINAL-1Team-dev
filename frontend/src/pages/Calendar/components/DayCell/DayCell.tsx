@@ -1,10 +1,13 @@
 import { useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { PlusIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Popover from '@/components/Popover'
 import { KIND_LABEL } from '@/shared/agenda'
+import { useOwnerColors } from '@/shared/ownerColors'
 import { useShowOwner } from '@/shared/scope'
 import type { AgendaKind, CalendarEvent } from '@/types'
+import { readableInk } from '@/utils/color'
 
 import { CELL_ATTR, type Dragging } from '../../dragging'
 
@@ -43,14 +46,6 @@ interface Props {
   onGrabEvent: (pointer: ReactPointerEvent, event: CalendarEvent) => void
 }
 
-const KIND_TONE: Partial<Record<AgendaKind, string>> = {
-  visit: styles.kindBlue,
-  demo: styles.kindPurple,
-  booth: styles.kindPurple,
-  edu: styles.kindGreen,
-  delivery: styles.kindOrange,
-}
-
 // 넷째 칸부터는 "+N" 으로 접습니다. 칸 높이를 넘기면 줄이 밀립니다.
 const MAX_CHIPS = 3
 
@@ -75,6 +70,7 @@ export default function DayCell({
 }: Props) {
   const [listOpen, setListOpen] = useState(false)
   const showOwner = useShowOwner()
+  const ownerColors = useOwnerColors()
 
   const dow = date.getDay()
   const visible = events.slice(0, MAX_CHIPS)
@@ -103,44 +99,53 @@ export default function DayCell({
     onCreate(dateISO)
   }
 
-  const renderChip = (event: CalendarEvent) => (
-    <div
-      key={event.id}
-      role="button"
-      tabIndex={0}
-      className={[
-        styles.chip,
-        KIND_TONE[event.kind],
-        event.done && styles.isDone,
-        event.id === justAddedId && styles.isNew,
-        dragging?.kind === 'event' && dragging.id === event.id && styles.isDragging,
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      onPointerDown={(pointer) => {
-        pointer.stopPropagation()
-        onGrabEvent(pointer, event)
-      }}
-      onClick={(e) => {
-        e.stopPropagation()
-        onOpenEvent(event)
-      }}
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return
-        // 스페이스는 두면 페이지가 스크롤됩니다. 화살표는 막지 않고 격자로 흘려보냅니다.
-        e.preventDefault()
-        e.stopPropagation()
-        onOpenEvent(event)
-      }}
-      onDoubleClick={(e) => e.stopPropagation()}
-      // 칸이 좁아 이름표를 세울 자리가 없습니다. 여러 사람이 섞여 보일 때만
-      // 마우스를 올려 누구 일정인지 확인할 수 있게 둡니다. 아래 '+N' 목록에는 글자로 섭니다.
-      title={showOwner && event.owner ? `${event.title} · ${event.owner}` : undefined}
-    >
-      <span className={`${styles.chipTime} tnum`}>{event.time}</span>
-      <span className={styles.chipTitle}>{event.title}</span>
-    </div>
-  )
+  const renderChip = (event: CalendarEvent) => {
+    // 담당자를 색으로 말할 때만 칩을 칠합니다. 색과 이름의 짝은 머릿글 범례가 한 번만
+    // 말합니다. 그 밖에는 모든 칩이 같은 색입니다. 일정 종류는 등록 폼에서 고르지 않으므로
+    // 종류별 색은 뜻 없는 얼룩이 됩니다.
+    const color = showOwner ? (ownerColors.get(event.ownerMemberId ?? '') ?? null) : null
+
+    return (
+      <div
+        key={event.id}
+        role="button"
+        tabIndex={0}
+        className={[
+          styles.chip,
+          color === null && styles.tone,
+          event.done && styles.isDone,
+          event.id === justAddedId && styles.isNew,
+          dragging?.kind === 'event' && dragging.id === event.id && styles.isDragging,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        // 팀장이 고른 색을 눌러 쓰지 않고 줄 전체에 그대로 칠합니다. 대신 그 위의
+        // 글자만 읽히는 쪽으로 뒤집습니다. 이름표와 같은 규칙입니다.
+        style={color === null ? undefined : { background: color, color: readableInk(color) }}
+        onPointerDown={(pointer) => {
+          pointer.stopPropagation()
+          onGrabEvent(pointer, event)
+        }}
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpenEvent(event)
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          // 스페이스는 두면 페이지가 스크롤됩니다. 화살표는 막지 않고 격자로 흘려보냅니다.
+          e.preventDefault()
+          e.stopPropagation()
+          onOpenEvent(event)
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        // 색만으로는 누구인지 못 읽는 사람이 있습니다. 이름은 여기와 '+N' 목록에 남습니다.
+        title={showOwner && event.owner ? `${event.title} · ${event.owner}` : undefined}
+      >
+        <span className={`${styles.chipTime} tnum`}>{event.time}</span>
+        <span className={styles.chipTitle}>{event.title}</span>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -227,10 +232,12 @@ export default function DayCell({
                   <span className={`${styles.popTime} tnum`}>{event.time}</span>
                   <span className={styles.popBody}>
                     <b>{event.title}</b>
-                    <span>
-                      {KIND_LABEL[event.kind]}
-                      {event.hospital ? ` · ${event.hospital}` : ''}
-                      {showOwner && event.owner ? ` · ${event.owner}` : ''}
+                    <span className={styles.popMeta}>
+                      <span className={styles.popKind}>
+                        {KIND_LABEL[event.kind]}
+                        {event.hospital ? ` · ${event.hospital}` : ''}
+                      </span>
+                      {showOwner && <OwnerName name={event.owner} memberId={event.ownerMemberId} />}
                     </span>
                   </span>
                 </button>

@@ -184,30 +184,18 @@
 }
 
 .chipTitle {
+  // 이름표는 줄이지 않고 제목이 먼저 줄어듭니다. 잘린 이름보다 잘린 제목이 낫습니다.
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.kindBlue {
+// 담당자 색을 쓰지 않을 때 모든 칩이 함께 입는 한 가지 색입니다.
+.tone {
   background: var(--blue-tint);
   color: var(--blue);
-}
-
-.kindPurple {
-  background: var(--purple-tint);
-  color: var(--purple-ink);
-}
-
-.kindGreen {
-  background: var(--green-tint);
-  color: var(--green-ink);
-}
-
-.kindOrange {
-  background: var(--orange-tint);
-  color: var(--orange-ink);
 }
 
 .isDone {
@@ -321,7 +309,22 @@
   }
 }
 
-// 좁은 화면에서는 칩이 제목을 담을 폭이 없어 종류 색 점만 남깁니다.
+// 종류·병원 글자와 담당자 이름표가 한 줄에 나란히 섭니다.
+.popMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.popKind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 좁은 화면에서는 칩이 제목을 담을 폭이 없어 색 점만 남깁니다.
 @include sm {
   // 칸 폭이 40px 남짓이라 숫자와 + 가 같이 들어가지 않습니다.
   // 추가는 헤더의 '일정 등록' 버튼이 대신 맡습니다.
@@ -333,7 +336,7 @@
     display: none;
   }
 
-  // 제목을 담을 폭이 없어 종류 색만 남긴 막대가 됩니다.
+  // 제목을 담을 폭이 없어 색만 남긴 막대가 됩니다.
   .chip,
   .ghost {
     height: 5px;
