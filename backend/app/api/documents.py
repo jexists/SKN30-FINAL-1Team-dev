@@ -61,6 +61,10 @@ _uploader = aliased(Member)
 # 문서 한 줄을 읽을 때 늘 함께 가져오는 칸들. _document_read 인자 순서와 같습니다.
 _READ_COLUMNS = (Document, _creator.display_name, _company.name, _deal.deal_no, _product.name)
 
+# 자료실 목록에서 빼는 분류. 명함 보관본은 고객 명함을 등록할 때 원본 이미지를 붙여 두는
+# 것이라 자료실이 다루는 영업 문서가 아니다. 문서 하나를 여는 길(_detail)은 막지 않는다.
+_HIDDEN_CATEGORY_CODES = ("business_card",)
+
 DOWNLOAD_EXPIRES_IN = 60
 
 
@@ -345,6 +349,7 @@ async def list_documents(
     )
     # 분류를 뺀 나머지 조건. 분류 탭 옆 건수와 담당자 선택지가 이 범위를 본다.
     shared = _scope(member, creator_ids)
+    shared.append(Document.category_code.not_in(_HIDDEN_CATEGORY_CODES))
     if page.customer_company_id is not None:
         shared.append(Document.customer_company_id == page.customer_company_id)
     if page.sales_deal_id is not None:
