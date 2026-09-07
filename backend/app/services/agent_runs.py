@@ -31,7 +31,12 @@ from app.services.llm import LLMError, is_transient_llm_error
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 REPORT_GENERATION_RETENTION = timedelta(hours=24)
-REPORT_GENERATION_CODES = ("meeting_processing", "report_writing")
+REPORT_GENERATION_CODES = (
+    "meeting_processing",
+    "meeting_report_writing",
+    "meeting_analysis",
+    "report_writing",
+)
 
 
 def _seoul(value: datetime | None) -> datetime | None:
@@ -52,7 +57,7 @@ def _generation_input_read(run: AgentRun, requester_id: UUID) -> ReportGeneratio
     """Return only the requester's UI input; never expose the frozen CRM snapshot."""
     if (
         not generation_payload_visible(run, requester_id)
-        or run.agent_code not in REPORT_GENERATION_CODES
+        or run.agent_code not in {"meeting_processing", "report_writing"}
         or run.scope_key is None
         or run.payload_expires_at is None
         or not run.request_snapshot
@@ -109,6 +114,8 @@ def _prompt_version(agent_code: str) -> str:
     return {
         "report_writing": report_writing.PROMPT_VERSION,
         "meeting_processing": meeting_processing.PROMPT_VERSION,
+        "meeting_report_writing": meeting_processing.report_writing_deep.PROMPT_VERSION,
+        "meeting_analysis": meeting_processing.meeting_analysis.PROMPT_VERSION,
         "contract_management_select_candidates": (
             contract_management.SELECT_CANDIDATES_PROMPT_VERSION
         ),
@@ -661,7 +668,11 @@ async def dispatch(
     if agent_code == "report_writing":
         return await report_writing.run(input_snapshot)
     if agent_code == "meeting_processing":
-        return await meeting_processing.run(input_snapshot)
+        return await meeting_processing.run_evidence(input_snapshot)
+    if agent_code == "meeting_report_writing":
+        return await meeting_processing.run_report(input_snapshot)
+    if agent_code == "meeting_analysis":
+        return await meeting_processing.run_analysis(input_snapshot)
     if agent_code == "contract_management_select_candidates":
         return await contract_management.select_next_meeting_candidates(input_snapshot)
     if agent_code == "contract_management_next_meeting":
@@ -682,12 +693,20 @@ def evidence(
     if agent_code == "meeting_processing":
         return {
             "prompt_version": meeting_processing.PROMPT_VERSION,
-            "deal_count": len(output.analyses),
+            "deal_count": len(output.evidence.selected_deal_ids),
             "unresolved_count": sum(
                 item.applicability.scope in {"unresolved", "out_of_scope"}
                 for item in output.evidence.items
             ),
-            "errors": output.errors,
+            "evidence_transcript_sha256": output.evidence.transcript_sha256,
+        }
+    if agent_code == "meeting_report_writing":
+        return {"prompt_version": meeting_processing.report_writing_deep.PROMPT_VERSION}
+    if agent_code == "meeting_analysis":
+        return {
+            "prompt_version": meeting_processing.meeting_analysis.PROMPT_VERSION,
+            "deal_count": len(output),
+            "errors": sum(item.error is not None for item in output),
         }
     if agent_code == "contract_management_select_candidates":
         return {
@@ -717,8 +736,43 @@ def evidence(
 def meeting_deal_evidence(
     run: AgentRun,
     sales_deal_ids: list[UUID],
+    analysis_output: dict[str, Any] | None = None,
+    analysis_run: AgentRun | None = None,
 ) -> dict[UUID, dict[str, Any] | None]:
     """Extract only per-deal ML results/errors from a validated meeting run output."""
+    if run.agent_code == "meeting_report_writing":
+        analyses = (analysis_output or {}).get("analyses", [])
+        by_deal = {
+            UUID(item["sales_deal_id"]): item
+            for item in analyses
+            if item.get("sales_deal_id")
+        }
+        sibling_status = (
+            "completed"
+            if analysis_run is not None and analysis_run.status_code in {"completed", "partial"}
+            else "failed"
+            if analysis_run is not None and analysis_run.status_code in {"failed", "cancelled"}
+            else "pending"
+        )
+        sibling_error = (
+            analysis_run.error_code or analysis_run.error_message
+            if analysis_run is not None
+            else None
+        )
+        return {
+            deal_id: {
+                "meeting_run_id": str(run.id),
+                "analysis_run_id": str(analysis_run.id) if analysis_run is not None else None,
+                "analysis_status": (
+                    "failed" if by_deal.get(deal_id, {}).get("error") else sibling_status
+                ),
+                "deal_assessment": by_deal.get(deal_id, {}).get("assessment"),
+                "features": by_deal.get(deal_id, {}).get("features"),
+                "analysis_error": by_deal.get(deal_id, {}).get("error") or sibling_error,
+                "report_error": None,
+            }
+            for deal_id in sales_deal_ids
+        }
     try:
         output = meeting_processing.MeetingProcessingOutput.model_validate(run.output_snapshot)
     except (TypeError, ValueError):
@@ -775,7 +829,138 @@ async def get(agent_run_id: UUID, member: Member, db: AsyncSession) -> AgentRunR
             status_code=status.HTTP_404_NOT_FOUND,
             detail="agent_run_not_found",
         )
-    return _run_read(run, member.id)
+    read = _run_read(run, member.id)
+    if run.agent_code != "meeting_processing":
+        return read
+    children = list(
+        (
+            await db.execute(
+                select(AgentRun)
+                .where(AgentRun.parent_run_id == run.id, *_scope(member))
+                .order_by(AgentRun.created_at.asc(), AgentRun.id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    child_reads = [_run_read(child, member.id).model_dump(mode="json") for child in children]
+    return read.model_copy(update={"child_runs": child_reads})
+
+
+async def retry_meeting_child(
+    agent_run_id: UUID, member: Member, db: AsyncSession
+) -> tuple[AgentRunRead, UUID]:
+    """실패한 미팅 child만 같은 고정 근거로 다시 큐잉한다."""
+    child = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.id == agent_run_id,
+                AgentRun.team_id == member.team_id,
+                AgentRun.requested_by_member_id == member.id,
+                AgentRun.agent_code.in_(("meeting_report_writing", "meeting_analysis")),
+                AgentRun.status_code.in_(("failed", "partial")),
+            )
+        )
+    ).scalar_one_or_none()
+    if child is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "meeting_child_retry_not_allowed")
+    if child.parent_run_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "meeting_child_retry_not_allowed")
+    parent = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.id == child.parent_run_id,
+                AgentRun.team_id == member.team_id,
+                AgentRun.requested_by_member_id == member.id,
+            )
+            .with_for_update(of=AgentRun)
+        )
+    ).scalar_one_or_none()
+    now = datetime.now(UTC)
+    if (
+        parent is None
+        or parent.payload_redacted_at is not None
+        or parent.payload_expires_at is None
+        or parent.payload_expires_at <= now
+        or (parent.report_id is not None and child.agent_code == "meeting_report_writing")
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "meeting_child_retry_not_allowed")
+    locked_child = (
+        await db.execute(
+            select(AgentRun)
+            .where(AgentRun.id == child.id)
+            .with_for_update(of=AgentRun)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if locked_child is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "agent_run_not_found")
+    child = locked_child
+    if (
+        child.status_code not in {"failed", "partial"}
+        or child.payload_redacted_at is not None
+        or child.payload_expires_at is None
+        or child.payload_expires_at <= now
+        or child.report_id is not None
+        or not isinstance(child.input_snapshot, dict)
+        or not child.input_snapshot
+        or not isinstance(child.input_snapshot.get("evidence"), dict)
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "meeting_child_retry_not_allowed")
+    latest = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.parent_run_id == parent.id,
+                AgentRun.agent_code == child.agent_code,
+            )
+            .order_by(AgentRun.created_at.desc(), AgentRun.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if latest is not None and latest.id != child.id:
+        return _run_read(latest, member.id), latest.id
+    retry = AgentRun(
+        id=uuid4(),
+        team_id=child.team_id,
+        parent_run_id=child.parent_run_id,
+        requested_by_member_id=child.requested_by_member_id,
+        agent_code=child.agent_code,
+        trigger_code="meeting_report_retry",
+        idempotency_key=uuid4(),
+        report_id=None,
+        status_code="queued",
+        llm_model_name=child.llm_model_name,
+        prompt_version=child.prompt_version,
+        request_snapshot=dict(child.request_snapshot or {}),
+        request_hash=child.request_hash,
+        scope_key=child.scope_key,
+        source_refs=dict(child.source_refs or {}),
+        input_snapshot=child.input_snapshot,
+        output_snapshot=None,
+        evidence=None,
+        error_message=None,
+        error_code=None,
+        current_stage_code="queued",
+        attempt_count=0,
+        payload_expires_at=child.payload_expires_at,
+        payload_redacted_at=None,
+        lease_owner=None,
+        lease_expires_at=None,
+        heartbeat_at=None,
+        next_attempt_at=now,
+        input_tokens=None,
+        output_tokens=None,
+        total_tokens=None,
+        created_at=now,
+        started_at=None,
+        finished_at=None,
+    )
+    db.add(retry)
+    await db.commit()
+    return _run_read(retry, member.id), retry.id
 
 
 async def latest_generation(
@@ -802,7 +987,9 @@ async def latest_generation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="report_generation_not_found",
         )
-    return _run_read(run, member.id)
+    if scope.report_kind != "meeting":
+        return _run_read(run, member.id)
+    return await get(run.id, member, db)
 
 
 def redact_payload(run: AgentRun, *, now: datetime | None = None) -> None:

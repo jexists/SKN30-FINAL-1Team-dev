@@ -73,6 +73,7 @@ function dealSectionOf(
     title: explicitTitle || text(content.title),
     values: { body: explicitBody ?? '' },
     evidence: text(content.evidence) || undefined,
+    analysisStatus: analysis.analysisStatus,
     ...analysis,
     reportError: analysis.reportError ? reportGenerationMessage(analysis.reportError) : undefined,
   }

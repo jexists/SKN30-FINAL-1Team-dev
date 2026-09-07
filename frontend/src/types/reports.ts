@@ -347,6 +347,7 @@ export interface MeetingProgress {
 
 export interface AgentRunResponse<T = ReportDraftSnapshot> {
   id: string
+  agent_code: string
   report_id: string | null
   source_refs: Record<string, unknown>
   generation_input: ReportGenerationInput | null
@@ -358,4 +359,27 @@ export interface AgentRunResponse<T = ReportDraftSnapshot> {
   error_code: string | null
   error_message: string | null
   created_at: string | null
+  child_runs?: AgentRunChildResponse[]
+}
+
+export interface AgentRunChildResponse {
+  id: string
+  agent_code: 'meeting_report_writing' | 'meeting_analysis'
+  status_code: AgentRunStatus
+  current_stage_code: string | null
+  output_snapshot: MeetingReportChildOutput | MeetingAnalysisChildOutput | null
+  error_code: string | null
+  error_message: string | null
+  source_refs: Record<string, unknown>
+  created_at: string | null
+}
+
+export interface MeetingReportChildOutput {
+  deal_reports: NonNullable<MeetingProcessingOutput['reports']>['deal_reports']
+  common_report: NonNullable<MeetingProcessingOutput['reports']>['common_report']
+  unassigned_report: NonNullable<MeetingProcessingOutput['reports']>['unassigned_report']
+}
+
+export interface MeetingAnalysisChildOutput {
+  analyses: MeetingProcessingOutput['analyses']
 }

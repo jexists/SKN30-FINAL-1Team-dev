@@ -28,6 +28,9 @@ function assessmentBadge(section: MeetingDealSection): {
   tone: StatusTone
   title?: string
 } {
+  if (section.analysisStatus === 'pending') {
+    return { label: 'ML 분석 중', tone: 'blue' }
+  }
   if (isInsufficientDealPrediction(section.analysisError)) {
     return { label: '판단 정보 부족', tone: 'neutral' }
   }
