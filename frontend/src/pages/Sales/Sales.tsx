@@ -1,10 +1,12 @@
 // 매출 분석 한 화면. 위에 기간 줄, 아래 좌우 두 칸입니다.
 // 왼쪽은 계약을 묶어 접은 리스트, 오른쪽은 같은 묶음의 매출·추세·구성입니다.
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import ErrorToast from '@/components/ErrorToast'
 import Skeleton from '@/components/Skeleton'
 import useSalesDeals from '@/pages/Deals/useSalesDeals'
+import { useScopeKey } from '@/shared/scope'
 
 import { downloadCsv, toCsv } from '@/utils/csv'
 
@@ -29,9 +31,11 @@ import styles from './Sales.module.scss'
 
 export default function Sales() {
   const [params, setParams] = useSearchParams()
+  const [selection, setSelection] = useState<{ context: string; key: string } | null>(null)
   const type = toPeriodType(params.get('tab'))
   const offset = toOffset(params.get('o'))
   const by = toGroupBy(params.get('by'))
+  const scopeKey = useScopeKey()
 
   const range = resolveRange(type, offset)
 
@@ -39,6 +43,20 @@ export default function Sales() {
   // 좌우 두 칸이 같은 축을 봅니다. 탭을 바꾸면 표와 패널이 함께 움직입니다.
   const grouped = useSalesSummary(cards, type, offset, by)
   const trend = useSalesTrend(cards, type, offset)
+  // 이전 기간·그룹 기준·팀원 범위에서 고른 항목은 새 데이터와 같은 이름이어도 다른
+  // 대상입니다. 이전 범위로 다시 돌아와도 옛 선택이 살아나지 않게 실제로 비웁니다.
+  const selectionContext = `${type}:${offset}:${by}:${scopeKey}`
+  useEffect(() => {
+    setSelection(null)
+  }, [selectionContext])
+  const selectedGroup =
+    selection?.context === selectionContext
+      ? (grouped.groups.find((group) => group.key === selection.key) ?? null)
+      : null
+
+  const selectGroup = (key: string | null) => {
+    setSelection(key === null ? null : { context: selectionContext, key })
+  }
 
   /** 기간 탭을 바꾸면 이동량은 의미가 달라지므로 현재 기간으로 되돌립니다. */
   const setType = (next: PeriodType) => {
@@ -125,12 +143,16 @@ export default function Sales() {
           <GroupTable
             by={by}
             onByChange={(next: GroupBy) => setParam('by', next, next === 'org')}
+            onSelectGroup={selectGroup}
+            selectedGroupKey={selectedGroup?.key ?? null}
             summary={grouped}
           />
           <RevenuePanel
             range={range}
             summary={grouped}
             by={by}
+            onSelectGroup={selectGroup}
+            selectedGroup={selectedGroup}
             trend={trend}
             trendCaption={trendCaption(type)}
           />

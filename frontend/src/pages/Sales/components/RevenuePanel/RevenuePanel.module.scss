@@ -170,10 +170,22 @@
   height: 6px;
   overflow: hidden;
   border-radius: var(--r-pill);
+}
 
-  span {
-    flex-basis: 0;
-    min-width: 2px;
+.ribbonSlice {
+  flex-basis: 0;
+  min-width: 2px;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: default;
   }
 }
 
@@ -181,27 +193,62 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
+}
 
-  li {
-    display: grid;
-    grid-template-columns: 9px minmax(0, 1fr) minmax(48px, 88px) auto 46px;
-    align-items: center;
-    gap: var(--s2);
-    font-size: 13px;
-  }
+.rankButton,
+.rankStatic {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) minmax(48px, 88px) auto 46px;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: var(--s1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 
-  > li > i {
+  > i {
     width: 9px;
     height: 9px;
     border-radius: 3px;
   }
 }
 
+.rankButton {
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible,
+  &.isSelected {
+    background: var(--blue-tint);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
 .rankName {
+  display: block;
   overflow: hidden;
+  min-width: 0;
   font-weight: 600;
   white-space: nowrap;
   text-overflow: ellipsis;
+
+  b {
+    display: block;
+  }
+
+  small {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 10px;
+  }
 }
 
 /* 1등이 꽉 찬 막대입니다. 폭 대신 scaleX 로 늘려 리플로우 없이 움직입니다. */
@@ -234,20 +281,44 @@
 
 /* ── 담당자별 ─────────────────────────────────────── */
 
-/* 위 구성과 같은 모양의 목록이라 실선으로 갈라 둡니다. 붙어 있으면 회사 목록이
-   그대로 이어지는 것처럼 읽힙니다. */
+/* 선택한 그룹의 담당자 상세입니다. */
 .owners {
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
-  padding-top: var(--s5);
-  border-top: 1px solid var(--line);
+  gap: var(--s4);
 }
 
 .ownersCaption {
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
+}
+
+/* 전체 차트의 맥락을 유지한 채 선택한 항목의 담당자 구성을 이어 보여 줍니다. */
+.breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--line);
+}
+
+.breakdownHead {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--s3);
+
+  h3 {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  p {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+  }
 }
 
 .empty {

@@ -2,13 +2,13 @@
 //
 // 왼쪽 표의 탭(회사별·지역별·상품별)을 그대로 따라갑니다. 같은 화면에서 왼쪽은
 // 지역을 말하는데 오른쪽만 회사를 말하면, 색이 같은 줄이 서로 다른 것을 가리킵니다.
+import Button from '@/components/Button'
 import { useOwnerColor } from '@/shared/ownerColors'
-import { useShowOwner } from '@/shared/scope'
 import { won, wonFull } from '@/utils/format'
 
 import { GROUP_LABEL, type GroupBy, type Range } from '../../periods'
-import { REST_COLOR, toSlices } from '../../slices'
-import { pct, type OwnerShare, type SalesSummary } from '../../useSalesSummary'
+import { REST_COLOR, toSlices, type Slice } from '../../slices'
+import { pct, type OwnerShare, type SalesGroup, type SalesSummary } from '../../useSalesSummary'
 import type { TrendPoint } from '../../useSalesTrend'
 
 import styles from './RevenuePanel.module.scss'
@@ -17,6 +17,8 @@ interface RevenuePanelProps {
   range: Range
   summary: SalesSummary
   by: GroupBy
+  onSelectGroup: (key: string | null) => void
+  selectedGroup: SalesGroup | null
   trend: TrendPoint[]
   trendCaption: string
 }
@@ -71,9 +73,12 @@ function OwnerRank({ share, top, total }: { share: OwnerShare; top: number; tota
   const color = useOwnerColor(share.memberId) ?? REST_COLOR
 
   return (
-    <li>
+    <li className={styles.rankStatic}>
       <i style={{ background: color }} />
-      <span className={styles.rankName}>{share.name}</span>
+      <span className={styles.rankName}>
+        <b>{share.name}</b>
+        <small>계약 {share.count}건</small>
+      </span>
       <span className={styles.rankBar}>
         <b
           style={{ background: color, transform: `scaleX(${top > 0 ? share.actual / top : 0})` }}
@@ -85,11 +90,49 @@ function OwnerRank({ share, top, total }: { share: OwnerShare; top: number; tota
   )
 }
 
+function GroupRank({
+  slice,
+  top,
+  total,
+  selected,
+  onSelect,
+}: {
+  slice: Slice
+  top: number
+  total: number
+  selected: boolean
+  onSelect: (() => void) | undefined
+}) {
+  const selectable = onSelect !== undefined
+
+  return (
+    <li>
+      <button
+        type="button"
+        className={`${styles.rankButton} ${selected ? styles.isSelected : ''}`}
+        aria-pressed={selectable ? selected : undefined}
+        aria-label={
+          selectable
+            ? `${slice.key} 담당자별 매출 보기`
+            : `${slice.key}는 개별 항목으로 나눠 볼 수 없습니다`
+        }
+        disabled={!selectable}
+        onClick={onSelect}
+      >
+        <i style={{ background: slice.color }} />
+        <span className={styles.rankName}>{slice.key}</span>
+        <span className={styles.rankBar}>
+          <b style={{ background: slice.color, transform: `scaleX(${slice.value / top})` }} />
+        </span>
+        <span className={`${styles.rankAmount} tnum`}>{won(slice.value)}</span>
+        <span className={`${styles.rankShare} tnum`}>{pct(slice.value, total).toFixed(1)}%</span>
+      </button>
+    </li>
+  )
+}
+
 /**
- * 이 기간을 누가 얼마나 세웠는지.
- *
- * 위의 리본·순위는 회사·지역·상품을 말하므로 소제목으로 갈라 둡니다. 소제목이 없으면
- * 같은 모양의 목록 두 개가 이어 붙어 아래쪽도 회사 이름인 줄 알고 읽게 됩니다.
+ * 선택한 회사·지역·상품이 어떤 담당자 실적으로 구성됐는지 보여 줍니다.
  */
 function OwnerRanks({ owners, total }: { owners: OwnerShare[]; total: number }) {
   const top = Math.max(...owners.map((share) => share.actual), 0)
@@ -110,11 +153,12 @@ export default function RevenuePanel({
   range,
   summary,
   by,
+  onSelectGroup,
+  selectedGroup,
   trend,
   trendCaption,
 }: RevenuePanelProps) {
   const { totals, delta, prevActual } = summary
-  const showOwner = useShowOwner()
   const slices = toSlices(summary.groups)
   // 순위 막대는 제일 큰 몫을 꽉 채웁니다. 합계 대비로 그리면 상위 몇 곳만 보이고
   // 나머지는 실오라기가 되어, 4등과 5등의 차이를 눈으로 못 잡습니다.
@@ -146,7 +190,9 @@ export default function RevenuePanel({
           <span className="tnum">계약 {totals.count}건</span>
           {/* 목표가 들어오면 달성률이 여기 붙습니다. 아직 아무도 목표를 정하지 않았고,
               정한 적 없는 값의 부재를 화면에서 가장 좋은 자리로 알릴 이유는 없습니다. */}
-          {totals.target > 0 && <span className="tnum">목표 대비 {totals.rate.toFixed(1)}%</span>}
+          {totals.target > 0 && (
+            <span className="tnum">목표 대비 {totals.rate.toFixed(1)}%</span>
+          )}
         </p>
       </header>
 
@@ -157,37 +203,70 @@ export default function RevenuePanel({
         // 추세와 갈라 놓아야, 어느 쪽에 붙은 그림인지 헷갈리지 않습니다.
         <div className={styles.mix}>
           {/* 구성 리본. 이름은 아래 순위 줄이 이미 말하므로 범례를 따로 두지 않습니다. */}
-          <div className={styles.ribbon} aria-hidden>
+          <div
+            className={styles.ribbon}
+            role="group"
+            aria-label={`${GROUP_LABEL[by]}별 매출 구성`}
+          >
             {slices.map((s) => (
-              <span key={s.key} style={{ flexGrow: s.value, background: s.color }} title={s.key} />
+              <button
+                key={s.key}
+                type="button"
+                className={styles.ribbonSlice}
+                aria-label={
+                  s.count === 1
+                    ? `${s.key} 담당자별 매출 보기`
+                    : `${s.key}는 개별 항목으로 나눠 볼 수 없습니다`
+                }
+                disabled={s.count !== 1}
+                style={{ flexGrow: s.value, background: s.color }}
+                onClick={s.count === 1 ? () => onSelectGroup(s.key) : undefined}
+              />
             ))}
           </div>
 
           <ul className={styles.ranks}>
             {slices.map((s) => (
-              <li key={s.key}>
-                <i style={{ background: s.color }} />
-                <span className={styles.rankName}>{s.key}</span>
-                <span className={styles.rankBar}>
-                  <b style={{ background: s.color, transform: `scaleX(${s.value / top})` }} />
-                </span>
-                <span className={`${styles.rankAmount} tnum`}>{won(s.value)}</span>
-                <span className={`${styles.rankShare} tnum`}>
-                  {pct(s.value, totals.actual).toFixed(1)}%
-                </span>
-              </li>
+              <GroupRank
+                key={s.key}
+                slice={s}
+                top={top}
+                total={totals.actual}
+                selected={selectedGroup?.key === s.key}
+                onSelect={s.count === 1 ? () => onSelectGroup(s.key) : undefined}
+              />
             ))}
           </ul>
         </div>
       )}
 
-      {showOwner && totals.actual > 0 && (
-        <OwnerRanks owners={summary.owners} total={totals.actual} />
-      )}
-
       {/* 이 기간을 먼저 읽고, 그 다음에 지난 기간과 견줍니다. 이 기간이 0원이어도
-          막대는 남깁니다. 비어 있다는 사실이야말로 앞뒤와 견줘야 읽히기 때문입니다. */}
+          막대는 남깁니다. 비어 있다는 사실이야말로 앞뒤와 견줘야 읽기 때문입니다. */}
       {trendMax > 0 && <TrendBars points={trend} caption={trendCaption} />}
+
+      {/* 전체 비교를 유지한 채, 고른 항목이 어떤 담당자 실적으로 만들어졌는지 아래에
+          붙입니다. 차트를 갈아 끼우면 비교 기준을 잃으므로 상세는 보완 정보입니다. */}
+      {selectedGroup !== null && (
+        <section className={styles.breakdown} aria-labelledby="selected-group-breakdown">
+          <div className={styles.breakdownHead}>
+            <div>
+              <h3 id="selected-group-breakdown">{selectedGroup.key} 매출 구성</h3>
+              <p>
+                계약 {selectedGroup.contracts.length}건 · 담당자 {selectedGroup.owners.length}명
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => onSelectGroup(null)}>
+              상세 닫기
+            </Button>
+          </div>
+
+          {selectedGroup.actual === 0 ? (
+            <p className={styles.empty}>이 항목에는 확정된 매출이 없습니다.</p>
+          ) : (
+            <OwnerRanks owners={selectedGroup.owners} total={selectedGroup.actual} />
+          )}
+        </section>
+      )}
     </section>
   )
 }

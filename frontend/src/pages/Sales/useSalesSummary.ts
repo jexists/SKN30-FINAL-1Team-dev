@@ -4,7 +4,7 @@ import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 
 import { prevRange, resolveRange, type GroupBy, type PeriodType } from './periods'
 
-/** 한 사람이 이 묶음에서 세운 매출. 팀장이 여러 명을 함께 볼 때만 화면에 섭니다. */
+/** 한 사람이 이 묶음에서 세운 매출. 선택한 그룹의 담당자 상세가 이 값을 씁니다. */
 export interface OwnerShare {
   memberId: string
   name: string
@@ -80,56 +80,64 @@ export function ownerShares(deals: SalesDeal[]): OwnerShare[] {
   return [...byMember.values()].sort((a, b) => b.actual - a.actual)
 }
 
+/** 기간·그룹 기준에 맞춘 순수 집계. 화면과 검증 코드가 같은 계산을 씁니다. */
+export function salesSummaryOf(
+  deals: SalesDeal[],
+  type: PeriodType,
+  offset: number,
+  by: GroupBy,
+): SalesSummary {
+  const range = resolveRange(type, offset)
+  const list = deals.filter((deal) => {
+    const date = contractDate(deal)
+    return isContract(deal) && date >= range.fromISO && date <= range.toISO
+  })
+  const actual = actualOf(list)
+  const keys = new Set(list.map((deal) => keyOf(deal, by)))
+  const groups = [...keys]
+    .map((key) => {
+      const contracts = list.filter((deal) => keyOf(deal, by) === key)
+      const groupActual = actualOf(contracts)
+      return {
+        key,
+        target: 0,
+        actual: groupActual,
+        share: pct(groupActual, actual),
+        rate: 0,
+        contracts,
+        owners: ownerShares(contracts),
+      }
+    })
+    .sort((a, b) => b.actual - a.actual)
+
+  const previous = prevRange(type, offset)
+  const prevActual = actualOf(
+    deals.filter((deal) => {
+      const date = contractDate(deal)
+      return isContract(deal) && date >= previous.fromISO && date <= previous.toISO
+    }),
+  )
+
+  return {
+    groups,
+    totals: {
+      target: 0,
+      actual,
+      gap: 0,
+      rate: 0,
+      count: list.length,
+    },
+    prevActual,
+    delta: actual - prevActual,
+    owners: ownerShares(list),
+  }
+}
+
 export default function useSalesSummary(
   deals: SalesDeal[],
   type: PeriodType,
   offset: number,
   by: GroupBy,
 ): SalesSummary {
-  return useMemo(() => {
-    const range = resolveRange(type, offset)
-    const list = deals.filter((deal) => {
-      const date = contractDate(deal)
-      return isContract(deal) && date >= range.fromISO && date <= range.toISO
-    })
-    const actual = actualOf(list)
-    const keys = new Set(list.map((deal) => keyOf(deal, by)))
-    const groups = [...keys]
-      .map((key) => {
-        const contracts = list.filter((deal) => keyOf(deal, by) === key)
-        const groupActual = actualOf(contracts)
-        return {
-          key,
-          target: 0,
-          actual: groupActual,
-          share: pct(groupActual, actual),
-          rate: 0,
-          contracts,
-          owners: ownerShares(contracts),
-        }
-      })
-      .sort((a, b) => b.actual - a.actual)
-
-    const previous = prevRange(type, offset)
-    const prevActual = actualOf(
-      deals.filter((deal) => {
-        const date = contractDate(deal)
-        return isContract(deal) && date >= previous.fromISO && date <= previous.toISO
-      }),
-    )
-
-    return {
-      groups,
-      totals: {
-        target: 0,
-        actual,
-        gap: 0,
-        rate: 0,
-        count: list.length,
-      },
-      prevActual,
-      delta: actual - prevActual,
-      owners: ownerShares(list),
-    }
-  }, [by, deals, offset, type])
+  return useMemo(() => salesSummaryOf(deals, type, offset, by), [by, deals, offset, type])
 }

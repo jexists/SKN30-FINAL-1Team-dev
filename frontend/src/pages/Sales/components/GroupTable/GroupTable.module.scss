@@ -47,7 +47,7 @@ $cols: minmax(0, 1fr) 56px 130px 60px;
   border-top: 1px solid var(--line);
 }
 
-/* 그룹 한 줄 전체가 펼침 버튼입니다. */
+/* 그룹 이름을 누르면 담당자 분석을 열고, 화살표는 계약 목록만 펼칩니다. */
 .row {
   display: grid;
   grid-template-columns: $cols;
@@ -55,64 +55,66 @@ $cols: minmax(0, 1fr) 56px 130px 60px;
   gap: var(--s2);
   width: 100%;
   padding: var(--s3);
-  border: 0;
   border-radius: var(--r-sm);
   background: transparent;
-  text-align: left;
-  cursor: pointer;
   transition: background var(--t-fast);
 
   &:hover {
     background: var(--fill-2);
   }
-
-  // 행 전체가 버튼이라 누를 때 줄어들면 표가 출렁입니다.
-  &:active {
-    transform: none;
-  }
 }
 
-/* 첫 칸. 묶음 이름 아래에 담당자 줄이 한 단 더 붙습니다. */
+.isSelected {
+  background: var(--blue-tint);
+}
+
+/* 첫 칸은 그룹 선택과 계약 펼치기라는 서로 다른 행동을 나눕니다. */
 .nameCell {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
   min-width: 0;
 }
 
-.name {
+.groupSelect {
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
   min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-size: 14px;
   font-weight: 600;
-}
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
 
-/* 이 묶음을 누가 얼마나 세웠는지. 이름표는 다른 화면과 같은 색을 씁니다.
-   묶음 이름의 글머리(캐럿+색점)만큼 들여써서 이름 아래에 나란히 섭니다. */
-.groupOwners {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s1);
-  padding-left: 24px;
-  color: var(--muted);
-  font-size: 11px;
-
-  i {
-    font-style: normal;
+  &:hover,
+  &:focus-visible {
+    color: var(--blue);
   }
 }
 
-.groupOwner {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
+.disclosure {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
 
-  b {
-    font-weight: 600;
+  &:hover,
+  &:focus-visible {
+    background: var(--surface);
+    color: var(--blue);
   }
 }
 
@@ -123,7 +125,7 @@ $cols: minmax(0, 1fr) 56px 130px 60px;
   transition: transform var(--t-fast) var(--ease-out);
 }
 
-.isOpen .caret {
+.disclosure.isOpen .caret {
   transform: rotate(0deg);
   color: var(--blue);
 }
