@@ -241,9 +241,10 @@ export default function UploadModal({ submitting = false, onClose, onSubmit }: P
         </Field>
 
         <Field label="메모" wide>
-          <input
+          <textarea
+            rows={3}
             value={description}
-            placeholder="목록에서 이 자료가 무엇인지 알아볼 한 줄"
+            placeholder="목록에서 이 자료가 무엇인지 알아볼 메모"
             onChange={(event) => setDescription(event.target.value)}
           />
         </Field>

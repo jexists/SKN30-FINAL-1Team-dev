@@ -21,14 +21,9 @@
   gap: var(--s4);
   align-items: start;
 
-  // 두 칸이 나란히 서기 어려워지면 매출 패널을 위로 올립니다.
-  // 좁은 화면에서는 "얼마 닫혔나"가 계약 목록보다 먼저 읽혀야 합니다.
+  // 태블릿·모바일에서는 DOM 순서를 유지해 계약 리스트를 먼저 보여 줍니다.
   @include lg {
     grid-template-columns: minmax(0, 1fr);
-
-    > :last-child {
-      order: -1;
-    }
   }
 }
 
