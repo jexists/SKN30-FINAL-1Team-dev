@@ -397,6 +397,24 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
 
 
 @pytest.mark.anyio
+async def test_unresolved_support_signals_cover_every_open_status():
+    """끝나지 않은 C/S 는 상태와 무관하게 모두 위험 신호가 된다.
+
+    in_progress 만 조회하면 접수(received)·원인파악(diagnosing) 단계의 요청이 통째로 빠져,
+    브리핑과 다음 미팅 제안 양쪽에서 그 위험이 보이지 않는다.
+    """
+    member = _member()
+    company_id = uuid4()
+    db = _Db(_Result(scalar_values=[]))
+
+    await snapshots._unresolved_support_signals(db, member, company_id)
+
+    params = list(db.statements[0].compile().params.values())
+    assert ["received", "diagnosing", "in_progress"] in params
+    assert "completed" not in str(db.statements[0].compile().params)
+
+
+@pytest.mark.anyio
 async def test_recent_finalized_reports_limits_reports_before_joining_deal_sections():
     """한 보고서의 여러 딜 섹션이 최근 보고서 5건 제한을 잠식하지 않는다."""
     member = _member()

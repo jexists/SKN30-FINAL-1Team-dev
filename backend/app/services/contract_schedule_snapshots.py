@@ -44,6 +44,10 @@ _DEFAULT_PREFERRED_WINDOW_DAYS = 7
 _MIN_PREFERRED_WINDOW_DAYS = _DEFAULT_PREFERRED_WINDOW_DAYS
 # 자료실 검색 API 의 q 상한과 맞춘다.
 _BRIEFING_QUERY_MAX_CHARS = 500
+# C/S 상태는 received·diagnosing·in_progress·completed 네 가지고(app/schemas/support.py),
+# 끝난 것은 completed 뿐이다. in_progress 만 보면 접수·원인파악 단계의 미해결 요청이
+# 위험 신호에서 통째로 빠진다.
+_OPEN_SUPPORT_STATUSES = ("received", "diagnosing", "in_progress")
 # 청크 하나가 최대 1,600자라 5건이면 문맥 블록 상한(12,000자) 안에 든다.
 _BRIEFING_DOCUMENT_LIMIT = 5
 
@@ -173,12 +177,12 @@ async def _deal_ids_with_upcoming_activity(
 async def _unresolved_support_signals(
     db: AsyncSession, member: Member, customer_company_id: UUID
 ) -> list[dict[str, Any]]:
-    """이 회사에 걸린, 아직 처리 중인 C/S 요청."""
+    """이 회사에 걸린, 아직 끝나지 않은 C/S 요청."""
     result = await db.execute(
         select(SupportRequest).where(
             SupportRequest.team_id == member.team_id,
             SupportRequest.customer_company_id == customer_company_id,
-            SupportRequest.status_code == "in_progress",
+            SupportRequest.status_code.in_(_OPEN_SUPPORT_STATUSES),
         )
     )
     signals: list[dict[str, Any]] = []
