@@ -13,6 +13,7 @@ import DailyListLink from '@/pages/Daily/components/DailyListLink'
 import { useReportDetail } from '@/shared/reportQuery'
 import { isAuthorEditableReportStatus } from '@/shared/reports'
 import { fmtDay, fmtDot, parseISO } from '@/utils/date'
+import { meetingAttachmentPurposeOf } from '@/utils/attachment'
 import type { MeetingDealSection } from '@/types'
 
 import MeetingFacts from './components/MeetingFacts'
@@ -240,15 +241,27 @@ export default function Detail() {
             <MeetingFacts dept={report.dept} contact={report.contact} place={report.place} />
           </section>
 
-          <section>
-            <h2 className={styles.materialHead}>
-              첨부 자료
-              {report.attachments.length > 0 && (
-                <span className={styles.count}>{report.attachments.length}건</span>
-              )}
-            </h2>
-            <AttachmentPanel attachments={report.attachments} readOnly />
-          </section>
+          {(
+            [
+              ['미팅 원문 파일', 'meeting_source'],
+              ['참고자료', 'reference'],
+            ] as const
+          ).map(([label, purpose]) => {
+            const attachments = report.attachments.filter(
+              (attachment) => meetingAttachmentPurposeOf(attachment) === purpose,
+            )
+            return (
+              <section key={purpose}>
+                <h2 className={styles.materialHead}>
+                  {label}
+                  {attachments.length > 0 && (
+                    <span className={styles.count}>{attachments.length}건</span>
+                  )}
+                </h2>
+                <AttachmentPanel attachments={attachments} reportId={report.id} readOnly />
+              </section>
+            )
+          })}
 
           {report.transcript && (
             <section>

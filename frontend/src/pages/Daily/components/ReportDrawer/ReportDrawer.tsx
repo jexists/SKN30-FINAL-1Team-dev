@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from 'react'
 import { Link } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import OwnerName from '@/components/OwnerName'
 import ReportBody from '@/components/ReportBody'
 import { ChevronRightIcon, CloseIcon } from '@/components/icons'
@@ -12,6 +13,7 @@ import { agendaFor } from '@/shared/agenda'
 import { useShowOwner } from '@/shared/scope'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
+import { meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import ReportStatusBadge from '../ReportStatusBadge'
 import type { ListRow } from '../../rows'
@@ -122,6 +124,31 @@ export default function ReportDrawer({ dateISO, rows, kind, onClose }: Props) {
                 )}
 
                 <p className={styles.counts}>{row.meta}</p>
+
+                {row.attachments.length > 0 &&
+                  (row.kindLabel === '미팅' ? (
+                    (
+                      [
+                        ['미팅 원문 파일', 'meeting_source'],
+                        ['참고자료', 'reference'],
+                      ] as const
+                    ).map(([label, purpose]) => {
+                      const attachments = row.attachments.filter(
+                        (attachment) => meetingAttachmentPurposeOf(attachment) === purpose,
+                      )
+                      return attachments.length > 0 ? (
+                        <section key={purpose}>
+                          <h4 className={styles.counts}>{label}</h4>
+                          <AttachmentPanel attachments={attachments} reportId={row.id} readOnly />
+                        </section>
+                      ) : null
+                    })
+                  ) : (
+                    <section>
+                      <h4 className={styles.counts}>참고자료</h4>
+                      <AttachmentPanel attachments={row.attachments} reportId={row.id} readOnly />
+                    </section>
+                  ))}
 
                 <Link className={buttonClass({ variant: 'outline' }, styles.cta)} to={row.to}>
                   전체 보기

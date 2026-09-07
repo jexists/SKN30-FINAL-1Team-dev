@@ -1,5 +1,10 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
+import { errorMessage } from '@/api/errorMessage'
+import { downloadReportAttachment } from '@/api/reportAttachments'
+import { buttonClass } from '@/components/Button'
+import Modal from '@/components/Modal'
 import { TrashIcon, UploadIcon } from '@/components/icons'
 import type { AttachmentKind, ReportAttachment } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
@@ -10,10 +15,15 @@ interface Props {
   attachments: ReportAttachment[]
   /** 읽기 모드면 올리기·녹음·삭제가 사라집니다. */
   readOnly?: boolean
+  /** 저장된 보고서의 원본 조회 권한을 확인할 때 씁니다. */
+  reportId?: string
   /** 첨부가 그 화면에서 무엇에 쓰이는지. 화면마다 다릅니다. */
   note?: string
-  onAttach?: (files: FileList | File[]) => void
+  acceptedKinds?: readonly AttachmentKind[]
+  onAttach?: (files: FileList | File[], acceptedKinds?: readonly AttachmentKind[]) => void
   onRemove?: (id: string) => void
+  /** 미팅 원문에서만 추출된 문장을 교정합니다. 참고자료는 미리보기로 둡니다. */
+  onExtractChange?: (id: string, extract: string) => void
 }
 
 const KIND_LABEL: Record<AttachmentKind, string> = {
@@ -22,16 +32,89 @@ const KIND_LABEL: Record<AttachmentKind, string> = {
   pdf: 'PDF',
 }
 
+const ACCEPT: Record<AttachmentKind, string> = {
+  audio: '.mp3,.m4a,.wav,.webm',
+  image: '.png,.jpg,.jpeg,.webp',
+  pdf: '.pdf',
+}
+
 export default function AttachmentPanel({
   attachments,
   readOnly = false,
+  reportId,
   note = '음성·사진·PDF를 넣으면 초안이 더 자세해집니다. 넣지 않아도 캘린더 일정만으로 작성됩니다.',
+  acceptedKinds,
   onAttach,
   onRemove,
+  onExtractChange,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const panelId = useId()
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
+  const [preview, setPreview] = useState<{
+    reportId: string
+    item: ReportAttachment
+    url: string
+  } | null>(null)
+  const [loadingFile, setLoadingFile] = useState<{ reportId: string; id: string } | null>(null)
+  const [fileError, setFileError] = useState<{ reportId: string; message: string } | null>(null)
+  const requestRef = useRef<AbortController | null>(null)
+  const objectUrls = useRef(new Set<string>())
+
+  useEffect(
+    () => () => {
+      requestRef.current?.abort()
+      requestRef.current = null
+      objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
+      objectUrls.current.clear()
+    },
+    [reportId],
+  )
+
+  const closePreview = () => {
+    if (preview) {
+      URL.revokeObjectURL(preview.url)
+      objectUrls.current.delete(preview.url)
+    }
+    setPreview(null)
+  }
+
+  const openOriginal = async (item: ReportAttachment, download = false) => {
+    if (!reportId) return
+    requestRef.current?.abort()
+    const controller = new AbortController()
+    requestRef.current = controller
+    setLoadingFile({ reportId, id: item.id })
+    setFileError(null)
+    closePreview()
+    try {
+      const blob = await downloadReportAttachment(reportId, item.id, controller.signal)
+      if (controller.signal.aborted) return
+      const url = URL.createObjectURL(blob)
+      objectUrls.current.add(url)
+      if (download) {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = item.name
+        link.click()
+        window.setTimeout(() => {
+          URL.revokeObjectURL(url)
+          objectUrls.current.delete(url)
+        }, 1_000)
+      } else {
+        setPreview({ reportId, item, url })
+      }
+    } catch (reason: unknown) {
+      if (!controller.signal.aborted) {
+        setFileError({
+          reportId,
+          message: errorMessage(reason, '첨부 원본을 불러오지 못했습니다. 다시 시도해 주세요.'),
+        })
+      }
+    } finally {
+      if (!controller.signal.aborted) setLoadingFile(null)
+    }
+  }
 
   const toggleExtract = (id: string) => {
     setOpen((prev) => {
@@ -45,7 +128,7 @@ export default function AttachmentPanel({
     <div aria-busy={attachments.some((item) => item.state === 'analyzing')}>
       {!readOnly && (
         <>
-          <p className={styles.note}>{note}</p>
+          {note && <p className={styles.note}>{note}</p>}
 
           <div className={styles.actions}>
             <button
@@ -62,12 +145,20 @@ export default function AttachmentPanel({
               ref={fileRef}
               type="file"
               multiple
-              accept=".mp3,.m4a,.wav,.webm,.png,.jpg,.jpeg,.webp,.pdf"
-              aria-label="첨부 파일 선택"
+              accept={
+                acceptedKinds
+                  ? acceptedKinds.map((kind) => ACCEPT[kind]).join(',')
+                  : Object.values(ACCEPT).join(',')
+              }
+              aria-label={
+                acceptedKinds
+                  ? `${acceptedKinds.map((kind) => KIND_LABEL[kind]).join('·')} 첨부 파일 선택`
+                  : '첨부 파일 선택'
+              }
               tabIndex={-1}
               className="sr-only"
               onChange={(event) => {
-                if (event.target.files) onAttach?.(event.target.files)
+                if (event.target.files) onAttach?.(event.target.files, acceptedKinds)
                 // 같은 파일을 다시 골라도 change 가 나게 비웁니다.
                 event.target.value = ''
               }}
@@ -95,7 +186,38 @@ export default function AttachmentPanel({
                   {item.state === 'failed' && ' · 업로드·분석 실패'}
                 </span>
 
-                {item.state === 'done' && item.extract && (
+                {readOnly &&
+                  (item.originalStored && reportId ? (
+                    <div className={styles.fileActions}>
+                      <button
+                        type="button"
+                        className={styles.toggle}
+                        disabled={loadingFile?.reportId === reportId && loadingFile.id === item.id}
+                        onClick={() => void openOriginal(item)}
+                      >
+                        원본 보기
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.toggle}
+                        disabled={loadingFile?.reportId === reportId && loadingFile.id === item.id}
+                        onClick={() => void openOriginal(item, true)}
+                      >
+                        다운로드
+                      </button>
+                      {loadingFile?.reportId === reportId && loadingFile.id === item.id && (
+                        <span className={styles.meta} role="status">
+                          원본 불러오는 중…
+                        </span>
+                      )}
+                    </div>
+                  ) : !item.originalStored ? (
+                    <span className={styles.meta}>
+                      원본 파일이 저장되지 않아 확인할 수 없습니다.
+                    </span>
+                  ) : null)}
+
+                {item.state === 'done' && (item.extract || onExtractChange) && (
                   <>
                     <button
                       type="button"
@@ -104,13 +226,30 @@ export default function AttachmentPanel({
                       aria-controls={`${panelId}-${item.id}-extract`}
                       onClick={() => toggleExtract(item.id)}
                     >
-                      분석 완료 · 정리된 내용 {open.has(item.id) ? '접기' : '보기'}
+                      {onExtractChange
+                        ? `${item.kind === 'audio' ? 'STT' : item.kind === 'image' ? 'OCR' : '텍스트 추출'} 완료 · 원문`
+                        : '분석 완료 · 정리된 내용'}{' '}
+                      {open.has(item.id) ? '접기' : '보기'}
                     </button>
-                    {open.has(item.id) && (
-                      <p id={`${panelId}-${item.id}-extract`} className={styles.extract}>
-                        {item.extract}
-                      </p>
-                    )}
+                    {open.has(item.id) &&
+                      (onExtractChange && !readOnly ? (
+                        <div className={styles.editor}>
+                          <label htmlFor={`${panelId}-${item.id}-extract`}>
+                            추출 원문 확인·수정
+                          </label>
+                          <textarea
+                            id={`${panelId}-${item.id}-extract`}
+                            aria-label={`${item.name} 추출 원문 확인·수정`}
+                            rows={5}
+                            value={item.extract ?? ''}
+                            onChange={(event) => onExtractChange(item.id, event.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <p id={`${panelId}-${item.id}-extract`} className={styles.extract}>
+                          {item.extract}
+                        </p>
+                      ))}
                   </>
                 )}
               </div>
@@ -129,6 +268,51 @@ export default function AttachmentPanel({
           ))}
         </ul>
       )}
+      {fileError && fileError.reportId === reportId && (
+        <p className={styles.error} role="alert">
+          {fileError.message}
+        </p>
+      )}
+      {preview &&
+        preview.reportId === reportId &&
+        createPortal(
+          <div
+            className={styles.previewHost}
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDownCapture={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                closePreview()
+              }
+            }}
+          >
+            <Modal
+              title={preview.item.name}
+              size="lg"
+              onClose={closePreview}
+              footer={
+                <a className={buttonClass()} href={preview.url} download={preview.item.name}>
+                  다운로드
+                </a>
+              }
+            >
+              <div tabIndex={0} role="group" aria-label="원본 파일 미리보기">
+                {preview.item.kind === 'image' ? (
+                  <img className={styles.previewImage} src={preview.url} alt={preview.item.name} />
+                ) : preview.item.kind === 'audio' ? (
+                  <audio className={styles.previewAudio} src={preview.url} controls />
+                ) : (
+                  <iframe
+                    className={styles.previewPdf}
+                    src={preview.url}
+                    title={preview.item.name}
+                  />
+                )}
+              </div>
+            </Modal>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

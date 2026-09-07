@@ -25,6 +25,13 @@
 
 ## 스키마 파일
 
+- `20260907_0024_report_attachment_originals.sql`: 공용 Storage에 보관한 보고서 첨부 원본을
+  `report_attachment`에 기록합니다. 미귀속 원본은 24시간 만료를 기존 AgentRun worker가
+  정리하며, 생성 시 복구 기한까지 연장하고 확정 후에는 보고서에 한 번 귀속합니다.
+  `report_submission.attachments_snapshot`은 당시 목적과 교정 추출문을 불변으로 보존합니다.
+  자료실 `file` 제약과 기존 보고서 본문 snapshot/hash는 바꾸지 않습니다. 이 파일은 적용 전
+  준비된 마이그레이션이며 원격 환경에는 별도 명시적 적용이 필요합니다.
+
 - `20260819_0001_baseline_schema.sql`: 최종 ERD 전체를 한 파일로 만듭니다.
   **26테이블 · 264컬럼 · 외래키 65개**(public 대상 64개 + `member.id` → `auth.users(id)` 1개).
   로그인은 Supabase Auth가 담당하며 `member` 행 하나가 auth 사용자 하나입니다. 별도 연결

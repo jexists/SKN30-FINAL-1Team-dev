@@ -158,7 +158,7 @@ export default function useDailyDraft(
 
   const [phase, setPhase] = useState<DraftPhase>('idle')
   const [activities, setActivities] = useState<ReportActivity[]>(() => sources.activities)
-  /** 자료에 없는 것을 직접 적는 칸. AI 가 이것도 함께 읽습니다. */
+  /** 이전 실행·저장 보고서의 사용자 텍스트는 보존하되 새 생성 지침으로 쓰지 않습니다. */
   const [transcript, setTranscript] = useState('')
   const files = useAttachments()
   const {
@@ -257,7 +257,6 @@ export default function useDailyDraft(
   const hasAiFields = useMemo(() => template.fields.some((f) => f.aiFilled), [template])
   const hasInput =
     included.length > 0 ||
-    transcript.trim().length > 0 ||
     files.attachments.some((attachment) => attachment.state === 'done' && attachment.extract) ||
     Boolean(values.body?.trim())
 
@@ -365,7 +364,16 @@ export default function useDailyDraft(
     generationAbort.current = controller
     setPhase('generating')
     setGenerationError(null)
-    const payload = generationPayload()
+    const previous = generationPayload()
+    const payload = {
+      ...previous,
+      attachments: previous.attachments.map((attachment) => ({
+        ...attachment,
+        purpose: 'reference' as const,
+      })),
+    }
+    setAttachments(payload.attachments)
+    setGenerationRunId(undefined)
     const attempt = idempotencyAttemptFor(generationAttempt.current, payload)
     generationAttempt.current = attempt
 
@@ -394,7 +402,7 @@ export default function useDailyDraft(
     } finally {
       if (generationAbort.current === controller) generationAbort.current = null
     }
-  }, [canGenerate, generationPayload, acceptGeneration, canonical, values])
+  }, [canGenerate, generationPayload, acceptGeneration, canonical, values, setAttachments])
 
   useEffect(() => {
     if (existingLoading || sourcesLoading || recoveredScope.current === scopeKey) return
@@ -486,7 +494,6 @@ export default function useDailyDraft(
     includedCount: included.length,
     toggleActivity,
     transcript,
-    setTranscript,
     attachments: files.attachments,
     addAttachments,
     removeAttachment,

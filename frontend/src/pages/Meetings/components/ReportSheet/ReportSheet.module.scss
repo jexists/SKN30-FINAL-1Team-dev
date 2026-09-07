@@ -1,5 +1,6 @@
 .root {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
 }
@@ -26,6 +27,9 @@
  * 짊어집니다. 여기에 더 얹지 않습니다.
  */
 .sheet {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   padding: var(--s7) var(--s6);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
@@ -92,11 +96,11 @@
 }
 
 /*
- * 아직 쓸 것이 없는 상태. 종이 크기의 빈 사각형을 띄우면 무엇이 잘못된 것처럼
- * 보입니다. 시트는 안내에 필요한 만큼만 서고, 내용이 생기면 그때 자랍니다.
+ * 작성 전에도 보고서 영역의 남는 높이를 쓰되, 단일 열에서는 내용 높이로 선다.
  */
 .blank {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -147,6 +151,11 @@
 
 /* 인쇄에는 조작부가 남지 않습니다. 시트도 종이 위 종이가 되지 않게 폅니다. */
 @media print {
+  .root,
+  .sheet.sheet {
+    display: block;
+  }
+
   .actions.actions {
     display: none;
   }

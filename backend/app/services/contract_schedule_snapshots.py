@@ -34,8 +34,20 @@ _CONTRACT_REVISIT_DUE_AFTER_DAYS = 7
 _CONTRACT_REVISIT_URGENT_AFTER_DAYS = 14
 _SCHEDULE_SEARCH_PADDING_DAYS = 7
 _DEFAULT_PREFERRED_WINDOW_DAYS = 7
+# 계약관리가 준 선호 기간이 이 폭보다 좁으면 끝을 밀어 이만큼 확보한다.
+#
+# 실행 145건 실측: 폭이 1일 이하인 34건은 후보가 평균 2.0개(0개로 끝난 실행 2건)였고,
+# 7일 이상인 35건은 평균 5.9개(0개 0건)였다. 게다가 그 34건이 낸 후보 69개 중 선호 기간을
+# 실제로 지킨 것은 15개뿐이었다 — 좁은 기간은 지켜지지도 않은 채 결과만 나빴다.
+#
+# 선호 기간이 아예 없을 때 쓰는 폭과 같은 값으로 맞춘다. 기준을 두 개 두지 않는다.
+_MIN_PREFERRED_WINDOW_DAYS = _DEFAULT_PREFERRED_WINDOW_DAYS
 # 자료실 검색 API 의 q 상한과 맞춘다.
 _BRIEFING_QUERY_MAX_CHARS = 500
+# C/S 상태는 received·diagnosing·in_progress·completed 네 가지고(app/schemas/support.py),
+# 끝난 것은 completed 뿐이다. in_progress 만 보면 접수·원인파악 단계의 미해결 요청이
+# 위험 신호에서 통째로 빠진다.
+_OPEN_SUPPORT_STATUSES = ("received", "diagnosing", "in_progress")
 # 청크 하나가 최대 1,600자라 5건이면 문맥 블록 상한(12,000자) 안에 든다.
 _BRIEFING_DOCUMENT_LIMIT = 5
 
@@ -165,12 +177,12 @@ async def _deal_ids_with_upcoming_activity(
 async def _unresolved_support_signals(
     db: AsyncSession, member: Member, customer_company_id: UUID
 ) -> list[dict[str, Any]]:
-    """이 회사에 걸린, 아직 처리 중인 C/S 요청."""
+    """이 회사에 걸린, 아직 끝나지 않은 C/S 요청."""
     result = await db.execute(
         select(SupportRequest).where(
             SupportRequest.team_id == member.team_id,
             SupportRequest.customer_company_id == customer_company_id,
-            SupportRequest.status_code == "in_progress",
+            SupportRequest.status_code.in_(_OPEN_SUPPORT_STATUSES),
         )
     )
     signals: list[dict[str, Any]] = []
@@ -551,9 +563,23 @@ async def build_briefing_snapshot(
     company = await _company_or_404(db, member, customer_company_id)
     deals = await _open_deals(db, member, customer_company_id)
 
+    # 다음 미팅 제안(build_next_meeting_snapshot)과 같은 규칙으로 계산한다. 브리핑 프롬프트가
+    # "risks 는 입력의 risk_signals 에 있는 항목만 사용한다"고 지시하므로, 이 값을 빼면 LLM 이
+    # 지시를 지킬수록 risks 가 반드시 빈 목록이 된다.
+    deal_ids = [deal.id for deal, _stage in deals]
+    last_activity = await _last_activity_by_deal(db, member, deal_ids)
+    today = datetime.now(UTC).date()
+
+    risk_signals: list[dict[str, Any]] = []
+    for deal, stage in deals:
+        risk_signals.extend(_deal_risk_signals(deal, stage, last_activity.get(deal.id), today))
+    # C/S 미해결은 딜이 아니라 고객사에 붙는 신호라 함께 넣는다.
+    risk_signals.extend(await _unresolved_support_signals(db, member, customer_company_id))
+
     return {
         "customer_company": {"id": str(company.id), "name": company.name},
         "sales_deals": [_deal_summary(deal, stage) for deal, stage in deals],
+        "risk_signals": risk_signals,
         "approved_next_meeting": {
             "activity_id": str(activity.id),
             "sales_deal_id": str(activity.sales_deal_id) if activity.sales_deal_id else None,
@@ -635,6 +661,16 @@ async def build_schedule_snapshot(
     else:
         window_start = datetime.fromisoformat(preferred_starts_at)
         window_end = datetime.fromisoformat(preferred_ends_at)
+        # 좁은 선호 기간은 첫 실행 전에 넓힌다. 계약관리가 "30분 한 칸"처럼 좁은 기간을
+        # 줄 때가 있는데, 그 폭으로는 쓸 만한 후보가 나오지 않는다.
+        #
+        # 끝만 뒤로 민다. 시작을 당기면 계약관리가 의도한 시점보다 앞선 시간을 제안하게
+        # 되는데, "왜 지금인가"는 계약관리의 판단이라 여기서 뒤집지 않는다.
+        widened_end = window_start + timedelta(days=_MIN_PREFERRED_WINDOW_DAYS)
+        if widened_end > window_end:
+            window_end = widened_end
+            preferred_starts_at = window_start.isoformat()
+            preferred_ends_at = window_end.isoformat()
 
     padding = timedelta(days=_SCHEDULE_SEARCH_PADDING_DAYS)
     activities = (

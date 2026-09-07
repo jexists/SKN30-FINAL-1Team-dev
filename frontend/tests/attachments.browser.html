@@ -10,27 +10,51 @@
     <script type="module">
       import { act, createElement } from 'react'
       import { createRoot } from 'react-dom/client'
-      import useAttachments from '../src/shared/useAttachments.ts'
+      import { BrowserRouter } from 'react-router'
+      import useAttachments, { kindOf } from '../src/shared/useAttachments.ts'
+      import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
+      import MeetingInputPanel from '../src/pages/Meetings/components/MeetingInputPanel/MeetingInputPanel.tsx'
+      import DealReportCard from '../src/pages/Meetings/components/DealReportCard/DealReportCard.tsx'
+      import meetingStyles from '../src/pages/Meetings/Compose.module.scss'
       import { client } from '../src/api/client.ts'
+      import { toMeetingReport } from '../src/pages/Meetings/useMeetingReports.ts'
+      import '../src/styles/global.scss'
 
       window.IS_REACT_ACT_ENVIRONMENT = true
       const result = document.getElementById('result')
       const root = createRoot(document.getElementById('test-root'))
       const pendingRequests = []
       let hook
+      let draft
+      let savedReport
 
       function Harness() {
         hook = useAttachments()
         return null
       }
 
+      function MeetingHarness() {
+        draft = useMeetingDraft(savedReport ? { id: savedReport.agendaId } : undefined, savedReport)
+        return createElement(MeetingInputPanel, {
+          attachments: draft.attachments,
+          onAttach: draft.addAttachments,
+          onRemoveAttachment: draft.removeAttachment,
+          onExtractChange: draft.setAttachmentExtract,
+          attachmentError: draft.attachmentError,
+          transcript: draft.transcript,
+          onTranscriptChange: draft.setTranscript,
+          disabled: false,
+        })
+      }
+
       const responseFor = (file, id, config) => ({
         data: {
           id,
-          kind: 'audio',
+          kind: kindOf(file),
           name: file.name,
           byte_size: file.size,
           extract: '합성 전사',
+          original_stored: true,
         },
         status: 201,
         statusText: 'OK',
@@ -52,7 +76,7 @@
           const first = new File(['audio'], 'meeting.mp3', { type: 'audio/mpeg' })
           let firstUpload
           await act(async () => {
-            firstUpload = hook.addAttachments([first])
+            firstUpload = hook.addAttachments([first], 'meeting_source')
             await Promise.resolve()
           })
           check(hook.pending === true, '업로드 중 pending=true')
@@ -67,6 +91,8 @@
             await firstUpload
           })
           check(hook.pending === false, '업로드 완료 후 pending=false')
+          check(hook.attachments[0].originalStored === true, '업로드 응답의 원본 보관 표시 유지')
+          check(hook.attachments[0].purpose === 'meeting_source', '업로드 응답 후 원문 목적 유지')
           check(
             hook.attachments.length === 1 && hook.attachments[0].state === 'done',
             '업로드 완료 후 done',
@@ -99,9 +125,386 @@
             '지연 응답이 삭제된 첨부를 부활시키지 않음',
           )
           check(hook.pending === false, '삭제 후 pending=false')
+
+          await act(async () => hook.setAttachments([]))
+          const photo = new File(['image'], 'notes.jpg', { type: 'image/jpeg' })
+          const pdf = new File(['pdf'], 'notes.pdf', { type: 'application/pdf' })
+          await act(async () => hook.addAttachments([first], 'meeting_source', ['image', 'pdf']))
+          check(
+            pendingRequests.length === 0 &&
+              hook.attachments.length === 0 &&
+              hook.attachmentError.includes('사진·PDF'),
+            'OCR에 음성을 선택하면 업로드 전에 거부',
+          )
+          let sttUpload, ocrUpload
+          await act(async () => {
+            sttUpload = hook.addAttachments([photo, first], 'meeting_source', ['audio'])
+            ocrUpload = hook.addAttachments([first, photo, pdf], 'meeting_source', ['image', 'pdf'])
+            await Promise.resolve()
+          })
+          check(
+            pendingRequests.length === 3 &&
+              hook.attachments.map((item) => item.kind).join() === 'audio,image,pdf',
+            '동시 STT·OCR 혼합 선택에서 허용한 종류만 같은 첨부 목록에 추가',
+          )
+          await act(async () => {
+            for (const file of [pdf, photo, first]) {
+              const index = pendingRequests.findIndex(
+                (request) => request.config.data.get('upload').name === file.name,
+              )
+              const request = pendingRequests.splice(index, 1)[0]
+              request.resolve(responseFor(file, `kind-${file.name}`, request.config))
+            }
+            await Promise.all([sttUpload, ocrUpload])
+          })
+          check(
+            hook.attachments.every(
+              (item) => item.purpose === 'meeting_source' && item.state === 'done',
+            ),
+            'STT·OCR 역순 응답에서도 원문 목적·완료 상태 보존',
+          )
+
+          await act(async () => {
+            hook.setAttachments(
+              Array.from({ length: 9 }, (_, index) => ({
+                ...hook.attachments[0],
+                id: `existing-${index}`,
+                purpose: index < 5 ? 'meeting_source' : 'reference',
+              })),
+            )
+          })
+          let lastUpload
+          await act(async () => {
+            lastUpload = hook.addAttachments([first, removed], 'reference')
+            await Promise.resolve()
+          })
+          check(hook.attachments.length === 10, '원문·참고자료 합계 10개 제한')
+          check(hook.attachmentError.includes('최대 10개'), '합산 제한 안내')
+          await act(async () => {
+            const request = pendingRequests.shift()
+            request.resolve(responseFor(first, 'reference-last', request.config))
+            await lastUpload
+          })
+          check(hook.attachments.at(-1).purpose === 'reference', '참고 오디오 목적 유지')
+
+          await act(async () => root.render(createElement(MeetingHarness)))
+          const source = {
+            id: 'source-photo',
+            kind: 'image',
+            purpose: 'meeting_source',
+            name: '현장메모.jpg',
+            byte_size: 1024,
+            extract: '교정 전 기록',
+          }
+          const reference = {
+            id: 'reference-audio',
+            kind: 'audio',
+            purpose: 'reference',
+            name: '제품소개.mp3',
+            byte_size: 2048,
+            extract: '제품 배경 설명',
+          }
+          const audioSource = {
+            ...source,
+            id: 'source-audio',
+            kind: 'audio',
+            name: '미팅녹음.m4a',
+            extract: '교정 전 음성 전사',
+          }
+          const input = {
+            report_kind: 'meeting',
+            transcript: '직접 쓴 원문',
+            sales_deal_ids: ['deal-1'],
+            attachments: [source, reference, audioSource],
+            content: {},
+          }
+          await act(async () => draft.restoreGenerationInput(input))
+          await act(async () => draft.applyDocument('deal-1', '기존 작성 본문'))
+          await act(async () =>
+            draft.acceptGenerated('old-run', {
+              evidence: { selected_deal_ids: ['deal-1'] },
+              analyses: [],
+              errors: {},
+              reports: {
+                deal_reports: [],
+                common_report: { body: '기존 공통 메모', evidence_ids: [] },
+                unassigned_report: null,
+              },
+            }),
+          )
+          check(draft.meetingResult.runId === 'old-run', '교정 전 생성 참조 존재')
+          const inputs = [...document.querySelectorAll('input[type="file"]')]
+          check(
+            inputs.length === 3 &&
+              inputs[0].accept === '.mp3,.m4a,.wav,.webm' &&
+              inputs[1].accept === '.png,.jpg,.jpeg,.webp,.pdf' &&
+              inputs[2].accept.includes('.mp3'),
+            'STT·OCR 선택기 필터를 분리하고 참고자료는 모든 기존 종류 허용',
+          )
+          for (const input of inputs) {
+            let clickedInput
+            input.addEventListener(
+              'click',
+              (event) => {
+                clickedInput = event.target
+                event.preventDefault()
+              },
+              { once: true },
+            )
+            await act(async () => input.parentElement.querySelector('button').click())
+            check(clickedInput === input, '각 파일 추가 버튼은 자기 선택기를 열음')
+          }
+          const sourceToggle = document.querySelector('[aria-controls$="source-photo-extract"]')
+          const sourceDisclosure = sourceToggle.closest('details')
+          check(!sourceDisclosure.open, '파일 원문 목록은 기본 접힘')
+          await act(async () => sourceDisclosure.querySelector('summary').click())
+          await act(async () => sourceToggle.click())
+          const editor = document.querySelector('[aria-label="현장메모.jpg 추출 원문 확인·수정"]')
+          check(Boolean(editor), '원문 파일만 교정칸 표시')
+          await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(
+              editor,
+              '교정한 미팅 기록',
+            )
+            editor.dispatchEvent(new Event('input', { bubbles: true }))
+          })
+          check(draft.attachments[0].extract === '교정한 미팅 기록', '교정문 상태 반영')
+          check(draft.meetingResult.runId === undefined, '원문 교정 시 이전 생성 참조 무효화')
+          check(
+            draft.draftsByDeal['deal-1'].values.body === '기존 작성 본문',
+            '교정 후 기존 본문 보존',
+          )
+          check(
+            draft.meetingResult.shared.common_report.body === '기존 공통 메모',
+            '교정 후 공통 메모 보존',
+          )
+          await act(async () => sourceToggle.click())
+          await act(async () => sourceToggle.click())
+          check(
+            document.querySelector('[aria-label="현장메모.jpg 추출 원문 확인·수정"]').value ===
+              '교정한 미팅 기록',
+            '접기·펼치기 후 교정 보존',
+          )
+          const audioToggle = document.querySelector('[aria-controls$="source-audio-extract"]')
+          const audioDisclosure = audioToggle.closest('details')
+          check(
+            audioDisclosure !== sourceDisclosure && !audioDisclosure.open,
+            'STT·OCR는 독립된 기본 접힘 영역',
+          )
+          await act(async () => audioDisclosure.querySelector('summary').click())
+          await act(async () => audioToggle.click())
+          const audioEditor = document.querySelector(
+            '[aria-label="미팅녹음.m4a 추출 원문 확인·수정"]',
+          )
+          await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(
+              audioEditor,
+              '교정한 음성 전사',
+            )
+            audioEditor.dispatchEvent(new Event('input', { bubbles: true }))
+          })
+          const direct = document.getElementById('transcript')
+          const directDisclosure = direct.closest('details')
+          check(directDisclosure && !directDisclosure.open, '직접 입력은 기본 접힘이며 값 유지')
+          await act(async () => directDisclosure.querySelector('summary').click())
+          await act(async () => directDisclosure.querySelector('summary').click())
+          check(
+            !directDisclosure.open &&
+              sourceToggle.getAttribute('aria-expanded') === 'true' &&
+              audioToggle.getAttribute('aria-expanded') === 'true',
+            '직접 입력을 접어도 OCR·STT 파일은 각각 펼침 유지',
+          )
+          await act(async () => audioToggle.click())
+          check(
+            !directDisclosure.open && sourceToggle.getAttribute('aria-expanded') === 'true',
+            'STT 파일을 접어도 직접 입력·OCR 토글 상태는 독립',
+          )
+          await act(async () => audioToggle.click())
+          check(
+            document.querySelector('[aria-label="미팅녹음.m4a 추출 원문 확인·수정"]').value ===
+              '교정한 음성 전사',
+            'STT 파일 접기·펼치기 후 교정문 보존',
+          )
+          await act(async () => {
+            directDisclosure.querySelector('summary').click()
+            draft.acceptGenerated('before-direct-edit', {
+              evidence: { selected_deal_ids: ['deal-1'] },
+              analyses: [],
+              errors: {},
+              reports: {
+                deal_reports: [],
+                common_report: { body: '기존 공통 메모', evidence_ids: [] },
+                unassigned_report: null,
+              },
+            })
+          })
+          await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(
+              direct,
+              '직접 고친 원문',
+            )
+            direct.dispatchEvent(new Event('input', { bubbles: true }))
+          })
+          await act(async () => directDisclosure.querySelector('summary').click())
+          await act(async () => directDisclosure.querySelector('summary').click())
+          check(
+            direct.value === '직접 고친 원문' && draft.transcript === '직접 고친 원문',
+            '직접 입력 교정 후 접기·펼치기 값 보존',
+          )
+          check(
+            draft.meetingResult.runId === undefined &&
+              draft.draftsByDeal['deal-1'].values.body === '기존 작성 본문' &&
+              draft.meetingResult.shared.common_report.body === '기존 공통 메모',
+            '직접 입력 교정은 생성 참조만 무효화하고 딜 본문·공통 메모 보존',
+          )
+          const referenceToggle = document.querySelector(
+            '[aria-controls$="reference-audio-extract"]',
+          )
+          const referenceDisclosure = referenceToggle.closest('details')
+          check(!referenceDisclosure.open, '참고자료는 기본 접힘')
+          await act(async () => referenceDisclosure.querySelector('summary').click())
+          await act(async () => referenceToggle.click())
+          check(
+            document.querySelector('[id$="reference-audio-extract"]').tagName === 'P',
+            '참고자료는 읽기 전용 미리보기',
+          )
+          await act(async () => {
+            draft.removeAttachment(source.id)
+            draft.removeAttachment(audioSource.id)
+          })
+          check(draft.transcript === '직접 고친 원문', '원문 파일 삭제 후 직접 입력 보존')
+          check(draft.canGenerate === true, '직접 입력만 있어도 생성 가능')
+          await act(async () => draft.setTranscript(''))
+          check(draft.canGenerate === false, '참고 오디오만으로 미팅 생성 불가')
+          await act(async () =>
+            draft.restoreGenerationInput({
+              ...input,
+              attachments: [source, reference],
+              transcript: '',
+            }),
+          )
+          check(draft.canGenerate === true, 'OCR 원문만으로 미팅 생성 가능')
+
+          savedReport = toMeetingReport({
+            id: 'synthetic-completed',
+            author_member_id: 'synthetic-author',
+            author_display_name: '합성 작성자',
+            source_activity_id: 'synthetic-agenda',
+            report_date: '2026-09-07',
+            status_code: 'submitted',
+            template_snapshot: { id: 'synthetic-template', fields: [] },
+            content: {},
+            common_body: '보존할 보고서 본문',
+            deal_sections: [],
+            transcript: source.extract,
+            direct_transcript: '',
+            attachments: [{ ...source, original_stored: true }],
+          })
+          await act(async () => root.render(createElement(MeetingHarness, { key: 'completed' })))
+          check(
+            draft.transcript === '',
+            '완료 후 재편집은 빈 직접 입력을 canonical 합산 원문으로 채우지 않음',
+          )
+          check(draft.attachments[0].extract === source.extract, '원문 파일 교정문은 별도로 복구')
+          check(draft.attachments[0].originalStored === true, '완료 후 재편집 원본 ID 보존')
+          check(
+            draft.meetingResult?.shared?.common_report?.body === '보존할 보고서 본문',
+            '재편집 보고서 본문 보존',
+          )
+
+          const longBody = Array.from(
+            { length: 18 },
+            (_, index) =>
+              `${index + 1}. 고객은 영업팀 20명부터 시범 도입을 검토합니다. 보안 검토 후 적용 범위와 일정을 결정합니다.`,
+          ).join('\n\n')
+          await act(async () =>
+            root.render(
+              createElement(
+                BrowserRouter,
+                null,
+                createElement(
+                  'div',
+                  { className: meetingStyles.layout, style: { height: 600 } },
+                  createElement('div', { style: { minHeight: 0 } }),
+                  createElement(
+                    'section',
+                    { className: meetingStyles.work },
+                    createElement(
+                      'div',
+                      { className: meetingStyles.reports },
+                      ...[longBody, '짧은 보고서 본문'].map((body, index) =>
+                        createElement(DealReportCard, {
+                          key: index,
+                          dealId: `layout-deal-${index}`,
+                          when: '합성 미팅',
+                          draft: {
+                            statusCode: 'draft',
+                            phase: 'ready',
+                            title: '합성 보고서',
+                            values: { body },
+                            docKey: 0,
+                            generationError: null,
+                            analysisPhase: 'idle',
+                          },
+                          saving: false,
+                          generating: false,
+                          canGenerate: true,
+                          readOnly: false,
+                          onTitleChange() {},
+                          onChange() {},
+                          onStartManual() {},
+                          onGenerate() {},
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+          const deadline = performance.now() + 2000
+          while (
+            document.querySelectorAll('.mce-content-body').length < 2 &&
+            performance.now() < deadline
+          ) {
+            await act(async () => new Promise((resolve) => requestAnimationFrame(resolve)))
+          }
+          const editors = [...document.querySelectorAll('.mce-content-body')]
+          check(editors.length === 2, '실제 TinyMCE 딜 보고서 두 개 렌더')
+          check(editors[0].querySelectorAll('li').length === 18, '긴 본문 마지막 문단 렌더')
+          check(
+            editors.every((editor) => {
+              const card = editor.closest('article[class*="DealReportCard"]')
+              return (
+                card.scrollHeight <= card.clientHeight + 1 &&
+                editor.getBoundingClientRect().bottom <= card.getBoundingClientRect().bottom
+              )
+            }),
+            '긴·짧은 딜 본문은 카드 높이보다 넘치거나 숨겨지지 않음',
+          )
+          const reportScroll = document.querySelector(`.${meetingStyles.reports}`)
+          check(
+            reportScroll.scrollHeight > reportScroll.clientHeight,
+            '긴 보고서는 목록 한 곳에서 스크롤',
+          )
+          reportScroll.scrollTop = reportScroll.scrollHeight
+          check(
+            editors.at(-1).getBoundingClientRect().bottom <=
+              reportScroll.getBoundingClientRect().bottom,
+            '목록 스크롤로 마지막 딜 본문까지 접근',
+          )
+          check(
+            document.documentElement.scrollHeight <=
+              Math.max(
+                innerHeight,
+                document.body.getBoundingClientRect().bottom,
+                document.getElementById('test-root').getBoundingClientRect().bottom,
+              ) +
+                1,
+            '스크롤 안의 숨김 제목 label이 바깥 페이지 높이를 늘리지 않음',
+          )
         } finally {
           client.defaults.adapter = originalAdapter
-          await act(async () => root.unmount())
         }
       }
 

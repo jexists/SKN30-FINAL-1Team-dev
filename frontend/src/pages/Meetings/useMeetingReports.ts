@@ -115,8 +115,8 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     review: reviewOf(item.status_code, content.on_hold === true),
     apiStatus: item.status_code,
     transcript: item.transcript ?? '',
-    // 첨부는 생성 AgentRun에만 남는 일회용 입력입니다.
-    attachments: [],
+    directTranscript: item.direct_transcript ?? undefined,
+    attachments: attachmentsFromPayload(item.attachments ?? []),
     dealSections,
     version: item.version,
     currentSubmissionId: item.current_submission_id,
@@ -268,6 +268,7 @@ export function meetingFinalizeRequestOf(
   return {
     ...meetingRequestOf(draft),
     idempotency_key: idempotencyKey,
+    attachments: attachmentPayloadsOf(draft.attachments),
     ...(agentRunId ? { agent_run_id: agentRunId } : {}),
     ...(draft.reportId && draft.version && revisionStatus
       ? {

@@ -97,6 +97,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   meeting_analysis_failed: '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
   report_attachment_extraction_failed:
     '첨부 파일에서 내용을 읽지 못했습니다. 파일을 확인한 뒤 다시 올려 주세요.',
+  report_attachment_expired: '첨부 원본이 만료되었거나 없습니다. 파일을 다시 올려 주세요.',
   report_attachment_ocr_too_large:
     '문자 인식할 페이지나 이미지가 너무 많습니다. 더 짧은 파일로 나눠 올려 주세요.',
   report_attachment_text_too_large:

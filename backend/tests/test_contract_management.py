@@ -314,10 +314,45 @@ async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monke
     assert json.loads(payload) == {
         "customer_company": {"id": "company-1", "name": "테스트 병원"},
         "sales_deals": [],
+        "risk_signals": [],
         "approved_next_meeting": approved_next_meeting,
     }
     assert block.startswith("<document_context>")
     assert "관련 자료가 검색되지 않았다" in block
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_sends_risk_signals(monkeypatch):
+    """프롬프트가 risk_signals 에 있는 위험만 쓰라고 지시하므로 근거를 실제로 보내야 한다.
+
+    보내지 않으면 LLM 이 지시를 지킬수록 risks 가 반드시 빈 목록이 된다.
+    """
+    captured = {}
+    expected = contract_management.ContractBriefingOutput(contract_summary="요약입니다.")
+
+    async def fake_generate_structured(**kwargs):
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    risk_signals = [
+        {
+            "code": "contract_expiring",
+            "severity": "high",
+            "sales_deal_id": "deal-1",
+            "source_refs": [{"type": "sales_deal", "id": "deal-1"}],
+            "detail": "contract_ends_on=2026-09-20",
+        }
+    ]
+    snapshot = {
+        "customer_company": {"id": "company-1", "name": "테스트 병원"},
+        "risk_signals": risk_signals,
+    }
+
+    await contract_management.generate_briefing(snapshot)
+
+    payload, _, _block = captured["input_text"].partition("\n")
+    assert json.loads(payload)["risk_signals"] == risk_signals
 
 
 @pytest.mark.anyio

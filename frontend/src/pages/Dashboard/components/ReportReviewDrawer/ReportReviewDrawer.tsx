@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import Button from '@/components/Button'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import Drawer from '@/components/Drawer'
 import ReportBody from '@/components/ReportBody'
 import StatusBadge from '@/components/StatusBadge'
@@ -18,6 +19,7 @@ import { isReviewable, reviewLabel, reviewReport } from '@/shared/reviewDecision
 import { showToast } from '@/shared/toast'
 import { errorMessage } from '@/api/errorMessage'
 import type { MeetingReport } from '@/types'
+import { meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import RejectReasonModal from '../RejectReasonModal'
 
@@ -69,6 +71,24 @@ export function ReportReviewContents({ report }: { report: MeetingReport }) {
               {section.evidence && <p className={styles.evidence}>{section.evidence}</p>}
             </section>
           ))}
+
+      {report.attachments.length > 0 &&
+        (
+          [
+            ['미팅 원문 파일', 'meeting_source'],
+            ['참고자료', 'reference'],
+          ] as const
+        ).map(([label, purpose]) => {
+          const attachments = report.attachments.filter(
+            (attachment) => meetingAttachmentPurposeOf(attachment) === purpose,
+          )
+          return attachments.length > 0 ? (
+            <section className={styles.section} key={purpose}>
+              <h3 className={styles.heading}>{label}</h3>
+              <AttachmentPanel attachments={attachments} reportId={report.id} readOnly />
+            </section>
+          ) : null
+        })}
     </>
   )
 }

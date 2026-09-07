@@ -11,7 +11,7 @@ from sqlalchemy.exc import MultipleResultsFound
 
 from app.agents import contract_management
 from app.models.agent import AgentRun
-from app.models.crm import Activity, CustomerCompany
+from app.models.crm import Activity, CustomerCompany, SupportRequest
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import contract_schedule_snapshots as snapshots
@@ -397,6 +397,24 @@ async def test_recent_finalized_reports_are_linked_by_report_deal():
 
 
 @pytest.mark.anyio
+async def test_unresolved_support_signals_cover_every_open_status():
+    """끝나지 않은 C/S 는 상태와 무관하게 모두 위험 신호가 된다.
+
+    in_progress 만 조회하면 접수(received)·원인파악(diagnosing) 단계의 요청이 통째로 빠져,
+    브리핑과 다음 미팅 제안 양쪽에서 그 위험이 보이지 않는다.
+    """
+    member = _member()
+    company_id = uuid4()
+    db = _Db(_Result(scalar_values=[]))
+
+    await snapshots._unresolved_support_signals(db, member, company_id)
+
+    params = list(db.statements[0].compile().params.values())
+    assert ["received", "diagnosing", "in_progress"] in params
+    assert "completed" not in str(db.statements[0].compile().params)
+
+
+@pytest.mark.anyio
 async def test_recent_finalized_reports_limits_reports_before_joining_deal_sections():
     """한 보고서의 여러 딜 섹션이 최근 보고서 5건 제한을 잠식하지 않는다."""
     member = _member()
@@ -619,6 +637,13 @@ async def test_contract_report_context_rejects_malformed_normalized_body(
 async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
     member = _member()
     deal = _deal(member)
+    # 날짜를 박아 두면 그날이 지난 뒤에는 기간이 통째로 버려지는데, 이 테스트는 기간을
+    # 단언하지 않아 그래도 통과한다 — 이름과 달리 아무것도 검사하지 않게 된다.
+    base = datetime.now(UTC)
+    preferred_starts_at = (base + timedelta(days=2)).isoformat()
+    preferred_ends_at = (
+        base + timedelta(days=2 + snapshots._MIN_PREFERRED_WINDOW_DAYS)
+    ).isoformat()
     parent = AgentRun(
         id=uuid4(),
         team_id=member.team_id,
@@ -628,8 +653,8 @@ async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
             "next_meeting_suggestion": {
                 "sales_deal_id": str(deal.id),
                 "reason": "계약 갱신 협의",
-                "preferred_starts_at": "2026-08-25T00:00:00+09:00",
-                "preferred_ends_at": "2026-08-28T00:00:00+09:00",
+                "preferred_starts_at": preferred_starts_at,
+                "preferred_ends_at": preferred_ends_at,
                 "duration_minutes": 45,
             }
         },
@@ -655,6 +680,9 @@ async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
 
     assert snapshot["duration_minutes"] == 45
     assert snapshot["reason"] == "계약 갱신 협의"
+    # 이 테스트의 이름이 주장하는 것. 없으면 기간이 버려져도 통과한다.
+    assert snapshot["preferred_starts_at"] == preferred_starts_at
+    assert snapshot["preferred_ends_at"] == preferred_ends_at
     assert snapshot["activities"] == [
         {
             "id": str(activity.id),
@@ -675,19 +703,90 @@ async def test_build_schedule_snapshot_without_parent_uses_request_preferred_win
         _Result(scalar_values=[]),
     )
 
+    # 날짜를 박아 두면 그날이 지나는 순간 build_schedule_snapshot 이 시작을 now 로 당겨
+    # (max) 다른 분기를 탄다 — 오늘이 언제든 미래가 되도록 now 기준으로 만든다.
+    base = datetime.now(UTC)
+    starts_at = (base + timedelta(days=3)).isoformat()
+    # 최소 폭보다 넓게 잡는다. 좁으면 끝이 밀려 "요청값을 그대로 쓴다"를 검사하지 못한다.
+    ends_at = (base + timedelta(days=3 + snapshots._MIN_PREFERRED_WINDOW_DAYS)).isoformat()
+
     snapshot = await snapshots.build_schedule_snapshot(
         db,
         member,
         deal.id,
         None,
-        "2099-09-01T00:00:00+09:00",
-        "2099-09-03T00:00:00+09:00",
+        starts_at,
+        ends_at,
         30,
     )
 
-    assert snapshot["preferred_starts_at"] == "2099-09-01T00:00:00+09:00"
+    assert snapshot["preferred_starts_at"] == starts_at
+    assert snapshot["preferred_ends_at"] == ends_at
     assert snapshot["duration_minutes"] == 30
     assert snapshot["reason"] is None
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_widens_a_narrow_preferred_window():
+    """계약관리가 "30분 한 칸"을 줘도 첫 실행 전에 최소 폭을 확보한다.
+
+    좁은 기간으로는 후보가 거의 나오지 않는다 — 실측에서 폭 1일 이하 실행의 평균 후보는
+    2.0개였다. 실패한 뒤에 넓혀 다시 부르는 대신, 부르기 전에 넓힌다.
+    """
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+    base = datetime.now(UTC)
+    starts_at = (base + timedelta(days=3)).isoformat()
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        starts_at,
+        (base + timedelta(days=3, minutes=30)).isoformat(),
+        30,
+    )
+
+    # 시작은 계약관리의 판단이라 그대로 두고 끝만 민다.
+    assert snapshot["preferred_starts_at"] == starts_at
+    assert (
+        snapshot["preferred_ends_at"]
+        == (
+            datetime.fromisoformat(starts_at) + timedelta(days=snapshots._MIN_PREFERRED_WINDOW_DAYS)
+        ).isoformat()
+    )
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_drops_a_preferred_window_already_past():
+    """이미 지난 선호 기간은 버리고 기본 탐색 범위로 넘긴다.
+
+    과거 날짜는 시간이 흘러도 계속 과거라, 여기서는 박아 둬도 썩지 않는다.
+    """
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db,
+        member,
+        deal.id,
+        None,
+        "2020-01-01T09:00:00+09:00",
+        "2020-01-03T18:00:00+09:00",
+        30,
+    )
+
+    assert snapshot["preferred_starts_at"] is None
+    assert snapshot["preferred_ends_at"] is None
 
 
 @pytest.mark.anyio
@@ -868,12 +967,14 @@ async def test_next_meeting_snapshot_rejects_a_deal_outside_the_company():
 # ---- build_briefing_snapshot: 자료요약 RAG 연결 ----
 
 
-def _briefing_db(member, company, activity, deals):
-    """build_briefing_snapshot 이 순서대로 실행하는 세 쿼리에 대한 답."""
+def _briefing_db(member, company, activity, deals, *, last_activity=None, support=None):
+    """build_briefing_snapshot 이 순서대로 실행하는 다섯 쿼리에 대한 답."""
     return _Db(
         _Result(rows=[(activity, company)]),  # 일정 + 고객사
         _Result(scalar=company),  # _company_or_404
         _Result(rows=deals),  # _open_deals
+        _Result(rows=last_activity or []),  # _last_activity_by_deal
+        _Result(scalar_values=support or []),  # _unresolved_support_signals
     )
 
 
@@ -923,6 +1024,56 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
     assert captured["query"] == "테스트 병원 계약 갱신 미팅 초음파 장비 계약"
     assert snapshot["document_context"] == context
     assert "sales_deal.customer_company_id = public.customer_company.id" in str(db.statements[0])
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_carries_deal_risk_signals(monkeypatch):
+    """브리핑 프롬프트는 risk_signals 에 있는 위험만 쓰라고 지시한다 — 근거를 같이 실어야 한다."""
+    member, company, deal, activity = _briefing_fixture()
+    deal.contract_ends_on = date.today() + timedelta(days=3)
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())]),
+        member,
+        activity.id,
+    )
+
+    codes = [signal["code"] for signal in snapshot["risk_signals"]]
+    assert "contract_expiring" in codes
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_carries_unresolved_support_signals(monkeypatch):
+    """C/S 미해결은 딜이 아니라 고객사에 붙는 신호다 — 브리핑에도 같이 실어야 한다."""
+    member, company, deal, activity = _briefing_fixture()
+    support = SupportRequest(
+        id=uuid4(),
+        team_id=member.team_id,
+        customer_company_id=company.id,
+        sales_deal_id=deal.id,
+        title="장비 오작동 접수",
+        status_code="in_progress",
+        is_urgent=True,
+    )
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())], support=[support]),
+        member,
+        activity.id,
+    )
+
+    codes = [signal["code"] for signal in snapshot["risk_signals"]]
+    assert "unresolved_support" in codes
 
 
 @pytest.mark.anyio

@@ -75,7 +75,7 @@ async def signed_url(*, storage_key: str, expires_in: int = 60) -> str:
     return f"{settings.supabase_project_url}/storage/v1{signed}"
 
 
-async def download(*, storage_key: str) -> bytes:
+async def download(*, storage_key: str, max_bytes: int | None = None) -> bytes:
     """서버 내부 문서 처리용 원본 다운로드. storage_key 는 응답에 노출하지 않는다."""
     _require_config()
     url = _endpoint(f"object/{settings.supabase_storage_bucket}/{storage_key}")
@@ -86,13 +86,13 @@ async def download(*, storage_key: str) -> bytes:
         raise StorageError(f"storage_request_failed:{type(error).__name__}") from error
     if response.status_code >= 400:
         raise StorageError(f"storage_download_failed:{response.status_code}")
-    if len(response.content) > settings.upload_max_bytes:
+    if len(response.content) > (settings.upload_max_bytes if max_bytes is None else max_bytes):
         raise StorageError("storage_download_too_large")
     return response.content
 
 
 async def remove(*, storage_key: str) -> bool:
-    """객체 삭제를 시도하고, 실제 성공 여부를 반환한다."""
+    """삭제됐거나 이미 없는 객체만 성공으로 반환한다."""
     _require_config()
     url = _endpoint(f"object/{settings.supabase_storage_bucket}/{storage_key}")
     try:
@@ -101,4 +101,10 @@ async def remove(*, storage_key: str) -> bool:
     except httpx.HTTPError:
         # 호출부가 재시도 가능한 상태를 남길 수 있도록 실패를 명시한다.
         return False
+    if response.status_code == 404:
+        try:
+            body = response.json()
+        except ValueError:
+            return False
+        return isinstance(body, dict) and body.get("code") == "NoSuchKey"
     return 200 <= response.status_code < 300

@@ -94,6 +94,37 @@
   color: var(--ink-2);
   font-size: 12px;
   line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.editor {
+  display: grid;
+  gap: var(--s2);
+  margin-top: var(--s3);
+
+  label {
+    color: var(--ink-2);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  textarea {
+    width: 100%;
+    padding: var(--s3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.7;
+    resize: vertical;
+
+    &:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-ring);
+    }
+  }
 }
 
 .remove {
@@ -117,4 +148,48 @@
   padding: var(--s3) 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.fileActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+
+  button:disabled {
+    color: var(--muted);
+    cursor: wait;
+  }
+}
+
+.error {
+  color: var(--red-ink);
+  font-size: 13px;
+  margin-top: var(--s3);
+}
+
+.previewImage {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  margin: auto;
+  object-fit: contain;
+}
+
+.previewAudio,
+.previewPdf {
+  display: block;
+  width: 100%;
+}
+
+.previewPdf {
+  height: 55vh;
+  border: 0;
+}
+
+@media print {
+  .fileActions,
+  .previewHost {
+    display: none;
+  }
 }

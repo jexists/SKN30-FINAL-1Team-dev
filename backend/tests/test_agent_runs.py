@@ -85,6 +85,8 @@ class _Db:
 
     async def execute(self, statement):
         self.statements.append(statement)
+        if "from public.report_attachment" in str(statement).lower():
+            return _Result(scalars=[])
         assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
         return self.results.pop(0)
 
@@ -480,6 +482,99 @@ def test_report_generation_input_has_one_typed_scope():
         ReportGenerationScope(report_kind="weekly", period_start=date(2026, 8, 1))
 
 
+@pytest.mark.parametrize("kind", ["audio", "image", "pdf"])
+def test_meeting_source_purpose_accepts_extraction_without_direct_input(kind):
+    values = {
+        **_daily_payload(),
+        "report_kind": "meeting",
+        "source_activity_id": str(uuid4()),
+        "attachments": [
+            {
+                "id": str(uuid4()),
+                "kind": kind,
+                "name": "미팅 기록",
+                "byte_size": 1,
+                "extract": "확인한 미팅 원문",
+                "purpose": "meeting_source",
+            }
+        ],
+    }
+    payload = ReportGenerationCreate.model_validate(values)
+    assert payload.transcript is None
+    assert payload.effective_meeting_transcript() == "확인한 미팅 원문"
+    values["attachments"][0]["purpose"] = "reference"
+    with pytest.raises(ValidationError, match="transcript_required"):
+        ReportGenerationCreate.model_validate(values)
+
+
+@pytest.mark.parametrize("kind", ["audio", "image", "pdf"])
+def test_period_generation_rejects_source_purpose_but_keeps_legacy_attachments(kind):
+    attachment = {
+        "id": str(uuid4()),
+        "kind": kind,
+        "name": "배경 자료",
+        "byte_size": 1,
+        "extract": "미팅 발언이 아닌 참고자료",
+    }
+    for purpose in (None, "reference"):
+        value = attachment if purpose is None else {**attachment, "purpose": purpose}
+        payload = ReportGenerationCreate.model_validate(_daily_payload(attachments=[value]))
+        assert payload.transcript is None
+        assert payload.attachments[0].extract == attachment["extract"]
+    with pytest.raises(ValidationError, match="meeting_attachment_not_supported"):
+        ReportGenerationCreate.model_validate(
+            _daily_payload(attachments=[{**attachment, "purpose": "meeting_source"}])
+        )
+
+
+@pytest.mark.anyio
+async def test_legacy_generation_reconnect_and_replay_preserve_attachment_hash(llm_ready):
+    member = _member()
+    legacy = {
+        "idempotency_key": str(uuid4()),
+        "report_kind": "meeting",
+        "report_date": "2026-08-17",
+        "period_start": None,
+        "period_end": None,
+        "source_activity_id": str(uuid4()),
+        "sales_deal_ids": [],
+        "attachments": [
+            {
+                "id": str(uuid4()),
+                "kind": "audio",
+                "name": "legacy.m4a",
+                "byte_size": 1,
+                "extract": "이전 음성 원문",
+            }
+        ],
+        "template_snapshot": TEMPLATE,
+        "content": {},
+        "transcript": None,
+        "guidance": None,
+    }
+    existing = _run(member, key=UUID(legacy["idempotency_key"]), status_code="running")
+    existing.agent_code = "meeting_processing"
+    existing.scope_key = f"meeting:{legacy['source_activity_id']}"
+    existing.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    existing.request_snapshot = {
+        key: value for key, value in legacy.items() if key != "idempotency_key"
+    }
+    existing.request_hash = service._request_hash(legacy)
+    restored = service._generation_input_read(existing, member.id)
+    assert restored is not None
+    assert restored.model_dump(mode="json") == existing.request_snapshot
+    payload = ReportGenerationCreate.model_validate(
+        {
+            **restored.model_dump(mode="json"),
+            "idempotency_key": legacy["idempotency_key"],
+        }
+    )
+    db = _Db(_Result(scalar=existing))
+    result, queued = await service.create_report_generation(payload, member, db)
+    assert result.id == existing.id and queued is None
+    assert db.added == []
+
+
 @pytest.mark.parametrize("field_name", ["template_snapshot", "content"])
 def test_report_generation_rejects_oversized_json_fields(field_name):
     oversized = (
@@ -699,7 +794,17 @@ async def test_meeting_generation_combines_manual_and_audio_only_for_agent_input
         template_snapshot=TEMPLATE,
         content={},
         transcript="사용자가 직접 입력한 원문",
-        attachments=[attachment],
+        attachments=[
+            attachment,
+            {
+                **attachment,
+                "id": str(uuid4()),
+                "kind": "image",
+                "purpose": "meeting_source",
+                "extract": "교정한 현장 기록",
+            },
+            {**attachment, "id": str(uuid4()), "purpose": "reference", "extract": "배경 음성"},
+        ],
     )
 
     async def snapshot(_db, owner, source_activity_id, deal_ids, transcript, attachments):
@@ -714,7 +819,7 @@ async def test_meeting_generation_combines_manual_and_audio_only_for_agent_input
 
     assert agent_code == "meeting_processing"
     assert input_snapshot["source"]["transcript"] == (
-        "사용자가 직접 입력한 원문\n\n음성에서 추출한 원문"
+        "사용자가 직접 입력한 원문\n\n음성에서 추출한 원문\n\n교정한 현장 기록"
     )
     assert payload.model_dump(mode="json")["transcript"] == "사용자가 직접 입력한 원문"
 
@@ -1253,16 +1358,32 @@ async def test_meeting_children_are_not_duplicated_for_a_completed_parent(monkey
 
 
 @pytest.mark.anyio
-async def test_partial_analysis_retry_reuses_frozen_input_and_allows_finalized_parent():
+@pytest.mark.parametrize("code", ["meeting_analysis", "meeting_report_writing"])
+async def test_child_retry_preserves_frozen_source_and_attachment_roles(code):
     member = _member()
     parent = _run(member, status_code="completed")
-    parent.report_id = uuid4()
+    parent.report_id = uuid4() if code == "meeting_analysis" else None
     parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     child = _run(member, status_code="partial")
-    child.agent_code = "meeting_analysis"
+    child.agent_code = code
     child.parent_run_id = parent.id
     child.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
-    child.input_snapshot = {"evidence": {"transcript_sha256": "a" * 64}}
+    child.input_snapshot = {
+        "source": {"transcript": "직접 원문\n\n교정한 OCR 원문"},
+        "evidence": {"transcript_sha256": "a" * 64},
+    }
+    if code == "meeting_report_writing":
+        child.input_snapshot["attachments"] = [
+            {
+                "id": str(uuid4()),
+                "kind": "audio",
+                "purpose": "reference",
+                "name": "배경 음성",
+                "byte_size": 1,
+                "extract": "제품 참고자료",
+            }
+        ]
+    child.request_hash = service._request_hash(child.input_snapshot)
     db = _Db(
         _Result(scalar=child),
         _Result(scalar=parent),
@@ -1276,6 +1397,7 @@ async def test_partial_analysis_retry_reuses_frozen_input_and_allows_finalized_p
     assert retry_id == retry.id == read.id
     assert retry.agent_code == child.agent_code
     assert retry.input_snapshot == child.input_snapshot
+    assert retry.request_hash == child.request_hash
     assert retry.parent_run_id == parent.id
 
 

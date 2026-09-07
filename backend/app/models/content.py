@@ -174,11 +174,33 @@ class ReportSubmission(Base):
     request_hash: Mapped[str | None]
     snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
     snapshot_sha256: Mapped[str]
+    attachments_snapshot: Mapped[Any | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     review_status: Mapped[str] = mapped_column(server_default=text("'pending'::text"))
     reviewed_by_member_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.member.id"))
     reviewed_at: Mapped[datetime | None]
     review_note: Mapped[str | None]
     submitted_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class ReportAttachment(Base):
+    """업로드한 원본. 확정 후에는 한 보고서의 제출 이력에서만 재사용한다."""
+
+    __tablename__ = "report_attachment"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
+    uploaded_by_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    report_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.report.id"))
+    file_name: Mapped[str]
+    storage_key: Mapped[str]
+    media_type: Mapped[str]
+    byte_size: Mapped[int] = mapped_column(BigInteger)
+    # NULL인 행은 Storage 업로드가 아직 완료되지 않았다. 원본 키는 실패 정리에도 필요하다.
+    extracted_text: Mapped[str | None]
+    expires_at: Mapped[datetime | None]
+    uploaded_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
 class ReportSource(Base):

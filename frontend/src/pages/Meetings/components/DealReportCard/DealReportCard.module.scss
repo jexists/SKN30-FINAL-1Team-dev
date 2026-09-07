@@ -1,4 +1,7 @@
 .card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -117,6 +120,9 @@
 }
 
 .body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   border-top: 1px solid var(--line);
 }
 
@@ -146,6 +152,7 @@
 
 @media print {
   .card {
+    display: block;
     margin-bottom: var(--s6);
     overflow: visible;
     border: 0;

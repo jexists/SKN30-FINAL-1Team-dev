@@ -1,8 +1,11 @@
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from app.api.deps import get_current_member
 from app.core.config import settings
@@ -27,29 +30,58 @@ def _member() -> Member:
     )
 
 
-def _client(member: Member) -> TestClient:
-    async def unexpected_db():
-        raise AssertionError("일회용 첨부 API가 DB를 요청했습니다.")
+class _UploadDb:
+    def __init__(self, *, fail_commit: int | None = None):
+        self.rows = []
+        self.deleted = []
+        self.commits = 0
+        self.rollbacks = 0
+        self.fail_commit = fail_commit
+
+    def add(self, row):
+        self.rows.append(row)
+
+    async def execute(self, statement):
+        assert "FOR UPDATE" in str(statement)
+        return SimpleNamespace(scalar_one_or_none=lambda: self.rows[0] if self.rows else None)
+
+    async def delete(self, row):
+        self.deleted.append(row)
+
+    async def commit(self):
+        self.commits += 1
+        if self.commits == self.fail_commit:
+            raise RuntimeError("synthetic database failure")
+
+    async def rollback(self):
+        self.rollbacks += 1
+
+
+def _client(member: Member, db=None) -> TestClient:
+    async def override_db():
+        return db or _UploadDb()
 
     async def override_member():
         return member
 
-    app.dependency_overrides[get_db] = unexpected_db
+    app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_member] = override_member
     return TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def reset_dependencies():
+def reset_dependencies(monkeypatch):
     app.dependency_overrides.clear()
+    monkeypatch.setattr(settings, "supabase_url", "https://storage.invalid")
+    monkeypatch.setattr(settings, "supabase_storage_bucket", "synthetic")
+    monkeypatch.setattr(settings, "supabase_secret_key", SecretStr("synthetic"))
+    monkeypatch.setattr(storage, "upload", AsyncMock())
+    monkeypatch.setattr(storage, "remove", AsyncMock(return_value=True))
     yield
     app.dependency_overrides.clear()
 
 
-def test_upload_extracts_without_database_or_durable_storage(monkeypatch):
-    async def unexpected_storage(**_kwargs):
-        raise AssertionError("일회용 첨부를 영구 스토리지에 저장했습니다.")
-
+def test_upload_keeps_original_with_owner_metadata_and_expiry(monkeypatch):
     async def extract(**kwargs):
         assert kwargs == {
             "file_name": "proposal.pdf",
@@ -62,10 +94,9 @@ def test_upload_extracts_without_database_or_durable_storage(monkeypatch):
             payload={"version": 1, "source_type": "pdf"},
         )
 
-    monkeypatch.setattr(storage, "upload", unexpected_storage)
     monkeypatch.setattr(report_attachments, "extract", extract)
-
-    with _client(_member()) as client:
+    member, db = _member(), _UploadDb()
+    with _client(member, db) as client:
         response = client.post(
             "/api/report-attachments",
             headers={"Origin": ORIGIN},
@@ -74,7 +105,7 @@ def test_upload_extracts_without_database_or_durable_storage(monkeypatch):
 
     assert response.status_code == 201
     body = response.json()
-    assert set(body) == {"id", "kind", "name", "byte_size", "extract"}
+    assert set(body) == {"id", "kind", "name", "byte_size", "extract", "original_stored"}
     assert UUID(body["id"])
     assert body | {"id": None} == {
         "id": None,
@@ -82,7 +113,17 @@ def test_upload_extracts_without_database_or_durable_storage(monkeypatch):
         "name": "proposal.pdf",
         "byte_size": len(PDF),
         "extract": "서버가 추출한 제안 조건",
+        "original_stored": True,
     }
+    row = db.rows[0]
+    assert row.team_id == member.team_id and row.uploaded_by_member_id == member.id
+    assert row.report_id is None and row.extracted_text == body["extract"]
+    assert row.expires_at - row.uploaded_at == report_attachments.PENDING_RETENTION
+    assert row.storage_key.startswith(f"{member.team_id}/") and "proposal" not in row.storage_key
+    storage.upload.assert_awaited_once_with(
+        storage_key=row.storage_key, content=PDF, media_type="application/pdf"
+    )
+    assert db.commits == 2
 
 
 def test_upload_maps_extraction_failure_without_leaking_provider_detail(monkeypatch):
@@ -203,3 +244,81 @@ def test_large_runpod_ocr_is_rejected_without_storage(monkeypatch):
                 content=b"large",
             )
         )
+
+
+@pytest.mark.parametrize(
+    "fail_commit,storage_error,removed",
+    [
+        (1, False, True),
+        (2, False, True),
+        (2, False, False),
+        (None, True, False),
+    ],
+)
+def test_upload_failure_keeps_cleanup_retryable(monkeypatch, fail_commit, storage_error, removed):
+    monkeypatch.setattr(
+        report_attachments,
+        "extract",
+        AsyncMock(
+            return_value=ExtractedDocument(
+                plain_text="합성 추출문", markdown="합성 추출문", payload={}
+            )
+        ),
+    )
+    if storage_error:
+        storage.upload.side_effect = storage.StorageError("storage_request_failed:Timeout")
+    storage.remove.return_value = removed
+    db = _UploadDb(fail_commit=fail_commit)
+    with _client(_member(), db) as client:
+        if fail_commit:
+            with pytest.raises(RuntimeError, match="synthetic database failure"):
+                client.post(
+                    "/api/report-attachments",
+                    headers={"Origin": ORIGIN},
+                    files={"upload": ("proposal.pdf", PDF, "application/pdf")},
+                )
+        else:
+            response = client.post(
+                "/api/report-attachments",
+                headers={"Origin": ORIGIN},
+                files={"upload": ("proposal.pdf", PDF, "application/pdf")},
+            )
+            assert response.status_code == 503
+    if fail_commit == 1:
+        storage.upload.assert_not_awaited()
+        storage.remove.assert_not_awaited()
+    else:
+        storage.remove.assert_awaited_once()
+        assert bool(db.deleted) == removed
+        if not removed:
+            assert (
+                db.rows[0].expires_at
+                <= db.rows[0].uploaded_at + report_attachments.PENDING_RETENTION
+            )
+    assert db.rollbacks >= 1
+
+
+@pytest.mark.parametrize(
+    "name,media,content,expected",
+    [
+        ("../proposal.pdf", "application/pdf", PDF, 422),
+        ("proposal.pdf", "image/png", PDF, 415),
+        ("proposal.pdf", "application/pdf", b"not a pdf", 415),
+        ("payload.html", "text/html", b"<html>bad</html>", 415),
+        ("proposal.pdf", "application/pdf", b"", 422),
+    ],
+)
+def test_invalid_original_never_reaches_storage(monkeypatch, name, media, content, expected):
+    extract = AsyncMock()
+    monkeypatch.setattr(report_attachments, "extract", extract)
+    db = _UploadDb()
+    with _client(_member(), db) as client:
+        response = client.post(
+            "/api/report-attachments",
+            headers={"Origin": ORIGIN},
+            files={"upload": (name, content, media)},
+        )
+    assert response.status_code == expected
+    assert not db.rows
+    extract.assert_not_awaited()
+    storage.upload.assert_not_awaited()

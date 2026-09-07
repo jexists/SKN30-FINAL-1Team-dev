@@ -1,12 +1,10 @@
-// 보고서 작성 화면들이 함께 쓰는 일회용 첨부 목록.
-//
-// 서버는 이 요청에서 파일을 검증·추출만 하고 보관하지 않습니다. 화면은 반환된
-// 추출 객체를 생성 AgentRun에만 보내고 최종 보고서에는 저장하지 않습니다.
+// 보고서 작성 화면들이 공유하는 첨부 목록. 서버가 보관한 원본 ID와 교정된
+// 추출 내용을 생성 입력·최종 제출본에 함께 보존합니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
 import { uploadReportAttachment } from '@/api/reportAttachments'
-import type { AttachmentKind, ReportAttachment } from '@/types'
+import type { AttachmentKind, AttachmentPurpose, ReportAttachment } from '@/types'
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.m4a', '.wav', '.webm'])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
@@ -49,13 +47,23 @@ export default function useAttachments() {
   )
 
   const addAttachments = useCallback(
-    async (files: FileList | File[]) => {
+    async (
+      files: FileList | File[],
+      purpose: AttachmentPurpose = 'reference',
+      acceptedKinds?: readonly AttachmentKind[],
+    ) => {
       const supported = Array.from(files)
         .map((file) => ({ file, kind: kindOf(file) }))
-        .filter((entry): entry is { file: File; kind: AttachmentKind } => entry.kind !== null)
+        .filter(
+          (entry): entry is { file: File; kind: AttachmentKind } =>
+            entry.kind !== null && (!acceptedKinds || acceptedKinds.includes(entry.kind)),
+        )
+      const formatError = acceptedKinds
+        ? `이 입력에는 ${acceptedKinds.map((kind) => ({ audio: '음성', image: '사진', pdf: 'PDF' })[kind]).join('·')} 파일만 넣을 수 있습니다.`
+        : 'MP3·M4A·WAV·WebM 음성, PNG·JPG·WebP 사진, PDF만 넣을 수 있습니다.'
 
       if (supported.length === 0) {
-        setAttachmentError('MP3·M4A·WAV·WebM 음성, PNG·JPG·WebP 사진, PDF만 넣을 수 있습니다.')
+        setAttachmentError(formatError)
         return
       }
       const picked = supported.slice(0, Math.max(0, MAX_ATTACHMENTS - current.current.length))
@@ -64,7 +72,11 @@ export default function useAttachments() {
         return
       }
       setAttachmentError(
-        picked.length < supported.length ? '첨부 파일은 최대 10개까지 넣을 수 있습니다.' : null,
+        picked.length < supported.length
+          ? '첨부 파일은 최대 10개까지 넣을 수 있습니다.'
+          : supported.length < files.length
+            ? formatError
+            : null,
       )
 
       const added = picked.map(({ file, kind }) => ({
@@ -72,6 +84,7 @@ export default function useAttachments() {
         item: {
           id: crypto.randomUUID(),
           kind,
+          purpose,
           name: file.name,
           byteSize: file.size,
           state: 'analyzing' as const,
@@ -95,12 +108,16 @@ export default function useAttachments() {
               previous.map((attachment) =>
                 attachment.id === item.id
                   ? ({
+                      ...attachment,
                       id: uploaded.id,
                       kind: uploaded.kind,
                       name: uploaded.name,
                       byteSize: uploaded.byte_size,
                       state: 'done',
                       extract: uploaded.extract,
+                      ...(uploaded.original_stored
+                        ? { originalStored: uploaded.original_stored }
+                        : {}),
                     } satisfies ReportAttachment)
                   : attachment,
               ),
@@ -133,6 +150,17 @@ export default function useAttachments() {
     [updateAttachments],
   )
 
+  const setAttachmentExtract = useCallback(
+    (id: string, extract: string) => {
+      updateAttachments((previous) =>
+        previous.map((item) =>
+          item.id === id && item.state === 'done' ? { ...item, extract } : item,
+        ),
+      )
+    },
+    [updateAttachments],
+  )
+
   return {
     attachments,
     /** AgentRun 복구 입력을 그대로 얹을 때 씁니다. */
@@ -142,5 +170,6 @@ export default function useAttachments() {
     pending: attachments.some((attachment) => attachment.state === 'analyzing'),
     addAttachments,
     removeAttachment,
+    setAttachmentExtract,
   }
 }

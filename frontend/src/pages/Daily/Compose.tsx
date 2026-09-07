@@ -10,6 +10,7 @@ import { useCallback, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import Button, { buttonClass } from '@/components/Button'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import DayHeader from '@/components/DayHeader'
 import ErrorToast from '@/components/ErrorToast'
 import { ChevronRightIcon } from '@/components/icons'
@@ -20,8 +21,6 @@ import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, dailyReportPath, ROUTES } from '@/constants/routes'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
-
-import MeetingInputPanel from '@/pages/Meetings/components/MeetingInputPanel'
 
 import ActivityList from './components/ActivityList'
 import DailyListLink from './components/DailyListLink'
@@ -304,27 +303,37 @@ export default function Compose() {
             )}
           </article>
 
-          {/*
-            넣는 것을 모은 면. 업무보고서 작성 화면과 같은 판을 그대로 씁니다 —
-            첨부도, 직접 적는 칸도, 누르는 버튼도 두 화면에서 같은 것이어야 합니다.
-            AI 가 채우는 항목이 없는 양식에서는 초안 생성이 없어 판도 서지 않습니다.
-          */}
           {draft.hasAiFields && (
             <div className={styles.input}>
-              <MeetingInputPanel
+              <h2 className={styles.inputTitle}>
+                보고서 참고자료 <span>선택</span>
+              </h2>
+              <AttachmentPanel
                 attachments={draft.attachments}
                 onAttach={(files) => void draft.addAttachments(files)}
-                onRemoveAttachment={draft.removeAttachment}
-                attachmentError={draft.attachmentError}
-                transcript={draft.transcript}
-                onTranscriptChange={draft.setTranscript}
-                contentLabel={`${kind}보고 내용 (선택)`}
-                canGenerate={draft.canGenerate}
-                generating={draft.phase === 'generating'}
-                // 다시 만드는 버튼이 따로 없습니다. 이 자리 하나로 처음도 다시도 누릅니다.
-                disabled={locked || pending || draft.recovering || draft.phase === 'generating'}
-                onGenerate={onGenerate}
+                onRemove={draft.removeAttachment}
+                note="하위 보고서를 보충할 참고자료를 첨부하세요. 첨부하지 않아도 보고서를 작성할 수 있습니다."
+                readOnly={locked || pending || draft.recovering || draft.phase === 'generating'}
               />
+              {draft.attachmentError && (
+                <p className={styles.failed} role="alert">
+                  {draft.attachmentError}
+                </p>
+              )}
+              <Button
+                type="button"
+                className={styles.generate}
+                disabled={
+                  locked ||
+                  pending ||
+                  draft.recovering ||
+                  !draft.canGenerate ||
+                  draft.phase === 'generating'
+                }
+                onClick={onGenerate}
+              >
+                {draft.phase === 'generating' ? 'AI 보고서 작성 중…' : 'AI 보고서 작성'}
+              </Button>
             </div>
           )}
         </div>

@@ -5,7 +5,13 @@
 // 매번 갈라지면 같은 코드를 두 벌 갖게 됩니다. 그래서 화면에 필요한 것만 여기서
 // 한 모양으로 만들고, 아래쪽 컴포넌트는 이 타입 하나만 압니다.
 import { dailyReportPath, meetingReportPath } from '@/constants/routes'
-import type { DailyReport, MeetingReport, MeetingReportStatus, ReportStatus } from '@/types'
+import type {
+  DailyReport,
+  MeetingReport,
+  MeetingReportStatus,
+  ReportAttachment,
+  ReportStatus,
+} from '@/types'
 
 import { reportTitle } from './periods'
 
@@ -18,6 +24,7 @@ export interface ListRow {
   title: string
   /** 드로어에 생략 없이 표시하는 보고서 본문 */
   body: string
+  attachments: ReportAttachment[]
   /** 제목 아래 한 줄. 활동·첨부 건수이거나 메모입니다. */
   meta: string
   /** 오른쪽 끝 값. 일일은 보고 대상, 미팅은 고객사입니다. */
@@ -47,6 +54,7 @@ export function fromDailyReport(report: DailyReport): ListRow {
     kindLabel: report.kind,
     title: reportTitle(report),
     body: report.values.body ?? '',
+    attachments: report.attachments,
     meta:
       acts > 0 || files > 0
         ? `활동 ${acts}건${files > 0 ? ` · 첨부 ${files}건` : ''}`
@@ -85,6 +93,7 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     // 미팅 제목은 그 자리에서 정한 말이라 어느 병원인지가 붙어야 알아봅니다.
     title: [report.hospital, report.title].filter(Boolean).join(' · '),
     body,
+    attachments: report.attachments,
     meta: [
       `${report.time} · ${report.contact}`,
       dealLabels.length > 0 ? `딜 ${dealLabels.length}건` : '',

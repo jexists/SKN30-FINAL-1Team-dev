@@ -26,6 +26,10 @@ export default function MeetingSharedPanel({
   const commonBody = shared?.common_report?.body ?? ''
   const unassignedBody = shared?.unassigned_report?.body ?? ''
   const previews = progress?.previews.filter((preview) => preview.section !== 'deal') ?? []
+  const supporting =
+    onChange &&
+    !showCommon &&
+    (generating ? previews.length > 1 : shared?.common_report && shared?.unassigned_report)
   if (
     !showCommon &&
     !shared?.common_report &&
@@ -36,10 +40,14 @@ export default function MeetingSharedPanel({
     return null
 
   return (
-    <section className={styles.panel} aria-label="미팅 공통·미지정 기록" aria-busy={generating}>
+    <section
+      className={`${styles.panel} ${supporting ? styles.supporting : ''}`}
+      aria-label="미팅 공통·미지정 기록"
+      aria-busy={generating}
+    >
       <div className={styles.heading}>
         <h2>미팅 공통 기록</h2>
-        <span>공통 내용 아래에 딜 미지정 내용을 함께 표시</span>
+        <span>미팅 공통 내용과 확인이 필요한 기록</span>
       </div>
       {generating && previews.length === 0 && (
         <div className={styles.section}>
@@ -47,7 +55,10 @@ export default function MeetingSharedPanel({
         </div>
       )}
       {previews.map((preview) => (
-        <div className={styles.section} key={preview.section}>
+        <div
+          className={`${styles.section} ${preview.section === 'unassigned' ? styles.needsReview : ''}`}
+          key={preview.section}
+        >
           <p className={styles.note}>
             {preview.section === 'common' ? '공통 내용' : '딜 미지정 · 확인 필요'}
           </p>
@@ -74,13 +85,16 @@ export default function MeetingSharedPanel({
         ]
           .filter((part) => part.report || (showCommon && part.key === 'common'))
           .map((part) => (
-            <div className={styles.section} key={part.key}>
+            <div
+              className={`${styles.section} ${part.key === 'unassigned' ? styles.needsReview : ''}`}
+              key={part.key}
+            >
               {onChange ? (
                 <>
                   <label htmlFor={id + part.key}>{part.title}</label>
                   <textarea
                     id={id + part.key}
-                    rows={4}
+                    rows={showCommon && part.key === 'common' ? 6 : 3}
                     value={part.value}
                     disabled={disabled}
                     placeholder="기록된 내용이 없습니다."
