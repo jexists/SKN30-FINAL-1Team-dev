@@ -57,9 +57,24 @@ _company = aliased(CustomerCompany)
 _deal = aliased(SalesDeal)
 _product = aliased(Product)
 _uploader = aliased(Member)
+# 자료의 담당 영업을 캐는 길. 딜에 붙은 자료는 그 딜의 담당이, 고객 담당자에 붙은
+# 자료는 그 담당자의 담당 영업이 주인이다.
+_deal_owner = aliased(Member)
+_contact = aliased(CustomerContact)
+_contact_owner = aliased(Member)
 
 # 문서 한 줄을 읽을 때 늘 함께 가져오는 칸들. _document_read 인자 순서와 같습니다.
-_READ_COLUMNS = (Document, _creator.display_name, _company.name, _deal.deal_no, _product.name)
+_READ_COLUMNS = (
+    Document,
+    _creator.display_name,
+    _company.name,
+    _deal.deal_no,
+    _product.name,
+    _deal.owner_member_id,
+    _deal_owner.display_name,
+    _contact.owner_member_id,
+    _contact_owner.display_name,
+)
 
 # 자료실 목록에서 빼는 분류. 명함 보관본은 고객 명함을 등록할 때 원본 이미지를 붙여 두는
 # 것이라 자료실이 다루는 영업 문서가 아니다. 문서 하나를 여는 길(_detail)은 막지 않는다.
@@ -93,6 +108,9 @@ def _joined_select(*entities):
         .outerjoin(_company, Document.customer_company_id == _company.id)
         .outerjoin(_deal, Document.sales_deal_id == _deal.id)
         .outerjoin(_product, Document.product_id == _product.id)
+        .outerjoin(_deal_owner, _deal.owner_member_id == _deal_owner.id)
+        .outerjoin(_contact, Document.customer_contact_id == _contact.id)
+        .outerjoin(_contact_owner, _contact.owner_member_id == _contact_owner.id)
     )
 
 
@@ -130,8 +148,24 @@ def _document_read(
     company_name: str | None,
     deal_no: str | None,
     product_name: str | None,
+    deal_owner_member_id: UUID | None,
+    deal_owner_display_name: str | None,
+    contact_owner_member_id: UUID | None,
+    contact_owner_display_name: str | None,
     file: DocumentFileRead | None,
 ) -> DocumentRead:
+    # 목록의 담당자 칸. 딜이 있으면 딜의 담당 영업, 없으면 고객 담당자의 담당 영업,
+    # 그것도 없으면 자료를 만든 사람이다. 발주만 붙은 예전 자료도 여기로 떨어진다.
+    if deal_owner_member_id is not None:
+        owner_member_id = deal_owner_member_id
+        owner_display_name = deal_owner_display_name or created_by_display_name
+    elif contact_owner_member_id is not None:
+        owner_member_id = contact_owner_member_id
+        owner_display_name = contact_owner_display_name or created_by_display_name
+    else:
+        owner_member_id = document.created_by_member_id
+        owner_display_name = created_by_display_name
+
     return DocumentRead(
         id=document.id,
         document_no=document.document_no,
@@ -148,6 +182,8 @@ def _document_read(
         product_name=product_name,
         created_by_member_id=document.created_by_member_id,
         created_by_display_name=created_by_display_name,
+        owner_member_id=owner_member_id,
+        owner_display_name=owner_display_name,
         created_at=_seoul(document.created_at),
         file=file,
     )

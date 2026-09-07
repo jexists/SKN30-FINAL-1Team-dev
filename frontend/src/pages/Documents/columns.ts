@@ -49,7 +49,7 @@ export const DOCUMENT_COLUMNS: DocumentColumn[] = [
     text: (d) => sizeLabel(fileOf(d).bytes),
     sortValue: (d) => fileOf(d).bytes,
   },
-  { id: 'owner', header: '등록자', width: 96, sortable: true, text: (d) => fileOf(d).owner },
+  { id: 'owner', header: '담당자', width: 96, sortable: true, text: (d) => d.owner },
   {
     id: 'uploaded',
     header: '등록일',

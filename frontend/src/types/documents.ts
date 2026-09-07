@@ -45,6 +45,12 @@ export interface SalesDocument {
   link: DocumentLink
   /** 화면의 '메모'. 목록에서 이 자료가 무엇인지 알아볼 한 줄입니다. */
   description: string
+  /**
+   * 담당 영업. 연결된 딜·고객 담당자의 담당이고, 연결이 없으면 자료를 만든 사람입니다.
+   * 파일을 올린 사람(file.owner)과는 다릅니다.
+   */
+  owner: string
+  ownerMemberId: string
   file: DocumentFile
 }
 
@@ -92,6 +98,8 @@ export interface DocumentResponse {
   product_name: string | null
   created_by_member_id: string
   created_by_display_name: string
+  owner_member_id: string
+  owner_display_name: string
   created_at: string
   file: DocumentFileResponse | null
 }

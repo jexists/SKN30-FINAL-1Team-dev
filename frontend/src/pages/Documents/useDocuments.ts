@@ -93,6 +93,8 @@ function toDocument(item: DocumentResponse): SalesDocument {
             ? { kind: '발주', id: item.purchase_order_id, label: item.purchase_order_id }
             : { kind: 'none', id: '', label: '' },
     description: item.description ?? '',
+    owner: item.owner_display_name,
+    ownerMemberId: item.owner_member_id,
     // 파일을 아직 올리지 않은 자료도 목록에는 서야 해서 빈 칸을 채워 둡니다.
     file: file ?? {
       documentId: item.id,

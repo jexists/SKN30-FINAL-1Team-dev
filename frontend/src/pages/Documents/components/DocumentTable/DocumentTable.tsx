@@ -6,6 +6,7 @@ import { useMemo } from 'react'
 
 import Button from '@/components/Button'
 import { ArrowUpIcon, DocumentsIcon, DownloadIcon, SearchIcon, SortIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import { BP_DESKTOP } from '@/constants/breakpoints'
 import type { SalesDocument } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
@@ -90,7 +91,7 @@ export default function DocumentTable({
               <p className={styles.miniLink}>{linkLabel(doc) || KIND_LABEL[doc.kind]}</p>
               <div className={styles.miniMeta}>
                 <span className="tnum">{sizeLabel(file.bytes)}</span>
-                <span>{file.owner}</span>
+                {showOwner && <OwnerName name={doc.owner} memberId={doc.ownerMemberId} />}
                 <span className="tnum">{fmtDotShort(parseISO(file.uploaded))}</span>
                 <button
                   type="button"
@@ -201,6 +202,8 @@ export default function DocumentTable({
                       </span>
                     ) : col.id === 'link' && doc.link.kind === 'none' ? (
                       <span className={styles.none}>—</span>
+                    ) : col.id === 'owner' ? (
+                      <OwnerName name={doc.owner} memberId={doc.ownerMemberId} />
                     ) : col.id === 'download' ? (
                       // 상세를 열지 않고 파일을 바로 받습니다. 줄 클릭과 겹치므로 멈춰 세웁니다.
                       <button

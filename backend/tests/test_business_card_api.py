@@ -279,6 +279,8 @@ def test_business_card_archive_links_original_to_contact(monkeypatch):
             tags=["business_card", "archive"],
             created_by_member_id=member.id,
             created_by_display_name=member.display_name,
+            owner_member_id=member.id,
+            owner_display_name=member.display_name,
             created_at="2026-08-25T00:00:00Z",
             file=None,
         )

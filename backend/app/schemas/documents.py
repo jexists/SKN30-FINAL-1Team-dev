@@ -164,6 +164,9 @@ class DocumentRead(BaseModel):
     product_name: str | None
     created_by_member_id: UUID
     created_by_display_name: str
+    # 목록의 담당자 칸. 연결된 딜·고객 담당자의 담당 영업이고, 연결이 없으면 만든 사람이다.
+    owner_member_id: UUID
+    owner_display_name: str
     created_at: datetime
     # 자료 하나에 파일 하나다. 아직 올리지 않았으면 없다.
     file: DocumentFileRead | None
