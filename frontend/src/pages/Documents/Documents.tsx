@@ -6,10 +6,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
+import { errorMessage } from '@/api/errorMessage'
 import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
+import Modal from '@/components/Modal'
 import { UploadIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
@@ -20,9 +22,10 @@ import { addDays, iso, TODAY } from '@/utils/date'
 
 import CategoryTabs from './components/CategoryTabs'
 import DocumentDrawer from './components/DocumentDrawer'
+import DocumentEditModal from './components/DocumentEditModal'
 import DocumentTable from './components/DocumentTable'
 import UploadModal, { type UploadResult } from './components/UploadModal'
-import useDocuments from './useDocuments'
+import useDocuments, { type DocumentMeta } from './useDocuments'
 
 import styles from './Documents.module.scss'
 
@@ -54,6 +57,9 @@ export default function Documents() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [openFilter, setOpenFilter] = useState<'owner' | 'range' | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [reviewQueue, setReviewQueue] = useState<{ documentId: string; fileId: string }[]>([])
   const [reviewQueueError, setReviewQueueError] = useState<string | null>(null)
 
@@ -99,6 +105,8 @@ export default function Documents() {
     pending,
     reload,
     addDocument,
+    updateDocument,
+    removeDocument,
     queueSummaries,
     summarizeFile,
     loadSummary,
@@ -197,6 +205,33 @@ export default function Documents() {
     [reload, reviewQueue],
   )
 
+  const saveDocument = useCallback(
+    async (meta: Partial<DocumentMeta>) => {
+      if (!openDoc) return
+      try {
+        await updateDocument(openDoc.id, meta)
+        setEditing(false)
+      } catch {
+        // 훅이 세운 오류 안내를 위쪽 토스트가 이미 보여 줍니다. 모달은 열어 둡니다.
+      }
+    },
+    [openDoc, updateDocument],
+  )
+
+  const confirmDelete = useCallback(async () => {
+    if (!openDoc) return
+    setDeleteError(null)
+    try {
+      await removeDocument(openDoc.id)
+      setDeleting(false)
+      setOpenId(null)
+      // 목록에서는 빠졌지만 분류 탭 옆 건수는 서버가 셉니다. 다시 받아 맞춥니다.
+      reload()
+    } catch (reason: unknown) {
+      setDeleteError(errorMessage(reason, '자료를 삭제하지 못했습니다.'))
+    }
+  }, [openDoc, reload, removeDocument])
+
   const isFiltered =
     query.trim() !== '' || owner !== '' || category !== '' || range !== DEFAULT_RANGE
 
@@ -293,7 +328,54 @@ export default function Documents() {
           autoLoadSummaryFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
           onSummaryCompleted={completeQueuedSummary}
           onApproveSummary={approveOpenDocument}
+          canDelete={isManager}
+          onEdit={() => setEditing(true)}
+          onDelete={() => {
+            setDeleteError(null)
+            setDeleting(true)
+          }}
         />
+      )}
+
+      {editing && openDoc && (
+        <DocumentEditModal
+          // 드로어와 형제라 같은 키를 쓸 수 없습니다. 자료가 바뀌면 입력값을 새로 채웁니다.
+          key={`edit-${openDoc.id}`}
+          doc={openDoc}
+          submitting={pending}
+          onClose={() => setEditing(false)}
+          onSubmit={(meta) => void saveDocument(meta)}
+        />
+      )}
+
+      {deleting && openDoc && (
+        <Modal
+          title="자료를 삭제하시겠습니까?"
+          description={openDoc.title}
+          onClose={() => setDeleting(false)}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => setDeleting(false)}
+              >
+                취소
+              </Button>
+              <Button type="button" disabled={pending} onClick={() => void confirmDelete()}>
+                {pending ? '삭제 중…' : '삭제'}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>삭제한 자료는 목록과 AI 검색에서 사라집니다.</p>
+          {deleteError && (
+            <p className={styles.confirmError} role="alert">
+              {deleteError}
+            </p>
+          )}
+        </Modal>
       )}
 
       {uploading && (

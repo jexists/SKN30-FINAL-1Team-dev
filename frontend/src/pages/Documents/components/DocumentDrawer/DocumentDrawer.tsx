@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
-import { DownloadIcon } from '@/components/icons'
+import Popover from '@/components/Popover'
+import ReportBody from '@/components/ReportBody'
+import { SkeletonBlocks } from '@/components/Skeleton'
+import { DownloadIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import type { SalesDocument } from '@/types'
 import type { DocumentSummaryResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
@@ -18,7 +21,12 @@ import styles from './DocumentDrawer.module.scss'
 
 interface Props {
   doc: SalesDocument
+  /** 지우는 것은 팀장만 합니다. 수정은 팀원도 합니다. */
+  canDelete: boolean
   onClose: () => void
+  onEdit: () => void
+  onDelete: () => void
+  /** 다시 실행(재요약) 경로. 지금은 화면에서 감췄지만 API·연결은 그대로 둡니다. */
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
   onLoadSummary: (fileId: string) => Promise<DocumentSummaryResponse>
   /** 배치 접수 뒤에는 처리 시작 POST 없이 상태·결과만 조회합니다. */
@@ -29,8 +37,12 @@ interface Props {
 
 export default function DocumentDrawer({
   doc,
+  canDelete,
   onClose,
-  onSummarize,
+  onEdit,
+  onDelete,
+  // 다시 실행 버튼을 감추면서 함께 쉬는 자리입니다. prop 과 API 는 남겨 둡니다.
+  // onSummarize,
   onLoadSummary,
   autoLoadSummaryFileId,
   onSummaryCompleted,
@@ -38,38 +50,56 @@ export default function DocumentDrawer({
 }: Props) {
   const [summary, setSummary] = useState<DocumentSummaryResponse | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  // 저장된 요약을 받아 오는 동안입니다. 첫 렌더부터 켜 두어야 "아직 요약이
+  // 없습니다"가 잠깐 스쳤다가 요약으로 바뀌는 깜빡임이 생기지 않습니다.
+  const [summaryFetching, setSummaryFetching] = useState(true)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryLoadError, setSummaryLoadError] = useState<string | null>(null)
   const [summaryLoadRetry, setSummaryLoadRetry] = useState(0)
   const [artifactLoading, setArtifactLoading] = useState<DocumentArtifact | null>(null)
   const [approvalLoading, setApprovalLoading] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const file = fileOf(doc)
+  // 문서에 대한 것과 파일에 대한 것을 갈라 둡니다. 파일 쪽은 아래 카드가 맡습니다.
   const rows: [string, string][] = [
     ['메모', doc.description || '—'],
     ['연결', linkLabel(doc) || '연결된 곳 없음'],
-    ['파일', file.fileName],
-    ['크기', sizeLabel(file.bytes)],
-    ['등록자', file.owner],
-    ['등록일', fmtDay(parseISO(file.uploaded))],
   ]
+  const fileMeta = [sizeLabel(file.bytes), file.owner, fmtDay(parseISO(file.uploaded))].join(' · ')
 
-  const loadSavedSummary = useCallback(
-    (fileId: string) => {
-      setSummaryLoadError(null)
-      void onLoadSummary(fileId)
-        .then((result) => {
-          // 아직 처리 전인 정상 응답은 오류가 아니다. 저장된 결과가 있을 때만 표시한다.
-          if (result.summary_markdown) setSummary(result)
-          else setSummary(null)
-        })
-        .catch((reason: unknown) => {
-          setSummaryLoadError(
-            errorMessage(reason, '저장된 요약을 불러오지 못했습니다. 다시 불러와 주세요.'),
-          )
-        })
-    },
-    [onLoadSummary],
-  )
+  // 목록을 다시 받으면 부모의 콜백 정체성이 바뀝니다. 그때마다 아래 효과가
+  // 다시 돌면 같은 요약을 여러 번 조회하게 되므로 최신 함수만 ref 로 들고 갑니다.
+  const loadSummaryRef = useRef(onLoadSummary)
+  useEffect(() => {
+    loadSummaryRef.current = onLoadSummary
+  }, [onLoadSummary])
+
+  // 응답이 늦게 도착하는 사이 다른 파일로 넘어갔다면 그 결과는 버립니다.
+  const shownFileRef = useRef(file.id)
+  shownFileRef.current = file.id
+
+  const loadSavedSummary = useCallback((fileId: string) => {
+    setSummaryLoadError(null)
+    setSummaryFetching(true)
+    void loadSummaryRef
+      .current(fileId)
+      .then((result) => {
+        if (shownFileRef.current !== fileId) return
+        // 아직 처리 전인 정상 응답은 오류가 아니다. 저장된 결과가 있을 때만 표시한다.
+        if (result.summary_markdown) setSummary(result)
+        else setSummary(null)
+      })
+      .catch((reason: unknown) => {
+        if (shownFileRef.current !== fileId) return
+        setSummaryLoadError(
+          errorMessage(reason, '저장된 요약을 불러오지 못했습니다. 다시 불러와 주세요.'),
+        )
+      })
+      // 실패해도 로딩 표시는 반드시 걷습니다.
+      .finally(() => {
+        if (shownFileRef.current === fileId) setSummaryFetching(false)
+      })
+  }, [])
 
   useEffect(() => {
     if (!file.id) return
@@ -79,37 +109,41 @@ export default function DocumentDrawer({
     setSummaryError(null)
     setSummaryLoading(false)
     setApprovalLoading(false)
+    // 배치 접수 직후에는 아래 폴링이 같은 GET 을 돌리므로 단발 조회를 건너뜁니다.
+    if (autoLoadSummaryFileId === file.id) return
     loadSavedSummary(file.id)
-  }, [file.id, loadSavedSummary])
+  }, [autoLoadSummaryFileId, file.id, loadSavedSummary])
 
-  const requestSummary = useCallback(
-    (fileId: string) => {
-      setSummaryLoading(true)
-      setSummaryError(null)
-      setSummaryLoadError(null)
-      void onSummarize(fileId)
-        .then((result) => {
-          setSummary(result)
-          if (result.processing_status === 'completed') {
-            onSummaryCompleted?.(result.file_id)
-          } else if (result.processing_status === 'failed') {
-            const message = '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-            setSummaryError(message)
-            onSummaryCompleted?.(result.file_id, message)
-          }
-        })
-        .catch((reason: unknown) => {
-          const message =
-            reason instanceof Error && reason.message === 'document_summary_timeout'
-              ? '문서 요약 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
-              : errorMessage(reason, '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.')
-          setSummaryError(message)
-          onSummaryCompleted?.(fileId, message)
-        })
-        .finally(() => setSummaryLoading(false))
-    },
-    [onSummarize, onSummaryCompleted],
-  )
+  // 다시 실행(재요약)은 당분간 화면에서 감춰 둡니다. 되살릴 때를 위해
+  // 처리 흐름은 지우지 않고 그대로 남겨 둡니다. (POST /files/{id}/process)
+  // const requestSummary = useCallback(
+  //   (fileId: string) => {
+  //     setSummaryLoading(true)
+  //     setSummaryError(null)
+  //     setSummaryLoadError(null)
+  //     void onSummarize(fileId)
+  //       .then((result) => {
+  //         setSummary(result)
+  //         if (result.processing_status === 'completed') {
+  //           onSummaryCompleted?.(result.file_id)
+  //         } else if (result.processing_status === 'failed') {
+  //           const message = '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+  //           setSummaryError(message)
+  //           onSummaryCompleted?.(result.file_id, message)
+  //         }
+  //       })
+  //       .catch((reason: unknown) => {
+  //         const message =
+  //           reason instanceof Error && reason.message === 'document_summary_timeout'
+  //             ? '문서 요약 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
+  //             : errorMessage(reason, '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+  //         setSummaryError(message)
+  //         onSummaryCompleted?.(fileId, message)
+  //       })
+  //       .finally(() => setSummaryLoading(false))
+  //   },
+  //   [onSummarize, onSummaryCompleted],
+  // )
 
   const monitorQueuedSummary = useCallback(
     (fileId: string) => {
@@ -166,6 +200,52 @@ export default function DocumentDrawer({
       title={doc.title}
       sub={doc.documentNo ?? doc.id}
       onClose={onClose}
+      actions={
+        <Popover
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          align="end"
+          compact
+          label="자료 메뉴"
+          trigger={
+            <button
+              type="button"
+              className={styles.menuBtn}
+              aria-label="자료 메뉴"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((value) => !value)}
+            >
+              <MoreIcon width={18} height={18} />
+            </button>
+          }
+        >
+          <div className={styles.menu}>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                onEdit()
+              }}
+            >
+              <EditIcon width={15} height={15} />
+              수정
+            </button>
+            {canDelete && (
+              <button
+                type="button"
+                className={styles.danger}
+                onClick={() => {
+                  setMenuOpen(false)
+                  onDelete()
+                }}
+              >
+                <TrashIcon width={15} height={15} />
+                삭제
+              </button>
+            )}
+          </div>
+        </Popover>
+      }
       meta={
         <>
           <i className={styles.pill}>{doc.category}</i>
@@ -192,34 +272,48 @@ export default function DocumentDrawer({
       </dl>
 
       {file.id ? (
-        <div className={styles.fileActions}>
+        <div className={styles.fileCard}>
+          <div className={styles.fileName}>{file.fileName}</div>
           <button type="button" className={styles.download} onClick={() => void downloadFile(file)}>
             <DownloadIcon width={14} height={14} />
             내려받기
           </button>
-          <button
-            type="button"
-            className={styles.summarize}
-            disabled={summaryLoading}
-            onClick={() => requestSummary(file.id!)}
-          >
-            {summaryLoading ? '요약 중…' : 'OCR·요약 다시 실행'}
-          </button>
+          <p className={styles.fileMeta}>{fileMeta}</p>
         </div>
       ) : (
-        <p className={styles.fileActions}>파일 없음</p>
+        <p className={styles.fileEmpty}>파일 없음</p>
       )}
       {file.note && <p className={styles.note}>{file.note}</p>}
 
-      {(summaryLoading || summaryError || summary?.summary_markdown) && (
+      {file.id && (
         <section className={styles.summary}>
-          <h3 className={styles.sectionTitle}>AI 문서 요약</h3>
-          {summaryError ? (
-            <p className={styles.summaryError}>{summaryError}</p>
-          ) : summaryLoading && !summary?.summary_markdown ? (
-            <p className={styles.summaryPending} role="status">
-              문서 내용을 분석하고 요약하는 중입니다…
-            </p>
+          <div className={styles.summaryHead}>
+            <h3 className={styles.sectionTitle}>AI 문서 요약</h3>
+            {/* 다시 실행은 당분간 쓰지 않습니다. 되살릴 때 이 자리에 그대로 둡니다.
+            <button
+              type="button"
+              className={styles.summarize}
+              disabled={summaryLoading}
+              onClick={() => requestSummary(file.id!)}
+            >
+              {summaryLoading ? '요약 중…' : '다시 실행'}
+            </button>
+            */}
+          </div>
+          {(summaryError ?? summaryLoadError) ? (
+            <p className={styles.summaryError}>{summaryError ?? summaryLoadError}</p>
+          ) : (summaryFetching || summaryLoading) && !summary?.summary_markdown ? (
+            <div className={styles.summarySkeleton}>
+              <SkeletonBlocks
+                label="AI 요약을 불러오는 중입니다."
+                count={4}
+                height={12}
+                gap={10}
+                radius="var(--r-sm)"
+              />
+            </div>
+          ) : !summary?.summary_markdown ? (
+            <p className={styles.summaryPending}>아직 요약이 없습니다.</p>
           ) : (
             <>
               {summary?.processing_status === 'review_required' && (
@@ -227,7 +321,8 @@ export default function DocumentDrawer({
                   OCR·요약 결과를 확인한 뒤 승인해야 최종 DB와 RAG에 저장됩니다.
                 </p>
               )}
-              <pre>{summary?.summary_markdown}</pre>
+              {/* 저장된 요약은 마크다운입니다. 보고서 본문과 같은 렌더러로 그립니다. */}
+              <ReportBody body={summary.summary_markdown} className={styles.summaryBody} />
               {summary?.processing_status === 'review_required' && (
                 <div className={styles.artifactActions}>
                   <button

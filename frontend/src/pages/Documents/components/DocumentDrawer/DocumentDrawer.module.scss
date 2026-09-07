@@ -2,15 +2,67 @@
   @include tag-pill;
 }
 
-// 하단 삭제 버튼. 발주·계약 드로어와 같은 어휘를 씁니다.
-.danger {
-  border-color: var(--red-tint);
-  background: var(--red-tint);
-  color: var(--red-ink);
+// 머리말의 '…' 더보기. CustomerDrawer 의 고객 메뉴와 같은 모양입니다.
+.menuBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
 
   &:hover {
-    background: var(--red-tint);
-    filter: brightness(0.97);
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    svg {
+      flex: none;
+      color: var(--muted);
+    }
+
+    &:hover {
+      background: var(--fill-2);
+    }
+  }
+
+  // 지우는 것은 되돌릴 수 없어 색으로 한 번 더 세웁니다.
+  .danger {
+    color: var(--red-ink);
+
+    svg {
+      color: currentcolor;
+    }
+
+    &:hover {
+      background: var(--red-tint);
+    }
   }
 }
 
@@ -55,19 +107,42 @@
 /* ---- 파일 ---- */
 
 .sectionTitle {
-  margin-top: var(--s5);
-  margin-bottom: var(--s2);
   color: var(--ink-2);
   font-size: 12px;
   font-weight: 600;
 }
 
-.fileActions {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s3);
-  margin-top: var(--s3);
-  color: var(--ink-2);
+// 파일 이름과 크기·등록자·등록일을 카드 한 장으로 묶습니다. 문서에 대한 값(메모·연결)과
+// 파일에 대한 값이 한 줄씩 섞여 있으면 무엇이 무엇에 걸린 값인지 읽기 어렵습니다.
+.fileCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px var(--s3);
+  margin-top: var(--s4);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.fileName {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  word-break: break-all; // 파일명이 길어도 카드 밖으로 나가지 않게
+}
+
+.fileMeta {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fileEmpty {
+  margin-top: var(--s4);
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -76,6 +151,7 @@
   align-items: center;
   gap: 4px;
   flex: none;
+  align-self: start;
   padding: 0;
   border: 0;
   background: none;
@@ -87,6 +163,14 @@
   &:hover {
     text-decoration: underline;
   }
+}
+
+.summaryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
 }
 
 .summarize {
@@ -105,19 +189,23 @@
 }
 
 .summary {
-  margin-top: var(--s4);
+  margin-top: var(--s5);
+}
 
-  pre {
-    max-height: 320px;
-    overflow: auto;
-    padding: var(--s3);
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    color: var(--ink-2);
-    font: inherit;
-    font-size: 12px;
-    line-height: 1.6;
-    white-space: pre-wrap;
+/* 마크다운으로 그린 요약 본문. 제목·목록 모양은 ReportBody 가 맡고
+   여기서는 기존 요약 상자의 크기·배경만 그대로 유지합니다. */
+.summaryBody {
+  max-height: 420px;
+  overflow: auto;
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.7;
+
+  :global(pre) {
+    overflow-x: auto;
   }
 }
 
@@ -133,6 +221,13 @@
   color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
+}
+
+/* 요약을 받아 오는 동안 같은 자리를 잡아 둡니다. 상자 모양은 위와 같습니다. */
+.summarySkeleton {
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
 }
 
 .reviewNotice {

@@ -60,6 +60,17 @@ function fileOf(documentId: string, file: DocumentFileResponse): DocumentFile {
   }
 }
 
+// 서버는 분류 탭 옆 건수를 분류 코드로 키를 잡아 내려줍니다. 화면은 한글 분류로 찾으니
+// 여기서 라벨로 바꿔 둡니다. 모르는 코드는 목록 행과 똑같이 기타로 접어 더합니다.
+function countsByLabel(counts: Record<string, number>): Record<string, number> {
+  const byLabel: Record<string, number> = {}
+  for (const [code, count] of Object.entries(counts)) {
+    const label = CATEGORY_BY_CODE[code] ?? '기타'
+    byLabel[label] = (byLabel[label] ?? 0) + count
+  }
+  return byLabel
+}
+
 function toDocument(item: DocumentResponse): SalesDocument {
   const file = item.file === null ? null : fileOf(item.id, item.file)
   return {
@@ -182,7 +193,7 @@ export default function useDocuments(query?: DocumentQuery) {
         if (controller.signal.aborted) return
         setDocuments(data.items.map(toDocument))
         setTotal(data.total)
-        setCounts(data.counts)
+        setCounts(countsByLabel(data.counts))
         setUploaders(
           data.uploaders.map(({ member_id, display_name }) => ({
             id: member_id,
@@ -257,6 +268,22 @@ export default function useDocuments(query?: DocumentQuery) {
     [documents],
   )
 
+  // 지우는 것은 팀장만 할 수 있습니다. 서버는 행을 남기고 지운 표시만 하지만,
+  // 목록에서는 바로 빼야 방금 지운 자료가 남아 보이지 않습니다.
+  const removeDocument = useCallback(async (id: string) => {
+    setPending(true)
+    setError(null)
+    try {
+      await client.delete(`/documents/${id}`)
+      setDocuments((items) => items.filter((document) => document.id !== id))
+    } catch (reason: unknown) {
+      setError(mutationMessage(reason, '자료를 삭제하지 못했습니다.'))
+      throw reason
+    } finally {
+      setPending(false)
+    }
+  }, [])
+
   const summarizeFile = useCallback(
     async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
       return pollSummary({
@@ -323,6 +350,7 @@ export default function useDocuments(query?: DocumentQuery) {
     reload: () => setReloadKey((value) => value + 1),
     addDocument,
     updateDocument,
+    removeDocument,
     summarizeFile,
     queueSummaries,
     loadSummary,
