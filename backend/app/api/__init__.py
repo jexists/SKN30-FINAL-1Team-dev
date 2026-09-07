@@ -15,6 +15,7 @@ from app.api import (
     members,
     notices,
     orders,
+    report_attachments,
     reports,
     sales_deals,
     signup,
@@ -35,6 +36,7 @@ api_router.include_router(sales_deals.router)
 api_router.include_router(orders.router)
 api_router.include_router(support.router)
 api_router.include_router(reports.router)
+api_router.include_router(report_attachments.router)
 api_router.include_router(notices.router)
 api_router.include_router(agent_runs.router)
 api_router.include_router(contract_suggestions.router)

@@ -390,6 +390,7 @@ def test_schedule_management_requires_preferred_window_without_parent_run():
 
 
 def test_report_generation_input_has_one_typed_scope():
+    attachment_id = uuid4()
     meeting = ReportGenerationCreate(
         idempotency_key=uuid4(),
         report_kind="meeting",
@@ -399,8 +400,37 @@ def test_report_generation_input_has_one_typed_scope():
         template_snapshot=TEMPLATE,
         content={},
         transcript="고객이 다음 달 예산을 검토합니다.",
+        attachments=[
+            {
+                "id": attachment_id,
+                "kind": "pdf",
+                "name": "memo.pdf",
+                "byte_size": 123,
+                "extract": "서버가 추출한 메모",
+            }
+        ],
     )
     assert service.generation_scope_key(meeting).startswith("meeting:")
+    assert meeting.attachments[0].id == attachment_id
+    audio_only = ReportGenerationCreate(
+        idempotency_key=uuid4(),
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=uuid4(),
+        template_snapshot=TEMPLATE,
+        content={},
+        attachments=[
+            {
+                "id": uuid4(),
+                "kind": "audio",
+                "name": "memo.m4a",
+                "byte_size": 123,
+                "extract": "음성에서 추출한 원문",
+            }
+        ],
+    )
+    assert audio_only.transcript is None
+    assert audio_only.effective_meeting_transcript() == "음성에서 추출한 원문"
     no_deal_meeting = ReportGenerationCreate(
         idempotency_key=uuid4(),
         report_kind="meeting",
@@ -422,6 +452,24 @@ def test_report_generation_input_has_one_typed_scope():
             content={},
             transcript="원문",
         )
+    with pytest.raises(ValidationError, match="transcript_required"):
+        ReportGenerationCreate(
+            idempotency_key=uuid4(),
+            report_kind="meeting",
+            report_date=date(2026, 8, 17),
+            source_activity_id=uuid4(),
+            template_snapshot=TEMPLATE,
+            content={},
+            attachments=[
+                {
+                    "id": uuid4(),
+                    "kind": "pdf",
+                    "name": "memo.pdf",
+                    "byte_size": 123,
+                    "extract": "PDF에서 추출한 자료",
+                }
+            ],
+        )
     with pytest.raises(ValidationError):
         ReportGenerationScope(report_kind="weekly", period_start=date(2026, 8, 1))
 
@@ -437,6 +485,44 @@ def test_report_generation_rejects_oversized_json_fields(field_name):
 
     with pytest.raises(ValidationError, match=f"{field_name}_too_large"):
         ReportGenerationCreate.model_validate(payload)
+
+
+def test_report_generation_rejects_oversized_aggregate_attachments():
+    attachments = [
+        {
+            "id": str(uuid4()),
+            "kind": "pdf",
+            "name": f"memo-{index}.pdf",
+            "byte_size": 1,
+            "extract": "가" * 50_000,
+        }
+        for index in range(2)
+    ]
+
+    with pytest.raises(ValidationError, match="attachments_too_large"):
+        ReportGenerationCreate.model_validate(_daily_payload(attachments=attachments))
+
+
+def test_meeting_generation_rejects_oversized_effective_transcript():
+    with pytest.raises(ValidationError, match="meeting_transcript_too_large"):
+        ReportGenerationCreate(
+            idempotency_key=uuid4(),
+            report_kind="meeting",
+            report_date=date(2026, 8, 17),
+            source_activity_id=uuid4(),
+            template_snapshot=TEMPLATE,
+            content={},
+            transcript="수" * 1_000,
+            attachments=[
+                {
+                    "id": uuid4(),
+                    "kind": "audio",
+                    "name": "memo.m4a",
+                    "byte_size": 123,
+                    "extract": "음" * 49_100,
+                }
+            ],
+        )
 
 
 @pytest.mark.parametrize(
@@ -551,12 +637,89 @@ def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
     ]
 
 
+@pytest.mark.anyio
+async def test_period_generation_uses_only_typed_ephemeral_attachments(monkeypatch):
+    member = _member()
+    attachment_id = uuid4()
+    attachment = {
+        "id": str(attachment_id),
+        "kind": "pdf",
+        "name": "proposal.pdf",
+        "byte_size": 123,
+        "extract": "서버가 추출한 계약 조건",
+    }
+    payload = ReportGenerationCreate.model_validate(
+        _daily_payload(
+            attachments=[attachment],
+            content={
+                "values": {},
+                "activities": [],
+                "attachments": [{"extract": "클라이언트 content 위조 값"}],
+            },
+        )
+    )
+
+    async def freeze_reports(_db, owner, report):
+        assert owner is member and report.report_kind == "daily"
+        assert "attachments" not in report.content
+        return {"reports": [], "meetings": []}, []
+
+    monkeypatch.setattr(service.report_sources, "freeze_report_sources", freeze_reports)
+
+    agent_code, snapshot, refs = await service._report_generation_input(payload, member, _Db())
+
+    assert agent_code == "report_writing"
+    assert snapshot["attachments"] == [attachment]
+    assert "attachments" not in snapshot["content"]
+    assert "attachment_files" not in refs
+
+
+@pytest.mark.anyio
+async def test_meeting_generation_combines_manual_and_audio_only_for_agent_input(monkeypatch):
+    member = _member()
+    activity_id = uuid4()
+    attachment = {
+        "id": str(uuid4()),
+        "kind": "audio",
+        "name": "memo.m4a",
+        "byte_size": 123,
+        "extract": "음성에서 추출한 원문",
+    }
+    payload = ReportGenerationCreate(
+        idempotency_key=uuid4(),
+        report_kind="meeting",
+        report_date=date(2026, 8, 17),
+        source_activity_id=activity_id,
+        template_snapshot=TEMPLATE,
+        content={},
+        transcript="사용자가 직접 입력한 원문",
+        attachments=[attachment],
+    )
+
+    async def snapshot(_db, owner, source_activity_id, deal_ids, transcript, attachments):
+        assert (owner, source_activity_id, deal_ids) == (member, activity_id, [])
+        return {"source": {"transcript": transcript}, "attachments": attachments}
+
+    monkeypatch.setattr(service.meeting_processing, "input_snapshot", snapshot)
+
+    agent_code, input_snapshot, _refs = await service._report_generation_input(
+        payload, member, _Db()
+    )
+
+    assert agent_code == "meeting_processing"
+    assert input_snapshot["source"]["transcript"] == (
+        "사용자가 직접 입력한 원문\n\n음성에서 추출한 원문"
+    )
+    assert payload.model_dump(mode="json")["transcript"] == "사용자가 직접 입력한 원문"
+
+
 def test_generation_input_restores_only_requesters_ui_values():
     team_id = uuid4()
     owner = _member(team_id=team_id)
     run = _run(owner, status_code="running")
     deal_id = uuid4()
     activity_id = uuid4()
+    attachment_id = uuid4()
     run.agent_code = "meeting_processing"
     run.scope_key = f"meeting:{activity_id}"
     run.payload_expires_at = datetime.now(UTC) + timedelta(days=1)
@@ -567,8 +730,29 @@ def test_generation_input_restores_only_requesters_ui_values():
         "period_end": None,
         "source_activity_id": str(activity_id),
         "sales_deal_ids": [str(deal_id)],
+        "attachments": [
+            {
+                "id": str(attachment_id),
+                "kind": "pdf",
+                "name": "memo.pdf",
+                "byte_size": 123,
+                "extract": "서버가 추출한 메모",
+            }
+        ],
         "template_snapshot": TEMPLATE,
-        "content": {"title": "방문 미팅", "attachments": [{"name": "memo.pdf"}]},
+        "content": {
+            "title": "방문 미팅",
+            "attachments": [
+                {
+                    "id": "local-preview-id",
+                    "fileId": str(attachment_id),
+                    "kind": "pdf",
+                    "name": "memo.pdf",
+                    "size": "1KB",
+                    "state": "done",
+                }
+            ],
+        },
         "transcript": "고객이 예산을 승인했습니다.",
         "guidance": None,
     }
@@ -590,7 +774,16 @@ def test_generation_input_restores_only_requesters_ui_values():
     assert restored.status_code == 200
     generation_input = restored.json()["generation_input"]
     assert generation_input["transcript"] == "고객이 예산을 승인했습니다."
-    assert generation_input["content"]["attachments"] == [{"name": "memo.pdf"}]
+    assert generation_input["attachments"] == [
+        {
+            "id": str(attachment_id),
+            "kind": "pdf",
+            "name": "memo.pdf",
+            "byte_size": 123,
+            "extract": "서버가 추출한 메모",
+        }
+    ]
+    assert "attachments" not in generation_input["content"]
     assert "crm_context" not in generation_input
     assert "context_lookups" not in restored.json()["output_snapshot"]
 

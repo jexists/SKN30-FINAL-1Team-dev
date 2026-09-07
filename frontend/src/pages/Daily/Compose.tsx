@@ -142,6 +142,7 @@ export default function Compose() {
   }
 
   const onSubmit = async () => {
+    if (draft.attachmentsPending) return
     try {
       const report = await submitReport(payload, draft.generationRunId)
       setConfirm(null)
@@ -321,7 +322,7 @@ export default function Compose() {
                 canGenerate={draft.canGenerate}
                 generating={draft.phase === 'generating'}
                 // 다시 만드는 버튼이 따로 없습니다. 이 자리 하나로 처음도 다시도 누릅니다.
-                disabled={locked || pending || draft.recovering}
+                disabled={locked || pending || draft.recovering || draft.phase === 'generating'}
                 onGenerate={onGenerate}
               />
             </div>
@@ -383,7 +384,8 @@ export default function Compose() {
                 pending ||
                 draft.phase === 'idle' ||
                 draft.phase === 'generating' ||
-                draft.recovering
+                draft.recovering ||
+                draft.attachmentsPending
               }
               onClick={() => setConfirm({ kind: 'submit' })}
             >
@@ -462,7 +464,11 @@ export default function Compose() {
               <Button variant="outline" type="button" onClick={() => setConfirm(null)}>
                 취소
               </Button>
-              <Button type="button" disabled={pending} onClick={onSubmit}>
+              <Button
+                type="button"
+                disabled={pending || draft.attachmentsPending}
+                onClick={onSubmit}
+              >
                 {pending ? '제출 중…' : '제출'}
               </Button>
             </>

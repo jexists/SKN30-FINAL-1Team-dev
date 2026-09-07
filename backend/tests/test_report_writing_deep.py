@@ -183,6 +183,15 @@ def delegated_repair_responses(marker):
 
 def test_actual_deep_agent_reads_skill_and_examples_delegates_and_revises():
     source = sample()
+    source.attachments = [
+        {
+            "id": "file-1",
+            "kind": "pdf",
+            "name": "proposal.pdf",
+            "byte_size": 123,
+            "extract": "보안 승인 뒤 예산을 검토한다.",
+        }
+    ]
     histories = [
         {
             "sales_deal_id": str(deal),
@@ -269,6 +278,8 @@ def test_actual_deep_agent_reads_skill_and_examples_delegates_and_revises():
         for payload in tool_payloads["read_meeting_evidence"]
         if {item["segment"]["segment_id"] for item in payload["evidence"]} == {"S0001"}
     )
+    assert evidence_a["attachments"] == source.attachments
+    assert evidence_b["attachments"] == source.attachments
     crm_a = next(
         payload
         for payload in tool_payloads["read_deal_crm"]

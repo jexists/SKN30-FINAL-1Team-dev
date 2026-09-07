@@ -122,10 +122,7 @@ export default function useMeetingDraft(
     },
     [invalidateGeneration],
   )
-  const files = useAttachments((text) => {
-    setTranscript((previous) => (previous.trim() ? previous.trim() + '\n\n' + text : text))
-    invalidateGeneration()
-  })
+  const files = useAttachments()
   // 스트리밍 중 문장은 미리보기로만 두고, 완료된 AgentRun 후보만 편집 상태에 올립니다.
   const [processingProgress, setProcessingProgress] = useState<MeetingProgress | null>(null)
   const {
@@ -323,6 +320,7 @@ export default function useMeetingDraft(
     addAttachments,
     removeAttachment,
     attachmentError: files.attachmentError,
+    attachmentsPending: files.pending,
     salesDealIds,
     toggleSalesDeal,
     restoreGenerationInput,
@@ -357,7 +355,11 @@ export default function useMeetingDraft(
         }
       }),
     canGenerate:
-      transcript.trim().length > 0 &&
-      !files.attachments.some((attachment) => attachment.state === 'analyzing'),
+      !files.pending &&
+      (transcript.trim().length > 0 ||
+        files.attachments.some(
+          (attachment) =>
+            attachment.kind === 'audio' && attachment.state === 'done' && attachment.extract,
+        )),
   }
 }

@@ -94,6 +94,12 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   meeting_notes_without_evidence: '근거가 없는 공통·미지정 항목에는 메모를 추가할 수 없습니다.',
   report_agent_output_invalid:
     'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
+  report_attachment_extraction_failed:
+    '첨부 파일에서 내용을 읽지 못했습니다. 파일을 확인한 뒤 다시 올려 주세요.',
+  report_attachment_ocr_too_large:
+    '문자 인식할 페이지나 이미지가 너무 많습니다. 더 짧은 파일로 나눠 올려 주세요.',
+  report_attachment_text_too_large:
+    '첨부 파일에서 읽은 내용이 너무 깁니다. 더 작은 파일을 올려 주세요.',
   // 상품 (/products)
   product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   product_image_not_found: '등록된 사진이 없습니다.',
@@ -109,7 +115,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   empty_file: '빈 파일은 올릴 수 없습니다.',
   file_too_large: '파일 용량이 너무 큽니다.',
   storage_not_configured: '파일 저장소 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
-  // 음성 변환 (/transcriptions)
+  // 음성 변환 (보고서 첨부 등)
   stt_not_configured: '음성 변환 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
   stt_unavailable: '음성 변환 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   // AI 추천 승인 (/activities)

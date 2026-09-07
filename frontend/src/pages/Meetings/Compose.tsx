@@ -56,11 +56,14 @@ function meetingInputOf(
   agendaId: string,
 ): ReportGenerationInput {
   const input = run.generation_input
+  const hasAudio = input?.attachments.some(
+    (attachment) => attachment.kind === 'audio' && attachment.extract.trim(),
+  )
   if (
     !input ||
     input.report_kind !== 'meeting' ||
     input.source_activity_id !== agendaId ||
-    !input.transcript
+    (!input.transcript && !hasAudio)
   ) {
     throw new Error('report_generation_input_missing')
   }
@@ -320,7 +323,14 @@ export default function Compose() {
   )
 
   const generateAll = async () => {
-    if (busy || generationAbort.current || !generatable || !draft.canGenerate) return
+    if (
+      busy ||
+      draft.attachmentsPending ||
+      generationAbort.current ||
+      !generatable ||
+      !draft.canGenerate
+    )
+      return
     recoveryAbort.current?.abort()
     const targets = [...draft.salesDealIds]
     const payload = payloadForMeeting()
@@ -379,6 +389,7 @@ export default function Compose() {
   const submitAll = async () => {
     if (
       busy ||
+      draft.attachmentsPending ||
       submitAbort.current ||
       !canEdit ||
       editableDealIds.length !== draft.salesDealIds.length ||
@@ -510,7 +521,7 @@ export default function Compose() {
         </div>
 
         <section className={styles.work} aria-label="미팅 보고서">
-          <div className={styles.saveBar} aria-busy={submitting}>
+          <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
             <div className={styles.saveCopy}>
               <strong>미팅 보고서</strong>
               <p>
@@ -525,6 +536,7 @@ export default function Compose() {
               aria-label="업무보고 작성 완료"
               disabled={
                 busy ||
+                draft.attachmentsPending ||
                 !canEdit ||
                 editableDealIds.length !== draft.salesDealIds.length ||
                 missingBody
