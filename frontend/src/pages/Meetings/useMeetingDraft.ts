@@ -5,6 +5,7 @@ import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgendaItem,
+  AgentRunChildResponse,
   ApiReportStatus,
   DealAssessment,
   MeetingDealSection,
@@ -90,7 +91,14 @@ function stateOf(
     touched: false,
     docKey: 0,
     generationError: section?.reportError ?? null,
-    analysisPhase: section?.analysisError ? 'failed' : section?.assessment ? 'completed' : 'idle',
+    analysisPhase:
+      section?.analysisStatus === 'pending'
+        ? 'running'
+        : section?.analysisError
+          ? 'failed'
+          : section?.assessment
+            ? 'completed'
+            : 'idle',
     assessment: section?.assessment,
     analysisError: section?.analysisError ?? null,
   }
@@ -104,17 +112,62 @@ function meetingResultOf(report?: MeetingReport): MeetingResultState | null {
     : null
 }
 
+export function mergeMeetingAnalysis(
+  drafts: Record<string, DealDraftState>,
+  child: AgentRunChildResponse,
+): Record<string, DealDraftState> {
+  const output = child.output_snapshot
+  const analyses =
+    output && 'analyses' in output && Array.isArray(output.analyses) ? output.analyses : []
+  return Object.fromEntries(
+    Object.entries(drafts).map(([dealId, draft]) => {
+      if (child.status_code === 'queued' || child.status_code === 'running') {
+        return [dealId, { ...draft, analysisPhase: 'running' as const, analysisError: null }]
+      }
+      if (child.status_code === 'failed' || child.status_code === 'cancelled') {
+        return [
+          dealId,
+          {
+            ...draft,
+            analysisPhase: 'failed' as const,
+            assessment: undefined,
+            analysisError: child.error_code ?? child.error_message ?? 'meeting_analysis_failed',
+          },
+        ]
+      }
+      const analysis = analyses.find((item) => item.sales_deal_id === dealId)
+      return [
+        dealId,
+        {
+          ...draft,
+          analysisPhase: analysis?.assessment
+            ? ('completed' as const)
+            : analysis?.error
+              ? ('failed' as const)
+              : ('idle' as const),
+          assessment: analysis?.assessment ?? undefined,
+          analysisError: analysis?.error ?? null,
+        },
+      ]
+    }),
+  )
+}
+
 export default function useMeetingDraft(
   item?: AgendaItem,
   savedReport?: MeetingReport,
   sourceReady = true,
+  onInputChange?: () => void,
 ) {
   const initializedAgendaId = useRef<string | null>(null)
   const [transcript, setTranscript] = useState('')
   const [salesDealIds, setSalesDealIds] = useState<string[]>([])
   const [draftsByDeal, setDraftsByDeal] = useState<Record<string, DealDraftState>>({})
   const [meetingResult, setMeetingResult] = useState<MeetingResultState | null>(null)
-  const invalidateGeneration = useCallback(() => setMeetingResult(invalidateMeetingGeneration), [])
+  const invalidateGeneration = useCallback(() => {
+    setMeetingResult(invalidateMeetingGeneration)
+    onInputChange?.()
+  }, [onInputChange])
   const changeTranscript = useCallback(
     (value: string) => {
       setTranscript(value)
@@ -280,9 +333,11 @@ export default function useMeetingDraft(
                   ? ('completed' as const)
                   : generated.analysisError
                     ? ('failed' as const)
-                    : ('idle' as const),
-                assessment: generated.assessment,
-                analysisError: generated.analysisError ?? null,
+                    : current.analysisPhase === 'running'
+                      ? ('running' as const)
+                      : ('idle' as const),
+                assessment: generated.assessment ?? current.assessment,
+                analysisError: generated.analysisError ?? current.analysisError,
               },
             ]
           }),
@@ -316,6 +371,10 @@ export default function useMeetingDraft(
     [updateDeal],
   )
 
+  const acceptAnalysis = useCallback((child: AgentRunChildResponse) => {
+    setDraftsByDeal((previous) => mergeMeetingAnalysis(previous, child))
+  }, [])
+
   return {
     transcript,
     setTranscript: changeTranscript,
@@ -337,6 +396,7 @@ export default function useMeetingDraft(
     startManual: (id: string) => updateDeal(id, (draft) => ({ ...draft, phase: 'ready' })),
     beginGeneration,
     acceptGenerated,
+    acceptAnalysis,
     generationFailed,
     setShared: (commonBody: string, unassignedBody: string) =>
       setMeetingResult((current) => {

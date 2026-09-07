@@ -30,6 +30,33 @@ def _snapshot():
     }
 
 
+def test_split_children_consume_the_frozen_evidence_independently(monkeypatch):
+    source, snapshot = _snapshot()
+    snapshot["evidence"] = source.evidence.model_dump(mode="json")
+    seen = []
+    reports = report_writing_deep.FreeformMeetingReports.model_validate(draft())
+
+    async def write(value):
+        seen.append(("report", value.evidence, value.crm_context))
+        return reports
+
+    async def features(evidence, crm, *, timeout):
+        seen.append(("analysis", evidence, crm))
+        return []
+
+    monkeypatch.setattr(report_writing_deep, "run", write)
+    monkeypatch.setattr(meeting_analysis, "run_for_deals", features)
+
+    actual_report = asyncio.run(service.run_report(snapshot))
+    actual_analysis = asyncio.run(service.run_analysis(snapshot))
+
+    assert actual_report == reports
+    assert actual_analysis == []
+    assert [kind for kind, *_ in seen] == ["report", "analysis"]
+    assert all(value == source.evidence for _, value, *_ in seen)
+    assert all(context == snapshot["crm_context"] for *_, context in seen)
+
+
 def test_input_snapshot_freezes_request_without_a_report(monkeypatch):
     member = _member()
     activity_id = uuid4()

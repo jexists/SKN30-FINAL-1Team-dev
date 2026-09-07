@@ -15,12 +15,18 @@ const {
   finishIdempotencyAttempt,
   idempotencyAttemptFor,
   latestReportGeneration,
+  latestMeetingProcessing,
+  retryMeetingReport,
+  sameReportGenerationInput,
+  waitForMeetingAnalysis,
+  waitForMeetingProcessing,
   waitForReportGeneration,
 } = await vite.ssrLoadModule('/src/api/reportAgent.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
 const { canRecoverMeetingGeneration } = await vite.ssrLoadModule(
   '/src/pages/Meetings/useMeetingReports.ts',
 )
+const { mergeMeetingAnalysis } = await vite.ssrLoadModule('/src/pages/Meetings/useMeetingDraft.ts')
 
 const template = {
   id: 'builtin-daily-freeform',
@@ -342,6 +348,377 @@ test('queued/running은 같은 run을 기다리고 completed/partial만 후보�
     const partial = await waitForReportGeneration(run('partial', { fields: [] }))
     assert.equal(partial.status_code, 'partial')
     await assert.rejects(waitForReportGeneration(run('failed')), /synthetic_failure/)
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+})
+
+test('미팅 report retry는 같은 근거만 재사용하고 child 완료·지연 analysis·확정 id를 잇는다', async () => {
+  const originalAdapter = client.defaults.adapter
+  const input = {
+    report_kind: 'meeting',
+    report_date: '2026-09-01',
+    period_start: null,
+    period_end: null,
+    source_activity_id: 'agenda-1',
+    sales_deal_ids: ['deal-1'],
+    template_snapshot: { ...template, name: '미팅' },
+    content: {
+      transcript: '원문',
+      attachments: [{ id: 'attachment-1', kind: 'pdf', extract: '근거' }],
+      deals: [{ id: 'deal-1', title: '딜' }],
+    },
+    transcript: '원문',
+    guidance: '합성 미팅 안내',
+  }
+  const request = { ...input, idempotency_key: 'attempt-1' }
+  const parent = (
+    reportStatus,
+    analysisStatus,
+    reportOutput,
+    analysisOutput,
+    reportId = 'report-child-1',
+  ) => ({
+    id: 'parent-1',
+    agent_code: 'meeting_processing',
+    report_id: null,
+    source_refs: { parent_run_id: 'parent-1' },
+    generation_input: input,
+    status_code: 'completed',
+    current_stage_code: 'completed',
+    attempt_count: 1,
+    output_snapshot: {
+      evidence: { schema_version: 'meeting_content.v1', selected_deal_ids: ['deal-1'] },
+    },
+    evidence: null,
+    error_code: null,
+    error_message: null,
+    created_at: '2026-09-01T00:00:00Z',
+    child_runs: [
+      {
+        id: reportId,
+        agent_code: 'meeting_report_writing',
+        status_code: reportStatus,
+        current_stage_code: reportStatus,
+        output_snapshot: reportOutput,
+        error_code: null,
+        error_message: null,
+        source_refs: { parent_run_id: 'parent-1' },
+        created_at: '2026-09-01T00:00:01Z',
+      },
+      {
+        id: 'analysis-child-1',
+        agent_code: 'meeting_analysis',
+        status_code: analysisStatus,
+        current_stage_code: analysisStatus,
+        output_snapshot: analysisOutput,
+        error_code: null,
+        error_message: null,
+        source_refs: { parent_run_id: 'parent-1' },
+        created_at: '2026-09-01T00:00:01Z',
+      },
+    ],
+  })
+  const reportOutput = {
+    deal_reports: [{ sales_deal_id: 'deal-1', title: '제목', body: '본문', evidence_ids: [] }],
+    common_report: null,
+    unassigned_report: null,
+  }
+  const analysisOutput = {
+    analyses: [
+      {
+        sales_deal_id: 'deal-1',
+        features: { company_size: 'large' },
+        assessment: { label: 'high', high_probability: 0.8, model_version: 'test' },
+        error: null,
+      },
+    ],
+  }
+  const calls = []
+  let parentReads = 0
+  client.defaults.adapter = async (config) => {
+    calls.push({ method: config.method, url: config.url, data: config.data })
+    if (config.url === '/report-generations/latest') {
+      return {
+        data: parent('failed', 'failed', null, null),
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
+    if (config.url === '/agent-runs/report-child-1/retry') {
+      return {
+        data: {
+          ...parent('queued', 'running', null, null),
+          id: 'report-child-2',
+          agent_code: 'meeting_report_writing',
+          source_refs: { parent_run_id: 'parent-1' },
+          child_runs: undefined,
+          output_snapshot: null,
+          status_code: 'queued',
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
+    if (config.url === '/agent-runs/report-child-2') {
+      return {
+        data: {
+          id: 'report-child-2',
+          agent_code: 'meeting_report_writing',
+          report_id: null,
+          source_refs: { parent_run_id: 'parent-1' },
+          generation_input: input,
+          status_code: 'completed',
+          current_stage_code: 'completed',
+          attempt_count: 1,
+          output_snapshot: reportOutput,
+          evidence: null,
+          error_code: null,
+          error_message: null,
+          created_at: '2026-09-01T00:00:01Z',
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
+    if (config.url === '/agent-runs/parent-1') {
+      parentReads += 1
+      const state = parent('completed', 'running', reportOutput, null, 'report-child-2')
+      if (parentReads > 2)
+        state.child_runs[1] = {
+          ...state.child_runs[1],
+          status_code: 'completed',
+          output_snapshot: analysisOutput,
+        }
+      return { data: state, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    if (config.url === '/reports/finalize') {
+      return { data: { id: 'saved-report' }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    if (config.url === '/report-generations') {
+      return {
+        data: {
+          ...parent('queued', 'queued', null, null),
+          id: 'new-parent-1',
+          child_runs: undefined,
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
+    throw new Error(`unexpected ${config.method} ${config.url}`)
+  }
+  try {
+    const latest = await latestMeetingProcessing('agenda-1')
+    assert.equal(sameReportGenerationInput(latest.generation_input, request), true)
+    assert.equal(
+      sameReportGenerationInput(latest.generation_input, {
+        ...request,
+        content: { ...input.content, attachments: [{ id: 'changed' }] },
+      }),
+      false,
+    )
+    const retried = await retryMeetingReport('report-child-1')
+    const ready = await waitForMeetingProcessing(retried, undefined, undefined, 0)
+    assert.equal(ready.id, 'report-child-2' /* retry child id remains the finalize candidate */)
+    assert.equal(ready.source_refs.parent_run_id, 'parent-1')
+    assert.equal(ready.output_snapshot.reports.deal_reports[0].body, '본문')
+
+    const analysisStates = []
+    await waitForMeetingAnalysis(
+      'parent-1',
+      (child) => analysisStates.push(child.status_code),
+      undefined,
+      0,
+    )
+    assert.deepEqual(analysisStates, ['running', 'completed'])
+    const finalized = await finalizeReport({
+      idempotency_key: 'finalize-1',
+      agent_run_id: ready.id,
+    })
+    assert.equal(finalized.id, 'saved-report')
+
+    await createReportGeneration({
+      ...request,
+      idempotency_key: 'attempt-2',
+      content: { ...input.content, transcript: '변경' },
+    })
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+  assert.deepEqual(
+    calls.map(({ method, url }) => [method, url]),
+    [
+      ['get', '/report-generations/latest'],
+      ['post', '/agent-runs/report-child-1/retry'],
+      ['get', '/agent-runs/report-child-2'],
+      ['get', '/agent-runs/parent-1'],
+      ['get', '/agent-runs/parent-1'],
+      ['get', '/agent-runs/parent-1'],
+      ['post', '/reports/finalize'],
+      ['post', '/report-generations'],
+    ],
+  )
+  assert.equal(JSON.parse(calls.at(-2).data).agent_run_id, 'report-child-2')
+})
+
+test('지연 analysis 반영은 사용자가 편집한 보고서 본문을 보존한다', () => {
+  const drafts = {
+    'deal-1': {
+      values: { body: '사용자가 고친 본문' },
+      title: '사용자 제목',
+      touched: true,
+      docKey: 7,
+      phase: 'ready',
+      statusCode: 'draft',
+      review: 'writing',
+      reportId: 'report-1',
+      reportVersion: 1,
+      evidence: '사람 근거',
+      generationError: null,
+      analysisPhase: 'running',
+      assessment: undefined,
+      analysisError: null,
+    },
+  }
+  const merged = mergeMeetingAnalysis(drafts, {
+    id: 'analysis-child-1',
+    agent_code: 'meeting_analysis',
+    status_code: 'completed',
+    current_stage_code: 'completed',
+    output_snapshot: {
+      analyses: [
+        {
+          sales_deal_id: 'deal-1',
+          features: { company_size: 'large' },
+          assessment: { label: 'watch', high_probability: 0.3, model_version: 'test' },
+          error: null,
+        },
+      ],
+    },
+    error_code: null,
+    error_message: null,
+    source_refs: { parent_run_id: 'parent-1' },
+    created_at: null,
+  })
+  assert.equal(merged['deal-1'].values.body, '사용자가 고친 본문')
+  assert.equal(merged['deal-1'].title, '사용자 제목')
+  assert.equal(merged['deal-1'].touched, true)
+  assert.equal(merged['deal-1'].docKey, 7)
+  assert.equal(merged['deal-1'].analysisPhase, 'completed')
+  assert.equal(merged['deal-1'].assessment.label, 'watch')
+})
+
+test('report child 실패도 analysis sibling을 계속 소비하고 report 실패를 유지한다', async () => {
+  const originalAdapter = client.defaults.adapter
+  const analysisOutput = {
+    analyses: [
+      {
+        sales_deal_id: 'deal-1',
+        features: { company_size: 'large' },
+        assessment: { label: 'high', high_probability: 0.8, model_version: 'test' },
+        error: null,
+      },
+    ],
+  }
+  let reads = 0
+  const parent = () => ({
+    id: 'parent-failed-report',
+    agent_code: 'meeting_processing',
+    report_id: null,
+    source_refs: {},
+    generation_input: null,
+    status_code: 'completed',
+    current_stage_code: 'completed',
+    attempt_count: 1,
+    output_snapshot: {
+      evidence: { schema_version: 'meeting_content.v1', selected_deal_ids: ['deal-1'] },
+    },
+    evidence: null,
+    error_code: null,
+    error_message: null,
+    created_at: null,
+    child_runs: [
+      {
+        id: 'failed-report-child',
+        agent_code: 'meeting_report_writing',
+        status_code: 'failed',
+        current_stage_code: 'failed',
+        output_snapshot: null,
+        error_code: 'report_writing_failed',
+        error_message: null,
+        source_refs: { parent_run_id: 'parent-failed-report' },
+        created_at: null,
+      },
+      {
+        id: 'analysis-child',
+        agent_code: 'meeting_analysis',
+        status_code: reads === 0 ? 'running' : 'completed',
+        current_stage_code: reads === 0 ? 'running' : 'completed',
+        output_snapshot: reads === 0 ? null : analysisOutput,
+        error_code: null,
+        error_message: null,
+        source_refs: { parent_run_id: 'parent-failed-report' },
+        created_at: null,
+      },
+    ],
+  })
+  client.defaults.adapter = async (config) => {
+    assert.equal(config.url, '/agent-runs/parent-failed-report')
+    const data = parent()
+    reads += 1
+    return { data, status: 200, statusText: 'OK', headers: {}, config }
+  }
+  try {
+    let failedCandidateId
+    await assert.rejects(
+      waitForMeetingProcessing(parent(), undefined, undefined, 0).then((run) => {
+        failedCandidateId = run.id
+        return run
+      }),
+      /agent_run_failed/,
+    )
+    assert.equal(failedCandidateId, undefined)
+    const states = []
+    await waitForMeetingAnalysis(
+      'parent-failed-report',
+      (child) => states.push(child.status_code),
+      undefined,
+      0,
+    )
+    assert.deepEqual(states, ['running', 'completed'])
+    const merged = mergeMeetingAnalysis(
+      {
+        'deal-1': {
+          values: { body: '사용자 본문' },
+          title: '사용자 제목',
+          touched: true,
+          docKey: 1,
+          phase: 'ready',
+          statusCode: 'draft',
+          review: 'writing',
+          generationError: 'report_writing_failed',
+          analysisPhase: 'running',
+          analysisError: null,
+        },
+      },
+      {
+        ...parent().child_runs[1],
+        status_code: 'completed',
+        output_snapshot: analysisOutput,
+      },
+    )
+    assert.equal(merged['deal-1'].analysisPhase, 'completed')
+    assert.equal(merged['deal-1'].generationError, 'report_writing_failed')
+    assert.equal(merged['deal-1'].values.body, '사용자 본문')
   } finally {
     client.defaults.adapter = originalAdapter
   }

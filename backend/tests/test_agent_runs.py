@@ -8,13 +8,19 @@ from uuid import UUID, uuid4
 import httpx
 import openai
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from langchain_openai import StreamChunkTimeoutError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from test_report_writing_deep import ScriptedModel, sample
 
-from app.agents import contract_management, report_writing_deep, schedule_management
+from app.agents import (
+    contract_management,
+    meeting_analysis,
+    report_writing_deep,
+    schedule_management,
+)
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
@@ -584,7 +590,7 @@ def test_generation_input_restores_only_requesters_ui_values():
         "context_lookups": [{"private": "응답하면 안 되는 CRM"}],
     }
 
-    with _client(_Db(_Result(scalar=run)), owner) as client:
+    with _client(_Db(_Result(scalar=run), _Result(scalars=[])), owner) as client:
         restored = client.get(f"/api/agent-runs/{run.id}")
 
     assert restored.status_code == 200
@@ -595,11 +601,41 @@ def test_generation_input_restores_only_requesters_ui_values():
     assert "context_lookups" not in restored.json()["output_snapshot"]
 
     manager = _member(role="manager", team_id=team_id)
-    with _client(_Db(_Result(scalar=run)), manager) as client:
+    with _client(_Db(_Result(scalar=run), _Result(scalars=[])), manager) as client:
         hidden = client.get(f"/api/agent-runs/{run.id}")
     assert hidden.status_code == 200
     assert hidden.json()["generation_input"] is None
     assert hidden.json()["output_snapshot"] is None
+
+
+def test_meeting_run_exposes_independent_child_statuses_and_outputs():
+    member = _member()
+    parent = _run(member, status_code="completed")
+    parent.agent_code = "meeting_processing"
+    report = _run(member, status_code="completed")
+    report.agent_code = "meeting_report_writing"
+    report.parent_run_id = parent.id
+    report.scope_key = "meeting:source"
+    report.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    report.request_snapshot = {"parent_run_id": str(parent.id), "kind": "report"}
+    report.output_snapshot = {"deal_reports": [], "common_report": None}
+    analysis = _run(member, status_code="running")
+    analysis.agent_code = "meeting_analysis"
+    analysis.parent_run_id = parent.id
+    analysis.request_snapshot = {"parent_run_id": str(parent.id), "kind": "analysis"}
+
+    with _client(
+        _Db(_Result(scalar=parent), _Result(scalars=[report, analysis])), member
+    ) as client:
+        response = client.get(f"/api/agent-runs/{parent.id}")
+
+    assert response.status_code == 200
+    children = {item["agent_code"]: item for item in response.json()["child_runs"]}
+    assert children["meeting_report_writing"]["status_code"] == "completed"
+    assert children["meeting_report_writing"]["output_snapshot"] == report.output_snapshot
+    assert children["meeting_report_writing"]["generation_input"] is None
+    assert children["meeting_analysis"]["status_code"] == "running"
+    assert children["meeting_analysis"]["generation_input"] is None
 
 
 def test_redacted_generation_has_no_reconnect_input():
@@ -937,7 +973,7 @@ async def test_worker_completes_meeting_output_without_an_apply_phase(monkeypatc
     run.input_snapshot = {"source": {"transcript": "원문"}}
     run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     claim_db = _Db(_Result(scalar=run))
-    complete_db = _Db(SimpleNamespace(rowcount=1))
+    complete_db = _Db(SimpleNamespace(rowcount=1), _Result(scalars=[]))
     sessions = iter((claim_db, complete_db))
     monkeypatch.setattr(
         service,
@@ -947,7 +983,13 @@ async def test_worker_completes_meeting_output_without_an_apply_phase(monkeypatc
     output = SimpleNamespace(
         errors={},
         analyses=[],
-        evidence=SimpleNamespace(items=[]),
+        evidence=SimpleNamespace(
+            items=[],
+            selected_deal_ids=[],
+            transcript_sha256="a" * 64,
+            model_dump=lambda **_kwargs: {"items": []},
+        ),
+        crm_context={},
         model_dump=lambda **_kwargs: {"reports": None, "analyses": [], "errors": {}},
     )
 
@@ -961,6 +1003,11 @@ async def test_worker_completes_meeting_output_without_an_apply_phase(monkeypatc
     assert run.current_stage_code == "completed"
     assert run.output_snapshot == {"reports": None, "analyses": [], "errors": {}}
     assert not hasattr(run, "apply_status")
+    assert {child.agent_code for child in complete_db.added} == {
+        "meeting_report_writing",
+        "meeting_analysis",
+    }
+    assert all(child.parent_run_id == run.id for child in complete_db.added)
 
 
 @pytest.mark.anyio
@@ -976,7 +1023,157 @@ async def test_worker_claim_excludes_expired_or_redacted_report_payloads(monkeyp
     assert "agent_run.payload_redacted_at IS NULL" in statement
     assert "agent_run.request_hash IS NOT NULL" in statement
     assert "schedule_management" in params
-    assert "meeting_analysis" not in params
+    assert "meeting_analysis" in params
+
+
+@pytest.mark.anyio
+async def test_meeting_children_are_not_duplicated_for_a_completed_parent(monkeypatch):
+    parent = _run(_member(), status_code="completed")
+    parent.agent_code = "meeting_processing"
+    parent.input_snapshot = {"source": {}, "deals": []}
+    parent.source_refs = {"source_activity_id": str(uuid4())}
+    parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    db = _Db(
+        _Result(
+            scalars=[
+                SimpleNamespace(agent_code="meeting_report_writing"),
+                SimpleNamespace(agent_code="meeting_analysis"),
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        service,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(db),
+    )
+    output = SimpleNamespace(
+        evidence=SimpleNamespace(
+            model_dump=lambda **_kwargs: {"items": []},
+            transcript_sha256="a" * 64,
+        ),
+        crm_context={},
+    )
+
+    await agent_worker._enqueue_meeting_children(db, parent, output)
+
+    assert db.added == []
+
+
+@pytest.mark.anyio
+async def test_partial_analysis_retry_reuses_frozen_input_and_allows_finalized_parent():
+    member = _member()
+    parent = _run(member, status_code="completed")
+    parent.report_id = uuid4()
+    parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    child = _run(member, status_code="partial")
+    child.agent_code = "meeting_analysis"
+    child.parent_run_id = parent.id
+    child.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    child.input_snapshot = {"evidence": {"transcript_sha256": "a" * 64}}
+    db = _Db(
+        _Result(scalar=child),
+        _Result(scalar=parent),
+        _Result(scalar=child),
+        _Result(scalar=None),
+    )
+
+    read, retry_id = await service.retry_meeting_child(child.id, member, db)
+
+    retry = db.added[0]
+    assert retry_id == retry.id == read.id
+    assert retry.agent_code == child.agent_code
+    assert retry.input_snapshot == child.input_snapshot
+    assert retry.parent_run_id == parent.id
+
+
+@pytest.mark.anyio
+async def test_meeting_retry_reuses_active_sibling_and_rejects_expired_or_finalized_report():
+    member = _member()
+    parent = _run(member, status_code="completed")
+    parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    child = _run(member, status_code="failed")
+    child.agent_code = "meeting_analysis"
+    child.parent_run_id = parent.id
+    child.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    child.input_snapshot = {"evidence": {"transcript_sha256": "a" * 64}}
+    active = _run(member, status_code="running")
+    active.agent_code = child.agent_code
+    active.parent_run_id = parent.id
+    active_db = _Db(
+        _Result(scalar=child),
+        _Result(scalar=parent),
+        _Result(scalar=child),
+        _Result(scalar=active),
+    )
+    read, retry_id = await service.retry_meeting_child(child.id, member, active_db)
+    assert retry_id == active.id and read.id == active.id and active_db.added == []
+
+    expired_parent = _run(member, status_code="completed")
+    expired_parent.payload_expires_at = NOW
+    expired = _run(member, status_code="failed")
+    expired.agent_code = "meeting_analysis"
+    expired.parent_run_id = expired_parent.id
+    with pytest.raises(HTTPException, match="meeting_child_retry_not_allowed"):
+        await service.retry_meeting_child(
+            expired.id,
+            member,
+            _Db(_Result(scalar=expired), _Result(scalar=expired_parent)),
+        )
+
+    finalized_parent = _run(member, status_code="completed")
+    finalized_parent.report_id = uuid4()
+    report_child = _run(member, status_code="failed")
+    report_child.agent_code = "meeting_report_writing"
+    report_child.parent_run_id = finalized_parent.id
+    with pytest.raises(HTTPException, match="meeting_child_retry_not_allowed"):
+        await service.retry_meeting_child(
+            report_child.id,
+            member,
+            _Db(_Result(scalar=report_child), _Result(scalar=finalized_parent)),
+        )
+
+
+@pytest.mark.anyio
+async def test_meeting_retry_reuses_latest_terminal_sibling_without_new_cost():
+    member = _member()
+    parent = _run(member, status_code="completed")
+    parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    failed = _run(member, status_code="failed")
+    failed.agent_code = "meeting_analysis"
+    failed.parent_run_id = parent.id
+    failed.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    failed.input_snapshot = {"evidence": {"transcript_sha256": "a" * 64}}
+    completed = _run(member, status_code="completed")
+    completed.agent_code = failed.agent_code
+    completed.parent_run_id = parent.id
+    completed.output_snapshot = {"analyses": []}
+    db = _Db(
+        _Result(scalar=failed),
+        _Result(scalar=parent),
+        _Result(scalar=failed),
+        _Result(scalar=completed),
+    )
+
+    read, retry_id = await service.retry_meeting_child(failed.id, member, db)
+
+    assert retry_id == completed.id
+    assert read.id == completed.id
+    assert db.added == []
+
+
+@pytest.mark.anyio
+async def test_worker_persists_analysis_list_output_without_model_dump(monkeypatch):
+    run = _run(_member(), status_code="running")
+    run.agent_code = "meeting_analysis"
+    run.lease_owner = "worker-1"
+    result = meeting_analysis.DealFeatureResult(sales_deal_id=uuid4(), error=None)
+    db = _Db(SimpleNamespace(rowcount=1))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+
+    await agent_worker._complete(run, "worker-1", [result])
+
+    assert run.status_code == "completed"
+    assert run.output_snapshot == {"analyses": [result.model_dump(mode="json")]}
 
 
 @pytest.mark.anyio

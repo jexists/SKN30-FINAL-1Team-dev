@@ -6,9 +6,79 @@ import {
   MEETING_WAIT_MS,
   isRetryableMeetingReadError,
   mergeMeetingProgress,
+  meetingChildDecision,
   readMeetingProgress,
+  retryableMeetingReportChildId,
   waitForMeetingRun,
 } from '../src/api/meetingStream.ts'
+
+test('같은 입력의 report 실패 child만 재시도하고 입력이 바뀌면 새 생성으로 남긴다', () => {
+  const run = {
+    generation_input: {
+      source_activity_id: 'agenda-1',
+      transcript: '원문',
+      sales_deal_ids: ['deal-1'],
+    },
+    child_runs: [
+      { id: 'analysis-1', agent_code: 'meeting_analysis', status_code: 'failed' },
+      { id: 'report-1', agent_code: 'meeting_report_writing', status_code: 'failed' },
+    ],
+  }
+  assert.equal(
+    retryableMeetingReportChildId(run, {
+      source_activity_id: 'agenda-1',
+      transcript: '원문',
+      sales_deal_ids: ['deal-1'],
+    }),
+    'report-1',
+  )
+  assert.equal(
+    retryableMeetingReportChildId(run, {
+      source_activity_id: 'agenda-1',
+      transcript: '바뀐 원문',
+      sales_deal_ids: ['deal-1'],
+    }),
+    null,
+  )
+})
+
+test('새 근거 부모는 report child 완료 전에는 기다리고 analysis running이어도 준비로 본다', () => {
+  const parent = {
+    status_code: 'completed',
+    output_snapshot: { evidence: { selected_deal_ids: [] } },
+    child_runs: [
+      { agent_code: 'meeting_report_writing', status_code: 'completed', output_snapshot: { deal_reports: [] } },
+      { agent_code: 'meeting_analysis', status_code: 'running', output_snapshot: null },
+    ],
+  }
+  assert.equal(meetingChildDecision(parent), 'ready')
+  assert.equal(
+    meetingChildDecision({ ...parent, child_runs: [{ ...parent.child_runs[1] }] }),
+    'waiting',
+  )
+})
+
+test('부모 또는 report child 실패와 null output은 즉시 실패로 판정한다', () => {
+  assert.equal(meetingChildDecision({ status_code: 'failed', output_snapshot: null }), 'failed')
+  assert.equal(
+    meetingChildDecision({
+      status_code: 'completed',
+      output_snapshot: { evidence: {} },
+      child_runs: [{ agent_code: 'meeting_report_writing', status_code: 'failed', output_snapshot: null }],
+    }),
+    'failed',
+  )
+})
+
+test('legacy 통합 output은 child 생성 없이 즉시 복원한다', () => {
+  assert.equal(
+    meetingChildDecision({
+      status_code: 'completed',
+      output_snapshot: { reports: {}, analyses: [] },
+    }),
+    'legacy',
+  )
+})
 
 const created = {
   id: 'run-1',

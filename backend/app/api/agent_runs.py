@@ -54,6 +54,16 @@ async def get_agent_run(
     return await agent_run_service.get(agent_run_id, member, db)
 
 
+@router.post("/agent-runs/{agent_run_id}/retry", response_model=AgentRunRead, status_code=202)
+async def retry_agent_run(
+    agent_run_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> AgentRunRead:
+    read, _ = await agent_run_service.retry_meeting_child(agent_run_id, member, db)
+    return read
+
+
 @router.post(
     "/report-generations",
     response_model=AgentRunRead,

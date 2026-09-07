@@ -54,6 +54,18 @@ test('저장된 ML 태그와 실패 정보를 복원하고 불완전한 결과�
     '본문 생성 실패',
   )
   assert.equal(readMeetingAnalysis({ deal_assessment: { label: 'high' } }).assessment, undefined)
+  assert.deepEqual(readMeetingAnalysis({ analysis_status: 'pending' }), {
+    analysisStatus: 'pending',
+    assessment: undefined,
+    analysisError: undefined,
+    reportError: undefined,
+  })
+  assert.deepEqual(readMeetingAnalysis({ analysis_status: 'failed' }), {
+    analysisStatus: 'failed',
+    assessment: undefined,
+    analysisError: 'meeting_analysis_failed',
+    reportError: undefined,
+  })
   assert.equal(isInsufficientDealPrediction('deal_prediction_insufficient_features'), true)
   assert.equal(isInsufficientDealPrediction('deal_prediction_failed'), false)
 })

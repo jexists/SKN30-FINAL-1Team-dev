@@ -992,6 +992,51 @@ def test_meeting_run_keeps_features_when_ml_prediction_failed():
     assert extracted[deal_id]["analysis_error"] == "deal_prediction_failed"
 
 
+def test_report_child_evidence_marks_missing_analysis_as_pending():
+    member = _member()
+    deal_id = uuid4()
+    report_run = _meeting_generation_run(member, deal_id, "예산을 검토했습니다.")
+    report_run.agent_code = "meeting_report_writing"
+    analysis_run = _meeting_generation_run(member, deal_id, "예산을 검토했습니다.")
+    analysis_run.agent_code = "meeting_analysis"
+    analysis_run.status_code = "running"
+    analysis_run.output_snapshot = None
+
+    extracted = reports_api.agent_run_service.meeting_deal_evidence(
+        report_run,
+        [deal_id],
+        analysis_run=analysis_run,
+    )
+
+    assert extracted[deal_id]["analysis_run_id"] == str(analysis_run.id)
+    assert extracted[deal_id]["analysis_status"] == "pending"
+
+
+def test_report_child_evidence_preserves_failed_and_completed_analysis_metadata():
+    member = _member()
+    deal_id = uuid4()
+    report_run = _meeting_generation_run(member, deal_id, "예산을 검토했습니다.")
+    report_run.agent_code = "meeting_report_writing"
+    analysis_output = {"analyses": [{"sales_deal_id": str(deal_id), "error": None}]}
+    analysis_run = _meeting_generation_run(member, deal_id, "예산을 검토했습니다.")
+    analysis_run.agent_code = "meeting_analysis"
+    analysis_run.status_code = "failed"
+    analysis_run.error_code = "deal_prediction_failed"
+
+    failed = reports_api.agent_run_service.meeting_deal_evidence(
+        report_run, [deal_id], analysis_output=analysis_output, analysis_run=analysis_run
+    )[deal_id]
+    assert failed["analysis_status"] == "failed"
+    assert failed["analysis_error"] == "deal_prediction_failed"
+
+    analysis_run.status_code = "completed"
+    completed = reports_api.agent_run_service.meeting_deal_evidence(
+        report_run, [deal_id], analysis_output=analysis_output, analysis_run=analysis_run
+    )[deal_id]
+    assert completed["analysis_status"] == "completed"
+    assert completed["analysis_run_id"] == str(analysis_run.id)
+
+
 @pytest.mark.anyio
 async def test_finalize_rejects_an_expired_generation_run():
     member = _member()
@@ -1021,7 +1066,9 @@ async def test_finalize_rejects_an_expired_generation_run():
     )
 
     with pytest.raises(HTTPException) as caught:
-        await reports_api._finalize_run(_Db(_Result(scalar=run)), member, payload)
+        await reports_api._finalize_run(
+            _Db(_Result(scalar=run), _Result(scalar=run)), member, payload
+        )
 
     assert caught.value.status_code == 409
     assert caught.value.detail == "report_generation_not_usable"

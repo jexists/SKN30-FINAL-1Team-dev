@@ -5,8 +5,14 @@ export const isInsufficientDealPrediction = (error: string | null | undefined) =
 
 /** 저장된 서버 분석을 읽습니다. ML 실패를 새로고침 후 대기로 숨기지 않습니다. */
 export function readMeetingAnalysis(value: Record<string, unknown>) {
+  const rawStatus = value.analysis_status
+  const analysisStatus: 'pending' | 'completed' | 'failed' | undefined =
+    rawStatus === 'pending' || rawStatus === 'completed' || rawStatus === 'failed'
+      ? rawStatus
+      : undefined
   const assessment = value.deal_assessment as Partial<DealAssessment> | null | undefined
   return {
+    ...(analysisStatus ? { analysisStatus } : {}),
     assessment:
       (assessment?.label === 'high' || assessment?.label === 'watch') &&
       typeof assessment.high_probability === 'number' &&
@@ -20,7 +26,9 @@ export function readMeetingAnalysis(value: Record<string, unknown>) {
     analysisError:
       typeof value.analysis_error === 'string' && value.analysis_error
         ? value.analysis_error
-        : undefined,
+        : analysisStatus === 'failed'
+          ? 'meeting_analysis_failed'
+          : undefined,
     reportError:
       typeof value.report_error === 'string' && value.report_error ? value.report_error : undefined,
   }

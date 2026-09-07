@@ -17,6 +17,8 @@ from app.schemas.reports import (
 AgentCode = Literal[
     "report_writing",
     "meeting_processing",
+    "meeting_report_writing",
+    "meeting_analysis",
     "contract_management_select_candidates",
     "contract_management_next_meeting",
     "contract_management_briefing",
@@ -250,3 +252,5 @@ class AgentRunRead(BaseModel):
     heartbeat_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None
+    # 미팅 부모 실행은 보고서/분석 자식의 상태를 개별적으로 노출한다.
+    child_runs: list[dict[str, Any]] = Field(default_factory=list)
