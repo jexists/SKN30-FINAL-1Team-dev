@@ -267,8 +267,12 @@ def _dedupe_and_cap(candidates: list[ScheduleCandidate]) -> list[ScheduleCandida
     kept: list[ScheduleCandidate] = []
     seen_ids: set[str] = set()
     ranges: list[tuple[datetime, datetime]] = []
-    # priority 1이 가장 추천이므로 오름차순으로 본다. 같은 priority 는 이른 시각을 먼저 둔다.
-    for candidate in sorted(candidates, key=lambda item: (item.priority, item.starts_at)):
+    # priority 1이 가장 추천이므로 오름차순으로 본다. 같은 priority 는 이른 시각을 먼저 둔다 —
+    # 오프셋이 섞이면 ISO 문자열 순서가 실제 시각 순서와 어긋나므로 정규화한 시각으로 비교한다.
+    for candidate in sorted(
+        candidates,
+        key=lambda item: (item.priority, _parse(item.starts_at).astimezone(_SEOUL)),
+    ):
         if candidate.candidate_id in seen_ids:
             continue
         start = _parse(candidate.starts_at).astimezone(_SEOUL)

@@ -356,6 +356,30 @@ def test_postprocess_drops_candidates_overlapping_a_better_one(monkeypatch):
     assert [item.candidate_id for item in result.schedule_candidates] == ["best", "separate"]
 
 
+def test_postprocess_compares_same_priority_candidates_by_normalized_time(monkeypatch):
+    """같은 priority 는 문자열이 아니라 정규화한 시각으로 비교한다.
+
+    오프셋이 다르면 ISO 문자열 순서가 실제 시각 순서와 어긋난다. 아래 두 후보는 겹치므로
+    하나만 남는데, 문자열로 보면 서울 09:30 후보가 앞서 서울 09:00 후보를 밀어낸다.
+    """
+    _freeze(monkeypatch, _BEFORE_HOURS)
+    output = schedule_management.ScheduleManagementOutput(
+        schedule_candidates=[
+            _candidate(
+                candidate_id="utc-later",
+                starts_at="2026-08-25T00:30:00+00:00",
+                ends_at="2026-08-25T01:30:00+00:00",
+                priority=1,
+            ),
+            _candidate(candidate_id="seoul-earlier", priority=1),
+        ]
+    )
+
+    result = schedule_management._postprocess(output, {"activities": []})
+
+    assert [item.candidate_id for item in result.schedule_candidates] == ["seoul-earlier"]
+
+
 def test_postprocess_caps_candidates_and_renumbers_priority(monkeypatch):
     """상한을 넘으면 자르고, 걸러 내며 생긴 priority 의 구멍을 1부터 다시 메운다."""
     _freeze(monkeypatch, _BEFORE_HOURS)
