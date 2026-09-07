@@ -2,7 +2,7 @@
 // 셋을 따로 두면 컬럼을 하나 늘릴 때 세 군데를 고쳐야 하고 결국 어긋납니다.
 import { createElement, type ReactNode } from 'react'
 
-import type { Customer } from '@/types'
+import type { Customer, CustomerOwner } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 
 import { EmailCell, OwnerCell, PlainNumber, VisitCell } from './cells'
@@ -24,9 +24,13 @@ export interface ColumnDef {
 
 const short = (isoDate: string) => fmtDotShort(parseISO(isoDate))
 
-/** 담당자 이름. API 응답에 담당자 목록이 없으면 대표 한 명만 씁니다. */
-const ownerNames = (c: Customer): string[] =>
-  c.owners !== undefined && c.owners.length > 0 ? c.owners.map((o) => o.name) : [c.owner]
+/** 담당자들. API 응답에 담당자 목록이 없으면 대표 한 명만 씁니다. */
+const ownersOf = (c: Customer): CustomerOwner[] =>
+  c.owners !== undefined && c.owners.length > 0
+    ? c.owners
+    : [{ id: c.ownerMemberId ?? '', name: c.owner }]
+
+const ownerNames = (c: Customer): string[] => ownersOf(c).map((o) => o.name)
 
 export const ALL_COLUMNS: ColumnDef[] = [
   {
@@ -89,7 +93,7 @@ export const ALL_COLUMNS: ColumnDef[] = [
     sortable: true,
     // 정렬·검색·CSV 는 담당자 전체를 봅니다. 표에만 대표 한 명과 +N 으로 줄여 놓습니다.
     value: (c) => ownerNames(c).join(', '),
-    render: (c) => createElement(OwnerCell, { names: ownerNames(c) }),
+    render: (c) => createElement(OwnerCell, { owners: ownersOf(c) }),
   },
   {
     id: 'visited',

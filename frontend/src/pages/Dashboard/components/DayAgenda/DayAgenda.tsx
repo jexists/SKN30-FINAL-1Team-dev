@@ -213,7 +213,7 @@ const DayAgenda = forwardRef<HTMLElement, Props>(function DayAgenda(
             </button>
             {/* 여러 사람의 일정이 섞여 보일 때만 섭니다. 옆의 흐린 글씨는 고객 쪽
                 부서·담당자라, 우리 쪽 사람은 다른 모양으로 세워 구분합니다. */}
-            {showOwner && <OwnerName name={it.owner} />}
+            {showOwner && <OwnerName name={it.owner} memberId={it.ownerMemberId} />}
             {(it.dept || it.contact) && (
               <span className={styles.who}>
                 {[it.dept, it.contact].filter(Boolean).join(' · ')}

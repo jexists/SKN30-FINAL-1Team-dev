@@ -60,7 +60,7 @@ export default function DealCard({
         <span className={styles.meta}>
           <span>{deal.product}</span>
           <span className={styles.metaEnd}>
-            {showOwner && <OwnerName name={deal.owner} />}
+            {showOwner && <OwnerName name={deal.owner} memberId={deal.ownerMemberId} />}
             <span className="tnum">{fmtDotShort(parseISO(deal.date))}</span>
           </span>
         </span>

@@ -16,13 +16,6 @@
   min-width: 0;
 }
 
-.ownerName {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 .ownerMore {
   @include tag-pill;
 

@@ -25,6 +25,8 @@ export interface DrawerListRow {
   tags: { text: string; tone?: DrawerListTone }[]
   /** 이 건의 담당자. 여러 사람이 섞여 보일 때만 드로어가 세웁니다. */
   owner?: string
+  /** 담당자의 구성원 번호. 이름표에 칠할 색을 찾는 데 씁니다. */
+  ownerMemberId?: string
   side: {
     strong: string
     late?: boolean
@@ -73,6 +75,7 @@ export function csList(requests: SupportRequestResponse[]): DrawerList {
         title: request.title,
         titleNote: `${request.customer_company_name} · ${request.contract_no ?? request.deal_no}`,
         owner: request.assignee_display_name,
+        ownerMemberId: request.assignee_member_id,
         note: request.body,
         // 상태는 오른쪽에 이미 서 있습니다. 태그로 한 번 더 달면 같은 말이 두 번 보입니다.
         tags: request.is_urgent ? [{ text: '긴급', tone: 'risk' as const }] : [],
@@ -118,6 +121,7 @@ export function renewalList(deals: SalesDealResponse[]): DrawerList {
         key: deal.id,
         title: deal.customer_company_name,
         owner: deal.owner_display_name,
+        ownerMemberId: deal.owner_member_id,
         note: deal.description ?? deal.memo ?? '등록된 메모가 없습니다.',
         tags: [
           { text: deal.deal_type_name },

@@ -8,6 +8,7 @@ import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { VisitIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
+import OwnerName from '@/components/OwnerName'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
@@ -312,6 +313,7 @@ export default function Deals() {
             if (id === 'contractStatus')
               return chipOr(card.contractStatusTone, card.contractStatusName)
             if (id === 'orderStatus') return chipOr(card.orderStatusTone, card.orderStatusName)
+            if (id === 'owner') return <OwnerName name={card.owner} memberId={card.ownerMemberId} />
             return undefined
           }}
           mini={(card) => {

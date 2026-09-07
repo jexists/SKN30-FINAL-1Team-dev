@@ -5,6 +5,7 @@ import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
 import { ComplaintIcon, PlusIcon, SearchIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { ListPageSkeleton, SkeletonDetail, TableSkeleton } from '@/components/Skeleton'
@@ -23,7 +24,7 @@ import styles from './Complaints.module.scss'
 const COLUMNS = [
   { id: 'org', header: '회사', width: 140 },
   { id: 'deal', header: '딜', width: 120 },
-  { id: 'owner', header: '등록자', width: 90 },
+  { id: 'owner', header: '담당자', width: 90 },
   { id: 'issue', header: '제목', width: 210 },
   { id: 'note', header: '내용', width: 460 },
   { id: 'state', header: '상태', width: 92 },
@@ -229,7 +230,12 @@ export default function Complaints() {
                     <td className="tnum" title={dealLabel(request)}>
                       {dealLabel(request)}
                     </td>
-                    <td title={request.assignee_display_name}>{request.assignee_display_name}</td>
+                    <td title={request.assignee_display_name}>
+                      <OwnerName
+                        name={request.assignee_display_name}
+                        memberId={request.assignee_member_id}
+                      />
+                    </td>
                     <td className={styles.issue} title={request.title}>
                       {request.title}
                     </td>
@@ -266,7 +272,10 @@ export default function Complaints() {
               <p className={styles.miniNote}>{request.body}</p>
               <div className={styles.miniMeta}>
                 <span className="tnum">{dealLabel(request)}</span>
-                <span>{request.assignee_display_name}</span>
+                <OwnerName
+                  name={request.assignee_display_name}
+                  memberId={request.assignee_member_id}
+                />
                 <span className="tnum">{fmtDotShort(dateOf(request.occurred_at))}</span>
               </div>
             </li>

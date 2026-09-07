@@ -13,6 +13,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { OrdersIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import OrderDrawer from '@/components/OrderDrawer'
+import OwnerName from '@/components/OwnerName'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
@@ -248,6 +249,8 @@ export default function Orders() {
           caption="발주 목록."
           renderCell={(id, order) => {
             if (id === 'status') return statusChip(order)
+            if (id === 'owner')
+              return <OwnerName name={order.owner} memberId={order.ownerMemberId} />
             if (id !== 'due' || !isLate(order)) return undefined
             return (
               <span className={styles.late}>

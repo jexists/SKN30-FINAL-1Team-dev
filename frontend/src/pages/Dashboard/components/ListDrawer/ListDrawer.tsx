@@ -54,7 +54,7 @@ function Row({
         <p>{row.note}</p>
         {(row.tags.length > 0 || (showOwner && row.owner)) && (
           <div className={styles.tags}>
-            {showOwner && <OwnerName name={row.owner} />}
+            {showOwner && <OwnerName name={row.owner} memberId={row.ownerMemberId} />}
             {row.tags.map((t) => (
               <i key={t.text} className={`${styles.pill} ${t.tone ? styles[t.tone] : ''}`}>
                 {t.text}

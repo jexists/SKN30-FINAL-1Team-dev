@@ -9,6 +9,7 @@ import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { ContractIcon, PlusIcon, SearchIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
@@ -271,11 +272,13 @@ export default function Contracts() {
           onSort={ignoreSort}
           onOpen={(contract) => setOpenId(contract.id)}
           caption="계약 목록. 헤더를 눌러 정렬할 수 있습니다."
-          renderCell={(id, contract) =>
-            id === 'stage'
-              ? chipOr(contract.contractStatusTone, contract.contractStatusName)
-              : undefined
-          }
+          renderCell={(id, contract) => {
+            if (id === 'stage')
+              return chipOr(contract.contractStatusTone, contract.contractStatusName)
+            if (id === 'owner')
+              return <OwnerName name={contract.owner} memberId={contract.ownerMemberId} />
+            return undefined
+          }}
           mini={(contract) => {
             return {
               title: contract.org,

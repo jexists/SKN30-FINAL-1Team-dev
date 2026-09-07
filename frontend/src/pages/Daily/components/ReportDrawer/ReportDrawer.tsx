@@ -110,7 +110,7 @@ export default function ReportDrawer({ dateISO, rows, kind, onClose }: Props) {
                   <span className={styles.kind}>{row.kindLabel}</span>
                   <ReportStatusBadge status={row.status} />
                   <span className={styles.approver}>{row.aside}</span>
-                  {showOwner && <OwnerName name={row.author} />}
+                  {showOwner && <OwnerName name={row.author} memberId={row.ownerMemberId} />}
                 </div>
 
                 <h3 className={styles.title}>{row.title}</h3>

@@ -97,7 +97,6 @@ export interface SalesDeal extends BoardDeal {
   customerCompanyId: string
   contactId: string | null
   contactName: string | null
-  ownerMemberId: string
   productId: string | null
   description: string | null
   closedOn: string | null

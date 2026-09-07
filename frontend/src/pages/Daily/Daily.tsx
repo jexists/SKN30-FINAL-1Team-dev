@@ -351,7 +351,7 @@ export default function Daily() {
                 </strong>
                 <span className={styles.rowMeta}>
                   {/* 여러 사람의 보고서가 섞여 보일 때만 누가 썼는지 세웁니다. */}
-                  {showOwner && <OwnerName name={row.author} />}
+                  {showOwner && <OwnerName name={row.author} memberId={row.ownerMemberId} />}
                   {row.meta}
                 </span>
               </div>

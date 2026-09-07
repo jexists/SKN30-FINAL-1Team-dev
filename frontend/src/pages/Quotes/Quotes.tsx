@@ -8,6 +8,7 @@ import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import { PlusIcon, QuoteIcon, SearchIcon } from '@/components/icons'
+import OwnerName from '@/components/OwnerName'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
@@ -274,6 +275,8 @@ export default function Quotes() {
           caption="견적 목록. 헤더를 눌러 정렬할 수 있습니다."
           renderCell={(id, quote) => {
             if (id === 'stage') return chipOr(quote.quoteStatusTone, quote.quoteStatusName)
+            if (id === 'owner')
+              return <OwnerName name={quote.owner} memberId={quote.ownerMemberId} />
             if (id !== 'validUntil' || !quote.quoteValidUntil || quote.quoteValidUntil >= TODAY_ISO)
               return undefined
             return (

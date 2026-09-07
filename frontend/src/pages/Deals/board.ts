@@ -30,6 +30,8 @@ export interface BoardDeal {
   status: SalesDealStatus
   signedOff: number
   owner: string
+  /** 담당자의 구성원 번호. 카드의 이름표에 칠할 색을 찾는 데 씁니다. */
+  ownerMemberId: string
   date: string
   region: string
   memo?: string

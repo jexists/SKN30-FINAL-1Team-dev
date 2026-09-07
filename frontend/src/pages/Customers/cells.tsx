@@ -1,5 +1,8 @@
 // 표 셀의 표시 전용 조각들. columns.ts 가 값(정렬·검색·CSV)을 맡고
 // 여기가 보이는 모양만 맡습니다.
+import OwnerName from '@/components/OwnerName'
+import type { CustomerOwner } from '@/types'
+
 import styles from './Customers.module.scss'
 
 export function EmailCell({ email }: { email: string }) {
@@ -34,18 +37,21 @@ export function PlainNumber({ value }: { value: string }) {
 }
 
 /**
- * 고객 한 명에게 붙은 담당자들입니다. 한 사람만 보여 주는 이름표는 components/OwnerName 입니다.
+ * 고객 한 명에게 붙은 담당자들입니다.
  *
  * 담당자가 여럿이면 대표 한 명과 나머지 수만 보여 줍니다. 좁은 칸에 이름을 다 늘어놓으면
  * 어느 것도 읽히지 않습니다. 전체 이름은 마우스를 올리면 나옵니다.
+ *
+ * 대표 한 명은 다른 화면과 같은 이름표(components/OwnerName)로 그려 팀장이 정한 색을
+ * 그대로 답니다. 색이 화면마다 달라지면 색으로 사람을 알아볼 수 없습니다.
  */
-export function OwnerCell({ names }: { names: string[] }) {
-  if (names.length === 0) return null
+export function OwnerCell({ owners }: { owners: CustomerOwner[] }) {
+  if (owners.length === 0) return null
 
   return (
-    <span className={styles.ownerCell} title={names.join(', ')}>
-      <span className={styles.ownerName}>{names[0]}</span>
-      {names.length > 1 && <i className={styles.ownerMore}>+{names.length - 1}</i>}
+    <span className={styles.ownerCell} title={owners.map((o) => o.name).join(', ')}>
+      <OwnerName name={owners[0].name} memberId={owners[0].id} />
+      {owners.length > 1 && <i className={styles.ownerMore}>+{owners.length - 1}</i>}
     </span>
   )
 }
