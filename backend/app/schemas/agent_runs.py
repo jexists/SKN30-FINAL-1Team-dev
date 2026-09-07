@@ -2,10 +2,19 @@ from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.reports import (
+    REPORT_ATTACHMENT_MAX_COUNT,
     REPORT_JSON_MAX_BYTES,
+    ReportAttachmentRead,
     ReportKind,
     Transcript,
     validate_body_template,
@@ -17,6 +26,8 @@ from app.schemas.reports import (
 AgentCode = Literal[
     "report_writing",
     "meeting_processing",
+    "meeting_report_writing",
+    "meeting_analysis",
     "contract_management_select_candidates",
     "contract_management_next_meeting",
     "contract_management_briefing",
@@ -131,18 +142,39 @@ class ReportGenerationInput(BaseModel):
     period_end: date | None = None
     source_activity_id: UUID | None = None
     sales_deal_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    attachments: list[ReportAttachmentRead] = Field(
+        default_factory=list,
+        max_length=REPORT_ATTACHMENT_MAX_COUNT,
+    )
     template_snapshot: dict[str, Any]
     content: dict[str, Any]
     transcript: Transcript | None = None
     guidance: Guidance | None = None
+
+    def effective_meeting_transcript(self) -> str:
+        parts = ([self.transcript] if self.transcript is not None else []) + [
+            item.extract for item in self.attachments if item.kind == "audio"
+        ]
+        return "\n\n".join(parts)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def _ignore_content_attachments(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "attachments" not in value:
+            return value
+        validate_report_json_size(content=value)
+        return {key: item for key, item in value.items() if key != "attachments"}
 
     @model_validator(mode="after")
     def _validate_scope(self):
         if self.report_kind == "meeting":
             if self.source_activity_id is None:
                 raise ValueError("source_activity_required")
-            if self.transcript is None:
+            effective_transcript = self.effective_meeting_transcript()
+            if not effective_transcript:
                 raise ValueError("transcript_required")
+            if len(effective_transcript) > 50_000:
+                raise ValueError("meeting_transcript_too_large")
             if self.period_start is not None or self.period_end is not None:
                 raise ValueError("period_not_supported")
             if self.guidance is not None:
@@ -159,6 +191,9 @@ class ReportGenerationInput(BaseModel):
                 raise ValueError("invalid_report_period")
         if len(set(self.sales_deal_ids)) != len(self.sales_deal_ids):
             raise ValueError("sales_deal_ids_duplicate")
+        attachment_ids = [item.id for item in self.attachments]
+        if len(set(attachment_ids)) != len(attachment_ids):
+            raise ValueError("report_attachment_ids_duplicate")
         return self
 
 
@@ -179,6 +214,7 @@ class ReportGenerationCreate(ReportGenerationInput):
         validate_report_json_size(
             template_snapshot=self.template_snapshot,
             content=self.content,
+            attachments=[item.model_dump(mode="json") for item in self.attachments],
         )
         return self
 
@@ -250,3 +286,5 @@ class AgentRunRead(BaseModel):
     heartbeat_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None
+    # 미팅 부모 실행은 보고서/분석 자식의 상태를 개별적으로 노출한다.
+    child_runs: list[dict[str, Any]] = Field(default_factory=list)

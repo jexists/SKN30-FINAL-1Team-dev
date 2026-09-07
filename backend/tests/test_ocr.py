@@ -46,6 +46,48 @@ def test_runpod_settings_require_api_url_and_key():
     assert settings.ocr_configured is True
 
 
+def test_openai_is_the_default_ocr_provider_and_uses_openai_key():
+    settings = Settings(app_env="test", openai_api_key="openai-test-key")
+
+    assert settings.ocr_provider == "openai"
+    assert settings.ocr_model == "gpt-4o-mini"
+    assert settings.ocr_api_url == ""
+    assert settings.ocr_configured is True
+
+
+def test_openai_ocr_accepts_explicit_https_endpoint():
+    settings = Settings(
+        app_env="test",
+        ocr_api_url="https://ocr.example.test/v1/responses",
+        openai_api_key="openai-test-key",
+    )
+
+    assert settings.ocr_configured is True
+
+
+@pytest.mark.parametrize(
+    "ocr_api_url",
+    [
+        "http://ocr.example.test/v1/responses",
+        "https://user:pass@ocr.example.test/v1",
+        "https:///v1/responses",
+    ],
+)
+def test_openai_ocr_rejects_insecure_or_userinfo_endpoint(ocr_api_url):
+    with pytest.raises(ValueError, match="HTTPS"):
+        Settings(app_env="test", ocr_api_url=ocr_api_url, openai_api_key="openai-test-key")
+
+
+def test_non_openai_provider_needs_its_own_endpoint_and_key():
+    settings = Settings(
+        app_env="test",
+        ocr_provider="runpod",
+        openai_api_key="openai-test-key",
+    )
+
+    assert settings.ocr_configured is False
+
+
 def test_runpod_template_url_is_not_treated_as_configured():
     settings = Settings(
         app_env="test",
@@ -495,6 +537,82 @@ async def test_extract_document_passes_runpod_business_card_contract(monkeypatch
     assert payload["profile"] == "business_card"
     assert base64.b64decode(payload["content_base64"]) == b"image"
     assert captured["headers"]["Authorization"] == "Bearer runpod-test-key"
+
+
+@pytest.mark.anyio
+async def test_openai_ocr_sends_image_input_and_returns_text(monkeypatch):
+    captured = {}
+
+    class _Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"output_text": "계약 조건\n12개월"}
+
+    class _Client:
+        def __init__(self, **kwargs):
+            captured["timeout"] = kwargs["timeout"]
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, endpoint, *, headers, json):
+            captured.update({"endpoint": endpoint, "headers": headers, "json": json})
+            return _Response()
+
+    monkeypatch.setattr(ocr.httpx, "AsyncClient", _Client)
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "openai")
+    monkeypatch.setattr(ocr.settings, "ocr_api_url", "https://api.openai.test/v1/responses")
+    monkeypatch.setattr(ocr.settings, "ocr_api_key", SecretStr("openai-test-key"))
+    monkeypatch.setattr(ocr.settings, "ocr_model", "gpt-4o-mini")
+
+    result = await ocr.extract_document(
+        file_name="photo.png",
+        media_type="image/png",
+        content=b"image",
+    )
+
+    item = captured["json"]["input"][0]["content"][1]
+    assert captured["endpoint"] == "https://api.openai.test/v1/responses"
+    assert captured["headers"]["Authorization"] == "Bearer openai-test-key"
+    assert captured["json"]["model"] == "gpt-4o-mini"
+    assert item["type"] == "input_image"
+    assert item["image_url"].startswith("data:image/png;base64,")
+    assert result.plain_text == "계약 조건\n12개월"
+    assert result.payload["ocr_provider"] == "openai"
+
+
+@pytest.mark.anyio
+async def test_openai_ocr_provider_error_is_safe(monkeypatch):
+    class _Response:
+        status_code = 500
+
+        @staticmethod
+        def json():
+            return {"error": {"message": "secret provider detail"}}
+
+    class _Client:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, *_args, **_kwargs):
+            return _Response()
+
+    monkeypatch.setattr(ocr.httpx, "AsyncClient", _Client)
+    monkeypatch.setattr(ocr.settings, "ocr_api_key", SecretStr("openai-test-key"))
+
+    with pytest.raises(ocr.OcrError, match="openai_ocr_provider_error"):
+        await ocr._openai(file_name="photo.png", media_type="image/png", content=b"image")
 
 
 @pytest.mark.anyio

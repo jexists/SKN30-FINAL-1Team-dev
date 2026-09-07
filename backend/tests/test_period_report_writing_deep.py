@@ -117,7 +117,7 @@ def delegated_prefix(
 
 
 def test_period_prompt_requires_an_internal_report_instead_of_a_schedule_summary():
-    assert report_writing.PROMPT_VERSION == "report_writing.v17"
+    assert report_writing.PROMPT_VERSION == "report_writing.v18"
     assert "본문 초안 작성은 서버가 지정한 task 하위 작성자에게" in period.SYSTEM_PROMPT
     assert "직접 본문을 쓰지 마라" in period.SYSTEM_PROMPT
     assert "첫 검토의 의미 지적은 수정 조언" in period.SYSTEM_PROMPT
@@ -209,12 +209,22 @@ def test_direct_activity_and_attachment_are_separate_units():
         "activities": [{"id": "activity-1", "source": "캘린더", "title": "확정 활동"}],
     }
     source["content"]["attachments"] = [
-        {"id": "file-1", "name": "evidence.txt", "state": "done", "extract": "첨부 근거"}
+        {"id": "forged", "name": "forged.pdf", "state": "done", "extract": "클라이언트 값"}
+    ]
+    source["attachments"] = [
+        {
+            "id": "file-1",
+            "kind": "pdf",
+            "name": "evidence.pdf",
+            "byte_size": 123,
+            "extract": "서버 첨부 근거",
+        }
     ]
 
     units = period._source_units(period._source(source))
 
     assert [unit["source_type"] for unit in units] == ["direct_activity", "attachment"]
+    assert units[-1]["content"]["attachment"]["extract"] == "서버 첨부 근거"
 
 
 def test_normalized_direct_activities_override_legacy_content_metadata():

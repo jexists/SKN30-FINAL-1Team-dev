@@ -30,10 +30,46 @@ def _snapshot():
     }
 
 
+def test_split_children_consume_the_frozen_evidence_independently(monkeypatch):
+    source, snapshot = _snapshot()
+    snapshot["evidence"] = source.evidence.model_dump(mode="json")
+    seen = []
+    reports = report_writing_deep.FreeformMeetingReports.model_validate(draft())
+
+    async def write(value):
+        seen.append(("report", value.evidence, value.crm_context))
+        return reports
+
+    async def features(evidence, crm, *, timeout):
+        seen.append(("analysis", evidence, crm))
+        return []
+
+    monkeypatch.setattr(report_writing_deep, "run", write)
+    monkeypatch.setattr(meeting_analysis, "run_for_deals", features)
+
+    actual_report = asyncio.run(service.run_report(snapshot))
+    actual_analysis = asyncio.run(service.run_analysis(snapshot))
+
+    assert actual_report == reports
+    assert actual_analysis == []
+    assert [kind for kind, *_ in seen] == ["report", "analysis"]
+    assert all(value == source.evidence for _, value, *_ in seen)
+    assert all(context == snapshot["crm_context"] for *_, context in seen)
+
+
 def test_input_snapshot_freezes_request_without_a_report(monkeypatch):
     member = _member()
     activity_id = uuid4()
     deal_ids = [uuid4(), uuid4()]
+    attachments = [
+        {
+            "id": str(uuid4()),
+            "kind": "pdf",
+            "name": "proposal.pdf",
+            "byte_size": 123,
+            "extract": "계약 조건",
+        }
+    ]
     calls = []
 
     async def context(db, owner, source_activity_id, selected):
@@ -48,13 +84,22 @@ def test_input_snapshot_freezes_request_without_a_report(monkeypatch):
 
     monkeypatch.setattr(service.meeting_context, "build_context", context)
     actual = asyncio.run(
-        service.input_snapshot(None, member, activity_id, deal_ids, "고객이 예산을 검토합니다.")
+        service.input_snapshot(
+            None,
+            member,
+            activity_id,
+            deal_ids,
+            "고객이 예산을 검토합니다.",
+            attachments,
+        )
     )
+    attachments[0]["extract"] = "호출 뒤 변경"
 
     assert calls == [(None, member, activity_id, deal_ids)]
     assert actual["activity_id"] == str(activity_id)
     assert actual["source"]["selected_deal_ids"] == [str(value) for value in deal_ids]
     assert actual["crm_context"]["company"]["name"] == "합성 고객사"
+    assert actual["attachments"][0]["extract"] == "계약 조건"
     assert "report_versions" not in actual
     assert "assignment_overrides" not in actual
 
@@ -123,6 +168,15 @@ def test_no_deal_input_and_processing_keep_the_shared_report(monkeypatch):
 @pytest.mark.parametrize("report_failure", [False, True])
 def test_run_shares_evidence_and_keeps_partial_results(monkeypatch, report_failure):
     source, snapshot = _snapshot()
+    snapshot["attachments"] = [
+        {
+            "id": str(uuid4()),
+            "kind": "pdf",
+            "name": "proposal.pdf",
+            "byte_size": 123,
+            "extract": "첨부 계약 조건",
+        }
+    ]
     snapshot["crm_context"]["refinement_context"] = {"private_batch": ["tool-only"]}
     reports = report_writing_deep.FreeformMeetingReports.model_validate(draft())
     analyses = [
@@ -145,6 +199,7 @@ def test_run_shares_evidence_and_keeps_partial_results(monkeypatch, report_failu
     async def write(value):
         assert value.evidence == source.evidence
         assert "refinement_context" not in value.crm_context
+        assert value.attachments == snapshot["attachments"]
         seen.append("report")
         if report_failure:
             raise LLMError("report_agent_timeout")

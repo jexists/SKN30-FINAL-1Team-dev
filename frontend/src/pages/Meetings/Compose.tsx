@@ -4,7 +4,7 @@
 // 저장할 때는 공통 기록과 선택된 딜 카드를 미팅 보고서 한 건으로 묶습니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { isAxiosError } from 'axios'
+import { isAxiosError, isCancel } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
@@ -14,6 +14,9 @@ import {
   idempotencyAttemptFor,
   isAgentRunTerminalError,
   latestMeetingProcessing,
+  retryMeetingReport,
+  sameReportGenerationInput,
+  waitForMeetingAnalysis,
   waitForMeetingProcessing,
 } from '@/api/reportAgent'
 import Button, { buttonClass } from '@/components/Button'
@@ -56,11 +59,14 @@ function meetingInputOf(
   agendaId: string,
 ): ReportGenerationInput {
   const input = run.generation_input
+  const hasAudio = input?.attachments.some(
+    (attachment) => attachment.kind === 'audio' && attachment.extract.trim(),
+  )
   if (
     !input ||
     input.report_kind !== 'meeting' ||
     input.source_activity_id !== agendaId ||
-    !input.transcript
+    (!input.transcript && !hasAudio)
   ) {
     throw new Error('report_generation_input_missing')
   }
@@ -74,6 +80,7 @@ export default function Compose() {
   const generationAbort = useRef<AbortController | null>(null)
   const generationAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
   const recoveryAbort = useRef<AbortController | null>(null)
+  const analysisAbort = useRef<AbortController | null>(null)
   const submitAbort = useRef<AbortController | null>(null)
   const recoveredAgendaId = useRef('')
   const [generating, setGenerating] = useState(false)
@@ -95,6 +102,8 @@ export default function Compose() {
       generationAbort.current = null
       recoveryAbort.current?.abort()
       recoveryAbort.current = null
+      analysisAbort.current?.abort()
+      analysisAbort.current = null
       submitAbort.current?.abort()
       submitAbort.current = null
     }
@@ -114,14 +123,46 @@ export default function Compose() {
   const { finalizeReport, error: saveError, pending } = useMeetingReports()
   const draftReady =
     !agendaLoading && !loading && !agendaError && !loadError && item?.id === agendaId
-  const draft = useMeetingDraft(item, savedReport, draftReady)
+  const stopAnalysisWatch = useCallback(() => {
+    analysisAbort.current?.abort()
+    analysisAbort.current = null
+  }, [])
+  const draft = useMeetingDraft(item, savedReport, draftReady, stopAnalysisWatch)
   const {
     beginGeneration,
     receiveProgress,
     acceptGenerated,
+    acceptAnalysis,
     generationFailed,
     restoreGenerationInput,
   } = draft
+
+  const startAnalysisWatchForParent = useCallback(
+    (parentRunId: string) => {
+      stopAnalysisWatch()
+      const controller = new AbortController()
+      analysisAbort.current = controller
+      void waitForMeetingAnalysis(parentRunId, acceptAnalysis, controller.signal)
+        .catch(() => undefined)
+        .finally(() => {
+          if (analysisAbort.current === controller) analysisAbort.current = null
+        })
+    },
+    [acceptAnalysis, stopAnalysisWatch],
+  )
+  const startAnalysisWatch = useCallback(
+    (run: AgentRunResponse<MeetingProcessingOutput>) => {
+      if (!run.child_runs?.some((child) => child.agent_code === 'meeting_analysis')) return
+      const parentRunId =
+        typeof run.source_refs.parent_run_id === 'string'
+          ? run.source_refs.parent_run_id
+          : run.agent_code === 'meeting_processing'
+            ? run.id
+            : undefined
+      if (parentRunId) startAnalysisWatchForParent(parentRunId)
+    },
+    [startAnalysisWatchForParent],
+  )
 
   const resumeGeneration = useCallback(
     async (run: AgentRunResponse<MeetingProcessingOutput>, controller: AbortController) => {
@@ -134,15 +175,21 @@ export default function Compose() {
         if (run.status_code === 'failed' || run.status_code === 'cancelled') {
           throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
         }
-        const completed = ['queued', 'running'].includes(run.status_code)
-          ? await waitForMeetingProcessing(run, receiveProgress, controller.signal)
-          : run
+        const completed = await waitForMeetingProcessing(run, receiveProgress, controller.signal)
         if (!completed.output_snapshot) throw new Error('agent_run_failed')
         if (controller.signal.aborted) return
         acceptGenerated(completed.id, completed.output_snapshot)
+        startAnalysisWatch(completed)
         setRunErrors(completed.output_snapshot.errors)
       } catch (reason: unknown) {
         if (!controller.signal.aborted) {
+          const parentRunId =
+            typeof run.source_refs.parent_run_id === 'string'
+              ? run.source_refs.parent_run_id
+              : run.agent_code === 'meeting_processing'
+                ? run.id
+                : undefined
+          if (parentRunId) startAnalysisWatchForParent(parentRunId)
           generationFailed(dealIds, reason)
           setRunError(errorMessage(reason, '진행 중인 보고서를 복구하지 못했습니다.'))
         }
@@ -160,6 +207,8 @@ export default function Compose() {
       receiveProgress,
       acceptGenerated,
       generationFailed,
+      startAnalysisWatch,
+      startAnalysisWatchForParent,
     ],
   )
 
@@ -320,7 +369,14 @@ export default function Compose() {
   )
 
   const generateAll = async () => {
-    if (busy || generationAbort.current || !generatable || !draft.canGenerate) return
+    if (
+      busy ||
+      draft.attachmentsPending ||
+      generationAbort.current ||
+      !generatable ||
+      !draft.canGenerate
+    )
+      return
     recoveryAbort.current?.abort()
     const targets = [...draft.salesDealIds]
     const payload = payloadForMeeting()
@@ -328,14 +384,47 @@ export default function Compose() {
     generationAttempt.current = attempt
     const controller = new AbortController()
     generationAbort.current = controller
+    stopAnalysisWatch()
     setGenerating(true)
     beginGeneration(targets)
     setRunError(null)
     setRunErrors({})
+    let analysisParentRunId: string | undefined
     try {
-      const created = await createReportGeneration<MeetingProcessingOutput>(
-        meetingGenerationRequestOf(payload, attempt.key),
-      )
+      const request = meetingGenerationRequestOf(payload, attempt.key)
+      let created: AgentRunResponse<MeetingProcessingOutput>
+      let previous: AgentRunResponse<MeetingProcessingOutput> | null = null
+      try {
+        previous = await latestMeetingProcessing(agendaId, controller.signal)
+      } catch (reason: unknown) {
+        if (
+          controller.signal.aborted ||
+          isCancel(reason) ||
+          !isAxiosError(reason) ||
+          (reason.response && reason.response.status < 500 && reason.response.status !== 404)
+        ) {
+          throw reason
+        }
+      }
+      const failedReportId =
+        previous && sameReportGenerationInput(previous.generation_input, request)
+          ? ([...(previous.child_runs ?? [])]
+              .reverse()
+              .find(
+                (child) =>
+                  child.agent_code === 'meeting_report_writing' &&
+                  (child.status_code === 'failed' || child.status_code === 'cancelled'),
+              )?.id ?? null)
+          : null
+      created = failedReportId
+        ? await retryMeetingReport<MeetingProcessingOutput>(failedReportId)
+        : await createReportGeneration<MeetingProcessingOutput>(request)
+      analysisParentRunId =
+        typeof created.source_refs.parent_run_id === 'string'
+          ? created.source_refs.parent_run_id
+          : created.agent_code === 'meeting_processing'
+            ? created.id
+            : undefined
       const run = await waitForMeetingProcessing(
         created,
         (progress) => {
@@ -350,10 +439,12 @@ export default function Compose() {
       )
       if (controller.signal.aborted) return
       acceptGenerated(run.id, run.output_snapshot)
+      startAnalysisWatch(run)
       generationAttempt.current = finishIdempotencyAttempt(generationAttempt.current, attempt.key)
       setRunErrors(run.output_snapshot.errors)
     } catch (reason: unknown) {
       if (!controller.signal.aborted) {
+        if (analysisParentRunId) startAnalysisWatchForParent(analysisParentRunId)
         if (isAgentRunTerminalError(reason)) {
           generationAttempt.current = finishIdempotencyAttempt(
             generationAttempt.current,
@@ -379,6 +470,7 @@ export default function Compose() {
   const submitAll = async () => {
     if (
       busy ||
+      draft.attachmentsPending ||
       submitAbort.current ||
       !canEdit ||
       editableDealIds.length !== draft.salesDealIds.length ||
@@ -510,7 +602,7 @@ export default function Compose() {
         </div>
 
         <section className={styles.work} aria-label="미팅 보고서">
-          <div className={styles.saveBar} aria-busy={submitting}>
+          <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
             <div className={styles.saveCopy}>
               <strong>미팅 보고서</strong>
               <p>
@@ -525,6 +617,7 @@ export default function Compose() {
               aria-label="업무보고 작성 완료"
               disabled={
                 busy ||
+                draft.attachmentsPending ||
                 !canEdit ||
                 editableDealIds.length !== draft.salesDealIds.length ||
                 missingBody

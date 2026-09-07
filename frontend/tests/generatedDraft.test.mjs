@@ -20,6 +20,12 @@ test('AgentRun 후보는 같은 딜 ID의 본문과 ML 결과를 직접 묶는�
     analyses: [
       { sales_deal_id: 'deal-a', features: {}, assessment, error: null },
       { sales_deal_id: 'deal-b', features: null, assessment: null, error: '분석 실패' },
+      {
+        sales_deal_id: 'deal-c',
+        features: null,
+        assessment: null,
+        error: 'meeting_analysis_failed',
+      },
     ],
     evidence: { selected_deal_ids: ['deal-a', 'deal-b'] },
     errors: {},
@@ -35,6 +41,10 @@ test('AgentRun 후보는 같은 딜 ID의 본문과 ML 결과를 직접 묶는�
     assessment: undefined,
     analysisError: '분석 실패',
   })
+  assert.equal(
+    generatedDealOf(output, 'deal-c').analysisError,
+    '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
+  )
 })
 
 test('저장된 ML 태그와 실패 정보를 복원하고 불완전한 결과는 무시한다', () => {
@@ -50,10 +60,26 @@ test('저장된 ML 태그와 실패 정보를 복원하고 불완전한 결과�
     reportError: undefined,
   })
   assert.equal(
+    readMeetingAnalysis({ analysis_error: 'meeting_analysis_failed' }).analysisError,
+    '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
+  )
+  assert.equal(
     readMeetingAnalysis({ report_error: '본문 생성 실패' }).reportError,
     '본문 생성 실패',
   )
   assert.equal(readMeetingAnalysis({ deal_assessment: { label: 'high' } }).assessment, undefined)
+  assert.deepEqual(readMeetingAnalysis({ analysis_status: 'pending' }), {
+    analysisStatus: 'pending',
+    assessment: undefined,
+    analysisError: undefined,
+    reportError: undefined,
+  })
+  assert.deepEqual(readMeetingAnalysis({ analysis_status: 'failed' }), {
+    analysisStatus: 'failed',
+    assessment: undefined,
+    analysisError: '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
+    reportError: undefined,
+  })
   assert.equal(isInsufficientDealPrediction('deal_prediction_insufficient_features'), true)
   assert.equal(isInsufficientDealPrediction('deal_prediction_failed'), false)
 })

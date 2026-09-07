@@ -233,6 +233,7 @@ class Document(Base):
     product_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.product.id"))
     tags: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    deleted_at: Mapped[datetime | None]
 
 
 class File(Base):

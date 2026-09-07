@@ -3,6 +3,7 @@ import {
   AgentRunTerminalError,
   isAgentRunTerminalError,
   MEETING_WAIT_MS,
+  meetingChildDecision,
   waitForMeetingRun,
 } from './meetingStream'
 
@@ -10,10 +11,14 @@ export { isAgentRunTerminalError }
 
 import type {
   AgentRunResponse,
+  AgentRunChildResponse,
   AgentRunStatus,
   MeetingProcessingOutput,
+  MeetingAnalysisChildOutput,
+  MeetingReportChildOutput,
   MeetingProgress,
   ReportFinalizeRequest,
+  ReportGenerationInput,
   ReportGenerationRequest,
   ReportGenerationScope,
   ReportResponse,
@@ -42,6 +47,40 @@ type CompletedAgentRun<T> = Omit<AgentRunResponse<T>, 'output_snapshot'> & {
   output_snapshot: T
 }
 
+async function waitForMeetingReportChild(
+  child: AgentRunChildResponse,
+  parentRunId: string,
+  onProgress: ((progress: MeetingProgress) => void) | undefined,
+  signal: AbortSignal | undefined,
+  pollIntervalMs: number,
+): Promise<AgentRunChildResponse> {
+  if (!['queued', 'running'].includes(child.status_code)) return child
+  const created = {
+    ...child,
+    report_id: null,
+    generation_input: null,
+    attempt_count: 1,
+    evidence: null,
+  } as unknown as AgentRunResponse<MeetingReportChildOutput>
+  const completed = await waitForMeetingRun(created, {
+    eventsUrl: client.getUri({ url: `/agent-runs/${child.id}/events` }),
+    readRun: async (pollSignal) =>
+      (
+        await client.get<AgentRunResponse<MeetingReportChildOutput>>(`/agent-runs/${child.id}`, {
+          signal: pollSignal,
+        })
+      ).data,
+    onProgress: (progress) => onProgress?.({ ...progress, run_id: parentRunId }),
+    signal,
+    pollIntervalMs,
+  })
+  return {
+    ...child,
+    ...completed,
+    output_snapshot: completed.output_snapshot,
+  } as AgentRunChildResponse
+}
+
 export interface IdempotencyAttempt {
   signature: string
   key: string
@@ -62,6 +101,36 @@ export function idempotencyAttemptFor(
   return current?.signature === signature ? current : { signature, key: crypto.randomUUID() }
 }
 
+function generationInputComparable(
+  value: ReportGenerationInput | ReportGenerationRequest,
+): Record<string, unknown> {
+  return {
+    report_kind: value.report_kind,
+    report_date: value.report_date,
+    period_start: value.period_start ?? null,
+    period_end: value.period_end ?? null,
+    source_activity_id: value.source_activity_id ?? null,
+    sales_deal_ids: value.sales_deal_ids ?? [],
+    attachments: value.attachments ?? [],
+    template_snapshot: value.template_snapshot,
+    content: value.content,
+    transcript: value.transcript ?? null,
+    guidance: value.guidance ?? null,
+  }
+}
+
+/** Compare frozen generation inputs without considering the POST idempotency key. */
+export function sameReportGenerationInput(
+  previous: ReportGenerationInput | null | undefined,
+  current: ReportGenerationRequest,
+): boolean {
+  if (!previous) return false
+  return (
+    idempotencyAttemptFor(undefined, generationInputComparable(previous)).signature ===
+    idempotencyAttemptFor(undefined, generationInputComparable(current)).signature
+  )
+}
+
 /** 성공하거나 확정 실패한 현재 시도만 닫습니다. 더 늦게 끝난 옛 요청은 건드리지 않습니다. */
 export function finishIdempotencyAttempt(
   current: IdempotencyAttempt | undefined,
@@ -74,6 +143,10 @@ export async function createReportGeneration<T>(
   request: ReportGenerationRequest,
 ): Promise<AgentRunResponse<T>> {
   return (await client.post<AgentRunResponse<T>>('/report-generations', request)).data
+}
+
+export async function retryMeetingReport<T>(agentRunId: string): Promise<AgentRunResponse<T>> {
+  return (await client.post<AgentRunResponse<T>>(`/agent-runs/${agentRunId}/retry`)).data
 }
 
 export async function latestReportGeneration<T>(
@@ -129,18 +202,143 @@ export function waitForMeetingProcessing(
   run: AgentRunResponse<MeetingProcessingOutput>,
   onProgress?: (progress: MeetingProgress) => void,
   signal?: AbortSignal,
+  pollIntervalMs = POLL_INTERVAL_MS,
 ) {
-  return waitForMeetingRun(run, {
-    eventsUrl: client.getUri({ url: `/agent-runs/${run.id}/events` }),
-    readRun: async (pollSignal) =>
-      (
-        await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${run.id}`, {
-          signal: pollSignal,
+  return waitForMeetingChildren(run, onProgress, signal, pollIntervalMs)
+}
+
+async function waitForMeetingChildren(
+  created: AgentRunResponse<MeetingProcessingOutput>,
+  onProgress?: (progress: MeetingProgress) => void,
+  signal?: AbortSignal,
+  pollIntervalMs = POLL_INTERVAL_MS,
+): Promise<CompletedAgentRun<MeetingProcessingOutput>> {
+  let run = created
+  const parentId =
+    created.agent_code === 'meeting_processing'
+      ? created.id
+      : String(created.source_refs.parent_run_id ?? created.id)
+  const deadline = Date.now() + MEETING_WAIT_MS
+  while (true) {
+    if (Date.now() >= deadline) throw new Error('agent_run_timeout')
+    if (run.agent_code === 'meeting_report_writing') {
+      await waitForMeetingReportChild(
+        run as unknown as AgentRunChildResponse,
+        parentId,
+        onProgress,
+        signal,
+        pollIntervalMs,
+      )
+      run = (
+        await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${parentId}`, {
+          signal,
         })
-      ).data,
-    onProgress,
-    signal,
-  })
+      ).data
+      continue
+    }
+    const report = [...(run.child_runs ?? [])]
+      .reverse()
+      .find((child) => child.agent_code === 'meeting_report_writing')
+    const analysis = [...(run.child_runs ?? [])]
+      .reverse()
+      .find((child) => child.agent_code === 'meeting_analysis')
+    const decision = meetingChildDecision(run)
+    if (decision === 'failed') {
+      throw new AgentRunTerminalError(run.error_code ?? run.error_message ?? 'agent_run_failed')
+    }
+    const parentOutput = run.output_snapshot as unknown as Record<string, unknown> | null
+    if (decision === 'legacy') {
+      return run as CompletedAgentRun<MeetingProcessingOutput>
+    }
+    if (report && ['queued', 'running'].includes(report.status_code)) {
+      await waitForMeetingReportChild(report, run.id, onProgress, signal, pollIntervalMs)
+      run = (
+        await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${parentId}`, {
+          signal,
+        })
+      ).data
+      continue
+    }
+    if (report && decision === 'ready') {
+      const reports = report.output_snapshot as MeetingReportChildOutput | null
+      if (reports) {
+        const output: MeetingProcessingOutput = {
+          reports: reports as MeetingProcessingOutput['reports'],
+          analyses:
+            (analysis?.output_snapshot as MeetingAnalysisChildOutput | null)?.analyses ?? [],
+          evidence:
+            (parentOutput?.evidence as MeetingProcessingOutput['evidence'] | undefined) ??
+            (() => {
+              throw new AgentRunTerminalError('meeting_evidence_missing')
+            })(),
+          errors: {
+            ...(report.error_code ? { report_writing: report.error_code } : {}),
+            ...(analysis?.error_code ? { meeting_analysis: analysis.error_code } : {}),
+          },
+        }
+        return {
+          ...run,
+          id: report.id,
+          source_refs: { ...run.source_refs, parent_run_id: run.id },
+          output_snapshot: output,
+        }
+      }
+    }
+    if (run.status_code === 'queued' || run.status_code === 'running') {
+      onProgress?.({
+        run_id: run.id,
+        status_code: run.status_code,
+        stage: run.current_stage_code ?? 'starting',
+        previews: [],
+      })
+    }
+    await wait(pollIntervalMs, signal)
+    run = (
+      await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${parentId}`, {
+        signal,
+      })
+    ).data
+  }
+}
+
+function latestMeetingAnalysisChild(
+  run: AgentRunResponse<MeetingProcessingOutput>,
+): AgentRunChildResponse | undefined {
+  return [...(run.child_runs ?? [])]
+    .reverse()
+    .find((child) => child.agent_code === 'meeting_analysis')
+}
+
+/** Keep the report editable while the independent analysis child finishes. */
+export async function waitForMeetingAnalysis(
+  parentRunId: string,
+  onAnalysis?: (child: AgentRunChildResponse) => void,
+  signal?: AbortSignal,
+  pollIntervalMs = POLL_INTERVAL_MS,
+): Promise<AgentRunChildResponse | undefined> {
+  const deadline = Date.now() + MEETING_WAIT_MS
+  let run = (
+    await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${parentRunId}`, {
+      signal,
+    })
+  ).data
+  while (Date.now() < deadline) {
+    if (run.status_code === 'failed' || run.status_code === 'cancelled') return undefined
+    const child = latestMeetingAnalysisChild(run)
+    if (child) {
+      onAnalysis?.(child)
+      if (!['queued', 'running'].includes(child.status_code)) return child
+    }
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) break
+    await wait(Math.min(pollIntervalMs, remaining), signal)
+    run = (
+      await client.get<AgentRunResponse<MeetingProcessingOutput>>(`/agent-runs/${parentRunId}`, {
+        signal,
+      })
+    ).data
+  }
+  throw new Error('agent_run_timeout')
 }
 
 export async function latestMeetingProcessing(

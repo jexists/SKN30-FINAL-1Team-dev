@@ -58,10 +58,12 @@ class Settings(BaseSettings):
     embedding_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
 
     # 스캔 PDF·이미지 OCR. Runpod Serverless, Azure 또는 선택적 로컬 엔진을 지원한다.
-    ocr_provider: Literal["none", "runpod", "azure", "local"] = "none"
+    ocr_provider: Literal["openai", "none", "runpod", "azure", "local"] = "openai"
+    ocr_model: str = "gpt-4o-mini"
     # Runpod 자체 워커 또는 공개 MinerU 워커의 입출력 계약을 선택한다.
     ocr_runpod_contract: Literal["salesluv", "mineru"] = "salesluv"
     ocr_local_language: str = "korean"
+    # OpenAI provider만 빈 값일 때 Responses 기본 endpoint를 사용한다.
     ocr_api_url: str = ""
     ocr_api_key: SecretStr = SecretStr("")
     # runsync 대기시간보다 여유 있게 잡아 클라이언트가 먼저 연결을 끊지 않도록 한다.
@@ -192,10 +194,19 @@ class Settings(BaseSettings):
         """OCR 제공자 호출에 필요한 값이 모두 있는지 확인한다."""
         if self.ocr_provider == "local":
             return True
+        if self.ocr_provider == "openai":
+            return bool(self.effective_ocr_api_key)
         if self.ocr_provider == "runpod" and _contains_endpoint_placeholder(self.ocr_api_url):
             return False
         return bool(
             self.ocr_provider != "none" and self.ocr_api_url and self.ocr_api_key.get_secret_value()
+        )
+
+    @property
+    def effective_ocr_api_key(self) -> str:
+        """OCR 전용 키가 없으면 OpenAI 공용 키를 사용한다."""
+        return self.ocr_api_key.get_secret_value() or (
+            self.openai_api_key.get_secret_value() if self.ocr_provider == "openai" else ""
         )
 
     @property
@@ -222,6 +233,21 @@ class Settings(BaseSettings):
     def validate_admin_user_ids(self) -> Self:
         """형식이 틀린 목록은 부팅에서 잡는다. 403 을 받고 나서 알게 하지 않는다."""
         _ = self.admin_user_id_set
+        return self
+
+    @model_validator(mode="after")
+    def validate_openai_ocr_endpoint(self) -> Self:
+        """OpenAI OCR에 명시한 endpoint는 자격 증명을 보호하는 HTTPS URL이어야 한다."""
+        if self.ocr_provider != "openai" or not self.ocr_api_url:
+            return self
+        parts = urlsplit(self.ocr_api_url)
+        if (
+            parts.scheme != "https"
+            or not parts.hostname
+            or parts.username is not None
+            or parts.password is not None
+        ):
+            raise ValueError("OpenAI OCR API URL은 사용자 정보 없는 HTTPS URL이어야 합니다.")
         return self
 
     @model_validator(mode="after")

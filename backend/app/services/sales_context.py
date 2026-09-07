@@ -54,6 +54,7 @@ async def retrieve_briefing_context(
         .where(
             FileRow.id.in_(file_ids),
             Document.team_id == team_id,
+            Document.deleted_at.is_(None),
             *([or_(*scopes)] if scopes else []),
             FileRow.processing_status == "completed",
             # 검색이 문서마다 파일 하나만 보므로 요약도 같은 기준이어야 한다.

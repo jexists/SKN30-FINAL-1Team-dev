@@ -1,0 +1,83 @@
+// 입력 칸 배치는 UploadModal 과 같습니다. 두 모달이 같은 자료를 다루므로 모양도 같습니다.
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.field {
+  @include form-field;
+
+  // 연결 대상을 아직 고르지 않았거나 여기서 바꿀 수 없는 칸을 잠긴 모습으로 표시합니다.
+  input:disabled,
+  select:disabled {
+    background: var(--fill);
+    color: var(--muted);
+  }
+}
+
+.isWide {
+  grid-column: 1 / -1;
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+
+  i {
+    margin-left: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+    font-style: normal;
+  }
+}
+
+.error {
+  margin-top: var(--s3);
+  color: var(--red-ink);
+  font-size: 12px;
+}
+
+/* ---- 연결 대상 라디오 ---- */
+
+.choice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  height: var(--control-h);
+  padding: 3px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.choiceItem {
+  @include flex-center;
+
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+
+  &:has(input:checked) {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--sh-1);
+  }
+
+  // 글자가 없는 라디오라 초점 테두리를 칸 전체가 대신 받습니다.
+  &:has(input:focus-visible) {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+}

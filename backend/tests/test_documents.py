@@ -715,3 +715,78 @@ def test_uploader_and_date_filters_look_at_one_file_only():
     assert "document.category_code IN" in count_sql
     assert "document.category_code IN" not in counts_sql
     assert "uploaded_by_member_id IN" in counts_sql
+
+
+def test_delete_marks_document_as_deleted():
+    """삭제는 행을 지우지 않고 deleted_at 만 채운다."""
+    member = _member(role="manager")
+    document = _document(member)
+    db = _Db(_Result(scalar=document))
+
+    with _client(db, member) as client:
+        response = client.delete(f"/api/documents/{document.id}", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 204
+    assert document.deleted_at is not None
+    assert db.commit_count == 1
+    assert db.rollback_count == 0
+    # 파일 행도 스토리지 객체도 건드리지 않는다. 되살릴 여지를 남긴다.
+    assert db.added == []
+
+
+def test_delete_requires_manager():
+    """팀원은 자료를 지울 수 없다. 역할을 쿼리보다 먼저 본다."""
+    member = _member()
+    db = _Db()
+
+    with _client(db, member) as client:
+        response = client.delete(f"/api/documents/{uuid4()}", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "manager_required"}
+    # 남의 팀 자료 id 를 넣어도 존재 여부가 새지 않도록 조회 자체를 하지 않는다.
+    assert db.statements == []
+    assert db.commit_count == 0
+
+
+def test_delete_is_idempotent():
+    """두 번 눌러도 실패를 보이지 않는다. 처음 지운 시각을 그대로 둔다."""
+    member = _member(role="manager")
+    document = _document(member)
+    document.deleted_at = NOW
+    db = _Db(_Result(scalar=document))
+
+    with _client(db, member) as client:
+        response = client.delete(f"/api/documents/{document.id}", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 204
+    assert document.deleted_at == NOW
+
+
+def test_delete_other_team_document_is_hidden():
+    member = _member(role="manager")
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, member) as client:
+        response = client.delete(f"/api/documents/{uuid4()}", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "document_not_found"}
+    assert member.team_id in db.statements[0].compile().params.values()
+    assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_deleted_documents_are_hidden_from_list_and_detail():
+    """지운 자료는 목록·분류 탭 건수·상세 어디에도 나오지 않는다."""
+    member = _member()
+    db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]), _Result(rows=[]))
+    asyncio.run(documents_api.list_documents(DocumentPageParams(), member, db))
+    for statement in db.statements:
+        assert "document.deleted_at IS NULL" in str(statement)
+
+    detail_db = _Db(_Result(rows=[]))
+    with _client(detail_db, member) as client:
+        response = client.get(f"/api/documents/{uuid4()}")
+    assert response.status_code == 404
+    assert "document.deleted_at IS NULL" in str(detail_db.statements[0])

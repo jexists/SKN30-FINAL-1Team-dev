@@ -21,6 +21,7 @@ import type {
   ReportWriteRequest,
   MeetingReportStatus,
 } from '@/types'
+import { attachmentPayloadsOf, attachmentsFromPayload } from '@/utils/attachment'
 import { parseISO, TODAY } from '@/utils/date'
 
 import { reviewOf } from './reviewStatus'
@@ -72,6 +73,7 @@ function dealSectionOf(
     title: explicitTitle || text(content.title),
     values: { body: explicitBody ?? '' },
     evidence: text(content.evidence) || undefined,
+    analysisStatus: analysis.analysisStatus,
     ...analysis,
     reportError: analysis.reportError ? reportGenerationMessage(analysis.reportError) : undefined,
   }
@@ -113,9 +115,8 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     review: reviewOf(item.status_code, content.on_hold === true),
     apiStatus: item.status_code,
     transcript: item.transcript ?? '',
-    attachments: Array.isArray(content.attachments)
-      ? (content.attachments as ReportAttachment[])
-      : [],
+    // 첨부는 생성 AgentRun에만 남는 일회용 입력입니다.
+    attachments: [],
     dealSections,
     version: item.version,
     currentSubmissionId: item.current_submission_id,
@@ -158,13 +159,10 @@ export function meetingBodyOf(values: Record<string, string>): string {
 }
 
 export function meetingGenerationSeedOf(input: ReportGenerationInput) {
-  const content = record(input.content)
   return {
     salesDealIds: input.sales_deal_ids,
     transcript: input.transcript ?? '',
-    attachments: Array.isArray(content.attachments)
-      ? (content.attachments as ReportAttachment[])
-      : [],
+    attachments: attachmentsFromPayload(input.attachments),
   }
 }
 
@@ -208,7 +206,6 @@ export function meetingRequestOf(draft: MeetingDraftPayload): ReportWriteRequest
       contact: draft.contact,
       place: draft.place,
       title: draft.title,
-      attachments: draft.attachments,
     },
     title: draft.title,
     body: null,
@@ -247,9 +244,10 @@ export function meetingGenerationRequestOf(
     report_date: draft.date,
     source_activity_id: draft.agendaId,
     sales_deal_ids: draft.dealSections.map((section) => section.salesDealId),
+    attachments: attachmentPayloadsOf(draft.attachments),
     template_snapshot: request.template_snapshot,
     content: request.content,
-    transcript: draft.transcript,
+    ...(draft.transcript.trim() ? { transcript: draft.transcript.trim() } : {}),
   }
 }
 

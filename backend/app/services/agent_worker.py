@@ -2,6 +2,9 @@
 
 import argparse
 import asyncio
+import copy
+import hashlib
+import json
 import socket
 from datetime import UTC, datetime, timedelta
 from typing import get_args
@@ -12,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.agent import AgentRun
+from app.models.content import Report, ReportDeal
 from app.schemas.agent_runs import AgentCode
 from app.services import agent_runs
 from app.services.agent_logging import agent_operation, collect_token_usage, log_agent_error
@@ -225,13 +229,31 @@ async def _complete(
 ) -> None:
     sessionmaker = agent_runs.get_sessionmaker()
     async with sessionmaker() as session:
-        is_partial = run.agent_code == "meeting_processing" and bool(output.errors)
+        is_partial = run.agent_code == "meeting_analysis" and any(item.error for item in output)
         status_code = "partial" if is_partial else "completed"
         now = datetime.now(UTC)
+        parent = None
+        if run.agent_code == "meeting_analysis" and run.parent_run_id is not None:
+            # Every split child lifecycle takes the parent lock before its own row.  Finalize
+            # uses the same order, so late analysis cannot race a report generation switch.
+            parent = (
+                await session.execute(
+                    select(AgentRun)
+                    .where(AgentRun.id == run.parent_run_id)
+                    .with_for_update(of=AgentRun)
+                )
+            ).scalar_one_or_none()
+        output_snapshot = (
+            output.model_dump(mode="json")
+            if hasattr(output, "model_dump")
+            else [item.model_dump(mode="json") for item in output]
+        )
+        if run.agent_code == "meeting_analysis":
+            output_snapshot = {"analyses": output_snapshot}
         values = {
             "status_code": status_code,
             "current_stage_code": status_code,
-            "output_snapshot": output.model_dump(mode="json"),
+            "output_snapshot": output_snapshot,
             "evidence": agent_runs.evidence(run.agent_code, output, run.input_snapshot),
             "error_code": "agent_run_partial" if is_partial else None,
             "error_message": None,
@@ -261,9 +283,206 @@ async def _complete(
                     setattr(run, field, value)
                 return
             raise RuntimeError("agent_run_lease_lost")
+        if run.agent_code == "meeting_processing" and status_code == "completed":
+            await _enqueue_meeting_children(session, run, output)
+        if run.agent_code == "meeting_analysis" and status_code in {"completed", "partial"}:
+            await _persist_late_meeting_analysis(session, run, output, parent=parent)
         await session.commit()
         for field, value in values.items():
             setattr(run, field, value)
+
+
+async def _enqueue_meeting_children(session: AsyncSession, parent: AgentRun, output) -> None:
+    """근거가 확정된 뒤 보고서와 ML을 각각 독립 큐 작업으로 만든다."""
+    evidence_snapshot = {
+        "source": parent.input_snapshot.get("source", {}),
+        "deals": parent.input_snapshot.get("deals", []),
+        "evidence": output.evidence.model_dump(mode="json"),
+        "crm_context": output.crm_context,
+    }
+    report_attachments = [
+        copy.deepcopy(item)
+        for item in parent.input_snapshot.get("attachments", [])
+        if isinstance(item, dict) and item.get("kind") != "audio"
+    ]
+    existing = {
+        row.agent_code
+        for row in (
+            await session.execute(select(AgentRun).where(AgentRun.parent_run_id == parent.id))
+        )
+        .scalars()
+        .all()
+    }
+    children = (("meeting_report_writing", "report"), ("meeting_analysis", "analysis"))
+    for code, suffix in children:
+        if code in existing:
+            continue
+        child_snapshot = copy.deepcopy(evidence_snapshot)
+        if code == "meeting_report_writing" and report_attachments:
+            child_snapshot["attachments"] = report_attachments
+        child_id = uuid4()
+        request_snapshot = {"parent_run_id": str(parent.id), "kind": suffix}
+        request_hash = hashlib.sha256(
+            json.dumps(
+                child_snapshot,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        session.add(
+            AgentRun(
+                id=child_id,
+                team_id=parent.team_id,
+                parent_run_id=parent.id,
+                requested_by_member_id=parent.requested_by_member_id,
+                agent_code=code,
+                trigger_code="meeting_processing",
+                idempotency_key=child_id,
+                report_id=None,
+                status_code="queued",
+                llm_model_name=parent.llm_model_name,
+                prompt_version=agent_runs._prompt_version(code),
+                request_snapshot=request_snapshot,
+                request_hash=request_hash,
+                scope_key=f"{code}:{parent.source_refs.get('source_activity_id')}",
+                source_refs={
+                    **parent.source_refs,
+                    "parent_run_id": str(parent.id),
+                    "evidence_transcript_sha256": output.evidence.transcript_sha256,
+                },
+                input_snapshot=child_snapshot,
+                output_snapshot=None,
+                evidence=None,
+                error_message=None,
+                error_code=None,
+                current_stage_code="queued",
+                attempt_count=0,
+                payload_expires_at=parent.payload_expires_at,
+                payload_redacted_at=None,
+                lease_owner=None,
+                lease_expires_at=None,
+                heartbeat_at=None,
+                next_attempt_at=datetime.now(UTC),
+                input_tokens=None,
+                output_tokens=None,
+                total_tokens=None,
+                created_at=datetime.now(UTC),
+                started_at=None,
+                finished_at=None,
+            )
+        )
+
+
+async def _persist_late_meeting_analysis(
+    session: AsyncSession,
+    run: AgentRun,
+    output,
+    *,
+    parent: AgentRun | None = None,
+    failure_code: str | None = None,
+) -> None:
+    """확정 보고서가 먼저 저장돼도 같은 보고서 세대의 분석 결과만 보강한다."""
+    if run.parent_run_id is None:
+        return
+    if parent is None:
+        parent = (
+            await session.execute(
+                select(AgentRun)
+                .where(AgentRun.id == run.parent_run_id)
+                .with_for_update(of=AgentRun)
+            )
+        ).scalar_one_or_none()
+    if parent is None or parent.report_id is None:
+        return
+    report = (
+        await session.execute(select(Report).where(Report.id == parent.report_id))
+    ).scalar_one_or_none()
+    if report is None:
+        return
+    source_snapshot = report.source_snapshot if isinstance(report.source_snapshot, dict) else {}
+    report_child_id = source_snapshot.get("agent_run_id")
+    if not report_child_id:
+        return
+    try:
+        report_child_uuid = UUID(str(report_child_id))
+    except (TypeError, ValueError):
+        return
+    report_child = (
+        await session.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.id == report_child_uuid,
+                AgentRun.report_id == report.id,
+                AgentRun.agent_code == "meeting_report_writing",
+            )
+            .with_for_update(of=AgentRun)
+        )
+    ).scalar_one_or_none()
+    if (
+        report_child is None
+        or report_child.parent_run_id != run.parent_run_id
+        or (report_child.source_refs or {}).get("parent_run_id") != str(run.parent_run_id)
+    ):
+        return
+    report = (
+        await session.execute(
+            select(Report)
+            .where(Report.id == parent.report_id)
+            .execution_options(populate_existing=True)
+            .with_for_update(of=Report)
+        )
+    ).scalar_one_or_none()
+    if report is None:
+        return
+    source_snapshot = report.source_snapshot if isinstance(report.source_snapshot, dict) else {}
+    if source_snapshot.get("agent_run_id") != str(report_child.id):
+        return
+    source_generation = source_snapshot.get("generation_input_version")
+    if source_generation is not None and source_generation != getattr(
+        report, "generation_input_version", None
+    ):
+        return
+    rows = (
+        (
+            await session.execute(
+                select(ReportDeal).where(ReportDeal.report_id == report.id).with_for_update()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    raw_items = output.get("analyses", []) if isinstance(output, dict) else output
+    by_deal = {}
+    for item in raw_items or []:
+        sales_deal_id = item.get("sales_deal_id") if isinstance(item, dict) else item.sales_deal_id
+        if sales_deal_id is not None:
+            by_deal[UUID(str(sales_deal_id))] = item
+    for row in rows:
+        item = by_deal.get(row.sales_deal_id)
+        if isinstance(item, dict):
+            error = item.get("error")
+            assessment = item.get("assessment")
+            features = item.get("features")
+        elif item is None:
+            error = failure_code
+            assessment = None
+            features = None
+        else:
+            error = item.error
+            assessment = item.assessment.model_dump(mode="json") if item.assessment else None
+            features = item.features.model_dump(mode="json") if item.features else None
+        row.ai_evidence = {
+            "meeting_run_id": str(report_child.id),
+            "analysis_run_id": str(run.id),
+            "analysis_status": (
+                "failed" if error else ("pending" if item is None else "completed")
+            ),
+            "deal_assessment": assessment,
+            "features": features,
+            "analysis_error": error,
+            "report_error": None,
+        }
 
 
 async def _fail(
@@ -275,6 +494,15 @@ async def _fail(
     sessionmaker = agent_runs.get_sessionmaker()
     async with sessionmaker() as session:
         now = datetime.now(UTC)
+        parent = None
+        if run.agent_code == "meeting_analysis" and run.parent_run_id is not None:
+            parent = (
+                await session.execute(
+                    select(AgentRun)
+                    .where(AgentRun.id == run.parent_run_id)
+                    .with_for_update(of=AgentRun)
+                )
+            ).scalar_one_or_none()
         if run.agent_code in agent_runs.REPORT_GENERATION_CODES and (
             run.payload_expires_at is None or run.payload_expires_at <= now
         ):
@@ -328,6 +556,14 @@ async def _fail(
             )
             .values(**values)
         )
+        if values.get("status_code") == "failed" and run.agent_code == "meeting_analysis":
+            await _persist_late_meeting_analysis(
+                session,
+                run,
+                [],
+                parent=parent,
+                failure_code=error_code,
+            )
         await session.commit()
         for field, value in values.items():
             setattr(run, field, value)

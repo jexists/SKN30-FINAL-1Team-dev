@@ -160,11 +160,13 @@ export default function useDailyDraft(
   const [activities, setActivities] = useState<ReportActivity[]>(() => sources.activities)
   /** 자료에 없는 것을 직접 적는 칸. AI 가 이것도 함께 읽습니다. */
   const [transcript, setTranscript] = useState('')
-  // 음성에서 뽑은 글은 사람이 쓴 것을 덮지 않습니다. 있으면 아래에 붙입니다.
-  const files = useAttachments((text) =>
-    setTranscript((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text)),
-  )
-  const { setAttachments, setAttachmentError } = files
+  const files = useAttachments()
+  const {
+    addAttachments: addFiles,
+    removeAttachment: removeFile,
+    setAttachments,
+    setAttachmentError,
+  } = files
   const [values, setValues] = useState<Record<string, string>>({ body: '' })
   const [approver, setApprover] = useState<string>(APPROVERS[0] ?? '')
   const [aiFilledIds, setAiFilledIds] = useState<ReadonlySet<string>>(new Set())
@@ -177,6 +179,23 @@ export default function useDailyDraft(
   const recoveryAbort = useRef<AbortController | null>(null)
   const recoveredScope = useRef('')
   const [recovering, setRecovering] = useState(true)
+
+  const addAttachments = useCallback(
+    (picked: FileList | File[]) => {
+      generationAbort.current?.abort()
+      setGenerationRunId(undefined)
+      return addFiles(picked)
+    },
+    [addFiles],
+  )
+  const removeAttachment = useCallback(
+    (id: string) => {
+      generationAbort.current?.abort()
+      setGenerationRunId(undefined)
+      return removeFile(id)
+    },
+    [removeFile],
+  )
 
   // 기간이나 종류가 바뀌면 자료를 다시 모으고 처음 상태로 돌아갑니다.
   // 쓰던 내용을 지워도 되는지는 화면이 먼저 묻습니다.
@@ -239,14 +258,14 @@ export default function useDailyDraft(
   const hasInput =
     included.length > 0 ||
     transcript.trim().length > 0 ||
-    files.attachments.length > 0 ||
+    files.attachments.some((attachment) => attachment.state === 'done' && attachment.extract) ||
     Boolean(values.body?.trim())
 
   /**
    * 정리할 것이 하나는 있어야 합니다. 고른 자료든, 직접 적은 내용이든, 첨부든
    * 무엇이든 하나입니다 — 자료가 없는 기간이라도 적어서 쓸 수 있어야 합니다.
    */
-  const canGenerate = !recovering && hasAiFields && hasInput
+  const canGenerate = !recovering && !files.pending && hasAiFields && hasInput
 
   const generationPayload = useCallback(
     () => ({
@@ -469,9 +488,10 @@ export default function useDailyDraft(
     transcript,
     setTranscript,
     attachments: files.attachments,
-    addAttachments: files.addAttachments,
-    removeAttachment: files.removeAttachment,
+    addAttachments,
+    removeAttachment,
     attachmentError: files.attachmentError,
+    attachmentsPending: files.pending,
     values,
     setValue,
     approver,

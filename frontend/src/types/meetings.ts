@@ -33,6 +33,7 @@ export interface MeetingDealSection {
   title: string
   values: Record<string, string>
   evidence?: string
+  analysisStatus?: 'pending' | 'completed' | 'failed'
   assessment?: DealAssessment
   analysisError?: string
   reportError?: string

@@ -292,6 +292,7 @@ def _section_content(
     current: dict | None = None,
 ) -> dict:
     content = dict(incoming)
+    content.pop("attachments", None)
     for key in _SERVER_OWNED_CONTENT_KEYS:
         content.pop(key, None)
         if current is not None and key in current:
@@ -748,23 +749,86 @@ async def _finalize_run(
         return None
     run = (
         await db.execute(
-            select(AgentRun)
-            .where(
+            select(AgentRun).where(
                 AgentRun.id == payload.agent_run_id,
                 AgentRun.team_id == member.team_id,
                 AgentRun.requested_by_member_id == member.id,
             )
-            .with_for_update(of=AgentRun)
         )
     ).scalar_one_or_none()
     if run is None:
         raise HTTPException(404, "agent_run_not_found")
-    expected_code = "meeting_processing" if payload.report_kind == "meeting" else "report_writing"
+    request_run = run
+    if run.parent_run_id is not None:
+        parent_lock = (
+            await db.execute(
+                select(AgentRun)
+                .where(
+                    AgentRun.id == run.parent_run_id,
+                    AgentRun.team_id == member.team_id,
+                    AgentRun.requested_by_member_id == member.id,
+                )
+                .with_for_update(of=AgentRun)
+            )
+        ).scalar_one_or_none()
+        if parent_lock is None:
+            raise HTTPException(404, "agent_run_not_found")
+        request_run = parent_lock
+        locked = (
+            await db.execute(
+                select(AgentRun)
+                .where(AgentRun.id == run.id)
+                .execution_options(populate_existing=True)
+                .with_for_update(of=AgentRun)
+            )
+        ).scalar_one_or_none()
+        run = locked or run
+    else:
+        locked = (
+            await db.execute(
+                select(AgentRun)
+                .where(AgentRun.id == run.id)
+                .execution_options(populate_existing=True)
+                .with_for_update(of=AgentRun)
+            )
+        ).scalar_one_or_none()
+        run = locked or run
     if (
-        run.agent_code != expected_code
+        payload.report_kind == "meeting"
+        and run.agent_code == "meeting_processing"
+        and run.status_code in {"completed", "partial"}
+        and run.payload_expires_at is not None
+        and run.payload_expires_at > datetime.now(UTC)
+    ):
+        child = (
+            await db.execute(
+                select(AgentRun)
+                .where(
+                    AgentRun.parent_run_id == run.id,
+                    AgentRun.agent_code == "meeting_report_writing",
+                    AgentRun.team_id == member.team_id,
+                    AgentRun.requested_by_member_id == member.id,
+                )
+                .order_by(AgentRun.created_at.desc(), AgentRun.id.desc())
+                .limit(1)
+                .with_for_update(of=AgentRun)
+            )
+        ).scalar_one_or_none()
+        if child is not None:
+            run = child
+    expected_codes = (
+        {"meeting_processing", "meeting_report_writing"}
+        if payload.report_kind == "meeting"
+        else {"report_writing"}
+    )
+    scope_matches = run.scope_key == _finalize_scope_key(payload)
+    if run.agent_code == "meeting_report_writing":
+        scope_matches = run.source_refs.get("source_activity_id") == str(payload.source_activity_id)
+    if (
+        run.agent_code not in expected_codes
         or run.status_code not in {"completed", "partial"}
         or run.report_id is not None
-        or run.scope_key != _finalize_scope_key(payload)
+        or not scope_matches
         or run.output_snapshot is None
         or run.payload_redacted_at is not None
         or run.payload_expires_at is None
@@ -772,8 +836,11 @@ async def _finalize_run(
     ):
         raise HTTPException(409, "report_generation_not_usable")
     if payload.report_kind == "meeting":
+        request = (
+            request_run.request_snapshot if isinstance(request_run.request_snapshot, dict) else {}
+        )
         source = run.input_snapshot.get("source", {})
-        if source.get("transcript") != payload.transcript or set(
+        if request.get("transcript") != payload.transcript or set(
             source.get("selected_deal_ids", [])
         ) != {str(section.sales_deal_id) for section in payload.deal_sections}:
             raise HTTPException(409, "report_generation_source_changed")
@@ -790,21 +857,6 @@ async def _validate_generation_source_refs(
     if run is None or report.report_kind == "meeting":
         return
     request = run.request_snapshot if isinstance(run.request_snapshot, dict) else {}
-    request_content = request.get("content") if isinstance(request.get("content"), dict) else {}
-    current_content = payload.content if isinstance(payload.content, dict) else {}
-
-    def attachments(content: dict) -> list[dict]:
-        raw = content.get("attachments", [])
-        if not isinstance(raw, list):
-            return []
-        return [
-            {"id": item.get("id"), "name": item.get("name"), "extract": item["extract"]}
-            for item in raw
-            if isinstance(item, dict)
-            and item.get("state") == "done"
-            and isinstance(item.get("extract"), str)
-        ]
-
     immutable_input_changed = any(
         (
             request.get("report_kind") != payload.report_kind,
@@ -815,7 +867,6 @@ async def _validate_generation_source_refs(
             != (payload.period_end.isoformat() if payload.period_end else None),
             request.get("template_snapshot") != payload.template_snapshot,
             request.get("guidance") != payload.transcript,
-            attachments(request_content) != attachments(current_content),
         )
     )
     expected = run.source_refs.get("report_sources") if isinstance(run.source_refs, dict) else None
@@ -913,10 +964,30 @@ async def finalize_report(
             customer_company_id = await _validate_meeting_deals(
                 db, member, payload.source_activity_id, payload.deal_sections
             )
+        analysis_output = None
+        analysis_run = None
+        if run is not None and run.agent_code == "meeting_report_writing":
+            analysis_run = (
+                await db.execute(
+                    select(AgentRun)
+                    .where(
+                        AgentRun.parent_run_id == run.parent_run_id,
+                        AgentRun.agent_code == "meeting_analysis",
+                        AgentRun.team_id == member.team_id,
+                        AgentRun.requested_by_member_id == member.id,
+                    )
+                    .order_by(AgentRun.created_at.desc(), AgentRun.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if analysis_run is not None and analysis_run.status_code in {"completed", "partial"}:
+                analysis_output = analysis_run.output_snapshot
         ai_evidence_by_deal = (
             agent_run_service.meeting_deal_evidence(
                 run,
                 [section.sales_deal_id for section in payload.deal_sections],
+                analysis_output=analysis_output,
+                analysis_run=analysis_run,
             )
             if run is not None and payload.report_kind == "meeting"
             else None
@@ -943,7 +1014,14 @@ async def finalize_report(
                 content=content,
                 **normalized,
                 transcript=payload.transcript,
-                source_snapshot={"agent_run_id": str(run.id)} if run is not None else None,
+                source_snapshot=(
+                    {
+                        "agent_run_id": str(run.id),
+                        "generation_input_version": 1,
+                    }
+                    if run is not None
+                    else None
+                ),
                 ai_evidence=dict(run.evidence or {}) if run is not None else None,
                 version=1,
                 generation_input_version=1,
@@ -999,7 +1077,12 @@ async def finalize_report(
                 setattr(report, field_name, value)
             report.transcript = payload.transcript
             if run is not None:
-                report.source_snapshot = {"agent_run_id": str(run.id)}
+                report.source_snapshot = {
+                    "agent_run_id": str(run.id),
+                    "generation_input_version": int(
+                        getattr(report, "generation_input_version", None) or 1
+                    ),
+                }
                 report.ai_evidence = dict(run.evidence or {})
             report.note = payload.note
             report.review_note = None
@@ -1037,6 +1120,20 @@ async def finalize_report(
         if run is not None:
             run.report_id = report.id
             agent_run_service.redact_payload(run, now=now)
+            if run.parent_run_id is not None:
+                parent_run = (
+                    await db.execute(
+                        select(AgentRun)
+                        .where(
+                            AgentRun.id == run.parent_run_id,
+                            AgentRun.team_id == member.team_id,
+                            AgentRun.requested_by_member_id == member.id,
+                        )
+                        .with_for_update(of=AgentRun)
+                    )
+                ).scalar_one_or_none()
+                if parent_run is not None:
+                    parent_run.report_id = report.id
         await db.flush()
         read = await _detail(db, member, report.id)
         await db.commit()
