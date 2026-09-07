@@ -396,9 +396,7 @@ async def _persist_late_meeting_analysis(
     if parent is None or parent.report_id is None:
         return
     report = (
-        await session.execute(
-            select(Report).where(Report.id == parent.report_id)
-        )
+        await session.execute(select(Report).where(Report.id == parent.report_id))
     ).scalar_one_or_none()
     if report is None:
         return
@@ -446,12 +444,14 @@ async def _persist_late_meeting_analysis(
     ):
         return
     rows = (
-        await session.execute(
-            select(ReportDeal)
-            .where(ReportDeal.report_id == report.id)
-            .with_for_update()
+        (
+            await session.execute(
+                select(ReportDeal).where(ReportDeal.report_id == report.id).with_for_update()
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     raw_items = output.get("analyses", []) if isinstance(output, dict) else output
     by_deal = {}
     for item in raw_items or []:

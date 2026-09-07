@@ -749,8 +749,7 @@ async def _finalize_run(
         return None
     run = (
         await db.execute(
-            select(AgentRun)
-            .where(
+            select(AgentRun).where(
                 AgentRun.id == payload.agent_run_id,
                 AgentRun.team_id == member.team_id,
                 AgentRun.requested_by_member_id == member.id,

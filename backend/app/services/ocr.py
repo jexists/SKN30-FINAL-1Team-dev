@@ -203,9 +203,7 @@ def _openai_result(payload: dict[str, Any], *, file_name: str) -> ExtractedDocum
     )
 
 
-async def _openai(
-    *, file_name: str, media_type: str | None, content: bytes
-) -> ExtractedDocument:
+async def _openai(*, file_name: str, media_type: str | None, content: bytes) -> ExtractedDocument:
     encoded = base64.b64encode(content).decode("ascii")
     if media_type == "application/pdf" or Path(file_name).suffix.lower() == ".pdf":
         input_item = {

@@ -263,7 +263,7 @@ async def test_enqueue_children_keeps_audio_in_effective_source_and_routes_docum
     output = SimpleNamespace(
         evidence=SimpleNamespace(
             transcript_sha256="a" * 64,
-            model_dump=lambda **_kwargs: {"transcript_sha256": "a" * 64, "items": []}
+            model_dump=lambda **_kwargs: {"transcript_sha256": "a" * 64, "items": []},
         ),
         crm_context={"company": {"name": "고객사"}},
     )
@@ -281,6 +281,5 @@ async def test_enqueue_children_keeps_audio_in_effective_source_and_routes_docum
     ]
     assert "attachments" not in children["meeting_analysis"].input_snapshot
     assert (
-        children["meeting_report_writing"].request_hash
-        != children["meeting_analysis"].request_hash
+        children["meeting_report_writing"].request_hash != children["meeting_analysis"].request_hash
     )

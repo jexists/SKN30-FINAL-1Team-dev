@@ -199,9 +199,7 @@ class Settings(BaseSettings):
         if self.ocr_provider == "runpod" and _contains_endpoint_placeholder(self.ocr_api_url):
             return False
         return bool(
-            self.ocr_provider != "none"
-            and self.ocr_api_url
-            and self.ocr_api_key.get_secret_value()
+            self.ocr_provider != "none" and self.ocr_api_url and self.ocr_api_key.get_secret_value()
         )
 
     @property

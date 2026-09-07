@@ -743,9 +743,7 @@ def meeting_deal_evidence(
     if run.agent_code == "meeting_report_writing":
         analyses = (analysis_output or {}).get("analyses", [])
         by_deal = {
-            UUID(item["sales_deal_id"]): item
-            for item in analyses
-            if item.get("sales_deal_id")
+            UUID(item["sales_deal_id"]): item for item in analyses if item.get("sales_deal_id")
         }
         sibling_status = (
             "completed"
@@ -853,8 +851,7 @@ async def retry_meeting_child(
     """실패한 미팅 child만 같은 고정 근거로 다시 큐잉한다."""
     child = (
         await db.execute(
-            select(AgentRun)
-            .where(
+            select(AgentRun).where(
                 AgentRun.id == agent_run_id,
                 AgentRun.team_id == member.team_id,
                 AgentRun.requested_by_member_id == member.id,
