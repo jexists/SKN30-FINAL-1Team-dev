@@ -551,9 +551,23 @@ async def build_briefing_snapshot(
     company = await _company_or_404(db, member, customer_company_id)
     deals = await _open_deals(db, member, customer_company_id)
 
+    # 다음 미팅 제안(build_next_meeting_snapshot)과 같은 규칙으로 계산한다. 브리핑 프롬프트가
+    # "risks 는 입력의 risk_signals 에 있는 항목만 사용한다"고 지시하므로, 이 값을 빼면 LLM 이
+    # 지시를 지킬수록 risks 가 반드시 빈 목록이 된다.
+    deal_ids = [deal.id for deal, _stage in deals]
+    last_activity = await _last_activity_by_deal(db, member, deal_ids)
+    today = datetime.now(UTC).date()
+
+    risk_signals: list[dict[str, Any]] = []
+    for deal, stage in deals:
+        risk_signals.extend(_deal_risk_signals(deal, stage, last_activity.get(deal.id), today))
+    # C/S 미해결은 딜이 아니라 고객사에 붙는 신호라 함께 넣는다.
+    risk_signals.extend(await _unresolved_support_signals(db, member, customer_company_id))
+
     return {
         "customer_company": {"id": str(company.id), "name": company.name},
         "sales_deals": [_deal_summary(deal, stage) for deal, stage in deals],
+        "risk_signals": risk_signals,
         "approved_next_meeting": {
             "activity_id": str(activity.id),
             "sales_deal_id": str(activity.sales_deal_id) if activity.sales_deal_id else None,

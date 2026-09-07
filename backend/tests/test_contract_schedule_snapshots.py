@@ -11,7 +11,7 @@ from sqlalchemy.exc import MultipleResultsFound
 
 from app.agents import contract_management
 from app.models.agent import AgentRun
-from app.models.crm import Activity, CustomerCompany
+from app.models.crm import Activity, CustomerCompany, SupportRequest
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import contract_schedule_snapshots as snapshots
@@ -868,12 +868,14 @@ async def test_next_meeting_snapshot_rejects_a_deal_outside_the_company():
 # ---- build_briefing_snapshot: 자료요약 RAG 연결 ----
 
 
-def _briefing_db(member, company, activity, deals):
-    """build_briefing_snapshot 이 순서대로 실행하는 세 쿼리에 대한 답."""
+def _briefing_db(member, company, activity, deals, *, last_activity=None, support=None):
+    """build_briefing_snapshot 이 순서대로 실행하는 다섯 쿼리에 대한 답."""
     return _Db(
         _Result(rows=[(activity, company)]),  # 일정 + 고객사
         _Result(scalar=company),  # _company_or_404
         _Result(rows=deals),  # _open_deals
+        _Result(rows=last_activity or []),  # _last_activity_by_deal
+        _Result(scalar_values=support or []),  # _unresolved_support_signals
     )
 
 
@@ -923,6 +925,56 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
     assert captured["query"] == "테스트 병원 계약 갱신 미팅 초음파 장비 계약"
     assert snapshot["document_context"] == context
     assert "sales_deal.customer_company_id = public.customer_company.id" in str(db.statements[0])
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_carries_deal_risk_signals(monkeypatch):
+    """브리핑 프롬프트는 risk_signals 에 있는 위험만 쓰라고 지시한다 — 근거를 같이 실어야 한다."""
+    member, company, deal, activity = _briefing_fixture()
+    deal.contract_ends_on = date.today() + timedelta(days=3)
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())]),
+        member,
+        activity.id,
+    )
+
+    codes = [signal["code"] for signal in snapshot["risk_signals"]]
+    assert "contract_expiring" in codes
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_carries_unresolved_support_signals(monkeypatch):
+    """C/S 미해결은 딜이 아니라 고객사에 붙는 신호다 — 브리핑에도 같이 실어야 한다."""
+    member, company, deal, activity = _briefing_fixture()
+    support = SupportRequest(
+        id=uuid4(),
+        team_id=member.team_id,
+        customer_company_id=company.id,
+        sales_deal_id=deal.id,
+        title="장비 오작동 접수",
+        status_code="in_progress",
+        is_urgent=True,
+    )
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, [(deal, _stage())], support=[support]),
+        member,
+        activity.id,
+    )
+
+    codes = [signal["code"] for signal in snapshot["risk_signals"]]
+    assert "unresolved_support" in codes
 
 
 @pytest.mark.anyio
