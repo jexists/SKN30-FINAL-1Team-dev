@@ -42,7 +42,7 @@ export const PERIOD_RESET: Record<PeriodType, string> = {
   year: '올해',
 }
 
-/** 왼쪽 표를 무엇으로 묶을지. 오른쪽 목표 패널은 이 값과 무관하게 회사별로 고정입니다. */
+/** 계약을 무엇으로 묶을지. 왼쪽 표와 오른쪽 매출 패널이 함께 이 값을 따릅니다. */
 export type GroupBy = 'org' | 'region' | 'product'
 
 export const GROUP_BYS: GroupBy[] = ['org', 'region', 'product']

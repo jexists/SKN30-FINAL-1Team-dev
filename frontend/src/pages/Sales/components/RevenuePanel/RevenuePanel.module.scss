@@ -1,0 +1,240 @@
+.panel {
+  @include card;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding: var(--s5);
+
+  @include md {
+    gap: var(--s4);
+    padding: var(--s4);
+  }
+}
+
+/* ── 머리말 ───────────────────────────────────────── */
+
+.caption {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin-top: var(--s2);
+
+  strong {
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+}
+
+/* 증감은 계열색이 아니라 뜻이 있는 색을 씁니다. 그래서 계열 팔레트에서 빼 두었습니다. */
+.delta {
+  @include tag-pill;
+
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.isUp {
+  background: var(--green-tint);
+  color: var(--green-ink);
+}
+
+.isDown {
+  background: var(--red-tint);
+  color: var(--red-ink);
+}
+
+.sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+  margin-top: var(--s2);
+  color: var(--muted);
+  font-size: 12px;
+
+  // 항목 사이 구분점. 줄이 바뀌면 붙지 않게 앞 항목에만 답니다.
+  span + span::before {
+    content: '·';
+    margin-right: var(--s3);
+  }
+}
+
+/* ── 추세 ─────────────────────────────────────────── */
+
+/* 구성과 사이를 벌리고 실선 하나로 가릅니다. 위는 이 기간에 누가 얼마인지,
+   여기서부터는 지난 기간과 견준 이야기라 붙어 있으면 한 그림처럼 읽힙니다. */
+.trend {
+  margin: 0;
+  padding-top: var(--s5);
+  border-top: 1px solid var(--line);
+}
+
+.trendCaption {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* 막대 여섯 개가 한 줄에 섭니다. 폭을 다 먹으면 통짜 덩어리처럼 보여
+   최대 폭을 두고 가운데 세웁니다. */
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s2);
+  margin-top: var(--s2);
+
+  > li {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+}
+
+.barTrack {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 30px;
+  height: 56px;
+
+  b {
+    width: 100%;
+    // 0원인 기간도 바닥에 자리는 남깁니다. 칸이 통째로 비면 그 기간이 아예
+    // 없었던 것처럼 보입니다.
+    min-height: 2px;
+    border-radius: 4px 4px 2px 2px;
+    background: var(--sales-1);
+    // 지난 기간은 물러서 있고 지금 보는 기간만 앞에 섭니다.
+    opacity: 0.34;
+    transform-origin: bottom;
+    animation: rise var(--t) var(--ease-spring) both;
+  }
+}
+
+.isZero {
+  background: var(--fill);
+}
+
+.isNow {
+  .barTrack b {
+    opacity: 1;
+  }
+
+  .barLabel {
+    color: var(--ink-2);
+    font-weight: 600;
+  }
+}
+
+/* 기간이 바뀔 때 한 번, 왼쪽부터 차례로 올라옵니다. */
+@keyframes rise {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.barLabel {
+  overflow: hidden;
+  color: var(--muted-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ── 구성 ─────────────────────────────────────────── */
+
+.mix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.ribbon {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+
+  span {
+    flex-basis: 0;
+    min-width: 2px;
+  }
+}
+
+.ranks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+
+  li {
+    display: grid;
+    grid-template-columns: 9px minmax(0, 1fr) minmax(48px, 88px) auto 46px;
+    align-items: center;
+    gap: var(--s2);
+    font-size: 13px;
+  }
+
+  > li > i {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+  }
+}
+
+.rankName {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 1등이 꽉 찬 막대입니다. 폭 대신 scaleX 로 늘려 리플로우 없이 움직입니다. */
+.rankBar {
+  height: 6px;
+  // 계산이 어긋나 1을 넘더라도 옆 칸의 금액을 덮지 못하게 여기서 잘라 둡니다.
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+
+  b {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    transform-origin: left;
+    transition: transform var(--t) var(--ease-spring);
+  }
+}
+
+.rankAmount {
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.rankShare {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.empty {
+  padding: var(--s7) 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}

@@ -10,6 +10,7 @@ import { fmtDotShort, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
 
 import { GROUP_BYS, GROUP_HEADER, GROUP_LABEL, type GroupBy } from '../../periods'
+import { colorOf } from '../../slices'
 import type { SalesGroup, SalesSummary } from '../../useSalesSummary'
 
 import styles from './GroupTable.module.scss'
@@ -100,8 +101,11 @@ export default function GroupTable({ by, onByChange, summary }: GroupTableProps)
       <ul className={styles.rows}>
         {/* 묶을 것이 하나도 없으면 머리글과 합계만 남아 표가 고장난 것처럼 보입니다. */}
         {groups.length === 0 && <li className={styles.none}>이 기간에 등록된 계약이 없습니다.</li>}
-        {groups.map((group) => {
+        {groups.map((group, index) => {
           const open = openKeys.has(group.key)
+          // 오른쪽 패널과 같은 규칙으로 색을 뽑습니다. 한 줄과 한 조각이 같은 색이어야
+          // 두 패널을 눈으로 이을 수 있습니다.
+          const color = colorOf(index, group.actual)
 
           return (
             <li key={group.key}>
@@ -113,11 +117,15 @@ export default function GroupTable({ by, onByChange, summary }: GroupTableProps)
               >
                 <span className={styles.name}>
                   <ChevronDownIcon className={styles.caret} width={14} height={14} />
+                  <i className={styles.swatch} style={{ background: color }} />
                   {group.key}
                 </span>
                 <span className={`${styles.count} tnum`}>{group.contracts.length}건</span>
                 <span className={`${styles.amount} tnum`}>{wonFull(group.actual)}</span>
-                <span className={`${styles.share} tnum`}>{group.share.toFixed(1)}%</span>
+                <span className={`${styles.share} tnum`}>
+                  {group.share.toFixed(1)}%
+                  <i style={{ background: color, transform: `scaleX(${group.share / 100})` }} />
+                </span>
               </button>
 
               {open && <ContractRows group={group} by={by} />}

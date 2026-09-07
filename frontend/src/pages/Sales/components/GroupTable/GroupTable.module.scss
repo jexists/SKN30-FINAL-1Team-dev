@@ -100,6 +100,40 @@ $cols: minmax(0, 1fr) 56px 130px 60px;
   text-align: right;
 }
 
+/* 오른쪽 패널의 조각과 같은 색. 같은 회사가 두 패널에서 같은 색으로 보입니다. */
+.swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+}
+
+/* 비중 숫자 아래 깔리는 얇은 막대. 숫자가 오른쪽 정렬이라 막대도 오른쪽에서 자랍니다.
+   행 안쪽 여백에 앉히므로 이 막대 때문에 줄 높이가 달라지지 않습니다. */
+.share {
+  position: relative;
+
+  &::before,
+  i {
+    position: absolute;
+    right: 0;
+    bottom: -7px;
+    left: 0;
+    height: 3px;
+    border-radius: var(--r-pill);
+  }
+
+  &::before {
+    content: '';
+    background: var(--fill-2);
+  }
+
+  i {
+    transform-origin: right;
+    transition: transform var(--t) var(--ease-spring);
+  }
+}
+
 .amount {
   font-size: 14px;
   font-weight: 600;
