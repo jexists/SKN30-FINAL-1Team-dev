@@ -5,7 +5,7 @@
 // 서버가 셈해 준 것을 그대로 씁니다. 화면에서 다시 계산하면 두 화면의 숫자가 갈라집니다.
 //
 // 고치는 일은 줄 안에서 하지 않고 상세 드로어에서 합니다. 목표·역할·재직 상태를 한 줄에
-// 늘어놓으면 표가 입력 폼이 되어 읽기가 어려워집니다.
+// 늘어놓으면 표가 입력 폼이 되어 읽기가 어려워집니다. 드로어는 줄 아무 곳이나 눌러 엽니다.
 import { useMemo, useState } from 'react'
 
 import { useCurrentUser } from '@/auth/sessionContext'
@@ -120,9 +120,6 @@ export default function Team() {
                   </th>
                   <th scope="col">달성률</th>
                   <th scope="col">상태</th>
-                  <th scope="col">
-                    <span className="sr-only">관리</span>
-                  </th>
                 </tr>
               </thead>
               <tbody>

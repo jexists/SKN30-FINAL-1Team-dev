@@ -1,5 +1,7 @@
 // 팀 관리 표의 한 줄. 읽기만 합니다. 고치는 일은 상세 드로어가 맡습니다.
-import Button from '@/components/Button'
+//
+// 다른 목록(고객·자료실·고객불만)과 같이 줄 아무 곳이나 눌러 상세를 엽니다. 줄은 초점을
+// 받지 못하므로 이름 칸에 키보드용 손잡이를 하나 둡니다.
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import type { Role, TeamMemberRow } from '@/types'
 import { wonFull } from '@/utils/format'
@@ -32,9 +34,21 @@ export default function MemberRow({ member, isSelf, onOpen }: MemberRowProps) {
   const rate = member.achievement_rate
 
   return (
-    <tr className={member.active ? undefined : styles.isInactive}>
+    <tr
+      className={`${styles.clickable} ${member.active ? '' : styles.isInactive}`}
+      onClick={onOpen}
+    >
       <td>
-        <strong className={styles.name}>{member.display_name}</strong>
+        <button
+          type="button"
+          className={styles.openButton}
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpen()
+          }}
+        >
+          {member.display_name}
+        </button>
         {isSelf && <span className={styles.self}>나</span>}
       </td>
 
@@ -71,12 +85,6 @@ export default function MemberRow({ member, isSelf, onOpen }: MemberRowProps) {
         ) : (
           <StatusBadge label="비활성" />
         )}
-      </td>
-
-      <td className={styles.right}>
-        <Button variant="outline" size="sm" onClick={onOpen}>
-          상세
-        </Button>
       </td>
     </tr>
   )

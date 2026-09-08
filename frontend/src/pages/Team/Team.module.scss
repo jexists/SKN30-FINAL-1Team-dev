@@ -130,6 +130,11 @@
   tbody tr:last-child td {
     border-bottom: 0;
   }
+
+  // 줄을 누르면 상세가 열립니다. 다른 목록과 같이 지나가는 줄을 배경으로 알립니다.
+  tbody tr:hover td {
+    background: var(--fill-2);
+  }
 }
 
 .right {
