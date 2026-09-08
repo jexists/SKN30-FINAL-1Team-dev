@@ -7,6 +7,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { isAxiosError, isCancel } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
+import useCompanyDeals from '@/hooks/useCompanyDeals'
 import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
@@ -41,7 +42,6 @@ import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
-import useCompanyDeals from './useCompanyDeals'
 import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './useMeetingDraft'
 import useMeetingReports, {
   type MeetingDealDraftPayload,
