@@ -1,6 +1,6 @@
 # Database
 
-SalesLuv 의 실제 데이터베이스 구조 정리. **36개 테이블 / 379개 컬럼 / 외래 키 96개**.
+SalesLuv 의 실제 데이터베이스 구조 정리. **36개 테이블 / 381개 컬럼 / 외래 키 96개**.
 
 - 엔진: PostgreSQL (Supabase), 스키마 `public`
 - 기준: 실제 운영 중인 DB 를 `information_schema` / `pg_catalog` 로 직접 조회한 결과

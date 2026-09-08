@@ -15,6 +15,36 @@ DB 구조 변경 기록.
 
 ---
 
+## 2026-09-08 — 팀원 담당지역
+
+`backend/sql/20260908_0027_member_region_code.sql`
+
+| 테이블 | 변경 |
+|---|---|
+| `member` | `region_code` ADD |
+
+팀원마다 맡은 지역을 하나 둔다. 계정 발급 화면에서 고르고 팀 관리에서 고친다.
+값은 `customer_company.region_code` 와 같은 코드 체계이며 NULL 이면 미지정이다.
+기존 행은 정해 둘 근거가 없어 NULL 로 남겼다.
+
+---
+
+## 2026-09-08 — 상품 규격
+
+`backend/sql/20260908_0025_product_spec.sql`
+
+| 테이블 | 변경 |
+|---|---|
+| `product` | `spec` ADD |
+
+상품 등록 화면이 규격과 비고를 따로 받는다. 규격만 새 컬럼이고, 비고는 기존 `memo` 를
+그대로 쓴다.
+
+이어서 `backend/sql/20260908_0026_product_memo_to_spec.sql` 로 기존 `memo` 값을 `spec` 으로
+옮기고 `memo` 를 비웠다. 적혀 있던 값이 전부 제품 규격이었다. 구조 변경은 없다.
+
+---
+
 ## 2026-08-31 — 문서 신설
 
 실제 운영 DB 를 `information_schema` / `pg_catalog` 로 직접 조회해 이 폴더를 만들었다.

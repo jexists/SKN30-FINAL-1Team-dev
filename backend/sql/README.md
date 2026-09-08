@@ -295,6 +295,28 @@
   표본 넷의 `UPDATE`는 기본값일 뿐이고 고를 수 있는 색을 그 넷으로 제한하지 않습니다 — 팀장은
   진한 원색도 고를 수 있고 그 값이 이 컬럼을 덮습니다. 되돌리는 값이 없어 백필도 없습니다.
 
+- `20260908_0025_product_spec.sql`: `product`에 `spec`(규격)을 더합니다. 상품 등록 화면이
+  규격과 비고를 따로 받습니다. 비고는 기존 `memo`를 그대로 쓰고 화면이 부르는 이름만
+  "메모"에서 "비고"로 바뀌므로, 지금 `memo`에 들어 있는 값("표준 프로브", "교체 부품 100")은
+  옮기지 않고 비고로 남습니다. `spec`은 전부 `NULL`로 시작해 백필이 없습니다. 더하기만 하므로
+  구코드가 깨지지 않아 적용과 배포의 순서는 자유입니다.
+  **2026-09-08 적용했습니다. 지금은 개발과 운영이 같은 DB라 이 적용이 곧 운영 적용입니다.**
+
+- `20260908_0026_product_memo_to_spec.sql`: `product.memo`에 있던 값을 `spec`으로 옮기고
+  `memo`를 비웁니다. 0025 는 기존 값을 비고로 남길 생각이었지만 실제 값("표준 프로브",
+  "거치 암 표준형")이 전부 제품 규격이라 규격 자리로 옮깁니다. 0025 직후라 `spec`은 전부
+  `NULL`이어서 덮어쓰는 값이 없습니다. DDL 이 없어 구조는 그대로이고 구코드도 깨지지
+  않지만, 배포 전 구코드 화면에서는 "메모" 칸이 비어 보입니다(오류가 아니라 빈 값입니다).
+  **2026-09-08 적용했습니다.**
+
+- `20260908_0027_member_region_code.sql`: `member`에 `region_code`(담당지역)를 더합니다.
+  팀원마다 맡은 지역을 하나 두어 계정 발급 화면(`/admin`)에서 고르고 팀 관리에서 고칩니다.
+  값은 `customer_company.region_code`와 같은 코드 체계입니다 — 나중에 지역별 실적을 셀 때 딜이
+  가리키는 지역과 맞물려야 하므로 한글 이름이 아니라 코드로 저장합니다. 고를 수 있는 코드
+  목록은 DB에 고정하지 않고(공백만 CHECK로 막습니다) 화면이 지킵니다. 기존 행은 정해 둘 근거가
+  없어 전부 `NULL`(미지정)로 남고 백필이 없습니다. 더하기만이라 구코드가 깨지지 않으므로 적용과
+  배포의 순서는 자유입니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -337,6 +359,9 @@
 | 2026-09-04 | 현재 연결된 개발 DB | `20260903_0022_activity_contact_required.sql` | session pooler | **미적용(대기).** 담당자 NOT NULL 두 개만 겁니다 — 지우는 행도 채우는 값도 없습니다. 적용 직전에 `customer_contact_id IS NULL` 인 행을 확인하고 채운 뒤 적용합니다. 준비 중 9/4 에 그런 딜 1건(`꿈동물병원 LR-CORE1`)이 실제로 걸렸고, 만들어진 지 반나절 만에 미팅 보고서에 엮여 있어 지우지 못하고 담당자를 채워 넘겼습니다 |
 | 2026-09-07 | 현재 연결된 개발 DB | `20260907_0023_document_soft_delete.sql` | session pooler | 성공. document 14→15컬럼(`deleted_at`, nullable)과 부분 인덱스 `document_active_idx` 추가. 기존 자료 105행 보존(105→105)이고 지운 자료 0건입니다. 지우는 행도 채우는 값도 없습니다 |
 | 2026-09-07 | 현재 연결된 개발 DB | `20260907_0024_member_badge_color.sql` | session pooler | 성공. member 8→9컬럼(`badge_color`, nullable, CHECK `^#[0-9a-f]{6}$`). 구성원 18행 보존(18→18)이고 그중 표본 담당자 4명(`jungia21`·`bt1`·`bt2`·`bt3`)만 연한 기본색이 들어갔습니다. 나머지 14명은 `NULL`이라 화면에서 기존 회색으로 섭니다 |
+| 2026-09-08 | 현재 연결된 개발 DB | `20260908_0025_product_spec.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. product 9→10컬럼(`spec`, nullable). 상품 64행 보존(64→64)이고 `spec`은 64행 모두 `NULL`, 기존 `memo`는 64행 모두 그대로 남아 비고가 됩니다. 더하기만이라 백필도 지우는 행도 없습니다. ORM(`app/models/sales.py`)과 물리 스키마의 컬럼·nullable·타입을 대조해 일치를 확인했습니다 — `test_models_match_configured_database`는 pgbouncer 트랜잭션 풀러에서 prepared statement 때문에 돌지 않아 같은 대조를 직접 수행했습니다 |
+| 2026-09-08 | 현재 연결된 개발 DB | `20260908_0026_product_memo_to_spec.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. DDL 없음. 상품 64행 보존(64→64)이고 `memo` 64행의 값이 그대로 `spec`으로 옮겨졌습니다(`spec` 채워짐 0→64, `memo` 채워짐 64→0). 실행 전 `spec`이 전부 `NULL`인 것을 확인해 덮어쓴 값은 없습니다 |
+| 2026-09-08 | 현재 연결된 개발 DB | `20260908_0027_member_region_code.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. member 9→10컬럼(`region_code`, nullable, CHECK 공백 금지). 구성원 18행 보존(18→18)이고 `region_code`는 18행 모두 `NULL`(미지정)입니다. 더하기만이라 백필도 지우는 행도 없습니다. ORM(`app/models/workspace.py`)과 물리 스키마의 컬럼·nullable을 대조해 일치를 확인했습니다 — `test_models_match_configured_database`는 0025 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다 |
 
 ## 개발 DB 재구축 런북
 
