@@ -1,4 +1,6 @@
-"""팀 격리 검증에 쓰는 공용 검사.
+"""접근 범위 검증에 쓰는 공용 검사.
+
+팀 격리(다른 팀)와 담당자 범위(같은 팀 다른 사람)가 같은 형태라 한 함수로 본다.
 
 SQL 을 문자열로 바꿔 이름을 찾는 방식은 쓰지 않는다. 조인 조건(``ON ... = ....team_id``)과
 SELECT 목록에도 같은 이름이 나와서, WHERE 에서 팀 조건을 통째로 빼도 그대로 통과한다.
@@ -37,8 +39,8 @@ def _outer_nodes(clause):
             yield from _outer_nodes(child)
 
 
-def has_team_predicate(statement, column, team_id) -> bool:
-    """statement 의 최상위 WHERE 에 ``<column> = <team_id>`` 조건이 있으면 True.
+def has_bound_predicate(statement, column, value) -> bool:
+    """statement 의 최상위 WHERE 에 ``<column> = <value>`` 조건이 있으면 True.
 
     서브쿼리(EXISTS·스칼라 SELECT) 안에만 있는 조건은 세지 않는다. 그 자리는 바깥 행을
     거르지 못한다.
@@ -50,6 +52,16 @@ def has_team_predicate(statement, column, team_id) -> bool:
         and getattr(node.left, "table", None) is target.table
         and node.left.compare(target)
         and isinstance(node.right, BindParameter)
-        and node.right.value == team_id
+        and node.right.value == value
         for node in _outer_nodes(statement.whereclause)
     )
+
+
+def has_team_predicate(statement, column, team_id) -> bool:
+    """팀 격리용 이름. 담당자 범위와 검사 형태가 같아 has_bound_predicate 에 위임한다."""
+    return has_bound_predicate(statement, column, team_id)
+
+
+def has_owner_predicate(statement, column, member_id) -> bool:
+    """담당자 범위용 이름. 팀원은 본인 것만 보므로 이 조건이 있어야 하고, 팀장은 없어야 한다."""
+    return has_bound_predicate(statement, column, member_id)

@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from team_scope import has_team_predicate
+from team_scope import has_owner_predicate, has_team_predicate
 from test_sales_deals import _Db, _member, _Result
 
 from app.api import sales_deals as api
@@ -48,3 +48,34 @@ def test_list_total_rows_and_tab_counts_each_bind_authenticated_team(role):
     assert len(db.statements) == 3
     for statement in db.statements:
         assert has_team_predicate(statement, SalesDeal.team_id, member.team_id)
+
+
+# ---- 담당자 범위: 같은 팀 안에서도 팀원은 본인 담당만 본다 ----
+#
+# 팀 격리와 방향이 반대다. 팀 조건은 두 역할 모두에 있어야 하지만, 담당자 조건은 팀원에게만
+# 있어야 한다. 팀장에게도 걸리면 팀 전체를 보지 못해 관리 화면이 비어 보인다.
+
+
+def test_member_detail_is_scoped_to_the_deals_they_own():
+    member = _member(role="member")
+    db = _Db(_Result(rows=[]))
+    with pytest.raises(HTTPException):
+        asyncio.run(api.get_sales_deal(uuid4(), member, db))
+    assert has_owner_predicate(db.statements[0], SalesDeal.owner_member_id, member.id)
+
+
+def test_manager_detail_is_not_narrowed_to_a_single_owner():
+    manager = _member(role="manager")
+    db = _Db(_Result(rows=[]))
+    with pytest.raises(HTTPException):
+        asyncio.run(api.get_sales_deal(uuid4(), manager, db))
+    assert not has_owner_predicate(db.statements[0], SalesDeal.owner_member_id, manager.id)
+
+
+def test_member_list_queries_are_each_scoped_to_their_own_deals():
+    member = _member(role="member")
+    db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]))
+    asyncio.run(api.list_sales_deals(SalesDealPageParams(), member, db))
+    assert len(db.statements) == 3
+    for statement in db.statements:
+        assert has_owner_predicate(statement, SalesDeal.owner_member_id, member.id)

@@ -30,7 +30,10 @@
 | 발주 팀 조건 신규 테스트 | 16 passed |
 | C/S 팀 조건 신규 테스트 | 10 passed |
 | 공용 검사(team_scope) 자체 검증 | 6 passed |
-| 신규 테스트 포함 전체 회귀 | 1221 passed, 1 failed, 3 skipped, 6 deselected |
+| 보고서 팀·담당자 조건 신규 테스트 | 9 passed |
+| 일정 팀·담당자 조건 신규 테스트 | 13 passed |
+| 고객 팀·담당자 조건 신규 테스트 | 7 passed |
+| 신규 테스트 포함 전체 회귀 | 1271 passed, 3 skipped, 6 deselected (실패 0) |
 | alias 판별 보완 후 딜 팀 조건 재검증 | 20 passed |
 | 신규 파일 Ruff lint/format, `git diff --check` | 통과 |
 
@@ -121,6 +124,59 @@ alias 테이블 동일성 검사를 추가한 뒤 위 실패를 확인했다. �
   사용자 정보 포함 origin, 정상/HTTP 혼합 origin, wildcard.
 - 정상 1개: 복수 HTTPS origin에서 앱 import 성공 및 production secure-cookie 설정 확인.
 - 단순 비정상 종료뿐 아니라 해당 설정 검증 오류와 성공 표식 부재를 확인했다.
+
+## 담당자 범위 (같은 팀 안)
+
+팀 격리가 다른 **팀**을 막는다면, 담당자 범위는 같은 팀 안에서 다른 **사람**의 자료를 막는다.
+`role_code == "member"` 분기가 코드 21곳에 흩어져 있는데 검증이 없었다.
+
+검사 방향이 팀 격리와 반대다. 팀 조건은 팀원·팀장 **모두에게** 있어야 하지만, 담당자 조건은
+**팀원에게만** 있어야 한다. 팀장에게도 걸리면 팀 전체를 보지 못해 관리 화면이 비어 보인다.
+그래서 자원마다 "팀원이면 있다"와 "팀장이면 없다"를 함께 본다.
+
+컬럼 이름이 자원마다 다르다.
+
+| 자원 | 담당자 컬럼 | 구조 |
+|---|---|---|
+| 딜 | `SalesDeal.owner_member_id` | 최상위 AND |
+| 일정 | `Activity.owner_member_id` | 최상위 AND |
+| 발주 | `_sales_deal.owner_member_id` | 발주에 담당자 컬럼이 없어 딸린 딜로 좁힌다 |
+| C/S | `SupportRequest.assignee_member_id` | 접수자가 아니라 처리할 사람 |
+| 보고서 | `Report.author_member_id` | 받는 사람이 아니라 쓴 사람 |
+| 고객 | `CustomerContact.owner_member_id` | 담당자가 별도 표라 대표 담당자 비교와 담당자 표 EXISTS 를 `or_` 로 묶는다 |
+
+고객만 구조가 다르다. `customers._assigned_to` 가 대표 담당자가 아니어도 담당자로 지정됐으면
+자기 고객으로 보기 때문이다. 공용 검사는 서브쿼리 안으로 들어가지 않으므로, 최상위 `OR` 안의
+대표 담당자 비교가 인증된 사용자에게 묶였는지를 본다.
+
+`team_scope.has_owner_predicate` 는 팀 격리와 같은 판별을 쓴다(`has_bound_predicate`).
+컬럼과 묶인 값만 다르다.
+
+### 담당자 범위 변이 검사
+
+`role_code == "member"` 분기의 담당자 조건을 임시 복사본에서 모두 무력화했다. `if` 블록이
+비면 구문이 깨지므로 `append(...)` 를 `pass` 로 바꿔 분기는 남기고 조건만 없앴다.
+
+| 변이 | 결과 |
+|---|---|
+| 6개 자원 담당자 조건 13곳 무력화 | 12 failed, 72 passed: 여섯 자원 모두 회귀 탐지 |
+
+원본에는 변이를 적용하지 않았고, 검사 후 복원과 `git status` 무변경을 확인했다.
+
+### 쿼리 조건이 아닌 세 곳은 이미 덮여 있었다
+
+`role_code == "member"` 분기 21곳 중 세 곳은 WHERE 조건이 아니라 응답으로 막는다. 이 방식은
+쿼리를 들여다볼 필요가 없어, 호출해서 나오는 상태 코드로 확인한다. 확인해 보니 셋 다 기존
+테스트가 이미 덮고 있어 이번에 추가하지 않았다.
+
+| 위치 | 막는 것 | 덮는 기존 테스트 |
+|---|---|---|
+| `contract_suggestions.py` | 남의 딜에 달린 제안 무시 → 404 | `test_dismiss_hides_other_owners_suggestion_as_not_found` (저장이 일어나지 않은 것까지 확인) |
+| `sales_deals.py` `_team_contact` | 남의 고객을 내 딜에 붙이기 → 422 | `test_sales_deals.py` 의 `contact_owner_mismatch` 검증 (팀장은 통과하는 것도 함께 확인) |
+| `dashboard.py` | 팀원이 남의 실적 조회 → 403 | `test_member_cannot_widen_owner_scope` |
+
+`sales_deals.py` 쪽은 쓰기 경로다. 읽기와 달리 남의 고객을 자기 딜에 끌어다 붙이는 문제라
+따로 확인이 필요한데, 기존 테스트가 팀원 거부와 팀장 허용을 함께 보고 있다.
 
 ## flush/commit 정적 점검
 
