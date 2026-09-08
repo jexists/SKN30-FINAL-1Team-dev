@@ -290,7 +290,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
         purpose: 'reference' as const,
       })),
     }
-    const previousActivities = activities.map((activity) => ({ ...activity }))
+    const previousActivities = frozenActivities?.map((activity) => ({ ...activity })) ?? null
     const previousRunId = generationRunId
     setFrozenActivities(payload.activities)
     setAttachments(payload.attachments)
@@ -332,7 +332,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     canonical,
     values,
     setAttachments,
-    activities,
+    frozenActivities,
     generationRunId,
   ])
 

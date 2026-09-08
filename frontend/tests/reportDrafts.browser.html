@@ -172,8 +172,40 @@
             generation = draft.generate()
             await Promise.resolve()
           })
+          await act(async () => {
+            rejectGeneration()
+            await generation
+          })
+          check(
+            draft.generationError &&
+              !draft.generationRunId &&
+              draft.values.body === '조회 중 수기 본문',
+            `${kind}: 최초 생성 실패 시 run 없이 수기 본문 보존`,
+          )
+          children = [report(childKind, 'first-added'), report(childKind, 'child', 'refreshed')]
+          await reloadRelated()
+          await flushRelated()
+          check(draft.activities.length === 2, `${kind}: 최초 생성 실패 후 조회된 목록 건수 갱신`)
+          equal(
+            draft.activities.map(({ refId, sourceSubmissionId }) => [refId, sourceSubmissionId]),
+            [
+              ['first-added', 'v1'],
+              ['child', 'refreshed'],
+            ],
+            `${kind}: 최초 생성 실패 후 추가·변경된 제출본 목록 반영`,
+          )
+          check(
+            !draft.sourceError && draft.missing.length === 0 && draft.canGenerate,
+            `${kind}: 최초 생성 실패 후 제출본 변경을 잘못 차단하지 않음`,
+          )
+          const refreshedActivities = draft.activities
+          await act(async () => {
+            generation = draft.generate()
+            await Promise.resolve()
+          })
           const snapshot = generated.at(-1).content.activities
-          children = [report(childKind, 'new'), report(childKind)]
+          equal(snapshot, refreshedActivities, `${kind}: 재시도 요청은 최신 조회 출처 사용`)
+          children = [report(childKind, 'new'), ...children]
           await reloadRelated()
           await flushRelated()
           equal(draft.activities, snapshot, `${kind}: 생성 중 목록 추가에도 출처 동결`)
