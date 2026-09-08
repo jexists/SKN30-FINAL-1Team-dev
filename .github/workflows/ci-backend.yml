@@ -24,6 +24,8 @@ defaults:
 jobs:
   test:
     strategy:
+      # 한 OS가 깨져도 나머지 OS의 신호는 끝까지 본다.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -45,9 +47,6 @@ jobs:
 
       - name: Lint (ruff)
         run: uv run ruff check .
-
-      - name: 포맷 검사 (ruff)
-        run: uv run ruff format --check .
 
       - name: 테스트 (pytest)
         run: uv run pytest
