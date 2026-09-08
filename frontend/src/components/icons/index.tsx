@@ -373,6 +373,27 @@ export function TrashIcon(props: IconProps) {
   )
 }
 
+// 공지관리의 숨기기·보이기 전환. 지금 보이는 상태를 아이콘이 말합니다.
+export function EyeIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  )
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-3.2 4" />
+      <path d="M6.3 7.9A17 17 0 0 0 2.5 12S6 18.5 12 18.5a9.5 9.5 0 0 0 4-.85" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <path d="M4 4l16 16" />
+    </Icon>
+  )
+}
+
 export function RefreshIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.8} {...props}>

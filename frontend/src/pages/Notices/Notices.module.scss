@@ -40,6 +40,11 @@
   overflow: hidden;
 }
 
+// 표 카드 밖에 두는 페이지네이션도 양 끝이 경계에 닿아 보이지 않게 살짝 들입니다.
+.pagination {
+  padding-inline: var(--s1);
+}
+
 .scroller {
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -97,6 +102,17 @@
     background: var(--fill-2);
   }
 
+  // 양 끝의 내용이 카드 경계에 닿지 않게 맞춥니다.
+  th:last-child,
+  td:last-child {
+    padding-right: var(--s4);
+  }
+
+  th:first-child,
+  td:first-child {
+    padding-left: var(--s4);
+  }
+
   // 숨긴 글은 목록에 남지만 지금 화면에 서지 않는다는 것이 보여야 합니다.
   tbody tr.isHidden td.title,
   tbody tr.isHidden td {
@@ -110,31 +126,28 @@
   color: var(--ink-2);
 }
 
-/* ---- 줄 끝 관리 버튼 ---- */
-
-.rowActions {
-  display: flex;
-  align-items: center;
-  gap: var(--s1);
+// 누르면 상세가 열리는 줄. 배경은 tbody tr:hover 가 이미 맡습니다.
+.clickable {
+  cursor: pointer;
 }
 
-.remove {
-  padding: 0 var(--s2);
+// 제목 칸의 키보드용 손잡이입니다. 누를 곳은 줄 전체이므로 밑줄은 긋지 않습니다.
+.openButton {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
   border: 0;
-  border-radius: var(--r-sm);
   background: none;
-  color: var(--red-ink);
-  font-size: 12px;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--red-tint);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
 }
 
 /* ---- 빈 상태 ---- */
@@ -249,28 +262,11 @@
 
 /* ---- 이행 현황 ---- */
 
-// 배지와 진행도를 한 덩어리로 눌러 사람별 상태를 엽니다. 표 안이라 버튼처럼 굵게 세우지
-// 않고 배경 없이 둡니다.
+// 배지와 진행도를 한 덩어리로 봅니다. 사람별 상태와 사유는 상세 드로어에 있습니다.
 .progress {
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  padding: 2px 4px;
-  border: 0;
-  border-radius: var(--r-xs);
-  background: none;
   color: var(--muted);
-  font: inherit;
   font-size: 12px;
-  cursor: pointer;
-  transition: background var(--t-fast);
-
-  &:hover {
-    background: var(--fill-2);
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 3px var(--blue-ring);
-    outline: none;
-  }
 }

@@ -20,13 +20,13 @@ export interface NoticeColumn {
 
 const BASE_COLUMNS: NoticeColumn[] = [
   { id: 'sortOrder', header: '순서', width: 64 },
-  { id: 'title', header: '제목', width: 300 },
+  // 수정·삭제는 상세 드로어의 '…' 메뉴로 갔습니다. 그만큼을 제목이 씁니다.
+  { id: 'title', header: '제목', width: 500 },
   { id: 'tag', header: '태그', width: 96 },
   { id: 'targets', header: '수신자', width: 180 },
   { id: 'period', header: '게시기간', width: 200 },
   { id: 'state', header: '상태', width: 88 },
   { id: 'author', header: '작성자', width: 110 },
-  { id: 'actions', header: '관리', width: 150 },
 ]
 
 /**

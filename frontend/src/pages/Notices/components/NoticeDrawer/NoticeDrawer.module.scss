@@ -1,0 +1,255 @@
+// 제목 아래 한 줄. 작성자와 게시기간만 남습니다.
+.when {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge {
+  @include tag-pill;
+}
+
+/* ---- 머리말의 '…' 더보기. CustomerDrawer 의 고객 메뉴와 같은 모양입니다. ---- */
+
+.menuBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    svg {
+      flex: none;
+      color: var(--muted);
+    }
+
+    &:hover {
+      background: var(--fill-2);
+    }
+  }
+
+  // 지우는 것은 되돌릴 수 없어 색으로 한 번 더 세웁니다.
+  .danger {
+    color: var(--red-ink);
+
+    svg {
+      color: currentcolor;
+    }
+
+    &:hover {
+      background: var(--red-tint);
+    }
+  }
+}
+
+/* ---- 본문 ---- */
+
+// 머리 정보. 대시보드 NoticeDrawer 의 .facts 와 같은 모양입니다.
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.section {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+// 이행 2/3. 절 이름 옆에 붙어 먼저 읽힙니다.
+.summary {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+// 본문은 HTML 한 덩어리입니다. 편집기가 낼 수 있는 태그(RichTextEditor.valid_elements)에
+// 맞춰 자식 요소의 여백과 크기를 여기서 정합니다.
+.detail {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.75;
+
+  :global(p) {
+    margin: 0 0 0.75em;
+  }
+
+  :global(ul),
+  :global(ol) {
+    margin: 0 0 0.75em;
+    padding-left: 1.25em;
+  }
+
+  :global(h2),
+  :global(h3),
+  :global(h4) {
+    margin: 1.25em 0 0.5em;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  :global(blockquote) {
+    margin: 0 0 0.75em;
+    padding-left: var(--s3);
+    border-left: 3px solid var(--line);
+    color: var(--muted);
+  }
+
+  :global(a) {
+    color: var(--brand-ink);
+    text-decoration: underline;
+  }
+
+  // 첨부 사진은 드로어 폭에 맞춰 줄이고 원래 비율을 지킵니다.
+  :global(img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: var(--s3) 0;
+    border-radius: var(--r-sm);
+  }
+
+  > :global(*:last-child) {
+    margin-bottom: 0;
+  }
+}
+
+// 본문을 기다리는 동안의 자리표시자. 줄 높이와 문단 간격을 .detail 과 맞춰
+// 전문이 도착해도 아래 내용이 밀리지 않게 합니다.
+.pendingParagraph {
+  display: grid;
+  gap: 12px; // 13px * 1.75 - 막대 높이 11px
+  margin: 0 0 calc(0.75em + 12px);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* ---- 이행 현황 ---- */
+
+.targets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: var(--s3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+  }
+}
+
+.targetHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+// 바뀐 시각은 오른쪽 끝으로 밀어 이름과 배지가 먼저 읽히게 합니다.
+.changed {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reason {
+  margin: var(--s2) 0 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
