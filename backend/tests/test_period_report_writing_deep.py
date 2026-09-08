@@ -12,7 +12,7 @@ from test_report_writing_deep import scripted
 from app.agents.meeting import content, features
 from app.agents.reports import harness, period, period_sources
 from app.schemas.report_drafts import ReportDraftOutput
-from app.services.llm import LLMError
+from app.services.llm import LLMError, LLMNotConfigured
 
 MEETING_A = UUID(int=101)
 MEETING_B = UUID(int=102)
@@ -253,6 +253,7 @@ def test_feedback_triggers_exactly_one_repair_and_no_final_llm_call(monkeypatch,
         LLMError("llm_provider_error:503"),
         LLMError("llm_request_failed:ReadTimeout"),
         LLMError("llm_response_not_json"),
+        LLMError("period_report_input_too_large"),
     ],
 )
 def test_review_and_repair_failure_keeps_draft(monkeypatch, caplog, stage, failure):
@@ -297,7 +298,9 @@ def test_malformed_repair_preserves_draft_but_invalid_initial_output_fails(monke
         asyncio.CancelledError(),
         ValueError("input_invalid"),
         PermissionError("owner_invalid"),
-        LLMError("period_report_input_too_large"),
+        LLMError("period_report_source_unit_too_large"),
+        LLMNotConfigured("llm_not_configured"),
+        LLMError("report_agent_unsupported_endpoint"),
         LLMError("llm_provider_error:401"),
         LLMError("llm_provider_error:403"),
     ],
@@ -345,7 +348,9 @@ def test_source_units_and_all_generation_inputs_have_size_limits(monkeypatch):
 
 
 @pytest.mark.parametrize("stage", ["review", "repair"])
-def test_payload_preflight_rejection_does_not_count_a_model_attempt(monkeypatch, stage):
+def test_payload_preflight_rejection_keeps_draft_without_counting_a_model_attempt(
+    monkeypatch, stage
+):
     events = []
     monkeypatch.setattr(period, "log_agent_event", lambda *args, **kwargs: events.append(kwargs))
     # 직전 단계까지 허용하고 다음 입력만 실제 크기 상한으로 거절한다.
@@ -362,9 +367,9 @@ def test_payload_preflight_rejection_does_not_count_a_model_attempt(monkeypatch,
         period, "MAX_PERIOD_PROMPT_CHARS", period_sources.json_chars(allowed_payload)
     )
     seen = scripted(monkeypatch, responses)
-    with pytest.raises(LLMError, match="period_report_input_too_large"):
-        asyncio.run(period.run(sample()))
-    assert events[-1]["outcome"] == "failed"
+    assert asyncio.run(period.run(sample())).model_dump() == draft()
+    assert events[-1]["outcome"] == "degraded"
+    assert events[-1]["reason_code"] == "valid_draft_fallback"
     assert events[-1]["model_call_count"] == events[-1]["call_count"] == len(seen) == len(responses)
     assert (
         events[-1]["semantic_review_count"]
