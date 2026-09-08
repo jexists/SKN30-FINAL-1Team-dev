@@ -7,7 +7,8 @@
 - 이슈: https://github.com/jexists/SKN30-FINAL-1Team-dev/issues/132
 - 브랜치: `jiyu-park/team-isolation-tests`
 - 기준 HEAD: `7130980`
-- 이번 추가: `team_scope.py`(공용 검사), `test_deal_team_predicates.py` 20개,
+- 이번 추가: `team_scope.py`(공용 검사)와 그 자체를 검증하는 `test_team_scope.py` 6개,
+  `test_deal_team_predicates.py` 20개,
   `test_order_team_predicates.py` 16개, `test_support_team_predicates.py` 10개,
   `test_production_security.py` 11개, `test_local_database.py` 1개.
 - 정리한 것: `backend/tests/test_sales_deals.py`에 먼저 넣었던 팀 격리 테스트 3개를 지웠다.
@@ -28,6 +29,7 @@
 | 딜 팀 조건 신규 테스트 | 20 passed |
 | 발주 팀 조건 신규 테스트 | 16 passed |
 | C/S 팀 조건 신규 테스트 | 10 passed |
+| 공용 검사(team_scope) 자체 검증 | 6 passed |
 | 신규 테스트 포함 전체 회귀 | 1221 passed, 1 failed, 3 skipped, 6 deselected |
 | alias 판별 보완 후 딜 팀 조건 재검증 | 20 passed |
 | 신규 파일 Ruff lint/format, `git diff --check` | 통과 |
@@ -86,6 +88,19 @@ alias 테이블 동일성 검사를 추가한 뒤 위 실패를 확인했다. �
   인증된 팀 ID 바인딩을 검사한다: 8개.
 - 팀원/팀장 각각의 빈 목록에서 total, 본문, 상태별 건수 3개 쿼리를 검사한다: 2개.
 
+### 공용 검사의 범위 (리뷰 반영)
+
+첫 구현은 `visitors.iterate` 로 WHERE 아래를 끝까지 훑어, 조건 하나만 찾으면 통과시켰다.
+서브쿼리 안에만 팀 조건이 있고 바깥 행은 전혀 안 막히는 쿼리도 통과하는 것을 확인했다.
+
+바깥 행을 거르는 자리만 보도록 순회를 좁혔다. `AND` 와 `OR`, 그리고 `AND` 안의 `OR` 를
+감싸는 괄호(`Grouping`)는 따라 내려가고, 서브쿼리 안으로는 들어가지 않는다. `OR` 를 막으면
+실제 스코프의 nullable 관계(`or_(fk.is_(None), <표>.team_id == member.team_id)`)를 쓰는
+상품·견적 상태·계약 상태·연락처 담당자를 검사할 수 없어 그대로 둔다.
+
+`test_team_scope.py` 6개가 이 경계를 고정한다: 최상위·`AND`·nullable `OR` 는 통과,
+서브쿼리 전용·다른 팀 값·`WHERE` 없음은 불통과.
+
 ### 세 자원 동시 변이 검사
 
 `sales_deals.py`·`orders.py`·`support.py`의 자기 테이블 팀 조건을 임시 복사본에서 모두 제거하고
@@ -127,9 +142,10 @@ API 계층 AST에서 `flush()` 40개 호출 지점을 확인했다. 같은 함�
 
 ```sh
 APP_ENV=test DATABASE_URL='' RUN_INTEGRATION_TESTS=false uv run pytest -q -m 'not integration' --junitxml=/tmp/issue132-final.xml
-APP_ENV=test DATABASE_URL='' uv run pytest tests/test_deal_team_predicates.py tests/test_order_team_predicates.py tests/test_support_team_predicates.py tests/test_production_security.py -q
-uv run ruff check tests/test_deal_team_predicates.py tests/test_order_team_predicates.py tests/test_support_team_predicates.py tests/test_production_security.py
-uv run ruff format --check tests/test_deal_team_predicates.py tests/test_order_team_predicates.py tests/test_support_team_predicates.py tests/test_production_security.py
+APP_ENV=test DATABASE_URL='' uv run pytest tests/team_scope.py tests/test_team_scope.py tests/test_deal_team_predicates.py tests/test_order_team_predicates.py tests/test_support_team_predicates.py tests/test_production_security.py tests/test_local_database.py -q
+uv run ruff check tests/team_scope.py tests/test_team_scope.py tests/test_deal_team_predicates.py tests/test_order_team_predicates.py tests/test_support_team_predicates.py tests/test_production_security.py tests/test_local_database.py
+uv run ruff format --check tests/team_scope.py tests/test_team_scope.py tests/test_deal_team_predicates.py tests/test_order_team_predicates.py tests/test_support_team_predicates.py tests/test_production_security.py tests/test_local_database.py
+git -C .. diff --check
 ```
 
 실행 시 생성한 로컬 임시 증적: `/tmp/issue132-targeted.xml`, `/tmp/issue132-regression.xml`,
