@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import FormField from '@/components/FormField'
 import ItemRows, { type ItemState } from '@/components/ItemRows'
 import RecordPicker from '@/components/RecordPicker'
+import Select from '@/components/Select'
 import type {
   CustomerCompanyResponse,
   PurchaseOrderStatusResponse,
@@ -100,19 +101,16 @@ export default function OrderFields({
       </Field>
 
       {showStatus && (
-        <Field label="상태" required error={errors.stageCode}>
-          <select
+        <Field label="상태" required error={errors.stageCode} htmlFor={false}>
+          <Select
+            label="상태"
             value={form.stageCode}
+            options={statuses.map((status) => ({ value: status.code, label: status.name }))}
+            placeholder="발주 상태를 선택하세요"
+            invalid={errors.stageCode !== undefined}
             disabled={disabled || optionsLoading || statuses.length === 0}
-            onChange={(e) => onChange('stageCode', e.target.value)}
-          >
-            <option value="">발주 상태를 선택하세요</option>
-            {statuses.map((status) => (
-              <option key={status.id} value={status.code}>
-                {status.name}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => onChange('stageCode', next)}
+          />
         </Field>
       )}
 

@@ -9,6 +9,7 @@ import Button from '@/components/Button'
 import Field from '@/components/FormField'
 import Modal from '@/components/Modal'
 import RecordPicker from '@/components/RecordPicker'
+import Select from '@/components/Select'
 import { toSalesDeal, type SalesDeal } from '@/pages/Deals/useSalesDeals'
 import type { DocumentStatusResponse, SalesDealDocumentFields, SalesDealResponse } from '@/types'
 import { addDays, iso, TODAY, TODAY_ISO } from '@/utils/date'
@@ -183,19 +184,16 @@ export default function ContractForm({ deal, statuses, onClose, onSubmit }: Prop
           />
         </Field>
 
-        <Field label="계약상태" required error={errors.statusCode}>
-          <select
+        <Field label="계약상태" required error={errors.statusCode} htmlFor={false}>
+          <Select
+            label="계약상태"
             value={form.statusCode}
+            options={statuses.map((status) => ({ value: status.code, label: status.name }))}
+            placeholder="계약 상태를 선택하세요"
+            invalid={errors.statusCode !== undefined}
             disabled={submitting || statuses.length === 0}
-            onChange={(event) => set('statusCode', event.target.value)}
-          >
-            <option value="">계약 상태를 선택하세요</option>
-            {statuses.map((status) => (
-              <option key={status.id} value={status.code}>
-                {status.name}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => set('statusCode', next)}
+          />
         </Field>
 
         <Field label="계약금액 (원)" required error={errors.amount}>

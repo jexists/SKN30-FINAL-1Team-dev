@@ -27,6 +27,12 @@ export const SOURCE_LABEL: Record<CustomerSourceCode, CustomerSource> = {
   other: '기타',
 }
 
+/** 선택 칸에 그대로 넣는 목록. 맨 앞은 유입경로를 정하지 않은 상태입니다. */
+export const SOURCE_OPTIONS = [
+  { value: '', label: '미지정' },
+  ...Object.entries(SOURCE_LABEL).map(([code, label]) => ({ value: code, label })),
+]
+
 // 목록 밖의 코드가 오면 화면이 빈칸이 되지 않게 미지정으로 둡니다.
 function toSourceLabel(code: string | null): CustomerSource {
   if (code === null) return '미지정'

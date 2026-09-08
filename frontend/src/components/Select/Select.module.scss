@@ -1,0 +1,136 @@
+.root {
+  position: relative;
+  min-width: 0;
+}
+
+// 검색해서 고르는 입력과 같은 테두리·높이를 씁니다. 옆에 선 input 과 줄이 맞습니다.
+.trigger {
+  @include combo-box;
+
+  justify-content: space-between;
+  width: 100%;
+  color: var(--ink);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--blue);
+  }
+
+  &.isOpen {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  &.isInvalid {
+    border-color: var(--red);
+  }
+
+  &:disabled {
+    background: var(--fill-2);
+    color: var(--muted-2);
+    cursor: not-allowed;
+  }
+
+  // 전역 button:active 의 축소가 폼 칸에서는 덜컹거림으로 보입니다.
+  &:active {
+    transform: none;
+  }
+}
+
+// 고른 것이 없을 때는 입력칸의 placeholder 와 같은 무게로 둡니다.
+.isPlaceholder .value {
+  color: var(--muted);
+}
+
+.value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.isOpen .chevron {
+  color: var(--blue);
+  transform: rotate(180deg);
+}
+
+.isPlaceholder:disabled .value,
+.trigger:disabled .chevron {
+  color: var(--muted-2);
+}
+
+// 모달 본문(overflow: auto)·드로어 안에서 잘리지 않도록 body 로 꺼내 좌표로 띄웁니다.
+.menu {
+  @include combo-menu;
+
+  animation: appear var(--t-fast) var(--ease-out);
+}
+
+.option {
+  @include combo-option;
+
+  justify-content: space-between;
+  gap: var(--s4);
+  cursor: pointer;
+
+  &:disabled {
+    color: var(--muted-2);
+    cursor: not-allowed;
+  }
+}
+
+.optionLabel {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.isActive:not(.isSelected) {
+  background: var(--blue-tint);
+  color: var(--blue-press);
+}
+
+.isSelected {
+  background: var(--blue);
+  color: var(--surface);
+}
+
+.check {
+  flex: 0 0 14px;
+}
+
+// 자리만 차지시켜 글자가 좌우로 밀리지 않게 합니다.
+.isHidden {
+  visibility: hidden;
+}
+
+// 표 안이나 좁은 줄에서 쓰는 작은 크기.
+.isSmall {
+  .trigger {
+    min-height: var(--control-h-sm);
+    padding: 0 var(--s2);
+    border-radius: var(--r-xs);
+    font-size: 12px;
+  }
+
+  .option {
+    padding: 6px var(--s2);
+    font-size: 12px;
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}

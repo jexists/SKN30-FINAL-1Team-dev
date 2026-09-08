@@ -14,3 +14,6 @@ export const STATES: { code: SupportStatusCode; label: string; tone: ColumnTone 
 export const STATUS_LABEL = Object.fromEntries(
   STATES.map((state) => [state.code, state.label]),
 ) as Record<SupportStatusCode, string>
+
+/** 선택 칸에 그대로 넣는 목록. */
+export const STATE_OPTIONS = STATES.map(({ code, label }) => ({ value: code, label }))

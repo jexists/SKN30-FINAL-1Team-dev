@@ -72,19 +72,10 @@
   font-size: 11px;
 }
 
+// 파일 이름 칸이 남는 자리를 다 쓰도록 분류 칸은 제 너비만 차지합니다.
 .category {
   flex: none;
-  padding: 5px var(--s2);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  font-size: 12px;
-  outline: none;
-
-  &:focus {
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--blue-ring);
-  }
+  width: 120px;
 }
 
 .remove {
@@ -122,8 +113,7 @@
   @include form-field;
 
   // 연결 대상을 아직 고르지 않아 채울 수 없는 칸을 잠긴 모습으로 표시합니다.
-  input:disabled,
-  select:disabled {
+  input:disabled {
     background: var(--fill);
     color: var(--muted);
   }

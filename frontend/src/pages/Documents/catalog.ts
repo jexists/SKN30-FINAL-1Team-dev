@@ -10,6 +10,12 @@ export const DOCUMENT_CATEGORIES: DocumentCategory[] = [
   '기타',
 ]
 
+/** 선택 칸에 그대로 넣는 목록. 분류 이름이 곧 값입니다. */
+export const CATEGORY_OPTIONS = DOCUMENT_CATEGORIES.map((category) => ({
+  value: category,
+  label: category,
+}))
+
 export const TONE_OF: Record<DocumentCategory, CategoryTone> = {
   계약서: 'blue',
   발주서: 'purple',

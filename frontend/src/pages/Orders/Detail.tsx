@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
+import Select from '@/components/Select'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { ChevronLeftIcon } from '@/components/icons'
 import { ROUTES, orderPath } from '@/constants/routes'
@@ -99,28 +100,25 @@ export default function OrderDetail() {
       </header>
 
       <div className={styles.actions}>
-        <label className={styles.status}>
+        <div className={styles.status}>
           <span className={styles.statusLabel}>상태</span>
-          <select
-            className={styles.select}
+          <Select
+            label="상태"
             value={order.stageCode}
+            options={[
+              // 서버가 지금 목록에 없는 코드를 들고 있어도 현재 값이 사라지지 않게 붙입니다.
+              ...(statuses.some(({ code }) => code === order.stageCode)
+                ? []
+                : [{ value: order.stageCode, label: `${order.status} (기존값)` }]),
+              ...statuses.map((status) => ({ value: status.code, label: status.name })),
+            ]}
             disabled={isPending(order.id)}
-            onChange={(event) => {
-              const next = event.target.value
+            onChange={(next) => {
               if (next !== order.stageCode)
                 void setStatus(order.id, order.stageCode, next).catch(() => undefined)
             }}
-          >
-            {!statuses.some(({ code }) => code === order.stageCode) && (
-              <option value={order.stageCode}>{order.status} (기존값)</option>
-            )}
-            {statuses.map((status) => (
-              <option key={status.id} value={status.code}>
-                {status.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
 
         <Button
           type="button"

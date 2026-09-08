@@ -8,11 +8,12 @@ import { useRef, useState } from 'react'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import Select from '@/components/Select'
 import { TrashIcon, UploadIcon } from '@/components/icons'
 import type { DocumentCategory, DocumentLink, ProductResponse, SalesDealResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 
-import { DOCUMENT_CATEGORIES, guessCategory, LINK_KINDS } from '../../catalog'
+import { CATEGORY_OPTIONS, guessCategory, LINK_KINDS } from '../../catalog'
 
 import styles from './UploadModal.module.scss'
 
@@ -151,24 +152,20 @@ export default function UploadModal({ submitting = false, onClose, onSubmit }: P
                 <span className={styles.size}>{sizeLabel(item.file.size)}</span>
               </div>
 
-              <select
+              <Select
                 className={styles.category}
+                size="sm"
+                label={`${item.file.name} 분류`}
                 value={item.category}
-                aria-label={`${item.file.name} 분류`}
-                onChange={(event) =>
+                options={CATEGORY_OPTIONS}
+                onChange={(next) =>
                   setPicked((prev) =>
                     prev.map((row) =>
-                      row.key === item.key
-                        ? { ...row, category: event.target.value as DocumentCategory }
-                        : row,
+                      row.key === item.key ? { ...row, category: next as DocumentCategory } : row,
                     ),
                   )
                 }
-              >
-                {DOCUMENT_CATEGORIES.map((category) => (
-                  <option key={category}>{category}</option>
-                ))}
-              </select>
+              />
 
               <button
                 type="button"

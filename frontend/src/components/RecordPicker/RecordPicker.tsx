@@ -1,7 +1,8 @@
 // 서버에서 검색해 한 건을 고르는 입력입니다.
 //
 // 제품·딜·담당자처럼 후보가 계속 늘어나는 목록에 씁니다. 열 때 한 쪽만 받고 목록 끝까지
-// 내리면 다음 쪽을 이어 붙이므로, 후보가 수천이어도 첫 응답 크기가 같습니다.
+// 내리면 다음 쪽을 이어 붙이므로, 후보가 수천이어도 첫 응답 크기가 같습니다. 파이프라인
+// 단계처럼 화면이 이미 들고 있는 짧은 목록도 같은 UI 로 받을 수 있습니다.
 //
 // 고객사는 "직접 등록하기" 가 따로 있어 CompanyAutocomplete 를 그대로 씁니다.
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -21,13 +22,22 @@ export interface RecordOption {
   note?: string
 }
 
+function optionLabel(option: RecordOption | null): string {
+  return option?.label ?? ''
+}
+
 interface Props<T> {
   /** 조회할 목록. '/products' 처럼 client 의 baseURL 뒤에 붙습니다. */
-  path: string
+  path?: string
+  /**
+   * 이미 화면이 들고 있는 짧은 목록입니다. 파이프라인 단계처럼 서버 검색이 필요 없는
+   * 선택지는 이것으로 넘겨 제품 선택과 같은 콤보 UI 를 그대로 씁니다.
+   */
+  staticOptions?: readonly RecordOption[]
   value: RecordOption | null
   /** 고른 값과 그 원본 행. 목록이 준 다른 칸까지 써야 하는 화면이 row 를 씁니다. */
   onChange: (next: RecordOption | null, row: T | null) => void
-  toOption: (row: T) => RecordOption
+  toOption?: (row: T) => RecordOption
   /** 조회에 늘 붙는 조건. 값이 바뀌면 처음부터 다시 받습니다. */
   params?: Record<string, unknown>
   disabled?: boolean
@@ -35,7 +45,7 @@ interface Props<T> {
   placeholder?: string
   emptyText?: string
   loadingText?: string
-  fallback: string
+  fallback?: string
   /** 화면 낭독기가 읽을 이름 */
   label: string
   id?: string
@@ -43,6 +53,7 @@ interface Props<T> {
 
 export default function RecordPicker<T>({
   path,
+  staticOptions,
   value,
   onChange,
   toOption,
@@ -52,11 +63,12 @@ export default function RecordPicker<T>({
   placeholder = '이름으로 검색',
   emptyText = '일치하는 항목이 없습니다.',
   loadingText = '목록을 불러오는 중입니다.',
-  fallback,
+  fallback = '목록을 불러오지 못했습니다.',
   label,
   id,
 }: Props<T>) {
-  const [query, setQuery] = useState(() => value?.label ?? '')
+  // 외부 목록 값이 비어 있어도 선택기 자체가 깨지지 않게, 입력 상태는 언제나 문자열로 둡니다.
+  const [query, setQuery] = useState(() => optionLabel(value))
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -64,16 +76,33 @@ export default function RecordPicker<T>({
   const generatedId = `records-${useId().replaceAll(':', '')}`
   const listboxId = id ?? generatedId
 
+  const remote = staticOptions === undefined
   const { matches, loading, loadingMore, loadError, hasMore, loadMore, reload } =
-    useSearchPaging<T>(path, query, { open, params, enabled: !disabled, fallback })
+    useSearchPaging<T>(path ?? '', query, {
+      open,
+      params,
+      // 정적 목록은 화면이 이미 갖고 있으므로 열 때 서버 요청을 만들지 않습니다.
+      enabled: remote && !disabled,
+      fallback,
+    })
 
-  const options = useMemo(() => matches.map(toOption), [matches, toOption])
+  const options = useMemo(() => {
+    if (staticOptions !== undefined) {
+      const needle = query.trim().toLocaleLowerCase()
+      return needle === ''
+        ? [...staticOptions]
+        : staticOptions.filter((option) => optionLabel(option).toLocaleLowerCase().includes(needle))
+    }
+    return matches
+      .map((row) => toOption?.(row))
+      .filter((option): option is RecordOption => option !== undefined)
+  }, [matches, query, staticOptions, toOption])
 
   // 부모가 값을 넣어 주면(수정 화면) 입력칸도 따라갑니다. null 로 비는 경우는 따라가지
   // 않습니다. 고른 뒤 글자를 고치면 선택이 풀리는데, 그때 입력칸까지 지우면 방금 친
   // 글자가 사라집니다. 비우기는 ⓧ 가 맡습니다.
   useEffect(() => {
-    if (value !== null) setQuery(value.label)
+    if (value !== null) setQuery(optionLabel(value))
   }, [value])
   useEffect(() => setActive(0), [options])
 
@@ -81,8 +110,9 @@ export default function RecordPicker<T>({
 
   const choose = (index: number) => {
     const option = options[index]
-    onChange(option, matches[index])
-    setQuery(option.label)
+    if (option === undefined) return
+    onChange(option, staticOptions === undefined ? (matches[index] ?? null) : null)
+    setQuery(optionLabel(option))
     setOpen(false)
   }
 

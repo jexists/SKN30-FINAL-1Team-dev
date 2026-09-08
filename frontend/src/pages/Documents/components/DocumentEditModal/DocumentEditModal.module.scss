@@ -14,8 +14,7 @@
   @include form-field;
 
   // 연결 대상을 아직 고르지 않았거나 여기서 바꿀 수 없는 칸을 잠긴 모습으로 표시합니다.
-  input:disabled,
-  select:disabled {
+  input:disabled {
     background: var(--fill);
     color: var(--muted);
   }

@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 
 import Popover from '@/components/Popover'
+import Select from '@/components/Select'
 import type { ColumnTone } from '@/types'
 
 import { TONE_LABEL, TONES, type BoardColumn } from '../../board'
@@ -120,20 +121,15 @@ export default function ColumnMenu({
           ) : (
             <>
               {cardCount > 0 && (
-                <label className={styles.field}>
+                <div className={styles.field}>
                   <span className={styles.label}>남은 {cardCount}건을 옮길 곳</span>
-                  <select
-                    className={styles.input}
+                  <Select
+                    label="남은 카드를 옮길 곳"
                     value={moveTo}
-                    onChange={(event) => setMoveTo(event.target.value)}
-                  >
-                    {others.map((col) => (
-                      <option key={col.id} value={col.id}>
-                        {col.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    options={others.map((col) => ({ value: col.id, label: col.name }))}
+                    onChange={setMoveTo}
+                  />
+                </div>
               )}
 
               <button

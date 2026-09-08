@@ -8,6 +8,7 @@ import { ComplaintIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import OwnerName from '@/components/OwnerName'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
+import Select from '@/components/Select'
 import { ListPageSkeleton, SkeletonDetail, TableSkeleton } from '@/components/Skeleton'
 import Tabs, { type TabItem } from '@/components/Tabs'
 import { BP_DESKTOP } from '@/constants/breakpoints'
@@ -16,7 +17,7 @@ import type { SupportRequestResponse, SupportStatusCode, SupportResponseResponse
 import { fmtDotShort } from '@/utils/date'
 
 import ComplaintFormModal from './components/ComplaintFormModal'
-import { STATES, STATUS_LABEL } from './statuses'
+import { STATE_OPTIONS, STATES, STATUS_LABEL } from './statuses'
 import useSupportRequests from './useSupportRequests'
 
 import styles from './Complaints.module.scss'
@@ -300,22 +301,16 @@ export default function Complaints() {
           }
           footer={
             detail?.id === open.id ? (
-              <label className={styles.stateChange}>
+              <div className={styles.stateChange}>
                 <span>{pendingKey === `transition:${open.id}` ? '변경 중…' : '상태 변경'}</span>
-                <select
+                <Select
+                  label="상태 변경"
                   value={detail.status_code}
+                  options={STATE_OPTIONS}
                   disabled={pendingKey !== null}
-                  onChange={(event) =>
-                    void transition(detail, event.target.value as SupportStatusCode)
-                  }
-                >
-                  {STATES.map((state) => (
-                    <option key={state.code} value={state.code}>
-                      {state.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  onChange={(next) => void transition(detail, next as SupportStatusCode)}
+                />
+              </div>
             ) : undefined
           }
         >

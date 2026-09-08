@@ -5,9 +5,10 @@ import CompanyAutocomplete, { type CompanySelection } from '@/components/Company
 import DateTimePicker from '@/components/DateTimePicker'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import Select from '@/components/Select'
 import type { SalesDealResponse, SupportRequestCreateRequest, SupportStatusCode } from '@/types'
 
-import { STATES } from '../statuses'
+import { STATE_OPTIONS } from '../statuses'
 import { mutationErrorMessage } from '../useSupportRequests'
 
 import styles from '../Complaints.module.scss'
@@ -152,18 +153,14 @@ export default function ComplaintFormModal({ onClose, onSubmit }: Props) {
           />
         </Field>
 
-        <Field label="상태" required>
-          <select
+        <Field label="상태" required htmlFor={false}>
+          <Select
+            label="상태"
             value={statusCode}
+            options={STATE_OPTIONS}
             disabled={submitting}
-            onChange={(event) => setStatusCode(event.target.value as SupportStatusCode)}
-          >
-            {STATES.map((state) => (
-              <option key={state.code} value={state.code}>
-                {state.label}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => setStatusCode(next as SupportStatusCode)}
+          />
         </Field>
 
         <Field label="발생 날짜" required>
@@ -218,18 +215,24 @@ interface FieldProps {
   required?: boolean
   error?: string
   wide?: boolean
+  /**
+   * label 로 감쌀지 여부. Select 처럼 버튼으로 여는 칸은 라벨 글자를 눌러도 함께
+   * 눌리거나 포커스가 엉킵니다. 그런 칸은 false 로 두고 div 로 감쌉니다.
+   */
+  htmlFor?: boolean
   children: ReactNode
 }
 
-function Field({ label, required, error, wide, children }: FieldProps) {
+function Field({ label, required, error, wide, htmlFor = true, children }: FieldProps) {
+  const Wrapper = htmlFor ? 'label' : 'div'
   return (
-    <label className={`${styles.field} ${wide ? styles.isWide : ''}`}>
+    <Wrapper className={`${styles.field} ${wide ? styles.isWide : ''}`}>
       <span className={styles.label}>
         {label}
         {required && <b aria-hidden="true">*</b>}
       </span>
       {children}
       {error && <span className={styles.error}>{error}</span>}
-    </label>
+    </Wrapper>
   )
 }

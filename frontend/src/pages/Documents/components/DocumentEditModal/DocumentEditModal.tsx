@@ -7,6 +7,7 @@ import { useState } from 'react'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import Select from '@/components/Select'
 import type {
   DocumentCategory,
   DocumentLink,
@@ -15,7 +16,7 @@ import type {
   SalesDocument,
 } from '@/types'
 
-import { DOCUMENT_CATEGORIES, LINK_KINDS } from '../../catalog'
+import { CATEGORY_OPTIONS, LINK_KINDS } from '../../catalog'
 import { linkLabel } from '../../columns'
 import type { DocumentMeta } from '../../useDocuments'
 
@@ -99,15 +100,13 @@ export default function DocumentEditModal({ doc, submitting = false, onClose, on
           />
         </Field>
 
-        <Field label="분류">
-          <select
+        <Field label="분류" htmlFor={false}>
+          <Select
+            label="분류"
             value={category}
-            onChange={(event) => setCategory(event.target.value as DocumentCategory)}
-          >
-            {DOCUMENT_CATEGORIES.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
+            options={CATEGORY_OPTIONS}
+            onChange={(next) => setCategory(next as DocumentCategory)}
+          />
         </Field>
 
         {linkEditable ? (

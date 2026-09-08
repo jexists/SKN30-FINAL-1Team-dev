@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { client } from '@/api/client'
@@ -235,6 +235,16 @@ export default function SalesDealForm({
 
   const editing = deal !== undefined
   const noDealTypes = !optionsLoading && dealTypes.length === 0 && !deal?.dealTypeCode
+  // 선택지를 고르는 동안 배열이 새로 만들어지면 공통 선택기의 활성 항목이 초기화됩니다.
+  // 단계 목록이 바뀔 때만 다시 만들고, 선택한 단계도 이 목록에서 그대로 찾습니다.
+  const pipelineOptions = useMemo(
+    () => columns.map((column) => ({ id: column.id, label: column.name ?? '' })),
+    [columns],
+  )
+  const selectedPipeline = useMemo(
+    () => pipelineOptions.find((option) => option.id === form.stageId) ?? null,
+    [form.stageId, pipelineOptions],
+  )
 
   return (
     <Modal
@@ -259,15 +269,15 @@ export default function SalesDealForm({
             value={form.title}
             disabled={submitting}
             maxLength={254}
-            placeholder="비우면 '고객사 제품' 으로 채웁니다"
+            placeholder="비우면 '회사명 제품' 으로 채웁니다"
             onChange={(event) => set('title', event.target.value)}
           />
         </Field>
 
-        <Field label="고객사" required error={errors.company}>
+        <Field label="회사명" required error={errors.company}>
           <CompanyAutocomplete
             allowCreate
-            label="고객사"
+            label="회사명"
             placeholder="회사 이름으로 검색"
             invalid={errors.company !== undefined}
             disabled={submitting || companyLocked}
@@ -276,12 +286,12 @@ export default function SalesDealForm({
           />
         </Field>
 
-        <Field label="담당자" required error={errors.contact}>
+        <Field label="고객명" required error={errors.contact}>
           <ContactPicker
             allowCreate
-            label="담당자"
+            label="고객명"
             placeholder={
-              companyId(form.company) === null ? '고객사를 먼저 선택하세요' : '이름으로 검색'
+              companyId(form.company) === null ? '회사명을 먼저 선택하세요' : '이름으로 검색'
             }
             companyId={companyId(form.company)}
             disabled={submitting || contactLocked}
@@ -309,18 +319,16 @@ export default function SalesDealForm({
         </Field>
 
         <Field label="파이프라인" required error={errors.stageId}>
-          <select
-            value={form.stageId}
+          <RecordPicker<RecordOption>
+            staticOptions={pipelineOptions}
+            value={selectedPipeline}
             // 수정에서 단계를 바꾸는 것은 카드 이동입니다. 여기서는 보여 주기만 합니다.
             disabled={submitting || editing || optionsLoading}
-            onChange={(event) => set('stageId', event.target.value)}
-          >
-            {columns.map((column) => (
-              <option key={column.id} value={column.id}>
-                {column.name}
-              </option>
-            ))}
-          </select>
+            placeholder="파이프라인으로 검색"
+            emptyText="일치하는 파이프라인 단계가 없습니다."
+            label="파이프라인"
+            onChange={(next) => set('stageId', next?.id ?? '')}
+          />
         </Field>
       </div>
 

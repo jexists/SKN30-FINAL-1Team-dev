@@ -16,6 +16,7 @@ import ItemRows, {
 } from '@/components/ItemRows'
 import Modal from '@/components/Modal'
 import RecordPicker from '@/components/RecordPicker'
+import Select from '@/components/Select'
 import type { DocumentStatusResponse, SalesDealDocumentFields, SalesDealResponse } from '@/types'
 import {
   addMonthsKeepingDay,
@@ -58,6 +59,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const VALID_MONTHS = ['1', '2', '3', '6'] as const
 const DEFAULT_VALID_MONTHS = '1'
 const CUSTOM_VALID = ''
+const VALID_MONTH_OPTIONS = [
+  ...VALID_MONTHS.map((months) => ({ value: months, label: `${months}개월` })),
+  { value: CUSTOM_VALID, label: '직접 입력' },
+]
 
 const validUntilOf = (issuedOn: string, months: string) =>
   iso(addMonthsKeepingDay(parseISO(issuedOn), Number(months)))
@@ -241,19 +246,16 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
           />
         </Field>
 
-        <Field label="견적상태" required error={errors.statusCode}>
-          <select
+        <Field label="견적상태" required error={errors.statusCode} htmlFor={false}>
+          <Select
+            label="견적상태"
             value={form.statusCode}
+            options={statuses.map((status) => ({ value: status.code, label: status.name }))}
+            placeholder="견적 상태를 선택하세요"
+            invalid={errors.statusCode !== undefined}
             disabled={submitting || statuses.length === 0}
-            onChange={(event) => set('statusCode', event.target.value)}
-          >
-            <option value="">견적 상태를 선택하세요</option>
-            {statuses.map((status) => (
-              <option key={status.id} value={status.code}>
-                {status.name}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => set('statusCode', next)}
+          />
         </Field>
 
         <Field label="견적일" required error={errors.issuedOn}>
@@ -265,19 +267,15 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
           />
         </Field>
 
-        <Field label="견적 유효기간" required error={errors.validUntil}>
-          <select
+        <Field label="견적 유효기간" required error={errors.validUntil} htmlFor={false}>
+          <Select
+            label="견적 유효기간"
             value={form.validMonths}
+            options={VALID_MONTH_OPTIONS}
+            invalid={errors.validUntil !== undefined}
             disabled={submitting}
-            onChange={(event) => setValidMonths(event.target.value)}
-          >
-            {VALID_MONTHS.map((months) => (
-              <option key={months} value={months}>
-                {months}개월
-              </option>
-            ))}
-            <option value={CUSTOM_VALID}>직접 입력</option>
-          </select>
+            onChange={setValidMonths}
+          />
           {/* 저장하는 것은 날짜입니다. 고른 기간이 며칠까지인지 바로 보여 줍니다. */}
           {form.validMonths !== CUSTOM_VALID && (
             <span className={styles.hint}>

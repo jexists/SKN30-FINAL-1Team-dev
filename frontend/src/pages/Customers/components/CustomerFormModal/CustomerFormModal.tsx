@@ -8,7 +8,8 @@ import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
-import { SOURCE_LABEL } from '@/pages/Customers/contact'
+import Select from '@/components/Select'
+import { SOURCE_OPTIONS } from '@/pages/Customers/contact'
 import type {
   Customer,
   CustomerCompanyCreateRequest,
@@ -526,19 +527,14 @@ export default function CustomerFormModal({
           </div>
         </Field>
 
-        <Field label="유입경로">
-          <select
+        <Field label="유입경로" htmlFor={false}>
+          <Select
+            label="유입경로"
             value={sourceCode}
+            options={SOURCE_OPTIONS}
             disabled={submitting}
-            onChange={(event) => setSourceCode(event.target.value as CustomerSourceCode | '')}
-          >
-            <option value="">미지정</option>
-            {Object.entries(SOURCE_LABEL).map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => setSourceCode(next as CustomerSourceCode | '')}
+          />
         </Field>
 
         {/*

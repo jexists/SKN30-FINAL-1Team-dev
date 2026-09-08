@@ -1,3 +1,4 @@
+import Select from '@/components/Select'
 import type { ReportFieldDef, ReportTemplate } from '@/types'
 
 import styles from './ReportFields.module.scss'
@@ -31,11 +32,13 @@ function Control({
   if (field.type === 'textarea') return <textarea {...shared} rows={4} />
   if (field.type === 'select') {
     return (
-      <select {...shared}>
-        {field.options?.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
+      <Select
+        label={field.label}
+        value={value}
+        options={(field.options ?? []).map((option) => ({ value: option, label: option }))}
+        placeholder={field.placeholder ?? '선택하세요'}
+        onChange={(next) => onChange?.(field.id, next)}
+      />
     )
   }
   return <input {...shared} type="text" />
@@ -61,7 +64,10 @@ export default function ReportFields({
       {fields.map((field) => (
         <div key={field.id} className={styles.field}>
           <div className={styles.head}>
-            <label className={styles.label} htmlFor={readOnly ? undefined : field.id}>
+            <label
+              className={styles.label}
+              htmlFor={readOnly || field.type === 'select' ? undefined : field.id}
+            >
               {field.label}
               {field.required && !readOnly && <b aria-hidden="true">*</b>}
             </label>

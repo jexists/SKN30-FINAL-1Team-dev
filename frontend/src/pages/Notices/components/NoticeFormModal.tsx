@@ -10,6 +10,7 @@ import Button from '@/components/Button'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
 import RichTextEditor from '@/components/RichTextEditor'
+import Select from '@/components/Select'
 import type {
   NoticeCreateRequest,
   NoticeManageResponse,
@@ -133,21 +134,17 @@ export default function NoticeFormModal({ initial, defaultType, onClose, onSubmi
       }
     >
       <div className={styles.grid} aria-busy={submitting}>
-        <Field label="종류" required>
-          <select
+        <Field label="종류" required htmlFor={false}>
+          <Select
+            label="종류"
             value={type}
+            options={TYPE_TABS}
             disabled={submitting}
-            onChange={(event) => {
-              setType(event.target.value as NoticeType)
+            onChange={(next) => {
+              setType(next as NoticeType)
               setErrors((previous) => ({ ...previous, targets: undefined }))
             }}
-          >
-            {TYPE_TABS.map((tab) => (
-              <option key={tab.value} value={tab.value}>
-                {tab.label}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="태그">
@@ -365,18 +362,24 @@ interface FieldProps {
   required?: boolean
   error?: string
   wide?: boolean
+  /**
+   * label 로 감쌀지 여부. Select 처럼 버튼으로 여는 칸은 라벨 글자를 눌러도 함께
+   * 눌리거나 포커스가 엉킵니다. 그런 칸은 false 로 두고 div 로 감쌉니다.
+   */
+  htmlFor?: boolean
   children: ReactNode
 }
 
-function Field({ label, required, error, wide, children }: FieldProps) {
+function Field({ label, required, error, wide, htmlFor = true, children }: FieldProps) {
+  const Wrapper = htmlFor ? 'label' : 'div'
   return (
-    <label className={`${styles.field} ${wide ? styles.isWide : ''}`}>
+    <Wrapper className={`${styles.field} ${wide ? styles.isWide : ''}`}>
       <span className={styles.label}>
         {label}
         {required && <b aria-hidden="true">*</b>}
       </span>
       {children}
       {error && <span className={styles.error}>{error}</span>}
-    </label>
+    </Wrapper>
   )
 }
