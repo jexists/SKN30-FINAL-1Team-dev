@@ -1,10 +1,26 @@
+// 카드가 몇 장이든 달력 옆을 벗어나지 않습니다. 높이는 달력에 맞추고, 창이 그보다
+// 짧으면 화면까지만 쓴 뒤 위에 붙습니다. 넘치는 것은 목록만 스크롤합니다.
 .panel {
   @include card;
 
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s4));
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  max-height: calc(100dvh - var(--topbar-h) - var(--s6));
   padding: var(--s5);
 
   @include md {
     padding: var(--s4);
+  }
+
+  // 한 컬럼으로 접히면 옆에 맞출 달력이 없어 전부 풉니다.
+  @include lg {
+    position: static;
+    height: auto;
+    max-height: none;
   }
 }
 
@@ -56,9 +72,24 @@
 .list {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: var(--s3);
+  min-height: 0;
   margin-top: var(--s4);
+  // 스크롤바가 카드 테두리에 닿지 않게 한 뼘 띄웁니다.
+  padding-right: 2px;
+  overflow-y: auto;
   list-style: none;
+
+  // 스크롤되는 목록이므로 카드는 줄어들지 않고 제 높이를 지킵니다.
+  > * {
+    flex-shrink: 0;
+  }
+
+  @include lg {
+    flex: none;
+    overflow: visible;
+  }
 }
 
 .card {
@@ -183,6 +214,8 @@
 }
 
 .empty {
+  // 달력 높이만큼 늘어난 카드 안에서 위에 붙어 뜨지 않게 가운데로 옮깁니다.
+  margin: auto 0;
   padding: var(--s7) var(--s4);
   text-align: center;
   color: var(--muted);

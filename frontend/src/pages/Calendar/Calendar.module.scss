@@ -1,7 +1,6 @@
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  align-items: start;
   gap: var(--s4);
 
   @include lg {
@@ -9,14 +8,10 @@
   }
 }
 
-// 달력이 길어져도 추천은 계속 따라옵니다. 한 컬럼으로 접히면 붙일 곳이 없어 풉니다.
+// 늘어난 컬럼은 sticky가 움직일 자리가 없으므로, 달력 높이는 여기서 받고
+// 붙는 것은 안쪽 패널이 합니다.
 .side {
-  position: sticky;
-  top: calc(var(--topbar-h) + var(--s4));
-
-  @include lg {
-    position: static;
-  }
+  min-height: 0;
 }
 
 // 끄는 동안 손끝을 따라다니는 조각. 자리 찾기(elementFromPoint)를 가리면 안 되므로
