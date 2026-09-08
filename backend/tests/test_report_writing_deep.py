@@ -189,6 +189,44 @@ def test_malformed_or_failed_review_and_repair_preserve_valid_draft(
     assert "private-detail" not in caplog.text
 
 
+@pytest.mark.parametrize("stage", ["initial", "repair"])
+def test_output_contract_failure_preserves_only_an_existing_valid_draft(monkeypatch, stage):
+    events = []
+    monkeypatch.setattr(writer, "log_agent_event", lambda *args, **kwargs: events.append(kwargs))
+    assemble = writer._assemble
+    assemblies = 0
+
+    def invalid_candidate(scopes, sections):
+        nonlocal assemblies
+        candidate = assemble(scopes, sections)
+        assemblies += 1
+        if assemblies == (1 if stage == "initial" else 2):
+            candidate.deal_reports[0].evidence_ids.clear()
+        return candidate
+
+    monkeypatch.setattr(writer, "_assemble", invalid_candidate)
+    responses = initial_responses()
+    if stage == "repair":
+        responses.extend(
+            [
+                {"issues": ["deal_reports[0].body: 조건을 복원하라."]},
+                {"title": "조건 재확인", "body": "보안 승인 후 예산 검토 예정입니다."},
+            ]
+        )
+    seen = scripted(monkeypatch, responses)
+    if stage == "initial":
+        with pytest.raises(ValueError, match="report_deal_evidence_mismatch"):
+            asyncio.run(writer.run(sample()))
+    else:
+        result = asyncio.run(writer.run(sample()))
+        assert result.model_dump(mode="json") == draft()
+        contract.validate_reports(sample(), result)
+    assert events[-1]["outcome"] == ("failed" if stage == "initial" else "degraded")
+    assert events[-1]["model_call_count"] == len(seen) == len(responses)
+    assert events[-1]["semantic_review_count"] == int(stage == "repair")
+    assert events[-1]["repair_count"] == int(stage == "repair")
+
+
 @pytest.mark.parametrize("stage", ["initial", "review", "repair"])
 @pytest.mark.parametrize(
     "failure",

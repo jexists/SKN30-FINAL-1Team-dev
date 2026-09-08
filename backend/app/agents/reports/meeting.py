@@ -230,12 +230,15 @@ async def run(source: ReportWritingInput) -> FreeformMeetingReports:
                     replacement = await _write_scope(
                         key, scopes[key], instructions, previous=sections[key], issues=issues
                     )
+                    candidate = _assemble(scopes, {**sections, key: replacement})
+                    try:
+                        meeting_contract.validate_reports(source, candidate)
+                    except ValueError as error:
+                        raise LLMError("report_output_invalid") from error
                 except Exception as error:
                     harness.retain_valid_draft(error, stage="report_writing.revise")
                     degraded = True
                     continue
-                candidate = _assemble(scopes, {**sections, key: replacement})
-                meeting_contract.validate_reports(source, candidate)
                 sections[key] = replacement
                 draft = candidate
                 preview(draft)
