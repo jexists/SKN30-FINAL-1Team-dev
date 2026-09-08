@@ -61,6 +61,9 @@ export interface ProductCreateRequest {
   memo: string | null
 }
 
+/** 보낸 항목만 바꿉니다. 유효기간과 메모는 null 을 보내 지울 수 있습니다. */
+export type ProductPatchRequest = Partial<ProductCreateRequest>
+
 export interface ProductImageResponse {
   url: string
   expires_in: number
