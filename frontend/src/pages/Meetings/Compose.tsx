@@ -26,7 +26,7 @@ import Modal from '@/components/Modal'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
-import { isAuthorEditableReportStatus } from '@/shared/reports'
+import { isAuthorEditableReportStatus, reportInputError } from '@/shared/reports'
 import { showToast } from '@/shared/toast'
 import type { IdempotencyAttempt } from '@/api/reportAgent'
 import type {
@@ -36,7 +36,7 @@ import type {
   ReportGenerationInput,
 } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
-import { meetingAttachmentPurposeOf } from '@/utils/attachment'
+import { attachmentPayloadsOf, meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
@@ -48,6 +48,7 @@ import useMeetingReports, {
   type MeetingDraftPayload,
   canRecoverMeetingGeneration,
   meetingGenerationRequestOf,
+  meetingRequestOf,
   useMeetingReportOfAgenda,
 } from './useMeetingReports'
 
@@ -371,6 +372,11 @@ export default function Compose() {
     draft.draftsByDeal,
     result?.shared,
   )
+  const generationInputError = reportInputError(meetingGenerationRequestOf(payloadForMeeting(), ''))
+  const submitInputError = reportInputError({
+    ...meetingRequestOf(payloadForMeeting()),
+    attachments: attachmentPayloadsOf(draft.attachments),
+  })
 
   const generateAll = async () => {
     if (
@@ -378,6 +384,7 @@ export default function Compose() {
       draft.attachmentsPending ||
       generationAbort.current ||
       !generatable ||
+      generationInputError ||
       !draft.canGenerate
     )
       return
@@ -479,6 +486,7 @@ export default function Compose() {
       submitAbort.current ||
       !canEdit ||
       editableDealIds.length !== draft.salesDealIds.length ||
+      submitInputError ||
       missingBody
     )
       return
@@ -541,9 +549,9 @@ export default function Compose() {
         </p>
       )}
 
-      {(runError || saveError) && (
+      {(submitInputError || runError || saveError) && (
         <p className={styles.mutationError} role="alert">
-          {runError ?? saveError}
+          {submitInputError ? reportGenerationMessage(submitInputError) : (runError ?? saveError)}
         </p>
       )}
       {Object.keys(runErrors).length > 0 && (
@@ -587,7 +595,11 @@ export default function Compose() {
                 }
                 onRemoveAttachment={draft.removeAttachment}
                 onExtractChange={draft.setAttachmentExtract}
-                attachmentError={draft.attachmentError}
+                attachmentError={
+                  generationInputError
+                    ? reportGenerationMessage(generationInputError)
+                    : (draft.inputError ?? draft.attachmentError)
+                }
                 transcript={draft.transcript}
                 onTranscriptChange={draft.setTranscript}
                 disabled={busy || !canEdit}
@@ -610,7 +622,13 @@ export default function Compose() {
               className={styles.generate}
               onClick={requestGeneration}
               disabled={
-                busy || !canEdit || !draft.canGenerate || !generatable || generating || recovering
+                busy ||
+                !canEdit ||
+                !draft.canGenerate ||
+                Boolean(generationInputError) ||
+                !generatable ||
+                generating ||
+                recovering
               }
             >
               {generating || recovering
@@ -640,6 +658,7 @@ export default function Compose() {
                 draft.attachmentsPending ||
                 !canEdit ||
                 editableDealIds.length !== draft.salesDealIds.length ||
+                Boolean(submitInputError) ||
                 missingBody
               }
               onClick={() => void submitAll()}
@@ -680,7 +699,7 @@ export default function Compose() {
                     when={`${when}${product ? ` · ${product}` : ''}`}
                     saving={pending}
                     generating={generating || recovering}
-                    canGenerate={draft.canGenerate && generatable}
+                    canGenerate={draft.canGenerate && generatable && !generationInputError}
                     readOnly={!canEditDeal(dealId)}
                     onTitleChange={(value) => draft.setTitle(dealId, value)}
                     onChange={(body) => draft.applyDocument(dealId, body)}

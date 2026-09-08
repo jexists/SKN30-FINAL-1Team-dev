@@ -12,12 +12,14 @@
       import { act, createElement } from 'react'
       import { createRoot } from 'react-dom/client'
       import { AxiosError } from 'axios'
+      import { MemoryRouter } from 'react-router'
       import { client } from '../src/api/client.ts'
       import { SessionContext } from '../src/auth/sessionContext.ts'
       import useDailyDraft from '../src/pages/Daily/useDailyDraft.ts'
       import useDailyReports from '../src/pages/Daily/useDailyReports.ts'
       import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
       import { meetingFinalizeRequestOf } from '../src/pages/Meetings/useMeetingReports.ts'
+      import MeetingCompose from '../src/pages/Meetings/Compose.tsx'
 
       window.IS_REACT_ACT_ENVIRONMENT = true
       const root = createRoot(document.getElementById('root'))
@@ -166,6 +168,34 @@
             draft.values.body === '조회 중 수기 본문' && draft.canGenerate,
             `${kind}: 첫 조회 후 수기 본문 보존`,
           )
+
+          const overBody = '😀'.repeat(50_001)
+          const beforeLimit = { generated: generated.length, finalized: finalized.length }
+          await act(async () => draft.setValue('body', overBody))
+          check(
+            !draft.canGenerate &&
+              draft.generationError.includes('50,000') &&
+              draft.missing.some((reason) => reason.includes('50,000')),
+            `${kind}: 초과 본문 생성·제출 차단과 이유 표시`,
+          )
+          await act(async () => {
+            await draft.generate()
+            try {
+              await reports.submitReport(payload(kind, date))
+            } catch {}
+          })
+          check(
+            generated.length === beforeLimit.generated &&
+              finalized.length === beforeLimit.finalized &&
+              draft.values.body === overBody,
+            `${kind}: 초과 HITL 본문 POST 0회·사용자 입력 보존`,
+          )
+          await act(async () => draft.setValue('body', ` ${'😀'.repeat(50_000)} `))
+          check(
+            draft.canGenerate && draft.missing.length === 0,
+            `${kind}: trim 후 이모지 50,000자 본문 허용`,
+          )
+          await act(async () => draft.setValue('body', '조회 중 수기 본문'))
 
           let generation
           await act(async () => {
@@ -361,6 +391,100 @@
         item = { ...item, id: 'next-agenda', date: '2026-09-04' }
         await render(createElement(Meeting))
         check(meeting.reportDate === undefined, '다른 미팅으로 이동하면 이전 복구 날짜 초기화')
+
+        await render(null)
+        const finalCount = finalized.length
+        const generationCount = generated.length
+        client.defaults.adapter = async (config) => {
+          if (config.url === '/activities/compose-agenda')
+            return response(config, {
+              id: 'compose-agenda',
+              owner_member_id: 'author',
+              owner_display_name: '합성 작성자',
+              starts_at: '2026-08-31T01:00:00+00:00',
+              title: '합성 미팅',
+              category_code: 'meeting',
+              completed_at: null,
+              customer_company_id: null,
+            })
+          if (config.url === '/reports')
+            return response(
+              config,
+              page([
+                {
+                  ...report('meeting', 'compose-report'),
+                  source_activity_id: 'compose-agenda',
+                  common_body: '공통 기록',
+                  unassigned_body: '미지정 기록',
+                  body: null,
+                  direct_transcript: '직접 원문',
+                  transcript: '직접 원문',
+                },
+              ]),
+            )
+          if (config.url === '/report-generations/latest') throw failure(config, 404)
+          if (config.method === 'post') {
+            if (config.url === '/reports/finalize') finalized.push(JSON.parse(config.data))
+            if (config.url === '/report-generations') generated.push(JSON.parse(config.data))
+          }
+          throw new Error(`허용하지 않은 합성 요청: ${config.method} ${config.url}`)
+        }
+        await render(
+          createElement(
+            MemoryRouter,
+            { initialEntries: ['/?agenda=compose-agenda'] },
+            createElement(MeetingCompose),
+          ),
+        )
+        const submit = document.querySelector('[aria-label="업무보고 작성 완료"]')
+        check(submit && !submit.disabled, '실제 미팅 작성 화면: 유효 공통·미지정 본문 제출 가능')
+        const setText = async (editor, value) =>
+          act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(
+              editor,
+              value,
+            )
+            editor.dispatchEvent(new Event('input', { bubbles: true }))
+          })
+        for (const label of ['공통 내용', '딜 미지정 · 확인 필요']) {
+          const controlLabel = [...document.querySelectorAll('label')].find(
+            (item) => item.textContent === label,
+          )
+          const editor = document.getElementById(controlLabel.htmlFor)
+          await setText(editor, '😀'.repeat(50_001))
+          check(
+            submit.disabled &&
+              [...document.querySelectorAll('[role="alert"]')].some((item) =>
+                item.textContent.includes('50,000'),
+              ),
+            `${label}: 실제 HITL 버튼 비활성·초과 이유 표시`,
+          )
+          await act(async () => submit.click())
+          check(
+            finalized.length === finalCount && editor.value === '😀'.repeat(50_001),
+            `${label}: 초과 입력 클릭도 POST 0회·본문 보존`,
+          )
+          await setText(editor, ` ${'😀'.repeat(50_000)} `)
+          check(!submit.disabled, `${label}: trim 후 50,000자면 제출 재허용`)
+          await setText(editor, label)
+        }
+        const transcriptEditor = document.getElementById('transcript')
+        await setText(transcriptEditor, 'x'.repeat(50_001))
+        const generateButton = [...document.querySelectorAll('button')].find(
+          (button) => button.textContent === '미팅 전체 분석·보고서 작성',
+        )
+        check(
+          generateButton.disabled && submit.disabled,
+          '실제 미팅 화면: 직접 원문 초과는 생성·제출 버튼 모두 비활성',
+        )
+        await act(async () => {
+          generateButton.click()
+          submit.click()
+        })
+        check(
+          generated.length === generationCount && finalized.length === finalCount,
+          '실제 미팅 초과 원문은 생성·최종 제출 POST 0회',
+        )
         document.getElementById('result').textContent =
           `PASS ${checks.length}\n${checks.join('\n')}`
       }

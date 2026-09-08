@@ -24,6 +24,11 @@
       const result = document.getElementById('result')
       const root = createRoot(document.getElementById('test-root'))
       const pendingRequests = []
+      let limits = { audio_max_bytes: 100, document_max_bytes: 100 }
+      let limitsFailure = false
+      let limitsCalls = 0
+      let uploadCalls = 0
+      let checks = 0
       let hook
       let draft
       let savedReport
@@ -64,15 +69,49 @@
 
       const check = (condition, message) => {
         if (!condition) throw new Error(message)
+        checks += 1
       }
 
       async function run() {
         const originalAdapter = client.defaults.adapter
-        client.defaults.adapter = (config) =>
-          new Promise((resolve) => pendingRequests.push({ config, resolve }))
+        client.defaults.adapter = async (config) => {
+          if (config.url === '/report-attachments/limits') {
+            limitsCalls += 1
+            if (limitsFailure) throw new Error('synthetic_limits_failure')
+            return { data: limits, config, status: 200, statusText: 'OK', headers: {} }
+          }
+          if (config.url !== '/report-attachments') throw new Error('unexpected synthetic API')
+          uploadCalls += 1
+          return new Promise((resolve) => pendingRequests.push({ config, resolve }))
+        }
 
         try {
           await act(async () => root.render(createElement(Harness)))
+          await act(async () => hook.addAttachments([new File([], 'empty.mp3')]))
+          check(
+            uploadCalls === 0 && limitsCalls === 0 && hook.attachmentError.includes('빈 파일'),
+            '빈 파일은 GET·POST 없이 거절',
+          )
+          limits = { audio_max_bytes: 5, document_max_bytes: 3 }
+          for (const name of ['large.mp3', 'large.jpg', 'large.pdf']) {
+            await act(async () => hook.addAttachments([new File(['123456'], name)]))
+            check(
+              uploadCalls === 0 &&
+                hook.attachments.length === 0 &&
+                hook.attachmentError.includes('용량'),
+              `${name}: 서버 실제 설정 초과는 POST 0회`,
+            )
+          }
+          limitsFailure = true
+          await act(async () => hook.addAttachments([new File(['123'], 'limit-failure.pdf')]))
+          check(
+            uploadCalls === 0 &&
+              !hook.pending &&
+              hook.attachmentError.includes('제한을 확인하지 못했습니다'),
+            '제한 GET 실패도 업로드하지 않고 오류 안내',
+          )
+          limitsFailure = false
+          limits = { audio_max_bytes: 100, document_max_bytes: 100 }
           const first = new File(['audio'], 'meeting.mp3', { type: 'audio/mpeg' })
           let firstUpload
           await act(async () => {
@@ -125,6 +164,38 @@
             '지연 응답이 삭제된 첨부를 부활시키지 않음',
           )
           check(hook.pending === false, '삭제 후 pending=false')
+
+          await act(async () => hook.setAttachments([]))
+          limits = { audio_max_bytes: 6, document_max_bytes: 4 }
+          const boundaryFiles = [new File(['123456'], 'exact.mp3'), new File(['1234'], 'exact.pdf')]
+          const readsBeforeBatch = limitsCalls
+          let boundaryUpload
+          await act(async () => {
+            boundaryUpload = hook.addAttachments(boundaryFiles)
+          })
+          check(
+            limitsCalls === readsBeforeBatch + 1 && pendingRequests.length === 2,
+            '선택 배치당 GET 1회, 오디오·문서 각 설정 경계는 업로드 허용',
+          )
+          await act(async () => {
+            for (const file of boundaryFiles) {
+              const request = pendingRequests.shift()
+              const response = responseFor(file, file.name, request.config)
+              response.data.extract = '😀'.repeat(file.name.endsWith('.mp3') ? 50_000 : 50_001)
+              request.resolve(response)
+            }
+            await boundaryUpload
+          })
+          check(
+            hook.attachments[0].state === 'done' &&
+              hook.attachments[0].extract === '😀'.repeat(50_000),
+            '추출문 이모지 50,000자는 자르지 않고 보존',
+          )
+          check(
+            hook.attachments[1].state === 'failed' && hook.attachmentError.includes('50,000'),
+            '서버 응답 추출문 50,001자는 done으로 수용하거나 자르지 않고 실패',
+          )
+          limits = { audio_max_bytes: 100, document_max_bytes: 100 }
 
           await act(async () => hook.setAttachments([]))
           const photo = new File(['image'], 'notes.jpg', { type: 'image/jpeg' })
@@ -384,6 +455,37 @@
             }),
           )
           check(draft.canGenerate === true, 'OCR 원문만으로 미팅 생성 가능')
+          await act(async () =>
+            draft.restoreGenerationInput({
+              ...input,
+              attachments: [],
+              transcript: '😀'.repeat(50_001),
+            }),
+          )
+          check(
+            !draft.canGenerate &&
+              draft.inputError.includes('50,000') &&
+              draft.transcript === '😀'.repeat(50_001),
+            '복구된 초과 원문은 보존·생성 차단·이유 표시',
+          )
+          await act(async () => draft.setTranscript(` ${'😀'.repeat(50_000)} `))
+          check(
+            draft.canGenerate && !draft.inputError,
+            '직접 원문 trim 후 이모지 50,000자 경계 허용',
+          )
+          await act(async () =>
+            draft.restoreGenerationInput({
+              ...input,
+              transcript: 'a',
+              attachments: [{ ...source, extract: 'x'.repeat(49_998) }],
+            }),
+          )
+          check(
+            !draft.canGenerate && draft.inputError.includes('빈 줄'),
+            '직접 원문과 파일 사이 구분자 2자도 합산 제한 적용',
+          )
+          await act(async () => draft.setAttachmentExtract(source.id, 'x'.repeat(49_997)))
+          check(draft.canGenerate, '추출문 교정으로 합산 50,000자 이하면 다시 생성 가능')
 
           savedReport = toMeetingReport({
             id: 'synthetic-completed',
@@ -510,7 +612,7 @@
 
       run()
         .then(() => {
-          result.textContent = 'PASS attachment hook behavior'
+          result.textContent = `PASS ${checks} attachment hook behavior`
           document.title = 'PASS attachment hook behavior'
         })
         .catch((error) => {

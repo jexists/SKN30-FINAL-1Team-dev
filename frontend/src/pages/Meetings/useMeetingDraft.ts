@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
+import { reportInputError } from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgendaItem,
@@ -18,7 +19,7 @@ import type {
   MeetingSharedNotes,
   ReportGenerationInput,
 } from '@/types'
-import { meetingAttachmentPurposeOf } from '@/utils/attachment'
+import { attachmentPayloadsOf, meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import { generatedDealOf, meetingAnalysisErrorMessage } from './generatedDraft'
 import { meetingGenerationSeedOf } from './useMeetingReports'
@@ -391,6 +392,12 @@ export default function useMeetingDraft(
     setDraftsByDeal((previous) => mergeMeetingAnalysis(previous, child))
   }, [])
 
+  const inputError = reportInputError({
+    report_kind: 'meeting',
+    transcript,
+    attachments: attachmentPayloadsOf(files.attachments),
+  })
+
   return {
     reportDate,
     setReportDate,
@@ -401,6 +408,7 @@ export default function useMeetingDraft(
     removeAttachment,
     setAttachmentExtract,
     attachmentError: files.attachmentError,
+    inputError: inputError ? reportGenerationMessage(inputError) : null,
     attachmentsPending: files.pending,
     salesDealIds,
     toggleSalesDeal,
@@ -438,6 +446,7 @@ export default function useMeetingDraft(
       }),
     canGenerate:
       !files.pending &&
+      !inputError &&
       (transcript.trim().length > 0 ||
         files.attachments.some(
           (attachment) =>

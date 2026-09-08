@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
   finishIdempotencyAttempt,
@@ -13,7 +13,12 @@ import {
   waitForReportGeneration,
 } from '@/api/reportAgent'
 import type { IdempotencyAttempt } from '@/api/reportAgent'
-import { APPROVERS, canRecoverReportGeneration, templateFor } from '@/shared/reports'
+import {
+  APPROVERS,
+  canRecoverReportGeneration,
+  reportInputError,
+  templateFor,
+} from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgentRunResponse,
@@ -22,11 +27,13 @@ import type {
   ReportGenerationInput,
   ReportKind,
 } from '@/types'
+import { attachmentPayloadsOf } from '@/utils/attachment'
 
 import { periodRange, periodStart } from './periods'
 import {
   periodGenerationSeedOf,
   periodGenerationRequestOf,
+  reportRequestOf,
   useRelatedReports,
   useReportOfPeriod,
 } from './useDailyReports'
@@ -178,15 +185,6 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
       (attachment) => attachment.state === 'done' && attachment.extract?.trim(),
     ) ||
     Boolean(values.body?.trim())
-  const canGenerate =
-    !recovering &&
-    !existingLoading &&
-    !existingError &&
-    sourcesReady &&
-    !files.pending &&
-    hasAiFields &&
-    hasInput
-
   const generationPayload = useCallback(
     () => ({
       reportId: canonical?.id,
@@ -202,6 +200,21 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     }),
     [canonical, dateISO, kind, approver, values, related.activities, files.attachments, transcript],
   )
+
+  const inputError = reportInputError(periodGenerationRequestOf(generationPayload(), ''))
+  const submitInputError = reportInputError({
+    ...reportRequestOf({ ...generationPayload(), activities }),
+    attachments: attachmentPayloadsOf(files.attachments),
+  })
+  const canGenerate =
+    !recovering &&
+    !existingLoading &&
+    !existingError &&
+    sourcesReady &&
+    !files.pending &&
+    !inputError &&
+    hasAiFields &&
+    hasInput
 
   const acceptGeneration = useCallback(
     (runId: string, fields: { field_id: string; value: string }[]) => {
@@ -391,11 +404,12 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const missing = useMemo(() => {
     const reasons: string[] = []
     if (sourceError) reasons.push(sourceError)
+    if (submitInputError) reasons.push(reportGenerationMessage(submitInputError))
     for (const field of template.fields) {
       if (field.required && !values[field.id]?.trim()) reasons.push(field.label)
     }
     return reasons
-  }, [values, template, sourceError])
+  }, [values, template, sourceError, submitInputError])
 
   return {
     phase,
@@ -421,7 +435,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     generate,
     recovering,
     generationRunId,
-    generationError,
+    generationError: inputError ? reportGenerationMessage(inputError) : generationError,
     sourceError,
     missing,
     reset,

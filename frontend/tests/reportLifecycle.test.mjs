@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { after, test } from 'node:test'
 import { createServer } from 'vite'
+import { AxiosError } from 'axios'
 
 const vite = await createServer({
   envDir: false,
@@ -26,6 +27,10 @@ const {
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
 const { uploadReportAttachment } = await vite.ssrLoadModule('/src/api/reportAttachments.ts')
 const { kindOf } = await vite.ssrLoadModule('/src/shared/useAttachments.ts')
+const { reportInputError, reportTextLength, REPORT_ATTACHMENT_LIMIT } =
+  await vite.ssrLoadModule('/src/shared/reports.ts')
+const { errorMessage, messageForCode } = await vite.ssrLoadModule('/src/api/errorMessage.ts')
+const { AgentRunTerminalError } = await vite.ssrLoadModule('/src/api/meetingStream.ts')
 const { canRecoverMeetingGeneration } = await vite.ssrLoadModule(
   '/src/pages/Meetings/useMeetingReports.ts',
 )
@@ -126,7 +131,7 @@ test('관련 조회는 생성·제출을 막되 조회 갱신은 본문 초기�
   )
   const canGenerate = source.slice(
     source.indexOf('const canGenerate ='),
-    source.indexOf('const generationPayload'),
+    source.indexOf('const acceptGeneration'),
   )
   assert.match(canGenerate, /sourcesReady/)
   assert.match(canGenerate, /hasInput/)
@@ -233,7 +238,8 @@ test('첨부 형식 판별은 MIME이 비어도 서버 허용 확장자를 사�
 test('첨부 훅은 업로드 중 제거된 파일의 늦은 응답을 되살리지 않는다', async () => {
   const source = await readFile(new URL('../src/shared/useAttachments.ts', import.meta.url), 'utf8')
 
-  assert.match(source, /const MAX_ATTACHMENTS = 10/)
+  assert.equal(REPORT_ATTACHMENT_LIMIT, 10)
+  assert.match(source, /REPORT_ATTACHMENT_LIMIT - current\.current\.length/)
   assert.match(source, /uploadReportAttachment\(file\)/)
   assert.match(
     source,
@@ -915,4 +921,296 @@ test('report child 실패도 analysis sibling을 계속 소비하고 report 실�
   } finally {
     client.defaults.adapter = originalAdapter
   }
+})
+
+test('보고서 입력 경계는 공백·원문 목적·구분자·이모지·JSON UTF-8 크기를 서버와 같이 센다', () => {
+  const attachment = (extract, purpose = 'meeting_source', kind = 'pdf') => ({
+    id: 'file',
+    kind,
+    name: '합성.pdf',
+    byte_size: 1,
+    extract,
+    ...(purpose ? { purpose } : {}),
+  })
+  const meeting = { report_kind: 'meeting', attachments: [], transcript: '', content: {} }
+  assert.equal(reportTextLength('  😀한\n '), 2)
+  for (const [prefix, typedTooLong, contentTooLong] of [
+    ['\uFEFF', true, true],
+    ['\u0085', false, false],
+    ['\u001c', true, false],
+    ['\u001d', true, false],
+    ['\u001e', true, false],
+    ['\u001f', true, false],
+  ]) {
+    const body = prefix + 'a'.repeat(50_000)
+    assert.equal(
+      reportInputError({ transcript: body }),
+      typedTooLong ? 'transcript_too_large' : null,
+    )
+    assert.equal(reportInputError({ body }), typedTooLong ? 'report_body_too_large' : null)
+    assert.equal(
+      reportInputError({ content: { values: { body } } }),
+      contentTooLong ? 'report_body_too_large' : null,
+    )
+    assert.equal(
+      reportInputError({ title: prefix + 'a'.repeat(254) }),
+      typedTooLong ? 'report_title_invalid' : null,
+    )
+    assert.equal(
+      reportInputError({ content: { title: prefix + 'a'.repeat(254) } }),
+      contentTooLong ? 'report_title_invalid' : null,
+    )
+    assert.equal(
+      reportInputError({ ...meeting, attachments: [attachment(body)] }),
+      typedTooLong ? 'report_attachment_text_too_large' : null,
+    )
+  }
+  assert.equal(
+    reportInputError({
+      ...meeting,
+      transcript: '\u001c',
+      attachments: [attachment('a'.repeat(49_998))],
+    }),
+    'meeting_transcript_too_large',
+  )
+  assert.equal(reportInputError({ ...meeting, transcript: `  ${'😀'.repeat(50_000)}  ` }), null)
+  assert.equal(
+    reportInputError({ ...meeting, transcript: '😀'.repeat(50_001) }),
+    'transcript_too_large',
+  )
+  const joined = {
+    ...meeting,
+    transcript: ' a ',
+    attachments: [attachment(` ${'😀'.repeat(49_997)} `)],
+  }
+  assert.equal(reportInputError(joined), null)
+  assert.equal(reportInputError({ ...joined, transcript: 'ab' }), 'meeting_transcript_too_large')
+  assert.equal(
+    reportInputError({
+      ...joined,
+      transcript: ' \n ',
+      attachments: [attachment('😀'.repeat(50_000))],
+    }),
+    null,
+  )
+  assert.equal(
+    reportInputError({
+      ...meeting,
+      transcript: 'a',
+      attachments: [attachment('😀'.repeat(50_000), 'reference', 'audio')],
+    }),
+    null,
+  )
+  assert.equal(
+    reportInputError({
+      ...meeting,
+      transcript: 'a',
+      attachments: [attachment('x'.repeat(50_000), null, 'audio')],
+    }),
+    'meeting_transcript_too_large',
+  )
+  assert.equal(
+    reportInputError({
+      ...meeting,
+      transcript: 'a',
+      attachments: [attachment('x'.repeat(50_000), null, 'pdf')],
+    }),
+    null,
+  )
+  assert.equal(
+    reportInputError({ ...meeting, attachments: [attachment('x'.repeat(50_001), 'reference')] }),
+    'report_attachment_text_too_large',
+  )
+  assert.equal(
+    reportInputError({
+      attachments: Array.from({ length: 11 }, () => attachment('a', 'reference')),
+    }),
+    'report_attachment_limit_exceeded',
+  )
+  assert.equal(reportInputError({ guidance: '😀'.repeat(2_000) }), null)
+  assert.equal(reportInputError({ guidance: '😀'.repeat(2_001) }), 'guidance_too_large')
+  assert.equal(reportInputError({ content: { values: { body: '' } } }), null)
+  for (const field of ['body', 'common_body', 'unassigned_body']) {
+    assert.equal(reportInputError({ [field]: ` ${'😀'.repeat(50_000)} ` }), null)
+    assert.equal(reportInputError({ [field]: '😀'.repeat(50_001) }), 'report_body_too_large')
+  }
+  assert.equal(
+    reportInputError({ deal_sections: [{ body: '😀'.repeat(50_001) }] }),
+    'report_body_too_large',
+  )
+  assert.equal(
+    reportInputError({ content: { values: { body: 'x'.repeat(50_001) } } }),
+    'report_body_too_large',
+  )
+  assert.equal(reportInputError({ title: ` ${'😀'.repeat(254)} ` }), null)
+  assert.equal(reportInputError({ title: '😀'.repeat(255) }), 'report_title_invalid')
+  assert.equal(
+    reportInputError({ deal_sections: [{ title: 'x'.repeat(255) }] }),
+    'report_title_invalid',
+  )
+  assert.equal(reportInputError({ content: { title: 'x'.repeat(255) } }), 'report_title_invalid')
+  const byteLimit = 256 * 1024
+  for (const field of ['template_snapshot', 'content']) {
+    const text = '가'.repeat(87_378) + 'aa'
+    assert.equal(new TextEncoder().encode(JSON.stringify({ x: text })).length, byteLimit)
+    assert.equal(reportInputError({ [field]: { x: text } }), null)
+    assert.equal(reportInputError({ [field]: { x: text + 'a' } }), `${field}_too_large`)
+  }
+  assert.equal(
+    reportInputError({ deal_sections: [{ content: { x: 'a'.repeat(byteLimit) } }] }),
+    'content_too_large',
+  )
+  const files = [
+    attachment('😀'.repeat(40_000), 'reference'),
+    attachment('😀'.repeat(40_000), 'reference'),
+  ]
+  assert.equal(reportInputError({ attachments: files }), 'attachments_too_large')
+  const sources = Array.from({ length: 100 }, (_, index) => ({
+    source: '업무보고서',
+    refId: `source-${index}`,
+    included: true,
+  }))
+  assert.equal(reportInputError({ content: { activities: sources } }), null)
+  assert.equal(
+    reportInputError({ content: { activities: [...sources, { source: '수기', included: true }] } }),
+    null,
+  )
+  assert.equal(
+    reportInputError({ content: { activities: [...sources, { ...sources[0], included: false }] } }),
+    null,
+  )
+  assert.equal(
+    reportInputError({ content: { activities: [...sources, sources[0]] } }),
+    'report_source_limit_exceeded',
+  )
+})
+
+test('생성·최종 HITL 우회 호출도 초과 입력은 POST 0회이며 원문을 변경하지 않는다', async () => {
+  const originalAdapter = client.defaults.adapter
+  let posts = 0
+  client.defaults.adapter = async (config) => {
+    posts += 1
+    return { data: {}, config, status: 200, statusText: 'OK', headers: {} }
+  }
+  try {
+    const over = '😀'.repeat(50_001)
+    for (const request of [
+      { transcript: over },
+      { content: { values: { body: over } } },
+      { attachments: [{ name: '합성.pdf', extract: over }] },
+      { template_snapshot: { x: '가'.repeat(90_000) } },
+    ]) {
+      const original = JSON.stringify(request)
+      await assert.rejects(createReportGeneration(request))
+      await assert.rejects(finalizeReport(request))
+      assert.equal(JSON.stringify(request), original)
+    }
+    for (const request of [
+      { body: over },
+      { common_body: over },
+      { unassigned_body: over },
+      { deal_sections: [{ body: over }] },
+      { deal_sections: [{ title: 'x'.repeat(255) }] },
+    ])
+      await assert.rejects(finalizeReport(request))
+    assert.equal(posts, 0)
+    await finalizeReport({
+      report_kind: 'meeting',
+      common_body: '사람이 확인한 본문',
+      attachments: [],
+    })
+    assert.equal(posts, 1)
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+})
+
+test('일반·terminal·Axios·422의 알려진 코드만 안내하고 검증 원문은 노출하지 않는다', () => {
+  const fallback = '요청을 완료하지 못했습니다.'
+  const known = 'meeting_transcript_too_large'
+  const axiosError = (detail, url = '/report-generations') =>
+    new AxiosError('원문을 포함할 수 있는 서버 오류', 'ERR_BAD_REQUEST', { url }, null, {
+      status: 422,
+      data: { detail },
+      headers: {},
+      config: { url },
+      statusText: 'Invalid',
+    })
+  for (const error of [
+    new Error(known),
+    new AgentRunTerminalError(known),
+    axiosError(known),
+    axiosError([
+      {
+        type: 'value_error',
+        loc: ['body'],
+        msg: `Value error, ${known}`,
+        input: '비공개 원문',
+        ctx: { error: '비공개 원문' },
+      },
+    ]),
+  ]) {
+    assert.equal(errorMessage(error, fallback), messageForCode(known, fallback))
+  }
+  const invalid = (field, type = 'string_too_long') =>
+    axiosError(
+      [
+        {
+          type,
+          loc: ['body', ...field],
+          msg: '전체 원문 포함 금지',
+          input: '민감 원문',
+          ctx: { given: '민감 원문' },
+        },
+      ],
+      '/reports/finalize',
+    )
+  for (const field of [
+    ['body'],
+    ['common_body'],
+    ['unassigned_body'],
+    ['deal_sections', 0, 'body'],
+  ])
+    assert.equal(
+      errorMessage(invalid(field), fallback),
+      messageForCode('report_body_too_large', fallback),
+    )
+  assert.equal(
+    errorMessage(invalid(['deal_sections', 0, 'title']), fallback),
+    messageForCode('report_title_invalid', fallback),
+  )
+  assert.equal(
+    errorMessage(invalid(['attachments', 0, 'extract']), fallback),
+    messageForCode('report_attachment_text_too_large', fallback),
+  )
+  assert.equal(
+    errorMessage(invalid(['attachments'], 'too_long'), fallback),
+    messageForCode('report_attachment_limit_exceeded', fallback),
+  )
+  for (const error of [
+    new Error('unknown_private_message'),
+    new AgentRunTerminalError('unknown_private_message'),
+    new Error('__proto__'),
+    new Error('toString'),
+    invalid(['customer', 'body']),
+    invalid(['body'], 'string_type'),
+    axiosError(
+      [{ type: 'string_too_long', loc: ['body', 'body'], msg: '민감 원문' }],
+      '/customers',
+    ),
+    axiosError([{ msg: 'Value error, unknown_private_message', input: '민감 원문' }]),
+  ])
+    assert.equal(errorMessage(error, fallback), fallback)
+  for (const code of [
+    'llm_provider_error:401',
+    'llm_provider_error:429',
+    'llm_request_failed:ReadTimeout',
+    'report_generation_timeout',
+  ]) {
+    assert.notEqual(errorMessage(new AgentRunTerminalError(code), fallback), fallback)
+  }
+  assert.equal(
+    errorMessage(new Error('llm_request_failed:unknown_private_message'), fallback),
+    fallback,
+  )
 })
