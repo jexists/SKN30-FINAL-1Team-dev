@@ -1195,6 +1195,51 @@ def test_explicit_selection_reads_beyond_first_page_and_checks_cap(source_db):
         asyncio.run(service.freeze_report_sources(source_db, member, parent))
 
 
+def test_large_weekly_keeps_five_valid_daily_submissions_in_every_stage(source_db, monkeypatch):
+    from test_period_report_writing_deep import draft
+    from test_report_writing_deep import scripted
+    from test_reports import _member
+
+    from app.agents.reports import period, period_sources
+    from app.schemas.reports import REPORT_BODY_MAX_LENGTH
+
+    member = _member()
+    source_db.add(member)
+    children = []
+    for day in range(25, 30):
+        child = period_parent(member)
+        child.report_date = date(2026, 8, day)
+        child.status_code = "submitted"
+        child.body = str(day) + "가" * (REPORT_BODY_MAX_LENGTH - 2)
+        source_db.add(child)
+        submission = asyncio.run(report_submissions.create_submission(source_db, child, member, []))
+        child.current_submission_id = submission.id
+        children.append(child)
+    source_db.session.flush()
+    parent = period_parent(member, "weekly")
+    select_children(parent, children)
+    normalized, frozen = asyncio.run(service.freeze_report_sources(source_db, member, parent))
+    assert len(frozen) == 5
+    snapshot = period_sources.input_snapshot(parent, None)
+    snapshot["report_sources"] = normalized
+    seen = scripted(monkeypatch, [draft(), {"issues": ["조건을 보존하라."]}, draft()])
+
+    assert asyncio.run(period.run(snapshot)).model_dump() == draft()
+
+    assert len(seen) == 3
+    for index, call in enumerate(seen):
+        assert len(call["input_text"]) > 180_000
+        payload = json.loads(call["input_text"])
+        source = payload if index == 0 else payload["source"]
+        reports = [unit["content"]["reports"][0] for unit in source["source_units"]]
+        assert [report["values"]["body"] for report in reports] == [
+            child.body for child in children
+        ]
+        assert [report["submission_id"] for report in reports] == [
+            str(child.current_submission_id) for child in children
+        ]
+
+
 @pytest.mark.parametrize(
     "mutation,detail",
     [

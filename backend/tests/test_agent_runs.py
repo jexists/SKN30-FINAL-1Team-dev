@@ -32,6 +32,7 @@ from app.schemas.agent_runs import (
     ReportGenerationCreate,
     ReportGenerationScope,
 )
+from app.schemas.reports import REPORT_BODY_MAX_LENGTH
 from app.services import agent_runs as service
 from app.services import agent_worker, contract_schedule_snapshots
 
@@ -585,6 +586,26 @@ def test_report_generation_rejects_oversized_json_fields(field_name):
 
     with pytest.raises(ValidationError, match=f"{field_name}_too_large"):
         ReportGenerationCreate.model_validate(payload)
+    db = _Db()
+    with _client(db, _member()) as client:
+        response = client.post("/api/report-generations", headers={"Origin": ORIGIN}, json=payload)
+    assert response.status_code == 422
+    assert f"{field_name}_too_large" in response.text
+    assert all("input" not in error for error in response.json()["detail"])
+    assert not db.statements and not db.added and db.commit_count == 0
+
+
+def test_report_generation_rejects_oversized_body_before_queue():
+    body = "private submitted body " + "가" * REPORT_BODY_MAX_LENGTH
+    payload = _daily_payload(content={"values": {"body": body}})
+    db = _Db()
+    with _client(db, _member()) as client:
+        response = client.post("/api/report-generations", headers={"Origin": ORIGIN}, json=payload)
+    assert response.status_code == 422
+    assert "report_body_too_large" in response.text
+    assert "private submitted body" not in response.text
+    assert all("input" not in error for error in response.json()["detail"])
+    assert not db.statements and not db.added and db.commit_count == 0
 
 
 def test_report_generation_rejects_oversized_aggregate_attachments():

@@ -121,6 +121,8 @@ def validate_body_values(content: dict[str, Any]) -> None:
         raise ValueError("report_values_body_only")
     if "body" in values and not isinstance(values["body"], str):
         raise ValueError("report_body_invalid")
+    if len(values.get("body", "").strip()) > REPORT_BODY_MAX_LENGTH:
+        raise ValueError("report_body_too_large")
 
 
 def validate_content_title(content: dict[str, Any]) -> None:

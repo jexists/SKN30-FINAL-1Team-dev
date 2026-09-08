@@ -18,7 +18,6 @@ PERIOD_WRITER_ROLES = {
     "weekly": "weekly-report-writer",
     "monthly": "monthly-report-writer",
 }
-MAX_PERIOD_PROMPT_CHARS = 180_000
 PERIOD_SKILL_DIR = Path(__file__).parent / "skills"
 COMMON_PERIOD_SKILL = "report-style"
 
@@ -82,13 +81,6 @@ def _structural_issues(draft: ReportDraftOutput) -> list[dict[str, Any]]:
     return []
 
 
-def _input_text(payload: dict[str, Any]) -> str:
-    text = json.dumps(payload, ensure_ascii=False, default=str, separators=(",", ":"))
-    if len(text) > MAX_PERIOD_PROMPT_CHARS:
-        raise LLMError("period_report_input_too_large")
-    return text
-
-
 async def _write(instructions: str, input_text: str, *, stage: str) -> ReportDraftOutput:
     draft = await harness.generate_report(
         instructions=instructions,
@@ -108,7 +100,7 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
         "run_context": period_sources.run_context(source),
         "source_units": period_sources.source_units(source),
     }
-    input_text = _input_text(source_payload)
+    input_text = json.dumps(source_payload, ensure_ascii=False, default=str, separators=(",", ":"))
     skill_text = _skill_text(source["report_kind"])
     instructions = "\n\n".join((EVIDENCE_CONTRACT, skill_text, GUIDANCE_CONTRACT))
     calls = review_count = repair_count = 0
@@ -121,7 +113,12 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
         # 유효한 초안은 즉시 보존한다. 검토 실패/수정 실패가 초안을 지우지 않는다.
         publish_progress("report_review", review_attempt=1, review_limit=1)
         try:
-            input_text = _input_text({"source": source_payload, "draft": draft.model_dump()})
+            input_text = json.dumps(
+                {"source": source_payload, "draft": draft.model_dump()},
+                ensure_ascii=False,
+                default=str,
+                separators=(",", ":"),
+            )
             review_count = 1
             calls += 1
             review = await harness.generate_report(
@@ -137,12 +134,15 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
             if review.issues:
                 publish_progress("report_writing")
                 try:
-                    input_text = _input_text(
+                    input_text = json.dumps(
                         {
                             "source": source_payload,
                             "draft": draft.model_dump(),
                             "issues": review.issues,
-                        }
+                        },
+                        ensure_ascii=False,
+                        default=str,
+                        separators=(",", ":"),
                     )
                     repair_count = 1
                     calls += 1

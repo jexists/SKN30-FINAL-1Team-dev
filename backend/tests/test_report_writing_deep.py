@@ -234,7 +234,7 @@ def test_output_contract_failure_preserves_only_an_existing_valid_draft(monkeypa
         asyncio.CancelledError(),
         ValueError("input_invalid"),
         PermissionError("owner_invalid"),
-        LLMError("period_report_input_too_large"),
+        LLMError("report_input_invalid"),
         LLMNotConfigured("llm_not_configured"),
         LLMError("llm_provider_error:401"),
         LLMError("llm_provider_error:403"),

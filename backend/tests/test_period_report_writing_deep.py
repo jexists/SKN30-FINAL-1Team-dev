@@ -12,6 +12,7 @@ from test_report_writing_deep import scripted
 from app.agents.meeting import content, features
 from app.agents.reports import harness, period, period_sources
 from app.schemas.report_drafts import ReportDraftOutput
+from app.schemas.reports import REPORT_BODY_MAX_LENGTH
 from app.services.llm import LLMError, LLMNotConfigured
 
 MEETING_A = UUID(int=101)
@@ -253,7 +254,6 @@ def test_feedback_triggers_exactly_one_repair_and_no_final_llm_call(monkeypatch,
         LLMError("llm_provider_error:503"),
         LLMError("llm_request_failed:ReadTimeout"),
         LLMError("llm_response_not_json"),
-        LLMError("period_report_input_too_large"),
     ],
 )
 def test_review_and_repair_failure_keeps_draft(monkeypatch, caplog, stage, failure):
@@ -298,7 +298,7 @@ def test_malformed_repair_preserves_draft_but_invalid_initial_output_fails(monke
         asyncio.CancelledError(),
         ValueError("input_invalid"),
         PermissionError("owner_invalid"),
-        LLMError("period_report_source_unit_too_large"),
+        LLMError("period_report_sources_invalid"),
         LLMNotConfigured("llm_not_configured"),
         LLMError("report_agent_unsupported_endpoint"),
         LLMError("llm_provider_error:401"),
@@ -333,50 +333,28 @@ def test_current_body_and_guidance_survive_without_selected_reports(monkeypatch)
     assert payload["run_context"]["guidance"] == source["guidance"]
 
 
-def test_source_units_and_all_generation_inputs_have_size_limits(monkeypatch):
+def test_meeting_bundle_keeps_multiple_maximum_length_bodies():
     source = sample()
-    source["report_sources"]["reports"][0]["values"]["body"] = "가" * 1000
-    monkeypatch.setattr(period_sources, "MAX_SOURCE_UNIT_CHARS", 100)
-    with pytest.raises(LLMError, match="period_report_source_unit_too_large"):
-        period_sources.source_units(period_sources.build_source(source))
-    monkeypatch.setattr(period_sources, "MAX_SOURCE_UNIT_CHARS", 60_000)
-    monkeypatch.setattr(period, "MAX_PERIOD_PROMPT_CHARS", 100)
-    seen = scripted(monkeypatch, [])
-    with pytest.raises(LLMError, match="period_report_input_too_large"):
-        asyncio.run(period.run(sample()))
-    assert seen == []
+    reports = source["report_sources"]["reports"][:2]
+    for report in reports:
+        report["values"]["body"] = "가" * REPORT_BODY_MAX_LENGTH
+    units = period_sources.source_units(period_sources.build_source(source))
+    assert units[0]["content"]["deal_reports"] == reports
+    assert len(json.dumps(units[0], ensure_ascii=False)) > 60_000
 
 
-@pytest.mark.parametrize("stage", ["review", "repair"])
-def test_payload_preflight_rejection_keeps_draft_without_counting_a_model_attempt(
-    monkeypatch, stage
-):
-    events = []
-    monkeypatch.setattr(period, "log_agent_event", lambda *args, **kwargs: events.append(kwargs))
-    # 직전 단계까지 허용하고 다음 입력만 실제 크기 상한으로 거절한다.
-    source_payload = {
-        "run_context": period_sources.run_context(period_sources.build_source(sample())),
-        "source_units": period_sources.source_units(period_sources.build_source(sample())),
+def test_worker_packing_does_not_repeat_the_api_source_count_limit():
+    source = sample()
+    # 선택 개수는 API가 검사한다. worker의 자료 포장은 별도 개수 한도를 추가하지 않는다.
+    activities = [{"id": str(index), "title": "확정 활동"} for index in range(129)]
+    source["report_sources"] = {
+        "reports": [],
+        "meetings": [],
+        "activities": activities,
     }
-    responses = [draft()]
-    allowed_payload = source_payload
-    if stage == "repair":
-        responses.append({"issues": ["fields[0].value: 조건을 복원하라."]})
-        allowed_payload = {"source": source_payload, "draft": draft()}
-    monkeypatch.setattr(
-        period, "MAX_PERIOD_PROMPT_CHARS", period_sources.json_chars(allowed_payload)
-    )
-    seen = scripted(monkeypatch, responses)
-    assert asyncio.run(period.run(sample())).model_dump() == draft()
-    assert events[-1]["outcome"] == "degraded"
-    assert events[-1]["reason_code"] == "valid_draft_fallback"
-    assert events[-1]["model_call_count"] == events[-1]["call_count"] == len(seen) == len(responses)
-    assert (
-        events[-1]["semantic_review_count"]
-        == events[-1]["review_attempt"]
-        == int(stage == "repair")
-    )
-    assert events[-1]["repair_count"] == 0
+    units = period_sources.source_units(period_sources.build_source(source))
+    assert [unit["content"]["activity"] for unit in units] == activities
+    assert units[-1]["source_id"] == "direct_activity:129"
 
 
 @pytest.mark.parametrize(

@@ -19,7 +19,9 @@ from app.models.agent import AgentRun
 from app.models.content import Report, ReportDeal, ReportSubmission
 from app.models.crm import Activity
 from app.models.workspace import Member
+from app.schemas.agent_runs import ReportGenerationCreate
 from app.schemas.reports import (
+    REPORT_BODY_MAX_LENGTH,
     REPORT_JSON_MAX_BYTES,
     REPORT_TITLE_MAX_LENGTH,
     ReportDealWrite,
@@ -476,6 +478,42 @@ def test_deal_content_reuses_the_generation_json_byte_limit():
             content={"value": "가" * REPORT_JSON_MAX_BYTES},
             body="본문",
         )
+
+
+@pytest.mark.parametrize("target", ["generation", "finalize", "deal"])
+def test_nested_body_uses_trimmed_canonical_body_length(target):
+    accepted = "가" * REPORT_BODY_MAX_LENGTH
+
+    def build(body):
+        content = {"values": {"body": body}}
+        if target == "deal":
+            deal_id = uuid4()
+            return ReportDealWrite(
+                sales_deal_id=deal_id,
+                deal_snapshot={"id": deal_id, "label": "D-1"},
+                content=content,
+                body=accepted,
+            )
+        payload = {
+            "idempotency_key": uuid4(),
+            "report_kind": "daily",
+            "report_date": "2026-08-17",
+            "template_snapshot": TEMPLATE,
+            "content": content,
+        }
+        if target == "generation":
+            return ReportGenerationCreate(**payload)
+        return ReportFinalize(**payload, body=accepted)
+
+    padded = f" \n{accepted}\t "
+    result = build(padded)
+    assert result.content["values"]["body"].strip() == accepted
+    if target != "generation":
+        assert type(result).model_validate({**result.model_dump(), "body": padded}).body == accepted
+        with pytest.raises(ValidationError, match="string_too_long"):
+            type(result).model_validate({**result.model_dump(), "body": accepted + "가"})
+    with pytest.raises(ValidationError, match="report_body_too_large"):
+        build(accepted + "가")
 
 
 @pytest.mark.parametrize("target", ["finalize", "deal"])

@@ -1,7 +1,6 @@
 """기간 보고서의 동결 입력 검증과 하위 제출본 묶음."""
 
 import copy
-import json
 from datetime import date
 from typing import Any
 
@@ -9,8 +8,6 @@ from app.models.content import Report
 from app.services.llm import LLMError
 
 PERIOD_KINDS = {"daily": "일일", "weekly": "주간", "monthly": "월간"}
-MAX_SOURCE_UNITS = 128
-MAX_SOURCE_UNIT_CHARS = 60_000
 
 
 def input_snapshot(report: Report, guidance: str | None) -> dict[str, Any]:
@@ -91,25 +88,16 @@ def build_source(snapshot: dict[str, Any]) -> dict[str, Any]:
     return source
 
 
-def json_chars(value: Any) -> int:
-    return len(json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":")))
-
-
 def source_units(source: dict[str, Any]) -> list[dict[str, Any]]:
     """일일은 미팅 묶음, 주간·월간은 바로 아래 제출 본문만 전달한다."""
     units: list[dict[str, Any]] = []
 
     def add(source_type: str, content: dict[str, Any]) -> None:
-        if len(units) >= MAX_SOURCE_UNITS:
-            raise LLMError("period_report_source_unit_limit")
         unit = {
             "source_id": f"{source_type}:{len(units) + 1}",
             "source_type": source_type,
             "content": content,
         }
-        if json_chars(unit) > MAX_SOURCE_UNIT_CHARS:
-            # ponytail: 실제 승인 자료가 이 상한을 넘는다고 측정될 때만 의미 단위 batch를 추가한다.
-            raise LLMError("period_report_source_unit_too_large")
         units.append(unit)
 
     report_sources = source["report_sources"]

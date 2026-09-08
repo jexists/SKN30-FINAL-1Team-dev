@@ -63,15 +63,11 @@ async def generate_report[Schema: BaseModel](
 
 
 def retain_valid_draft(error: Exception, *, stage: str) -> None:
-    """생성/출력 실패와 기간 후속 입력 크기 초과만 복구한다. 원본·권한·설정 오류는 전파한다."""
+    """생성/출력 실패만 복구한다. 원본·권한·설정 오류는 전파한다."""
     if str(error) in {"llm_provider_error:401", "llm_provider_error:403"}:
         raise error
     if not isinstance(error, LLMError) or not (
         str(error).startswith(("llm_request_failed:", "llm_provider_error:"))
-        or (
-            str(error) == "period_report_input_too_large"
-            and stage in {"period_report_writing.review", "period_report_writing.revise"}
-        )
         or str(error)
         in {
             "llm_response_not_object",
