@@ -30,9 +30,9 @@ const SOURCE_LIST_H = 240
 type Confirm = { kind: 'regenerate' } | { kind: 'date'; next: string } | { kind: 'submit' } | null
 
 const DATE_LABEL: Record<ReportKind, string> = {
-  일일: '보고 일자',
-  주간: '기준 주',
-  월간: '기준 월',
+  일일: '보고 일자를',
+  주간: '기준 주를',
+  월간: '기준 월을',
 }
 
 export default function Compose() {
@@ -383,7 +383,7 @@ export default function Compose() {
 
       {confirm?.kind === 'date' && (
         <Modal
-          title={`${DATE_LABEL[kind]}를 바꿀까요?`}
+          title={`${DATE_LABEL[kind]} 바꿀까요?`}
           description="다른 기간으로 옮기면 작성 중인 내용은 사라집니다."
           onClose={() => setConfirm(null)}
           footer={
