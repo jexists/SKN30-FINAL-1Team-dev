@@ -4,9 +4,11 @@ import { buttonClass } from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import { EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
+import useCompanyDeals from '@/hooks/useCompanyDeals'
 import type { Customer } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 
+import CustomerDeals from './CustomerDeals'
 import styles from './CustomerDrawer.module.scss'
 
 interface Props {
@@ -36,6 +38,8 @@ const shown = (value: string | null | undefined): string => value || '—'
 
 export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, onClose }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
+  // 딜은 사람이 아니라 회사에 걸립니다. 고객을 바꾸면 companyId 가 바뀌어 다시 받아 옵니다.
+  const { deals, loading, error, reload } = useCompanyDeals(customer.companyId)
 
   // 담당자가 여럿이면 상세에서는 전부 보여 줍니다. 좁은 표와 달리 자리가 있습니다.
   const ownerNames =
@@ -190,6 +194,20 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
           </Block>
         </div>
       </div>
+
+      <section className={styles.deals}>
+        <h3>
+          영업 현황
+          {deals.length > 0 && <span className={styles.blockNote}>{deals.length}건</span>}
+        </h3>
+        <CustomerDeals
+          deals={deals}
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          contactId={customer.id}
+        />
+      </section>
     </Drawer>
   )
 }

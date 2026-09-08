@@ -85,16 +85,51 @@
   align-content: start;
 }
 
-.block {
-  h3 {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--s3);
-    margin-bottom: var(--s3);
-    font-size: 13px;
-    font-weight: 700;
-  }
+.block h3,
+.deals h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+// 2열 아래에 전체 폭으로 눕는 회사 단위 섹션입니다. 위 정보와 다른 축의 내용이라
+// 컬럼 안에 끼우지 않고 선 하나로 끊어 세웁니다.
+.deals {
+  margin-top: var(--s6);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--line);
+}
+
+.dealBody {
+  min-width: 0;
+}
+
+// 단계 칩과 '담당' 배지. .tags 와 달리 제목과 같은 줄 오른쪽에 붙습니다.
+.dealSide {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+}
+
+.dealMore {
+  margin-top: var(--s3);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dealError {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 // 회사 단위 섹션임을 밝히거나 합계를 다는 자리입니다.
