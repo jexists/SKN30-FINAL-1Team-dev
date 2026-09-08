@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException
@@ -741,6 +742,44 @@ def test_date_basis_moves_the_range_to_the_phase_date():
     default_sql = str(default_db.statements[0])
     assert "public.sales_deal.opened_on >=" in default_sql
     assert "coalesce" not in default_sql.lower()
+
+
+def test_updated_basis_takes_the_seoul_day_and_orders_by_it():
+    """영업현황 목록은 마지막으로 움직인 딜을 기간에 걸고 그 순서로 세운다.
+
+    수정일만 timestamptz 라 서울 기준 하루의 경계를 파이썬에서 만든다. 상한을 그날
+    0시로 잡으면 그날 오후에 고친 딜이 통째로 빠지므로 다음 날 0시 앞까지 본다.
+    표에 보이는 날짜와 행 순서가 어긋나면 목록이 뒤죽박죽으로 읽힌다.
+    """
+    member = _member()
+    db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]))
+
+    asyncio.run(
+        api.list_sales_deals(
+            SalesDealPageParams(
+                date_basis="updated",
+                start_date=date(2026, 3, 1),
+                end_date=date(2026, 3, 31),
+            ),
+            member,
+            db,
+        )
+    )
+
+    seoul = ZoneInfo("Asia/Seoul")
+    bounds = [
+        value for value in db.statements[0].compile().params.values() if isinstance(value, datetime)
+    ]
+    assert datetime(2026, 3, 1, tzinfo=seoul) in bounds
+    assert datetime(2026, 4, 1, tzinfo=seoul) in bounds
+
+    sql = str(db.statements[0])
+    assert "public.sales_deal.updated_at >=" in sql
+    assert "public.sales_deal.updated_at <" in sql
+    assert "opened_on >=" not in sql
+
+    rows_sql = str(db.statements[1])
+    assert "ORDER BY public.sales_deal.updated_at DESC" in rows_sql
 
 
 def test_pipeline_status_filter_narrows_the_scope():

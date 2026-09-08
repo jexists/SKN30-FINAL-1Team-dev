@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios'
 
 import { client } from '@/api/client'
 import { transportMessage } from '@/api/errorMessage'
+import { regionLabel } from '@/shared/regionCodes'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   ColumnTone,
@@ -33,13 +34,6 @@ const STATUS_BY_OUTCOME: Record<SalesPipelineOutcomeCode, SalesDealStatus> = {
   in_progress: '진행중',
   confirmed: '확정',
   cancelled: '취소',
-}
-
-const REGION_LABEL: Record<string, string> = {
-  seoul: '서울',
-  gyeonggi: '경기',
-  incheon: '인천',
-  chungnam: '충남',
 }
 
 /**
@@ -166,11 +160,6 @@ export function toColumn(stage: SalesPipelineStageResponse): SalesDealColumn {
   }
 }
 
-function regionLabel(code: string | null): string {
-  if (code === null) return '미지정'
-  return REGION_LABEL[code] ?? code
-}
-
 export function toSalesDeal(deal: SalesDealResponse): SalesDeal {
   return {
     id: deal.id,
@@ -184,7 +173,7 @@ export function toSalesDeal(deal: SalesDealResponse): SalesDeal {
     signedOff: Math.round((parseISO(deal.opened_on).getTime() - TODAY.getTime()) / 86_400_000),
     owner: deal.owner_display_name,
     date: deal.opened_on,
-    region: regionLabel(deal.customer_company_region_code),
+    region: regionLabel(deal.customer_company_region_code, '미지정'),
     memo: deal.memo ?? undefined,
     stageId: deal.sales_pipeline_stage_id,
     order: deal.stage_position,
@@ -317,6 +306,9 @@ async function fetchSalesDealPage(
       quote_status_id: documentKind === 'quote' ? tab : undefined,
       contract_status_id: documentKind === 'contract' ? tab : undefined,
       start_date: query.fromISO ?? undefined,
+      // 영업현황 목록은 마지막으로 움직인 딜부터 봅니다. 기간도 같은 날짜에 걸어야
+      // 표의 '최근 수정' 이 고른 기간 밖으로 나가지 않습니다.
+      date_basis: documentKind === undefined ? 'updated' : undefined,
       skip: query.skip,
       limit: query.limit,
     },

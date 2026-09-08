@@ -12,7 +12,7 @@ import OwnerName from '@/components/OwnerName'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
-import StageChip, { chipOr } from '@/components/StageChip'
+import StageChip from '@/components/StageChip'
 import StageTabs from '@/components/StageTabs'
 import { useShowOwner } from '@/shared/scope'
 import { addDays, fmtDot, iso, parseISO, TODAY } from '@/utils/date'
@@ -309,10 +309,6 @@ export default function Deals() {
               const found = stageOf(card)
               return found ? <StageChip tone={found.tone}>{found.name}</StageChip> : null
             }
-            if (id === 'quoteStatus') return chipOr(card.quoteStatusTone, card.quoteStatusName)
-            if (id === 'contractStatus')
-              return chipOr(card.contractStatusTone, card.contractStatusName)
-            if (id === 'orderStatus') return chipOr(card.orderStatusTone, card.orderStatusName)
             if (id === 'owner') return <OwnerName name={card.owner} memberId={card.ownerMemberId} />
             return undefined
           }}
@@ -321,13 +317,13 @@ export default function Deals() {
             return {
               title: card.org,
               badge: found ? <StageChip tone={found.tone}>{found.name}</StageChip> : undefined,
-              sub: card.product + ' · ' + card.kind,
+              sub: card.product,
               meta: [
                 <span key="m1" className="tnum">
                   {won(card.amount)}
                 </span>,
                 <span key="m2" className="tnum">
-                  {fmtDot(parseISO(card.date))}
+                  {fmtDot(parseISO(card.updatedAt.slice(0, 10)))}
                 </span>,
                 ...(showOwner ? [card.owner] : []),
               ],
