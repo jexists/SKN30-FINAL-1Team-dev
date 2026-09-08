@@ -120,8 +120,8 @@ def test_valid_draft_is_reviewed_once_without_revision_and_ids_are_assigned(monk
     assert len(result.deal_reports) == 2
     assert result.deal_reports[1].body == contract.NO_DEAL_EVIDENCE_TEXT
     contract.validate_reports(source, result)
-    common = writer.COMMON_SKILL.read_text()
-    rules = (writer.SKILL_DIR / "SKILL.md").read_text()
+    common = writer.COMMON_SKILL.read_text(encoding="utf-8")
+    rules = (writer.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
     assert all(common in call["instructions"] and rules in call["instructions"] for call in seen)
 
 
