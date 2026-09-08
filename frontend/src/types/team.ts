@@ -15,6 +15,8 @@ export interface TeamMemberRow {
   active: boolean
   /** 팀장이 고른 담당자 이름표 색(#rrggbb). null 이면 기본 회색입니다. */
   badge_color: string | null
+  /** 맡은 지역 코드. null 이면 미지정입니다. shared/regionCodes 가 이름을 붙입니다. */
+  region_code: string | null
   target_amount: number
   confirmed_amount: number
   /** 목표를 세우지 않았으면 0% 가 아니라 null 입니다. 미설정과 미달성은 다릅니다. */
@@ -39,6 +41,8 @@ export interface TeamMemberPatchRequest {
   active?: boolean
   /** null 을 보내면 색을 지우고 기본 회색으로 되돌립니다. */
   badge_color?: string | null
+  /** null 을 보내면 담당지역을 미지정으로 되돌립니다. */
+  region_code?: string | null
   monthly_target_amount?: number
   /** 어느 달의 목표를 고치는지. 그달 1일입니다. */
   target_month?: string

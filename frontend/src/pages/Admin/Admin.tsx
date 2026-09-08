@@ -13,7 +13,9 @@ import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import { LOCAL_DEV_PASSWORD } from '@/auth/devAccounts'
 import Button from '@/components/Button'
+import Select from '@/components/Select'
 import { env } from '@/config/env'
+import { REGION_OPTIONS } from '@/shared/regionCodes'
 
 import styles from './Admin.module.scss'
 
@@ -22,6 +24,7 @@ interface AdminTeamMember {
   display_name: string
   email: string | null
   role_code: 'member' | 'manager'
+  region_code: string | null
   active: boolean
 }
 
@@ -57,6 +60,8 @@ export default function Admin() {
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [roleCode, setRoleCode] = useState<'member' | 'manager'>('member')
+  // 빈 문자열이 '담당지역 미지정' 입니다.
+  const [regionCode, setRegionCode] = useState('')
   // 로컬에서만 고를 수 있습니다. 서버도 local 이 아니면 instant 를 거절합니다.
   const [instant, setInstant] = useState(false)
 
@@ -79,6 +84,13 @@ export default function Admin() {
   }, [loadTeams])
 
   const creatingTeam = teamChoice === NEW_TEAM
+  const teamOptions = [
+    { value: NEW_TEAM, label: '+ 새 팀 만들기' },
+    ...teams.map((team) => ({
+      value: team.id,
+      label: `${team.name}${team.company_name ? ` · ${team.company_name}` : ''} (${team.member_count}명)`,
+    })),
+  ]
   // 발급 방식을 고르는 칸은 로컬에서만 그리므로 배포본에서는 항상 초대 메일입니다.
   const issuingInstantly = env.isDev && instant
 
@@ -92,6 +104,7 @@ export default function Admin() {
       email: email.trim(),
       display_name: displayName.trim(),
       role_code: roleCode,
+      region_code: regionCode === '' ? null : regionCode,
       instant: issuingInstantly,
       ...(creatingTeam
         ? {
@@ -116,6 +129,7 @@ export default function Admin() {
       await loadTeams()
       setEmail('')
       setDisplayName('')
+      setRegionCode('')
       if (creatingTeam) {
         setTeamName('')
         setCompanyName('')
@@ -137,22 +151,14 @@ export default function Admin() {
         <h2 className={styles.cardTitle}>새 계정 발급</h2>
 
         <div className={styles.field}>
-          <label htmlFor="team">팀</label>
-          <select
-            className={styles.input}
-            id="team"
+          <span className={styles.label}>팀</span>
+          <Select
+            label="팀"
             value={teamChoice}
-            onChange={(e) => setTeamChoice(e.target.value)}
+            options={teamOptions}
+            onChange={setTeamChoice}
             disabled={submitting}
-          >
-            <option value={NEW_TEAM}>+ 새 팀 만들기</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-                {team.company_name ? ` · ${team.company_name}` : ''} ({team.member_count}명)
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {creatingTeam && (
@@ -267,6 +273,18 @@ export default function Admin() {
                 팀장
               </label>
             </div>
+          </div>
+
+          {/* 맡을 지역. 여기서 정하지 않아도 팀장이 팀 관리에서 나중에 채울 수 있습니다. */}
+          <div className={styles.field}>
+            <span className={styles.label}>담당지역</span>
+            <Select
+              label="담당지역"
+              value={regionCode}
+              options={REGION_OPTIONS}
+              onChange={setRegionCode}
+              disabled={submitting}
+            />
           </div>
 
           {env.isDev && (

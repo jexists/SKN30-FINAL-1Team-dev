@@ -16,8 +16,9 @@ from app.models.content import ReportDeal
 EXPECTED_COLUMN_COUNTS = {
     # 20260823_0002 로 team 에 company_name/department/business_no, member 에 email 이 늘었다.
     # 20260907_0024 로 member 에 badge_color 가 늘었다.
+    # 20260908_0027 로 member 에 region_code 가 늘었다.
     "team": 6,
-    "member": 9,
+    "member": 10,
     # 20260824_0003 으로 customer_company 에 business_no,
     # customer_contact 에 created_by_member_id 가 늘고 customer_contact_assignee 가 생겼다.
     # 20260826_0009 로 customer_company 에 postcode/address/address_detail 이 늘었다.

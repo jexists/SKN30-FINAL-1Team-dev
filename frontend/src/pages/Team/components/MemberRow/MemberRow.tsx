@@ -3,6 +3,7 @@
 // 다른 목록(고객·자료실·고객불만)과 같이 줄 아무 곳이나 눌러 상세를 엽니다. 줄은 초점을
 // 받지 못하므로 이름 칸에 키보드용 손잡이를 하나 둡니다.
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
+import { regionLabel } from '@/shared/regionCodes'
 import type { Role, TeamMemberRow } from '@/types'
 import { wonFull } from '@/utils/format'
 
@@ -60,6 +61,8 @@ export default function MemberRow({ member, isSelf, onOpen }: MemberRowProps) {
           tone={member.role_code === 'manager' ? 'blue' : 'neutral'}
         />
       </td>
+
+      <td>{regionLabel(member.region_code)}</td>
 
       <td className={`${styles.right} tnum`}>{wonFull(member.target_amount)}</td>
       <td className={`${styles.right} tnum`}>{wonFull(member.confirmed_amount)}</td>

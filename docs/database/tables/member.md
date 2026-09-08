@@ -14,12 +14,14 @@
 | `active` | BOOLEAN | – | NO | `true` | 재직 여부 |
 | `created_at` | TIMESTAMPTZ | – | NO | `now()` | 생성 시각 |
 | `email` | TEXT | – | YES | – | 로그인 이메일 |
+| `region_code` | TEXT | – | YES | – | 담당지역 코드 (customer_company.region_code 와 같은 체계, NULL 이면 미지정) |
 
 ## Constraints
 
 - **CHECK** `member_display_name_check` — `CHECK ((btrim(display_name) <> ''::text))`
 - **CHECK** `member_email_check` — `CHECK (((email IS NULL) OR (btrim(email) <> ''::text)))`
 - **CHECK** `member_job_title_check` — `CHECK (((job_title IS NULL) OR (btrim(job_title) <> ''::text)))`
+- **CHECK** `member_region_code_check` — `CHECK (((region_code IS NULL) OR (btrim(region_code) <> ''::text)))`
 - **CHECK** `member_role_code_check` — `CHECK ((role_code = ANY (ARRAY['member'::text, 'manager'::text])))`
 
 ## Indexes

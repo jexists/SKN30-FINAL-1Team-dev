@@ -104,6 +104,7 @@ async def create_account(
         team_id=team.id,
         display_name=payload.display_name,
         role_code=payload.role_code,
+        region_code=payload.region_code,
         email=payload.email,
         active=True,
     )

@@ -16,6 +16,13 @@ JobTitle = Annotated[
 ]
 RoleCode = Literal["member", "manager"]
 
+# 팀원이 맡은 지역 코드. customers.RegionCode 와 같은 모양이며 고를 수 있는 목록은
+# 화면이 지킨다. DB 도 공백만 막으므로 여기서 코드 목록을 좁히지 않는다.
+RegionCode = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=64),
+]
+
 # 담당자 이름표 바탕색. 화면이 그대로 style 에 넣으므로 #rrggbb 만 받는다. 대문자로 와도
 # DB CHECK(소문자 16진)에 맞도록 아래에서 내려 둔다.
 BadgeColor = Annotated[
@@ -38,6 +45,8 @@ class TeamMemberRow(BaseModel):
     active: bool
     # 팀장이 고른 이름표 색. NULL 이면 미지정이고 화면은 기본 회색을 쓴다.
     badge_color: str | None
+    # 맡은 지역 코드. NULL 이면 미지정이다.
+    region_code: str | None
     target_amount: int
     confirmed_amount: int
     # 목표가 없으면 0% 가 아니라 null 이다. "미설정" 과 "미달성" 은 다르다.
@@ -69,6 +78,8 @@ class TeamMemberPatch(BaseModel):
     active: bool | None = None
     # 다른 항목과 달리 null 을 받는다. 색을 지워 기본 회색으로 되돌리는 길이다.
     badge_color: BadgeColor | None = None
+    # badge_color 와 같이 null 을 받는다. 맡은 지역을 다시 미지정으로 되돌리는 길이다.
+    region_code: RegionCode | None = None
     monthly_target_amount: TargetAmount | None = None
     # 어느 달의 목표를 고치는지. 주지 않으면 라우터가 이번 달로 채운다.
     target_month: date | None = None

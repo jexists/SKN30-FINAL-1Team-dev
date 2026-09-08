@@ -33,6 +33,8 @@ class Member(Base):
     email: Mapped[str | None]
     # 담당자 이름표 바탕색(#rrggbb 소문자). NULL 이면 화면이 기본 회색을 쓴다.
     badge_color: Mapped[str | None]
+    # 맡은 지역. customer_company.region_code 와 같은 코드 체계다. NULL 이면 미지정이다.
+    region_code: Mapped[str | None]
     active: Mapped[bool] = mapped_column(server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 

@@ -209,6 +209,23 @@ def test_admin_creates_team_and_member_and_sends_one_invite(monkeypatch):
     assert team.company_name == "세일즈러브"
     assert member.team_id == team.id
     assert member.role_code == "member"
+    # 담당지역은 선택 입력이다. 고르지 않으면 미지정으로 서고 팀장이 나중에 채운다.
+    assert member.region_code is None
+
+
+def test_admin_can_pick_the_region_the_new_member_will_cover(monkeypatch):
+    """발급할 때 고른 담당지역이 member 행에 그대로 서야 한다."""
+    spy = _SupabaseSpy()
+    db = _Db()
+    client = _client(signed_in_as=ADMIN_ID, db=db, spy=spy, monkeypatch=monkeypatch)
+
+    with client:
+        response = _post(client, _payload(region_code="gyeonggi"))
+
+    assert response.status_code == 201
+    assert response.json()["region_code"] == "gyeonggi"
+    member = next(entity for entity in db.added if isinstance(entity, Member))
+    assert member.region_code == "gyeonggi"
 
 
 def test_instant_skips_the_invite_and_fixes_the_password(monkeypatch):
@@ -377,6 +394,7 @@ def test_teams_listing_carries_members_and_counts(monkeypatch):
         role_code="member",
         job_title=None,
         email="jihoon@salesluv.test",
+        region_code="seoul",
         active=True,
     )
     client = _client(
@@ -404,6 +422,7 @@ def test_teams_listing_carries_members_and_counts(monkeypatch):
                     "display_name": "김지훈",
                     "email": "jihoon@salesluv.test",
                     "role_code": "member",
+                    "region_code": "seoul",
                     "active": True,
                 }
             ],

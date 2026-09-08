@@ -66,6 +66,7 @@ def _member_row(target: Member, target_amount: int, confirmed_amount: int) -> Te
         role_code=target.role_code,
         active=target.active,
         badge_color=target.badge_color,
+        region_code=target.region_code,
         target_amount=target_amount,
         confirmed_amount=confirmed_amount,
         achievement_rate=_rate(confirmed_amount, target_amount),

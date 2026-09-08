@@ -94,6 +94,7 @@ def _member(
     role: str = "member",
     team_id: UUID | None = None,
     active: bool = True,
+    region_code: str | None = "seoul",
 ) -> Member:
     return Member(
         id=uuid4(),
@@ -102,6 +103,7 @@ def _member(
         role_code=role,
         job_title="영업 담당자",
         email="member@demo.test",
+        region_code=region_code,
         active=active,
     )
 
@@ -358,6 +360,10 @@ def test_patch_rejects_unsafe_values():
     with pytest.raises(ValidationError):
         TeamMemberPatch(badge_color="#12")
 
+    with pytest.raises(ValidationError):
+        # 담당지역을 빈 값으로 두려면 null 을 보낸다. 공백 문자열은 DB CHECK 에도 걸린다.
+        TeamMemberPatch(region_code=" ")
+
 
 def test_patch_keeps_the_badge_color_the_manager_picked():
     """고른 색을 연하게 바꾸지 않는다. 표기만 소문자로 맞춰 DB CHECK 와 어긋나지 않게 한다."""
@@ -404,3 +410,48 @@ def test_patch_can_clear_the_badge_color_back_to_the_default_gray():
     assert response.status_code == 200
     assert response.json()["badge_color"] is None
     assert teammate.badge_color is None
+
+
+def test_patch_saves_the_region_the_manager_picked():
+    """담당지역은 코드로 저장하고 응답 행에 그대로 실어 보낸다."""
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id, region_code=None)
+
+    db = _Db(
+        _Result(scalar=teammate),
+        _Result(rows=[]),
+        _Result(rows=[]),
+    )
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/team/members/{teammate.id}",
+            headers={"Origin": ORIGIN},
+            json={"region_code": "gyeonggi"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["region_code"] == "gyeonggi"
+    assert teammate.region_code == "gyeonggi"
+    assert db.commit_count == 1
+
+
+def test_patch_can_clear_the_region_back_to_unset():
+    """null 은 '담당지역을 미지정으로 되돌린다' 는 뜻이다. badge_color 와 같은 규약이다."""
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id, region_code="seoul")
+
+    db = _Db(
+        _Result(scalar=teammate),
+        _Result(rows=[]),
+        _Result(rows=[]),
+    )
+    with _client(db, manager) as client:
+        response = client.patch(
+            f"/api/team/members/{teammate.id}",
+            headers={"Origin": ORIGIN},
+            json={"region_code": None},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["region_code"] is None
+    assert teammate.region_code is None

@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator, model_validator
 
 from app.schemas.auth import Email
+from app.schemas.team import RegionCode
 
 Name = Annotated[
     str, StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=100)
@@ -65,6 +66,8 @@ class AccountCreate(BaseModel):
     email: Email
     display_name: Name
     role_code: RoleCode
+    # 맡을 지역. 발급할 때 정하지 않아도 되고, 나중에 팀 관리에서 팀장이 채운다.
+    region_code: RegionCode | None = None
     team_id: UUID | None = None
     team: TeamCreate | None = None
     # 메일 없이 고정 비밀번호로 바로 발급한다. 로컬에서만 받는다. api/admin.py 를 본다.
@@ -85,6 +88,7 @@ class TeamMemberRead(BaseModel):
     display_name: str
     email: str | None
     role_code: str
+    region_code: str | None
     active: bool
 
 
@@ -110,3 +114,4 @@ class AccountCreated(BaseModel):
     display_name: str
     email: str | None
     role_code: str
+    region_code: str | None

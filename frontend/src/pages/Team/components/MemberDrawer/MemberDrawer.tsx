@@ -12,8 +12,10 @@ import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import FormField from '@/components/FormField'
 import OwnerName from '@/components/OwnerName'
+import Select from '@/components/Select'
 import StatusBadge from '@/components/StatusBadge'
 import { errorMessage } from '@/api/errorMessage'
+import { REGION_OPTIONS } from '@/shared/regionCodes'
 import { showToast } from '@/shared/toast'
 import type { Role, TeamMemberPatchRequest, TeamMemberRow } from '@/types'
 import { wonFull } from '@/utils/format'
@@ -30,6 +32,14 @@ interface Props {
 }
 
 const ROLE_LABEL: Record<Role, string> = { manager: '팀장', member: '팀원' }
+const ROLE_OPTIONS = [
+  { value: 'manager', label: ROLE_LABEL.manager },
+  { value: 'member', label: ROLE_LABEL.member },
+]
+const ACTIVE_OPTIONS = [
+  { value: 'active', label: '재직' },
+  { value: 'inactive', label: '비활성' },
+]
 
 /** 색을 정하지 않았을 때 견본이 보여 줄 색. 회색 이름표(--fill)와 같은 자리입니다. */
 const DEFAULT_SWATCH = '#e3e3e5'
@@ -40,6 +50,8 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
   const [jobTitle, setJobTitle] = useState(member.job_title ?? '')
   const [role, setRole] = useState<Role>(member.role_code)
   const [active, setActive] = useState(member.active)
+  // 빈 문자열이 '담당지역 미지정' 입니다. 선택란의 첫 항목이 이 값입니다.
+  const [region, setRegion] = useState(member.region_code ?? '')
   const [monthlyTarget, setMonthlyTarget] = useState(member.target_amount)
   // 빈 문자열이 '색 미지정' 입니다. 손으로 적는 칸이 있어 저장 못 할 값도 잠시 머뭅니다.
   const [color, setColor] = useState(member.badge_color ?? '')
@@ -50,11 +62,15 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
   // 저장될 값입니다. 표기만 소문자로 맞추고 색 자체는 손대지 않습니다.
   const nextColor = colorValid && color !== '' ? color.toLowerCase() : null
   const savedColor = member.badge_color ?? null
+  // 색과 같이 null 이 '지운다' 입니다.
+  const nextRegion = region === '' ? null : region
+  const savedRegion = member.region_code ?? null
 
   const dirty =
     jobTitle !== (member.job_title ?? '') ||
     role !== member.role_code ||
     active !== member.active ||
+    nextRegion !== savedRegion ||
     nextColor !== savedColor ||
     monthlyTarget !== member.target_amount
 
@@ -72,6 +88,8 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
       }
       if (role !== member.role_code) patch.role_code = role
       if (active !== member.active) patch.active = active
+      // null 이 '담당지역을 미지정으로' 입니다.
+      if (nextRegion !== savedRegion) patch.region_code = nextRegion
       // null 이 '색을 지우고 기본 회색으로' 입니다. 서버도 여기서만 null 을 받습니다.
       if (nextColor !== savedColor) patch.badge_color = nextColor
       await onSave(member.id, patch)
@@ -135,29 +153,30 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
             />
           </FormField>
 
-          <FormField label="역할">
-            <select
-              className={styles.input}
+          <FormField label="역할" htmlFor={false}>
+            <Select
+              label="역할"
               value={role}
+              options={ROLE_OPTIONS}
               // 팀장이 자기 역할을 내리면 이 화면에 다시 들어올 수 없습니다.
               disabled={isSelf}
-              onChange={(event) => setRole(event.target.value as Role)}
-            >
-              <option value="manager">{ROLE_LABEL.manager}</option>
-              <option value="member">{ROLE_LABEL.member}</option>
-            </select>
+              onChange={(next) => setRole(next as Role)}
+            />
           </FormField>
 
-          <FormField label="계정 상태">
-            <select
-              className={styles.input}
+          {/* 맡은 지역. 고객사 지역과 같은 코드를 쓰므로 손으로 적지 않고 고릅니다. */}
+          <FormField label="담당지역" htmlFor={false}>
+            <Select label="담당지역" value={region} options={REGION_OPTIONS} onChange={setRegion} />
+          </FormField>
+
+          <FormField label="계정 상태" htmlFor={false}>
+            <Select
+              label="계정 상태"
               value={active ? 'active' : 'inactive'}
+              options={ACTIVE_OPTIONS}
               disabled={isSelf}
-              onChange={(event) => setActive(event.target.value === 'active')}
-            >
-              <option value="active">재직</option>
-              <option value="inactive">비활성</option>
-            </select>
+              onChange={(next) => setActive(next === 'active')}
+            />
           </FormField>
 
           {/* 색은 목록에서 담당자를 가르는 표시라 인사 정보와 함께 둡니다. 고른 색을 연하게

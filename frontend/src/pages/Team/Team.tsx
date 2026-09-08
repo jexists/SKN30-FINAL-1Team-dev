@@ -112,6 +112,7 @@ export default function Team() {
                   <th scope="col">팀원</th>
                   <th scope="col">직책</th>
                   <th scope="col">역할</th>
+                  <th scope="col">담당지역</th>
                   <th scope="col" className={styles.right}>
                     목표 매출
                   </th>
