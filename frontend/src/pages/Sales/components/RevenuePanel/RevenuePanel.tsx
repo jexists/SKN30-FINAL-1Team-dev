@@ -190,9 +190,7 @@ export default function RevenuePanel({
           <span className="tnum">계약 {totals.count}건</span>
           {/* 목표가 들어오면 달성률이 여기 붙습니다. 아직 아무도 목표를 정하지 않았고,
               정한 적 없는 값의 부재를 화면에서 가장 좋은 자리로 알릴 이유는 없습니다. */}
-          {totals.target > 0 && (
-            <span className="tnum">목표 대비 {totals.rate.toFixed(1)}%</span>
-          )}
+          {totals.target > 0 && <span className="tnum">목표 대비 {totals.rate.toFixed(1)}%</span>}
         </p>
       </header>
 
@@ -203,11 +201,7 @@ export default function RevenuePanel({
         // 추세와 갈라 놓아야, 어느 쪽에 붙은 그림인지 헷갈리지 않습니다.
         <div className={styles.mix}>
           {/* 구성 리본. 이름은 아래 순위 줄이 이미 말하므로 범례를 따로 두지 않습니다. */}
-          <div
-            className={styles.ribbon}
-            role="group"
-            aria-label={`${GROUP_LABEL[by]}별 매출 구성`}
-          >
+          <div className={styles.ribbon} role="group" aria-label={`${GROUP_LABEL[by]}별 매출 구성`}>
             {slices.map((s) => (
               <button
                 key={s.key}
