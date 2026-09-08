@@ -1,0 +1,143 @@
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.month {
+  flex: none;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s3);
+
+  // 넷이 한 줄에 서면 금액이 두 줄로 접힙니다. 접히기 전에 둘씩 내립니다.
+  @include lg {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// 누르는 곳이 아니므로 hover·그림자 변화를 넣지 않습니다.
+.tile {
+  @include card;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s4);
+
+  strong {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    color: var(--ink);
+  }
+
+  // 숫자가 없는 자리. 사정을 적을 뿐이므로 금액만 한 목소리를 내지 않습니다.
+  .soft {
+    font-size: 18px;
+    color: var(--muted);
+  }
+
+  // 보조 줄은 타일 바닥에 붙여 옆 타일과 높이를 맞춥니다.
+  small {
+    margin-top: auto;
+    padding-top: var(--s2);
+    color: var(--muted);
+    font-size: 11px;
+  }
+}
+
+.label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+// 목표 대비 어디쯤인지 알리는 칩. 색은 목록의 상태 배지와 같은 눈금(70/40)을 씁니다.
+.chip {
+  @include tag-pill;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.good {
+  background: var(--green-tint);
+  color: var(--green-ink);
+}
+
+.warn {
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+}
+
+.bad {
+  background: var(--red-tint);
+  color: var(--red-ink);
+}
+
+.track {
+  position: relative;
+  height: 6px;
+  margin-top: var(--s2);
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 100%;
+    width: var(--p, 0%);
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--blue), #4da3ff);
+    transition: width var(--t-slow) var(--ease-spring);
+  }
+}
+
+// 목표 초과. 달성률 숫자는 자르지 않으므로 116% 같은 값이 그대로 섭니다.
+.isOver {
+  strong {
+    color: var(--green-ink);
+  }
+
+  .track i {
+    background: linear-gradient(
+      90deg,
+      var(--green) 0 var(--split),
+      var(--green-ink) var(--split) 100%
+    );
+  }
+
+  // 100% 눈금. 막대 위에 얇게 파인 자국으로 넘어선 구간을 갈라 놓습니다.
+  .track::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--mark);
+    width: 2px;
+    margin-left: -1px;
+    background: var(--surface);
+    opacity: 0.75;
+  }
+}

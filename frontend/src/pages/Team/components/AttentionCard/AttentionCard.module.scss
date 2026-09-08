@@ -1,0 +1,113 @@
+.card {
+  @include card;
+  padding: var(--s4);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s2);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.count {
+  @include tag-pill;
+  padding: 1px 8px;
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid var(--line);
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast);
+
+  &:hover {
+    background: var(--fill-2);
+  }
+}
+
+// 갈래를 알리는 한 글자. 색은 이 카드에서만 쓰는 강조이고 나머지 화면은 조용히 둡니다.
+.mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.warn {
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+}
+
+.bad {
+  background: var(--red-tint);
+  color: var(--red-ink);
+}
+
+.quiet {
+  background: var(--fill);
+  color: var(--muted);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.title {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.names {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action {
+  flex: none;
+  margin-left: auto;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+
+  // 좁은 화면에서는 이름이 먼저 읽혀야 합니다. 손잡이 전체가 눌리므로 문구는 접습니다.
+  @include sm {
+    display: none;
+  }
+}

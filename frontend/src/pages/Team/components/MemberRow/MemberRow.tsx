@@ -2,10 +2,17 @@
 //
 // 다른 목록(고객·자료실·고객불만)과 같이 줄 아무 곳이나 눌러 상세를 엽니다. 줄은 초점을
 // 받지 못하므로 이름 칸에 키보드용 손잡이를 하나 둡니다.
-import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
+//
+// 한 사람에 대한 여덟 칸을 다섯으로 묶었습니다. 직책·지역처럼 자주 비는 값은 제 칸을
+// 가지면 표가 '—' 로 덮이므로, 있을 때만 이름·역할 옆에 붙는 곁줄로 둡니다.
+import StatusBadge from '@/components/StatusBadge'
+import { useOwnerColor } from '@/shared/ownerColors'
 import { regionLabel } from '@/shared/regionCodes'
 import type { Role, TeamMemberRow } from '@/types'
+import { readableInk } from '@/utils/color'
 import { wonFull } from '@/utils/format'
+
+import { health } from '../../health'
 
 import styles from './MemberRow.module.scss'
 
@@ -18,21 +25,12 @@ interface MemberRowProps {
 
 const ROLE_LABEL: Record<Role, string> = { manager: '팀장', member: '팀원' }
 
-// 달성률로 가르는 눈금. 팀장이 먼저 봐야 할 사람을 색으로 띄웁니다.
-const HEALTHY = 70
-const WATCH = 40
-
-function health(rate: number | null): { label: string; tone: StatusTone } {
-  // 목표를 세우지 않았으면 잘하고 못하고를 말할 수 없습니다.
-  if (rate === null) return { label: '미설정', tone: 'neutral' }
-  if (rate >= HEALTHY) return { label: '정상', tone: 'green' }
-  if (rate >= WATCH) return { label: '주의', tone: 'orange' }
-  return { label: '위험', tone: 'red' }
-}
-
 export default function MemberRow({ member, isSelf, onOpen }: MemberRowProps) {
+  // 색의 주인은 언제나 DB 입니다. 이름에서 색을 지어내지 않습니다.
+  const color = useOwnerColor(member.id)
   const state = health(member.achievement_rate)
   const rate = member.achievement_rate
+  const region = member.region_code === null ? null : regionLabel(member.region_code)
 
   return (
     <tr
@@ -40,45 +38,73 @@ export default function MemberRow({ member, isSelf, onOpen }: MemberRowProps) {
       onClick={onOpen}
     >
       <td>
-        <button
-          type="button"
-          className={styles.openButton}
-          onClick={(event) => {
-            event.stopPropagation()
-            onOpen()
-          }}
-        >
-          {member.display_name}
-        </button>
-        {isSelf && <span className={styles.self}>나</span>}
-      </td>
-
-      <td>{member.job_title ?? '—'}</td>
-
-      <td>
-        <StatusBadge
-          label={ROLE_LABEL[member.role_code]}
-          tone={member.role_code === 'manager' ? 'blue' : 'neutral'}
-        />
-      </td>
-
-      <td>{regionLabel(member.region_code)}</td>
-
-      <td className={`${styles.right} tnum`}>{wonFull(member.target_amount)}</td>
-      <td className={`${styles.right} tnum`}>{wonFull(member.confirmed_amount)}</td>
-
-      <td>
-        <span className={styles.rate}>
-          <span className="tnum">{rate === null ? '—' : `${rate}%`}</span>
-          {/* 숫자 옆의 얇은 막대. 표를 훑을 때 눈으로 먼저 잡히는 것은 길이입니다. */}
+        <span className={styles.person}>
+          {/* 색을 정해 두지 않았으면 회색 그대로 섭니다. */}
           <span
-            className={styles.track}
-            style={{ '--p': `${Math.min(100, rate ?? 0)}%` } as React.CSSProperties}
+            className={styles.avatar}
+            style={color === null ? undefined : { background: color, color: readableInk(color) }}
             aria-hidden="true"
           >
-            <i />
+            {member.display_name.trim().slice(0, 1)}
+          </span>
+          <span className={styles.identity}>
+            <span className={styles.nameLine}>
+              <button
+                type="button"
+                className={styles.openButton}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpen()
+                }}
+              >
+                {member.display_name}
+              </button>
+              {isSelf && <span className={styles.self}>나</span>}
+            </span>
+            {member.job_title !== null && <span className={styles.job}>{member.job_title}</span>}
           </span>
         </span>
+      </td>
+
+      <td>
+        <span className={styles.role}>
+          <StatusBadge
+            label={ROLE_LABEL[member.role_code]}
+            tone={member.role_code === 'manager' ? 'blue' : 'neutral'}
+          />
+          {region !== null && <span className={styles.region}>{region}</span>}
+        </span>
+      </td>
+
+      <td className={styles.progressCell}>
+        {member.target_amount === 0 ? (
+          // 목표가 없는 사람에게 '₩0 / ₩0' 은 아무것도 알려 주지 않습니다.
+          <span className={`${styles.amounts} tnum`}>{wonFull(member.confirmed_amount)}</span>
+        ) : (
+          <>
+            <span className={`${styles.amounts} tnum`}>
+              {wonFull(member.confirmed_amount)} <em>/ {wonFull(member.target_amount)}</em>
+            </span>
+            {/* 표를 훑을 때 눈으로 먼저 잡히는 것은 숫자가 아니라 길이입니다. */}
+            <span
+              className={styles.track}
+              style={{ '--p': `${Math.min(100, rate ?? 0)}%` } as React.CSSProperties}
+              aria-hidden="true"
+            >
+              <i />
+            </span>
+          </>
+        )}
+      </td>
+
+      <td className={styles.right}>
+        {/* 목표가 없으면 달성률도 없습니다. 무엇을 해야 하는지는 위 카드가 한 번만 말합니다.
+            여기까지 파란 손잡이를 두면 여덟 줄이 전부 손잡이가 되어 진짜 할 일이 묻힙니다. */}
+        {rate === null ? (
+          <span className={styles.blank}>—</span>
+        ) : (
+          <span className="tnum">{rate}%</span>
+        )}
       </td>
 
       <td>

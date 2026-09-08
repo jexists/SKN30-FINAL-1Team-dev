@@ -1,8 +1,11 @@
 // 팀 관리. 구성원의 역할·재직 상태와 매출 목표를 다룹니다.
 //
-// 화면 하나에 "팀이 이번 달 얼마를 목표하고 지금 얼마까지 왔는가" 와 "누가 어디까지 왔는가"
-// 를 함께 둡니다. 목표를 고치면 대시보드의 매출 목표 타일도 같은 값을 보게 됩니다. 달성률은
-// 서버가 셈해 준 것을 그대로 씁니다. 화면에서 다시 계산하면 두 화면의 숫자가 갈라집니다.
+// 화면을 세 단으로 세웁니다. 이번 달 팀의 숫자(GoalBand), 지금 손봐야 할 사람
+// (AttentionCard), 그리고 구성원별 진척(표)입니다. 팀장이 위에서 아래로 한 번 훑으면
+// 무엇부터 할지가 정해지도록 둔 순서입니다.
+//
+// 목표를 고치면 대시보드의 매출 목표 타일도 같은 값을 보게 됩니다. 달성률은 서버가 셈해
+// 준 것을 그대로 씁니다. 화면에서 다시 계산하면 두 화면의 숫자가 갈라집니다.
 //
 // 고치는 일은 줄 안에서 하지 않고 상세 드로어에서 합니다. 목표·역할·재직 상태를 한 줄에
 // 늘어놓으면 표가 입력 폼이 되어 읽기가 어려워집니다. 드로어는 줄 아무 곳이나 눌러 엽니다.
@@ -11,10 +14,12 @@ import { useMemo, useState } from 'react'
 import { useCurrentUser } from '@/auth/sessionContext'
 import ErrorToast from '@/components/ErrorToast'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
+import type { SelectOption } from '@/components/Select'
 import StatusBadge from '@/components/StatusBadge'
 import type { TeamMemberRow } from '@/types'
-import { wonFull } from '@/utils/format'
 
+import AttentionCard from './components/AttentionCard'
+import GoalBand from './components/GoalBand'
 import MemberDrawer from './components/MemberDrawer'
 import MemberRow from './components/MemberRow'
 import useTeamOverview from './useTeamOverview'
@@ -27,14 +32,34 @@ function thisMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 }
 
+/** 이번 달부터 거슬러 열두 달. 목표는 지난달 것도 들여다봐야 할 때가 있습니다. */
+function monthOptions(): SelectOption[] {
+  const now = new Date()
+  return Array.from({ length: 12 }, (_, back) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - back, 1)
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+    return {
+      value: `${year}-${String(month).padStart(2, '0')}-01`,
+      label: `${year}년 ${month}월`,
+    }
+  })
+}
+
 export default function Team() {
   const { memberId } = useCurrentUser()
-  const [targetMonth] = useState(thisMonth)
+  const [targetMonth, setTargetMonth] = useState(thisMonth)
   const [openId, setOpenId] = useState<string | null>(null)
 
   const { data, loading, error, reload, saveMember } = useTeamOverview(targetMonth)
 
-  const members = useMemo<TeamMemberRow[]>(() => data?.members ?? [], [data])
+  const months = useMemo(monthOptions, [])
+  const members = useMemo<TeamMemberRow[]>(() => {
+    // 자리를 비운 사람이 가운데 끼면 읽는 흐름이 끊깁니다. 순서는 그대로 두고 뒤로만 보냅니다.
+    const rows = data?.members ?? []
+    return [...rows].sort((a, b) => Number(b.active) - Number(a.active))
+  }, [data])
+
   const open = members.find((member) => member.id === openId) ?? null
   const activeCount = members.filter((member) => member.active).length
 
@@ -56,52 +81,23 @@ export default function Team() {
       <ErrorToast message={error} onRetry={reload} />
 
       {data !== null && (
-        <div className={styles.goal}>
-          <div className={styles.goalHead}>
-            <h2 className={styles.goalTitle}>팀 목표 매출</h2>
-            <span className={styles.goalMonth}>{data.target_month}</span>
-          </div>
-
-          <div className={styles.goalStats}>
-            <p className={styles.stat}>
-              <span>월 목표 매출</span>
-              <strong className="tnum">{wonFull(data.team_target)}</strong>
-            </p>
-            <p className={styles.stat}>
-              <span>현재 매출</span>
-              <strong className="tnum">{wonFull(data.team_confirmed)}</strong>
-            </p>
-            <p className={styles.stat}>
-              <span>달성률</span>
-              <strong className="tnum">
-                {/* 목표를 세우지 않은 것과 아직 못 채운 것은 다릅니다. */}
-                {data.team_rate === null ? '목표 미설정' : `${data.team_rate}%`}
-              </strong>
-            </p>
-          </div>
-
-          {/* 대시보드 매출 목표 타일과 같은 막대입니다. 목표를 넘어선 만큼은 막대 밖으로
-              나갈 자리가 없으므로 막대를 채우고 색으로 알립니다. */}
-          <div
-            className={`${styles.goalTrack} ${(data.team_rate ?? 0) > 100 ? styles.isOver : ''}`}
-            style={{ '--p': `${Math.min(100, data.team_rate ?? 0)}%` } as React.CSSProperties}
-          >
-            <i />
-          </div>
-
-          <p className={styles.goalFoot}>
-            <span>재직 중인 구성원 {activeCount}명</span>
-            {/* 지금은 팀 목표를 따로 세우지 않고 팀원 목표를 더해 씁니다. 두 값을 나눠
-                보여 주어야 나중에 팀 목표를 따로 넣게 되어도 화면이 그대로입니다. */}
-            <span className="tnum">팀원 목표 합계 {wonFull(data.member_target_sum)}</span>
-          </p>
-        </div>
+        <GoalBand
+          data={data}
+          activeCount={activeCount}
+          month={targetMonth}
+          monthOptions={months}
+          onMonthChange={setTargetMonth}
+        />
       )}
+
+      <AttentionCard members={members} onOpen={setOpenId} />
 
       {!error && loading ? (
         <TableSkeleton label="팀 정보를 새로고침하는 중입니다." rows={members.length} />
       ) : (
         <div className={styles.card}>
+          <h2 className={styles.cardHead}>구성원별 현황</h2>
+
           <div className={styles.scroller}>
             <table className={styles.table}>
               <caption className="sr-only">
@@ -110,16 +106,11 @@ export default function Team() {
               <thead>
                 <tr>
                   <th scope="col">팀원</th>
-                  <th scope="col">직책</th>
-                  <th scope="col">역할</th>
-                  <th scope="col">담당지역</th>
+                  <th scope="col">역할·담당지역</th>
+                  <th scope="col">현재 매출 / 목표 매출</th>
                   <th scope="col" className={styles.right}>
-                    목표 매출
+                    달성률
                   </th>
-                  <th scope="col" className={styles.right}>
-                    현재 매출
-                  </th>
-                  <th scope="col">달성률</th>
                   <th scope="col">상태</th>
                 </tr>
               </thead>

@@ -8,8 +8,42 @@
   cursor: pointer;
 }
 
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+// 담당자 색을 알아보는 자리입니다. 이름표(OwnerName)와 같은 색을 원으로만 씁니다.
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  // 직책이 있는 줄만 키가 커지면 표가 들쭉날쭉해집니다. 두 줄 자리를 늘 잡아 둡니다.
+  min-height: 32px;
+  min-width: 0;
+}
+
+.nameLine {
+  display: flex;
+  align-items: center;
+}
+
 // 이름 칸의 키보드용 손잡이입니다. 누를 곳은 줄 전체이므로 밑줄은 긋지 않습니다.
-// '나' 이름표가 옆에 서므로 블록이 아니라 글줄 안에 둡니다.
 .openButton {
   padding: 0;
   border: 0;
@@ -32,22 +66,45 @@
   font-weight: 700;
 }
 
-.right {
-  text-align: right !important;
+.job {
+  color: var(--muted);
+  font-size: 12px;
 }
 
-.rate {
-  display: inline-flex;
+.role {
+  display: flex;
   align-items: center;
   gap: var(--s2);
-  min-width: 108px;
+}
+
+.region {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.progressCell {
+  // 남는 폭을 이 칸이 다 가져갑니다. 표를 훑을 때 먼저 잡히는 것이 막대 길이이므로,
+  // 오른쪽에 빈 자리를 남기고 막대를 짧게 두지 않습니다.
+  width: 100%;
+  min-width: 220px;
+}
+
+.amounts {
+  display: block;
+  color: var(--ink);
+  font-size: 13px;
+
+  em {
+    color: var(--muted);
+    font-style: normal;
+  }
 }
 
 // 대시보드 매출 목표 막대와 같은 모양을 한 단계 얇게 씁니다.
 .track {
-  flex: 1;
+  display: block;
   height: 4px;
-  min-width: 48px;
+  margin-top: 6px;
   border-radius: var(--r-pill);
   background: var(--fill);
   overflow: hidden;
@@ -60,4 +117,13 @@
     background: var(--blue);
     transition: width var(--t-slow) var(--ease-spring);
   }
+}
+
+.right {
+  text-align: right !important;
+}
+
+// 달성률이 없는 자리. 상태 칸이 '미설정' 을 말하므로 여기서는 조용히 비웁니다.
+.blank {
+  color: var(--muted-2);
 }
