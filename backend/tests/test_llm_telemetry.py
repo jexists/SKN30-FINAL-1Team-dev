@@ -226,7 +226,12 @@ async def test_report_settings_are_opt_in_and_keep_other_helper_defaults(
 
     def respond(request):
         requests.append((json.loads(request.content), request.extensions["timeout"]))
-        return httpx.Response(200, json={"output_text": '{"value": 5}'})
+        payload = (
+            {"output_text": '{"value": 5}'}
+            if endpoint == "responses"
+            else {"choices": [{"message": {"content": '{"value": 5}'}}]}
+        )
+        return httpx.Response(200, json=payload)
 
     monkeypatch.setattr(
         llm.httpx,
@@ -249,9 +254,45 @@ async def test_report_settings_are_opt_in_and_keep_other_helper_defaults(
     assert normal[1] == {"connect": 7, "read": 7, "write": 7, "pool": 7}
     assert "max_output_tokens" not in normal[0] and "max_completion_tokens" not in normal[0]
     assert all("reasoning" not in body and "reasoning_effort" not in body for body, _ in requests)
-    if endpoint == "chat/completions":
-        assert report[0]["messages"] == normal[0]["input"]
-        assert report[0]["response_format"]["json_schema"]["schema"] == _Result.model_json_schema()
+    messages = [
+        {"role": "system", "content": args["instructions"]},
+        {"role": "user", "content": args["input_text"]},
+    ]
+    schema = {
+        "name": args["schema_name"],
+        "schema": _Result.model_json_schema(),
+        "strict": False,
+    }
+    for body, _ in requests:
+        if endpoint == "responses":
+            assert body["input"] == messages
+            assert body["text"] == {"format": {"type": "json_schema", **schema}}
+            assert "messages" not in body and "response_format" not in body
+        else:
+            assert body["messages"] == messages
+            assert body["response_format"] == {"type": "json_schema", "json_schema": schema}
+            assert "input" not in body and "text" not in body
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("report_mode", [False, True])
+async def test_unsupported_endpoint_is_rejected_before_request(
+    configured_llm, monkeypatch, report_mode
+):
+    monkeypatch.setattr(llm.settings, "llm_api_url", "https://provider.invalid/v1/unsupported")
+
+    def forbidden(**kwargs):
+        raise AssertionError("Unsupported endpoint must not make an HTTP request")
+
+    monkeypatch.setattr(llm.httpx, "AsyncClient", forbidden)
+    with pytest.raises(llm.LLMError, match="^report_agent_unsupported_endpoint$"):
+        await llm.generate_structured(
+            instructions="private-instructions",
+            input_text="private-input",
+            schema=_Result,
+            schema_name="endpoint_test",
+            report_mode=report_mode,
+        )
 
 
 @pytest.mark.anyio

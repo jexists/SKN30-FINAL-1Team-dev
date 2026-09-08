@@ -212,24 +212,25 @@ async def generate_structured[Schema: BaseModel](
             }
         },
     }
-    if report_mode:
-        path = endpoint.path.rstrip("/")
-        if path.endswith("/responses"):
+    path = endpoint.path.rstrip("/")
+    if path.endswith("/responses"):
+        if report_mode:
             body["max_output_tokens"] = 12_000
-        elif path.endswith("/chat/completions"):
-            body = {
-                "model": settings.llm_model,
-                "messages": body["input"],
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        key: value for key, value in body["text"]["format"].items() if key != "type"
-                    },
+    elif path.endswith("/chat/completions"):
+        body = {
+            "model": settings.llm_model,
+            "messages": body["input"],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    key: value for key, value in body["text"]["format"].items() if key != "type"
                 },
-                "max_completion_tokens": 12_000,
-            }
-        else:
-            raise LLMError("report_agent_unsupported_endpoint")
+            },
+        }
+        if report_mode:
+            body["max_completion_tokens"] = 12_000
+    else:
+        raise LLMError("report_agent_unsupported_endpoint")
     headers = {
         "Authorization": f"Bearer {_external_api_key()}",
         "Content-Type": "application/json",
