@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import Button from '@/components/Button'
@@ -14,9 +14,8 @@ import { progressLabel, rollupLabel } from '@/shared/noticeStatus'
 import { showToast } from '@/shared/toast'
 import type { NoticeManageListResponse, NoticeManageResponse, NoticeType } from '@/types'
 
-import DirectiveStatusModal from './components/DirectiveStatusModal'
+import NoticeDrawer from './components/NoticeDrawer'
 import NoticeFormModal from './components/NoticeFormModal'
-import NoticeRowActions from './components/NoticeRowActions'
 import {
   TYPE_TABS,
   columnsFor,
@@ -39,7 +38,7 @@ export default function Notices() {
   const [page, setPage] = useState(1)
   const [form, setForm] = useState<FormState | null>(null)
   const [removing, setRemoving] = useState<NoticeManageListResponse | null>(null)
-  const [progressOf, setProgressOf] = useState<NoticeManageListResponse | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   // 이행 현황 열은 지시사항 탭에만 섭니다. 공지 표는 지금 모양 그대로입니다.
@@ -59,6 +58,13 @@ export default function Notices() {
   } = useNotices({ type, q: query, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE })
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // 목록을 다시 받으면 줄 객체가 갈립니다. 열려 있는 것은 id 로 매번 다시 찾습니다.
+  // 찾지 못하면(지웠거나 조건 밖으로 나갔으면) 드로어를 닫습니다.
+  const open = useMemo(
+    () => (openId === null ? null : (rows.find((row) => row.id === openId) ?? null)),
+    [rows, openId],
+  )
 
   const patchParams = (change: (next: URLSearchParams) => void) => {
     const next = new URLSearchParams(params)
@@ -111,6 +117,8 @@ export default function Notices() {
       await removeNotice(removing.id)
       showToast('삭제했습니다.')
       setRemoving(null)
+      // 지운 글의 상세를 열어 둘 자리는 없습니다.
+      setOpenId(null)
     } catch {
       showToast('삭제하지 못했습니다.')
     } finally {
@@ -177,78 +185,103 @@ export default function Notices() {
           </div>
         </div>
       ) : (
-        <div className={styles.card}>
-          {/* 좁은 화면에서는 표가 카드 안에서만 옆으로 흐릅니다. */}
-          <div className={styles.scroller}>
-            <table className={styles.table} style={{ width: tableWidth(columns) }}>
-              <caption className="sr-only">등록된 공지·지시사항 목록</caption>
-              <colgroup>
-                {columns.map((column) => (
-                  <col key={column.id} style={{ width: column.width }} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr>
+        <>
+          <div className={styles.card}>
+            {/* 좁은 화면에서는 표가 카드 안에서만 옆으로 흐릅니다. */}
+            <div className={styles.scroller}>
+              <table className={styles.table} style={{ width: tableWidth(columns) }}>
+                <caption className="sr-only">등록된 공지·지시사항 목록</caption>
+                <colgroup>
                   {columns.map((column) => (
-                    <th key={column.id} scope="col">
-                      {column.header}
-                    </th>
+                    <col key={column.id} style={{ width: column.width }} />
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const state = stateOf(row)
-                  return (
-                    <tr key={row.id} className={row.is_hidden ? styles.isHidden : undefined}>
-                      <td className="tnum">{row.sort_order}</td>
-                      <td className={styles.title} title={row.title}>
-                        {row.title}
-                      </td>
-                      <td>{row.tag === null ? '-' : <i className={styles.badge}>{row.tag}</i>}</td>
-                      <td className={styles.targets} title={targetsLabel(row)}>
-                        {targetsLabel(row)}
-                      </td>
-                      {/* 누가 했고 누가 못 했는지. 눌러서 사람별 상태와 사유를 봅니다. */}
-                      {type === 'DIRECTIVE' && (
-                        <td>
+                </colgroup>
+                <thead>
+                  <tr>
+                    {columns.map((column) => (
+                      <th key={column.id} scope="col">
+                        {column.header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const state = stateOf(row)
+                    return (
+                      <tr
+                        key={row.id}
+                        className={`${styles.clickable} ${row.is_hidden ? styles.isHidden : ''}`}
+                        onClick={() => setOpenId(row.id)}
+                      >
+                        <td className="tnum">{row.sort_order}</td>
+                        <td className={styles.title}>
                           <button
                             type="button"
-                            className={styles.progress}
-                            onClick={() => setProgressOf(row)}
-                            aria-label={`${row.title} 이행 현황 보기`}
+                            className={styles.openButton}
+                            title={row.title}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setOpenId(row.id)
+                            }}
                           >
-                            <StatusBadge
-                              label={rollupLabel(row.targets).label}
-                              tone={rollupLabel(row.targets).tone}
-                            />
-                            <span className="tnum">{progressLabel(row.targets)}</span>
+                            {row.title}
                           </button>
                         </td>
-                      )}
-                      <td className="tnum">{periodLabel(row)}</td>
-                      <td>
-                        <StatusBadge label={state.label} tone={state.tone} />
-                      </td>
-                      <td>{row.author_display_name}</td>
-                      <td>
-                        <NoticeRowActions
-                          row={row}
-                          busy={busyId === row.id}
-                          onEdit={() => void openEdit(row)}
-                          onToggleHidden={() => void switchHidden(row)}
-                          onDelete={() => setRemoving(row)}
-                        />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                        <td>
+                          {row.tag === null ? '-' : <i className={styles.badge}>{row.tag}</i>}
+                        </td>
+                        <td className={styles.targets} title={targetsLabel(row)}>
+                          {targetsLabel(row)}
+                        </td>
+                        {/* 누가 했고 누가 못 했는지. 사람별 상태와 사유는 상세에 있습니다. */}
+                        {type === 'DIRECTIVE' && (
+                          <td>
+                            <span className={styles.progress}>
+                              <StatusBadge
+                                label={rollupLabel(row.targets).label}
+                                tone={rollupLabel(row.targets).tone}
+                              />
+                              <span className="tnum">{progressLabel(row.targets)}</span>
+                            </span>
+                          </td>
+                        )}
+                        <td className="tnum">{periodLabel(row)}</td>
+                        <td>
+                          <StatusBadge label={state.label} tone={state.tone} />
+                        </td>
+                        <td>{row.author_display_name}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <Pagination page={page} pageCount={pageCount} total={total} unit="건" onPage={setPage} />
-        </div>
+          <div className={styles.pagination}>
+            <Pagination
+              page={page}
+              pageCount={pageCount}
+              total={total}
+              unit="건"
+              onPage={setPage}
+            />
+          </div>
+        </>
+      )}
+
+      {open !== null && (
+        <NoticeDrawer
+          key={open.id}
+          row={open}
+          busy={busyId === open.id}
+          loadNotice={loadNotice}
+          onEdit={() => void openEdit(open)}
+          onToggleHidden={() => void switchHidden(open)}
+          onDelete={() => setRemoving(open)}
+          onClose={() => setOpenId(null)}
+        />
       )}
 
       {form !== null && (
@@ -260,6 +293,8 @@ export default function Notices() {
             if (form.mode === 'edit') {
               await editNotice(form.notice.id, payload)
               showToast('수정했습니다.')
+              // 드로어가 들고 있는 본문은 고치기 전의 것입니다. 닫고 목록으로 돌아갑니다.
+              setOpenId(null)
             } else {
               await addNotice(payload as Parameters<typeof addNotice>[0])
               showToast('등록했습니다.')
@@ -267,10 +302,6 @@ export default function Notices() {
             setForm(null)
           }}
         />
-      )}
-
-      {progressOf !== null && (
-        <DirectiveStatusModal notice={progressOf} onClose={() => setProgressOf(null)} />
       )}
 
       {removing !== null && (

@@ -4,10 +4,11 @@ import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import { CloseIcon, UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
-import type { ProductCategoryCode, ProductCreateRequest } from '@/types'
+import type { ProductCategoryCode, ProductCreateRequest, ProductResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 
 import { CATEGORIES } from '../catalog'
+import useProductImage from '../useProductImage'
 
 import styles from '../Products.module.scss'
 
@@ -16,35 +17,51 @@ const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp'
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024
 
 interface Props {
+  /** 있으면 수정입니다. 없으면 등록입니다. */
+  initial?: ProductResponse
   onClose: () => void
   onSubmit: (payload: ProductCreateRequest, image: File | null) => Promise<void>
 }
 
 type Errors = Partial<Record<'name' | 'unitPrice' | 'shelfLife' | 'image', string>>
 
-export default function ProductFormModal({ onClose, onSubmit }: Props) {
-  const [name, setName] = useState('')
-  const [categoryCode, setCategoryCode] = useState<ProductCategoryCode>('system')
-  const [unitPrice, setUnitPrice] = useState('')
-  const [shelfLife, setShelfLife] = useState('')
-  const [memo, setMemo] = useState('')
+export default function ProductFormModal({ initial, onClose, onSubmit }: Props) {
+  const editing = initial !== undefined
+  const [name, setName] = useState(initial?.name ?? '')
+  const [categoryCode, setCategoryCode] = useState<ProductCategoryCode>(
+    initial?.category_code ?? 'system',
+  )
+  const [unitPrice, setUnitPrice] = useState(
+    initial === undefined ? '' : String(initial.unit_price),
+  )
+  const [shelfLife, setShelfLife] = useState(
+    initial?.shelf_life_months === undefined || initial.shelf_life_months === null
+      ? ''
+      : String(initial.shelf_life_months),
+  )
+  const [memo, setMemo] = useState(initial?.memo ?? '')
   const [image, setImage] = useState<File | null>(null)
   const [errors, setErrors] = useState<Errors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // 이미 붙어 있는 사진. 새로 고르기 전까지는 이것이 미리보기가 됩니다.
+  const savedUrl = useProductImage(initial ?? EMPTY_PRODUCT)
+
   // 미리보기 주소는 브라우저 메모리를 잡고 있으므로 사진이 바뀌면 놓아 줍니다.
-  const [preview, setPreview] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string | null>(null)
   useEffect(() => {
     if (image === null) {
-      setPreview(null)
+      setPicked(null)
       return
     }
     const objectUrl = URL.createObjectURL(image)
-    setPreview(objectUrl)
+    setPicked(objectUrl)
     return () => URL.revokeObjectURL(objectUrl)
   }, [image])
+
+  const preview = picked ?? savedUrl
 
   const pickImage = (file: File | undefined) => {
     if (file === undefined) return
@@ -86,7 +103,12 @@ export default function ProductFormModal({ onClose, onSubmit }: Props) {
         image,
       )
     } catch (caught: unknown) {
-      setSubmitError(errorMessage(caught, '상품을 등록하지 못했습니다.'))
+      setSubmitError(
+        errorMessage(
+          caught,
+          editing ? '상품을 수정하지 못했습니다.' : '상품을 등록하지 못했습니다.',
+        ),
+      )
       setSubmitting(false)
     }
   }
@@ -97,7 +119,7 @@ export default function ProductFormModal({ onClose, onSubmit }: Props) {
 
   return (
     <Modal
-      title="상품 등록"
+      title={editing ? '상품 수정' : '상품 등록'}
       onClose={close}
       onSubmit={submit}
       footer={
@@ -106,7 +128,7 @@ export default function ProductFormModal({ onClose, onSubmit }: Props) {
             취소
           </Button>
           <Button type="submit" disabled={submitting}>
-            {submitting ? '등록 중…' : '상품 등록'}
+            {submitting ? '저장 중…' : editing ? '수정 저장' : '상품 등록'}
           </Button>
         </>
       }
@@ -176,7 +198,11 @@ export default function ProductFormModal({ onClose, onSubmit }: Props) {
           <span className={styles.label}>사진</span>
           <div className={styles.imagePicker}>
             {preview !== null && (
-              <img className={styles.preview} src={preview} alt="고른 사진 미리보기" />
+              <img
+                className={styles.preview}
+                src={preview}
+                alt={picked === null ? '지금 붙어 있는 사진' : '고른 사진 미리보기'}
+              />
             )}
             <div className={styles.imageActions}>
               <Button
@@ -186,7 +212,7 @@ export default function ProductFormModal({ onClose, onSubmit }: Props) {
                 onClick={() => fileRef.current?.click()}
               >
                 <UploadIcon width={15} height={15} />
-                {image === null ? '사진 고르기' : '다른 사진 고르기'}
+                {preview === null ? '사진 고르기' : '다른 사진 고르기'}
               </Button>
               {image !== null && (
                 <>
@@ -218,7 +244,11 @@ export default function ProductFormModal({ onClose, onSubmit }: Props) {
               }}
             />
           </div>
-          <span className={styles.hint}>PNG·JPG·WEBP, 5MB까지. 선택입니다.</span>
+          <span className={styles.hint}>
+            PNG·JPG·WEBP, 5MB까지. 선택입니다.
+            {/* 사진만 따로 지우는 길은 서버에 없습니다. 바꾸는 것만 됩니다. */}
+            {editing && ' 새로 고르면 지금 사진을 대신합니다.'}
+          </span>
           {errors.image && <span className={styles.error}>{errors.image}</span>}
         </div>
 
@@ -242,6 +272,18 @@ export default function ProductFormModal({ onClose, onSubmit }: Props) {
     </Modal>
   )
 }
+
+/** 등록일 때 useProductImage 에 넘길 빈 상품. 훅은 조건부로 부를 수 없습니다. */
+const EMPTY_PRODUCT = {
+  id: '',
+  name: '',
+  active: true,
+  category_code: 'system',
+  unit_price: 0,
+  shelf_life_months: null,
+  memo: null,
+  has_image: false,
+} satisfies ProductResponse
 
 interface FieldProps {
   label: string

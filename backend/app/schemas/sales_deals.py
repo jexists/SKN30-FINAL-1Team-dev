@@ -149,6 +149,27 @@ class ProductCreate(_WriteModel):
     memo: LongText | None = None
 
 
+class ProductPatch(_WriteModel):
+    """보낸 항목만 바꾼다.
+
+    유효기간과 메모는 None 을 명시해 지울 수 있다. 이름·분류·단가는 비울 수 없어
+    보내 놓고 None 이면 거절한다(NoticePatch 와 같은 규칙이다).
+    """
+
+    name: Text | None = None
+    category_code: ProductCategoryCode | None = None
+    unit_price: StrictInt | None = Field(default=None, ge=0, le=9_223_372_036_854_775_807)
+    shelf_life_months: StrictInt | None = Field(default=None, gt=0, le=1_200)
+    memo: LongText | None = None
+
+    @model_validator(mode="after")
+    def required_fields_cannot_be_null(self) -> Self:
+        for field_name in ("name", "category_code", "unit_price"):
+            if field_name in self.model_fields_set and getattr(self, field_name) is None:
+                raise ValueError(f"{field_name} cannot be null")
+        return self
+
+
 class ProductImageRead(BaseModel):
     """짧게 사는 사진 주소. 매 요청마다 팀 권한을 확인한 뒤에만 발급한다."""
 

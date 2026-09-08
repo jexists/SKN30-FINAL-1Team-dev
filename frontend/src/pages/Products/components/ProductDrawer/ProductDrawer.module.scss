@@ -1,0 +1,176 @@
+// 제목 아래 한 줄. 목록에서 훑던 단가를 여기서도 먼저 봅니다.
+.price {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge {
+  @include tag-pill;
+  background: var(--fill-2);
+  color: var(--ink-2);
+}
+
+/* ---- 머리말의 '…' 더보기. CustomerDrawer 의 고객 메뉴와 같은 모양입니다. ---- */
+
+.menuBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    svg {
+      flex: none;
+      color: var(--muted);
+    }
+
+    &:hover {
+      background: var(--fill-2);
+    }
+  }
+
+  // 지우는 것은 되돌릴 수 없어 색으로 한 번 더 세웁니다.
+  .danger {
+    color: var(--red-ink);
+
+    svg {
+      color: currentcolor;
+    }
+
+    &:hover {
+      background: var(--red-tint);
+    }
+  }
+}
+
+/* ---- 사진 ---- */
+
+// 목록의 썸네일과 달리 자르지 않습니다. 사양을 보려고 여는 자리라 원래 비율이 중요합니다.
+.photo {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.photoEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  height: 140px;
+  margin: 0;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---- 값 ---- */
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s2) var(--s4);
+  margin: var(--s4) 0 0;
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.section {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.heading {
+  margin: 0 0 var(--s2);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+// 메모는 줄바꿈까지 적은 그대로 둡니다. 사양을 줄 단위로 적어 두는 일이 많습니다.
+.memo {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

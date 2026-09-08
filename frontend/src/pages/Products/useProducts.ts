@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
-import type { PageResponse, ProductCreateRequest, ProductResponse } from '@/types'
+import type {
+  PageResponse,
+  ProductCreateRequest,
+  ProductPatchRequest,
+  ProductResponse,
+} from '@/types'
 
 import { categoryCodesMatching } from './catalog'
 
@@ -79,5 +84,35 @@ export default function useProducts({ q, skip, limit }: ProductQuery) {
     [reload],
   )
 
-  return { products, total, loading, error, reload, addProduct }
+  /**
+   * 등록과 같은 2단계입니다. 값을 먼저 고치고 새로 고른 사진이 있으면 그 뒤에 올립니다.
+   * 사진을 고르지 않았으면 이미 붙어 있는 사진은 그대로 둡니다.
+   */
+  const editProduct = useCallback(
+    async (id: string, patch: ProductPatchRequest, image: File | null) => {
+      const { data: updated } = await client.patch<ProductResponse>(`/products/${id}`, patch)
+      let product = updated
+      if (image !== null) {
+        const form = new FormData()
+        form.append('upload', image)
+        const { data } = await client.put<ProductResponse>(`/products/${id}/image`, form)
+        product = data
+      }
+      // 이름이 바뀌면 서버가 정한 자리도 바뀝니다. 목록을 다시 받습니다.
+      reload()
+      return product
+    },
+    [reload],
+  )
+
+  /** 서버가 목록에서 내립니다(active=false). 지난 견적·계약의 품목은 그대로 남습니다. */
+  const removeProduct = useCallback(
+    async (id: string) => {
+      await client.delete(`/products/${id}`)
+      reload()
+    },
+    [reload],
+  )
+
+  return { products, total, loading, error, reload, addProduct, editProduct, removeProduct }
 }

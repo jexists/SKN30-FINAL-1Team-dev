@@ -12,7 +12,7 @@ from app.db.session import get_db
 from app.main import app
 from app.models.sales import Product
 from app.models.workspace import Member
-from app.schemas.sales_deals import ProductCreate, ProductPageParams
+from app.schemas.sales_deals import ProductCreate, ProductPageParams, ProductPatch
 
 ORIGIN = settings.cors_origin_list[0]
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
@@ -231,3 +231,83 @@ def test_product_search_covers_memo_and_category_codes():
         # 세 조건은 OR 이어야 한다. AND 로 묶이면 이름만 걸린 제품이 사라진다.
         assert "OR lower(public.product.memo) LIKE" in sql
         assert "OR public.product.category_code IN" in sql
+
+
+def test_product_patch_rejects_clearing_required_fields():
+    with pytest.raises(ValidationError):
+        ProductPatch(name=None)
+    with pytest.raises(ValidationError):
+        ProductPatch(category_code=None)
+    with pytest.raises(ValidationError):
+        ProductPatch(unit_price=None)
+    # 유효기간과 메모는 비울 수 있다.
+    assert ProductPatch(shelf_life_months=None, memo=None).model_fields_set == {
+        "shelf_life_months",
+        "memo",
+    }
+
+
+def test_member_cannot_update_or_delete_product():
+    db = _Db()
+    with _client(db, _member()) as client:
+        patched = client.patch(
+            f"/api/products/{uuid4()}",
+            headers={"Origin": ORIGIN},
+            json={"unit_price": 1},
+        )
+        removed = client.delete(f"/api/products/{uuid4()}", headers={"Origin": ORIGIN})
+
+    assert patched.status_code == 403
+    assert removed.status_code == 403
+    assert db.commit_count == 0
+
+
+def test_manager_updates_only_the_fields_sent():
+    member = _member(role="manager")
+    product = _product(member)
+    db = _Db(_Result(scalar=product))
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/products/{product.id}",
+            headers={"Origin": ORIGIN},
+            json={"unit_price": 9_000_000, "memo": None},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["unit_price"] == 9_000_000
+    assert body["memo"] is None
+    # 보내지 않은 값은 그대로다.
+    assert body["name"] == "합성 초음파 시스템"
+    assert product.shelf_life_months == 24
+    assert db.commit_count == 1
+
+
+def test_deleting_product_only_lowers_the_active_flag():
+    """지난 견적·계약의 품목이 상품을 가리키므로 행을 지우지 않는다."""
+    member = _member(role="manager")
+    product = _product(member, image_storage_key="team/제품.png")
+    db = _Db(_Result(scalar=product))
+
+    with _client(db, member) as client:
+        response = client.delete(f"/api/products/{product.id}", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 204
+    assert product.active is False
+    # 사진은 되돌려 세울 여지를 남겨 두고 지우지 않는다.
+    assert product.image_storage_key == "team/제품.png"
+    assert db.commit_count == 1
+
+
+def test_other_team_product_cannot_be_updated():
+    db = _Db(_Result(scalar=None))
+    with _client(db, _member(role="manager")) as client:
+        response = client.patch(
+            f"/api/products/{uuid4()}",
+            headers={"Origin": ORIGIN},
+            json={"unit_price": 1},
+        )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "product_not_found"
+    assert db.commit_count == 0

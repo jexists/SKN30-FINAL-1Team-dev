@@ -43,6 +43,7 @@ from app.schemas.sales_deals import (
     ProductImageRead,
     ProductPage,
     ProductPageParams,
+    ProductPatch,
     ProductRead,
     QuoteStatusRead,
     SalesDealCreate,
@@ -1160,6 +1161,50 @@ async def get_product_image(
             detail=str(error),
         ) from error
     return ProductImageRead(url=url, expires_in=PRODUCT_IMAGE_EXPIRES_IN)
+
+
+@router.patch("/products/{product_id}", response_model=ProductRead)
+async def update_product(
+    product_id: UUID,
+    payload: ProductPatch,
+    member: CurrentMember,
+    db: DbSession,
+) -> Product:
+    _require_manager(member)
+    values = payload.model_dump(exclude_unset=True)
+    try:
+        product = await _team_product_for_update(db, member, product_id)
+        for field_name, value in values.items():
+            setattr(product, field_name, value)
+        await db.flush()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    return product
+
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(
+    product_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> None:
+    """목록에서 내린다. 행을 지우지는 않는다.
+
+    지난 견적·계약의 품목(sales_deal_item)이 상품을 가리키고 있어 행을 지우면 이미 끝난
+    거래의 내역이 깨진다. 목록 질의가 active 로 이미 거르므로 화면에서는 사라진다.
+    사진도 그대로 둔다. 되돌려 세울 여지를 남긴다.
+    """
+    _require_manager(member)
+    try:
+        product = await _team_product_for_update(db, member, product_id)
+        product.active = False
+        await db.flush()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
 
 @router.get("/sales-deals", response_model=SalesDealPage)

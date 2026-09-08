@@ -40,6 +40,11 @@
   overflow: hidden;
 }
 
+// 표 카드 밖의 쪽수도 양 끝이 경계에 닿아 보이지 않게 살짝 들입니다.
+.pagination {
+  padding-inline: var(--s1);
+}
+
 .scroller {
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -96,12 +101,59 @@
   tbody tr:hover td {
     background: var(--fill-2);
   }
+
+  // 가로 스크롤의 시작·끝에서 내용이 카드 경계에 붙지 않게 맞춥니다.
+  th:first-child,
+  td:first-child {
+    padding-left: var(--s4);
+  }
+
+  th:last-child,
+  td:last-child {
+    padding-right: var(--s4);
+  }
 }
 
 .badge {
   @include tag-pill;
   background: var(--fill-2);
   color: var(--ink-2);
+}
+
+// 누르면 상세가 열리는 줄. 배경은 tbody tr:hover 가 이미 맡습니다.
+.clickable {
+  cursor: pointer;
+}
+
+// 제품명 칸의 키보드용 손잡이입니다. 누를 곳은 줄 전체이므로 밑줄은 긋지 않습니다.
+.openButton {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+// 삭제 확인 모달의 위험 버튼. 공지관리의 것과 같은 모양입니다.
+.danger {
+  border-color: var(--red-tint);
+  background: var(--red-tint);
+  color: var(--red-ink);
+
+  &:hover {
+    background: var(--red-tint);
+    filter: brightness(0.97);
+  }
 }
 
 /* ---- 썸네일 ---- */
