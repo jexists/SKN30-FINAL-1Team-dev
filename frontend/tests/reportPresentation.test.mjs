@@ -7,16 +7,18 @@ import { createServer } from 'vite'
 
 // 기존 Vite 변환으로 실제 TS/TSX를 읽는다. HTTP 서버나 업무 API는 호출하지 않는다.
 const vite = await createServer({
-  server: { middlewareMode: true, hmr: false },
+  envDir: false,
+  server: { middlewareMode: true, hmr: false, ws: false },
   define: { 'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://synthetic.invalid') },
 })
 after(() => vite.close())
-const { meetingLinkFor, sourcesFor } = await vite.ssrLoadModule('/src/pages/Daily/sources.ts')
+const { activityLink, meetingLinkFor, sourcesFor } = await vite.ssrLoadModule(
+  '/src/pages/Daily/sources.ts',
+)
 const { dealDetailPath } = await vite.ssrLoadModule('/src/constants/routes.ts')
 const { fromMeetingReport } = await vite.ssrLoadModule('/src/pages/Daily/rows.ts')
-const { fetchAllReportPages, historyQueryScopes } = await vite.ssrLoadModule(
-  '/src/pages/Daily/useReportHistory.ts',
-)
+const { fetchAllReportPages } = await vite.ssrLoadModule('/src/shared/reportQuery.ts')
+const { historyQueryScopes } = await vite.ssrLoadModule('/src/pages/Daily/useReportHistory.ts')
 const {
   meetingBodyOf,
   meetingFinalizeRequestOf,
@@ -27,14 +29,14 @@ const {
 } = await vite.ssrLoadModule('/src/pages/Meetings/useMeetingReports.ts')
 const {
   canEditPeriodReport,
+  childReportQuery,
   ownPeriodReportQuery,
   periodFinalizeRequestOf,
   periodGenerationRequestOf,
   periodGenerationSeedOf,
   toReport,
 } = await vite.ssrLoadModule('/src/pages/Daily/useDailyReports.ts')
-const { generationSourcesAreAvailable, mergeGeneratedValues, mergeSourceActivities } =
-  await vite.ssrLoadModule('/src/pages/Daily/useDailyDraft.ts')
+const { mergeGeneratedValues } = await vite.ssrLoadModule('/src/pages/Daily/useDailyDraft.ts')
 const {
   hasMeetingDraftContent,
   invalidateMeetingGeneration,
@@ -44,6 +46,12 @@ const {
 const { toHtml, toMarkdown } = await vite.ssrLoadModule('/src/pages/Meetings/reportDocument.ts')
 const { default: ReportFields } = await vite.ssrLoadModule(
   '/src/components/ReportFields/ReportFields.tsx',
+)
+const { default: ActivityList } = await vite.ssrLoadModule(
+  '/src/pages/Daily/components/ActivityList/ActivityList.tsx',
+)
+const { default: MeetingInfoPanel } = await vite.ssrLoadModule(
+  '/src/pages/Meetings/components/MeetingInfoPanel/MeetingInfoPanel.tsx',
 )
 const { default: AttachmentPanel } = await vite.ssrLoadModule(
   '/src/components/AttachmentPanel/AttachmentPanel.tsx',
@@ -456,9 +464,8 @@ test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사�
 })
 
 test('기간 보고서 상세는 저장 스냅샷과 구조화 값을 무시하고 canonical 본문만 표시한다', () => {
-  const report = toReport(
-    periodResponse({ body: '실제 canonical 본문', structuredValues: { summary: '기존 요약' } }),
-  )
+  const body = '**오늘 한 일**\n\n실제 canonical 본문\n\n<script>alert(1)</script>'
+  const report = toReport(periodResponse({ body, structuredValues: { summary: '기존 요약' } }))
   const view = renderToStaticMarkup(
     createElement(ReportFields, {
       template: report.template,
@@ -470,7 +477,10 @@ test('기간 보고서 상세는 저장 스냅샷과 구조화 값을 무시하�
     report.template.fields.map((field) => field.id),
     ['body'],
   )
-  assert.deepEqual(report.values, { body: '실제 canonical 본문' })
+  assert.deepEqual(report.values, { body })
+  assert.match(view, /<p><strong>오늘 한 일<\/strong><\/p>\s*<p>실제 canonical 본문<\/p>/)
+  assert.doesNotMatch(view, /<script/i)
+  assert.match(view, /&lt;script&gt;/)
   assert.match(view, /실제 canonical 본문/)
   assert.doesNotMatch(view, /기존 요약/)
 
@@ -511,150 +521,100 @@ test('팀장의 기간 보고서 작성 조회는 전역 팀 범위와 무관하
   }
 })
 
-test('일정 연결·독립 미팅 자료는 모든 연결 딜을 접힌 보고서로 제공한다', () => {
-  const secondId = '10000000-0000-4000-8000-000000000002'
-  const thirdId = '10000000-0000-4000-8000-000000000003'
-  const raw = response(
-    {},
-    [],
-    [
-      dealSection({ body: '첫 딜 본문' }),
-      dealSection({ body: '둘째 딜 본문' }, secondId, 'DEAL-2'),
-      dealSection({ body: '셋째 딜 본문' }, thirdId, 'DEAL-3'),
-    ],
-  )
-  raw.common_body = '공통 기록'
-  raw.unassigned_body = '딜 미지정 기록'
-  raw.current_submission_id = 'submission-1'
-  const report = toMeetingReport(raw)
-
-  for (const agenda of [[], [{ id: report.agendaId, date: report.date }]]) {
-    const result = sourcesFor('일일', report.date, [report], [], agenda)
-    const activity = result.activities[0]
-    const meta = result.meta.get(`meet-${report.id}`)
-    const sourceBody = result.values.get(`meet-${report.id}`).body
-
-    assert.equal(result.activities.length, 1)
-    assert.equal(activity.title, '합성 보고서')
-    assert.equal(activity.desc, '합성 고객사')
-    assert.equal(activity.sourceSubmissionId, 'submission-1')
-    assert.doesNotMatch(`${activity.title}\n${activity.desc}`, /공통 기록|딜 미지정 기록|딜별 본문/)
-    assert.equal(meta.to, undefined)
-    assert.deepEqual(
-      meta.previewSections.map(({ label, title, body }) => ({ label, title, body })),
-      [
-        { label: 'DEAL-1', title: '합성 딜 보고서', body: '첫 딜 본문' },
-        { label: 'DEAL-2', title: '합성 딜 보고서', body: '둘째 딜 본문' },
-        { label: 'DEAL-3', title: '합성 딜 보고서', body: '셋째 딜 본문' },
-      ],
-    )
-    assert.match(sourceBody, /공통 기록/)
-    assert.match(sourceBody, /딜 미지정 기록/)
-    assert.match(sourceBody, /첫 딜 본문/)
-    assert.match(sourceBody, /둘째 딜 본문/)
-    assert.match(sourceBody, /셋째 딜 본문/)
-  }
-})
-
-test('검토 대기 미팅 보고서도 일정 요약 대신 일일보고 자료로 사용한다', () => {
-  const raw = response({ body: '고객 조건과 다음 조치가 담긴 미팅 본문' })
+test('일일 관련 목록은 미팅일의 제출 보고서와 제출본 id만 연결하고 본문을 복사하지 않는다', () => {
+  const raw = response({ body: '비공개 딜 본문' })
+  raw.common_body = '비공개 공통 본문'
+  raw.unassigned_body = '비공개 미지정 본문'
   raw.status_code = 'submitted'
+  raw.current_submission_id = 'submission-1'
   const report = toMeetingReport(raw)
   const result = sourcesFor(
     '일일',
     report.date,
-    [report],
-    [],
-    [{ id: report.agendaId, date: report.date, title: '일정 제목' }],
-  )
-
-  assert.equal(result.activities.length, 1)
-  assert.equal(result.activities[0].source, '업무보고서')
-  assert.equal(result.activities[0].refId, report.id)
-  assert.equal(result.meta.get(`meet-${report.id}`).status, '검토 대기')
-  assert.match(result.values.get(`meet-${report.id}`).body, /고객 조건과 다음 조치/)
-})
-
-test('주간·월간 자료에도 하위 보고서의 불변 제출본 ID를 보존한다', () => {
-  const child = toReport({
-    ...periodResponse({ status: 'submitted', body: '하위 보고서 본문' }),
-    current_submission_id: 'daily-submission-1',
-  })
-  const result = sourcesFor('주간', child.date, [], [child], [])
-
-  assert.equal(result.activities[0].sourceSubmissionId, 'daily-submission-1')
-})
-
-test('현재 선택 자료와 불변 제출본이 달라진 이전 생성 후보는 복구하지 않는다', () => {
-  const calendar = [{ id: 'cal-agenda-1', source: '캘린더', included: true, refId: 'agenda-1' }]
-  const meeting = [
-    {
-      id: 'meet-report-1',
-      source: '업무보고서',
-      included: true,
-      refId: 'report-1',
-      sourceSubmissionId: 'submission-1',
-    },
-  ]
-  const added = [
-    ...meeting,
-    {
-      id: 'meet-report-2',
-      source: '업무보고서',
-      included: true,
-      refId: 'report-2',
-      sourceSubmissionId: 'submission-2',
-    },
-  ]
-  const revised = [{ ...meeting[0], sourceSubmissionId: 'submission-2' }]
-  const renamed = [{ ...meeting[0], title: '현재 미팅 제목', desc: '현재 고객사' }]
-  const reversed = [...added].reverse()
-  const recoveredWithExclusion = [meeting[0], { ...added[1], included: false }]
-  const mergedWithExclusion = mergeSourceActivities(added, recoveredWithExclusion)
-
-  assert.equal(generationSourcesAreAvailable(calendar, meeting), false)
-  assert.equal(generationSourcesAreAvailable(meeting, added), false)
-  assert.equal(generationSourcesAreAvailable(meeting, revised), false)
-  assert.equal(generationSourcesAreAvailable(added, reversed), false)
-  assert.equal(generationSourcesAreAvailable(meeting, renamed), true)
-  assert.equal(generationSourcesAreAvailable(recoveredWithExclusion, mergedWithExclusion), true)
-})
-
-test('늦게 도착한 보고서 자료는 초기 초안에 반영하고 기존 선택은 보존한다', () => {
-  const loaded = [
-    {
-      id: 'cal-first',
-      source: '캘린더',
-      title: '첫 번째 일정',
-      desc: '',
-      included: true,
-      refId: 'first',
-    },
-    {
-      id: 'cal-picked',
-      source: '캘린더',
-      title: '미리 고른 일정',
-      desc: '',
-      included: false,
-      refId: 'picked',
-    },
-  ]
-
-  const initialized = mergeSourceActivities(loaded, [], 'picked')
-  assert.deepEqual(
-    initialized.map(({ id, included }) => [id, included]),
     [
-      ['cal-first', true],
-      ['cal-picked', true],
+      report,
+      { ...report, id: 'outside-day', date: '2026-09-01' },
+      { ...report, id: 'draft', status: '수정중' },
+      { ...report, id: 'returned', status: '반려' },
     ],
+    [],
   )
+  assert.deepEqual(
+    result.activities.map((activity) => activity.refId),
+    [report.id],
+  )
+  const activity = result.activities[0]
+  assert.equal(activity.source, '업무보고서')
+  assert.equal(activityLink(activity), `/meetings/${report.id}`)
+  assert.equal(result.meta.get(activity.id).to, activityLink(activity))
+  assert.equal(result.meta.get(activity.id).status, '검토 대기')
+  assert.doesNotMatch(JSON.stringify([...result.meta, result.activities]), /비공개/)
+  assert.equal(activity.sourceSubmissionId, 'submission-1')
+  assert.equal('values' in result, false)
+  assert.deepEqual(sourcesFor('일일', report.date, [], []).activities, [])
 
-  const refreshed = mergeSourceActivities(
-    [{ ...loaded[0], title: '갱신된 일정' }, loaded[1]],
-    [{ ...initialized[0], included: false }, initialized[1]],
+  const view = renderToStaticMarkup(
+    createElement(ActivityList, {
+      activities: result.activities,
+      renderAside: (row) => createElement('a', { href: activityLink(row) }, '원본 보기'),
+    }),
   )
-  assert.equal(refreshed[0].title, '갱신된 일정')
-  assert.equal(refreshed[0].included, false)
+  assert.match(view, /합성 보고서/)
+  assert.match(view, /합성 고객사/)
+  assert.match(view, /href="\/meetings\/[^"]+"/)
+  assert.doesNotMatch(view, /<button|aria-pressed|비공개|submission-1|사용한 확정본/)
+})
+
+test('주·월 관련 목록은 하위 종류·기간으로 걸러도 같은 날 다른 작성자의 보고서를 보존한다', () => {
+  const daily = toReport(periodResponse({ status: 'submitted', body: '하위 보고서 본문' }))
+  const dailyRows = [
+    daily,
+    { ...daily, id: 'second-author', owner: '다른 작성자' },
+    { ...daily, id: 'other-week', date: '2026-09-06' },
+    { ...daily, id: 'returned', status: '반려' },
+    { ...daily, id: 'wrong-kind', kind: '월간' },
+  ]
+  const weekly = sourcesFor('주간', '2026-08-31', [], dailyRows)
+  assert.deepEqual(
+    weekly.activities.map((row) => row.refId),
+    [daily.id, 'second-author'],
+  )
+  assert.equal(weekly.activities[0].source, '일일보고서')
+  assert.equal(activityLink(weekly.activities[0]), `/daily/${daily.id}`)
+  const weeks = ['2026-08-23', '2026-08-30', '2026-09-06', '2026-09-27', '2026-10-04'].map(
+    (date) => ({ ...daily, id: date, kind: '주간', date }),
+  )
+  const monthly = sourcesFor('월간', '2026-09-01', [], weeks)
+  assert.deepEqual(
+    monthly.activities.map((row) => row.refId),
+    ['2026-08-30', '2026-09-06', '2026-09-27'],
+  )
+  assert.equal(monthly.activities[0].source, '주간보고서')
+  assert.equal('values' in monthly, false)
+  assert.doesNotMatch(JSON.stringify(monthly.activities), /하위 보고서 본문/)
+})
+
+test('기간 상세는 저장된 관련 보고서만 탐색하고 구버전 일정 대체 목록을 표시하지 않는다', () => {
+  const raw = periodResponse()
+  raw.content.activities = [
+    { id: 'calendar', source: '캘린더', included: true, refId: 'calendar' },
+    { id: 'meeting', source: '업무보고서', included: true, refId: 'meeting' },
+    { id: 'wrong-kind', source: '일일보고서', included: true, refId: 'daily' },
+    { id: 'excluded', source: '업무보고서', included: false, refId: 'excluded' },
+  ]
+  assert.deepEqual(
+    toReport(raw).activities.map((row) => row.refId),
+    ['meeting'],
+  )
+  delete raw.content.activities
+  raw.activities = [
+    { activity_id: 'bare-calendar', title: '일정만 있음', starts_at: raw.report_date },
+  ]
+  const report = toReport(raw)
+  assert.deepEqual(report.activities, [])
+  const empty = renderToStaticMarkup(createElement(ActivityList, { activities: report.activities }))
+  assert.match(empty, /이 기간에 제출된 관련 보고서가 없습니다/)
+  assert.doesNotMatch(empty, /일정만 있음|생성할 수 없|작성하기/)
 })
 
 test('미팅 목록은 공통·미지정·딜별 canonical 본문 전문을 순서대로 보존한다', () => {
@@ -731,10 +691,9 @@ test('미팅 응답 한 건에서 공통 기록과 모든 딜 섹션을 분리�
   assert.equal(report.dealSections.length, 2)
   assert.equal(report.dealSections[0].values.body, '첫 번째 딜 본문')
   assert.equal(report.dealSections[1].assessment.label, 'high')
-  const sources = sourcesFor('일일', report.date, [report], [], [])
+  const sources = sourcesFor('일일', report.date, [report], [])
   assert.equal(sources.activities.length, 1)
-  assert.match(sources.values.get(`meet-${report.id}`).body, /첫 번째 딜 본문/)
-  assert.match(sources.values.get(`meet-${report.id}`).body, /두 번째 딜 본문/)
+  assert.equal('values' in sources, false)
 })
 
 test('미팅 응답·생성·확정은 저장된 구형 필드 대신 canonical body 하나만 사용한다', () => {
@@ -1094,7 +1053,7 @@ test('기간 새 생성은 참고첨부·범위·본문만 쓰고 이전 사용�
   assert.equal(finalized.attachments[0].extract, draft.attachments[0].extract)
   assert.equal('purpose' in finalized.attachments[0], false)
   assert.equal('attachments' in finalized.content, false)
-  assert.equal(finalized.note, '활동 1건')
+  assert.equal(finalized.note, '관련 보고서 1건')
   assert.equal(JSON.stringify(finalized).includes(draft.attachments[0].extract), true)
   assert.equal(finalized.body, '주간 보고서 전문')
   assert.deepEqual(finalized.structured_values, {})
@@ -1205,6 +1164,7 @@ test('재접속 입력은 원문·첨부·자료와 canonical body만 되살린�
     transcript: null,
     guidance: null,
   })
+  assert.equal(meetingSeed.reportDate, '2026-08-31')
   assert.deepEqual(meetingSeed.salesDealIds, [dealId])
   assert.equal(meetingSeed.transcript, '')
   assert.deepEqual(meetingSeed.attachments, [restoredAttachment])
@@ -1277,57 +1237,117 @@ test('전체 목록과 달력은 일반 draft를 유지하고 미팅 draft만 �
   ])
 })
 
-test('달력 보고서는 30건을 넘어도 다음 쪽을 끝까지 이어 받는다', async () => {
+test('관련 보고서는 종류·기간·작성자 범위를 유지하며 30건 다음 쪽까지 모두 표시한다', async () => {
   const originalAdapter = client.defaults.adapter
-  const skips = []
-  client.defaults.adapter = async (config) => {
-    const skip = config.params.skip
-    skips.push(skip)
-    const first = skip === 0
-    return {
-      data: {
-        items: Array.from({ length: first ? 30 : 1 }, (_, index) => ({
-          id: `report-${skip + index}`,
-        })),
-        skip,
-        limit: 30,
-        total: 31,
-        has_more: first,
-        next_skip: first ? 30 : null,
-      },
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config,
-    }
-  }
   try {
-    const reports = await fetchAllReportPages({ report_kind: ['daily'] })
-    assert.equal(reports.length, 31)
-    assert.deepEqual(skips, [0, 30])
+    for (const kind of ['일일', '주간', '월간']) {
+      const params =
+        kind === '일일'
+          ? {
+              report_kind: 'meeting',
+              start_date: '2026-09-01',
+              end_date: '2026-09-01',
+              status_code: ['submitted', 'approved'],
+            }
+          : childReportQuery(kind, '2026-09-01')
+      params.author_member_id = ['synthetic-team-member']
+      const calls = []
+      client.defaults.adapter = async (config) => {
+        calls.push(config.params)
+        const skip = config.params.skip
+        const items = Array.from({ length: skip === 0 ? 30 : 1 }, (_, index) => ({
+          ...(kind === '일일' ? response() : periodResponse({ status: 'submitted' })),
+          id: `report-${skip + index}`,
+          report_kind: params.report_kind,
+          report_date: kind === '월간' ? '2026-08-30' : '2026-09-01',
+        }))
+        return {
+          data: {
+            items,
+            skip,
+            limit: 30,
+            total: 31,
+            has_more: skip === 0,
+            next_skip: skip === 0 ? 30 : null,
+          },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        }
+      }
+      const rows = await fetchAllReportPages(params)
+      const related = sourcesFor(
+        kind,
+        '2026-09-01',
+        kind === '일일' ? rows.map(toMeetingReport) : [],
+        kind === '일일' ? [] : rows.map(toReport),
+      )
+      assert.equal(related.activities.length, 31)
+      assert.equal(related.activities.at(-1).refId, 'report-30')
+      assert.deepEqual(
+        calls.map(({ skip }) => skip),
+        [0, 30],
+      )
+      for (const call of calls) assert.deepEqual(call, { ...params, skip: call.skip, limit: 30 })
+      assert.equal(
+        params.report_kind,
+        kind === '일일' ? 'meeting' : kind === '주간' ? 'daily' : 'weekly',
+      )
+      assert.equal(params.start_date, kind === '일일' ? '2026-09-01' : '2026-08-30')
+      assert.equal(
+        params.end_date,
+        kind === '일일' ? '2026-09-01' : kind === '주간' ? '2026-09-05' : '2026-09-30',
+      )
+    }
   } finally {
     client.defaults.adapter = originalAdapter
   }
 })
 
-test('달력 보고서 조회는 서버 쪽 번호가 전진하지 않으면 즉시 중단한다', async () => {
+test('보고서 페이지가 전진하지 않거나 다음 위치가 누락·범위를 벗어나면 실패를 표시한다', async () => {
   const originalAdapter = client.defaults.adapter
-  client.defaults.adapter = async (config) => ({
-    data: {
-      items: [],
-      skip: config.params.skip,
-      limit: 30,
-      total: 99,
-      has_more: true,
-      next_skip: config.params.skip,
-    },
-    status: 200,
-    statusText: 'OK',
-    headers: {},
-    config,
-  })
   try {
-    await assert.rejects(fetchAllReportPages({ report_kind: ['daily'] }), /invalid_pagination/)
+    for (const next of [0, null, 100, 1.5]) {
+      let calls = 0
+      client.defaults.adapter = async (config) => {
+        calls += 1
+        return {
+          data: {
+            items: [{ id: 'report' }],
+            skip: 0,
+            limit: 30,
+            total: 99,
+            has_more: true,
+            next_skip: next,
+          },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        }
+      }
+      await assert.rejects(fetchAllReportPages({ report_kind: ['daily'] }), /invalid_pagination/)
+      assert.equal(calls, 1)
+    }
+    client.defaults.adapter = async (config) => {
+      if (config.params.skip > 0) throw new Error('second_page_failed')
+      return {
+        data: {
+          items: [{ id: 'first-page-only' }],
+          skip: 0,
+          limit: 30,
+          total: 2,
+          has_more: true,
+          next_skip: 1,
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
+    await assert.rejects(fetchAllReportPages({ report_kind: 'daily' }), /second_page_failed/)
   } finally {
     client.defaults.adapter = originalAdapter
   }
@@ -1395,4 +1415,201 @@ test('딜별 보고서는 재생성 중 이전 제목 대신 로딩 자리를 �
   assert.match(titleBlock, /phase === 'generating'/)
   assert.match(titleBlock, /<Skeleton width="68%" height=\{39\}/)
   assert.match(titleBlock, /:\s*\([\s\S]*<input/)
+})
+
+test('일일·주간·월간 생성과 확정은 해당 하위 종류의 참조·제출본·포함 여부를 그대로 전달한다', async () => {
+  const originalAdapter = client.defaults.adapter
+  const { createReportGeneration } = await vite.ssrLoadModule('/src/api/reportAgent.ts')
+  const sent = []
+  client.defaults.adapter = async (config) => {
+    assert.equal(config.method, 'post')
+    sent.push(JSON.parse(config.data))
+    return {
+      data: { id: 'synthetic-run', status_code: 'queued' },
+      status: 202,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  try {
+    for (const kind of ['일일', '주간', '월간']) {
+      const draft = {
+        date: '2026-09-01',
+        kind,
+        approver: '',
+        values: { body: '' },
+        activities: [],
+        attachments: [],
+        transcript: '',
+      }
+      const request = periodGenerationRequestOf(draft, `scope-${kind}`)
+      assert.equal(
+        request.report_kind,
+        kind === '일일' ? 'daily' : kind === '주간' ? 'weekly' : 'monthly',
+      )
+      assert.equal(request.report_date, kind === '주간' ? '2026-08-30' : '2026-09-01')
+      assert.equal(
+        request.period_end,
+        kind === '일일' ? undefined : kind === '주간' ? '2026-09-05' : '2026-09-30',
+      )
+      const related = sourcesFor(
+        kind,
+        draft.date,
+        [
+          toMeetingReport({
+            ...response({ body: '관련 카드의 미팅 본문' }),
+            current_submission_id: 'meeting-submission',
+            report_date: draft.date,
+          }),
+        ],
+        [
+          toReport({
+            ...periodResponse({ body: '관련 카드의 기간 본문', status: 'submitted' }),
+            current_submission_id: 'period-submission',
+            report_kind: kind === '월간' ? 'weekly' : 'daily',
+            report_date: draft.date,
+          }),
+        ],
+      )
+      const withRelated = { ...draft, activities: related.activities }
+      const generation = periodGenerationRequestOf(withRelated, `hierarchy-${kind}`)
+      await createReportGeneration(generation)
+      assert.deepEqual(sent.at(-1).content.activities, related.activities)
+      assert.equal(
+        related.activities[0].source,
+        kind === '일일' ? '업무보고서' : kind === '주간' ? '일일보고서' : '주간보고서',
+      )
+      assert.equal(
+        related.activities[0].sourceSubmissionId,
+        kind === '일일' ? 'meeting-submission' : 'period-submission',
+      )
+      const final = periodFinalizeRequestOf(
+        { ...withRelated, values: { body: '사람이 확인한 최종 본문' } },
+        'final',
+      )
+      assert.deepEqual(generation.content.activities, related.activities)
+      assert.deepEqual(final.content.activities, related.activities)
+      assert.doesNotMatch(JSON.stringify(generation), /관련 카드의|guidance/)
+      assert.equal(final.body, '사람이 확인한 최종 본문')
+    }
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+})
+
+test('다음 날 작성 완료·일정 이동 후 수정에도 기존 미팅일을 표시하고 요청에 보존한다', async () => {
+  const raw = {
+    ...response(),
+    report_date: '2026-08-31',
+    version: 3,
+    updated_at: '2026-09-01T00:10:00Z',
+  }
+  const saved = toMeetingReport(raw)
+  const item = {
+    id: saved.agendaId,
+    date: '2026-09-02',
+    time: '11:00',
+    hospital: '합성 고객사',
+    contact: '담당자',
+    dept: '',
+    place: '',
+  }
+  const compose = await readFile(
+    new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(
+    compose,
+    /const meetingDate = savedReport\?\.date \?\? draft\.reportDate \?\? item\.date/,
+  )
+  assert.match(compose, /date: meetingDate,\s+time: meetingTime/)
+  assert.match(compose, /item=\{\{ \.\.\.item, date: meetingDate, time: meetingTime \}\}/)
+  assert.match(
+    compose,
+    /미팅일 \{fmtDot\(parseISO\(meetingDate\)\)\} · 작성 완료 후에도 이 날짜로 저장됩니다/,
+  )
+  const meetingDate = saved.date ?? item.date
+  const draft = {
+    reportId: saved.id,
+    version: saved.version,
+    statusCode: 'submitted',
+    agendaId: saved.agendaId,
+    date: meetingDate,
+    time: saved.time,
+    hospital: saved.hospital,
+    dept: '',
+    contact: '',
+    place: '',
+    title: saved.title,
+    transcript: '',
+    attachments: [],
+    dealSections: [],
+    commonBody: '다음 날 확인한 미팅 본문',
+  }
+  const generation = meetingGenerationRequestOf(draft, 'late-generation')
+  const final = meetingFinalizeRequestOf(draft, 'late-final')
+  assert.equal(generation.report_date, '2026-08-31')
+  assert.equal(final.report_date, '2026-08-31')
+  assert.equal(final.report_id, saved.id)
+  assert.equal('submitted_at' in final, false)
+  assert.equal(
+    meetingGenerationRequestOf({ ...draft, reportId: undefined, date: item.date }, 'new')
+      .report_date,
+    '2026-09-02',
+  )
+  const view = renderToStaticMarkup(
+    createElement(MeetingInfoPanel, {
+      item: { ...item, date: meetingDate, time: saved.time },
+      deals: [],
+      dealsLoading: false,
+      dealsError: null,
+      onReloadDeals() {},
+      selectedDealIds: [],
+      onToggleDeal() {},
+      disabled: false,
+    }),
+  )
+  assert.match(view, /미팅일 2026\.08\.31/)
+  assert.doesNotMatch(view, /2026\.09\.02/)
+})
+
+test('기간 상세와 작성은 같은 현재 관련 조회를 사용하며 저장 시 없던 보고서도 연결한다', async () => {
+  const [detail, draft, queries] = await Promise.all([
+    readFile(new URL('../src/pages/Daily/Detail.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Daily/useDailyReports.ts', import.meta.url), 'utf8'),
+  ])
+  assert.match(
+    detail,
+    /useRelatedReports\(report\?\.kind \?\? '일일', report\?\.date \?\? '', !!report\)/,
+  )
+  assert.match(detail, /activities=\{related\.activities\}/)
+  assert.match(draft, /useRelatedReports\(kind, dateISO\)/)
+  assert.match(queries, /'관련 보고서를 불러오지 못했습니다\.',\s+true,/)
+  const parent = toReport({
+    ...periodResponse(),
+    report_kind: 'weekly',
+    report_date: '2026-08-30',
+    content: { activities: [] },
+  })
+  const laterChild = toReport({
+    ...periodResponse({ status: 'submitted' }),
+    id: 'later-daily',
+    report_date: '2026-09-01',
+  })
+  const current = sourcesFor(parent.kind, parent.date, [], [laterChild])
+  assert.deepEqual(parent.activities, [])
+  assert.deepEqual(
+    current.activities.map((row) => row.refId),
+    ['later-daily'],
+  )
+  const view = renderToStaticMarkup(
+    createElement(ActivityList, {
+      activities: current.activities,
+      renderAside: (row) => createElement('a', { href: activityLink(row) }, '원본 보기'),
+    }),
+  )
+  assert.match(view, /href="\/daily\/later-daily"/)
+  assert.doesNotMatch(view, /사용한 확정본|포함된 활동/)
 })

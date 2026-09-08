@@ -2,7 +2,9 @@ import copy
 
 import pytest
 
-from app.agents import period_report_writing_deep, report_writing
+from app.agents.reports import period
+from app.schemas.report_drafts import ReportDraftField, ReportDraftOutput
+from app.services import agent_runs
 from app.services.llm import LLMError
 
 
@@ -15,11 +17,9 @@ async def test_report_writer_dispatches_only_period_kinds_without_mutating_snaps
 
     async def write_period(snapshot):
         captured["snapshot"] = copy.deepcopy(snapshot)
-        return report_writing.ReportDraftOutput(
-            fields=[{"field_id": "body", "value": "검토한 기간 보고서"}]
-        )
+        return ReportDraftOutput(fields=[{"field_id": "body", "value": "검토한 기간 보고서"}])
 
-    monkeypatch.setattr(period_report_writing_deep, "run", write_period)
+    monkeypatch.setattr(period, "run", write_period)
     snapshot = {
         "report_kind": kind,
         "report_date": "2026-08-31",
@@ -28,7 +28,7 @@ async def test_report_writer_dispatches_only_period_kinds_without_mutating_snaps
     }
     original = copy.deepcopy(snapshot)
 
-    result = await report_writing.run(snapshot)
+    result = await agent_runs.dispatch("report_writing", snapshot, None)
 
     assert result.fields[0].value == "검토한 기간 보고서"
     assert captured["snapshot"] == original
@@ -43,14 +43,12 @@ async def test_report_writer_rejects_legacy_meeting_path_before_dispatch(monkeyp
         nonlocal called
         called = True
 
-    monkeypatch.setattr(period_report_writing_deep, "run", write_period)
+    monkeypatch.setattr(period, "run", write_period)
     with pytest.raises(LLMError, match="^report_writing_kind_unsupported$"):
-        await report_writing.run({"report_kind": "meeting"})
+        await agent_runs.dispatch("report_writing", {"report_kind": "meeting"}, None)
     assert called is False
 
 
 def test_report_output_contains_only_generated_fields():
-    output = report_writing.ReportDraftOutput(
-        fields=[report_writing.ReportDraftField(field_id="body", value="초안")]
-    )
+    output = ReportDraftOutput(fields=[ReportDraftField(field_id="body", value="초안")])
     assert output.model_dump() == {"fields": [{"field_id": "body", "value": "초안"}]}

@@ -372,7 +372,7 @@ async def test_finalize_binds_original_and_saves_replayable_input(
     monkeypatch.setattr(api, "_existing_finalize", AsyncMock(return_value=None))
     monkeypatch.setattr(api, "_own_activity_ids", AsyncMock(return_value=()))
     monkeypatch.setattr(api, "_validate_meeting_deals", AsyncMock(return_value=uuid4()))
-    monkeypatch.setattr(api.report_sources, "sync_report_sources_from_legacy_content", AsyncMock())
+    monkeypatch.setattr(api.report_sources, "sync_report_sources", AsyncMock())
     monkeypatch.setattr(api, "_detail", AsyncMock(return_value=SimpleNamespace(id=uuid4())))
     item = attachment(row, purpose="meeting_source" if kind == "meeting" else "reference")
     values = dict(

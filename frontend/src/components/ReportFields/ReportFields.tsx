@@ -1,3 +1,4 @@
+import ReportBody from '@/components/ReportBody'
 import Select from '@/components/Select'
 import type { ReportFieldDef, ReportTemplate } from '@/types'
 
@@ -77,7 +78,11 @@ export default function ReportFields({
           {field.hint && !readOnly && <p className={styles.hint}>{field.hint}</p>}
 
           {readOnly ? (
-            <p className={styles.value}>{values[field.id]}</p>
+            field.id === 'body' ? (
+              <ReportBody className={styles.value} body={values[field.id]} />
+            ) : (
+              <p className={styles.value}>{values[field.id]}</p>
+            )
           ) : (
             <Control field={field} value={values[field.id] ?? ''} onChange={onChange} />
           )}

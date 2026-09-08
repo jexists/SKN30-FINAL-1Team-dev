@@ -1,5 +1,4 @@
 import asyncio
-import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,14 +12,14 @@ from fastapi.testclient import TestClient
 from langchain_openai import StreamChunkTimeoutError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
-from test_report_writing_deep import ScriptedModel, sample
+from test_report_writing_deep import sample
 
 from app.agents import (
     contract_management,
-    meeting_analysis,
-    report_writing_deep,
     schedule_management,
 )
+from app.agents.meeting import features as meeting_analysis
+from app.agents.reports import meeting as report_writing_deep
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
@@ -687,24 +686,12 @@ def test_report_generation_is_queued_without_creating_a_report(llm_ready, monkey
     assert response.headers["Location"] == f"/api/agent-runs/{run.id}"
 
 
-def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
+def test_daily_generation_rejects_unavailable_selected_calendar_activity(llm_ready):
     member = _member()
     activity_id = uuid4()
-    activity = SimpleNamespace(
-        id=activity_id,
-        team_id=member.team_id,
-        owner_member_id=member.id,
-        starts_at=NOW,
-        ends_at=NOW + timedelta(hours=1),
-        completed_at=None,
-        deleted_at=None,
-        title="고객 미팅",
-        location="회의실",
-        note="계약 조건 협의",
-    )
     db = _Db(
         _Result(scalar=None),
-        _Result(scalars=[activity]),
+        _Result(scalars=[]),
     )
     payload = _daily_payload(
         content={
@@ -722,24 +709,13 @@ def test_daily_generation_persists_json_safe_calendar_snapshot(llm_ready):
     with _client(db, member) as client:
         response = client.post("/api/report-generations", headers={"Origin": ORIGIN}, json=payload)
 
-    assert response.status_code == 202
-    run = db.added[0]
-    for snapshot in (run.request_snapshot, run.source_refs, run.input_snapshot):
-        json.dumps(snapshot)
-    source = run.input_snapshot["report_sources"]["activities"][0]
-    assert source["id"] == str(activity_id)
-    assert source["starts_at"] == "2026-08-17T18:00:00+09:00"
-    assert run.source_refs["report_sources"] == [
-        {
-            "position": 0,
-            "source_activity_id": str(activity_id),
-            "source_report_submission_id": None,
-        }
-    ]
+    assert response.status_code == 404
+    assert response.json()["detail"] == "activity_not_found"
+    assert db.added == []
 
 
 @pytest.mark.anyio
-async def test_period_generation_uses_only_typed_ephemeral_attachments(monkeypatch):
+async def test_period_generation_restores_validated_attachments_and_current_body(monkeypatch):
     member = _member()
     attachment_id = uuid4()
     attachment = {
@@ -771,7 +747,8 @@ async def test_period_generation_uses_only_typed_ephemeral_attachments(monkeypat
 
     assert agent_code == "report_writing"
     assert snapshot["attachments"] == [attachment]
-    assert "attachments" not in snapshot["content"]
+    assert snapshot["content"] == payload.content
+    assert "클라이언트 content 위조 값" not in str(snapshot)
     assert "attachment_files" not in refs
 
 
@@ -1636,6 +1613,7 @@ async def test_frozen_report_input_rechecks_requester_before_dispatch(monkeypatc
     run = _run(member)
     run.input_snapshot = {"report_kind": "daily"}
     run.request_hash = "0" * 64
+    run.source_refs = {"report_source_contract": service.report_sources.SOURCE_CONTRACT}
     run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     db = _Db(_Result(scalar=None))
     monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
@@ -1700,15 +1678,16 @@ async def test_provider_failure_reaches_workers_single_retry(monkeypatch, failur
     run.request_hash = "0" * 64
     run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
 
-    class BrokenModel(ScriptedModel):
-        def _generate(self, *args, **kwargs):
-            raise _provider_failure(failure_kind)
+    async def broken_generate(**kwargs):
+        raise _provider_failure(failure_kind)
+
+    monkeypatch.setattr(report_writing_deep.harness, "generate_structured", broken_generate)
 
     async def prepare(*_args):
         return "report_writing", {}, member.id
 
     async def dispatch(*_args):
-        return await report_writing_deep.run(sample(), model=BrokenModel(responses=[]))
+        return await report_writing_deep.run(sample())
 
     monkeypatch.setattr(service, "prepare_claimed", prepare)
     monkeypatch.setattr(service, "dispatch", dispatch)

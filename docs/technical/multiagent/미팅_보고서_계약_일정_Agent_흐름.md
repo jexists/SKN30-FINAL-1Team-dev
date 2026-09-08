@@ -44,9 +44,9 @@
 
 ### 2. 보고서작성 Agent — 보고서 양식의 초안을 채우고, 사람이 승인해야 완성된다
 
-- **구현**: `backend/app/agents/report_writing.py`, `agent_code="report_writing"`
-- **Input**: 미팅은 통합 처리의 검증된 근거 장부와 CRM 문맥을, 일일·주간·월간은 양식(`template_snapshot`)·현재 작성값(`content`)·확정 출처·작성자 요청(`guidance`)을 사용한다.
-- **처리**: 미팅은 딜별 자유 본문과 공통·미지정 본문을 만들고, 기간 보고서는 양식의 각 입력칸(`field_id`)에 채울 값을 만든다.
+- **구현**: 미팅은 `backend/app/agents/reports/meeting.py`를 통합 처리에서 호출하고, 기간 보고서는 `backend/app/agents/reports/period.py`를 `agent_code="report_writing"`으로 호출한다.
+- **Input**: 미팅은 검증된 근거 장부와 CRM 문맥을 받는다. 기간 보고서는 양식·현재 작성값·작성자 요청과 서버가 고정한 하위 제출본을 받는다. 일일은 미팅, 주간은 일일, 월간은 주간 보고서를 참고한다.
+- **처리**: 미팅은 딜별 본문과 공통·미지정 본문을 만든다. 기간 보고서는 `body` 하나를 작성하고 검토 1회·필요 시 수정 1회를 거친다. 두 종류 모두 사용자가 최종 본문을 편집할 수 있다.
 - **사람 확인 지점**: 생성 결과는 `AgentRun` 후보일 뿐이다. 작성자가 수정하고 "확정"을 눌러 `POST /reports/finalize`가 성공해야 처음 `submitted` 보고서와 불변 제출본이 생긴다. 기존 `draft`·`changes_requested` 보고서는 버전과 상태를 함께 보내 같은 endpoint에서 CAS로 확정한다.
 - **Output**: 확정된 보고서(`submitted` 또는 `approved`) → (DB에 저장된 상태로) 계약관리 Agent가 나중에 다시 조회하는 자료가 된다. Agent 출력이 직접 계약관리 Agent를 호출하는 구조는 아니다.
 

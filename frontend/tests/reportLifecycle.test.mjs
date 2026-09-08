@@ -4,7 +4,8 @@ import { after, test } from 'node:test'
 import { createServer } from 'vite'
 
 const vite = await createServer({
-  server: { middlewareMode: true, hmr: { port: 24679 } },
+  envDir: false,
+  server: { middlewareMode: true, hmr: false, ws: false },
   define: { 'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://synthetic.invalid') },
 })
 after(() => vite.close())
@@ -107,7 +108,7 @@ test('기간 보고서 복구 polling은 복구 입력으로 화면 상태가 �
     'utf8',
   )
   const recoveryEffect = source.slice(
-    source.indexOf('if (existingLoading || sourcesLoading || recoveredScope.current === scopeKey)'),
+    source.indexOf('if (existingLoading || recoveredScope.current === scopeKey)'),
     source.indexOf('useEffect(\n    () => () =>'),
   )
   const dependencies = recoveryEffect.slice(recoveryEffect.lastIndexOf('}, ['))
@@ -118,27 +119,69 @@ test('기간 보고서 복구 polling은 복구 입력으로 화면 상태가 �
   assert.doesNotMatch(dependencies, /\bresumeGeneration\b/)
 })
 
-test('기간 보고서 초기화와 자료 병합은 자료 조회가 끝난 뒤에만 실행한다', async () => {
+test('관련 조회는 생성·제출을 막되 조회 갱신은 본문 초기화나 복구 재실행을 하지 않는다', async () => {
   const source = await readFile(
     new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url),
     'utf8',
   )
+  const canGenerate = source.slice(
+    source.indexOf('const canGenerate ='),
+    source.indexOf('const generationPayload'),
+  )
+  assert.match(canGenerate, /sourcesReady/)
+  assert.match(canGenerate, /hasInput/)
+  assert.match(source, /const sourcesReady = !related.loading && !related.error/)
+  const resetEffect = source.slice(
+    source.indexOf('useEffect(() => {\n    reset()'),
+    source.indexOf('const setValue'),
+  )
+  assert.doesNotMatch(resetEffect, /related|activities/)
+  const recovery = source.slice(
+    source.indexOf('if (existingLoading || recoveredScope.current'),
+    source.indexOf('useEffect(\n    () => () =>'),
+  )
+  assert.doesNotMatch(recovery.slice(recovery.lastIndexOf('}, [')), /related/)
+  const compose = await readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8')
+  const submit = compose.slice(
+    compose.indexOf('const onSubmit ='),
+    compose.indexOf('if (isFuture)'),
+  )
+  assert.match(submit, /draft.missing.length > 0/)
+  assert.match(compose, /activities: draft.activities/)
+})
 
-  assert.match(
-    source,
-    /useEffect\(\(\) => \{\n    if \(sourcesLoading\) return\n    reset\(\)\n  \}, \[reset, sourcesLoading\]\)/,
+test('복구 출처 비교는 추가·정렬·표시 변경을 허용하고 참조·포함·제출본 누락은 감지한다', async () => {
+  const { generationSourcesAreAvailable } = await vite.ssrLoadModule(
+    '/src/pages/Daily/useDailyDraft.ts',
   )
-  assert.match(source, /if \(sourcesLoading \|\| sourceSelectionFrozen\.current\) return/)
-  assert.match(
-    source,
-    /if \(existingLoading \|\| sourcesLoading \|\| recoveredScope\.current === scopeKey\) return/,
+  const first = {
+    id: 'a',
+    source: '업무보고서',
+    refId: 'a',
+    included: true,
+    sourceSubmissionId: 'v1',
+  }
+  const second = { ...first, id: 'b', refId: 'b' }
+  const frozen = [first, second, { ...first, refId: 'excluded', included: false }]
+  assert.equal(
+    generationSourcesAreAvailable(frozen, [
+      second,
+      { ...first, title: '새 제목' },
+      { ...first, refId: 'new' },
+    ]),
+    true,
   )
-  assert.match(source, /Boolean\(values\.body\?\.trim\(\)\)/)
-  assert.match(
-    source,
-    /const canGenerate = !recovering && !files\.pending && hasAiFields && hasInput/,
-  )
-  assert.match(source, /if \(!hasInput\) reasons\.push\('자료 1건 이상'\)/)
+  for (const changes of [
+    { refId: 'other' },
+    { source: '일일보고서' },
+    { included: false },
+    { sourceSubmissionId: 'v2' },
+    { sourceSubmissionId: undefined },
+  ]) {
+    assert.equal(generationSourcesAreAvailable(frozen, [{ ...first, ...changes }, second]), false)
+  }
+  assert.equal(generationSourcesAreAvailable(frozen, [second]), false)
+  assert.equal(generationSourcesAreAvailable([], [first]), true)
 })
 
 test('보고서 첨부 API는 파일을 multipart로 올리고 일회용 추출 객체를 받는다', async () => {
@@ -275,7 +318,7 @@ test('첨부 업로드 중에는 기간·미팅 생성과 최종 제출을 시�
   assert.match(dailyDraft, /attachmentsPending: files\.pending/)
   assert.match(dailyDraft, /setGenerationRunId\(undefined\)[\s\S]*?addFiles\(picked\)/)
   assert.match(dailyDraft, /setGenerationRunId\(undefined\)[\s\S]*?removeFile\(id\)/)
-  assert.match(dailyCompose, /if \(draft\.attachmentsPending\) return/)
+  assert.match(dailyCompose, /if\s*\(\s*draft\.attachmentsPending\s*\|\|/)
   assert.match(dailyCompose, /draft\.recovering \|\|\n\s+draft\.attachmentsPending/)
   assert.match(meetingDraft, /attachmentsPending: files\.pending/)
   assert.match(

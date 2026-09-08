@@ -121,7 +121,7 @@ export default function Detail() {
 
           <p className={styles.meta}>
             <span className={styles.when}>
-              {fmtDay(parseISO(report.date))} {report.time}
+              미팅일 {fmtDay(parseISO(report.date))} {report.time}
             </span>
             <span className={styles.dot} aria-hidden="true">
               ·
@@ -177,7 +177,7 @@ export default function Detail() {
                           {section.title || report.title}
                         </h2>
                         <p className={styles.docWhen}>
-                          {fmtDot(parseISO(report.date))} {report.time}
+                          미팅일 {fmtDot(parseISO(report.date))} {report.time}
                           {section.product && ` · ${section.product}`}
                         </p>
                       </div>

@@ -1,4 +1,4 @@
-"""선택한 하위 보고서의 저장 본문을 상위 보고서 작성 근거로 읽는다."""
+"""선택한 바로 아래 보고서의 확정 제출본을 검증하고 고정한다."""
 
 from datetime import date
 from typing import Any
@@ -7,18 +7,20 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.content import Report, ReportDeal, ReportSource, ReportSubmission
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.services.report_submissions import (
     create_submission,
-    snapshot_sha256,
+    submission_ref,
 )
 
 SOURCE_REPORT_LIMIT = 100
+SOURCE_CONTRACT = "hierarchy.v2"
 _SOURCES = {"업무보고서": "meeting", "일일보고서": "daily", "주간보고서": "weekly"}
 _CHILD_KIND = {"daily": "meeting", "weekly": "daily", "monthly": "weekly"}
 _SEOUL = ZoneInfo("Asia/Seoul")
@@ -111,10 +113,9 @@ async def sync_report_sources_from_legacy_content(
     member: Member,
     report: Report,
 ) -> bool:
-    """Materialize the current UI selection into canonical source rows.
+    """Restore pre-V2 provenance only when materializing its first historical submission.
 
-    Finalized pre-V2 child reports are snapshotted first so a new parent never records a mutable
-    report as its provenance.
+    Generation/finalize validates the same selection with the current contract.
     """
     if report.report_kind == "meeting" or not isinstance(report.content, dict):
         return False
@@ -127,6 +128,7 @@ async def sync_report_sources_from_legacy_content(
         report,
         rows,
         resolved_activities=activities,
+        legacy=True,
     )
 
     existing = await _report_source_rows(db, report.id)
@@ -141,21 +143,25 @@ async def sync_report_sources_from_legacy_content(
     return True
 
 
-async def _resolve_report_source_refs(
-    db: AsyncSession,
-    member: Member,
-    report: Report,
-) -> tuple[list[tuple[UUID | None, UUID | None]], list[dict[str, Any]]]:
-    """Resolve the UI selection to exact immutable submission/activity references."""
-    raw = report.content.get("activities", [])
+async def sync_report_sources(db: AsyncSession, member: Member, report: Report) -> None:
+    """Validate the selection before replacing canonical provenance."""
+    desired, activities = await _resolve_report_source_refs(db, member, report)
+    rows = _source_rows(report.id, desired)
+    await _build_normalized_sources(db, member, report, rows, resolved_activities=activities)
+    await db.execute(delete(ReportSource).where(ReportSource.report_id == report.id))
+    for row in rows:
+        db.add(row)
+    await db.flush()
+
+
+def selected_sources(content: dict[str, Any]) -> list[tuple[str, UUID, UUID | None]]:
+    """Read selection identities only; display text is never evidence."""
+    raw = content.get("activities", [])
     if raw is None:
         raw = []
     if not isinstance(raw, list):
         raise HTTPException(422, "report_sources_invalid")
-
-    selected: list[tuple[str, UUID]] = []
-    report_ids: list[UUID] = []
-    activity_ids: list[UUID] = []
+    selected = []
     for item in raw:
         if not isinstance(item, dict) or not isinstance(item.get("source"), str):
             raise HTTPException(422, "report_sources_invalid")
@@ -164,41 +170,104 @@ async def _resolve_report_source_refs(
             raise HTTPException(422, "report_source_included_invalid")
         if not included:
             continue
-        source = item["source"]
-        if source not in _SOURCES and source != "캘린더":
+        kind = "activity" if item["source"] == "캘린더" else _SOURCES.get(item["source"])
+        if kind is None:
             continue
-        if source in _SOURCES and _SOURCES[source] != _CHILD_KIND.get(report.report_kind):
-            raise HTTPException(422, "report_source_kind_invalid")
         try:
             source_id = UUID(str(item["refId"]))
+            submission_id = (
+                UUID(str(item["sourceSubmissionId"]))
+                if item.get("sourceSubmissionId") is not None
+                else None
+            )
         except (KeyError, TypeError, ValueError) as error:
             raise HTTPException(422, "report_source_id_invalid") from error
-        kind = "activity" if source == "캘린더" else "submission"
-        if kind == "submission" and source_id == report.id:
-            raise HTTPException(422, "report_source_self_reference")
-        selected.append((kind, source_id))
-        (activity_ids if kind == "activity" else report_ids).append(source_id)
+        if kind == "activity" and submission_id is not None:
+            raise HTTPException(422, "report_source_kind_invalid")
+        selected.append((kind, source_id, submission_id))
     if len(selected) > SOURCE_REPORT_LIMIT:
         raise HTTPException(422, "report_source_limit_exceeded")
-    if len(set(selected)) != len(selected):
+    if len({(kind, source_id) for kind, source_id, _ in selected}) != len(selected):
         raise HTTPException(422, "report_source_duplicate")
+    return selected
+
+
+async def selection_changed(db: AsyncSession, report: Report, content: dict[str, Any]) -> bool:
+    """Omitted selections and body-only edits keep their historical submission IDs."""
+    if "activities" not in content:
+        return False
+    selected = selected_sources(content)
+    current = await current_source_ref_snapshot(db, report.id)
+    existing = {}
+    for ref in current:
+        if ref["source_activity_id"]:
+            existing[("activity", UUID(ref["source_activity_id"]))] = None
+        else:
+            existing[(_CHILD_KIND[report.report_kind], UUID(ref["source_report_id"]))] = UUID(
+                ref["source_report_submission_id"]
+            )
+    return {(kind, source_id) for kind, source_id, _ in selected} != set(existing) or any(
+        submission_id is not None and submission_id != existing.get((kind, source_id))
+        for kind, source_id, submission_id in selected
+    )
+
+
+async def _resolve_report_source_refs(
+    db: AsyncSession,
+    member: Member,
+    report: Report,
+) -> tuple[list[tuple[UUID | None, UUID | None]], list[dict[str, Any]]]:
+    """Resolve the selected current child submissions through the server's access boundary."""
+    if not member.active or member.role_code not in {"member", "manager"}:
+        raise HTTPException(403, "member_not_allowed")
+    if report.team_id != member.team_id:
+        raise HTTPException(404, "report_not_found")
+    if report.author_member_id != member.id:
+        raise HTTPException(403, "report_not_owned")
+    if report.report_kind not in _CHILD_KIND:
+        raise HTTPException(422, "report_source_kind_invalid")
+    if report.report_kind != "daily" and (
+        report.period_start is None
+        or report.period_end is None
+        or report.period_end < report.period_start
+    ):
+        raise HTTPException(422, "report_source_period_invalid")
+    selected = selected_sources(report.content)
+    report_ids, activity_ids = [], []
+    for kind, source_id, _ in selected:
+        if kind != "activity" and kind != _CHILD_KIND[report.report_kind]:
+            raise HTTPException(422, "report_source_kind_invalid")
+        if kind != "activity" and source_id == report.id:
+            raise HTTPException(422, "report_source_self_reference")
+        (activity_ids if kind == "activity" else report_ids).append(source_id)
+    expected_submissions = {source_id: submission_id for _, source_id, submission_id in selected}
 
     activities = await _source_activities(db, member, report, activity_ids)
 
     source_submissions: dict[UUID, UUID] = {}
     if report_ids:
         expected_kind = _CHILD_KIND.get(report.report_kind)
+        author, recipient = aliased(Member), aliased(Member)
         conditions = [
             Report.id.in_(report_ids),
             Report.team_id == member.team_id,
             Report.report_kind == expected_kind,
+            author.team_id == member.team_id,
+            author.active.is_(True),
+            author.role_code.in_(("member", "manager")),
+            or_(Report.recipient_member_id.is_(None), recipient.team_id == member.team_id),
         ]
         if member.role_code == "member":
             conditions.append(Report.author_member_id == member.id)
         rows = list(
             (
                 await db.execute(
-                    select(Report).where(*conditions).order_by(Report.id).with_for_update(of=Report)
+                    select(Report)
+                    .join(author, author.id == Report.author_member_id)
+                    .outerjoin(recipient, recipient.id == Report.recipient_member_id)
+                    .where(*conditions)
+                    .order_by(Report.id)
+                    .with_for_update(of=Report)
                 )
             )
             .scalars()
@@ -214,14 +283,17 @@ async def _resolve_report_source_refs(
             if source.current_submission_id is None:
                 await materialize_legacy_submission(db, source)
                 assert source.current_submission_id is not None
+            expected = expected_submissions[source_id]
+            if expected is not None and expected != source.current_submission_id:
+                raise HTTPException(409, "report_source_submission_changed")
             source_submissions[source_id] = source.current_submission_id
 
     desired: list[tuple[UUID | None, UUID | None]] = [
         (
             source_id if kind == "activity" else None,
-            source_submissions[source_id] if kind == "submission" else None,
+            source_submissions[source_id] if kind != "activity" else None,
         )
-        for kind, source_id in selected
+        for kind, source_id, _ in selected
     ]
     return desired, activities
 
@@ -241,7 +313,9 @@ def _source_rows(
     ]
 
 
-def source_ref_snapshot(rows: list[ReportSource]) -> list[dict[str, Any]]:
+def source_ref_snapshot(
+    rows: list[ReportSource], submissions: dict[UUID, tuple[ReportSubmission, Report]] | None = None
+) -> list[dict[str, Any]]:
     """Return the ordered, JSON-safe provenance identity retained after run redaction."""
     return jsonable_encoder(
         [
@@ -249,6 +323,11 @@ def source_ref_snapshot(rows: list[ReportSource]) -> list[dict[str, Any]]:
                 "position": row.position,
                 "source_activity_id": row.source_activity_id,
                 "source_report_submission_id": row.source_report_submission_id,
+                **(
+                    submission_ref(submissions[row.source_report_submission_id][0])
+                    if submissions is not None and row.source_report_submission_id is not None
+                    else {}
+                ),
             }
             for row in sorted(rows, key=lambda item: item.position)
         ]
@@ -259,7 +338,12 @@ async def current_source_ref_snapshot(
     db: AsyncSession,
     report_id: UUID,
 ) -> list[dict[str, Any]]:
-    return source_ref_snapshot(await _report_source_rows(db, report_id))
+    rows = await _report_source_rows(db, report_id)
+    ids = [row.source_report_submission_id for row in rows if row.source_report_submission_id]
+    submissions = await _source_submissions(db, ids)
+    if set(ids) != set(submissions):
+        raise HTTPException(404, "report_source_not_found")
+    return source_ref_snapshot(rows, submissions)
 
 
 async def _source_submissions(
@@ -272,6 +356,7 @@ async def _source_submissions(
         select(ReportSubmission, Report)
         .join(Report, Report.id == ReportSubmission.report_id)
         .where(ReportSubmission.id.in_(submission_ids))
+        .with_for_update(of=(Report, ReportSubmission))
     )
     return {submission.id: (submission, report) for submission, report in result.all()}
 
@@ -327,7 +412,9 @@ def _snapshot_date(value: Any, detail: str) -> date:
         raise HTTPException(422, detail) from error
 
 
-def _check_snapshot_period(parent: Report, snapshot: dict[str, Any]) -> None:
+def _check_snapshot_period(
+    parent: Report, snapshot: dict[str, Any], *, legacy: bool = False
+) -> None:
     source_date = _snapshot_date(snapshot.get("report_date"), "report_source_period_invalid")
     if not isinstance(source_date, date):
         raise HTTPException(422, "report_source_period_invalid")
@@ -344,7 +431,11 @@ def _check_snapshot_period(parent: Report, snapshot: dict[str, Any]) -> None:
                 snapshot.get("period_start"), "report_source_period_invalid"
             )
             child_end = _snapshot_date(snapshot.get("period_end"), "report_source_period_invalid")
-            if not isinstance(child_start, date) or not isinstance(child_end, date):
+            if (
+                not isinstance(child_start, date)
+                or not isinstance(child_end, date)
+                or child_end < child_start
+            ):
                 raise HTTPException(422, "report_source_period_invalid")
             valid = child_start <= end and child_end >= start
     if not valid:
@@ -370,6 +461,7 @@ async def _build_normalized_sources(
     rows: list[ReportSource],
     *,
     resolved_activities: list[dict[str, Any]] | None = None,
+    legacy: bool = False,
 ) -> dict[str, Any]:
     submission_ids = [
         row.source_report_submission_id
@@ -407,11 +499,46 @@ async def _build_normalized_sources(
         snapshot = submission.snapshot
         if not isinstance(snapshot, dict):
             raise HTTPException(422, "report_source_content_invalid")
-        if snapshot_sha256(snapshot) != submission.snapshot_sha256:
-            raise HTTPException(409, "report_source_snapshot_hash_mismatch")
+        provenance = submission_ref(submission)
         if snapshot.get("report_kind") != _CHILD_KIND.get(report.report_kind):
             raise HTTPException(422, "report_source_kind_invalid")
-        _check_snapshot_period(report, snapshot)
+        _check_snapshot_period(report, snapshot, legacy=legacy)
+        if not legacy:
+            if source.report_kind != snapshot["report_kind"]:
+                raise HTTPException(422, "report_source_kind_invalid")
+            if source.status_code not in {"submitted", "approved"}:
+                raise HTTPException(409, "report_source_not_finalized")
+            if source.current_submission_id != submission.id:
+                raise HTTPException(409, "report_source_submission_changed")
+            author = await db.get(Member, source.author_member_id)
+            recipient = (
+                await db.get(Member, source.recipient_member_id)
+                if source.recipient_member_id
+                else None
+            )
+            if (
+                author is None
+                or author.team_id != member.team_id
+                or not author.active
+                or author.role_code not in {"member", "manager"}
+                or (
+                    source.recipient_member_id is not None
+                    and (recipient is None or recipient.team_id != member.team_id)
+                )
+            ):
+                raise HTTPException(404, "report_not_found")
+
+        if not legacy and any(
+            snapshot.get(key) != (str(value) if value is not None else None)
+            for key, value in (
+                ("report_id", source.id),
+                ("team_id", source.team_id),
+                ("author_member_id", source.author_member_id),
+                ("recipient_member_id", source.recipient_member_id),
+                ("source_activity_id", source.source_activity_id),
+            )
+        ):
+            raise HTTPException(422, "report_source_identity_invalid")
 
         source_activity_id = snapshot.get("source_activity_id")
         if snapshot["report_kind"] == "meeting":
@@ -423,13 +550,25 @@ async def _build_normalized_sources(
                 for body in (snapshot.get("common_body"), snapshot.get("unassigned_body"))
             ):
                 raise HTTPException(422, "report_source_content_invalid")
+            deal_ids = set()
             for deal in deals:
                 if not isinstance(deal, dict):
                     raise HTTPException(422, "report_source_content_invalid")
+                if not legacy:
+                    try:
+                        deal_id = UUID(str(deal["sales_deal_id"]))
+                    except (KeyError, TypeError, ValueError) as error:
+                        raise HTTPException(422, "report_source_content_invalid") from error
+                    if deal_id in deal_ids:
+                        raise HTTPException(422, "report_source_duplicate")
+                    deal_ids.add(deal_id)
+                    if not isinstance(deal.get("body"), str) or not deal["body"].strip():
+                        raise HTTPException(422, "report_source_content_invalid")
                 output.append(
                     {
                         "id": source.id,
                         "submission_id": submission.id,
+                        **({"report_kind": "meeting", **provenance} if not legacy else {}),
                         "sales_deal_id": deal.get("sales_deal_id"),
                         "source_activity_id": source_activity_id,
                         "report_date": snapshot.get("report_date"),
@@ -446,26 +585,26 @@ async def _build_normalized_sources(
                     raise HTTPException(422, "report_source_content_invalid") from error
                 meeting = {
                     "activity_id": activity_id,
-                    "common_report": (
-                        {"body": snapshot["common_body"]}
-                        if isinstance(snapshot.get("common_body"), str)
-                        else None
-                    ),
-                    "unassigned_report": (
-                        {"body": snapshot["unassigned_body"]}
-                        if isinstance(snapshot.get("unassigned_body"), str)
-                        else None
-                    ),
+                    **({"submission_id": submission.id, **provenance} if not legacy else {}),
+                    "common_report": _shared_body(snapshot.get("common_body")),
+                    "unassigned_report": _shared_body(snapshot.get("unassigned_body")),
                 }
                 previous = meetings.get(activity_id)
+                if previous is not None and not legacy:
+                    raise HTTPException(422, "report_source_duplicate")
                 if previous is not None and previous != meeting:
                     raise HTTPException(409, "report_source_shared_conflict")
                 meetings[activity_id] = meeting
         else:
+            values = _snapshot_values(snapshot)
+            if not isinstance(values.get("body"), str) or not values["body"].strip():
+                raise HTTPException(422, "report_source_content_invalid")
             output.append(
                 {
                     "id": source.id,
                     "submission_id": submission.id,
+                    "report_kind": snapshot["report_kind"],
+                    **provenance,
                     "sales_deal_id": None,
                     "source_activity_id": source_activity_id,
                     "report_date": snapshot.get("report_date"),
@@ -491,7 +630,7 @@ async def freeze_report_sources(
     member: Member,
     report: Report,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Freeze one generation's selection to immutable child submissions and activity IDs."""
+    """Freeze selected child submissions; never read navigation bodies or grandchildren."""
     desired, activities = await _resolve_report_source_refs(db, member, report)
     rows = _source_rows(report.id, desired)
     sources = await _build_normalized_sources(
@@ -501,7 +640,10 @@ async def freeze_report_sources(
         rows,
         resolved_activities=activities,
     )
-    return sources, source_ref_snapshot(rows)
+    submissions = await _source_submissions(
+        db, [submission_id for _, submission_id in desired if submission_id is not None]
+    )
+    return sources, source_ref_snapshot(rows, submissions)
 
 
 async def build_report_sources(
@@ -509,14 +651,5 @@ async def build_report_sources(
     member: Member,
     report: Report,
 ) -> dict[str, Any]:
-    """포함된 하위 보고서 최대 100건. 누락·권한·상태·기간 문제는 조용히 빼지 않는다."""
-    if not member.active or member.role_code not in {"member", "manager"}:
-        raise HTTPException(403, "member_not_allowed")
-    if report.team_id != member.team_id:
-        raise HTTPException(404, "report_not_found")
-    if report.author_member_id != member.id:
-        raise HTTPException(403, "report_not_owned")
-    normalized_rows = await _report_source_rows(db, report.id)
-    if normalized_rows:
-        return await _build_normalized_sources(db, member, report, normalized_rows)
+    """기존 보고서 재생성에도 선택된 하위 제출본 검증을 재사용한다."""
     return (await freeze_report_sources(db, member, report))[0]

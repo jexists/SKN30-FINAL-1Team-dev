@@ -1,9 +1,3 @@
-// 자리를 정해 놓고 묻는 보고서 조회입니다.
-//
-// 예전에는 보고서를 통째로 받아 두고 화면마다 그 배열을 뒤졌습니다. 목록이 한 쪽만
-// 오는 지금 그 방식은 페이지 밖의 보고서를 못 찾고, 못 찾으면 같은 기간·같은 일정에
-// 보고서를 하나 더 만들게 합니다. 그래서 찾을 것이 정해진 곳(그 날, 그 기간, 그 일정)은
-// 조건을 그대로 서버에 넘기고 한 쪽만 받습니다.
 import { isAxiosError } from 'axios'
 import { useEffect, useRef, useState } from 'react'
 
@@ -17,12 +11,7 @@ export type ReportQuery = Record<string, unknown>
 /** 없는 번호. 화면이 "찾을 수 없습니다" 로 받아야 하므로 에러와 갈라 둡니다. */
 const isNotFound = (reason: unknown) => isAxiosError(reason) && reason.response?.status === 404
 
-/**
- * 한 쪽만 받습니다. 자리가 정해진 조회라 한 쪽을 넘을 일이 없습니다.
- *
- * ponytail: 한 주의 일일보고서나 한 달의 주간보고서처럼 자리 수가 정해진 조회만
- * 씁니다. 자리가 30 을 넘길 수 있는 조회는 useSearchPaging 으로 더보기를 붙이세요.
- */
+/** 한 건 등 명시적으로 제한한 보고서 조회입니다. */
 export async function fetchReportPage(
   params: ReportQuery,
   signal?: AbortSignal,
@@ -34,6 +23,32 @@ export async function fetchReportPage(
   return data.items
 }
 
+/** 관련 목록·달력·드로어가 요청한 범위의 보고서를 끝까지 받습니다. */
+export async function fetchAllReportPages(
+  params: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ReportResponse[]> {
+  const items: ReportResponse[] = []
+  let skip = 0
+  while (true) {
+    const { data } = await client.get<PageResponse<ReportResponse>>('/reports', {
+      params: { ...params, skip, limit: PAGE_SIZE },
+      signal,
+    })
+    items.push(...data.items)
+    if (!data.has_more) return items
+    if (
+      !Number.isSafeInteger(data.next_skip) ||
+      data.next_skip === null ||
+      data.next_skip <= skip ||
+      data.next_skip > data.total ||
+      data.items.length === 0
+    )
+      throw new Error('invalid_pagination')
+    skip = data.next_skip
+  }
+}
+
 /** 한 건만 봅니다. 목록 밖의 보고서도 열려야 하므로 주소의 번호로 직접 묻습니다. */
 export async function fetchReport(id: string, signal?: AbortSignal): Promise<ReportResponse> {
   const { data } = await client.get<ReportResponse>(`/reports/${id}`, { signal })
@@ -41,7 +56,7 @@ export async function fetchReport(id: string, signal?: AbortSignal): Promise<Rep
 }
 
 /** `params` 가 null 이면 부르지 않습니다. 아직 물을 것이 정해지지 않은 동안입니다. */
-export function useReportQuery(params: ReportQuery | null, fallback: string) {
+export function useReportQuery(params: ReportQuery | null, fallback: string, allPages = false) {
   const [items, setItems] = useState<ReportResponse[]>([])
   const [loading, setLoading] = useState(params !== null)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +71,7 @@ export function useReportQuery(params: ReportQuery | null, fallback: string) {
     const asked = latest.current
     if (asked === null) {
       setItems([])
+      setError(null)
       setLoading(false)
       return
     }
@@ -64,7 +80,7 @@ export function useReportQuery(params: ReportQuery | null, fallback: string) {
     setLoading(true)
     setError(null)
 
-    void fetchReportPage(asked, controller.signal)
+    void (allPages ? fetchAllReportPages : fetchReportPage)(asked, controller.signal)
       .then((rows) => {
         if (!controller.signal.aborted) setItems(rows)
       })
@@ -80,7 +96,7 @@ export function useReportQuery(params: ReportQuery | null, fallback: string) {
     return () => controller.abort()
     // fallback 은 호출부의 상수 문자열이라 의존할 필요가 없습니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, reloadKey])
+  }, [key, reloadKey, allPages])
 
   return { items, loading, error, reload: () => setReloadKey((value) => value + 1) }
 }

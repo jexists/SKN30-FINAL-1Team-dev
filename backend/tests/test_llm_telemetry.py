@@ -212,3 +212,99 @@ async def test_cancellation_keeps_safe_timing_without_fake_usage(
     assert events[-1]["elapsed_ms"] >= 0
     assert not any("total_tokens" in event for event in events)
     assert "private-" not in caplog.text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("endpoint", ["responses", "chat/completions"])
+async def test_report_settings_are_opt_in_and_keep_other_helper_defaults(
+    configured_llm, monkeypatch, endpoint
+):
+    monkeypatch.setattr(llm.settings, "llm_api_url", f"https://provider.invalid/v1/{endpoint}")
+    monkeypatch.setattr(llm.settings, "llm_timeout_seconds", 7.0)
+    original_client = httpx.AsyncClient
+    requests = []
+
+    def respond(request):
+        requests.append((json.loads(request.content), request.extensions["timeout"]))
+        return httpx.Response(200, json={"output_text": '{"value": 5}'})
+
+    monkeypatch.setattr(
+        llm.httpx,
+        "AsyncClient",
+        lambda **kwargs: original_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    args = dict(
+        instructions="private-instructions",
+        input_text="private-input",
+        schema=_Result,
+        schema_name="report_settings_test",
+    )
+    assert (await llm.generate_structured(**args, report_mode=True)).value == 5
+    assert (await llm.generate_structured(**args)).value == 5
+    report, normal = requests
+    token_key = "max_output_tokens" if endpoint == "responses" else "max_completion_tokens"
+    assert report[0][token_key] == 12_000
+    assert report[0]["model"] == normal[0]["model"] == "test-model"
+    assert report[1] == {"connect": 10, "read": 180, "write": 180, "pool": 180}
+    assert normal[1] == {"connect": 7, "read": 7, "write": 7, "pool": 7}
+    assert "max_output_tokens" not in normal[0] and "max_completion_tokens" not in normal[0]
+    assert all("reasoning" not in body and "reasoning_effort" not in body for body, _ in requests)
+    if endpoint == "chat/completions":
+        assert report[0]["messages"] == normal[0]["input"]
+        assert report[0]["response_format"]["json_schema"]["schema"] == _Result.model_json_schema()
+
+
+@pytest.mark.anyio
+async def test_report_http_failure_is_not_retried(configured_llm, monkeypatch):
+    original_client = httpx.AsyncClient
+    requests = []
+
+    def fail(request):
+        requests.append(request)
+        return httpx.Response(503, json={"error": "private-provider-detail"})
+
+    monkeypatch.setattr(
+        llm.httpx,
+        "AsyncClient",
+        lambda **kwargs: original_client(transport=httpx.MockTransport(fail), **kwargs),
+    )
+    with pytest.raises(llm.LLMError, match="^llm_provider_error:503$"):
+        await llm.generate_structured(
+            instructions="private-instructions",
+            input_text="private-input",
+            schema=_Result,
+            schema_name="report_retry_test",
+            report_mode=True,
+        )
+    assert len(requests) == 1
+
+
+@pytest.mark.anyio
+async def test_report_incomplete_metadata_and_usage_are_safe(configured_llm, monkeypatch, caplog):
+    original_client = httpx.AsyncClient
+    payload = {
+        "status": "incomplete",
+        "incomplete_details": {"reason": "max_output_tokens"},
+        "output_text": "private-malformed-output",
+        "usage": {"output_tokens": 12_000},
+    }
+    monkeypatch.setattr(
+        llm.httpx,
+        "AsyncClient",
+        lambda **kwargs: original_client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload)),
+            **kwargs,
+        ),
+    )
+    with pytest.raises(llm.LLMError, match="llm_output_schema_mismatch"):
+        await llm.generate_structured(
+            instructions="private-instructions",
+            input_text="private-input",
+            schema=_Result,
+            schema_name="report_metadata_test",
+            report_mode=True,
+        )
+    events = _events(caplog)
+    assert any(event.get("output_tokens") == 12_000 for event in events)
+    assert any(event.get("reason_code") == "max_output_tokens" for event in events)
+    assert "private-" not in caplog.text

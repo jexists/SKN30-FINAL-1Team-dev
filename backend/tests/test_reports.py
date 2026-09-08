@@ -247,7 +247,7 @@ def _meeting_generation_run(member: Member, deal_id: UUID, transcript: str) -> A
         status_code="completed",
         llm_model_name="test-model",
         prompt_version="meeting_processing.v10",
-        request_snapshot={"transcript": transcript},
+        request_snapshot={"transcript": transcript, "report_date": "2026-08-17"},
         request_hash="0" * 64,
         scope_key=f"meeting:{uuid4()}",
         source_refs={},
@@ -1089,7 +1089,7 @@ async def test_meeting_finalize_compares_original_input_not_audio_effective_tran
     deal_id = uuid4()
     run = _meeting_generation_run(member, deal_id, "음성에서 추출한 원문")
     run.scope_key = f"meeting:{activity_id}"
-    run.request_snapshot = {"transcript": None}
+    run.request_snapshot = {"report_date": "2026-08-17", "transcript": None}
     run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     payload = ReportFinalize(
         idempotency_key=uuid4(),
@@ -1136,7 +1136,11 @@ async def test_meeting_finalize_requires_frozen_attachment_inputs(changed):
     }
     run = _meeting_generation_run(member, uuid4(), "직접 원문\n\n확인한 OCR 원문")
     run.scope_key = f"meeting:{activity_id}"
-    run.request_snapshot = {"transcript": "직접 원문", "attachments": [attachment]}
+    run.request_snapshot = {
+        "report_date": "2026-08-17",
+        "transcript": "직접 원문",
+        "attachments": [attachment],
+    }
     run.input_snapshot["source"]["selected_deal_ids"] = []
     run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     submitted = dict(attachment)
@@ -1182,7 +1186,7 @@ async def test_meeting_finalize_report_child_uses_parent_transcript_boundary(
     deal_id = uuid4()
     parent = _meeting_generation_run(member, deal_id, "오디오에서 추출한 원문")
     parent.scope_key = f"meeting:{activity_id}"
-    parent.request_snapshot = {"transcript": original_transcript}
+    parent.request_snapshot = {"report_date": "2026-08-17", "transcript": original_transcript}
     parent.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
     child = _meeting_generation_run(member, deal_id, "오디오에서 추출한 원문")
     child.id = uuid4()
@@ -1285,7 +1289,7 @@ async def test_period_finalize_rejects_a_different_source_revision_before_submis
     monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
     monkeypatch.setattr(
         reports_api.report_sources,
-        "sync_report_sources_from_legacy_content",
+        "sync_report_sources",
         AsyncMock(return_value=True),
     )
     monkeypatch.setattr(
@@ -1339,7 +1343,10 @@ async def test_period_finalize_rejects_changed_noneditable_generation_input(
         "content": {"values": {"body": "생성 당시 본문"}},
         "guidance": "생성 당시 직접 입력",
     }
-    run.source_refs = {"report_sources": []}
+    run.source_refs = {
+        "report_sources": [],
+        "report_source_contract": report_sources.SOURCE_CONTRACT,
+    }
     template = TEMPLATE
     content = {"values": {"body": "사람이 수정한 본문"}}
     transcript = "생성 당시 직접 입력"
@@ -1388,7 +1395,10 @@ async def test_period_finalize_allows_human_title_and_body_edits_after_generatio
         "content": {"title": "생성 전 제목", "values": {"body": "생성 전 본문"}},
         "guidance": None,
     }
-    run.source_refs = {"report_sources": []}
+    run.source_refs = {
+        "report_sources": [],
+        "report_source_contract": report_sources.SOURCE_CONTRACT,
+    }
     payload = ReportFinalize(
         idempotency_key=uuid4(),
         report_kind="daily",
@@ -1440,7 +1450,11 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     )
     canonical = transcript if source_kind is None else transcript + "\n\n검토한 추출 원문"
     run = _meeting_generation_run(member, deal_id, canonical)
-    run.request_snapshot = {"transcript": transcript, "attachments": attachments}
+    run.request_snapshot = {
+        "report_date": "2026-08-17",
+        "transcript": transcript,
+        "attachments": attachments,
+    }
     evidence_hash = hashlib.sha256(canonical.encode()).hexdigest()
     run.output_snapshot["evidence"]["transcript_sha256"] = evidence_hash
     run.scope_key = f"meeting:{activity_id}"
@@ -1499,6 +1513,8 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     report = next(item for item in db.added if isinstance(item, Report))
     section = next(item for item in db.added if isinstance(item, ReportDeal))
     submission = next(item for item in db.added if isinstance(item, ReportSubmission))
+    assert report.report_date == payload.report_date
+    assert submission.snapshot["report_date"] == payload.report_date.isoformat()
     assert result.id == report.id
     assert report.status_code == "submitted"
     assert report.transcript == canonical
@@ -1686,9 +1702,7 @@ async def test_resubmit_without_generation_keeps_existing_ai_provenance(
     monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
     monkeypatch.setattr(reports_api, "_locked_report", AsyncMock(return_value=report))
     monkeypatch.setattr(reports_api, "_replace_report_activities", AsyncMock())
-    monkeypatch.setattr(
-        reports_api.report_sources, "sync_report_sources_from_legacy_content", AsyncMock()
-    )
+    monkeypatch.setattr(reports_api.report_sources, "sync_report_sources", AsyncMock())
     monkeypatch.setattr(
         reports_api,
         "_detail",
@@ -2085,3 +2099,58 @@ def test_unknown_report_filter_is_rejected():
     """오타 난 조건이 조용히 무시되면 화면은 걸렀다고 믿고 전건을 보여 준다."""
     with pytest.raises(ValidationError):
         ReportPageParams(hospitals=["한빛대학교병원"])
+
+
+@pytest.mark.anyio
+async def test_meeting_generation_date_cannot_be_replaced_by_confirmation_day():
+    member = _member()
+    activity_id = uuid4()
+    run = _meeting_generation_run(member, uuid4(), "확인한 원문")
+    run.scope_key = f"meeting:{activity_id}"
+    run.request_snapshot = {"report_date": "2026-08-31", "transcript": "확인한 원문"}
+    run.input_snapshot["source"]["selected_deal_ids"] = []
+    run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        agent_run_id=run.id,
+        report_kind="meeting",
+        report_date="2026-09-01",
+        source_activity_id=activity_id,
+        template_snapshot=TEMPLATE,
+        content={},
+        common_body="확정 본문",
+        transcript="확인한 원문",
+    )
+    with pytest.raises(HTTPException) as error:
+        await reports_api._finalize_run(
+            _Db(_Result(scalar=run), _Result(scalar=run), _Result(scalar=None)), member, payload
+        )
+    assert error.value.detail == "report_generation_source_changed"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("refs", [None, {}, {"report_sources": []}])
+async def test_legacy_period_generation_requires_regeneration(monkeypatch, refs):
+    member = _member()
+    report = _report(member)
+    payload = ReportFinalize(
+        idempotency_key=uuid4(),
+        report_kind="daily",
+        report_date=report.report_date,
+        template_snapshot=TEMPLATE,
+        content={},
+        body="사람이 교정한 최종 본문",
+    )
+    run = _meeting_generation_run(member, uuid4(), "원문")
+    run.source_refs = refs
+    run.request_snapshot = {
+        "report_kind": "daily",
+        "report_date": report.report_date.isoformat(),
+        "period_start": None,
+        "period_end": None,
+        "template_snapshot": TEMPLATE,
+    }
+    monkeypatch.setattr(report_sources, "current_source_ref_snapshot", AsyncMock(return_value=[]))
+    with pytest.raises(HTTPException) as error:
+        await reports_api._validate_generation_source_refs(AsyncMock(), report, payload, run)
+    assert error.value.detail == "report_generation_source_changed"

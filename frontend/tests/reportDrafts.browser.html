@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>보고서 출처·날짜 복구 회귀</title>
+  </head>
+  <body>
+    <p>로컬 Vite에서 이 파일을 여세요. 실제 React 훅과 요청 변환을 합성 API 응답으로 검사합니다.</p>
+    <pre id="result">실행 중…</pre>
+    <div id="root"></div>
+    <script type="module">
+      import { act, createElement } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import { AxiosError } from 'axios'
+      import { client } from '../src/api/client.ts'
+      import { SessionContext } from '../src/auth/sessionContext.ts'
+      import useDailyDraft from '../src/pages/Daily/useDailyDraft.ts'
+      import useDailyReports from '../src/pages/Daily/useDailyReports.ts'
+      import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
+      import { meetingFinalizeRequestOf } from '../src/pages/Meetings/useMeetingReports.ts'
+
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      const root = createRoot(document.getElementById('root'))
+      const checks = []
+      const check = (condition, label) => {
+        if (!condition) throw new Error(label)
+        checks.push(label)
+      }
+      const equal = (left, right, label) =>
+        check(JSON.stringify(left) === JSON.stringify(right), label)
+      const response = (config, data) => ({
+        data,
+        config,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+      })
+      const page = (items) => ({ items, total: items.length, has_more: false, next_skip: null })
+      const failure = (config, status) =>
+        new AxiosError('합성 실패', 'ERR_BAD_RESPONSE', config, null, { status, data: {} })
+      const report = (kind, id = 'child', submission = 'v1') => ({
+        id,
+        report_kind: kind,
+        report_date: '2026-08-31',
+        title: '합성 하위 보고서',
+        author_member_id: 'author',
+        author_display_name: '합성 작성자',
+        status_code: 'submitted',
+        current_submission_id: submission,
+        version: 1,
+        content: {},
+        body: '합성 본문',
+        attachments: [],
+        deal_sections: [],
+        updated_at: '2026-08-31T00:00:00Z',
+      })
+      const session = {
+        session: { memberId: 'author', role: 'member', profile: {}, isAdmin: false },
+        status: 'authenticated',
+      }
+      let draft,
+        reports,
+        meeting,
+        item = { id: 'agenda', title: '합성 미팅', date: '2026-09-02' }
+      function Daily({ kind, date }) {
+        draft = useDailyDraft(date, kind)
+        reports = useDailyReports()
+        return null
+      }
+      function Meeting() {
+        meeting = useMeetingDraft(item)
+        return null
+      }
+      const render = (element) =>
+        act(async () =>
+          root.render(createElement(SessionContext.Provider, { value: session }, element)),
+        )
+      const originalAdapter = client.defaults.adapter
+      let relatedRequests = [],
+        generated = [],
+        finalized = [],
+        latest,
+        delayGeneration,
+        rejectGeneration
+      let children = [],
+        failRelated = false,
+        holdRelated = true,
+        latestCalls = 0
+      client.defaults.adapter = async (config) => {
+        if (config.url === '/reports') {
+          if (config.params.limit === 1) return response(config, page([]))
+          if (holdRelated)
+            return new Promise((resolve, reject) =>
+              relatedRequests.push({ config, resolve, reject }),
+            )
+          if (failRelated) throw failure(config, 503)
+          return response(config, page(children))
+        }
+        if (config.url === '/report-generations/latest') {
+          latestCalls += 1
+          if (!latest) throw failure(config, 404)
+          return response(config, latest)
+        }
+        if (config.url === '/report-generations') {
+          const input = JSON.parse(config.data)
+          generated.push(input)
+          return new Promise((resolve, reject) => {
+            delayGeneration = () =>
+              resolve(
+                response(config, {
+                  id: `run-${generated.length}`,
+                  generation_input: input,
+                  status_code: 'completed',
+                  output_snapshot: { fields: [{ field_id: 'body', value: '합성 AI 본문' }] },
+                }),
+              )
+            rejectGeneration = () => reject(failure(config, 503))
+          })
+        }
+        if (config.url === '/reports/finalize') {
+          const input = JSON.parse(config.data)
+          finalized.push(input)
+          return response(config, { ...report(input.report_kind, 'final'), ...input })
+        }
+        throw new Error(`허용하지 않은 합성 요청: ${config.method} ${config.url}`)
+      }
+      const flushRelated = () =>
+        act(async () => {
+          for (const request of relatedRequests.splice(0)) {
+            request.resolve(response(request.config, page(children)))
+          }
+        })
+      const reloadRelated = () => act(async () => draft.reloadRelated())
+      const payload = (kind, date) => ({
+        kind,
+        date,
+        approver: draft.approver,
+        values: draft.values,
+        activities: draft.activities,
+        attachments: draft.attachments,
+        transcript: draft.transcript,
+      })
+
+      async function run() {
+        for (const [kind, childKind, date] of [
+          ['일일', 'meeting', '2026-08-31'],
+          ['주간', 'daily', '2026-08-30'],
+          ['월간', 'weekly', '2026-09-01'],
+        ]) {
+          latest = undefined
+          holdRelated = true
+          failRelated = false
+          children = [report(childKind)]
+          await render(null)
+          await render(createElement(Daily, { kind, date }))
+          await act(async () => draft.setValue('body', '조회 중 수기 본문'))
+          check(
+            draft.relatedLoading && !draft.canGenerate && draft.missing.length > 0,
+            `${kind}: 조회 지연 중 생성·제출 차단`,
+          )
+          const before = generated.length
+          await act(async () => draft.generate())
+          check(generated.length === before, `${kind}: 지연 중 POST 없음`)
+          await flushRelated()
+          check(
+            draft.values.body === '조회 중 수기 본문' && draft.canGenerate,
+            `${kind}: 첫 조회 후 수기 본문 보존`,
+          )
+
+          let generation
+          await act(async () => {
+            generation = draft.generate()
+            await Promise.resolve()
+          })
+          const snapshot = generated.at(-1).content.activities
+          children = [report(childKind, 'new'), report(childKind)]
+          await reloadRelated()
+          await flushRelated()
+          equal(draft.activities, snapshot, `${kind}: 생성 중 목록 추가에도 출처 동결`)
+          await act(async () => {
+            delayGeneration()
+            await generation
+          })
+          await act(async () => draft.setValue('body', 'AI 생성 후 사용자 수정'))
+          const recoveryCount = latestCalls
+          await reloadRelated()
+          await flushRelated()
+          check(
+            latestCalls === recoveryCount && draft.values.body === 'AI 생성 후 사용자 수정',
+            `${kind}: 재조회로 복구 재실행·본문 초기화 없음`,
+          )
+          await act(async () => reports.submitReport(payload(kind, date), draft.generationRunId))
+          equal(
+            finalized.at(-1).content.activities,
+            snapshot,
+            `${kind}: 생성·최종 제출의 출처 일치`,
+          )
+
+          holdRelated = false
+          failRelated = true
+          await reloadRelated()
+          check(
+            !draft.canGenerate && draft.missing.length > 0 && draft.relatedError,
+            `${kind}: 조회 실패 중 생성·제출 차단`,
+          )
+          check(draft.values.body === 'AI 생성 후 사용자 수정', `${kind}: 조회 실패에도 본문 보존`)
+          failRelated = false
+          children = [report(childKind, 'child', 'v2')]
+          await reloadRelated()
+          check(
+            draft.canGenerate && draft.missing.length > 0 && draft.sourceError,
+            `${kind}: 하위 제출본 변경 시 재생성 가능·제출 차단`,
+          )
+          equal(draft.activities, snapshot, `${kind}: 변경된 하위 제출본으로 몰래 교체하지 않음`)
+          const priorRun = draft.generationRunId
+          await act(async () => {
+            generation = draft.generate()
+            await Promise.resolve()
+          })
+          await act(async () => {
+            rejectGeneration()
+            await generation
+          })
+          equal(draft.activities, snapshot, `${kind}: 재생성 실패 시 이전 출처 복원`)
+          check(
+            draft.generationRunId === priorRun && draft.values.body === 'AI 생성 후 사용자 수정',
+            `${kind}: 재생성 실패 시 이전 run·본문 보존`,
+          )
+          await act(async () => {
+            generation = draft.generate()
+            await Promise.resolve()
+          })
+          await act(async () => {
+            delayGeneration()
+            await generation
+          })
+          check(
+            draft.missing.length === 0 && draft.activities[0].sourceSubmissionId === 'v2',
+            `${kind}: 명시적 재생성 후 새 제출본 적용`,
+          )
+
+          const recoveryInput = {
+            ...generated.at(-1),
+            content: {
+              ...generated.at(-1).content,
+              activities: [
+                ...generated.at(-1).content.activities,
+                { id: 'excluded', source: '문서', refId: 'excluded', included: false },
+              ],
+            },
+          }
+          latest = {
+            id: 'recovered-run',
+            status_code: 'completed',
+            generation_input: recoveryInput,
+            output_snapshot: { fields: [{ field_id: 'body', value: '복구한 후보' }] },
+          }
+          holdRelated = true
+          await render(null)
+          await render(createElement(Daily, { kind, date }))
+          check(
+            draft.values.body === '복구한 후보' && !draft.canGenerate && draft.missing.length > 0,
+            `${kind}: 복구는 지연된 조회 동안 후보만 보존`,
+          )
+          children = [report(childKind, 'added'), report(childKind, 'child', 'v2')]
+          await flushRelated()
+          equal(
+            draft.activities,
+            recoveryInput.content.activities,
+            `${kind}: 복구 시 제외 항목까지 원래 참조 보존`,
+          )
+          check(draft.missing.length === 0, `${kind}: 추가 보고서는 복구 후보를 무효화하지 않음`)
+          await act(async () => reports.submitReport(payload(kind, date), draft.generationRunId))
+          equal(
+            finalized.at(-1).content.activities,
+            recoveryInput.content.activities,
+            `${kind}: 복구·최초 확정 출처 일치`,
+          )
+          await act(async () => draft.setValue('body', '복구 후 수기 본문'))
+          children = [report(childKind, 'child', 'v3')]
+          await reloadRelated()
+          await flushRelated()
+          check(
+            draft.missing.length > 0 && draft.values.body === '복구 후 수기 본문',
+            `${kind}: 복구 후 제출본 변경도 본문 보존·제출 차단`,
+          )
+        }
+        await render(null)
+        await render(createElement(Meeting))
+        await act(async () =>
+          meeting.restoreGenerationInput({
+            report_kind: 'meeting',
+            report_date: '2026-08-31',
+            source_activity_id: item.id,
+            sales_deal_ids: [],
+            transcript: '합성 원문',
+            attachments: [],
+            content: {},
+          }),
+        )
+        item = { ...item, date: '2026-09-03' }
+        await render(createElement(Meeting))
+        check(
+          meeting.reportDate === '2026-08-31',
+          '미저장 AgentRun 복구 후 일정 이동에도 생성 당시 미팅일 보존',
+        )
+        const request = meetingFinalizeRequestOf(
+          {
+            agendaId: item.id,
+            date: meeting.reportDate ?? item.date,
+            time: '10:00',
+            title: item.title,
+            hospital: '',
+            dept: '',
+            contact: '',
+            place: '',
+            transcript: meeting.transcript,
+            attachments: meeting.attachments,
+            dealSections: [],
+            commonBody: '합성 최종 본문',
+          },
+          'first-finalize',
+          'recovered-meeting-run',
+        )
+        check(
+          !request.report_id && request.report_date === '2026-08-31',
+          '미저장 복구→일정 이동→최초 확정 report_date 보존',
+        )
+        item = { ...item, id: 'next-agenda', date: '2026-09-04' }
+        await render(createElement(Meeting))
+        check(meeting.reportDate === undefined, '다른 미팅으로 이동하면 이전 복구 날짜 초기화')
+        document.getElementById('result').textContent =
+          `PASS ${checks.length}\n${checks.join('\n')}`
+      }
+      run()
+        .catch((error) => {
+          document.getElementById('result').textContent = `FAIL\n${error.stack}`
+        })
+        .finally(async () => {
+          await act(async () => root.unmount())
+          client.defaults.adapter = originalAdapter
+        })
+    </script>
+  </body>
+</html>

@@ -965,6 +965,8 @@ async def _finalize_run(
         raise HTTPException(409, "report_generation_source_changed")
     if payload.report_kind == "meeting":
         source = run.input_snapshot.get("source", {})
+        if request.get("report_date") != payload.report_date.isoformat():
+            raise HTTPException(409, "report_generation_source_changed")
         if request.get("transcript") != payload.transcript or set(
             source.get("selected_deal_ids", [])
         ) != {str(section.sales_deal_id) for section in payload.deal_sections}:
@@ -991,13 +993,19 @@ async def _validate_generation_source_refs(
             request.get("period_end")
             != (payload.period_end.isoformat() if payload.period_end else None),
             request.get("template_snapshot") != payload.template_snapshot,
-            # 새 기간 생성에는 원문 입력이 없다. 과거 생성에 쓰인 지시만 계속 동결 검증한다.
+            # 추가 메모와 명시적 정정도 생성 당시 입력을 유지한다.
             request.get("guidance") is not None and request.get("guidance") != payload.transcript,
         )
     )
-    expected = run.source_refs.get("report_sources") if isinstance(run.source_refs, dict) else None
+    refs = _dict(run.source_refs)
+    expected = refs.get("report_sources")
     current = await report_sources.current_source_ref_snapshot(db, report.id)
-    if immutable_input_changed or not isinstance(expected, list) or current != expected:
+    if (
+        immutable_input_changed
+        or refs.get("report_source_contract") != report_sources.SOURCE_CONTRACT
+        or not isinstance(expected, list)
+        or current != expected
+    ):
         raise HTTPException(409, "report_generation_source_changed")
 
 
@@ -1121,6 +1129,7 @@ async def finalize_report(
         activity_ids = await _own_activity_ids(db, member, payload.activity_ids)
         content, normalized = _finalize_values(payload)
         now = datetime.now(UTC)
+        sources_changed = payload.report_id is None
 
         if payload.report_id is None:
             report = Report(
@@ -1189,6 +1198,10 @@ async def finalize_report(
                     payload.deal_sections,
                     ai_evidence_by_deal=ai_evidence_by_deal,
                 )
+            if report.report_kind != "meeting" and run is None:
+                sources_changed = await report_sources.selection_changed(db, report, content)
+                if "activities" not in content and "activities" in _dict(report.content):
+                    content["activities"] = report.content["activities"]
             await _replace_report_activities(db, report.id, activity_ids)
             report.recipient_member_id = None if recipient is None else recipient.id
             report.template_snapshot = payload.template_snapshot
@@ -1216,8 +1229,13 @@ async def finalize_report(
             report.updated_at = now
             await db.flush()
 
-        if report.report_kind != "meeting":
-            await report_sources.sync_report_sources_from_legacy_content(db, member, report)
+        if report.report_kind != "meeting" and (run is not None or sources_changed):
+            try:
+                await report_sources.sync_report_sources(db, member, report)
+            except HTTPException as error:
+                if run is not None:
+                    raise HTTPException(409, "report_generation_source_changed") from error
+                raise
         await _validate_generation_source_refs(db, report, payload, run)
         attachment_inputs = payload.attachments
         if "attachments" not in payload.model_fields_set:

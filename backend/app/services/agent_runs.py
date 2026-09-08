@@ -12,7 +12,10 @@ from sqlalchemy import case, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents import contract_management, report_writing, schedule_management
+from app.agents import contract_management, schedule_management
+from app.agents.meeting import features
+from app.agents.reports import meeting as meeting_report
+from app.agents.reports import period, period_sources
 from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.ml.deal_baseline import DealModelError
@@ -117,10 +120,10 @@ def _run_read(run: AgentRun, requester_id: UUID) -> AgentRunRead:
 
 def _prompt_version(agent_code: str) -> str:
     return {
-        "report_writing": report_writing.PROMPT_VERSION,
+        "report_writing": period.PROMPT_VERSION,
         "meeting_processing": meeting_processing.PROMPT_VERSION,
-        "meeting_report_writing": meeting_processing.report_writing_deep.PROMPT_VERSION,
-        "meeting_analysis": meeting_processing.meeting_analysis.PROMPT_VERSION,
+        "meeting_report_writing": meeting_report.PROMPT_VERSION,
+        "meeting_analysis": features.PROMPT_VERSION,
         "contract_management_select_candidates": (
             contract_management.SELECT_CANDIDATES_PROMPT_VERSION
         ),
@@ -358,7 +361,7 @@ async def _report_generation_input(
         common_body=None,
         unassigned_body=None,
         structured_values={},
-        transcript=None,
+        transcript=payload.transcript,
         source_snapshot=None,
         ai_evidence=None,
         version=1,
@@ -369,12 +372,13 @@ async def _report_generation_input(
         reviewed_by_member_id=None,
         reviewed_at=None,
     )
-    snapshot = report_writing.input_snapshot(transient, payload.guidance)
+    snapshot = period_sources.input_snapshot(transient, payload.guidance)
     snapshot["attachments"] = attachments
     snapshot["report_sources"], frozen_refs = await report_sources.freeze_report_sources(
         db, member, transient
     )
     refs["report_sources"] = frozen_refs
+    refs["report_source_contract"] = report_sources.SOURCE_CONTRACT
     return "report_writing", snapshot, refs
 
 
@@ -620,6 +624,11 @@ async def prepare_claimed(
         or run.payload_expires_at <= now
     ):
         raise ValueError("agent_run_payload_expired")
+    if (
+        run.agent_code == "report_writing"
+        and (run.source_refs or {}).get("report_source_contract") != report_sources.SOURCE_CONTRACT
+    ):
+        raise ValueError("report_generation_source_changed")
     if run.request_hash is None:
         return run.agent_code, run.input_snapshot, run.requested_by_member_id
     if run.requested_by_member_id is None:
@@ -678,7 +687,9 @@ async def dispatch(
 ) -> Any:
     """DB 연결을 쥐지 않고 에이전트 하나를 실행한다."""
     if agent_code == "report_writing":
-        return await report_writing.run(input_snapshot)
+        if input_snapshot.get("report_kind") not in {"daily", "weekly", "monthly"}:
+            raise LLMError("report_writing_kind_unsupported")
+        return await period.run(input_snapshot)
     if agent_code == "meeting_processing":
         return await meeting_processing.run_evidence(input_snapshot)
     if agent_code == "meeting_report_writing":
@@ -701,7 +712,7 @@ def evidence(
 ) -> dict[str, Any]:
     """실행 이력에 남길 요약. 결과만으로 설명되지 않는 값은 입력 스냅샷에서 가져온다."""
     if agent_code == "report_writing":
-        return {"prompt_version": report_writing.PROMPT_VERSION}
+        return {"prompt_version": period.PROMPT_VERSION}
     if agent_code == "meeting_processing":
         return {
             "prompt_version": meeting_processing.PROMPT_VERSION,
@@ -713,10 +724,10 @@ def evidence(
             "evidence_transcript_sha256": output.evidence.transcript_sha256,
         }
     if agent_code == "meeting_report_writing":
-        return {"prompt_version": meeting_processing.report_writing_deep.PROMPT_VERSION}
+        return {"prompt_version": meeting_report.PROMPT_VERSION}
     if agent_code == "meeting_analysis":
         return {
-            "prompt_version": meeting_processing.meeting_analysis.PROMPT_VERSION,
+            "prompt_version": features.PROMPT_VERSION,
             "deal_count": len(output),
             "errors": sum(item.error is not None for item in output),
         }

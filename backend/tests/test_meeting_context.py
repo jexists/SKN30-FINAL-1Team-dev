@@ -11,7 +11,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
 
-from app.agents.meeting_content_analysis import DealGroundingContext
+from app.agents.meeting.transcript import DealGroundingContext
 from app.api import activities, reports, sales_deals
 from app.models.content import Report
 from app.models.crm import Activity, CustomerContact

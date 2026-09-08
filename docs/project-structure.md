@@ -23,14 +23,24 @@ ML 학습 순서와 이전 실험은 [노트북 안내](../backend/notebooks/REA
 | 위치 | 역할 |
 |---|---|
 | `backend/app/services/meeting_processing.py` | CRM·원문 고정 → 내용분석 → 보고서·특성 병렬 실행, 초안 반영·공통 메모 원자적 저장 |
-| `backend/app/agents/meeting_content_analysis.py` | 구간 귀속·조건부 검토·필요한 CRM 추가조회 |
-| `backend/app/agents/meeting_analysis.py` | 딜별 13개 특성 구조화와 별도 ML 예측 |
-| `backend/app/agents/report_writing_deep.py` | 미팅 Deep Agent의 근거 조회·작성·검토·수정 |
-| `backend/app/agents/period_report_writing_deep.py` | 일일·주간·월간 Deep Agent, `services/report_sources.py`의 확정 하위 보고서 사용 |
+| `backend/app/agents/meeting/content.py` | 구간 귀속·조건부 검토와 내용분석 실행 한도 |
+| `backend/app/agents/meeting/transcript.py` | 원문 위치를 보존하는 구간 분할·분석 입력 계약 |
+| `backend/app/agents/meeting/refinement.py` | 미해결 구간의 CRM 조회 도구·재귀속 |
+| `backend/app/agents/meeting/features.py` | 딜별 13개 특성 구조화와 별도 ML 예측 |
+| `backend/app/agents/reports/meeting.py` | 미팅 근거 범위별 작성·검토·선택 수정 |
+| `backend/app/agents/reports/meeting_contract.py` | 미팅 보고서 입력·출력 계약과 근거·렌더링 검증 |
+| `backend/app/agents/reports/meeting_tools.py` | 작성자의 동결 근거·CRM·이전 보고서 조회 도구 |
+| `backend/app/agents/reports/period.py` | 일일·주간·월간 작성 → 검토 1회 → 선택 수정 1회, 하위 보고서 사용 |
+| `backend/app/agents/reports/period_sources.py` | 기간 입력 검증·미팅 묶음 또는 하위 기간 제출본 조립 |
+| `backend/app/agents/reports/harness.py` | 미팅·기간 보고서의 공통 작성 단계·호출 계측 |
+| `backend/app/agents/reports/skills/` | 미팅 작성 규칙·합성 예시, 기간 공통 문체와 일일·주간·월간 작성 규칙 |
+| `backend/app/schemas/meeting_content.py`, `backend/app/schemas/report_drafts.py` | 공통 미팅 근거 계약·기간 보고서 생성 출력 계약 |
 | `backend/app/api/agent_runs.py`, `backend/app/services/agent_stream.py` | 실행 조회·적용 API와 SSE 임시 미리보기. 최종 실행 상태는 DB 기준 |
 | `frontend/src/pages/Meetings/Compose.tsx`, `frontend/src/api/meetingStream.ts` | 딜별 초안·공통 메모 편집, 생성·SSE 표시·결과 적용 |
 
 초안 저장과 사용자 제출은 별개입니다. 제출된 미팅 보고서는 계약관리로 전달하고 기간 보고서의 원천이 됩니다. 전체 구조와 한계는 [미팅·보고서 구조](technical/multiagent/미팅_내용분석_보고서작성_에이전트_구조_보고서.md)를 참고합니다.
+
+실행은 `services/agent_runs.py`의 `dispatch()`에서 종류별로 연결합니다. 기간 보고서의 입력 종류 검증도 이 경계에 두며, 별도 전달 전용 에이전트 파일은 사용하지 않습니다. 권한·DB 조회는 기존 `services/meeting_context.py`와 `services/report_sources.py`, ML 실행은 `ml/deal_baseline.py`에 유지합니다. 작성 스킬은 `reports/skills/`의 MD에서, 역할별 지시와 실행 정책은 각 Python 에이전트에서 관리합니다.
 
 ## 문서
 

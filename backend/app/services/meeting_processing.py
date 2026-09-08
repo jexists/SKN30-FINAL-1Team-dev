@@ -9,7 +9,10 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
+from app.agents.meeting import content, features
+from app.agents.meeting import transcript as meeting_transcript
+from app.agents.reports import meeting as meeting_report
+from app.agents.reports.meeting_contract import FreeformMeetingReports, ReportWritingInput
 from app.models.workspace import Member
 from app.schemas.meeting_content import MeetingEvidenceLedger
 from app.schemas.reports import meeting_attachment_purpose
@@ -25,8 +28,8 @@ RUN_TIMEOUT_SECONDS = 1_200
 class MeetingProcessingOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    reports: report_writing_deep.FreeformMeetingReports | None
-    analyses: list[meeting_analysis.DealFeatureResult]
+    reports: FreeformMeetingReports | None
+    analyses: list[features.DealFeatureResult]
     evidence: MeetingEvidenceLedger
     errors: dict[str, str]
     context_lookups: list[dict[str, Any]] = Field(default_factory=list)
@@ -53,7 +56,7 @@ async def input_snapshot(
     """사용자가 생성 버튼을 누른 시점의 원문과 권한 검증된 CRM을 고정한다."""
     context = await meeting_context.build_context(db, member, source_activity_id, sales_deal_ids)
     try:
-        snapshot = meeting_content_analysis.input_snapshot(transcript, context["deals"])
+        snapshot = meeting_transcript.input_snapshot(transcript, context["deals"])
     except ValueError:
         raise HTTPException(422, "meeting_transcript_invalid") from None
     snapshot["crm_context"] = context["crm_context"]
@@ -74,8 +77,8 @@ async def run(snapshot: dict[str, Any]) -> MeetingProcessingOutput:
         try:
             publish_progress("report_writing")
             async with asyncio.timeout_at(deadline):
-                output = await report_writing_deep.run(
-                    report_writing_deep.ReportWritingInput(
+                output = await meeting_report.run(
+                    ReportWritingInput(
                         transcript=snapshot["source"]["transcript"],
                         evidence=evidence,
                         crm_context=crm,
@@ -103,7 +106,7 @@ async def run(snapshot: dict[str, Any]) -> MeetingProcessingOutput:
 
     async def analyze_deals():
         publish_progress("features")
-        result = await meeting_analysis.run_for_deals(
+        result = await features.run_for_deals(
             evidence, crm, timeout=max(0.0, deadline - loop.time())
         )
         publish_progress("analysis_complete")
@@ -149,7 +152,7 @@ async def run_evidence(snapshot: dict[str, Any]) -> MeetingEvidenceOutput:
 
     async with asyncio.timeout_at(deadline):
         publish_progress("content_analysis")
-        evidence = await meeting_content_analysis.run(
+        evidence = await content.run(
             {key: snapshot[key] for key in ("source", "deals", "crm_context")},
             on_lookup=record_lookup,
         )
@@ -171,10 +174,10 @@ async def run_evidence(snapshot: dict[str, Any]) -> MeetingEvidenceOutput:
     return MeetingEvidenceOutput(evidence=evidence, crm_context=crm, context_lookups=additional)
 
 
-async def run_report(snapshot: dict[str, Any]) -> report_writing_deep.FreeformMeetingReports:
+async def run_report(snapshot: dict[str, Any]) -> FreeformMeetingReports:
     evidence = MeetingEvidenceLedger.model_validate(snapshot["evidence"])
-    return await report_writing_deep.run(
-        report_writing_deep.ReportWritingInput(
+    return await meeting_report.run(
+        ReportWritingInput(
             transcript=snapshot["source"]["transcript"],
             evidence=evidence,
             crm_context=copy.deepcopy(snapshot.get("crm_context") or {}),
@@ -183,9 +186,9 @@ async def run_report(snapshot: dict[str, Any]) -> report_writing_deep.FreeformMe
     )
 
 
-async def run_analysis(snapshot: dict[str, Any]) -> list[meeting_analysis.DealFeatureResult]:
+async def run_analysis(snapshot: dict[str, Any]) -> list[features.DealFeatureResult]:
     evidence = MeetingEvidenceLedger.model_validate(snapshot["evidence"])
-    return await meeting_analysis.run_for_deals(
+    return await features.run_for_deals(
         evidence,
         copy.deepcopy(snapshot.get("crm_context") or {}),
         timeout=RUN_TIMEOUT_SECONDS,

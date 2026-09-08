@@ -165,6 +165,7 @@ export default function useMeetingDraft(
 ) {
   const initializedAgendaId = useRef<string | null>(null)
   const [transcript, setTranscript] = useState('')
+  const [reportDate, setReportDate] = useState<string>()
   const [salesDealIds, setSalesDealIds] = useState<string[]>([])
   const [draftsByDeal, setDraftsByDeal] = useState<Record<string, DealDraftState>>({})
   const [meetingResult, setMeetingResult] = useState<MeetingResultState | null>(null)
@@ -210,6 +211,7 @@ export default function useMeetingDraft(
         ]),
       ),
     )
+    setReportDate(savedReport?.date)
     setMeetingResult(result)
     setProcessingProgress(null)
     setAttachmentError(null)
@@ -275,6 +277,7 @@ export default function useMeetingDraft(
   const restoreGenerationInput = useCallback(
     (input: ReportGenerationInput) => {
       const restored = meetingGenerationSeedOf(input)
+      setReportDate(restored.reportDate)
       setTranscript(restored.transcript)
       setAttachments(restored.attachments)
       setAttachmentError(null)
@@ -389,6 +392,8 @@ export default function useMeetingDraft(
   }, [])
 
   return {
+    reportDate,
+    setReportDate,
     transcript,
     setTranscript: changeTranscript,
     attachments: files.attachments,

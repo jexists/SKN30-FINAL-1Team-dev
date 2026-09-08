@@ -14,7 +14,7 @@ import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod } from './periods'
 import { activityLink } from './sources'
-import { canEditPeriodReport, toReport } from './useDailyReports'
+import { canEditPeriodReport, toReport, useRelatedReports } from './useDailyReports'
 
 import styles from './Detail.module.scss'
 
@@ -26,6 +26,7 @@ export default function Detail() {
   )
 
   const report = item ? toReport(item) : undefined
+  const related = useRelatedReports(report?.kind ?? '일일', report?.date ?? '', !!report)
   // 보고서는 쓴 사람만 고칩니다. 팀장이 팀원의 보고서를 열어도 고치는 길은 서지 않습니다.
   const { memberId } = useCurrentUser()
 
@@ -95,16 +96,25 @@ export default function Detail() {
         </article>
 
         <article className={styles.panel}>
-          <h2>포함된 활동</h2>
-          {/* 무엇을 근거로 썼는지 되짚을 수 있게 원본 보고서로 가는 길을 답니다. */}
-          <ActivityList
-            activities={report.activities}
-            readOnly
-            renderAside={(item) => {
-              const to = activityLink(item)
-              return to ? <Link to={to}>원본 보기</Link> : null
-            }}
-          />
+          <h2>관련 보고서</h2>
+          {related.loading ? (
+            <p role="status">관련 보고서를 불러오는 중입니다.</p>
+          ) : related.error ? (
+            <>
+              <p role="alert">{related.error}</p>
+              <Button variant="outline" onClick={related.reload}>
+                다시 시도
+              </Button>
+            </>
+          ) : (
+            <ActivityList
+              activities={related.activities}
+              renderAside={(item) => {
+                const to = activityLink(item)
+                return to ? <Link to={to}>원본 보기</Link> : null
+              }}
+            />
+          )}
         </article>
 
         <article className={styles.panel}>

@@ -303,7 +303,9 @@ export default function Compose() {
     (dealId) => draft.draftsByDeal[dealId]?.reportId !== undefined,
   )
   const busy = pending || generating || recovering || submitting
-  const when = `${fmtDot(parseISO(item.date))} ${item.time}`
+  const meetingDate = savedReport?.date ?? draft.reportDate ?? item.date
+  const meetingTime = savedReport?.time ?? item.time
+  const when = `미팅일 ${fmtDot(parseISO(meetingDate))} ${meetingTime}`
 
   const dealRef = (dealId: string): MeetingDealRef => {
     const deal = deals.deals.find((one) => one.id === dealId)
@@ -333,8 +335,8 @@ export default function Compose() {
       version: savedReport?.version,
       statusCode: savedReport?.apiStatus,
       agendaId: item.id,
-      date: item.date,
-      time: item.time,
+      date: meetingDate,
+      time: meetingTime,
       hospital: item.hospital,
       dept: item.dept,
       contact: item.contact,
@@ -382,6 +384,7 @@ export default function Compose() {
     recoveryAbort.current?.abort()
     const targets = [...draft.salesDealIds]
     const payload = payloadForMeeting()
+    draft.setReportDate(payload.date)
     const attempt = idempotencyAttemptFor(generationAttempt.current, payload)
     generationAttempt.current = attempt
     const controller = new AbortController()
@@ -564,7 +567,7 @@ export default function Compose() {
               </div>
 
               <MeetingInfoPanel
-                item={item}
+                item={{ ...item, date: meetingDate, time: meetingTime }}
                 deals={deals.deals}
                 dealsLoading={deals.loading}
                 dealsError={deals.error}
@@ -621,6 +624,7 @@ export default function Compose() {
           <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
             <div className={styles.saveCopy}>
               <strong>미팅 보고서</strong>
+              <p>미팅일 {fmtDot(parseISO(meetingDate))} · 작성 완료 후에도 이 날짜로 저장됩니다.</p>
               <p>
                 {draft.salesDealIds.length > 0
                   ? `공통 기록과 딜 ${draft.salesDealIds.length}건을 한 문서로 저장합니다.`

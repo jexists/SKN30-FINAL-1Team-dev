@@ -43,7 +43,7 @@ export default function MeetingInfoPanel({
         <div className={styles.context}>
           <strong>{item.hospital || '회사 미지정'}</strong>
           <span>
-            {item.contact || '담당자 미지정'} · {fmtDot(parseISO(item.date))} {item.time}
+            {item.contact || '담당자 미지정'} · 미팅일 {fmtDot(parseISO(item.date))} {item.time}
           </span>
         </div>
         <details className={styles.disclosure}>
