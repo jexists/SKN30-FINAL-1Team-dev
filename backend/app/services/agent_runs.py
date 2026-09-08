@@ -133,6 +133,9 @@ def _prompt_version(agent_code: str) -> str:
 
 
 def _request_hash(snapshot: dict[str, Any]) -> str:
+    # An omitted new optional field must keep pre-deployment idempotency hashes stable.
+    if snapshot.get("schedule_constraints") is None:
+        snapshot = {key: value for key, value in snapshot.items() if key != "schedule_constraints"}
     payload = json.dumps(
         snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
@@ -226,12 +229,24 @@ async def _build_run_input(
 
     if payload.agent_code == "contract_management_next_meeting":
         input_snapshot = await contract_schedule_snapshots.build_next_meeting_snapshot(
-            db, member, payload.customer_company_id
+            db,
+            member,
+            payload.customer_company_id,
+            **({"sales_deal_id": payload.sales_deal_id} if payload.sales_deal_id else {}),
         )
+        if payload.schedule_constraints is not None:
+            input_snapshot["schedule_constraints"] = payload.schedule_constraints.model_dump(
+                mode="json", exclude_none=True,
+            )
+        deal_ids = [deal["id"] for deal in input_snapshot.get("sales_deals", [])]
+        target_id = payload.sales_deal_id or (deal_ids[0] if len(deal_ids) == 1 else None)
         return (
             contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
             input_snapshot,
-            {"customer_company_id": str(payload.customer_company_id)},
+            {
+                "customer_company_id": str(payload.customer_company_id),
+                **({"sales_deal_id": str(target_id)} if target_id else {}),
+            },
             None,
         )
 
@@ -528,6 +543,18 @@ async def create(
                 db, member, payload.parent_run_id, expected_agent_code=expected_parent
             )
             parent_run_id = parent.id
+            if payload.agent_code == "schedule_management" and "schedule_status" in (
+                parent.output_snapshot or {}
+            ):
+                selected = (parent.output_snapshot or {}).get("schedule_management_run_id")
+                child = await db.get(AgentRun, UUID(selected)) if selected else None
+                if (
+                    child is None or child.parent_run_id != parent.id
+                    or child.team_id != member.team_id or child.status_code != "completed"
+                    or (child.source_refs or {}).get("sales_deal_id") != str(payload.sales_deal_id)
+                ):
+                    raise HTTPException(409, "delegated_schedule_not_available")
+                return _run_read(child, requester_id), None
     except Exception:
         await db.rollback()
         raise
@@ -670,6 +697,7 @@ async def prepare_claimed(
     # 여기서 만든 입력을 DB 에만 두면 호출자가 든 run 은 빈 스냅샷을 계속 들고 있다.
     # evidence() 처럼 입력을 보고 지표를 세는 쪽이 늘 0 을 기록하게 된다.
     run.input_snapshot = input_snapshot
+    run.source_refs = source_refs
     return run.agent_code, input_snapshot, run.requested_by_member_id
 
 

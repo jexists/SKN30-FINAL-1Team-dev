@@ -31,7 +31,7 @@ def _now() -> datetime:
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
 SELECT_CANDIDATES_PROMPT_VERSION = "contract_management.select_candidates.v2"
-PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v3"
+PROPOSE_NEXT_MEETING_PROMPT_VERSION = "contract_management.propose_next_meeting.v4"
 GENERATE_BRIEFING_PROMPT_VERSION = "contract_management.generate_briefing.v5"
 
 SELECT_CANDIDATES_SYSTEM_PROMPT = """너는 B2B 영업·계약관리를 보조하는 AI다.
@@ -189,6 +189,11 @@ class NextMeetingProposalOutput(BaseModel):
     missing_information: list[str] = Field(default_factory=list, max_length=50)
     recommended_actions: list[str] = Field(default_factory=list, max_length=50)
     next_meeting_suggestion: NextMeetingSuggestion | None = None
+    schedule_status: Literal["not_requested", "candidates_found", "no_candidates", "failed"] = (
+        "not_requested"
+    )
+    schedule_management_run_id: str | None = None
+    schedule_reason_code: str | None = None
 
 
 class SelectedNextMeetingCandidate(BaseModel):

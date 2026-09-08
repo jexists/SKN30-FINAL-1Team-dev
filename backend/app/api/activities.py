@@ -571,6 +571,8 @@ async def create_activity(
     db: DbSession,
 ) -> ActivityRead:
     try:
+        # Share the owner lock with delegated approval and schedule edits.
+        await db.get(Member, member.id, with_for_update=True)
         contact_info = (
             None
             if payload.customer_contact_id is None
@@ -601,6 +603,7 @@ async def create_activity(
             db, member, values["customer_company_id"], contact_info
         )
         if schedule_management_run_id is not None:
+            await _validate_delegated_approval(db, member, schedule_management_run_id, payload)
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
             await _claim_suggestion(db, member, schedule_management_run_id)
@@ -721,6 +724,83 @@ async def _conflict_warning(
     return f"이 시간에 이미 다른 일정이 있습니다: {when} {title}"
 
 
+async def _validate_delegated_approval(db, member, run_id, payload) -> None:
+    """New delegated candidates must match the actual selected result at approval time."""
+    run = await db.get(AgentRun, run_id)
+    if run is None or not run.delegation_key:
+        return  # Preserve the independent/legacy schedule flow.
+    if run.team_id != member.team_id or run.status_code != "completed":
+        raise HTTPException(409, "schedule_candidate_not_usable")
+    deal = await db.get(SalesDeal, payload.sales_deal_id) if payload.sales_deal_id else None
+    if (
+        deal is None
+        or deal.team_id != member.team_id
+        or deal.owner_member_id != member.id
+        or deal.deleted_at is not None
+        or str(deal.id) != run.source_refs.get("sales_deal_id")
+        or payload.customer_company_id != deal.customer_company_id
+    ):
+        raise HTTPException(404, "schedule_candidate_not_found")
+    parent = await db.get(AgentRun, run.parent_run_id)
+    if (
+        parent is None
+        or parent.team_id != member.team_id
+        or parent.status_code != "completed"
+        or (parent.output_snapshot or {}).get("schedule_management_run_id") != str(run.id)
+    ):
+        raise HTTPException(409, "schedule_candidate_not_selected")
+    if payload.all_day or payload.starts_at <= datetime.now(UTC):
+        raise HTTPException(409, "schedule_candidate_not_usable")
+    from app.schemas.schedule_delegation import SafeScheduleCandidate
+
+    candidates = [
+        SafeScheduleCandidate.model_validate(c)
+        for c in (run.output_snapshot or {}).get("schedule_candidates", [])
+    ]
+    if not any(
+        c.starts_at == payload.starts_at and c.ends_at == payload.ends_at for c in candidates
+    ):
+        raise HTTPException(409, "schedule_candidate_mismatch")
+    # Serialize approvals for this owner. The query below uses current activity rows.
+    await db.execute(select(Member.id).where(Member.id == member.id).with_for_update())
+    from app.agents.schedule_management import ScheduleCandidate, _conflicts_for
+
+    windows = (
+        (
+            await db.execute(
+                select(Activity).where(
+                    Activity.team_id == member.team_id,
+                    Activity.owner_member_id == member.id,
+                    Activity.deleted_at.is_(None),
+                    Activity.starts_at < payload.ends_at + timedelta(days=1),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    candidate = ScheduleCandidate(
+        candidate_id="approval",
+        title="미팅",
+        priority=1,
+        starts_at=payload.starts_at.isoformat(),
+        ends_at=payload.ends_at.isoformat(),
+    )
+    if _conflicts_for(
+        candidate,
+        [
+            {
+                "id": str(a.id),
+                "starts_at": a.starts_at.isoformat(),
+                "ends_at": a.ends_at.isoformat() if a.ends_at else None,
+                "all_day": a.all_day,
+            }
+            for a in windows
+        ],
+    ):
+        raise HTTPException(409, "schedule_candidate_conflict")
+
+
 async def _claim_suggestion(
     db: AsyncSession, member: Member, schedule_management_run_id: UUID
 ) -> None:
@@ -776,6 +856,7 @@ async def update_activity(
 ) -> ActivityRead:
     try:
         activity = await _locked_activity(db, member, activity_id)
+        await db.get(Member, activity.owner_member_id, with_for_update=True)
         values = payload.model_dump(exclude_unset=True)
         if {"customer_contact_id", "customer_company_id", "sales_deal_id"} & values.keys():
             # 담당자·고객사·딜 중 하나만 바꿔도 셋의 짝이 어긋날 수 있어 함께 다시 정한다.

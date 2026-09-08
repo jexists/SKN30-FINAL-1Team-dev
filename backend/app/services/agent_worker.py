@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from typing import get_args
 from uuid import UUID, uuid4
 
+from langsmith import tracing_context
 from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +46,8 @@ REQUIRED_SCHEMA = {
         "output_tokens",
         "total_tokens",
         "created_at",
+        "delegation_state",
+        "delegation_key",
     },
     "report": set(),
     "report_deal": set(),
@@ -80,7 +83,7 @@ async def _fail_exhausted_leases(now: datetime) -> None:
             .where(
                 *_runnable_conditions(now),
                 AgentRun.status_code == "running",
-                AgentRun.request_hash.is_not(None),
+                or_(AgentRun.request_hash.is_not(None), AgentRun.delegation_key.is_not(None)),
                 AgentRun.lease_expires_at <= now,
                 AgentRun.attempt_count >= MAX_ATTEMPTS,
             )
@@ -94,6 +97,23 @@ async def _fail_exhausted_leases(now: datetime) -> None:
                 finished_at=now,
             )
         )
+        await session.commit()
+    await _cancel_terminal_delegations(now)
+
+
+async def _cancel_terminal_delegations(now: datetime) -> None:
+    """Do not leave inline children running after their parent permanently ends."""
+    parent_ids = select(AgentRun.id).where(
+        AgentRun.agent_code == "contract_management_next_meeting",
+        AgentRun.status_code.in_(("failed", "cancelled", "completed")),
+    )
+    async with agent_runs.get_sessionmaker()() as session:
+        await session.execute(update(AgentRun).where(
+            AgentRun.delegation_key.is_not(None), AgentRun.parent_run_id.in_(parent_ids),
+            AgentRun.status_code.in_(("queued", "running")),
+        ).values(status_code="cancelled", current_stage_code="cancelled",
+                 error_code="delegation_parent_ended", error_message="delegation_parent_ended",
+                 lease_owner=None, lease_expires_at=None, finished_at=now))
         await session.commit()
 
 
@@ -150,19 +170,20 @@ async def claim(lease_owner: str, run_id: UUID | None = None) -> AgentRun | None
         return run
 
 
-async def _heartbeat(run_id: UUID, lease_owner: str) -> None:
+async def _heartbeat(run_id: UUID, lease_owner: str, owner_task=None) -> None:
     while True:
         await asyncio.sleep(HEARTBEAT_SECONDS)
         now = datetime.now(UTC)
         try:
             sessionmaker = agent_runs.get_sessionmaker()
             async with sessionmaker() as session:
-                await session.execute(
+                result = await session.execute(
                     update(AgentRun)
                     .where(
                         AgentRun.id == run_id,
                         AgentRun.status_code == "running",
                         AgentRun.lease_owner == lease_owner,
+                        AgentRun.lease_expires_at > now,
                     )
                     .values(
                         heartbeat_at=now,
@@ -170,6 +191,9 @@ async def _heartbeat(run_id: UUID, lease_owner: str) -> None:
                     )
                 )
                 await session.commit()
+                if owner_task is not None and getattr(result, "rowcount", 1) == 0:
+                    owner_task.cancel()
+                    return
         except asyncio.CancelledError:
             raise
         except Exception as error:
@@ -275,6 +299,17 @@ async def _complete(
             AgentRun.status_code == "running",
             AgentRun.lease_owner == lease_owner,
         ]
+        if run.delegation_key or run.delegation_state:
+            conditions.append(AgentRun.lease_expires_at > now)
+        if run.delegation_key:
+            parent = await session.get(AgentRun, run.parent_run_id, with_for_update=True)
+            if (
+                parent is None
+                or parent.status_code != "running"
+                or parent.lease_expires_at is None
+                or parent.lease_expires_at <= now
+            ):
+                raise RuntimeError("agent_run_lease_lost")
         if run.agent_code in agent_runs.REPORT_GENERATION_CODES:
             conditions.extend(
                 (
@@ -294,6 +329,10 @@ async def _complete(
             await _enqueue_meeting_children(session, run, output)
         if run.agent_code == "meeting_analysis" and status_code in {"completed", "partial"}:
             await _persist_late_meeting_analysis(session, run, output, parent=parent)
+        if run.agent_code == "contract_management_next_meeting" and run.delegation_state:
+            from app.services.contract_next_meeting_pipeline import publish_delegated
+
+            await publish_delegated(session, run, output)
         await session.commit()
         for field, value in values.items():
             setattr(run, field, value)
@@ -531,7 +570,7 @@ async def _fail(
         # request_hash가 없는 구 system 실행은 범용 worker가 다시 선점하지 않는다.
         # 재시도 상태로 돌려놓으면 계약 pipeline이 영원히 queued에 묶인다.
         retry = (
-            run.request_hash is not None
+            (run.request_hash is not None or run.delegation_key is not None)
             and agent_runs.is_transient_error(error_code)
             and run.attempt_count < MAX_ATTEMPTS
         )
@@ -578,7 +617,19 @@ async def _fail(
 
 
 async def run_claimed(run: AgentRun, lease_owner: str) -> None:
-    heartbeat = asyncio.create_task(_heartbeat(run.id, lease_owner))
+    # A lost lease cancels only this execution, not the long-lived worker loop.
+    task = asyncio.create_task(_run_claimed_work(run, lease_owner))
+    try:
+        await task
+    except asyncio.CancelledError:
+        if asyncio.current_task().cancelling():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise
+
+
+async def _run_claimed_work(run: AgentRun, lease_owner: str) -> None:
+    heartbeat = asyncio.create_task(_heartbeat(run.id, lease_owner, asyncio.current_task()))
     usage: dict[str, int] | None = None
     try:
         try:
@@ -605,7 +656,20 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
                     agent_code, input_snapshot, requester_id = await agent_runs.prepare_claimed(
                         run, lease_owner
                     )
-                    output = await agent_runs.dispatch(agent_code, input_snapshot, requester_id)
+                    if agent_code == "contract_management_next_meeting":
+                        from app.services.contract_schedule_delegation import run as delegate
+
+                        with tracing_context(enabled=False):
+                            output = await delegate(run, lease_owner, agent_runs.get_sessionmaker())
+                    else:
+                        with (
+                            tracing_context(enabled=False)
+                            if run.delegation_key
+                            else tracing_context()
+                        ):
+                            output = await agent_runs.dispatch(
+                                agent_code, input_snapshot, requester_id
+                            )
                     await _complete(run, lease_owner, output, usage)
         except Exception as error:
             error_code = agent_runs.safe_error_code(error)

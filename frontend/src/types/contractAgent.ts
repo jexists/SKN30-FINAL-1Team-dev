@@ -24,11 +24,9 @@ export interface ContractRisk {
 
 export interface ScheduleCandidate {
   candidate_id: string
-  title: string
   starts_at: string
   ends_at: string
   priority: number
-  reason: string
 }
 
 /** 브리핑 본문이 인용한 근거 하나. id 는 종류에 따라 딜·보고서·문서의 id 다. */

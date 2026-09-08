@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
     llm_timeout_seconds: float = Field(default=180.0, gt=0, le=300)
+    contract_langsmith_enabled: bool = False
+    langsmith_api_key: SecretStr = SecretStr("")
+    langsmith_project: str = "salesluv-contract-schedule"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    contract_delegation_timeout_seconds: float = Field(default=900, gt=0, le=1800)
 
     # 문서 청크 임베딩. 비워 두면 RAG는 출처 보존 키워드 검색으로 동작한다.
     embedding_provider: Literal["none", "external", "local"] = "none"

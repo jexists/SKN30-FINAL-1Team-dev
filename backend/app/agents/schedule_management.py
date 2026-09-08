@@ -3,6 +3,7 @@
 import json
 from datetime import date, datetime, time, timedelta
 from typing import Any, Literal
+from uuid import NAMESPACE_URL, uuid5
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -313,6 +314,24 @@ def _postprocess(
             continue
         if not _within_preferred_dates(candidate, preferred_dates):
             continue
+        if snapshot.get("strict_delegation"):
+            start, end = _parse(candidate.starts_at), _parse(candidate.ends_at)
+            if (
+                start.tzinfo is None
+                or end.tzinfo is None
+                or start < _parse(snapshot["preferred_starts_at"])
+                or end > _parse(snapshot["preferred_ends_at"])
+            ):
+                continue
+            candidate = candidate.model_copy(
+                update={
+                    "title": "미팅",
+                    "reason": "",
+                    "candidate_id": str(
+                        uuid5(NAMESPACE_URL, f"{start.isoformat()}/{end.isoformat()}")
+                    ),
+                }
+            )
         conflicts = _conflicts_for(candidate, activities)
         if conflicts:
             for conflict in conflicts:
@@ -321,7 +340,7 @@ def _postprocess(
         kept.append(candidate)
     return ScheduleManagementOutput(
         schedule_candidates=_dedupe_and_cap(kept),
-        conflicts=list(conflicts_by_activity.values()),
+        conflicts=[] if snapshot.get("strict_delegation") else list(conflicts_by_activity.values()),
     )
 
 

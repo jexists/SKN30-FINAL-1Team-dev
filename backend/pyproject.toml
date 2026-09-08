@@ -27,6 +27,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.51",
     "tzdata>=2026.3",
     "uvicorn[standard]>=0.52.1",
+    "langsmith==0.11.2",
 ]
 
 [project.optional-dependencies]

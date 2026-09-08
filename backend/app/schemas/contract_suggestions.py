@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.schemas.schedule_delegation import SafeScheduleCandidate
+
 
 class ContractNextMeetingSuggestionRead(BaseModel):
     """캘린더 "AI 추천 일정" 패널이 그대로 그리는 값. LLM을 다시 부르지 않고 저장된 값만 담는다."""
@@ -20,7 +22,7 @@ class ContractNextMeetingSuggestionRead(BaseModel):
     reason: str
     risks: list[dict[str, Any]]
     schedule_management_run_id: UUID
-    schedule_candidates: list[dict[str, Any]]
+    schedule_candidates: list[SafeScheduleCandidate]
     status_code: str
     created_at: datetime
     updated_at: datetime

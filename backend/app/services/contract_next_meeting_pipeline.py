@@ -18,7 +18,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents import contract_management, schedule_management
+from app.agents import contract_management
 from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun, ContractNextMeetingSuggestion
@@ -30,6 +30,79 @@ from app.services import contract_schedule_snapshots
 # 같은 딜에 트리거가 몰려도(예: 칸반에서 단계를 연달아 옮김) 이 시간 안에는 다시 돌리지
 # 않는다. 트리거 한 번이 LLM 호출 두 번이라 그대로 두면 비용이 그대로 곱해진다.
 _COOLDOWN = timedelta(minutes=10)
+
+
+async def publish_delegated(session, run, output) -> None:
+    """Same transaction as parent completion: no lost card after a worker restart."""
+    target = (run.source_refs or {}).get("sales_deal_id")
+    if output.next_meeting_suggestion is not None:
+        target = output.next_meeting_suggestion.sales_deal_id
+    if target is None:
+        deals = run.input_snapshot.get("sales_deals", [])
+        target = deals[0]["id"] if len(deals) == 1 else None
+    if target is None:
+        return
+    deal_id = UUID(target)
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {"key": f"contract_next_meeting:{deal_id}"},
+    )
+    deal = await _open_deal(session, deal_id)
+    if deal is None or deal.team_id != run.team_id:
+        return
+    newer = (
+        await session.execute(
+            select(AgentRun.id)
+            .where(
+                AgentRun.agent_code == "contract_management_next_meeting",
+                AgentRun.team_id == run.team_id,
+                AgentRun.source_refs["sales_deal_id"].astext == str(deal_id),
+                AgentRun.status_code == "completed",
+                AgentRun.created_at > run.created_at,
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if newer is not None:
+        return
+    existing = (
+        await session.execute(
+            select(ContractNextMeetingSuggestion)
+            .where(
+                ContractNextMeetingSuggestion.sales_deal_id == deal_id,
+                ContractNextMeetingSuggestion.team_id == run.team_id,
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    if output.schedule_status == "failed":
+        return
+    now = datetime.now(UTC)
+    if output.schedule_status != "candidates_found":
+        if existing is not None and existing.status_code == "pending":
+            existing.status_code = "dismissed"
+            existing.updated_at = now
+        return
+    child_id = UUID(output.schedule_management_run_id)
+    if existing is not None:
+        # Replaying finalization must not reopen an already accepted/dismissed result.
+        if existing.schedule_management_run_id == child_id:
+            return
+        existing.schedule_management_run_id = child_id
+        existing.status_code = "pending"
+        existing.updated_at = now
+    else:
+        session.add(
+            ContractNextMeetingSuggestion(
+                id=uuid4(),
+                team_id=run.team_id,
+                sales_deal_id=deal_id,
+                schedule_management_run_id=child_id,
+                status_code="pending",
+                created_at=now,
+                updated_at=now,
+            )
+        )
 
 
 def queue(background: BackgroundTasks, sales_deal_id: UUID, source_refs: dict[str, str]) -> None:
@@ -74,11 +147,12 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
                 id=next_meeting_run_id,
                 team_id=team_id,
                 parent_run_id=None,
-                requested_by_member_id=None,
+                requested_by_member_id=owner.id,
                 agent_code="contract_management_next_meeting",
                 trigger_code="system",
                 idempotency_key=None,
                 status_code="queued",
+                request_hash="system-contract-delegation-v1",
                 llm_model_name=settings.llm_model,
                 prompt_version=contract_management.PROPOSE_NEXT_MEETING_PROMPT_VERSION,
                 # 스냅샷도 이 딜 하나로 좁혀서 넣는다(build_next_meeting_snapshot 의
@@ -99,68 +173,6 @@ async def _run_pipeline(sales_deal_id: UUID, source_refs: dict[str, str]) -> Non
         await session.commit()
 
     await agent_run_service.execute(next_meeting_run_id)
-
-    async with sessionmaker() as session:
-        next_meeting_run = await session.get(AgentRun, next_meeting_run_id)
-        if next_meeting_run is None or next_meeting_run.status_code != "completed":
-            return
-        suggestion = (next_meeting_run.output_snapshot or {}).get("next_meeting_suggestion")
-        if not suggestion:
-            return
-        if not _answers_this_deal(suggestion, sales_deal_id):
-            return
-
-        deal = await _open_deal(session, sales_deal_id)
-        if deal is None:
-            return
-        owner = await _member(session, deal.owner_member_id)
-        if owner is None:
-            return
-        try:
-            schedule_input = await contract_schedule_snapshots.build_schedule_snapshot(
-                session, owner, sales_deal_id, next_meeting_run, None, None, None
-            )
-        except HTTPException:
-            return
-
-        schedule_run_id = uuid4()
-        team_id = deal.team_id
-        session.add(
-            AgentRun(
-                id=schedule_run_id,
-                team_id=team_id,
-                parent_run_id=next_meeting_run.id,
-                requested_by_member_id=None,
-                agent_code="schedule_management",
-                trigger_code="system",
-                idempotency_key=None,
-                status_code="queued",
-                llm_model_name=settings.llm_model,
-                prompt_version=schedule_management.PROMPT_VERSION,
-                source_refs={
-                    "sales_deal_id": str(sales_deal_id),
-                    "parent_run_id": str(next_meeting_run.id),
-                },
-                input_snapshot=schedule_input,
-                output_snapshot=None,
-                evidence=None,
-                error_message=None,
-                started_at=None,
-                finished_at=None,
-            )
-        )
-        await session.commit()
-
-    await agent_run_service.execute(schedule_run_id)
-
-    async with sessionmaker() as session:
-        schedule_run = await session.get(AgentRun, schedule_run_id)
-        if schedule_run is None or schedule_run.status_code != "completed":
-            return
-        candidates = (schedule_run.output_snapshot or {}).get("schedule_candidates") or []
-        if not candidates:
-            return
-        await _upsert_suggestion(session, team_id, sales_deal_id, schedule_run_id)
 
 
 def _answers_this_deal(suggestion: dict, sales_deal_id: UUID) -> bool:

@@ -29,6 +29,10 @@ class AgentRun(Base):
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     request_hash: Mapped[str | None]
+    delegation_state: Mapped[Any] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    delegation_key: Mapped[str | None]
     scope_key: Mapped[str | None]
     source_refs: Mapped[Any] = mapped_column(JSONB, nullable=False)
     input_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)

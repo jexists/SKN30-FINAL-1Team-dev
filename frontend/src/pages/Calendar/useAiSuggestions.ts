@@ -28,7 +28,7 @@ function toOptions(item: ContractNextMeetingSuggestion): AiSuggestionOption[] {
         dur: durationLabel(candidate.starts_at, candidate.ends_at),
         startsAt: candidate.starts_at,
         endsAt: candidate.ends_at,
-        title: candidate.title,
+        title: `${item.sales_deal_title} 미팅`,
         priority: candidate.priority,
       }
     })

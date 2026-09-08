@@ -60,6 +60,10 @@ class _Result:
 
 
 class _Db:
+    async def get(self, model, key, **kwargs):
+        # Legacy fixtures have no delegated AgentRun. Dedicated tests cover the new gate.
+        return None
+
     def __init__(self, *results: _Result, flush_error: Exception | None = None):
         self.results = list(results)
         self.flush_error = flush_error

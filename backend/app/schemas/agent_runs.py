@@ -24,6 +24,7 @@ from app.schemas.reports import (
     validate_report_attachments,
     validate_report_json_size,
 )
+from app.schemas.schedule_delegation import ScheduleConstraints
 
 AgentCode = Literal[
     "report_writing",
@@ -62,6 +63,7 @@ _REQUIRED_FIELDS: dict[str, set[str]] = {
     "schedule_management": {"sales_deal_id"},
 }
 _OPTIONAL_FIELDS: dict[str, set[str]] = {
+    "contract_management_next_meeting": {"sales_deal_id", "schedule_constraints"},
     # AI 제안(일정관리 실행)을 승인해서 만든 일정만 부모를 기록한다. 캘린더 직접 입력이나
     # 팀장 대리 입력처럼 AI 제안을 거치지 않은 일정은 부모 없이 activity_id만으로 만든다.
     "contract_management_briefing": {"parent_run_id"},
@@ -73,6 +75,7 @@ _OPTIONAL_FIELDS: dict[str, set[str]] = {
     },
 }
 _IDENTIFYING_FIELDS = {
+    "schedule_constraints",
     "customer_company_id",
     "sales_deal_id",
     "activity_id",
@@ -102,6 +105,7 @@ class AgentRunCreate(BaseModel):
     duration_minutes: int | None = Field(default=None, ge=5, le=480)
     # 같은 키로 다시 보내면 새 실행을 만들지 않고 기존 실행을 돌려준다.
     idempotency_key: UUID
+    schedule_constraints: ScheduleConstraints | None = None
 
     @model_validator(mode="after")
     def _check_identifying_fields(self):
