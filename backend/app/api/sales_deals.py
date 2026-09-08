@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 from typing import Annotated
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -994,6 +994,7 @@ async def list_products(
         pattern = _contains(page.q)
         matches = [
             Product.name.ilike(pattern, escape="\\"),
+            Product.spec.ilike(pattern, escape="\\"),
             Product.memo.ilike(pattern, escape="\\"),
         ]
         if page.q_category_code is not None:
@@ -1064,6 +1065,7 @@ async def create_product(
         category_code=payload.category_code,
         unit_price=payload.unit_price,
         shelf_life_months=payload.shelf_life_months,
+        spec=payload.spec,
         memo=payload.memo,
         image_storage_key=None,
     )
@@ -1253,15 +1255,29 @@ async def list_sales_deals(
         scope.append(SalesDeal.contract_ends_on >= page.contract_ends_from)
     if page.contract_ends_to is not None:
         scope.append(SalesDeal.contract_ends_on <= page.contract_ends_to)
-    basis = {
-        "opened": SalesDeal.opened_on,
-        "quote_issued": func.coalesce(SalesDeal.quote_issued_on, SalesDeal.opened_on),
-        "contract_signed": func.coalesce(SalesDeal.contract_signed_on, SalesDeal.opened_on),
-    }[page.date_basis]
-    if page.start_date is not None:
-        scope.append(basis >= page.start_date)
-    if page.end_date is not None:
-        scope.append(basis <= page.end_date)
+    # 최근 수정일 기준만 date 가 아니라 timestamptz 다. 서울 기준 하루의 경계를 파이썬에서
+    # 만들어 비교한다. SQL 에서 날짜로 자르면 DB 세션 타임존에 끌려간다.
+    if page.date_basis == "updated":
+        if page.start_date is not None:
+            scope.append(
+                SalesDeal.updated_at >= datetime.combine(page.start_date, time.min, tzinfo=_SEOUL)
+            )
+        if page.end_date is not None:
+            # 그날 오후에 고친 딜이 빠지지 않도록 다음 날 0시 앞까지 본다.
+            scope.append(
+                SalesDeal.updated_at
+                < datetime.combine(page.end_date + timedelta(days=1), time.min, tzinfo=_SEOUL)
+            )
+    else:
+        basis = {
+            "opened": SalesDeal.opened_on,
+            "quote_issued": func.coalesce(SalesDeal.quote_issued_on, SalesDeal.opened_on),
+            "contract_signed": func.coalesce(SalesDeal.contract_signed_on, SalesDeal.opened_on),
+        }[page.date_basis]
+        if page.start_date is not None:
+            scope.append(basis >= page.start_date)
+        if page.end_date is not None:
+            scope.append(basis <= page.end_date)
     if page.q is not None:
         pattern = _contains(page.q)
         scope.append(
@@ -1316,7 +1332,14 @@ async def list_sales_deals(
     rows_result = await db.execute(
         _joined_select(*_read_entities())
         .where(*rows_scope)
-        .order_by(SalesDeal.opened_on.desc(), SalesDeal.id)
+        # 목록에 보이는 날짜와 행 순서가 어긋나면 뒤죽박죽으로 읽힌다. 기간을 건 기준을
+        # 그대로 정렬에도 쓴다. 견적·계약 목록은 지금대로 시작일 순이다.
+        .order_by(
+            SalesDeal.updated_at.desc()
+            if page.date_basis == "updated"
+            else SalesDeal.opened_on.desc(),
+            SalesDeal.id,
+        )
         .offset(page.skip)
         .limit(page.limit)
     )

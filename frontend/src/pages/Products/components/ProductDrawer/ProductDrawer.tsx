@@ -110,11 +110,20 @@ export default function ProductDrawer({ product, busy, onEdit, onDelete, onClose
       </dl>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>메모</h3>
-        {product.memo === null || product.memo === '' ? (
-          <p className={styles.empty}>남긴 메모가 없습니다.</p>
+        <h3 className={styles.heading}>규격</h3>
+        {product.spec === null || product.spec === '' ? (
+          <p className={styles.empty}>적어 둔 규격이 없습니다.</p>
         ) : (
-          <p className={styles.memo}>{product.memo}</p>
+          <p className={styles.longText}>{product.spec}</p>
+        )}
+      </section>
+
+      <section className={styles.section}>
+        <h3 className={styles.heading}>비고</h3>
+        {product.memo === null || product.memo === '' ? (
+          <p className={styles.empty}>남긴 비고가 없습니다.</p>
+        ) : (
+          <p className={styles.longText}>{product.memo}</p>
         )}
       </section>
     </Drawer>

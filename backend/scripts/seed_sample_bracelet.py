@@ -2008,7 +2008,7 @@ class Seeder:
             raise SystemExit(f"기본 영업 파이프라인에 없는 단계입니다: {missing}")
 
     async def seed_products(self) -> None:
-        for name, category, price, shelf_life, memo in PRODUCTS:
+        for name, category, price, shelf_life, spec in PRODUCTS:
             product_id = self.sid("product", name)
             self.products[name] = (product_id, price)
             await upsert(
@@ -2022,7 +2022,8 @@ class Seeder:
                     "category_code": category,
                     "unit_price": price,
                     "shelf_life_months": shelf_life,
-                    "memo": memo,
+                    "spec": spec,
+                    "memo": None,
                     "image_storage_key": None,
                 },
             )

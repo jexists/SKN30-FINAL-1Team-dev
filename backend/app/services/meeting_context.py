@@ -552,6 +552,7 @@ async def _product_details_by_deal(
                         "active": product.active,
                         "unit_price": product.unit_price,
                         "shelf_life_months": product.shelf_life_months,
+                        "spec": product.spec,
                         "memo": product.memo,
                     }
                     for product in selected[:PRODUCT_DETAIL_LIMIT]

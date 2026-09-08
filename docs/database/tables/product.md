@@ -13,7 +13,8 @@
 | `category_code` | TEXT | – | NO | – | 제품 분류 (system / probe / consumable) |
 | `unit_price` | BIGINT | – | NO | – | 판매 단가 (원) |
 | `shelf_life_months` | INTEGER | – | YES | – | 유효 기간 (개월) |
-| `memo` | TEXT | – | YES | – | 메모 |
+| `spec` | TEXT | – | YES | – | 제품 규격 |
+| `memo` | TEXT | – | YES | – | 비고 (화면 이름은 "비고") |
 | `image_storage_key` | TEXT | – | YES | – | 제품 이미지 스토리지 키 |
 
 ## Constraints

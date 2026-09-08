@@ -48,6 +48,9 @@ export interface ProductResponse {
   unit_price: number
   /** 유효기간(개월). 없으면 null */
   shelf_life_months: number | null
+  /** 규격 */
+  spec: string | null
+  /** 비고. 화면이 "비고"로 부르는 칸입니다. 규격을 나누기 전부터 있던 이름을 그대로 씁니다. */
   memo: string | null
   /** 사진 주소는 GET /products/{id}/image 로 따로 받습니다. */
   has_image: boolean
@@ -58,10 +61,11 @@ export interface ProductCreateRequest {
   category_code: ProductCategoryCode
   unit_price: number
   shelf_life_months: number | null
+  spec: string | null
   memo: string | null
 }
 
-/** 보낸 항목만 바꿉니다. 유효기간과 메모는 null 을 보내 지울 수 있습니다. */
+/** 보낸 항목만 바꿉니다. 유효기간과 규격·비고는 null 을 보내 지울 수 있습니다. */
 export type ProductPatchRequest = Partial<ProductCreateRequest>
 
 export interface ProductImageResponse {

@@ -424,7 +424,8 @@ def test_product_details_are_batched_scoped_and_frozen_without_storage_key(sampl
         category_code="system",
         unit_price=50_000,
         shelf_life_months=None,
-        memo="규격",
+        spec="규격",
+        memo="비고",
         image_storage_key="private/storage",
     )
     db = Db(Result(), Result(), Result([product]))
@@ -467,7 +468,8 @@ def test_product_batch_prioritizes_primary_then_item_order_and_queries_one_senti
             category_code="system",
             unit_price=position,
             shelf_life_months=None,
-            memo=f"메모 {position}",
+            spec=None,
+            memo=f"비고 {position}",
         )
         for position, product_id in enumerate(queried_ids)
     ]

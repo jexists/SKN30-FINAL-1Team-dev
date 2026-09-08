@@ -103,6 +103,7 @@ def _product(member: Member, *, image_storage_key: str | None = None) -> Product
         category_code="system",
         unit_price=12_000_000,
         shelf_life_months=24,
+        spec=None,
         memo=None,
         image_storage_key=image_storage_key,
     )
@@ -125,6 +126,7 @@ PAYLOAD = {
     "category_code": "system",
     "unit_price": 12_000_000,
     "shelf_life_months": 24,
+    "spec": "가로 40cm · 출력 200W",
     "memo": "데모 장비",
 }
 
@@ -204,8 +206,8 @@ def test_other_team_product_image_is_not_found(storage_ready):
     assert response.json()["detail"] == "product_not_found"
 
 
-def test_product_search_covers_memo_and_category_codes():
-    """검색이 제품명·메모·분류 이름을 함께 훑던 동작을 서버가 그대로 해야 한다.
+def test_product_search_covers_spec_memo_and_category_codes():
+    """검색이 제품명·규격·비고·분류 이름을 함께 훑어야 한다.
 
     분류 이름("소모품")은 화면(catalog.ts)만 알고 DB 에는 코드만 있으므로, 화면이 코드로
     풀어 보내고 서버가 q 와 OR 로 묶는다. AND 로 묶이면 이름이 걸린 제품이 사라진다.
@@ -227,8 +229,10 @@ def test_product_search_covers_memo_and_category_codes():
     for statement in db.statements:
         sql = str(statement)
         assert "lower(public.product.name) LIKE" in sql
+        assert "lower(public.product.spec) LIKE" in sql
         assert "lower(public.product.memo) LIKE" in sql
-        # 세 조건은 OR 이어야 한다. AND 로 묶이면 이름만 걸린 제품이 사라진다.
+        # 네 조건은 OR 이어야 한다. AND 로 묶이면 이름만 걸린 제품이 사라진다.
+        assert "OR lower(public.product.spec) LIKE" in sql
         assert "OR lower(public.product.memo) LIKE" in sql
         assert "OR public.product.category_code IN" in sql
 
@@ -240,9 +244,10 @@ def test_product_patch_rejects_clearing_required_fields():
         ProductPatch(category_code=None)
     with pytest.raises(ValidationError):
         ProductPatch(unit_price=None)
-    # 유효기간과 메모는 비울 수 있다.
-    assert ProductPatch(shelf_life_months=None, memo=None).model_fields_set == {
+    # 유효기간과 규격·비고는 비울 수 있다.
+    assert ProductPatch(shelf_life_months=None, spec=None, memo=None).model_fields_set == {
         "shelf_life_months",
+        "spec",
         "memo",
     }
 
@@ -271,13 +276,13 @@ def test_manager_updates_only_the_fields_sent():
         response = client.patch(
             f"/api/products/{product.id}",
             headers={"Origin": ORIGIN},
-            json={"unit_price": 9_000_000, "memo": None},
+            json={"unit_price": 9_000_000, "spec": None},
         )
 
     assert response.status_code == 200
     body = response.json()
     assert body["unit_price"] == 9_000_000
-    assert body["memo"] is None
+    assert body["spec"] is None
     # 보내지 않은 값은 그대로다.
     assert body["name"] == "합성 초음파 시스템"
     assert product.shelf_life_months == 24

@@ -26,7 +26,8 @@ const COLUMNS = [
   { id: 'category', header: '분류', width: 96 },
   { id: 'price', header: '제품단가', width: 132 },
   { id: 'shelfLife', header: '유효기간', width: 96 },
-  { id: 'memo', header: '메모', width: 420 },
+  { id: 'spec', header: '규격', width: 220 },
+  { id: 'memo', header: '비고', width: 220 },
 ]
 
 const TABLE_WIDTH = COLUMNS.reduce((sum, column) => sum + column.width, 0)
@@ -190,7 +191,10 @@ export default function Products() {
                       </td>
                       <td className="tnum">{wonFull(product.unit_price)}</td>
                       <td className="tnum">{shelfLifeLabel(product.shelf_life_months)}</td>
-                      <td className={styles.memo} title={product.memo ?? ''}>
+                      <td className={styles.longText} title={product.spec ?? ''}>
+                        {product.spec ?? '-'}
+                      </td>
+                      <td className={styles.longText} title={product.memo ?? ''}>
                         {product.memo ?? '-'}
                       </td>
                     </tr>

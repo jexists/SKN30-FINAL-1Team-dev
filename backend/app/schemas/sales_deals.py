@@ -137,6 +137,7 @@ class ProductRead(BaseModel):
     category_code: str
     unit_price: int
     shelf_life_months: int | None
+    spec: str | None
     memo: str | None
     has_image: bool
 
@@ -146,13 +147,15 @@ class ProductCreate(_WriteModel):
     category_code: ProductCategoryCode
     unit_price: StrictInt = Field(ge=0, le=9_223_372_036_854_775_807)
     shelf_life_months: StrictInt | None = Field(default=None, gt=0, le=1_200)
+    spec: LongText | None = None
+    #: 비고. 화면이 "비고"로 부르는 칸이다.
     memo: LongText | None = None
 
 
 class ProductPatch(_WriteModel):
     """보낸 항목만 바꾼다.
 
-    유효기간과 메모는 None 을 명시해 지울 수 있다. 이름·분류·단가는 비울 수 없어
+    유효기간과 규격·비고(memo)는 None 을 명시해 지울 수 있다. 이름·분류·단가는 비울 수 없어
     보내 놓고 None 이면 거절한다(NoticePatch 와 같은 규칙이다).
     """
 
@@ -160,6 +163,7 @@ class ProductPatch(_WriteModel):
     category_code: ProductCategoryCode | None = None
     unit_price: StrictInt | None = Field(default=None, ge=0, le=9_223_372_036_854_775_807)
     shelf_life_months: StrictInt | None = Field(default=None, gt=0, le=1_200)
+    spec: LongText | None = None
     memo: LongText | None = None
 
     @model_validator(mode="after")
@@ -411,9 +415,10 @@ class SalesDealPageParams(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     # start_date·end_date 를 어느 날짜에 걸지. 견적 화면은 발행일로, 계약 화면은 체결일로
-    # 기간을 좁힌다. 둘 다 비어 있을 수 있어 시작일로 되돌린다. 기본값은 시작일이라
+    # 기간을 좁힌다. 둘 다 비어 있을 수 있어 시작일로 되돌린다. 영업현황 목록은 마지막으로
+    # 움직인 딜을 보므로 수정일(updated)로 좁히고 그 순서로 세운다. 기본값은 시작일이라
     # 이미 쓰던 조회는 그대로다.
-    date_basis: Literal["opened", "quote_issued", "contract_signed"] = "opened"
+    date_basis: Literal["opened", "quote_issued", "contract_signed", "updated"] = "opened"
     owner_member_id: list[UUID] | None = None
     # 불만 등록 화면이 쓴다. 회사를 고르면 그 회사의 계약건만 후보로 남아야 한다.
     # 전건을 받아 화면에서 거르면 첫 쪽이 30건으로 끊기지 않는다.

@@ -17,6 +17,8 @@ class Product(Base):
     category_code: Mapped[str]
     unit_price: Mapped[int] = mapped_column(BigInteger)
     shelf_life_months: Mapped[int | None]
+    spec: Mapped[str | None]
+    #: 비고. 화면이 "비고"로 부르는 칸이다. 규격을 나누기 전부터 있던 이름을 그대로 쓴다.
     memo: Mapped[str | None]
     image_storage_key: Mapped[str | None]
 
