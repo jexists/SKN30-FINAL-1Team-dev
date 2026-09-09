@@ -77,8 +77,7 @@ export class BusinessLicenseScanError extends Error {
 }
 
 export type LicenseScanProgress =
-  | { phase: 'uploading'; percent: number }
-  | { phase: 'recognizing'; elapsedSeconds: number }
+  { phase: 'uploading'; percent: number } | { phase: 'recognizing'; elapsedSeconds: number }
 
 /** PDF 또는 이미지를 서버 OCR로 보내고 완료될 때까지 결과를 조회합니다. */
 export async function extractBusinessLicense(
