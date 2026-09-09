@@ -4,10 +4,12 @@ import { Link } from 'react-router'
 import Button, { buttonClass } from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import Popover from '@/components/Popover'
+import ReportBody from '@/components/ReportBody'
 import Skeleton, { InlineLoader } from '@/components/Skeleton'
 import { EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import { orderPath } from '@/constants/routes'
 import { statusScope } from '@/shared/agenda'
+import { summaryWithoutHiddenSections } from '@/shared/documentSummary'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { RISK_LABEL } from '@/shared/riskLabels'
 import { useShowOwner } from '@/shared/scope'
@@ -90,7 +92,11 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
       {document.summary_markdown && (
         <details className={styles.sourceSummary}>
           <summary>자료요약 보기</summary>
-          <pre>{document.summary_markdown}</pre>
+          {/*
+            자료실 드로어와 같은 경로로 그립니다. 예전에는 원문을 <pre> 로 흘려서
+            `## 핵심 요약` 같은 마크다운 기호가 글자로 보였습니다.
+          */}
+          <ReportBody body={summaryWithoutHiddenSections(document.summary_markdown)} />
         </details>
       )}
     </li>

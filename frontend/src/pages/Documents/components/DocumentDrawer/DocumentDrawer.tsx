@@ -7,6 +7,7 @@ import Popover from '@/components/Popover'
 import ReportBody from '@/components/ReportBody'
 import { SkeletonBlocks } from '@/components/Skeleton'
 import { DownloadIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
+import { summaryWithoutHiddenSections } from '@/shared/documentSummary'
 import type { SalesDocument } from '@/types'
 import type { DocumentSummaryResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
@@ -33,26 +34,6 @@ interface Props {
   autoLoadSummaryFileId?: string
   onSummaryCompleted?: (fileId: string, failureMessage?: string) => void
   onApproveSummary: (fileId: string) => Promise<DocumentSummaryResponse>
-}
-
-/**
- * 새 요약은 서버에서 추출 필드·출처를 본문에 넣지 않는다. 이미 저장된 구버전 요약도
- * 드로어에서는 같은 기준으로 보여야 하므로, 해당 섹션을 렌더링 직전에 제외한다.
- */
-function summaryWithoutHiddenSections(markdown: string): string {
-  const lines = markdown.split('\n')
-  const hiddenHeadings = new Set(['## 추출 필드', '## 출처'])
-  const hiddenTitles = new Set(['# 문서 요약', '# 문서요약'])
-  const visibleLines: string[] = []
-  let hiding = false
-
-  for (const line of lines) {
-    // 새 요약은 제목을 만들지 않지만, 구버전의 제목도 화면에서는 표시하지 않는다.
-    if (hiddenTitles.has(line.trim())) continue
-    if (/^#{1,2}\s+/.test(line)) hiding = hiddenHeadings.has(line.trim())
-    if (!hiding) visibleLines.push(line)
-  }
-  return visibleLines.join('\n')
 }
 
 export default function DocumentDrawer({
