@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -24,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.crm import CustomerCompany, CustomerContact
 from app.models.workspace import Member
+from app.schemas.customers import digits_only
 
 
 @dataclass(frozen=True)
@@ -54,8 +54,11 @@ class DuplicateMatch:
 
 
 def phone_digits(value: str | None) -> str:
-    """전화번호에서 숫자만 남긴다. 010-1234-5678 과 01012345678 은 같은 번호다."""
-    return re.sub(r"[^0-9]", "", value or "")
+    """전화번호에서 숫자만 남긴다. 010-1234-5678 과 01012345678 은 같은 번호다.
+
+    저장할 때 쓰는 규칙과 같아야 하므로 스키마의 정규화를 그대로 부른다.
+    """
+    return digits_only(value)
 
 
 def normalized_email(value: str | None) -> str:

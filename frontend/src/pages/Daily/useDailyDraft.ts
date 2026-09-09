@@ -1,14 +1,9 @@
-// 작성 화면의 상태를 전부 담습니다. 화면은 배치만 하고 규칙은 여기 있습니다.
-//
-// 자료를 어디서 모으는지는 종류마다 다릅니다(sources.ts). 일일은 그날 일정과
-// 업무보고서를, 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 씁니다.
-//
-// 초안은 canonical 보고서를 만들지 않고 AgentRun 후보로 받습니다.
+// 기간 보고서 작성 상태. 생성에 쓴 하위 보고서 참조는 최종 제출까지 보존합니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
   finishIdempotencyAttempt,
@@ -18,8 +13,12 @@ import {
   waitForReportGeneration,
 } from '@/api/reportAgent'
 import type { IdempotencyAttempt } from '@/api/reportAgent'
-import { useAgendaState } from '@/shared/agenda'
-import { APPROVERS, canRecoverReportGeneration, templateFor } from '@/shared/reports'
+import {
+  APPROVERS,
+  canRecoverReportGeneration,
+  reportInputError,
+  templateFor,
+} from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
 import type {
   AgentRunResponse,
@@ -28,14 +27,14 @@ import type {
   ReportGenerationInput,
   ReportKind,
 } from '@/types'
-import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
+import { attachmentPayloadsOf } from '@/utils/attachment'
 
-import { sourcesFor } from './sources'
 import { periodRange, periodStart } from './periods'
 import {
   periodGenerationSeedOf,
   periodGenerationRequestOf,
-  useChildReports,
+  reportRequestOf,
+  useRelatedReports,
   useReportOfPeriod,
 } from './useDailyReports'
 
@@ -46,37 +45,17 @@ export function mergeGeneratedValues(fields: { field_id: string; value: string }
   return { body: fields.find((field) => field.field_id === 'body')?.value ?? '' }
 }
 
-/** 늦게 도착한 원본에는 현재 선택만 얹습니다. */
-export function mergeSourceActivities(
-  collected: ReportActivity[],
-  previous: ReportActivity[],
-  pickId?: string,
-) {
-  const picked = new Map(previous.map((activity) => [activity.id, activity.included]))
-  return collected.map((activity) => ({
-    ...activity,
-    included:
-      picked.get(activity.id) ?? (pickId && activity.refId === pickId ? true : activity.included),
-  }))
-}
-
-/** 생성 당시와 현재의 선택 자료·불변 제출본이 정확히 같을 때만 후보를 복구합니다. */
+/** 새 보고서 추가·정렬 변경은 허용하되 선택했던 제출본의 변경·누락은 감지합니다. */
 export function generationSourcesAreAvailable(
-  recovered: ReportActivity[],
+  frozen: ReportActivity[],
   available: ReportActivity[],
 ) {
   const key = (activity: ReportActivity) =>
-    `${activity.source}:${activity.refId ?? activity.id}:${activity.sourceSubmissionId ?? ''}`
-  const previous = recovered.filter((activity) => activity.included).map(key)
-  const current = available.filter((activity) => activity.included).map(key)
-  return (
-    previous.length === current.length && previous.every((value, index) => value === current[index])
-  )
-}
-
-interface DraftOptions {
-  /** 미리 켜 둘 자료의 원본 id. 특정 일정에서 넘어올 때 씁니다. */
-  pickId?: string
+    `${activity.source}:${activity.refId}:${activity.sourceSubmissionId ?? ''}`
+  const current = new Set(available.filter((activity) => activity.included).map(key))
+  return frozen
+    .filter((activity) => activity.included)
+    .every((activity) => activity.refId && current.has(key(activity)))
 }
 
 function periodInputOf(
@@ -96,34 +75,9 @@ function periodInputOf(
   return input
 }
 
-export default function useDailyDraft(
-  dateISO: string,
-  kind: ReportKind,
-  options: DraftOptions = {},
-) {
-  const { pickId } = options
+export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const { memberId } = useCurrentUser()
-
-  const {
-    items: agendaItems,
-    loading: agendaLoading,
-    error: agendaError,
-    reload: reloadAgenda,
-  } = useAgendaState(dateISO, dateISO, true)
-  // 일일은 그날 업무보고서를, 주간·월간은 아래 기간의 보고서를 자료로 씁니다.
-  // 쓰지 않는 쪽은 부르지도 않습니다.
-  const {
-    reports: meetings,
-    loading: meetingLoading,
-    error: meetingError,
-    reload: reloadMeetings,
-  } = useMeetingReportsOn(dateISO, { enabled: kind === '일일' })
-  const {
-    reports,
-    loading: reportLoading,
-    error: reportError,
-    reload: reloadReports,
-  } = useChildReports(kind, dateISO, kind !== '일일')
+  const related = useRelatedReports(kind, dateISO)
   // 이 기간에 쓰다 만 보고서. 목록을 뒤지지 않고 그 기간만 서버에 묻습니다.
   const {
     report: existing,
@@ -131,16 +85,6 @@ export default function useDailyDraft(
     error: existingError,
     reload: reloadExisting,
   } = useReportOfPeriod(kind, dateISO)
-  const sourcesLoading = agendaLoading || meetingLoading || reportLoading
-  const sources = useMemo(
-    () => sourcesFor(kind, dateISO, meetings, reports, agendaItems),
-    [kind, dateISO, meetings, reports, agendaItems],
-  )
-
-  /** 자료 조회가 갱신돼도 작성 중 선택이 되감기지 않도록 원본 목록만 ref로 받습니다. */
-  const live = useRef({ meetings, reports, agendaItems })
-  live.current = { meetings, reports, agendaItems }
-
   const scopeKey = `${kind}:${dateISO}`
   const matchingExisting =
     existing?.kind === kind && periodStart(kind, existing.date) === dateISO ? existing : undefined
@@ -157,7 +101,8 @@ export default function useDailyDraft(
   const template = templateFor(kind)
 
   const [phase, setPhase] = useState<DraftPhase>('idle')
-  const [activities, setActivities] = useState<ReportActivity[]>(() => sources.activities)
+  const [frozenActivities, setFrozenActivities] = useState<ReportActivity[] | null>(null)
+  const activities = frozenActivities ?? related.activities
   /** 이전 실행·저장 보고서의 사용자 텍스트는 보존하되 새 생성 지침으로 쓰지 않습니다. */
   const [transcript, setTranscript] = useState('')
   const files = useAttachments()
@@ -175,7 +120,6 @@ export default function useDailyDraft(
   const [generationRunId, setGenerationRunId] = useState<string>()
   const generationAbort = useRef<AbortController | null>(null)
   const generationAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
-  const sourceSelectionFrozen = useRef(false)
   const recoveryAbort = useRef<AbortController | null>(null)
   const recoveredScope = useRef('')
   const [recovering, setRecovering] = useState(true)
@@ -203,18 +147,8 @@ export default function useDailyDraft(
     generationAbort.current?.abort()
     recoveryAbort.current?.abort()
     generationAttempt.current = undefined
-    // 쓰다 만 보고서의 선택을 그대로 살립니다. 자료 목록은 지금 것을 쓰되
-    // 무엇을 골랐는지만 이어받습니다. 그 사이 새로 생긴 자료도 함께 보여야 합니다.
     const saved = canonical
-    const collected = sourcesFor(
-      kind,
-      dateISO,
-      live.current.meetings,
-      live.current.reports,
-      live.current.agendaItems,
-    )
-    sourceSelectionFrozen.current = false
-    setActivities(mergeSourceActivities(collected.activities, saved?.activities ?? [], pickId))
+    setFrozenActivities(saved?.activities.map((activity) => ({ ...activity })) ?? null)
     setAttachments(saved?.attachments ?? [])
     setAttachmentError(null)
     setTranscript(saved?.transcript ?? '')
@@ -227,45 +161,30 @@ export default function useDailyDraft(
     setRecovering(true)
     // 이어 쓰는 보고서는 이미 쓴 내용이 있으므로 입력칸을 바로 펴 줍니다.
     setPhase(saved ? 'ready' : 'idle')
-  }, [kind, dateISO, pickId, setAttachments, setAttachmentError, canonical])
+  }, [setAttachments, setAttachmentError, canonical])
 
   useEffect(() => {
-    if (sourcesLoading) return
     reset()
-  }, [reset, sourcesLoading])
-
-  // 첫 렌더 뒤 도착한 자료만 초기 초안에 보탭니다. 사용자가 선택했거나 생성에 쓴
-  // 스냅샷은 이후 조회 결과로 바꾸지 않습니다.
-  useEffect(() => {
-    if (sourcesLoading || sourceSelectionFrozen.current) return
-    setActivities((previous) => mergeSourceActivities(sources.activities, previous, pickId))
-  }, [sourcesLoading, sources.activities, pickId])
-
-  const toggleActivity = useCallback((id: string) => {
-    sourceSelectionFrozen.current = true
-    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, included: !a.included } : a)))
-  }, [])
+  }, [reset, scopeKey])
 
   const setValue = useCallback((id: string, value: string) => {
     setValues((prev) => ({ ...prev, [id]: value }))
     setDirtyIds((prev) => new Set(prev).add(id))
   }, [])
 
-  const included = useMemo(() => activities.filter((a) => a.included), [activities])
-
-  /** AI 가 채우는 항목이 있는 양식에서만 초안 생성이 의미가 있습니다. */
-  const hasAiFields = useMemo(() => template.fields.some((f) => f.aiFilled), [template])
+  const hasAiFields = useMemo(() => template.fields.some((field) => field.aiFilled), [template])
+  const sourcesReady = !related.loading && !related.error
+  const sourceError = !sourcesReady
+    ? (related.error ?? '관련 보고서를 불러오는 중입니다.')
+    : frozenActivities && !generationSourcesAreAvailable(frozenActivities, related.activities)
+      ? '생성에 사용한 하위 보고서의 제출본이 변경되었거나 조회 범위에 없습니다. 범위를 확인하거나 AI 보고서를 다시 작성하세요.'
+      : null
   const hasInput =
-    included.length > 0 ||
-    files.attachments.some((attachment) => attachment.state === 'done' && attachment.extract) ||
+    related.activities.some((activity) => activity.included) ||
+    files.attachments.some(
+      (attachment) => attachment.state === 'done' && attachment.extract?.trim(),
+    ) ||
     Boolean(values.body?.trim())
-
-  /**
-   * 정리할 것이 하나는 있어야 합니다. 고른 자료든, 직접 적은 내용이든, 첨부든
-   * 무엇이든 하나입니다 — 자료가 없는 기간이라도 적어서 쓸 수 있어야 합니다.
-   */
-  const canGenerate = !recovering && !files.pending && hasAiFields && hasInput
-
   const generationPayload = useCallback(
     () => ({
       reportId: canonical?.id,
@@ -275,12 +194,27 @@ export default function useDailyDraft(
       kind,
       approver,
       values,
-      activities,
+      activities: related.activities.map((activity) => ({ ...activity })),
       attachments: files.attachments,
       transcript,
     }),
-    [canonical, dateISO, kind, approver, values, activities, files.attachments, transcript],
+    [canonical, dateISO, kind, approver, values, related.activities, files.attachments, transcript],
   )
+
+  const inputError = reportInputError(periodGenerationRequestOf(generationPayload(), ''))
+  const submitInputError = reportInputError({
+    ...reportRequestOf({ ...generationPayload(), activities }),
+    attachments: attachmentPayloadsOf(files.attachments),
+  })
+  const canGenerate =
+    !recovering &&
+    !existingLoading &&
+    !existingError &&
+    sourcesReady &&
+    !files.pending &&
+    !inputError &&
+    hasAiFields &&
+    hasInput
 
   const acceptGeneration = useCallback(
     (runId: string, fields: { field_id: string; value: string }[]) => {
@@ -298,9 +232,7 @@ export default function useDailyDraft(
   const restoreGenerationInput = useCallback(
     (input: ReportGenerationInput) => {
       const restored = periodGenerationSeedOf(input)
-      sourceSelectionFrozen.current = true
-      // 생성 당시 선택은 유지하되 제목·고객사 같은 표시값은 현재 원본을 씁니다.
-      setActivities(mergeSourceActivities(sources.activities, restored.activities, pickId))
+      setFrozenActivities(restored.activities.map((activity) => ({ ...activity })))
       setAttachments(restored.attachments)
       setAttachmentError(null)
       setTranscript(restored.transcript)
@@ -320,7 +252,7 @@ export default function useDailyDraft(
       )
       return restored
     },
-    [sources.activities, pickId, setAttachments, setAttachmentError],
+    [setAttachments, setAttachmentError],
   )
 
   const resumeGeneration = useCallback(
@@ -358,7 +290,6 @@ export default function useDailyDraft(
 
   const generate = useCallback(async () => {
     if (!canGenerate || generationAbort.current) return
-    sourceSelectionFrozen.current = true
     recoveryAbort.current?.abort()
     const controller = new AbortController()
     generationAbort.current = controller
@@ -372,6 +303,9 @@ export default function useDailyDraft(
         purpose: 'reference' as const,
       })),
     }
+    const previousActivities = frozenActivities?.map((activity) => ({ ...activity })) ?? null
+    const previousRunId = generationRunId
+    setFrozenActivities(payload.activities)
     setAttachments(payload.attachments)
     setGenerationRunId(undefined)
     const attempt = idempotencyAttemptFor(generationAttempt.current, payload)
@@ -394,6 +328,8 @@ export default function useDailyDraft(
             attempt.key,
           )
         }
+        setFrozenActivities(previousActivities)
+        setGenerationRunId(previousRunId)
         setGenerationError(errorMessage(reason, 'AI 보고서 초안을 만들지 못했습니다.'))
         setPhase(
           canonical || Object.values(values).some((value) => value.trim()) ? 'ready' : 'idle',
@@ -402,10 +338,19 @@ export default function useDailyDraft(
     } finally {
       if (generationAbort.current === controller) generationAbort.current = null
     }
-  }, [canGenerate, generationPayload, acceptGeneration, canonical, values, setAttachments])
+  }, [
+    canGenerate,
+    generationPayload,
+    acceptGeneration,
+    canonical,
+    values,
+    setAttachments,
+    frozenActivities,
+    generationRunId,
+  ])
 
   useEffect(() => {
-    if (existingLoading || sourcesLoading || recoveredScope.current === scopeKey) return
+    if (existingLoading || recoveredScope.current === scopeKey) return
     recoveredScope.current = scopeKey
     const controller = new AbortController()
     recoveryAbort.current = controller
@@ -423,11 +368,8 @@ export default function useDailyDraft(
     void latestReportGeneration<ReportDraftSnapshot>(scope, controller.signal)
       .then((run) => {
         if (controller.signal.aborted || generationAbort.current) return
-        const input = periodInputOf(run, kind, dateISO)
+        periodInputOf(run, kind, dateISO)
         if (!canRecoverReportGeneration(run, canonical, memberId)) return
-        const recovered = periodGenerationSeedOf(input).activities
-        const current = mergeSourceActivities(sources.activities, recovered, pickId)
-        if (!generationSourcesAreAvailable(recovered, current)) return
         return resumeGenerationRef.current(run, controller)
       })
       .catch((reason: unknown) => {
@@ -448,17 +390,7 @@ export default function useDailyDraft(
         recoveredScope.current = ''
       }
     }
-  }, [
-    kind,
-    dateISO,
-    scopeKey,
-    existingLoading,
-    sourcesLoading,
-    sources.activities,
-    pickId,
-    canonical,
-    memberId,
-  ])
+  }, [kind, dateISO, scopeKey, existingLoading, canonical, memberId])
 
   useEffect(
     () => () => {
@@ -468,20 +400,16 @@ export default function useDailyDraft(
     [],
   )
 
-  /**
-   * 제출을 막는 이유들. 버튼 비활성과 안내 문구가 같은 값을 씁니다.
-   *
-   * 근거가 무엇이든 하나는 있어야 합니다 — canGenerate 와 같은 기준입니다. 자료가
-   * 없는 기간을 직접 적어 만들어 놓고 낼 수 없으면 그 화면이 막다른 길이 됩니다.
-   */
+  /** 제출에는 사람이 확인할 필수 본문이 필요합니다. */
   const missing = useMemo(() => {
     const reasons: string[] = []
-    if (!hasInput) reasons.push('자료 1건 이상')
+    if (sourceError) reasons.push(sourceError)
+    if (submitInputError) reasons.push(reportGenerationMessage(submitInputError))
     for (const field of template.fields) {
       if (field.required && !values[field.id]?.trim()) reasons.push(field.label)
     }
     return reasons
-  }, [hasInput, values, template])
+  }, [values, template, sourceError, submitInputError])
 
   return {
     phase,
@@ -489,10 +417,8 @@ export default function useDailyDraft(
     template,
     hasAiFields,
     activities,
-    /** activity.id → 원본 상태와 바로가기 */
-    meta: sources.meta,
-    includedCount: included.length,
-    toggleActivity,
+    /** 관련 보고서 상태와 바로가기 */
+    meta: related.meta,
     transcript,
     attachments: files.attachments,
     addAttachments,
@@ -509,19 +435,20 @@ export default function useDailyDraft(
     generate,
     recovering,
     generationRunId,
-    generationError,
+    generationError: inputError ? reportGenerationMessage(inputError) : generationError,
+    sourceError,
     missing,
     reset,
     /** 이 기간에 이미 있는 보고서. 이어 쓰는 중인지 화면이 이 값으로 안내합니다. */
     existing: canonical,
-    loading: sourcesLoading || existingLoading,
-    error: agendaError ?? meetingError ?? reportError ?? existingError,
+    loading: existingLoading,
+    relatedLoading: related.loading,
+    relatedError: related.error,
+    reloadRelated: related.reload,
+    error: existingError,
     reload: () => {
       recoveredScope.current = ''
       setRecovering(true)
-      void reloadAgenda()
-      reloadMeetings()
-      reloadReports()
       reloadExisting()
     },
   }

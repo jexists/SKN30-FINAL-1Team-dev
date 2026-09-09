@@ -1,4 +1,5 @@
 import { client } from './client'
+import { reportInputError } from '@/shared/reports'
 import {
   AgentRunTerminalError,
   isAgentRunTerminalError,
@@ -142,6 +143,8 @@ export function finishIdempotencyAttempt(
 export async function createReportGeneration<T>(
   request: ReportGenerationRequest,
 ): Promise<AgentRunResponse<T>> {
+  const inputError = reportInputError(request)
+  if (inputError) throw new Error(inputError)
   return (await client.post<AgentRunResponse<T>>('/report-generations', request)).data
 }
 
@@ -165,6 +168,8 @@ export async function finalizeReport(
   request: ReportFinalizeRequest,
   signal?: AbortSignal,
 ): Promise<ReportResponse> {
+  const inputError = reportInputError(request)
+  if (inputError) throw new Error(inputError)
   return (await client.post<ReportResponse>('/reports/finalize', request, { signal })).data
 }
 

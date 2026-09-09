@@ -189,11 +189,13 @@ async def generate_structured[Schema: BaseModel](
     input_text: str,
     schema: type[Schema],
     schema_name: str,
+    report_mode: bool = False,
 ) -> Schema:
     """구조화 출력 하나를 받아 Pydantic 으로 검증해 돌려준다."""
     if not settings.llm_configured:
         raise LLMNotConfigured("llm_not_configured")
-    _validated_endpoint()
+    endpoint = _validated_endpoint()
+    timeout_seconds = 180.0 if report_mode else settings.llm_timeout_seconds
 
     body = {
         "model": settings.llm_model,
@@ -210,19 +212,34 @@ async def generate_structured[Schema: BaseModel](
             }
         },
     }
+    path = endpoint.path.rstrip("/")
+    if path.endswith("/responses"):
+        if report_mode:
+            body["max_output_tokens"] = 12_000
+    elif path.endswith("/chat/completions"):
+        body = {
+            "model": settings.llm_model,
+            "messages": body["input"],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    key: value for key, value in body["text"]["format"].items() if key != "type"
+                },
+            },
+        }
+        if report_mode:
+            body["max_completion_tokens"] = 12_000
+    else:
+        raise LLMError("report_agent_unsupported_endpoint")
     headers = {
         "Authorization": f"Bearer {_external_api_key()}",
         "Content-Type": "application/json",
     }
 
     started = perf_counter()
-    log_agent_event(
-        "llm.request_started", schema_name=schema_name, timeout_seconds=settings.llm_timeout_seconds
-    )
+    log_agent_event("llm.request_started", schema_name=schema_name, timeout_seconds=timeout_seconds)
     try:
-        timeout = httpx.Timeout(
-            settings.llm_timeout_seconds, connect=min(10.0, settings.llm_timeout_seconds)
-        )
+        timeout = httpx.Timeout(timeout_seconds, connect=min(10.0, timeout_seconds))
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 settings.llm_api_url,
@@ -274,6 +291,19 @@ async def generate_structured[Schema: BaseModel](
         **response_log,
         **safe_token_usage(payload.get("usage") if isinstance(payload, dict) else None),
     )
+    if report_mode and isinstance(payload, dict):
+        # 공급자 자유 텍스트 대신 알려진 종료 상태/사유만 기록한다.
+        status = payload.get("status")
+        details = payload.get("incomplete_details")
+        reason = details.get("reason") if isinstance(details, dict) else None
+        log_agent_event(
+            "llm.report_result",
+            **response_log,
+            outcome=status if status in {"completed", "incomplete", "failed"} else "returned",
+            reason_code=reason
+            if reason in {"max_output_tokens", "content_filter"}
+            else "unspecified",
+        )
     try:
         text = _extract_text(payload).strip()
     except Exception as error:

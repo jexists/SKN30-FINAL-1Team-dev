@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
-import { uploadReportAttachment } from '@/api/reportAttachments'
+import { reportAttachmentLimits, uploadReportAttachment } from '@/api/reportAttachments'
 import type { AttachmentKind, AttachmentPurpose, ReportAttachment } from '@/types'
+
+import { REPORT_ATTACHMENT_LIMIT, REPORT_TEXT_LIMIT, reportTextLength } from './reports'
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.m4a', '.wav', '.webm'])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
-const MAX_ATTACHMENTS = 10
 
 /** 서버가 실제 내용까지 다시 검사하므로 화면에서는 허용 확장자만 빠르게 거릅니다. */
 export const kindOf = (file: File): AttachmentKind | null => {
@@ -66,9 +67,16 @@ export default function useAttachments() {
         setAttachmentError(formatError)
         return
       }
-      const picked = supported.slice(0, Math.max(0, MAX_ATTACHMENTS - current.current.length))
+      const picked = supported.slice(
+        0,
+        Math.max(0, REPORT_ATTACHMENT_LIMIT - current.current.length),
+      )
       if (picked.length === 0) {
         setAttachmentError('첨부 파일은 최대 10개까지 넣을 수 있습니다.')
+        return
+      }
+      if (picked.some(({ file }) => file.size === 0)) {
+        setAttachmentError(errorMessage(new Error('empty_file'), '빈 파일은 올릴 수 없습니다.'))
         return
       }
       setAttachmentError(
@@ -92,8 +100,43 @@ export default function useAttachments() {
       }))
       updateAttachments((previous) => [...previous, ...added.map(({ item }) => item)])
 
+      try {
+        const limits = await reportAttachmentLimits()
+        if (
+          ![limits.audio_max_bytes, limits.document_max_bytes].every(
+            (limit) => Number.isSafeInteger(limit) && limit > 0,
+          )
+        )
+          throw new Error('report_attachment_limits_unavailable')
+        if (
+          picked.some(
+            ({ file, kind }) =>
+              file.size > (kind === 'audio' ? limits.audio_max_bytes : limits.document_max_bytes),
+          )
+        )
+          throw new Error('file_too_large')
+      } catch (reason: unknown) {
+        if (
+          mounted.current &&
+          added.some(({ item }) => current.current.some((file) => file.id === item.id))
+        ) {
+          updateAttachments((previous) =>
+            previous.filter((file) => !added.some(({ item }) => item.id === file.id)),
+          )
+          setAttachmentError(
+            errorMessage(
+              reason,
+              '첨부 용량 제한을 확인하지 못했습니다. 다시 파일을 선택해 주세요.',
+            ),
+          )
+        }
+        return
+      }
+
       await Promise.all(
         added.map(async ({ file, item }) => {
+          if (!mounted.current || !current.current.some((attachment) => attachment.id === item.id))
+            return
           try {
             const uploaded = await uploadReportAttachment(file)
             // 업로드 중 삭제·초기화된 파일의 늦은 응답은 화면이나 원문에 되살리지 않습니다.
@@ -103,6 +146,8 @@ export default function useAttachments() {
             ) {
               return
             }
+            if (reportTextLength(uploaded.extract) > REPORT_TEXT_LIMIT)
+              throw new Error('report_attachment_text_too_large')
 
             updateAttachments((previous) =>
               previous.map((attachment) =>

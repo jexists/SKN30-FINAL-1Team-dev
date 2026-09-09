@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 
 import { ALL_COLUMNS, COLUMN_BY_ID, DEFAULT_VISIBLE } from './columns'
 
-const KEY = 'salesluv.customers.columns.v5'
+const KEY = 'salesluv.customers.columns.v6'
 
 export interface ColumnPrefs {
   order: string[]

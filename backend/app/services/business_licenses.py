@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from app.schemas.business_licenses import BusinessLicenseDraft, BusinessLicenseFields
+from app.schemas.customers import digits_only
 from app.services.llm import generate_structured
 
 SYSTEM_PROMPT = """너는 SalesLuv 사업자등록증 구조화 에이전트다.
@@ -191,7 +192,7 @@ def _labeled_value(text: str, labels: tuple[str, ...]) -> str:
 
 
 def _business_no_value(text: str) -> str:
-    """OCR 원문에 표시된 3-2-5 형식의 번호만 보완한다."""
+    """OCR 원문에 표시된 3-2-5 형식의 번호를 숫자만 남겨 돌려준다."""
 
     match = re.search(r"(?<!\d)\d{3}[-\s]?\d{2}[-\s]?\d{5}(?!\d)", text)
-    return match.group(0).strip() if match else ""
+    return digits_only(match.group(0)) if match else ""

@@ -10,7 +10,8 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 from pydantic import PrivateAttr, ValidationError
 
-from app.agents import meeting_content_analysis
+from app.agents.meeting import content as meeting_content_analysis
+from app.agents.meeting import transcript as meeting_transcript
 from app.schemas.meeting_content import (
     MeetingContentAnalysisOutput,
     SegmentApplicability,
@@ -21,7 +22,7 @@ from app.services.llm import LLMError
 
 
 def _deal(deal_id, *, title="LP1000 공급", product_names=None):
-    return meeting_content_analysis.DealGroundingContext(
+    return meeting_transcript.DealGroundingContext(
         sales_deal_id=deal_id,
         deal_no="DL-001",
         title=title,
@@ -35,7 +36,7 @@ def _deal(deal_id, *, title="LP1000 공급", product_names=None):
 def test_segment_transcript_preserves_exact_source_offsets():
     transcript = '첫 문장.  둘째 문장!\n\n마지막 "문장"'
 
-    segments = meeting_content_analysis.segment_transcript(transcript)
+    segments = meeting_transcript.segment_transcript(transcript)
 
     assert [segment.text for segment in segments] == [
         "첫 문장.",
@@ -48,7 +49,7 @@ def test_segment_transcript_preserves_exact_source_offsets():
 
 def test_input_snapshot_requires_context_for_every_selected_deal():
     deal_a, deal_b = uuid4(), uuid4()
-    snapshot = meeting_content_analysis.input_snapshot(
+    snapshot = meeting_transcript.input_snapshot(
         "LP1000 견적을 요청했다.",
         [_deal(deal_a), _deal(deal_b, title="유지보수 계약")],
     )
@@ -58,13 +59,13 @@ def test_input_snapshot_requires_context_for_every_selected_deal():
 
     snapshot["deals"].pop()
     with pytest.raises(ValidationError, match="grounding_deals_mismatch"):
-        meeting_content_analysis.MeetingContentAgentInput.model_validate(snapshot)
+        meeting_transcript.MeetingContentAgentInput.model_validate(snapshot)
 
 
 @pytest.mark.anyio
 async def test_run_returns_a_validated_evidence_ledger(monkeypatch):
     deal_id = uuid4()
-    snapshot = meeting_content_analysis.input_snapshot(
+    snapshot = meeting_transcript.input_snapshot(
         "LP1000 견적을 요청했다.",
         [_deal(deal_id)],
     )
@@ -95,7 +96,7 @@ async def test_run_returns_a_validated_evidence_ledger(monkeypatch):
 @pytest.mark.anyio
 async def test_run_preserves_transient_sdk_error_code(monkeypatch):
     deal_id = uuid4()
-    snapshot = meeting_content_analysis.input_snapshot("LP1000 견적을 요청했다.", [_deal(deal_id)])
+    snapshot = meeting_transcript.input_snapshot("LP1000 견적을 요청했다.", [_deal(deal_id)])
     request = httpx.Request("POST", "https://private-provider.invalid")
     response = httpx.Response(429, request=request)
 
@@ -111,7 +112,7 @@ async def test_run_preserves_transient_sdk_error_code(monkeypatch):
 @pytest.mark.anyio
 async def test_run_retries_once_when_the_llm_omits_a_segment(monkeypatch):
     deal_id = uuid4()
-    snapshot = meeting_content_analysis.input_snapshot(
+    snapshot = meeting_transcript.input_snapshot(
         "첫 문장. 둘째 문장.",
         [_deal(deal_id)],
     )
@@ -153,7 +154,7 @@ async def test_run_retries_once_when_the_llm_omits_a_segment(monkeypatch):
 @pytest.mark.anyio
 async def test_unresolved_is_a_valid_result_and_is_not_retried(monkeypatch):
     deal_id = uuid4()
-    snapshot = meeting_content_analysis.input_snapshot(
+    snapshot = meeting_transcript.input_snapshot(
         "가격을 다시 검토하기로 했다.",
         [_deal(deal_id)],
     )
@@ -214,7 +215,7 @@ def _initial_responses(assignments):
 
 def _grounding_case():
     deal_a, deal_b = uuid4(), uuid4()
-    snapshot = meeting_content_analysis.input_snapshot(
+    snapshot = meeting_transcript.input_snapshot(
         "LP1000 가격을 문의했다. 지난번 보여준 작은 제품도 자료 요청.",
         [_deal(deal_a), _deal(deal_b, title="휴대형 공급")],
         crm_context={
@@ -263,8 +264,8 @@ def _set_frozen_context(snapshot, kind, result, deal_id=None):
 
 
 def _ledger_case(transcript, deals, assignments):
-    agent_input = meeting_content_analysis.MeetingContentAgentInput.model_validate(
-        meeting_content_analysis.input_snapshot(transcript, deals)
+    agent_input = meeting_transcript.MeetingContentAgentInput.model_validate(
+        meeting_transcript.input_snapshot(transcript, deals)
     )
     ledger = build_evidence_ledger(
         agent_input.source, MeetingContentAnalysisOutput(assignments=assignments)
@@ -612,7 +613,7 @@ async def test_refinement_receives_the_reviewed_ledger_as_its_context():
         _assignment("S0002", "all_selected_deals"),
         _assignment("S0003", "unresolved"),
     ]
-    snapshot = meeting_content_analysis.input_snapshot(
+    snapshot = meeting_transcript.input_snapshot(
         "제품 A 입찰을 논의했다. 세 업체가 모두 참가한다. 지난번 작은 제품도 다시 물었다.",
         [_deal(deal_a, product_names=["제품 A"]), _deal(deal_b, product_names=["제품 B"])],
         crm_context={

@@ -346,10 +346,8 @@ def _summary_markdown(summary: document_summary.DocumentSummaryOutput) -> str:
         lines.extend([f"## {title}", ""])
         lines.extend(f"- {value}" for value in values) if values else lines.append("- 없음")
         lines.append("")
-    if summary.extracted_fields:
-        lines.extend(["## 추출 필드", ""])
-        lines.extend(f"- {key}: {value}" for key, value in summary.extracted_fields.items())
-        lines.append("")
+    # 추출 필드는 summary_payload에 구조화 데이터로 보존한다. 사람이 읽는 AI 문서
+    # 요약에는 중복 표시하지 않아, 요약 본문만 빠르게 확인할 수 있게 한다.
     if summary.source_refs:
         lines.extend(["## 출처", ""])
         lines.extend(f"- {value}" for value in summary.source_refs)

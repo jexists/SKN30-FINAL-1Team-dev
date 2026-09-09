@@ -4,7 +4,8 @@ from uuid import UUID
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from app.agents import report_writing_deep as agent
+from app.agents.reports import meeting as agent
+from app.agents.reports import meeting_contract as contract
 from app.schemas.reports import REPORT_BODY_MAX_LENGTH
 from app.services import llm as llm_service
 from app.services.llm import LLMError, LLMNotConfigured
@@ -24,7 +25,7 @@ def _case(*, unassigned=True):
         ("선택하지 않은 C 장비는 다음에 이야기하기로 했다.", "out_of_scope", []),
     ][: 8 if unassigned else 6]
     transcript = "\n".join(text for text, _, _ in rows)
-    source = agent.ReportWritingInput.model_validate(
+    source = contract.ReportWritingInput.model_validate(
         {
             "transcript": transcript,
             "evidence": {
@@ -45,9 +46,9 @@ def _case(*, unassigned=True):
             },
         }
     )
-    draft = agent.FreeformMeetingReports(
+    draft = contract.FreeformMeetingReports(
         deal_reports=[
-            agent.DealReport(
+            contract.DealReport(
                 sales_deal_id=deal,
                 title=f"{deal} 논의",
                 body=f"{rows[index][0]} {rows[5][0]}",
@@ -55,11 +56,11 @@ def _case(*, unassigned=True):
             )
             for deal, index in ((DEAL_A, 3), (DEAL_B, 4))
         ],
-        common_report=agent.ReportBody(
+        common_report=contract.ReportBody(
             body=" ".join(text for text, _, _ in rows[:3]),
             evidence_ids=["S0001", "S0002", "S0003"],
         ),
-        unassigned_report=agent.ReportBody(
+        unassigned_report=contract.ReportBody(
             body=(
                 "추가 견적 요청은 대상 딜 확인이 필요합니다. "
                 "선택 범위 밖의 C 장비는 다음 미팅에서 다룰 예정입니다."
@@ -74,17 +75,17 @@ def _case(*, unassigned=True):
 
 def test_common_report_is_required_even_when_a_deal_mentions_common_context():
     source, draft = _case()
-    assert agent.ReportWritingInput.model_validate(source.model_dump(mode="json")) == source
+    assert contract.ReportWritingInput.model_validate(source.model_dump(mode="json")) == source
     assert source.crm_context == {}
-    agent.validate_reports(source, draft)
+    contract.validate_reports(source, draft)
 
     draft.deal_reports[0].body += " " + draft.common_report.body
     draft.deal_reports[0].evidence_ids.extend(draft.common_report.evidence_ids)
-    agent.validate_reports(source, draft)
+    contract.validate_reports(source, draft)
     draft.common_report = None
     with pytest.raises(ValueError, match="report_common_evidence_mismatch"):
-        agent.validate_reports(source, draft)
-    issue = agent._structural_issues(source, draft)[0]
+        contract.validate_reports(source, draft)
+    issue = contract.structural_issues(source, draft)[0]
     assert issue["missing_ids"] == ["S0001", "S0002", "S0003"]
     assert {item["segment_id"] for item in issue["required_raw_quotes"]} == set(
         issue["missing_ids"]
@@ -96,14 +97,14 @@ def test_common_report_is_absent_when_all_evidence_belongs_to_deals():
     payload = source.model_dump(mode="json")
     for item in payload["evidence"]["items"][:3]:
         item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
-    source = agent.ReportWritingInput.model_validate(payload)
+    source = contract.ReportWritingInput.model_validate(payload)
     draft.deal_reports[0].body += " " + draft.common_report.body
     draft.deal_reports[0].evidence_ids.extend(draft.common_report.evidence_ids)
     draft.common_report = None
-    agent.validate_reports(source, draft)
-    draft.common_report = agent.ReportBody(body="근거 없는 공통 내용", evidence_ids=[])
+    contract.validate_reports(source, draft)
+    draft.common_report = contract.ReportBody(body="근거 없는 공통 내용", evidence_ids=[])
     with pytest.raises(ValueError, match="report_common_without_evidence"):
-        agent.validate_reports(source, draft)
+        contract.validate_reports(source, draft)
 
 
 @pytest.mark.parametrize(
@@ -127,7 +128,7 @@ def test_input_rejects_tampered_source(part, error):
     else:
         payload["unrecognized"] = True
     with pytest.raises(ValidationError, match=error):
-        agent.ReportWritingInput.model_validate(payload)
+        contract.ReportWritingInput.model_validate(payload)
 
 
 @pytest.mark.parametrize(
@@ -140,15 +141,15 @@ def test_input_rejects_tampered_source(part, error):
 )
 def test_report_body_rejects_invalid_structure(body, refs, error):
     with pytest.raises(ValidationError, match=error):
-        agent.ReportBody(body=body, evidence_ids=refs)
+        contract.ReportBody(body=body, evidence_ids=refs)
 
 
 @pytest.mark.parametrize("kind", ["shared", "deal"])
 def test_generated_body_matches_the_final_submission_length_limit(kind):
     def build(body):
         if kind == "shared":
-            return agent.ReportBody(body=body, evidence_ids=[])
-        return agent.DealReport(
+            return contract.ReportBody(body=body, evidence_ids=[])
+        return contract.DealReport(
             sales_deal_id=DEAL_A,
             title="논의",
             body=body,
@@ -167,7 +168,7 @@ def test_reports_require_each_selected_deal_once(ids):
         draft.deal_reports[0].model_copy(update={"sales_deal_id": deal}) for deal in ids
     ]
     with pytest.raises(ValueError, match="report_selected_deals_mismatch"):
-        agent.validate_reports(source, draft)
+        contract.validate_reports(source, draft)
 
 
 @pytest.mark.parametrize(
@@ -195,7 +196,7 @@ def test_reports_reject_missing_or_mixed_evidence(target, refs, error):
     }[target]
     report.evidence_ids = refs
     with pytest.raises(ValueError, match=error):
-        agent.validate_reports(source, draft)
+        contract.validate_reports(source, draft)
 
 
 def test_unassigned_report_may_paraphrase_while_preserving_complete_evidence_ids():
@@ -204,20 +205,20 @@ def test_unassigned_report_may_paraphrase_while_preserving_complete_evidence_ids
     assert all(
         item.segment.text not in draft.unassigned_report.body for item in source.evidence.items[6:]
     )
-    agent.validate_reports(source, draft)
+    contract.validate_reports(source, draft)
 
 
 def test_unassigned_report_is_required_only_when_there_is_unassigned_evidence():
     source, draft = _case()
     draft.unassigned_report = None
     with pytest.raises(ValueError, match="report_unassigned_evidence_missing"):
-        agent.validate_reports(source, draft)
+        contract.validate_reports(source, draft)
 
     source, draft = _case(unassigned=False)
-    agent.validate_reports(source, draft)
-    draft.unassigned_report = agent.ReportBody(body="근거 없는 미지정 내용", evidence_ids=[])
+    contract.validate_reports(source, draft)
+    draft.unassigned_report = contract.ReportBody(body="근거 없는 미지정 내용", evidence_ids=[])
     with pytest.raises(ValueError, match="report_unassigned_without_evidence"):
-        agent.validate_reports(source, draft)
+        contract.validate_reports(source, draft)
 
 
 @pytest.fixture
@@ -272,13 +273,9 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.deep.v16"
-    skill = (agent.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
-    assert "합니다체로 통일한다" in skill
-    assert "생성 과정을 해설하지 않는다" in skill
-    assert "핵심 사실이 현재 딜의 진행, 보류 또는 다음 판단에 미치는 의미" in skill
-    assert "상급자의 결정이나 지원이 실제로 필요하다는 근거" in skill
-    assert "내부 분류·처리 절차나 화면 제목을 본문에 쓰지 않는다" in skill
+    assert agent.PROMPT_VERSION == "report_writing.bounded.v17"
+    assert agent.COMMON_SKILL.parent.name == "report-style"
+    assert agent.SKILL_DIR.name == "sales-meeting-report"
 
 
 def test_empty_shared_sections_may_be_omitted_but_required_evidence_is_still_checked():
@@ -286,46 +283,46 @@ def test_empty_shared_sections_may_be_omitted_but_required_evidence_is_still_che
     source_payload = source.model_dump(mode="json")
     for item in source_payload["evidence"]["items"][:3]:
         item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
-    source = agent.ReportWritingInput.model_validate(source_payload)
+    source = contract.ReportWritingInput.model_validate(source_payload)
     draft.deal_reports[0].body += " " + draft.common_report.body
     draft.deal_reports[0].evidence_ids.extend(draft.common_report.evidence_ids)
     draft.common_report = None
     payload = draft.model_dump(mode="json")
     payload.pop("common_report")
 
-    parsed = agent.FreeformMeetingReports.model_validate(payload)
+    parsed = contract.FreeformMeetingReports.model_validate(payload)
 
     assert parsed.common_report is None
-    assert agent.FreeformMeetingReports.model_json_schema()["required"] == ["deal_reports"]
-    agent.validate_reports(source, parsed)
+    assert contract.FreeformMeetingReports.model_json_schema()["required"] == ["deal_reports"]
+    contract.validate_reports(source, parsed)
 
     payload.pop("unassigned_report")
-    parsed = agent.FreeformMeetingReports.model_validate(payload)
+    parsed = contract.FreeformMeetingReports.model_validate(payload)
     with pytest.raises(ValueError, match="report_unassigned_evidence_missing"):
-        agent.validate_reports(source, parsed)
+        contract.validate_reports(source, parsed)
 
 
 def test_deal_schema_emits_identity_before_live_body():
-    assert list(agent.DealReport.model_json_schema()["properties"]) == [
+    assert list(contract.DealReport.model_json_schema()["properties"]) == [
         "sales_deal_id",
         "title",
         "body",
         "evidence_ids",
     ]
     with pytest.raises(ValidationError, match="report_evidence_duplicate"):
-        agent.DealReport(sales_deal_id=DEAL_A, body="내용", evidence_ids=["S0001", "S0001"])
+        contract.DealReport(sales_deal_id=DEAL_A, body="내용", evidence_ids=["S0001", "S0001"])
 
 
 def test_new_reports_require_title_but_legacy_snapshot_still_deserializes():
     source, draft = _case()
     payload = draft.model_dump(mode="json")
     payload["deal_reports"][0].pop("title")
-    legacy = agent.FreeformMeetingReports.model_validate(payload)
+    legacy = contract.FreeformMeetingReports.model_validate(payload)
 
     assert legacy.deal_reports[0].title is None
     with pytest.raises(ValueError, match="report_deal_title_missing"):
-        agent.validate_reports(source, legacy)
-    agent.validate_reports(source, legacy, require_titles=False)
+        contract.validate_reports(source, legacy)
+    contract.validate_reports(source, legacy, require_titles=False)
 
 
 @pytest.mark.parametrize("field", ["title", "body"])
@@ -334,20 +331,20 @@ def test_selected_deal_without_current_evidence_requires_exact_marker(field):
     payload = source.model_dump(mode="json")
     for item in payload["evidence"]["items"][4:6]:
         item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
-    source = agent.ReportWritingInput.model_validate(payload)
+    source = contract.ReportWritingInput.model_validate(payload)
     draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
-    draft.deal_reports[1].title = agent.NO_DEAL_EVIDENCE_TEXT
-    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].title = contract.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].body = contract.NO_DEAL_EVIDENCE_TEXT
     draft.deal_reports[1].evidence_ids = []
-    agent.validate_reports(source, draft)
+    contract.validate_reports(source, draft)
 
     for invalid in (
         "이전 보고서의 논의만 있음",
-        f"{agent.NO_DEAL_EVIDENCE_TEXT}. 과거에는 예산을 검토했다.",
+        f"{contract.NO_DEAL_EVIDENCE_TEXT}. 과거에는 예산을 검토했다.",
     ):
         setattr(draft.deal_reports[1], field, invalid)
         with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
-            agent.validate_reports(source, draft)
+            contract.validate_reports(source, draft)
 
 
 def test_selected_deal_without_evidence_reports_marker_error_for_missing_title():
@@ -355,14 +352,14 @@ def test_selected_deal_without_evidence_reports_marker_error_for_missing_title()
     payload = source.model_dump(mode="json")
     for item in payload["evidence"]["items"][4:6]:
         item["applicability"] = {"scope": "deal", "deal_ids": [str(DEAL_A)]}
-    source = agent.ReportWritingInput.model_validate(payload)
+    source = contract.ReportWritingInput.model_validate(payload)
     draft.deal_reports[0].evidence_ids = ["S0004", "S0005", "S0006"]
     draft.deal_reports[1].title = None
-    draft.deal_reports[1].body = agent.NO_DEAL_EVIDENCE_TEXT
+    draft.deal_reports[1].body = contract.NO_DEAL_EVIDENCE_TEXT
     draft.deal_reports[1].evidence_ids = []
 
     with pytest.raises(ValueError, match="report_deal_no_evidence_marker_missing"):
-        agent.validate_reports(source, draft)
+        contract.validate_reports(source, draft)
 
 
 def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_common():
@@ -370,7 +367,7 @@ def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_
     draft.deal_reports[0].evidence_ids = ["S0001", "S0005", "S0006"]
     draft.unassigned_report.evidence_ids = ["S0007", "S0004"]
     draft.unassigned_report.body = "불확실한 요청이 있었다."
-    issues = agent._structural_issues(source, draft)
+    issues = contract.structural_issues(source, draft)
     deal = next(item for item in issues if item["code"] == "report_deal_evidence_mismatch")
     assert deal["path"] == "deal_reports[0].evidence_ids"
     assert deal["sales_deal_id"] == str(DEAL_A)
@@ -389,7 +386,7 @@ def test_structural_feedback_reports_all_repairs_and_quotes_without_reassigning_
     assert {item["segment_id"] for item in unassigned["required_raw_quotes"]} == {"S0007", "S0008"}
     assert all(item["repair_action"] for item in issues)
     with pytest.raises(ValueError, match="report_deal_evidence_mismatch"):
-        agent.validate_reports(source, draft)
+        contract.validate_reports(source, draft)
 
 
 @pytest.mark.parametrize(

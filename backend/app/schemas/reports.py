@@ -55,7 +55,7 @@ SnapshotNote = Annotated[
 
 # 유스케이스의 업무 보고는 미팅·일자별·주간·월간 네 가지다.
 # 업무보고서는 일정 하나에 붙고, 주간과 월간은 기간을 덮는다.
-# 주간은 그 주의 일일보고서를, 월간은 그 달의 주간보고서를 자료로 쓴다.
+# 일일은 미팅, 주간은 일일, 월간은 주간 보고서의 제출본을 자료로 쓴다.
 ReportKind = Literal["meeting", "daily", "weekly", "monthly"]
 ReportAttachmentKind = Literal["audio", "image", "pdf"]
 ReportAttachmentPurpose = Literal["meeting_source", "reference"]
@@ -121,6 +121,8 @@ def validate_body_values(content: dict[str, Any]) -> None:
         raise ValueError("report_values_body_only")
     if "body" in values and not isinstance(values["body"], str):
         raise ValueError("report_body_invalid")
+    if len(values.get("body", "").strip()) > REPORT_BODY_MAX_LENGTH:
+        raise ValueError("report_body_too_large")
 
 
 def validate_content_title(content: dict[str, Any]) -> None:
@@ -261,7 +263,7 @@ class ReportFinalize(_WriteModel):
     """사람이 승인한 최종값을 한 번에 저장하고 제출하는 요청."""
 
     report_kind: ReportKind
-    report_date: date
+    report_date: date = Field(description="미팅은 작성자가 확정한 미팅일, 기간 보고서는 기준일")
     period_start: date | None = None
     period_end: date | None = None
     source_activity_id: UUID | None = None

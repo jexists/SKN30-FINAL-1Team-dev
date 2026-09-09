@@ -11,11 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.core.config import settings
 from app.models.configuration import CustomerContactStatus
+from app.models.content import Document
+from app.models.content import File as FileRow
 from app.models.crm import CustomerCompany, CustomerContact, CustomerContactAssignee
 from app.models.workspace import Member
 from app.schemas.customers import (
     ContactAssigneeRead,
+    CustomerAttachmentRead,
     CustomerCompanyCreate,
     CustomerCompanyPage,
     CustomerCompanyPatch,
@@ -33,16 +37,35 @@ from app.schemas.customers import (
     CustomerDuplicateProbe,
     CustomerDuplicateRead,
     CustomerPageParams,
+    digits_only,
 )
-from app.services import customer_duplicates
+from app.services import customer_duplicates, storage
 from app.services.customer_duplicates import DuplicateProbe
+from app.services.storage import StorageError
 
 router = APIRouter(tags=["customers"])
+
+# 상세 드로어는 한동안 열어 두는 화면이다. 자료실 내려받기(60초)보다 넉넉히 두어야
+# 열어 둔 사이에 명함 사진이 빈칸이 되지 않는다.
+ATTACHMENT_EXPIRES_IN = 300
 
 
 def _contains(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def _phone_search(q: str):
+    """전화번호는 숫자만 남겨 견준다.
+
+    저장 형식이 숫자로 바뀌기 전에 들어온 값에는 하이픈이 남아 있다. 양쪽을 숫자로
+    맞춰야 010-1234 로 찾든 0101234 로 찾든 같은 사람이 나온다.
+    """
+    digits = digits_only(q)
+    if not digits:
+        return CustomerContact.phone.ilike(_contains(q), escape="\\")
+    stored = func.regexp_replace(CustomerContact.phone, r"[^0-9]", "", "g")
+    return stored.like(_contains(digits), escape="\\")
 
 
 async def _get_company(
@@ -450,7 +473,7 @@ async def list_customer_contacts(
                 CustomerContact.department.ilike(pattern, escape="\\"),
                 CustomerContact.job_title.ilike(pattern, escape="\\"),
                 CustomerContact.email.ilike(pattern, escape="\\"),
-                CustomerContact.phone.ilike(pattern, escape="\\"),
+                _phone_search(page.q),
             )
         )
     total_result = await db.execute(
@@ -505,6 +528,68 @@ async def get_customer_contact(
     db: DbSession,
 ) -> CustomerContactRead:
     return _contact_read(*await _get_contact_row(db, member, contact_id))
+
+
+@router.get(
+    "/customer-contacts/{contact_id}/attachments",
+    response_model=list[CustomerAttachmentRead],
+)
+async def list_customer_contact_attachments(
+    contact_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> list[CustomerAttachmentRead]:
+    """등록에 쓴 원본. 명함은 그 담당자의 것이고, 사업자등록증은 회사의 것이다."""
+    contact = (await _get_contact_row(db, member, contact_id))[0]
+    if not settings.storage_configured:
+        # 첨부는 상세의 곁가지다. 저장소가 없다고 상세가 실패하면 안 된다.
+        return []
+
+    rows = (
+        await db.execute(
+            select(Document, FileRow)
+            .join(FileRow, FileRow.document_id == Document.id)
+            .where(
+                Document.team_id == member.team_id,
+                Document.deleted_at.is_(None),
+                or_(
+                    and_(
+                        Document.category_code == "business_card",
+                        Document.customer_contact_id == contact.id,
+                    ),
+                    and_(
+                        Document.category_code == "business_license",
+                        Document.customer_company_id == contact.company_id,
+                    ),
+                ),
+            )
+            .order_by(FileRow.uploaded_at.desc())
+        )
+    ).all()
+
+    attachments: list[CustomerAttachmentRead] = []
+    for document, file_row in rows:
+        try:
+            url = await storage.signed_url(
+                storage_key=file_row.storage_key,
+                expires_in=ATTACHMENT_EXPIRES_IN,
+            )
+        except StorageError:
+            # 한 건을 못 받았다고 나머지 첨부까지 감추지 않는다.
+            continue
+        attachments.append(
+            CustomerAttachmentRead(
+                kind=document.category_code,
+                document_id=document.id,
+                file_id=file_row.id,
+                file_name=file_row.file_name,
+                media_type=file_row.media_type,
+                byte_size=file_row.byte_size,
+                url=url,
+                expires_in=ATTACHMENT_EXPIRES_IN,
+            )
+        )
+    return attachments
 
 
 @router.post(
@@ -598,14 +683,14 @@ async def check_customer_contact_duplicates(
 # 고객 등록 폼과 같은 규칙이다. 여기서 걸러야 한 줄의 오타가 나머지 줄까지 막지 않는다.
 _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
-# 각 칸이 담을 수 있는 길이. 단건 등록 스키마(Text·Phone·Memo)와 같은 값이다.
+# 각 칸이 담을 수 있는 길이. 단건 등록 스키마(Text·Memo)와 같은 값이다.
+# 전화번호는 숫자만 남긴 길이로 재므로 여기 두지 않는다.
 _BULK_LIMITS: tuple[tuple[str, str, int], ...] = (
     ("company_name", "company_too_long", 254),
     ("name", "name_too_long", 254),
     ("department", "department_too_long", 254),
     ("job_title", "job_title_too_long", 254),
     ("email", "email_too_long", 254),
-    ("phone", "phone_too_long", 50),
     ("memo", "memo_too_long", 5_000),
 )
 
@@ -616,13 +701,17 @@ def _bulk_problem(item: CustomerContactBulkItem) -> str | None:
         return "name_required"
     if not item.company_name.strip():
         return "company_required"
-    if not item.phone.strip():
+    phone = digits_only(item.phone)
+    if not phone:
         return "phone_required"
+    # 단건 등록 스키마의 Phone 과 같은 자릿수만 받는다.
+    if len(phone) > 20:
+        return "phone_too_long"
     email = item.email.strip()
     if email and not _EMAIL.match(email):
         return "email_invalid"
     business_no = item.business_no.strip()
-    if business_no and len(re.sub(r"[^0-9]", "", business_no)) != 10:
+    if business_no and len(digits_only(business_no)) != 10:
         return "business_no_invalid"
     for field_name, code, limit in _BULK_LIMITS:
         if len(getattr(item, field_name).strip()) > limit:
@@ -655,7 +744,7 @@ async def _bulk_company(
     )
     company = result.scalar_one_or_none()
     if company is None:
-        digits = re.sub(r"[^0-9]", "", business_no)
+        digits = digits_only(business_no)
         company = CustomerCompany(
             id=uuid4(),
             team_id=member.team_id,
@@ -762,7 +851,7 @@ async def create_customer_contacts_bulk(
                 department=item.department.strip() or None,
                 job_title=item.job_title.strip() or None,
                 email=item.email.strip() or None,
-                phone=item.phone.strip(),
+                phone=digits_only(item.phone),
                 customer_contact_status_id=None if contact_status is None else contact_status.id,
                 source_code=None,
                 memo=item.memo.strip() or None,

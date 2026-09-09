@@ -81,6 +81,71 @@ def reset_dependencies(monkeypatch):
     app.dependency_overrides.clear()
 
 
+def test_attachment_limits_require_authentication():
+    async def override_db():
+        return _UploadDb()
+
+    app.dependency_overrides[get_db] = override_db
+    with TestClient(app) as client:
+        response = client.get("/api/report-attachments/limits")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "not_authenticated"}
+
+
+def test_attachment_limits_return_only_effective_upload_settings(monkeypatch):
+    monkeypatch.setattr(settings, "stt_max_bytes", 321)
+    monkeypatch.setattr(settings, "upload_max_bytes", 654)
+    monkeypatch.setattr(settings, "ocr_runpod_inline_max_bytes", 1)
+    with _client(_member()) as client:
+        response = client.get("/api/report-attachments/limits")
+        assert response.status_code == 200
+        assert response.json() == {"audio_max_bytes": 321, "document_max_bytes": 654}
+        monkeypatch.setattr(settings, "upload_max_bytes", 987)
+        assert client.get("/api/report-attachments/limits").json() == {
+            "audio_max_bytes": 321,
+            "document_max_bytes": 987,
+        }
+
+
+@pytest.mark.parametrize(
+    "name,media,content,setting",
+    [
+        ("proposal.pdf", "application/pdf", PDF, "upload_max_bytes"),
+        ("meeting.mp3", "audio/mpeg", b"ID3synthetic", "stt_max_bytes"),
+    ],
+)
+def test_upload_enforces_advertised_limit_before_extraction(
+    monkeypatch, name, media, content, setting
+):
+    extract = AsyncMock(
+        return_value=ExtractedDocument(plain_text="합성 추출문", markdown="합성 추출문", payload={})
+    )
+    monkeypatch.setattr(report_attachments, "extract", extract)
+    monkeypatch.setattr(settings, setting, len(content))
+    db = _UploadDb()
+    with _client(_member(), db) as client:
+        limits = client.get("/api/report-attachments/limits").json()
+        key = "audio_max_bytes" if setting == "stt_max_bytes" else "document_max_bytes"
+        assert limits[key] == len(content)
+        rejected = client.post(
+            "/api/report-attachments",
+            headers={"Origin": ORIGIN},
+            files={"upload": (name, content + b"x", media)},
+        )
+        assert rejected.status_code == 413
+        assert rejected.json() == {"detail": "file_too_large"}
+        assert not db.rows
+        extract.assert_not_awaited()
+        storage.upload.assert_not_awaited()
+        accepted = client.post(
+            "/api/report-attachments",
+            headers={"Origin": ORIGIN},
+            files={"upload": (name, content, media)},
+        )
+        assert accepted.status_code == 201
+        extract.assert_awaited_once()
+
+
 def test_upload_keeps_original_with_owner_metadata_and_expiry(monkeypatch):
     async def extract(**kwargs):
         assert kwargs == {

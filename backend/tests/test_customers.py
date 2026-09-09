@@ -251,7 +251,8 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
     }
     assert contact.name == "합성 고객"
     assert contact.email == "customer@demo.test"
-    assert contact.phone == "02-000-0000"
+    # 전화번호는 어떤 모양으로 적어도 숫자만 남겨 저장한다.
+    assert contact.phone == "020000000"
     assert (
         CustomerContactCreate(
             company_id=uuid4(),
@@ -837,15 +838,24 @@ def test_company_write_round_trips_business_no_and_rejects_other_shapes():
             headers={"Origin": ORIGIN},
             json={"name": "합성 고객사", "region_code": None, "business_no": " 1234567890 "},
         )
-        rejected = client.post(
+        hyphenated = client.post(
             "/api/customer-companies",
             headers={"Origin": ORIGIN},
             json={"name": "합성 고객사", "business_no": "123-45-67890"},
+        )
+        rejected = client.post(
+            "/api/customer-companies",
+            headers={"Origin": ORIGIN},
+            json={"name": "합성 고객사", "business_no": "123-45-678"},
         )
 
     assert created.status_code == 201
     assert created.json()["business_no"] == "1234567890"
     assert db.added[0].business_no == "1234567890"
+    # 화면에서 하이픈을 넣어 보내도 숫자만 남겨 받는다.
+    assert hyphenated.status_code == 201
+    assert hyphenated.json()["business_no"] == "1234567890"
+    # 숫자가 10자리가 아니면 여전히 거절한다.
     assert rejected.status_code == 422
 
 
@@ -1215,6 +1225,28 @@ def test_bulk_creates_a_missing_company_and_keeps_the_existing_business_no():
     assert existing.business_no == "1234567890"
 
 
+def test_bulk_keeps_only_digits_in_the_phone():
+    """엑셀은 하이픈·공백이 섞여 들어온다. 저장 형식은 한 가지여야 한다."""
+    member = _member()
+    company = _company(member.team_id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        _Result(rows=[]),
+        _Result(scalar=company),
+    )
+
+    response = _bulk_post(
+        db,
+        member,
+        [_bulk_item(2, company_name=company.name, phone="010 1111-2222")],
+    )
+
+    assert response.status_code == 200
+    contacts = [row for row in db.added if isinstance(row, CustomerContact)]
+    assert [contact.phone for contact in contacts] == ["01011112222"]
+
+
 def test_bulk_skips_customers_that_already_exist():
     member = _member()
     company = _company(member.team_id)
@@ -1461,3 +1493,125 @@ def test_duplicate_check_with_nothing_to_compare_asks_the_database_nothing():
     assert response.status_code == 200
     assert response.json() == []
     assert db.statements == []
+
+
+def _attachment_rows(contact: CustomerContact, company: CustomerCompany, member: Member):
+    """상세 첨부 조회가 읽는 (문서, 파일) 행. 명함은 사람에, 등록증은 회사에 붙는다."""
+    from app.models.content import Document
+    from app.models.content import File as FileRow
+
+    card = Document(
+        id=uuid4(),
+        team_id=member.team_id,
+        created_by_member_id=member.id,
+        document_no="SL-DC-2026-0001",
+        category_code="business_card",
+        title="합성 고객 명함",
+        customer_company_id=company.id,
+        customer_contact_id=contact.id,
+    )
+    card_file = FileRow(
+        id=uuid4(),
+        document_id=card.id,
+        version_no=1,
+        file_name="card.jpg",
+        storage_key="team/card.jpg",
+        media_type="image/jpeg",
+        byte_size=1234,
+        processing_status="uploaded",
+        uploaded_by_member_id=member.id,
+    )
+    license_document = Document(
+        id=uuid4(),
+        team_id=member.team_id,
+        created_by_member_id=member.id,
+        document_no="SL-DC-2026-0002",
+        category_code="business_license",
+        title="합성 고객사 사업자등록증",
+        customer_company_id=company.id,
+    )
+    license_file = FileRow(
+        id=uuid4(),
+        document_id=license_document.id,
+        version_no=1,
+        file_name="license.pdf",
+        storage_key="team/license.pdf",
+        media_type="application/pdf",
+        byte_size=5678,
+        processing_status="uploaded",
+        uploaded_by_member_id=member.id,
+    )
+    return [(card, card_file), (license_document, license_file)]
+
+
+def test_customer_attachments_return_signed_urls_for_card_and_license(monkeypatch):
+    from app.services import storage
+
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    contact_status = _contact_status(member.team_id, status_id=contact.customer_contact_status_id)
+    db = _Db(
+        _Result(rows=[_contact_row(contact, company, member, contact_status)]),
+        _assignee_result((contact, member)),
+        _Result(rows=_attachment_rows(contact, company, member)),
+    )
+
+    signed = []
+
+    async def _signed_url(*, storage_key, expires_in):
+        signed.append((storage_key, expires_in))
+        return f"https://storage.test/{storage_key}?token=x"
+
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: True))
+    monkeypatch.setattr(storage, "signed_url", _signed_url)
+
+    with _client(db, member) as client:
+        response = client.get(f"/api/customer-contacts/{contact.id}/attachments")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["kind"] for item in body] == ["business_card", "business_license"]
+    assert body[0]["media_type"] == "image/jpeg"
+    assert body[1]["file_name"] == "license.pdf"
+    assert all(item["url"].startswith("https://storage.test/") for item in body)
+    # 저장소 키 자체는 절대 내보내지 않는다.
+    assert all("storage_key" not in item for item in body)
+    assert [key for key, _expires in signed] == ["team/card.jpg", "team/license.pdf"]
+
+    attachment_sql = str(db.statements[2])
+    assert "business_card" in str(db.statements[2].compile().params.values())
+    assert "document.deleted_at IS NULL" in attachment_sql
+
+
+def test_customer_attachments_are_empty_without_storage(monkeypatch):
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    contact_status = _contact_status(member.team_id, status_id=contact.customer_contact_status_id)
+    db = _Db(
+        _Result(rows=[_contact_row(contact, company, member, contact_status)]),
+        _assignee_result((contact, member)),
+    )
+
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: False))
+
+    with _client(db, member) as client:
+        response = client.get(f"/api/customer-contacts/{contact.id}/attachments")
+
+    # 첨부는 상세의 곁가지다. 저장소가 없어도 상세가 실패하면 안 된다.
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_customer_attachments_hide_other_team_contact(monkeypatch):
+    member = _member()
+    db = _Db(_Result(rows=[]))
+
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: True))
+
+    with _client(db, member) as client:
+        response = client.get(f"/api/customer-contacts/{uuid4()}/attachments")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "customer_contact_not_found"

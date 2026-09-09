@@ -1,9 +1,11 @@
 """명함 OCR 결과와 고객 담당자 등록 초안 스키마."""
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+
+from app.schemas.customers import to_digits
 
 
 class BusinessCardFields(BaseModel):
@@ -17,7 +19,8 @@ class BusinessCardFields(BaseModel):
     department: str = Field(default="", max_length=254)
     job_title: str = Field(default="", max_length=254)
     email: str = Field(default="", max_length=254)
-    phone: str = Field(default="", max_length=50)
+    # 저장 형식과 같게 숫자만 남긴다. 화면에 보일 하이픈은 프론트가 붙인다.
+    phone: Annotated[str, BeforeValidator(to_digits)] = Field(default="", max_length=50)
     website: str = Field(default="", max_length=254)
     address: str = Field(default="", max_length=500)
     memo: str = Field(default="", max_length=5_000)

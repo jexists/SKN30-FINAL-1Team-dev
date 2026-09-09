@@ -1,4 +1,5 @@
 import type { CustomerDuplicateResponse } from '@/types'
+import { phoneDigits } from '../../utils/format.ts'
 
 /** 지금 등록하려던 값. 폼과 명함·등록증 흐름이 모두 이 모양으로 넘깁니다. */
 export interface DuplicateDraft {
@@ -27,7 +28,7 @@ export function isSameCustomer(draft: DuplicateDraft, match: CustomerDuplicateRe
     draft.department.trim() === text(match.department) &&
     draft.jobTitle.trim() === text(match.job_title) &&
     draft.email.trim() === text(match.email) &&
-    draft.phone.trim() === match.phone.trim() &&
+    phoneDigits(draft.phone) === phoneDigits(match.phone) &&
     draft.memo.trim() === text(match.memo) &&
     draft.visited === match.visited
   )

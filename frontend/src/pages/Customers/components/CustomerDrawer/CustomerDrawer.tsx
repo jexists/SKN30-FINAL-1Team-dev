@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from 'react'
 
-import { buttonClass } from '@/components/Button'
 import Drawer from '@/components/Drawer'
-import { EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
+import { DocumentsIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import useCompanyDeals from '@/hooks/useCompanyDeals'
-import type { Customer } from '@/types'
+import useCustomerAttachments from '@/pages/Customers/useCustomerAttachments'
+import type { Customer, CustomerAttachment } from '@/types'
+import { sizeLabel } from '@/utils/attachment'
 import { fmtDay, parseISO } from '@/utils/date'
+import { formatPhone } from '@/utils/format'
 
 import CustomerDeals from './CustomerDeals'
 import styles from './CustomerDrawer.module.scss'
@@ -36,10 +38,51 @@ function Block({ title, children }: BlockProps) {
 
 const shown = (value: string | null | undefined): string => value || '—'
 
+const KIND_LABEL: Record<CustomerAttachment['kind'], string> = {
+  business_card: '명함',
+  business_license: '사업자등록증',
+}
+
+/**
+ * 등록에 쓴 원본 한 건. 사진은 어느 명함인지 알아볼 만큼만 줄여 놓고, 크게 볼 일은
+ * 눌러서 원본을 엽니다. PDF 는 미리 보여 줄 수 없어 같은 크기의 자리에 받는 길만 둡니다.
+ * 둘을 같은 타일로 맞춰 두면 첨부가 늘어도 세로로 길어지지 않고 옆으로 늡니다.
+ */
+function Attachment({ attachment }: { attachment: CustomerAttachment }) {
+  const label = KIND_LABEL[attachment.kind]
+  const image = attachment.media_type?.startsWith('image/') === true
+
+  return (
+    <figure className={styles.shot}>
+      <a
+        className={styles.tile}
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={image ? `${label} 원본 열기` : `${label} 원본 받기`}
+      >
+        {image ? (
+          <img src={attachment.url} alt={`${label} 원본`} />
+        ) : (
+          <span className={styles.doc}>
+            <DocumentsIcon width={20} height={20} />
+            원본 받기
+          </span>
+        )}
+      </a>
+      <figcaption className={styles.shotNote}>
+        {label} · {sizeLabel(attachment.byte_size)}
+      </figcaption>
+    </figure>
+  )
+}
+
 export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, onClose }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   // 딜은 사람이 아니라 회사에 걸립니다. 고객을 바꾸면 companyId 가 바뀌어 다시 받아 옵니다.
   const { deals, loading, error, reload } = useCompanyDeals(customer.companyId)
+  // 명함은 이 사람의 것이고, 사업자등록증은 이 회사의 것입니다. 서버가 함께 줍니다.
+  const attachments = useCustomerAttachments(customer.id)
 
   // 담당자가 여럿이면 상세에서는 전부 보여 줍니다. 좁은 표와 달리 자리가 있습니다.
   const ownerNames =
@@ -126,13 +169,6 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
           <span className={styles.when}>담당 {customer.owner}</span>
         </>
       }
-      footer={
-        customer.email ? (
-          <a className={buttonClass()} href={`mailto:${customer.email}`}>
-            이메일 보내기
-          </a>
-        ) : undefined
-      }
     >
       <div className={styles.grid}>
         <div className={styles.col}>
@@ -154,7 +190,7 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
                 <dt>전화</dt>
                 <dd>
                   <a className={`${styles.mail} tnum`} href={`tel:${customer.phone}`}>
-                    {customer.phone}
+                    {formatPhone(customer.phone)}
                   </a>
                 </dd>
               </div>
@@ -208,6 +244,21 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
           contactId={customer.id}
         />
       </section>
+
+      {/* 직접 등록한 고객에는 원본이 없습니다. 빈 자리를 남기지 않고 통째로 뺍니다. */}
+      {attachments.length > 0 && (
+        <section className={styles.attach}>
+          <h3>
+            첨부 자료
+            <span className={styles.blockNote}>{attachments.length}건</span>
+          </h3>
+          <div className={styles.shots}>
+            {attachments.map((attachment) => (
+              <Attachment key={attachment.file_id} attachment={attachment} />
+            ))}
+          </div>
+        </section>
+      )}
     </Drawer>
   )
 }

@@ -88,6 +88,16 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
     if (!reading) onClose()
   }
 
+  // 읽는 동안에는 사용자가 손댈 것이 없습니다. 파일 줄과 미리보기, 눌리지 않는 버튼까지
+  // 함께 두면 화면만 길어지므로, 어디까지 왔는지 하나만 남깁니다.
+  if (reading) {
+    return (
+      <Modal title="사업자 등록증으로 고객 등록" description="" onClose={close}>
+        <RecognitionLoading description="사업자등록증에서 고객사 정보를 확인하고 있습니다." />
+      </Modal>
+    )
+  }
+
   return (
     <Modal
       title="사업자 등록증으로 고객 등록"
@@ -95,11 +105,11 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
       onClose={close}
       footer={
         <>
-          <Button type="button" variant="outline" disabled={reading} onClick={close}>
+          <Button type="button" variant="outline" onClick={close}>
             취소
           </Button>
-          <Button type="button" disabled={file === null || reading} onClick={read}>
-            {reading ? '읽는 중…' : '다음'}
+          <Button type="button" disabled={file === null} onClick={read}>
+            다음
           </Button>
         </>
       }
@@ -168,7 +178,6 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
               type="button"
               variant="outline"
               size="sm"
-              disabled={reading}
               onClick={() => fileRef.current?.click()}
             >
               파일 변경
@@ -177,7 +186,6 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
               type="button"
               className={styles.remove}
               aria-label={`${file.name} 삭제`}
-              disabled={reading}
               onClick={clear}
             >
               <TrashIcon />
@@ -190,10 +198,6 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
               src={preview}
               alt={`선택한 사업자등록증 ${file.name}`}
             />
-          )}
-
-          {reading && (
-            <RecognitionLoading description="사업자등록증에서 고객사 정보를 확인하고 있습니다." />
           )}
 
           {error && (

@@ -58,6 +58,62 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   ocr_not_configured: '문자 인식 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
   ocr_unavailable: '문자 인식 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   llm_not_configured: 'AI 처리 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
+  ...Object.fromEntries(
+    ['agent_run_timeout', 'report_generation_timeout', 'meeting_content_timeout'].map((code) => [
+      code,
+      'AI 처리가 제한시간 안에 끝나지 않았습니다. 입력은 유지됩니다. 다시 시도해 주세요.',
+    ]),
+  ),
+  ...Object.fromEntries(
+    [
+      'agent_run_failed',
+      'agent_run_unexpected_error',
+      'report_generation_failed',
+      'meeting_content_failed',
+      'report_output_invalid',
+      'llm_output_schema_mismatch',
+      'llm_response_not_object',
+      'llm_response_not_json',
+      'empty_llm_output',
+    ].map((code) => [
+      code,
+      'AI 보고서를 완성하지 못했습니다. 입력은 유지됩니다. 다시 시도해 주세요.',
+    ]),
+  ),
+  ...Object.fromEntries(
+    [401, 403].map((status) => [
+      `llm_provider_error:${status}`,
+      'AI 서비스 인증 설정을 확인해 주세요. 입력한 내용은 유지됩니다.',
+    ]),
+  ),
+  ...Object.fromEntries(
+    [429, 500, 502, 503, 504].map((status) => [
+      `llm_provider_error:${status}`,
+      'AI 서비스가 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    ]),
+  ),
+  ...Object.fromEntries(
+    [
+      'APIConnectionError',
+      'APITimeoutError',
+      'CloseError',
+      'ConnectError',
+      'ConnectTimeout',
+      'NetworkError',
+      'PoolTimeout',
+      'ProxyError',
+      'ReadError',
+      'ReadTimeout',
+      'RemoteProtocolError',
+      'StreamChunkTimeoutError',
+      'TimeoutException',
+      'WriteError',
+      'WriteTimeout',
+    ].map((name) => [
+      `llm_request_failed:${name}`,
+      'AI 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    ]),
+  ),
   // 명함 인식 (/customers)
   business_card_extraction_failed:
     '명함에서 값을 정리하지 못했습니다. 글자가 또렷하게 나오도록 다시 찍어 주세요.',
@@ -79,6 +135,21 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   // 보고서 (/reports)
   activity_not_owned: '본인이 진행한 일정에만 보고서를 쓸 수 있습니다.',
   report_not_owned: '본인이 쓴 보고서만 고치거나 제출할 수 있습니다.',
+  transcript_too_large: '직접 입력한 원문은 최대 50,000자까지 사용할 수 있습니다.',
+  meeting_transcript_too_large:
+    '직접 입력과 미팅 원문 파일을 합친 내용은 최대 50,000자까지 사용할 수 있습니다. 원문 사이의 빈 줄도 포함합니다.',
+  report_body_too_large:
+    '보고서 본문·공통 기록·미지정 기록은 각각 최대 50,000자까지 작성할 수 있습니다.',
+  report_title_invalid: '보고서 제목은 1~254자로 입력해 주세요.',
+  report_attachment_limit_exceeded:
+    '첨부 파일은 원문과 참고자료를 합해 최대 10개까지 넣을 수 있습니다.',
+  report_source_limit_exceeded: '관련 보고서는 최대 100개까지 선택할 수 있습니다.',
+  guidance_too_large: '작성 지침은 최대 2,000자까지 입력할 수 있습니다.',
+  template_snapshot_too_large:
+    '보고서 양식이 너무 큽니다. 양식의 내용을 줄여 주세요. (최대 256KiB)',
+  content_too_large: '보고서 입력 내용이 너무 큽니다. 내용을 줄여 주세요. (최대 256KiB)',
+  attachments_too_large:
+    '첨부 파일의 추출문과 정보가 너무 큽니다. 첨부 내용을 줄여 주세요. (합계 최대 256KiB)',
   meeting_notes_changed:
     '다른 화면에서 미팅 메모가 수정되었습니다. 입력한 내용을 보관한 뒤 최신 메모를 다시 불러와 주세요.',
   meeting_notes_stale:
@@ -101,7 +172,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   report_attachment_ocr_too_large:
     '문자 인식할 페이지나 이미지가 너무 많습니다. 더 짧은 파일로 나눠 올려 주세요.',
   report_attachment_text_too_large:
-    '첨부 파일에서 읽은 내용이 너무 깁니다. 더 작은 파일을 올려 주세요.',
+    '첨부 파일의 추출문은 파일마다 최대 50,000자까지 사용할 수 있습니다. 추출문을 줄이거나 파일을 나눠 주세요.',
   // 상품 (/products)
   product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   product_image_not_found: '등록된 사진이 없습니다.',
@@ -161,7 +232,7 @@ const MESSAGE_BY_STATUS: Record<number, string> = {
  * 같은 곳에서 문구를 얻어야 화면마다 말이 갈라지지 않습니다.
  */
 export function messageForCode(code: string, fallback: string): string {
-  return code in MESSAGE_BY_DETAIL ? MESSAGE_BY_DETAIL[code] : fallback
+  return Object.hasOwn(MESSAGE_BY_DETAIL, code) ? MESSAGE_BY_DETAIL[code] : fallback
 }
 
 export function reportGenerationMessage(code: string): string {
@@ -173,12 +244,37 @@ export function reportGenerationMessage(code: string): string {
 
 export function errorMessage(error: unknown, fallback: string): string {
   const detail = readErrorDetail(error)
-  if (detail && detail in MESSAGE_BY_DETAIL) return MESSAGE_BY_DETAIL[detail]
+  if (detail && Object.hasOwn(MESSAGE_BY_DETAIL, detail)) return MESSAGE_BY_DETAIL[detail]
 
   if (isAxiosError(error)) {
     const status = error.response?.status
+    const errors = (error.response?.data as ErrorEnvelope | undefined)?.detail
+    if (status === 422 && Array.isArray(errors)) {
+      for (const entry of errors) {
+        const code = typeof entry?.msg === 'string' ? entry.msg.replace(/^Value error, /, '') : ''
+        if (Object.hasOwn(MESSAGE_BY_DETAIL, code)) return MESSAGE_BY_DETAIL[code]
+        if (!['string_too_long', 'too_long'].includes(entry?.type) || !Array.isArray(entry.loc))
+          continue
+        if (!/(?:\/report-generations|\/reports\/finalize)(?:\?|$)/.test(error.config?.url ?? ''))
+          continue
+        const path = entry.loc.slice(1).join('.')
+        if (entry.loc[0] !== 'body') continue
+        if (/^(?:body|common_body|unassigned_body|deal_sections\.\d+\.body)$/.test(path))
+          return MESSAGE_BY_DETAIL.report_body_too_large
+        if (/^(?:title|deal_sections\.\d+\.title)$/.test(path))
+          return MESSAGE_BY_DETAIL.report_title_invalid
+        if (/^attachments\.\d+\.extract$/.test(path))
+          return MESSAGE_BY_DETAIL.report_attachment_text_too_large
+        if (path === 'transcript') return MESSAGE_BY_DETAIL.transcript_too_large
+        if (path === 'guidance') return MESSAGE_BY_DETAIL.guidance_too_large
+        if (path === 'attachments') return MESSAGE_BY_DETAIL.report_attachment_limit_exceeded
+        if (path === 'sales_deal_ids' || path === 'deal_sections')
+          return '미팅 딜은 최대 100개까지 선택할 수 있습니다.'
+      }
+      return fallback
+    }
     if (status !== undefined && status in MESSAGE_BY_STATUS) return MESSAGE_BY_STATUS[status]
   }
-
+  if (error instanceof Error) return messageForCode(error.message, fallback)
   return fallback
 }

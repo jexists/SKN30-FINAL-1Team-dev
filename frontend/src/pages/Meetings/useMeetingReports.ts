@@ -6,6 +6,7 @@ import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '
 import { meetingFreeformTemplate } from '@/shared/meetings'
 import { canRecoverReportGeneration, isAuthorEditableReportStatus } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
+import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   AgentRunResponse,
   MeetingDealSection,
@@ -160,6 +161,7 @@ export function meetingBodyOf(values: Record<string, string>): string {
 
 export function meetingGenerationSeedOf(input: ReportGenerationInput) {
   return {
+    reportDate: input.report_date,
     salesDealIds: input.sales_deal_ids,
     transcript: input.transcript ?? '',
     attachments: attachmentsFromPayload(input.attachments),
@@ -286,15 +288,17 @@ interface MeetingReportsOnOptions {
   includeDrafts?: boolean
 }
 
-/** 그 날 확정한 업무보고서들. 하루치라 한 쪽에 다 들어옵니다. */
+/** 미팅일이 같은 보고서를 현재 권한·보기 범위에서 끝까지 받습니다. */
 export function useMeetingReportsOn(
   dateISO: string,
   { enabled = true, includeDrafts = false }: MeetingReportsOnOptions = {},
 ) {
+  const authorIds = useScopeOwnerIds()
   const { items, loading, error, reload } = useReportQuery(
     enabled
       ? {
           report_kind: 'meeting',
+          author_member_id: authorIds,
           start_date: dateISO,
           end_date: dateISO,
           ...(includeDrafts
@@ -302,7 +306,8 @@ export function useMeetingReportsOn(
             : { status_code: ['submitted', 'approved', 'rejected', 'changes_requested'] }),
         }
       : null,
-    '업무보고서를 불러오지 못했습니다.',
+    '관련 보고서를 불러오지 못했습니다.',
+    true,
   )
   const reports = useMemo(() => items.map(toMeetingReport), [items])
   return { reports, loading, error, reload }

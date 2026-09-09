@@ -9,7 +9,6 @@ import OwnerName from '@/components/OwnerName'
 import ReportBody from '@/components/ReportBody'
 import { ChevronRightIcon, CloseIcon } from '@/components/icons'
 import { dailyComposePath } from '@/constants/routes'
-import { agendaFor } from '@/shared/agenda'
 import { useShowOwner } from '@/shared/scope'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
@@ -63,7 +62,7 @@ export default function ReportDrawer({ dateISO, rows, kind, onClose }: Props) {
   }, [])
 
   const isFuture = dateISO > TODAY_ISO
-  const schedule = agendaFor(dateISO).length
+  const sourceKind = kind === '일일' ? '미팅' : kind === '주간' ? '일일' : '주간'
 
   return (
     <div className={styles.scrim} onPointerDown={onClose}>
@@ -90,9 +89,7 @@ export default function ReportDrawer({ dateISO, rows, kind, onClose }: Props) {
               <p className={styles.emptyDesc}>
                 {isFuture
                   ? '아직 오지 않은 날짜입니다.'
-                  : schedule > 0
-                    ? `이 날 캘린더 일정 ${schedule}건이 남아 있습니다. 그대로 초안을 만들 수 있습니다.`
-                    : '이 날은 캘린더 일정도 없습니다.'}
+                  : `제출된 ${sourceKind} 보고서를 바탕으로 AI 보고서를 작성할 수 있습니다.`}
               </p>
 
               {!isFuture && (

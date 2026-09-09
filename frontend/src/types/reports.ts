@@ -28,26 +28,25 @@ export interface ReportTemplate {
 /**
  * 활동을 어디서 주워 왔는지. 배지로 나옵니다.
  *
- * 보고는 일정/업무보고서 → 일일 → 주간 → 월간 순으로 쌓입니다. 주간·월간은
- * 한 단계 아래 보고서를 자료로 삼으므로 그 둘도 출처가 됩니다.
+ * 기간 보고서는 source/refId/included로 하위 보고서를 지정하고 서버가 제출본을 동결합니다.
  */
 export type ActivitySource =
   '캘린더' | '업무보고서' | '문서' | '후속' | '수기' | '일일보고서' | '주간보고서'
 
-/** 보고서에 넣을 후보 활동 한 건 */
+/** 기간 보고서 생성·복구·제출과 관련 보고서 탐색에 쓰는 참조 */
 export interface ReportActivity {
   id: string
   source: ActivitySource
   title: string
   desc: string
-  /** 체크를 풀면 보고서와 AI 입력에서 함께 빠집니다. */
+  /** 생성에 포함할지 여부. 생성 후에는 최종 제출까지 보존합니다. */
   included: boolean
   /**
    * 이 활동이 나온 원본의 id. 업무보고서·일일보고서·주간보고서면 그 보고서 id,
-   * 캘린더면 일정 id 입니다. 제출한 뒤에도 무엇을 근거로 썼는지 되짚을 수 있게 남깁니다.
+   * 캘린더면 일정 id 입니다. 관련 항목의 일반 상세를 열 때 사용합니다.
    */
   refId?: string
-  /** 보고서 자료라면 생성에 사용한 불변 제출본 id 입니다. */
+  /** 조회 당시 제출본 id. 생성·복구 후 하위 제출본 변경을 감지합니다. */
   sourceSubmissionId?: string
 }
 
@@ -72,7 +71,7 @@ export interface ReportAttachment {
 
 export type ReportStatus = '작성중' | '검토 대기' | '확정' | '반려'
 
-/** 보고서 종류. 주간은 일일보고서를, 월간은 주간보고서를 자료로 씁니다. */
+/** 기간 보고서 종류. 관련 탐색 목록은 일일→미팅, 주간→일일, 월간→주간입니다. */
 export type ReportKind = '일일' | '주간' | '월간'
 
 export interface DailyReportSeed {
@@ -96,7 +95,7 @@ export interface DailyReportSeed {
   period?: string
 }
 
-/** 실제 날짜가 붙은 업무보고. date 는 제출일입니다. */
+/** 실제 날짜가 붙은 업무보고. date 는 보고 대상일/기간의 시작일입니다. */
 export interface DailyReport extends DailyReportSeed {
   /** YYYY-MM-DD */
   date: string

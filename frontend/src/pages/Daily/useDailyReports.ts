@@ -2,9 +2,10 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { errorMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
+import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { isAuthorEditableReportStatus, templateFor } from '@/shared/reports'
 import { useReportQuery } from '@/shared/reportQuery'
-import { getOwnMemberIds } from '@/shared/scope'
+import { getOwnMemberIds, useScopeOwnerIds } from '@/shared/scope'
 import type {
   ApiReportKind,
   ApiReportStatus,
@@ -22,6 +23,7 @@ import { attachmentPayloadsOf, attachmentsFromPayload } from '@/utils/attachment
 import { iso, parseISO, startOfWeek, TODAY } from '@/utils/date'
 
 import { periodLabelFor, periodRange, periodStart } from './periods'
+import { relatedActivities, sourcesFor } from './sources'
 
 const DAY = 86_400_000
 const API_KIND: Record<ReportKind, ApiReportKind> = {
@@ -61,19 +63,6 @@ export function canEditPeriodReport(report: DailyReport, memberId: string): bool
   return report.ownerMemberId === memberId && isAuthorEditableReportStatus(report.apiStatus)
 }
 
-function activitiesOf(item: ReportResponse): ReportActivity[] {
-  const content = record(item.content)
-  if (Array.isArray(content.activities)) return content.activities as ReportActivity[]
-  return item.activities.map((activity) => ({
-    id: `cal-${activity.activity_id}`,
-    source: '캘린더',
-    title: activity.title,
-    desc: activity.starts_at,
-    included: true,
-    refId: activity.activity_id,
-  }))
-}
-
 export function toReport(item: ReportResponse): DailyReport {
   const kind = KIND_BY_API[item.report_kind as Exclude<ApiReportKind, 'meeting'>]
   const content = record(item.content)
@@ -95,7 +84,10 @@ export function toReport(item: ReportResponse): DailyReport {
     currentSubmissionId: item.current_submission_id,
     updatedAt: item.updated_at,
     values: { body: item.body ?? '' },
-    activities: activitiesOf(item),
+    activities: relatedActivities(
+      kind,
+      Array.isArray(content.activities) ? (content.activities as ReportActivity[]) : [],
+    ),
     attachments: attachmentsFromPayload(item.attachments ?? []),
     transcript: item.transcript ?? '',
     note: item.note ?? '',
@@ -166,7 +158,7 @@ export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
     unassigned_body: null,
     structured_values: {},
     transcript: draft.transcript.trim() || null,
-    note: `활동 ${included.length}건`,
+    note: `관련 보고서 ${included.length}건`,
     activity_ids: included
       .filter((activity) => activity.source === '캘린더' && activity.refId)
       .map((activity) => activity.refId as string),
@@ -238,22 +230,45 @@ export function useReportOfPeriod(kind: ReportKind, dateISO: string) {
   return { report, loading, error, reload }
 }
 
-/**
- * 상위 보고서가 모아 올릴 아래 보고서들. 주간은 그 주의 일일을, 월간은 그 달의 주간을
- * 봅니다. 자리 수가 정해져 있어(한 주 7 칸, 한 달 5 칸 남짓) 한 쪽에 다 들어옵니다.
- */
-export function useChildReports(kind: ReportKind, dateISO: string, enabled: boolean) {
-  const childKind: ReportKind = kind === '월간' ? '주간' : '일일'
+/** 관련 하위 보고서 조회. 월 경계에 걸친 첫 주도 포함합니다. */
+export function childReportQuery(kind: ReportKind, dateISO: string) {
   const [from, to] = periodRange(kind, dateISO)
-  // 월간이 걸친 첫 주는 전달에서 시작할 수 있습니다. 그 주의 주간보고서도 이 달 것이라
-  // 조회 시작을 주의 첫날까지 당깁니다. 여기서 안 받아 오면 sources 가 세울 수 없습니다.
-  const start = kind === '월간' ? iso(startOfWeek(parseISO(from))) : from
+  return {
+    report_kind: kind === '월간' ? 'weekly' : 'daily',
+    start_date: kind === '월간' ? iso(startOfWeek(parseISO(from))) : from,
+    end_date: to,
+    status_code: ['submitted', 'approved'],
+  }
+}
+
+export function useChildReports(kind: ReportKind, dateISO: string, enabled: boolean) {
+  const authorIds = useScopeOwnerIds()
   const { items, loading, error, reload } = useReportQuery(
-    enabled ? { report_kind: API_KIND[childKind], start_date: start, end_date: to } : null,
-    '업무보고를 불러오지 못했습니다.',
+    enabled ? { ...childReportQuery(kind, dateISO), author_member_id: authorIds } : null,
+    '관련 보고서를 불러오지 못했습니다.',
+    true,
   )
   const reports = useMemo(() => items.map(toReport), [items])
   return { reports, loading, error, reload }
+}
+
+/** 작성은 현재 하위 보고서를 생성 후보로, 상세는 같은 목록을 탐색용으로 씁니다. */
+export function useRelatedReports(kind: ReportKind, dateISO: string, enabled = true) {
+  const meetings = useMeetingReportsOn(dateISO, { enabled: enabled && kind === '일일' })
+  const children = useChildReports(kind, dateISO, enabled && kind !== '일일')
+  const related = useMemo(
+    () => sourcesFor(kind, dateISO, meetings.reports, children.reports),
+    [kind, dateISO, meetings.reports, children.reports],
+  )
+  return {
+    ...related,
+    loading: meetings.loading || children.loading,
+    error: meetings.error ?? children.error,
+    reload: () => {
+      meetings.reload()
+      children.reload()
+    },
+  }
 }
 
 export default function useDailyReports() {

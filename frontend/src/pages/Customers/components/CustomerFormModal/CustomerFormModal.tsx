@@ -20,9 +20,10 @@ import type {
   CustomerDuplicateResponse,
   CustomerSourceCode,
 } from '@/types'
-import { businessNoDigits, formatBusinessNo } from '@/utils/format'
+import { businessNoDigits, formatPhone, maskBusinessNo, phoneDigits } from '@/utils/format'
 
 import type { BusinessCardMatch } from '../../businessCard'
+import { archiveBusinessLicense } from '../../businessLicense'
 import { type DuplicateDraft } from '../../duplicate'
 import DuplicateConfirmModal from '../DuplicateConfirmModal'
 import styles from './CustomerFormModal.module.scss'
@@ -56,6 +57,8 @@ interface CustomerFormModalProps {
   duplicateMatches?: BusinessCardMatch[]
   /** 명함 OCR에 사용한 원본. 고객 등록 뒤 자료실에 보관합니다. */
   archiveImage?: File
+  /** 사업자등록증 OCR에 사용한 원본. 고객 등록 뒤 그 회사에 보관합니다. */
+  archiveLicense?: File
 }
 
 const EMPTY = {
@@ -82,7 +85,7 @@ function validate({ draft, company, businessNo, assigneeIds }: Form): Errors {
   const errors: Errors = {}
   if (company === null) errors.company = '회사를 검색해서 고르거나 직접 등록해 주세요.'
   if (draft.name.trim() === '') errors.name = '이름을 입력하세요.'
-  if (draft.phone.trim() === '') errors.phone = '전화번호를 입력하세요.'
+  if (phoneDigits(draft.phone) === '') errors.phone = '전화번호를 입력하세요.'
   if (draft.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
     errors.email = '이메일 형식이 맞지 않습니다. 예: name@company.com'
   }
@@ -183,6 +186,7 @@ export default function CustomerFormModal({
   initialAddress,
   duplicateMatches = [],
   archiveImage,
+  archiveLicense,
 }: CustomerFormModalProps) {
   const { isManager, memberId } = useCurrentUser()
   const editing = customer !== undefined
@@ -195,10 +199,13 @@ export default function CustomerFormModal({
   // 유입경로. 빈 문자열은 미지정입니다.
   const [sourceCode, setSourceCode] = useState<CustomerSourceCode | ''>(customer?.sourceCode ?? '')
   const [company, setCompany] = useState<CompanySelection | null>(initialCompany ?? null)
+  // 입력칸은 하이픈을 붙여 보여 주지만 상태에는 저장 형식대로 숫자만 담습니다.
   const [businessNo, setBusinessNo] = useState(() =>
-    initialCompany?.kind === 'existing'
-      ? (formatBusinessNo(initialCompany.company.business_no) ?? '')
-      : (initialBusinessNo ?? ''),
+    businessNoDigits(
+      (initialCompany?.kind === 'existing'
+        ? initialCompany.company.business_no
+        : initialBusinessNo) ?? '',
+    ),
   )
   const [address, setAddress] = useState<AddressValue>(() =>
     initialCompany?.kind === 'existing'
@@ -239,7 +246,7 @@ export default function CustomerFormModal({
       .then(({ data }) => {
         if (controller.signal.aborted) return
         setCompany({ kind: 'existing', company: data })
-        setBusinessNo(formatBusinessNo(data.business_no) ?? '')
+        setBusinessNo(businessNoDigits(data.business_no ?? ''))
         setAddress(companyAddress(data))
       })
       .catch((error: unknown) => {
@@ -271,7 +278,7 @@ export default function CustomerFormModal({
     setCompany(selection)
     if (selection?.kind === 'existing') {
       // 이미 있는 회사의 사업자번호와 주소는 그 회사의 것입니다. 여기서 고치지 않습니다.
-      setBusinessNo(formatBusinessNo(selection.company.business_no) ?? '')
+      setBusinessNo(businessNoDigits(selection.company.business_no ?? ''))
       setAddress(companyAddress(selection.company))
     } else if (leavingExistingCompany) {
       setBusinessNo('')
@@ -301,7 +308,7 @@ export default function CustomerFormModal({
         department: optional(draft.dept),
         job_title: optional(draft.title),
         email: optional(draft.email),
-        phone: draft.phone.trim(),
+        phone: phoneDigits(draft.phone),
         source_code: sourceCode === '' ? null : sourceCode,
         memo: optional(draft.memo),
         visited,
@@ -342,6 +349,14 @@ export default function CustomerFormModal({
           // 고객 등록은 완료됐으므로 원본 보관 실패가 등록 자체를 되돌리지는 않습니다.
           warning =
             '고객은 등록됐지만 명함 원본 보관에 실패했습니다. 자료실에 다시 업로드해 주세요.'
+        }
+      }
+      // 등록증은 사람이 아니라 회사에 붙습니다. 회사는 위에서 이미 확정됐습니다.
+      if (archiveLicense) {
+        try {
+          await archiveBusinessLicense(fields.company_id, archiveLicense)
+        } catch {
+          warning = '고객은 등록됐지만 사업자등록증 원본 보관에 실패했습니다.'
         }
       }
       setSubmitting(false)
@@ -413,7 +428,7 @@ export default function CustomerFormModal({
           <ul>
             {duplicateMatches.map((match) => (
               <li key={match.contact_id}>
-                {match.company_name} · {match.name} · {match.phone}
+                {match.company_name} · {match.name} · {formatPhone(match.phone)}
               </li>
             ))}
           </ul>
@@ -433,7 +448,7 @@ export default function CustomerFormModal({
 
         <Field label="사업자 등록번호" error={errors.businessNo}>
           <input
-            value={businessNo}
+            value={maskBusinessNo(businessNo)}
             placeholder="123-45-67890"
             maxLength={12}
             // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
@@ -441,7 +456,7 @@ export default function CustomerFormModal({
             // 회사를 고르기 전이라도, 등록증에서 읽어 온 값은 고칠 수 있어야 합니다.
             disabled={submitting || (company === null && businessNo === '')}
             onChange={(event) => {
-              setBusinessNo(event.target.value)
+              setBusinessNo(businessNoDigits(event.target.value))
               clearError('businessNo')
             }}
           />
@@ -470,11 +485,11 @@ export default function CustomerFormModal({
         <Field label="전화" required error={errors.phone}>
           <input
             type="tel"
-            value={draft.phone}
+            value={formatPhone(draft.phone)}
             placeholder="02-000-0000"
             maxLength={50}
             disabled={submitting}
-            onChange={(event) => set('phone', event.target.value)}
+            onChange={(event) => set('phone', phoneDigits(event.target.value))}
           />
         </Field>
 

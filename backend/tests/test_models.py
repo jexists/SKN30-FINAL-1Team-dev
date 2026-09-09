@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 from sqlalchemy import inspect, text
@@ -10,8 +11,21 @@ from sqlalchemy.orm import configure_mappers
 
 from app.core.config import settings
 from app.db.base import Base
+from app.db.session import TRANSACTION_POOLER_PORT, _transaction_pooler_args
 from app.models.agent import AgentRun
 from app.models.content import ReportDeal
+
+
+def _test_engine():
+    """앱과 같은 조건으로 붙는다.
+
+    transaction pooler(6543)로 갈 때 prepared statement 캐시를 끄지 않으면 연결이
+    트랜잭션마다 갈아 끼워져 "already exists" 로 죽는다. 앱이 이미 쓰는 인자를 그대로 쓴다.
+    """
+    url = settings.async_database_url
+    pooler = urlsplit(url).port == TRANSACTION_POOLER_PORT
+    return create_async_engine(url, connect_args=_transaction_pooler_args() if pooler else {})
+
 
 EXPECTED_COLUMN_COUNTS = {
     # 20260823_0002 로 team 에 company_name/department/business_no, member 에 email 이 늘었다.
@@ -220,7 +234,7 @@ async def test_legacy_report_deal_migration_only_clears_ambiguous_links():
         ("meeting", {"sales_deal_ids": [deal, other], "sales_deal": {"id": deal}}, deal),
         ("daily", {"sales_deal_ids": [deal, other]}, deal),
     ]
-    engine = create_async_engine(settings.async_database_url)
+    engine = _test_engine()
     try:
         async with engine.connect() as connection:
             await connection.execute(text("SET TRANSACTION READ ONLY"))
@@ -235,7 +249,7 @@ async def test_legacy_report_deal_migration_only_clears_ambiguous_links():
 
 
 async def _assert_models_match_database():
-    engine = create_async_engine(settings.async_database_url)
+    engine = _test_engine()
 
     def compare(connection):
         inspector = inspect(connection)

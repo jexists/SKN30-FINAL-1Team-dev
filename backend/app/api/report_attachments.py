@@ -24,6 +24,14 @@ from app.services.upload_guard import (
 router = APIRouter(tags=["report-attachments"])
 
 
+@router.get("/report-attachments/limits")
+async def report_attachment_limits(_member: CurrentMember) -> dict[str, int]:
+    return {
+        "audio_max_bytes": settings.stt_max_bytes,
+        "document_max_bytes": settings.upload_max_bytes,
+    }
+
+
 def _processing_error(error: Exception) -> HTTPException:
     if isinstance(error, stt.STTNotConfigured):
         return HTTPException(503, "stt_not_configured")

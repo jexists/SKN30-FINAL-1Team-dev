@@ -67,11 +67,6 @@ def contact_memo(fields: BusinessCardFields) -> str | None:
     return "\n".join(values) or None
 
 
-def normalize_phone(value: str) -> str:
-    """전화번호의 공백만 정리한다. 숫자 추정이나 국가번호 변환은 하지 않는다."""
-    return re.sub(r"[ \t]+", " ", value).strip()
-
-
 def normalize_ocr_contact_text(value: str) -> str:
     """명함 필드 분석 전에 연락처 기호 주변의 OCR 공백만 정리한다."""
     normalized = value.replace("＠", "@").replace("ⓐ", "@").replace("。", ".")

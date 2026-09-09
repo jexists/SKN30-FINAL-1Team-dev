@@ -1,9 +1,11 @@
 """사업자등록증 OCR 결과와 고객사 등록 초안 스키마."""
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+
+from app.schemas.customers import to_digits
 
 
 class BusinessLicenseFields(BaseModel):
@@ -12,7 +14,8 @@ class BusinessLicenseFields(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     company: str = Field(default="", max_length=254)
-    business_no: str = Field(default="", max_length=30)
+    # 저장 형식과 같게 숫자 10자리만 남긴다. 화면에 보일 하이픈은 프론트가 붙인다.
+    business_no: Annotated[str, BeforeValidator(to_digits)] = Field(default="", max_length=30)
     address: str = Field(default="", max_length=500)
     representative: str = Field(default="", max_length=100)
     confidence: float | None = Field(default=None, ge=0, le=1)

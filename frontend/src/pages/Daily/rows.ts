@@ -57,7 +57,7 @@ export function fromDailyReport(report: DailyReport): ListRow {
     attachments: report.attachments,
     meta:
       acts > 0 || files > 0
-        ? `활동 ${acts}건${files > 0 ? ` · 첨부 ${files}건` : ''}`
+        ? `관련 보고서 ${acts}건${files > 0 ? ` · 첨부 ${files}건` : ''}`
         : report.note,
     aside: report.approver,
     author: report.owner,

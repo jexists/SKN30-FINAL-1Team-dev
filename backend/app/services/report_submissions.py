@@ -200,6 +200,20 @@ def snapshot_sha256(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def submission_ref(submission: ReportSubmission) -> dict[str, Any]:
+    """Durable version metadata; validate the immutable content before retaining its hash."""
+    if not isinstance(submission.snapshot, dict):
+        raise HTTPException(422, "report_source_content_invalid")
+    if snapshot_sha256(submission.snapshot) != submission.snapshot_sha256:
+        raise HTTPException(409, "report_source_snapshot_hash_mismatch")
+    return {
+        "source_report_id": str(submission.report_id),
+        "revision_no": submission.revision_no,
+        "snapshot_sha256": submission.snapshot_sha256,
+        "report_date": submission.snapshot.get("report_date"),
+    }
+
+
 def validate_submission_content(report: Report, sections: list[ReportDeal]) -> None:
     """Require an approved deal body or, for no-deal meetings, a shared body."""
     if report.report_kind != "meeting":
@@ -249,6 +263,25 @@ async def create_submission(
         .all()
     )
     snapshot = build_submission_snapshot(report, sections, source_rows)
+    source_ids = [
+        row.source_report_submission_id for row in source_rows if row.source_report_submission_id
+    ]
+    if source_ids:
+        sources = {
+            row.id: row
+            for row in (
+                await db.execute(
+                    select(ReportSubmission).where(ReportSubmission.id.in_(source_ids))
+                )
+            )
+            .scalars()
+            .all()
+        }
+        if set(source_ids) != set(sources):
+            raise HTTPException(404, "report_source_not_found")
+        for ref in snapshot["source_refs"]:
+            if ref["source_report_submission_id"] is not None:
+                ref.update(submission_ref(sources[UUID(ref["source_report_submission_id"])]))
     submission = ReportSubmission(
         id=uuid4(),
         report_id=report.id,

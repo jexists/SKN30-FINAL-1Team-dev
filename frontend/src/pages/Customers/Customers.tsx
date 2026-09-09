@@ -361,6 +361,7 @@ export default function Customers() {
           onCreated={onCustomerCreated}
           duplicateMatches={cardDraft?.matches}
           archiveImage={cardDraft?.sourceImage}
+          archiveLicense={licenseDraft?.sourceFile}
           // 등록증에 있는 사람은 대표자뿐입니다. 이름만 채우고 나머지 사람 칸은
           // 명함일 때만 채웁니다. 대표자가 담당자가 아니면 폼에서 고칩니다.
           initial={

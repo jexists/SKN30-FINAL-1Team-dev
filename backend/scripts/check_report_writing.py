@@ -15,7 +15,7 @@ TEMPLATE = {
 async def check() -> None:
     os.environ["DEBUG"] = "false"
 
-    from app.agents import report_writing
+    from app.agents.reports import period as report_writing
     from app.core.config import settings
 
     if not settings.llm_configured:

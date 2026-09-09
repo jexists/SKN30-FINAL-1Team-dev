@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.agents import meeting_analysis
+from app.agents.meeting import features as meeting_analysis
 from app.ml import deal_baseline
 from app.schemas.meeting_content import (
     MeetingContentAnalysisOutput,

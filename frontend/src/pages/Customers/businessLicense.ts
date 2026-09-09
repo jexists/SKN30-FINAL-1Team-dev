@@ -11,6 +11,8 @@ export interface BusinessLicenseDraft {
   address: string
   /** 등록증의 대표자. 담당자 이름 칸의 첫 값으로 씁니다. */
   representative: string
+  /** 인식에 쓴 원본. 고객 등록 뒤 그 회사에 보관합니다. */
+  sourceFile: File
 }
 
 interface BusinessLicenseScanAccepted {
@@ -106,6 +108,7 @@ export async function extractBusinessLicense(file: File): Promise<BusinessLicens
       businessNo: scan.fields.business_no,
       address: scan.fields.address,
       representative: scan.fields.representative,
+      sourceFile: file,
     }
   } catch (error: unknown) {
     if (isAxiosError(error) && [502, 503].includes(error.response?.status ?? 0)) {
@@ -126,4 +129,12 @@ export async function extractBusinessLicense(file: File): Promise<BusinessLicens
     }
     throw error
   }
+}
+
+/** 등록증 원본을 그 회사에 보관합니다. 등록증은 사람이 아니라 회사의 문서입니다. */
+export async function archiveBusinessLicense(companyId: string, file: File): Promise<void> {
+  const form = new FormData()
+  form.append('company_id', companyId)
+  form.append('file', file)
+  await client.post('/business-licenses/archive', form)
 }

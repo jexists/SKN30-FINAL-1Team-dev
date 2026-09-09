@@ -6,6 +6,13 @@ import { client } from './client'
 
 const UPLOAD_TIMEOUT_MS = 300_000
 
+export async function reportAttachmentLimits(): Promise<{
+  audio_max_bytes: number
+  document_max_bytes: number
+}> {
+  return (await client.get('/report-attachments/limits')).data
+}
+
 export async function uploadReportAttachment(file: File): Promise<ReportAttachmentPayload> {
   const form = new FormData()
   form.append('upload', file)

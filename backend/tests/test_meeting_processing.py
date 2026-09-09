@@ -8,7 +8,11 @@ import pytest
 from test_agent_runs import _member
 from test_report_writing_deep import draft, sample
 
-from app.agents import meeting_analysis, meeting_content_analysis, report_writing_deep
+from app.agents.meeting import content as meeting_content_analysis
+from app.agents.meeting import features as meeting_analysis
+from app.agents.reports import meeting as report_writing_deep
+from app.agents.reports import meeting_contract as contract
+from app.schemas import meeting_content
 from app.services import meeting_processing as service
 from app.services.llm import LLMError
 
@@ -34,7 +38,7 @@ def test_split_children_consume_the_frozen_evidence_independently(monkeypatch):
     source, snapshot = _snapshot()
     snapshot["evidence"] = source.evidence.model_dump(mode="json")
     seen = []
-    reports = report_writing_deep.FreeformMeetingReports.model_validate(draft())
+    reports = contract.FreeformMeetingReports.model_validate(draft())
 
     async def write(value):
         seen.append(("report", value.evidence, value.crm_context))
@@ -123,10 +127,10 @@ def test_no_deal_input_and_processing_keep_the_shared_report(monkeypatch):
 
     monkeypatch.setattr(service.meeting_context, "build_context", context)
     snapshot = asyncio.run(service.input_snapshot(None, member, activity_id, [], transcript))
-    source = meeting_content_analysis.MeetingContentInput.model_validate(snapshot["source"])
-    evidence = meeting_content_analysis.build_evidence_ledger(
+    source = meeting_content.MeetingContentInput.model_validate(snapshot["source"])
+    evidence = meeting_content.build_evidence_ledger(
         source,
-        meeting_content_analysis.MeetingContentAnalysisOutput.model_validate(
+        meeting_content.MeetingContentAnalysisOutput.model_validate(
             {
                 "assignments": [
                     {
@@ -137,9 +141,9 @@ def test_no_deal_input_and_processing_keep_the_shared_report(monkeypatch):
             }
         ),
     )
-    reports = report_writing_deep.FreeformMeetingReports(
+    reports = contract.FreeformMeetingReports(
         deal_reports=[],
-        common_report=report_writing_deep.ReportBody(
+        common_report=contract.ReportBody(
             body="고객사가 신규 사업 방향을 공유했습니다.",
             evidence_ids=["S0001"],
         ),
@@ -178,7 +182,7 @@ def test_run_shares_evidence_and_keeps_partial_results(monkeypatch, report_failu
         }
     ]
     snapshot["crm_context"]["refinement_context"] = {"private_batch": ["tool-only"]}
-    reports = report_writing_deep.FreeformMeetingReports.model_validate(draft())
+    reports = contract.FreeformMeetingReports.model_validate(draft())
     analyses = [
         meeting_analysis.DealFeatureResult(
             sales_deal_id=deal_id,

@@ -11,7 +11,7 @@ async def check() -> None:
     """실제 미팅 분석 경계를 호출하고 모델 출력 계약을 검증한다."""
     os.environ["DEBUG"] = "false"
 
-    from app.agents import meeting_analysis
+    from app.agents.meeting import features as meeting_analysis
     from app.core.config import settings
     from app.ml import deal_baseline
     from app.schemas.meeting_content import (
