@@ -11,7 +11,7 @@ from app.services.llm import generate_structured
 
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
-PROMPT_VERSION = "schedule_management.v2"
+PROMPT_VERSION = "schedule_management.v3"
 
 SYSTEM_PROMPT = """너는 영업 일정관리를 보조하는 AI다.
 입력된 선호 기간, 소요 시간과 기존 일정만 근거로 후보를 만든다.
@@ -19,8 +19,8 @@ SYSTEM_PROMPT = """너는 영업 일정관리를 보조하는 AI다.
 입력의 current_date는 지금 시각(Asia/Seoul)이다. 모든 후보는 current_date 이후여야
 한다 — 이미 지난 날짜를 제안하지 마라.
 
-모든 후보의 시작·종료는 Asia/Seoul 기준 09:00~18:00 업무시간 안에서, 토·일요일을 뺀
-평일(월~금)에만 제안하라.
+모든 후보의 시작·종료는 Asia/Seoul 기준 09:00~18:00 업무시간 안에 두어라. 요일은 가리지
+않는다 — 영업 일정은 토·일에도 잡힌다. 다만 평일에 빈자리가 있으면 평일을 먼저 제안하라.
 기존 일정과 겹치는 후보는 만들지 말고, 발견한 충돌은 conflicts 에 근거 ID와 함께 남겨라.
 
 각 후보의 길이는 duration_minutes 와 정확히 같아야 한다 — 자리가 부족하다고 짧게 줄이지
@@ -118,15 +118,18 @@ def _now() -> datetime:
 
 
 def _within_business_hours(candidate: ScheduleCandidate) -> bool:
-    """후보 시작·종료가 같은 날짜의 평일 Asia/Seoul 09:00~18:00 안에 있는지 확인한다."""
+    """후보 시작·종료가 같은 날짜의 Asia/Seoul 09:00~18:00 안에 있는지 확인한다.
+
+    요일은 보지 않는다. 영업 일정은 토·일에도 잡히므로 주말을 막으면 실제로 만날 수 있는
+    자리를 서버가 버리게 된다. 프롬프트도 같은 기준이라 한쪽만 풀면 뜻이 없다 — 프롬프트만
+    풀면 서버가 버리고, 서버만 풀면 LLM 이 애초에 만들지 않는다.
+    """
     try:
         start = _parse(candidate.starts_at).astimezone(_SEOUL)
         end = _parse(candidate.ends_at).astimezone(_SEOUL)
     except ValueError:
         return False
     if end <= start or start.date() != end.date():
-        return False
-    if start.weekday() >= 5:  # 5=토요일, 6=일요일
         return False
     return _BUSINESS_START <= start.time() and end.time() <= _BUSINESS_END
 
@@ -292,7 +295,7 @@ def _dedupe_and_cap(candidates: list[ScheduleCandidate]) -> list[ScheduleCandida
 def _postprocess(
     output: ScheduleManagementOutput, snapshot: dict[str, Any]
 ) -> ScheduleManagementOutput:
-    """업무시간 밖·주말·과거·선호 기간 밖 후보는 버리고, 겹치는 후보는 conflicts로 옮긴다.
+    """업무시간 밖·과거·선호 기간 밖 후보는 버리고, 겹치는 후보는 conflicts로 옮긴다.
 
     프롬프트로 지침을 줘도 LLM이 어길 수 있어, 미래 여부는 여기서 다시 결정적으로 검증한다.
 
