@@ -1,5 +1,5 @@
 import type { CustomerDuplicateResponse } from '@/types'
-import { phoneDigits } from '@/utils/format'
+import { phoneDigits } from '../../utils/format.ts'
 
 /** 지금 등록하려던 값. 폼과 명함·등록증 흐름이 모두 이 모양으로 넘깁니다. */
 export interface DuplicateDraft {
