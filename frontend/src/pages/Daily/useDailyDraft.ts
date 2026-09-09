@@ -103,7 +103,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const [phase, setPhase] = useState<DraftPhase>('idle')
   const [frozenActivities, setFrozenActivities] = useState<ReportActivity[] | null>(null)
   const activities = frozenActivities ?? related.activities
-  /** 이전 실행·저장 보고서의 사용자 텍스트는 보존하되 새 생성 지침으로 쓰지 않습니다. */
+  /** 저장된 사용자 메모는 최종 제출 때 보존하고, 입력 중에는 새 생성 지침으로 사용합니다. */
   const [transcript, setTranscript] = useState('')
   const files = useAttachments()
   const {
@@ -140,6 +140,11 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     },
     [removeFile],
   )
+  const changeTranscript = useCallback((value: string) => {
+    generationAbort.current?.abort()
+    setGenerationRunId(undefined)
+    setTranscript(value)
+  }, [])
 
   // 기간이나 종류가 바뀌면 자료를 다시 모으고 처음 상태로 돌아갑니다.
   // 쓰던 내용을 지워도 되는지는 화면이 먼저 묻습니다.
@@ -184,6 +189,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     files.attachments.some(
       (attachment) => attachment.state === 'done' && attachment.extract?.trim(),
     ) ||
+    Boolean(transcript.trim()) ||
     Boolean(values.body?.trim())
   const generationPayload = useCallback(
     () => ({
@@ -202,9 +208,12 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   )
 
   const inputError = reportInputError(periodGenerationRequestOf(generationPayload(), ''))
+  const guidanceError =
+    inputError === 'guidance_too_large' ? reportGenerationMessage(inputError) : null
   const submitInputError = reportInputError({
     ...reportRequestOf({ ...generationPayload(), activities }),
     attachments: attachmentPayloadsOf(files.attachments),
+    guidance: generationPayload().transcript.trim() || undefined,
   })
   const canGenerate =
     !recovering &&
@@ -420,6 +429,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     /** 관련 보고서 상태와 바로가기 */
     meta: related.meta,
     transcript,
+    setTranscript: changeTranscript,
+    guidanceError,
     attachments: files.attachments,
     addAttachments,
     removeAttachment,

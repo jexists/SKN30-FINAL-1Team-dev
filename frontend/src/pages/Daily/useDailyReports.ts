@@ -105,7 +105,7 @@ export interface DraftPayload {
   values: Record<string, string>
   activities: DailyReport['activities']
   attachments: DailyReport['attachments']
-  /** 구버전 보고서와 복구 입력에 있던 사용자 텍스트를 최종 저장 시 보존합니다. */
+  /** 입력한 기간 메모는 생성 guidance로 보내고 최종 제출 때 transcript로 보존합니다. */
   transcript: string
 }
 
@@ -171,6 +171,7 @@ export function periodGenerationRequestOf(
   idempotencyKey: string,
 ): ReportGenerationRequest {
   const request = reportRequestOf(draft)
+  const guidance = draft.transcript.trim()
   return {
     idempotency_key: idempotencyKey,
     report_kind: request.report_kind,
@@ -183,6 +184,7 @@ export function periodGenerationRequestOf(
     })),
     template_snapshot: request.template_snapshot,
     content: request.content,
+    ...(guidance ? { guidance } : {}),
   }
 }
 

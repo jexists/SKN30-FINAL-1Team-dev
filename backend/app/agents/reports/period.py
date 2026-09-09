@@ -12,7 +12,7 @@ from app.services.agent_logging import log_agent_event
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError
 
-PROMPT_VERSION = "report_writing.bounded.v21"
+PROMPT_VERSION = "report_writing.bounded.v23"
 PERIOD_WRITER_ROLES = {
     "daily": "daily-report-writer",
     "weekly": "weekly-report-writer",
@@ -36,18 +36,28 @@ run_context의 report_date(일일), period_start~period_end(주간·월간)가 �
 """.strip()
 
 GUIDANCE_CONTRACT = """
-run_context의 current_body와 transcript는 사용자가 작성하던 본문과 추가 메모다.
+run_context의 current_body, transcript, guidance는 사용자 제공 입력이다.
+current_body와 transcript는 사용자가 작성하던 본문과 추가 메모이며,
+guidance에는 기간 보고서에 반영할 추가 결정사항·후속조치·메모가 포함될 수 있다.
+명시된 내용은 사용자 제공 사실·자료로 참고해 본문에 반영한다.
 guidance의 명시적인 사실·딜 귀속 정정은 해당 내용에만 반영한다.
-문체·강조 지시를 새 사실로 해석하거나 정정되지 않은 불확실성을 임의로 해소하지 마라.
+문체·강조 지시는 작성 방식으로만 따르고 새 사실·결정·후속조치로 만들지 마라.
+guidance에 적힌 기간·날짜·조건·부정·불확실성은 그대로 유지하고, 정정되지 않은
+불확실성을 임의로 해소하지 마라.
 """.strip()
 
 REVIEW_PROMPT = (
     EVIDENCE_CONTRACT
     + "\n너는 작성자가 아닌 독립 검토자다. source와 draft를 대조해 사실 왜곡, 기간·딜 혼입, "
     "핵심 누락, 부정·조건·시점 변경을 찾는다. 소제목 누락이나 굵게 강조하지 않은 소제목, "
-    "소제목의 독립 행·뒤 빈 줄 누락, 합니다체 불일치, 생성 과정·자료 출처를 해설하는 표현은 "
+    "소제목의 독립 행·뒤 빈 줄 누락, 서술 부분의 합니다체 불일치, 생성 과정·자료 출처를 해설하는 "
+    "표현은 "
     "단순 문체 취향이 아니라 수정 대상이다. 원자료의 정보 부족과 그 밖의 단순 취향은 "
-    "문제가 아니다. 자료에 결과·조건·걸림돌·후속 조치가 있는데 날짜나 자료 존재만 "
+    "문제가 아니다. 일일·주간·월간 본문은 앞 섹션을 소제목 뒤 빈 줄의 합니다체 서술 문단으로, "
+    "마지막 섹션(다음 업무·다음 주 조치·다음 달 계획)은 소제목 뒤 빈 줄의 핵심어 중심 Markdown "
+    "순서 없는 목록으로 작성해야 한다. 마지막 목록의 간결한 명사구는 합니다체 불일치로 지적하지 "
+    "마라. "
+    "자료에 결과·조건·걸림돌·후속 조치가 있는데 날짜나 자료 존재만 "
     "요약했다면 핵심 누락으로 지적한다. 각 issue에는 초안 경로, 문제 표현, 대조 근거와 "
     "수정 행동을 적고, "
     "문제가 없으면 issues=[]인 ReportReview만 반환하라."
@@ -77,7 +87,9 @@ def _structural_issues(draft: ReportDraftOutput) -> list[dict[str, Any]]:
             }
         ]
     if expected == ["body"] and not draft.fields[0].value.strip():
-        return [{"path": "fields[0].value", "repair_action": "제공된 사실로 줄글 본문을 작성하라."}]
+        return [
+            {"path": "fields[0].value", "repair_action": "제공된 사실로 보고서 본문을 작성하라."}
+        ]
     return []
 
 

@@ -125,6 +125,69 @@ def test_valid_draft_is_reviewed_once_without_revision_and_ids_are_assigned(monk
     assert all(common in call["instructions"] and rules in call["instructions"] for call in seen)
 
 
+def test_meeting_heading_guidance_reaches_each_stage_and_repairs_scope(monkeypatch):
+    responses = [
+        {
+            "title": "보안 승인 후 예산 검토",
+            "body": "**논의 내용**\n\nA는 보안 승인을 받은 뒤 예산을 검토할 예정입니다.",
+        },
+        {"body": "**미팅 목적**\n\n구매팀과 미팅을 진행했습니다."},
+        {
+            "body": "**고객 요구**\n\n추가 자료 요청은 대상 딜 확인이 필요합니다. "
+            "기타 메모는 의미를 특정하기 어렵습니다.",
+        },
+        {"issues": ["unassigned_report.body: 소제목을 굵은 독립 행과 빈 줄로 복원하라."]},
+        {"body": "**고객 요구**\n\n추가 자료 요청은 대상 딜 확인이 필요합니다."},
+    ]
+    seen = scripted(monkeypatch, responses)
+
+    result = asyncio.run(writer.run(sample()))
+
+    heading_rule = "필요한 항목은 Markdown **굵은 소제목**을 독립된 한 줄에 쓰고"
+    assert all(heading_rule in call["instructions"] for call in seen)
+    assert "소제목 누락·굵게 표시하지 않음·독립 행 아님·" in seen[3]["instructions"]
+    assert json.loads(seen[-1]["input_text"])["scope"] == "unassigned_report"
+    assert result.unassigned_report.body.startswith("**고객 요구**\n\n")
+    assert result.deal_reports[1].title == contract.NO_DEAL_EVIDENCE_TEXT
+    assert result.deal_reports[1].body == contract.NO_DEAL_EVIDENCE_TEXT
+
+
+def test_meeting_action_tail_keeps_bullets_and_narrative_rules_through_repair(monkeypatch):
+    action_body = (
+        "**논의 내용**\n\n보안 승인 후 예산 검토 예정이라고 밝혔습니다.\n\n"
+        "**후속 조치**\n\n"
+        "- 요청 | 보안 체크리스트 전달 | 담당: 본인 | 기한: 내일(기준일 미확인) | "
+        "완료 기준: 전달 확인 | 조건: 보안 승인 후"
+    )
+    responses = [
+        {"title": "보안 승인 후 예산 검토", "body": action_body},
+        {"body": "**미팅 목적**\n\n구매팀과 미팅을 진행했습니다."},
+        {"body": "**합의사항**\n\n도입 합의 여부는 미확인입니다."},
+        {"issues": ["deal_reports[0].body: 후속 조치의 조건을 보존하라."]},
+        {"title": "보안 승인 후 예산 검토", "body": action_body},
+    ]
+    seen = scripted(monkeypatch, responses)
+
+    result = asyncio.run(writer.run(sample()))
+
+    assert len(seen) == 5
+    for call in seen:
+        instructions = call["instructions"]
+        assert (
+            "마지막 후속 조치는 소제목 뒤 빈 줄에 핵심어 중심의 Markdown 순서 없는 목록"
+            in instructions
+        )
+        assert "한 항목당 조치 1건" in instructions
+        assert "소제목 뒤 빈 줄에 합니다체 서술 문단" in instructions
+        assert "- 후속 조치 미확인" in instructions
+        assert contract.NO_DEAL_EVIDENCE_TEXT in instructions
+    assert result.deal_reports[0].body == action_body
+    assert result.deal_reports[0].body.split("**후속 조치**\n\n", 1)[1].startswith("- ")
+    assert "담당: 본인" in result.deal_reports[0].body
+    assert "기한: 내일(기준일 미확인)" in result.deal_reports[0].body
+    assert "조건: 보안 승인 후" in result.deal_reports[0].body
+
+
 def test_one_review_repairs_only_identified_scope_then_returns(monkeypatch):
     repaired = {
         "title": "조건 확인",

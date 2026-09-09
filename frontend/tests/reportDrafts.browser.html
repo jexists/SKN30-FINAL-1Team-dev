@@ -209,6 +209,52 @@
       })
 
       async function run() {
+        latest = undefined
+        holdRelated = true
+        failRelated = false
+        children = []
+        await render(null)
+        await render(createElement(Daily, { kind: '일일', date: '2026-08-31' }))
+        await flushRelated()
+        await act(async () => draft.setTranscript('추가 결정사항'))
+        check(draft.canGenerate, '메모만 있어도 기간 보고서 생성 가능')
+        await act(async () => draft.setTranscript('   '))
+        check(!draft.canGenerate, '공백 메모만으로는 기간 보고서 생성 불가')
+        await act(async () => draft.setTranscript('😀'.repeat(2_000)))
+        check(draft.canGenerate, '기간 메모 이모지 2,000자 허용')
+        await act(async () => draft.setTranscript('😀'.repeat(2_001)))
+        check(
+          !draft.canGenerate && draft.guidanceError.includes('2,000'),
+          '기간 메모 2,001자 생성 차단과 이유 표시',
+        )
+        await act(async () => draft.setTranscript('추가 결정사항'))
+        let memoGeneration
+        await act(async () => {
+          memoGeneration = draft.generate()
+          await Promise.resolve()
+        })
+        check(generated.at(-1).guidance === '추가 결정사항', '기간 메모를 guidance로 생성 요청')
+        await act(async () => {
+          delayGeneration()
+          await memoGeneration
+        })
+        const memoRun = draft.generationRunId
+        const memoBody = draft.values.body
+        await act(async () => draft.setTranscript('😀'.repeat(2_001)))
+        check(
+          Boolean(memoRun) &&
+            !draft.generationRunId &&
+            !draft.canGenerate &&
+            draft.missing.some((reason) => reason.includes('2,000')) &&
+            draft.values.body === memoBody,
+          '생성 후 2,001자 메모는 run 무효화·제출 차단·본문 보존',
+        )
+        await act(async () => draft.setTranscript('😀'.repeat(2_000)))
+        check(
+          draft.missing.length === 0 && draft.values.body === memoBody,
+          '2,000자 메모로 돌아오면 제출 사전검증 해소',
+        )
+
         for (const [kind, childKind, date] of [
           ['일일', 'meeting', '2026-08-31'],
           ['주간', 'daily', '2026-08-30'],
@@ -233,6 +279,8 @@
             draft.values.body === '조회 중 수기 본문' && draft.canGenerate,
             `${kind}: 첫 조회 후 수기 본문 보존`,
           )
+          await act(async () => draft.setTranscript('기간 추가 메모'))
+          check(draft.canGenerate, `${kind}: 메모 입력으로 생성 가능`)
 
           const overBody = '😀'.repeat(50_001)
           const beforeLimit = { generated: generated.length, finalized: finalized.length }
@@ -299,6 +347,7 @@
             await Promise.resolve()
           })
           const snapshot = generated.at(-1).content.activities
+          check(generated.at(-1).guidance === '기간 추가 메모', `${kind}: 메모를 guidance로 전송`)
           equal(snapshot, refreshedActivities, `${kind}: 재시도 요청은 최신 조회 출처 사용`)
           children = [report(childKind, 'new'), ...children]
           await reloadRelated()
@@ -322,6 +371,7 @@
             snapshot,
             `${kind}: 생성·최종 제출의 출처 일치`,
           )
+          check(finalized.at(-1).transcript === '기간 추가 메모', `${kind}: 최종 제출에 메모 보존`)
 
           holdRelated = false
           failRelated = true

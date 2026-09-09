@@ -6,11 +6,13 @@ import Button, { buttonClass } from '@/components/Button'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import DayHeader from '@/components/DayHeader'
 import ErrorToast from '@/components/ErrorToast'
+import FormField from '@/components/FormField'
 import { ChevronRightIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
 import Skeleton from '@/components/Skeleton'
 import { dailyComposePath, dailyReportPath } from '@/constants/routes'
+import { reportTextLength } from '@/shared/reports'
 import type { ReportKind } from '@/types'
 import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
@@ -58,7 +60,7 @@ export default function Compose() {
   // 아직 오지 않은 기간은 쓸 것이 없습니다. 주소를 직접 쳐도 막습니다.
   const isFuture = dateISO > TODAY_ISO
 
-  const hasWork = draft.phase !== 'idle' || draft.dirtyIds.size > 0
+  const hasWork = draft.phase !== 'idle' || draft.dirtyIds.size > 0 || draft.transcript.length > 0
 
   const payload = {
     reportId: existing?.id,
@@ -255,7 +257,7 @@ export default function Compose() {
                 attachments={draft.attachments}
                 onAttach={(files) => void draft.addAttachments(files)}
                 onRemove={draft.removeAttachment}
-                note={`AI는 제출된 ${sourceKind} 보고서와 첨부 참고자료, 현재 작성한 본문을 바탕으로 작성합니다.`}
+                note={`AI는 제출된 ${sourceKind} 보고서, 첨부 참고자료, 추가 결정사항 및 메모, 현재 작성한 본문을 바탕으로 작성합니다.`}
                 readOnly={locked || pending || draft.recovering || draft.phase === 'generating'}
               />
               {draft.attachmentError && (
@@ -263,6 +265,20 @@ export default function Compose() {
                   {draft.attachmentError}
                 </p>
               )}
+              <FormField label="추가 결정사항 및 메모" error={draft.guidanceError ?? undefined}>
+                <textarea
+                  id="period-report-guidance"
+                  rows={4}
+                  value={draft.transcript}
+                  readOnly={locked || pending || draft.recovering || draft.phase === 'generating'}
+                  placeholder="보고서에 추가할 결정사항, 후속 조치, 참고할 상황을 입력하세요."
+                  onChange={(event) => draft.setTranscript(event.target.value)}
+                />
+                <span className={styles.guidanceMeta}>
+                  {reportTextLength(draft.transcript).toLocaleString()} / 2,000자 · 메모를 바꾼 뒤
+                  AI 보고서 작성 버튼을 다시 눌러야 반영됩니다.
+                </span>
+              </FormField>
               <Button
                 type="button"
                 className={styles.generate}

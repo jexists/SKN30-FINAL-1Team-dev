@@ -6,6 +6,7 @@ from pydantic import SecretStr, ValidationError
 
 from app.agents.reports import meeting as agent
 from app.agents.reports import meeting_contract as contract
+from app.agents.reports import period as period_agent
 from app.schemas.reports import REPORT_BODY_MAX_LENGTH
 from app.services import llm as llm_service
 from app.services.llm import LLMError, LLMNotConfigured
@@ -273,7 +274,8 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.bounded.v17"
+    assert agent.PROMPT_VERSION == "report_writing.bounded.v19"
+    assert period_agent.PROMPT_VERSION == "report_writing.bounded.v23"
     assert agent.COMMON_SKILL.parent.name == "report-style"
     assert agent.SKILL_DIR.name == "sales-meeting-report"
 

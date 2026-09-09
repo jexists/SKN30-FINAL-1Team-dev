@@ -37,6 +37,7 @@ const {
   toReport,
 } = await vite.ssrLoadModule('/src/pages/Daily/useDailyReports.ts')
 const { mergeGeneratedValues } = await vite.ssrLoadModule('/src/pages/Daily/useDailyDraft.ts')
+const { reportInputError } = await vite.ssrLoadModule('/src/shared/reports.ts')
 const {
   hasMeetingDraftContent,
   invalidateMeetingGeneration,
@@ -283,7 +284,7 @@ test('원본 조회는 인증 클라이언트의 blob을 받고 JSON 오류도 �
   }
 })
 
-test('기간 새 생성은 구버전 오디오도 참고자료로 보내고 원문과 지침을 넣지 않는다', () => {
+test('기간 새 생성은 첨부 추출문을 참고자료로 보내고 메모를 지침으로 보낸다', () => {
   for (const kind of ['일일', '주간', '월간']) {
     const request = periodGenerationRequestOf(
       {
@@ -307,10 +308,30 @@ test('기간 새 생성은 구버전 오디오도 참고자료로 보내고 원�
       'period-new',
     )
     assert.equal(request.attachments[0].purpose, 'reference')
-    assert.equal('guidance' in request, false)
+    assert.equal(request.guidance, '이전 지침')
     assert.equal('transcript' in request, false)
     assert.equal(request.content.values.body, '이전 본문')
   }
+})
+
+test('기간 메모는 guidance 2,000자 경계를 사용하고 최종 제출에는 transcript로 보존한다', () => {
+  const base = {
+    date: '2026-09-01',
+    kind: '주간',
+    approver: '',
+    values: { body: '' },
+    activities: [],
+    attachments: [],
+  }
+  const memo = '😀'.repeat(2_000)
+  const request = periodGenerationRequestOf({ ...base, transcript: memo }, 'memo-limit')
+  assert.equal(request.guidance, memo)
+  assert.equal(reportInputError(request), null)
+  assert.equal(
+    reportInputError(periodGenerationRequestOf({ ...base, transcript: `${memo}😀` }, 'too-long')),
+    'guidance_too_large',
+  )
+  assert.equal(periodFinalizeRequestOf({ ...base, transcript: memo }, 'memo-finalize').transcript, memo)
 })
 
 test('딜 드로어를 열고 닫아도 현재 목록 페이지를 초기화하지 않는다', async () => {
@@ -976,7 +997,7 @@ test('딜 미지정 미팅은 공통 본문만으로 생성·확정·검토할 �
   assert.match(editor, /<textarea/)
 })
 
-test('기간 새 생성은 참고첨부·범위·본문만 쓰고 이전 사용자 텍스트는 최종 저장에 보존한다', () => {
+test('기간 새 생성은 참고첨부·범위·본문·메모를 쓰고 메모는 최종 저장에 보존한다', () => {
   const draft = {
     date: '2026-08-31',
     kind: '주간',
@@ -1026,7 +1047,7 @@ test('기간 새 생성은 참고첨부·범위·본문만 쓰고 이전 사용�
   assert.equal(generation.report_kind, 'weekly')
   assert.equal(generation.period_start, '2026-08-30')
   assert.equal(generation.period_end, '2026-09-05')
-  assert.equal('guidance' in generation, false)
+  assert.equal(generation.guidance, '직접 쓴 생성 지침')
   assert.deepEqual(generation.attachments, [
     {
       id: draft.attachments[0].id,

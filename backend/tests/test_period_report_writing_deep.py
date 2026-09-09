@@ -241,6 +241,96 @@ def test_feedback_triggers_exactly_one_repair_and_no_final_llm_call(monkeypatch,
     assert repair["source"] == json.loads(seen[0]["input_text"])
 
 
+@pytest.mark.parametrize(
+    "kind,label",
+    [
+        ("daily", "다음 업무"),
+        ("weekly", "다음 주 조치"),
+        ("monthly", "다음 달 계획"),
+    ],
+)
+def test_period_action_tail_keeps_bullets_and_narrative_rules_through_repair(
+    monkeypatch, kind, label
+):
+    body = (
+        f"**성과**\n\n이번 기간 결과를 확인했습니다.\n\n**{label}**\n\n"
+        "- 제안 | 보안 체크리스트 전달 | 담당: 본인 | 기한: 다음 주(기준일 미확인) | "
+        "완료 기준: 전달 확인 | 조건: 고객 승인 후"
+    )
+    response = {"fields": [{"field_id": "body", "value": body}]}
+    source = sample() if kind == "daily" else period_sample(kind)
+    seen = scripted(
+        monkeypatch,
+        [response, {"issues": ["fields[0].value: 조건을 보존하라."]}, response],
+    )
+
+    result = asyncio.run(period.run(source))
+
+    assert len(seen) == 3
+    for call in seen:
+        instructions = call["instructions"]
+        assert label in instructions
+        assert "마지막 섹션" in instructions
+        assert "한 항목당" in instructions
+        assert "핵심어 중심의 Markdown 순서 없는 목록" in instructions
+        assert "합니다체" in instructions
+        assert "담당자·기한·완료 기준" in instructions
+        assert f"- {label} 미확인" in instructions
+    assert "앞 섹션을 소제목 뒤 빈 줄의 합니다체 서술 문단으로" in seen[1]["instructions"]
+    assert (
+        "마지막 목록의 간결한 명사구는 합니다체 불일치로 지적하지 마라"
+        in seen[1]["instructions"]
+    )
+    assert result.fields[0].value == body
+    assert result.fields[0].value.split(f"**{label}**\n\n", 1)[1].startswith("- ")
+    assert "담당: 본인" in result.fields[0].value
+    assert "기한: 다음 주(기준일 미확인)" in result.fields[0].value
+    assert "조건: 고객 승인 후" in result.fields[0].value
+
+
+@pytest.mark.parametrize("kind", ["daily", "weekly", "monthly"])
+def test_period_payload_preserves_subreports_attachment_extract_and_guidance_through_repair(
+    monkeypatch, kind
+):
+    source = sample() if kind == "daily" else period_sample(kind)
+    source["guidance"] = (
+        f"{kind} 추가 결정사항: 가격 검토는 미확정입니다. 후속조치 담당과 기한은 확인 필요합니다."
+    )
+    source["attachments"] = [
+        {
+            "id": f"attachment-{kind}",
+            "name": f"{kind}.pdf",
+            "extract": f"{kind} 첨부 추출문: 고객의 추가 요청",
+        }
+    ]
+    expected = period_sources.build_source(source)
+    expected_payload = {
+        "run_context": period_sources.run_context(expected),
+        "source_units": period_sources.source_units(expected),
+    }
+    seen = scripted(monkeypatch, [draft(), {"issues": ["후속조치를 반영하라."]}, draft()])
+
+    asyncio.run(period.run(source))
+
+    assert len(seen) == 3
+    for call in seen:
+        payload = json.loads(call["input_text"])
+        frozen = payload.get("source", payload)
+        assert frozen == expected_payload
+        assert frozen["run_context"]["guidance"] == source["guidance"]
+        assert any(
+            unit["source_type"] == ("meeting_bundle" if kind == "daily" else "child_submission")
+            for unit in frozen["source_units"]
+        )
+        attachment_units = [
+            unit for unit in frozen["source_units"] if unit["source_type"] == "attachment"
+        ]
+        assert (
+            attachment_units[0]["content"]["attachment"]["extract"]
+            == source["attachments"][0]["extract"]
+        )
+
+
 @pytest.mark.parametrize("stage", ["review", "repair"])
 @pytest.mark.parametrize(
     "failure",

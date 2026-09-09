@@ -287,10 +287,12 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /setTranscript: changeTranscript/)
 })
 
-test('기간 작성은 미팅 원문 UI 없이 공통 첨부만 표시한다', async () => {
+test('기간 작성은 미팅 원문 UI 없이 첨부와 추가 메모를 표시한다', async () => {
   const source = await readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8')
   assert.match(source, /<AttachmentPanel/)
-  assert.doesNotMatch(source, /MeetingInputPanel|<textarea|onTranscriptChange/)
+  assert.match(source, /FormField label="추가 결정사항 및 메모"/)
+  assert.match(source, /id="period-report-guidance"/)
+  assert.doesNotMatch(source, /MeetingInputPanel|onTranscriptChange/)
 })
 
 test('미팅 첨부 목적이나 교정문이 바뀌면 동결된 생성 입력을 재사용하지 않는다', () => {

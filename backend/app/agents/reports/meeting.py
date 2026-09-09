@@ -25,7 +25,7 @@ from app.services.agent_logging import log_agent_event
 from app.services.agent_stream import publish_progress
 from app.services.llm import LLMError
 
-PROMPT_VERSION = "report_writing.bounded.v17"
+PROMPT_VERSION = "report_writing.bounded.v19"
 SKILL_DIR = Path(__file__).parent / "skills" / "sales-meeting-report"
 COMMON_SKILL = Path(__file__).parent / "skills" / "report-style" / "SKILL.md"
 
@@ -196,6 +196,13 @@ async def run(source: ReportWritingInput) -> FreeformMeetingReports:
                 instructions=instructions
                 + "\n독립 검토자다. 모든 scope의 source와 조립된 draft를 대조해 사실 왜곡, "
                 "근거 누락, 딜 혼입, 현재·과거 혼동, 부정·조건 변경과 작성 규칙 위반을 찾는다. "
+                "미팅 본문은 필요한 항목을 Markdown **굵은 소제목**의 독립된 한 줄로 쓰고 "
+                "소제목 뒤에 빈 줄을 둬야 한다. 앞 항목은 빈 줄 뒤에 합니다체 서술 문단을 두고, "
+                "마지막 후속 조치 섹션은 빈 줄 뒤에 조치 1건씩 담은 핵심어 중심의 Markdown "
+                "순서 없는 목록을 둬야 한다. 소제목 누락·굵게 표시하지 않음·독립 행 아님·뒤 빈 줄 "
+                "누락과 마지막 목록 형식 위반은 "
+                "단순 문체 취향이 아니라 수정 대상이다. 단, 본문이 정확히 "
+                f"'{NO_DEAL_EVIDENCE_TEXT}'인 sentinel은 소제목 없이 유지한다. "
                 "각 issue는 수정할 한 범위의 deal_reports[번호], common_report 또는 "
                 "unassigned_report "
                 "경로로 시작하고 문제 표현·대조 근거·수정 행동을 적어라. "
