@@ -20,6 +20,8 @@
 .dialog {
   width: min(100%, 520px);
   max-height: min(86vh, 720px);
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border-radius: var(--r-xl);
   box-shadow: var(--sh-pop);
@@ -40,7 +42,10 @@
 .form {
   display: flex;
   flex-direction: column;
-  max-height: inherit;
+  // 다이얼로그가 max-height 에서 멈추면 그 안을 이 폼이 채우고, 넘치는 것은
+  // 본문이 스크롤로 받습니다. auto 로 두면 폼이 내용만큼 자라 본문이 잘립니다.
+  flex: 1;
+  min-height: 0;
 }
 
 .head {
