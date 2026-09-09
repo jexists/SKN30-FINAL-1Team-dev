@@ -11,8 +11,9 @@
 | PostgreSQL 도구 | `/usr/local/opt/postgresql@17/bin/` |
 | 시작 방식 | 수동 실행. 로그인 시 자동 시작은 설정하지 않음 |
 
-저장소 `backend/sql/*.sql` 38개를 파일명 순서로 적용했다. 적용 파일명과 SHA-256은
-DB의 `test_meta.migrations`에 기록되어 있다. 고객·영업 원본 데이터는 복사하지 않았다.
+저장소 `backend/sql/*.sql`을 파일명 순서로 적용했다(2026-09-07 최초 38개,
+2026-09-09 기준 42개). 적용 파일명과 SHA-256은 DB의 `test_meta.migrations`에
+기록되어 있다. 고객·영업 원본 데이터는 복사하지 않았다.
 Supabase Auth 자체는 설치하지 않고, `member.id` 외래키에 필요한 `auth.users(id uuid)`만 만들었다.
 따라서 Supabase 로그인·토큰 발급·Storage 테스트용 환경은 아니다.
 
@@ -25,7 +26,7 @@ baseline은 RLS를 켜고 클라이언트 정책을 만들지 않으므로, 백�
 저장소 루트에서 시작/상태 확인/중지한다. 데이터 디렉터리는 중지해도 유지된다.
 
 ```sh
-/usr/local/opt/postgresql@17/bin/pg_ctl -D backend/.postgres-test.local/data -l backend/.postgres-test.local/server.log -w start
+LC_ALL=C /usr/local/opt/postgresql@17/bin/pg_ctl -D backend/.postgres-test.local/data -l backend/.postgres-test.local/server.log -w start
 /usr/local/opt/postgresql@17/bin/pg_ctl -D backend/.postgres-test.local/data status
 /usr/local/opt/postgresql@17/bin/pg_ctl -D backend/.postgres-test.local/data -m fast -w stop
 ```
@@ -33,6 +34,26 @@ baseline은 RLS를 켜고 클라이언트 정책을 만들지 않으므로, 백�
 재부팅 등으로 `/tmp/salesluv-test-132-501` 소켓 디렉터리가 없어졌다면 같은 사용자로
 `mkdir -m 700 /tmp/salesluv-test-132-501` 후 시작한다. 이 경로의 501은 이 머신의 사용자 ID다.
 Homebrew의 기본 클러스터와 별도로 만든 인스턴스이므로 `brew services start` 대신 위 명령을 쓴다.
+
+`LC_ALL`이 없으면 시작에 실패한다. 로그에 다음이 남는다.
+
+```text
+FATAL:  postmaster became multithreaded during startup
+HINT:  Set the LC_ALL environment variable to a valid locale.
+```
+
+PostgreSQL은 시작 시 단일 스레드여야 하는데, macOS에서 로케일이 비어 있으면 시스템이
+로케일을 찾느라 스레드를 만든다. postmaster가 그것을 감지하고 시작을 멈춘다. `LC_ALL=C`는
+찾을 것을 없애 스레드가 생기지 않게 한다. DB에 저장된 정렬·인코딩 설정은 바뀌지 않고,
+시작 시점의 프로세스 환경에만 영향을 준다.
+
+브랜치를 옮겨 새 마이그레이션이 생겼다면 `backend`에서 bootstrap을 다시 실행한다.
+이미 적용한 파일은 SHA-256을 대조해 건너뛰고 새 파일만 적용하므로 반복 실행해도 안전하다.
+기존 파일이 수정됐다면 그 자리에서 멈춘다.
+
+```sh
+uv run --no-sync python .postgres-test.local/bootstrap.py
+```
 
 `backend`에서 명시적으로 테스트 설정을 읽는다. 앱의 일반 `.env`는 생성하거나 덮어쓰지 않았다.
 
