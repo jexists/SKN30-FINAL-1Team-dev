@@ -80,7 +80,8 @@ EXPECTED_COLUMN_COUNTS = {
     "file": 23,
     "document_chunk": 12,
     "document_file_audit": 9,
-    "agent_run": 34,
+    # 20260909_0020 으로 delegation_state, delegation_key 를 더했다.
+    "agent_run": 36,
     # 20260829_0013 으로 contract_next_meeting_suggestion 을 새로 만들었다.
     "contract_next_meeting_suggestion": 7,
 }
