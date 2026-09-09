@@ -103,6 +103,19 @@ export default function BusinessCardModal({
     if (!reading) onClose()
   }
 
+  // 읽는 동안에는 사용자가 손댈 것이 없습니다. 미리보기와 눌리지 않는 버튼까지
+  // 함께 두면 화면만 길어지므로, 어디까지 왔는지 하나만 남깁니다.
+  if (reading && progress) {
+    return (
+      <Modal title="명함으로 고객 등록" description="" onClose={close}>
+        <RecognitionLoading
+          description={progressLabel(progress)}
+          progress={progress.phase === 'uploading' ? progress.percent : undefined}
+        />
+      </Modal>
+    )
+  }
+
   return (
     <Modal
       title="명함으로 고객 등록"
@@ -110,11 +123,11 @@ export default function BusinessCardModal({
       onClose={close}
       footer={
         <>
-          <Button type="button" variant="outline" disabled={reading} onClick={close}>
+          <Button type="button" variant="outline" onClick={close}>
             취소
           </Button>
-          <Button type="button" disabled={image === null || reading} onClick={read}>
-            {reading ? '읽는 중…' : '명함 읽기'}
+          <Button type="button" disabled={image === null} onClick={read}>
+            명함 읽기
           </Button>
         </>
       }
@@ -133,12 +146,7 @@ export default function BusinessCardModal({
       />
 
       {/* 명함 비율(91×55) 그대로입니다. 무엇을 넣는 자리인지 글자보다 먼저 보입니다. */}
-      <button
-        type="button"
-        className={styles.drop}
-        disabled={reading}
-        onClick={() => fileRef.current?.click()}
-      >
+      <button type="button" className={styles.drop} onClick={() => fileRef.current?.click()}>
         {preview === null ? (
           <span className={styles.empty}>
             <CardIcon width={30} height={30} strokeWidth={1.4} />
@@ -159,13 +167,6 @@ export default function BusinessCardModal({
           {image.name} · <span className="tnum">{sizeLabel(image.size)}</span> · 다시 고르려면
           사진을 누르세요.
         </p>
-      )}
-
-      {reading && progress && (
-        <RecognitionLoading
-          description={progressLabel(progress)}
-          progress={progress.phase === 'uploading' ? progress.percent : undefined}
-        />
       )}
 
       {error && (
