@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 import { CloseIcon } from '@/components/icons'
+import { lockScroll } from '@/shared/scrollLock'
 
 import styles from './Modal.module.scss'
 
@@ -55,14 +56,13 @@ export default function Modal({
     }
     document.addEventListener('keydown', onKeyDown)
 
-    const previousOverflow = document.body.style.overflow
     const previouslyFocused = document.activeElement as HTMLElement | null
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockScroll()
 
     return () => {
       stack.splice(stack.indexOf(token), 1)
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
+      unlockScroll()
       previouslyFocused?.focus()
     }
   }, [token])

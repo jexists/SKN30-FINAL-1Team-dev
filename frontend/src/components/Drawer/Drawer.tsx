@@ -7,6 +7,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 import { CloseIcon } from '@/components/icons'
+import { lockScroll } from '@/shared/scrollLock'
 
 import styles from './Drawer.module.scss'
 
@@ -51,13 +52,12 @@ export default function Drawer({
     }
     document.addEventListener('keydown', onKeyDown)
 
-    const previousOverflow = document.body.style.overflow
     const previouslyFocused = document.activeElement as HTMLElement | null
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockScroll()
 
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
+      unlockScroll()
       previouslyFocused?.focus()
     }
   }, [onClose])
