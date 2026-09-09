@@ -321,3 +321,16 @@ class CustomerContactBulkResult(BaseModel):
     invalid: int
     failed: int
     results: list[CustomerContactBulkRowResult]
+
+
+class CustomerAttachmentRead(BaseModel):
+    """고객 상세에 붙는 원본 한 건. 저장소 키는 내보내지 않고 짧게 사는 주소만 준다."""
+
+    kind: Literal["business_card", "business_license"]
+    document_id: UUID
+    file_id: UUID
+    file_name: str
+    media_type: str | None
+    byte_size: int
+    url: str
+    expires_in: int

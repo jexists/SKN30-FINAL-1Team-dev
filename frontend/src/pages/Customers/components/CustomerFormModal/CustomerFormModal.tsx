@@ -23,6 +23,7 @@ import type {
 import { businessNoDigits, formatPhone, maskBusinessNo, phoneDigits } from '@/utils/format'
 
 import type { BusinessCardMatch } from '../../businessCard'
+import { archiveBusinessLicense } from '../../businessLicense'
 import { type DuplicateDraft } from '../../duplicate'
 import DuplicateConfirmModal from '../DuplicateConfirmModal'
 import styles from './CustomerFormModal.module.scss'
@@ -56,6 +57,8 @@ interface CustomerFormModalProps {
   duplicateMatches?: BusinessCardMatch[]
   /** 명함 OCR에 사용한 원본. 고객 등록 뒤 자료실에 보관합니다. */
   archiveImage?: File
+  /** 사업자등록증 OCR에 사용한 원본. 고객 등록 뒤 그 회사에 보관합니다. */
+  archiveLicense?: File
 }
 
 const EMPTY = {
@@ -183,6 +186,7 @@ export default function CustomerFormModal({
   initialAddress,
   duplicateMatches = [],
   archiveImage,
+  archiveLicense,
 }: CustomerFormModalProps) {
   const { isManager, memberId } = useCurrentUser()
   const editing = customer !== undefined
@@ -345,6 +349,14 @@ export default function CustomerFormModal({
           // 고객 등록은 완료됐으므로 원본 보관 실패가 등록 자체를 되돌리지는 않습니다.
           warning =
             '고객은 등록됐지만 명함 원본 보관에 실패했습니다. 자료실에 다시 업로드해 주세요.'
+        }
+      }
+      // 등록증은 사람이 아니라 회사에 붙습니다. 회사는 위에서 이미 확정됐습니다.
+      if (archiveLicense) {
+        try {
+          await archiveBusinessLicense(fields.company_id, archiveLicense)
+        } catch {
+          warning = '고객은 등록됐지만 사업자등록증 원본 보관에 실패했습니다.'
         }
       }
       setSubmitting(false)

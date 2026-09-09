@@ -207,3 +207,17 @@ export interface CustomerContactBulkResult {
   failed: number
   results: CustomerContactBulkRowResult[]
 }
+
+export type CustomerAttachmentKind = 'business_card' | 'business_license'
+
+/** 고객 등록에 쓴 원본 한 건. 주소는 짧게 살아 있어 화면을 오래 두면 만료됩니다. */
+export interface CustomerAttachment {
+  kind: CustomerAttachmentKind
+  document_id: string
+  file_id: string
+  file_name: string
+  media_type: string | null
+  byte_size: number
+  url: string
+  expires_in: number
+}

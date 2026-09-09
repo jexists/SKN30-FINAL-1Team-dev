@@ -76,9 +76,9 @@ _READ_COLUMNS = (
     _contact_owner.display_name,
 )
 
-# 자료실 목록에서 빼는 분류. 명함 보관본은 고객 명함을 등록할 때 원본 이미지를 붙여 두는
+# 자료실 목록에서 빼는 분류. 명함·사업자등록증 보관본은 고객을 등록할 때 원본을 붙여 두는
 # 것이라 자료실이 다루는 영업 문서가 아니다. 문서 하나를 여는 길(_detail)은 막지 않는다.
-_HIDDEN_CATEGORY_CODES = ("business_card",)
+_HIDDEN_CATEGORY_CODES = ("business_card", "business_license")
 
 DOWNLOAD_EXPIRES_IN = 60
 

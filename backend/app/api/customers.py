@@ -11,11 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
+from app.core.config import settings
 from app.models.configuration import CustomerContactStatus
+from app.models.content import Document
+from app.models.content import File as FileRow
 from app.models.crm import CustomerCompany, CustomerContact, CustomerContactAssignee
 from app.models.workspace import Member
 from app.schemas.customers import (
     ContactAssigneeRead,
+    CustomerAttachmentRead,
     CustomerCompanyCreate,
     CustomerCompanyPage,
     CustomerCompanyPatch,
@@ -35,10 +39,15 @@ from app.schemas.customers import (
     CustomerPageParams,
     digits_only,
 )
-from app.services import customer_duplicates
+from app.services import customer_duplicates, storage
 from app.services.customer_duplicates import DuplicateProbe
+from app.services.storage import StorageError
 
 router = APIRouter(tags=["customers"])
+
+# 상세 드로어는 한동안 열어 두는 화면이다. 자료실 내려받기(60초)보다 넉넉히 두어야
+# 열어 둔 사이에 명함 사진이 빈칸이 되지 않는다.
+ATTACHMENT_EXPIRES_IN = 300
 
 
 def _contains(value: str) -> str:
@@ -519,6 +528,68 @@ async def get_customer_contact(
     db: DbSession,
 ) -> CustomerContactRead:
     return _contact_read(*await _get_contact_row(db, member, contact_id))
+
+
+@router.get(
+    "/customer-contacts/{contact_id}/attachments",
+    response_model=list[CustomerAttachmentRead],
+)
+async def list_customer_contact_attachments(
+    contact_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> list[CustomerAttachmentRead]:
+    """등록에 쓴 원본. 명함은 그 담당자의 것이고, 사업자등록증은 회사의 것이다."""
+    contact = (await _get_contact_row(db, member, contact_id))[0]
+    if not settings.storage_configured:
+        # 첨부는 상세의 곁가지다. 저장소가 없다고 상세가 실패하면 안 된다.
+        return []
+
+    rows = (
+        await db.execute(
+            select(Document, FileRow)
+            .join(FileRow, FileRow.document_id == Document.id)
+            .where(
+                Document.team_id == member.team_id,
+                Document.deleted_at.is_(None),
+                or_(
+                    and_(
+                        Document.category_code == "business_card",
+                        Document.customer_contact_id == contact.id,
+                    ),
+                    and_(
+                        Document.category_code == "business_license",
+                        Document.customer_company_id == contact.company_id,
+                    ),
+                ),
+            )
+            .order_by(FileRow.uploaded_at.desc())
+        )
+    ).all()
+
+    attachments: list[CustomerAttachmentRead] = []
+    for document, file_row in rows:
+        try:
+            url = await storage.signed_url(
+                storage_key=file_row.storage_key,
+                expires_in=ATTACHMENT_EXPIRES_IN,
+            )
+        except StorageError:
+            # 한 건을 못 받았다고 나머지 첨부까지 감추지 않는다.
+            continue
+        attachments.append(
+            CustomerAttachmentRead(
+                kind=document.category_code,
+                document_id=document.id,
+                file_id=file_row.id,
+                file_name=file_row.file_name,
+                media_type=file_row.media_type,
+                byte_size=file_row.byte_size,
+                url=url,
+                expires_in=ATTACHMENT_EXPIRES_IN,
+            )
+        )
+    return attachments
 
 
 @router.post(

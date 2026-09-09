@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_current_member
+from app.api.deps import get_current_member, get_db
 from app.core.config import settings
 from app.main import app
 from app.models.workspace import Member
@@ -85,7 +85,7 @@ def test_business_license_scan_accepts_pdf_and_returns_draft(monkeypatch):
 
     assert result.status_code == 200
     assert result.json()["processing_status"] == "completed"
-    assert result.json()["fields"]["business_no"] == "123-45-67890"
+    assert result.json()["fields"]["business_no"] == "1234567890"
     assert result.json()["ready_for_company_registration"] is True
 
 
@@ -256,7 +256,7 @@ async def test_first_draft_is_kept_when_the_image_retry_fails(monkeypatch):
     # 재시도가 안 되더라도 1차 결과는 살아 있어야 한다.
     assert state.processing_status == "completed"
     assert state.draft is not None
-    assert state.draft.fields.business_no == "123-45-67890"
+    assert state.draft.fields.business_no == "1234567890"
 
 
 @pytest.mark.anyio
@@ -278,3 +278,179 @@ async def test_text_pdf_is_not_retried_when_the_company_is_read(monkeypatch):
     )
 
     assert seen == ["application/pdf"]
+
+
+def _archive_member() -> Member:
+    return _scan_member()
+
+
+def _pdf(size: int = 64) -> bytes:
+    return b"%PDF-1.7\n" + b"0" * size
+
+
+def test_business_license_archive_links_original_to_company(monkeypatch):
+    from app.models.content import Document
+    from app.models.crm import CustomerCompany
+    from app.schemas.documents import DocumentRead
+    from app.services import storage
+
+    member = _archive_member()
+    company = CustomerCompany(id=uuid4(), team_id=member.team_id, name="합성 회사")
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return company
+
+    class _Db:
+        def __init__(self):
+            self.added = []
+            self.committed = False
+
+        async def execute(self, _statement):
+            return _Result()
+
+        def add(self, value):
+            self.added.append(value)
+
+        async def commit(self):
+            self.committed = True
+
+        async def rollback(self):
+            raise AssertionError("rollback should not run")
+
+    db = _Db()
+    uploaded = []
+
+    async def _upload(**kwargs):
+        uploaded.append(kwargs)
+
+    async def _detail(_db, _member, document_id):
+        return DocumentRead(
+            id=document_id,
+            document_no="SL-DC-2026-0002",
+            category_code="business_license",
+            title="합성 회사 사업자등록증",
+            description="사업자등록증 등록 시 보관된 원본",
+            customer_company_id=company.id,
+            customer_company_name=company.name,
+            customer_contact_id=None,
+            sales_deal_id=None,
+            sales_deal_no=None,
+            purchase_order_id=None,
+            product_id=None,
+            product_name=None,
+            tags=["business_license", "archive"],
+            created_by_member_id=member.id,
+            created_by_display_name=member.display_name,
+            owner_member_id=member.id,
+            owner_display_name=member.display_name,
+            created_at="2026-09-09T00:00:00Z",
+            file=None,
+        )
+
+    async def _next_document_no(*_args):
+        return "SL-DC-2026-0002"
+
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: True))
+    monkeypatch.setattr(storage, "upload", _upload)
+    monkeypatch.setattr(storage, "build_storage_key", lambda *_args: "team/license.pdf")
+    monkeypatch.setattr("app.api.documents._detail", _detail)
+    monkeypatch.setattr("app.api.documents._next_document_no", _next_document_no)
+    app.dependency_overrides[get_current_member] = lambda: member
+
+    async def _db():
+        yield db
+
+    app.dependency_overrides[get_db] = _db
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/business-licenses/archive",
+                headers={"Origin": settings.cors_origin_list[0]},
+                data={"company_id": str(company.id)},
+                files={"file": ("license.pdf", _pdf(), "application/pdf")},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert db.committed
+    assert uploaded[0]["content"].startswith(b"%PDF-")
+    archived = next(value for value in db.added if isinstance(value, Document))
+    # 등록증은 사람이 아니라 회사의 문서다.
+    assert archived.customer_company_id == company.id
+    assert archived.customer_contact_id is None
+    assert archived.category_code == "business_license"
+
+
+def test_business_license_archive_rejects_other_team_company(monkeypatch):
+    from app.services import storage
+
+    member = _archive_member()
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return None
+
+    class _Db:
+        async def execute(self, _statement):
+            return _Result()
+
+        def add(self, value):
+            raise AssertionError("add should not run")
+
+        async def commit(self):
+            raise AssertionError("commit should not run")
+
+    removed = []
+
+    async def _upload(**_kwargs):
+        return None
+
+    async def _remove(**kwargs):
+        removed.append(kwargs)
+
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: True))
+    monkeypatch.setattr(storage, "upload", _upload)
+    monkeypatch.setattr(storage, "remove", _remove)
+    app.dependency_overrides[get_current_member] = lambda: member
+
+    async def _db():
+        yield _Db()
+
+    app.dependency_overrides[get_db] = _db
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/business-licenses/archive",
+                headers={"Origin": settings.cors_origin_list[0]},
+                data={"company_id": str(uuid4())},
+                files={"file": ("license.pdf", _pdf(), "application/pdf")},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "customer_company_not_found"
+    # 회사를 확인하기 전에 올리지 않으므로 지울 것도 없다.
+    assert removed == []
+
+
+def test_business_license_archive_rejects_unsupported_file(monkeypatch):
+    member = _archive_member()
+
+    monkeypatch.setattr(type(settings), "storage_configured", property(lambda self: True))
+    app.dependency_overrides[get_current_member] = lambda: member
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/business-licenses/archive",
+                headers={"Origin": settings.cors_origin_list[0]},
+                data={"company_id": str(uuid4())},
+                files={"file": ("license.exe", b"MZ\x00\x00", "application/octet-stream")},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 415
+    assert response.json()["detail"] == "business_license_unsupported_file"
