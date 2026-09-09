@@ -1,5 +1,7 @@
 import type { CustomerDuplicateResponse } from '@/types'
-import { phoneDigits } from '@/utils/format'
+// 이 모듈은 Node의 내장 테스트에서도 직접 읽힌다. 그 실행기는 Vite의 @ 별칭을
+// 해석하지 않으므로, 런타임 값은 상대 경로로 가져온다.
+import { phoneDigits } from '../../utils/format.ts'
 
 /** 지금 등록하려던 값. 폼과 명함·등록증 흐름이 모두 이 모양으로 넘깁니다. */
 export interface DuplicateDraft {
