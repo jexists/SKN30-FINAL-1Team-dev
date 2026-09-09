@@ -2,6 +2,7 @@
 // 셋을 따로 두면 컬럼을 하나 늘릴 때 세 군데를 고쳐야 하고 결국 어긋납니다.
 import { createElement, type ReactNode } from 'react'
 
+import { regionLabel } from '@/shared/regionCodes'
 import type { Customer, CustomerOwner } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
 import { formatPhone } from '@/utils/format'
@@ -53,6 +54,15 @@ export const ALL_COLUMNS: ColumnDef[] = [
     value: (c) => c.name,
   },
   {
+    id: 'region',
+    header: '지역',
+    width: 88,
+    minWidth: 72,
+    sortable: true,
+    // 고객사의 지역 코드입니다. 코드는 사람이 읽는 말이 아니라 한글 이름으로 바꿉니다.
+    value: (c) => regionLabel(c.regionCode ?? null, '미지정'),
+  },
+  {
     id: 'dept',
     header: '부서',
     width: 140,
@@ -97,12 +107,21 @@ export const ALL_COLUMNS: ColumnDef[] = [
     render: (c) => createElement(OwnerCell, { owners: ownersOf(c) }),
   },
   {
+    id: 'source',
+    header: '유입경로',
+    width: 110,
+    minWidth: 90,
+    sortable: true,
+    // 라벨을 그대로 씁니다. 코드(referral 등)는 사람이 읽는 말이 아닙니다.
+    value: (c) => c.source,
+  },
+  {
     id: 'visited',
     header: '방문여부',
     width: 96,
     minWidth: 82,
     sortable: false,
-    // CSV 도 같은 말을 씁니다. 내보낸 파일을 그대로 다시 가져올 수 있어야 합니다.
+    // 기본으로 켜지 않습니다. 등록 폼에서 받는 항목이라 켤 수 있게만 남깁니다.
     value: (c) => (c.visited ? '방문' : '미방문'),
     render: (c) => createElement(VisitCell, { visited: c.visited }),
   },
@@ -135,7 +154,7 @@ export const DEFAULT_VISIBLE = [
   'email',
   'phone',
   'owner',
-  'visited',
+  'source',
   'memo',
 ]
 
