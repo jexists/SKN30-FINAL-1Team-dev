@@ -1,16 +1,10 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 import { CloseIcon } from '@/components/icons'
+import { pushOverlay } from '@/shared/overlayStack'
 import { lockScroll } from '@/shared/scrollLock'
 
 import styles from './Modal.module.scss'
-
-/**
- * 열려 있는 모달들. 일정 모달 위에 고객 등록 모달을 얹는 것처럼 두 장이 겹치면,
- * Escape 한 번에 둘 다 닫히고 안쪽 스크림을 눌러도 바깥 핸들러까지 올라갑니다
- * (portal 로 꺼내도 React 이벤트는 컴포넌트 트리를 탑니다). 맨 위의 것만 답합니다.
- */
-const stack: symbol[] = []
 
 const SIZE_CLASS: Record<'md' | 'lg', string> = {
   md: '',
@@ -46,8 +40,9 @@ export default function Modal({
 }: ModalProps) {
   const bodyRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
-  const token = useRef(Symbol('modal')).current
-  const isTop = () => stack[stack.length - 1] === token
+  // 겹쳐 있는 오버레이 중 맨 위인지. 아니면 Escape 와 스크림 클릭에 답하지 않습니다.
+  const overlayRef = useRef<{ isTop: () => boolean; release: () => void } | null>(null)
+  const isTop = () => overlayRef.current?.isTop() === true
 
   // 닫기 함수는 호출부에서 매 렌더 새로 만들어지는 일이 흔합니다. 그것을 아래
   // 효과의 의존성으로 두면 글자 하나 칠 때마다 효과가 풀렸다 다시 걸리고,
@@ -60,10 +55,11 @@ export default function Modal({
 
   // AppShell 의 드로어와 같은 처리입니다. Escape 로 닫고 뒤 배경은 스크롤을 멈춥니다.
   useEffect(() => {
-    stack.push(token)
+    const overlay = pushOverlay()
+    overlayRef.current = overlay
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && stack[stack.length - 1] === token) onCloseRef.current()
+      if (event.key === 'Escape' && overlay.isTop()) onCloseRef.current()
     }
     document.addEventListener('keydown', onKeyDown)
 
@@ -71,12 +67,13 @@ export default function Modal({
     const unlockScroll = lockScroll()
 
     return () => {
-      stack.splice(stack.indexOf(token), 1)
+      overlay.release()
+      overlayRef.current = null
       document.removeEventListener('keydown', onKeyDown)
       unlockScroll()
       previouslyFocused?.focus()
     }
-  }, [token])
+  }, [])
 
   // 열리면 첫 입력으로 바로 타이핑할 수 있게 포커스를 옮깁니다.
   useEffect(() => {
