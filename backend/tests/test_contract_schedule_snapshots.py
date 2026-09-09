@@ -1118,3 +1118,30 @@ async def test_briefing_snapshot_keeps_working_when_document_search_fails(monkey
     # 브리핑 본체는 그대로 만들어진다.
     assert snapshot["customer_company"]["name"] == "테스트 병원"
     assert snapshot["approved_next_meeting"]["activity_id"] == str(activity.id)
+
+
+@pytest.mark.parametrize(
+    ("starts_at", "ends_at", "expected"),
+    [
+        (
+            datetime(2026, 9, 9, 0, tzinfo=UTC),  # KST 09:00
+            datetime(2026, 9, 9, 1, tzinfo=UTC),  # KST 10:00
+            "2026년 9월 9일 (수) 09:00~10:00",
+        ),
+        # 종료가 없는(하루 종일) 일정은 시작만 적는다.
+        (datetime(2026, 9, 9, 0, tzinfo=UTC), None, "2026년 9월 9일 (수) 09:00"),
+        # 날짜를 넘기면 끝도 날짜까지 적는다.
+        (
+            datetime(2026, 9, 9, 8, tzinfo=UTC),  # KST 17:00
+            datetime(2026, 9, 10, 1, tzinfo=UTC),  # KST 다음날 10:00
+            "2026년 9월 9일 (수) 17:00 ~ 2026년 9월 10일 (목) 10:00",
+        ),
+    ],
+)
+def test_meeting_when_label_is_written_for_people(starts_at, ends_at, expected):
+    """브리핑 본문에 ISO 문자열이 그대로 실리지 않도록 사람이 읽는 표기를 서버가 만든다.
+
+    프롬프트가 "스냅샷에 적힌 값을 그대로 쓴다"고 지시하므로(시간대를 LLM 이 손대면 화면과
+    아홉 시간 어긋난다) 스냅샷에 ISO 만 있으면 본문에 그대로 실린다.
+    """
+    assert snapshots._meeting_when_label(starts_at, ends_at) == expected

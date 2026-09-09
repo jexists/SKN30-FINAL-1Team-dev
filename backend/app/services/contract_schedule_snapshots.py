@@ -52,9 +52,39 @@ _OPEN_SUPPORT_STATUSES = ("received", "diagnosing", "in_progress")
 _BRIEFING_DOCUMENT_LIMIT = 5
 
 
+_WEEKDAY_KO = ("월", "화", "수", "목", "금", "토", "일")
+
+
 def _seoul_iso(value: datetime | None) -> str | None:
     """LLM 에 보낼 시각. 화면과 같은 서울 시간으로 맞춘다."""
     return None if value is None else value.astimezone(_SEOUL).isoformat()
+
+
+def _meeting_when_label(starts_at: datetime, ends_at: datetime | None) -> str:
+    """브리핑 본문에 그대로 옮겨 적을 사람이 읽는 시각.
+
+    프롬프트는 "시각과 날짜는 스냅샷에 적힌 값을 그대로 쓴다"고 지시한다. 시간대를 LLM 이
+    손대면 화면과 본문이 아홉 시간 어긋나기 때문이다(아키텍처 5.2). 그런데 스냅샷에 ISO
+    문자열만 있으면 LLM 이 지시를 지킬수록 본문에
+    `2026-09-09T09:00:00+09:00부터 …까지` 같은 기계용 표기가 그대로 실린다.
+
+    그래서 사람이 읽는 형태를 서버가 함께 만들어 준다. 값을 서버가 만드니 시간대가 어긋날
+    일이 없고, "적힌 값을 그대로 쓴다"는 지시도 그대로 둘 수 있다.
+    """
+
+    def day_and_time(value: datetime) -> str:
+        return (
+            f"{value.year}년 {value.month}월 {value.day}일 "
+            f"({_WEEKDAY_KO[value.weekday()]}) {value:%H:%M}"
+        )
+
+    start = starts_at.astimezone(_SEOUL)
+    if ends_at is None:
+        return day_and_time(start)
+    end = ends_at.astimezone(_SEOUL)
+    if end.date() == start.date():
+        return f"{day_and_time(start)}~{end:%H:%M}"
+    return f"{day_and_time(start)} ~ {day_and_time(end)}"
 
 
 def _parse_aware_or_none(value: str) -> datetime | None:
@@ -588,6 +618,8 @@ async def build_briefing_snapshot(
             # 옮겨 적으면, 같은 미팅의 시각이 화면과 본문에서 아홉 시간 어긋나 보인다.
             "starts_at": _seoul_iso(activity.starts_at),
             "ends_at": _seoul_iso(activity.ends_at),
+            # 본문에 적을 때는 이 값을 쓴다. starts_at/ends_at 은 기계용으로 남긴다.
+            "when_label": _meeting_when_label(activity.starts_at, activity.ends_at),
             "location": activity.location,
         },
         # 구조화된 조회 결과를 그대로 둔다. 이 스냅샷은 agent_run.input_snapshot 으로
