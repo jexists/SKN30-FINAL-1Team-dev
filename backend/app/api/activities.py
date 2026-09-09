@@ -25,7 +25,7 @@ from app.schemas.activities import (
     ActivityRead,
 )
 from app.schemas.agent_runs import AgentRunCreate
-from app.services import activity_documents, contract_next_meeting_pipeline
+from app.services import activity_documents, contract_next_meeting_pipeline, schedule_conflicts
 from app.services import agent_runs as agent_run_service
 
 router = APIRouter(tags=["activities"])
@@ -601,6 +601,15 @@ async def create_activity(
             db, member, values["customer_company_id"], contact_info
         )
         if schedule_management_run_id is not None:
+            # AI 추천을 수락하는 경로에서만 지난 시각을 막는다. 지난 방문을 나중에 적는 것은
+            # 정상이므로 일반 등록은 그대로 둔다 — 다만 "다음 미팅" 제안을 과거로 잡는 것은
+            # 카드가 낡았다는 뜻이라 언제나 잘못이다. 화면은 지난 후보를 이미 감추지만
+            # (contract_suggestions), 오래 열어 둔 탭에서는 낡은 후보가 그대로 올 수 있다.
+            if payload.starts_at < datetime.now(UTC):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="schedule_candidate_expired",
+                )
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
             await _claim_suggestion(db, member, schedule_management_run_id)
@@ -693,32 +702,24 @@ async def _conflict_warning(
     """승인한 시간에 이 담당자의 다른 일정이 이미 있으면 안내 문구를 만든다.
 
     제안은 트리거 시점에 미리 계산해 둔 값이라, 그때는 비어 있던 자리에 승인하기 전까지
-    다른 일정이 잡혔을 수 있다. 일정관리 에이전트가 겹침을 걸러 내는 것은 계산 시점 한
-    번뿐이므로 여기서 한 번 더 본다. 등록은 이미 커밋됐고 되돌리지 않는다 — 사람이 보고
+    다른 일정이 잡혔을 수 있다. 등록은 이미 커밋됐고 되돌리지 않는다 — 사람이 보고
     옮기도록 알리기만 한다.
+
+    겹침 판단은 카드 조회(`contract_suggestions`)와 같은 규칙을 써야 한다. 조회에서
+    비었다고 표시한 후보가 승인에서 겹친다고 나오면 사용자가 이유를 알 수 없다.
     """
-    # 종료가 없는(하루 종일) 일정은 그날 전체를 차지한 것으로 본다.
-    ends_at = ends_at or starts_at + timedelta(days=1)
-    rows = (
-        await db.execute(
-            select(Activity.title, Activity.starts_at)
-            .where(
-                Activity.team_id == team_id,
-                Activity.owner_member_id == owner_member_id,
-                Activity.id != activity_id,
-                Activity.deleted_at.is_(None),
-                Activity.starts_at < ends_at,
-                func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1)) > starts_at,
-            )
-            .order_by(Activity.starts_at)
-            .limit(1)
-        )
-    ).all()
-    if not rows:
+    conflict = await schedule_conflicts.find_conflict(
+        db,
+        team_id=team_id,
+        owner_member_id=owner_member_id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        exclude_activity_id=activity_id,
+    )
+    if conflict is None:
         return None
-    title, other_start = rows[0]
-    when = other_start.astimezone(_SEOUL).strftime("%m/%d %H:%M")
-    return f"이 시간에 이미 다른 일정이 있습니다: {when} {title}"
+    when = conflict.starts_at.astimezone(_SEOUL).strftime("%m/%d %H:%M")
+    return f"이 시간에 이미 다른 일정이 있습니다: {when} {conflict.title}"
 
 
 async def _claim_suggestion(

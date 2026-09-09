@@ -193,6 +193,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   stt_unavailable: '음성 변환 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   // AI 추천 승인 (/activities)
   suggestion_already_processed: '이미 처리된 추천입니다. 목록을 새로 불러옵니다.',
+  schedule_candidate_expired: '추천한 시간이 이미 지났습니다. 목록을 새로 불러옵니다.',
 }
 
 /**

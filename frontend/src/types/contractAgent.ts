@@ -29,6 +29,14 @@ export interface ScheduleCandidate {
   ends_at: string
   priority: number
   reason: string
+  /**
+   * 후보를 만든 뒤 그 자리에 다른 일정이 잡혔는지. 저장된 후보가 아니라 조회 시점에
+   * 서버가 다시 계산해 내려주는 값이다 — 어느 딜의 일정인지와 무관하게, 담당자 캘린더가
+   * 그 시간에 비었는지만 본다.
+   */
+  conflicted: boolean
+  /** 겹치는 일정의 "MM/DD HH:mm 제목". conflicted 가 false 면 null. */
+  conflict_reason: string | null
 }
 
 /** 브리핑 본문이 인용한 근거 하나. id 는 종류에 따라 딜·보고서·문서의 id 다. */

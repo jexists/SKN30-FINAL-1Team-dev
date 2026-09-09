@@ -30,6 +30,8 @@ function toOptions(item: ContractNextMeetingSuggestion): AiSuggestionOption[] {
         endsAt: candidate.ends_at,
         title: candidate.title,
         priority: candidate.priority,
+        conflicted: candidate.conflicted ?? false,
+        conflictReason: candidate.conflict_reason ?? null,
       }
     })
 }
@@ -40,8 +42,13 @@ function toAiSuggestion(
 ): AiSuggestion | null {
   const options = toOptions(item)
   if (options.length === 0) return null
-  // 고른 것이 없으면 가장 추천하는 후보를 쓴다.
-  const chosen = options.find((o) => o.candidateId === selectedCandidateId) ?? options[0]
+  // 고른 것이 없으면 가장 추천하는 후보를 쓰되, 그 자리가 이미 찼으면 비어 있는 다음
+  // 후보로 넘어간다. 후보는 트리거 시점에 계산해 둔 값이라 1순위가 죽어 있을 수 있는데,
+  // 그대로 기본 선택으로 두면 사용자가 찬 시간을 그대로 승인하게 된다.
+  const chosen =
+    options.find((o) => o.candidateId === selectedCandidateId) ??
+    options.find((o) => !o.conflicted) ??
+    options[0]
   return {
     id: item.sales_deal_id,
     customerCompanyId: item.customer_company_id,
@@ -64,6 +71,8 @@ function toAiSuggestion(
     scheduleRunId: item.schedule_management_run_id,
     options,
     selectedCandidateId: chosen.candidateId,
+    selectedConflicted: chosen.conflicted,
+    selectedConflictReason: chosen.conflictReason,
   }
 }
 

@@ -262,3 +262,31 @@
   color: var(--blue);
   font-weight: 600;
 }
+
+// 후보를 만든 뒤 그 자리에 다른 일정이 잡혔다. 고르는 것 자체는 막지 않는다 — 사람이
+// 사정을 알고 그 시간을 택할 수 있다.
+.isTaken {
+  color: var(--muted);
+  text-decoration: line-through;
+
+  &:hover {
+    border-color: var(--line-2);
+    color: var(--muted);
+  }
+
+  &.isChosen {
+    border-color: var(--orange);
+    background: var(--orange-tint);
+    color: var(--orange-ink);
+  }
+}
+
+.taken {
+  margin: 8px 0 0;
+  padding: 6px 9px;
+  border-radius: var(--r-xs);
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+  font-size: 11.5px;
+  line-height: 1.5;
+}

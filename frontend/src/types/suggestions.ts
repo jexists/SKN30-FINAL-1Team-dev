@@ -11,6 +11,10 @@ export interface AiSuggestionOption {
   title: string
   /** 1이 가장 추천. 목록은 이 순서로 정렬돼 있다 */
   priority: number
+  /** 후보를 만든 뒤 그 자리에 다른 일정이 잡혔다. 조회 시점에 서버가 다시 계산해 준다 */
+  conflicted: boolean
+  /** 겹치는 일정의 "MM/DD HH:mm 제목". conflicted 가 false 면 null */
+  conflictReason: string | null
 }
 
 /**
@@ -50,4 +54,8 @@ export interface AiSuggestion {
   /** 고를 수 있는 시간 후보 전체. 위의 date/time/dur 은 이 중 선택된 것의 값이다 */
   options: AiSuggestionOption[]
   selectedCandidateId: string
+  /** 지금 고른 후보의 자리에 다른 일정이 이미 있다 */
+  selectedConflicted: boolean
+  /** 그 겹치는 일정의 "MM/DD HH:mm 제목". selectedConflicted 가 false 면 null */
+  selectedConflictReason: string | null
 }

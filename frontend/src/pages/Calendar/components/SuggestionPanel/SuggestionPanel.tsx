@@ -158,8 +158,11 @@ export default function SuggestionPanel({
                       type="button"
                       className={`${styles.option} ${
                         option.candidateId === s.selectedCandidateId ? styles.isChosen : ''
-                      }`}
+                      } ${option.conflicted ? styles.isTaken : ''}`}
                       aria-pressed={option.candidateId === s.selectedCandidateId}
+                      title={
+                        option.conflicted ? `이미 일정 있음 · ${option.conflictReason}` : undefined
+                      }
                       onClick={() => onSelectOption(s.id, option.candidateId)}
                     >
                       <span className="tnum">
@@ -168,6 +171,17 @@ export default function SuggestionPanel({
                     </button>
                   ))}
                 </div>
+              )}
+
+              {/*
+                후보는 트리거 시점에 계산해 둔 값이라, 고른 시간이 그 뒤에 찼을 수 있습니다.
+                고르는 것 자체는 막지 않습니다 — 사람이 사정을 알고 그 시간을 택할 수 있습니다.
+              */}
+              {s.selectedConflicted && (
+                <p className={styles.taken} role="status">
+                  이 시간에 이미 다른 일정이 있습니다
+                  {s.selectedConflictReason ? ` · ${s.selectedConflictReason}` : ''}
+                </p>
               )}
 
               <div className={styles.basis}>

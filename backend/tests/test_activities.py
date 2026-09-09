@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -22,6 +22,17 @@ from app.services import contract_next_meeting_pipeline, contract_schedule_snaps
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, tzinfo=UTC)
 START = datetime(2026, 8, 17, 1, 0, tzinfo=UTC)
+_KST = timezone(timedelta(hours=9))
+
+
+def _kst_iso(days: float) -> str:
+    """지금부터 days 뒤를 요청 본문에 쓸 문자열로. API 는 +09:00 오프셋만 받는다."""
+    return (datetime.now(_KST) + timedelta(days=days)).isoformat()
+
+
+# AI 추천 수락 경로는 지난 시각을 409 로 막는다. 고정 날짜를 쓰면 시간이 지나 썩으므로
+# 그 경로의 요청만 현재 시각 기준으로 만든다.
+FUTURE_START_ISO = _kst_iso(1)
 END = datetime(2026, 8, 17, 2, 0, tzinfo=UTC)
 _MISSING = object()
 
@@ -953,7 +964,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
-        _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
+        _Result(scalar=None),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
     with _client(db, member) as client:
@@ -963,7 +974,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
             json={
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
-                "starts_at": "2026-08-17T10:00:00+09:00",
+                "starts_at": FUTURE_START_ISO,
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
@@ -1018,7 +1029,21 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
-        _Result(rows=[("기존 방문", datetime(2026, 8, 17, 1, tzinfo=UTC))]),  # 겹치는 일정
+        # 겹치는 일정. 카드 조회와 같은 판정을 쓰므로 Activity 를 통째로 돌려준다
+        # (app/services/schedule_conflicts.py).
+        _Result(
+            scalar=Activity(
+                id=uuid4(),
+                team_id=member.team_id,
+                owner_member_id=member.id,
+                customer_company_id=company.id,
+                activity_category_id=category.id,
+                title="기존 방문",
+                starts_at=datetime(2026, 8, 17, 1, tzinfo=UTC),
+                ends_at=datetime(2026, 8, 17, 2, tzinfo=UTC),
+                deleted_at=None,
+            )
+        ),
     )
 
     with _client(db, member) as client:
@@ -1028,7 +1053,7 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
             json={
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
-                "starts_at": "2026-08-17T10:00:00+09:00",
+                "starts_at": FUTURE_START_ISO,
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
@@ -1087,7 +1112,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
-        _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
+        _Result(scalar=None),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
     with _client(db, member) as client:
@@ -1097,7 +1122,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
             json={
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
-                "starts_at": "2026-08-17T10:00:00+09:00",
+                "starts_at": FUTURE_START_ISO,
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(missing_run_id),
@@ -1140,7 +1165,7 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
         _Result(scalar=suggestion),  # _claim_suggestion: 아직 pending
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
-        _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
+        _Result(scalar=None),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
     with _client(db, member) as client:
@@ -1150,7 +1175,7 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
             json={
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
-                "starts_at": "2026-08-17T10:00:00+09:00",
+                "starts_at": FUTURE_START_ISO,
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),
@@ -1179,7 +1204,7 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
         _Result(scalar=None),  # _claim_suggestion: 범위 안에 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회
         _Result(scalar=None),  # _parent_run_or_409
-        _Result(rows=[]),  # 겹침 확인
+        _Result(scalar=None),  # 겹침 확인
     )
 
     with _client(db, member) as client:
@@ -1189,7 +1214,7 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
             json={
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
-                "starts_at": "2026-08-17T10:00:00+09:00",
+                "starts_at": FUTURE_START_ISO,
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(uuid4()),
@@ -1231,7 +1256,7 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
             json={
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
-                "starts_at": "2026-08-17T10:00:00+09:00",
+                "starts_at": FUTURE_START_ISO,
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),
@@ -1363,3 +1388,67 @@ def test_end_date_without_start_date_is_rejected():
         response = client.get("/api/activities?end_date=2026-08-17")
     assert response.status_code == 422
     assert not db.statements
+
+
+def test_accepting_a_suggestion_whose_time_already_passed_is_rejected(monkeypatch):
+    """AI 추천 수락 경로에서만 지난 시각을 막는다.
+
+    화면은 지난 후보를 감추지만(contract_suggestions), 오래 열어 둔 탭에서는 낡은 후보가
+    그대로 올라올 수 있다. "다음 미팅" 을 과거로 잡는 것은 언제나 카드가 낡았다는 뜻이다.
+    """
+    _silence_agents(monkeypatch)
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(team_id=member.team_id, company_id=company.id, owner_id=member.id)
+    category = _category(member.team_id, code="demo")
+    db = _Db(
+        _Result(scalar=deal),  # _team_sales_deal
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.name),  # _team_company
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "지난 추천 수락",
+                "starts_at": _kst_iso(-1),
+                "customer_company_id": str(company.id),
+                "sales_deal_id": str(deal.id),
+                "schedule_management_run_id": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "schedule_candidate_expired"
+    # 제안을 선점하지도, 일정을 만들지도 않는다.
+    assert db.added == []
+    assert db.commit_count == 0
+
+
+def test_recording_a_past_visit_without_ai_is_still_allowed(monkeypatch):
+    """지난 방문을 나중에 적는 것은 정상이다 — 일반 등록은 막지 않는다."""
+    _silence_agents(monkeypatch)
+    member = _member()
+    company = _company(member.team_id)
+    category = _category(member.team_id, code="demo")
+    db = _Db(
+        _Result(scalar=category),  # _active_activity_category
+        _Result(scalar=company.name),  # _team_company
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/activities",
+            headers={"Origin": ORIGIN},
+            json={
+                "category_code": "demo",
+                "title": "지난주 방문 기록",
+                "starts_at": _kst_iso(-7),
+                "customer_company_id": str(company.id),
+            },
+        )
+
+    assert response.status_code == 201
