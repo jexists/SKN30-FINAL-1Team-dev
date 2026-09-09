@@ -71,7 +71,7 @@
 - **Input**: 영업 건 ID, 선호 기간·소요 시간·이유(1차 실행을 `parent_run_id`로 이어받거나, 없으면 요청에서 직접 지정), 담당 영업사원의 기존 일정
 - **처리**: Asia/Seoul 09:00~18:00 업무시간 안에서 기존 일정과 겹치지 않는 후보를 만든다. LLM 출력은 서버가 다시 검증해 업무시간 밖이거나 실제로 겹치는 후보를 걸러낸다.
 - **Output**: 일정 후보 목록(최대 10개, `priority`는 1이 가장 추천), 충돌 정보
-- **계약관리 Agent와의 교류**: 없다. 충돌하는 후보는 그냥 버리고 `conflicts`로만 보고할 뿐, 계약관리 Agent에 대체 후보를 요청·응답하는 왕복 호출은 구현돼 있지 않다. 이 교류는 [일정관리에이전트_설계.md](일정관리에이전트_설계.md)의 "향후 확장 계획"에만 있는 구상이다.
+- **계약관리 Agent와의 교류**: 없다. 충돌하는 후보는 그냥 버리고 `conflicts`로만 보고할 뿐, 계약관리 Agent에 대체 후보를 요청·응답하는 왕복 호출은 구현돼 있지 않다. 이 교류는 **넣기로 확정됐다** — 되묻기 1회 한정으로, [정합 계획](계약_일정_에이전트_트리거_정합_계획.md) 2.7과 5장 8단계에 있다.
 
 ### 6. 계약관리 Agent 재진입 — 승인된 일정과 자료요약을 묶어 브리핑을 만든다
 
@@ -106,6 +106,7 @@
 - 미팅 통합처리와 기간 보고서작성, 계약관리(0차/1차/재진입 3개 실행), 일정관리가 백엔드와 실 LLM에 연결돼 있다.
 - Agent 오케스트레이션은 `backend/app/services/agent_runs.py`(사용자 요청 경로)와 `backend/app/services/contract_next_meeting_pipeline.py`(트리거 기반 선계산 경로)가 나눠 맡는다. 선계산 경로는 계약관리 1차→일정관리를 서버가 백그라운드로 자동으로 잇고, 결과를 `contract_next_meeting_suggestion`에 저장한다. 일정관리→계약관리 재진입(브리핑)은 `backend/app/api/activities.py`의 `create_activity`가 `schedule_management_run_id`를 받아 자동으로 이어서 큐잉한다.
 - 같은 딜에 트리거가 몰려도 10분 안에는 다시 돌리지 않는다(`_COOLDOWN`). 진행 중인 실행이 있으면 시각과 무관하게 막는다.
+  - 10분 쿨다운은 제거하기로 했다. 진행 중(`queued`/`running`) 방어만 남는다([정합 계획](계약_일정_에이전트_트리거_정합_계획.md) 2.9).
 - 미팅 내용 귀속·보고서작성·딜 특성/ML은 하나의 `meeting_processing` 실행에서 같은 동결 근거를 공유한다. 계약관리 1차 제안은 이 임시 출력을 직접 받지 않고, DB에서 사람이 확정한(`submitted`/`approved`) 보고서를 다시 조회한다.
 - 자료요약(RAG) Agent: 문서 추출·OCR·요약·검색 청크 저장과 브리핑 컨텍스트 조회 API가 구현돼 있다. `GET /api/documents/briefing-context?q=...`는 같은 팀의 검색 청크(`sources`)와 저장 요약(`summaries`)을 반환한다. 계약관리 브리핑은 `build_briefing_snapshot()`에서 같은 조회를 직접 호출해 `document_context`를 채운다.
 - 프론트엔드: 미팅 상세(`RecordDrawer`)가 브리핑 결과를 읽기 전용으로 보여주고, 캘린더 탭의 "AI 추천 일정" 패널(`SuggestionPanel`)이 저장된 제안을 조회해 보여주고 승인받는다. 패널은 LLM을 직접 호출하지 않는다 — `GET /contract-next-meeting-suggestions` 한 번이 전부다.
