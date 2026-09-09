@@ -21,6 +21,7 @@
       import { meetingFinalizeRequestOf } from '../src/pages/Meetings/useMeetingReports.ts'
       import { toCreateRequest } from '../src/pages/Deals/useSalesDeals.ts'
       import MeetingCompose from '../src/pages/Meetings/Compose.tsx'
+      import { addDays, iso, TODAY } from '../src/utils/date.ts'
 
       window.IS_REACT_ACT_ENVIRONMENT = true
       const root = createRoot(document.getElementById('root'))
@@ -553,13 +554,8 @@
         // 미팅 보고서에서 새 딜을 여는 실제 흐름. 모든 요청은 이 합성 adapter 안에서만
         // 처리해 실제 영업·고객 데이터와 네트워크를 건드리지 않습니다.
         await render(null)
-        const meetingDate = '2026-08-20'
-        const defaultOpenedOnDate = new Date()
-        defaultOpenedOnDate.setHours(0, 0, 0, 0)
-        defaultOpenedOnDate.setDate(defaultOpenedOnDate.getDate() + 1)
-        const expectedDefaultOpenedOn = new Intl.DateTimeFormat('en-CA').format(
-          defaultOpenedOnDate,
-        )
+        const meetingDate = iso(addDays(TODAY, -1))
+        const expectedDefaultOpenedOn = iso(addDays(TODAY, 1))
         const company = {
           id: 'company-1',
           name: '아크메드',
