@@ -42,6 +42,22 @@ ML 학습 순서와 이전 실험은 [노트북 안내](../backend/notebooks/REA
 
 실행은 `services/agent_runs.py`의 `dispatch()`에서 종류별로 연결합니다. 기간 보고서의 입력 종류 검증도 이 경계에 두며, 별도 전달 전용 에이전트 파일은 사용하지 않습니다. 권한·DB 조회는 기존 `services/meeting_context.py`와 `services/report_sources.py`, ML 실행은 `ml/deal_baseline.py`에 유지합니다. 작성 스킬은 `reports/skills/`의 MD에서, 역할별 지시와 실행 정책은 각 Python 에이전트에서 관리합니다.
 
+## 계약·일정 관리
+
+| 위치 | 역할 |
+|---|---|
+| `backend/app/services/contract_next_meeting_pipeline.py` | 트리거 큐잉과 "다음 미팅 제안 → 일정 후보" 백그라운드 연결 |
+| `backend/app/services/contract_schedule_snapshots.py` | 위험 신호·선호 기간·브리핑 입력을 DB에서 조립 |
+| `backend/app/services/schedule_conflicts.py` | 담당자 일정과 겹치는지 판정. 카드 조회와 승인 직후 안내가 **같은 함수**를 쓴다 |
+| `backend/app/api/contract_suggestions.py` | 저장된 제안 조회·닫기. 조회할 때 지난 후보를 빼고 겹침을 표시한다 |
+| `frontend/src/pages/Calendar/components/SuggestionPanel/` | 캘린더 "AI 추천 일정" 패널 |
+
+추천은 트리거 시점에 미리 계산해 저장하므로 사용자가 볼 때는 낡아 있을 수 있습니다.
+그래서 조회 시점에 후보가 지금도 유효한지 다시 봅니다 — 지난 후보는 빼고, 그 자리에 다른
+일정이 잡힌 후보는 표시만 하며, 남은 후보가 없으면 카드를 그리지 않습니다. 판정 규칙을
+`schedule_conflicts.py` 한 곳에 두는 이유는 조회와 승인이 다르게 판단하면 사용자가 이유를
+알 수 없기 때문입니다. 자세한 내용은 [계약에이전트 설계 5.1](technical/multiagent/계약에이전트_설계.md)을 참고합니다.
+
 ## 문서
 
 ```text

@@ -9,15 +9,28 @@
 const HIDDEN_HEADINGS = new Set(['## 추출 필드', '## 출처'])
 const HIDDEN_TITLES = new Set(['# 문서 요약', '# 문서요약'])
 
+/**
+ * 제목 줄을 `# 본문` 꼴로 맞춘다. 제목이 아니면 null.
+ *
+ * 마크다운은 앞 공백 세 칸까지와 뒤에 붙는 닫는 `#` 을 모두 제목으로 인정한다. 문자열을
+ * 그대로 비교하면 `  ## 출처` 나 `## 출처 ##` 같은 형태가 제목으로 안 잡혀, 감춰야 할
+ * 섹션이 화면에 그대로 나온다.
+ */
+function normalizedHeading(line: string): string | null {
+  const match = line.match(/^ {0,3}(#{1,2})\s+(.+?)(?:\s+#+)?\s*$/)
+  return match ? `${match[1]} ${match[2].trim()}` : null
+}
+
 export function summaryWithoutHiddenSections(markdown: string): string {
   const lines = markdown.split('\n')
   const visibleLines: string[] = []
   let hiding = false
 
   for (const line of lines) {
+    const heading = normalizedHeading(line)
     // 새 요약은 제목을 만들지 않지만, 구버전의 제목도 화면에서는 표시하지 않는다.
-    if (HIDDEN_TITLES.has(line.trim())) continue
-    if (/^#{1,2}\s+/.test(line)) hiding = HIDDEN_HEADINGS.has(line.trim())
+    if (heading !== null && HIDDEN_TITLES.has(heading)) continue
+    if (heading !== null) hiding = HIDDEN_HEADINGS.has(heading)
     if (!hiding) visibleLines.push(line)
   }
   return visibleLines.join('\n')
