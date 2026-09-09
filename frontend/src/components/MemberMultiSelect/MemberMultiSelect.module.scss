@@ -25,17 +25,7 @@
 }
 
 .chips {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s1);
-  min-width: 0;
-
-  input {
-    flex: 1 1 90px;
-    min-width: 90px;
-  }
+  @include combo-chips;
 }
 
 .chip {

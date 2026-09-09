@@ -1,0 +1,137 @@
+/*
+ * 이미지와 PDF 가 같은 껍데기를 씁니다. 안에 그리는 것만 <img> 와 <canvas> 로 갈리고
+ * 머리말·무대·도구 막대의 자리는 바뀌지 않아, 무엇을 올렸든 같은 화면으로 읽힙니다.
+ */
+.viewer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+  padding: var(--s2) var(--s2) var(--s2) var(--s4);
+  border-bottom: 1px solid var(--line);
+
+  h3 {
+    flex: none;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+  }
+}
+
+// 어떤 파일을 봤는지 확인만 되면 됩니다. 검수할 것은 파일명이 아니라 문서입니다.
+.fileName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 문서가 놓이는 자리. 폼이 아무리 길어져도 이 패널은 스크롤을 따라가지 않고,
+ * 확대해서 넘치는 것만 여기 안에서 움직입니다.
+ */
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: var(--s3);
+  background: var(--fill-2);
+  scrollbar-gutter: stable;
+}
+
+.canvas {
+  display: block;
+  border-radius: var(--r-xs);
+  background: #fff;
+  box-shadow: var(--sh-2);
+}
+
+// 돌아간 이미지의 자리는 가로세로가 바뀝니다. 바깥 칸이 그 크기를 잡고,
+// 이미지는 그 한가운데에서 돕니다.
+.frame {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.image {
+  position: absolute;
+  display: block;
+  border-radius: var(--r-xs);
+  background: #fff;
+  box-shadow: var(--sh-2);
+  transition: transform var(--t-fast) var(--ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.notice {
+  position: absolute;
+  margin: 0;
+  padding: 0 var(--s4);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s4);
+  flex: none;
+  padding: var(--s2);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.zoomLabel,
+.pageLabel {
+  min-width: 52px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+// 배율을 누르면 다시 화면에 맞춥니다.
+.zoomLabel {
+  height: var(--control-h-sm);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+}

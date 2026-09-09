@@ -101,11 +101,8 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
   // 함께 두면 화면만 길어지므로, 어디까지 왔는지 하나만 남깁니다.
   if (reading && progress) {
     return (
-      <Modal title="사업자 등록증으로 고객 등록" description="" onClose={close}>
-        <RecognitionLoading
-          description={progressLabel(progress)}
-          progress={progress.phase === 'uploading' ? progress.percent : undefined}
-        />
+      <Modal title="사업자 등록증으로 고객 등록" description="" onClose={close} size="lg">
+        <RecognitionLoading description={progressLabel(progress)} />
       </Modal>
     )
   }
@@ -115,6 +112,7 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
       title="사업자 등록증으로 고객 등록"
       description=""
       onClose={close}
+      size="lg"
       footer={
         <>
           <Button type="button" variant="outline" onClick={close}>

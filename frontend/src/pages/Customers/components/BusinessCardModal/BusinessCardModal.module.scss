@@ -1,11 +1,12 @@
 /*
- * 넣는 자리를 명함 비율(91×55mm)로 잘라 둡니다. 사진을 올리면 그 틀이 그대로 액자가
- * 되어, 잘못 찍힌 각도나 잘린 가장자리가 등록을 누르기 전에 눈에 띕니다.
+ * 넣는 자리의 높이는 사업자등록증·엑셀과 같습니다. 무엇으로 등록하든 모달 크기가
+ * 같아야 해서, 명함 비율(91×55mm)은 이 칸이 아니라 아래 사진이 이어받습니다.
  */
 .drop {
-  display: block;
+  display: grid;
+  place-items: center;
   width: 100%;
-  aspect-ratio: 91 / 55;
+  height: var(--dropzone-h);
   overflow: hidden;
   padding: 0;
   border: 1px dashed var(--line-2);
@@ -55,10 +56,15 @@
   }
 }
 
+/*
+ * 사진이 그대로 액자가 되어, 잘못 찍힌 각도나 잘린 가장자리가 등록을 누르기 전에
+ * 눈에 띕니다. 명함 비율은 여기 있으므로 칸의 남는 좌우는 배경으로 비웁니다.
+ */
 .shot {
   display: block;
-  width: 100%;
+  width: auto;
   height: 100%;
+  aspect-ratio: 91 / 55;
   object-fit: cover;
 }
 

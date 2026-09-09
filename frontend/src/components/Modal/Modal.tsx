@@ -12,6 +12,11 @@ import styles from './Modal.module.scss'
  */
 const stack: symbol[] = []
 
+const SIZE_CLASS: Record<'md' | 'lg', string> = {
+  md: '',
+  lg: styles.isLarge,
+}
+
 interface ModalProps {
   title: string
   description?: string
@@ -21,6 +26,11 @@ interface ModalProps {
   /** 폼 모달이면 다이얼로그 본문을 <form> 으로 감쌉니다. */
   onSubmit?: () => void
   size?: 'md' | 'lg'
+  /**
+   * 본문의 여백과 스크롤을 자식에게 넘길지. 좌우로 나눈 뒤 한쪽만 스크롤시키는
+   * 화면처럼, 본문이 스크롤 영역을 스스로 정해야 할 때만 켭니다.
+   */
+  flushBody?: boolean
   children: ReactNode
 }
 
@@ -31,6 +41,7 @@ export default function Modal({
   footer,
   onSubmit,
   size = 'md',
+  flushBody = false,
   children,
 }: ModalProps) {
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -86,7 +97,7 @@ export default function Modal({
     >
       {/* 스크림 클릭으로만 닫히도록 다이얼로그 안쪽 클릭은 여기서 멈춥니다. */}
       <div
-        className={`${styles.dialog} ${size === 'lg' ? styles.isLarge : ''}`}
+        className={`${styles.dialog} ${SIZE_CLASS[size]}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -116,7 +127,7 @@ export default function Modal({
             </button>
           </header>
 
-          <div className={styles.body} ref={bodyRef}>
+          <div className={`${styles.body} ${flushBody ? styles.isFlush : ''}`} ref={bodyRef}>
             {children}
           </div>
 

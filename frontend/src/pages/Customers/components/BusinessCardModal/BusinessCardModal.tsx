@@ -107,11 +107,8 @@ export default function BusinessCardModal({
   // 함께 두면 화면만 길어지므로, 어디까지 왔는지 하나만 남깁니다.
   if (reading && progress) {
     return (
-      <Modal title="명함으로 고객 등록" description="" onClose={close}>
-        <RecognitionLoading
-          description={progressLabel(progress)}
-          progress={progress.phase === 'uploading' ? progress.percent : undefined}
-        />
+      <Modal title="명함으로 고객 등록" description="" onClose={close} size="lg">
+        <RecognitionLoading description={progressLabel(progress)} />
       </Modal>
     )
   }
@@ -121,6 +118,7 @@ export default function BusinessCardModal({
       title="명함으로 고객 등록"
       description=""
       onClose={close}
+      size="lg"
       footer={
         <>
           <Button type="button" variant="outline" onClick={close}>
@@ -145,7 +143,7 @@ export default function BusinessCardModal({
         }}
       />
 
-      {/* 명함 비율(91×55) 그대로입니다. 무엇을 넣는 자리인지 글자보다 먼저 보입니다. */}
+      {/* 올린 사진이 명함 비율(91×55)로 놓입니다. 무엇을 넣는 자리인지 글자보다 먼저 보입니다. */}
       <button type="button" className={styles.drop} onClick={() => fileRef.current?.click()}>
         {preview === null ? (
           <span className={styles.empty}>

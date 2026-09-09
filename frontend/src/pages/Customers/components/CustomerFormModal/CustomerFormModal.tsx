@@ -6,6 +6,7 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import AddressField, { type AddressValue } from '@/components/AddressField'
 import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
+import { ChevronLeftIcon } from '@/components/icons'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
 import Select from '@/components/Select'
@@ -26,6 +27,7 @@ import type { BusinessCardMatch } from '../../businessCard'
 import { archiveBusinessLicense } from '../../businessLicense'
 import { type DuplicateDraft } from '../../duplicate'
 import DuplicateConfirmModal from '../DuplicateConfirmModal'
+import SourceDocumentViewer from '../SourceDocumentViewer'
 import styles from './CustomerFormModal.module.scss'
 
 interface CustomerFormModalProps {
@@ -133,10 +135,6 @@ function draftOf(name: string, fields: CustomerContactUpdateRequest): DuplicateD
 
 const EMPTY_ADDRESS: AddressValue = { postcode: '', address: '', addressDetail: '' }
 
-function isImageFile(file: File): boolean {
-  return file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name)
-}
-
 /** 이미 있는 회사의 주소를 입력칸 모양으로 바꿉니다. */
 function companyAddress(company: CustomerCompanyResponse): AddressValue {
   return {
@@ -197,8 +195,8 @@ export default function CustomerFormModal({
   // OCR에 올린 원본은 등록 성공 뒤 자료실에 보관할 때까지 이 폼이 그대로 들고 있다.
   // 별도 업로드·다운로드 없이 브라우저의 object URL로 입력값과 나란히 확인한다.
   const sourceFile = archiveImage ?? archiveLicense
-  const sourceImage = sourceFile && isImageFile(sourceFile) ? sourceFile : null
-  const [sourcePreview, setSourcePreview] = useState<string | null>(null)
+  // 원본이 있으면 검수 화면이다. 열어 둔 채로 시작하고, 입력 공간이 필요하면 접는다.
+  const [sourceOpen, setSourceOpen] = useState(true)
 
   const [draft, setDraft] = useState<Draft>(
     customer ? customerDraft(customer) : { ...EMPTY, ...initial },
@@ -241,16 +239,6 @@ export default function CustomerFormModal({
   // 수정 폼은 회사 전체를 받아 와야 검색칸에 올릴 수 있습니다. 목록이 들고 있는 것은
   // 회사 id 와 이름뿐이고, 사업자번호·주소는 회사에 붙어 있습니다.
   const [companyLoading, setCompanyLoading] = useState(editing)
-
-  useEffect(() => {
-    if (sourceImage === null) {
-      setSourcePreview(null)
-      return
-    }
-    const url = URL.createObjectURL(sourceImage)
-    setSourcePreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [sourceImage])
 
   const companyId = customer?.companyId
   useEffect(() => {
@@ -425,10 +413,13 @@ export default function CustomerFormModal({
     if (!submitting) onClose()
   }
 
+  // 원본이 있으면 문서를 나란히 놓고 검수하는 화면이 됩니다. 폭은 다른 고객 등록
+  // 모달과 같이 두고, 본문 여백·스크롤만 아래 좌우 분할이 직접 맡습니다.
   return (
     <Modal
       title={editing ? '고객 수정' : '고객 등록'}
-      size={sourceImage ? 'lg' : 'md'}
+      size="lg"
+      flushBody={sourceFile !== undefined}
       onClose={close}
       onSubmit={submit}
       footer={
@@ -442,21 +433,29 @@ export default function CustomerFormModal({
         </>
       }
     >
-      {duplicateMatches.length > 0 && (
-        <div className={styles.duplicateNotice} role="alert">
-          <strong>기존 고객 후보가 있습니다.</strong>
-          <ul>
+      <Split
+        source={
+          sourceFile && (
+            <SourceDocumentViewer file={sourceFile} onCollapse={() => setSourceOpen(false)} />
+          )
+        }
+        open={sourceOpen}
+        onReopen={() => setSourceOpen(true)}
+      >
+        {duplicateMatches.length > 0 && (
+          <div className={styles.duplicateNotice} role="alert">
+            <strong>기존 고객 후보</strong>
             {duplicateMatches.map((match) => (
-              <li key={match.contact_id}>
+              <span key={match.contact_id} className={styles.duplicateMatch}>
                 {match.company_name} · {match.name} · {formatPhone(match.phone)}
-              </li>
+              </span>
             ))}
-          </ul>
-          <span>기존 고객인지 확인한 뒤 등록하세요. 자동으로 합치지 않습니다.</span>
-        </div>
-      )}
-      <div className={styles.formLayout} aria-busy={submitting}>
-        <div className={styles.grid}>
+            <span className={styles.duplicateHint}>
+              확인한 뒤 등록하세요. 자동으로 합치지 않습니다.
+            </span>
+          </div>
+        )}
+        <div className={styles.grid} aria-busy={submitting}>
           <Field label="회사" required error={errors.company} htmlFor={false}>
             <CompanyAutocomplete
               value={company}
@@ -604,24 +603,12 @@ export default function CustomerFormModal({
           </Field>
         </div>
 
-        {sourceImage && (
-          <aside className={styles.sourcePreview} aria-label="인식 원본 이미지">
-            <p className={styles.sourcePreviewLabel}>인식 원본</p>
-            {sourcePreview ? (
-              <img src={sourcePreview} alt={`인식에 사용한 원본 ${sourceImage.name}`} />
-            ) : (
-              <div className={styles.sourcePreviewLoading}>미리보기 준비 중…</div>
-            )}
-            <p className={styles.sourcePreviewName}>{sourceImage.name}</p>
-          </aside>
+        {submitError && !duplicate && (
+          <p className={styles.error} role="alert">
+            {submitError}
+          </p>
         )}
-      </div>
-
-      {submitError && !duplicate && (
-        <p className={styles.error} role="alert">
-          {submitError}
-        </p>
-      )}
+      </Split>
 
       {duplicate && (
         <DuplicateConfirmModal
@@ -637,6 +624,42 @@ export default function CustomerFormModal({
         />
       )}
     </Modal>
+  )
+}
+
+interface SplitProps {
+  /** 오른쪽에 놓을 원본 뷰어. 없으면 예전처럼 폼만 있는 모달이 됩니다. */
+  source: React.ReactNode
+  open: boolean
+  onReopen: () => void
+  children: React.ReactNode
+}
+
+/**
+ * 왼쪽 입력 폼과 오른쪽 원본을 나란히 놓습니다. 스크롤은 왼쪽만 하므로 폼이 길어져도
+ * 원본은 그 자리에 남고, 모달 안에 스크롤 막대가 둘 생기지 않습니다.
+ */
+function Split({ source, open, onReopen, children }: SplitProps) {
+  if (!source) return children
+
+  return (
+    <div className={styles.split} data-open={open}>
+      <div className={styles.formPane}>
+        {!open && (
+          <div className={styles.paneTop}>
+            <button type="button" className={styles.reopen} onClick={onReopen}>
+              원본 보기
+              <ChevronLeftIcon width={14} height={14} />
+            </button>
+          </div>
+        )}
+        {children}
+      </div>
+      {/* 접힌 패널은 폭이 0 이라 눈에는 안 보여도 초점은 들어갑니다. inert 로 막습니다. */}
+      <aside className={styles.sourcePane} inert={!open}>
+        {source}
+      </aside>
+    </div>
   )
 }
 

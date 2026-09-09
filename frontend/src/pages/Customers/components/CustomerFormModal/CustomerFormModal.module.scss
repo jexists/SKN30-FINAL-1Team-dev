@@ -8,89 +8,140 @@
   }
 }
 
-.formLayout {
+/*
+ * 왼쪽 입력 폼과 오른쪽 원본. 접기는 오른쪽 트랙의 폭만 0 으로 줄이므로, 폼은 남는
+ * 자리를 그대로 받아 전체 폭으로 자랍니다. 폭 하나만 움직여 전환이 짧고 조용합니다.
+ */
+.split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 176px;
-  gap: var(--s4);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 0;
+  // 줄 높이를 다이얼로그가 정합니다. auto 로 두면 줄이 폼 길이만큼 자라, 폼은 스크롤하지
+  // 않고 원본 패널만 아래로 밀려 도구 막대가 화면 밖으로 사라집니다.
+  grid-template-rows: minmax(0, 1fr);
+  transition: grid-template-columns var(--t) var(--ease-out);
 
-  @include sm {
+  // 다이얼로그 폭이 720px 로 고정이라 폼과 원본이 반씩 나눠 가집니다.
+  &[data-open='true'] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  // 원본을 펴 두면 폼이 좁아집니다. 두 칸으로 욱여넣지 않고 한 줄에 하나씩 둡니다.
+  &[data-open='true'] .grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  // 접히면 폭은 0 이어도 테두리 1px 은 남아 세로줄로 보입니다.
+  &[data-open='false'] .sourcePane {
+    border-color: transparent;
+  }
+
+  // 좁은 화면에서는 나란히 둘 자리가 없습니다. 원본을 위에 얹고 폼이 그 아래로 흐릅니다.
+  @include md {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 0 minmax(0, 1fr);
+    transition: grid-template-rows var(--t) var(--ease-out);
+
+    &[data-open='true'] {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 42vh minmax(0, 1fr);
+    }
+
+    &[data-open='true'] .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @include sm {
+    &[data-open='true'] .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 }
 
-.sourcePreview {
-  position: sticky;
-  top: 0;
+// 모달 안에서 세로로 스크롤하는 곳은 여기 하나뿐입니다.
+.formPane {
   min-width: 0;
-  padding: var(--s2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5);
+}
+
+.sourcePane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
   background: var(--surface-2);
 
-  img,
-  .sourcePreviewLoading {
-    display: block;
-    width: 100%;
-    height: 168px;
-    border-radius: calc(var(--r-sm) - 2px);
-    background: var(--surface);
-  }
-
-  img {
-    object-fit: contain;
+  @include md {
+    grid-row: 1;
+    border-left: 0;
+    border-bottom: 1px solid var(--line);
   }
 }
 
-.sourcePreviewLoading {
-  @include flex-center;
-
-  color: var(--muted);
-  font-size: 11px;
+.paneTop {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s3);
 }
 
-.sourcePreviewLabel,
-.sourcePreviewName {
-  margin: 0;
-}
-
-.sourcePreviewLabel {
-  margin-bottom: var(--s2);
+.reopen {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--control-h-sm);
+  padding: 0 var(--s2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
   color: var(--ink-2);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px var(--blue-ring);
+  }
 }
 
-.sourcePreviewName {
-  margin-top: var(--s2);
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/*
+ * 등록을 막는 오류가 아니라 한 번 더 보라는 알림입니다. 입력칸이 주인공이므로
+ * 테두리 대신 왼쪽 선 하나로 표시하고 높이를 줄입니다.
+ */
 .duplicateNotice {
-  margin-bottom: var(--s3);
-  padding: var(--s3);
-  border: 1px solid var(--orange);
-  border-radius: var(--r-sm);
-  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--s4);
+  padding: var(--s2) var(--s3);
+  border-left: 3px solid var(--orange);
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
   background: var(--orange-tint);
   font-size: 12px;
 
   strong {
     color: var(--ink);
+    font-size: 12px;
   }
+}
 
-  ul {
-    margin: var(--s2) 0;
-    padding-left: 18px;
-  }
+.duplicateMatch {
+  color: var(--ink-2);
+}
 
-  span {
-    color: var(--muted);
-  }
+.duplicateHint {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .field {
