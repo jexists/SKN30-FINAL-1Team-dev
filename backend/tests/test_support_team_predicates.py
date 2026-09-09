@@ -3,7 +3,7 @@
 from uuid import uuid4
 
 import pytest
-from team_scope import has_owner_predicate, has_team_predicate
+from team_scope import has_owner_predicate, has_team_predicate, narrows_to_single_owner
 from test_support import _client, _Db, _member, _Result
 
 from app.api import support as api
@@ -66,7 +66,7 @@ def test_manager_detail_is_not_narrowed_to_a_single_assignee():
     db = _Db(_Result(rows=[]))
     with _client(db, manager) as client:
         client.get(f"/api/support-requests/{uuid4()}")
-    assert not has_owner_predicate(db.statements[0], SupportRequest.assignee_member_id, manager.id)
+    assert not narrows_to_single_owner(db.statements[0], SupportRequest.assignee_member_id)
 
 
 def test_member_list_queries_are_each_scoped_to_their_assignments():
@@ -77,3 +77,16 @@ def test_member_list_queries_are_each_scoped_to_their_assignments():
     assert len(db.statements) == 3
     for statement in db.statements:
         assert has_owner_predicate(statement, SupportRequest.assignee_member_id, member.id)
+
+
+def test_manager_list_queries_are_not_narrowed_to_a_single_assignee():
+    """팀장 목록은 팀 전체를 봐야 한다. 상세만 보면 목록이 좁혀진 것을 놓친다."""
+    manager = _member(role="manager")
+    db = _Db(*[_Result(scalar=0, rows=[]) for _ in range(3)])
+
+    with _client(db, manager) as client:
+        client.get("/api/support-requests")
+
+    assert len(db.statements) == 3
+    for statement in db.statements:
+        assert not narrows_to_single_owner(statement, SupportRequest.assignee_member_id)

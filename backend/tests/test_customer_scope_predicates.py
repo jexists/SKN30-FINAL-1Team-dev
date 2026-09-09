@@ -3,10 +3,15 @@
 from uuid import uuid4
 
 import pytest
-from team_scope import has_owner_predicate, has_team_predicate
+from team_scope import (
+    has_exists_bound_predicate,
+    has_owner_predicate,
+    has_team_predicate,
+    narrows_to_single_owner,
+)
 from test_customers import _client, _Db, _member, _Result
 
-from app.models.crm import CustomerCompany, CustomerContact
+from app.models.crm import CustomerCompany, CustomerContact, CustomerContactAssignee
 
 
 @pytest.mark.parametrize("role", ["member", "manager"])
@@ -65,7 +70,7 @@ def test_manager_detail_is_not_narrowed_to_a_single_owner():
     with _client(db, manager) as client:
         client.get(f"/api/customer-contacts/{uuid4()}")
 
-    assert not has_owner_predicate(db.statements[0], CustomerContact.owner_member_id, manager.id)
+    assert not narrows_to_single_owner(db.statements[0], CustomerContact.owner_member_id)
 
 
 def test_member_list_queries_are_each_scoped_to_their_own_contacts():
@@ -78,3 +83,42 @@ def test_member_list_queries_are_each_scoped_to_their_own_contacts():
     assert len(db.statements) == 2
     for statement in db.statements:
         assert has_owner_predicate(statement, CustomerContact.owner_member_id, member.id)
+
+
+def test_manager_list_queries_are_not_narrowed_to_a_single_owner():
+    """팀장 목록은 팀 전체를 봐야 한다. 상세만 보면 목록이 좁혀진 것을 놓친다."""
+    manager = _member(role="manager")
+    db = _Db(*[_Result(scalar=0, rows=[]) for _ in range(2)])
+
+    with _client(db, manager) as client:
+        client.get("/api/customer-contacts")
+
+    assert len(db.statements) == 2
+    for statement in db.statements:
+        assert not narrows_to_single_owner(statement, CustomerContact.owner_member_id)
+        assert not has_exists_bound_predicate(statement, CustomerContactAssignee.member_id)
+
+
+def test_member_scope_binds_the_assignee_branch_to_the_authenticated_user():
+    """or_ 의 뒤쪽 EXISTS 도 본다. 앞쪽만 보면 이 절의 바인딩이 풀려도 통과한다."""
+    member = _member(role="member")
+    db = _Db(*[_Result(scalar=0, rows=[]) for _ in range(2)])
+
+    with _client(db, member) as client:
+        client.get("/api/customer-contacts")
+
+    assert len(db.statements) == 2
+    for statement in db.statements:
+        assert has_exists_bound_predicate(statement, CustomerContactAssignee.member_id, member.id)
+
+
+def test_member_detail_binds_the_assignee_branch_to_the_authenticated_user():
+    member = _member(role="member")
+    db = _Db(_Result(rows=[]))
+
+    with _client(db, member) as client:
+        client.get(f"/api/customer-contacts/{uuid4()}")
+
+    assert has_exists_bound_predicate(
+        db.statements[0], CustomerContactAssignee.member_id, member.id
+    )

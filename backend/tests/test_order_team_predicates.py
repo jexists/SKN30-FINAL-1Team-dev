@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from team_scope import has_owner_predicate, has_team_predicate
+from team_scope import has_owner_predicate, has_team_predicate, narrows_to_single_owner
 from test_orders import _Db, _member, _Result
 
 from app.api import orders as api
@@ -68,7 +68,7 @@ def test_manager_detail_is_not_narrowed_to_a_single_owner():
     db = _Db(_Result(rows=[]))
     with pytest.raises(HTTPException):
         asyncio.run(api.get_order(uuid4(), manager, db))
-    assert not has_owner_predicate(db.statements[0], api._sales_deal.owner_member_id, manager.id)
+    assert not narrows_to_single_owner(db.statements[0], api._sales_deal.owner_member_id)
 
 
 def test_member_list_queries_are_each_scoped_to_their_own_deals():
@@ -78,3 +78,15 @@ def test_member_list_queries_are_each_scoped_to_their_own_deals():
     assert len(db.statements) == 4
     for statement in db.statements:
         assert has_owner_predicate(statement, api._sales_deal.owner_member_id, member.id)
+
+
+def test_manager_list_queries_are_not_narrowed_to_a_single_owner():
+    """팀장 목록은 팀 전체를 봐야 한다. 상세만 보면 목록이 좁혀진 것을 놓친다."""
+    manager = _member(role="manager")
+    db = _Db(*[_Result(scalar=0, rows=[]) for _ in range(4)])
+
+    asyncio.run(api.list_orders(OrderPageParams(), manager, db))
+
+    assert len(db.statements) == 4
+    for statement in db.statements:
+        assert not narrows_to_single_owner(statement, api._sales_deal.owner_member_id)
