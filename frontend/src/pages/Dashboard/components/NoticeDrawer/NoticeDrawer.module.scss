@@ -113,6 +113,8 @@
     height: auto;
     margin: var(--s3) 0;
     border-radius: var(--r-sm);
+    // 눌러서 전체보기로 엽니다. 본문 폭에 맞춰 줄여 놓아 작은 글자가 안 보입니다.
+    cursor: zoom-in;
   }
 
   > :global(*:last-child) {

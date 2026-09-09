@@ -12,6 +12,7 @@ import { useState } from 'react'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
+import ImageLightbox, { clickedImage } from '@/components/ImageLightbox'
 import Skeleton from '@/components/Skeleton'
 import StatusBadge from '@/components/StatusBadge'
 import { errorMessage } from '@/api/errorMessage'
@@ -52,6 +53,8 @@ export default function NoticeDrawer({ label, notice, onStatusChange, onClose }:
   const [saved, setSaved] = useState<NoticeStatusResponse | null>(null)
   const [missing, setMissing] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 본문 안의 사진을 눌렀을 때 크게 볼 것. 누르지 않았으면 null 입니다.
+  const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null)
 
   const status = saved ?? notice.myStatus ?? null
   const badge = status === null ? null : statusLabel(status.status_code)
@@ -172,9 +175,18 @@ export default function NoticeDrawer({ label, notice, onStatusChange, onClose }:
              허용목록을 넓힐 일이 생기면 반드시 서버 쪽을 먼저 봅니다.
              사진도 본문 안에 있습니다. 주소는 서버가 응답할 때마다 새로 발급합니다. */
           // oxlint-disable-next-line react/no-danger
-          <div className={styles.detail} dangerouslySetInnerHTML={{ __html: body.body }} />
+          <div
+            className={styles.detail}
+            dangerouslySetInnerHTML={{ __html: body.body }}
+            onClick={(event) => {
+              const image = clickedImage(event)
+              if (image) setZoom(image)
+            }}
+          />
         )}
       </Drawer>
+
+      {zoom && <ImageLightbox {...zoom} onClose={() => setZoom(null)} />}
 
       {missing && (
         <MissReasonModal

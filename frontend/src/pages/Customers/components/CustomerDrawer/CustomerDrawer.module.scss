@@ -139,6 +139,8 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
+    // 눌러서 여는 것이 새 탭이 아니라 전체보기임을 알립니다.
+    cursor: zoom-in;
   }
 }
 
