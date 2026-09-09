@@ -1,6 +1,7 @@
 // 미팅 맥락과 선택한 딜은 항상 보여 주고, 추가 정보와 선택 목록만 펼칩니다.
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import type { AgendaItem } from '@/types'
+import Button from '@/components/Button'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import DealPicker from '../DealPicker'
@@ -18,6 +19,7 @@ interface Props {
   selectedDealIds: string[]
   fixedDealIds?: string[]
   onToggleDeal: (id: string) => void
+  onCreateDeal?: () => void
   disabled: boolean
 }
 
@@ -30,6 +32,7 @@ export default function MeetingInfoPanel({
   selectedDealIds,
   fixedDealIds,
   onToggleDeal,
+  onCreateDeal,
   disabled,
 }: Props) {
   const selectedNames = selectedDealIds.map((id) => {
@@ -74,6 +77,17 @@ export default function MeetingInfoPanel({
           onToggle={onToggleDeal}
           disabled={disabled}
         />
+        {onCreateDeal && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled || dealsLoading || !item.customerCompanyId}
+            onClick={onCreateDeal}
+          >
+            새 딜 생성
+          </Button>
+        )}
       </details>
     </div>
   )

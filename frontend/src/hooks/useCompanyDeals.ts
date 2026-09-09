@@ -48,6 +48,14 @@ export default function useCompanyDeals(companyId?: string | null) {
   }, [companyId, reloadKey])
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), [])
+  const addDeal = useCallback(
+    (deal: SalesDeal) => {
+      if (!companyId || deal.customerCompanyId !== companyId) return
+      setDeals((current) => [deal, ...current.filter((item) => item.id !== deal.id)])
+      setError(null)
+    },
+    [companyId],
+  )
 
-  return { deals, loading, error, reload }
+  return { deals, loading, error, reload, addDeal }
 }

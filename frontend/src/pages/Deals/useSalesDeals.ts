@@ -138,7 +138,7 @@ function requestErrorMessage(error: unknown, target: '목록' | '상세'): strin
   return transportMessage(error) ?? fallback
 }
 
-function mutationErrorMessage(error: unknown, action: string): string {
+export function mutationErrorMessage(error: unknown, action: string): string {
   const fallback = action + '하지 못했습니다.'
   if (!isAxiosError(error)) return fallback
   if (error.response?.status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
@@ -335,6 +335,17 @@ export function toCreateRequest(
     ...(input.title === null ? {} : { title: input.title }),
     participant_contact_ids: input.participantContactIds,
   }
+}
+
+export async function createSalesDealRecord(
+  input: SalesDealSaveInput,
+  pipelineId: string,
+): Promise<SalesDeal> {
+  const { data } = await client.post<SalesDealResponse>(
+    '/sales-deals',
+    toCreateRequest(input, pipelineId),
+  )
+  return toSalesDeal(data)
 }
 
 function toPatchRequest(
@@ -613,11 +624,7 @@ export default function useSalesDeals(
     (input: SalesDealSaveInput) =>
       runMutation('create', '영업 딜을 등록', async () => {
         if (stagePipelineId === null) throw new Error('사용할 영업 파이프라인이 없습니다.')
-        const { data } = await client.post<SalesDealResponse>(
-          '/sales-deals',
-          toCreateRequest(input, stagePipelineId),
-        )
-        const created = toSalesDeal(data)
+        const created = await createSalesDealRecord(input, stagePipelineId)
         setCards((previous) => [created, ...previous])
         await syncSalesDeals()
         return created

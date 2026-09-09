@@ -40,6 +40,7 @@ import { attachmentPayloadsOf, meetingAttachmentPurposeOf } from '@/utils/attach
 
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
+import MeetingDealForm from './components/MeetingDealForm'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
 import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './useMeetingDraft'
@@ -248,6 +249,12 @@ export default function Compose() {
     return () => controller.abort()
   }, [agendaId, draftReady, memberId, savedReport, resumeGeneration])
   const deals = useCompanyDeals(item?.customerCompanyId)
+  const [createDealOpen, setCreateDealOpen] = useState(false)
+  const createDealKey = useRef('')
+  useEffect(() => {
+    setCreateDealOpen(false)
+    createDealKey.current = ''
+  }, [agendaId, item?.customerCompanyId])
   const [confirm, setConfirm] = useState<Confirm>(null)
 
   if (agendaLoading || loading) {
@@ -303,7 +310,7 @@ export default function Compose() {
   const fixedDealIds = draft.salesDealIds.filter(
     (dealId) => draft.draftsByDeal[dealId]?.reportId !== undefined,
   )
-  const busy = pending || generating || recovering || submitting
+  const busy = pending || generating || recovering || submitting || createDealOpen
   const meetingDate = savedReport?.date ?? draft.reportDate ?? item.date
   const meetingTime = savedReport?.time ?? item.time
   const when = `미팅일 ${fmtDot(parseISO(meetingDate))} ${meetingTime}`
@@ -583,6 +590,11 @@ export default function Compose() {
                 selectedDealIds={draft.salesDealIds}
                 fixedDealIds={fixedDealIds}
                 onToggleDeal={draft.toggleSalesDeal}
+                onCreateDeal={() => {
+                  if (busy || !canEdit || !item.customerCompanyId || deals.loading) return
+                  createDealKey.current = `${item.id}:${item.customerCompanyId}`
+                  setCreateDealOpen(true)
+                }}
                 disabled={busy || !canEdit}
               />
             </aside>
@@ -699,8 +711,10 @@ export default function Compose() {
                     when={`${when}${product ? ` · ${product}` : ''}`}
                     saving={pending}
                     generating={generating || recovering}
-                    canGenerate={draft.canGenerate && generatable && !generationInputError}
-                    readOnly={!canEditDeal(dealId)}
+                    canGenerate={
+                      draft.canGenerate && generatable && !generationInputError && !createDealOpen
+                    }
+                    readOnly={!canEditDeal(dealId) || createDealOpen}
                     onTitleChange={(value) => draft.setTitle(dealId, value)}
                     onChange={(body) => draft.applyDocument(dealId, body)}
                     onStartManual={() => draft.startManual(dealId)}
@@ -736,6 +750,33 @@ export default function Compose() {
         >
           <p>현재 편집 중인 내용은 아직 업무보고서로 저장되지 않았습니다.</p>
         </Modal>
+      )}
+      {createDealOpen && item.customerCompanyId && (
+        <MeetingDealForm
+          activityKey={item.id}
+          companyId={item.customerCompanyId}
+          contactId={item.customerContactId}
+          contactName={item.customerContactName}
+          fallbackContactName={item.contact}
+          onCreated={(created) => {
+            const key = `${item.id}:${item.customerCompanyId}`
+            if (
+              createDealKey.current !== key ||
+              item.id !== agendaId ||
+              created.customerCompanyId !== item.customerCompanyId
+            )
+              return
+            deals.addDeal(created)
+            draft.toggleSalesDeal(created.id)
+            createDealKey.current = ''
+            setCreateDealOpen(false)
+            showToast('새 딜을 생성하고 미팅에 연결했습니다.')
+          }}
+          onClose={() => {
+            createDealKey.current = ''
+            setCreateDealOpen(false)
+          }}
+        />
       )}
     </section>
   )

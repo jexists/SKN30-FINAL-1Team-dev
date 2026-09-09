@@ -19,6 +19,7 @@
       import useDailyReports from '../src/pages/Daily/useDailyReports.ts'
       import useMeetingDraft from '../src/pages/Meetings/useMeetingDraft.ts'
       import { meetingFinalizeRequestOf } from '../src/pages/Meetings/useMeetingReports.ts'
+      import { toCreateRequest } from '../src/pages/Deals/useSalesDeals.ts'
       import MeetingCompose from '../src/pages/Meetings/Compose.tsx'
 
       window.IS_REACT_ACT_ENVIRONMENT = true
@@ -55,6 +56,69 @@
         attachments: [],
         deal_sections: [],
         updated_at: '2026-08-31T00:00:00Z',
+      })
+      const deal = (id, title, companyId = 'company-1', openedOn = '2026-08-20') => ({
+        id,
+        deal_no: `D-${id}`,
+        title,
+        customer_company_id: companyId,
+        customer_company_name: '아크메드',
+        customer_company_region_code: null,
+        customer_company_business_no: null,
+        customer_contact_id: 'contact-1',
+        customer_contact_name: '김하나',
+        product_id: 'product-1',
+        product_name: '제품 A',
+        deal_amount: 0,
+        deal_type_code: 'new-business',
+        deal_type_name: '신규 영업',
+        source_code: null,
+        owner_member_id: 'author',
+        owner_display_name: '합성 작성자',
+        opened_on: openedOn,
+        memo: null,
+        description: null,
+        closed_on: null,
+        sales_pipeline_id: 'pipeline-1',
+        sales_pipeline_name: '기본 파이프라인',
+        sales_pipeline_status_code: 'published',
+        sales_pipeline_stage_id: 'stage-1',
+        sales_pipeline_stage_code: 'new',
+        sales_pipeline_stage_name: '신규',
+        sales_pipeline_stage_tone: 'blue',
+        sales_pipeline_stage_phase_code: 'in_progress',
+        sales_pipeline_stage_position: 0,
+        stage_position: 0,
+        quote_no: null,
+        quote_issued_on: null,
+        quote_valid_until: null,
+        contract_no: null,
+        contract_signed_on: null,
+        contract_ends_on: null,
+        warranty_terms: null,
+        expected_delivery_at: null,
+        quote_status_id: null,
+        quote_status_code: null,
+        quote_status_name: null,
+        quote_status_tone: null,
+        contract_status_id: null,
+        contract_status_code: null,
+        contract_status_name: null,
+        contract_status_tone: null,
+        quote_amount: null,
+        contract_amount: null,
+        quote_delivery_terms: null,
+        contract_payment_terms: null,
+        contract_late_interest_terms: null,
+        team_company_name: null,
+        team_business_no: null,
+        items: [],
+        participants: [],
+        order_status_code: null,
+        order_status_name: null,
+        order_status_tone: null,
+        created_at: '2026-08-20T00:00:00Z',
+        updated_at: '2026-08-20T00:00:00Z',
       })
       const session = {
         session: { memberId: 'author', role: 'member', profile: {}, isAdmin: false },
@@ -484,6 +548,314 @@
         check(
           generated.length === generationCount && finalized.length === finalCount,
           '실제 미팅 초과 원문은 생성·최종 제출 POST 0회',
+        )
+
+        // 미팅 보고서에서 새 딜을 여는 실제 흐름. 모든 요청은 이 합성 adapter 안에서만
+        // 처리해 실제 영업·고객 데이터와 네트워크를 건드리지 않습니다.
+        await render(null)
+        const meetingDate = '2026-08-20'
+        const defaultOpenedOnDate = new Date()
+        defaultOpenedOnDate.setHours(0, 0, 0, 0)
+        defaultOpenedOnDate.setDate(defaultOpenedOnDate.getDate() + 1)
+        const expectedDefaultOpenedOn = new Intl.DateTimeFormat('en-CA').format(
+          defaultOpenedOnDate,
+        )
+        const company = {
+          id: 'company-1',
+          name: '아크메드',
+          address: null,
+          business_no: null,
+          region_code: null,
+        }
+        const contact = {
+          id: 'contact-1',
+          company_id: 'company-1',
+          company_name: '아크메드',
+          name: '김하나',
+          department: '영업부',
+          job_title: '팀장',
+          email: null,
+          phone: null,
+        }
+        const product = { id: 'product-1', name: '제품 A' }
+        const initialReport = {
+          ...report('meeting', 'saved-create-deal', 'saved-submission'),
+          source_activity_id: 'create-deal-agenda',
+          report_date: meetingDate,
+          status_code: 'draft',
+          title: '합성 미팅 보고서',
+          content: {
+            time: '09:30',
+            hospital: company.name,
+            dept: '영업부',
+            contact: '김하나 팀장',
+            place: '본사',
+            title: '합성 미팅',
+          },
+          direct_transcript: '원문 보존 내용',
+          transcript: '원문 보존 내용',
+          common_body: '공통 편집 본문',
+          unassigned_body: null,
+          attachments: [
+            {
+              id: 'stored-source',
+              kind: 'image',
+              purpose: 'meeting_source',
+              name: '원문.png',
+              byte_size: 12,
+              extract: '원문 첨부 보존',
+              original_stored: true,
+            },
+          ],
+          deal_sections: [],
+        }
+        let meetingDeals = []
+        let dealListCalls = 0
+        let createInputs = []
+        let createShouldFail = true
+        const pipeline = {
+          id: 'pipeline-1',
+          name: '기본 파이프라인',
+          status_code: 'published',
+          is_default: true,
+        }
+        const stage = {
+          id: 'stage-1',
+          name: '신규',
+          code: 'new',
+          tone: 'blue',
+          outcome_code: 'in_progress',
+          phase_code: 'in_progress',
+          position: 0,
+        }
+        client.defaults.adapter = async (config) => {
+          if (config.url === '/activities/create-deal-agenda')
+            return response(config, {
+              id: 'create-deal-agenda',
+              owner_member_id: 'author',
+              owner_display_name: '합성 작성자',
+              starts_at: `${meetingDate}T00:30:00.000Z`,
+              ends_at: `${meetingDate}T01:30:00.000Z`,
+              title: '합성 미팅',
+              category_code: 'meeting',
+              completed_at: null,
+              customer_company_id: company.id,
+              customer_company_name: company.name,
+              customer_contact_id: contact.id,
+              customer_contact_name: contact.name,
+              customer_contact_department: contact.department,
+              customer_contact_job_title: contact.job_title,
+              product_name: product.name,
+              location: '본사',
+              action_tag: 'meeting',
+              note: '',
+              all_day: false,
+              briefing_queue_warning: null,
+              schedule_conflict_warning: null,
+              product_id: product.id,
+              sales_deal_id: null,
+            })
+          if (config.url === '/reports') return response(config, page([initialReport]))
+          if (config.url === '/report-generations/latest') throw failure(config, 404)
+          if (config.url === '/sales-deals' && config.method === 'get') {
+            dealListCalls += 1
+            return response(config, page(meetingDeals))
+          }
+          if (config.url === `/customer-companies/${company.id}`)
+            return response(config, company)
+          if (config.url === '/sales-pipelines') return response(config, [pipeline])
+          if (config.url === `/sales-pipelines/${pipeline.id}/stages`)
+            return response(config, [stage])
+          if (config.url === '/sales-deal-types')
+            return response(config, [{ code: 'new-business', name: '신규 영업' }])
+          if (config.url === '/products') return response(config, page([product]))
+          if (config.url === '/customer-contacts') return response(config, page([contact]))
+          if (config.url === '/sales-deals' && config.method === 'post') {
+            const input = JSON.parse(config.data)
+            createInputs.push(input)
+            if (createShouldFail) throw failure(config, 403)
+            const created = deal('created-deal', input.title ?? '아크메드 제품 A', company.id, input.opened_on)
+            meetingDeals = [created]
+            return response(config, created)
+          }
+          throw new Error(`허용하지 않은 새 딜 합성 요청: ${config.method} ${config.url}`)
+        }
+        await render(
+          createElement(
+            MemoryRouter,
+            { initialEntries: ['/?agenda=create-deal-agenda'] },
+            createElement(MeetingCompose),
+          ),
+        )
+        await act(async () => {
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+        const summaries = [...document.querySelectorAll('summary')]
+        const dealsSummary = summaries.find((node) => node.textContent.includes('관련 딜 선택'))
+        check(dealsSummary, '기존 딜 0건이어도 관련 딜 선택 영역이 표시됨')
+        await act(async () => dealsSummary.click())
+        const createDealButton = [...document.querySelectorAll('button')].find(
+          (button) => button.textContent.trim() === '새 딜 생성',
+        )
+        check(createDealButton && !createDealButton.disabled, '새 딜 생성 버튼은 유효 상태에서 활성화됨')
+        const commonEditor = () => {
+          const label = [...document.querySelectorAll('label')].find(
+            (item) => item.textContent.trim() === '공통 내용',
+          )
+          return label ? document.getElementById(label.htmlFor) : null
+        }
+        check(
+          commonEditor()?.value === '공통 편집 본문' &&
+            document.getElementById('transcript')?.value === '원문 보존 내용' &&
+            document.body.textContent.includes('원문.png'),
+          '새 딜을 열기 전 원문·첨부·공통 편집 본문이 존재함',
+        )
+
+        await act(async () => createDealButton.click())
+        const loadingDialog = document.querySelector('[role="dialog"]')
+        check(
+          loadingDialog &&
+            (loadingDialog.textContent.includes('새 딜 생성') ||
+              loadingDialog.textContent.includes('영업 딜 추가')),
+          '새 딜 선택지 조회 모달이 열림',
+        )
+        check(createDealButton.disabled, '새 딜 모달이 열린 동안 중복 열기 버튼을 잠금')
+        const loadingCancel = [...loadingDialog.querySelectorAll('button')].find(
+          (button) => button.textContent.trim() === '취소',
+        )
+        await act(async () => loadingCancel.click())
+        check(
+          createInputs.length === 0 &&
+            document.getElementById('transcript')?.value === '원문 보존 내용' &&
+            commonEditor()?.value === '공통 편집 본문' &&
+            !document.body.textContent.includes('1건 선택'),
+          '새 딜 취소 시 원문·첨부·공통 본문과 선택 상태 보존',
+        )
+
+        await act(async () => createDealButton.click())
+        await act(async () => {
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+        let dialog = document.querySelector('[role="dialog"]')
+        check(dialog?.textContent.includes('영업 딜 추가'), '기존 SalesDealForm으로 새 딜 입력 모달을 엶')
+        const companyInput = dialog.querySelector('input[aria-label="회사명"]')
+        const contactInput = dialog.querySelector('input[aria-label="고객명"]')
+        check(
+          companyInput?.disabled && companyInput.value === company.name && contactInput?.disabled,
+          '미팅 회사·고객이 프리필되고 두 입력이 잠김',
+        )
+        check(dialog.textContent.includes(contact.name), '프리필 고객 이름이 입력 모달에 표시됨')
+        const closePreservingModal = [...dialog.querySelectorAll('button')].find(
+          (button) => button.textContent.trim() === '취소',
+        )
+        await act(async () => closePreservingModal.click())
+        check(
+          createInputs.length === 0 &&
+            document.getElementById('transcript')?.value === '원문 보존 내용' &&
+            commonEditor()?.value === '공통 편집 본문',
+          '입력 모달 취소도 편집 중인 원문과 공통 본문을 보존',
+        )
+
+        const fillDealForm = async () => {
+          await act(async () => createDealButton.click())
+          await act(async () => {
+            await Promise.resolve()
+            await Promise.resolve()
+          })
+          dialog = document.querySelector('[role="dialog"]')
+          const productInput = dialog.querySelector('input[aria-label="제품"]')
+          await act(async () => productInput.focus())
+          await act(async () => {
+            await Promise.resolve()
+            await Promise.resolve()
+          })
+          const productOption = [...document.querySelectorAll('[role="option"]')].find((option) =>
+            option.textContent.includes(product.name),
+          )
+          await act(async () => productOption.click())
+          const titleLabel = [...dialog.querySelectorAll('label')].find(
+            (label) => label.textContent.trim() === '제목',
+          )
+          const titleInput = titleLabel.querySelector('input')
+          const inputSetter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            'value',
+          ).set
+          await act(async () => {
+            inputSetter.call(titleInput, '미팅 신규 딜')
+            titleInput.dispatchEvent(new Event('input', { bubbles: true }))
+          })
+        }
+        await fillDealForm()
+        await act(async () =>
+          [...dialog.querySelectorAll('button')]
+            .find((button) => button.textContent.trim() === '영업 딜 추가')
+            .click(),
+        )
+        check(
+          createInputs.length === 1 &&
+            [...document.querySelectorAll('[role="alert"]')].some((item) =>
+              item.textContent.includes('영업 딜을 등록할 권한이 없습니다.'),
+            ),
+          '403 딜 생성 API 실패가 일반 딜과 같은 한국어 권한 오류로 표시되고 POST 입력이 기록됨',
+        )
+        check(
+          !document.body.textContent.includes('1건 선택'),
+          '딜 생성 실패 시 선택 딜을 추가하지 않음',
+        )
+
+        createShouldFail = false
+        await act(async () =>
+          [...dialog.querySelectorAll('button')]
+            .find((button) => button.textContent.trim() === '영업 딜 추가')
+            .click(),
+        )
+        await act(async () => {
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+        check(
+          createInputs.length === 2 &&
+            createInputs[1].customer_company_id === company.id &&
+            createInputs[1].customer_contact_id === contact.id &&
+            createInputs[1].opened_on === expectedDefaultOpenedOn &&
+            createInputs[1].opened_on !== meetingDate &&
+            createInputs[1].owner_member_id === undefined,
+          `성공 POST 날짜 확인: opened_on=${createInputs[1]?.opened_on} expected=${expectedDefaultOpenedOn}`,
+        )
+        equal(
+          createInputs[1],
+          toCreateRequest(
+            {
+              customerCompanyId: company.id,
+              customerContactId: contact.id,
+              productId: product.id,
+              title: '미팅 신규 딜',
+              amount: 0,
+              dealTypeCode: 'new-business',
+              date: expectedDefaultOpenedOn,
+              memo: null,
+              sourceCode: null,
+              stageId: stage.id,
+              participantContactIds: [],
+            },
+            pipeline.id,
+          ),
+          '미팅 새 딜 입력은 일반 딜 생성 공통 payload 변환과 동일함',
+        )
+        check(
+          document.body.textContent.includes('1건 선택') &&
+            document.body.textContent.includes('미팅 신규 딜'),
+          '생성 성공 딜을 즉시 선택하고 제목을 목록에 표시',
+        )
+        check(dealListCalls === 1, '생성 성공 후 기존 회사 딜 첫 목록을 재조회하지 않음')
+        check(
+          meetingDeals[0]?.id === 'created-deal' &&
+            meetingDeals[0]?.customer_company_id === company.id &&
+            meetingDeals[0]?.owner_member_id === 'author',
+          '생성 응답의 회사·담당 영업자 정보가 목록에 보존됨',
         )
         document.getElementById('result').textContent =
           `PASS ${checks.length}\n${checks.join('\n')}`
