@@ -15,6 +15,24 @@ DB 구조 변경 기록.
 
 ---
 
+## 2026-09-09 — 고객불만 수정
+
+`backend/sql/20260909_0028_support_request_edit.sql`
+
+| 테이블 | 변경 |
+|---|---|
+| `support_request` | `updated_at` ADD |
+| `support_request_edit_backup` | 신설 |
+
+고객불만을 등록한 뒤에도 제목·내용·긴급·발생일시를 고칠 수 있게 했다. 회사와 딜은 복합
+외래키로 묶인 구조값이라 대상이 아니고, 상태는 기존 transition 이 낙관적 잠금으로 따로 맡는다.
+
+화면에는 `updated_at` 이 있을 때 "수정일시" 한 줄만 선다. 고치기 직전 값은
+`support_request_edit_backup` 에 네 칸을 통째로 적어 두지만 읽는 API 도 화면도 없다.
+되돌릴 일이 생기면 DB 에서 직접 꺼낸다.
+
+---
+
 ## 2026-09-08 — 팀원 담당지역
 
 `backend/sql/20260908_0027_member_region_code.sql`

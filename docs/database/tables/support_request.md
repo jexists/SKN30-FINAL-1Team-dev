@@ -17,6 +17,7 @@
 | `customer_company_id` | UUID | FK → sales_deal (복합 FK) | NO | – | 불만을 제기한 고객사 ID |
 | `sales_deal_id` | UUID | FK → sales_deal (복합 FK) | NO | – | 관련 거래 ID |
 | `occurred_at` | TIMESTAMPTZ | – | NO | – | 불만 발생 시각 |
+| `updated_at` | TIMESTAMPTZ | – | YES | – | 마지막으로 본문을 고친 시각. 고친 적이 없으면 NULL |
 
 ## Constraints
 
@@ -39,6 +40,7 @@
 | [sales_deal](sales_deal.md) | N:1 | `support_request.sales_deal_id, support_request.customer_company_id` → `sales_deal.id, sales_deal.customer_company_id` |
 | [team](team.md) | N:1 | `support_request.team_id` → `team.id` |
 | [support_response](support_response.md) | 1:N | `support_response.support_request_id` → `support_request.id` |
+| [support_request_edit_backup](support_request_edit_backup.md) | 1:N | `support_request_edit_backup.support_request_id` → `support_request.id` |
 
 ---
 

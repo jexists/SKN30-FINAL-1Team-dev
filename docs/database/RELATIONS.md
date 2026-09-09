@@ -102,6 +102,8 @@
 | [support_request](tables/support_request.md) | `assignee_member_id` | [member](tables/member.md) | `id` | N:1 | – | `support_request_assignee_member_id_fkey` |
 | [support_request](tables/support_request.md) | `sales_deal_id, customer_company_id` | [sales_deal](tables/sales_deal.md) | `id, customer_company_id` | N:1 | CASCADE | `support_request_sales_deal_company_membership_fkey` |
 | [support_request](tables/support_request.md) | `team_id` | [team](tables/team.md) | `id` | N:1 | – | `support_request_team_id_fkey` |
+| [support_request_edit_backup](tables/support_request_edit_backup.md) | `editor_member_id` | [member](tables/member.md) | `id` | N:1 | – | `support_request_edit_backup_editor_member_id_fkey` |
+| [support_request_edit_backup](tables/support_request_edit_backup.md) | `support_request_id` | [support_request](tables/support_request.md) | `id` | N:1 | – | `support_request_edit_backup_support_request_id_fkey` |
 | [support_response](tables/support_response.md) | `responder_member_id` | [member](tables/member.md) | `id` | N:1 | – | `support_response_responder_member_id_fkey` |
 | [support_response](tables/support_response.md) | `support_request_id` | [support_request](tables/support_request.md) | `id` | N:1 | – | `support_response_support_request_id_fkey` |
 

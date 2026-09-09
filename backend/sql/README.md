@@ -317,6 +317,19 @@
   없어 전부 `NULL`(미지정)로 남고 백필이 없습니다. 더하기만이라 구코드가 깨지지 않으므로 적용과
   배포의 순서는 자유입니다.
 
+- `20260909_0028_support_request_edit.sql`: `support_request`에 `updated_at`을 더하고
+  `support_request_edit_backup`을 만듭니다. 고객불만을 등록한 뒤에도 제목·내용·긴급·발생일시를
+  고칠 수 있게 하는 변경입니다. 회사와 딜은 복합 외래키로 묶인 구조값이라 대상이 아니고, 상태는
+  기존 transition 이 낙관적 잠금으로 따로 맡습니다. 화면에는 `updated_at`이 있을 때 "수정일시"
+  한 줄만 서고, 고치기 직전 값은 백업 표에 네 칸을 통째로 적어 두지만 읽는 API도 화면도 없습니다.
+  되돌릴 일이 생기면 DB에서 직접 꺼냅니다. 기존 행은 전부 `updated_at`이 `NULL`이라 백필이
+  없습니다. 더하기만이라 구코드가 깨지지 않으므로 적용과 배포의 순서는 자유입니다.
+
+- `20260909_0029_support_request_edit_backup_rls.sql`: 0028 이 만든 백업 표에 행 수준 보안을
+  켭니다. 0028 이 이것을 빠뜨렸습니다. 다른 표는 모두 RLS 가 켜져 있고 정책이 하나도 없습니다 —
+  앱은 소유자로 붙어 RLS 를 지나가고 PostgREST 로 들어오는 anon / authenticated 에게는 아무것도
+  열리지 않는다는 뜻입니다. 이 표만 꺼져 있으면 고객불만의 예전 본문이 REST 로 새어 나갑니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -362,6 +375,8 @@
 | 2026-09-08 | 현재 연결된 개발 DB | `20260908_0025_product_spec.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. product 9→10컬럼(`spec`, nullable). 상품 64행 보존(64→64)이고 `spec`은 64행 모두 `NULL`, 기존 `memo`는 64행 모두 그대로 남아 비고가 됩니다. 더하기만이라 백필도 지우는 행도 없습니다. ORM(`app/models/sales.py`)과 물리 스키마의 컬럼·nullable·타입을 대조해 일치를 확인했습니다 — `test_models_match_configured_database`는 pgbouncer 트랜잭션 풀러에서 prepared statement 때문에 돌지 않아 같은 대조를 직접 수행했습니다 |
 | 2026-09-08 | 현재 연결된 개발 DB | `20260908_0026_product_memo_to_spec.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. DDL 없음. 상품 64행 보존(64→64)이고 `memo` 64행의 값이 그대로 `spec`으로 옮겨졌습니다(`spec` 채워짐 0→64, `memo` 채워짐 64→0). 실행 전 `spec`이 전부 `NULL`인 것을 확인해 덮어쓴 값은 없습니다 |
 | 2026-09-08 | 현재 연결된 개발 DB | `20260908_0027_member_region_code.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. member 9→10컬럼(`region_code`, nullable, CHECK 공백 금지). 구성원 18행 보존(18→18)이고 `region_code`는 18행 모두 `NULL`(미지정)입니다. 더하기만이라 백필도 지우는 행도 없습니다. ORM(`app/models/workspace.py`)과 물리 스키마의 컬럼·nullable을 대조해 일치를 확인했습니다 — `test_models_match_configured_database`는 0025 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다 |
+| 2026-09-09 | 현재 연결된 개발 DB | `20260909_0028_support_request_edit.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. support_request 11→12컬럼(`updated_at`, nullable)과 `support_request_edit_backup` 8컬럼 신설(PK 1 · FK 2 · 인덱스 `support_request_edit_backup_request_idx`). 불만 69행·응답 86행 보존(69→69 / 86→86)이고 `updated_at`은 69행 모두 `NULL`, 백업 표는 0행입니다. 더하기만이라 백필도 지우는 행도 없습니다. 적용 후 컬럼·nullable·기본값·FK·인덱스를 물리 스키마에서 직접 조회해 ORM(`app/models/crm.py`)과 일치를 확인했습니다 — `test_models_match_configured_database`는 0025 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다. **RLS 를 빠뜨렸습니다 — 0029 로 이어서 켭니다** |
+| 2026-09-09 | 현재 연결된 개발 DB | `20260909_0029_support_request_edit_backup_rls.sql` | — | **미적용(대기).** 0028 이 만든 백업 표만 42개 표 중 홀로 RLS 가 꺼져 있는 것을 적용 직후 확인했습니다. 정책 없이 켜기만 하므로 앱 동작은 바뀌지 않고, 켜기 전까지 PostgREST 로 예전 불만 본문이 열려 있습니다 |
 
 ## 개발 DB 재구축 런북
 

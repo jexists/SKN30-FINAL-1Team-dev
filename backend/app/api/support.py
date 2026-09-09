@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -8,13 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.api.deps import CurrentMember, DbSession, owner_scope
-from app.models.crm import CustomerCompany, SupportRequest, SupportResponse
+from app.models.crm import (
+    CustomerCompany,
+    SupportRequest,
+    SupportRequestEditBackup,
+    SupportResponse,
+)
 from app.models.sales import Product, SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.schemas.support import (
     SupportRequestCreate,
     SupportRequestPage,
     SupportRequestPageParams,
+    SupportRequestPatch,
     SupportRequestRead,
     SupportResponseCreate,
     SupportResponseRead,
@@ -121,6 +128,7 @@ def _request_read(
         status_code=request.status_code,
         occurred_at=request.occurred_at.astimezone(_SEOUL),
         registered_at=request.registered_at.astimezone(_SEOUL),
+        updated_at=(None if request.updated_at is None else request.updated_at.astimezone(_SEOUL)),
         responses=responses,
     )
 
@@ -181,6 +189,28 @@ async def _locked_request(
             detail="support_request_not_found",
         )
     return request
+
+
+def _may_edit(member: Member, request: SupportRequest) -> bool:
+    """고칠 수 있는 사람인지. 등록한 본인과 팀장뿐이다.
+
+    _scope 가 이미 볼 수 있는 범위를 좁혀 두었으므로 여기서 팀을 다시 보지 않는다.
+    팀원이면 남의 불만은 애초에 조회 단계에서 404 로 끊긴다.
+    """
+    return request.assignee_member_id == member.id or member.role_code != "member"
+
+
+def _same(before, after) -> bool:
+    """저장된 값과 들어온 값이 같은지.
+
+    발생일시는 시간대가 붙은 값과 붙지 않은 값이 섞여 들어올 수 있고, 그때 파이썬은
+    비교 자체를 거부한다. 견줄 수 없으면 달라진 것으로 보고 백업을 남긴다. 같은 값을
+    한 번 더 적는 쪽이, 바뀐 값을 백업 없이 덮어쓰는 쪽보다 낫다.
+    """
+    try:
+        return bool(before == after)
+    except TypeError:
+        return False
 
 
 async def _visible_deal(db: AsyncSession, member: Member, deal_id: UUID):
@@ -342,6 +372,58 @@ async def create_support_request(
         await db.rollback()
         raise
     response.headers["Location"] = f"/api/support-requests/{request.id}"
+    return read
+
+
+@router.patch("/support-requests/{request_id}", response_model=SupportRequestRead)
+async def update_support_request(
+    request_id: UUID,
+    payload: SupportRequestPatch,
+    member: CurrentMember,
+    db: DbSession,
+) -> SupportRequestRead:
+    # None 은 안 보낸 칸이다. 비울 수 있는 칸이 없으므로 그대로 흘리면 NOT NULL 을 깬다.
+    values = {
+        name: value
+        for name, value in payload.model_dump(exclude_unset=True).items()
+        if value is not None
+    }
+
+    try:
+        request = await _locked_request(db, member, request_id)
+        if not _may_edit(member, request):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+
+        changed = {
+            name: value
+            for name, value in values.items()
+            if not _same(getattr(request, name), value)
+        }
+        if changed:
+            # 백업이 먼저다. 갈아 끼운 뒤에 적으면 적을 값이 이미 없다.
+            db.add(
+                SupportRequestEditBackup(
+                    id=uuid4(),
+                    support_request_id=request.id,
+                    editor_member_id=member.id,
+                    title=request.title,
+                    body=request.body,
+                    is_urgent=request.is_urgent,
+                    occurred_at=request.occurred_at,
+                )
+            )
+            for name, value in changed.items():
+                setattr(request, name, value)
+            request.updated_at = datetime.now(UTC)
+            await db.flush()
+
+        row = await _request_row(db, member, request_id)
+        response_map = await _responses_by_request_ids(db, member, [request_id])
+        read = _request_read(*row, response_map[request_id])
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     return read
 
 

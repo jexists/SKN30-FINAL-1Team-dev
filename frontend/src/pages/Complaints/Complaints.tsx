@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
-import { ComplaintIcon, PlusIcon, SearchIcon } from '@/components/icons'
+import { ComplaintIcon, EditIcon, MoreIcon, PlusIcon, SearchIcon } from '@/components/icons'
 import OwnerName from '@/components/OwnerName'
+import Popover from '@/components/Popover'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import Select from '@/components/Select'
@@ -52,8 +54,11 @@ export default function Complaints() {
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [page, setPage] = useState(1)
   const isDesktop = useMediaQuery(`(min-width: ${BP_DESKTOP}px)`)
+  const { memberId, isManager } = useCurrentUser()
 
   // 검색어나 탭이 바뀌면 결과가 줄어 지금 쪽수가 범위를 넘을 수 있습니다.
   useEffect(() => {
@@ -75,6 +80,7 @@ export default function Complaints() {
     mutationError,
     clearMutationError,
     createRequest,
+    updateRequest,
     transition,
     addResponse,
   } = useSupportRequests(openId, {
@@ -119,8 +125,14 @@ export default function Complaints() {
   const open = detail?.id === openId ? detail : summary
   const isFiltered = query.trim() !== '' || status !== ''
 
+  // 고칠 수 있는 사람은 등록한 본인과 팀장뿐입니다. 서버(support.py `_may_edit`)가 실제로
+  // 막고 여기서는 누를 수 없는 메뉴를 세우지 않을 뿐입니다.
+  const canEdit = detail !== null && (isManager || detail.assignee_member_id === memberId)
+
   const closeDrawer = useCallback(() => {
     setOpenId(null)
+    setEditing(false)
+    setMenuOpen(false)
     clearMutationError()
   }, [clearMutationError])
 
@@ -293,6 +305,42 @@ export default function Complaints() {
           title={open.title}
           sub={`${open.customer_company_name} · ${dealLabel(open)}`}
           onClose={closeDrawer}
+          actions={
+            detail?.id === open.id && canEdit ? (
+              <Popover
+                open={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                align="end"
+                compact
+                label="고객불만 메뉴"
+                trigger={
+                  <button
+                    type="button"
+                    className={styles.menuBtn}
+                    aria-label="고객불만 메뉴"
+                    aria-expanded={menuOpen}
+                    disabled={pendingKey !== null}
+                    onClick={() => setMenuOpen((value) => !value)}
+                  >
+                    <MoreIcon width={18} height={18} />
+                  </button>
+                }
+              >
+                <div className={styles.menu}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setEditing(true)
+                    }}
+                  >
+                    <EditIcon width={15} height={15} />
+                    수정
+                  </button>
+                </div>
+              </Popover>
+            ) : undefined
+          }
           meta={
             <>
               <StateBadge state={open.status_code} />
@@ -356,6 +404,14 @@ export default function Complaints() {
                   <dt>등록일시</dt>
                   <dd>{dateTime.format(dateOf(detail.registered_at))}</dd>
                 </div>
+                {/* 한 번도 고치지 않았으면 서지 않습니다. 고친 적이 있다는 사실만 보이고,
+                    고치기 전 값은 서버에 백업으로만 남습니다. */}
+                {detail.updated_at !== null && (
+                  <div>
+                    <dt>수정일시</dt>
+                    <dd>{dateTime.format(dateOf(detail.updated_at))}</dd>
+                  </div>
+                )}
                 <div>
                   <dt>내용</dt>
                   <dd>{detail.body}</dd>
@@ -373,6 +429,17 @@ export default function Complaints() {
             </>
           )}
         </Drawer>
+      )}
+
+      {editing && detail && (
+        <ComplaintFormModal
+          initial={detail}
+          onClose={() => setEditing(false)}
+          onPatch={async (patch) => {
+            await updateRequest(detail.id, patch)
+            setEditing(false)
+          }}
+        />
       )}
 
       {adding && (
@@ -417,7 +484,7 @@ function ResponseHistory({
     event.preventDefault()
     const value = body.trim()
     if (value === '') {
-      setBodyError('답변 내용을 입력하세요.')
+      setBodyError('다음 상황을 입력하세요.')
       return
     }
 
@@ -426,9 +493,9 @@ function ResponseHistory({
 
   return (
     <section className={styles.responses}>
-      <h3>답변 이력</h3>
+      <h3>진행 이력</h3>
       {request.responses.length === 0 ? (
-        <p className={styles.noResponses}>등록된 답변이 없습니다.</p>
+        <p className={styles.noResponses}>등록된 진행 이력이 없습니다.</p>
       ) : (
         <ol>
           {request.responses.map((response: SupportResponseResponse) => (
@@ -446,7 +513,7 @@ function ResponseHistory({
       )}
 
       <form className={styles.responseForm} onSubmit={submit}>
-        <label htmlFor={`response-${request.id}`}>답변 추가</label>
+        <label htmlFor={`response-${request.id}`}>다음 상황 추가</label>
         <textarea
           id={`response-${request.id}`}
           rows={4}
@@ -470,7 +537,7 @@ function ResponseHistory({
           </p>
         )}
         <Button type="submit" disabled={pending}>
-          {pending ? '등록 중…' : '답변 등록'}
+          {pending ? '등록 중…' : '다음 상황 등록'}
         </Button>
       </form>
     </section>
