@@ -11,6 +11,7 @@ import { Fragment } from 'react'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import type { CustomerDuplicateResponse } from '@/types'
+import { formatPhone } from '@/utils/format'
 
 import { isSameCustomer, type DuplicateDraft } from '../../duplicate'
 
@@ -41,7 +42,7 @@ export default function DuplicateConfirmModal({
     ['고객명', draft.name],
     ['부서', draft.department],
     ['직책', draft.jobTitle],
-    ['전화번호', draft.phone],
+    ['전화번호', formatPhone(draft.phone)],
     ['이메일', draft.email],
   ].filter((row): row is [string, string] => row[1].trim() !== '')
 

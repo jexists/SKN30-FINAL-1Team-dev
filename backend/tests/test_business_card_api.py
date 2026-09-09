@@ -195,7 +195,7 @@ def test_business_card_matches_route_returns_confirmation_candidates(monkeypatch
 
     async def _matches(_db, **kwargs):
         assert kwargs["member"] is member
-        assert kwargs["fields"].phone == "010-0000-0000"
+        assert kwargs["fields"].phone == "01000000000"
         return [candidate]
 
     async def _db():

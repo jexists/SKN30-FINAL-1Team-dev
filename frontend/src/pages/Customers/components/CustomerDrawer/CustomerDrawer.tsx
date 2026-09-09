@@ -7,6 +7,7 @@ import Popover from '@/components/Popover'
 import useCompanyDeals from '@/hooks/useCompanyDeals'
 import type { Customer } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
+import { formatPhone } from '@/utils/format'
 
 import CustomerDeals from './CustomerDeals'
 import styles from './CustomerDrawer.module.scss'
@@ -125,13 +126,13 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
           <i className={styles.pill}>유입 {customer.source}</i>
           <span className={styles.when}>담당 {customer.owner}</span>
         </>
-      }
       footer={
         customer.email ? (
           <a className={buttonClass()} href={`mailto:${customer.email}`}>
             이메일 보내기
           </a>
         ) : undefined
+      }
       }
     >
       <div className={styles.grid}>
@@ -154,7 +155,7 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
                 <dt>전화</dt>
                 <dd>
                   <a className={`${styles.mail} tnum`} href={`tel:${customer.phone}`}>
-                    {customer.phone}
+                    {formatPhone(customer.phone)}
                   </a>
                 </dd>
               </div>

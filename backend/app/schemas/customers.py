@@ -1,8 +1,27 @@
+import re
 from datetime import datetime
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
+
+
+def digits_only(value: str | None) -> str:
+    """숫자만 남긴다. 전화번호·사업자등록번호는 이 형태로만 저장한다."""
+    return re.sub(r"[^0-9]", "", value or "")
+
+
+def to_digits(value: Any) -> Any:
+    """저장 전에 하이픈·공백을 걷어낸다. 문자열이 아니면 그대로 두어 타입 오류를 남긴다."""
+    return digits_only(value) if isinstance(value, str) else value
+
 
 Text = Annotated[
     str,
@@ -12,9 +31,11 @@ RegionCode = Annotated[
     str,
     StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=64),
 ]
+# 어떤 등록 경로로 들어와도 숫자만 저장한다. 화면에 보일 하이픈은 프론트가 붙인다.
 Phone = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, strict=True, min_length=1, max_length=50),
+    BeforeValidator(to_digits),
+    StringConstraints(strict=True, pattern=r"^[0-9]{1,20}$"),
 ]
 Email = Annotated[
     str,
@@ -36,7 +57,8 @@ SearchQuery = Annotated[
 ]
 BusinessNo = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, strict=True, pattern=r"^[0-9]{10}$"),
+    BeforeValidator(to_digits),
+    StringConstraints(strict=True, pattern=r"^[0-9]{10}$"),
 ]
 Postcode = Annotated[
     str,

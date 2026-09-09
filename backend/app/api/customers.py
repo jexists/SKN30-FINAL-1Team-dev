@@ -33,6 +33,7 @@ from app.schemas.customers import (
     CustomerDuplicateProbe,
     CustomerDuplicateRead,
     CustomerPageParams,
+    digits_only,
 )
 from app.services import customer_duplicates
 from app.services.customer_duplicates import DuplicateProbe
@@ -43,6 +44,19 @@ router = APIRouter(tags=["customers"])
 def _contains(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def _phone_search(q: str):
+    """전화번호는 숫자만 남겨 견준다.
+
+    저장 형식이 숫자로 바뀌기 전에 들어온 값에는 하이픈이 남아 있다. 양쪽을 숫자로
+    맞춰야 010-1234 로 찾든 0101234 로 찾든 같은 사람이 나온다.
+    """
+    digits = digits_only(q)
+    if not digits:
+        return CustomerContact.phone.ilike(_contains(q), escape="\\")
+    stored = func.regexp_replace(CustomerContact.phone, r"[^0-9]", "", "g")
+    return stored.like(_contains(digits), escape="\\")
 
 
 async def _get_company(
@@ -450,7 +464,7 @@ async def list_customer_contacts(
                 CustomerContact.department.ilike(pattern, escape="\\"),
                 CustomerContact.job_title.ilike(pattern, escape="\\"),
                 CustomerContact.email.ilike(pattern, escape="\\"),
-                CustomerContact.phone.ilike(pattern, escape="\\"),
+                _phone_search(page.q),
             )
         )
     total_result = await db.execute(
@@ -598,14 +612,14 @@ async def check_customer_contact_duplicates(
 # 고객 등록 폼과 같은 규칙이다. 여기서 걸러야 한 줄의 오타가 나머지 줄까지 막지 않는다.
 _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
-# 각 칸이 담을 수 있는 길이. 단건 등록 스키마(Text·Phone·Memo)와 같은 값이다.
+# 각 칸이 담을 수 있는 길이. 단건 등록 스키마(Text·Memo)와 같은 값이다.
+# 전화번호는 숫자만 남긴 길이로 재므로 여기 두지 않는다.
 _BULK_LIMITS: tuple[tuple[str, str, int], ...] = (
     ("company_name", "company_too_long", 254),
     ("name", "name_too_long", 254),
     ("department", "department_too_long", 254),
     ("job_title", "job_title_too_long", 254),
     ("email", "email_too_long", 254),
-    ("phone", "phone_too_long", 50),
     ("memo", "memo_too_long", 5_000),
 )
 
@@ -616,13 +630,17 @@ def _bulk_problem(item: CustomerContactBulkItem) -> str | None:
         return "name_required"
     if not item.company_name.strip():
         return "company_required"
-    if not item.phone.strip():
+    phone = digits_only(item.phone)
+    if not phone:
         return "phone_required"
+    # 단건 등록 스키마의 Phone 과 같은 자릿수만 받는다.
+    if len(phone) > 20:
+        return "phone_too_long"
     email = item.email.strip()
     if email and not _EMAIL.match(email):
         return "email_invalid"
     business_no = item.business_no.strip()
-    if business_no and len(re.sub(r"[^0-9]", "", business_no)) != 10:
+    if business_no and len(digits_only(business_no)) != 10:
         return "business_no_invalid"
     for field_name, code, limit in _BULK_LIMITS:
         if len(getattr(item, field_name).strip()) > limit:
@@ -655,7 +673,7 @@ async def _bulk_company(
     )
     company = result.scalar_one_or_none()
     if company is None:
-        digits = re.sub(r"[^0-9]", "", business_no)
+        digits = digits_only(business_no)
         company = CustomerCompany(
             id=uuid4(),
             team_id=member.team_id,
@@ -762,7 +780,7 @@ async def create_customer_contacts_bulk(
                 department=item.department.strip() or None,
                 job_title=item.job_title.strip() or None,
                 email=item.email.strip() or None,
-                phone=item.phone.strip(),
+                phone=digits_only(item.phone),
                 customer_contact_status_id=None if contact_status is None else contact_status.id,
                 source_code=None,
                 memo=item.memo.strip() or None,

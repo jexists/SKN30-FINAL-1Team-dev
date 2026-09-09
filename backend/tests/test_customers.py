@@ -251,7 +251,8 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
     }
     assert contact.name == "합성 고객"
     assert contact.email == "customer@demo.test"
-    assert contact.phone == "02-000-0000"
+    # 전화번호는 어떤 모양으로 적어도 숫자만 남겨 저장한다.
+    assert contact.phone == "020000000"
     assert (
         CustomerContactCreate(
             company_id=uuid4(),
@@ -837,15 +838,24 @@ def test_company_write_round_trips_business_no_and_rejects_other_shapes():
             headers={"Origin": ORIGIN},
             json={"name": "합성 고객사", "region_code": None, "business_no": " 1234567890 "},
         )
-        rejected = client.post(
+        hyphenated = client.post(
             "/api/customer-companies",
             headers={"Origin": ORIGIN},
             json={"name": "합성 고객사", "business_no": "123-45-67890"},
+        )
+        rejected = client.post(
+            "/api/customer-companies",
+            headers={"Origin": ORIGIN},
+            json={"name": "합성 고객사", "business_no": "123-45-678"},
         )
 
     assert created.status_code == 201
     assert created.json()["business_no"] == "1234567890"
     assert db.added[0].business_no == "1234567890"
+    # 화면에서 하이픈을 넣어 보내도 숫자만 남겨 받는다.
+    assert hyphenated.status_code == 201
+    assert hyphenated.json()["business_no"] == "1234567890"
+    # 숫자가 10자리가 아니면 여전히 거절한다.
     assert rejected.status_code == 422
 
 
@@ -1213,6 +1223,28 @@ def test_bulk_creates_a_missing_company_and_keeps_the_existing_business_no():
     assert created[0].name == "새 고객사"
     assert created[0].business_no == "1234567890"
     assert existing.business_no == "1234567890"
+
+
+def test_bulk_keeps_only_digits_in_the_phone():
+    """엑셀은 하이픈·공백이 섞여 들어온다. 저장 형식은 한 가지여야 한다."""
+    member = _member()
+    company = _company(member.team_id)
+    contact_status = _contact_status(member.team_id, code="new")
+    db = _Db(
+        _Result(scalar=contact_status),
+        _Result(rows=[]),
+        _Result(scalar=company),
+    )
+
+    response = _bulk_post(
+        db,
+        member,
+        [_bulk_item(2, company_name=company.name, phone="010 1111-2222")],
+    )
+
+    assert response.status_code == 200
+    contacts = [row for row in db.added if isinstance(row, CustomerContact)]
+    assert [contact.phone for contact in contacts] == ["01011112222"]
 
 
 def test_bulk_skips_customers_that_already_exist():

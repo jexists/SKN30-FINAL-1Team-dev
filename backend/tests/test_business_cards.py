@@ -57,8 +57,8 @@ async def test_extract_does_not_mark_incomplete_ocr_as_ready(monkeypatch):
     assert draft.missing_required_fields == ["company_name", "phone"]
 
 
-def test_normalize_phone_only_removes_redundant_spaces():
-    assert business_cards.normalize_phone("010-0000-0000  ") == "010-0000-0000"
+def test_card_fields_keep_only_digits_in_the_phone():
+    assert BusinessCardFields(phone="010-0000-0000  ").phone == "01000000000"
 
 
 def test_match_labels_reports_normalized_phone_email_and_name_company():

@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from 'react'
 
 import type { Customer, CustomerOwner } from '@/types'
 import { fmtDotShort, parseISO } from '@/utils/date'
+import { formatPhone } from '@/utils/format'
 
 import { EmailCell, OwnerCell, PlainNumber, VisitCell } from './cells'
 
@@ -82,8 +83,8 @@ export const ALL_COLUMNS: ColumnDef[] = [
     width: 128,
     minWidth: 120,
     sortable: false,
-    value: (c) => c.phone,
-    render: (c) => createElement(PlainNumber, { value: c.phone }),
+    value: (c) => formatPhone(c.phone),
+    render: (c) => createElement(PlainNumber, { value: formatPhone(c.phone) }),
   },
   {
     id: 'owner',
