@@ -391,7 +391,7 @@ export default function Customers() {
               ? { postcode: '', address: cardDraft.address.trim(), addressDetail: '' }
               : licenseDraft?.address.trim()
                 ? { postcode: '', address: licenseDraft.address.trim(), addressDetail: '' }
-              : undefined
+                : undefined
           }
         />
       )}
