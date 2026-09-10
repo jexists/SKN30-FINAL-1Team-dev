@@ -16,6 +16,8 @@
   background: var(--surface);
   box-shadow: var(--sh-3);
   animation: slide-in var(--t) var(--ease-spring);
+  // 옆 패널을 펴고 접을 때 폭이 이어집니다. 무엇이 늘어났는지 보여 주는 움직임입니다.
+  transition: width var(--t) var(--ease-spring);
 
   @include sm {
     // 좁은 화면에서는 Modal 과 같이 바텀시트가 됩니다.
@@ -24,12 +26,65 @@
     max-height: 88vh;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     animation-name: slide-up;
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 }
 
 // layout_v3 의 .is-wide. 본문을 2열로 나눠 담는 드로어입니다.
 .wide {
   width: min(760px, 100vw);
+}
+
+/*
+ * 머리말·본문·바닥을 묶는 칸. 옆 패널이 없으면 display:contents 로 레이아웃에서
+ * 사라져, 이 칸을 두기 전과 똑같이 패널이 직접 세 덩이를 세로로 쌓습니다.
+ */
+.main {
+  display: contents;
+}
+
+// 옆 패널이 붙은 드로어. 본문은 화면 끝에서 원래 폭을 지키고,
+// 왼쪽으로 열린 자리를 패널이 가져갑니다.
+.hasSide {
+  flex-direction: row;
+  width: min(1040px, 100vw);
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    width: 420px;
+    min-width: 0;
+  }
+
+  @include md {
+    // 나란히 둘 폭이 없습니다. 펴 둔 동안에는 원본만 보이고,
+    // 패널 머리말의 화살표로 본문으로 돌아옵니다.
+    .main {
+      display: none;
+    }
+  }
+
+  @include sm {
+    // 바텀시트는 내용만큼만 높이를 잡습니다. 원본만 남은 자리에서는 그 내용이
+    // 다시 시트 높이를 재서 그려지므로, 높이를 못 박아야 문서가 제 크기로 펴집니다.
+    height: 88vh;
+  }
+}
+
+.side {
+  flex: 1;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+
+  @include md {
+    border-right: 0;
+  }
 }
 
 @keyframes slide-in {

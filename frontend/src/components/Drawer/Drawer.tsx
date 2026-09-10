@@ -25,6 +25,15 @@ interface Props {
   /** 머리말과 본문 사이에 고정으로 붙는 줄. 목록 드로어의 필터 칩이 여기 옵니다. */
   filters?: ReactNode
   footer?: ReactNode
+  /**
+   * 본문 왼쪽에 나란히 붙는 패널. 드로어가 그만큼 넓어집니다. 원본 문서 뷰어처럼
+   * 스크롤과 높이를 스스로 감당하는 것만 옵니다. 본문 스크롤과는 따로 놉니다.
+   *
+   * 드로어는 화면 오른쪽 끝에 붙어 있습니다. 패널을 오른쪽에 붙이면 늘어난 폭만큼
+   * 본문이 왼쪽으로 밀려, 읽던 요약과 제목·닫기 버튼이 통째로 움직입니다. 왼쪽으로
+   * 열면 본문은 있던 자리에 그대로 있고 새로 열린 자리에 패널이 들어옵니다.
+   */
+  side?: ReactNode
   /** 값이 바뀌면 본문 스크롤을 맨 위로 되돌립니다. 필터를 갈아탈 때 씁니다. */
   resetKey?: string
   onClose: () => void
@@ -39,6 +48,7 @@ export default function Drawer({
   actions,
   filters,
   footer,
+  side,
   resetKey,
   onClose,
   children,
@@ -101,34 +111,40 @@ export default function Drawer({
     >
       <aside
         ref={panelRef}
-        className={`${styles.panel} ${wide ? styles.wide : ''}`}
+        className={`${styles.panel} ${wide ? styles.wide : ''} ${side ? styles.hasSide : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <header className={styles.head}>
-          <div className={styles.heading}>
-            <h2 id={titleId}>{title}</h2>
-            {sub && <p className={styles.sub}>{sub}</p>}
-            {meta && <div className={styles.meta}>{meta}</div>}
-          </div>
-          <div className={styles.tools}>
-            {actions}
-            <button type="button" className={styles.close} onClick={onClose} aria-label="닫기">
-              <CloseIcon />
-            </button>
-          </div>
-        </header>
+        {side && <div className={styles.side}>{side}</div>}
 
-        {filters && <div className={styles.filters}>{filters}</div>}
+        {/* 옆 패널이 없을 때 이 칸은 display:contents 로 사라집니다.
+            머리말·본문·바닥이 지금까지처럼 패널의 직접 자식으로 놓입니다. */}
+        <div className={styles.main}>
+          <header className={styles.head}>
+            <div className={styles.heading}>
+              <h2 id={titleId}>{title}</h2>
+              {sub && <p className={styles.sub}>{sub}</p>}
+              {meta && <div className={styles.meta}>{meta}</div>}
+            </div>
+            <div className={styles.tools}>
+              {actions}
+              <button type="button" className={styles.close} onClick={onClose} aria-label="닫기">
+                <CloseIcon />
+              </button>
+            </div>
+          </header>
 
-        <div className={styles.body} ref={bodyRef}>
-          {children}
+          {filters && <div className={styles.filters}>{filters}</div>}
+
+          <div className={styles.body} ref={bodyRef}>
+            {children}
+          </div>
+
+          {footer && <div className={styles.foot}>{footer}</div>}
         </div>
-
-        {footer && <div className={styles.foot}>{footer}</div>}
       </aside>
     </div>
   )
