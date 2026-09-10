@@ -11,6 +11,8 @@ interface PopoverProps {
   align?: 'start' | 'end'
   /** 항목 몇 개짜리 메뉴. 기본 폭(240px)과 안쪽 여백을 줄입니다. */
   compact?: boolean
+  /** 트리거 위로 열지. 스크롤 영역 맨 아래에 놓인 버튼에 씁니다. */
+  up?: boolean
   label: string
   children: ReactNode
 }
@@ -21,6 +23,7 @@ export default function Popover({
   trigger,
   align = 'start',
   compact,
+  up,
   label,
   children,
 }: PopoverProps) {
@@ -54,7 +57,7 @@ export default function Popover({
 
       {open && (
         <div
-          className={`${styles.panel} ${align === 'end' ? styles.alignEnd : ''} ${compact ? styles.compact : ''}`}
+          className={`${styles.panel} ${align === 'end' ? styles.alignEnd : ''} ${compact ? styles.compact : ''} ${up ? styles.up : ''}`}
           role="dialog"
           aria-label={label}
         >

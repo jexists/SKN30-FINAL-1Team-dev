@@ -37,9 +37,23 @@
   right: 0;
 }
 
+// 트리거가 스크롤 영역 맨 아래에 있는 메뉴. 아래로 열면 화면 밖으로 잘립니다.
+.up {
+  top: auto;
+  bottom: calc(100% + var(--s2));
+  animation-name: pop-up;
+}
+
 @keyframes pop {
   from {
     opacity: 0;
     transform: translateY(-4px);
+  }
+}
+
+@keyframes pop-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
 }

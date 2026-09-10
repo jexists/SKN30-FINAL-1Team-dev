@@ -62,6 +62,25 @@ export function kindOfFile(file: Pick<File, 'name'>): DocumentFileKind {
   return EXT_KIND[ext] ?? 'etc'
 }
 
+/**
+ * 원본을 어떻게 보여 줄지.
+ *
+ * - render: 브라우저가 원본을 그대로 그립니다(PDF·이미지).
+ * - plain: 원본이 곧 글입니다. 받아서 그대로 읽습니다.
+ * - extracted: 브라우저가 그리지 못하는 형식(docx·pptx·hwp·html)이라, 문서에서
+ *   뽑아 둔 글로 대신합니다.
+ */
+export type SourceMode = 'render' | 'plain' | 'extracted'
+
+const PLAIN_TEXT_EXT = new Set(['txt', 'md', 'markdown'])
+
+export function sourceMode(file: Pick<File, 'name'>): SourceMode {
+  const kind = kindOfFile(file)
+  if (kind === 'pdf' || kind === 'image') return 'render'
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return PLAIN_TEXT_EXT.has(ext) ? 'plain' : 'extracted'
+}
+
 const NAME_HINTS: [RegExp, DocumentCategory][] = [
   [/계약|contract/i, '계약서'],
   [/발주|구매요청|po[-_]/i, '발주서'],

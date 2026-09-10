@@ -66,6 +66,69 @@
   }
 }
 
+// 받을 수 있는 것을 한 목록에 모읍니다. 무엇을 받는지가 왼쪽,
+// 형식과 크기가 오른쪽입니다. 형식 이름이 항목을 대표하지 않게 합니다.
+.downloadMenu {
+  display: flex;
+  flex-direction: column;
+  min-width: 208px;
+
+  button {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--s3);
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    i {
+      flex: none;
+      color: var(--muted);
+      font-size: 11px;
+      font-style: normal;
+      font-variant-numeric: tabular-nums;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--fill-2);
+    }
+
+    &:disabled {
+      cursor: wait;
+      opacity: 0.6;
+    }
+  }
+}
+
+.menuGroup {
+  padding: var(--s2) 10px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+// 원본과 처리 결과 사이에만 선이 옵니다.
+.menuDivider {
+  margin-top: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+}
+
 .rows {
   display: grid;
   gap: var(--s3);
@@ -88,27 +151,12 @@
   }
 }
 
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s1);
-  margin-top: var(--s3);
-
-  li {
-    padding: 3px var(--s2);
-    border-radius: var(--r-pill);
-    background: var(--fill);
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 600;
-  }
-}
-
 /* ---- 파일 ---- */
 
+// 이 제목 아래에 마크다운 소제목이 다시 선다. 부모가 자식보다 커야 위계가 읽힌다.
 .sectionTitle {
-  color: var(--ink-2);
-  font-size: 12px;
+  color: var(--ink);
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -116,13 +164,21 @@
 // 파일에 대한 값이 한 줄씩 섞여 있으면 무엇이 무엇에 걸린 값인지 읽기 어렵습니다.
 .fileCard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px var(--s3);
-  margin-top: var(--s4);
+  gap: 4px;
+  margin-top: var(--s3);
   padding: var(--s3);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--surface-2);
+}
+
+// 조작은 카드 안 마지막 줄입니다. 원본 보기가 흰 바탕으로 한 걸음 앞에 섭니다.
+.fileActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s2);
 }
 
 .fileName {
@@ -135,7 +191,6 @@
 }
 
 .fileMeta {
-  grid-column: 1 / -1;
   color: var(--muted);
   font-size: 12px;
 }
@@ -144,25 +199,6 @@
   margin-top: var(--s4);
   color: var(--muted);
   font-size: 13px;
-}
-
-.download {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  align-self: start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
 }
 
 .summaryHead {
@@ -190,19 +226,76 @@
 
 .summary {
   margin-top: var(--s5);
+  padding-bottom: var(--s5);
+  border-bottom: 1px solid var(--line);
 }
 
-/* 마크다운으로 그린 요약 본문. 제목·목록 모양은 ReportBody 가 맡고
-   여기서는 기존 요약 상자의 크기·배경만 그대로 유지합니다. */
+// 요약과 원본은 다루는 대상이 다릅니다. 여백만으로는 경계가 보이지 않습니다.
+.source {
+  margin-top: var(--s5);
+}
+
+/*
+ * 마크다운으로 그린 요약 본문. 기본 모양은 ReportBody 가 잡고, 소제목·목록의
+ * 크기와 간격만 이 드로어의 위계에 맞춰 다시 잡습니다.
+ *
+ * 높이를 매지 않습니다. 드로어 본문이 이미 스크롤을 맡고 있어서 여기에 다시
+ * max-height 를 걸면 한 화면에 스크롤 막대가 둘 생깁니다. 회색 상자도 함께
+ * 걷었습니다. 요약이 이 드로어의 본문이 된 자리에서 상자는 장식입니다.
+ */
 .summaryBody {
-  max-height: 420px;
-  overflow: auto;
-  padding: var(--s3);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums; // 금액·수량이 자리를 맞춰 서게
   line-height: 1.7;
+
+  /*
+   * 소제목은 본문보다 작고 옅게 두고, 위쪽 여백으로 묶음을 만든다. 굵기만으로
+   * 나누면 '주요 내용'과 그 아래 항목이 같은 크기로 서서 한 덩어리로 읽힌다.
+   */
+  :global(h1),
+  :global(h2),
+  :global(h3),
+  :global(h4),
+  :global(h5),
+  :global(h6) {
+    margin: var(--s5) 0 var(--s2);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  > :global(:first-child) {
+    margin-top: 0;
+  }
+
+  // 첫 문단이 요약의 도입부다. 한 걸음 앞에 세워 무엇에 대한 문서인지 먼저 읽히게 한다.
+  > :global(p:first-child) {
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  :global(ul),
+  :global(ol) {
+    padding-left: 1.15em;
+  }
+
+  :global(li) {
+    margin-bottom: 6px;
+
+    &::marker {
+      color: var(--muted);
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  :global(strong) {
+    color: var(--ink);
+  }
 
   :global(pre) {
     overflow-x: auto;
@@ -277,31 +370,9 @@
   line-height: 1.5;
 }
 
-.artifactActions {
+.approveRow {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  margin-top: var(--s2);
-}
-
-.artifactDownload {
-  padding: 5px var(--s2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-  color: var(--ink-2);
-  font-size: 11px;
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--blue);
-    color: var(--blue);
-  }
-
-  &:disabled {
-    cursor: wait;
-    opacity: 0.6;
-  }
+  margin-top: var(--s3);
 }
 
 .approve {
@@ -318,12 +389,6 @@
     cursor: wait;
     opacity: 0.6;
   }
-}
-
-.demo {
-  flex: none;
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .note {
