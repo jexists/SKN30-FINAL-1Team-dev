@@ -6,10 +6,12 @@ import ImageLightbox from '@/components/ImageLightbox'
 import Popover from '@/components/Popover'
 import useCompanyDeals from '@/hooks/useCompanyDeals'
 import useCustomerAttachments from '@/pages/Customers/useCustomerAttachments'
-import type { Customer, CustomerAttachment } from '@/types'
+import useCustomerCompany from '@/pages/Customers/useCustomerCompany'
+import { regionLabel } from '@/shared/regionCodes'
+import type { Customer, CustomerAttachment, CustomerCompanyResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDay, parseISO } from '@/utils/date'
-import { formatPhone } from '@/utils/format'
+import { formatBusinessNo, formatPhone } from '@/utils/format'
 
 import CustomerDeals from './CustomerDeals'
 import styles from './CustomerDrawer.module.scss'
@@ -38,6 +40,13 @@ function Block({ title, children }: BlockProps) {
 }
 
 const shown = (value: string | null | undefined): string => value || '—'
+
+/** 회사 주소 한 줄. 등록 폼에서 보던 것과 같은 모양입니다. */
+function companyAddress(company: CustomerCompanyResponse | null): string {
+  if (company === null || !company.address) return '—'
+  const head = company.postcode ? `(${company.postcode}) ${company.address}` : company.address
+  return company.address_detail ? `${head} ${company.address_detail}` : head
+}
 
 const KIND_LABEL: Record<CustomerAttachment['kind'], string> = {
   business_card: '명함',
@@ -104,6 +113,8 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
   const { deals, loading, error, reload } = useCompanyDeals(customer.companyId)
   // 명함은 이 사람의 것이고, 사업자등록증은 이 회사의 것입니다. 서버가 함께 줍니다.
   const attachments = useCustomerAttachments(customer.id)
+  // 사업자 등록번호와 주소는 회사에 붙어 있습니다. 고객 응답에는 들어 있지 않습니다.
+  const company = useCustomerCompany(customer.companyId)
 
   // 담당자가 여럿이면 상세에서는 전부 보여 줍니다. 좁은 표와 달리 자리가 있습니다.
   const ownerNames =
@@ -117,6 +128,7 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
     ['담당자', ownerNames.join(', ')],
     ['상태', customer.status],
     ['유입 경로', customer.source],
+    ['방문', customer.visited ? '방문' : '미방문'],
     ['등록일', fmtDay(parseISO(customer.created))],
   ]
 
@@ -196,6 +208,19 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
           <Block title="연락처">
             <dl className={styles.facts}>
               <div>
+                <dt>휴대폰</dt>
+                <dd>
+                  <a className={`${styles.mail} tnum`} href={`tel:${customer.phone}`}>
+                    {formatPhone(customer.phone)}
+                  </a>
+                </dd>
+              </div>
+              {/* 팩스는 거는 번호가 아니라 링크로 두지 않습니다. */}
+              <div>
+                <dt>팩스</dt>
+                <dd className="tnum">{customer.fax ? formatPhone(customer.fax) : '—'}</dd>
+              </div>
+              <div>
                 <dt>이메일</dt>
                 <dd>
                   {customer.email ? (
@@ -205,14 +230,6 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
                   ) : (
                     <span className={styles.muted}>등록된 이메일 없음</span>
                   )}
-                </dd>
-              </div>
-              <div>
-                <dt>전화</dt>
-                <dd>
-                  <a className={`${styles.mail} tnum`} href={`tel:${customer.phone}`}>
-                    {formatPhone(customer.phone)}
-                  </a>
                 </dd>
               </div>
             </dl>
@@ -225,8 +242,17 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
                 <dd>{customer.org}</dd>
               </div>
               <div>
-                <dt>지역 코드</dt>
-                <dd>{shown(customer.regionCode)}</dd>
+                <dt>사업자번호</dt>
+                <dd className="tnum">{shown(formatBusinessNo(company?.business_no))}</dd>
+              </div>
+              <div>
+                <dt>주소</dt>
+                <dd>{companyAddress(company)}</dd>
+              </div>
+              <div>
+                <dt>지역</dt>
+                {/* 화면에 보이는 건 코드가 아니라 "서울"입니다. */}
+                <dd>{regionLabel(customer.regionCode ?? null)}</dd>
               </div>
             </dl>
           </Block>
