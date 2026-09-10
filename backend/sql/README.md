@@ -330,6 +330,13 @@
   앱은 소유자로 붙어 RLS 를 지나가고 PostgREST 로 들어오는 anon / authenticated 에게는 아무것도
   열리지 않는다는 뜻입니다. 이 표만 꺼져 있으면 고객불만의 예전 본문이 REST 로 새어 나갑니다.
 
+- `20260911_0030_customer_contact_fax.sql`: `customer_contact`에 `fax`(nullable)를 더합니다.
+  명함에는 대표번호와 팩스가 함께 적혀 있어 칸 하나에 담으면 어느 번호인지 알 수 없습니다.
+  기존 `phone`은 그대로 휴대폰(필수)으로 남고 팩스만 선택 항목으로 붙습니다. 검색(`_phone_search`),
+  목록 필터, 엑셀 임포트, 중복 확인은 지금처럼 `phone`만 봅니다 — 팩스로 사람을 찾지 않습니다.
+  기존 행은 전부 `NULL`이라 백필이 없고, 더하기만이라 구코드가 깨지지 않으므로 적용과 배포의
+  순서는 자유입니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -377,6 +384,7 @@
 | 2026-09-08 | 현재 연결된 개발 DB | `20260908_0027_member_region_code.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. member 9→10컬럼(`region_code`, nullable, CHECK 공백 금지). 구성원 18행 보존(18→18)이고 `region_code`는 18행 모두 `NULL`(미지정)입니다. 더하기만이라 백필도 지우는 행도 없습니다. ORM(`app/models/workspace.py`)과 물리 스키마의 컬럼·nullable을 대조해 일치를 확인했습니다 — `test_models_match_configured_database`는 0025 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다 |
 | 2026-09-09 | 현재 연결된 개발 DB | `20260909_0028_support_request_edit.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. support_request 11→12컬럼(`updated_at`, nullable)과 `support_request_edit_backup` 8컬럼 신설(PK 1 · FK 2 · 인덱스 `support_request_edit_backup_request_idx`). 불만 69행·응답 86행 보존(69→69 / 86→86)이고 `updated_at`은 69행 모두 `NULL`, 백업 표는 0행입니다. 더하기만이라 백필도 지우는 행도 없습니다. 적용 후 컬럼·nullable·기본값·FK·인덱스를 물리 스키마에서 직접 조회해 ORM(`app/models/crm.py`)과 일치를 확인했습니다 — `test_models_match_configured_database`는 0025 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다. **RLS 를 빠뜨렸습니다 — 0029 로 이어서 켭니다** |
 | 2026-09-09 | 현재 연결된 개발 DB | `20260909_0029_support_request_edit_backup_rls.sql` | — | **미적용(대기).** 0028 이 만든 백업 표만 42개 표 중 홀로 RLS 가 꺼져 있는 것을 적용 직후 확인했습니다. 정책 없이 켜기만 하므로 앱 동작은 바뀌지 않고, 켜기 전까지 PostgREST 로 예전 불만 본문이 열려 있습니다 |
+| 2026-09-11 | 현재 연결된 개발 DB | `20260911_0030_customer_contact_fax.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. customer_contact 15→16컬럼(`fax` text, nullable, 기본값 없음). 고객 861행 보존(861→861)이고 `fax`는 861행 모두 `NULL`입니다 — 더하기만이라 백필도 지우는 행도 없습니다. 적용 전 ORM↔물리 스키마를 대조해 미적용 컬럼이 `customer_contact.fax` 하나뿐임을 확인했고, 적용 후 다시 대조해 차이가 사라진 것을 확인했습니다. `test_models_match_configured_database`는 0025·0028 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다. RLS·인덱스·제약은 건드리지 않았습니다 |
 
 ## 개발 DB 재구축 런북
 

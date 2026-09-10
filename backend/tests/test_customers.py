@@ -1011,6 +1011,7 @@ def _contact_read_payload(**overrides):
         "job_title": None,
         "email": None,
         "phone": "010-0000-0000",
+        "fax": None,
         "customer_contact_status_id": None,
         "customer_contact_status_name": None,
         "customer_contact_status_tone": None,

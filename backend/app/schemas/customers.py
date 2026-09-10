@@ -145,6 +145,7 @@ class CustomerContactCreate(_WriteModel):
     job_title: Text | None = None
     email: Email | None = None
     phone: Phone
+    fax: Phone | None = None
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
@@ -161,6 +162,7 @@ class CustomerContactPatch(_WriteModel):
     job_title: Text | None = None
     email: Email | None = None
     phone: Phone | None = None
+    fax: Phone | None = None
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
     memo: Memo | None = None
@@ -191,6 +193,7 @@ class CustomerContactRead(BaseModel):
     job_title: str | None
     email: str | None
     phone: str
+    fax: str | None
     customer_contact_status_id: UUID | None
     customer_contact_status_name: str | None
     customer_contact_status_tone: str | None

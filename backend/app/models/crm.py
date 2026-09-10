@@ -38,6 +38,8 @@ class CustomerContact(Base):
     job_title: Mapped[str | None]
     email: Mapped[str | None]
     phone: Mapped[str]
+    # 팩스. 선택 항목이라 없을 수 있다. 사람을 찾는 값이 아니라 검색은 phone 만 본다.
+    fax: Mapped[str | None]
     customer_contact_status_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("public.customer_contact_status.id")
     )

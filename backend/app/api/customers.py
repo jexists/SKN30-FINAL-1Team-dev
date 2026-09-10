@@ -41,6 +41,7 @@ from app.schemas.customers import (
 )
 from app.services import customer_duplicates, storage
 from app.services.customer_duplicates import DuplicateProbe
+from app.services.regions import region_code_from_address
 from app.services.storage import StorageError
 
 router = APIRouter(tags=["customers"])
@@ -289,6 +290,7 @@ def _contact_read(
         job_title=contact.job_title,
         email=contact.email,
         phone=contact.phone,
+        fax=contact.fax,
         customer_contact_status_id=None if contact_status is None else contact_status.id,
         customer_contact_status_name=None if contact_status is None else contact_status.name,
         customer_contact_status_tone=None if contact_status is None else contact_status.tone,
@@ -406,10 +408,15 @@ async def create_customer_company(
     db: DbSession,
 ) -> CustomerCompany:
     team_id = member.team_id
+    values = payload.model_dump()
+    # 지역은 주소를 보면 알 수 있다. 등록 경로마다 따로 채우게 두지 않고 여기서 한 번 정한다.
+    # 보낸 쪽이 직접 지정했으면 그 값이 이긴다.
+    if values["region_code"] is None:
+        values["region_code"] = region_code_from_address(values["address"])
     company = CustomerCompany(
         id=uuid4(),
         team_id=team_id,
-        **payload.model_dump(),
+        **values,
     )
     db.add(company)
     try:
@@ -447,8 +454,12 @@ async def update_customer_company(
             detail="manager_required",
         )
     company = await _get_company(db, member, company_id)
-    for field_name, value in payload.model_dump(exclude_unset=True).items():
+    changed = payload.model_dump(exclude_unset=True)
+    for field_name, value in changed.items():
         setattr(company, field_name, value)
+    # 주소만 고쳤으면 지역도 그 주소를 따라간다. 지역을 함께 보냈으면 손대지 않는다.
+    if "address" in changed and "region_code" not in changed:
+        company.region_code = region_code_from_address(company.address)
     await _flush_and_commit(db)
     return company
 
