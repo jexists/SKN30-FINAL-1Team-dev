@@ -1,9 +1,15 @@
 // 작성 리스트의 찾기 줄입니다. 유형은 기간 탭이 정하므로 여기에는 없고,
-// 위에서부터 검색어 → 상태 → 기간 순으로 넓은 조건이 먼저 옵니다.
+// 검색어 → 상태 → 기간 순으로 넓은 조건이 먼저 옵니다. 검색어만 한 줄을 쓰고
+// 나머지 조건은 둘째 줄에 나란히 섭니다 — 조건마다 한 줄씩 쓰면 목록이 화면
+// 아래로 밀려납니다.
 //
 // 조건을 접어 두지 않습니다. 보이지 않는 필터가 목록을 걸러 버리면 왜 비었는지
 // 알 길이 없습니다. 검색어만 기존대로 검색 버튼·Enter 로 확정하고, 상태와 기간은
 // 고르는 즉시 목록에 걸립니다(딜·계약 화면의 탭·드롭다운과 같은 방식).
+//
+// 초기화 버튼은 두지 않습니다. 상태의 '전체'와 기간의 '전체'가 이미 되돌리는
+// 자리라 같은 일을 하는 버튼이 하나 더 서 있을 뿐이었습니다. 목록이 비었을 때는
+// Daily 가 빈 자리에 '필터 초기화'를 띄웁니다 — 그때는 되돌릴 곳이 멀어집니다.
 import { useMemo } from 'react'
 
 import DayPicker from '@/components/DayPicker'
@@ -14,7 +20,6 @@ import { iso, parseISO } from '@/utils/date'
 
 import {
   activePreset,
-  countFilters,
   FILTER_STATUSES,
   presetRange,
   RANGE_PRESETS,
@@ -34,8 +39,6 @@ interface Props {
   onFiltersChange: (next: HistoryFilters) => void
   /** 지금 보고 있는 탭. 미팅에는 작성중이 없습니다. */
   period: Period
-  /** 검색어까지 함께 푸는 전체 해제. */
-  onReset: () => void
 }
 
 /** 빈 문자열은 조건 없음이라 달력에는 아무것도 고르지 않은 것으로 넘깁니다. */
@@ -48,7 +51,6 @@ export default function HistoryToolbar({
   filters,
   onFiltersChange,
   period,
-  onReset,
 }: Props) {
   const statusItems = useMemo<TabItem<StatusValue>[]>(
     () => [
@@ -70,14 +72,18 @@ export default function HistoryToolbar({
         onSearch={onSearch}
       />
 
-      <Tabs
-        items={statusItems}
-        value={filters.status}
-        label="보고서 상태"
-        onChange={(status) => onFiltersChange({ ...filters, status })}
-      />
+      <div className={styles.filters}>
+        <Tabs
+          className={styles.status}
+          items={statusItems}
+          value={filters.status}
+          label="보고서 상태"
+          onChange={(status) => onFiltersChange({ ...filters, status })}
+        />
 
-      <div className={styles.range}>
+        {/* 성격이 다른 두 조건이 한 줄에 서므로 눈으로 갈라 줍니다. */}
+        <span className={styles.divider} aria-hidden="true" />
+
         <DayPicker
           className={styles.day}
           selected={toDate(filters.start)}
@@ -104,18 +110,11 @@ export default function HistoryToolbar({
             날짜를 직접 고치면 어느 칸과도 맞지 않게 되어 모두 꺼집니다. */}
         <Tabs
           variant="segmented"
-          size="sm"
           items={RANGE_PRESETS}
           value={activePreset(filters) ?? ''}
           label="기간 빠른 선택"
           onChange={(value) => onFiltersChange({ ...filters, ...presetRange(value) })}
         />
-
-        {(countFilters(filters) > 0 || query !== '') && (
-          <button type="button" className={styles.clear} onClick={onReset}>
-            초기화
-          </button>
-        )}
       </div>
     </div>
   )

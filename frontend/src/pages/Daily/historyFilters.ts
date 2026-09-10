@@ -4,7 +4,7 @@
 // 조건은 주소에 둡니다. 걸러 둔 목록을 링크로 건네면 받는 쪽도 같은 화면을 봅니다.
 // 계약·발주·자료실 화면과 같은 방식입니다.
 import type { ColumnTone, ReportStatus } from '@/types'
-import { addMonths, iso, startOfMonth, startOfWeek, TODAY } from '@/utils/date'
+import { addDays, addMonths, endOfMonth, iso, startOfMonth, startOfWeek, TODAY } from '@/utils/date'
 
 import type { Period } from './periods'
 
@@ -37,13 +37,19 @@ export const RANGE_PRESETS: { value: string; label: string }[] = [
 ]
 
 /**
- * 빠른 선택이 채우는 구간. 끝은 비워 두어 오늘 이후로 열어 둡니다.
- * 앞으로 잡힌 미팅 보고서를 잘라 내면 '이번 달' 이 이번 달을 다 보여 주지 못합니다.
+ * 빠른 선택이 채우는 구간. 시작·끝을 모두 채웁니다. 눌렀는데 종료일 칸이 비어 있으면
+ * 고장으로 보입니다.
+ *
+ * 끝은 오늘이 아니라 그 구간의 마지막 날입니다. 오늘로 자르면 앞으로 잡힌 미팅
+ * 보고서가 빠져 '이번 달' 이 이번 달을 다 보여 주지 못합니다.
  */
 export function presetRange(value: string): { start: string; end: string } {
-  if (value === 'week') return { start: iso(startOfWeek(TODAY)), end: '' }
-  if (value === 'month') return { start: iso(startOfMonth(TODAY)), end: '' }
-  if (value === 'quarter') return { start: iso(addMonths(TODAY, -3)), end: '' }
+  if (value === 'week') {
+    const first = startOfWeek(TODAY)
+    return { start: iso(first), end: iso(addDays(first, 6)) }
+  }
+  if (value === 'month') return { start: iso(startOfMonth(TODAY)), end: iso(endOfMonth(TODAY)) }
+  if (value === 'quarter') return { start: iso(addMonths(TODAY, -3)), end: iso(endOfMonth(TODAY)) }
   return { start: '', end: '' }
 }
 

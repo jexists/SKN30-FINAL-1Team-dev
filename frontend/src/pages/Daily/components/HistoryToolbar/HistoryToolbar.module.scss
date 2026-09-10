@@ -10,7 +10,9 @@
   width: 100%;
 }
 
-.range {
+// 상태·기간이 함께 서는 둘째 줄. 다 담으려면 1180px 남짓 필요해서, 그보다 좁으면
+// 기간 빠른 선택부터 다음 줄로 접힙니다. 잘리는 것보다 접히는 편이 낫습니다.
+.filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -18,28 +20,26 @@
   width: 100%;
 }
 
+// Tabs 가 스스로 옆으로 흐르므로(overflow-x) 줄어들 수 있게만 열어 둡니다.
+// 그래야 칩이 늘어나도 옆의 날짜칸을 밀어내지 않습니다.
+.status {
+  min-width: 0;
+  // pill 은 고른 칩의 그림자가 잘리지 않게 아래만 2px 비워 둡니다. 그 탓에 통이
+  // 한쪽으로만 두꺼워져 옆의 날짜칸보다 칩이 1px 높이 앉습니다. 위도 같이 비웁니다.
+  padding-top: 2px;
+}
+
+.divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+}
+
 .day {
-  flex: 0 1 152px;
+  flex: 0 1 136px;
 }
 
 .tilde {
   color: var(--muted);
-}
-
-.clear {
-  margin-left: auto;
-  padding: 0 var(--s3);
-  height: var(--control-h);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--red);
-    color: var(--red-ink);
-  }
 }

@@ -40,8 +40,12 @@ export default function DayPicker({
   fixed,
   className,
 }: Props) {
+  // 지우기가 켜지면 ✕ 가 입력 위에 겹쳐 뜹니다. 글자가 그 밑으로 들어가지 않게
+  // 오른쪽 여백을 넓히는 표시를 겉에 둡니다.
+  const root = [styles.root, isClearable && styles.isClearable, className].filter(Boolean).join(' ')
+
   return (
-    <div className={[styles.root, className].filter(Boolean).join(' ')}>
+    <div className={root}>
       <DatePicker
         selected={selected}
         onChange={onChange}

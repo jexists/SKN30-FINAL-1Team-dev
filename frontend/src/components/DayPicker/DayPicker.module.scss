@@ -23,3 +23,44 @@
     box-shadow: 0 0 0 3px var(--blue-ring);
   }
 }
+
+// ✕ 가 앉을 자리를 비웁니다. 비워 두지 않으면 날짜 글자가 그 밑으로 들어갑니다.
+.isClearable .input {
+  padding-right: 32px;
+}
+
+// 지우기 ✕ 는 라이브러리 기본 스킨이 파란 원으로 그립니다. 이 앱의 어느 조작부와도
+// 닮지 않아 토큰으로 다시 칠합니다. 라이브러리 클래스라 :global 로 잡습니다.
+.root :global {
+  .react-datepicker-wrapper {
+    display: block;
+  }
+
+  .react-datepicker__close-icon {
+    top: 50%;
+    right: var(--s2);
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    transform: translateY(-50%);
+
+    &::after {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1;
+      content: '✕';
+      transition: color var(--t-fast) var(--ease-out);
+    }
+
+    &:hover::after {
+      color: var(--ink);
+    }
+  }
+}

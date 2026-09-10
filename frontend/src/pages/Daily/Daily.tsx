@@ -312,7 +312,6 @@ export default function Daily() {
         filters={filters}
         onFiltersChange={setFilters}
         period={period}
-        onReset={resetAll}
       />
 
       {visible.length === 0 ? (
