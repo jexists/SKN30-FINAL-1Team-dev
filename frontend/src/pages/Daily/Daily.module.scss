@@ -80,6 +80,7 @@
 .markDone,
 .markPending,
 .markDraft,
+.markRejected,
 .markMissing {
   width: 6px;
   height: 6px;
@@ -91,15 +92,19 @@
 }
 
 .markPending {
-  background: var(--blue);
+  background: var(--orange);
 }
 
 .markDraft {
-  background: var(--muted-2);
+  background: var(--blue);
+}
+
+.markRejected {
+  background: var(--red);
 }
 
 .markMissing {
-  background: var(--orange);
+  background: var(--muted-2);
 }
 
 .isOnBlue {

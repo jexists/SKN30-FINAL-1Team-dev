@@ -159,7 +159,7 @@ export default function Daily() {
       if (row?.status === '확정') return styles.markDone
       if (row?.status === '검토 대기') return styles.markPending
       if (row?.status === '작성중' || row?.status === '수정중') return styles.markDraft
-      if (row?.status === '반려') return styles.markMissing
+      if (row?.status === '반려') return styles.markRejected
       // 주간·월간·미팅은 매일 내는 보고가 아니므로 미작성으로 보지 않습니다.
       if (period !== 'all' && period !== 'daily') return null
       const past = dateISO < TODAY_ISO
@@ -285,16 +285,19 @@ export default function Daily() {
         {!showMonth && (
           <p className={styles.legend}>
             <span>
-              <i className={styles.markDone} /> 확정
+              <i className={styles.markDraft} /> 작성중
             </span>
             <span>
               <i className={styles.markPending} /> 검토 대기
             </span>
             <span>
-              <i className={styles.markDraft} /> 작성중
+              <i className={styles.markDone} /> 확정
             </span>
             <span>
-              <i className={styles.markMissing} /> 미작성 · 반려
+              <i className={styles.markRejected} /> 반려
+            </span>
+            <span>
+              <i className={styles.markMissing} /> 미작성
             </span>
           </p>
         )}

@@ -23,6 +23,7 @@ import {
 import Button, { buttonClass } from '@/components/Button'
 import { ChevronLeftIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
+import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
@@ -92,6 +93,8 @@ export default function Compose() {
   const [submitting, setSubmitting] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [runErrors, setRunErrors] = useState<Record<string, string>>({})
+  // 등록 단계에서는 왼쪽 한 열만 씁니다. 작성을 시작해야 보고서 열이 열립니다.
+  const [opened, setOpened] = useState(false)
   const agendaId = params.get('agenda') ?? ''
   useEffect(() => {
     setGenerating(false)
@@ -99,6 +102,7 @@ export default function Compose() {
     setSubmitting(false)
     setRunError(null)
     setRunErrors({})
+    setOpened(false)
     recoveredAgendaId.current = ''
     generationAttempt.current = undefined
     return () => {
@@ -176,6 +180,7 @@ export default function Compose() {
         dealIds = input.sales_deal_ids
         restoreGenerationInput(input)
         beginGeneration(dealIds)
+        setOpened(true)
         if (run.status_code === 'failed' || run.status_code === 'cancelled') {
           throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
         }
@@ -256,6 +261,8 @@ export default function Compose() {
     createDealKey.current = ''
   }, [agendaId, item?.customerCompanyId])
   const [confirm, setConfirm] = useState<Confirm>(null)
+  // 일정 상세는 대시보드·캘린더가 쓰는 드로어를 그대로 엽니다. AI 브리핑까지 그 안에 있습니다.
+  const [detailOpen, setDetailOpen] = useState(false)
 
   if (agendaLoading || loading) {
     return (
@@ -379,6 +386,9 @@ export default function Compose() {
     draft.draftsByDeal,
     result?.shared,
   )
+  // 보고서 열을 여는 조건. 작성을 시작했거나, 이미 결과·저장본이 있는 미팅입니다.
+  const showWork =
+    opened || generating || Boolean(result) || Boolean(savedReport) || hasDraftContent
   const generationInputError = reportInputError(meetingGenerationRequestOf(payloadForMeeting(), ''))
   const submitInputError = reportInputError({
     ...meetingRequestOf(payloadForMeeting()),
@@ -482,6 +492,7 @@ export default function Compose() {
   }
 
   const requestGeneration = () => {
+    setOpened(true)
     if (hasDraftContent) setConfirm({ kind: 'regenerate' })
     else void generateAll()
   }
@@ -525,7 +536,7 @@ export default function Compose() {
     draft.salesDealIds.some((dealId) => draft.draftsByDeal[dealId]?.phase === 'ready')
 
   return (
-    <section className={styles.page}>
+    <section className={showWork ? styles.page : `${styles.page} ${styles.pageSolo}`}>
       <h1 className="sr-only">
         {item.hospital} {item.title} 미팅 보고서 작성
       </h1>
@@ -539,14 +550,17 @@ export default function Compose() {
           일정 고르기
         </Link>
 
-        <Button
-          variant="outline"
-          type="button"
-          disabled={!printable}
-          onClick={() => window.print()}
-        >
-          PDF 다운로드
-        </Button>
+        {/* 아직 만든 보고서가 없는 등록 단계에서는 내려받을 것이 없습니다. */}
+        {showWork && (
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!printable}
+            onClick={() => window.print()}
+          >
+            PDF 다운로드
+          </Button>
+        )}
       </div>
 
       {lockedDealIds.length > 0 && (
@@ -572,17 +586,13 @@ export default function Compose() {
         </div>
       )}
 
-      <div className={styles.layout}>
+      <div className={showWork ? styles.layout : `${styles.layout} ${styles.solo}`}>
         <div className={styles.side}>
           <div className={styles.sideContent}>
             <aside className={styles.reference}>
-              <div className={styles.refHead}>
-                <h2 className={styles.refTitle}>미팅 정보</h2>
-                {item.stage && <span className={styles.pill}>{item.stage}</span>}
-              </div>
-
               <MeetingInfoPanel
                 item={{ ...item, date: meetingDate, time: meetingTime }}
+                onOpenDetail={() => setDetailOpen(true)}
                 deals={deals.deals}
                 dealsLoading={deals.loading}
                 dealsError={deals.error}
@@ -622,13 +632,20 @@ export default function Compose() {
                   생성할 수 없습니다.
                 </p>
               )}
-              <p className={styles.generationNote}>
-                미팅 공통 기록을 만들며, 관련 딜을 선택하면 딜별 보고서도 함께 처리합니다. 작성한
-                내용이 있으면 새 후보로 바꾸기 전에 확인합니다.
-              </p>
             </div>
           </div>
           <div className={styles.generateBar} aria-busy={generating || recovering}>
+            {/* AI 없이 쓰는 길. 보고서 열이 이미 열렸다면 이 자리에 둘 이유가 없습니다. */}
+            {!showWork && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || !canEdit}
+                onClick={() => setOpened(true)}
+              >
+                직접 작성
+              </Button>
+            )}
             <Button
               type="button"
               className={styles.generate}
@@ -643,87 +660,89 @@ export default function Compose() {
                 recovering
               }
             >
-              {generating || recovering
-                ? '미팅 전체 분석·보고서 작성 중…'
-                : '미팅 전체 분석·보고서 작성'}
+              {generating || recovering ? 'AI 보고서 작성 중…' : 'AI 보고서 작성'}
             </Button>
           </div>
         </div>
 
-        <section className={styles.work} aria-label="미팅 보고서">
-          <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
-            <div className={styles.saveCopy}>
-              <strong>미팅 보고서</strong>
-              <p>미팅일 {fmtDot(parseISO(meetingDate))} · 작성 완료 후에도 이 날짜로 저장됩니다.</p>
-              <p>
-                {draft.salesDealIds.length > 0
-                  ? `공통 기록과 딜 ${draft.salesDealIds.length}건을 한 문서로 저장합니다.`
-                  : '딜 미지정 미팅 기록을 한 문서로 저장합니다.'}
-              </p>
+        {showWork && (
+          <section className={styles.work} aria-label="미팅 보고서">
+            <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
+              <div className={styles.saveCopy}>
+                <strong>미팅 보고서</strong>
+                <p>
+                  미팅일 {fmtDot(parseISO(meetingDate))} · 작성 완료 후에도 이 날짜로 저장됩니다.
+                </p>
+                <p>
+                  {draft.salesDealIds.length > 0
+                    ? `공통 기록과 딜 ${draft.salesDealIds.length}건을 한 문서로 저장합니다.`
+                    : '딜 미지정 미팅 기록을 한 문서로 저장합니다.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                className={styles.saveAllButton}
+                aria-label="미팅 보고서 작성 완료"
+                disabled={
+                  busy ||
+                  draft.attachmentsPending ||
+                  !canEdit ||
+                  editableDealIds.length !== draft.salesDealIds.length ||
+                  Boolean(submitInputError) ||
+                  missingBody
+                }
+                onClick={() => void submitAll()}
+              >
+                {submitting ? '완료 중…' : '미팅 보고서 작성 완료'}
+              </Button>
             </div>
-            <Button
-              type="button"
-              className={styles.saveAllButton}
-              aria-label="미팅 보고서 작성 완료"
-              disabled={
-                busy ||
-                draft.attachmentsPending ||
-                !canEdit ||
-                editableDealIds.length !== draft.salesDealIds.length ||
-                Boolean(submitInputError) ||
-                missingBody
-              }
-              onClick={() => void submitAll()}
-            >
-              {submitting ? '완료 중…' : '미팅 보고서 작성 완료'}
-            </Button>
-          </div>
-          <div className={styles.reports}>
-            {(draft.salesDealIds.length === 0 ||
-              result ||
-              draft.processingProgress ||
-              generating) && (
-              <MeetingSharedPanel
-                shared={result?.shared ?? null}
-                progress={draft.processingProgress}
-                generating={generating || recovering}
-                disabled={busy}
-                showCommon={draft.salesDealIds.length === 0}
-                onChange={canEdit ? draft.setShared : undefined}
-              />
-            )}
-            {draft.salesDealIds.length > 0 &&
-              draft.salesDealIds.map((dealId) => {
-                const state = draft.draftsByDeal[dealId]
-                if (!state) return null
-                const deal = deals.deals.find((one) => one.id === dealId)
-                const savedSection = savedByDeal.get(dealId)
-                const product = deal?.product ?? savedSection?.product
+            <div className={styles.reports}>
+              {(draft.salesDealIds.length === 0 ||
+                result ||
+                draft.processingProgress ||
+                generating) && (
+                <MeetingSharedPanel
+                  shared={result?.shared ?? null}
+                  progress={draft.processingProgress}
+                  generating={generating || recovering}
+                  disabled={busy}
+                  showCommon={draft.salesDealIds.length === 0}
+                  onChange={canEdit ? draft.setShared : undefined}
+                />
+              )}
+              {draft.salesDealIds.length > 0 &&
+                draft.salesDealIds.map((dealId) => {
+                  const state = draft.draftsByDeal[dealId]
+                  if (!state) return null
+                  const deal = deals.deals.find((one) => one.id === dealId)
+                  const savedSection = savedByDeal.get(dealId)
+                  const product = deal?.product ?? savedSection?.product
 
-                return (
-                  <DealReportCard
-                    key={dealId}
-                    dealId={dealId}
-                    deal={deal}
-                    savedDeal={savedSection?.salesDeal}
-                    draft={state}
-                    progress={draft.processingProgress}
-                    when={`${when}${product ? ` · ${product}` : ''}`}
-                    saving={pending}
-                    generating={generating || recovering}
-                    canGenerate={
-                      draft.canGenerate && generatable && !generationInputError && !createDealOpen
-                    }
-                    readOnly={!canEditDeal(dealId) || createDealOpen}
-                    onTitleChange={(value) => draft.setTitle(dealId, value)}
-                    onChange={(body) => draft.applyDocument(dealId, body)}
-                    onStartManual={() => draft.startManual(dealId)}
-                    onGenerate={requestGeneration}
-                  />
-                )
-              })}
-          </div>
-        </section>
+                  return (
+                    <DealReportCard
+                      key={dealId}
+                      dealId={dealId}
+                      deal={deal}
+                      savedDeal={savedSection?.salesDeal}
+                      draft={state}
+                      progress={draft.processingProgress}
+                      when={`${when}${product ? ` · ${product}` : ''}`}
+                      saving={pending}
+                      generating={generating || recovering}
+                      canGenerate={
+                        draft.canGenerate && generatable && !generationInputError && !createDealOpen
+                      }
+                      readOnly={!canEditDeal(dealId) || createDealOpen}
+                      onTitleChange={(value) => draft.setTitle(dealId, value)}
+                      onChange={(body) => draft.applyDocument(dealId, body)}
+                      onStartManual={() => draft.startManual(dealId)}
+                      onGenerate={requestGeneration}
+                    />
+                  )
+                })}
+            </div>
+          </section>
+        )}
       </div>
 
       {confirm?.kind === 'regenerate' && (
@@ -751,6 +770,7 @@ export default function Compose() {
           <p>현재 편집 중인 내용은 아직 미팅 보고서로 저장되지 않았습니다.</p>
         </Modal>
       )}
+      {detailOpen && <RecordDrawer item={item} onClose={() => setDetailOpen(false)} />}
       {createDealOpen && item.customerCompanyId && (
         <MeetingDealForm
           activityKey={item.id}

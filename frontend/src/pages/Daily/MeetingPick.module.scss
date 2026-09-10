@@ -61,11 +61,20 @@
   }
 }
 
-.selectedDot {
-  width: 6px;
-  height: 6px;
+.markDot {
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--blue);
+}
+
+// 점으로 다 세우지 못한 나머지 건수. 점보다 앞서 읽히면 안 되므로 흐리게 둡니다.
+.more {
+  margin-left: 1px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 .filters {
@@ -116,10 +125,12 @@
   min-height: 360px;
 }
 
+// 일정 목록은 한 장의 카드입니다. 줄마다 테두리를 두르면 같은 하루가 조각나 보입니다.
 .timeline {
+  @include card;
+
   position: relative;
-  display: grid;
-  gap: var(--s3);
+  overflow: hidden;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -129,104 +140,73 @@
   position: relative;
 }
 
+// 시간은 줄의 기준점이라 제목 첫 줄에 맞춰 세웁니다.
 .time {
-  position: relative;
-  display: grid;
-  place-items: center;
-  align-self: stretch;
-  padding: var(--s4) var(--s2);
-  border-right: 1px solid var(--line);
+  align-self: start;
+  padding-top: 2px;
   color: var(--ink-2);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  text-align: center;
-}
-
-.dot {
-  position: absolute;
-  top: 50%;
-  right: -7px;
-  transform: translateY(-50%);
-  z-index: 1;
-  width: 14px;
-  height: 14px;
-  border: 3px solid var(--surface);
-  border-radius: 50%;
-  background: var(--muted-2);
-}
-
-.status검토대기 {
-  background: var(--blue);
-}
-.status확정 {
-  background: var(--green);
-}
-.status반려 {
-  background: var(--red);
 }
 
 .card {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  align-items: start;
   justify-content: space-between;
-  gap: var(--s4);
+  gap: var(--s3);
   min-width: 0;
-  padding: var(--s4) var(--s5);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--surface);
+  padding: var(--s6) var(--s5);
   color: inherit;
   text-decoration: none;
-  transition:
-    border-color var(--t-fast),
-    box-shadow var(--t-fast),
-    transform var(--t-fast);
+  transition: background var(--t-fast);
 
   &:hover {
-    border-color: rgba(0, 122, 255, 0.55);
-    box-shadow: var(--sh-1);
+    background: var(--fill-2);
   }
 
   &:active {
-    transform: translateY(1px);
+    background: var(--fill);
+  }
+
+  // 카드가 목록 테두리를 넘지 않도록 잘라 두어 포커스 링은 안쪽에 그립니다.
+  &:focus-visible {
+    outline-offset: -3px;
   }
 
   h2 {
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 700;
     letter-spacing: -0.016em;
   }
 }
 
+// 병원 이름과 담당자는 한 줄로 읽습니다.
 .content {
   min-width: 0;
+
+  h2 {
+    display: inline;
+  }
 }
 
-.who,
-.brief {
-  margin-top: 3px;
+.who {
+  display: inline;
+  margin-left: 7px;
   color: var(--muted);
   font-size: 12px;
 }
 
 .title {
-  margin-top: var(--s2);
+  margin-top: 6px;
   font-size: 14px;
   font-weight: 600;
-}
-
-.brief {
-  display: -webkit-box;
-  overflow: hidden;
-  line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
 }
 
 .action {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   gap: 5px;
   flex: none;
   color: var(--blue);
@@ -269,32 +249,14 @@
     align-items: flex-start;
   }
 
-  .entry {
-    padding-left: 22px;
-  }
-
-  .time {
-    display: block;
-    min-height: 0;
-    padding: 0;
-    border-right: 0;
-    text-align: left;
-  }
-
-  .dot {
-    top: var(--s4);
-    right: auto;
-    left: -20px;
-    transform: none;
-  }
-
   .card {
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: var(--s3);
+    padding: var(--s4);
   }
 
   .time {
     grid-column: 1 / -1;
+    padding-top: 0;
   }
 
   .content {

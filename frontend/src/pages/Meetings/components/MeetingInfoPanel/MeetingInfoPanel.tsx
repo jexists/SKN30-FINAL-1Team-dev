@@ -1,4 +1,4 @@
-// 미팅 맥락과 선택한 딜은 항상 보여 주고, 추가 정보와 선택 목록만 펼칩니다.
+// 미팅 맥락과 연결할 딜을 나란한 두 판으로 펼쳐 둡니다. 판마다 제 머리와 제 조작을 답니다.
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import type { AgendaItem } from '@/types'
 import Button from '@/components/Button'
@@ -20,6 +20,7 @@ interface Props {
   fixedDealIds?: string[]
   onToggleDeal: (id: string) => void
   onCreateDeal?: () => void
+  onOpenDetail: () => void
   disabled: boolean
 }
 
@@ -33,62 +34,68 @@ export default function MeetingInfoPanel({
   fixedDealIds,
   onToggleDeal,
   onCreateDeal,
+  onOpenDetail,
   disabled,
 }: Props) {
-  const selectedNames = selectedDealIds.map((id) => {
-    const deal = deals.find((one) => one.id === id)
-    return deal ? deal.title.trim() || deal.product || deal.no : '선택한 딜'
-  })
-
   return (
     <div className={styles.root}>
-      <section className={styles.block}>
-        <div className={styles.context}>
-          <strong>{item.hospital || '회사 미지정'}</strong>
-          <span>
-            {item.contact || '담당자 미지정'} · 미팅일 {fmtDot(parseISO(item.date))} {item.time}
-          </span>
-        </div>
-        <details className={styles.disclosure}>
-          <summary>추가 정보</summary>
+      <div className={styles.cols}>
+        <section className={styles.block}>
+          <div className={styles.head}>
+            <h2>미팅 정보</h2>
+            {item.stage && <span className={styles.pill}>{item.stage}</span>}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={styles.headAction}
+              onClick={onOpenDetail}
+            >
+              자세히 보기
+            </Button>
+          </div>
+          <div className={styles.context}>
+            <strong>{item.hospital || '회사 미지정'}</strong>
+            <span>
+              {item.contact || '담당자 미지정'} · 미팅일 {fmtDot(parseISO(item.date))} {item.time}
+            </span>
+          </div>
           <MeetingFacts dept={item.dept} contact={item.contact} place={item.place} />
           {item.brief && <p className={styles.brief}>{item.brief}</p>}
-        </details>
-      </section>
+        </section>
 
-      <details className={styles.disclosure}>
-        <summary>
-          <span className={styles.blockHead}>
-            <span>관련 딜 선택</span>
+        <section className={styles.block}>
+          <div className={styles.head}>
+            <h2>관련 딜</h2>
             <span className={styles.count}>
               {selectedDealIds.length}건 선택
               {dealsLoading ? ' · 조회 중' : dealsError ? ' · 조회 오류' : ''}
             </span>
-          </span>
-          <span className={styles.selectedNames}>{selectedNames.join(' · ') || '딜 미지정'}</span>
-        </summary>
-        <DealPicker
-          deals={deals}
-          loading={dealsLoading}
-          error={dealsError}
-          onRetry={onReloadDeals}
-          selected={selectedDealIds}
-          fixed={fixedDealIds}
-          onToggle={onToggleDeal}
-          disabled={disabled}
-        />
-        {onCreateDeal && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled || dealsLoading || !item.customerCompanyId}
-            onClick={onCreateDeal}
-          >
-            새 딜 생성
-          </Button>
-        )}
-      </details>
+            {onCreateDeal && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={styles.headAction}
+                disabled={disabled || dealsLoading || !item.customerCompanyId}
+                onClick={onCreateDeal}
+              >
+                새 딜 생성
+              </Button>
+            )}
+          </div>
+          <DealPicker
+            deals={deals}
+            loading={dealsLoading}
+            error={dealsError}
+            onRetry={onReloadDeals}
+            selected={selectedDealIds}
+            fixed={fixedDealIds}
+            onToggle={onToggleDeal}
+            disabled={disabled}
+          />
+        </section>
+      </div>
     </div>
   )
 }

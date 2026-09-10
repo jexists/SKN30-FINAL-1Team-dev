@@ -1,27 +1,63 @@
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-}
-
 /*
- * 참고 열은 카드로도 실선으로도 나누지 않습니다. 제목과 여백이 그 일을 합니다.
- * 좁은 열에 가로선을 겹쳐 그으면 한 화면이 여러 조각으로 잘려 보입니다.
+ * 미팅 정보와 관련 딜은 한 판입니다. 안에서만 좌우로 갈리고, 그 사이를 세로선 하나가 지납니다.
+ * 미디어쿼리가 아니라 이 판의 폭으로만 갈립니다 — 보고서 열이 열려 좁아지면
+ * 위아래로 쌓이고 세로선은 그 자리에서 사라집니다.
  */
-.block {
-  padding-bottom: var(--s2);
-  border-bottom: 1px solid var(--line);
+.root {
+  container-type: inline-size;
+  min-width: 0;
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 }
 
-.blockHead {
-  display: inline-flex;
-  width: calc(100% - var(--s5));
-  vertical-align: top;
-  align-items: center;
-  justify-content: space-between;
+.cols {
+  display: grid;
+  gap: var(--s4);
+}
+
+.block {
+  display: grid;
   gap: var(--s3);
-  font-size: 13px;
-  font-weight: 600;
+  align-content: start;
+  min-width: 0;
+}
+
+/* 두 판이 나란히 설 만큼 넓을 때만 좌우로 가르고 그 사이에 선을 놓습니다. */
+@container (min-width: 560px) {
+  .cols {
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+
+  .block:first-child {
+    padding-right: var(--s4);
+  }
+
+  .block + .block {
+    padding-left: var(--s4);
+    border-left: 1px solid var(--line);
+  }
+}
+
+/* 판의 머리. 제목과 상태가 왼쪽에 붙고 그 판의 조작 하나가 오른쪽 끝에 섭니다. */
+.head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  min-height: var(--control-h);
+
+  h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+}
+
+.headAction {
+  margin-left: auto;
 }
 
 .context {
@@ -31,46 +67,32 @@
   line-height: 1.5;
   overflow-wrap: anywhere;
 
+  strong {
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
   span {
     color: var(--ink-2);
   }
-}
-
-.disclosure {
-  summary {
-    color: var(--blue);
-    font-size: 12px;
-    line-height: 1.6;
-    cursor: pointer;
-  }
-
-  &[open] > summary {
-    margin-bottom: var(--s3);
-  }
-}
-
-.context + .disclosure {
-  margin-top: var(--s2);
-}
-
-.selectedNames {
-  display: block;
-  margin-top: var(--s1);
-  color: var(--ink-2);
-  font-size: 12px;
-  font-weight: 400;
-  overflow-wrap: anywhere;
 }
 
 .count {
   color: var(--blue);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill {
+  @include tag-pill;
+
+  font-size: 11px;
 }
 
 /* 미팅 브리핑. 사실 목록 아래에 한 문단으로 깝니다. */
 .brief {
-  margin-top: var(--s3);
   color: var(--ink-2);
   font-size: 12px;
   line-height: 1.7;

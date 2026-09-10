@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   // AppShell의 상단바와 content 위·아래 여백을 제외한 작성 화면 높이.
-  height: calc(100dvh - var(--topbar-h) - var(--s6) - var(--s8));
+  height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
 
   @include lg {
     display: block;
@@ -72,6 +72,27 @@
   }
 }
 
+/*
+ * 등록 단계. 아직 만든 것이 없으므로 결과 자리를 미리 비워 두지 않고 한 열만 씁니다.
+ * .layout 과 특정도를 맞춰 겹쳐 씁니다 — 파일이 붙는 순서에 좌우되지 않게 합니다.
+ */
+.layout.solo {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+
+  // 페이지가 스크롤합니다. 안쪽에 스크롤 상자를 하나 더 두면 두 번 굴려야 합니다.
+  .sideContent {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+/* 한 열일 때는 좌우로 나눠 각각 스크롤시킬 이유가 없습니다. */
+.page.pageSolo {
+  display: block;
+  height: auto;
+}
+
 /* 왼쪽 = 참고 자료와 입력, 오른쪽 = 최종 보고서. */
 .layout {
   display: grid;
@@ -120,10 +141,14 @@
 
 .generateBar {
   flex: none;
+  display: flex;
+  gap: var(--s2);
+  justify-content: space-between;
 }
 
+/* 두 버튼은 제 글자만큼만 서고 양쪽 끝으로 갈립니다. */
 .generate {
-  width: 100%;
+  flex: none;
 }
 
 /*
@@ -131,16 +156,9 @@
  * 오른쪽 보고서만 그림자로 떠 있어서, 흰 면이 둘이어도 어느 쪽을 고치는 중인지
  * 한눈에 갈립니다. 참고판은 놓여 있고 문서는 들려 있습니다.
  */
+/* 참고 열은 그 자체로 면이 아닙니다 — 안의 두 판이 각자 면을 씁니다. */
 .reference {
   min-width: 0;
-  padding: var(--s4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-
-  @include md {
-    padding: var(--s4);
-  }
 }
 
 /* 오른쪽 작업 열. 나오는 것(보고서)만 섭니다. */
@@ -223,28 +241,6 @@
  */
 .input {
   min-width: 0;
-}
-
-/* 패널의 머리. 탭이든 제목이든 같은 자리에 같은 높이로 섭니다. */
-.refHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-  min-height: var(--control-h);
-  margin-bottom: var(--s3);
-}
-
-.refTitle {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.pill {
-  @include tag-pill;
-
-  font-size: 11px;
 }
 
 /*

@@ -12,14 +12,23 @@ import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { useAgendaState } from '@/shared/agenda'
 import { addDays, iso, startOfWeek, TODAY, TODAY_ISO, weekRangeLabel } from '@/utils/date'
 
-import { meetingLinkFor } from './sources'
+import { meetingLinkFor, type SourceMeta } from './sources'
 import DailyListLink from './components/DailyListLink'
 
 import styles from './MeetingPick.module.scss'
 
 const LIST_H = 360
-const FILTERS = ['전체', '검토 대기', '확정', '반려'] as const
+/** 표식 자리에 세울 수 있는 점 개수. 대시보드 주간 일정과 같습니다. */
+const MAX_MARKS = 5
+const FILTERS = ['전체', '미작성', '작성중', '확정'] as const
 type Filter = (typeof FILTERS)[number]
+
+/**
+ * 목록 상태를 필터 세 갈래로 접습니다. 미팅 보고서는 팀장 확인 없이 작성자가 끝내므로
+ * 제출('검토 대기')이 곧 확정이고, 반려는 다시 손봐야 하니 '작성중'입니다.
+ */
+const filterOf = (status: SourceMeta['status']): Filter =>
+  status === null ? '미작성' : status === '확정' || status === '검토 대기' ? '확정' : '작성중'
 
 const weekDays = (offset: number) => {
   const first = addDays(startOfWeek(TODAY), offset * 7)
@@ -47,13 +56,21 @@ export default function MeetingPick() {
     setWeekOffset((current) => (current === next ? current : next))
   }, [dateISO])
 
+  // 날짜 칸마다 그 날 일정이 몇 건인지 보여 주므로 하루가 아니라 보이는 주를 통째로
+  // 받습니다. 고를 수 없는 미래 날짜는 셀 것도 없어 오늘까지만 묻습니다.
+  const weekEnd = iso(days[6])
   const {
     items,
     loading: agendaLoading,
     error: agendaError,
     reload: reloadAgenda,
-  } = useAgendaState(dateISO, dateISO, true)
+  } = useAgendaState(iso(days[0]), weekEnd > TODAY_ISO ? TODAY_ISO : weekEnd, true)
   const agenda = items.filter((item) => item.date === dateISO)
+  const countByDate = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const item of items) map.set(item.date, (map.get(item.date) ?? 0) + 1)
+    return map
+  }, [items])
   const {
     reports: meetings,
     loading: meetingLoading,
@@ -75,22 +92,13 @@ export default function MeetingPick() {
     () => agenda.map((item) => ({ item, link: meetingLinkFor(item.id, byAgenda.get(item.id)) })),
     [agenda, byAgenda],
   )
-  const counts = useMemo(
-    () =>
-      FILTERS.reduce<Record<Filter, number>>(
-        (result, value) => {
-          result[value] =
-            value === '전체' ? rows.length : rows.filter(({ link }) => link.status === value).length
-          return result
-        },
-        {} as Record<Filter, number>,
-      ),
-    [rows],
-  )
-  const visible = filter === '전체' ? rows : rows.filter(({ link }) => link.status === filter)
+  const visible =
+    filter === '전체' ? rows : rows.filter(({ link }) => filterOf(link.status) === filter)
 
   const changeDate = (next: string) => {
     if (next === '' || next > TODAY_ISO) return
+    // 날짜가 바뀌면 이전 날짜에서 고른 상태 필터는 의미가 없습니다.
+    setFilter('전체')
     const query = new URLSearchParams(params)
     query.set('date', next)
     setParams(query, { replace: true })
@@ -150,7 +158,20 @@ export default function MeetingPick() {
           selectedISO={dateISO}
           onSelect={onSelectDate}
           onOutOfRange={(next) => setWeekOffset(initialWeekOffset(next))}
-          renderMarks={(key) => (key === dateISO ? <i className={styles.selectedDot} /> : null)}
+          renderMarks={(key) => {
+            // 대시보드 주간 일정과 같은 읽기. 점 하나가 일정 하나이고, 넘치면 '+N'.
+            const total = countByDate.get(key) ?? 0
+            const shown = Math.min(total, total > MAX_MARKS ? MAX_MARKS - 1 : MAX_MARKS)
+            const hidden = total - shown
+            return (
+              <>
+                {Array.from({ length: shown }, (_, index) => (
+                  <i key={index} className={styles.markDot} />
+                ))}
+                {hidden > 0 && <span className={`${styles.more} tnum`}>+{hidden}</span>}
+              </>
+            )
+          }}
           label="미팅 보고서 날짜 선택"
           selectionStyle="outline"
           maxISO={TODAY_ISO}
@@ -168,7 +189,6 @@ export default function MeetingPick() {
             onClick={() => setFilter(value)}
           >
             {value}
-            <span className="tnum">{counts[value]}</span>
           </button>
         ))}
       </div>
@@ -217,12 +237,7 @@ export default function MeetingPick() {
                   to={link.to ?? dailyComposePath(dateISO, '일일')}
                   aria-label={`${item.hospital || item.title} ${link.label}`}
                 >
-                  <span className={`${styles.time} tnum`}>
-                    {item.time}
-                    <i
-                      className={`${styles.dot} ${link.status ? styles[`status${link.status.replace(' ', '')}`] : ''}`}
-                    />
-                  </span>
+                  <span className={`${styles.time} tnum`}>{item.time}</span>
                   <div className={styles.content}>
                     <h2>{item.hospital || item.title}</h2>
                     {(item.dept || item.contact) && (
@@ -231,7 +246,6 @@ export default function MeetingPick() {
                       </p>
                     )}
                     {item.hospital && <p className={styles.title}>{item.title}</p>}
-                    {item.brief && <p className={styles.brief}>{item.brief}</p>}
                   </div>
                   <span className={styles.action}>
                     {link.label}

@@ -171,8 +171,9 @@ export default function AttachmentPanel({
         </>
       )}
 
+      {/* 작성 화면에서는 빈 상태를 말하지 않습니다. 바로 위 '파일 추가'가 그 자리를 설명합니다. */}
       {attachments.length === 0 ? (
-        <p className={styles.empty}>{readOnly ? '첨부 없음' : '첨부한 자료가 없습니다.'}</p>
+        readOnly && <p className={styles.empty}>첨부 없음</p>
       ) : (
         <ul className={styles.list}>
           {attachments.map((item) => (

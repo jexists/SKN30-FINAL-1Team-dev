@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s1);
-  max-height: 260px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
@@ -46,6 +46,7 @@
 
 .body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--s1);
   min-width: 0;
@@ -55,6 +56,7 @@
   display: flex;
   align-items: center;
   gap: var(--s2);
+  min-width: 0;
 }
 
 .no {
@@ -63,13 +65,19 @@
   letter-spacing: -0.01em;
 }
 
+/* 두 줄짜리 행입니다. 딜명이 길어도 줄을 늘리지 않고 잘라 목록 높이를 고르게 둡니다. */
 .title {
   color: var(--ink-2);
   font-size: 12px;
   line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .amount {
+  flex: none;
+  margin-left: auto;
   color: var(--muted);
   font-size: 12px;
 }
