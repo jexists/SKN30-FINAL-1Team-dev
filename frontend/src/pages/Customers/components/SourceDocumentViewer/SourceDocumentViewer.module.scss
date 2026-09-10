@@ -1,6 +1,9 @@
 /*
  * 이미지와 PDF 가 같은 껍데기를 씁니다. 안에 그리는 것만 <img> 와 <canvas> 로 갈리고
  * 머리말·무대·도구 막대의 자리는 바뀌지 않아, 무엇을 올렸든 같은 화면으로 읽힙니다.
+ *
+ * 브라우저가 그리지 못하는 형식은 무대에 글을 세웁니다(.textPage). 그때는 확대·회전할
+ * 것이 없어 도구 막대가 빠지고, 무대만 위에서 아래로 흐릅니다.
  */
 .viewer {
   display: flex;
@@ -81,6 +84,42 @@
   @media (prefers-reduced-motion: reduce) {
     transition: none;
   }
+}
+
+/*
+ * 글은 종이처럼 한 장으로 놓입니다. 무대가 가운데로 모으는 자리라, 위에서 시작해
+ * 아래로 읽히도록 정렬만 되돌립니다.
+ */
+.textPage {
+  align-self: start;
+  justify-self: stretch;
+  width: 100%;
+  max-width: 78ch;
+  margin-inline: auto;
+  padding: var(--s4);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+}
+
+// 원본이 아니라 추출한 글이라는 것을 먼저 알립니다.
+.textHint {
+  margin: 0 0 var(--s3);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+// 마크다운이 아닌 글. 원본의 줄바꿈과 들여쓰기를 그대로 살립니다.
+.plain {
+  margin: 0;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .notice {

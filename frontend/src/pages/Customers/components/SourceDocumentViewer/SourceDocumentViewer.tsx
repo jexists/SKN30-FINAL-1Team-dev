@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 
 import Button from '@/components/Button'
+import ReportBody from '@/components/ReportBody'
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloseIcon,
   MinusIcon,
   PlusIcon,
   RotateIcon,
@@ -12,14 +14,34 @@ import {
 
 import styles from './SourceDocumentViewer.module.scss'
 
-interface Props {
-  /** OCR 에 쓴 원본. 이미지와 PDF 를 같은 껍데기 안에서 보여 줍니다. */
-  file: File
-  /** 오른쪽 패널을 접습니다. 접힌 상태는 부른 쪽이 들고 있습니다. */
-  onCollapse: () => void
+/** 원본 대신 글을 세울 때 부른 쪽이 준비해 넘기는 내용. */
+interface TextSource {
+  /** 비어 있지 않은 본문. 준비되기 전에는 부른 쪽이 패널을 열지 않습니다. */
+  body: string
+  /** 마크다운으로 읽을 글인지. 아니면 줄바꿈만 살려 그대로 보여 줍니다. */
+  markdown: boolean
+  /** 원본을 그리지 못해 추출한 글로 대신하는 자리인지. 그럴 때만 안내를 답니다. */
+  extracted: boolean
 }
 
-type Kind = 'image' | 'pdf'
+interface Props {
+  /**
+   * 원본. 그릴 수 있는 형식은 파일째로 받고, 글로 대신 보여 주는 형식은 머리말에
+   * 세울 이름만 받습니다.
+   */
+  file: File | { name: string }
+  /** 이 값이 있으면 원본을 그리는 대신 이 글을 세웁니다. */
+  text?: TextSource
+  /** 패널을 접습니다. 접힌 상태는 부른 쪽이 들고 있습니다. */
+  onCollapse: () => void
+  /**
+   * 원본이 화면을 통째로 덮는 자리인지. 좁은 화면의 드로어처럼 이 패널만 보일
+   * 때는 옆으로 접는 것이 아니라 닫는 것으로 읽혀, 화살표 대신 X 를 세웁니다.
+   */
+  fullScreen?: boolean
+}
+
+type Kind = 'image' | 'pdf' | 'text'
 type Status = 'loading' | 'ready' | 'error'
 
 interface Size {
@@ -36,8 +58,10 @@ const EMPTY_SIZE: Size = { width: 0, height: 0 }
  * 확장자와 MIME 을 함께 봅니다. 끌어다 놓은 파일은 type 이 비어 오는 일이 있어
  * businessLicense.ts 의 검사와 같은 기준을 씁니다.
  */
-function documentKind(file: File): Kind {
-  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name) ? 'pdf' : 'image'
+function documentKind(file: File | { name: string }, text?: TextSource): Kind {
+  if (text !== undefined) return 'text'
+  const type = file instanceof File ? file.type : ''
+  return type === 'application/pdf' || /\.pdf$/i.test(file.name) ? 'pdf' : 'image'
 }
 
 /** 90도 돌리면 가로세로가 바뀝니다. 패널에 맞출 배율은 돌아간 뒤 크기로 잽니다. */
@@ -49,8 +73,16 @@ function fitScale(content: Size, stage: Size, rotation: number): number {
   return Math.min(stage.width / width, stage.height / height)
 }
 
-export default function SourceDocumentViewer({ file, onCollapse }: Props) {
-  const kind = documentKind(file)
+export default function SourceDocumentViewer({
+  file,
+  text,
+  onCollapse,
+  fullScreen = false,
+}: Props) {
+  const kind = documentKind(file, text)
+  // 그릴 원본만 남깁니다. 글로 대신 보여 주는 자리에는 이름만 오므로 여기가 비고,
+  // 아래 효과들이 이 값 하나만 보고 다시 돌지 말지 정합니다.
+  const blob = kind !== 'text' && file instanceof File ? file : null
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -65,17 +97,23 @@ export default function SourceDocumentViewer({ file, onCollapse }: Props) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
 
   // 원본은 아직 서버에 올라가기 전이라 파일 그대로 브라우저 주소로 만들어 씁니다.
+  // 글로 대신 보여 주는 자리에는 파일이 없어 만들 주소도 없습니다.
   useEffect(() => {
-    const created = URL.createObjectURL(file)
-    setUrl(created)
-    setStatus('loading')
     setZoom(1)
     setRotation(0)
     setPage(1)
     setPageCount(1)
     setNatural(EMPTY_SIZE)
+    if (blob === null) {
+      setUrl(null)
+      setStatus('ready')
+      return
+    }
+    const created = URL.createObjectURL(blob)
+    setUrl(created)
+    setStatus('loading')
     return () => URL.revokeObjectURL(created)
-  }, [file])
+  }, [blob])
 
   // 패널을 접었다 펴거나 창을 줄이면 맞춤 배율이 달라집니다.
   useEffect(() => {
@@ -191,16 +229,29 @@ export default function SourceDocumentViewer({ file, onCollapse }: Props) {
           variant="ghost"
           size="sm"
           iconOnly
-          aria-label="원본 문서 접기"
+          aria-label={fullScreen ? '원본 문서 닫기' : '원본 문서 접기'}
           onClick={onCollapse}
         >
-          <ChevronRightIcon />
+          {fullScreen ? <CloseIcon /> : <ChevronRightIcon />}
         </Button>
       </header>
 
       <div className={styles.stage} ref={stageRef}>
         {status === 'error' ? (
           <p className={styles.notice}>원본을 미리 볼 수 없습니다. 파일은 그대로 보관됩니다.</p>
+        ) : text !== undefined ? (
+          <div className={styles.textPage}>
+            {text.extracted && (
+              <p className={styles.textHint}>
+                원본 그대로 볼 수 없는 형식이라, 문서에서 추출한 글을 보여 줍니다.
+              </p>
+            )}
+            {text.markdown ? (
+              <ReportBody body={text.body} />
+            ) : (
+              <pre className={styles.plain}>{text.body}</pre>
+            )}
+          </div>
         ) : kind === 'pdf' ? (
           <canvas className={styles.canvas} ref={canvasRef} />
         ) : (
@@ -228,81 +279,84 @@ export default function SourceDocumentViewer({ file, onCollapse }: Props) {
         {status === 'loading' && <p className={styles.notice}>원본을 여는 중…</p>}
       </div>
 
-      <div className={styles.toolbar}>
-        <div className={styles.group}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            iconOnly
-            aria-label="축소"
-            disabled={zoom <= ZOOM_MIN}
-            onClick={() => zoomBy(-ZOOM_STEP)}
-          >
-            <MinusIcon />
-          </Button>
-          <button
-            type="button"
-            className={styles.zoomLabel}
-            title="화면에 맞추기"
-            onClick={() => setZoom(1)}
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            iconOnly
-            aria-label="확대"
-            disabled={zoom >= ZOOM_MAX}
-            onClick={() => zoomBy(ZOOM_STEP)}
-          >
-            <PlusIcon />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            iconOnly
-            aria-label="90도 회전"
-            onClick={() => setRotation((previous) => (previous + 90) % 360)}
-          >
-            <RotateIcon />
-          </Button>
-        </div>
-
-        {/* 여러 장짜리 PDF 일 때만 나옵니다. 이미지와 한 장짜리에는 넘길 곳이 없습니다. */}
-        {pageCount > 1 && (
+      {/* 확대·회전·페이지는 그림에만 뜻이 있습니다. 글은 그대로 흐르게 둡니다. */}
+      {kind !== 'text' && (
+        <div className={styles.toolbar}>
           <div className={styles.group}>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               iconOnly
-              aria-label="이전 페이지"
-              disabled={page <= 1}
-              onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              aria-label="축소"
+              disabled={zoom <= ZOOM_MIN}
+              onClick={() => zoomBy(-ZOOM_STEP)}
             >
-              <ChevronLeftIcon />
+              <MinusIcon />
             </Button>
-            <span className={styles.pageLabel} aria-live="polite">
-              {page} / {pageCount}
-            </span>
+            <button
+              type="button"
+              className={styles.zoomLabel}
+              title="화면에 맞추기"
+              onClick={() => setZoom(1)}
+            >
+              {Math.round(zoom * 100)}%
+            </button>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               iconOnly
-              aria-label="다음 페이지"
-              disabled={page >= pageCount}
-              onClick={() => setPage((previous) => Math.min(pageCount, previous + 1))}
+              aria-label="확대"
+              disabled={zoom >= ZOOM_MAX}
+              onClick={() => zoomBy(ZOOM_STEP)}
             >
-              <ChevronRightIcon />
+              <PlusIcon />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              iconOnly
+              aria-label="90도 회전"
+              onClick={() => setRotation((previous) => (previous + 90) % 360)}
+            >
+              <RotateIcon />
             </Button>
           </div>
-        )}
-      </div>
+
+          {/* 여러 장짜리 PDF 일 때만 나옵니다. 이미지와 한 장짜리에는 넘길 곳이 없습니다. */}
+          {pageCount > 1 && (
+            <div className={styles.group}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                iconOnly
+                aria-label="이전 페이지"
+                disabled={page <= 1}
+                onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              >
+                <ChevronLeftIcon />
+              </Button>
+              <span className={styles.pageLabel} aria-live="polite">
+                {page} / {pageCount}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                iconOnly
+                aria-label="다음 페이지"
+                disabled={page >= pageCount}
+                onClick={() => setPage((previous) => Math.min(pageCount, previous + 1))}
+              >
+                <ChevronRightIcon />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   )
 }
