@@ -7,6 +7,7 @@ import { useScopeOwnerIds } from '@/shared/scope'
 import type {
   TabbedPageResponse,
   SupportRequestCreateRequest,
+  SupportRequestPatchRequest,
   SupportRequestResponse,
   SupportResponseResponse,
   SupportStatusCode,
@@ -158,6 +159,15 @@ export default function useSupportRequests(openId: string | null, query: Support
     [],
   )
 
+  // 오류를 여기서 삼키지 않습니다. 수정은 모달이 띄우고, 모달이 자기 안에 오류를 세워야
+  // 고치던 내용을 잃지 않습니다. createRequest 와 같은 약속입니다.
+  const updateRequest = useCallback(async (id: string, patch: SupportRequestPatchRequest) => {
+    const { data } = await client.patch<SupportRequestResponse>(`/support-requests/${id}`, patch)
+    setRequests((previous) => previous.map((item) => (item.id === data.id ? data : item)))
+    setDetail(data)
+    return data
+  }, [])
+
   const addResponse = useCallback(async (requestId: string, body: string) => {
     if (pendingRef.current) return false
     pendingRef.current = true
@@ -176,7 +186,7 @@ export default function useSupportRequests(openId: string | null, query: Support
       )
       return true
     } catch (caught: unknown) {
-      setMutationError(mutationErrorMessage(caught, '답변을 등록'))
+      setMutationError(mutationErrorMessage(caught, '다음 상황을 등록'))
       return false
     } finally {
       pendingRef.current = false
@@ -199,6 +209,7 @@ export default function useSupportRequests(openId: string | null, query: Support
     mutationError,
     clearMutationError: () => setMutationError(null),
     createRequest,
+    updateRequest,
     transition,
     addResponse,
   }

@@ -173,7 +173,7 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
           : '등록 완료'
 
   return (
-    <Modal title={heading} description="" onClose={close} size={result === null ? 'lg' : 'md'}>
+    <Modal title={heading} description="" onClose={close} size="lg">
       {/*
         고르는 자리는 고를 때만 둡니다. 읽는 중에는 누를 수 없고 등록이 끝나면 같은 파일을
         다시 올릴 일이 없어, 남겨 두면 아직 할 일이 있는 것처럼 읽힙니다.

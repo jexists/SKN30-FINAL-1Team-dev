@@ -6,6 +6,7 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import AddressField, { type AddressValue } from '@/components/AddressField'
 import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
+import { ChevronLeftIcon } from '@/components/icons'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
 import Select from '@/components/Select'
@@ -26,6 +27,7 @@ import type { BusinessCardMatch } from '../../businessCard'
 import { archiveBusinessLicense } from '../../businessLicense'
 import { type DuplicateDraft } from '../../duplicate'
 import DuplicateConfirmModal from '../DuplicateConfirmModal'
+import SourceDocumentViewer from '../SourceDocumentViewer'
 import styles from './CustomerFormModal.module.scss'
 
 interface CustomerFormModalProps {
@@ -190,6 +192,11 @@ export default function CustomerFormModal({
 }: CustomerFormModalProps) {
   const { isManager, memberId } = useCurrentUser()
   const editing = customer !== undefined
+  // OCR에 올린 원본은 등록 성공 뒤 자료실에 보관할 때까지 이 폼이 그대로 들고 있다.
+  // 별도 업로드·다운로드 없이 브라우저의 object URL로 입력값과 나란히 확인한다.
+  const sourceFile = archiveImage ?? archiveLicense
+  // 원본이 있으면 검수 화면이다. 열어 둔 채로 시작하고, 입력 공간이 필요하면 접는다.
+  const [sourceOpen, setSourceOpen] = useState(true)
 
   const [draft, setDraft] = useState<Draft>(
     customer ? customerDraft(customer) : { ...EMPTY, ...initial },
@@ -406,9 +413,13 @@ export default function CustomerFormModal({
     if (!submitting) onClose()
   }
 
+  // 원본이 있으면 문서를 나란히 놓고 검수하는 화면이 됩니다. 폭은 다른 고객 등록
+  // 모달과 같이 두고, 본문 여백·스크롤만 아래 좌우 분할이 직접 맡습니다.
   return (
     <Modal
       title={editing ? '고객 수정' : '고객 등록'}
+      size="lg"
+      flushBody={sourceFile !== undefined}
       onClose={close}
       onSubmit={submit}
       footer={
@@ -422,172 +433,182 @@ export default function CustomerFormModal({
         </>
       }
     >
-      {duplicateMatches.length > 0 && (
-        <div className={styles.duplicateNotice} role="alert">
-          <strong>기존 고객 후보가 있습니다.</strong>
-          <ul>
+      <Split
+        source={
+          sourceFile && (
+            <SourceDocumentViewer file={sourceFile} onCollapse={() => setSourceOpen(false)} />
+          )
+        }
+        open={sourceOpen}
+        onReopen={() => setSourceOpen(true)}
+      >
+        {duplicateMatches.length > 0 && (
+          <div className={styles.duplicateNotice} role="alert">
+            <strong>기존 고객 후보</strong>
             {duplicateMatches.map((match) => (
-              <li key={match.contact_id}>
+              <span key={match.contact_id} className={styles.duplicateMatch}>
                 {match.company_name} · {match.name} · {formatPhone(match.phone)}
-              </li>
+              </span>
             ))}
-          </ul>
-          <span>기존 고객인지 확인한 뒤 등록하세요. 자동으로 합치지 않습니다.</span>
-        </div>
-      )}
-      <div className={styles.grid} aria-busy={submitting}>
-        <Field label="회사" required error={errors.company} htmlFor={false}>
-          <CompanyAutocomplete
-            value={company}
-            onChange={pickCompany}
-            allowCreate
-            disabled={submitting || companyLoading}
-            invalid={errors.company !== undefined}
-          />
-        </Field>
-
-        <Field label="사업자 등록번호" error={errors.businessNo}>
-          <input
-            value={maskBusinessNo(businessNo)}
-            placeholder="123-45-67890"
-            maxLength={12}
-            // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
-            readOnly={company?.kind === 'existing'}
-            // 회사를 고르기 전이라도, 등록증에서 읽어 온 값은 고칠 수 있어야 합니다.
-            disabled={submitting || (company === null && businessNo === '')}
-            onChange={(event) => {
-              setBusinessNo(businessNoDigits(event.target.value))
-              clearError('businessNo')
-            }}
-          />
-        </Field>
-
-        {/* 주소는 회사에 붙는 값입니다. 이미 있는 회사면 그 회사의 주소를 보여 주기만 합니다. */}
-        <Field label="주소" wide htmlFor={false}>
-          <AddressField
-            value={address}
-            onChange={setAddress}
-            readOnly={company?.kind === 'existing'}
-            // 등록증에서 읽어 온 주소가 있으면 회사를 고르기 전에도 다시 고를 수 있습니다.
-            disabled={submitting || (company === null && address.address === '')}
-          />
-        </Field>
-
-        <Field label="이름" required error={errors.name}>
-          <input
-            value={draft.name}
-            maxLength={254}
-            disabled={submitting}
-            onChange={(event) => set('name', event.target.value)}
-          />
-        </Field>
-
-        <Field label="전화" required error={errors.phone}>
-          <input
-            type="tel"
-            value={formatPhone(draft.phone)}
-            placeholder="02-000-0000"
-            maxLength={50}
-            disabled={submitting}
-            onChange={(event) => set('phone', phoneDigits(event.target.value))}
-          />
-        </Field>
-
-        <Field label="부서">
-          <input
-            value={draft.dept}
-            placeholder="부서 이름"
-            maxLength={254}
-            disabled={submitting}
-            onChange={(event) => set('dept', event.target.value)}
-          />
-        </Field>
-
-        <Field label="직함">
-          <input
-            value={draft.title}
-            placeholder="과장"
-            maxLength={254}
-            disabled={submitting}
-            onChange={(event) => set('title', event.target.value)}
-          />
-        </Field>
-
-        <Field label="이메일" error={errors.email}>
-          <input
-            type="email"
-            value={draft.email}
-            placeholder="name@company.com"
-            maxLength={254}
-            disabled={submitting}
-            onChange={(event) => set('email', event.target.value)}
-          />
-        </Field>
-
-        <Field label="방문여부" htmlFor={false}>
-          <div className={styles.choice} role="radiogroup" aria-label="방문여부">
-            {[false, true].map((value) => (
-              <label key={String(value)} className={styles.choiceItem}>
-                <input
-                  type="radio"
-                  name="visited"
-                  className="sr-only"
-                  checked={visited === value}
-                  disabled={submitting}
-                  onChange={() => setVisited(value)}
-                />
-                <span>{value ? '방문' : '미방문'}</span>
-              </label>
-            ))}
+            <span className={styles.duplicateHint}>
+              확인한 뒤 등록하세요. 자동으로 합치지 않습니다.
+            </span>
           </div>
-        </Field>
-
-        <Field label="유입경로" htmlFor={false}>
-          <Select
-            label="유입경로"
-            value={sourceCode}
-            options={SOURCE_OPTIONS}
-            disabled={submitting}
-            onChange={(next) => setSourceCode(next as CustomerSourceCode | '')}
-          />
-        </Field>
-
-        {/*
-         * 담당자를 정할 수 있는 건 팀장뿐입니다. 팀원이 등록하면 본인이 담당자가 됩니다.
-         * 칩이 늘면 칸이 세로로 자라 옆 칸과 어긋나므로 한 줄을 통째로 씁니다.
-         */}
-        {isManager && (
-          <Field label="담당자" required error={errors.assignees} wide htmlFor={false}>
-            <MemberMultiSelect
-              value={assigneeIds}
-              onChange={(next) => {
-                setAssigneeIds(next)
-                clearError('assignees')
-              }}
-              disabled={submitting}
-              invalid={errors.assignees !== undefined}
-              firstChipHint="첫 번째 담당자가 대표 담당자입니다."
+        )}
+        <div className={styles.grid} aria-busy={submitting}>
+          <Field label="회사" required error={errors.company} htmlFor={false}>
+            <CompanyAutocomplete
+              value={company}
+              onChange={pickCompany}
+              allowCreate
+              disabled={submitting || companyLoading}
+              invalid={errors.company !== undefined}
             />
           </Field>
+
+          <Field label="사업자 등록번호" error={errors.businessNo}>
+            <input
+              value={maskBusinessNo(businessNo)}
+              placeholder="123-45-67890"
+              maxLength={12}
+              // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
+              readOnly={company?.kind === 'existing'}
+              // 회사를 고르기 전이라도, 등록증에서 읽어 온 값은 고칠 수 있어야 합니다.
+              disabled={submitting || (company === null && businessNo === '')}
+              onChange={(event) => {
+                setBusinessNo(businessNoDigits(event.target.value))
+                clearError('businessNo')
+              }}
+            />
+          </Field>
+
+          {/* 주소는 회사에 붙는 값입니다. 이미 있는 회사면 그 회사의 주소를 보여 주기만 합니다. */}
+          <Field label="주소" wide htmlFor={false}>
+            <AddressField
+              value={address}
+              onChange={setAddress}
+              readOnly={company?.kind === 'existing'}
+              // 등록증에서 읽어 온 주소가 있으면 회사를 고르기 전에도 다시 고를 수 있습니다.
+              disabled={submitting || (company === null && address.address === '')}
+            />
+          </Field>
+
+          <Field label="이름" required error={errors.name}>
+            <input
+              value={draft.name}
+              maxLength={254}
+              disabled={submitting}
+              onChange={(event) => set('name', event.target.value)}
+            />
+          </Field>
+
+          <Field label="전화" required error={errors.phone}>
+            <input
+              type="tel"
+              value={formatPhone(draft.phone)}
+              placeholder="02-000-0000"
+              maxLength={50}
+              disabled={submitting}
+              onChange={(event) => set('phone', phoneDigits(event.target.value))}
+            />
+          </Field>
+
+          <Field label="부서">
+            <input
+              value={draft.dept}
+              placeholder="부서 이름"
+              maxLength={254}
+              disabled={submitting}
+              onChange={(event) => set('dept', event.target.value)}
+            />
+          </Field>
+
+          <Field label="직함">
+            <input
+              value={draft.title}
+              placeholder="과장"
+              maxLength={254}
+              disabled={submitting}
+              onChange={(event) => set('title', event.target.value)}
+            />
+          </Field>
+
+          <Field label="이메일" error={errors.email}>
+            <input
+              type="email"
+              value={draft.email}
+              placeholder="name@company.com"
+              maxLength={254}
+              disabled={submitting}
+              onChange={(event) => set('email', event.target.value)}
+            />
+          </Field>
+
+          <Field label="방문여부" htmlFor={false}>
+            <div className={styles.choice} role="radiogroup" aria-label="방문여부">
+              {[false, true].map((value) => (
+                <label key={String(value)} className={styles.choiceItem}>
+                  <input
+                    type="radio"
+                    name="visited"
+                    className="sr-only"
+                    checked={visited === value}
+                    disabled={submitting}
+                    onChange={() => setVisited(value)}
+                  />
+                  <span>{value ? '방문' : '미방문'}</span>
+                </label>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="유입경로" htmlFor={false}>
+            <Select
+              label="유입경로"
+              value={sourceCode}
+              options={SOURCE_OPTIONS}
+              disabled={submitting}
+              onChange={(next) => setSourceCode(next as CustomerSourceCode | '')}
+            />
+          </Field>
+
+          {/*
+           * 담당자를 정할 수 있는 건 팀장뿐입니다. 팀원이 등록하면 본인이 담당자가 됩니다.
+           * 칩이 늘면 칸이 세로로 자라 옆 칸과 어긋나므로 한 줄을 통째로 씁니다.
+           */}
+          {isManager && (
+            <Field label="담당자" required error={errors.assignees} wide htmlFor={false}>
+              <MemberMultiSelect
+                value={assigneeIds}
+                onChange={(next) => {
+                  setAssigneeIds(next)
+                  clearError('assignees')
+                }}
+                disabled={submitting}
+                invalid={errors.assignees !== undefined}
+                firstChipHint="첫 번째 담당자가 대표 담당자입니다."
+              />
+            </Field>
+          )}
+
+          <Field label="메모" wide>
+            <textarea
+              rows={3}
+              value={draft.memo}
+              placeholder="참고사항"
+              maxLength={5000}
+              disabled={submitting}
+              onChange={(event) => set('memo', event.target.value)}
+            />
+          </Field>
+        </div>
+
+        {submitError && !duplicate && (
+          <p className={styles.error} role="alert">
+            {submitError}
+          </p>
         )}
-
-        <Field label="메모" wide>
-          <textarea
-            rows={3}
-            value={draft.memo}
-            placeholder="참고사항"
-            maxLength={5000}
-            disabled={submitting}
-            onChange={(event) => set('memo', event.target.value)}
-          />
-        </Field>
-      </div>
-
-      {submitError && !duplicate && (
-        <p className={styles.error} role="alert">
-          {submitError}
-        </p>
-      )}
+      </Split>
 
       {duplicate && (
         <DuplicateConfirmModal
@@ -603,6 +624,42 @@ export default function CustomerFormModal({
         />
       )}
     </Modal>
+  )
+}
+
+interface SplitProps {
+  /** 오른쪽에 놓을 원본 뷰어. 없으면 예전처럼 폼만 있는 모달이 됩니다. */
+  source: React.ReactNode
+  open: boolean
+  onReopen: () => void
+  children: React.ReactNode
+}
+
+/**
+ * 왼쪽 입력 폼과 오른쪽 원본을 나란히 놓습니다. 스크롤은 왼쪽만 하므로 폼이 길어져도
+ * 원본은 그 자리에 남고, 모달 안에 스크롤 막대가 둘 생기지 않습니다.
+ */
+function Split({ source, open, onReopen, children }: SplitProps) {
+  if (!source) return children
+
+  return (
+    <div className={styles.split} data-open={open}>
+      <div className={styles.formPane}>
+        {!open && (
+          <div className={styles.paneTop}>
+            <button type="button" className={styles.reopen} onClick={onReopen}>
+              원본 보기
+              <ChevronLeftIcon width={14} height={14} />
+            </button>
+          </div>
+        )}
+        {children}
+      </div>
+      {/* 접힌 패널은 폭이 0 이라 눈에는 안 보여도 초점은 들어갑니다. inert 로 막습니다. */}
+      <aside className={styles.sourcePane} inert={!open}>
+        {source}
+      </aside>
+    </div>
   )
 }
 

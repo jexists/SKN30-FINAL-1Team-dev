@@ -7,6 +7,7 @@ import Topbar from '@/components/layout/Topbar'
 import { BP_DESKTOP, BP_RAIL_DEFAULT } from '@/constants/breakpoints'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import { useScopeKey } from '@/shared/scope'
+import { lockScroll } from '@/shared/scrollLock'
 
 import { SidebarContext } from './sidebarContext'
 
@@ -71,12 +72,11 @@ export default function AppShell() {
     }
     document.addEventListener('keydown', onKeyDown)
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockScroll()
 
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
+      unlockScroll()
     }
   }, [mobileOpen])
 

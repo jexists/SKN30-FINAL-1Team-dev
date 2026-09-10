@@ -8,6 +8,7 @@
 import { useState } from 'react'
 
 import Drawer from '@/components/Drawer'
+import ImageLightbox from '@/components/ImageLightbox'
 import { EditIcon, MoreIcon, ProductIcon, TrashIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import type { ProductResponse } from '@/types'
@@ -29,6 +30,7 @@ interface Props {
 
 export default function ProductDrawer({ product, busy, onEdit, onDelete, onClose }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [zoom, setZoom] = useState(false)
   const url = useProductImage(product)
 
   return (
@@ -91,7 +93,25 @@ export default function ProductDrawer({ product, busy, onEdit, onDelete, onClose
           <span>{product.has_image ? '사진을 불러오는 중입니다.' : '등록된 사진이 없습니다.'}</span>
         </p>
       ) : (
-        <img className={styles.photo} src={url} alt={`${product.name} 사진`} />
+        <>
+          {/* 눌러서 전체보기로 엽니다. 드로어 폭에 맞춰 줄여 놓아 라벨의 작은 글자가 안 보입니다. */}
+          <button
+            type="button"
+            className={styles.photoZoom}
+            aria-label={`${product.name} 사진 크게 보기`}
+            onClick={() => setZoom(true)}
+          >
+            <img className={styles.photo} src={url} alt={`${product.name} 사진`} />
+          </button>
+          {zoom && (
+            <ImageLightbox
+              src={url}
+              alt={`${product.name} 사진`}
+              caption={product.name}
+              onClose={() => setZoom(false)}
+            />
+          )}
+        </>
       )}
 
       <dl className={styles.facts}>

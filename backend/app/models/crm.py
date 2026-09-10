@@ -140,6 +140,8 @@ class SupportRequest(Base):
     # 불만이 일어난 시각. 접수자가 직접 넣는다. registered_at(등록 시각)과 다르다.
     occurred_at: Mapped[datetime]
     registered_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    # 마지막으로 본문을 고친 시각. 한 번도 고치지 않았으면 None 이다.
+    updated_at: Mapped[datetime | None]
 
 
 class SupportResponse(Base):
@@ -150,3 +152,22 @@ class SupportResponse(Base):
     responder_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
     body: Mapped[str]
     responded_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class SupportRequestEditBackup(Base):
+    """고객불만을 고치기 직전 값의 백업.
+
+    쓰기 전용이다. 읽는 API 도 화면도 없고, 되돌릴 일이 생기면 DB 에서 직접 꺼낸다.
+    바뀐 칸만 담지 않고 네 칸을 통째로 적는다. 한 행만 보면 그때의 본문이 서야 한다.
+    """
+
+    __tablename__ = "support_request_edit_backup"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    support_request_id: Mapped[UUID] = mapped_column(ForeignKey("public.support_request.id"))
+    editor_member_id: Mapped[UUID] = mapped_column(ForeignKey("public.member.id"))
+    edited_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    title: Mapped[str]
+    body: Mapped[str]
+    is_urgent: Mapped[bool]
+    occurred_at: Mapped[datetime]

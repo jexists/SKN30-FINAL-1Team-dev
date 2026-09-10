@@ -6,15 +6,22 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.api.deps import get_current_member
+from app.api.support import _may_edit
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
-from app.models.crm import CustomerCompany, SupportRequest, SupportResponse
+from app.models.crm import (
+    CustomerCompany,
+    SupportRequest,
+    SupportRequestEditBackup,
+    SupportResponse,
+)
 from app.models.sales import SalesDeal
 from app.models.workspace import Member
 from app.schemas.support import (
     SupportRequestCreate,
     SupportRequestPageParams,
+    SupportRequestPatch,
     SupportResponseCreate,
     SupportTransition,
 )
@@ -303,6 +310,7 @@ def test_member_list_and_detail_are_scoped_and_include_response_history():
                 "status_code": "in_progress",
                 "occurred_at": "2026-08-17T18:00:00+09:00",
                 "registered_at": "2026-08-17T18:00:00+09:00",
+                "updated_at": None,
                 "responses": [
                     {
                         "id": str(response_item.id),
@@ -550,6 +558,129 @@ def test_transition_uses_stale_guard_and_rejects_noop():
         assert stale.json() == {"detail": "invalid_state_transition"}
         assert stale_db.flush_count == stale_db.commit_count == 0
         assert stale_db.rollback_count == 1
+
+
+def test_support_patch_backs_up_before_values_and_stamps_updated_at():
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    request = _request(member, deal)
+    db = _Db(
+        _Result(scalar=request),
+        _Result(rows=[_row(request, deal, company, member)]),
+        _Result(rows=[]),
+    )
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/support-requests/{request.id}",
+            headers={"Origin": ORIGIN},
+            json={"title": " 고친 제목 ", "is_urgent": False},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "고친 제목"
+    assert data["is_urgent"] is False
+    # 보내지 않은 칸은 그대로다.
+    assert data["body"] == "합성 문의 본문"
+    assert data["updated_at"] is not None
+    assert "FOR UPDATE" in str(db.statements[0])
+
+    # 백업은 고치기 직전 값이다. 고친 뒤 값이 들어가면 되돌릴 수 없다.
+    backup = db.added[0]
+    assert isinstance(backup, SupportRequestEditBackup)
+    assert backup.support_request_id == request.id
+    assert backup.editor_member_id == member.id
+    assert (backup.title, backup.body, backup.is_urgent) == ("합성 문의", "합성 문의 본문", True)
+    assert db.flush_count == db.commit_count == 1
+
+
+def test_support_patch_without_changes_leaves_no_backup():
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    request = _request(member, deal)
+    db = _Db(
+        _Result(scalar=request),
+        _Result(rows=[_row(request, deal, company, member)]),
+        _Result(rows=[]),
+    )
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/support-requests/{request.id}",
+            headers={"Origin": ORIGIN},
+            # 화면에 뜬 값 그대로 저장을 누른 경우다. 발생일시는 시간대 표기만 다르다.
+            json={"title": "합성 문의", "occurred_at": "2026-08-17T18:00:00+09:00"},
+        )
+
+    assert response.status_code == 200
+    # 바뀐 것이 없으면 "수정됨" 이 붙지 않는다.
+    assert response.json()["updated_at"] is None
+    assert db.added == []
+    assert db.flush_count == 0
+    assert db.commit_count == 1
+
+
+def test_support_patch_allows_only_the_author_and_managers():
+    author = _member()
+    stranger = _member(team_id=author.team_id)
+    manager = _member(role="manager", team_id=author.team_id)
+    company = _company(author.team_id)
+    deal = _deal(author, company)
+    request = _request(author, deal)
+
+    assert _may_edit(author, request) is True
+    assert _may_edit(manager, request) is True
+    assert _may_edit(stranger, request) is False
+
+    # _scope 가 팀원에게는 남의 불만을 애초에 보여 주지 않으므로 이 길은 평소 닿지 않는다.
+    # 그래도 엔드포인트가 스스로 막는지 확인한다. 나중에 조회 범위가 넓어져도 수정 권한이
+    # 함께 넓어지면 안 된다.
+    db = _Db(_Result(scalar=request))
+    with _client(db, stranger) as client:
+        response = client.patch(
+            f"/api/support-requests/{request.id}",
+            headers={"Origin": ORIGIN},
+            json={"title": "가로챈 제목"},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "forbidden"}
+    assert db.added == []
+    assert db.flush_count == db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_support_patch_hides_invisible_request_and_rejects_empty_body():
+    member = _member()
+    hidden_db = _Db(_Result(scalar=None))
+    with _client(hidden_db, member) as client:
+        hidden = client.patch(
+            f"/api/support-requests/{uuid4()}",
+            headers={"Origin": ORIGIN},
+            json={"title": "고친 제목"},
+        )
+    assert hidden.status_code == 404
+    assert hidden.json() == {"detail": "support_request_not_found"}
+    assert hidden_db.added == []
+    assert hidden_db.rollback_count == 1
+
+    # 바꿀 것이 없는 요청. 조용히 200 을 주면 화면은 저장된 줄 안다.
+    for body in ({}, {"title": None, "body": None}):
+        with pytest.raises(ValidationError):
+            SupportRequestPatch(**body)
+
+        empty_db = _Db()
+        with _client(empty_db, member) as client:
+            empty = client.patch(
+                f"/api/support-requests/{uuid4()}",
+                headers={"Origin": ORIGIN},
+                json=body,
+            )
+        assert empty.status_code == 422
+        assert empty_db.statements == []
 
 
 def test_response_creation_uses_current_member_and_hides_invisible_request():

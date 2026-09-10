@@ -7,6 +7,8 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 import { CloseIcon } from '@/components/icons'
+import { pushOverlay } from '@/shared/overlayStack'
+import { lockScroll } from '@/shared/scrollLock'
 
 import styles from './Drawer.module.scss'
 
@@ -44,23 +46,37 @@ export default function Drawer({
   const panelRef = useRef<HTMLElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
+  // Modal 과 같습니다. 드로어 위에 이미지 전체보기가 열리면 Escape 한 번에 둘 다
+  // 닫히지 않도록, 겹친 것 중 맨 위일 때만 답합니다.
+  const overlayRef = useRef<{ isTop: () => boolean; release: () => void } | null>(null)
+
+  // 닫기 함수는 호출부에서 매 렌더 새로 만들어지는 일이 흔합니다. 그것을 효과의 의존성으로
+  // 두면 글자 하나 칠 때마다 효과가 풀렸다 다시 걸려 스크롤 잠금과 포커스가 흔들립니다.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
+    const overlay = pushOverlay()
+    overlayRef.current = overlay
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && overlay.isTop()) onCloseRef.current()
     }
     document.addEventListener('keydown', onKeyDown)
 
-    const previousOverflow = document.body.style.overflow
     const previouslyFocused = document.activeElement as HTMLElement | null
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockScroll()
 
     return () => {
+      overlay.release()
+      overlayRef.current = null
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
+      unlockScroll()
       previouslyFocused?.focus()
     }
-  }, [onClose])
+  }, [])
 
   // 본문에 누를 것이 없는 드로어(값만 늘어놓은 상세)도 있습니다.
   // 그럴 때는 패널 자체를 잡아 두어야 포커스가 드로어 밖에 남지 않습니다.
@@ -77,7 +93,12 @@ export default function Drawer({
   }, [resetKey])
 
   return (
-    <div className={styles.scrim} onPointerDown={onClose}>
+    <div
+      className={styles.scrim}
+      onPointerDown={() => {
+        if (overlayRef.current?.isTop() === true) onClose()
+      }}
+    >
       <aside
         ref={panelRef}
         className={`${styles.panel} ${wide ? styles.wide : ''}`}

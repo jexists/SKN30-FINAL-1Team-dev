@@ -84,6 +84,16 @@
 /* ---- 사진 ---- */
 
 // 목록의 썸네일과 달리 자르지 않습니다. 사양을 보려고 여는 자리라 원래 비율이 중요합니다.
+/* 사진을 그대로 감싸기만 합니다. 테두리와 여백은 사진 쪽이 그대로 갖습니다. */
+.photoZoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
 .photo {
   display: block;
   width: 100%;

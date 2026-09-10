@@ -11,7 +11,7 @@
 ```mermaid
 flowchart TB
     workspace["workspace<br/>조직·사용자·공지<br/>5개 테이블"]
-    crm["crm<br/>고객·미팅·불만<br/>7개 테이블"]
+    crm["crm<br/>고객·미팅·불만<br/>8개 테이블"]
     sales["sales<br/>제품·파이프라인·거래·발주<br/>9개 테이블"]
     content["content<br/>보고서·자료·파일<br/>6개 테이블"]
     agent["agent<br/>AI 에이전트<br/>2개 테이블"]
@@ -85,6 +85,7 @@ erDiagram
     member ||--o{ sales_deal : "owner_member_id"
     member ||--o{ sales_target : "owner_member_id"
     member ||--o{ support_request : "assignee_member_id"
+    member ||--o{ support_request_edit_backup : "editor_member_id"
     member ||--o{ support_response : "responder_member_id"
 ```
 
@@ -119,6 +120,8 @@ erDiagram
     customer_company ||--o{ sales_target : "customer_company_id"
     member ||--o{ support_request : "assignee_member_id"
     sales_deal ||--o{ support_request : "sales_deal_id, customer_company_id"
+    member ||--o{ support_request_edit_backup : "editor_member_id"
+    support_request ||--o{ support_request_edit_backup : "support_request_id"
     member ||--o{ support_response : "responder_member_id"
     support_request ||--o{ support_response : "support_request_id"
 ```
@@ -310,6 +313,8 @@ erDiagram
     member ||--o{ support_request : "assignee_member_id"
     sales_deal ||--o{ support_request : "sales_deal_id, customer_company_id"
     team ||--o{ support_request : "team_id"
+    member ||--o{ support_request_edit_backup : "editor_member_id"
+    support_request ||--o{ support_request_edit_backup : "support_request_id"
     member ||--o{ support_response : "responder_member_id"
     support_request ||--o{ support_response : "support_request_id"
 ```

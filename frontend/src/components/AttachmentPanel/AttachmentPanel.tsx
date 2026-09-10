@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { errorMessage } from '@/api/errorMessage'
 import { downloadReportAttachment } from '@/api/reportAttachments'
 import { buttonClass } from '@/components/Button'
+import ImageLightbox from '@/components/ImageLightbox'
 import Modal from '@/components/Modal'
 import { TrashIcon, UploadIcon } from '@/components/icons'
 import type { AttachmentKind, ReportAttachment } from '@/types'
@@ -56,6 +57,7 @@ export default function AttachmentPanel({
     item: ReportAttachment
     url: string
   } | null>(null)
+  const [zoom, setZoom] = useState(false)
   const [loadingFile, setLoadingFile] = useState<{ reportId: string; id: string } | null>(null)
   const [fileError, setFileError] = useState<{ reportId: string; message: string } | null>(null)
   const requestRef = useRef<AbortController | null>(null)
@@ -76,6 +78,8 @@ export default function AttachmentPanel({
       URL.revokeObjectURL(preview.url)
       objectUrls.current.delete(preview.url)
     }
+    // 전체보기가 이 주소를 그대로 씁니다. 주소를 거두기 전에 함께 내립니다.
+    setZoom(false)
     setPreview(null)
   }
 
@@ -298,7 +302,19 @@ export default function AttachmentPanel({
             >
               <div tabIndex={0} role="group" aria-label="원본 파일 미리보기">
                 {preview.item.kind === 'image' ? (
-                  <img className={styles.previewImage} src={preview.url} alt={preview.item.name} />
+                  /* 모달 폭에 맞춰 줄여 놓은 사진입니다. 글자가 작으면 눌러서 전체보기로 엽니다. */
+                  <button
+                    type="button"
+                    className={styles.previewZoom}
+                    aria-label={`${preview.item.name} 크게 보기`}
+                    onClick={() => setZoom(true)}
+                  >
+                    <img
+                      className={styles.previewImage}
+                      src={preview.url}
+                      alt={preview.item.name}
+                    />
+                  </button>
                 ) : preview.item.kind === 'audio' ? (
                   <audio className={styles.previewAudio} src={preview.url} controls />
                 ) : (
@@ -313,6 +329,16 @@ export default function AttachmentPanel({
           </div>,
           document.body,
         )}
+      {/* previewHost 바깥에 둡니다. 안에 두면 그 div 의 Escape 캡처 핸들러가 먼저 잡아
+          전체보기만 닫으려 한 것이 미리보기 모달까지 닫습니다. */}
+      {preview && preview.reportId === reportId && zoom && (
+        <ImageLightbox
+          src={preview.url}
+          alt={preview.item.name}
+          caption={`${preview.item.name} · ${sizeLabel(preview.item.byteSize)}`}
+          onClose={() => setZoom(false)}
+        />
+      )}
     </div>
   )
 }

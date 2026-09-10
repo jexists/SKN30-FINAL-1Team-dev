@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, model_validator
 
 Text = Annotated[
     str,
@@ -34,6 +34,28 @@ class SupportRequestCreate(_WriteModel):
     status_code: SupportStatus
     # 불만이 일어난 시각. 화면이 기본값으로 지금 시각을 넣는다.
     occurred_at: datetime
+
+
+class SupportRequestPatch(_WriteModel):
+    """고객불만 본문 수정. 보낸 칸만 바꾼다.
+
+    회사·딜은 담기지 않는다. 둘은 복합 외래키로 묶인 구조값이라 바꾸는 것은 다른 건을 만드는
+    일에 가깝다. 상태도 담기지 않는다. transition 이 expected_status_code 로 낙관적 잠금을
+    걸어 두었는데 여기서도 바꿀 수 있으면 그 보호가 무의미해진다.
+    """
+
+    title: Text | None = None
+    body: LongText | None = None
+    is_urgent: StrictBool | None = None
+    occurred_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one(self) -> "SupportRequestPatch":
+        # 여기서 None 은 "안 보냈다" 는 뜻이다. 비울 수 있는 칸이 하나도 없으므로 명시적인
+        # null 도 지우라는 뜻이 될 수 없다. 바꿀 것이 없는 요청은 조용히 200 을 주지 않는다.
+        if all(getattr(self, name) is None for name in self.model_fields_set):
+            raise ValueError("no_fields_to_update")
+        return self
 
 
 class SupportTransition(_WriteModel):
@@ -73,6 +95,8 @@ class SupportRequestRead(BaseModel):
     status_code: SupportStatus
     occurred_at: datetime
     registered_at: datetime
+    # 한 번도 고치지 않았으면 None. 화면은 이 값이 있을 때만 "수정일시" 줄을 세운다.
+    updated_at: datetime | None
     responses: list[SupportResponseRead]
 
 

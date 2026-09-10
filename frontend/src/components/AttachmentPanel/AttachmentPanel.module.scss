@@ -168,6 +168,16 @@
   margin-top: var(--s3);
 }
 
+/* 사진을 그대로 감싸기만 합니다. 눌러서 전체보기를 여는 자리라 버튼 모양은 두지 않습니다. */
+.previewZoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
 .previewImage {
   display: block;
   max-width: 100%;

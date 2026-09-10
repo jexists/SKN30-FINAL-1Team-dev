@@ -76,8 +76,14 @@ export class BusinessLicenseScanError extends Error {
   }
 }
 
+export type LicenseScanProgress =
+  { phase: 'uploading'; percent: number } | { phase: 'recognizing'; elapsedSeconds: number }
+
 /** PDF 또는 이미지를 서버 OCR로 보내고 완료될 때까지 결과를 조회합니다. */
-export async function extractBusinessLicense(file: File): Promise<BusinessLicenseDraft> {
+export async function extractBusinessLicense(
+  file: File,
+  onProgress?: (progress: LicenseScanProgress) => void,
+): Promise<BusinessLicenseDraft> {
   const problem = businessLicenseProblem(file)
   if (problem !== null) throw new BusinessLicenseScanError('business_license_upload_invalid')
 
@@ -85,16 +91,27 @@ export async function extractBusinessLicense(file: File): Promise<BusinessLicens
     const form = new FormData()
     form.append('file', file)
     let scanId = ''
+    const startedAt = Date.now()
     const scan = await pollSummary<BusinessLicenseScanStatus>({
       start: async () => {
         const accepted = await client.post<BusinessLicenseScanAccepted>(
           '/business-licenses/scan',
           form,
-          { timeout: 120_000 },
+          {
+            timeout: 120_000,
+            onUploadProgress: (event) => {
+              if (!event.total) return
+              onProgress?.({ phase: 'uploading', percent: (event.loaded / event.total) * 100 })
+            },
+          },
         )
         scanId = accepted.data.scan_id
       },
       read: async () => {
+        onProgress?.({
+          phase: 'recognizing',
+          elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+        })
         const response = await client.get<BusinessLicenseScanStatus>(
           `/business-licenses/scan/${scanId}`,
         )

@@ -7,6 +7,7 @@ import CompanyAutocomplete, { type CompanySelection } from '@/components/Company
 import ContactPicker, { toContactOption, type ContactOption } from '@/components/ContactPicker'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
+import Select from '@/components/Select'
 import CustomerFormModal from '@/pages/Customers/components/CustomerFormModal'
 import type {
   CustomerCompanyResponse,
@@ -235,15 +236,13 @@ export default function SalesDealForm({
 
   const editing = deal !== undefined
   const noDealTypes = !optionsLoading && dealTypes.length === 0 && !deal?.dealTypeCode
-  // 선택지를 고르는 동안 배열이 새로 만들어지면 공통 선택기의 활성 항목이 초기화됩니다.
-  // 단계 목록이 바뀔 때만 다시 만들고, 선택한 단계도 이 목록에서 그대로 찾습니다.
-  const pipelineOptions = useMemo(
-    () => columns.map((column) => ({ id: column.id, label: column.name ?? '' })),
+  const selectOptions = useMemo(
+    () =>
+      columns.map((column) => ({
+        value: column.id,
+        label: column.name ?? '',
+      })),
     [columns],
-  )
-  const selectedPipeline = useMemo(
-    () => pipelineOptions.find((option) => option.id === form.stageId) ?? null,
-    [form.stageId, pipelineOptions],
   )
 
   return (
@@ -319,15 +318,12 @@ export default function SalesDealForm({
         </Field>
 
         <Field label="파이프라인" required error={errors.stageId}>
-          <RecordPicker<RecordOption>
-            staticOptions={pipelineOptions}
-            value={selectedPipeline}
-            // 수정에서 단계를 바꾸는 것은 카드 이동입니다. 여기서는 보여 주기만 합니다.
-            disabled={submitting || editing || optionsLoading}
-            placeholder="파이프라인으로 검색"
-            emptyText="일치하는 파이프라인 단계가 없습니다."
+          <Select
             label="파이프라인"
-            onChange={(next) => set('stageId', next?.id ?? '')}
+            value={form.stageId}
+            options={selectOptions}
+            disabled={submitting || editing || optionsLoading}
+            onChange={(stageId) => set('stageId', stageId)}
           />
         </Field>
       </div>

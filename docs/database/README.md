@@ -1,6 +1,6 @@
 # Database
 
-SalesLuv 의 실제 데이터베이스 구조 정리. **36개 테이블 / 381개 컬럼 / 외래 키 96개**.
+SalesLuv 의 실제 데이터베이스 구조 정리. **37개 테이블 / 390개 컬럼 / 외래 키 98개**.
 
 - 엔진: PostgreSQL (Supabase), 스키마 `public`
 - 기준: 실제 운영 중인 DB 를 `information_schema` / `pg_catalog` 로 직접 조회한 결과
@@ -40,6 +40,7 @@ SalesLuv 의 실제 데이터베이스 구조 정리. **36개 테이블 / 381개
 | [customer_contact](tables/customer_contact.md) | 고객 회사에 소속된 담당자 정보를 관리 |
 | [customer_contact_assignee](tables/customer_contact_assignee.md) | 고객 담당자를 맡은 내부 구성원을 연결 |
 | [support_request](tables/support_request.md) | 고객사가 제기한 불만·요청 접수 내용을 관리 |
+| [support_request_edit_backup](tables/support_request_edit_backup.md) | 고객불만을 고치기 직전 값의 백업 |
 | [support_response](tables/support_response.md) | 접수된 불만에 대한 담당자 응대 이력을 관리 |
 
 ### sales — 제품·파이프라인·거래·발주

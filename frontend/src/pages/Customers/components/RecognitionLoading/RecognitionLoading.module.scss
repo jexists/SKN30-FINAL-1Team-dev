@@ -31,11 +31,6 @@
   animation: spin 0.9s linear infinite;
 }
 
-.progress {
-  width: min(240px, 100%);
-  margin-top: var(--s2);
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);

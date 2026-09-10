@@ -5,7 +5,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--s2);
+  min-height: var(--dropzone-h);
   padding: var(--s7) var(--s4);
   border: 1px dashed var(--line-2);
   border-radius: var(--r-md);

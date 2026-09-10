@@ -1,0 +1,95 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  // Modal 의 스크림이 70 입니다. 전체보기는 그 위에서 열립니다.
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s8) var(--s6) var(--s6);
+  // 사진에 눈이 가도록 모달 스크림보다 짙게 깔고 흐림은 걷어 냅니다.
+  background: rgba(12, 13, 18, 0.86);
+  animation: fade var(--t-fast) var(--ease-out);
+
+  @include sm {
+    padding: calc(var(--s8) + env(safe-area-inset-top)) var(--s3)
+      calc(var(--s4) + env(safe-area-inset-bottom));
+  }
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  // 사진과 아래 한 줄이 함께 화면 안에 들어와야 합니다.
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  animation: rise var(--t) var(--ease-spring);
+}
+
+/*
+ * 원본 비율은 그대로 두고 화면보다 크면 줄입니다. width/height 를 auto 로 두면
+ * 원본보다 크게 늘어나지 않아 작은 명함 사진이 뿌옇게 번지지 않습니다.
+ */
+.image {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-pop);
+}
+
+.notice {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  text-align: center;
+}
+
+.caption {
+  flex: none;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  text-align: center;
+}
+
+.close {
+  position: absolute;
+  top: var(--s4);
+  right: var(--s4);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.24);
+  }
+
+  @include sm {
+    top: max(var(--s3), env(safe-area-inset-top));
+    right: var(--s3);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}

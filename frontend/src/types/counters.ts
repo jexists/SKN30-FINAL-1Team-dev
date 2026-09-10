@@ -60,6 +60,8 @@ export interface SupportRequestResponse {
   status_code: SupportStatusCode
   occurred_at: string
   registered_at: string
+  /** 한 번도 고치지 않았으면 null 입니다. 값이 있을 때만 "수정일시" 줄이 섭니다. */
+  updated_at: string | null
   responses: SupportResponseResponse[]
 }
 
@@ -71,6 +73,14 @@ export interface SupportRequestCreateRequest {
   is_urgent: boolean
   status_code: SupportStatusCode
   occurred_at: string
+}
+
+/** 보낸 칸만 바뀝니다. 회사·딜·상태는 여기서 못 고칩니다. */
+export interface SupportRequestPatchRequest {
+  title?: string
+  body?: string
+  is_urgent?: boolean
+  occurred_at?: string
 }
 
 export interface SupportTransitionRequest {

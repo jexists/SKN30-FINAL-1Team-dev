@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 
 import Drawer from '@/components/Drawer'
 import { DocumentsIcon, EditIcon, MoreIcon, TrashIcon } from '@/components/icons'
+import ImageLightbox from '@/components/ImageLightbox'
 import Popover from '@/components/Popover'
 import useCompanyDeals from '@/hooks/useCompanyDeals'
 import useCustomerAttachments from '@/pages/Customers/useCustomerAttachments'
@@ -45,10 +46,14 @@ const KIND_LABEL: Record<CustomerAttachment['kind'], string> = {
 
 /**
  * 등록에 쓴 원본 한 건. 사진은 어느 명함인지 알아볼 만큼만 줄여 놓고, 크게 볼 일은
- * 눌러서 원본을 엽니다. PDF 는 미리 보여 줄 수 없어 같은 크기의 자리에 받는 길만 둡니다.
+ * 눌러서 전체보기로 엽니다. PDF 는 미리 보여 줄 수 없어 같은 크기의 자리에 받는 길만 둡니다.
  * 둘을 같은 타일로 맞춰 두면 첨부가 늘어도 세로로 길어지지 않고 옆으로 늡니다.
+ *
+ * 사진이어도 href 는 그대로 둡니다. 가운데 클릭이나 주소 복사로 원본을 따로 여는 길이
+ * 남고, 자바스크립트가 늦게 붙어도 링크로는 열립니다.
  */
 function Attachment({ attachment }: { attachment: CustomerAttachment }) {
+  const [zoom, setZoom] = useState(false)
   const label = KIND_LABEL[attachment.kind]
   const image = attachment.media_type?.startsWith('image/') === true
 
@@ -59,7 +64,15 @@ function Attachment({ attachment }: { attachment: CustomerAttachment }) {
         href={attachment.url}
         target="_blank"
         rel="noopener noreferrer"
-        title={image ? `${label} 원본 열기` : `${label} 원본 받기`}
+        title={image ? `${label} 크게 보기` : `${label} 원본 받기`}
+        onClick={
+          image
+            ? (event) => {
+                event.preventDefault()
+                setZoom(true)
+              }
+            : undefined
+        }
       >
         {image ? (
           <img src={attachment.url} alt={`${label} 원본`} />
@@ -73,6 +86,14 @@ function Attachment({ attachment }: { attachment: CustomerAttachment }) {
       <figcaption className={styles.shotNote}>
         {label} · {sizeLabel(attachment.byte_size)}
       </figcaption>
+      {zoom && (
+        <ImageLightbox
+          src={attachment.url}
+          alt={`${label} 원본`}
+          caption={`${label} · ${sizeLabel(attachment.byte_size)}`}
+          onClose={() => setZoom(false)}
+        />
+      )}
     </figure>
   )
 }

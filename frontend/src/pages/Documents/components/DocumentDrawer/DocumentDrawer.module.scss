@@ -230,6 +230,46 @@
   background: var(--surface-2);
 }
 
+.summaryLoading {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 112px;
+  padding: var(--s4);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+
+  strong {
+    display: block;
+    color: var(--ink);
+    font-size: 13px;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+.summarySpinner {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--line-2);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: summary-spin 0.8s linear infinite;
+}
+
+@keyframes summary-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .reviewNotice {
   margin-bottom: var(--s2);
   color: var(--orange-ink, var(--ink-2));

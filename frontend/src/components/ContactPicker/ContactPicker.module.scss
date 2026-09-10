@@ -25,19 +25,7 @@
 }
 
 .chips {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s1);
-  min-width: 0;
-
-  // combo-box 가 .box.box 로 걸어 둔 flex: 1 1 auto 를 이겨야 합니다. 그대로 두면
-  // 폼이 준 width: 100% 가 flex-basis 가 되어, 칩 하나만 있어도 입력칸이 다음 줄로 밀립니다.
-  &#{&} input {
-    flex: 1 1 90px;
-    min-width: 90px;
-  }
+  @include combo-chips;
 }
 
 .chip {

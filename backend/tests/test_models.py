@@ -61,7 +61,8 @@ EXPECTED_COLUMN_COUNTS = {
     "activity_companion": 2,
     # 20260825_0006 으로 support_request 에 customer_company_id/sales_deal_id/occurred_at 이
     # 늘고 customer_contact_id 가 빠졌다. 불만은 담당자 대신 회사와 계약건에 맨다.
-    "support_request": 11,
+    "support_request": 12,
+    "support_request_edit_backup": 8,
     "support_response": 5,
     "sales_pipeline": 10,
     "sales_pipeline_stage": 10,
@@ -149,7 +150,7 @@ def test_all_database_tables_are_mapped():
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 112
+    assert len(foreign_key_constraints) == 114
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

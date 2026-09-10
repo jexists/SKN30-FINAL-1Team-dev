@@ -282,6 +282,24 @@ export function PlusIcon(props: IconProps) {
   )
 }
 
+export function MinusIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2.2} {...props}>
+      <path d="M5 12h14" />
+    </Icon>
+  )
+}
+
+/** 문서를 시계 방향으로 90도 돌립니다. */
+export function RotateIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <path d="M4 12a8 8 0 1 0 2.6-5.9" />
+      <path d="M4 4v4.5h4.5" />
+    </Icon>
+  )
+}
+
 export function EditIcon(props: IconProps) {
   return (
     <Icon {...props}>

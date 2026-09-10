@@ -337,7 +337,7 @@ async def approve_review(
 
 
 def _summary_markdown(summary: document_summary.DocumentSummaryOutput) -> str:
-    lines = ["# 문서 요약", "", "## 핵심 요약", summary.summary or "내용 없음", ""]
+    lines = ["## 핵심 요약", summary.summary or "내용 없음", ""]
     for title, values in (
         ("주요 내용", summary.key_points),
         ("영업 참고사항", summary.sales_relevance),
@@ -346,11 +346,8 @@ def _summary_markdown(summary: document_summary.DocumentSummaryOutput) -> str:
         lines.extend([f"## {title}", ""])
         lines.extend(f"- {value}" for value in values) if values else lines.append("- 없음")
         lines.append("")
-    # 추출 필드는 summary_payload에 구조화 데이터로 보존한다. 사람이 읽는 AI 문서
-    # 요약에는 중복 표시하지 않아, 요약 본문만 빠르게 확인할 수 있게 한다.
-    if summary.source_refs:
-        lines.extend(["## 출처", ""])
-        lines.extend(f"- {value}" for value in summary.source_refs)
+    # 추출 필드와 출처는 summary_payload에 구조화 데이터로 보존한다. 사람이 읽는 AI
+    # 문서 요약에는 중복 표시하지 않아 요약 본문만 빠르게 확인할 수 있게 한다.
     return "\n".join(lines).strip() + "\n"
 
 

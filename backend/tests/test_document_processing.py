@@ -119,7 +119,9 @@ async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch):
     assert row.processing_status == "completed"
     assert row.extracted_text == "계약기간: 1년"
     assert "계약기간은 1년이다." in row.summary_markdown
+    assert "# 문서 요약" not in row.summary_markdown
     assert "## 추출 필드" not in row.summary_markdown
+    assert "## 출처" not in row.summary_markdown
     chunks = [item for item in second.added if item.__class__.__name__ == "DocumentChunk"]
     audits = [item for item in second.added if item.__class__.__name__ == "DocumentFileAudit"]
     assert len(chunks) == 1
@@ -127,7 +129,7 @@ async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch):
     assert audits[0].action_code == "summary_completed"
 
 
-def test_summary_markdown_excludes_extracted_fields_but_keeps_other_sections():
+def test_summary_markdown_excludes_extracted_fields_and_sources():
     summary = DocumentSummaryOutput(
         summary="계약기간은 1년입니다.",
         key_points=["계약기간은 1년입니다."],
@@ -137,10 +139,11 @@ def test_summary_markdown_excludes_extracted_fields_but_keeps_other_sections():
 
     markdown = document_processing._summary_markdown(summary)
 
+    assert "# 문서 요약" not in markdown
     assert "## 추출 필드" not in markdown
     assert "- 계약기간: 1년" not in markdown
-    assert "## 출처" in markdown
-    assert "- 계약서 1쪽" in markdown
+    assert "## 출처" not in markdown
+    assert "- 계약서 1쪽" not in markdown
 
 
 @pytest.mark.anyio

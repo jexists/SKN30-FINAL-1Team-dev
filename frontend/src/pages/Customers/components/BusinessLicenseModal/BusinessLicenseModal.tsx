@@ -13,6 +13,7 @@ import {
   BusinessLicenseUnavailableError,
   extractBusinessLicense,
   type BusinessLicenseDraft,
+  type LicenseScanProgress,
 } from '../../businessLicense'
 import RecognitionLoading from '../RecognitionLoading'
 
@@ -21,6 +22,11 @@ import styles from './BusinessLicenseModal.module.scss'
 type Phase = 'pick' | 'extracting'
 
 const READ_FALLBACK_MESSAGE = '사업자등록증을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.'
+
+function progressLabel(progress: LicenseScanProgress): string {
+  if (progress.phase === 'uploading') return `파일 올리는 중… ${Math.round(progress.percent)}%`
+  return `사업자등록증 읽는 중… ${progress.elapsedSeconds}초`
+}
 
 interface Props {
   onClose: () => void
@@ -36,6 +42,7 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
+  const [progress, setProgress] = useState<LicenseScanProgress | null>(null)
 
   const reading = phase === 'extracting'
 
@@ -72,15 +79,17 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
     setPhase('extracting')
     setError(null)
     setUnavailable(false)
+    setProgress({ phase: 'uploading', percent: 0 })
 
     try {
-      onDrafted(await extractBusinessLicense(file))
+      onDrafted(await extractBusinessLicense(file, setProgress))
     } catch (caught: unknown) {
       if (caught instanceof BusinessLicenseUnavailableError) setUnavailable(true)
       else if (caught instanceof BusinessLicenseScanError) {
         setError(messageForCode(caught.code, READ_FALLBACK_MESSAGE))
       } else setError(errorMessage(caught, READ_FALLBACK_MESSAGE))
       setPhase('pick')
+      setProgress(null)
     }
   }
 
@@ -90,10 +99,10 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
 
   // 읽는 동안에는 사용자가 손댈 것이 없습니다. 파일 줄과 미리보기, 눌리지 않는 버튼까지
   // 함께 두면 화면만 길어지므로, 어디까지 왔는지 하나만 남깁니다.
-  if (reading) {
+  if (reading && progress) {
     return (
-      <Modal title="사업자 등록증으로 고객 등록" description="" onClose={close}>
-        <RecognitionLoading description="사업자등록증에서 고객사 정보를 확인하고 있습니다." />
+      <Modal title="사업자 등록증으로 고객 등록" description="" onClose={close} size="lg">
+        <RecognitionLoading description={progressLabel(progress)} />
       </Modal>
     )
   }
@@ -103,6 +112,7 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
       title="사업자 등록증으로 고객 등록"
       description=""
       onClose={close}
+      size="lg"
       footer={
         <>
           <Button type="button" variant="outline" onClick={close}>
