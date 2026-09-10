@@ -31,6 +31,7 @@
 
 // 지우기 ✕ 는 라이브러리 기본 스킨이 파란 원으로 그립니다. 이 앱의 어느 조작부와도
 // 닮지 않아 토큰으로 다시 칠합니다. 라이브러리 클래스라 :global 로 잡습니다.
+/* stylelint-disable-next-line selector-pseudo-class-no-unknown */
 .root :global {
   .react-datepicker-wrapper {
     display: block;

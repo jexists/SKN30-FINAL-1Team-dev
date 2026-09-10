@@ -49,7 +49,7 @@ export function presetRange(value: string): { start: string; end: string } {
     return { start: iso(first), end: iso(addDays(first, 6)) }
   }
   if (value === 'month') return { start: iso(startOfMonth(TODAY)), end: iso(endOfMonth(TODAY)) }
-  if (value === 'quarter') return { start: iso(addMonths(TODAY, -3)), end: iso(endOfMonth(TODAY)) }
+  if (value === 'quarter') return { start: iso(addMonths(TODAY, -2)), end: iso(endOfMonth(TODAY)) }
   return { start: '', end: '' }
 }
 
