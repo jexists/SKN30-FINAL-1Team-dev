@@ -24,6 +24,10 @@ interface Props {
   label: string
   /** 선택 칸 아래 삼각형. 바로 아래로 내용이 이어지는 화면에서만 씁니다. */
   notch?: boolean
+  /** 배경을 채우지 않고 테두리만 강조해야 하는 날짜 선택 화면에서 씁니다. */
+  selectionStyle?: 'filled' | 'outline'
+  /** 이 날짜 뒤는 고를 수 없습니다. 미래의 업무보고를 막는 화면에서 씁니다. */
+  maxISO?: string
 }
 
 export default function WeekStrip({
@@ -34,6 +38,8 @@ export default function WeekStrip({
   renderMarks,
   label,
   notch = false,
+  selectionStyle = 'filled',
+  maxISO,
 }: Props) {
   const keys = days.map(iso)
 
@@ -45,6 +51,7 @@ export default function WeekStrip({
     const from = selectedISO || keys[0]
     const next = iso(addDays(parseISO(from), step))
 
+    if (maxISO && next > maxISO) return
     if (!keys.includes(next)) onOutOfRange?.(next)
     onSelect(next)
 
@@ -66,11 +73,12 @@ export default function WeekStrip({
         const dow = d.getDay()
         const isToday = key === TODAY_ISO
         const isSelected = key === selectedISO
+        const isDisabled = maxISO !== undefined && key > maxISO
 
         const cls = [
           styles.day,
           isToday && styles.isToday,
-          isSelected && styles.isSelected,
+          isSelected && (selectionStyle === 'outline' ? styles.isOutline : styles.isSelected),
           dow === 0 && styles.isSun,
           dow === 6 && styles.isSat,
         ]
@@ -85,6 +93,7 @@ export default function WeekStrip({
             className={cls}
             data-iso={key}
             aria-selected={isSelected}
+            disabled={isDisabled}
             // 선택이 없으면 첫 칸 하나만 탭 순서에 둡니다.
             tabIndex={(selectedISO ? isSelected : index === 0) ? 0 : -1}
             onClick={() => onSelect(key)}

@@ -1,10 +1,13 @@
-// 목록 위로 빠져나가는 길입니다. 되돌아가기처럼 왼쪽에 섭니다.
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
 .back {
   margin-bottom: var(--s3);
 }
 
-// 날짜 머리말부터 일정 줄까지 대시보드 하루 카드처럼 한 상자에 담깁니다.
-.card {
+.calendar {
   @include card;
 
   padding: var(--s5);
@@ -14,118 +17,291 @@
   }
 }
 
-// 목록이 들어설 자리라 목록과 같은 만큼 머리말에서 떨어집니다.
-.loading,
-.rows {
-  margin-top: var(--s4);
+.calendarHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
 }
 
-// 대시보드 하루 카드의 줄과 같은 모양입니다. 왼쪽에 시간, 그 옆에 회사와 하는 일.
-// 줄 전체가 보고서로 가는 길이라 통째로 눌립니다.
-.row {
+.range {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.calendarTools {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+
+  button {
+    display: grid;
+    place-items: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 var(--s2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--fill-2);
+    }
+
+    &:disabled {
+      color: var(--muted-2);
+      cursor: default;
+    }
+  }
+}
+
+.selectedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s5) 0 var(--s4);
+  overflow-x: auto;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px var(--s3);
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+
+    span {
+      color: var(--muted-2);
+      font-size: 12px;
+    }
+
+    &:hover {
+      background: var(--fill-2);
+    }
+  }
+
+  .isActive {
+    border: 1px solid var(--line-2);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--sh-1);
+
+    span {
+      color: var(--blue);
+    }
+  }
+}
+
+.loading {
+  min-height: 360px;
+}
+
+.timeline {
+  position: relative;
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
   gap: var(--s3);
-  padding: var(--s4) var(--s3);
-  margin: 0 calc(var(--s3) * -1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  position: relative;
+}
+
+.time {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  padding: var(--s4) var(--s2);
+  border-right: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.dot {
+  position: absolute;
+  top: 50%;
+  right: -7px;
+  transform: translateY(-50%);
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--muted-2);
+}
+
+.status검토대기 {
+  background: var(--blue);
+}
+.status확정 {
+  background: var(--green);
+}
+.status반려 {
+  background: var(--red);
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  min-width: 0;
+  padding: var(--s4) var(--s5);
+  border: 1px solid var(--line);
   border-radius: var(--r-lg);
+  background: var(--surface);
   color: inherit;
-  transition: background var(--t-fast) var(--ease-out);
+  text-decoration: none;
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast),
+    transform var(--t-fast);
 
   &:hover {
-    background: var(--fill-2);
+    border-color: rgba(0, 122, 255, 0.55);
+    box-shadow: var(--sh-1);
   }
 
   &:active {
     transform: translateY(1px);
   }
 
-  @include md {
-    grid-template-columns: 46px minmax(0, 1fr);
-    gap: var(--s2);
-  }
-
-  @include sm {
-    grid-template-columns: minmax(0, 1fr);
-
-    .rail {
-      text-align: left;
-    }
-
-    .org {
-      font-size: 16px;
-    }
+  h2 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.016em;
   }
 }
 
-.rail {
-  text-align: right;
-}
-
-.time {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.body {
+.content {
   min-width: 0;
 }
 
-// 스캔할 때 먼저 찾는 것이 회사라 회사가 앞에 섭니다.
-// 부서와 담당자는 줄을 따로 차지하지 않고 옆에 붙습니다.
-.org {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s2);
-  flex-wrap: wrap;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.016em;
-}
-
-.who {
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: normal;
+.who,
+.brief {
+  margin-top: 3px;
   color: var(--muted);
+  font-size: 12px;
 }
 
 .title {
-  margin-top: 3px;
+  margin-top: var(--s2);
   font-size: 14px;
   font-weight: 600;
-  letter-spacing: -0.008em;
 }
 
 .brief {
-  margin-top: var(--s2);
-  font-size: 13px;
-  line-height: 1.62;
-  color: var(--ink-2);
   display: -webkit-box;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-  -webkit-box-orient: vertical;
   overflow: hidden;
-
-  @include md {
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-  }
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
 }
 
-// 끝낸 일정은 훑을 때 걸러집니다.
-.isDone {
-  opacity: 0.45;
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .empty {
+  @include card;
+
   padding: var(--s8) var(--s4);
   text-align: center;
-  color: var(--ink-2);
-  font-size: 13px;
+  color: var(--muted);
+
+  button,
+  .emptyCta {
+    margin-top: var(--s3);
+  }
+
+  button {
+    padding: 8px var(--s3);
+    border: 0;
+    border-radius: var(--r-sm);
+    background: var(--blue-tint);
+    color: var(--blue);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
 }
 
-.emptyCta {
-  margin-top: var(--s3);
+@include sm {
+  .calendar {
+    margin: 0 calc(var(--s3) * -1);
+  }
+
+  .calendarHead {
+    align-items: flex-start;
+  }
+
+  .entry {
+    padding-left: 22px;
+  }
+
+  .time {
+    display: block;
+    min-height: 0;
+    padding: 0;
+    border-right: 0;
+    text-align: left;
+  }
+
+  .dot {
+    top: var(--s4);
+    right: auto;
+    left: -20px;
+    transform: none;
+  }
+
+  .card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--s3);
+  }
+
+  .time {
+    grid-column: 1 / -1;
+  }
+
+  .content {
+    grid-column: 1;
+  }
+
+  .action {
+    font-size: 0;
+  }
 }
