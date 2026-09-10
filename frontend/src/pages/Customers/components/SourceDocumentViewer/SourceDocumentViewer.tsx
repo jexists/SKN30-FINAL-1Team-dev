@@ -232,7 +232,7 @@ export default function SourceDocumentViewer({
           aria-label={fullScreen ? '원본 문서 닫기' : '원본 문서 접기'}
           onClick={onCollapse}
         >
-          {fullScreen ? <CloseIcon /> : <ChevronRightIcon />}
+          {fullScreen ? <CloseIcon /> : <ChevronLeftIcon />}
         </Button>
       </header>
 

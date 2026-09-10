@@ -77,6 +77,12 @@
       border-color var(--t-fast) var(--ease-out),
       box-shadow var(--t-fast) var(--ease-out);
 
+    // 아직 채우지 않은 필수 칸. 문구를 읽기 전에 어느 칸인지 눈에 먼저 들어옵니다.
+    &[aria-invalid='true'] {
+      border-color: var(--red);
+    }
+
+    // 지금 치고 있는 칸은 파란 테두리가 이깁니다. 고치는 중에 빨간 칸을 볼 이유가 없습니다.
     &:focus {
       border-color: var(--blue);
       box-shadow: 0 0 0 3px var(--blue-ring);

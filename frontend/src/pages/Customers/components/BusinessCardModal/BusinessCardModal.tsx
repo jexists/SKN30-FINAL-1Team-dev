@@ -103,6 +103,9 @@ export default function BusinessCardModal({
     if (!reading) onClose()
   }
 
+  // 읽다 실패한 뒤에도 사진은 그대로 있습니다. 같은 버튼이 다시 읽는 버튼이 됩니다.
+  const failed = image !== null && (error !== null || unavailable)
+
   // 읽는 동안에는 사용자가 손댈 것이 없습니다. 미리보기와 눌리지 않는 버튼까지
   // 함께 두면 화면만 길어지므로, 어디까지 왔는지 하나만 남깁니다.
   if (reading && progress) {
@@ -120,14 +123,9 @@ export default function BusinessCardModal({
       onClose={close}
       size="lg"
       footer={
-        <>
-          <Button type="button" variant="outline" onClick={close}>
-            취소
-          </Button>
-          <Button type="button" disabled={image === null} onClick={read}>
-            명함 읽기
-          </Button>
-        </>
+        <Button type="button" disabled={image === null} onClick={read}>
+          {failed ? '다시 시도' : '다음'}
+        </Button>
       }
     >
       <input

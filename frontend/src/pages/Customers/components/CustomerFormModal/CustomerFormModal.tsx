@@ -6,10 +6,11 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import AddressField, { type AddressValue } from '@/components/AddressField'
 import Button from '@/components/Button'
 import CompanyAutocomplete, { type CompanySelection } from '@/components/CompanyAutocomplete'
-import { ChevronLeftIcon } from '@/components/icons'
+import { ChevronRightIcon, InfoIcon } from '@/components/icons'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import Modal from '@/components/Modal'
 import Select from '@/components/Select'
+import StatusBadge from '@/components/StatusBadge'
 import { SOURCE_OPTIONS } from '@/pages/Customers/contact'
 import type {
   Customer,
@@ -69,11 +70,12 @@ const EMPTY = {
   title: '',
   email: '',
   phone: '',
+  fax: '',
   memo: '',
 }
 
 type Draft = typeof EMPTY
-type ErrorKey = keyof Draft | 'company' | 'businessNo' | 'assignees'
+type ErrorKey = keyof Draft | 'company' | 'businessNo' | 'address' | 'assignees'
 type Errors = Partial<Record<ErrorKey, string>>
 
 interface Form {
@@ -99,6 +101,40 @@ function validate({ draft, company, businessNo, assigneeIds }: Form): Errors {
 }
 
 const optional = (value: string): string | null => value.trim() || null
+
+/**
+ * 문서에서 읽어 채운 칸들. 사람이 눈으로 확인해야 하는 자리라 뱃지를 답니다.
+ * 사람이 직접 친 값과 구분되지 않으면 검수 없이 저장되고, 그건 OCR 오차가 그대로
+ * 고객 정보가 된다는 뜻입니다.
+ */
+function filledByDocument(
+  initial: Partial<Draft> | undefined,
+  company: CompanySelection | undefined,
+  businessNo: string | undefined,
+  address: AddressValue | undefined,
+): Set<ErrorKey> {
+  const filled = new Set<ErrorKey>()
+  for (const [key, value] of Object.entries(initial ?? {})) {
+    if (typeof value === 'string' && value.trim() !== '') filled.add(key as ErrorKey)
+  }
+  if (company !== undefined) filled.add('company')
+  if (businessNo !== undefined && businessNo.trim() !== '') filled.add('businessNo')
+  if (address !== undefined && address.address.trim() !== '') filled.add('address')
+  return filled
+}
+
+/**
+ * 문서에서 읽지 못한 필수 칸. 저장을 눌러 보기 전에 어디가 비었는지 먼저 보여 줍니다.
+ * 백엔드 명함 서비스가 보는 세 항목(name·company_name·phone)과 같습니다.
+ */
+function missingRequired(form: Form): Errors {
+  const found = validate(form)
+  const initial: Errors = {}
+  for (const key of ['company', 'name', 'phone'] as const) {
+    if (found[key] !== undefined) initial[key] = found[key]
+  }
+  return initial
+}
 
 const companyName = (company: CompanySelection): string =>
   company.kind === 'existing' ? company.company.name : company.name
@@ -173,6 +209,7 @@ function customerDraft(customer: Customer): Draft {
     title: customer.title,
     email: customer.email,
     phone: customer.phone,
+    fax: customer.fax,
     memo: customer.memo,
   }
 }
@@ -197,6 +234,15 @@ export default function CustomerFormModal({
   const sourceFile = archiveImage ?? archiveLicense
   // 원본이 있으면 검수 화면이다. 열어 둔 채로 시작하고, 입력 공간이 필요하면 접는다.
   const [sourceOpen, setSourceOpen] = useState(true)
+  const reviewing = sourceFile !== undefined
+  // 자동 입력 안내. 한 번 읽으면 자리만 차지하므로 닫을 수 있다.
+  const [noticeOpen, setNoticeOpen] = useState(true)
+  // 문서에서 채워진 칸. 사람이 고치면 확인이 끝난 것이라 그 칸만 빠진다.
+  const [fromDocument, setFromDocument] = useState<Set<ErrorKey>>(() =>
+    reviewing
+      ? filledByDocument(initial, initialCompany, initialBusinessNo, initialAddress)
+      : new Set(),
+  )
 
   const [draft, setDraft] = useState<Draft>(
     customer ? customerDraft(customer) : { ...EMPTY, ...initial },
@@ -224,7 +270,16 @@ export default function CustomerFormModal({
     const owners = customer.owners?.map((owner) => owner.id) ?? []
     return owners.length > 0 ? owners : [customer.ownerMemberId ?? memberId]
   })
-  const [errors, setErrors] = useState<Errors>({})
+  const [errors, setErrors] = useState<Errors>(() =>
+    reviewing && customer === undefined
+      ? missingRequired({
+          draft: { ...EMPTY, ...initial },
+          company: initialCompany ?? null,
+          businessNo: initialBusinessNo ?? '',
+          assigneeIds: [],
+        })
+      : {},
+  )
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   /*
@@ -272,9 +327,20 @@ export default function CustomerFormModal({
     setSubmitError(null)
   }
 
+  /** 사람이 그 칸을 손댔습니다. 더는 확인이 필요한 값이 아닙니다. */
+  const confirmed = (key: ErrorKey) => {
+    setFromDocument((previous) => {
+      if (!previous.has(key)) return previous
+      const next = new Set(previous)
+      next.delete(key)
+      return next
+    })
+  }
+
   const set = (key: keyof Draft, value: string) => {
     setDraft((previous) => ({ ...previous, [key]: value }))
     clearError(key)
+    confirmed(key)
   }
 
   const pickCompany = (selection: CompanySelection | null) => {
@@ -293,6 +359,7 @@ export default function CustomerFormModal({
     }
     clearError('company')
     clearError('businessNo')
+    confirmed('company')
   }
 
   const submit = async () => {
@@ -316,6 +383,7 @@ export default function CustomerFormModal({
         job_title: optional(draft.title),
         email: optional(draft.email),
         phone: phoneDigits(draft.phone),
+        fax: phoneDigits(draft.fax) || null,
         source_code: sourceCode === '' ? null : sourceCode,
         memo: optional(draft.memo),
         visited,
@@ -433,6 +501,20 @@ export default function CustomerFormModal({
         </>
       }
     >
+      {reviewing && noticeOpen && (
+        <div className={styles.ocrNotice} role="status">
+          <InfoIcon className={styles.ocrIcon} />
+          <p>문서에서 정보를 자동으로 입력했습니다. 자동입력 표시가 붙은 항목을 확인해주세요.</p>
+          <button
+            type="button"
+            className={styles.ocrClose}
+            aria-label="안내 닫기"
+            onClick={() => setNoticeOpen(false)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       <Split
         source={
           sourceFile && (
@@ -456,7 +538,13 @@ export default function CustomerFormModal({
           </div>
         )}
         <div className={styles.grid} aria-busy={submitting}>
-          <Field label="회사" required error={errors.company} htmlFor={false}>
+          <Field
+            label="회사"
+            required
+            error={errors.company}
+            check={fromDocument.has('company')}
+            htmlFor={false}
+          >
             <CompanyAutocomplete
               value={company}
               onChange={pickCompany}
@@ -466,9 +554,14 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="사업자 등록번호" error={errors.businessNo}>
+          <Field
+            label="사업자 등록번호"
+            error={errors.businessNo}
+            check={fromDocument.has('businessNo')}
+          >
             <input
               value={maskBusinessNo(businessNo)}
+              aria-invalid={errors.businessNo !== undefined}
               placeholder="123-45-67890"
               maxLength={12}
               // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
@@ -478,42 +571,55 @@ export default function CustomerFormModal({
               onChange={(event) => {
                 setBusinessNo(businessNoDigits(event.target.value))
                 clearError('businessNo')
+                confirmed('businessNo')
               }}
             />
           </Field>
 
           {/* 주소는 회사에 붙는 값입니다. 이미 있는 회사면 그 회사의 주소를 보여 주기만 합니다. */}
-          <Field label="주소" wide htmlFor={false}>
+          <Field
+            label="주소"
+            wide
+            check={fromDocument.has('address')}
+            hint="앞부분을 누르면 주소를 찾고, 뒤에 이어 쓰면 상세주소가 됩니다."
+            hintId="address-field-hint"
+            htmlFor={false}
+          >
             <AddressField
               value={address}
-              onChange={setAddress}
+              onChange={(next) => {
+                setAddress(next)
+                confirmed('address')
+              }}
               readOnly={company?.kind === 'existing'}
               // 등록증에서 읽어 온 주소가 있으면 회사를 고르기 전에도 다시 고를 수 있습니다.
               disabled={submitting || (company === null && address.address === '')}
             />
           </Field>
 
-          <Field label="이름" required error={errors.name}>
+          <Field label="이름" required error={errors.name} check={fromDocument.has('name')}>
             <input
               value={draft.name}
               maxLength={254}
+              aria-invalid={errors.name !== undefined}
               disabled={submitting}
               onChange={(event) => set('name', event.target.value)}
             />
           </Field>
 
-          <Field label="전화" required error={errors.phone}>
+          <Field label="휴대폰" required error={errors.phone} check={fromDocument.has('phone')}>
             <input
               type="tel"
               value={formatPhone(draft.phone)}
-              placeholder="02-000-0000"
+              placeholder="010-0000-0000"
               maxLength={50}
+              aria-invalid={errors.phone !== undefined}
               disabled={submitting}
               onChange={(event) => set('phone', phoneDigits(event.target.value))}
             />
           </Field>
 
-          <Field label="부서">
+          <Field label="부서" check={fromDocument.has('dept')}>
             <input
               value={draft.dept}
               placeholder="부서 이름"
@@ -523,7 +629,7 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="직함">
+          <Field label="직함" check={fromDocument.has('title')}>
             <input
               value={draft.title}
               placeholder="과장"
@@ -533,14 +639,26 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="이메일" error={errors.email}>
+          <Field label="이메일" error={errors.email} check={fromDocument.has('email')}>
             <input
               type="email"
               value={draft.email}
               placeholder="name@company.com"
               maxLength={254}
+              aria-invalid={errors.email !== undefined}
               disabled={submitting}
               onChange={(event) => set('email', event.target.value)}
+            />
+          </Field>
+
+          <Field label="팩스" check={fromDocument.has('fax')}>
+            <input
+              type="tel"
+              value={formatPhone(draft.fax)}
+              placeholder="02-000-0000"
+              maxLength={50}
+              disabled={submitting}
+              onChange={(event) => set('fax', phoneDigits(event.target.value))}
             />
           </Field>
 
@@ -649,7 +767,7 @@ function Split({ source, open, onReopen, children }: SplitProps) {
           <div className={styles.paneTop}>
             <button type="button" className={styles.reopen} onClick={onReopen}>
               원본 보기
-              <ChevronLeftIcon width={14} height={14} />
+              <ChevronRightIcon width={14} height={14} />
             </button>
           </div>
         )}
@@ -667,6 +785,12 @@ interface FieldProps {
   label: string
   required?: boolean
   error?: string
+  /** 문서에서 읽어 온 값. 사람이 확인할 때까지 라벨 옆에 표시합니다. */
+  check?: boolean
+  /** 칸을 어떻게 쓰는지 한 줄로. 칸 아래가 아니라 라벨 끝에 붙습니다. */
+  hint?: string
+  /** 입력이 aria-describedby 로 가리키는 힌트의 id. */
+  hintId?: string
   wide?: boolean
   /**
    * label 로 감쌀지. 검색해서 고르는 입력은 안에 버튼이 있어, label 을 누르면 버튼이
@@ -676,13 +800,29 @@ interface FieldProps {
   children: React.ReactNode
 }
 
-function Field({ label, required, error, wide, htmlFor = true, children }: FieldProps) {
+function Field({
+  label,
+  required,
+  error,
+  check,
+  hint,
+  hintId,
+  wide,
+  htmlFor = true,
+  children,
+}: FieldProps) {
   const Wrapper = htmlFor ? 'label' : 'div'
   return (
     <Wrapper className={`${styles.field} ${wide ? styles.isWide : ''}`}>
       <span className={styles.label}>
         {label}
         {required && <b aria-hidden="true">*</b>}
+        {check && <StatusBadge label="자동입력" tone="orange" />}
+        {hint && (
+          <span id={hintId} className={styles.hint}>
+            {hint}
+          </span>
+        )}
       </span>
       {children}
       {error && <span className={styles.error}>{error}</span>}

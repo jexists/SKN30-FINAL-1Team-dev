@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
+import Button from '@/components/Button'
 import { UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import type { CustomerContactBulkItem, CustomerContactBulkResult } from '@/types'
@@ -70,7 +71,7 @@ interface ImportModalProps {
 
 export default function ImportModal({ onClose, onImported }: ImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [filename, setFilename] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
   const [count, setCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CustomerContactBulkResult | null>(null)
@@ -97,16 +98,15 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
   }
 
   /*
-   * 파일을 고르면 그대로 보냅니다. 보내기 전에 한 번 더 보여 줘도 사용자가 손볼 것은
+   * 고른 파일을 읽어 그대로 보냅니다. 보내기 전에 한 번 더 보여 줘도 사용자가 손볼 것은
    * 없고, 몇 명이 왜 빠졌는지는 등록한 뒤 결과에 남습니다.
    * 여기서 막는 것은 아예 보낼 수 없는 파일뿐입니다.
    */
-  const readFile = async (file: File) => {
-    if (parsing || sending) return
+  const readFile = async () => {
+    if (file === null || parsing || sending) return
 
     setParsing(true)
     setError(null)
-    setFilename(file.name)
     setCount(0)
     setResult(null)
 
@@ -172,13 +172,27 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
           ? '일부 등록 완료'
           : '등록 완료'
 
+  const picking = result === null && !parsing && !sending
+
   return (
-    <Modal title={heading} description="" onClose={close} size="lg">
+    <Modal
+      title={heading}
+      description=""
+      onClose={close}
+      size="lg"
+      footer={
+        picking && (
+          <Button type="button" disabled={file === null} onClick={() => void readFile()}>
+            {error === null ? '다음' : '다시 시도'}
+          </Button>
+        )
+      }
+    >
       {/*
         고르는 자리는 고를 때만 둡니다. 읽는 중에는 누를 수 없고 등록이 끝나면 같은 파일을
         다시 올릴 일이 없어, 남겨 두면 아직 할 일이 있는 것처럼 읽힙니다.
       */}
-      {result === null && !parsing && !sending && (
+      {picking && (
         <>
           <input
             ref={fileRef}
@@ -186,15 +200,18 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
             accept=".csv,text/csv"
             className="sr-only"
             onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) void readFile(file)
+              const next = event.target.files?.[0]
+              if (next) {
+                setFile(next)
+                setError(null)
+              }
               // 같은 파일을 고쳐서 다시 고르면 change 가 뜨지 않습니다.
               event.target.value = ''
             }}
           />
           <button type="button" className={styles.drop} onClick={() => fileRef.current?.click()}>
             <UploadIcon width={22} height={22} strokeWidth={1.5} />
-            <strong>{filename ?? 'CSV 파일 선택'}</strong>
+            <strong>{file?.name ?? 'CSV 파일 선택'}</strong>
           </button>
           <button type="button" className={styles.template} onClick={downloadTemplate}>
             엑셀 템플릿 다운로드

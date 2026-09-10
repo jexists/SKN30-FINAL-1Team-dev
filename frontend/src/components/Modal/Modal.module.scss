@@ -100,12 +100,15 @@
  */
 .isFlush {
   display: flex;
+  // 안내문을 본문 맨 위에 한 줄로 얹을 수 있게 세로로 쌓습니다.
+  flex-direction: column;
   overflow: hidden;
   padding: 0;
 
   > * {
     flex: 1;
     min-width: 0;
+    min-height: 0;
   }
 }
 

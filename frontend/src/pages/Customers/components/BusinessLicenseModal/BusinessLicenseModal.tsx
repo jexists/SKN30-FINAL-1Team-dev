@@ -97,6 +97,9 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
     if (!reading) onClose()
   }
 
+  // 읽다 실패한 뒤에도 파일은 그대로 있습니다. 같은 버튼이 다시 읽는 버튼이 됩니다.
+  const failed = file !== null && (error !== null || unavailable)
+
   // 읽는 동안에는 사용자가 손댈 것이 없습니다. 파일 줄과 미리보기, 눌리지 않는 버튼까지
   // 함께 두면 화면만 길어지므로, 어디까지 왔는지 하나만 남깁니다.
   if (reading && progress) {
@@ -114,14 +117,9 @@ export default function BusinessLicenseModal({ onClose, onDrafted }: Props) {
       onClose={close}
       size="lg"
       footer={
-        <>
-          <Button type="button" variant="outline" onClick={close}>
-            취소
-          </Button>
-          <Button type="button" disabled={file === null} onClick={read}>
-            다음
-          </Button>
-        </>
+        <Button type="button" disabled={file === null} onClick={read}>
+          {failed ? '다시 시도' : '다음'}
+        </Button>
       }
     >
       <input
