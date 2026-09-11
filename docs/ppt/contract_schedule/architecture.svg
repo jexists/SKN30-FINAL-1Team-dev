@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<title>계약·일정 관리 에이전트 아키텍처</title>
+<desc>서버가 계약 판단과 일정 후보 생성을 연결하고, 사용자 등록 이후 자료실 근거로 브리핑을 생성하는 현재 구현.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#345578"/></marker>
+<style>
+text{font-family:'Apple SD Gothic Neo','Noto Sans CJK KR','Noto Sans KR',sans-serif}
+.title{font-size:42px;font-weight:700;fill:#12263f}
+.h{font-size:28px;font-weight:700;fill:#12263f}
+.b{font-size:23px;fill:#435b75}
+.label{font-size:22px;font-weight:700;fill:#1b5fb0}
+.box{fill:#f3f7fc;stroke:#7991ad;stroke-width:2}
+.agent{fill:#e7f0ff;stroke:#1b5fb0;stroke-width:2.5}
+.user{fill:#fff5df;stroke:#b78022;stroke-width:2.5}
+.line{fill:none;stroke:#345578;stroke-width:3;marker-end:url(#arrow)}
+.note{font-size:20px;fill:#5f7185}
+</style></defs>
+<rect width="1600" height="900" fill="white"/>
+<text x="60" y="72" class="title">계약·일정 관리 에이전트 아키텍처</text>
+<text x="60" y="115" class="b">현재 구현 · 서버가 실행 순서를 제어하고 사용자가 일정을 등록합니다</text>
+<text x="60" y="174" class="label">01  업무 이벤트 기반 추천</text>
+<rect x="60" y="200" width="265" height="215" rx="10" class="box"/>
+<text x="82" y="244" class="h">업무 이벤트</text>
+<text x="82" y="286" class="b">보고서 확정 · 딜 변경</text>
+<text x="82" y="319" class="b">일정 등록 · CS 처리</text>
+<text x="82" y="371" class="note">서버가 대상 딜 입력 준비</text>
+<path d="M325 305H365" class="line"/>
+<rect x="375" y="200" width="255" height="215" rx="10" class="agent"/>
+<text x="397" y="244" class="h">계약관리 Agent</text>
+<text x="397" y="286" class="b">영업현황 · 확정 보고서</text>
+<text x="397" y="319" class="b">서버 계산 위험 신호</text>
+<text x="397" y="371" class="note">미팅 이유 · 기간 · 소요 시간</text>
+<path d="M630 305H670" class="line"/>
+<rect x="680" y="200" width="265" height="215" rx="10" class="agent"/>
+<text x="702" y="244" class="h">일정관리 Agent</text>
+<text x="702" y="286" class="b">담당자 기존 일정 반영</text>
+<text x="702" y="319" class="b">후보 생성 · 서버 후처리</text>
+<text x="702" y="371" class="note">시간 · 겹침 · 소요 시간 검사</text>
+<path d="M945 305H985" class="line"/>
+<rect x="995" y="200" width="230" height="215" rx="10" class="box"/>
+<text x="1017" y="244" class="h">추천 저장·조회</text>
+<text x="1017" y="286" class="b">결과를 DB에 저장</text>
+<text x="1017" y="319" class="b">캘린더에서 조회</text>
+<text x="1017" y="371" class="note">유효 후보 최대 5개</text>
+<path d="M1225 305H1265" class="line"/>
+<rect x="1275" y="200" width="265" height="215" rx="10" class="user"/>
+<text x="1297" y="244" class="h">사용자 선택</text>
+<text x="1297" y="286" class="b">후보 확인 · 일정 등록</text>
+<text x="1297" y="319" class="b">추천 중복 등록 방어</text>
+<text x="1297" y="371" class="note">등록 후 충돌 시 경고</text>
+<text x="60" y="473" class="label">02  자료실 근거를 활용한 브리핑</text>
+<rect x="60" y="500" width="310" height="190" rx="10" class="box"/>
+<text x="82" y="541" class="h">자료실 청크·요약</text>
+<text x="82" y="582" class="b">고객사·딜 범위 필터</text>
+<text x="82" y="617" class="b">최신 처리 완료 파일</text>
+<text x="82" y="655" class="note">PostgreSQL 저장 자료</text>
+<path d="M370 595H420" class="line"/>
+<rect x="430" y="500" width="370" height="190" rx="10" class="box"/>
+<text x="452" y="541" class="h">RAG 검색</text>
+<text x="452" y="582" class="b">고객사명 + 일정·딜 제목</text>
+<text x="452" y="617" class="b">임베딩 유사도 또는 키워드</text>
+<text x="452" y="655" class="note">상위 5청크 + 해당 파일 요약</text>
+<path d="M800 595H935" class="line"/>
+<text x="832" y="574" class="note">근거</text>
+<rect x="945" y="500" width="595" height="190" rx="10" class="agent"/>
+<text x="967" y="541" class="h">계약관리 Agent · 브리핑 생성</text>
+<text x="967" y="582" class="b">등록 일정 + 영업현황 + 위험 신호 + 검색 근거</text>
+<text x="967" y="617" class="b">계약 요약 · 확인 사항 · 권장 행동 · 출처</text>
+<text x="967" y="655" class="note">조회 문서 ID 기준 출처 필터 / 생성 결과 저장</text>
+<path d="M1405 415V489" class="line"/>
+<text x="1170" y="462" class="note">일정 등록 후 생성 요청</text>
+<rect x="60" y="738" width="1480" height="82" rx="8" fill="#edf2f7"/>
+<text x="82" y="773" class="h">공통 실행 기반</text>
+<text x="340" y="773" class="b">AgentRun / worker · 작업 선점 · 상태·결과 저장 · 오류·재시도 관리</text>
+<text x="82" y="804" class="note">LLM 호출: 공통 generate_structured() · OpenAI 호환 API · Pydantic 출력 검증</text>
+<text x="60" y="858" class="note">정상 경로 요약 · 제안/후보가 없으면 중단 가능 · 브리핑은 수동 등록 일정에도 생성 가능</text>
+<text x="60" y="885" class="note">화면의 관련자료 목록은 별도 연결 조회이며, 모든 상품 자료가 브리핑 검색에 포함되지는 않습니다.</text>
+</svg>
