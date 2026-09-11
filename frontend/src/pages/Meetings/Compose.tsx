@@ -256,13 +256,14 @@ export default function Compose() {
   const deals = useCompanyDeals(item?.customerCompanyId)
   const [createDealOpen, setCreateDealOpen] = useState(false)
   const createDealKey = useRef('')
-  useEffect(() => {
-    setCreateDealOpen(false)
-    createDealKey.current = ''
-  }, [agendaId, item?.customerCompanyId])
   const [confirm, setConfirm] = useState<Confirm>(null)
   // 일정 상세는 대시보드·캘린더가 쓰는 드로어를 그대로 엽니다. AI 브리핑까지 그 안에 있습니다.
   const [detailOpen, setDetailOpen] = useState(false)
+  useEffect(() => {
+    setCreateDealOpen(false)
+    createDealKey.current = ''
+    setDetailOpen(false)
+  }, [agendaId, item?.customerCompanyId])
 
   if (agendaLoading || loading) {
     return (

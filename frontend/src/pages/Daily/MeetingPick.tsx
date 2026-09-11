@@ -166,9 +166,14 @@ export default function MeetingPick() {
             return (
               <>
                 {Array.from({ length: shown }, (_, index) => (
-                  <i key={index} className={styles.markDot} />
+                  <i key={index} aria-hidden="true" className={styles.markDot} />
                 ))}
-                {hidden > 0 && <span className={`${styles.more} tnum`}>+{hidden}</span>}
+                {hidden > 0 && (
+                  <span aria-hidden="true" className={`${styles.more} tnum`}>
+                    +{hidden}
+                  </span>
+                )}
+                <span className="sr-only">일정 {total}건</span>
               </>
             )
           }}
