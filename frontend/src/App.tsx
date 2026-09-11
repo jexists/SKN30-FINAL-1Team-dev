@@ -91,7 +91,10 @@ export default function App() {
               </Route>
 
               <Route path={ROUTES.SALES} element={<Sales />} />
-              <Route path={ROUTES.DOCUMENTS} element={<Documents />} />
+              {/* 자료실은 방 둘을 같은 화면으로 봅니다. 예전 링크는 영업자료실로 넘깁니다. */}
+              <Route path={ROUTES.DOCUMENTS_TRADE} element={<Documents room="trade" />} />
+              <Route path={ROUTES.DOCUMENTS_SALES} element={<Documents room="sales" />} />
+              <Route path="/documents" element={<Navigate to={ROUTES.DOCUMENTS_SALES} replace />} />
 
               {/* 영업 현황은 같은 딜을 목록과 보드 두 가지로 봅니다. */}
               <Route path={ROUTES.DEALS}>

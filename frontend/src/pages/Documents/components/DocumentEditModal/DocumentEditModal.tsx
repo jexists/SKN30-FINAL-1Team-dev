@@ -8,6 +8,7 @@ import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import RecordPicker, { type RecordOption } from '@/components/RecordPicker'
 import Select from '@/components/Select'
+import { showToast } from '@/shared/toast'
 import type {
   DocumentCategory,
   DocumentLink,
@@ -16,13 +17,22 @@ import type {
   SalesDocument,
 } from '@/types'
 
-import { CATEGORY_OPTIONS, LINK_KINDS } from '../../catalog'
+import {
+  clampCategory,
+  LINK_KINDS,
+  needsDeal,
+  ROOMS,
+  type RoomId,
+  uploadCategories,
+} from '../../catalog'
 import { linkLabel } from '../../columns'
 import type { DocumentMeta } from '../../useDocuments'
 
 import styles from './DocumentEditModal.module.scss'
 
 interface Props {
+  /** 자료가 선 방. 고를 수 있는 분류와 연결은 등록할 때와 같은 규칙을 씁니다. */
+  room: RoomId
   doc: SalesDocument
   submitting?: boolean
   onClose: () => void
@@ -33,25 +43,62 @@ interface Props {
 const isEditableLink = (kind: DocumentLink['kind']) =>
   (LINK_KINDS as readonly string[]).includes(kind)
 
-export default function DocumentEditModal({ doc, submitting = false, onClose, onSubmit }: Props) {
+export default function DocumentEditModal({
+  room,
+  doc,
+  submitting = false,
+  onClose,
+  onSubmit,
+}: Props) {
   const linkEditable = isEditableLink(doc.link.kind)
+  const { linkKinds } = ROOMS[room]
+  // 고를 수 있는 연결이 하나뿐인 방은 고르는 자리를 두지 않고 그것으로 고정합니다.
+  const linkFixed = linkEditable && linkKinds.length === 1
 
   const [title, setTitle] = useState(doc.title)
   const [category, setCategory] = useState<DocumentCategory>(doc.category)
   const [description, setDescription] = useState(doc.description)
+  // 이 방에서 고를 수 없는 연결로 저장된 자료(예: 거래문서실의 상품 연결 견적서)는
+  // 그 방이 쓰는 연결로 열립니다. 고른 대상은 다른 목록의 것이라 비워 둡니다.
+  const linkKept =
+    linkEditable && (linkKinds as readonly DocumentLink['kind'][]).includes(doc.link.kind)
   const [linkKind, setLinkKind] = useState<DocumentLink['kind']>(
-    linkEditable ? doc.link.kind : 'none',
+    linkKept ? doc.link.kind : linkEditable ? linkKinds[0] : 'none',
   )
   const [linkTarget, setLinkTarget] = useState<RecordOption | null>(
-    linkEditable && doc.link.id !== '' ? { id: doc.link.id, label: doc.link.label } : null,
+    linkKept && doc.link.id !== '' ? { id: doc.link.id, label: doc.link.label } : null,
   )
-  const [error, setError] = useState('')
+
+  // 등록할 때와 같은 규칙입니다. 수정 한 번으로 자료가 다른 방으로 새면 안 됩니다.
+  // 바꿀 수 없는 예전 연결(고객사·발주)은 지금 분류를 그대로 쓸 수 있게 둡니다.
+  const allowed = linkEditable ? uploadCategories(room, linkKind) : [doc.category]
+  const categoryOptions = allowed.map((item) => ({ value: item, label: item }))
+
+  const changeLinkKind = (kind: DocumentLink['kind']) => {
+    setLinkKind(kind)
+    // 종류가 바뀌면 앞서 고른 것은 다른 목록의 것입니다.
+    setLinkTarget(null)
+    // 상품 연결은 상품설명서를 쓰는 자리라 분류를 그것으로 맞춰 둡니다.
+    setCategory((current) =>
+      kind === '상품' ? '상품설명서' : clampCategory(current, uploadCategories(room, kind)),
+    )
+  }
 
   const submit = () => {
     if (submitting) return
     const nextTitle = title.trim()
     if (nextTitle === '') {
-      setError('제목을 입력하세요.')
+      showToast('제목을 입력하세요.', { tone: 'error' })
+      return
+    }
+    // 연결 대상을 골랐으면 그 대상은 비울 수 없습니다.
+    if (linkEditable && linkKind !== 'none' && linkTarget === null) {
+      showToast(`연결할 ${linkKind}을 고르세요.`, { tone: 'error' })
+      return
+    }
+    // 딜이 곧 방 소속인 자료는 딜을 비우면 다른 방으로 넘어가 이 자리에서 사라집니다.
+    if (linkEditable && linkTarget === null && needsDeal(room, category)) {
+      showToast('기타 자료는 연결할 딜을 고르세요.', { tone: 'error' })
       return
     }
 
@@ -93,10 +140,7 @@ export default function DocumentEditModal({ doc, submitting = false, onClose, on
           <input
             value={title}
             placeholder="목록에 설 이름"
-            onChange={(event) => {
-              setTitle(event.target.value)
-              setError('')
-            }}
+            onChange={(event) => setTitle(event.target.value)}
           />
         </Field>
 
@@ -104,38 +148,41 @@ export default function DocumentEditModal({ doc, submitting = false, onClose, on
           <Select
             label="분류"
             value={category}
-            options={CATEGORY_OPTIONS}
+            options={categoryOptions}
             onChange={(next) => setCategory(next as DocumentCategory)}
           />
         </Field>
 
         {linkEditable ? (
           <>
-            <Field label="연결 대상" htmlFor={false}>
-              <div className={styles.choice} role="radiogroup" aria-label="연결 대상">
-                {LINK_KINDS.map((kind) => (
-                  <label key={kind} className={styles.choiceItem}>
-                    <input
-                      type="radio"
-                      name="linkKind"
-                      className="sr-only"
-                      value={kind}
-                      checked={linkKind === kind}
-                      onChange={() => {
-                        setLinkKind(kind)
-                        // 종류가 바뀌면 앞서 고른 것은 다른 목록의 것입니다.
-                        setLinkTarget(null)
-                      }}
-                    />
-                    <span>{kind === 'none' ? '연결 안 함' : `${kind} 연결`}</span>
-                  </label>
-                ))}
-              </div>
-            </Field>
+            {!linkFixed && (
+              <Field label="연결 대상" htmlFor={false}>
+                <div className={styles.choice} role="radiogroup" aria-label="연결 대상">
+                  {linkKinds.map((kind) => (
+                    <label key={kind} className={styles.choiceItem}>
+                      <input
+                        type="radio"
+                        name="linkKind"
+                        className="sr-only"
+                        value={kind}
+                        checked={linkKind === kind}
+                        onChange={() => changeLinkKind(kind)}
+                      />
+                      <span>{kind === 'none' ? '연결 안 함' : `${kind} 연결`}</span>
+                    </label>
+                  ))}
+                </div>
+              </Field>
+            )}
 
-            <Field label={linkKind === 'none' ? '연결 번호·이름' : linkKind} wide>
+            <Field
+              label={linkKind === 'none' ? '연결 번호·이름' : linkKind}
+              required={linkKind !== 'none'}
+              wide
+            >
               {linkKind === '상품' ? (
                 <RecordPicker<ProductResponse>
+                  key={linkKind}
                   path="/products"
                   label="연결할 상품"
                   placeholder="제품 이름으로 검색"
@@ -148,6 +195,7 @@ export default function DocumentEditModal({ doc, submitting = false, onClose, on
                 />
               ) : linkKind === '딜' ? (
                 <RecordPicker<SalesDealResponse>
+                  key={linkKind}
                   path="/sales-deals"
                   label="연결할 딜"
                   placeholder="영업번호나 고객사로 검색"
@@ -182,8 +230,6 @@ export default function DocumentEditModal({ doc, submitting = false, onClose, on
           />
         </Field>
       </div>
-
-      {error && <p className={styles.error}>{error}</p>}
     </Modal>
   )
 }
@@ -191,18 +237,20 @@ export default function DocumentEditModal({ doc, submitting = false, onClose, on
 interface FieldProps {
   label: string
   hint?: string
+  required?: boolean
   wide?: boolean
   /** 라디오 묶음처럼 칸 하나를 가리킬 수 없을 때는 label 대신 div 로 감쌉니다. */
   htmlFor?: boolean
   children: React.ReactNode
 }
 
-function Field({ label, hint, wide, htmlFor = true, children }: FieldProps) {
+function Field({ label, hint, required, wide, htmlFor = true, children }: FieldProps) {
   const Wrapper = htmlFor ? 'label' : 'div'
   return (
     <Wrapper className={`${styles.field} ${wide ? styles.isWide : ''}`}>
       <span className={styles.label}>
         {label}
+        {required && <b aria-hidden="true">*</b>}
         {hint && <i>{hint}</i>}
       </span>
       {children}

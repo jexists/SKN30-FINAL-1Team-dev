@@ -16,7 +16,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -80,7 +80,27 @@ _READ_COLUMNS = (
 # 것이라 자료실이 다루는 영업 문서가 아니다. 문서 하나를 여는 길(_detail)은 막지 않는다.
 _HIDDEN_CATEGORY_CODES = ("business_card", "business_license")
 
+# 거래문서실이 담는 분류. 영업자료실은 이 나머지를 전부 가져간다.
+_TRADE_CATEGORY_CODES = ("quote", "contract", "purchase_order")
+_SALES_CATEGORY_CODES = ("product_brochure",)
+
 DOWNLOAD_EXPIRES_IN = 60
+
+
+def _is_trade_document():
+    """거래문서실에 서는 자료. 견적·계약·발주, 그리고 딜에 붙은 그 밖의 문서(기타)다.
+
+    기타는 어느 방에도 붙박이가 아니라 연결로 가른다. 딜에 붙었으면 거래에 딸린
+    문서로 보고 거래문서실에, 아니면 영업자료실에 세운다. 영업자료실은 이 식의
+    부정이라 상품설명서와 딜 없는 기타에 더해 모르는 분류까지 빠짐없이 받는다.
+    """
+    return or_(
+        Document.category_code.in_(_TRADE_CATEGORY_CODES),
+        and_(
+            Document.category_code.not_in(_TRADE_CATEGORY_CODES + _SALES_CATEGORY_CODES),
+            Document.sales_deal_id.is_not(None),
+        ),
+    )
 
 
 def _contains(value: str) -> str:
@@ -387,6 +407,9 @@ async def list_documents(
     # 분류를 뺀 나머지 조건. 분류 탭 옆 건수와 담당자 선택지가 이 범위를 본다.
     shared = _scope(member, creator_ids)
     shared.append(Document.category_code.not_in(_HIDDEN_CATEGORY_CODES))
+    # 방 조건은 분류 탭 옆 건수도 함께 봐야 해서 shared 에 넣는다.
+    if page.room is not None:
+        shared.append(_is_trade_document() if page.room == "trade" else ~_is_trade_document())
     if page.customer_company_id is not None:
         shared.append(Document.customer_company_id == page.customer_company_id)
     if page.sales_deal_id is not None:

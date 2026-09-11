@@ -62,8 +62,11 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: 'documents',
-    ariaLabel: '자료실',
-    items: [{ to: ROUTES.DOCUMENTS, label: '자료실', icon: DocumentsIcon }],
+    title: '자료실',
+    items: [
+      { to: ROUTES.DOCUMENTS_TRADE, label: '거래문서실', icon: DocumentsIcon },
+      { to: ROUTES.DOCUMENTS_SALES, label: '영업자료실', icon: DocumentsIcon },
+    ],
   },
   {
     // 화면 전체가 팀장 것인 관리 메뉴를 한 섹션으로 묶습니다. 상품은 팀원이

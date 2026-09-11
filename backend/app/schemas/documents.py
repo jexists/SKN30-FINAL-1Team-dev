@@ -196,6 +196,9 @@ class DocumentPageParams(BaseModel):
 
     q: SearchQuery | None = None
     category_code: list[OptionCode] | None = None
+    # 자료실이 둘로 나뉘어 있다. trade 는 거래문서실(견적·계약·발주와 딜에 붙은 그 밖의
+    # 문서), sales 는 영업자료실(그 나머지)이다. 주지 않으면 둘을 가르지 않는다.
+    room: Literal["trade", "sales"] | None = None
     customer_company_id: UUID | None = None
     sales_deal_id: UUID | None = None
     created_by_member_id: list[UUID] | None = None

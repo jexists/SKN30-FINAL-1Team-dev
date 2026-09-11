@@ -1,4 +1,5 @@
-// 자료실. 계약서·발주서·상품설명서처럼 영업이 돌려 보는 파일을 한 곳에 모읍니다.
+// 자료실. 영업이 돌려 보는 파일을 한 곳에 모읍니다. 화면 하나를 방 둘이 나눠 씁니다.
+// 거래문서실은 딜에 딸린 견적·계약·발주를, 영업자료실은 상품설명서와 그 밖의 자료를 담습니다.
 // 발주 목록과 같은 형태입니다: 검색·필터 → 분류 탭 → 표 → 상세 드로어.
 //
 // 조건은 주소에 둡니다(q·owner·range·category). 목록을 걸러 둔 채로 링크를 건네면
@@ -20,6 +21,7 @@ import { useShowOwner } from '@/shared/scope'
 import type { DocumentCategory } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
+import { fileOf, ROOMS, type RoomId } from './catalog'
 import CategoryTabs from './components/CategoryTabs'
 import DocumentDrawer from './components/DocumentDrawer'
 import DocumentEditModal from './components/DocumentEditModal'
@@ -40,7 +42,14 @@ const RANGES = [
 /** 기본 기간. 등록일 기준입니다. 자료는 오래 남으므로 발주보다 넉넉하게 잡습니다. */
 const DEFAULT_RANGE = '12'
 
-export default function Documents() {
+interface Props {
+  /** 보고 있는 방. 담는 분류와 고를 수 있는 연결이 방마다 다릅니다. */
+  room: RoomId
+}
+
+export default function Documents({ room }: Props) {
+  const { label: roomLabel, categories } = ROOMS[room]
+
   // 자료는 팀원도 올립니다. 등록자 칸은 여러 사람이 섞여 보일 때만 세웁니다.
   // 등록자 필터는 보여 주는 것이 아니라 대상을 좁히는 조작이라 팀장에게 늘 둡니다.
   const { profile, isManager } = useCurrentUser()
@@ -51,7 +60,10 @@ export default function Documents() {
   const owner = isManager ? (params.get('owner') ?? '') : ''
   const range = params.get('range') ?? DEFAULT_RANGE
 
-  const category = params.get('category') ?? ''
+  // 주소에 이 방이 담지 않는 분류가 적혀 있으면 전체로 봅니다. 없는 탭이 골라진 것처럼
+  // 보이면서 목록만 비는 화면을 막습니다.
+  const requested = params.get('category') ?? ''
+  const category = (categories as readonly string[]).includes(requested) ? requested : ''
 
   const [page, setPage] = useState(1)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -60,8 +72,12 @@ export default function Documents() {
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [reviewQueue, setReviewQueue] = useState<{ documentId: string; fileId: string }[]>([])
-  const [reviewQueueError, setReviewQueueError] = useState<string | null>(null)
+  // 올리는 중에 몇 개째인지. 파일 하나가 요청 여러 번이라 개수가 보여야 합니다.
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
+  // 방금 올려 서버가 접수한 파일들. 올린 직후의 행은 아직 접수 전 상태를 들고 있어서,
+  // 이것이 없으면 드로어가 요약이 도는 중인 줄 모르고 "아직 요약이 없습니다"를 세웁니다.
+  // 첫 자료만이 아니라 함께 올린 모두가 해당하므로 전부 들고 있습니다.
+  const [queuedFileIds, setQueuedFileIds] = useState<string[]>([])
 
   // 기본값은 쿼리에서 지웁니다. 주소를 복사했을 때 조건이 그대로 살아나되 짧게 남습니다.
   // 조건이 바뀌면 첫 페이지로 돌아옵니다. 3페이지에 있다가 결과가 줄면 빈 화면을 봅니다.
@@ -85,13 +101,14 @@ export default function Documents() {
   const documentQuery = useMemo(
     () => ({
       q: query,
+      room,
       category: category as DocumentCategory | '',
       uploaderMemberId: owner,
       fromISO,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
-    [query, category, owner, fromISO, page],
+    [query, room, category, owner, fromISO, page],
   )
 
   const {
@@ -140,10 +157,12 @@ export default function Documents() {
 
   const openDoc = openId ? findDocument(openId) : undefined
 
+  // 올린 뒤에는 첫 자료의 드로어만 열어 줍니다. 요약이 끝났다고 다음 자료로 넘기지 않습니다.
+  // 목록은 다시 받지 않습니다. 올린 자료는 훅이 이미 목록 앞에 세워 두었습니다.
   const onUpload = async (results: UploadResult[]) => {
     try {
-      const nextReviews: { documentId: string; fileId: string }[] = []
-      setReviewQueueError(null)
+      const queued: { documentId: string; fileId: string }[] = []
+      setUploadProgress({ done: 0, total: results.length })
       for (const result of [...results].reverse()) {
         const uploaded = await addDocument({
           file: result.file,
@@ -153,19 +172,24 @@ export default function Documents() {
           link: result.link,
           description: result.description,
         })
-        nextReviews.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
+        queued.push({ documentId: uploaded.document.id, fileId: uploaded.fileId })
+        setUploadProgress({ done: queued.length, total: results.length })
       }
-      await queueSummaries(nextReviews)
+      await queueSummaries(queued)
       setUploading(false)
-      setReviewQueue(nextReviews.reverse())
-      if (nextReviews[0]) setOpenId(nextReviews[0].documentId)
+      setQueuedFileIds(queued.map(({ fileId }) => fileId))
+      // 거꾸로 돌며 담았으므로 마지막에 담긴 것이 고른 순서의 첫 자료입니다.
+      const first = queued.at(-1)
+      if (first) setOpenId(first.documentId)
     } catch {
       // 업로드 뒤 서버 배치 접수가 실패하면 훅의 오류 안내를 보여 줍니다.
       // 서버가 접수한 뒤의 처리는 화면 수명과 무관합니다.
+    } finally {
+      // 실패해도 진행 표시는 반드시 걷습니다. 모달이 로딩에 잠긴 채 남습니다.
+      setUploadProgress(null)
     }
   }
 
-  const review = reviewQueue[0]
   const summarizeOpenDocument = useCallback(
     (fileId: string) =>
       openDoc
@@ -183,26 +207,10 @@ export default function Documents() {
   const approveOpenDocument = useCallback(
     async (fileId: string) => {
       if (!openDoc) throw new Error('자료를 찾을 수 없습니다.')
-      const result = await approveSummary(openDoc.id, fileId)
-      setReviewQueue((current) => current.slice(1))
-      reload()
-      const next = reviewQueue[1]
-      if (next) setOpenId(next.documentId)
-      else setOpenId(null)
-      return result
+      // 승인 결과는 드로어 안에서만 반영합니다. 목록은 다시 들어올 때 갱신됩니다.
+      return await approveSummary(openDoc.id, fileId)
     },
-    [approveSummary, openDoc, reload, reviewQueue],
-  )
-  const completeQueuedSummary = useCallback(
-    (fileId: string, failureMessage?: string) => {
-      if (reviewQueue[0]?.fileId !== fileId) return
-      if (failureMessage) setReviewQueueError(failureMessage)
-      const next = reviewQueue[1]
-      setReviewQueue((current) => current.slice(1))
-      reload()
-      if (next) setOpenId(next.documentId)
-    },
-    [reload, reviewQueue],
+    [approveSummary, openDoc],
   )
 
   const saveDocument = useCallback(
@@ -241,7 +249,7 @@ export default function Documents() {
     return (
       <section className={styles.page} aria-busy={loading || pending}>
         {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
-        <h1 className="sr-only">자료실</h1>
+        <h1 className="sr-only">{roomLabel}</h1>
         <ListPageSkeleton label="자료를 불러오는 중입니다." tabs />
       </section>
     )
@@ -250,10 +258,9 @@ export default function Documents() {
   return (
     <section className={styles.page} aria-busy={loading || pending}>
       {/* Topbar 빵부스러기가 이미 화면 이름을 말하므로 제목은 읽어 주기만 합니다. */}
-      <h1 className="sr-only">자료실</h1>
+      <h1 className="sr-only">{roomLabel}</h1>
 
       <ErrorToast message={error} onRetry={reload} />
-      <ErrorToast message={reviewQueueError} />
 
       <div className={styles.toolbar}>
         <SearchInput
@@ -294,6 +301,7 @@ export default function Documents() {
 
       <CategoryTabs
         value={category}
+        categories={categories}
         countOf={(id) => categoryCounts.get(id) ?? 0}
         total={categoryTotal}
         onChange={(next) => setParam('category', next)}
@@ -325,8 +333,7 @@ export default function Documents() {
           onClose={() => setOpenId(null)}
           onSummarize={summarizeOpenDocument}
           onLoadSummary={loadOpenDocumentSummary}
-          autoLoadSummaryFileId={review?.documentId === openDoc.id ? review.fileId : undefined}
-          onSummaryCompleted={completeQueuedSummary}
+          watchFileId={queuedFileIds.find((id) => id === fileOf(openDoc).id)}
           onApproveSummary={approveOpenDocument}
           canDelete={isManager}
           onEdit={() => setEditing(true)}
@@ -341,6 +348,7 @@ export default function Documents() {
         <DocumentEditModal
           // 드로어와 형제라 같은 키를 쓸 수 없습니다. 자료가 바뀌면 입력값을 새로 채웁니다.
           key={`edit-${openDoc.id}`}
+          room={room}
           doc={openDoc}
           submitting={pending}
           onClose={() => setEditing(false)}
@@ -379,7 +387,12 @@ export default function Documents() {
       )}
 
       {uploading && (
-        <UploadModal submitting={pending} onClose={() => setUploading(false)} onSubmit={onUpload} />
+        <UploadModal
+          room={room}
+          progress={uploadProgress}
+          onClose={() => setUploading(false)}
+          onSubmit={onUpload}
+        />
       )}
     </section>
   )

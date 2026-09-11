@@ -14,7 +14,9 @@ interface PollSummaryOptions<T extends SummaryProcessingResponse> {
 }
 
 const DEFAULT_INTERVAL_MS = 1_000
-const DEFAULT_TIMEOUT_MS = 5 * 60 * 1_000
+// 배치 요약은 서버에서 한 건씩 차례로 돕니다. 뒤에 선 파일은 앞 건들이 끝날 때까지
+// 기다리므로, 여러 개를 한 번에 올린 경우 5분으로는 대기만 하다 끊깁니다.
+const DEFAULT_TIMEOUT_MS = 10 * 60 * 1_000
 
 const defaultSleep = (milliseconds: number) =>
   new Promise<void>((resolve) => globalThis.setTimeout(resolve, milliseconds))

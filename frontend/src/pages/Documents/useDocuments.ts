@@ -12,7 +12,7 @@ import type {
   SalesDocument,
 } from '@/types'
 
-import { kindOfFile } from './catalog'
+import { kindOfFile, type RoomId } from './catalog'
 import { pollSummary } from '@/api/polling'
 
 // 공통 API 제한(10초)보다 길게 잡습니다. 이 요청은 실제 OCR·요약을 기다리지 않고
@@ -143,7 +143,9 @@ function mutationMessage(reason: unknown, fallback: string): string {
 
 export interface DocumentQuery {
   q: string
-  /** 고른 분류 탭. 빈 문자열이면 전체입니다. */
+  /** 보고 있는 방. 어느 자료가 목록에 설지는 서버가 이 값으로 가릅니다. */
+  room: RoomId
+  /** 고른 분류 탭. 빈 문자열이면 그 방 전체입니다. */
   category: DocumentCategory | ''
   /** 파일을 올린 사람. 빈 문자열이면 전체입니다. */
   uploaderMemberId: string
@@ -167,6 +169,7 @@ export default function useDocuments(query?: DocumentQuery) {
   // 조건 객체를 새로 만들 때마다 다시 받지 않습니다.
   const {
     q: queryText = '',
+    room: queryRoom = 'sales',
     category: queryCategory = '',
     uploaderMemberId: queryUploader = '',
     fromISO: queryFrom = null,
@@ -183,6 +186,7 @@ export default function useDocuments(query?: DocumentQuery) {
       .get<DocumentPageResponse>('/documents', {
         params: {
           q: needle === '' ? undefined : needle.slice(0, 100),
+          room: queryRoom,
           category_code: queryCategory === '' ? undefined : CATEGORY_CODE[queryCategory],
           latest_uploader_member_id: queryUploader === '' ? undefined : queryUploader,
           latest_uploaded_from: queryFrom === null ? undefined : `${queryFrom}T00:00:00+09:00`,
@@ -213,7 +217,16 @@ export default function useDocuments(query?: DocumentQuery) {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [reloadKey, queryText, queryCategory, queryUploader, queryFrom, querySkip, queryLimit])
+  }, [
+    reloadKey,
+    queryText,
+    queryRoom,
+    queryCategory,
+    queryUploader,
+    queryFrom,
+    querySkip,
+    queryLimit,
+  ])
 
   const findDocument = useCallback(
     (id: string) => documents.find((document) => document.id === id),

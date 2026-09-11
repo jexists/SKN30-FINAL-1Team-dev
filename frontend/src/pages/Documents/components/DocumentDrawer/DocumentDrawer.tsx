@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link } from 'react-router'
 
 import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
@@ -16,6 +17,7 @@ import {
   TrashIcon,
 } from '@/components/icons'
 import { BP_DESKTOP } from '@/constants/breakpoints'
+import { dealDetailPath } from '@/constants/routes'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import SourceDocumentViewer from '@/pages/Customers/components/SourceDocumentViewer'
 import type { SalesDocument } from '@/types'
@@ -45,9 +47,8 @@ interface Props {
   /** 다시 실행(재요약) 경로. 지금은 화면에서 감췄지만 API·연결은 그대로 둡니다. */
   onSummarize: (fileId: string) => Promise<DocumentSummaryResponse>
   onLoadSummary: (fileId: string) => Promise<DocumentSummaryResponse>
-  /** 배치 접수 뒤에는 처리 시작 POST 없이 상태·결과만 조회합니다. */
-  autoLoadSummaryFileId?: string
-  onSummaryCompleted?: (fileId: string, failureMessage?: string) => void
+  /** 방금 올려 서버가 접수한 파일. 행이 아직 접수 전 상태라 여기서 받아 지켜봅니다. */
+  watchFileId?: string
   onApproveSummary: (fileId: string) => Promise<DocumentSummaryResponse>
 }
 
@@ -99,8 +100,7 @@ export default function DocumentDrawer({
   // 다시 실행 버튼을 감추면서 함께 쉬는 자리입니다. prop 과 API 는 남겨 둡니다.
   // onSummarize,
   onLoadSummary,
-  autoLoadSummaryFileId,
-  onSummaryCompleted,
+  watchFileId,
   onApproveSummary,
 }: Props) {
   const [summary, setSummary] = useState<DocumentSummaryResponse | null>(null)
@@ -146,9 +146,20 @@ export default function DocumentDrawer({
           }
         : { body: extractedBody, markdown: Boolean(summary?.extracted_markdown), extracted: true }
   // 문서에 대한 것과 파일에 대한 것을 갈라 둡니다. 파일 쪽은 아래 카드가 맡습니다.
-  const rows: [string, string][] = [
-    ['메모', doc.description || '—'],
-    ['연결', linkLabel(doc) || '연결된 곳 없음'],
+  // 메모는 적은 자료만 한 줄을 씁니다. 빈 줄은 세우지 않습니다.
+  const rows: [string, ReactNode][] = [
+    ...(doc.description ? ([['메모', doc.description]] as [string, ReactNode][]) : []),
+    [
+      '연결',
+      // 딜에 붙은 자료는 그 딜의 영업 현황 상세로 바로 건너갑니다.
+      doc.link.kind === '딜' ? (
+        <Link key={doc.link.id} to={dealDetailPath(doc.link.id)} className={styles.linkTo}>
+          {linkLabel(doc)}
+        </Link>
+      ) : (
+        linkLabel(doc) || '연결된 곳 없음'
+      ),
+    ],
   ]
   const fileMeta = [sizeLabel(file.bytes), file.owner, fmtDay(parseISO(file.uploaded))].join(' · ')
   // 자동 폴링을 시작한 경우와, 드로어를 다시 열어 파일 상태만 가진 경우를 모두 잡는다.
@@ -164,6 +175,12 @@ export default function DocumentDrawer({
   useEffect(() => {
     loadSummaryRef.current = onLoadSummary
   }, [onLoadSummary])
+  // 아래 효과는 자료를 바꿀 때만 돌아야 합니다. 이 값들이 바뀌었다고 효과를 다시 돌리면
+  // 방금 받은 요약을 지우고 또 조회합니다.
+  const processingRef = useRef(file.processingStatus)
+  processingRef.current = file.processingStatus
+  const watchRef = useRef(watchFileId)
+  watchRef.current = watchFileId
 
   // 응답이 늦게 도착하는 사이 다른 파일로 넘어갔다면 그 결과는 버립니다.
   const shownFileRef = useRef(file.id)
@@ -192,6 +209,44 @@ export default function DocumentDrawer({
       })
   }, [])
 
+  /**
+   * 처리 중인 파일의 결과를 기다립니다. 서버가 이미 접수한 일이라 시작 POST 없이
+   * 상태만 읽습니다. 드로어가 열려 있는 동안만 돌고, 목록은 건드리지 않습니다.
+   */
+  const watchSummary = useCallback((fileId: string) => {
+    setSummaryLoading(true)
+    setSummaryError(null)
+    setSummaryLoadError(null)
+    void pollSummary({
+      start: async () => undefined,
+      read: () => loadSummaryRef.current(fileId),
+    })
+      .then((result) => {
+        if (shownFileRef.current !== fileId) return
+        setSummary(result)
+        if (result.processing_status === 'failed') {
+          setSummaryError('문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        }
+      })
+      .catch((reason: unknown) => {
+        if (shownFileRef.current !== fileId) return
+        setSummaryError(
+          reason instanceof Error && reason.message === 'document_summary_timeout'
+            ? '문서 요약 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
+            : errorMessage(
+                reason,
+                '문서 요약 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+              ),
+        )
+      })
+      .finally(() => {
+        if (shownFileRef.current !== fileId) return
+        setSummaryLoading(false)
+        // 첫 렌더부터 켜 두는 값입니다. 걷지 않으면 결과가 비었을 때 자리표시자가 남습니다.
+        setSummaryFetching(false)
+      })
+  }, [])
+
   useEffect(() => {
     if (!file.id) return
     // 같은 드로어 컴포넌트가 다른 문서로 재사용될 수 있습니다. 새 파일의
@@ -206,10 +261,12 @@ export default function DocumentDrawer({
     setSourceText(null)
     setSourceError(null)
     setDownloadOpen(false)
-    // 배치 접수 직후에는 아래 폴링이 같은 GET 을 돌리므로 단발 조회를 건너뜁니다.
-    if (autoLoadSummaryFileId === file.id) return
-    loadSavedSummary(file.id)
-  }, [autoLoadSummaryFileId, file.id, loadSavedSummary])
+    // 서버가 처리 중이거나 방금 접수한 파일은 결과가 닿을 때까지 지켜봅니다. 그 밖에는
+    // 저장된 것을 한 번 읽습니다. 어느 자료를 열어도 같게 동작해야 해서 여기서 가릅니다.
+    if (processingRef.current === 'processing' || watchRef.current === file.id)
+      watchSummary(file.id)
+    else loadSavedSummary(file.id)
+  }, [file.id, loadSavedSummary, watchSummary])
 
   // 다시 실행(재요약)은 당분간 화면에서 감춰 둡니다. 되살릴 때를 위해
   // 처리 흐름은 지우지 않고 그대로 남겨 둡니다. (POST /files/{id}/process)
@@ -241,46 +298,6 @@ export default function DocumentDrawer({
   //   },
   //   [onSummarize, onSummaryCompleted],
   // )
-
-  const monitorQueuedSummary = useCallback(
-    (fileId: string) => {
-      setSummaryLoading(true)
-      setSummaryError(null)
-      setSummaryLoadError(null)
-      void pollSummary({
-        // 배치 API가 이미 처리 요청을 접수했으므로 자동 흐름에서는 GET만 수행합니다.
-        start: async () => undefined,
-        read: () => onLoadSummary(fileId),
-      })
-        .then((result) => {
-          setSummary(result)
-          if (result.processing_status === 'completed') {
-            onSummaryCompleted?.(result.file_id)
-          } else if (result.processing_status === 'failed') {
-            const message = '문서 요약에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-            setSummaryError(message)
-            onSummaryCompleted?.(result.file_id, message)
-          }
-        })
-        .catch((reason: unknown) => {
-          const message =
-            reason instanceof Error && reason.message === 'document_summary_timeout'
-              ? '문서 요약 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
-              : errorMessage(
-                  reason,
-                  '문서 요약 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
-                )
-          setSummaryError(message)
-          onSummaryCompleted?.(fileId, message)
-        })
-        .finally(() => setSummaryLoading(false))
-    },
-    [onLoadSummary, onSummaryCompleted],
-  )
-
-  useEffect(() => {
-    if (autoLoadSummaryFileId) monitorQueuedSummary(autoLoadSummaryFileId)
-  }, [autoLoadSummaryFileId, monitorQueuedSummary])
 
   async function handleArtifact(artifact: DocumentArtifact) {
     if (!file.id) return

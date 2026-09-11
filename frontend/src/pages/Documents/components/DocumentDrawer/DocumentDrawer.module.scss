@@ -149,6 +149,14 @@
     line-height: 1.6;
     word-break: break-all; // 파일명이 길어도 드로어 밖으로 나가지 않게
   }
+
+  .linkTo {
+    color: var(--blue);
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
 /* ---- 파일 ---- */

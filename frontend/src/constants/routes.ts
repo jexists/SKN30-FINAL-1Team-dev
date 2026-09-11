@@ -26,7 +26,9 @@ export const ROUTES = {
   QUOTES: '/quotes', // 견적 현황
   CONTRACTS: '/contracts',
   ORDERS: '/orders',
-  DOCUMENTS: '/documents',
+  // 자료실은 방 둘입니다. 거래에 딸린 문서와 영업이 돌려 보는 자료를 갈라 둡니다.
+  DOCUMENTS_TRADE: '/documents/trade',
+  DOCUMENTS_SALES: '/documents/sales',
   PRODUCTS: '/products', // 상품관리 (팀장 전용). 상품 목록 조회 자체는 팀원도 씁니다.
   // 공지·팀장 지시사항 관리 (팀장 전용). 읽기는 대시보드 티커와 알림에서 합니다.
   NOTICES: '/notices',

@@ -790,3 +790,39 @@ def test_deleted_documents_are_hidden_from_list_and_detail():
         response = client.get(f"/api/documents/{uuid4()}")
     assert response.status_code == 404
     assert "document.deleted_at IS NULL" in str(detail_db.statements[0])
+
+
+def test_room_splits_other_documents_by_deal_link():
+    """자료실 두 방은 기타 자료를 딜 연결로 가른다.
+
+    견적·계약·발주는 분류만으로 거래문서지만, 기타는 어느 방에도 붙박이가 아니다.
+    딜에 붙었으면 거래에 딸린 문서로 보고 거래문서실에, 아니면 영업자료실에 세운다.
+    두 방은 서로의 여집합이라 모르는 분류까지 반드시 한쪽에는 선다.
+
+    방 조건은 목록과 분류 탭 옆 건수가 함께 봐야 한다. 건수만 방을 안 보면
+    거래문서실 탭에 영업자료 건수가 섞여 뜬다.
+    """
+    member = _member()
+
+    def sqls(room: str) -> tuple[str, str]:
+        db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]), _Result(rows=[]))
+        asyncio.run(documents_api.list_documents(DocumentPageParams(room=room), member, db))
+        return str(db.statements[0]), str(db.statements[2])
+
+    trade_rows, trade_counts = sqls("trade")
+    sales_rows, sales_counts = sqls("sales")
+
+    for sql in (trade_rows, trade_counts):
+        assert "document.category_code IN" in sql
+        assert "document.sales_deal_id IS NOT NULL" in sql
+        assert "NOT (" not in sql
+
+    # 영업자료실은 거래문서 조건의 부정 하나다. 남는 것을 빠짐없이 받는다.
+    for sql in (sales_rows, sales_counts):
+        assert "NOT (" in sql
+        assert "document.sales_deal_id IS NOT NULL" in sql
+
+    # 방을 주지 않으면 예전처럼 가르지 않는다. 딜·고객사 상세의 조회가 이 길을 쓴다.
+    db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]), _Result(rows=[]))
+    asyncio.run(documents_api.list_documents(DocumentPageParams(), member, db))
+    assert "sales_deal_id IS NOT NULL" not in str(db.statements[0])

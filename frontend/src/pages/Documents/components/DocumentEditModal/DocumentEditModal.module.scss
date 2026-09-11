@@ -29,6 +29,11 @@
   font-size: 12px;
   font-weight: 600;
 
+  b {
+    margin-left: 3px;
+    color: var(--red);
+  }
+
   i {
     margin-left: 5px;
     color: var(--muted);
@@ -36,12 +41,6 @@
     font-weight: 400;
     font-style: normal;
   }
-}
-
-.error {
-  margin-top: var(--s3);
-  color: var(--red-ink);
-  font-size: 12px;
 }
 
 /* ---- 연결 대상 라디오 ---- */

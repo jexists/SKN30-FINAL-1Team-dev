@@ -4,13 +4,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s2);
-  padding: var(--s6) var(--s4);
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-md);
+  width: 100%;
+  padding: var(--s5) var(--s4);
+  border: 1.5px dashed var(--line-2);
+  border-radius: var(--r-lg);
   background: var(--surface-2);
   color: var(--muted);
   text-align: center;
+  cursor: pointer;
   transition:
     border-color var(--t-fast) var(--ease-out),
     background var(--t-fast) var(--ease-out);
@@ -18,17 +19,38 @@
   p {
     font-size: 13px;
   }
+
+  &:hover {
+    border-color: var(--line);
+    background: var(--fill);
+  }
+
+  // 영역이 넓어서 전역 버튼의 누름 축소가 크게 출렁입니다.
+  &:active {
+    transform: none;
+  }
 }
 
-.isDragging {
+// 빈 드롭존에 눈이 멈출 자리 하나를 둡니다.
+.dropIcon {
+  @include flex-center;
+
+  margin-bottom: var(--s2);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--ink-2);
+}
+
+.dropHint {
+  font-size: 11px;
+}
+
+.isDragging,
+.isDragging:hover {
   border-color: var(--blue);
   background: var(--blue-tint);
-}
-
-.error {
-  margin-top: var(--s2);
-  color: var(--red-ink);
-  font-size: 12px;
 }
 
 /* ---- 고른 파일 목록 ---- */
@@ -45,11 +67,11 @@
   gap: var(--s3);
   padding: var(--s2) var(--s3);
   border: 1px solid var(--line);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: var(--surface);
 }
 
-// 파일명이 길어도 분류 select 와 빼기 버튼은 자리를 잃지 않습니다.
+// 파일명이 길어도 빼기 버튼은 자리를 잃지 않습니다.
 .file {
   display: flex;
   align-items: baseline;
@@ -72,12 +94,6 @@
   font-size: 11px;
 }
 
-// 파일 이름 칸이 남는 자리를 다 쓰도록 분류 칸은 제 너비만 차지합니다.
-.category {
-  flex: none;
-  width: 120px;
-}
-
 .remove {
   display: grid;
   place-items: center;
@@ -94,6 +110,11 @@
     background: var(--red-tint);
     color: var(--red-ink);
   }
+}
+
+// 칸 수가 방과 연결에 따라 1~4개로 달라져 개수를 박지 않고 폭을 고르게 나눕니다.
+.seg > * {
+  flex: 1;
 }
 
 /* ---- 공통 입력 ---- */
@@ -128,48 +149,16 @@
   font-size: 12px;
   font-weight: 600;
 
+  b {
+    margin-left: 3px;
+    color: var(--red);
+  }
+
   i {
     margin-left: 5px;
     color: var(--muted);
     font-size: 11px;
     font-weight: 400;
     font-style: normal;
-  }
-}
-
-/* ---- 연결 대상 라디오 ---- */
-
-.choice {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 3px;
-  height: var(--control-h);
-  padding: 3px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-}
-
-.choiceItem {
-  @include flex-center;
-
-  border-radius: 7px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out);
-
-  &:has(input:checked) {
-    background: var(--surface);
-    color: var(--ink);
-    box-shadow: var(--sh-1);
-  }
-
-  // 글자가 없는 라디오라 초점 테두리를 칸 전체가 대신 받습니다.
-  &:has(input:focus-visible) {
-    box-shadow: 0 0 0 3px var(--blue-ring);
   }
 }
