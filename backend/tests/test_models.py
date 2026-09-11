@@ -209,7 +209,10 @@ def test_models_match_configured_database():
     asyncio.run(_assert_models_match_database())
 
 
-@pytest.mark.skipif(not settings.database_url, reason="DATABASE_URL 미설정")
+@pytest.mark.skipif(
+    not settings.run_integration_tests or not settings.database_url,
+    reason="실통합 테스트 비활성화 또는 DATABASE_URL 미설정",
+)
 @pytest.mark.anyio
 async def test_legacy_report_deal_migration_only_clears_ambiguous_links():
     """후속 SQL의 조건을 합성 행에만 적용한다. 실제 보고서는 읽거나 수정하지 않는다."""
