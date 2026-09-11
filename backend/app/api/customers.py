@@ -64,9 +64,16 @@ def _phone_search(q: str):
     """
     digits = digits_only(q)
     if not digits:
-        return CustomerContact.phone.ilike(_contains(q), escape="\\")
+        return or_(
+            CustomerContact.phone.ilike(_contains(q), escape="\\"),
+            CustomerContact.telephone.ilike(_contains(q), escape="\\"),
+        )
     stored = func.regexp_replace(CustomerContact.phone, r"[^0-9]", "", "g")
-    return stored.like(_contains(digits), escape="\\")
+    telephone = func.regexp_replace(CustomerContact.telephone, r"[^0-9]", "", "g")
+    return or_(
+        stored.like(_contains(digits), escape="\\"),
+        telephone.like(_contains(digits), escape="\\"),
+    )
 
 
 async def _get_company(
@@ -290,6 +297,7 @@ def _contact_read(
         job_title=contact.job_title,
         email=contact.email,
         phone=contact.phone,
+        telephone=contact.telephone,
         fax=contact.fax,
         customer_contact_status_id=None if contact_status is None else contact_status.id,
         customer_contact_status_name=None if contact_status is None else contact_status.name,
@@ -718,6 +726,8 @@ def _bulk_problem(item: CustomerContactBulkItem) -> str | None:
     # 단건 등록 스키마의 Phone 과 같은 자릿수만 받는다.
     if len(phone) > 20:
         return "phone_too_long"
+    if len(digits_only(item.telephone)) > 20:
+        return "telephone_too_long"
     email = item.email.strip()
     if email and not _EMAIL.match(email):
         return "email_invalid"
@@ -863,6 +873,7 @@ async def create_customer_contacts_bulk(
                 job_title=item.job_title.strip() or None,
                 email=item.email.strip() or None,
                 phone=digits_only(item.phone),
+                telephone=digits_only(item.telephone) or None,
                 customer_contact_status_id=None if contact_status is None else contact_status.id,
                 source_code=None,
                 memo=item.memo.strip() or None,

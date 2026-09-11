@@ -6,7 +6,8 @@ export const HEADER_MAP = {
   회사: 'org',
   '사업자 등록번호': 'businessNo',
   이름: 'name',
-  전화: 'phone',
+  휴대폰: 'phone',
+  전화: 'telephone',
   부서: 'dept',
   직함: 'title',
   이메일: 'email',
@@ -23,7 +24,7 @@ export const HEADERS = Object.keys(HEADER_MAP) as Header[]
 export const REQUIRED: Record<'name' | 'org' | 'phone', string> = {
   name: '이름',
   org: '회사',
-  phone: '전화',
+  phone: '휴대폰',
 }
 
 /** 읽어 낸 한 줄을 일괄 등록 API 가 받는 모양으로 바꿉니다. */
@@ -37,6 +38,7 @@ export function toBulkItem(row: number, values: Record<Field, string>): Customer
     job_title: values.title,
     email: values.email,
     phone: values.phone,
+    telephone: values.telephone,
     visited: values.visited,
     memo: values.memo,
   }

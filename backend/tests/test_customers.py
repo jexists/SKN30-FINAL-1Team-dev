@@ -237,6 +237,7 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
         name="  합성 고객  ",
         email="  customer@demo.test ",
         phone="  02-000-0000  ",
+        telephone="  02-123-4567  ",
         status_code="new",
         source_code="online_form",
     )
@@ -253,6 +254,7 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
     assert contact.email == "customer@demo.test"
     # 전화번호는 어떤 모양으로 적어도 숫자만 남겨 저장한다.
     assert contact.phone == "020000000"
+    assert contact.telephone == "021234567"
     assert (
         CustomerContactCreate(
             company_id=uuid4(),
@@ -457,7 +459,8 @@ def test_contact_list_is_owner_scoped_for_member_and_returns_join_fields():
     # 마지막 문장은 담당자만 읽는 별도 질의라 검색어·스코프 조건이 없다.
     for statement in db.statements[:2]:
         assert member.id in statement.compile().params.values()
-        assert list(statement.compile().params.values()).count("%합성%") == 6
+        # 일반 전화도 검색하므로 이름·회사·부서·직함·이메일·휴대폰·전화 일곱 칸이다.
+        assert list(statement.compile().params.values()).count("%합성%") == 7
         sql = str(statement)
         assert "public.member.active IS true" in sql
         assert "public.member.role_code IN" in sql
@@ -1011,6 +1014,7 @@ def _contact_read_payload(**overrides):
         "job_title": None,
         "email": None,
         "phone": "010-0000-0000",
+        "telephone": None,
         "fax": None,
         "customer_contact_status_id": None,
         "customer_contact_status_name": None,
@@ -1240,12 +1244,20 @@ def test_bulk_keeps_only_digits_in_the_phone():
     response = _bulk_post(
         db,
         member,
-        [_bulk_item(2, company_name=company.name, phone="010 1111-2222")],
+        [
+            _bulk_item(
+                2,
+                company_name=company.name,
+                phone="010 1111-2222",
+                telephone="02 123-4567",
+            )
+        ],
     )
 
     assert response.status_code == 200
     contacts = [row for row in db.added if isinstance(row, CustomerContact)]
     assert [contact.phone for contact in contacts] == ["01011112222"]
+    assert [contact.telephone for contact in contacts] == ["021234567"]
 
 
 def test_bulk_skips_customers_that_already_exist():

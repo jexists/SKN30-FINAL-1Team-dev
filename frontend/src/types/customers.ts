@@ -29,6 +29,8 @@ export interface Customer {
   title: string
   email: string
   phone: string
+  /** 일반 전화. 휴대폰과 구분해 보관하는 선택 항목입니다. */
+  telephone?: string
   /** 팩스. 선택 항목이라 없을 수 있습니다. */
   fax: string
   /** 담당 영업 */
@@ -69,6 +71,7 @@ export interface CustomerContactResponse {
   job_title: string | null
   email: string | null
   phone: string
+  telephone: string | null
   fax: string | null
   /** 예전 데이터에는 아래 목록 밖의 코드도 있어 문자열을 그대로 받습니다. */
   status_code: CustomerStatusCode | string | null
@@ -121,6 +124,7 @@ export interface CustomerContactCreateRequest {
   job_title: string | null
   email: string | null
   phone: string
+  telephone: string | null
   fax: string | null
   status_code: CustomerStatusCode | null
   source_code: CustomerSourceCode | null
@@ -187,6 +191,7 @@ export interface CustomerContactBulkItem {
   job_title: string
   email: string
   phone: string
+  telephone: string
   visited: string
   memo: string
 }

@@ -38,11 +38,16 @@ function readValues(cells: string[], at: Map<Field, number>): Record<Field, stri
     const index = at.get(field)
     return index === undefined ? '' : (cells[index] ?? '').trim()
   }
+  const mobile = pick('phone')
+  const telephone = pick('telephone')
   return {
     org: pick('org'),
     businessNo: pick('businessNo'),
     name: pick('name'),
-    phone: pick('phone'),
+    // 이전 템플릿의 `전화`는 휴대폰 한 칸으로 저장했습니다. 휴대폰 열이 없는 과거
+    // 파일도 계속 올릴 수 있게 그 값을 휴대폰으로 받아, 새 일반 전화와 혼동하지 않습니다.
+    phone: mobile || telephone,
+    telephone: mobile ? telephone : '',
     dept: pick('dept'),
     title: pick('title'),
     email: pick('email'),
@@ -124,9 +129,11 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
         .map((header, index) => ({ header, index, field: HEADER_MAP[header as Header] }))
         .filter((column): column is Column => column.field !== undefined)
 
-      const missing = Object.keys(REQUIRED).filter(
-        (field) => !fields.some((column) => column.field === field),
-      ) as (keyof typeof REQUIRED)[]
+      const missing = Object.keys(REQUIRED).filter((field) => {
+        if (fields.some((column) => column.field === field)) return false
+        // `전화`만 있던 이전 양식은 휴대폰 열이 생기기 전의 형식이다.
+        return field !== 'phone' || !fields.some((column) => column.field === 'telephone')
+      }) as (keyof typeof REQUIRED)[]
       if (missing.length > 0) {
         const names = missing.map((field) => REQUIRED[field]).join(', ')
         setError(`${names} 열을 찾지 못했습니다. 첫 줄의 열 이름을 확인하세요.`)

@@ -70,6 +70,7 @@ const EMPTY = {
   title: '',
   email: '',
   phone: '',
+  telephone: '',
   fax: '',
   memo: '',
 }
@@ -209,6 +210,7 @@ function customerDraft(customer: Customer): Draft {
     title: customer.title,
     email: customer.email,
     phone: customer.phone,
+    telephone: customer.telephone ?? '',
     fax: customer.fax,
     memo: customer.memo,
   }
@@ -383,6 +385,7 @@ export default function CustomerFormModal({
         job_title: optional(draft.title),
         email: optional(draft.email),
         phone: phoneDigits(draft.phone),
+        telephone: phoneDigits(draft.telephone) || null,
         fax: phoneDigits(draft.fax) || null,
         source_code: sourceCode === '' ? null : sourceCode,
         memo: optional(draft.memo),
@@ -639,15 +642,14 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="이메일" error={errors.email} check={fromDocument.has('email')}>
+          <Field label="전화">
             <input
-              type="email"
-              value={draft.email}
-              placeholder="name@company.com"
-              maxLength={254}
-              aria-invalid={errors.email !== undefined}
+              type="tel"
+              value={formatPhone(draft.telephone)}
+              placeholder="02-000-0000"
+              maxLength={50}
               disabled={submitting}
-              onChange={(event) => set('email', event.target.value)}
+              onChange={(event) => set('telephone', phoneDigits(event.target.value))}
             />
           </Field>
 
@@ -661,6 +663,47 @@ export default function CustomerFormModal({
               onChange={(event) => set('fax', phoneDigits(event.target.value))}
             />
           </Field>
+
+          <Field label="이메일" error={errors.email} check={fromDocument.has('email')}>
+            <input
+              type="email"
+              value={draft.email}
+              placeholder="name@company.com"
+              maxLength={254}
+              aria-invalid={errors.email !== undefined}
+              disabled={submitting}
+              onChange={(event) => set('email', event.target.value)}
+            />
+          </Field>
+
+          <Field label="유입경로" htmlFor={false}>
+            <Select
+              label="유입경로"
+              value={sourceCode}
+              options={SOURCE_OPTIONS}
+              disabled={submitting}
+              onChange={(next) => setSourceCode(next as CustomerSourceCode | '')}
+            />
+          </Field>
+
+          {/*
+           * 담당자를 정할 수 있는 건 팀장뿐입니다. 팀원이 등록하면 본인이 담당자가 됩니다.
+           * 칩이 늘면 같은 줄의 방문여부도 함께 늘어나므로 두 칸의 순서를 유지합니다.
+           */}
+          {isManager && (
+            <Field label="담당자" required error={errors.assignees} htmlFor={false}>
+              <MemberMultiSelect
+                value={assigneeIds}
+                onChange={(next) => {
+                  setAssigneeIds(next)
+                  clearError('assignees')
+                }}
+                disabled={submitting}
+                invalid={errors.assignees !== undefined}
+                firstChipHint="첫 번째 담당자가 대표 담당자입니다."
+              />
+            </Field>
+          )}
 
           <Field label="방문여부" htmlFor={false}>
             <div className={styles.choice} role="radiogroup" aria-label="방문여부">
@@ -679,35 +722,6 @@ export default function CustomerFormModal({
               ))}
             </div>
           </Field>
-
-          <Field label="유입경로" htmlFor={false}>
-            <Select
-              label="유입경로"
-              value={sourceCode}
-              options={SOURCE_OPTIONS}
-              disabled={submitting}
-              onChange={(next) => setSourceCode(next as CustomerSourceCode | '')}
-            />
-          </Field>
-
-          {/*
-           * 담당자를 정할 수 있는 건 팀장뿐입니다. 팀원이 등록하면 본인이 담당자가 됩니다.
-           * 칩이 늘면 칸이 세로로 자라 옆 칸과 어긋나므로 한 줄을 통째로 씁니다.
-           */}
-          {isManager && (
-            <Field label="담당자" required error={errors.assignees} wide htmlFor={false}>
-              <MemberMultiSelect
-                value={assigneeIds}
-                onChange={(next) => {
-                  setAssigneeIds(next)
-                  clearError('assignees')
-                }}
-                disabled={submitting}
-                invalid={errors.assignees !== undefined}
-                firstChipHint="첫 번째 담당자가 대표 담당자입니다."
-              />
-            </Field>
-          )}
 
           <Field label="메모" wide>
             <textarea

@@ -59,6 +59,7 @@ export function toCustomer(contact: CustomerContactResponse): Customer {
     title: contact.job_title ?? '',
     email: contact.email ?? '',
     phone: contact.phone,
+    telephone: contact.telephone ?? '',
     fax: contact.fax ?? '',
     owner: contact.owner_display_name,
     source: toSourceLabel(contact.source_code),

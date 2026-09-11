@@ -26,6 +26,7 @@ test('읽어 낸 줄은 줄 번호를 달고 일괄 등록이 받는 모양이 �
     businessNo: '123-45-67890',
     name: '홍길동',
     phone: '010-1234-5678',
+    telephone: '02-123-4567',
     dept: '영업팀',
     title: '팀장',
     email: 'hong@abc.co.kr',
@@ -42,6 +43,7 @@ test('읽어 낸 줄은 줄 번호를 달고 일괄 등록이 받는 모양이 �
     job_title: '팀장',
     email: 'hong@abc.co.kr',
     phone: '010-1234-5678',
+    telephone: '02-123-4567',
     visited: '방문',
     memo: '메모',
   })

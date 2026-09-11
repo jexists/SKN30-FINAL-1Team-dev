@@ -145,6 +145,7 @@ class CustomerContactCreate(_WriteModel):
     job_title: Text | None = None
     email: Email | None = None
     phone: Phone
+    telephone: Phone | None = None
     fax: Phone | None = None
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
@@ -162,6 +163,7 @@ class CustomerContactPatch(_WriteModel):
     job_title: Text | None = None
     email: Email | None = None
     phone: Phone | None = None
+    telephone: Phone | None = None
     fax: Phone | None = None
     status_code: OptionCode | None = None
     source_code: CustomerSource | None = None
@@ -193,6 +195,7 @@ class CustomerContactRead(BaseModel):
     job_title: str | None
     email: str | None
     phone: str
+    telephone: str | None
     fax: str | None
     customer_contact_status_id: UUID | None
     customer_contact_status_name: str | None
@@ -297,6 +300,7 @@ class CustomerContactBulkItem(BaseModel):
     job_title: str = Field(default="", max_length=1_000)
     email: str = Field(default="", max_length=1_000)
     phone: str = Field(default="", max_length=1_000)
+    telephone: str = Field(default="", max_length=1_000)
     visited: str = Field(default="", max_length=50)
     memo: str = Field(default="", max_length=10_000)
 

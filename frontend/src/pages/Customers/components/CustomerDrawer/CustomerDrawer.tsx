@@ -215,6 +215,18 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
                   </a>
                 </dd>
               </div>
+              <div>
+                <dt>전화</dt>
+                <dd>
+                  {customer.telephone ? (
+                    <a className={`${styles.mail} tnum`} href={`tel:${customer.telephone}`}>
+                      {formatPhone(customer.telephone)}
+                    </a>
+                  ) : (
+                    <span className={styles.muted}>등록된 전화 없음</span>
+                  )}
+                </dd>
+              </div>
               {/* 팩스는 거는 번호가 아니라 링크로 두지 않습니다. */}
               <div>
                 <dt>팩스</dt>

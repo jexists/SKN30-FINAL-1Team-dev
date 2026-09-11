@@ -21,6 +21,7 @@ class BusinessCardFields(BaseModel):
     email: str = Field(default="", max_length=254)
     # 저장 형식과 같게 숫자만 남긴다. 화면에 보일 하이픈은 프론트가 붙인다.
     phone: Annotated[str, BeforeValidator(to_digits)] = Field(default="", max_length=50)
+    telephone: Annotated[str, BeforeValidator(to_digits)] = Field(default="", max_length=50)
     website: str = Field(default="", max_length=254)
     address: str = Field(default="", max_length=500)
     memo: str = Field(default="", max_length=5_000)
