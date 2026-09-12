@@ -345,7 +345,7 @@ export default function useMeetingDraft(
                   ? null
                   : reportError
                     ? reportGenerationMessage(reportError)
-                    : '보고서 생성에 실패했습니다. 기존 작성 내용은 유지됩니다.',
+                    : 'AI 보고서 작성을 완료하지 못했습니다. 다시 시도해 주세요.',
                 analysisPhase: generated.assessment
                   ? ('completed' as const)
                   : generated.analysisError
@@ -380,7 +380,10 @@ export default function useMeetingDraft(
         updateDeal(id, (draft) => ({
           ...draft,
           phase: isMeetingBodyBlank(draft.values) ? 'idle' : 'ready',
-          generationError: errorMessage(reason, '미팅 처리를 완료하지 못했습니다.'),
+          generationError: errorMessage(
+            reason,
+            'AI 보고서 작성을 완료하지 못했습니다. 다시 시도해 주세요.',
+          ),
           analysisPhase: draft.assessment ? 'completed' : 'failed',
           analysisError: draft.assessment ? null : '새 분석 결과를 받지 못했습니다.',
         }))

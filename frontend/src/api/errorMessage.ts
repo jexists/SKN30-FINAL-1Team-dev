@@ -59,27 +59,33 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   ocr_unavailable: '문자 인식 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   llm_not_configured: 'AI 처리 설정이 완료되지 않았습니다. 서버 설정을 확인해 주세요.',
   ...Object.fromEntries(
-    ['agent_run_timeout', 'report_generation_timeout', 'meeting_content_timeout'].map((code) => [
+    [
+      'agent_run_timeout',
+      'report_generation_timeout',
+      'meeting_content_timeout',
+      'report_agent_timeout',
+    ].map((code) => [
       code,
-      'AI 처리가 제한시간 안에 끝나지 않았습니다. 입력은 유지됩니다. 다시 시도해 주세요.',
+      'AI 보고서 작성이 제한시간 안에 끝나지 않았습니다. 다시 시도해 주세요.',
     ]),
   ),
   ...Object.fromEntries(
+    ['agent_run_failed', 'agent_run_unexpected_error', 'report_generation_failed'].map((code) => [
+      code,
+      'AI 보고서 작성이 중간에 멈췄습니다. 다시 시도해 주세요.',
+    ]),
+  ),
+  meeting_content_failed: 'AI가 미팅 원문을 읽지 못했습니다. 원문을 확인한 뒤 다시 시도해 주세요.',
+  // 응답은 왔지만 보고서 형식이 아닌 경우입니다. 원인이 달라 다시 시도의 성격도 다릅니다.
+  ...Object.fromEntries(
     [
-      'agent_run_failed',
-      'agent_run_unexpected_error',
-      'report_generation_failed',
-      'meeting_content_failed',
       'report_output_invalid',
       'llm_output_schema_mismatch',
       'llm_response_not_object',
       'llm_response_not_json',
-      'empty_llm_output',
-    ].map((code) => [
-      code,
-      'AI 보고서를 완성하지 못했습니다. 입력은 유지됩니다. 다시 시도해 주세요.',
-    ]),
+    ].map((code) => [code, 'AI 응답을 보고서 형식으로 읽지 못했습니다. 다시 시도해 주세요.']),
   ),
+  empty_llm_output: 'AI가 보고서 내용을 만들지 못했습니다. 원문을 보완한 뒤 다시 시도해 주세요.',
   ...Object.fromEntries(
     [401, 403].map((status) => [
       `llm_provider_error:${status}`,
@@ -164,7 +170,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   meeting_notes_empty: '기록된 공통·미지정 내용은 비워서 저장할 수 없습니다.',
   meeting_notes_without_evidence: '근거가 없는 공통·미지정 항목에는 메모를 추가할 수 없습니다.',
   report_agent_output_invalid:
-    'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
+    'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 다시 시도해 주세요.',
   meeting_analysis_failed: '미팅 분석을 완료하지 못했습니다. 다시 시도해 주세요.',
   report_attachment_extraction_failed:
     '첨부 파일에서 내용을 읽지 못했습니다. 파일을 확인한 뒤 다시 올려 주세요.',
@@ -236,9 +242,11 @@ export function messageForCode(code: string, fallback: string): string {
 }
 
 export function reportGenerationMessage(code: string): string {
+  // 모르는 코드는 문구로 바꿀 수 없습니다. 원인을 잃지 않게 원문을 함께 보여 줍니다.
+  const reason = code.trim().slice(0, 120)
   return messageForCode(
     code,
-    'AI 보고서 작성을 완료하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.',
+    `AI 보고서 작성을 완료하지 못했습니다. 다시 시도해 주세요.${reason ? ` (${reason})` : ''}`,
   )
 }
 
