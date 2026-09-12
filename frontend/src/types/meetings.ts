@@ -86,4 +86,5 @@ export interface MeetingReport extends MeetingReportSeed {
   version?: number
   currentSubmissionId?: string | null
   updatedAt?: string
+  aiEvidence?: Record<string, unknown> | null
 }

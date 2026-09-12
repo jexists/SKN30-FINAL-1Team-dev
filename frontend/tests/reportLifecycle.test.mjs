@@ -13,6 +13,7 @@ after(() => vite.close())
 
 const {
   createReportGeneration,
+  cancelAgentRun,
   finalizeReport,
   finishIdempotencyAttempt,
   idempotencyAttemptFor,
@@ -105,6 +106,28 @@ test('같은 논리 시도의 응답 유실 재시도는 멱등 키를 재사용
   const nextGeneration = idempotencyAttemptFor(finished, payload)
   assert.notEqual(nextGeneration.key, first.key)
   assert.equal(finishIdempotencyAttempt(edited, first.key), edited)
+})
+
+test('명시적 미팅 재생성은 이전 retry child와 키를 공유하지 않는다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(
+    source,
+    /idempotencyAttemptFor\(\n      forceFresh \? undefined : generationAttempt\.current,\n      payload,\n    \)/,
+  )
+  assert.match(source, /!forceFresh && previous && sameReportGenerationInput/)
+  assert.match(source, /void generateAll\(true\)/)
+
+  const payload = {
+    report_kind: 'meeting',
+    source_activity_id: 'agenda-1',
+    sales_deal_ids: ['deal-1'],
+  }
+  const first = idempotencyAttemptFor(undefined, payload)
+  const second = idempotencyAttemptFor(undefined, payload)
+  assert.notEqual(second.key, first.key)
 })
 
 test('기간 보고서 복구 polling은 복구 입력으로 화면 상태가 바뀌어도 같은 effect에서 이어진다', async () => {
@@ -287,6 +310,29 @@ test('미팅 원문·첨부·선택 딜 변경은 이전 생성 run을 제출에
   assert.match(source, /setTranscript: changeTranscript/)
 })
 
+test('저장된 미팅의 딜도 선택 해제할 수 있고 작성 내용은 재선택용으로 보존한다', async () => {
+  const [picker, compose, draft] = await Promise.all([
+    readFile(
+      new URL('../src/pages/Meetings/components/DealPicker/DealPicker.tsx', import.meta.url),
+      'utf8',
+    ),
+    readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Meetings/useMeetingDraft.ts', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(picker, /disabled=\{disabled\}/)
+  assert.doesNotMatch(picker, /fixed|선택을 해제할 수 없습니다/)
+  assert.doesNotMatch(compose, /fixedDealIds/)
+  assert.match(
+    draft,
+    /previous\.includes\(dealId\) \? previous\.filter\(\(id\) => id !== dealId\) : \[\.\.\.previous, dealId\]/,
+  )
+  assert.match(
+    draft,
+    /previous\[dealId\] \? previous : \{ \.\.\.previous, \[dealId\]: stateOf\(fallbackTitle\) \}/,
+  )
+})
+
 test('기간 작성은 미팅 원문 UI 없이 첨부와 추가 메모를 표시한다', async () => {
   const source = await readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8')
   assert.match(source, /<AttachmentPanel/)
@@ -435,6 +481,46 @@ test('생성·재접속은 AgentRun API만 쓰고 canonical 저장은 finalize �
     calls.some(({ url }) => url === '/reports'),
     false,
   )
+})
+
+test('중단 요청은 해당 AgentRun cancel endpoint를 호출하고 서버 취소 목록을 보존한다', async () => {
+  const originalAdapter = client.defaults.adapter
+  const calls = []
+  client.defaults.adapter = async (config) => {
+    calls.push({ method: config.method, url: config.url, data: config.data })
+    return {
+      data: {
+        root_run_id: 'root-1',
+        cancelled_run_ids: ['root-1', 'child-1'],
+        terminal_run_ids: [],
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  try {
+    const response = await cancelAgentRun('root-1')
+    assert.deepEqual(response.cancelled_run_ids, ['root-1', 'child-1'])
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+  assert.deepEqual(calls, [{ method: 'post', url: '/agent-runs/root-1/cancel', data: undefined }])
+})
+
+test('취소된 미팅 child는 재시도 후보가 아니어서 새 생성으로 진행한다', async () => {
+  const source = await readFile(
+    new URL('../src/pages/Meetings/Compose.tsx', import.meta.url),
+    'utf8',
+  )
+  const retryCandidate = source.slice(
+    source.indexOf('const failedReportId ='),
+    source.indexOf('created = failedReportId'),
+  )
+  assert.match(retryCandidate, /child\.status_code === 'failed'/)
+  assert.match(retryCandidate, /child\.status_code === 'partial'/)
+  assert.doesNotMatch(retryCandidate, /child\.status_code === 'cancelled'/)
 })
 
 test('POST 성공 뒤 polling이 끊겨도 재시도 요청은 같은 idempotency key로 같은 run을 잇는다', async () => {

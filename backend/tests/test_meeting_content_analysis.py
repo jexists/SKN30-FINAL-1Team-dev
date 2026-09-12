@@ -152,7 +152,7 @@ async def test_run_retries_once_when_the_llm_omits_a_segment(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_unresolved_is_a_valid_result_and_is_not_retried(monkeypatch):
+async def test_unresolved_is_reviewed_once_and_can_remain_unresolved(monkeypatch):
     deal_id = uuid4()
     snapshot = meeting_transcript.input_snapshot(
         "가격을 다시 검토하기로 했다.",
@@ -160,23 +160,29 @@ async def test_unresolved_is_a_valid_result_and_is_not_retried(monkeypatch):
     )
     call_count = 0
 
+    responses = iter(
+        [
+            MeetingContentAnalysisOutput(
+                assignments=[
+                    SegmentAssignment(
+                        segment_id="S0001",
+                        applicability=SegmentApplicability(scope="unresolved"),
+                    )
+                ]
+            ),
+            meeting_content_analysis.GroundingReview(revisions=[]),
+        ]
+    )
+
     async def fake_generate_structured(**kwargs):
         nonlocal call_count
         call_count += 1
-        return MeetingContentAnalysisOutput(
-            assignments=[
-                SegmentAssignment(
-                    segment_id="S0001",
-                    applicability=SegmentApplicability(scope="unresolved"),
-                )
-            ]
-        )
+        return next(responses)
 
     monkeypatch.setattr(meeting_content_analysis, "generate_structured", fake_generate_structured)
-
     ledger = await meeting_content_analysis.run(snapshot)
 
-    assert call_count == 1
+    assert call_count == 2
     assert ledger.items[0].applicability.scope == "unresolved"
 
 
@@ -286,10 +292,7 @@ def _revision(segment_id, scope, deal_id=None, *, basis=None, reason="합성 검
     ("deal_count", "scope"),
     [
         (1, "all_selected_deals"),
-        (1, "unresolved"),
         (2, "deal"),
-        (2, "company_context"),
-        (2, "unresolved"),
     ],
 )
 async def test_review_skips_single_deal_or_no_structural_risk(deal_count, scope):
@@ -310,6 +313,61 @@ async def test_review_skips_single_deal_or_no_structural_risk(deal_count, scope)
     assert result == ledger
     assert len(model._seen) == 1
     assert all("GroundingReview" not in names for names in model._tool_sets)
+
+
+@pytest.mark.anyio
+async def test_review_candidates_recheck_missing_deal_attribution_even_for_one_selected_deal():
+    deal_id = uuid4()
+    initial = [
+        _assignment("S0001", "company_context"),
+        _assignment("S0002", "unresolved"),
+        _assignment("S0003", "meeting_context"),
+    ]
+    agent_input, ledger = _ledger_case(
+        "회사 일반 설명. 대상 딜은 불명확하다. 미팅 목적을 확인했다.",
+        [_deal(deal_id)],
+        initial,
+    )
+    assert meeting_content_analysis._review_candidates(agent_input, ledger) == {
+        segment_id: ["missing_deal_attribution"] for segment_id in ["S0001", "S0002", "S0003"]
+    }
+
+    model = ScriptedGroundingModel(responses=_initial_responses(initial))
+    result = await meeting_content_analysis.run(agent_input.model_dump(mode="json"), model=model)
+
+    assert result == ledger
+    assert len(model._seen) == 2
+    assert result.items[1].applicability.scope == "unresolved"
+
+
+@pytest.mark.anyio
+async def test_missing_deal_attribution_review_can_restore_only_grounded_deal_scope():
+    deal_a, deal_b = uuid4(), uuid4()
+    initial = [
+        _assignment("S0001", "company_context"),
+        _assignment("S0002", "unresolved"),
+    ]
+    agent_input, ledger = _ledger_case(
+        "고객사 배경. 정기 공급 딜의 납기를 논의했다.",
+        [
+            _deal(deal_a, title="일회 증설"),
+            _deal(deal_b, title="정기 공급"),
+        ],
+        initial,
+    )
+    revision = _revision("S0002", "deal", deal_b, basis=["S0002"])
+    model = ScriptedGroundingModel(
+        responses=[
+            _call("MeetingContentAnalysisOutput", assignments=initial),
+            _call("GroundingReview", revisions=[revision]),
+        ]
+    )
+
+    result = await meeting_content_analysis.run(agent_input.model_dump(mode="json"), model=model)
+
+    assert result.items[0].applicability.scope == "company_context"
+    assert result.items[1].applicability.model_dump(mode="json") == revision["applicability"]
+    assert len(model._seen) == 2
 
 
 def test_review_candidates_match_only_exact_normalized_nonempty_product_names():

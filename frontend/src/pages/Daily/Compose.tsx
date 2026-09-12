@@ -16,6 +16,7 @@ import {
 } from '@/components/icons'
 import Modal from '@/components/Modal'
 import ReportFields from '@/components/ReportFields'
+import ReportReviewWarning from '@/components/ReportReviewWarning'
 import Skeleton from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import { dailyComposePath, dailyReportPath } from '@/constants/routes'
@@ -280,6 +281,7 @@ export default function Compose() {
           <p>{existing.reviewNote}</p>
         </div>
       )}
+      <ReportReviewWarning evidence={draft.generationEvidence} />
 
       {locked && existing && (
         <p className={styles.locked}>
@@ -424,9 +426,40 @@ export default function Compose() {
                     onChange={(event) => draft.setTranscript(event.target.value)}
                   />
                   <span className={styles.guidanceMeta}>
-                    {reportTextLength(draft.transcript).toLocaleString()} / 2,000자
+                    {reportTextLength(draft.transcript).toLocaleString()} / 2,000자 · 메모를 바꾼 뒤
+                    AI 보고서 작성 버튼을 다시 눌러야 반영됩니다.
                   </span>
                 </FormField>
+                <Button
+                  type="button"
+                  className={styles.generate}
+                  disabled={
+                    locked ||
+                    pending ||
+                    draft.recovering ||
+                    !draft.canGenerate ||
+                    draft.phase === 'generating'
+                  }
+                  onClick={onGenerate}
+                >
+                  {draft.phase === 'generating' ? 'AI 보고서 작성 중…' : 'AI 보고서 작성'}
+                </Button>
+                {draft.phase === 'generating' && draft.generationRunId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={draft.cancelling}
+                    onClick={() => void draft.cancelGeneration()}
+                  >
+                    {draft.cancelling ? '중단 중…' : '생성 중단'}
+                  </Button>
+                )}
+                {draft.cancelError && (
+                  <p className={styles.failed} role="alert">
+                    {draft.cancelError}
+                  </p>
+                )}
+                {draft.cancelled && <p role="status">생성이 중단되었습니다.</p>}
               </div>
             )}
           </div>

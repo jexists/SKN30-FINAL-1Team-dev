@@ -1,5 +1,6 @@
 """실행 ID로 찾는 에이전트 오류 로그. 예외 메시지·입력·응답 본문은 기록하지 않는다."""
 
+import hashlib
 import json
 import logging
 import re
@@ -56,6 +57,11 @@ _fields = frozenset(
         "support_batch_count",
         "review_candidate_count",
         "review_change_count",
+        "review_trigger",
+        "selected_deal_count",
+        "scope_name",
+        "scope_count",
+        "phase",
         "segment_id",
         "before_scope",
         "after_scope",
@@ -67,6 +73,28 @@ _fields = frozenset(
         "total_tokens",
         "reason_code",
         "outcome",
+        "parent_run_id",
+        "assignment_id",
+        "assignment_kind",
+        "assignment_phase",
+        "work_unit_id",
+        "tool_name",
+        "requested_scope",
+        "requested_scope_kind",
+        "requested_scope_length",
+        "requested_scope_sha256",
+        "allowed_scopes",
+        "existing_scopes",
+        "decision",
+        "fallback_selected",
+        "report_kind",
+        "allowed_scope_count",
+        "existing_scope_count",
+        "validation_error_path",
+        "validation_missing_fields",
+        "validation_actual_keys",
+        "validation_actual_types",
+        "validation_null_fields",
     }
 )
 _validation_types = frozenset(get_args(ErrorType))
@@ -84,9 +112,58 @@ _report_validation_codes = frozenset(
         "report_evidence_duplicate",
         "report_title_empty",
         "report_deal_title_missing",
+        "report_scope_not_allowed",
+        "report_deal_not_allowed",
+        "report_source_not_allowed",
         "report_deal_no_evidence_marker_missing",
     }
 )
+
+_server_identifier = re.compile(r"[a-z][a-z0-9_-]{0,63}(?::[1-9][0-9]{0,5})?")
+_scope_identifier = re.compile(
+    r"(?:common(?:_report)?|unassigned(?:_report)?|deal_reports\[(?:0|[1-9][0-9]{0,5})\]|"
+    r"(?:meeting_bundle|child_submission|direct_activity|attachment):[1-9][0-9]{0,5})"
+)
+
+
+def safe_report_scope(scope: object, known_scopes=()) -> dict[str, object]:
+    """Known server scope는 이름을, 모델 자유 문자열은 종류·길이·해시만 남긴다."""
+    if not isinstance(scope, str):
+        return {"requested_scope_kind": type(scope).__name__}
+    if scope in known_scopes and (
+        _server_identifier.fullmatch(scope) or _scope_identifier.fullmatch(scope)
+    ):
+        return {"requested_scope": scope, "requested_scope_kind": "known"}
+    if _scope_identifier.fullmatch(scope):
+        return {"requested_scope": scope, "requested_scope_kind": "scope_identifier"}
+    kind = "identifier" if _server_identifier.fullmatch(scope) else "freeform"
+    return {
+        "requested_scope_kind": kind,
+        "requested_scope_length": len(scope),
+        "requested_scope_sha256": hashlib.sha256(scope.encode()).hexdigest()[:16],
+    }
+
+
+def _safe_fields(fields: dict) -> dict:
+    safe = {}
+    for key, value in fields.items():
+        if key not in _fields:
+            continue
+        if key in {"allowed_scopes", "existing_scopes"}:
+            if (
+                isinstance(value, (list, tuple, set, frozenset))
+                and all(
+                    isinstance(item, str)
+                    and (_server_identifier.fullmatch(item) or _scope_identifier.fullmatch(item))
+                    for item in value
+                )
+            ):
+                values = sorted(value)
+                safe[key] = values[:20]
+                safe[key.replace("scopes", "scope_count")] = len(values)
+        elif isinstance(value, (str, int, float, bool)):
+            safe[key] = value
+    return safe
 
 
 @contextmanager
@@ -122,16 +199,15 @@ def log_agent_event(stage: str, **fields):
         "event": "agent_progress",
         "timestamp": datetime.now(UTC).isoformat(),
         "stage": stage,
-        **{
-            key: value
-            for key, value in {**(_context.get() or {}), **fields}.items()
-            if key in _fields and isinstance(value, (str, int, float, bool))
-        },
+        **_safe_fields({**(_context.get() or {}), **fields}),
     }
     request_id = record.pop("request_id", None)
     if isinstance(request_id, str) and re.fullmatch(r"req[_-][A-Za-z0-9_-]{1,100}", request_id):
         record["request_id"] = request_id
-    logger.info("agent_progress %s", json.dumps(record, ensure_ascii=False))
+    try:
+        logger.info("agent_progress %s", json.dumps(record, ensure_ascii=False))
+    except Exception:
+        pass
 
 
 def log_agent_error(error: BaseException, *, stage: str, error_code: str | None = None, **fields):
@@ -139,11 +215,7 @@ def log_agent_error(error: BaseException, *, stage: str, error_code: str | None 
         "event": "agent_error",
         "timestamp": datetime.now(UTC).isoformat(),
         "stage": stage,
-        **{
-            key: value
-            for key, value in {**(_context.get() or {}), **fields}.items()
-            if key in _fields and isinstance(value, (str, int, float, bool))
-        },
+        **_safe_fields({**(_context.get() or {}), **fields}),
     }
     request_id = record.pop("request_id", None)
     if isinstance(request_id, str) and re.fullmatch(r"req[_-][A-Za-z0-9_-]{1,100}", request_id):
@@ -190,7 +262,10 @@ def log_agent_error(error: BaseException, *, stage: str, error_code: str | None 
             if isinstance(cause, BaseException) and id(cause) not in seen:
                 pending.append(cause)
     record["exceptions"] = exceptions
-    logger.error("agent_error %s", json.dumps(record, ensure_ascii=False))
+    try:
+        logger.error("agent_error %s", json.dumps(record, ensure_ascii=False))
+    except Exception:
+        pass
 
 
 @contextmanager

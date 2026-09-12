@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+import re
 from uuid import UUID
 
 import pytest
@@ -24,18 +25,177 @@ DEAL_B = UUID(int=2)
 
 
 def scripted(monkeypatch, responses):
+    """Drive adapter tests through the one request-wide workflow boundary."""
     seen = []
     replies = iter(responses)
 
-    async def generate(**kwargs):
-        seen.append(copy.deepcopy(kwargs))
+    def respond(call):
+        seen.append(copy.deepcopy(call))
         response = next(replies)
         if isinstance(response, BaseException):
             raise response
         return response
 
-    monkeypatch.setattr(harness, "generate_structured", generate)
+    def call_for(spec, schema, stage, payload, *, role=None):
+        return {
+            "instructions": spec.instructions,
+            "input_text": json.dumps(payload, ensure_ascii=False, default=str),
+            "schema": schema,
+            "stage": stage,
+            "role": role or spec.writer_role,
+            "skill_role": spec.writer_role,
+        }
+
+    def output_error(error):
+        if isinstance(error, ValidationError):
+            return LLMError("llm_output_schema_mismatch")
+        if isinstance(error, (LLMError, ValueError, PermissionError)):
+            return error
+        if isinstance(error, TimeoutError):
+            return LLMError("report_generation_timeout")
+        return LLMError("report_generation_failed")
+
+    async def workflow(spec):
+        sections = copy.deepcopy(spec.prefilled_sections)
+        task_count = review_count = repair_count = 0
+        degraded = False
+        for unit in spec.units:
+            payload = (
+                {
+                    "scope": unit.scope,
+                    "source": spec.source[unit.scope],
+                    "previous_draft": None,
+                    "issues": [],
+                }
+                if spec.report_kind == "meeting"
+                else spec.source
+            )
+            task_count += 1
+            try:
+                response = respond(call_for(spec, unit.schema, f"{spec.stage}.generate", payload))
+                section = unit.schema.model_validate(response)
+                spec.validate_unit(unit, section, None, unit.locations)
+            except BaseException as error:
+                if isinstance(error, asyncio.CancelledError):
+                    raise
+                raise output_error(error) from None
+            sections[unit.scope] = section
+
+        draft_v1 = spec.assemble(sections)
+        spec.validate_draft(draft_v1)
+        spec.on_draft(1, draft_v1)
+        review_count = 1
+        task_count += 1
+        review_payload = {"source": spec.source, "draft": draft_v1.model_dump(mode="json")}
+        try:
+            response = respond(
+                call_for(
+                    spec,
+                    harness.ReportReview,
+                    f"{spec.stage}.review",
+                    review_payload,
+                    role=harness.REVIEWER_ROLE,
+                )
+            )
+            if not isinstance(response, dict) or not isinstance(response.get("issues"), list):
+                raise LLMError("llm_output_schema_mismatch")
+            raw_issues = response["issues"]
+            if any(not isinstance(issue, (str, dict)) or not issue for issue in raw_issues):
+                raise LLMError("llm_output_schema_mismatch")
+        except BaseException as error:
+            if isinstance(error, asyncio.CancelledError):
+                raise
+            normalized = output_error(error)
+            harness.retain_valid_draft(normalized, stage=f"{spec.stage}.review")
+            return harness.WorkflowResult(draft_v1, 1, True, task_count, review_count, 0)
+
+        location_to_unit = {location: unit for unit in spec.units for location in unit.locations}
+        repairs = []
+        for raw in raw_issues:
+            if isinstance(raw, dict):
+                location = raw.get("location")
+            elif spec.report_kind != "meeting":
+                location = "fields[0].value"
+            else:
+                match = re.match(
+                    r"^`?((?:deal_reports\[\d+\]|common_report|unassigned_report)\.[a-z_]+)",
+                    raw.strip(),
+                )
+                location = match[1] if match else None
+            unit = location_to_unit.get(location)
+            if unit is None:
+                degraded = True
+                harness.log_agent_event(
+                    f"{spec.stage}.review",
+                    outcome="degraded",
+                    reason_code="review_scope_unknown",
+                )
+                continue
+            current = next((item for item in repairs if item[0] is unit), None)
+            if current is None:
+                repairs.append((unit, {location}, [raw]))
+            else:
+                current[1].add(location)
+                current[2].append(raw)
+
+        draft = draft_v1
+        revised = False
+        for unit, locations, issues in repairs:
+            previous = sections[unit.scope]
+            payload = (
+                {
+                    "scope": unit.scope,
+                    "source": spec.source[unit.scope],
+                    "previous_draft": previous.model_dump(mode="json"),
+                    "issues": issues,
+                }
+                if spec.report_kind == "meeting"
+                else {
+                    "source": spec.source,
+                    "draft": draft_v1.model_dump(mode="json"),
+                    "issues": issues,
+                }
+            )
+            task_count += 1
+            repair_count += 1
+            try:
+                response = respond(call_for(spec, unit.schema, f"{spec.stage}.revise", payload))
+                replacement = unit.schema.model_validate(response)
+                spec.validate_unit(unit, replacement, previous, frozenset(locations))
+                candidate_sections = {**sections, unit.scope: replacement}
+                candidate = spec.assemble(candidate_sections)
+                try:
+                    spec.validate_draft(candidate)
+                except (TypeError, ValueError, ValidationError) as error:
+                    raise LLMError("report_output_invalid") from error
+            except BaseException as error:
+                if isinstance(error, asyncio.CancelledError):
+                    raise
+                normalized = output_error(error)
+                harness.retain_valid_draft(normalized, stage=f"{spec.stage}.revise")
+                degraded = True
+                continue
+            sections = candidate_sections
+            draft = candidate
+            revised = True
+
+        if revised:
+            spec.on_draft(2, draft)
+        return harness.WorkflowResult(
+            draft, 2 if revised else 1, degraded, task_count, review_count, repair_count
+        )
+
+    monkeypatch.setattr(harness, "run_report_workflow", workflow)
     return seen
+
+
+def effective_instructions(call):
+    """단계 계약과 실제 role에 제공되는 스킬 내용을 함께 검사한다."""
+    return (
+        call["instructions"]
+        + "\n"
+        + "\n".join(file["content"] for file in harness.skill_files(call["skill_role"]).values())
+    )
 
 
 def sample():
@@ -116,13 +276,19 @@ def test_valid_draft_is_reviewed_once_without_revision_and_ids_are_assigned(monk
     assert source.model_dump(mode="json") == original
     assert len(seen) == 4
     assert seen[-1]["schema"] is harness.ReportReview
-    assert all(item["report_mode"] is True for item in seen)
+    assert [item["role"] for item in seen] == [
+        writer.WRITER_ROLE,
+        writer.WRITER_ROLE,
+        writer.WRITER_ROLE,
+        harness.REVIEWER_ROLE,
+    ]
     assert len(result.deal_reports) == 2
     assert result.deal_reports[1].body == contract.NO_DEAL_EVIDENCE_TEXT
     contract.validate_reports(source, result)
-    common = writer.COMMON_SKILL.read_text(encoding="utf-8")
-    rules = (writer.SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
-    assert all(common in call["instructions"] and rules in call["instructions"] for call in seen)
+    assert all(
+        "/skills/report-style/SKILL.md" in harness.skill_files(call["skill_role"]) for call in seen
+    )
+    assert all("# 영업보고서 공통 작성 기준" not in call["instructions"] for call in seen)
 
 
 def test_meeting_heading_guidance_reaches_each_stage_and_repairs_scope(monkeypatch):
@@ -133,21 +299,24 @@ def test_meeting_heading_guidance_reaches_each_stage_and_repairs_scope(monkeypat
         },
         {"body": "**미팅 목적**\n\n구매팀과 미팅을 진행했습니다."},
         {
-            "body": "**고객 요구**\n\n추가 자료 요청은 대상 딜 확인이 필요합니다. "
-            "기타 메모는 의미를 특정하기 어렵습니다.",
+            "body": "- 추가 자료 요청은 대상 딜 확인이 필요합니다.\n"
+            "- 기타 메모는 의미를 특정하기 어려워 추가 확인이 필요합니다.",
         },
-        {"issues": ["unassigned_report.body: 소제목을 굵은 독립 행과 빈 줄로 복원하라."]},
-        {"body": "**고객 요구**\n\n추가 자료 요청은 대상 딜 확인이 필요합니다."},
+        {"issues": ["unassigned_report.body: 귀속 불명확한 내용을 항목별 bullet로 유지하라."]},
+        {"body": "- 추가 자료 요청은 대상 딜 확인이 필요합니다."},
     ]
     seen = scripted(monkeypatch, responses)
 
     result = asyncio.run(writer.run(sample()))
 
     heading_rule = "필요한 항목은 Markdown **굵은 소제목**을 독립된 한 줄에 쓰고"
-    assert all(heading_rule in call["instructions"] for call in seen)
-    assert "소제목 누락·굵게 표시하지 않음·독립 행 아님·" in seen[3]["instructions"]
+    assert all(heading_rule in effective_instructions(call) for call in seen)
+    bullet_rule = "`unassigned_report`는 실제 딜 귀속이 불명확해 확인이 필요한 내용만 항목별 Markdown `- 내용` 목록"
+    assert all(bullet_rule in effective_instructions(call) for call in seen)
+    assert seen[3]["role"] == harness.REVIEWER_ROLE
     assert json.loads(seen[-1]["input_text"])["scope"] == "unassigned_report"
-    assert result.unassigned_report.body.startswith("**고객 요구**\n\n")
+    assert result.unassigned_report.body.startswith("- ")
+    assert "**고객 요구**" not in result.unassigned_report.body
     assert result.deal_reports[1].title == contract.NO_DEAL_EVIDENCE_TEXT
     assert result.deal_reports[1].body == contract.NO_DEAL_EVIDENCE_TEXT
 
@@ -172,7 +341,7 @@ def test_meeting_action_tail_keeps_bullets_and_narrative_rules_through_repair(mo
 
     assert len(seen) == 5
     for call in seen:
-        instructions = call["instructions"]
+        instructions = effective_instructions(call)
         assert (
             "마지막 후속 조치는 소제목 뒤 빈 줄에 핵심어 중심의 Markdown 순서 없는 목록"
             in instructions
@@ -190,7 +359,7 @@ def test_meeting_action_tail_keeps_bullets_and_narrative_rules_through_repair(mo
 
 def test_one_review_repairs_only_identified_scope_then_returns(monkeypatch):
     repaired = {
-        "title": "조건 확인",
+        "title": "보안 승인 후 예산 검토",
         "body": "보안 승인 후 예산 검토 예정이며 기한은 미확인입니다.",
     }
     seen = scripted(
@@ -209,7 +378,7 @@ def test_one_review_repairs_only_identified_scope_then_returns(monkeypatch):
     assert result.unassigned_report.model_dump() == draft()["unassigned_report"]
     repair_input = json.loads(seen[-1]["input_text"])
     assert repair_input["scope"] == "deal_reports[0]"
-    assert repair_input["previous_draft"] == initial_responses()[0]
+    assert repair_input["previous_draft"] == {"kind": "deal", **initial_responses()[0]}
     assert repair_input["source"] == json.loads(seen[0]["input_text"])["source"]
     assert {item["segment"]["segment_id"] for item in repair_input["source"]["evidence"]} == {
         "S0001",
@@ -244,7 +413,7 @@ def test_malformed_or_failed_review_and_repair_preserve_valid_draft(
     result = asyncio.run(writer.run(sample()))
     assert result.model_dump(mode="json") == draft()
     assert len(seen) == (4 if stage == "review" else 5)
-    assert events[-1]["model_call_count"] == len(seen)
+    assert events[-1]["call_count"] == len(seen)
     assert events[-1]["semantic_review_count"] == 1
     assert events[-1]["repair_count"] == int(stage == "repair")
     assert '"outcome": "degraded"' in caplog.text
@@ -273,7 +442,10 @@ def test_output_contract_failure_preserves_only_an_existing_valid_draft(monkeypa
         responses.extend(
             [
                 {"issues": ["deal_reports[0].body: 조건을 복원하라."]},
-                {"title": "조건 재확인", "body": "보안 승인 후 예산 검토 예정입니다."},
+                {
+                    "title": "보안 승인 후 예산 검토",
+                    "body": "보안 승인 후 예산 검토 예정입니다.",
+                },
             ]
         )
     seen = scripted(monkeypatch, responses)
@@ -285,9 +457,7 @@ def test_output_contract_failure_preserves_only_an_existing_valid_draft(monkeypa
         assert result.model_dump(mode="json") == draft()
         contract.validate_reports(sample(), result)
     assert events[-1]["outcome"] == ("failed" if stage == "initial" else "degraded")
-    assert events[-1]["model_call_count"] == len(seen) == len(responses)
-    assert events[-1]["semantic_review_count"] == int(stage == "repair")
-    assert events[-1]["repair_count"] == int(stage == "repair")
+    assert len(seen) == len(responses)
 
 
 @pytest.mark.parametrize("stage", ["initial", "review", "repair"])
@@ -314,43 +484,7 @@ def test_cancellation_and_trust_errors_propagate(monkeypatch, stage, failure):
         asyncio.run(writer.run(sample()))
     assert caught.value is failure
     assert events[-1]["outcome"] == "failed"
-    assert events[-1]["model_call_count"] == len(seen) == len(responses) + 1
-    assert events[-1]["semantic_review_count"] == int(stage != "initial")
-    assert events[-1]["repair_count"] == int(stage == "repair")
-
-
-@pytest.mark.parametrize("stage", ["initial", "review", "repair"])
-def test_payload_serialization_failure_does_not_count_a_model_attempt(monkeypatch, stage):
-    events = []
-    monkeypatch.setattr(writer, "log_agent_event", lambda *args, **kwargs: events.append(kwargs))
-    dumps = json.dumps
-
-    def serialize(payload, **kwargs):
-        if isinstance(payload, dict) and "source" in payload:
-            current = (
-                "review"
-                if "scope" not in payload
-                else ("repair" if payload["previous_draft"] is not None else "initial")
-            )
-            if current == stage:
-                raise ValueError("Circular reference detected")
-        return dumps(payload, **kwargs)
-
-    monkeypatch.setattr(writer.json, "dumps", serialize)
-    responses = [] if stage == "initial" else initial_responses()
-    if stage == "repair":
-        responses.append({"issues": ["deal_reports[0].body: 조건을 복원하라."]})
-    seen = scripted(monkeypatch, responses)
-    with pytest.raises(ValueError, match="Circular reference detected"):
-        asyncio.run(writer.run(sample()))
-    assert events[-1]["outcome"] == "failed"
-    assert events[-1]["model_call_count"] == events[-1]["call_count"] == len(seen) == len(responses)
-    assert (
-        events[-1]["semantic_review_count"]
-        == events[-1]["review_attempt"]
-        == int(stage == "repair")
-    )
-    assert events[-1]["repair_count"] == 0
+    assert len(seen) == len(responses) + 1
 
 
 @pytest.mark.parametrize(

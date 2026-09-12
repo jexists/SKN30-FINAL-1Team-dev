@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.reports import review_delivery
 from app.core.config import settings
 from app.models.agent import AgentRun
 from app.models.content import Report, ReportDeal
@@ -25,6 +26,7 @@ from app.services.agent_stream import progress_context
 MAX_ATTEMPTS = 2
 LEASE_SECONDS = 90
 HEARTBEAT_SECONDS = 30
+CANCEL_CHECK_SECONDS = 0.5
 RETRY_DELAY_SECONDS = 5
 REQUIRED_SCHEMA = {
     "agent_run": {
@@ -232,7 +234,11 @@ async def _redact_expired_claim(
 
 
 async def _complete(
-    run: AgentRun, lease_owner: str, output, usage: dict[str, int] | None = None
+    run: AgentRun,
+    lease_owner: str,
+    output,
+    usage: dict[str, int] | None = None,
+    review_evidence: dict | None = None,
 ) -> None:
     sessionmaker = agent_runs.get_sessionmaker()
     async with sessionmaker() as session:
@@ -257,11 +263,14 @@ async def _complete(
         )
         if run.agent_code == "meeting_analysis":
             output_snapshot = {"analyses": output_snapshot}
+        evidence = agent_runs.evidence(run.agent_code, output, run.input_snapshot)
+        if review_evidence:
+            evidence.update(review_evidence)
         values = {
             "status_code": status_code,
             "current_stage_code": status_code,
             "output_snapshot": output_snapshot,
-            "evidence": agent_runs.evidence(run.agent_code, output, run.input_snapshot),
+            "evidence": evidence,
             "error_code": "agent_run_partial" if is_partial else None,
             "error_message": None,
             "lease_owner": None,
@@ -515,7 +524,7 @@ async def _fail(
             run.payload_expires_at is None or run.payload_expires_at <= now
         ):
             values = _expired_payload_values(now)
-            await session.execute(
+            result = await session.execute(
                 update(AgentRun)
                 .where(
                     AgentRun.id == run.id,
@@ -525,6 +534,8 @@ async def _fail(
                 .values(**values)
             )
             await session.commit()
+            if getattr(result, "rowcount", 1) == 0:
+                return
             for field, value in values.items():
                 setattr(run, field, value)
             return
@@ -555,7 +566,7 @@ async def _fail(
                 current_stage_code="failed",
                 finished_at=now,
             )
-        await session.execute(
+        result = await session.execute(
             update(AgentRun)
             .where(
                 AgentRun.id == run.id,
@@ -564,7 +575,12 @@ async def _fail(
             )
             .values(**values)
         )
-        if values.get("status_code") == "failed" and run.agent_code == "meeting_analysis":
+        updated = getattr(result, "rowcount", 1) > 0
+        if (
+            updated
+            and values.get("status_code") == "failed"
+            and run.agent_code == "meeting_analysis"
+        ):
             await _persist_late_meeting_analysis(
                 session,
                 run,
@@ -573,6 +589,8 @@ async def _fail(
                 failure_code=error_code,
             )
         await session.commit()
+        if not updated:
+            return
         for field, value in values.items():
             setattr(run, field, value)
 
@@ -598,6 +616,11 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
                         agent_code=run.agent_code,
                         model=settings.llm_model,
                         attempt=run.attempt_count,
+                        **(
+                            {"parent_run_id": str(run.parent_run_id)}
+                            if run.parent_run_id
+                            else {}
+                        ),
                     ),
                     progress_context(run.id),
                     collect_token_usage() as usage,
@@ -605,8 +628,15 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
                     agent_code, input_snapshot, requester_id = await agent_runs.prepare_claimed(
                         run, lease_owner
                     )
-                    output = await agent_runs.dispatch(agent_code, input_snapshot, requester_id)
-                    await _complete(run, lease_owner, output, usage)
+                    with review_delivery.capture() as review_evidence:
+                        output = await _dispatch_until_cancelled(
+                            run.id, agent_code, input_snapshot, requester_id
+                        )
+                    await _complete(run, lease_owner, output, usage, review_evidence)
+        except asyncio.CancelledError:
+            if await _is_cancelled(run.id):
+                return
+            raise
         except Exception as error:
             error_code = agent_runs.safe_error_code(error)
             if error_code != "agent_run_lease_lost":
@@ -623,6 +653,38 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
     finally:
         heartbeat.cancel()
         await asyncio.gather(heartbeat, return_exceptions=True)
+
+
+async def _is_cancelled(run_id: UUID) -> bool:
+    sessionmaker = agent_runs.get_sessionmaker()
+    async with sessionmaker() as session:
+        status_code = (
+            await session.execute(select(AgentRun.status_code).where(AgentRun.id == run_id))
+        ).scalar_one_or_none()
+    return status_code == "cancelled"
+
+
+async def _dispatch_until_cancelled(
+    run_id: UUID,
+    agent_code: str,
+    input_snapshot: dict,
+    requester_id: UUID | None,
+):
+    # 취소가 prepare_claimed 직후 반영된 경우 provider task 자체를 만들지 않는다.
+    if await _is_cancelled(run_id):
+        raise asyncio.CancelledError
+    task = asyncio.create_task(agent_runs.dispatch(agent_code, input_snapshot, requester_id))
+    try:
+        while not task.done():
+            await asyncio.sleep(CANCEL_CHECK_SECONDS)
+            if await _is_cancelled(run_id):
+                task.cancel()
+                break
+        return await task
+    finally:
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 async def execute(run_id: UUID) -> None:

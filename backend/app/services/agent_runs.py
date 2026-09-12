@@ -23,6 +23,7 @@ from app.models.agent import AgentRun
 from app.models.content import Report
 from app.models.workspace import Member
 from app.schemas.agent_runs import (
+    AgentRunCancelRead,
     AgentRunCreate,
     AgentRunRead,
     ReportGenerationCreate,
@@ -866,6 +867,97 @@ async def get(agent_run_id: UUID, member: Member, db: AsyncSession) -> AgentRunR
     )
     child_reads = [_run_read(child, member.id).model_dump(mode="json") for child in children]
     return read.model_copy(update={"child_runs": child_reads})
+
+
+async def cancel(agent_run_id: UUID, member: Member, db: AsyncSession) -> AgentRunCancelRead:
+    """요청자 본인의 run과 그 생성 subtree에서 활성 작업만 취소한다."""
+    target = (
+        await db.execute(
+            select(AgentRun).where(
+                AgentRun.id == agent_run_id,
+                AgentRun.team_id == member.team_id,
+                AgentRun.requested_by_member_id == member.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "agent_run_not_found")
+
+    # Find the root before taking locks; mutations are performed root first below.
+    root_id = target.id
+    while target.parent_run_id is not None:
+        parent = (
+            await db.execute(
+                select(AgentRun).where(
+                    AgentRun.id == target.parent_run_id,
+                    AgentRun.team_id == member.team_id,
+                    AgentRun.requested_by_member_id == member.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if parent is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "agent_run_not_found")
+        target = parent
+        root_id = parent.id
+
+    root = (
+        await db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.id == root_id,
+                AgentRun.team_id == member.team_id,
+                AgentRun.requested_by_member_id == member.id,
+            )
+            .with_for_update(of=AgentRun)
+        )
+    ).scalar_one_or_none()
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "agent_run_not_found")
+
+    lineage = [root]
+    frontier = [root.id]
+    while frontier:
+        children = list(
+            (
+                await db.execute(
+                    select(AgentRun)
+                    .where(
+                        AgentRun.parent_run_id.in_(frontier),
+                        AgentRun.team_id == member.team_id,
+                        AgentRun.requested_by_member_id == member.id,
+                    )
+                    .with_for_update(of=AgentRun)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        lineage.extend(children)
+        frontier = [child.id for child in children]
+
+    now = datetime.now(UTC)
+    active = {"queued", "running"}
+    cancelled_ids: list[UUID] = []
+    terminal_ids: list[UUID] = []
+    for run in lineage:
+        if run.status_code in active:
+            run.status_code = "cancelled"
+            run.current_stage_code = "cancelled"
+            run.error_code = "agent_run_cancelled"
+            run.error_message = "agent_run_cancelled"
+            run.lease_owner = None
+            run.lease_expires_at = None
+            run.heartbeat_at = now
+            run.finished_at = now
+            cancelled_ids.append(run.id)
+        else:
+            terminal_ids.append(run.id)
+    await db.commit()
+    return AgentRunCancelRead(
+        root_run_id=root.id,
+        cancelled_run_ids=cancelled_ids,
+        terminal_run_ids=terminal_ids,
+    )
 
 
 async def retry_meeting_child(

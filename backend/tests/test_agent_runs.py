@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from langchain_openai import StreamChunkTimeoutError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
+from test_report_deepagents_runtime import ScriptedModel
 from test_report_writing_deep import sample
 
 from app.agents import (
@@ -19,6 +20,7 @@ from app.agents import (
     schedule_management,
 )
 from app.agents.meeting import features as meeting_analysis
+from app.agents.reports import harness, review_delivery
 from app.agents.reports import meeting as report_writing_deep
 from app.api.deps import get_current_member
 from app.core.config import settings
@@ -1262,6 +1264,38 @@ async def test_generic_dispatch_completion_and_evidence(
 
 
 @pytest.mark.anyio
+async def test_report_review_metadata_is_evidence_not_output(monkeypatch):
+    member = _member()
+    run = _run(member, status_code="running")
+    run.agent_code = "report_writing"
+    run.lease_owner = "worker-1"
+    output_snapshot = {"fields": [{"field_id": "body", "value": "검토할 초안"}]}
+    output = SimpleNamespace(model_dump=lambda **_kwargs: output_snapshot)
+    issue = harness.ReviewIssue(
+        location="body",
+        evidence="근거와 표현을 다시 확인해야 함",
+        action="확인되지 않은 표현을 수정하세요.",
+    )
+    with review_delivery.capture() as review_evidence:
+        review_delivery.record(harness.WorkflowResult(output, 2, True, 3, 2, 1, (issue,), True))
+
+    db = _Db(SimpleNamespace(rowcount=1))
+    monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
+    await agent_worker._complete(run, run.lease_owner, output, review_evidence=review_evidence)
+
+    assert run.output_snapshot == output_snapshot
+    assert run.evidence["report_review"] == {
+        "selected_version": 2,
+        "initial_review_conducted": True,
+        "repair_completed": None,
+        "review_required": True,
+        "review_incomplete": True,
+        "review_notes_may_predate_draft": True,
+        "issues": [issue.model_dump(mode="json")],
+    }
+
+
+@pytest.mark.anyio
 async def test_worker_completes_meeting_output_without_an_apply_phase(monkeypatch):
     member = _member()
     run = _run(member)
@@ -1292,6 +1326,10 @@ async def test_worker_completes_meeting_output_without_an_apply_phase(monkeypatc
     async def dispatch(*_args):
         return output
 
+    async def not_cancelled(_run_id):
+        return False
+
+    monkeypatch.setattr(agent_worker, "_is_cancelled", not_cancelled)
     monkeypatch.setattr(service, "dispatch", dispatch)
     await service.execute(run.id)
 
@@ -1539,9 +1577,79 @@ async def test_worker_completion_rejects_lost_lease(monkeypatch):
 
     with pytest.raises(RuntimeError, match="agent_run_lease_lost"):
         await agent_worker._complete(run, "old-worker", output)
-
     assert run.status_code == "running"
     assert db.commit_count == 0
+
+
+@pytest.mark.anyio
+async def test_worker_does_not_dispatch_after_claim_is_cancelled(monkeypatch):
+    run_id = uuid4()
+    dispatched = False
+
+    async def dispatch(*_args):
+        nonlocal dispatched
+        dispatched = True
+
+    monkeypatch.setattr(agent_worker, "_is_cancelled", lambda _run_id: _already_cancelled())
+    monkeypatch.setattr(agent_worker.agent_runs, "dispatch", dispatch)
+
+    async def _already_cancelled():
+        return True
+
+    with pytest.raises(asyncio.CancelledError):
+        await agent_worker._dispatch_until_cancelled(run_id, "report_writing", {}, None)
+    assert dispatched is False
+
+
+@pytest.mark.anyio
+async def test_cancel_service_locks_requester_lineage_and_preserves_terminal_runs():
+    member = _member()
+    root = _run(member, status_code="completed")
+    child = _run(member, status_code="running")
+    child.parent_run_id = root.id
+    terminal = _run(member, status_code="completed")
+    terminal.parent_run_id = root.id
+    db = _Db(
+        _Result(scalar=root),
+        _Result(scalar=root),
+        _Result(scalars=[child, terminal]),
+        _Result(scalars=[]),
+    )
+
+    result = await service.cancel(root.id, member, db)
+
+    assert result.root_run_id == root.id
+    assert result.cancelled_run_ids == [child.id]
+    assert result.terminal_run_ids == [root.id, terminal.id]
+    assert child.status_code == "cancelled"
+    assert terminal.status_code == "completed"
+
+
+@pytest.mark.anyio
+async def test_cancelled_worker_failure_does_not_persist_analysis_side_effect(monkeypatch):
+    member = _member()
+    parent = _run(member, status_code="completed")
+    parent.report_id = uuid4()
+    run = _run(member, status_code="cancelled")
+    run.agent_code = "meeting_analysis"
+    run.parent_run_id = parent.id
+    run.lease_owner = "worker-1"
+    side_effect_called = False
+
+    async def no_side_effect(*_args, **_kwargs):
+        nonlocal side_effect_called
+        side_effect_called = True
+
+    monkeypatch.setattr(agent_worker, "_persist_late_meeting_analysis", no_side_effect)
+    db = _Db(_Result(scalar=parent), SimpleNamespace(rowcount=0))
+    monkeypatch.setattr(
+        agent_worker.agent_runs,
+        "get_sessionmaker",
+        lambda: lambda: _SessionContext(db),
+    )
+    await agent_worker._fail(run, "worker-1", "llm_provider_error:503")
+    assert db.commit_count == 1
+    assert side_effect_called is False
 
 
 @pytest.mark.anyio
@@ -1598,6 +1706,10 @@ async def test_running_generation_is_cancelled_and_redacted_at_payload_expiry(mo
             raise
 
     db = _Db(SimpleNamespace(rowcount=1))
+    async def not_cancelled(_run_id):
+        return False
+
+    monkeypatch.setattr(agent_worker, "_is_cancelled", not_cancelled)
     monkeypatch.setattr(service, "prepare_claimed", prepare)
     monkeypatch.setattr(service, "dispatch", dispatch)
     monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
@@ -1699,10 +1811,15 @@ async def test_provider_failure_reaches_workers_single_retry(monkeypatch, failur
     run.request_hash = "0" * 64
     run.payload_expires_at = datetime.now(UTC) + timedelta(hours=1)
 
-    async def broken_generate(**kwargs):
-        raise _provider_failure(failure_kind)
+    class FailedModel(ScriptedModel):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            response = super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+            if response.generations[0].message.tool_calls[0]["name"] == "task":
+                return response
+            raise _provider_failure(failure_kind)
 
-    monkeypatch.setattr(report_writing_deep.harness, "generate_structured", broken_generate)
+    model = FailedModel(writer_role="sales-meeting-report")
+    monkeypatch.setattr(report_writing_deep.harness, "configured_chat_model", lambda: model)
 
     async def prepare(*_args):
         return "report_writing", {}, member.id
@@ -1710,6 +1827,10 @@ async def test_provider_failure_reaches_workers_single_retry(monkeypatch, failur
     async def dispatch(*_args):
         return await report_writing_deep.run(sample())
 
+    async def not_cancelled(_run_id):
+        return False
+
+    monkeypatch.setattr(agent_worker, "_is_cancelled", not_cancelled)
     monkeypatch.setattr(service, "prepare_claimed", prepare)
     monkeypatch.setattr(service, "dispatch", dispatch)
 
@@ -1730,6 +1851,7 @@ async def test_provider_failure_reaches_workers_single_retry(monkeypatch, failur
         assert run.error_code == error_code
         assert run.status_code == expected_status
         assert run.current_stage_code == ("retry_wait" if attempt == 1 else "failed")
+        assert len(model._seen) == attempt * 2  # Supervisor delegation, then failed child call.
 
 
 def test_finalize_redacts_only_report_generation_payloads():

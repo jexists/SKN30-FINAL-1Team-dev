@@ -8,7 +8,7 @@ import { isAxiosError, isCancel } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import useCompanyDeals from '@/hooks/useCompanyDeals'
-import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
+import { errorMessage, meetingRunErrorMessage, reportGenerationMessage } from '@/api/errorMessage'
 import {
   createReportGeneration,
   finishIdempotencyAttempt,
@@ -24,11 +24,13 @@ import Button from '@/components/Button'
 import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
+import ReportReviewWarning from '@/components/ReportReviewWarning'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { meetingPickPath, meetingReportPath, ROUTES } from '@/constants/routes'
 import { isOwnAgendaItem, useAgendaItem } from '@/shared/agenda'
 import { isAuthorEditableReportStatus, reportInputError } from '@/shared/reports'
 import { showToast } from '@/shared/toast'
+import useAgentRunCancellation from '@/shared/useAgentRunCancellation'
 import type { IdempotencyAttempt } from '@/api/reportAgent'
 import type {
   AgentRunResponse,
@@ -96,6 +98,9 @@ export default function Compose() {
   const [restored, setRestored] = useState(false)
   // 등록 단계에서는 왼쪽 한 열만 씁니다. 작성을 시작해야 보고서 열이 열립니다.
   const [opened, setOpened] = useState(false)
+  const [generationEvidence, setGenerationEvidence] = useState<Record<string, unknown> | null>(null)
+  const [activeRunId, setActiveRunId] = useState<string>()
+  const [cancelledNotice, setCancelledNotice] = useState(false)
   const agendaId = params.get('agenda') ?? ''
   useEffect(() => {
     setGenerating(false)
@@ -105,6 +110,9 @@ export default function Compose() {
     setRunErrors({})
     setRestored(false)
     setOpened(false)
+    setGenerationEvidence(null)
+    setActiveRunId(undefined)
+    setCancelledNotice(false)
     recoveredAgendaId.current = ''
     generationAttempt.current = undefined
     return () => {
@@ -138,6 +146,22 @@ export default function Compose() {
     analysisAbort.current = null
   }, [])
   const draft = useMeetingDraft(item, savedReport, draftReady, stopAnalysisWatch)
+  const onGenerationCancelled = useCallback(() => {
+    stopAnalysisWatch()
+    generationAbort.current?.abort()
+    generationAbort.current = null
+    setActiveRunId(undefined)
+    setGenerating(false)
+    setCancelledNotice(true)
+  }, [stopAnalysisWatch])
+  const cancellation = useAgentRunCancellation(
+    activeRunId,
+    () => generationAbort.current?.abort(),
+    onGenerationCancelled,
+  )
+  useEffect(() => {
+    setGenerationEvidence(savedReport?.aiEvidence ?? null)
+  }, [savedReport])
   const {
     beginGeneration,
     receiveProgress,
@@ -182,6 +206,13 @@ export default function Compose() {
         dealIds = input.sales_deal_ids
         restoreGenerationInput(input)
         beginGeneration(dealIds)
+        if (run.status_code === 'queued' || run.status_code === 'running') {
+          setActiveRunId(
+            typeof run.source_refs.parent_run_id === 'string'
+              ? run.source_refs.parent_run_id
+              : run.id,
+          )
+        }
         setOpened(true)
         if (run.status_code === 'failed' || run.status_code === 'cancelled') {
           throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
@@ -190,6 +221,7 @@ export default function Compose() {
         if (!completed.output_snapshot) throw new Error('agent_run_failed')
         if (controller.signal.aborted) return
         acceptGenerated(completed.id, completed.output_snapshot)
+        setGenerationEvidence(completed.evidence)
         startAnalysisWatch(completed)
         // 지난 실행의 실패는 딜 카드가 따로 알립니다. 여기서는 되살렸다는 사실만 알립니다.
         setRestored(Boolean(completed.output_snapshot.reports))
@@ -414,7 +446,7 @@ export default function Compose() {
     else draft.toggleSalesDeal(dealId)
   }
 
-  const generateAll = async () => {
+  const generateAll = async (forceFresh = false) => {
     if (
       busy ||
       draft.attachmentsPending ||
@@ -428,10 +460,15 @@ export default function Compose() {
     const targets = [...draft.salesDealIds]
     const payload = payloadForMeeting()
     draft.setReportDate(payload.date)
-    const attempt = idempotencyAttemptFor(generationAttempt.current, payload)
+    const attempt = idempotencyAttemptFor(
+      forceFresh ? undefined : generationAttempt.current,
+      payload,
+    )
     generationAttempt.current = attempt
     const controller = new AbortController()
     generationAbort.current = controller
+    setActiveRunId(undefined)
+    setCancelledNotice(false)
     stopAnalysisWatch()
     setGenerating(true)
     beginGeneration(targets)
@@ -456,18 +493,23 @@ export default function Compose() {
         }
       }
       const failedReportId =
-        previous && sameReportGenerationInput(previous.generation_input, request)
+        !forceFresh && previous && sameReportGenerationInput(previous.generation_input, request)
           ? ([...(previous.child_runs ?? [])]
               .reverse()
               .find(
                 (child) =>
                   child.agent_code === 'meeting_report_writing' &&
-                  (child.status_code === 'failed' || child.status_code === 'cancelled'),
+                  (child.status_code === 'failed' || child.status_code === 'partial'),
               )?.id ?? null)
           : null
       created = failedReportId
         ? await retryMeetingReport<MeetingProcessingOutput>(failedReportId)
         : await createReportGeneration<MeetingProcessingOutput>(request)
+      setActiveRunId(
+        typeof created.source_refs.parent_run_id === 'string'
+          ? created.source_refs.parent_run_id
+          : created.id,
+      )
       analysisParentRunId =
         typeof created.source_refs.parent_run_id === 'string'
           ? created.source_refs.parent_run_id
@@ -488,6 +530,8 @@ export default function Compose() {
       )
       if (controller.signal.aborted) return
       acceptGenerated(run.id, run.output_snapshot)
+      setActiveRunId(undefined)
+      setGenerationEvidence(run.evidence)
       startAnalysisWatch(run)
       generationAttempt.current = finishIdempotencyAttempt(generationAttempt.current, attempt.key)
       setRunErrors(run.output_snapshot.errors)
@@ -563,6 +607,8 @@ export default function Compose() {
         {item.hospital} {item.title} 미팅 보고서 작성
       </h1>
 
+      <ReportReviewWarning evidence={generationEvidence} />
+
       <div className={styles.head}>
         <Link className={styles.back} to={meetingPickPath(item.date)}>
           <ChevronLeftIcon width={15} height={15} />
@@ -586,7 +632,7 @@ export default function Compose() {
             <div className={styles.mutationError} role="alert">
               <ul>
                 {Object.entries(runErrors).map(([step, message]) => (
-                  <li key={step}>{reportGenerationMessage(message)}</li>
+                  <li key={step}>{meetingRunErrorMessage(step, message)}</li>
                 ))}
               </ul>
             </div>
@@ -622,6 +668,22 @@ export default function Compose() {
               'AI 보고서 작성'
             )}
           </Button>
+          {generating && activeRunId && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={cancellation.cancelling}
+              onClick={() => void cancellation.cancel()}
+            >
+              {cancellation.cancelling ? '중단 중…' : '생성 중단'}
+            </Button>
+          )}
+          {cancellation.cancelError && (
+            <p className={styles.mutationError} role="alert">
+              {cancellation.cancelError}
+            </p>
+          )}
+          {cancelledNotice && <p role="status">생성이 중단되었습니다.</p>}
         </div>
       </div>
 
@@ -804,7 +866,7 @@ export default function Compose() {
                 type="button"
                 onClick={() => {
                   setConfirm(null)
-                  void generateAll()
+                  void generateAll(true)
                 }}
               >
                 다시 생성

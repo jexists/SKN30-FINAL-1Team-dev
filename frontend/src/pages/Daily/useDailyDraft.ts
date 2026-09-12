@@ -20,6 +20,7 @@ import {
   templateFor,
 } from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
+import useAgentRunCancellation from '@/shared/useAgentRunCancellation'
 import type {
   AgentRunResponse,
   ReportActivity,
@@ -118,11 +119,23 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const [dirtyIds, setDirtyIds] = useState<ReadonlySet<string>>(new Set())
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [generationRunId, setGenerationRunId] = useState<string>()
+  const [activeRunId, setActiveRunId] = useState<string>()
+  const [generationEvidence, setGenerationEvidence] = useState<Record<string, unknown> | null>(null)
   const generationAbort = useRef<AbortController | null>(null)
   const generationAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
   const recoveryAbort = useRef<AbortController | null>(null)
   const recoveredScope = useRef('')
   const [recovering, setRecovering] = useState(true)
+  const cancelGeneration = useCallback(() => {
+    setActiveRunId(undefined)
+    setGenerationError(null)
+    setPhase((current) => (current === 'generating' ? 'ready' : current))
+  }, [])
+  const cancellation = useAgentRunCancellation(
+    activeRunId,
+    () => generationAbort.current?.abort(),
+    cancelGeneration,
+  )
 
   const addAttachments = useCallback(
     (picked: FileList | File[]) => {
@@ -143,6 +156,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const changeTranscript = useCallback((value: string) => {
     generationAbort.current?.abort()
     setGenerationRunId(undefined)
+    setActiveRunId(undefined)
     setTranscript(value)
   }, [])
 
@@ -163,6 +177,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     setDirtyIds(new Set())
     setGenerationError(null)
     setGenerationRunId(undefined)
+    setActiveRunId(undefined)
+    setGenerationEvidence(saved?.aiEvidence ?? null)
     setRecovering(true)
     // 이어 쓰는 보고서는 이미 쓴 내용이 있으므로 입력칸을 바로 펴 줍니다.
     setPhase(saved ? 'ready' : 'idle')
@@ -226,12 +242,17 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     hasInput
 
   const acceptGeneration = useCallback(
-    (runId: string, fields: { field_id: string; value: string }[]) => {
+    (
+      runId: string,
+      fields: { field_id: string; value: string }[],
+      evidence: Record<string, unknown> | null,
+    ) => {
       const generated = mergeGeneratedValues(fields)
       setValues(generated)
       setAiFilledIds(generated.body ? new Set(['body']) : new Set())
       setDirtyIds(new Set())
       setGenerationRunId(runId)
+      setGenerationEvidence(evidence)
       setGenerationError(null)
       setPhase('ready')
     },
@@ -272,13 +293,16 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
         if (run.status_code === 'failed' || run.status_code === 'cancelled') {
           throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
         }
-        if (run.status_code === 'queued' || run.status_code === 'running') setPhase('generating')
+        if (run.status_code === 'queued' || run.status_code === 'running') {
+          setActiveRunId(run.id)
+          setPhase('generating')
+        }
         const completed = ['queued', 'running'].includes(run.status_code)
           ? await waitForReportGeneration(run, undefined, controller.signal)
           : run
         if (!completed.output_snapshot) throw new Error('agent_run_failed')
         if (!controller.signal.aborted) {
-          acceptGeneration(completed.id, completed.output_snapshot.fields)
+          acceptGeneration(completed.id, completed.output_snapshot.fields, completed.evidence)
         }
       } catch (reason: unknown) {
         if (!controller.signal.aborted) {
@@ -316,7 +340,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     const previousRunId = generationRunId
     setFrozenActivities(payload.activities)
     setAttachments(payload.attachments)
-    setGenerationRunId(undefined)
+    setActiveRunId(undefined)
     const attempt = idempotencyAttemptFor(generationAttempt.current, payload)
     generationAttempt.current = attempt
 
@@ -324,9 +348,10 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
       const created = await createReportGeneration<ReportDraftSnapshot>(
         periodGenerationRequestOf(payload, attempt.key),
       )
+      setActiveRunId(created.id)
       const completed = await waitForReportGeneration(created, undefined, controller.signal)
       if (!controller.signal.aborted) {
-        acceptGeneration(completed.id, completed.output_snapshot.fields)
+        acceptGeneration(completed.id, completed.output_snapshot.fields, completed.evidence)
         generationAttempt.current = finishIdempotencyAttempt(generationAttempt.current, attempt.key)
       }
     } catch (reason: unknown) {
@@ -345,7 +370,10 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
         )
       }
     } finally {
-      if (generationAbort.current === controller) generationAbort.current = null
+      if (generationAbort.current === controller) {
+        generationAbort.current = null
+        setActiveRunId(undefined)
+      }
     }
   }, [
     canGenerate,
@@ -446,6 +474,11 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     generate,
     recovering,
     generationRunId,
+    cancelGeneration: cancellation.cancel,
+    cancelling: cancellation.cancelling,
+    cancelled: cancellation.cancelled,
+    cancelError: cancellation.cancelError,
+    generationEvidence,
     generationError: inputError ? reportGenerationMessage(inputError) : generationError,
     sourceError,
     missing,

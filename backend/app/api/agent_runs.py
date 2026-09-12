@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import CurrentMember, DbSession, get_current_member
 from app.db.session import get_sessionmaker
 from app.schemas.agent_runs import (
+    AgentRunCancelRead,
     AgentRunCreate,
     AgentRunRead,
     ReportGenerationCreate,
@@ -52,6 +53,15 @@ async def get_agent_run(
 ) -> AgentRunRead:
     """진행 상태와 완료된 초안을 확인하는 폴링 대상."""
     return await agent_run_service.get(agent_run_id, member, db)
+
+
+@router.post("/agent-runs/{agent_run_id}/cancel", response_model=AgentRunCancelRead)
+async def cancel_agent_run(
+    agent_run_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+):
+    return await agent_run_service.cancel(agent_run_id, member, db)
 
 
 @router.post("/agent-runs/{agent_run_id}/retry", response_model=AgentRunRead, status_code=202)

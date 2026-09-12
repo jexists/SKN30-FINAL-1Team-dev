@@ -259,8 +259,20 @@ async def _initial_analysis(
 def _review_candidates(
     agent_input: MeetingContentAgentInput, ledger: MeetingEvidenceLedger
 ) -> dict[str, list[str]]:
-    if len(ledger.selected_deal_ids) < 2:
+    if not ledger.selected_deal_ids:
         return {}
+    has_deal_scope = any(
+        item.applicability.scope in {"deal", "all_selected_deals"} for item in ledger.items
+    )
+    if len(ledger.selected_deal_ids) < 2 and has_deal_scope:
+        return {}
+    if not has_deal_scope:
+        return {
+            item.segment.segment_id: ["missing_deal_attribution"]
+            for item in ledger.items
+            if item.applicability.scope
+            in {"meeting_context", "company_context", "unresolved"}
+        }
     products: dict[str, set[UUID]] = {}
     for deal in agent_input.deals:
         for name in deal.product_names:
@@ -303,7 +315,12 @@ async def _review_assignments(
     """위험 신호가 있는 구간만 한 번 검토한 뒤, 검증된 수정만 원자적으로 적용한다."""
     candidates = _review_candidates(agent_input, ledger)
     if not candidates:
-        log_agent_event("meeting_content.review", outcome="skipped", review_candidate_count=0)
+        log_agent_event(
+            "meeting_content.review",
+            outcome="skipped",
+            review_candidate_count=0,
+            review_trigger="none",
+        )
         return ledger
     started = perf_counter()
     log_agent_event(
@@ -312,6 +329,11 @@ async def _review_assignments(
         review_attempt=1,
         review_limit=1,
         review_candidate_count=len(candidates),
+        review_trigger=(
+            "missing_deal_attribution"
+            if all(reasons == ["missing_deal_attribution"] for reasons in candidates.values())
+            else "structural_risk"
+        ),
     )
     for segment_id, reasons in candidates.items():
         for reason in reasons:
@@ -404,9 +426,38 @@ async def _review_assignments(
         review_limit=1,
         review_candidate_count=len(candidates),
         review_change_count=changed,
+        review_trigger=(
+            "missing_deal_attribution"
+            if all(reasons == ["missing_deal_attribution"] for reasons in candidates.values())
+            else "structural_risk"
+        ),
         elapsed_ms=round((perf_counter() - started) * 1000),
     )
     return reviewed
+
+
+def _log_scope_counts(
+    phase: str, agent_input: MeetingContentAgentInput, ledger: MeetingEvidenceLedger
+):
+    counts: dict[str, int] = {}
+    for item in ledger.items:
+        scope = item.applicability.scope
+        counts[scope] = counts.get(scope, 0) + 1
+    for scope in (
+        "meeting_context",
+        "company_context",
+        "all_selected_deals",
+        "deal",
+        "unresolved",
+        "out_of_scope",
+    ):
+        log_agent_event(
+            "meeting_content.scope_counts",
+            phase=phase,
+            scope_name=scope,
+            scope_count=counts.get(scope, 0),
+            selected_deal_count=len(agent_input.deals),
+        )
 
 
 async def run(
@@ -427,6 +478,7 @@ async def run(
         with tracing_context(enabled=False):
             async with asyncio.timeout(RUN_TIMEOUT_SECONDS):
                 ledger = await _initial_analysis(agent_input, model, budget)
+                _log_scope_counts("initial", agent_input, ledger)
                 ledger = await _review_assignments(agent_input, ledger, model, budget)
                 has_frozen_context = any(
                     key in agent_input.crm_context
@@ -445,6 +497,7 @@ async def run(
                         lookup_limit=MAX_LOOKUPS,
                         system_prompt=REFINEMENT_PROMPT,
                     )
+                _log_scope_counts("final", agent_input, ledger)
                 return ledger
     except TimeoutError as error:
         log_agent_error(error, stage="meeting_content", error_code="meeting_content_timeout")

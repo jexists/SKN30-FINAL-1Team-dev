@@ -106,6 +106,7 @@ export interface DailyReport extends DailyReportSeed {
   version?: number
   currentSubmissionId?: string | null
   updatedAt?: string
+  aiEvidence?: Record<string, unknown> | null
   /** 팀장이 마지막 검토에서 돌려보낸 이유. 작성자의 note 와 다른 값입니다. */
   reviewNote?: string
 }
@@ -378,6 +379,7 @@ export interface AgentRunChildResponse {
   status_code: AgentRunStatus
   current_stage_code: string | null
   output_snapshot: MeetingReportChildOutput | MeetingAnalysisChildOutput | null
+  evidence?: Record<string, unknown> | null
   error_code: string | null
   error_message: string | null
   source_refs: Record<string, unknown>

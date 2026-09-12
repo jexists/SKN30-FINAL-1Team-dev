@@ -17,8 +17,8 @@
   → [계약관리 재진입] 등록된 일정 + RAG 자료로 브리핑 생성
 ```
 
-미팅 내용분석·보고서작성·딜 특성/ML은 `meeting_processing` 한 실행에서 같은 동결 입력을
-공유한다. 생성 중에는 `report`를 만들지 않고 `AgentRun` 임시 초안만 저장하며, 작성자가
+`meeting_processing`이 근거를 고정하면 worker가 `meeting_report_writing`과 `meeting_analysis`
+자식 실행을 병렬로 큐잉한다. 두 자식은 같은 근거를 공유하며 보고서는 ML 결과를 입력으로 쓰지 않는다. 생성 중에는 `report`를 만들지 않고 `AgentRun` 임시 초안만 저장하며, 작성자가
 최종 승인할 때만 보고서와 불변 제출본을 한 트랜잭션으로 만든다.
 계약관리 1차→일정관리는 `agent_runs`의 `parent_run_id`로 이어지고, **서버가 백그라운드에서
 자동으로 잇는다**(`backend/app/services/contract_next_meeting_pipeline.py`). 클라이언트가
@@ -44,9 +44,9 @@
 
 ### 2. 보고서작성 Agent — 보고서 양식의 초안을 채우고, 사람이 승인해야 완성된다
 
-- **구현**: 미팅은 `backend/app/agents/reports/meeting.py`를 통합 처리에서 호출하고, 기간 보고서는 `backend/app/agents/reports/period.py`를 `agent_code="report_writing"`으로 호출한다.
+- **구현**: 미팅은 `meeting_report_writing` 자식이 `backend/app/agents/reports/meeting.py`를 호출하고, 기간 보고서는 `backend/app/agents/reports/period.py`를 `agent_code="report_writing"`으로 호출한다.
 - **Input**: 미팅은 검증된 근거 장부와 CRM 문맥을 받는다. 기간 보고서는 양식·현재 작성값·작성자 요청과 서버가 고정한 하위 제출본을 받는다. 일일은 미팅, 주간은 일일, 월간은 주간 보고서를 참고한다.
-- **처리**: 미팅은 딜별 본문과 공통·미지정 본문을 만든다. 기간 보고서는 `body` 하나를 작성하고 검토 1회·필요 시 수정 1회를 거친다. 두 종류 모두 사용자가 최종 본문을 편집할 수 있다.
+- **처리**: 보고서 요청마다 `reports/harness.py`가 실제 DeepAgents Supervisor를 하나 만들고 한 번 호출한다. Supervisor는 API가 고정한 유형 writer와 공통 reviewer만 SDK `task`로 호출한다. writer가 짧은 근거·섹션 계획과 초안을 만들면 서버가 v1을 조립·검증하고, reviewer가 정확한 v1을 검토한다. 지적된 scope·location만 한 번 수정해 v2를 조립한 뒤 AI 재검토 없이 사람이 확인·편집한다. 구조·범위 검증을 통과한 최신 후보와 수정 전 r1 검토 메모를 화면에 전달하고, 끝내지 못한 review·repair는 실제 실패로 구분해 보존한다. 입력·설정·인증·권한·무결성·취소 오류와 재시도 불가 공급자 HTTP 4xx는 전파한다.
 - **사람 확인 지점**: 생성 결과는 `AgentRun` 후보일 뿐이다. 작성자가 수정하고 "확정"을 눌러 `POST /reports/finalize`가 성공해야 처음 `submitted` 보고서와 불변 제출본이 생긴다. 기존 `draft`·`changes_requested` 보고서는 버전과 상태를 함께 보내 같은 endpoint에서 CAS로 확정한다.
 - **Output**: 확정된 보고서(`submitted` 또는 `approved`) → (DB에 저장된 상태로) 계약관리 Agent가 나중에 다시 조회하는 자료가 된다. Agent 출력이 직접 계약관리 Agent를 호출하는 구조는 아니다.
 
@@ -107,7 +107,7 @@
 - Agent 오케스트레이션은 `backend/app/services/agent_runs.py`(사용자 요청 경로)와 `backend/app/services/contract_next_meeting_pipeline.py`(트리거 기반 선계산 경로)가 나눠 맡는다. 선계산 경로는 계약관리 1차→일정관리를 서버가 백그라운드로 자동으로 잇고, 결과를 `contract_next_meeting_suggestion`에 저장한다. 일정관리→계약관리 재진입(브리핑)은 `backend/app/api/activities.py`의 `create_activity`가 `schedule_management_run_id`를 받아 자동으로 이어서 큐잉한다.
 - 같은 딜에 트리거가 몰려도 10분 안에는 다시 돌리지 않는다(`_COOLDOWN`). 진행 중인 실행이 있으면 시각과 무관하게 막는다.
   - 10분 쿨다운은 제거하기로 했다. 진행 중(`queued`/`running`) 방어만 남는다([정합 계획](계약_일정_에이전트_트리거_정합_계획.md) 2.9).
-- 미팅 내용 귀속·보고서작성·딜 특성/ML은 하나의 `meeting_processing` 실행에서 같은 동결 근거를 공유한다. 계약관리 1차 제안은 이 임시 출력을 직접 받지 않고, DB에서 사람이 확정한(`submitted`/`approved`) 보고서를 다시 조회한다.
+- 미팅 내용 귀속은 `meeting_processing`, 보고서와 특성/ML은 각각 독립 자식 실행에서 같은 동결 근거를 공유한다. 계약관리 1차 제안은 이 임시 출력을 직접 받지 않고, DB에서 사람이 확정한(`submitted`/`approved`) 보고서를 다시 조회한다.
 - 자료요약(RAG) Agent: 문서 추출·OCR·요약·검색 청크 저장과 브리핑 컨텍스트 조회 API가 구현돼 있다. `GET /api/documents/briefing-context?q=...`는 같은 팀의 검색 청크(`sources`)와 저장 요약(`summaries`)을 반환한다. 계약관리 브리핑은 `build_briefing_snapshot()`에서 같은 조회를 직접 호출해 `document_context`를 채운다.
 - 프론트엔드: 미팅 상세(`RecordDrawer`)가 브리핑 결과를 읽기 전용으로 보여주고, 캘린더 탭의 "AI 추천 일정" 패널(`SuggestionPanel`)이 저장된 제안을 조회해 보여주고 승인받는다. 패널은 LLM을 직접 호출하지 않는다 — `GET /contract-next-meeting-suggestions` 한 번이 전부다.
 - 트리거가 한 번도 걸리지 않은 기존 딜은 제안이 없어 패널에 뜨지 않는다. `backend/scripts/backfill_contract_next_meeting_suggestions.py`로 한 번에 채운다.

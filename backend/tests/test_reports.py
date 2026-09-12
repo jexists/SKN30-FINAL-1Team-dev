@@ -867,6 +867,33 @@ async def test_reordering_report_deals_clears_positions_before_swapping():
 
 
 @pytest.mark.anyio
+async def test_revising_meeting_removes_only_unselected_current_deal():
+    member = _member()
+    report = _report(member, kind="meeting")
+    kept = _section(report)
+    removed = _section(report)
+    removed.position = 1
+    db = _Db(_Result(scalar_values=[kept, removed]), _Result())
+    payload = ReportDealWrite(
+        sales_deal_id=kept.sales_deal_id,
+        position=0,
+        deal_snapshot=kept.deal_snapshot,
+        content=kept.content,
+        body=kept.body,
+    )
+
+    changed, deal_ids_changed = await reports_api._replace_report_deals(
+        db, report.id, [payload]
+    )
+
+    assert changed is True and deal_ids_changed is True
+    delete_statement = next(statement for statement in db.statements if "DELETE" in str(statement))
+    assert "report_deal" in str(delete_statement) and "sales_deal_id" in str(delete_statement)
+    assert [removed.sales_deal_id] in delete_statement.compile().params.values()
+    assert [kept.sales_deal_id] not in delete_statement.compile().params.values()
+
+
+@pytest.mark.anyio
 async def test_resubmit_creates_an_immutable_second_revision():
     class SubmissionDb:
         def __init__(self):

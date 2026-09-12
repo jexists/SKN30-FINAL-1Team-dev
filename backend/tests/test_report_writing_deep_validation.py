@@ -274,10 +274,9 @@ def test_model_config_respects_larger_timeout(model_settings, monkeypatch):
 
 
 def test_executive_report_prompt_version_is_explicit():
-    assert agent.PROMPT_VERSION == "report_writing.bounded.v19"
-    assert period_agent.PROMPT_VERSION == "report_writing.bounded.v23"
-    assert agent.COMMON_SKILL.parent.name == "report-style"
-    assert agent.SKILL_DIR.name == "sales-meeting-report"
+    assert agent.PROMPT_VERSION == "report_writing.deepagents.v21"
+    assert period_agent.PROMPT_VERSION == "report_writing.deepagents.v25"
+    assert agent.WRITER_ROLE == "sales-meeting-report"
 
 
 def test_empty_shared_sections_may_be_omitted_but_required_evidence_is_still_checked():

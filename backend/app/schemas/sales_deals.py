@@ -375,7 +375,7 @@ class SalesDealRead(BaseModel):
     memo: str | None
     # 예전에 들어온 코드도 그대로 읽어야 하므로 목록을 고정하지 않는다.
     # 쓰기는 CustomerSource 로 막는다.
-    source_code: OptionCode | None
+    source_code: str | None
     quote_status_id: UUID | None
     quote_status_code: OptionCode | None
     quote_status_name: str | None

@@ -1,14 +1,28 @@
 """미팅 작성자가 동결된 근거·CRM·이전 보고서를 읽는 도구."""
 
 import copy
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
+
+from langchain_core.tools import StructuredTool
+from pydantic import BaseModel, ConfigDict
 
 from app.agents.reports.meeting_contract import (
     COMMON_SCOPES,
     UNASSIGNED_SCOPES,
     ReportWritingInput,
 )
+
+
+class _NoScopeArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class _StrictNoArgsTool(StructuredTool):
+    def _to_args_and_kwargs(self, tool_input, tool_call_id):
+        self._parse_input(tool_input, tool_call_id)
+        return (), {}
 
 
 def create_meeting_tools(source: ReportWritingInput) -> list:
@@ -113,3 +127,105 @@ def create_meeting_tools(source: ReportWritingInput) -> list:
         return {"previous_reports": selected}
 
     return [read_meeting_evidence, read_deal_crm, read_previous_reports]
+
+
+def create_scoped_meeting_tools(
+    payload: dict[str, Any],
+    *,
+    allow_scope: Callable[[str], bool] | None = None,
+    scope_access: Callable[[str, object], bool] | None = None,
+    assigned_scope: Callable[[str], str | None] | None = None,
+    reviewer: bool = True,
+) -> list:
+    """작성/수정은 서버가 고정한 scope, 전체 검토는 서버가 넘긴 scope만 읽는다."""
+    scopes = copy.deepcopy(
+        {payload["scope"]: payload["source"]} if "scope" in payload else payload["source"]
+    )
+
+    def selected(
+        tool_name: str, scope: str, sales_deal_id: UUID | None = None
+    ) -> dict[str, Any]:
+        allowed = (
+            scope_access(tool_name, scope)
+            if scope_access is not None
+            else scope in scopes and (allow_scope is None or allow_scope(scope))
+        )
+        if scope not in scopes or not allowed:
+            raise PermissionError("report_scope_not_allowed")
+        value = scopes[scope]
+        if sales_deal_id is not None and (
+            "sales_deal_id" not in value or str(sales_deal_id) != value.get("sales_deal_id")
+        ):
+            raise PermissionError("report_deal_not_allowed")
+        return value
+
+    def read_meeting_evidence(scope: str) -> dict[str, Any]:
+        """지정 scope의 현재 근거와 배경용 첨부를 읽는다. 다른 scope는 거부한다."""
+        data = selected("read_meeting_evidence", scope)
+        return copy.deepcopy(
+            {key: data[key] for key in ("evidence", "attachments", "required_evidence_ids")}
+        )
+
+    def read_deal_crm(scope: str, sales_deal_id: UUID) -> dict[str, Any]:
+        """지정 scope와 정확히 일치하는 딜의 동결 CRM 배경만 읽는다."""
+        return copy.deepcopy(
+            {"crm_context": selected("read_deal_crm", scope, sales_deal_id)["crm_context"]}
+        )
+
+    def read_previous_reports(scope: str, sales_deal_id: UUID) -> dict[str, Any]:
+        """지정 scope와 정확히 일치하는 딜의 과거 보고서만 읽는다. 현재 사실이 아니다."""
+        return copy.deepcopy(
+            {
+                "previous_reports": selected(
+                    "read_previous_reports", scope, sales_deal_id
+                )["previous_reports"]
+            }
+        )
+
+    if not reviewer:
+        def current_scope(tool_name: str) -> str:
+            scope = assigned_scope(tool_name) if assigned_scope is not None else None
+            if scope is None:
+                raise PermissionError("report_scope_not_allowed")
+            return scope
+
+        def read_assigned_evidence() -> dict[str, Any]:
+            """현재 서버가 배정한 미팅 scope의 근거만 읽는다."""
+            assigned = current_scope("read_meeting_evidence")
+            return read_meeting_evidence(assigned)
+
+        def read_assigned_crm(sales_deal_id: UUID) -> dict[str, Any]:
+            """현재 서버가 배정한 scope의 선택 딜 CRM 배경만 읽는다."""
+            assigned = current_scope("read_deal_crm")
+            return read_deal_crm(assigned, sales_deal_id)
+
+        def read_assigned_previous_reports(sales_deal_id: UUID) -> dict[str, Any]:
+            """현재 서버가 배정한 scope의 선택 딜 과거 보고서만 읽는다."""
+            assigned = current_scope("read_previous_reports")
+            return read_previous_reports(assigned, sales_deal_id)
+
+        # Keep the documented SDK tool names while rejecting any supplied scope server-side.
+        tools = [
+            _StrictNoArgsTool.from_function(
+                read_assigned_evidence,
+                name="read_meeting_evidence",
+                args_schema=_NoScopeArgs,
+            )
+        ]
+        read_assigned_crm.__name__ = "read_deal_crm"
+        read_assigned_previous_reports.__name__ = "read_previous_reports"
+        if any("sales_deal_id" in data for data in scopes.values()):
+            tools.extend(
+                [
+                    StructuredTool.from_function(read_assigned_crm, name="read_deal_crm"),
+                    StructuredTool.from_function(
+                        read_assigned_previous_reports, name="read_previous_reports"
+                    ),
+                ]
+            )
+        return tools
+
+    tools = [read_meeting_evidence]
+    if any("sales_deal_id" in data for data in scopes.values()):
+        tools.extend([read_deal_crm, read_previous_reports])
+    return tools

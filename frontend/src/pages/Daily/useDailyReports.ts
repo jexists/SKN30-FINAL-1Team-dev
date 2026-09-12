@@ -84,6 +84,7 @@ export function toReport(item: ReportResponse): DailyReport {
     version: item.version,
     currentSubmissionId: item.current_submission_id,
     updatedAt: item.updated_at,
+    aiEvidence: item.ai_evidence,
     values: { body: item.body ?? '' },
     activities: relatedActivities(
       kind,

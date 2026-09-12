@@ -12,9 +12,11 @@ from pydantic import ValidationError
 
 from app.services.agent_logging import (
     agent_log_context,
+    agent_operation,
     collect_token_usage,
     log_agent_error,
     log_agent_event,
+    safe_report_scope,
 )
 
 
@@ -203,3 +205,66 @@ def test_logs_drop_nested_or_unserializable_allowed_fields(caplog, failure):
     assert event["attempt"] == 2 and event["elapsed_ms"] == 1.5 and event["outcome"] is True
     assert not {"model", "reason_code", "before_deal_ids", "after_deal_ids"} & event.keys()
     assert "PRIVATE_" not in caplog.text
+
+
+def test_scope_denials_emit_correlated_json_fields_and_bounded_safe_scopes(caplog):
+    caplog.set_level(logging.INFO, logger="app.services.agent_logging")
+    existing = ["common", "common_report", "unassigned", "unassigned_report"] + [
+        f"deal_reports[{index}]" for index in range(20)
+    ]
+    with agent_log_context(
+        run_id="run-1",
+        parent_run_id="parent-1",
+        assignment_id="write-001",
+        work_unit_id="write-001",
+        assignment_kind="write",
+        assignment_phase="write_initial",
+    ):
+        for stage, reason, requested in (
+            ("meeting.scope_guard", "unknown_scope", "secret transcript"),
+            ("meeting.scope_guard", "other_assignment", "common_report"),
+            ("period.scope_guard", "unknown_scope", "secret source"),
+        ):
+            log_agent_event(
+                stage,
+                report_kind="daily",
+                tool_name="read_report_sources",
+                decision="denied",
+                reason_code=reason,
+                allowed_scopes=existing,
+                existing_scopes=existing,
+                **safe_report_scope(requested, existing),
+            )
+
+    events = [
+        json.loads(record.getMessage().removeprefix("agent_progress "))
+        for record in caplog.records
+    ]
+    assert [event["reason_code"] for event in events] == [
+        "unknown_scope",
+        "other_assignment",
+        "unknown_scope",
+    ]
+    for event in events:
+        assert event["run_id"] == "run-1" and event["parent_run_id"] == "parent-1"
+        assert event["assignment_id"] == event["work_unit_id"] == "write-001"
+        assert event["decision"] == "denied"
+        assert len(event["allowed_scopes"]) == 20
+        assert event["allowed_scope_count"] == event["existing_scope_count"] == 24
+    assert "secret transcript" not in caplog.text and "secret source" not in caplog.text
+    assert all(event["requested_scope_kind"] == "freeform" for event in (events[0], events[2]))
+    assert all("requested_scope" not in event for event in (events[0], events[2]))
+    assert events[1]["requested_scope"] == "common_report"
+
+
+def test_logging_sink_failure_does_not_mask_execution_error(monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("sink failure")
+
+    monkeypatch.setattr("app.services.agent_logging.logger.error", broken)
+    monkeypatch.setattr("app.services.agent_logging.logger.info", broken)
+    with pytest.raises(ValueError, match="original"):
+        with agent_operation("operation"):
+            raise ValueError("original")
+    with agent_operation("successful"):
+        pass

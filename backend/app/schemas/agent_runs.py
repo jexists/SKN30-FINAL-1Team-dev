@@ -283,3 +283,11 @@ class AgentRunRead(BaseModel):
     finished_at: datetime | None
     # 미팅 부모 실행은 보고서/분석 자식의 상태를 개별적으로 노출한다.
     child_runs: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AgentRunCancelRead(BaseModel):
+    """사용자 요청으로 취소된 실행과 이미 끝난 실행을 명확히 돌려준다."""
+
+    root_run_id: UUID
+    cancelled_run_ids: list[UUID] = Field(default_factory=list)
+    terminal_run_ids: list[UUID] = Field(default_factory=list)

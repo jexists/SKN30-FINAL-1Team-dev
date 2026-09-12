@@ -48,6 +48,9 @@ const { toHtml, toMarkdown } = await vite.ssrLoadModule('/src/pages/Meetings/rep
 const { default: ReportFields } = await vite.ssrLoadModule(
   '/src/components/ReportFields/ReportFields.tsx',
 )
+const { default: ReportReviewWarning } = await vite.ssrLoadModule(
+  '/src/components/ReportReviewWarning/ReportReviewWarning.tsx',
+)
 const { default: ActivityList } = await vite.ssrLoadModule(
   '/src/pages/Daily/components/ActivityList/ActivityList.tsx',
 )
@@ -72,7 +75,7 @@ const { ReportReviewContents } = await vite.ssrLoadModule(
 const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
 const { downloadReportAttachment } = await vite.ssrLoadModule('/src/api/reportAttachments.ts')
-const { messageForCode, reportGenerationMessage } = await vite.ssrLoadModule(
+const { meetingRunErrorMessage, messageForCode, reportGenerationMessage } = await vite.ssrLoadModule(
   '/src/api/errorMessage.ts',
 )
 
@@ -468,9 +471,77 @@ test('완료 미팅과 기간 보고서는 원본 목록을 복구하고 빈 직
   assert.deepEqual(meetingFinalizeRequestOf(draft, 'synthetic-finalize').attachments, [attachment])
 })
 
+test('저장 보고서 재진입은 AI 검토 경고를 복구하고 새 범위에서는 이전 경고를 지운다', async () => {
+  const review = { report_review: { review_required: true, issues: ['합성 검토'] } }
+  assert.equal(toReport({ ...periodResponse(), ai_evidence: review }).aiEvidence, review)
+  assert.equal(toMeetingReport({ ...response(), ai_evidence: review }).aiEvidence, review)
+  assert.equal(toReport({ ...periodResponse(), ai_evidence: null }).aiEvidence, null)
+  assert.equal(toMeetingReport({ ...response(), ai_evidence: null }).aiEvidence, null)
+
+  const [dailyDraft, meetingCompose] = await Promise.all([
+    readFile(new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
+  ])
+  assert.match(dailyDraft, /setGenerationEvidence\(saved\?\.aiEvidence \?\? null\)/)
+  assert.match(dailyDraft, /setGenerationEvidence\(evidence\)/)
+  assert.match(meetingCompose, /setGenerationEvidence\(savedReport\?\.aiEvidence \?\? null\)/)
+  assert.match(meetingCompose, /setGenerationEvidence\((completed|run)\.evidence\)/)
+})
+
+test('자동 수정 전 검토 기록과 실제 검토 실패를 구분해 안내한다', () => {
+  const issue = { action: '고객명을 확인해 주세요.' }
+  const repaired = renderToStaticMarkup(
+    createElement(ReportReviewWarning, {
+      evidence: {
+        report_review: {
+          review_required: false,
+          review_incomplete: false,
+          review_notes_may_predate_draft: true,
+          issues: [issue],
+        },
+      },
+    }),
+  )
+  assert.match(repaired, /자동 수정 전 AI 초안 검토 메모/)
+  assert.match(repaired, /고객명을 확인해 주세요/)
+  assert.doesNotMatch(repaired, /끝내지 못했습니다/)
+
+  const incomplete = renderToStaticMarkup(
+    createElement(ReportReviewWarning, {
+      evidence: {
+        report_review: {
+          review_required: true,
+          review_incomplete: true,
+          issues: [issue],
+        },
+      },
+    }),
+  )
+  assert.match(incomplete, /AI 초안 검토를 끝내지 못했습니다/)
+
+  const clean = renderToStaticMarkup(
+    createElement(ReportReviewWarning, {
+      evidence: {
+        report_review: {
+          review_required: false,
+          review_incomplete: false,
+          review_notes_may_predate_draft: true,
+          issues: [],
+        },
+      },
+    }),
+  )
+  assert.equal(clean, '')
+})
+
 test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사용자 문구로 바꾼다', async () => {
   const message = 'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 다시 시도해 주세요.'
   assert.equal(reportGenerationMessage('report_agent_output_invalid'), message)
+  assert.match(meetingRunErrorMessage('meeting_analysis', 'agent_run_partial'), /딜 평가·예측/)
+  assert.doesNotMatch(
+    meetingRunErrorMessage('meeting_analysis', 'agent_run_partial'),
+    /AI 보고서 작성.*완료하지 못했습니다/,
+  )
   assert.match(reportGenerationMessage('future_internal_error_code'), /future_internal_error_code/)
   assert.match(messageForCode('report_attachment_ocr_too_large', '실패'), /페이지나 이미지/)
 
@@ -483,7 +554,7 @@ test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사�
     readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
   ])
   assert.match(draftSource, /reportGenerationMessage\(reportError\)/)
-  assert.match(composeSource, /reportGenerationMessage\(message\)/)
+  assert.match(composeSource, /meetingRunErrorMessage\(step, message\)/)
 })
 
 test('기간 보고서 상세는 저장 스냅샷과 구조화 값을 무시하고 canonical 본문만 표시한다', () => {
@@ -964,6 +1035,13 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
     evidence: '근거 1',
   })
   assert.equal('ai_evidence' in finalized.deal_sections[0], false)
+
+  const withoutDeal = meetingFinalizeRequestOf(
+    { ...draft, dealSections: [], reportId: 'existing-report', version: 7, statusCode: 'submitted' },
+    'meeting-remove-deal-key',
+  )
+  assert.deepEqual(withoutDeal.deal_sections, [])
+  assert.equal(withoutDeal.common_body, '공통 내용')
 
   const revision = meetingFinalizeRequestOf(
     { ...draft, reportId: 'existing-report', version: 7, statusCode: 'changes_requested' },
@@ -1452,9 +1530,12 @@ test('V2 이전 제출본은 submission id 없이 검토 요청해 서버가 스
   assert.equal(sent.expected_status_code, 'submitted')
 })
 
-test('공통·미지정 기록은 읽기 전용 제목과 편집용 연결 label을 구분한다', () => {
+test('공통·미지정 기록은 읽기 전용 Markdown과 편집용 연결 label을 구분한다', () => {
   const shared = {
-    common_report: { body: '공통 내용 본문', evidence_ids: [] },
+    common_report: {
+      body: '**미팅 목적**\n\n- 공통 내용 본문\n\n<script>alert(1)</script>',
+      evidence_ids: [],
+    },
     unassigned_report: { body: '미지정 내용 본문', evidence_ids: [] },
   }
   const view = renderToStaticMarkup(createElement(MeetingSharedPanel, { shared }))
@@ -1462,7 +1543,10 @@ test('공통·미지정 기록은 읽기 전용 제목과 편집용 연결 label
   assert.doesNotMatch(view, /<h3[^>]*>공통 내용<\/h3>/)
   assert.match(view, /<h3[^>]*>딜 미지정 기록<\/h3>/)
   assert.doesNotMatch(view, /<label|<textarea/)
-  assert.match(view, /공통 내용 본문/)
+  assert.match(view, /<strong>미팅 목적<\/strong>/)
+  assert.match(view, /<li>공통 내용 본문<\/li>/)
+  assert.doesNotMatch(view, /<script/i)
+  assert.match(view, /&lt;script&gt;/)
   assert.match(view, /미지정 내용 본문/)
   const edit = renderToStaticMarkup(createElement(MeetingSharedPanel, { shared, onChange() {} }))
   const labels = [...edit.matchAll(/<label for="([^"]+)">/g)]

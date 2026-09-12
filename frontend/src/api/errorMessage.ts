@@ -250,6 +250,13 @@ export function reportGenerationMessage(code: string): string {
   )
 }
 
+export function meetingRunErrorMessage(step: string, code: string): string {
+  if (step === 'meeting_analysis') {
+    return '딜 평가·예측을 완료하지 못했습니다. 작성된 보고서 내용은 유지됩니다. 다시 시도해 주세요.'
+  }
+  return reportGenerationMessage(code)
+}
+
 export function errorMessage(error: unknown, fallback: string): string {
   const detail = readErrorDetail(error)
   if (detail && Object.hasOwn(MESSAGE_BY_DETAIL, detail)) return MESSAGE_BY_DETAIL[detail]

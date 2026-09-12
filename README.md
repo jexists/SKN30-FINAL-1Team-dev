@@ -82,14 +82,14 @@
 |---|---|
 | 내용분석 | 원문을 공통·딜별·미지정으로 귀속하고 필요할 때 CRM 추가 조회 |
 | 딜 특성 생성 | 구조화 LLM으로 13개 특성 생성 → 별도 ML 참고 태그 |
-| 보고서 작성 | 공통 근거로 딜별 초안 작성·검토·수정. 일일·주간·월간도 Deep Agent 사용 |
+| 보고서 작성 | API가 고정한 유형별 writer와 공통 reviewer를 요청당 하나의 DeepAgents Supervisor가 `task`로 호출해 작성·검토·선택 수정을 수행 |
 | 영업·계약관리 | 딜별 독립 세션으로 진행 상황 관리 및 다음 미팅 제안 |
 | 일정관리 | 전체 캘린더와 세션별 미팅 제안을 통합·조정 |
 | 자료요약 | 자료실 문서의 핵심 내용 요약 |
 
 C/S 요청 등록, 보고서 확정처럼 업무에 반영되는 결과는 자동 확정하지 않고 사용자 검토 후 처리합니다.
 
-`meeting_processing` 서비스가 내용분석 후 보고서·특성 생성을 병렬 실행합니다. 실행 결과와 초안을 저장하며, 미팅 화면은 SSE 미리보기를 표시합니다. ML 결과는 보고서 입력으로 쓰지 않습니다. Agent 런타임은 Deep Agents·LangChain·LangGraph를 사용합니다.
+`meeting_processing`이 근거를 고정하면 worker가 보고서·특성/ML 자식 실행을 병렬로 큐잉합니다. 보고서 요청은 `create_deep_agent`와 `ainvoke`를 각각 한 번 사용하며, 서버가 검증한 초안·검토 artifact에서 최종 후보를 조립합니다. 실행 결과와 초안을 저장하고 미팅 화면은 SSE 미리보기를 표시합니다. ML 결과는 보고서 입력으로 쓰지 않습니다. Agent 런타임은 Deep Agents·LangChain·LangGraph를 사용합니다.
 
 현재 구현·저장 경계 → [미팅·보고서 구조](docs/technical/multiagent/미팅_내용분석_보고서작성_에이전트_구조_보고서.md), [코드 위치](docs/project-structure.md#미팅보고서-처리)
 

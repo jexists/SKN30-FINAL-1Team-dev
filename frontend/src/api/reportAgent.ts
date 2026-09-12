@@ -148,6 +148,16 @@ export async function createReportGeneration<T>(
   return (await client.post<AgentRunResponse<T>>('/report-generations', request)).data
 }
 
+export interface AgentRunCancelResponse {
+  root_run_id: string
+  cancelled_run_ids: string[]
+  terminal_run_ids: string[]
+}
+
+export async function cancelAgentRun(agentRunId: string): Promise<AgentRunCancelResponse> {
+  return (await client.post<AgentRunCancelResponse>(`/agent-runs/${agentRunId}/cancel`)).data
+}
+
 export async function retryMeetingReport<T>(agentRunId: string): Promise<AgentRunResponse<T>> {
   return (await client.post<AgentRunResponse<T>>(`/agent-runs/${agentRunId}/retry`)).data
 }
@@ -285,6 +295,7 @@ async function waitForMeetingChildren(
           ...run,
           id: report.id,
           source_refs: { ...run.source_refs, parent_run_id: run.id },
+          evidence: report.evidence ?? null,
           output_snapshot: output,
         }
       }

@@ -1,6 +1,7 @@
 """기간 보고서의 동결 입력 검증과 하위 제출본 묶음."""
 
 import copy
+from collections.abc import Callable
 from datetime import date
 from typing import Any
 
@@ -164,3 +165,35 @@ def run_context(source: dict[str, Any]) -> dict[str, Any]:
             "guidance",
         )
     }
+
+
+def create_period_tools(
+    payload: dict[str, Any],
+    *,
+    scope_access: Callable[[str, object], bool] | None = None,
+) -> list:
+    """서버가 권한/계층/기간을 검증한 제출본과 작성 맥락만 읽는다."""
+    source = copy.deepcopy(payload.get("source", payload))
+
+    def read_report_context() -> dict[str, Any]:
+        """집계 기간, 기존 본문, 추가 메모와 사용자 작성 지시를 읽는다."""
+        return copy.deepcopy(source["run_context"])
+
+    def read_report_sources(source_id: str | None = None) -> list[dict[str, Any]]:
+        """동결된 제출/활동/첨부 자료를 읽는다. 생략하면 전체, ID는 정확히 일치해야 한다."""
+        units = source["source_units"]
+        allowed = (
+            scope_access("read_report_sources", source_id)
+            if scope_access is not None
+            else source_id is None or any(unit["source_id"] == source_id for unit in units)
+        )
+        if not allowed:
+            raise PermissionError("report_source_not_allowed")
+        if source_id is None:
+            return copy.deepcopy(units)
+        selected = [unit for unit in units if unit["source_id"] == source_id]
+        if not selected:
+            raise PermissionError("report_source_not_allowed")
+        return copy.deepcopy(selected)
+
+    return [read_report_context, read_report_sources]

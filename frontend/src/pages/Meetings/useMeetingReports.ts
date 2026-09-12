@@ -128,6 +128,7 @@ export function toMeetingReport(item: ReportResponse): MeetingReport {
     version: item.version,
     currentSubmissionId: item.current_submission_id,
     updatedAt: item.updated_at,
+    aiEvidence: item.ai_evidence,
     meetingShared:
       common || unassigned ? { common_report: common, unassigned_report: unassigned } : undefined,
   }

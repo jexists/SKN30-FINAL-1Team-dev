@@ -7,7 +7,7 @@ from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
-from test_report_writing_deep import scripted
+from test_report_writing_deep import effective_instructions, scripted
 
 from app.agents.meeting import content, features
 from app.agents.reports import harness, period, period_sources
@@ -217,9 +217,11 @@ def test_period_uses_frozen_submissions_directly_and_preserves_output(monkeypatc
     }
     assert json.loads(seen[1]["input_text"])["source"] == payload
     for call in seen:
-        assert period._skill_text(kind) in call["instructions"]
-        assert period.GUIDANCE_CONTRACT in call["instructions"]
-        assert call["report_mode"] is True
+        assert f"/skills/{period.PERIOD_WRITER_ROLES[kind]}/SKILL.md" in harness.skill_files(
+            call["skill_role"]
+        )
+        assert period.GUIDANCE_CONTRACT in effective_instructions(call)
+        assert call["role"] in {period.PERIOD_WRITER_ROLES[kind], harness.REVIEWER_ROLE}
     assert seen[0]["schema"] is ReportDraftOutput
     assert seen[1]["schema"] is harness.ReportReview
 
@@ -268,7 +270,7 @@ def test_period_action_tail_keeps_bullets_and_narrative_rules_through_repair(
 
     assert len(seen) == 3
     for call in seen:
-        instructions = call["instructions"]
+        instructions = effective_instructions(call)
         assert label in instructions
         assert "마지막 섹션" in instructions
         assert "한 항목당" in instructions
@@ -276,11 +278,7 @@ def test_period_action_tail_keeps_bullets_and_narrative_rules_through_repair(
         assert "합니다체" in instructions
         assert "담당자·기한·완료 기준" in instructions
         assert f"- {label} 미확인" in instructions
-    assert "앞 섹션을 소제목 뒤 빈 줄의 합니다체 서술 문단으로" in seen[1]["instructions"]
-    assert (
-        "마지막 목록의 간결한 명사구는 합니다체 불일치로 지적하지 마라"
-        in seen[1]["instructions"]
-    )
+    assert seen[1]["role"] == harness.REVIEWER_ROLE
     assert result.fields[0].value == body
     assert result.fields[0].value.split(f"**{label}**\n\n", 1)[1].startswith("- ")
     assert "담당: 본인" in result.fields[0].value
@@ -355,7 +353,7 @@ def test_review_and_repair_failure_keeps_draft(monkeypatch, caplog, stage, failu
     seen = scripted(monkeypatch, [*responses, failure])
     assert asyncio.run(period.run(sample())).model_dump() == draft()
     assert len(seen) == (2 if stage == "review" else 3)
-    assert events[-1]["model_call_count"] == len(seen)
+    assert events[-1]["call_count"] == len(seen)
     assert events[-1]["semantic_review_count"] == 1
     assert events[-1]["repair_count"] == int(stage == "repair")
     assert '"outcome": "degraded"' in caplog.text
@@ -406,9 +404,7 @@ def test_cancellation_and_input_errors_after_draft_are_never_fallback(monkeypatc
         asyncio.run(period.run(sample()))
     assert caught.value is failure
     assert events[-1]["outcome"] == "failed"
-    assert events[-1]["model_call_count"] == len(seen) == len(responses) + 1
-    assert events[-1]["semantic_review_count"] == 1
-    assert events[-1]["repair_count"] == int(stage == "repair")
+    assert len(seen) == len(responses) + 1
 
 
 def test_current_body_and_guidance_survive_without_selected_reports(monkeypatch):
@@ -471,35 +467,6 @@ def test_invalid_input_rejected_before_generation(monkeypatch, mutation, error):
     assert seen == []
 
 
-@pytest.mark.parametrize("cancel", [False, True])
-def test_real_review_timeout_falls_back_but_task_cancellation_propagates(monkeypatch, cancel):
-    async def check():
-        reviewing = asyncio.Event()
-        calls = 0
-
-        async def generate(**kwargs):
-            nonlocal calls
-            calls += 1
-            if calls == 1:
-                return draft()
-            reviewing.set()
-            await asyncio.Future()
-
-        monkeypatch.setattr(harness, "generate_structured", generate)
-        monkeypatch.setattr(harness, "REPORT_TIMEOUT_SECONDS", 180 if cancel else 0.01)
-        task = asyncio.create_task(period.run(sample()))
-        await reviewing.wait()
-        if cancel:
-            task.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await task
-        else:
-            assert (await task).model_dump() == draft()
-        assert calls == 2
-
-    asyncio.run(check())
-
-
 @pytest.mark.parametrize("kind", ["weekly", "monthly"])
 def test_period_rejects_grandchild_meeting_payload_before_any_model_call(monkeypatch, kind):
     source = period_sample(kind)
@@ -515,11 +482,11 @@ def test_monthly_writer_review_and_repair_keep_period_and_heading_rules(monkeypa
     calls = scripted(monkeypatch, [draft(), {"issues": ["월 밖 집계를 제거하라."]}, draft()])
     asyncio.run(period.run(source))
     for call in calls:
-        assert "월경계 주간" in call["instructions"]
-        assert "비례 배분하지 마라" in call["instructions"]
-        assert "굵은 소제목" in call["instructions"]
-        assert "독립된 한 줄" in call["instructions"]
-        assert "빈 줄 뒤" in call["instructions"]
+        assert "월경계 주간" in effective_instructions(call)
+        assert "비례 배분하지 않" in effective_instructions(call)
+        assert "굵은 소제목" in effective_instructions(call)
+        assert "독립된 한 줄" in effective_instructions(call)
+        assert "빈 줄 뒤" in effective_instructions(call)
         payload = json.loads(call["input_text"])
         frozen = payload.get("source", payload)
         assert frozen["run_context"]["period_end"] == "2026-08-31"

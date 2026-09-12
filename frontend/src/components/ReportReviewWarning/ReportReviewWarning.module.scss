@@ -1,0 +1,13 @@
+.warning {
+  margin-bottom: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-md);
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+  font-size: 13px;
+
+  ul {
+    margin: var(--s2) 0 0;
+    padding-left: var(--s4);
+  }
+}
