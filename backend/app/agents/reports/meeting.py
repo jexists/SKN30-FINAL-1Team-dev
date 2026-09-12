@@ -32,7 +32,8 @@ EVIDENCE_CONTRACT = (
     "합의사항·후속 조치 소제목이나 없는 항목의 미확인을 채우지 않는다. 확인된 담당자·기한은 "
     "해당 항목에 보존한다. unassigned_report도 귀속 불명확한 확인 필요 내용만 같은 목록 "
     "형식으로 한 항목에 한 내용씩 쓰며 고정 소제목·빈 placeholder·없음 반복을 만들지 않는다. "
-    "근거가 없으면 해당 report를 만들지 않는다. 신원·evidence_ids·sentinel·최종 조립은 서버가 맡는다."
+    "근거가 없으면 해당 report를 만들지 않는다. 신원·evidence_ids·sentinel·"
+    "최종 조립은 서버가 맡는다."
 )
 
 

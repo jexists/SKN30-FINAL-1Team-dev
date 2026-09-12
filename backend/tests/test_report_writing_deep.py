@@ -311,7 +311,10 @@ def test_meeting_heading_guidance_reaches_each_stage_and_repairs_scope(monkeypat
 
     heading_rule = "필요한 항목은 Markdown **굵은 소제목**을 독립된 한 줄에 쓰고"
     assert all(heading_rule in effective_instructions(call) for call in seen)
-    bullet_rule = "`unassigned_report`는 실제 딜 귀속이 불명확해 확인이 필요한 내용만 항목별 Markdown `- 내용` 목록"
+    bullet_rule = (
+        "`unassigned_report`는 실제 딜 귀속이 불명확해 확인이 필요한 내용만 항목별 Markdown `- "
+        "내용` 목록"
+    )
     assert all(bullet_rule in effective_instructions(call) for call in seen)
     assert seen[3]["role"] == harness.REVIEWER_ROLE
     assert json.loads(seen[-1]["input_text"])["scope"] == "unassigned_report"

@@ -1142,7 +1142,9 @@ def test_scope_guards_emit_real_json_correlation_for_meeting_and_period(caplog):
 def test_writer_and_repair_envelopes_expose_only_assigned_meeting_scope():
     coordinator = harness._Coordinator(_spec("meeting", unit_count=2), object())
     writer = coordinator.assignments["write-001"]
-    assert json.loads(coordinator.server_envelope(writer).split("SERVER_ASSIGNMENT=", 1)[1])["source_scopes"] == [
+    assert json.loads(coordinator.server_envelope(writer).split("SERVER_ASSIGNMENT=", 1)[1])[
+        "source_scopes"
+    ] == [
         "scope-1"
     ]
 
@@ -1151,7 +1153,9 @@ def test_writer_and_repair_envelopes_expose_only_assigned_meeting_scope():
         work_unit_id="repair-001",
         phase="repair",
     )
-    assert json.loads(coordinator.server_envelope(repair).split("SERVER_ASSIGNMENT=", 1)[1])["source_scopes"] == [
+    assert json.loads(coordinator.server_envelope(repair).split("SERVER_ASSIGNMENT=", 1)[1])[
+        "source_scopes"
+    ] == [
         "scope-1"
     ]
 
@@ -1162,7 +1166,9 @@ def test_writer_and_repair_envelopes_expose_only_assigned_meeting_scope():
         role=harness.REVIEWER_ROLE,
         unit=None,
     )
-    assert json.loads(coordinator.server_envelope(reviewer).split("SERVER_ASSIGNMENT=", 1)[1])["source_scopes"] == [
+    assert json.loads(coordinator.server_envelope(reviewer).split("SERVER_ASSIGNMENT=", 1)[1])[
+        "source_scopes"
+    ] == [
         "scope-1",
         "scope-2",
     ]

@@ -259,7 +259,9 @@ def _runtime_error(error: Exception) -> Exception:
     return error
 
 
-def _safe_section_validation_fields(error: ValidationError, section: type[BaseModel], value: Any) -> dict[str, str]:
+def _safe_section_validation_fields(
+    error: ValidationError, section: type[BaseModel], value: Any
+) -> dict[str, str]:
     """Record schema mismatch shape without recording generated text or arbitrary keys."""
     declared = set(section.model_fields)
     missing: list[str] = []
