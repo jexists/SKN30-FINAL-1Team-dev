@@ -172,12 +172,22 @@ def test_preparation_digest_preserves_assigned_source_boundary():
             None,
             unit.locations,
         )
-    with pytest.raises(PermissionError, match="report_source_not_allowed"):
+    with pytest.raises(LLMError, match="report_source_digest_invalid"):
         period._validate_unit(
             unit,
             period.PeriodSourceDigest.model_validate({
                 **digest.model_dump(),
                 "facts": [{**digest.facts[0].model_dump(), "evidence_ref": "meeting_bundle:2"}],
+            }),
+            None,
+            unit.locations,
+        )
+    with pytest.raises(LLMError, match="report_source_digest_invalid"):
+        period._validate_unit(
+            unit,
+            period.PeriodSourceDigest.model_validate({
+                **digest.model_dump(),
+                "evidence_refs": ["meeting_context.activity_id"],
             }),
             None,
             unit.locations,

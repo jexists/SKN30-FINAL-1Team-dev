@@ -312,6 +312,7 @@ def retain_valid_draft(error: Exception, *, stage: str) -> None:
             "empty_llm_output",
             "llm_output_schema_mismatch",
             "report_output_invalid",
+            "report_source_digest_invalid",
             "report_generation_timeout",
             "report_generation_limit",
             "report_generation_failed",
@@ -1420,6 +1421,7 @@ class _SupervisorGuard(AgentMiddleware):
                                     "report_scope_not_allowed",
                                     "report_deal_not_allowed",
                                     "report_source_not_allowed",
+                                    "report_source_digest_invalid",
                                 }
                                 else None
                             ),

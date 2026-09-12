@@ -258,6 +258,22 @@ class ScriptedModel(BaseChatModel):
                 ],
                 "evidence_refs": [evidence[0]],
             }
+            if self.attack in {
+                "prepare-item-anchor",
+                "prepare-foreign-source-ref",
+            } and not self._attacked:
+                self._attacked = True
+                draft["facts"][0]["evidence_ref"] = (
+                    "meeting_bundle:2"
+                    if self.attack == "prepare-foreign-source-ref"
+                    else "meeting_context.activity_id"
+                )
+            if (
+                self.attack == "prepare-aggregate-anchor"
+                and not self._attacked
+            ):
+                self._attacked = True
+                draft["evidence_refs"] = ["meeting_context.activity_id"]
         elif phase == "repair":
             draft = copy.deepcopy(self._drafts[scope])
             field = locations[0].rsplit(".", 1)[-1]
@@ -1082,6 +1098,66 @@ def test_period_prepare_permission_error_propagates_through_native_graph(monkeyp
     with pytest.raises(PermissionError, match="report_source_not_allowed"):
         asyncio.run(period_report.run(sample()))
     assert "synthesize" not in model._phases
+
+
+@pytest.mark.parametrize(
+    "attack", ["prepare-item-anchor", "prepare-aggregate-anchor", "prepare-foreign-source-ref"]
+)
+def test_period_prepare_invalid_digest_becomes_failed_source_and_synthesis_reads_original(
+    monkeypatch, attack
+):
+    from test_period_report_writing_deep import sample
+
+    class AnchorDigestModel(ScriptedModel):
+        def _writer_artifact(self, assignment):
+            artifact = super()._writer_artifact(assignment)
+            if assignment["phase"] == "synthesize":
+                artifact["draft"] = {
+                    "fields": [{"field_id": "body", "value": "원문으로 종합한 본문"}]
+                }
+            return artifact
+
+    model = AnchorDigestModel(writer_role="daily-report-writer", attack=attack)
+    captured_digests = []
+    original_digests = harness._Coordinator.writer_digests
+
+    def capture_digests(coordinator):
+        value = original_digests(coordinator)
+        captured_digests.append(copy.deepcopy(value))
+        return value
+
+    monkeypatch.setattr(harness._Coordinator, "writer_digests", capture_digests)
+    monkeypatch.setattr(harness, "configured_chat_model", lambda: model)
+
+    events = []
+    monkeypatch.setattr(
+        period_report, "log_agent_event", lambda _stage, **kwargs: events.append(kwargs)
+    )
+    writes = []
+    original_write = harness.StateBackend.write
+
+    def record_write(backend, path, content):
+        writes.append(path)
+        return original_write(backend, path, content)
+
+    monkeypatch.setattr(harness.StateBackend, "write", record_write)
+    result = asyncio.run(period_report.run(sample()))
+
+    assert result.fields[0].value == "원문으로 종합한 본문"
+    assert events[-1]["outcome"] == "degraded"
+    assert captured_digests[-1][0] == {
+        "source_id": "meeting_bundle:1",
+        "status": "failed",
+        "error_code": "report_source_digest_invalid",
+    }
+    assert captured_digests[-1][1]["draft"]["source_id"] == "meeting_bundle:2"
+    assert "/artifacts/source-digests/meeting_bundle:1.json" not in writes
+    assert "/artifacts/source-digests/meeting_bundle:2.json" in writes
+    assert "synthesize" in model._phases
+    assert any(
+        call["name"] == "read_report_sources" and not call["args"]
+        for call in model._requested[("synthesize", "write-001")]
+    )
 
 
 @pytest.mark.parametrize("suppress_cancellation", [False, True])
