@@ -3,9 +3,13 @@
 // 서버의 status_code 는 그대로 두고 라벨만 세 가지로 좁혀 읽습니다. 팀장이 하는 일은
 // "제출된 것을 확정하거나 반려한다" 뿐이라 검토대기·확정·반려 말고는 고를 것이 없습니다.
 //
-// pages/Meetings/reviewStatus.ts 의 다섯 단계(작성중·작성완료·확인완료·보충 필요·보류)는
-// 작성자가 자기 보고서를 볼 때 쓰는 어휘라 그대로 둡니다. 같은 값을 보는 사람이 달라
-// 부르는 이름이 다른 것이고, 두 곳을 하나로 합치면 어느 한쪽의 말이 어색해집니다.
+// 지금 이 어휘를 부르는 화면은 없습니다. 미팅 보고서는 팀장이 확정·반려하는 문서가
+// 아니라 일일보고서를 만들기 위한 기록이어서 대시보드의 검토 드로어 연결을 끊었고,
+// 그 드로어가 이 파일의 유일한 사용처였습니다. 일일·주간·월간 보고서의 검토 흐름에
+// 그대로 쓸 수 있어 서버의 POST /reports/{id}/review 와 함께 남겨 둡니다.
+//
+// pages/Meetings/reviewStatus.ts 는 작성자가 자기 미팅 보고서를 볼 때 쓰는 어휘
+// (작성중·작성완료)라 따로 둡니다. 같은 status_code 를 보는 사람이 다릅니다.
 import type { StatusTone } from '@/components/StatusBadge'
 import { client } from '@/api/client'
 import type { ApiReportStatus, ReportResponse, ReportReviewRequest } from '@/types'

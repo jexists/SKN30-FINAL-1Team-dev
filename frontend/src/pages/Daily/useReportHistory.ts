@@ -28,13 +28,10 @@ const API_STATUS: Record<string, ApiReportStatus[]> = {
   '검토 대기': ['submitted'],
   확정: ['approved'],
   반려: ['rejected', 'changes_requested'],
+  // 미팅 보고서는 팀장 검토를 받지 않아 draft 가 아닌 것이 모두 '작성완료'입니다.
+  작성완료: ['submitted', 'approved', 'rejected', 'changes_requested'],
 }
-const MEETING_HISTORY_STATUS: ApiReportStatus[] = [
-  'submitted',
-  'approved',
-  'rejected',
-  'changes_requested',
-]
+const MEETING_HISTORY_STATUS: ApiReportStatus[] = API_STATUS['작성완료']
 
 interface HistoryQueryScope {
   report_kind: ApiReportKind[]
@@ -54,7 +51,10 @@ function kindsOf(period: Period): ApiReportKind[] {
 }
 
 /**
- * 일반 보고서의 draft는 목록에 남기되, 미팅 draft는 일정의 `계속 작성`에서만 보입니다.
+ * 미팅 탭은 초안까지 통째로 봅니다. 상태 칩이 '작성중'을 고를 수 있어야 하기 때문입니다.
+ *
+ * '전체' 탭에서만 미팅 draft 를 뺍니다. 거기서는 일정의 `계속 작성`으로 이어 쓰는
+ * 초안이 남의 확정 보고서와 한 줄에 섞여 보입니다. 일반 보고서의 draft 는 그대로 둡니다.
  * 두 조건을 한 API 요청으로 AND 처리할 수 없어 전체 탭은 종류별 조회로 나눕니다.
  */
 export function historyQueryScopes(
@@ -71,6 +71,13 @@ export function historyQueryScopes(
   }
 
   if (showsMeetings(period)) {
+    if (period === 'meeting') {
+      scopes.push({
+        report_kind: ['meeting'],
+        ...(selectedStatuses === undefined ? {} : { status_code: selectedStatuses }),
+      })
+      return scopes
+    }
     const meetingStatuses =
       selectedStatuses === undefined
         ? MEETING_HISTORY_STATUS

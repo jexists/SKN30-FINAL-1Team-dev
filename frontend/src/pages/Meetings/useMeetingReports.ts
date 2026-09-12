@@ -50,6 +50,12 @@ function dealOf(value: unknown, salesDealId: string): MeetingDealRef {
   }
 }
 
+/**
+ * 서버 status_code 를 그대로 옮긴 값입니다. 화면에 서지 않습니다 — 미팅 보고서는 팀장
+ * 검토를 받지 않아 배지는 reviewStatus.meetingStatusLabel 이 작성중·작성완료로 그립니다.
+ * 이 값은 일일보고서가 "끝난 미팅"을 고를 때 보는 데이터 판정으로만 남았습니다
+ * (pages/Daily/sources.ts).
+ */
 function statusOf(code: ReportResponse['status_code']): MeetingReportStatus {
   if (code === 'draft') return '수정중'
   if (code === 'rejected' || code === 'changes_requested') return '반려'

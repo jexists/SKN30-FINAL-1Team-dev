@@ -77,10 +77,8 @@ export default function Daily() {
   const [openISO, setOpenISO] = useState('')
 
   const query = params.get('q') ?? ''
-  const filters = useMemo<HistoryFilters>(() => {
-    const parsed = parseFilters(params)
-    return period === 'meeting' && parsed.status === '작성중' ? { ...parsed, status: '' } : parsed
-  }, [params, period])
+  // 탭마다 상태 어휘가 다릅니다. 주소에 남은 다른 탭의 값은 여기서 버립니다.
+  const filters = useMemo<HistoryFilters>(() => parseFilters(params, period), [params, period])
 
   const days = weekDays(weekOffset)
 
@@ -156,9 +154,9 @@ export default function Daily() {
     const row = inKind.get(dateISO)?.[0]
     const dow = parseISO(dateISO).getDay()
     const tone = (() => {
-      if (row?.status === '확정') return styles.markDone
+      if (row?.status === '확정' || row?.status === '작성완료') return styles.markDone
       if (row?.status === '검토 대기') return styles.markPending
-      if (row?.status === '작성중' || row?.status === '수정중') return styles.markDraft
+      if (row?.status === '작성중') return styles.markDraft
       if (row?.status === '반려') return styles.markRejected
       // 주간·월간·미팅은 매일 내는 보고가 아니므로 미작성으로 보지 않습니다.
       if (period !== 'all' && period !== 'daily') return null
@@ -281,24 +279,33 @@ export default function Daily() {
           </div>
         )}
 
-        {/* 상태 점은 주간 strip 에만 찍힙니다. 한 달 달력은 종류를 칩으로 보여 줍니다. */}
+        {/* 상태 점은 주간 strip 에만 찍힙니다. 한 달 달력은 종류를 칩으로 보여 줍니다.
+            미팅 탭은 팀장 검토를 받지 않는 기록만 보므로 검토 대기·반려를 세우지 않습니다. */}
         {!showMonth && (
           <p className={styles.legend}>
             <span>
               <i className={styles.markDraft} /> 작성중
             </span>
-            <span>
-              <i className={styles.markPending} /> 검토 대기
-            </span>
-            <span>
-              <i className={styles.markDone} /> 확정
-            </span>
-            <span>
-              <i className={styles.markRejected} /> 반려
-            </span>
-            <span>
-              <i className={styles.markMissing} /> 미작성
-            </span>
+            {period === 'meeting' ? (
+              <span>
+                <i className={styles.markDone} /> 작성완료
+              </span>
+            ) : (
+              <>
+                <span>
+                  <i className={styles.markPending} /> 검토 대기
+                </span>
+                <span>
+                  <i className={styles.markDone} /> 확정
+                </span>
+                <span>
+                  <i className={styles.markRejected} /> 반려
+                </span>
+                <span>
+                  <i className={styles.markMissing} /> 미작성
+                </span>
+              </>
+            )}
           </p>
         )}
       </article>
@@ -331,7 +338,11 @@ export default function Daily() {
           {visible.map((row) => (
             // 줄 어디를 눌러도 그 보고서 전문으로 넘어갑니다.
             <li key={row.id} className={styles.row} onClick={() => navigate(row.to)}>
-              <span className={styles.type}>{row.kindLabel}</span>
+              <div className={styles.rail}>
+                <span className={styles.type}>{row.kindLabel}</span>
+                {/* 여러 사람의 보고서가 섞여 보일 때만 누가 썼는지 세웁니다. */}
+                {showOwner && <OwnerName name={row.author} memberId={row.ownerMemberId} />}
+              </div>
 
               <div className={styles.rowBody}>
                 {/* 줄 전체를 누르지만 li 는 키보드로 못 잡습니다. 제목이 그
@@ -345,11 +356,7 @@ export default function Daily() {
                     {row.title}
                   </Link>
                 </strong>
-                <span className={styles.rowMeta}>
-                  {/* 여러 사람의 보고서가 섞여 보일 때만 누가 썼는지 세웁니다. */}
-                  {showOwner && <OwnerName name={row.author} memberId={row.ownerMemberId} />}
-                  {row.meta}
-                </span>
+                <span className={styles.rowMeta}>{row.meta}</span>
               </div>
 
               <span className={styles.approver}>{row.aside}</span>

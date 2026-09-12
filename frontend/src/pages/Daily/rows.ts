@@ -5,13 +5,8 @@
 // 매번 갈라지면 같은 코드를 두 벌 갖게 됩니다. 그래서 화면에 필요한 것만 여기서
 // 한 모양으로 만들고, 아래쪽 컴포넌트는 이 타입 하나만 압니다.
 import { dailyReportPath, meetingReportPath } from '@/constants/routes'
-import type {
-  DailyReport,
-  MeetingReport,
-  MeetingReportStatus,
-  ReportAttachment,
-  ReportStatus,
-} from '@/types'
+import { meetingStatusLabel, type MeetingStatusLabel } from '@/pages/Meetings/reviewStatus'
+import type { DailyReport, MeetingReport, ReportAttachment, ReportStatus } from '@/types'
 
 import { reportTitle } from './periods'
 
@@ -29,7 +24,11 @@ export interface ListRow {
   meta: string
   /** 오른쪽 끝 값. 일일은 보고 대상, 미팅은 고객사입니다. */
   aside: string
-  status: ReportStatus | MeetingReportStatus
+  /**
+   * 미팅 줄은 '작성중'·'작성완료' 둘뿐입니다. 팀장 검토를 받는 문서가 아니어서
+   * 검토 대기·반려가 없습니다(pages/Meetings/reviewStatus.ts).
+   */
+  status: ReportStatus | MeetingStatusLabel
   /** 전문으로 넘어가는 경로 */
   to: string
   /** 검색이 훑을 글자. 소문자로 만들어 둡니다. */
@@ -104,7 +103,9 @@ export function fromMeetingReport(report: MeetingReport): ListRow {
     aside: report.hospital,
     author: report.owner,
     ownerMemberId: report.ownerMemberId,
-    status: report.status,
+    // MeetingReport.status 는 일일보고 집계가 보는 서버 쪽 말이라 그대로 두고,
+    // 목록에 서는 말은 여기서 작성중·작성완료로 좁힙니다.
+    status: meetingStatusLabel(report.apiStatus ?? 'draft'),
     to: meetingReportPath(report.id),
     haystack: lower([
       report.hospital,

@@ -106,7 +106,7 @@
 
   position: relative;
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-columns: 68px minmax(0, 1fr);
   gap: var(--s3);
   margin: 0 calc(var(--s5) * -1);
   padding: var(--s4) var(--edge-x) var(--s4) var(--s5);
@@ -120,7 +120,7 @@
   @include md {
     --edge-x: var(--s4);
 
-    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-columns: 60px minmax(0, 1fr);
     gap: var(--s2);
     margin: 0 calc(var(--s4) * -1);
     padding: var(--s4) var(--edge-x) var(--s4) var(--s4);
@@ -130,7 +130,9 @@
     grid-template-columns: minmax(0, 1fr);
 
     .rail {
-      text-align: left;
+      flex-direction: row;
+      align-items: baseline;
+      gap: var(--s2);
     }
 
     .org {
@@ -183,8 +185,18 @@
   }
 }
 
+// 시간 밑에 담당자 이름표가 섭니다. 둘의 폭이 달라, 오른쪽에 맞추면 이름표가
+// 시간에서 어긋나 보입니다. 가운데로 모아 한 기둥으로 읽히게 둡니다.
 .rail {
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+
+  // 이름표는 제 폭대로 크지만 레일보다 넓어질 수는 없습니다.
+  > span {
+    max-width: 100%;
+  }
 }
 
 .time {

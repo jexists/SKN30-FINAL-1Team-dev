@@ -134,7 +134,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--s3);
   padding: var(--s3) var(--s4);
@@ -150,7 +150,7 @@
 
   // 좁아지면 보고 대상·날짜부터 접습니다. 제목과 상태가 남아야 합니다.
   @include md {
-    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
 
     .approver,
     .date {
@@ -159,12 +159,21 @@
   }
 }
 
+// 종류표 오른쪽에 담당자 이름표가 붙습니다. 본문이 두 줄이라 둘은 줄 높이
+// 가운데에 섭니다.
+.rail {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
 .type {
   display: grid;
   place-items: center;
+  flex: none;
   width: 40px;
-  height: 26px;
-  border-radius: var(--r-xs);
+  height: 22px;
+  border-radius: var(--r-badge);
   background: var(--fill);
   color: var(--muted);
   font-size: 11px;
@@ -184,14 +193,6 @@
   span {
     color: var(--muted);
     font-size: 12px;
-  }
-
-  // 작성자 이름표가 앞에 설 수 있어 한 줄로 늘어놓습니다.
-  .rowMeta {
-    display: flex;
-    align-items: center;
-    gap: var(--s2);
-    min-width: 0;
   }
 }
 

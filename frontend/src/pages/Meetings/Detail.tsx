@@ -19,7 +19,7 @@ import type { MeetingDealSection } from '@/types'
 import MeetingFacts from './components/MeetingFacts'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
 import { isInsufficientDealPrediction } from './generatedDraft'
-import { REVIEW_LABEL, REVIEW_TONE } from './reviewStatus'
+import { MEETING_STATUS_TONE, meetingStatusLabel } from './reviewStatus'
 import { toMeetingReport } from './useMeetingReports'
 
 import styles from './Detail.module.scss'
@@ -116,7 +116,10 @@ export default function Detail() {
           <p className={styles.title}>
             {report.hospital}
             {report.title && <span>{report.title}</span>}
-            <StatusBadge label={REVIEW_LABEL[report.review]} tone={REVIEW_TONE[report.review]} />
+            <StatusBadge
+              label={meetingStatusLabel(report.apiStatus ?? 'draft')}
+              tone={MEETING_STATUS_TONE[meetingStatusLabel(report.apiStatus ?? 'draft')]}
+            />
           </p>
 
           <p className={styles.meta}>
@@ -216,11 +219,11 @@ export default function Detail() {
               PDF 다운로드
             </Button>
 
+            {/* 잠그는 것은 서버입니다(approved 는 더 이상 고칠 수 없습니다).
+                팀장 검토를 받는 문서가 아니므로 문구에서 팀장을 뺐습니다. */}
             {!editable ? (
               <span className={`${styles.sealed} ${styles.trailing}`}>
-                {report.review === 'approved'
-                  ? '팀장 확인이 끝나 수정할 수 없습니다'
-                  : '현재 상태에서는 수정할 수 없습니다'}
+                작성이 완료되어 수정할 수 없습니다
               </span>
             ) : isMine ? (
               <Link

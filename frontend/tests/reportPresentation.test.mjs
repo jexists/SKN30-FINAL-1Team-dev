@@ -568,7 +568,8 @@ test('일일 관련 목록은 미팅일의 제출 보고서와 제출본 id만 �
   assert.equal(activity.source, '업무보고서')
   assert.equal(activityLink(activity), `/meetings/${report.id}`)
   assert.equal(result.meta.get(activity.id).to, activityLink(activity))
-  assert.equal(result.meta.get(activity.id).status, '검토 대기')
+  // 미팅 보고서는 팀장 검토를 받지 않아 관련 목록에도 '작성완료'로만 섭니다.
+  assert.equal(result.meta.get(activity.id).status, '작성완료')
   assert.doesNotMatch(JSON.stringify([...result.meta, result.activities]), /비공개/)
   assert.equal(activity.sourceSubmissionId, 'submission-1')
   assert.equal('values' in result, false)
@@ -1223,7 +1224,7 @@ test('일정의 보고서는 승인 전까지 Compose로 연결한다', () => {
   assert.equal(meetingLinkFor(submitted.agendaId, [submitted]).label, '수정하기')
 })
 
-test('대시보드의 두 일정 진입점도 공통 승인 전 수정 규칙을 사용한다', async () => {
+test('일정 줄은 낸 보고서를 고치는 길을 세우지 않고 드로어만 승인 전 수정을 연다', async () => {
   const dayAgenda = await readFile(
     new URL('../src/pages/Dashboard/components/DayAgenda/DayAgenda.tsx', import.meta.url),
     'utf8',
@@ -1233,9 +1234,31 @@ test('대시보드의 두 일정 진입점도 공통 승인 전 수정 규칙을
     'utf8',
   )
 
-  for (const source of [dayAgenda, agendaReport]) {
-    assert.match(source, /isAuthorEditableReportStatus\(/)
-  }
+  // 줄에서는 안 쓴 것과 쓰다 만 것만 작성 화면으로 보냅니다. 낸 보고서는 상세로만
+  // 가고, 고치는 것은 그 화면 끝의 '수정하기' 가 맡습니다.
+  assert.doesNotMatch(dayAgenda, /보고서 수정/)
+  assert.doesNotMatch(dayAgenda, /isAuthorEditableReportStatus\(/)
+  assert.match(dayAgenda, /'계속 작성'/)
+  assert.match(dayAgenda, /보고서 확인/)
+
+  // 드로어는 지금도 승인 전 수정을 열므로 공통 규칙을 그대로 씁니다.
+  assert.match(agendaReport, /isAuthorEditableReportStatus\(/)
+})
+
+test('미팅 탭은 초안까지 보여 상태 칩의 작성중이 비지 않는다', () => {
+  assert.deepEqual(historyQueryScopes('meeting'), [{ report_kind: ['meeting'] }])
+  assert.deepEqual(historyQueryScopes('meeting', ['draft']), [
+    { report_kind: ['meeting'], status_code: ['draft'] },
+  ])
+  assert.deepEqual(
+    historyQueryScopes('meeting', ['submitted', 'approved', 'rejected', 'changes_requested']),
+    [
+      {
+        report_kind: ['meeting'],
+        status_code: ['submitted', 'approved', 'rejected', 'changes_requested'],
+      },
+    ],
+  )
 })
 
 test('전체 목록과 달력은 일반 draft를 유지하고 미팅 draft만 제외한다', () => {

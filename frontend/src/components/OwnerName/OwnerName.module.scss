@@ -6,7 +6,9 @@
 
   flex: 0 0 auto;
   max-width: 8em;
-  padding: 1px 7px;
+  // 같은 줄에 서는 상태 배지·종류표와 키를 맞춥니다.
+  height: 22px;
+  padding: 0 8px;
   font-size: 11px;
   letter-spacing: normal;
   white-space: nowrap;

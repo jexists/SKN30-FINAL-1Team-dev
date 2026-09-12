@@ -4,7 +4,6 @@ import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import Modal from '@/components/Modal'
 import type { AgendaItem, CalendarEvent, Notice } from '@/types'
-import { useCurrentUser } from '@/auth/sessionContext'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import EventModal from '@/pages/Calendar/components/EventModal'
 import { DEFAULTS, useAgendaMutations } from '@/pages/Calendar/useCalendarEvents'
@@ -17,7 +16,6 @@ import ListDrawer from './components/ListDrawer'
 import NoticeDrawer from './components/NoticeDrawer'
 import NoticeTicker from './components/NoticeTicker'
 import RecordDrawer from './components/RecordDrawer'
-import ReportReviewDrawer from './components/ReportReviewDrawer'
 import SummaryBand from './components/SummaryBand'
 import WeekCalendar from './components/WeekCalendar'
 import { csList, renewalList, type KpiListKey } from './drawerLists'
@@ -32,14 +30,9 @@ type OpenDrawer =
   | { type: 'record'; item: AgendaItem }
   | { type: 'kpi'; key: KpiListKey }
   | { type: 'notice'; label: string; notice: Notice }
-  // 팀장이 팀원의 보고서를 확인하고 확정·반려하는 자리입니다.
-  | { type: 'review'; reportId: string }
 
 export default function Dashboard() {
-  const { isManager } = useCurrentUser()
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
-  // 보고서를 확정·반려한 뒤 그 날 목록을 다시 받아 배지를 새로 세웁니다.
-  const [reviewKey, setReviewKey] = useState(0)
   const [weekOffset, setWeekOffset] = useState(0)
   const [flash, setFlash] = useState(false)
   const [open, setOpen] = useState<OpenDrawer | null>(null)
@@ -125,11 +118,6 @@ export default function Dashboard() {
             ref={agendaRef}
             dateISO={selectedISO}
             onOpen={(item) => setOpen({ type: 'record', item })}
-            // 검토 드로어는 팀장에게만 엽니다. 팀원은 자기 보고서 상세로 갑니다.
-            onOpenReport={
-              isManager ? (reportId) => setOpen({ type: 'review', reportId }) : undefined
-            }
-            reportsKey={reviewKey}
             onAddSchedule={() => setOpen({ type: 'addEvent' })}
             onEdit={setEditing}
             onDelete={setDeleting}
@@ -239,14 +227,6 @@ export default function Dashboard() {
           notice={open.notice}
           // 이행 여부가 바뀌면 티커의 배지도 새 값으로 서야 합니다.
           onStatusChange={reload}
-          onClose={closeDrawer}
-        />
-      )}
-
-      {open?.type === 'review' && (
-        <ReportReviewDrawer
-          reportId={open.reportId}
-          onReviewed={() => setReviewKey((previous) => previous + 1)}
           onClose={closeDrawer}
         />
       )}

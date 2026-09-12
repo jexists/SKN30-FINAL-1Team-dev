@@ -2,6 +2,9 @@
 //
 // 사유를 필수로 둡니다. 무엇을 고쳐야 하는지 없이 돌려보내면 팀원이 같은 것을 그대로 다시
 // 냅니다. 서버도 같은 조건으로 거절하므로 여기서 먼저 막아 왕복을 줄입니다.
+//
+// ReportReviewDrawer 만 이 모달을 엽니다. 그 드로어가 지금 어느 화면에도 연결되어
+// 있지 않아(미팅 보고서는 검토 대상이 아닙니다) 이 모달도 함께 쉬고 있습니다.
 import { useState } from 'react'
 
 import Button from '@/components/Button'

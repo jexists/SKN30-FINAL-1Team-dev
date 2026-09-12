@@ -15,29 +15,29 @@ import { useMemo } from 'react'
 import DayPicker from '@/components/DayPicker'
 import SearchInput from '@/components/SearchInput'
 import Tabs, { type TabItem } from '@/components/Tabs'
-import type { ReportStatus } from '@/types'
 import { iso, parseISO } from '@/utils/date'
 
 import {
   activePreset,
-  FILTER_STATUSES,
   presetRange,
   RANGE_PRESETS,
+  statusesFor,
   STATUS_TONE,
+  type FilterStatus,
   type HistoryFilters,
 } from '../../historyFilters'
 import type { Period } from '../../periods'
 
 import styles from './HistoryToolbar.module.scss'
 
-type StatusValue = ReportStatus | ''
+type StatusValue = FilterStatus | ''
 
 interface Props {
   query: string
   onSearch: (next: string) => void
   filters: HistoryFilters
   onFiltersChange: (next: HistoryFilters) => void
-  /** 지금 보고 있는 탭. 미팅에는 작성중이 없습니다. */
+  /** 지금 보고 있는 탭. 상태 칩의 어휘를 이 값이 정합니다. */
   period: Period
 }
 
@@ -52,12 +52,11 @@ export default function HistoryToolbar({
   onFiltersChange,
   period,
 }: Props) {
+  // 미팅 탭은 '전체·작성중·작성완료', 나머지는 검토 단계까지 넷입니다.
   const statusItems = useMemo<TabItem<StatusValue>[]>(
     () => [
       { value: '', label: '전체' },
-      ...FILTER_STATUSES.filter((value) => period !== 'meeting' || value !== '작성중').map(
-        (value) => ({ value, label: value, tone: STATUS_TONE[value] }),
-      ),
+      ...statusesFor(period).map((value) => ({ value, label: value, tone: STATUS_TONE[value] })),
     ],
     [period],
   )

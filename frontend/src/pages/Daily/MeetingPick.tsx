@@ -20,15 +20,16 @@ import styles from './MeetingPick.module.scss'
 const LIST_H = 360
 /** 표식 자리에 세울 수 있는 점 개수. 대시보드 주간 일정과 같습니다. */
 const MAX_MARKS = 5
-const FILTERS = ['전체', '미작성', '작성중', '확정'] as const
+const FILTERS = ['전체', '미작성', '작성중', '작성완료'] as const
 type Filter = (typeof FILTERS)[number]
 
 /**
- * 목록 상태를 필터 세 갈래로 접습니다. 미팅 보고서는 팀장 확인 없이 작성자가 끝내므로
- * 제출('검토 대기')이 곧 확정이고, 반려는 다시 손봐야 하니 '작성중'입니다.
+ * 목록 상태를 필터 세 갈래로 접습니다. 미팅 보고서는 팀장 검토를 받지 않고 작성자가
+ * 끝내므로 제출('검토 대기')이 곧 작성완료이고, 옛 자료의 반려는 다시 손봐야 하니
+ * '작성중'입니다.
  */
 const filterOf = (status: SourceMeta['status']): Filter =>
-  status === null ? '미작성' : status === '확정' || status === '검토 대기' ? '확정' : '작성중'
+  status === null ? '미작성' : status === '확정' || status === '검토 대기' ? '작성완료' : '작성중'
 
 const weekDays = (offset: number) => {
   const first = addDays(startOfWeek(TODAY), offset * 7)

@@ -3,14 +3,18 @@
 //
 // 조건은 주소에 둡니다. 걸러 둔 목록을 링크로 건네면 받는 쪽도 같은 화면을 봅니다.
 // 계약·발주·자료실 화면과 같은 방식입니다.
+import type { MeetingStatusLabel } from '@/pages/Meetings/reviewStatus'
 import type { ColumnTone, ReportStatus } from '@/types'
 import { addDays, addMonths, endOfMonth, iso, startOfMonth, startOfWeek, TODAY } from '@/utils/date'
 
 import type { Period } from './periods'
 
+/** 상태 칩이 고를 수 있는 값. 미팅 탭만 다른 두 개를 씁니다. */
+export type FilterStatus = ReportStatus | MeetingStatusLabel
+
 export interface HistoryFilters {
   /** 빈 문자열이면 전체입니다. */
-  status: ReportStatus | ''
+  status: FilterStatus | ''
   /** 기간의 시작·끝. 빈 문자열이면 그쪽을 자르지 않습니다. */
   start: string
   end: string
@@ -18,11 +22,18 @@ export interface HistoryFilters {
 
 export const NO_FILTERS: HistoryFilters = { status: '', start: '', end: '' }
 
-export const FILTER_STATUSES: ReportStatus[] = ['작성중', '검토 대기', '확정', '반려']
+const PERIOD_STATUSES: ReportStatus[] = ['작성중', '검토 대기', '확정', '반려']
+/** 미팅 보고서는 팀장 검토를 받지 않아 쓰는 중과 다 쓴 것 둘뿐입니다. */
+const MEETING_STATUSES: MeetingStatusLabel[] = ['작성중', '작성완료']
+
+/** 이 탭의 상태 칩. 탭마다 어휘가 달라 목록·주소·도구 줄이 모두 이 함수를 봅니다. */
+export const statusesFor = (period: Period): FilterStatus[] =>
+  period === 'meeting' ? MEETING_STATUSES : PERIOD_STATUSES
 
 /** 상태 탭 앞에 붙는 점. 보고서 배지와 같은 색이지만 그쪽은 StatusTone 이라 표가 다릅니다. */
-export const STATUS_TONE: Record<ReportStatus, ColumnTone> = {
+export const STATUS_TONE: Record<FilterStatus, ColumnTone> = {
   작성중: 'blue',
+  작성완료: 'green',
   '검토 대기': 'orange',
   확정: 'green',
   반려: 'red',
@@ -72,11 +83,11 @@ export function countFilters(filters: HistoryFilters): number {
   )
 }
 
-/** 주소에 적힌 조건을 필터로. 모르는 값은 무시하고 기본값으로 둡니다. */
-export function parseFilters(params: URLSearchParams): HistoryFilters {
+/** 주소에 적힌 조건을 필터로. 그 탭에 없는 값은 무시하고 기본값으로 둡니다. */
+export function parseFilters(params: URLSearchParams, period: Period): HistoryFilters {
   const status = params.get('status')
   return {
-    status: FILTER_STATUSES.includes(status as ReportStatus) ? (status as ReportStatus) : '',
+    status: statusesFor(period).includes(status as FilterStatus) ? (status as FilterStatus) : '',
     start: params.get('start') ?? '',
     end: params.get('end') ?? '',
   }
@@ -84,7 +95,7 @@ export function parseFilters(params: URLSearchParams): HistoryFilters {
 
 /**
  * 필터를 주소에 씁니다. 기본값인 키는 지워서 주소를 짧게 둡니다.
- * 미팅 탭에는 작성중이 없으므로 그 값도 함께 지웁니다. 보이지 않는 조건이 목록을
+ * 탭을 갈아탈 때 그 탭에 없는 상태는 함께 지웁니다. 보이지 않는 조건이 목록을
  * 걸러 버리면 왜 비었는지 알 길이 없습니다.
  */
 export function writeFilters(
@@ -98,7 +109,7 @@ export function writeFilters(
     else next.set(key, value)
   }
 
-  put('status', period === 'meeting' && filters.status === '작성중' ? '' : filters.status)
+  put('status', statusesFor(period).includes(filters.status as FilterStatus) ? filters.status : '')
   put('start', filters.start)
   put('end', filters.end)
   return next
