@@ -1174,6 +1174,53 @@ def test_writer_and_repair_envelopes_expose_only_assigned_meeting_scope():
     ]
 
 
+def test_reviewer_skips_sentinel_sources_but_assembly_keeps_sentinel_result():
+    scopes = {
+        "deal_reports[0]": {
+            "sales_deal_id": str(UUID("00000000-0000-0000-0000-000000000001")),
+            "required_evidence_ids": ["S0001"],
+        },
+        "deal_reports[1]": {
+            "sales_deal_id": str(UUID("00000000-0000-0000-0000-000000000002")),
+            "required_evidence_ids": [],
+        },
+        "common_report": {"required_evidence_ids": ["S0002"]},
+    }
+    coordinator = harness._Coordinator(
+        replace(_spec("meeting"), source=scopes), object()
+    )
+    reviewer = harness._Assignment(
+        "review-1",
+        "review_initial",
+        harness.REVIEWER_ROLE,
+        draft_version=1,
+        review_round=1,
+        locations=frozenset({"deal_reports[0].body", "common_report.body"}),
+    )
+    envelope = json.loads(coordinator.server_envelope(reviewer).split("SERVER_ASSIGNMENT=", 1)[1])
+    assert envelope["source_scopes"] == ["common_report", "deal_reports[0]"]
+    calls = [
+        {"name": "read_meeting_evidence", "args": {"scope": "deal_reports[0]"}},
+        {"name": "read_meeting_evidence", "args": {"scope": "common_report"}},
+        {"name": "read_validated_draft", "args": {"draft_version": 1}},
+        {"name": "read_writer_plans", "args": {"draft_version": 1}},
+    ]
+    assert coordinator.sources_complete(reviewer, calls)
+    assert not coordinator.sources_complete(reviewer, calls[:1])
+    assembled = meeting_report._assemble(
+        scopes,
+        {
+            "deal_reports[0]": meeting_report._DealDraft(title="A", body="A"),
+            "deal_reports[1]": meeting_report._DealDraft(
+                title=meeting_report.NO_DEAL_EVIDENCE_TEXT,
+                body=meeting_report.NO_DEAL_EVIDENCE_TEXT,
+            ),
+            "common_report": meeting_report._SectionDraft(body="공통"),
+        },
+    )
+    assert assembled.deal_reports[1].body == meeting_report.NO_DEAL_EVIDENCE_TEXT
+
+
 def test_writer_meeting_readers_bind_scope_server_side_and_reject_scope_argument():
     payload = {
         "source": {

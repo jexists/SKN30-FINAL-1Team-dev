@@ -127,13 +127,18 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const recoveredScope = useRef('')
   const [recovering, setRecovering] = useState(true)
   const cancelGeneration = useCallback(() => {
+    recoveryAbort.current?.abort()
     setActiveRunId(undefined)
     setGenerationError(null)
+    setRecovering(false)
     setPhase((current) => (current === 'generating' ? 'ready' : current))
   }, [])
   const cancellation = useAgentRunCancellation(
     activeRunId,
-    () => generationAbort.current?.abort(),
+    () => {
+      generationAbort.current?.abort()
+      recoveryAbort.current?.abort()
+    },
     cancelGeneration,
   )
 

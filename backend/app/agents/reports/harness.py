@@ -571,7 +571,7 @@ class _Coordinator:
             # A writer/repair task gets only its assigned source in the
             # transport contract; reviewers retain the full frozen set.
             "source_scopes": (
-                sorted(self.all_meeting_scopes)
+                sorted(self.runtime_meeting_scopes)
                 if self.spec.report_kind == "meeting" and assignment.role == REVIEWER_ROLE
                 else [unit.scope]
                 if self.spec.report_kind == "meeting" and unit is not None
@@ -627,7 +627,7 @@ class _Coordinator:
         else:
             assignment = active[1]
             allowed = (
-                existing
+                self.runtime_meeting_scopes
                 if assignment.role == REVIEWER_ROLE
                 else (
                     frozenset({assignment.unit.scope})
@@ -665,7 +665,7 @@ class _Coordinator:
             return False
         assignment = active[1]
         if assignment.role == REVIEWER_ROLE:
-            return scope in self.all_meeting_scopes
+            return scope in self.runtime_meeting_scopes
         return assignment.unit is not None and assignment.unit.scope == scope
 
     def assigned_meeting_scope(self, tool_name: str) -> str | None:
@@ -713,6 +713,14 @@ class _Coordinator:
     def all_meeting_scopes(self) -> frozenset[str]:
         return frozenset(self.spec.source)
 
+    @property
+    def runtime_meeting_scopes(self) -> frozenset[str]:
+        return frozenset(
+            scope
+            for scope, data in self.spec.source.items()
+            if data.get("required_evidence_ids")
+        )
+
     def allowed_tools(
         self, assignment: _Assignment, source_names: set[str], output: str
     ) -> set[str]:
@@ -734,7 +742,7 @@ class _Coordinator:
     def sources_complete(self, assignment: _Assignment, calls: list[dict[str, Any]]) -> bool:
         if self.spec.report_kind == "meeting":
             expected = (
-                self.all_meeting_scopes
+                self.runtime_meeting_scopes
                 if assignment.role == REVIEWER_ROLE
                 else frozenset({assignment.unit.scope})
                 if assignment.unit

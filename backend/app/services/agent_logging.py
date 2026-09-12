@@ -146,8 +146,15 @@ def safe_report_scope(scope: object, known_scopes=()) -> dict[str, object]:
 
 def _safe_fields(fields: dict) -> dict:
     safe = {}
+    known_scopes = set()
+    for key in ("allowed_scopes", "existing_scopes"):
+        value = fields.get(key)
+        if isinstance(value, (list, tuple, set, frozenset)):
+            known_scopes.update(item for item in value if isinstance(item, str))
     for key, value in fields.items():
         if key not in _fields:
+            continue
+        if key == "requested_scope":
             continue
         if key in {"allowed_scopes", "existing_scopes"}:
             if (
@@ -163,6 +170,8 @@ def _safe_fields(fields: dict) -> dict:
                 safe[key.replace("scopes", "scope_count")] = len(values)
         elif isinstance(value, (str, int, float, bool)):
             safe[key] = value
+    if "requested_scope" in fields:
+        safe.update(safe_report_scope(fields["requested_scope"], known_scopes))
     return safe
 
 

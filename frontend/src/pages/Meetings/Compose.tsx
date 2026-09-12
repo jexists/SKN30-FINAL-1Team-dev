@@ -149,6 +149,9 @@ export default function Compose() {
   const onGenerationCancelled = useCallback(() => {
     stopAnalysisWatch()
     generationAbort.current?.abort()
+    recoveryAbort.current?.abort()
+    recoveryAbort.current = null
+    setRecovering(false)
     generationAbort.current = null
     setActiveRunId(undefined)
     setGenerating(false)
@@ -156,7 +159,10 @@ export default function Compose() {
   }, [stopAnalysisWatch])
   const cancellation = useAgentRunCancellation(
     activeRunId,
-    () => generationAbort.current?.abort(),
+    () => {
+      generationAbort.current?.abort()
+      recoveryAbort.current?.abort()
+    },
     onGenerationCancelled,
   )
   useEffect(() => {
@@ -668,7 +674,7 @@ export default function Compose() {
               'AI 보고서 작성'
             )}
           </Button>
-          {generating && activeRunId && (
+          {(generating || recovering) && activeRunId && (
             <Button
               type="button"
               variant="outline"

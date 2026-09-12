@@ -257,6 +257,39 @@ def test_scope_denials_emit_correlated_json_fields_and_bounded_safe_scopes(caplo
     assert events[1]["requested_scope"] == "common_report"
 
 
+def test_log_boundaries_sanitize_raw_requested_scope_for_event_and_error(caplog):
+    caplog.set_level(logging.INFO, logger="app.services.agent_logging")
+    log_agent_event(
+        "direct.event",
+        requested_scope="secret transcript",
+        requested_scope_kind="freeform",
+        requested_scope_length=999,
+        requested_scope_sha256="forged",
+        existing_scopes=["common_report"],
+        allowed_scopes=["common_report"],
+    )
+    log_agent_error(
+        ValueError("secret error"),
+        stage="direct.error",
+        requested_scope="secret transcript",
+    )
+    events = [
+        json.loads(record.getMessage().split(" ", 1)[1])
+        for record in caplog.records
+        if record.name == "app.services.agent_logging"
+    ]
+    assert all("secret transcript" not in record.getMessage() for record in caplog.records)
+    assert events[0]["requested_scope_length"] == len("secret transcript")
+    assert events[0]["requested_scope_sha256"] != "forged"
+    assert "requested_scope" not in events[0] and "requested_scope" not in events[1]
+    log_agent_event(
+        "direct.known", requested_scope="common_report", existing_scopes=["common_report"]
+    )
+    known = json.loads(caplog.records[-1].getMessage().split(" ", 1)[1])
+    assert known["requested_scope"] == "common_report"
+    assert known["requested_scope_kind"] == "known"
+
+
 def test_logging_sink_failure_does_not_mask_execution_error(monkeypatch):
     def broken(*args, **kwargs):
         raise RuntimeError("sink failure")
