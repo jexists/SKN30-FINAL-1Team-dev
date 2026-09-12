@@ -25,7 +25,7 @@ class PeriodDigestItem(BaseModel):
     kind: str = Field(min_length=1, max_length=80)
     content: str = Field(min_length=1, max_length=10_000)
     source_id: str = Field(min_length=1, max_length=200)
-    evidence_ref: str | None = Field(default=None, max_length=500)
+    evidence_ref: str = Field(min_length=1, max_length=500)
 
 
 class PeriodSourceDigest(BaseModel):
@@ -93,6 +93,9 @@ def _validate_unit(
             *draft.deal_states,
         ]
         if any(item.source_id != unit.scope for item in items):
+            raise PermissionError("report_source_not_allowed")
+        item_evidence_refs = {item.evidence_ref for item in items}
+        if not item_evidence_refs <= unit.evidence_refs:
             raise PermissionError("report_source_not_allowed")
         if not set(draft.evidence_refs) <= unit.evidence_refs:
             raise PermissionError("report_source_not_allowed")

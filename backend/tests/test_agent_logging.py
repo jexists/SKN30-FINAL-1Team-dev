@@ -279,8 +279,9 @@ def test_log_boundaries_sanitize_raw_requested_scope_for_event_and_error(caplog)
         if record.name == "app.services.agent_logging"
     ]
     assert all("secret transcript" not in record.getMessage() for record in caplog.records)
-    assert events[0]["requested_scope_length"] == len("secret transcript")
-    assert events[0]["requested_scope_sha256"] != "forged"
+    assert events[0]["requested_scope_kind"] == "freeform"
+    assert "requested_scope_length" not in events[0]
+    assert "requested_scope_sha256" not in events[0]
     assert "requested_scope" not in events[0] and "requested_scope" not in events[1]
     log_agent_event(
         "direct.known", requested_scope="common_report", existing_scopes=["common_report"]

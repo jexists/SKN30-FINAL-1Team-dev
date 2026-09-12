@@ -1084,17 +1084,43 @@ def test_period_prepare_permission_error_propagates_through_native_graph(monkeyp
     assert "synthesize" not in model._phases
 
 
-def test_period_parent_cancellation_does_not_persist_late_prepare_artifact(monkeypatch):
+@pytest.mark.parametrize("suppress_cancellation", [False, True])
+def test_period_parent_cancellation_does_not_persist_late_prepare_artifact(
+    monkeypatch, suppress_cancellation
+):
     from test_period_report_writing_deep import sample
 
     class HangingPrepareModel(ScriptedModel):
         _started: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
+        _late_artifact_returned: bool = PrivateAttr(default=False)
 
         async def _agenerate(self, messages, **kwargs):
             assignment = _assignment(messages)
             if assignment and assignment["phase"] == "prepare":
                 self._started.set()
-                await asyncio.Future()
+                try:
+                    await asyncio.Future()
+                except asyncio.CancelledError:
+                    if not suppress_cancellation:
+                        raise
+                    result = self._generate(
+                        [
+                            *messages,
+                            ToolMessage(
+                                content="late frozen source",
+                                tool_call_id="late-source",
+                                name="read_report_sources",
+                            ),
+                        ],
+                        **kwargs,
+                    )
+                    calls = result.generations[0].message.tool_calls
+                    artifact_call = next(
+                        call for call in calls if call["name"] == "WriterArtifact"
+                    )
+                    harness.WriterArtifact.model_validate(artifact_call["args"])
+                    self._late_artifact_returned = True
+                    return result
             return self._generate(messages, **kwargs)
 
     model = HangingPrepareModel(writer_role="daily-report-writer")
@@ -1116,7 +1142,9 @@ def test_period_parent_cancellation_does_not_persist_late_prepare_artifact(monke
             await task
 
     asyncio.run(check())
+    assert model._late_artifact_returned is suppress_cancellation
     assert not any(path.startswith("/artifacts/source-digests/") for path in writes)
+    assert "/artifacts/final.json" not in writes
 
 
 def test_period_preparers_enter_native_sdk_graph_concurrently(monkeypatch):

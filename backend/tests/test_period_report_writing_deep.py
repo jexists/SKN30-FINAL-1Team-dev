@@ -172,6 +172,27 @@ def test_preparation_digest_preserves_assigned_source_boundary():
             None,
             unit.locations,
         )
+    with pytest.raises(PermissionError, match="report_source_not_allowed"):
+        period._validate_unit(
+            unit,
+            period.PeriodSourceDigest.model_validate({
+                **digest.model_dump(),
+                "facts": [{**digest.facts[0].model_dump(), "evidence_ref": "meeting_bundle:2"}],
+            }),
+            None,
+            unit.locations,
+        )
+
+
+@pytest.mark.parametrize("evidence_ref", [None, ""])
+def test_period_digest_item_rejects_missing_evidence_ref(evidence_ref):
+    with pytest.raises(ValidationError):
+        period.PeriodDigestItem(
+            kind="fact",
+            content="검토 중",
+            source_id="meeting_bundle:1",
+            evidence_ref=evidence_ref,
+        )
 
 
 @pytest.mark.parametrize("kind", ["weekly", "monthly"])

@@ -1,6 +1,5 @@
 """실행 ID로 찾는 에이전트 오류 로그. 예외 메시지·입력·응답 본문은 기록하지 않는다."""
 
-import hashlib
 import json
 import logging
 import re
@@ -81,8 +80,6 @@ _fields = frozenset(
         "tool_name",
         "requested_scope",
         "requested_scope_kind",
-        "requested_scope_length",
-        "requested_scope_sha256",
         "allowed_scopes",
         "existing_scopes",
         "decision",
@@ -127,7 +124,7 @@ _scope_identifier = re.compile(
 
 
 def safe_report_scope(scope: object, known_scopes=()) -> dict[str, object]:
-    """Known server scope는 이름을, 모델 자유 문자열은 종류·길이·해시만 남긴다."""
+    """Known server scope는 이름을, 모델 자유 문자열은 종류만 남긴다."""
     if not isinstance(scope, str):
         return {"requested_scope_kind": type(scope).__name__}
     if scope in known_scopes and (
@@ -137,11 +134,7 @@ def safe_report_scope(scope: object, known_scopes=()) -> dict[str, object]:
     if _scope_identifier.fullmatch(scope):
         return {"requested_scope": scope, "requested_scope_kind": "scope_identifier"}
     kind = "identifier" if _server_identifier.fullmatch(scope) else "freeform"
-    return {
-        "requested_scope_kind": kind,
-        "requested_scope_length": len(scope),
-        "requested_scope_sha256": hashlib.sha256(scope.encode()).hexdigest()[:16],
-    }
+    return {"requested_scope_kind": kind}
 
 
 def _safe_fields(fields: dict) -> dict:
