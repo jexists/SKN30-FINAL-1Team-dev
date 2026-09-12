@@ -740,9 +740,9 @@ def test_parent_rejects_batched_tasks_before_children_run(monkeypatch):
     assert model._phases == []
 
 
-def test_meeting_deal_writers_batch_through_native_tool_node(monkeypatch):
+def test_meeting_writers_batch_through_native_tool_node(monkeypatch):
     class BatchDealModel(ScriptedModel):
-        _writer_barrier = PrivateAttr(default_factory=lambda: threading.Barrier(2))
+        _writer_barrier = PrivateAttr(default_factory=lambda: threading.Barrier(4))
 
         def _generate(self, messages, stop=None, run_manager=None, **kwargs):
             assignment = _assignment(messages)
@@ -773,39 +773,49 @@ def test_meeting_deal_writers_batch_through_native_tool_node(monkeypatch):
                                 "subagent_type": unit["subagent_type"],
                             },
                         )
-                        for unit in units[:2]
+                        for unit in units
                     ]
                 )
             return super()._supervisor(messages)
 
-    spec = _spec("meeting", unit_count=2)
+    spec = _spec("meeting", unit_count=4)
     spec = replace(
         spec,
         units=tuple(
-            replace(unit, sales_deal_id=f"deal-{index}")
+            replace(unit, sales_deal_id=f"deal-{index}" if index < 3 else None)
             for index, unit in enumerate(spec.units)
         ),
     )
     model = BatchDealModel(writer_role=spec.writer_role)
     result = asyncio.run(_run(monkeypatch, model, spec))
 
-    assert result.task_count == 3  # two deal writers in one turn, then one review
+    assert result.task_count == 5  # three deal + one common writer in one turn, then one review
     assert result.review_count == 1
     assert model._parent_turns == 3
-    assert {
-        assignment["scope"]
+    writer_assignments = {
+        assignment["work_unit_id"]: assignment
         for assignment in map(_assignment, model._seen)
-        if assignment and assignment.get("scope")
-    } == {"scope-1", "scope-2"}
+        if assignment and assignment["phase"] == "write_initial"
+    }
+    assert set(writer_assignments) == {f"write-{index:03}" for index in range(1, 5)}
+    assert {item["scope"] for item in writer_assignments.values()} == {
+        f"scope-{index}" for index in range(1, 5)
+    }
+    assert writer_assignments["write-004"]["sales_deal_id"] is None
+    assert set(result.draft.sections) == {f"scope-{index}" for index in range(1, 5)}
+    for work_id in writer_assignments:
+        assert [call["name"] for call in model._requested[("write_initial", work_id)]].count(
+            "read_meeting_evidence"
+        ) == 1
 
 
-@pytest.mark.parametrize("attack", ["duplicate-id", "duplicate-work", "mixed-scope", "common"])
+@pytest.mark.parametrize("attack", ["duplicate-id", "duplicate-work", "mixed-scope", "mixed-phase"])
 def test_meeting_deal_batch_reservation_is_atomic(attack):
     spec = _spec("meeting", unit_count=2)
     spec = replace(
         spec,
         units=tuple(
-            replace(unit, sales_deal_id=None if attack == "common" and index else f"deal-{index}")
+            replace(unit, sales_deal_id=f"deal-{index}")
             for index, unit in enumerate(spec.units)
         ),
     )
@@ -830,10 +840,51 @@ def test_meeting_deal_batch_reservation_is_atomic(attack):
         )
     elif attack == "duplicate-work":
         calls[1]["args"]["description"] = calls[0]["args"]["description"]
+    elif attack == "mixed-phase":
+        coordinator.assignments["write-002"] = replace(
+            coordinator.assignments["write-002"], phase="review_initial"
+        )
     with pytest.raises(PermissionError):
         coordinator.reserve(calls)
     assert coordinator.reserved == set()
     assert coordinator.call_assignments == {}
+
+
+@pytest.mark.parametrize("scope", ["common_report", "unassigned_report"])
+def test_meeting_batch_reservation_allows_unassigned_writer(scope):
+    spec = _spec("meeting", unit_count=2)
+    spec = replace(
+        spec,
+        units=tuple(
+            replace(
+                unit,
+                scope=scope if index else unit.scope,
+                sales_deal_id=f"deal-{index}" if index == 0 else None,
+            )
+            for index, unit in enumerate(spec.units)
+        ),
+    )
+    coordinator = harness._Coordinator(spec, object())
+    calls = [
+        {
+            "name": "task",
+            "id": f"call-{index}",
+            "args": {
+                "description": (
+                    f"work_unit_id=write-00{index + 1}\n"
+                    "배정된 범위의 동결 근거를 읽고 검증 가능한 artifact를 반환하라."
+                ),
+                "subagent_type": spec.writer_role,
+            },
+        }
+        for index in range(2)
+    ]
+
+    coordinator.reserve(calls)
+
+    assert coordinator.reserved == {"write-001", "write-002"}
+    assert coordinator.call_assignments["call-1"].unit.scope == scope
+    assert coordinator.call_assignments["call-1"].unit.sales_deal_id is None
 
 
 def test_native_dispatcher_strips_long_parent_private_state_from_children(monkeypatch):

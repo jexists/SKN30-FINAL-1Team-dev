@@ -508,7 +508,7 @@ class _Coordinator:
     def reserve(self, calls: list[dict[str, Any]]) -> None:
         if not calls:
             raise LLMError("report_generation_failed")
-        batched_deals = (
+        batched_meeting_writers = (
             len(calls) > 1
             and self.spec.report_kind == "meeting"
             and self.phase == "write_initial"
@@ -516,7 +516,7 @@ class _Coordinator:
         batched_preparation = (
             len(calls) > 1 and bool(self.spec.preparation_units) and self.phase == "prepare"
         )
-        if not batched_deals and not batched_preparation and len(calls) != 1:
+        if not batched_meeting_writers and not batched_preparation and len(calls) != 1:
             raise PermissionError("report_supervisor_action_invalid")
         if self.phase == "finish":
             if len(calls) != 1:
@@ -552,8 +552,6 @@ class _Coordinator:
                 or assignment.role != args["subagent_type"]
                 or work_id in self.reserved
                 or work_id in self.finished_assignments
-                or (batched_deals and assignment.unit is None)
-                or (batched_deals and assignment.unit.sales_deal_id is None)
             ):
                 raise PermissionError("report_delegation_not_allowed")
             pending.append((call_id, assignment))
@@ -1299,9 +1297,9 @@ class _SupervisorGuard(AgentMiddleware):
         self.coordinator = coordinator
         self.task_description = (
             "Call server-allowed work units per turn: multiple independent meeting "
-            "`write_initial` deals or period `prepare` sources may run in the same turn; "
-            "call one task for common/unassigned writers and `synthesize`, `review`, or "
-            "`repair` phases. Preserve a useful task "
+            "`write_initial` writers (deal, common, or unassigned) or period `prepare` "
+            "sources may run in the same turn; call one task for `synthesize`, `review`, "
+            "or `repair` phases. Preserve a useful task "
             "description and include one `work_unit_id=<id>` line. Available agents:\n"
             f"- {coordinator.spec.writer_role}: selected "
             f"{coordinator.spec.report_kind} report writer\n"
@@ -1609,11 +1607,11 @@ async def _run_supervisor(spec: WorkflowSpec) -> WorkflowResult:
             "finish_report 순서로 끝낸다. task 설명 첫 줄에 정확한 "
             "work_unit_id=<id>를 쓰고, 그 뒤에는 목적·검사할 결과·수정 이유를 구체적으로 적는다. "
             "보고서나 review를 직접 쓰지 말고 source를 요청하거나 추측하지 않는다. 미팅 초기에는 "
-            "남은 독립 딜 writer들을 같은 turn의 여러 task로 함께 위임한다. "
+            "남은 독립 writer들을 같은 turn의 여러 task로 함께 위임한다. "
             "기간 보고서 prepare에서는 "
             "남은 독립 자료 정리 task들을 같은 turn에 함께 위임하고, 모두 종료되면 "
             "synthesize 하나를 수행한다. "
-            "common/unassigned writer와 review/repair task는 매 turn 하나씩 순차 위임한다. "
+            "review/repair task는 매 turn 하나씩 순차 위임한다. "
             "매 receipt의 최신 phase/allowlist를 다음 호출에 "
             "사용한다. 검증된 최신 허용 버전을 선택한다.\n\n" + spec.instructions
         ),
