@@ -1,5 +1,5 @@
 // 제출한 미팅 기록을 읽는 화면입니다. 작성 화면과 같은 컴포넌트를 읽기 모드로 씁니다.
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 
 import { useCurrentUser } from '@/auth/sessionContext'
@@ -128,6 +128,14 @@ export default function Detail() {
   const isMine = report?.ownerMemberId === memberId
   // 작성 화면과 같은 손잡이입니다. 보고서만 넓게 읽고 싶을 때 자료 열을 접습니다.
   const [materialsCollapsed, setMaterialsCollapsed] = useState(false)
+  // 접으면 누른 손잡이가 화면에서 사라집니다. 남는 쪽 손잡이로 초점을 넘겨 줍니다.
+  const collapseRef = useRef<HTMLButtonElement>(null)
+  const expandRef = useRef<HTMLButtonElement>(null)
+  const toggledRef = useRef(false)
+  useEffect(() => {
+    if (!toggledRef.current) return
+    ;(materialsCollapsed ? expandRef : collapseRef).current?.focus()
+  }, [materialsCollapsed])
   // 자세히 보기는 작성 화면과 같은 드로어입니다. 일정 원본은 보고서에 없어 따로 받아 옵니다.
   const [detailOpen, setDetailOpen] = useState(false)
   const agenda = useAgendaItem(report?.agendaId ?? '')
@@ -287,11 +295,15 @@ export default function Detail() {
               variant="outline"
               size="sm"
               iconOnly
+              ref={collapseRef}
               className={styles.collapseAction}
               aria-expanded
               aria-controls="detail-materials"
               aria-label="미팅 자료 접기"
-              onClick={() => setMaterialsCollapsed(true)}
+              onClick={() => {
+                toggledRef.current = true
+                setMaterialsCollapsed(true)
+              }}
             >
               <ChevronLeftIcon width={15} height={15} />
             </Button>
@@ -350,11 +362,15 @@ export default function Detail() {
             variant="outline"
             size="sm"
             iconOnly
+            ref={expandRef}
             className={styles.materialsToggle}
             aria-expanded={false}
             aria-controls="detail-materials"
             aria-label="미팅 자료 펼치기"
-            onClick={() => setMaterialsCollapsed(false)}
+            onClick={() => {
+              toggledRef.current = true
+              setMaterialsCollapsed(false)
+            }}
           >
             <ChevronRightIcon width={15} height={15} />
           </Button>

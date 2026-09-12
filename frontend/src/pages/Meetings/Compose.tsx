@@ -272,6 +272,7 @@ export default function Compose() {
     setCreateDealOpen(false)
     createDealKey.current = ''
     setDetailOpen(false)
+    setConfirm(null)
   }, [agendaId, item?.customerCompanyId])
 
   if (agendaLoading || loading) {
@@ -406,7 +407,9 @@ export default function Compose() {
     const state = draft.draftsByDeal[dealId]
     const losesContent =
       draft.salesDealIds.includes(dealId) &&
-      (state?.reportId !== undefined || !isMeetingBodyBlank(state?.values ?? {}))
+      (state?.reportId !== undefined ||
+        state?.touched === true ||
+        !isMeetingBodyBlank(state?.values ?? {}))
     if (losesContent) setConfirm({ kind: 'deselect', dealId })
     else draft.toggleSalesDeal(dealId)
   }
