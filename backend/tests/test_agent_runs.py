@@ -1277,7 +1277,19 @@ async def test_report_review_metadata_is_evidence_not_output(monkeypatch):
         action="확인되지 않은 표현을 수정하세요.",
     )
     with review_delivery.capture() as review_evidence:
-        review_delivery.record(harness.WorkflowResult(output, 2, True, 3, 2, 1, (issue,), True))
+        review_delivery.record(
+            harness.WorkflowResult(
+                output,
+                2,
+                True,
+                3,
+                2,
+                1,
+                (issue,),
+                True,
+                degraded_reason_code="original_source_fallback",
+            )
+        )
 
     db = _Db(SimpleNamespace(rowcount=1))
     monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
@@ -1285,6 +1297,7 @@ async def test_report_review_metadata_is_evidence_not_output(monkeypatch):
 
     assert run.output_snapshot == output_snapshot
     assert run.evidence["report_review"] == {
+        "reason_code": "original_source_fallback",
         "selected_version": 2,
         "initial_review_conducted": True,
         "repair_completed": None,

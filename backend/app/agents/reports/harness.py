@@ -149,6 +149,7 @@ class WorkflowResult:
     review_incomplete: bool = False
     initial_review_conducted: bool = True
     repair_completed: bool | None = None
+    degraded_reason_code: str | None = None
 
     @property
     def remaining_issues(self) -> tuple[ReviewIssue, ...]:
@@ -300,7 +301,9 @@ def _safe_section_validation_fields(
     }
 
 
-def retain_valid_draft(error: Exception, *, stage: str) -> None:
+def retain_valid_draft(
+    error: Exception, *, stage: str, reason_code: str = "valid_draft_fallback"
+) -> None:
     """생성·공급자·파싱·한도 실패만 복구한다. 권한·입력·무결성 오류는 전파한다."""
     code = str(error)
     if not isinstance(error, LLMError) or not (
@@ -319,7 +322,7 @@ def retain_valid_draft(error: Exception, *, stage: str) -> None:
         }
     ):
         raise error
-    log_agent_event(stage, outcome="degraded", reason_code="valid_draft_fallback")
+    log_agent_event(stage, outcome="degraded", reason_code=reason_code)
     log_agent_error(error, stage=stage)
 
 
@@ -361,6 +364,7 @@ class _Coordinator:
         self.eligible_versions: set[int] = set()
         self.final_version: int | None = None
         self.degraded = False
+        self.degraded_reason_code: str | None = None
         self.review_incomplete = False
         self.task_count = self.review_count = self.repair_count = 0
         self.lock = asyncio.Lock()
@@ -1021,8 +1025,18 @@ class _Coordinator:
 
     async def fail(self, assignment: _Assignment, error: Exception) -> dict[str, Any]:
         async with self.lock:
-            retain_valid_draft(error, stage=f"{self.spec.stage}.{assignment.phase}")
+            reason_code = (
+                "original_source_fallback"
+                if assignment.phase == "prepare"
+                else "valid_draft_fallback"
+            )
+            retain_valid_draft(
+                error,
+                stage=f"{self.spec.stage}.{assignment.phase}",
+                reason_code=reason_code,
+            )
             self.degraded = True
+            self.degraded_reason_code = reason_code
             self.finished_assignments.add(assignment.work_unit_id)
             self.failed_assignments.add(assignment.work_unit_id)
             if assignment.phase == "review_initial":
@@ -1062,6 +1076,7 @@ class _Coordinator:
     def fallback(self, error: Exception) -> WorkflowResult:
         retain_valid_draft(error, stage=f"{self.spec.stage}.supervisor")
         self.degraded = True
+        self.degraded_reason_code = "valid_draft_fallback"
         if not self.drafts:
             raise error
         self.final_version = self.latest_version
@@ -1094,6 +1109,7 @@ class _Coordinator:
             review_incomplete=self.review_incomplete,
             initial_review_conducted=1 in self.reviews,
             repair_completed=self._repair_completed(),
+            degraded_reason_code=self.degraded_reason_code,
         )
 
     def artifact(self, kind: str, version: int) -> dict[str, Any]:

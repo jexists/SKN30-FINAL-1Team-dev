@@ -1219,6 +1219,8 @@ def test_period_prepare_invalid_digest_becomes_failed_source_and_synthesis_reads
 
     assert result.fields[0].value == "원문으로 종합한 본문"
     assert events[-1]["outcome"] == "degraded"
+    assert events[-1]["reason_code"] == "original_source_fallback"
+    assert model._phases[-2:] == ["synthesize", "review_initial"]
     assert captured_digests[-1][0] == {
         "source_id": "meeting_bundle:1",
         "status": "failed",

@@ -23,6 +23,7 @@ def record(result: WorkflowResult) -> None:
     target = _capture.get()
     if target is not None:
         target["report_review"] = {
+            "reason_code": result.degraded_reason_code,
             "selected_version": result.selected_version,
             "initial_review_conducted": result.initial_review_conducted,
             "repair_completed": result.repair_completed,

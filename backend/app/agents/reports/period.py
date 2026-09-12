@@ -196,7 +196,9 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
                 else "failed"
             ),
             reason_code=(
-                "valid_draft_fallback" if outcome and outcome.degraded else "bounded_execution"
+                outcome.degraded_reason_code
+                if outcome and outcome.degraded
+                else "bounded_execution"
             ),
             call_count=outcome.task_count if outcome else 0,
             semantic_review_count=outcome.review_count if outcome else 0,
