@@ -57,8 +57,18 @@ export function isContract(deal: SalesDeal): boolean {
   return deal.contractNo !== null || deal.stagePhase === 'contract' || deal.stagePhase === 'closed'
 }
 
+/**
+ * 확정된 딜의 매출 합계. 금액은 영업 예상금액이 아니라 계약금액입니다.
+ *
+ * 예상금액은 협의 전의 값이라 계약가를 깎아 적어도 매출이 그대로였습니다. 팀 화면의
+ * 달성률(backend `_confirmed_by_member`)도 같은 규칙으로 셉니다. 계약금액을 아직 적지
+ * 않은 딜은 0으로 셉니다.
+ */
 export function actualOf(deals: SalesDeal[]): number {
-  return deals.reduce((sum, deal) => (deal.status === '확정' ? sum + deal.amount : sum), 0)
+  return deals.reduce(
+    (sum, deal) => (deal.status === '확정' ? sum + (deal.contractAmount ?? 0) : sum),
+    0,
+  )
 }
 
 /**
@@ -73,7 +83,7 @@ export function ownerShares(deals: SalesDeal[]): OwnerShare[] {
   for (const deal of deals) {
     const found = byMember.get(deal.ownerMemberId)
     const share = found ?? { memberId: deal.ownerMemberId, name: deal.owner, actual: 0, count: 0 }
-    if (deal.status === '확정') share.actual += deal.amount
+    if (deal.status === '확정') share.actual += deal.contractAmount ?? 0
     share.count += 1
     if (found === undefined) byMember.set(deal.ownerMemberId, share)
   }

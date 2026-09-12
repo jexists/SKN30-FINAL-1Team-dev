@@ -2,6 +2,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import DataTable from '@/components/DataTable'
 import ErrorToast from '@/components/ErrorToast'
@@ -19,13 +20,19 @@ import { addDays, fmtDot, iso, parseISO, TODAY } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import ContractForm from '@/components/ContractForm'
+import OrderForm from '@/pages/Orders/components/OrderForm'
+import useOrderList from '@/pages/Orders/useOrderList'
 import QuoteForm from '@/pages/Quotes/components/QuoteForm'
 
 import { dealColumns } from './columns'
 import ViewToggle from './components/ViewToggle'
 import SalesDealDrawer from './SalesDealDrawer'
 import SalesDealForm from './SalesDealForm'
-import useSalesDeals, { DEFAULT_PIPELINE, type SalesDeal } from './useSalesDeals'
+import useSalesDeals, {
+  DEFAULT_PIPELINE,
+  type SalesDeal,
+  type SalesDealColumn,
+} from './useSalesDeals'
 
 import styles from '@/pages/listPage.module.scss'
 
@@ -57,10 +64,12 @@ export default function Deals() {
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  // 딜 상세에서 여는 견적·계약 모달. 어느 딜인지는 드로어가 정해 줍니다.
+  // 딜 상세와 딜 추가에서 여는 견적·계약·발주 모달. 어느 딜인지는 부른 쪽이 정해 줍니다.
+  // stage 는 단계 고르개로 들어왔을 때만 있습니다. 서류를 저장한 뒤 그 단계로 맞춥니다.
   const [documentDeal, setDocumentDeal] = useState<{
     deal: SalesDeal
-    kind: 'quote' | 'contract'
+    kind: 'quote' | 'contract' | 'order'
+    stage?: SalesDealColumn
   } | null>(null)
 
   const setParam = useCallback(
@@ -140,17 +149,67 @@ export default function Deals() {
     contractStatuses,
     loadDocumentStatuses,
     saveDealDocument,
+    moveSalesDeal,
   } = useSalesDeals(openId, requestedPipelineId, 'list', undefined, dealQuery)
+
+  // 발주 모달에 필요한 것만 씁니다. 조회 조건을 주지 않으면 발주 상태 목록만 받습니다.
+  const {
+    statuses: orderStatuses,
+    suppliers: orderSuppliers,
+    loading: orderOptionsLoading,
+    addOrder,
+  } = useOrderList()
+  const { profile } = useCurrentUser()
+
+  // 발주 서류를 내면 서버가 딜을 이 단계로 옮깁니다.
+  const firstOrderStage = columns.find((column) => column.phase === 'order')
 
   // 서류 모달은 열릴 때의 상태 목록으로 첫 상태를 정합니다. 목록을 받아 둔 뒤에 세웁니다.
   const openDocument = useCallback(
-    (deal: SalesDeal, kind: 'quote' | 'contract') => {
+    (deal: SalesDeal, kind: 'quote' | 'contract', stage?: SalesDealColumn) => {
       void loadDocumentStatuses(kind).then(() => {
-        setDocumentDeal({ deal, kind })
+        setDocumentDeal({ deal, kind, stage })
         setOpenId(null)
       })
     },
     [loadDocumentStatuses, setOpenId],
+  )
+
+  /**
+   * 상세에서 단계를 고른 순간입니다.
+   *
+   * 견적·계약·발주 국면이면 그 국면의 서류부터 씁니다. 서류를 저장하면 서버가 딜을 그
+   * 국면으로 옮기므로(sales_deals.py 의 _move_deal_to_first_stage_of_phase) 여기서 단계를
+   * 따로 옮기지 않습니다. 나머지 단계는 지금까지의 보드처럼 바로 옮깁니다.
+   */
+  const selectStage = useCallback(
+    (deal: SalesDeal, stage: SalesDealColumn) => {
+      clearMutationError()
+      if (stage.phase === 'quote' || stage.phase === 'contract') {
+        openDocument(deal, stage.phase, stage)
+        return
+      }
+      if (stage.phase === 'order') {
+        setDocumentDeal({ deal, kind: 'order', stage })
+        setOpenId(null)
+        return
+      }
+      // 오류는 useSalesDeals 가 토스트로 알립니다. 여기서는 다시 던지지 않습니다.
+      void moveSalesDeal(deal.id, deal.stageId, stage.id, 0).catch(() => undefined)
+    },
+    [clearMutationError, moveSalesDeal, openDocument, setOpenId],
+  )
+
+  /**
+   * 서버는 국면의 *첫* 단계로만 옮깁니다. 계약 국면처럼 단계가 여럿이면 사용자가 고른
+   * 단계와 다를 수 있어 저장 뒤 한 번 더 맞춥니다.
+   */
+  const alignStage = useCallback(
+    async (dealId: string, currentStageId: string, stage: SalesDealColumn | undefined) => {
+      if (stage === undefined || stage.id === currentStageId) return
+      await moveSalesDeal(dealId, currentStageId, stage.id, 0)
+    },
+    [moveSalesDeal],
   )
 
   const pipelineOptions = useMemo(
@@ -382,6 +441,18 @@ export default function Deals() {
             clearMutationError()
             openDocument(selectedDeal, 'contract')
           }}
+          onAddOrder={() => {
+            if (!selectedDeal) return
+            clearMutationError()
+            setDocumentDeal({ deal: selectedDeal, kind: 'order' })
+            setOpenId(null)
+          }}
+          stages={columns}
+          stagePending={selectedDeal ? isPending(selectedDeal.id) : false}
+          onStageSelect={(stage) => {
+            if (!selectedDeal) return
+            selectStage(selectedDeal, stage)
+          }}
         />
       )}
 
@@ -391,7 +462,8 @@ export default function Deals() {
           statuses={quoteStatuses}
           onClose={() => setDocumentDeal(null)}
           onSubmit={async (dealId, fields) => {
-            await saveDealDocument(dealId, fields, '견적을 저장')
+            const saved = await saveDealDocument(dealId, fields, '견적을 저장')
+            await alignStage(dealId, saved.stageId, documentDeal.stage)
             setDocumentDeal(null)
             reload()
           }}
@@ -404,7 +476,29 @@ export default function Deals() {
           statuses={contractStatuses}
           onClose={() => setDocumentDeal(null)}
           onSubmit={async (dealId, fields) => {
-            await saveDealDocument(dealId, fields, '계약을 저장')
+            const saved = await saveDealDocument(dealId, fields, '계약을 저장')
+            await alignStage(dealId, saved.stageId, documentDeal.stage)
+            setDocumentDeal(null)
+            reload()
+          }}
+        />
+      )}
+
+      {documentDeal?.kind === 'order' && (
+        <OrderForm
+          deal={documentDeal.deal}
+          createdBy={profile.name}
+          statuses={orderStatuses}
+          suppliers={orderSuppliers}
+          optionsLoading={orderOptionsLoading}
+          onClose={() => setDocumentDeal(null)}
+          onSubmit={async (draft) => {
+            const { deal, stage } = documentDeal
+            await addOrder(draft)
+            // 발주 응답에는 딜이 없습니다. 서버가 옮겨 둔 자리는 발주 국면 첫 단계입니다.
+            const landed =
+              deal.stagePhase === 'order' ? deal.stageId : (firstOrderStage?.id ?? deal.stageId)
+            await alignStage(deal.id, landed, stage)
             setDocumentDeal(null)
             reload()
           }}
@@ -417,8 +511,13 @@ export default function Deals() {
           stageId={addingColumn.id}
           onClose={() => setAddingTo(null)}
           onSubmit={async (input) => {
-            await createSalesDeal(input)
+            const created = await createSalesDeal(input)
             setAddingTo(null)
+            // 견적·계약·발주 단계로 딜을 만들면 그 서류를 바로 이어서 씁니다.
+            const picked = columns.find((column) => column.id === input.stageId)
+            if (picked && picked.phase !== 'sales' && picked.phase !== 'closed') {
+              selectStage(created, picked)
+            }
           }}
         />
       )}

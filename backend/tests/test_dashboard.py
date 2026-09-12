@@ -348,6 +348,22 @@ def test_missing_target_gives_null_rate_not_zero():
     assert target["target_month"] == "2026-08"
 
 
+def test_sales_target_card_counts_the_contract_amount():
+    """대시보드 카드의 확정 매출도 계약금액으로 센다.
+
+    팀 화면(_confirmed_by_member)·매출분석과 같은 규칙이라야 세 화면이 같은 숫자를
+    말한다. 한 곳만 예상금액으로 남으면 카드와 목록이 서로를 부정한다.
+    """
+    member = _member()
+    db = _Db()
+    with _client(db, member) as client:
+        assert client.get("/api/dashboard?date=2026-08-18").status_code == 200
+
+    sql = db.sql_for("deal_sums")
+    assert "sum(public.sales_deal.contract_amount)" in sql
+    assert "sales_deal.deal_amount" not in sql
+
+
 def test_notice_queries_do_not_use_the_owner_column():
     """공지와 지시는 담당자(owner_member_id)가 없는 글이다.
 

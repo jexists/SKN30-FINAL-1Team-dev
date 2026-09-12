@@ -34,6 +34,7 @@ interface FormState {
   warranty: string
   paymentTerms: string
   lateInterestTerms: string
+  memo: string
 }
 
 /** 계약자정보 한 줄. 상호 옆에 사업자등록번호가 있으면 함께 적습니다. */
@@ -60,6 +61,7 @@ function initialState(deal: SalesDeal | undefined, statuses: DocumentStatusRespo
     warranty: deal?.warrantyTerms ?? '',
     paymentTerms: deal?.contractPaymentTerms ?? '',
     lateInterestTerms: deal?.contractLateInterestTerms ?? '',
+    memo: deal?.contractMemo ?? '',
   }
 }
 
@@ -115,6 +117,8 @@ export default function ContractForm({ deal, statuses, onClose, onSubmit }: Prop
         warranty_terms: form.warranty.trim() || null,
         contract_payment_terms: form.paymentTerms.trim() || null,
         contract_late_interest_terms: form.lateInterestTerms.trim() || null,
+        // 빈 메모는 null 로 보냅니다. 서버가 빈 문자열을 받지 않습니다.
+        contract_memo: form.memo.trim() || null,
       })
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '계약을 저장하지 못했습니다.')
@@ -285,6 +289,17 @@ export default function ContractForm({ deal, statuses, onClose, onSubmit }: Prop
             maxLength={254}
             placeholder="상법 연이자 6%"
             onChange={(event) => set('lateInterestTerms', event.target.value)}
+          />
+        </Field>
+
+        <Field label="메모" wide>
+          <textarea
+            rows={3}
+            value={form.memo}
+            disabled={submitting}
+            maxLength={5000}
+            placeholder="계약 관련 메모 입력"
+            onChange={(event) => set('memo', event.target.value)}
           />
         </Field>
 

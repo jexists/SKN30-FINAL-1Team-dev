@@ -128,6 +128,11 @@ class SalesDeal(Base):
     warranty_terms: Mapped[str | None]
     expected_delivery_at: Mapped[datetime | None]
     memo: Mapped[str | None]
+    # 단계를 옮기며 적는 서류별 한 줄 메모. 딜 공용 memo 와 달리 견적·계약·발주가
+    # 각자 들고 있어 나중에 적은 쪽이 앞의 것을 덮지 않는다(20260912_0032).
+    quote_memo: Mapped[str | None]
+    contract_memo: Mapped[str | None]
+    order_memo: Mapped[str | None]
     source_code: Mapped[str | None]
     stage_position: Mapped[int]
     deleted_at: Mapped[datetime | None]

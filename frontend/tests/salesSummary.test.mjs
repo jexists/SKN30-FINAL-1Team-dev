@@ -33,7 +33,8 @@ const deals = [
     owner: '김영업',
     ownerMemberId: 'kim',
     status: '확정',
-    amount: 100,
+    amount: 900,
+    contractAmount: 100,
     contractNo: 'C-1',
     stagePhase: 'contract',
     date: TODAY_ISO,
@@ -45,7 +46,8 @@ const deals = [
     owner: '이영업',
     ownerMemberId: 'lee',
     status: '확정',
-    amount: 80,
+    amount: 720,
+    contractAmount: 80,
     contractNo: 'C-2',
     stagePhase: 'contract',
     date: TODAY_ISO,
@@ -57,18 +59,53 @@ const deals = [
     owner: '김영업',
     ownerMemberId: 'kim',
     status: '확정',
-    amount: 40,
+    amount: 360,
+    contractAmount: 40,
     contractNo: 'C-3',
     stagePhase: 'contract',
     date: TODAY_ISO,
   },
 ]
 
+// 매출은 예상금액(amount)이 아니라 계약금액(contractAmount)으로 셉니다. 두 값을 일부러
+// 다르게 두어 어느 쪽을 세는지 아래 기대값이 드러내게 합니다.
 function group(summary, key) {
   const found = summary.groups.find((item) => item.key === key)
   assert.ok(found, `${key} 그룹이 있어야 합니다.`)
   return found
 }
+
+test('매출은 예상금액이 아니라 계약금액으로 센다', () => {
+  const summary = salesSummaryOf(deals, 'month', 0, 'org')
+
+  // 예상금액 합계(900+720+360=1980)가 아니라 계약금액 합계입니다.
+  assert.equal(summary.totals.actual, 220)
+})
+
+test('계약금액을 아직 적지 않은 확정 딜은 0으로 센다', () => {
+  const blank = {
+    org: '한빛병원',
+    region: '서울',
+    product: 'A 제품',
+    owner: '김영업',
+    ownerMemberId: 'kim',
+    status: '확정',
+    amount: 500,
+    contractAmount: null,
+    contractNo: 'C-4',
+    stagePhase: 'contract',
+    date: TODAY_ISO,
+  }
+  const selected = group(salesSummaryOf([...deals, blank], 'month', 0, 'org'), '한빛병원')
+
+  assert.equal(selected.actual, 0)
+  // 금액은 0이어도 목록에 서는 줄이라 건수는 셉니다.
+  assert.equal(selected.contracts.length, 1)
+  assert.deepEqual(
+    selected.owners.map(({ memberId, actual, count }) => ({ memberId, actual, count })),
+    [{ memberId: 'kim', actual: 0, count: 1 }],
+  )
+})
 
 test('회사별 선택 항목은 그 회사의 담당자별 매출·계약 건수만 집계한다', () => {
   const selected = group(salesSummaryOf(deals, 'month', 0, 'org'), '가람병원')

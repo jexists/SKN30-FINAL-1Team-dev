@@ -54,8 +54,9 @@ function ContractRows({ group, by }: { group: SalesGroup; by: GroupBy }) {
           </span>
           <StatusBadge status={c.status} />
           <span className={`${styles.dealDate} tnum`}>{fmtDotShort(parseISO(c.date))}</span>
+          {/* 위의 합계와 같은 값을 세야 하므로 예상금액이 아니라 계약금액을 적습니다. */}
           <span className={`${styles.dealAmount} tnum ${c.status === '확정' ? '' : styles.faded}`}>
-            {wonFull(c.amount)}
+            {c.contractAmount === null ? '-' : wonFull(c.contractAmount)}
           </span>
         </li>
       ))}

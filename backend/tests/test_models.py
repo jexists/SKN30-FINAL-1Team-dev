@@ -73,7 +73,8 @@ EXPECTED_COLUMN_COUNTS = {
     # 견적/계약 상태 룩업과 견적 품목·미팅 대상자 표도 이때 생겼다.
     # 20260826_0008 이 계약서 양식의 물품대금 지급기일·대금연체 이자율을 더했다.
     # 20260828_0011 로 sales_deal 에 유입경로(source_code)가 늘었다.
-    "sales_deal": 36,
+    # 20260912_0032 로 견적·계약·발주의 서류별 메모 세 칸이 늘었다.
+    "sales_deal": 39,
     "sales_deal_item": 6,
     "sales_deal_participant": 3,
     "quote_status": 10,

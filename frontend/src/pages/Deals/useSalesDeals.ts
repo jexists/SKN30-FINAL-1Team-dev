@@ -115,6 +115,10 @@ export interface SalesDeal extends BoardDeal {
   quoteDeliveryTerms: string | null
   contractPaymentTerms: string | null
   contractLateInterestTerms: string | null
+  /** 단계를 옮기며 적는 서류별 메모. 딜 공용 memo 와 다릅니다. */
+  quoteMemo: string | null
+  contractMemo: string | null
+  orderMemo: string | null
   teamCompanyName: string | null
   teamBusinessNo: string | null
   companyBusinessNo: string | null
@@ -213,6 +217,9 @@ export function toSalesDeal(deal: SalesDealResponse): SalesDeal {
     quoteAmount: deal.quote_amount,
     contractAmount: deal.contract_amount,
     quoteDeliveryTerms: deal.quote_delivery_terms,
+    quoteMemo: deal.quote_memo,
+    contractMemo: deal.contract_memo,
+    orderMemo: deal.order_memo,
     contractPaymentTerms: deal.contract_payment_terms,
     contractLateInterestTerms: deal.contract_late_interest_terms,
     teamCompanyName: deal.team_company_name,

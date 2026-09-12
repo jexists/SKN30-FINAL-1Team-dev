@@ -830,3 +830,59 @@ def test_deal_contact_scope_matches_the_activity_screen():
     with pytest.raises(HTTPException) as mismatched:
         asyncio.run(api._team_contact(_Db(_Result(scalar=contact)), manager, contact.id, uuid4()))
     assert mismatched.value.detail == "contact_company_mismatch"
+
+
+def test_document_memo_patch_does_not_touch_the_document_status():
+    """상세에서 단계를 옮길 때 적는 최소 정보는 서류 상태를 건드리지 않는다.
+
+    PATCH 가 quote_status_code 를 처음 채우면 서버가 딜을 그 국면의 첫 단계로 자동으로
+    옮긴다(_move_deal_to_first_stage_of_phase). 상세 화면은 저장한 뒤 사용자에게 묻고
+    옮기므로, 금액과 메모만 보내 그 분기가 걸리지 않게 한다.
+    """
+    payload = SalesDealPatch(quote_amount=10_000_000, quote_memo="고객 요청사항")
+
+    assert "quote_status_code" not in payload.model_fields_set
+    assert "contract_status_code" not in payload.model_fields_set
+
+    # 엔드포인트가 실제로 컬럼에 얹는 값. 상태 컬럼은 여기에 없다.
+    values = payload.model_dump(
+        exclude_unset=True,
+        exclude={
+            "deal_type_code",
+            "quote_status_code",
+            "contract_status_code",
+            "items",
+            "participant_contact_ids",
+        },
+    )
+    assert values == {"quote_amount": 10_000_000, "quote_memo": "고객 요청사항"}
+
+    # 빈 메모는 컬럼의 CHECK 과 같은 이유로 여기서 막는다.
+    with pytest.raises(ValidationError):
+        SalesDealPatch(quote_memo="   ")
+
+
+def test_read_carries_the_document_memos():
+    """견적·계약·발주 메모는 각자의 칸에 남아 서로를 덮지 않는다."""
+    member = _member()
+    pipeline = _pipeline(member)
+    stage = _stage(pipeline)
+    deal_type = _deal_type(member)
+    company = _company(member)
+    product = _product(member)
+    deal = _deal(member, pipeline, stage, deal_type, company, product)
+    deal.memo = "딜 공용 메모"
+    deal.quote_memo = "견적 메모"
+    deal.contract_memo = "계약 메모"
+    deal.order_memo = "발주 메모"
+
+    read = api._sales_deal_read(
+        *_row(deal, member, pipeline, stage, deal_type, company, product),
+        items=[],
+        participants=[],
+    )
+
+    assert read.memo == "딜 공용 메모"
+    assert read.quote_memo == "견적 메모"
+    assert read.contract_memo == "계약 메모"
+    assert read.order_memo == "발주 메모"

@@ -3,6 +3,7 @@ import { dailyReportPath, meetingComposePath, meetingReportPath } from '@/consta
 import { meetingStatusLabel, type MeetingStatusLabel } from '@/pages/Meetings/reviewStatus'
 import { isAuthorEditableReportStatus } from '@/shared/reports'
 import type {
+  AgendaItem,
   DailyReport,
   MeetingReport,
   MeetingReportStatus,
@@ -65,29 +66,84 @@ export function meetingLinkFor(agendaId: string, reports: MeetingReport[] = []):
   }
 }
 
-/** 일일은 미팅일이 같은 제출된 미팅 보고서만 연결합니다. */
-function dailySources(dateISO: string, meetings: MeetingReport[]): DraftSources {
+/**
+ * 일일은 그날 일정을 모두 세우고 각 줄에 미팅 보고서 상태를 붙입니다. 미작성·작성중도
+ * 목록에는 서지만, 생성에 쓰는 것(included)은 제출을 마친 기록뿐입니다.
+ */
+function dailySources(
+  dateISO: string,
+  meetings: MeetingReport[],
+  agenda: AgendaItem[],
+): DraftSources {
+  const byAgenda = new Map<string, MeetingReport[]>()
+  for (const report of meetings) {
+    if (report.date !== dateISO) continue
+    const group = byAgenda.get(report.agendaId) ?? []
+    group.push(report)
+    byAgenda.set(report.agendaId, group)
+  }
   const activities: ReportActivity[] = []
   const meta = new Map<string, SourceMeta>()
-  for (const report of meetings) {
-    if (report.date !== dateISO || !['검토 대기', '확정'].includes(report.status)) continue
-    const id = `meet-${report.id}`
+  const submittedOf = (reports: MeetingReport[]) =>
+    reports.find((report) => ['검토 대기', '확정'].includes(report.status))
+  const shownOf = (reports: MeetingReport[]) => submittedOf(reports) ?? reports[0]
+  const add = (
+    id: string,
+    fallback: { title: string; desc: string },
+    reports: MeetingReport[],
+    link: SourceMeta,
+  ) => {
+    const submitted = submittedOf(reports)
+    const shown = shownOf(reports)
     activities.push({
       id,
       source: '업무보고서',
-      title: report.title,
-      desc: [report.hospital, report.owner].filter(Boolean).join(' · '),
-      included: true,
-      refId: report.id,
-      sourceSubmissionId: report.currentSubmissionId ?? undefined,
+      title: shown?.title || fallback.title,
+      desc: shown ? [shown.hospital, shown.owner].filter(Boolean).join(' · ') : fallback.desc,
+      included: Boolean(submitted),
+      refId: submitted?.id,
+      sourceSubmissionId: submitted?.currentSubmissionId ?? undefined,
     })
-    meta.set(id, {
-      // 위 filter 를 지난 것은 모두 다 쓴 미팅 기록입니다. 검토 어휘 대신 그렇게 세웁니다.
-      status: meetingStatusLabel(report.apiStatus ?? 'draft'),
-      tracked: true,
-      to: meetingReportPath(report.id),
-      label: '보고서 열기',
-    })
+    meta.set(id, link)
+  }
+  for (const item of agenda) {
+    if (item.date !== dateISO) continue
+    const reports = byAgenda.get(item.id) ?? []
+    byAgenda.delete(item.id)
+    const link = meetingLinkFor(item.id, reports)
+    add(
+      `agenda-${item.id}`,
+      { title: item.title, desc: [item.hospital, item.contact].filter(Boolean).join(' · ') },
+      reports,
+      // 미팅 기록은 검토를 받지 않으므로 배지도 작성중·작성완료 둘로만 접습니다.
+      {
+        ...link,
+        status:
+          reports.length > 0 ? meetingStatusLabel(shownOf(reports).apiStatus ?? 'draft') : null,
+      },
+    )
+  }
+  // 일정이 지워졌거나 보기 범위 밖이면 제출된 기록만 따로 세웁니다.
+  for (const reports of byAgenda.values()) {
+    for (const report of reports) {
+      if (!['검토 대기', '확정'].includes(report.status)) continue
+      const id = `meet-${report.id}`
+      activities.push({
+        id,
+        source: '업무보고서',
+        title: report.title,
+        desc: [report.hospital, report.owner].filter(Boolean).join(' · '),
+        included: true,
+        refId: report.id,
+        sourceSubmissionId: report.currentSubmissionId ?? undefined,
+      })
+      meta.set(id, {
+        status: meetingStatusLabel(report.apiStatus ?? 'draft'),
+        tracked: true,
+        to: meetingReportPath(report.id),
+        label: '보고서 열기',
+      })
+    }
   }
   return { activities, meta }
 }
@@ -138,8 +194,11 @@ export function sourcesFor(
   dateISO: string,
   meetings: MeetingReport[],
   reports: DailyReport[],
+  agenda: AgendaItem[] = [],
 ): DraftSources {
-  return kind === '일일' ? dailySources(dateISO, meetings) : rollupSources(kind, dateISO, reports)
+  return kind === '일일'
+    ? dailySources(dateISO, meetings, agenda)
+    : rollupSources(kind, dateISO, reports)
 }
 
 /** 과거 저장 목록에서도 이 기간 종류의 보고서 링크만 표시합니다. */

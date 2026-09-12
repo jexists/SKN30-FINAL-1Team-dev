@@ -117,6 +117,10 @@ export interface SalesDealDocumentFields {
   quote_delivery_terms?: string | null
   contract_payment_terms?: string | null
   contract_late_interest_terms?: string | null
+  /** 단계를 옮기며 적는 서류별 메모. 딜 공용 memo 와 다릅니다. */
+  quote_memo?: string | null
+  contract_memo?: string | null
+  order_memo?: string | null
   contract_no?: string | null
   contract_signed_on?: string | null
   contract_ends_on?: string | null
@@ -213,6 +217,9 @@ export interface SalesDealResponse {
   quote_delivery_terms: string | null
   contract_payment_terms: string | null
   contract_late_interest_terms: string | null
+  quote_memo: string | null
+  contract_memo: string | null
+  order_memo: string | null
   /**
    * 계약서의 계약자정보(갑)(을). 을은 팀, 갑은 딜의 고객사입니다. 딜이 이미 들고 있는
    * 것에서 유도하므로 계약이 따로 적어 두지 않습니다. 사업자번호는 하이픈 없는 10자리입니다.

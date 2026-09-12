@@ -118,11 +118,14 @@ async def _confirmed_by_member(
 
     딜의 접근 범위는 영업현황 화면과 같아야 하므로 sales_deals 의 조인·스코프를 그대로
     가져다 쓴다. 팀장이 부르는 자리라 담당자를 좁히지 않고 팀 전체를 본다.
+
+    매출은 예상금액(deal_amount)이 아니라 계약금액(contract_amount)으로 센다. 매출분석
+    화면(useSalesSummary.actualOf)과 같은 규칙이어야 두 화면이 같은 숫자를 말한다.
     """
     result = await db.execute(
         deals_api._joined_select(
             SalesDeal.owner_member_id,
-            func.sum(SalesDeal.deal_amount),
+            func.sum(SalesDeal.contract_amount),
         )
         .where(
             *deals_api._scope(member),

@@ -1,10 +1,59 @@
-/* 머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 PDF 입니다. */
+/*
+ * 작성 화면 한 판. 미팅 보고서 작성과 같이 화면 높이에 맞추고 좌·우 열이 각자 구릅니다.
+ * 한 열로 접히는 폭에서는 페이지가 통째로 구릅니다.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
+
+  @include lg {
+    display: block;
+    height: auto;
+  }
+}
+
+/* 머리말 한 줄. 왼쪽은 나가는 길, 가운데는 알림, 오른쪽은 AI 작성입니다. */
 .head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s2);
+  gap: var(--s3);
   margin-bottom: var(--s3);
+
+  /* 페이지가 통째로 구르는 폭에서만 톱바 아래에 붙여 둡니다. */
+  @include lg {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--s2));
+    z-index: 1;
+    padding-block: var(--s2);
+    background: var(--paper);
+  }
+}
+
+/* 알림이 없으면 빈 칸으로 남아 좌우 버튼의 자리를 지킵니다. */
+.headNotice {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 만들지 못했을 때. 조작부 바로 옆이라 기다리던 사람의 눈에 먼저 들어옵니다. */
+.headNote {
+  color: var(--red-ink);
+  font-size: 13px;
+  line-height: 1.5;
+
+  &::before {
+    content: '* ';
+  }
+}
+
+.headActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s2);
 }
 
 /* 화살표가 글자 앞에 서므로 줄이는 여백도 왼쪽입니다. */
@@ -16,6 +65,7 @@
 .saved,
 .locked,
 .review {
+  flex: none;
   margin-bottom: var(--s3);
   padding: var(--s3) var(--s4);
   border-radius: var(--r-md);
@@ -53,37 +103,130 @@
   }
 }
 
-/* 왼쪽 = 무엇을 근거로 쓰는지, 오른쪽 = 무엇을 낼지. 업무보고서 작성 화면과 같은 비율입니다. */
+/* 왼쪽 = 무엇을 근거로 쓰는지, 오른쪽 = 무엇을 낼지. 미팅 보고서 작성과 같은 비율입니다. */
 .layout {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
   gap: var(--s5);
-  align-items: start;
+  align-items: stretch;
 
   @include lg {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
     gap: var(--s4);
+    align-items: start;
+  }
+}
+
+/*
+ * 등록 단계. 아직 만든 것이 없으므로 결과 자리를 미리 비워 두지 않고 한 열만 씁니다.
+ * .layout 과 특정도를 맞춰 겹쳐 씁니다 — 파일이 붙는 순서에 좌우되지 않게 합니다.
+ */
+.layout.solo {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+
+  // 페이지가 스크롤합니다. 안쪽에 스크롤 상자를 하나 더 두면 두 번 굴려야 합니다.
+  .sideContent {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+/* 한 열일 때는 좌우로 나눠 각각 스크롤시킬 이유가 없습니다. */
+.page.pageSolo {
+  display: block;
+  height: auto;
+}
+
+/*
+ * 왼쪽 열을 통째로 접은 상태. 보고서가 남은 폭을 모두 가져가고 왼쪽에는 다시 펴는
+ * 손잡이만 남습니다. .layout 과 특정도를 맞춰 겹쳐 씁니다 — 파일이 붙는 순서에
+ * 좌우되지 않게 합니다.
+ */
+.layout.sideCollapsed {
+  grid-template-columns: auto minmax(0, 1fr);
+
+  @include lg {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 /* 왼쪽 열. 위는 자료, 아래는 넣는 것입니다. */
 .side {
-  display: grid;
-  gap: var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
   min-width: 0;
-  align-content: start;
+  min-height: 0;
 
   @include lg {
     gap: var(--s4);
   }
 }
 
-/* 오른쪽 작업 열. 나오는 것(보고서)만 섭니다. */
-.work {
+/* 접은 내용은 지우지 않고 감춥니다 — 골라 둔 자료와 적어 둔 메모가 살아 있어야 합니다. */
+.sideContent {
   display: grid;
+  flex: 1;
   gap: var(--s5);
-  min-width: 0;
+  min-height: 0;
   align-content: start;
+  overflow: auto;
+
+  @include lg {
+    flex: none;
+    gap: var(--s4);
+    overflow: visible;
+  }
+}
+
+.collapsed.collapsed {
+  display: none;
+}
+
+/* 다시 펴는 손잡이. 접힌 열의 자리에 제 글자만큼만 섭니다. */
+.sideToggle {
+  flex: none;
+  align-self: start;
+
+  @include lg {
+    display: none;
+  }
+}
+
+/* 접기 손잡이는 자료판 머리의 오른쪽 끝. 한 열로 접히면 접을 이유가 없어 사라집니다. */
+.collapseAction {
+  flex: none;
+  margin-left: auto;
+
+  @include lg {
+    display: none;
+  }
+}
+
+/* 오른쪽 작업 열. 나오는 것(보고서)과 내는 길만 섭니다. */
+.work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 긴 보고서는 이 상자 안에서 구릅니다. 제출 줄은 그 아래에 늘 남습니다. */
+.reports {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+
+  @include lg {
+    flex: none;
+    overflow: visible;
+  }
 }
 
 /*
@@ -104,17 +247,24 @@
   }
 }
 
-.pill {
-  @include tag-pill;
+/* 제목·첨부·메모 사이 간격을 한 곳에서 정합니다. 칸마다 margin 을 두면 어긋납니다. */
+.input {
+  display: grid;
+  gap: var(--s4);
+}
 
-  font-size: 11px;
+/* 작성완료·미작성 묶음을 가르는 탭. 날짜 머리말 바로 아래에 섭니다. */
+.refTabs {
+  width: fit-content;
+  margin-bottom: var(--s2);
 }
 
 .inputTitle {
   display: flex;
+  /* 곁말이 길어지는 좁은 폭에서는 제목 아래로 접습니다. 넘쳐 잘리는 것보다 낫습니다. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s3);
-  margin-bottom: var(--s3);
+  gap: var(--s1) var(--s3);
   font-size: 13px;
   font-weight: 600;
 
@@ -123,17 +273,36 @@
 
     font-size: 11px;
   }
+
+  /*
+   * 제목 옆 안내. 알약이 아니라 곁말이라 위의 tag-pill 을 걷어냅니다.
+   * 목록 위가 아니라 카드 이름 옆에 두어야 목록 자체는 줄만 남습니다.
+   */
+  .refNote {
+    display: flex;
+    align-items: center;
+    gap: var(--s1);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+
+    svg {
+      flex: 0 0 auto;
+    }
+  }
 }
 
 .guidanceMeta {
+  // 남은 글자 수는 입력 칸 오른쪽 끝에서 읽습니다.
+  align-self: flex-end;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
-}
-
-.generate {
-  width: 100%;
-  margin-top: var(--s4);
 }
 
 .sourceReports {
@@ -267,7 +436,6 @@
  * 왼쪽 구석의 작은 글씨는 기다리다 지친 사람의 눈에 들어오지 않습니다.
  */
 .failed {
-  margin-bottom: var(--s5);
   padding: var(--s3);
   border-radius: var(--r-sm);
   background: var(--red-tint);
@@ -304,30 +472,30 @@
 }
 
 /*
- * 이 화면의 저장 지점입니다. 머리말에는 저장 버튼을 두지 않습니다.
- * 시트 아래에 붙어 따라오되, 화면 전체를 가로지르지 않아 본문을 가리지 않습니다.
+ * 이 화면의 제출 지점입니다. 머리말에는 제출 버튼을 두지 않습니다.
+ * 긴 보고서를 내려 읽어도 보고서 열 아래에 그대로 남습니다.
  */
-.actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
+.saveBar {
+  flex: none;
   display: flex;
-  align-items: center;
-  gap: var(--s2);
-  padding: var(--s3) 0;
-  background: linear-gradient(to top, var(--paper) 72%, transparent);
-
-  @include sm {
-    flex-wrap: wrap;
-  }
+  min-width: 0;
+  padding-top: var(--s3);
 }
 
+.saveActions {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.pdfButton,
 .submit {
-  margin-left: auto;
+  flex: none;
 
   @include sm {
-    margin-left: 0;
-    width: 100%;
+    flex: 1;
   }
 }
 
@@ -366,13 +534,20 @@
   .review.review,
   .reference.reference,
   .input.input,
-  .actions.actions,
+  .sideToggle.sideToggle,
+  .saveBar.saveBar,
   .missing.missing {
     display: none;
   }
 
   .layout.layout {
     display: block;
+  }
+
+  .work,
+  .reports {
+    display: block;
+    overflow: visible;
   }
 
   .sheet.sheet {
@@ -382,6 +557,8 @@
   }
 
   .page {
+    display: block;
+    height: auto;
     :global(input),
     :global(textarea),
     :global(select) {

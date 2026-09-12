@@ -253,6 +253,10 @@ class SalesDealCreate(_WriteModel):
     quote_delivery_terms: Text | None = None
     contract_payment_terms: Text | None = None
     contract_late_interest_terms: Text | None = None
+    # 단계를 옮기며 적는 서류별 메모. 딜 공용 memo 와 따로 둔다.
+    quote_memo: LongText | None = None
+    contract_memo: LongText | None = None
+    order_memo: LongText | None = None
     items: SalesDealItems | None = None
     participant_contact_ids: list[UUID] | None = None
 
@@ -301,6 +305,10 @@ class SalesDealPatch(_WriteModel):
     quote_delivery_terms: Text | None = None
     contract_payment_terms: Text | None = None
     contract_late_interest_terms: Text | None = None
+    # 단계를 옮기며 적는 서류별 메모. 딜 공용 memo 와 따로 둔다.
+    quote_memo: LongText | None = None
+    contract_memo: LongText | None = None
+    order_memo: LongText | None = None
     items: SalesDealItems | None = None
     participant_contact_ids: list[UUID] | None = None
 
@@ -381,6 +389,9 @@ class SalesDealRead(BaseModel):
     quote_delivery_terms: str | None
     contract_payment_terms: str | None
     contract_late_interest_terms: str | None
+    quote_memo: str | None
+    contract_memo: str | None
+    order_memo: str | None
     # 계약서의 계약자정보(갑)(을). 을은 팀, 갑은 딜의 고객사다. 딜이 이미 들고 있는 것에서
     # 유도하므로 계약이 따로 적어 두지 않는다. 사업자번호는 하이픈 없는 10자리다.
     team_company_name: str | None

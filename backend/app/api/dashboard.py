@@ -248,7 +248,9 @@ async def _sales_target_card(
     ).scalar_one()
 
     # 계약 상태를 구분해 확정과 진행 중을 한 번에 센다.
-    amount = func.sum(SalesDeal.deal_amount)
+    # 금액은 예상금액이 아니라 계약금액이다. 팀 화면(_confirmed_by_member)과 매출분석
+    # (useSalesSummary.actualOf)이 같은 규칙이라야 세 화면이 같은 숫자를 말한다.
+    amount = func.sum(SalesDeal.contract_amount)
     confirmed, in_progress = (
         await db.execute(
             deals_api._joined_select(

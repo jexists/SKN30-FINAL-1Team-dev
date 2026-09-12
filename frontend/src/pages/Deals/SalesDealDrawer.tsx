@@ -3,14 +3,16 @@ import { Link } from 'react-router'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
+import Select from '@/components/Select'
 import { SkeletonDetail } from '@/components/Skeleton'
 import StageChip, { chipOr } from '@/components/StageChip'
+import stageTone from '@/components/StageChip/StageChip.module.scss'
 import { ROUTES } from '@/constants/routes'
 import type { ColumnTone } from '@/types'
 import { fmtDot, parseISO } from '@/utils/date'
 import { wonFull } from '@/utils/format'
 
-import type { SalesDeal } from './useSalesDeals'
+import type { SalesDeal, SalesDealColumn } from './useSalesDeals'
 
 import styles from './SalesDealForm.module.scss'
 
@@ -25,6 +27,15 @@ interface Props {
   /** 견적·계약 칸의 수정 단추. 주지 않으면 읽기만 합니다. */
   onEditQuote?: () => void
   onEditContract?: () => void
+  /** 발주 칸의 등록 단추. 발주는 여러 건이라 언제나 새로 담습니다. */
+  onAddOrder?: () => void
+  /**
+   * 단계 고르개. 보드와 같은 단계 목록을 그대로 받습니다. 둘 다 주지 않으면
+   * 지금까지처럼 단계를 읽기만 합니다.
+   */
+  stages?: SalesDealColumn[]
+  onStageSelect?: (stage: SalesDealColumn) => void
+  stagePending?: boolean
   onClose: () => void
 }
 
@@ -42,9 +53,20 @@ export default function SalesDealDrawer({
   onDelete,
   onEditQuote,
   onEditContract,
+  onAddOrder,
+  stages,
+  onStageSelect,
+  stagePending = false,
   onClose,
 }: Props) {
   const readOnly = deal?.pipelineStatus === 'archived'
+  // 서류는 견적 → 계약 → 발주 순서로 갑니다. 앞 서류가 없으면 뒤 칸은 보이지 않습니다.
+  const hasQuote =
+    deal !== null &&
+    (deal.quoteStatusName !== null || deal.quoteAmount !== null || deal.quoteMemo !== null)
+  const hasContract =
+    deal !== null &&
+    (deal.contractStatusName !== null || deal.contractAmount !== null || deal.contractMemo !== null)
   const facts = deal
     ? [
         ['파이프라인', deal.pipelineName],
@@ -68,12 +90,25 @@ export default function SalesDealDrawer({
       title={deal?.org ?? '영업 딜 상세'}
       sub={deal ? `${deal.no} · ${deal.title}` : undefined}
       meta={
-        deal && (
-          <>
-            {stage && <StageChip tone={stage.tone}>{stage.name}</StageChip>}
-            <span>{deal.kind}</span>
-          </>
-        )
+        deal &&
+        stage &&
+        // 단계는 여기서 바로 바꿉니다. 배지와 같은 톤 색을 고르개에 그대로 씁니다.
+        (stages && onStageSelect && !readOnly ? (
+          <Select
+            label="현재 단계"
+            className={[styles.stageSelect, stageTone[stage.tone]].filter(Boolean).join(' ')}
+            size="sm"
+            value={deal.stageId}
+            options={stages.map((one) => ({ value: one.id, label: one.name }))}
+            disabled={stagePending}
+            onChange={(next) => {
+              const picked = stages.find((one) => one.id === next)
+              if (picked && picked.id !== deal.stageId) onStageSelect(picked)
+            }}
+          />
+        ) : (
+          <StageChip tone={stage.tone}>{stage.name}</StageChip>
+        ))
       }
       footer={
         deal && !loading && !error && !readOnly && onEdit && onDelete ? (
@@ -124,12 +159,14 @@ export default function SalesDealDrawer({
             status={deal.quoteStatusName}
             emptyText="아직 견적을 작성하지 않았습니다."
             onEdit={readOnly ? undefined : onEditQuote}
+            hasValue={hasQuote}
             facts={[
               ['견적번호', dash(deal.quoteNo)],
               ['견적일', day(deal.quoteIssuedOn)],
               ['유효기한', day(deal.quoteValidUntil)],
               ['견적금액', money(deal.quoteAmount)],
               ['납품예상일자', dash(deal.quoteDeliveryTerms)],
+              ['메모', dash(deal.quoteMemo)],
             ]}
           >
             {deal.items.length > 0 && (
@@ -147,35 +184,44 @@ export default function SalesDealDrawer({
             )}
           </DocumentSection>
 
-          <DocumentSection
-            title="계약"
-            tone={deal.contractStatusTone}
-            status={deal.contractStatusName}
-            emptyText="아직 계약을 작성하지 않았습니다."
-            onEdit={readOnly ? undefined : onEditContract}
-            facts={[
-              ['계약번호', dash(deal.contractNo)],
-              ['계약일', day(deal.contractSignedOn)],
-              ['계약 종료일', day(deal.contractEndsOn)],
-              ['계약금액', money(deal.contractAmount)],
-              ['보증 조건', dash(deal.warrantyTerms)],
-            ]}
-          />
+          {hasQuote && (
+            <DocumentSection
+              title="계약"
+              tone={deal.contractStatusTone}
+              status={deal.contractStatusName}
+              emptyText="아직 계약을 작성하지 않았습니다."
+              onEdit={readOnly ? undefined : onEditContract}
+              hasValue={hasContract}
+              facts={[
+                ['계약번호', dash(deal.contractNo)],
+                ['계약일', day(deal.contractSignedOn)],
+                ['계약 종료일', day(deal.contractEndsOn)],
+                ['계약금액', money(deal.contractAmount)],
+                ['보증 조건', dash(deal.warrantyTerms)],
+                ['메모', dash(deal.contractMemo)],
+              ]}
+            />
+          )}
 
-          <DocumentSection
-            title="발주"
-            tone={deal.orderStatusTone}
-            status={deal.orderStatusName}
-            emptyText="아직 발주가 없습니다."
-            facts={[]}
-          >
-            {deal.orderStatusName !== null && (
-              // 발주는 딜 하나에 여러 건일 수 있어 값을 펼치지 않고 목록으로 보냅니다.
-              <Link className={styles.drawerLink} to={`${ROUTES.ORDERS}?q=${deal.no}`}>
-                이 딜의 발주 보기
-              </Link>
-            )}
-          </DocumentSection>
+          {hasContract && (
+            <DocumentSection
+              title="발주"
+              tone={deal.orderStatusTone}
+              status={deal.orderStatusName}
+              emptyText="아직 발주가 없습니다."
+              onEdit={readOnly ? undefined : onAddOrder}
+              editLabel="등록"
+              hasValue={deal.orderMemo !== null}
+              facts={deal.orderMemo === null ? [] : [['메모', deal.orderMemo]]}
+            >
+              {deal.orderStatusName !== null && (
+                // 발주는 딜 하나에 여러 건일 수 있어 값을 펼치지 않고 목록으로 보냅니다.
+                <Link className={styles.drawerLink} to={`${ROUTES.ORDERS}?q=${deal.no}`}>
+                  이 딜의 발주 보기
+                </Link>
+              )}
+            </DocumentSection>
+          )}
         </>
       ) : (
         <p className={styles.drawerState}>영업 딜 상세 정보가 없습니다.</p>
@@ -190,7 +236,10 @@ interface SectionProps {
   status: string | null
   emptyText: string
   facts: [string, string][]
+  /** 상태는 아직 없지만 단계를 옮기며 적어 둔 값이 있는지. 있으면 그것을 보입니다. */
+  hasValue?: boolean
   onEdit?: () => void
+  editLabel?: string
   children?: ReactNode
 }
 
@@ -201,7 +250,9 @@ function DocumentSection({
   status,
   emptyText,
   facts,
+  hasValue = false,
   onEdit,
+  editLabel,
   children,
 }: SectionProps) {
   return (
@@ -211,12 +262,12 @@ function DocumentSection({
         {chipOr(tone, status)}
         {onEdit && (
           <Button variant="ghost" onClick={onEdit}>
-            {status === null ? '작성' : '수정'}
+            {editLabel ?? (status === null ? '작성' : '수정')}
           </Button>
         )}
       </header>
 
-      {status === null ? (
+      {status === null && !hasValue ? (
         <p className={styles.memoEmpty}>{emptyText}</p>
       ) : (
         <>

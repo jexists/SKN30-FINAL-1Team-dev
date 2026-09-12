@@ -4,6 +4,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { finalizeReport, idempotencyAttemptFor, type IdempotencyAttempt } from '@/api/reportAgent'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { isAuthorEditableReportStatus, templateFor } from '@/shared/reports'
+import { useAgendaState } from '@/shared/agenda'
 import { useReportQuery } from '@/shared/reportQuery'
 import { getOwnMemberIds, useScopeOwnerIds } from '@/shared/scope'
 import type {
@@ -150,7 +151,8 @@ export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
     content: {
       approver: draft.approver,
       values: { body },
-      activities: draft.activities,
+      // 목록에는 미작성 일정도 서지만, 보고서에 남기는 것은 실제로 참조한 줄뿐입니다.
+      activities: included,
     },
     title: periodLabelFor(draft.kind, draft.date),
     body: body.trim() || null,
@@ -255,20 +257,35 @@ export function useChildReports(kind: ReportKind, dateISO: string, enabled: bool
 }
 
 /** 작성은 현재 하위 보고서를 생성 후보로, 상세는 같은 목록을 탐색용으로 씁니다. */
-export function useRelatedReports(kind: ReportKind, dateISO: string, enabled = true) {
-  const meetings = useMeetingReportsOn(dateISO, { enabled: enabled && kind === '일일' })
+/**
+ * `withAgenda` 는 작성 화면에서 켭니다. 그날 일정을 통째로 세워 아직 쓰지 않은 미팅까지
+ * 상태와 함께 보여 주려는 것이고, 상세는 참조한 원본만 보므로 켜지 않습니다.
+ */
+export function useRelatedReports(
+  kind: ReportKind,
+  dateISO: string,
+  enabled = true,
+  withAgenda = false,
+) {
+  const daily = enabled && kind === '일일'
+  const meetings = useMeetingReportsOn(dateISO, {
+    enabled: daily,
+    includeDrafts: withAgenda,
+  })
   const children = useChildReports(kind, dateISO, enabled && kind !== '일일')
+  const agenda = useAgendaState(dateISO, dateISO, true, daily && withAgenda)
   const related = useMemo(
-    () => sourcesFor(kind, dateISO, meetings.reports, children.reports),
-    [kind, dateISO, meetings.reports, children.reports],
+    () => sourcesFor(kind, dateISO, meetings.reports, children.reports, agenda.items),
+    [kind, dateISO, meetings.reports, children.reports, agenda.items],
   )
   return {
     ...related,
-    loading: meetings.loading || children.loading,
-    error: meetings.error ?? children.error,
+    loading: meetings.loading || children.loading || (daily && withAgenda && agenda.loading),
+    error: meetings.error ?? children.error ?? (daily && withAgenda ? agenda.error : null),
     reload: () => {
       meetings.reload()
       children.reload()
+      if (daily && withAgenda) void agenda.reload()
     },
   }
 }

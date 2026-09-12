@@ -341,6 +341,12 @@
   모두 찾습니다. 기존 행은 전부 `NULL`이라 백필이 없고, 더하기만이라 구코드가 깨지지 않으므로
   적용과 배포의 순서는 자유입니다.
 
+- `20260912_0032_deal_document_memo.sql`: `sales_deal`에 `quote_memo`·`contract_memo`·`order_memo`
+  (모두 nullable)를 더합니다. 상세 화면에서 단계를 옮길 때 그 서류의 최소 정보를 함께 적는데,
+  딜 공용 `memo` 한 칸을 견적·계약·발주가 나눠 쓰면 나중에 적은 쪽이 앞의 것을 덮습니다.
+  빈 문자열을 막는 CHECK 만 두고 다른 칸은 건드리지 않습니다. 기존 행은 전부 `NULL`이라
+  백필이 없고, 더하기만이라 구코드가 깨지지 않으므로 적용과 배포의 순서는 자유입니다.
+
 `20260819_0001`은 빈 `public` 스키마에 처음부터 만드는 것을 전제로 합니다. 되돌리는 마이그레이션이
 아니므로 적용 전에 아래 런북의 1~2단계를 먼저 수행합니다.
 
@@ -390,6 +396,7 @@
 | 2026-09-09 | 현재 연결된 개발 DB | `20260909_0029_support_request_edit_backup_rls.sql` | — | **미적용(대기).** 0028 이 만든 백업 표만 42개 표 중 홀로 RLS 가 꺼져 있는 것을 적용 직후 확인했습니다. 정책 없이 켜기만 하므로 앱 동작은 바뀌지 않고, 켜기 전까지 PostgREST 로 예전 불만 본문이 열려 있습니다 |
 | 2026-09-11 | 현재 연결된 개발 DB | `20260911_0030_customer_contact_fax.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. customer_contact 15→16컬럼(`fax` text, nullable, 기본값 없음). 고객 861행 보존(861→861)이고 `fax`는 861행 모두 `NULL`입니다 — 더하기만이라 백필도 지우는 행도 없습니다. 적용 전 ORM↔물리 스키마를 대조해 미적용 컬럼이 `customer_contact.fax` 하나뿐임을 확인했고, 적용 후 다시 대조해 차이가 사라진 것을 확인했습니다. `test_models_match_configured_database`는 0025·0028 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다. RLS·인덱스·제약은 건드리지 않았습니다 |
 | 2026-09-11 | 현재 연결된 개발 DB | `20260911_0031_customer_contact_telephone.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. customer_contact 16→17컬럼(`telephone` text, nullable, 기본값 없음). 고객 862행 보존(862→862)이고 `telephone`은 862행 모두 `NULL`입니다 — 더하기만이라 백필도 지우는 행도 없습니다. 적용 후 물리 스키마에서 타입·nullable·기본값과 컬럼 설명을 확인했습니다. RLS·인덱스·제약은 건드리지 않았습니다 |
+| 2026-09-12 | 현재 연결된 개발 DB | `20260912_0032_deal_document_memo.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. sales_deal 36→39컬럼(`quote_memo`·`contract_memo`·`order_memo` 모두 text, nullable, 기본값 없음, 각각 공백 금지 CHECK). 딜 419행 보존(419→419)이고 세 칸 모두 419행 전부 `NULL`입니다 — 더하기만이라 백필도 지우는 행도 없습니다. 적용 전 세 컬럼이 없는 것과 딜 행수를 확인했고, 적용 후 물리 스키마에서 타입·nullable·기본값·컬럼 설명·CHECK 이름을 조회하고 ORM(`app/models/sales.py`)과 컬럼 집합을 양방향으로 대조해 차이가 없는 것을 확인했습니다. `test_models_match_configured_database`는 0025 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다. RLS(켜짐 유지)·인덱스·기존 제약은 건드리지 않았습니다 |
 
 ## 개발 DB 재구축 런북
 

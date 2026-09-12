@@ -77,7 +77,7 @@ function periodInputOf(
 
 export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const { memberId } = useCurrentUser()
-  const related = useRelatedReports(kind, dateISO)
+  const related = useRelatedReports(kind, dateISO, true, true)
   // 이 기간에 쓰다 만 보고서. 목록을 뒤지지 않고 그 기간만 서버에 묻습니다.
   const {
     report: existing,

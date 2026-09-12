@@ -360,11 +360,13 @@ export function useAgendaState(
   startDate = DEFAULT_START_DATE,
   endDate = DEFAULT_END_DATE,
   ownScopeOnly = false,
+  enabled = true,
 ) {
   const scopeKey = useScopeKey()
   useEffect(() => {
+    if (!enabled) return
     void loadAgenda(startDate, endDate, false, ownScopeOnly)
-  }, [endDate, startDate, ownScopeOnly, scopeKey])
+  }, [enabled, endDate, startDate, ownScopeOnly, scopeKey])
   useSyncExternalStore(
     subscribeAgenda,
     () => revision,

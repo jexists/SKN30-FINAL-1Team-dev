@@ -48,6 +48,7 @@ interface FormState {
   validUntil: string
   statusCode: string
   deliveryTerms: string
+  memo: string
   items: ItemState[]
 }
 
@@ -89,6 +90,7 @@ function initialState(deal: SalesDeal | undefined, statuses: DocumentStatusRespo
       deal?.quoteValidUntil ?? validUntilOf(issuedOn, validMonths || DEFAULT_VALID_MONTHS),
     statusCode: deal?.quoteStatusCode ?? statuses[0]?.code ?? '',
     deliveryTerms: deal?.quoteDeliveryTerms ?? '',
+    memo: deal?.quoteMemo ?? '',
     items:
       deal && deal.items.length > 0
         ? deal.items.map((item) => ({
@@ -171,6 +173,8 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
         quote_valid_until: form.validUntil,
         quote_status_code: form.statusCode,
         quote_delivery_terms: form.deliveryTerms.trim() || null,
+        // 빈 메모는 null 로 보냅니다. 서버가 빈 문자열을 받지 않습니다.
+        quote_memo: form.memo.trim() || null,
         items: form.items.map((item) => ({
           product_id: item.productId,
           quantity: itemNumber(item.qty),
@@ -325,6 +329,17 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
             onChange={(items) => set('items', items)}
           />
         </div>
+
+        <Field label="메모" wide>
+          <textarea
+            rows={3}
+            value={form.memo}
+            disabled={submitting}
+            maxLength={5000}
+            placeholder="고객 요청사항 등 입력"
+            onChange={(event) => set('memo', event.target.value)}
+          />
+        </Field>
       </div>
 
       {submitError && (

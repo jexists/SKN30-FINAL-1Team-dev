@@ -589,6 +589,42 @@ test('일일 관련 목록은 미팅일의 제출 보고서와 제출본 id만 �
   assert.doesNotMatch(view, /<button|aria-pressed|비공개|submission-1|사용한 확정본/)
 })
 
+test('일일 관련 목록은 그날 일정을 모두 세우고 제출한 기록만 생성에 쓴다', () => {
+  const submitted = toMeetingReport({
+    ...response(),
+    status_code: 'submitted',
+    source_activity_id: 'agenda-done',
+  })
+  const drafting = toMeetingReport({
+    ...response(),
+    id: 'drafting-report',
+    status_code: 'draft',
+    source_activity_id: 'agenda-drafting',
+  })
+  const agenda = [
+    { id: 'agenda-done', date: submitted.date, title: '제출한 미팅', hospital: '가 병원' },
+    { id: 'agenda-drafting', date: submitted.date, title: '쓰는 중 미팅', hospital: '나 병원' },
+    { id: 'agenda-empty', date: submitted.date, title: '아직 안 쓴 미팅', hospital: '다 병원' },
+    { id: 'agenda-other-day', date: '2026-09-02', title: '다른 날 미팅', hospital: '라 병원' },
+  ]
+  const result = sourcesFor('일일', submitted.date, [submitted, drafting], [], agenda)
+  assert.deepEqual(
+    result.activities.map((row) => [result.meta.get(row.id).status, row.included]),
+    [
+      ['작성완료', true],
+      ['작성중', false],
+      [null, false],
+    ],
+  )
+  // 생성에 실리는 것은 제출을 마친 줄 하나뿐입니다.
+  assert.deepEqual(
+    result.activities.filter((row) => row.included).map((row) => row.refId),
+    [submitted.id],
+  )
+  assert.equal(result.activities[2].title, '아직 안 쓴 미팅')
+  assert.equal(result.meta.get(result.activities[2].id).label, '보고서 작성')
+})
+
 test('주·월 관련 목록은 하위 종류·기간으로 걸러도 같은 날 다른 작성자의 보고서를 보존한다', () => {
   const daily = toReport(periodResponse({ status: 'submitted', body: '하위 보고서 본문' }))
   const dailyRows = [
@@ -1629,7 +1665,8 @@ test('기간 상세와 작성은 같은 현재 관련 조회를 사용하며 저
     /useRelatedReports\(report\?\.kind \?\? '일일', report\?\.date \?\? '', !!report\)/,
   )
   assert.match(detail, /activities=\{related\.activities\}/)
-  assert.match(draft, /useRelatedReports\(kind, dateISO\)/)
+  // 작성 화면만 그날 일정까지 함께 세웁니다(withAgenda). 상세는 저장된 참조만 봅니다.
+  assert.match(draft, /useRelatedReports\(kind, dateISO, true, true\)/)
   assert.match(queries, /'관련 보고서를 불러오지 못했습니다\.',\s+true,/)
   const parent = toReport({
     ...periodResponse(),

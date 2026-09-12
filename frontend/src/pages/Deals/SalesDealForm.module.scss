@@ -132,3 +132,22 @@
   font-size: 13px;
   text-decoration: underline;
 }
+
+// 드로어 머리의 단계 고르개. 색은 StageChip 의 톤 변수를 그대로 받습니다.
+.stageSelect {
+  button {
+    gap: 4px;
+    height: 24px;
+    padding: 0 6px 0 8px;
+    border-color: transparent;
+    border-radius: 999px;
+    background: var(--tone-tint);
+    color: var(--tone-ink);
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  svg {
+    color: inherit;
+  }
+}

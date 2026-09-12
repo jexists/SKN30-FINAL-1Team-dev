@@ -181,6 +181,10 @@ def test_overview_counts_only_confirmed_deals_signed_in_the_month():
     assert "outcome_code" in sql
     assert "contract_signed_on" in sql
     assert "GROUP BY" in sql
+    # 매출은 예상금액이 아니라 계약금액으로 센다. 매출분석 화면과 같은 규칙이라야
+    # 두 화면이 같은 숫자를 말한다.
+    assert "sum(public.sales_deal.contract_amount)" in sql
+    assert "sales_deal.deal_amount" not in sql
     params = db.statements[2].compile().params
     assert MONTH in params.values()
     assert date(2026, 9, 1) in params.values()
