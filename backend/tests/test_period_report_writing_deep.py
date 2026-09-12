@@ -139,6 +139,41 @@ def test_source_units_keep_each_meeting_boundary_and_shared_notes():
     assert "딜 미지정" in first["meeting_context"][0]["unassigned_report"]["body"]
 
 
+def test_preparation_digest_preserves_assigned_source_boundary():
+    unit = harness.WorkUnit(
+        work_unit_id="prepare-meeting-1",
+        scope="meeting_bundle:1",
+        schema=period.PeriodSourceDigest,
+        locations=frozenset({"meeting_bundle:1"}),
+        evidence_refs=frozenset({"meeting_bundle:1"}),
+        output_shape="PeriodSourceDigest",
+    )
+    digest = period.PeriodSourceDigest(
+        source_id="meeting_bundle:1",
+        report_kind="daily",
+        facts=[
+            {
+                "kind": "fact",
+                "content": "검토 중",
+                "source_id": "meeting_bundle:1",
+                "evidence_ref": "meeting_bundle:1",
+            }
+        ],
+        evidence_refs=["meeting_bundle:1"],
+    )
+    period._validate_unit(unit, digest, None, unit.locations)
+    with pytest.raises(PermissionError, match="report_source_not_allowed"):
+        period._validate_unit(
+            unit,
+            period.PeriodSourceDigest.model_validate({
+                **digest.model_dump(),
+                "facts": [{**digest.facts[0].model_dump(), "source_id": "meeting_bundle:2"}],
+            }),
+            None,
+            unit.locations,
+        )
+
+
 @pytest.mark.parametrize("kind", ["weekly", "monthly"])
 def test_weekly_monthly_use_only_child_submissions(kind):
     units = period_sources.source_units(period_sources.build_source(period_sample(kind)))

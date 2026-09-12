@@ -75,7 +75,7 @@ class ScriptedModel(BaseChatModel):
     attack: str = ""
     failure: str = ""
     failure_phase: str = "review_initial"
-    failure_work_unit: str = ""
+    failure_work_unit: str | None = ""
     marker: str = ""
     _seen: list = PrivateAttr(default_factory=list)
     _bound: list = PrivateAttr(default_factory=list)
@@ -188,6 +188,17 @@ class ScriptedModel(BaseChatModel):
                 },
             ),
         ]
+        if assignment["phase"] == "prepare":
+            source_id = assignment["scope"]
+            if self.attack == "prepare-sibling-source" and not self._attacked:
+                self._attacked = True
+                source_id = (
+                    "meeting_bundle:2" if source_id == "meeting_bundle:1" else "meeting_bundle:1"
+                )
+            return calls + [
+                self._call("read_report_context", {}),
+                self._call("read_report_sources", {"source_id": source_id})
+            ]
         if assignment["report_kind"] == "meeting":
             scopes = (
                 assignment["source_scopes"]
@@ -211,6 +222,8 @@ class ScriptedModel(BaseChatModel):
             calls.extend(
                 [self._call("read_report_context", {}), self._call("read_report_sources", {})]
             )
+            if assignment["phase"] == "synthesize":
+                calls.append(self._call("read_writer_digests", {}))
         phase = assignment["phase"]
         if phase == "review_initial":
             calls.append(self._call("read_validated_draft", {"draft_version": 1}))
@@ -231,7 +244,21 @@ class ScriptedModel(BaseChatModel):
         phase = assignment["phase"]
         locations = assignment["allowed_locations"]
         evidence = assignment["allowed_plan_evidence"]
-        if phase == "repair":
+        if phase == "prepare":
+            draft = {
+                "source_id": scope,
+                "report_kind": assignment["report_kind"],
+                "facts": [
+                    {
+                        "kind": "fact",
+                        "content": f"{scope} 동결 원문",
+                        "source_id": scope,
+                        "evidence_ref": evidence[0],
+                    }
+                ],
+                "evidence_refs": [evidence[0]],
+            }
+        elif phase == "repair":
             draft = copy.deepcopy(self._drafts[scope])
             field = locations[0].rsplit(".", 1)[-1]
             draft[field] += " 수정"
@@ -291,6 +318,13 @@ class ScriptedModel(BaseChatModel):
 
     def _child(self, messages, assignment):
         key = (assignment["phase"], assignment["work_unit_id"])
+        if self.attack == "prepare-sibling-source" and any(
+            isinstance(message, ToolMessage)
+            and isinstance(message.content, str)
+            and message.content.startswith("Error:")
+            for message in messages
+        ):
+            raise PermissionError("report_source_not_allowed")
         if not any(isinstance(message, ToolMessage) for message in messages):
             description = next(
                 message.content
@@ -320,6 +354,8 @@ class ScriptedModel(BaseChatModel):
                 raise LLMError("report_generation_failed")
             if self.failure == "input":
                 raise LLMError("period_report_sources_invalid")
+            if self.failure == "invalid-schema":
+                raise LLMError("report_output_invalid")
             request = httpx.Request("POST", "https://synthetic.invalid")
             status = (
                 int(self.failure.removeprefix("provider-"))
@@ -938,9 +974,10 @@ def test_actual_period_entrypoint_returns_server_validated_child_body(monkeypatc
     class PeriodModel(ScriptedModel):
         def _writer_artifact(self, assignment):
             artifact = super()._writer_artifact(assignment)
-            artifact["draft"] = {
-                "fields": [{"field_id": "body", "value": "동결 제출을 집계한 일일 본문"}]
-            }
+            if assignment["phase"] == "synthesize":
+                artifact["draft"] = {
+                    "fields": [{"field_id": "body", "value": "동결 제출을 집계한 일일 본문"}]
+                }
             return artifact
 
     model = PeriodModel(writer_role="daily-report-writer")
@@ -949,7 +986,185 @@ def test_actual_period_entrypoint_returns_server_validated_child_body(monkeypatc
     result = asyncio.run(period_report.run(sample()))
 
     assert result.fields[0].value == "동결 제출을 집계한 일일 본문"
-    assert model._phases == ["write_initial", "review_initial"]
+    assert model._phases == ["prepare", "prepare", "synthesize", "review_initial"]
+    assert all(
+        [
+            call["args"].get("source_id")
+            for call in model._requested[("prepare", work_id)]
+            if call["name"] == "read_report_sources"
+        ]
+        == [scope]
+        for work_id, scope in (
+            ("prepare-meeting-bundle-1", "meeting_bundle:1"),
+            ("prepare-meeting-bundle-2", "meeting_bundle:2"),
+        )
+    )
+    assert any(
+        call["name"] == "read_writer_digests"
+        for call in model._requested[("synthesize", "write-001")]
+    )
+
+
+@pytest.mark.parametrize(
+    ("failure", "failure_work_unit"),
+    [
+        (failure, work_unit)
+        for failure in ("provider-429", "invalid-schema")
+        for work_unit in ("prepare-meeting-bundle-1", None)
+    ],
+)
+def test_period_prepare_failure_reaches_synthesis_as_failed_source(
+    monkeypatch, failure, failure_work_unit
+):
+    from test_period_report_writing_deep import sample
+
+    class FailedPrepareModel(ScriptedModel):
+        _digests: list[dict] = PrivateAttr(default_factory=list)
+
+        def _writer_artifact(self, assignment):
+            artifact = super()._writer_artifact(assignment)
+            if assignment["phase"] == "synthesize":
+                artifact["draft"] = {
+                    "fields": [{"field_id": "body", "value": "실패를 표시한 본문"}]
+                }
+            return artifact
+
+    model = FailedPrepareModel(
+        writer_role="daily-report-writer",
+        failure=failure,
+        failure_phase="prepare",
+        failure_work_unit=failure_work_unit,
+    )
+    original = harness._Coordinator.writer_digests
+
+    def capture(self):
+        value = original(self)
+        model._digests = copy.deepcopy(value)
+        return value
+
+    monkeypatch.setattr(harness._Coordinator, "writer_digests", capture)
+    monkeypatch.setattr(harness, "configured_chat_model", lambda: model)
+    events = []
+    monkeypatch.setattr(
+        period_report, "log_agent_event", lambda _stage, **kwargs: events.append(kwargs)
+    )
+
+    result = asyncio.run(period_report.run(sample()))
+
+    assert result.fields[0].value == "실패를 표시한 본문"
+    assert events[-1]["outcome"] == "degraded"
+    assert [item.get("source_id") or item["draft"]["source_id"] for item in model._digests] == [
+        "meeting_bundle:1",
+        "meeting_bundle:2",
+    ]
+    expected_error = (
+        "llm_provider_error:429" if failure == "provider-429" else "report_output_invalid"
+    )
+    for index, item in enumerate(model._digests):
+        if failure_work_unit is None or index == 0:
+            assert item["status"] == "failed"
+            assert item["error_code"] == expected_error
+            assert "동결 원문" not in json.dumps(item, ensure_ascii=False)
+        else:
+            assert item["draft"]["source_id"] == "meeting_bundle:2"
+    assert any(
+        call["name"] == "read_report_sources" and not call["args"]
+        for call in model._requested[("synthesize", "write-001")]
+    )
+
+
+def test_period_prepare_permission_error_propagates_through_native_graph(monkeypatch):
+    from test_period_report_writing_deep import sample
+
+    model = ScriptedModel(writer_role="daily-report-writer", attack="prepare-sibling-source")
+    monkeypatch.setattr(harness, "configured_chat_model", lambda: model)
+
+    with pytest.raises(PermissionError, match="report_source_not_allowed"):
+        asyncio.run(period_report.run(sample()))
+    assert "synthesize" not in model._phases
+
+
+def test_period_parent_cancellation_does_not_persist_late_prepare_artifact(monkeypatch):
+    from test_period_report_writing_deep import sample
+
+    class HangingPrepareModel(ScriptedModel):
+        _started: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
+
+        async def _agenerate(self, messages, **kwargs):
+            assignment = _assignment(messages)
+            if assignment and assignment["phase"] == "prepare":
+                self._started.set()
+                await asyncio.Future()
+            return self._generate(messages, **kwargs)
+
+    model = HangingPrepareModel(writer_role="daily-report-writer")
+    writes = []
+    original_write = harness.StateBackend.write
+
+    def record_write(self, path, content):
+        writes.append(path)
+        return original_write(self, path, content)
+
+    monkeypatch.setattr(harness.StateBackend, "write", record_write)
+    monkeypatch.setattr(harness, "configured_chat_model", lambda: model)
+
+    async def check():
+        task = asyncio.create_task(period_report.run(sample()))
+        await model._started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(check())
+    assert not any(path.startswith("/artifacts/source-digests/") for path in writes)
+
+
+def test_period_preparers_enter_native_sdk_graph_concurrently(monkeypatch):
+    from test_period_report_writing_deep import sample
+
+    class ParallelPeriodModel(ScriptedModel):
+        _prepare_barrier = PrivateAttr(default_factory=lambda: threading.Barrier(2))
+
+        def _supervisor(self, messages):
+            state = _public_state(messages)
+            if state["next_phase"] == "prepare" and len(state["next_work_units"]) == 2:
+                calls = [
+                    self._call(
+                        "task",
+                        {
+                            "description": (
+                                f"work_unit_id={unit['work_unit_id']}\n"
+                                "배정된 범위의 동결 근거를 읽고 검증 가능한 artifact를 반환하라."
+                            ),
+                            "subagent_type": unit["subagent_type"],
+                        },
+                    )
+                    for unit in state["next_work_units"]
+                ]
+                return self._result(calls)
+            return super()._supervisor(messages)
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            assignment = _assignment(messages)
+            if assignment and assignment["phase"] == "prepare" and not any(
+                isinstance(message, AIMessage) for message in messages
+            ):
+                self._prepare_barrier.wait(timeout=2)
+            return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+        def _writer_artifact(self, assignment):
+            artifact = super()._writer_artifact(assignment)
+            if assignment["phase"] == "synthesize":
+                artifact["draft"] = {"fields": [{"field_id": "body", "value": "병렬 준비 본문"}]}
+            return artifact
+
+    model = ParallelPeriodModel(writer_role="daily-report-writer")
+    monkeypatch.setattr(harness, "configured_chat_model", lambda: model)
+    result = asyncio.run(period_report.run(sample()))
+
+    assert result.fields[0].value == "병렬 준비 본문"
+    assert model._phases.count("prepare") == 2
+    assert model._phases[-2:] == ["synthesize", "review_initial"]
 
 
 def test_concurrent_requests_isolate_models_sources_artifacts_and_usage(monkeypatch):

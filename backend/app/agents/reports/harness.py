@@ -133,6 +133,8 @@ class WorkflowSpec:
     validate_unit: Callable[[WorkUnit, BaseModel, BaseModel | None, frozenset[str]], None]
     on_draft: Callable[[int, BaseModel], None] = lambda _version, _draft: None
     source_count: int = 0
+    preparation_units: tuple[WorkUnit, ...] = ()
+    synthesis_unit: WorkUnit | None = None
 
 
 @dataclass(frozen=True)
@@ -331,27 +333,30 @@ class _Coordinator:
         self.units = {unit.work_unit_id: unit for unit in spec.units}
         self.sections = {key: _clone_model(value) for key, value in spec.prefilled_sections.items()}
         self.initial_artifacts: dict[str, WriterArtifact] = {}
+        self.preparation_failures: dict[str, str] = {}
         self.repair_artifacts: dict[str, WriterArtifact] = {}
         self.repair_sections: dict[str, BaseModel] = {}
         self.drafts: dict[int, BaseModel] = {}
         self.reviews: dict[int, ReportReview] = {}
         self.artifact_values: dict[str, Any] = {}
+        initial_units = spec.preparation_units or spec.units
+        initial_phase = "prepare" if spec.preparation_units else "write_initial"
         self.assignments: dict[str, _Assignment] = {
             unit.work_unit_id: _Assignment(
                 work_unit_id=unit.work_unit_id,
-                phase="write_initial",
+                phase=initial_phase,
                 role=spec.writer_role,
                 unit=unit,
                 locations=unit.locations,
             )
-            for unit in spec.units
+            for unit in initial_units
         }
         self.reserved: set[str] = set()
         self.finished_assignments: set[str] = set()
         self.failed_assignments: set[str] = set()
         self.call_assignments: dict[str, _Assignment] = {}
         self.revised_locations: set[str] = set()
-        self.phase = "write_initial" if self.assignments else "review_initial"
+        self.phase = initial_phase if self.assignments else "review_initial"
         self.eligible_versions: set[int] = set()
         self.final_version: int | None = None
         self.degraded = False
@@ -364,7 +369,7 @@ class _Coordinator:
 
     @property
     def max_tasks(self) -> int:
-        return len(self.spec.units) * 2 + 1
+        return len(self.spec.preparation_units) + len(self.spec.units) * 2 + 1
 
     @property
     def has_valid_draft(self) -> bool:
@@ -507,7 +512,10 @@ class _Coordinator:
             and self.spec.report_kind == "meeting"
             and self.phase == "write_initial"
         )
-        if not batched_deals and len(calls) != 1:
+        batched_preparation = (
+            len(calls) > 1 and bool(self.spec.preparation_units) and self.phase == "prepare"
+        )
+        if not batched_deals and not batched_preparation and len(calls) != 1:
             raise PermissionError("report_supervisor_action_invalid")
         if self.phase == "finish":
             if len(calls) != 1:
@@ -597,8 +605,12 @@ class _Coordinator:
                 if self.spec.report_kind == "meeting" and unit is not None
                 else []
             ),
-            "source_ids": [item["source_id"] for item in self.spec.source.get("source_units", [])]
-            if self.spec.report_kind != "meeting"
+            "source_ids": (
+                [item["source_id"] for item in self.spec.source.get("source_units", [])]
+                if assignment.phase in {"synthesize", "review_initial", "repair"}
+                else [unit.scope] if assignment.phase == "prepare" and unit is not None
+                else [item["source_id"] for item in self.spec.source.get("source_units", [])]
+            ) if self.spec.report_kind != "meeting"
             else [],
             "output_shape": unit.output_shape if unit else "ReportReview",
         }
@@ -620,7 +632,11 @@ class _Coordinator:
             if self.spec.report_kind == "meeting" and assignment.role == REVIEWER_ROLE
             else frozenset({assignment.unit.scope})
             if self.spec.report_kind == "meeting" and assignment.unit is not None
-            else frozenset(item["source_id"] for item in self.spec.source.get("source_units", []))
+            else (
+                frozenset(item["source_id"] for item in self.spec.source.get("source_units", []))
+                if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}
+                else frozenset({assignment.unit.scope}) if assignment.unit else frozenset()
+            )
         )
         existing = (
             self.all_meeting_scopes
@@ -708,9 +724,22 @@ class _Coordinator:
         elif active[0] is not self:
             allowed, reason = frozenset(), "other_assignment_context"
         else:
-            allowed = existing
-            reason = "allowed" if source_id is None or source_id in existing else "unknown_scope"
-        decision = source_id is None or source_id in allowed
+            assignment = active[1]
+            allowed = (
+                existing
+                if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}
+                else frozenset({assignment.unit.scope}) if assignment.unit else frozenset()
+            )
+            reason = (
+                "allowed"
+                if (source_id is None and assignment.phase != "prepare") or source_id in allowed
+                else "unknown_scope" if source_id not in existing
+                else "other_assignment"
+            )
+        decision = (
+            source_id is None and active[1].phase != "prepare"
+            or source_id in allowed
+        ) if active is not None and active[0] is self else False
         fields = {
             "report_kind": self.spec.report_kind,
             "tool_name": tool_name,
@@ -751,6 +780,8 @@ class _Coordinator:
             allowed.add("read_writer_plans")
         if assignment.phase == "repair":
             allowed.add("read_validated_review")
+        if assignment.phase == "synthesize":
+            allowed.add("read_writer_digests")
         if (
             self.spec.report_kind == "meeting"
             and assignment.role != REVIEWER_ROLE
@@ -783,11 +814,22 @@ class _Coordinator:
         else:
             if not any(call["name"] == "read_report_context" for call in calls):
                 return False
-            expected = {unit["source_id"] for unit in self.spec.source["source_units"]}
+            expected = (
+                {assignment.unit.scope}
+                if assignment.phase == "prepare" and assignment.unit
+                else {unit["source_id"] for unit in self.spec.source["source_units"]}
+            )
             reads = [call for call in calls if call["name"] == "read_report_sources"]
             actual = {call["args"].get("source_id") for call in reads}
-            if None not in actual and not expected <= actual:
+            if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}:
+                if None not in actual and not expected <= actual:
+                    return False
+            elif expected != actual:
                 return False
+        if assignment.phase == "synthesize" and not any(
+            call["name"] == "read_writer_digests" for call in calls
+        ):
+            return False
         required_artifacts: set[tuple[str, int]] = set()
         if assignment.phase == "repair":
             required_artifacts = {("read_validated_draft", 1), ("read_validated_review", 1)}
@@ -829,7 +871,8 @@ class _Coordinator:
             or artifact.review_round != expected_round
         ):
             raise PermissionError("report_artifact_version_mismatch")
-        self._validate_plan(artifact, assignment)
+        if assignment.phase != "prepare":
+            self._validate_plan(artifact, assignment)
         assert assignment.unit is not None
         try:
             section = assignment.unit.schema.model_validate(artifact.draft)
@@ -845,11 +888,15 @@ class _Coordinator:
         )
         self.spec.validate_unit(assignment.unit, section, previous, assignment.locations)
         normalized = artifact.model_copy(update={"draft": section.model_dump(mode="json")})
-        self._persist(
-            f"/artifacts/writer/{assignment.work_unit_id}.json",
-            normalized.model_dump(mode="json"),
+        path = (
+            f"/artifacts/source-digests/{assignment.unit.scope}.json"
+            if assignment.phase == "prepare"
+            else f"/artifacts/writer/{assignment.work_unit_id}.json"
         )
-        if assignment.phase == "repair":
+        self._persist(path, normalized.model_dump(mode="json"))
+        if assignment.phase == "prepare":
+            self.initial_artifacts[assignment.work_unit_id] = normalized
+        elif assignment.phase == "repair":
             self.repair_artifacts[assignment.work_unit_id] = normalized
             self.repair_sections[assignment.unit.scope] = section
             self.revised_locations.update(assignment.locations)
@@ -918,6 +965,19 @@ class _Coordinator:
         if assignment.phase == "write_initial":
             self._assemble(1)
             return
+        if assignment.phase == "prepare":
+            if self.spec.synthesis_unit is None:
+                raise LLMError("report_generation_failed")
+            unit = self.spec.synthesis_unit
+            self.assignments = {unit.work_unit_id: _Assignment(
+                work_unit_id=unit.work_unit_id, phase="synthesize", role=self.spec.writer_role,
+                unit=unit, locations=unit.locations,
+            )}
+            self.phase = "synthesize"
+            return
+        if assignment.phase == "synthesize":
+            self._assemble(1)
+            return
         if self.repair_artifacts:
             try:
                 self._assemble(2, sections={**self.sections, **self.repair_sections})
@@ -955,6 +1015,8 @@ class _Coordinator:
                 "artifact_path": (
                     f"/artifacts/reviews/r{assignment.review_round}.json"
                     if assignment.role == REVIEWER_ROLE
+                    else f"/artifacts/source-digests/{assignment.unit.scope}.json"
+                    if assignment.phase == "prepare" and assignment.unit
                     else f"/artifacts/writer/{assignment.work_unit_id}.json"
                 ),
                 **self.public_state(issues=issues),
@@ -973,6 +1035,11 @@ class _Coordinator:
                 self.review_incomplete = True
             elif assignment.phase == "repair":
                 self.review_incomplete = True
+                self._advance_after_writer(assignment)
+            elif assignment.phase == "prepare":
+                self.preparation_failures[assignment.unit.scope] = (
+                    str(error) if isinstance(error, LLMError) else "preparation_failed"
+                )
                 self._advance_after_writer(assignment)
             else:
                 raise error
@@ -1080,6 +1147,25 @@ class _Coordinator:
                 ],
             }
         return copy.deepcopy(value)
+
+    def writer_digests(self) -> list[dict[str, Any]]:
+        active = _ACTIVE_ASSIGNMENT.get()
+        if active is None or active[0] is not self or active[1].phase != "synthesize":
+            raise PermissionError("report_artifact_not_allowed")
+        digests = []
+        for unit in self.spec.preparation_units:
+            path = f"/artifacts/source-digests/{unit.scope}.json"
+            if path in self.artifact_values:
+                digests.append(copy.deepcopy(self.artifact_values[path]))
+            elif unit.scope in self.preparation_failures:
+                digests.append(
+                    {
+                        "source_id": unit.scope,
+                        "status": "failed",
+                        "error_code": self.preparation_failures[unit.scope],
+                    }
+                )
+        return digests
 
 
 class _ChildGuard(AgentMiddleware):
@@ -1338,7 +1424,12 @@ class _SupervisorGuard(AgentMiddleware):
                         )
                     except Exception:
                         pass
-                    if not self.coordinator.has_valid_draft:
+                    if (
+                        not self.coordinator.has_valid_draft
+                        and assignment.phase != "prepare"
+                    ) or (
+                        assignment.phase == "prepare" and isinstance(normalized, PermissionError)
+                    ):
                         raise normalized from None
                     receipt = await self.coordinator.fail(assignment, normalized)
                     command = Command(update={})
@@ -1370,7 +1461,11 @@ def _artifact_tools(coordinator: _Coordinator) -> list[Callable]:
         """현재 수정 task에 허용된 r1 검토 artifact를 읽는다."""
         return coordinator.artifact("review", review_round)
 
-    return [read_validated_draft, read_writer_plans, read_validated_review]
+    def read_writer_digests() -> list[dict[str, Any]]:
+        """종합 task가 서버가 검증한 준비 결과를 읽는다."""
+        return coordinator.writer_digests()
+
+    return [read_validated_draft, read_writer_plans, read_validated_review, read_writer_digests]
 
 
 def _child(
@@ -1383,7 +1478,11 @@ def _child(
     role: str,
     reviewer: bool,
 ):
-    schemas = tuple(dict.fromkeys(unit.schema for unit in coordinator.spec.units))
+    schemas = tuple(
+        dict.fromkeys(
+            unit.schema for unit in (*coordinator.spec.preparation_units, *coordinator.spec.units)
+        )
+    )
     draft_schema = reduce(operator.or_, schemas) if schemas else dict[str, Any]
     if len(schemas) > 1 and all("kind" in schema.model_fields for schema in schemas):
         draft_schema = Annotated[draft_schema, Field(discriminator="kind")]
@@ -1396,6 +1495,12 @@ def _child(
     prompt = (
         "REPORT_REVIEWER. 검증된 초안을 직접 고치지 말고 location/evidence/action issue만 반환한다."
         if reviewer
+        else (
+            "REPORT_WRITER. SERVER_ASSIGNMENT.phase가 prepare이면 배정된 한 source_id의 원문만 "
+            "읽고 PeriodSourceDigest로 사실·결정·불확실성·후속조치와 근거를 보존한다. "
+            "synthesize이면 전체 digest와 frozen 원문을 읽어 종합 ReportDraftOutput을 작성한다."
+        )
+        if coordinator.spec.preparation_units and role == coordinator.spec.writer_role
         else "REPORT_WRITER. 배정된 한 scope만 작성하거나 배정된 location만 수정한다."
     )
     prompt += (
@@ -1500,6 +1605,9 @@ async def _run_supervisor(spec: WorkflowSpec) -> WorkflowResult:
             "work_unit_id=<id>를 쓰고, 그 뒤에는 목적·검사할 결과·수정 이유를 구체적으로 적는다. "
             "보고서나 review를 직접 쓰지 말고 source를 요청하거나 추측하지 않는다. 미팅 초기에는 "
             "남은 독립 딜 writer들을 같은 turn의 여러 task로 함께 위임한다. "
+            "기간 보고서 prepare에서는 "
+            "남은 독립 자료 정리 task들을 같은 turn에 함께 위임하고, 모두 종료되면 "
+            "synthesize 하나를 수행한다. "
             "common/unassigned writer와 review/repair task는 매 turn 하나씩 순차 위임한다. "
             "매 receipt의 최신 phase/allowlist를 다음 호출에 "
             "사용한다. 검증된 최신 허용 버전을 선택한다.\n\n" + spec.instructions

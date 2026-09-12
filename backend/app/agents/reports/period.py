@@ -3,7 +3,7 @@
 from time import perf_counter
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.reports import harness, period_sources, review_delivery
 from app.schemas.report_drafts import ReportDraftOutput
@@ -17,6 +17,31 @@ PERIOD_WRITER_ROLES = {
     "weekly": "weekly-report-writer",
     "monthly": "monthly-report-writer",
 }
+
+
+class PeriodDigestItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(min_length=1, max_length=80)
+    content: str = Field(min_length=1, max_length=10_000)
+    source_id: str = Field(min_length=1, max_length=200)
+    evidence_ref: str | None = Field(default=None, max_length=500)
+
+
+class PeriodSourceDigest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str = Field(min_length=1, max_length=200)
+    report_kind: str = Field(min_length=1, max_length=40)
+    report_date: str | None = None
+    period_start: str | None = None
+    period_end: str | None = None
+    facts: list[PeriodDigestItem] = Field(default_factory=list, max_length=250)
+    decisions: list[PeriodDigestItem] = Field(default_factory=list, max_length=250)
+    uncertainties: list[PeriodDigestItem] = Field(default_factory=list, max_length=250)
+    follow_ups: list[PeriodDigestItem] = Field(default_factory=list, max_length=250)
+    deal_states: list[PeriodDigestItem] = Field(default_factory=list, max_length=250)
+    evidence_refs: list[str] = Field(default_factory=list, max_length=500)
 
 EVIDENCE_CONTRACT = (
     "source_units와 run_context는 서버가 종류·기간·권한을 검증해 동결한 자료다. 바로 아래 확정 "
@@ -57,6 +82,21 @@ def _validate_unit(
     previous: BaseModel | None,
     locations: frozenset[str],
 ) -> None:
+    if isinstance(draft, PeriodSourceDigest):
+        if draft.source_id != unit.scope:
+            raise PermissionError("report_source_not_allowed")
+        items = [
+            *draft.facts,
+            *draft.decisions,
+            *draft.uncertainties,
+            *draft.follow_ups,
+            *draft.deal_states,
+        ]
+        if any(item.source_id != unit.scope for item in items):
+            raise PermissionError("report_source_not_allowed")
+        if not set(draft.evidence_refs) <= unit.evidence_refs:
+            raise PermissionError("report_source_not_allowed")
+        return
     value = ReportDraftOutput.model_validate(draft.model_dump(mode="json"))
     if _structural_issues(value):
         raise LLMError("report_output_invalid")
@@ -80,7 +120,7 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
         for key, value in source_payload["run_context"].items()
         if value not in (None, "")
     )
-    unit = harness.WorkUnit(
+    synthesis_unit = harness.WorkUnit(
         work_unit_id="write-001",
         scope="body",
         schema=ReportDraftOutput,
@@ -88,23 +128,37 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
         evidence_refs=frozenset(evidence_refs),
         output_shape='{"fields":[{"field_id":"body","value":"..."}]}',
     )
+    preparation_units = tuple(
+        harness.WorkUnit(
+            work_unit_id=f"prepare-{item['source_id'].replace(':', '-').replace('_', '-')}",
+            scope=item["source_id"],
+            schema=PeriodSourceDigest,
+            locations=frozenset({item["source_id"]}),
+            evidence_refs=frozenset({item["source_id"]}),
+            output_shape="PeriodSourceDigest",
+        )
+        for item in source_payload["source_units"]
+        if item["source_type"] in {"meeting_bundle", "child_submission"}
+    )
     spec = harness.WorkflowSpec(
         report_kind=source["report_kind"],
         writer_role=role,
         stage="period_report_writing",
         instructions="\n".join((EVIDENCE_CONTRACT, GUIDANCE_CONTRACT)),
         source=source_payload,
-        units=(unit,),
+        units=(synthesis_unit,),
         prefilled_sections={},
         assemble=lambda values: values["body"],
         validate_draft=lambda draft: _validate_unit(
-            unit,
+            synthesis_unit,
             ReportDraftOutput.model_validate(draft.model_dump(mode="json")),
             None,
-            unit.locations,
+            synthesis_unit.locations,
         ),
         validate_unit=_validate_unit,
         source_count=len(source_payload["source_units"]),
+        preparation_units=preparation_units,
+        synthesis_unit=synthesis_unit,
     )
     outcome: harness.WorkflowResult | None = None
     completed = False
