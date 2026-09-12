@@ -610,11 +610,11 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="휴대폰" required error={errors.phone} check={fromDocument.has('phone')}>
+          <Field label="전화" required error={errors.phone} check={fromDocument.has('phone')}>
             <input
               type="tel"
               value={formatPhone(draft.phone)}
-              placeholder="010-0000-0000"
+              placeholder="02-000-0000"
               maxLength={50}
               aria-invalid={errors.phone !== undefined}
               disabled={submitting}
@@ -642,11 +642,11 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="전화">
+          <Field label="휴대폰">
             <input
               type="tel"
               value={formatPhone(draft.telephone)}
-              placeholder="02-000-0000"
+              placeholder="010-0000-0000"
               maxLength={50}
               disabled={submitting}
               onChange={(event) => set('telephone', phoneDigits(event.target.value))}
