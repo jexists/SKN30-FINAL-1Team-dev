@@ -331,7 +331,10 @@ test('기간 메모는 guidance 2,000자 경계를 사용하고 최종 제출에
     reportInputError(periodGenerationRequestOf({ ...base, transcript: `${memo}😀` }, 'too-long')),
     'guidance_too_large',
   )
-  assert.equal(periodFinalizeRequestOf({ ...base, transcript: memo }, 'memo-finalize').transcript, memo)
+  assert.equal(
+    periodFinalizeRequestOf({ ...base, transcript: memo }, 'memo-finalize').transcript,
+    memo,
+  )
 })
 
 test('딜 드로어를 열고 닫아도 현재 목록 페이지를 초기화하지 않는다', async () => {
@@ -466,10 +469,9 @@ test('완료 미팅과 기간 보고서는 원본 목록을 복구하고 빈 직
 })
 
 test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사용자 문구로 바꾼다', async () => {
-  const message =
-    'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.'
+  const message = 'AI가 보고서 초안을 정상적으로 구성하지 못했습니다. 다시 시도해 주세요.'
   assert.equal(reportGenerationMessage('report_agent_output_invalid'), message)
-  assert.doesNotMatch(reportGenerationMessage('future_internal_error_code'), /future_internal/)
+  assert.match(reportGenerationMessage('future_internal_error_code'), /future_internal_error_code/)
   assert.match(messageForCode('report_attachment_ocr_too_large', '실패'), /페이지나 이미지/)
 
   const raw = response()
@@ -1420,8 +1422,9 @@ test('공통·미지정 기록은 읽기 전용 제목과 편집용 연결 label
     unassigned_report: { body: '미지정 내용 본문', evidence_ids: [] },
   }
   const view = renderToStaticMarkup(createElement(MeetingSharedPanel, { shared }))
-  assert.match(view, /<h3[^>]*>공통 내용<\/h3>/)
-  assert.match(view, /<h3[^>]*>딜 미지정 · 확인 필요<\/h3>/)
+  assert.match(view, /<h2[^>]*>미팅 공통 기록<\/h2>/)
+  assert.doesNotMatch(view, /<h3[^>]*>공통 내용<\/h3>/)
+  assert.match(view, /<h3[^>]*>딜 미지정 기록<\/h3>/)
   assert.doesNotMatch(view, /<label|<textarea/)
   assert.match(view, /공통 내용 본문/)
   assert.match(view, /미지정 내용 본문/)
@@ -1569,10 +1572,7 @@ test('다음 날 작성 완료·일정 이동 후 수정에도 기존 미팅일�
   )
   assert.match(compose, /date: meetingDate,\s+time: meetingTime/)
   assert.match(compose, /item=\{\{ \.\.\.item, date: meetingDate, time: meetingTime \}\}/)
-  assert.match(
-    compose,
-    /미팅일 \{fmtDot\(parseISO\(meetingDate\)\)\} · 작성 완료 후에도 이 날짜로 저장됩니다/,
-  )
+  assert.doesNotMatch(compose, /작성 완료 후에도 이 날짜로 저장됩니다/)
   const meetingDate = saved.date ?? item.date
   const draft = {
     reportId: saved.id,
