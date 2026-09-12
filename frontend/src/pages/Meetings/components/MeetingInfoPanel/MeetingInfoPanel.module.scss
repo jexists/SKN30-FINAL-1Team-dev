@@ -85,12 +85,6 @@
   white-space: nowrap;
 }
 
-.pill {
-  @include tag-pill;
-
-  font-size: 11px;
-}
-
 /* 미팅 브리핑. 사실 목록 아래에 한 문단으로 깝니다. */
 .brief {
   color: var(--ink-2);

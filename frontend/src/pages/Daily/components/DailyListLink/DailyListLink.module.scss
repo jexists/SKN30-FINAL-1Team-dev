@@ -3,8 +3,14 @@
   padding-right: var(--s3);
 }
 
-/* 되돌아가기 모양에서는 화살표가 앞으로 오므로 줄이는 쪽도 뒤집습니다. */
+/* 되돌아가는 길은 버튼이 아니라 파란 글자 한 줄입니다. */
 .back {
-  padding-right: var(--s4);
-  padding-left: var(--s3);
+  @include back-link;
+}
+
+/* 머리 띠 안에서는 버튼이 아니라 이 문서가 어디에서 왔는지 가리키는 줄입니다. */
+.crumb {
+  @include back-link;
+
+  font-size: 12px;
 }

@@ -1,5 +1,6 @@
 import { useId } from 'react'
 
+import ReportBody from '@/components/ReportBody'
 import type { MeetingProgress, MeetingSharedNotes } from '@/types'
 
 import styles from './MeetingSharedPanel.module.scss'
@@ -47,7 +48,7 @@ export default function MeetingSharedPanel({
     >
       <div className={styles.heading}>
         <h2>미팅 공통 기록</h2>
-        <span>미팅 공통 내용과 확인이 필요한 기록</span>
+        {onChange && <span>미팅 공통 내용과 확인이 필요한 기록</span>}
       </div>
       {generating && previews.length === 0 && (
         <div className={styles.section}>
@@ -76,8 +77,13 @@ export default function MeetingSharedPanel({
             change: (value: string) => onChange?.(value, unassignedBody),
           },
           {
+            /*
+             * 어느 딜에도 붙지 않은 기록입니다. 쓰는 동안에는 '어느 딜 얘기인지
+             * 보세요' 라는 할 일이지만, 제출한 보고서를 읽을 때는 더 확인할 것이
+             * 없습니다. 그래서 읽는 화면에서는 사실만 말하고 주황도 걷습니다.
+             */
             key: 'unassigned',
-            title: '딜 미지정 · 확인 필요',
+            title: onChange ? '딜 미지정 · 확인 필요' : '딜 미지정 기록',
             report: shared?.unassigned_report,
             value: unassignedBody,
             change: (value: string) => onChange?.(commonBody, value),
@@ -86,7 +92,9 @@ export default function MeetingSharedPanel({
           .filter((part) => part.report || (showCommon && part.key === 'common'))
           .map((part) => (
             <div
-              className={`${styles.section} ${part.key === 'unassigned' ? styles.needsReview : ''}`}
+              className={`${styles.section} ${
+                onChange && part.key === 'unassigned' ? styles.needsReview : ''
+              }`}
               key={part.key}
             >
               {onChange ? (
@@ -100,12 +108,22 @@ export default function MeetingSharedPanel({
                     placeholder="기록된 내용이 없습니다."
                     onChange={(event) => part.change(event.target.value)}
                   />
-                  <p className={styles.printText}>{part.value || '기록된 내용 없음'}</p>
+                  {part.value.trim() ? (
+                    <ReportBody className={styles.printText} body={part.value} />
+                  ) : (
+                    <p className={`${styles.printText} ${styles.empty}`}>기록된 내용 없음</p>
+                  )}
                 </>
               ) : (
                 <>
-                  <h3>{part.title}</h3>
-                  <p className={styles.text}>{part.value}</p>
+                  {/* 판 머리가 이미 '미팅 공통 기록' 입니다. 그 아래 같은 말을 또
+                      붙이지 않고, 갈래가 다른 미지정 기록에만 이름을 답니다. */}
+                  {part.key === 'unassigned' && <h3>{part.title}</h3>}
+                  {part.value.trim() ? (
+                    <ReportBody className={styles.text} body={part.value} />
+                  ) : (
+                    <p className={styles.empty}>기록된 내용 없음</p>
+                  )}
                 </>
               )}
             </div>

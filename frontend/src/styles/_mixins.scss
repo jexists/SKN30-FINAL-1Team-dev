@@ -40,6 +40,41 @@
   box-shadow: var(--sh-2);
 }
 
+// 화면 맨 위의 머리 띠. 놓인 판(card)과 달리 제 자리를 차지하는 한 장이라
+// 그림자를 한 겹만 두고, 오른쪽 끝에 옅은 물결을 깔아 조작부의 자리를 만듭니다.
+// 물결은 글자가 닿지 않는 오른쪽 절반에만 깔립니다.
+@mixin page-banner {
+  position: relative;
+  overflow: hidden;
+  padding: var(--s5) var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+
+  // 내용은 언제나 물결 위입니다. 쓰는 쪽이 z-index 를 다시 적지 않게 여기서 맡습니다.
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 0 auto;
+    width: 46%;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 150% at 86% -40%, var(--blue-tint) 0%, transparent 62%),
+      radial-gradient(90% 130% at 112% 130%, var(--blue-tint) 0%, transparent 58%);
+  }
+
+  @include md {
+    padding: var(--s4);
+  }
+}
+
 // demo/layout_v3.html §12 의 .tag-pill
 @mixin tag-pill {
   display: inline-flex;
@@ -288,4 +323,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 되돌아가는 길. 테두리 없이 파란 글자 한 줄로만 섭니다. */
+@mixin back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--r-xs);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--blue-ring);
+    outline-offset: 3px;
+  }
 }

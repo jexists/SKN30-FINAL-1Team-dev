@@ -123,6 +123,8 @@
 html {
   color-scheme: light;
   height: 100%;
+  // 내용이 짧은 화면에서 스크롤바가 사라지면 가운데 정렬된 본문 폭이 흔들립니다.
+  scrollbar-gutter: stable;
 }
 
 body {

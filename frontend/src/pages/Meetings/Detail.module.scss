@@ -1,58 +1,96 @@
-/*
- * 머리말이 맡는 것은 이동뿐입니다. 이 문서에 하는 일(수정·PDF)은 전부 시트
- * 아래에 있습니다. 양 끝이 잡혀 있어야 띠로 보이므로 왼쪽에 정체, 오른쪽에
- * 갈 곳을 두고 아래를 실선으로 닫습니다. 카드 안쪽 여백과 글머리가 어긋나
- * 보이던 것도 이 선이 층을 갈라 주면서 정리됩니다.
- */
-.head {
+/* 머리 띠. 면과 물결은 작성 화면과 같은 것(page-banner)을 씁니다. */
+.banner {
+  @include page-banner;
+
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--s4);
+  gap: var(--s5);
   flex-wrap: wrap;
   margin-bottom: var(--s5);
-  padding-bottom: var(--s4);
-  border-bottom: 1px solid var(--line);
 }
 
 .heading {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
   min-width: 0;
-}
+  flex-direction: column;
+  gap: var(--s2);
 
-/* 머리말 위, 본문 왼쪽 끝에 섭니다. */
-.toDaily {
-  margin-bottom: var(--s3);
+  /* 글 앞에 선 파란 선 한 줄. 머리 띠의 어느 쪽이 본문인지 눈이 먼저 잡습니다. */
+  padding-left: var(--s4);
+  border-left: 3px solid var(--blue);
+
+  /* 좁은 폭에서는 머리 띠가 곧 한 열이라 세로선이 가리킬 바깥쪽이 없습니다. */
+  @include md {
+    padding-left: 0;
+    border-left: 0;
+  }
 }
 
 /* 회사 이름과 상태는 한 덩어리입니다. 이 기록이 무엇이고 지금 어디까지 왔는지. */
 .title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--s3);
   flex-wrap: wrap;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.016em;
+  letter-spacing: -0.018em;
 }
 
 .meta {
   display: flex;
   align-items: center;
-  gap: var(--s2);
+  gap: var(--s3);
+  flex-wrap: wrap;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* 앞의 아이콘이 무엇에 대한 값인지 말합니다. 그래서 '미팅일' 같은 말머리를 뺐습니다. */
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  svg {
+    flex: none;
+    color: var(--muted-2);
+  }
+}
+
+/* 가운뎃점 대신 선 한 줄. 항목마다 아이콘이 서 있어 점은 묻힙니다. */
+.bar {
+  width: 1px;
+  height: 12px;
+  background: var(--line-2);
+}
+
+/* 좁은 폭에서는 날짜가 한 줄을 다 쓰고, 작성자와 건수가 그 아래로 함께 내려갑니다. */
+@include md {
+  .meta {
+    row-gap: 0;
+  }
+
+  /* 줄바꿈 자리이자 두 줄 사이 간격입니다(행 간격을 0으로 두어 한 번만 벌어집니다). */
+  .breakBar {
+    width: 100%;
+    height: var(--s1);
+    background: none;
+  }
 }
 
 .when {
   font-variant-numeric: tabular-nums;
 }
 
-/* 테두리색(--line)은 글자로 쓰기엔 너무 옅어 가운뎃점이 사라집니다. */
-.dot {
-  color: var(--muted-2);
+/* 머리 띠 오른쪽 끝. 정체 덩어리가 폭을 다 쓰고 남은 자리에 섭니다. */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+  margin-left: auto;
 }
 
 /* 확인이 끝난 보고서. 수정 버튼 자리에 왜 없는지를 대신 둡니다. */
@@ -70,10 +108,95 @@
   align-items: start;
 
   // 작성 화면과 같은 비율·같은 간격입니다. 두 화면을 오갈 때 문서가 제자리에 있어야 합니다.
+  // 한 열로 접히면 미팅 정보가 제목 바로 다음입니다(접어 둘 수 있습니다).
   @include lg {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'sheet' 'materials';
+    grid-template-areas: 'materials' 'sheet';
     gap: var(--s4);
+  }
+}
+
+/*
+ * 자료 열을 접은 상태. 보고서가 폭을 다 가져갑니다. 한 열로 접히는 폭에서는
+ * 나란히 볼 일이 없으므로 접기 자체를 쓰지 않습니다(손잡이도 감춥니다).
+ * .layout 과 특정도를 맞춰 겹쳐 씁니다 — 파일이 붙는 순서에 좌우되지 않게 합니다.
+ */
+.layout.materialsCollapsed {
+  grid-template-columns: auto minmax(0, 1fr);
+
+  @include lg {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'materials' 'sheet';
+  }
+}
+
+.collapsed.collapsed {
+  display: none;
+
+  @include lg {
+    display: block;
+
+    .materialsBody {
+      display: none;
+    }
+
+    .materialHead {
+      margin-bottom: 0;
+    }
+
+    .mobileToggle svg {
+      transform: none;
+    }
+  }
+}
+
+/* 좁은 폭에서만 서는 여닫이 머리. 넓은 폭에서는 왼쪽 열의 접기 손잡이가 그 일을 합니다. */
+.mobileToggle {
+  display: none;
+
+  @include lg {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 3px solid var(--blue-ring);
+      outline-offset: 4px;
+      border-radius: var(--r-sm);
+    }
+
+    svg {
+      flex: none;
+      color: var(--muted);
+      transform: rotate(180deg);
+    }
+  }
+}
+
+/* 다시 펴는 손잡이. 접힌 자료 열의 자리에 제 글자만큼만 서서 어디를 펴는지 알립니다. */
+.materialsToggle {
+  grid-area: materials;
+  align-self: start;
+
+  @include lg {
+    display: none;
+  }
+}
+
+/* 접기 손잡이는 판의 머리 오른쪽 끝. 한 열로 접히면 접을 이유가 없어 사라집니다. */
+.collapseAction {
+  flex: none;
+  margin-left: auto;
+
+  @include lg {
+    display: none;
   }
 }
 
@@ -90,29 +213,11 @@
   border-radius: var(--r-lg);
   background: var(--surface);
 
-  /*
-   * 보고서를 끝까지 내려도 자료는 제자리에 남습니다. 대조해 가며 읽는 것이
-   * 이 화면의 일이기 때문입니다. 한 열로 접히면 나란히 볼 일이 없으므로
-   * 아래에서 도로 풉니다.
-   *
-   * 길이는 미팅 내용 쪽에서 잡습니다. 여기 max-height 는 첨부가 아주 많을 때를
-   * 위한 뒷받침이라, 평소에는 걸리지 않습니다.
-   */
-  position: sticky;
-  top: var(--s5);
-  max-height: calc(100vh - var(--s7));
-  overflow-y: auto;
-
+  /* 길이는 잘라 두지 않고 페이지와 함께 흐릅니다. 보고서만 볼 때는 통째로 접습니다. */
   section + section {
     margin-top: var(--s5);
     padding-top: var(--s5);
     border-top: 1px solid var(--line);
-  }
-
-  @include lg {
-    position: static;
-    max-height: none;
-    overflow: visible;
   }
 
   @include md {
@@ -120,14 +225,21 @@
   }
 }
 
+/* 판의 머리. 제목이 왼쪽에 붙고 그 판의 조작이 오른쪽으로 이어집니다. */
 .materialHead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  flex-wrap: wrap;
   gap: var(--s2);
   margin-bottom: var(--s3);
   color: var(--ink-2);
   font-size: 12px;
   font-weight: 600;
+
+  h2 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
 }
 
 /* 보고서 열: 종이 한 장과 그 아래 조작부. */
@@ -145,10 +257,6 @@
   gap: var(--s5);
 }
 
-.assessment {
-  flex: none;
-}
-
 .sectionError {
   margin-top: var(--s3);
   color: var(--danger);
@@ -164,32 +272,7 @@
   text-align: center;
 }
 
-/*
- * 작성 화면은 시트 아래 같은 자리에 제출 버튼을 둡니다. 두 화면을 오갈 때
- * 주된 버튼이 같은 곳에 있습니다. 다만 여기서는 따라붙지 않습니다 —
- * 다 읽은 뒤에 하는 일이라 끝에서 만나면 됩니다.
- */
-.docActions {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  margin-top: var(--s4);
-
-  @include sm {
-    flex-wrap: wrap;
-  }
-}
-
-/* 주된 것은 오른쪽 끝. 작성 화면의 제출 버튼과 같은 자리입니다. */
-.trailing {
-  margin-left: auto;
-
-  @include sm {
-    margin-left: 0;
-  }
-}
-
-/* 작성 화면의 딜 카드와 같은 머리·본문 구조입니다. */
+/* 작성 화면의 딜 카드와 같은 머리·본문 구조입니다. 머리는 DealCardHeader 가 맡습니다. */
 .card {
   min-width: 0;
   overflow: hidden;
@@ -199,87 +282,21 @@
   box-shadow: var(--sh-2);
 }
 
-.cardHead {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 78px;
-  align-items: center;
-  gap: var(--s3);
-  padding: var(--s4) var(--s5);
-  border-bottom: 1px solid var(--line);
-
-  @include sm {
-    grid-template-columns: minmax(0, 1fr);
-
-    .assessment {
-      justify-self: start;
-    }
-  }
-}
-
-.dealIdentity {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--s1);
-  border-radius: var(--r-sm);
-  color: inherit;
-  text-decoration: none;
-
-  &:hover .dealLine {
-    color: var(--blue);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--blue-ring);
-    outline-offset: 3px;
-  }
-}
-
-.dealLine {
-  color: var(--blue);
-  font-size: 15px;
-  letter-spacing: -0.015em;
-}
-
-.dealTitle {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .cardBody {
   padding: var(--s5);
+  border-top: 1px solid var(--line);
 
   @include md {
     padding: var(--s4);
   }
 }
 
-.titleBlock {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-  margin-bottom: var(--s6);
-}
-
 /* 작성 화면에서는 고쳐 쓰는 칸이지만 여기서는 그냥 머리글입니다. */
 .docTitle {
+  margin-bottom: var(--s6);
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.02em;
-}
-
-.docWhen {
-  align-self: flex-end;
-  color: var(--muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
 }
 
 .reportBody {
@@ -309,22 +326,12 @@
   line-height: 1.7;
 }
 
-/*
- * 미팅 내용만 길이가 정해져 있지 않습니다. 그대로 두면 자료 판이 보고서보다
- * 훨씬 길어져, 결과물이 곁다리처럼 보입니다. 스크롤은 길어지는 이 한 곳에만 둡니다.
- */
+/* 미팅 내용은 잘라 두지 않습니다. 길면 자료 열째로 접어 두면 됩니다. */
 .transcript {
-  max-height: 340px;
-  overflow-y: auto;
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.8;
   white-space: pre-wrap;
-
-  @include lg {
-    max-height: none;
-    overflow: visible;
-  }
 }
 
 .missing {
@@ -347,15 +354,27 @@
  */
 @media print {
   .materials.materials,
-  .docActions.docActions,
-  .toDaily.toDaily {
+  .materialsToggle.materialsToggle,
+  .actions.actions {
     display: none;
   }
 
-  /* 종이에서는 머리말이 문서의 머리글입니다. 화면용 구분선은 남기지 않습니다. */
-  .head.head {
-    padding-bottom: 0;
-    border-bottom: 0;
+  /* 종이에서는 머리 띠가 문서의 머리글입니다. 면도 물결도 남기지 않습니다. */
+  .banner.banner {
+    margin-bottom: var(--s5);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .banner.banner::after {
+    display: none;
+  }
+
+  /* 종이에서 목록으로 돌아가는 길은 쓸 수 없습니다. */
+  .heading.heading a {
+    display: none;
   }
 
   .layout.layout {
@@ -369,12 +388,8 @@
     break-inside: avoid;
   }
 
-  .cardHead.cardHead {
-    min-height: 0;
-    padding: 0 0 var(--s3);
-  }
-
   .cardBody.cardBody {
+    display: block;
     padding: var(--s3) 0 0;
   }
 

@@ -11,19 +11,60 @@
 }
 
 /* 머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 PDF 입니다. 상세 화면과 같은 자리입니다. */
+/* 제목 없이 조작부만 서는 줄이라 판을 깔지 않고 바탕 위에 그대로 둡니다. */
 .head {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s2);
-  margin-bottom: var(--s3);
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+
+  /*
+   * 넓은 화면은 .page 가 화면 높이에 맞춰져 머리말이 늘 보입니다.
+   * 페이지가 통째로 구르는 좁은 화면에서만 톱바 아래에 붙여 둡니다.
+   */
+  @include lg {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--s2));
+    z-index: 1;
+    // 판이 없으므로 아래로 지나가는 내용이 비쳐 보이지 않게 바탕색을 직접 깝니다.
+    padding-block: var(--s2);
+    background: var(--paper);
+  }
 }
 
-/* 화살표가 글자 앞에 서므로 줄이는 여백도 왼쪽입니다. */
+/* 머리말 가운데 자리. 알림이 없으면 빈 칸으로 남아 좌우 버튼 자리를 지킵니다. */
+.headNotice {
+  flex: 1;
+  min-width: 0;
+
+  > * + * {
+    margin-top: var(--s2);
+  }
+}
+
+/* 실패는 아니지만 놓치면 내용이 날아갑니다. 오류와 같은 무게로 둡니다. */
+.headNote {
+  flex: none;
+  color: var(--red-ink);
+  font-size: 13px;
+
+  &::before {
+    content: '* ';
+  }
+}
+
+/* 되돌아가기 반대편. 작성 버튼이 끝에 옵니다. */
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* 되돌아가는 길은 버튼이 아니라 파란 글자 한 줄입니다. */
 .back {
-  padding-right: var(--s4);
-  padding-left: var(--s3);
+  @include back-link;
 }
 
 .locked {
@@ -44,12 +85,15 @@
 
 .mutationError {
   flex: none;
-  margin-bottom: var(--s3);
-  padding: var(--s3) var(--s4);
-  border-radius: var(--r-md);
-  background: var(--red-tint);
   color: var(--red-ink);
   font-size: 13px;
+
+  p,
+  li {
+    &::before {
+      content: '* ';
+    }
+  }
 }
 
 .generationNote {
@@ -111,6 +155,25 @@
   }
 }
 
+/*
+ * 왼쪽 열을 통째로 접은 상태. 보고서가 남은 폭을 모두 가져가고 왼쪽에는 다시 펴는 손잡이만 남습니다.
+ * .layout / .layout.solo 와 특정도를 맞춰 겹쳐 씁니다 — 파일이 붙는 순서에 좌우되지 않게 합니다.
+ */
+.layout.sideCollapsed {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+/* 접기 손잡이. 왼쪽 열 머리에 붙어 제 글자만큼만 섭니다. */
+.sideToggle {
+  flex: none;
+  align-self: start;
+}
+
+/* 접힌 내용은 지우지 않고 감춥니다 — 첨부 원문을 펼쳐 둔 상태가 살아 있어야 합니다. */
+.collapsed.collapsed {
+  display: none;
+}
+
 /* 왼쪽 열. 위는 참고 자료, 아래는 입력판입니다. */
 .side {
   display: flex;
@@ -139,14 +202,8 @@
   }
 }
 
-.generateBar {
-  flex: none;
-  display: flex;
-  gap: var(--s2);
-  justify-content: space-between;
-}
-
-/* 두 버튼은 제 글자만큼만 서고 양쪽 끝으로 갈립니다. */
+/* 보고서 끝에 붙는 내려받기 줄. 오른쪽 끝에 섭니다. */
+/* 버튼은 제 글자만큼만 섭니다. 글자가 바뀌어도 폭만 따라 바뀝니다. */
 .generate {
   flex: none;
 }
@@ -188,50 +245,25 @@
 /* 여러 딜 카드의 저장 지점은 이 한 곳입니다. 긴 보고서를 내려 읽어도 상단에 남습니다. */
 .saveBar {
   flex: none;
-  position: sticky;
-  top: calc(var(--topbar-h) + var(--s3));
-  z-index: 2;
+  display: flex;
+  min-width: 0;
+  padding-top: var(--s3);
+}
+
+.saveActions {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: var(--s3);
-  min-width: 0;
-  padding: var(--s3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: var(--sh-2);
-
-  @include sm {
-    flex-wrap: wrap;
-    top: 64px;
-  }
+  justify-content: space-between;
+  gap: var(--s2);
 }
 
-.saveCopy {
-  min-width: 0;
-  flex: 1;
-
-  strong {
-    display: block;
-    margin-bottom: 2px;
-    color: var(--ink);
-    font-size: 13px;
-    font-weight: 650;
-  }
-
-  p {
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-  }
-}
-
+.pdfButton,
 .saveAllButton {
   flex: none;
 
   @include sm {
-    width: 100%;
+    flex: 1;
   }
 }
 
@@ -256,6 +288,7 @@
   .saveBar.saveBar,
   .generateBar.generateBar,
   .reference.reference,
+  .sideToggle.sideToggle,
   .input.input {
     display: none;
   }

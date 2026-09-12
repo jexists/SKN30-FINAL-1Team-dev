@@ -121,7 +121,7 @@ export default function MeetingPick() {
   const canShowNextWeek = iso(weekDays(weekOffset + 1)[0]) <= TODAY_ISO
 
   return (
-    <section className={styles.page} aria-busy={loading}>
+    <section aria-busy={loading}>
       <h1 className="sr-only">미팅 보고서 작성</h1>
 
       <DailyListLink back tab="meeting" className={styles.back} />

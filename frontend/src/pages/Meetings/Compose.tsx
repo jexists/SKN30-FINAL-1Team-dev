@@ -20,8 +20,8 @@ import {
   waitForMeetingAnalysis,
   waitForMeetingProcessing,
 } from '@/api/reportAgent'
-import Button, { buttonClass } from '@/components/Button'
-import { ChevronLeftIcon } from '@/components/icons'
+import Button from '@/components/Button'
+import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
 import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import { SkeletonDetail } from '@/components/Skeleton'
@@ -36,7 +36,6 @@ import type {
   MeetingProcessingOutput,
   ReportGenerationInput,
 } from '@/types'
-import { fmtDot, parseISO } from '@/utils/date'
 import { attachmentPayloadsOf, meetingAttachmentPurposeOf } from '@/utils/attachment'
 
 import DealReportCard from './components/DealReportCard'
@@ -56,7 +55,7 @@ import useMeetingReports, {
 
 import styles from './Compose.module.scss'
 
-type Confirm = { kind: 'regenerate' } | null
+type Confirm = { kind: 'regenerate' } | { kind: 'deselect'; dealId: string } | null
 
 function meetingInputOf(
   run: AgentRunResponse<MeetingProcessingOutput>,
@@ -93,6 +92,8 @@ export default function Compose() {
   const [submitting, setSubmitting] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [runErrors, setRunErrors] = useState<Record<string, string>>({})
+  // 저장 전에 페이지를 다시 연 경우. 마지막 실행 결과를 되살렸다는 안내입니다.
+  const [restored, setRestored] = useState(false)
   // 등록 단계에서는 왼쪽 한 열만 씁니다. 작성을 시작해야 보고서 열이 열립니다.
   const [opened, setOpened] = useState(false)
   const agendaId = params.get('agenda') ?? ''
@@ -102,6 +103,7 @@ export default function Compose() {
     setSubmitting(false)
     setRunError(null)
     setRunErrors({})
+    setRestored(false)
     setOpened(false)
     recoveredAgendaId.current = ''
     generationAttempt.current = undefined
@@ -189,7 +191,8 @@ export default function Compose() {
         if (controller.signal.aborted) return
         acceptGenerated(completed.id, completed.output_snapshot)
         startAnalysisWatch(completed)
-        setRunErrors(completed.output_snapshot.errors)
+        // 지난 실행의 실패는 딜 카드가 따로 알립니다. 여기서는 되살렸다는 사실만 알립니다.
+        setRestored(Boolean(completed.output_snapshot.reports))
       } catch (reason: unknown) {
         if (!controller.signal.aborted) {
           const parentRunId =
@@ -200,7 +203,9 @@ export default function Compose() {
                 : undefined
           if (parentRunId) startAnalysisWatchForParent(parentRunId)
           generationFailed(dealIds, reason)
-          setRunError(errorMessage(reason, '진행 중인 보고서를 복구하지 못했습니다.'))
+          setRunError(
+            errorMessage(reason, 'AI 보고서 작성을 완료하지 못했습니다. 다시 시도해 주세요.'),
+          )
         }
       } finally {
         if (recoveryAbort.current === controller) {
@@ -242,7 +247,9 @@ export default function Compose() {
           !missingInput &&
           (!isAxiosError(reason) || reason.response?.status !== 404)
         ) {
-          setRunError(errorMessage(reason, '진행 중인 보고서 상태를 확인하지 못했습니다.'))
+          setRunError(
+            errorMessage(reason, 'AI 보고서 작성을 완료하지 못했습니다. 다시 시도해 주세요.'),
+          )
         }
       })
       .finally(() => {
@@ -259,6 +266,8 @@ export default function Compose() {
   const [confirm, setConfirm] = useState<Confirm>(null)
   // 일정 상세는 대시보드·캘린더가 쓰는 드로어를 그대로 엽니다. AI 브리핑까지 그 안에 있습니다.
   const [detailOpen, setDetailOpen] = useState(false)
+  // 보고서를 읽을 때는 왼쪽 입력부를 통째로 접어 본문에 폭을 넘깁니다. 기억하지는 않습니다.
+  const [sideCollapsed, setSideCollapsed] = useState(false)
   useEffect(() => {
     setCreateDealOpen(false)
     createDealKey.current = ''
@@ -315,13 +324,9 @@ export default function Compose() {
         isAuthorEditableReportStatus(savedReport.apiStatus)))
   const canEditDeal = (_dealId: string) => canEdit
   const lockedDealIds = savedReport?.review === 'approved' ? [...draft.salesDealIds] : []
-  const fixedDealIds = draft.salesDealIds.filter(
-    (dealId) => draft.draftsByDeal[dealId]?.reportId !== undefined,
-  )
   const busy = pending || generating || recovering || submitting || createDealOpen
   const meetingDate = savedReport?.date ?? draft.reportDate ?? item.date
   const meetingTime = savedReport?.time ?? item.time
-  const when = `미팅일 ${fmtDot(parseISO(meetingDate))} ${meetingTime}`
 
   const dealRef = (dealId: string): MeetingDealRef => {
     const deal = deals.deals.find((one) => one.id === dealId)
@@ -396,6 +401,16 @@ export default function Compose() {
     attachments: attachmentPayloadsOf(draft.attachments),
   })
 
+  // 선택을 풀면 그 딜의 보고서가 화면에서 빠집니다. 내용이 있을 때만 한 번 묻습니다.
+  const toggleDeal = (dealId: string) => {
+    const state = draft.draftsByDeal[dealId]
+    const losesContent =
+      draft.salesDealIds.includes(dealId) &&
+      (state?.reportId !== undefined || !isMeetingBodyBlank(state?.values ?? {}))
+    if (losesContent) setConfirm({ kind: 'deselect', dealId })
+    else draft.toggleSalesDeal(dealId)
+  }
+
   const generateAll = async () => {
     if (
       busy ||
@@ -419,6 +434,7 @@ export default function Compose() {
     beginGeneration(targets)
     setRunError(null)
     setRunErrors({})
+    setRestored(false)
     let analysisParentRunId: string | undefined
     try {
       const request = meetingGenerationRequestOf(payload, attempt.key)
@@ -482,7 +498,9 @@ export default function Compose() {
           )
         }
         generationFailed(targets, reason)
-        setRunError(errorMessage(reason, '미팅 처리를 완료하지 못했습니다.'))
+        setRunError(
+          errorMessage(reason, 'AI 보고서 작성을 완료하지 못했습니다. 다시 시도해 주세요.'),
+        )
       }
     } finally {
       if (generationAbort.current === controller) {
@@ -543,25 +561,65 @@ export default function Compose() {
       </h1>
 
       <div className={styles.head}>
-        <Link
-          className={buttonClass({ variant: 'outline' }, styles.back)}
-          to={meetingPickPath(item.date)}
-        >
+        <Link className={styles.back} to={meetingPickPath(item.date)}>
           <ChevronLeftIcon width={15} height={15} />
-          일정 고르기
+          미팅 리스트
         </Link>
 
-        {/* 아직 만든 보고서가 없는 등록 단계에서는 내려받을 것이 없습니다. */}
-        {showWork && (
+        <div className={styles.headNotice}>
+          {restored && !runError && (
+            <p className={styles.headNote}>
+              자동 임시 저장된 내용입니다. 미팅 보고서 작성 완료를 눌러야 저장됩니다.
+            </p>
+          )}
+          {(submitInputError || runError || saveError) && (
+            <p className={styles.mutationError} role="alert">
+              {submitInputError
+                ? reportGenerationMessage(submitInputError)
+                : (runError ?? saveError)}
+            </p>
+          )}
+          {Object.keys(runErrors).length > 0 && (
+            <div className={styles.mutationError} role="alert">
+              <ul>
+                {Object.entries(runErrors).map(([step, message]) => (
+                  <li key={step}>{reportGenerationMessage(message)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.headActions}>
+          {/* 작성 시작 지점입니다. 이미 본문이 있으면 같은 버튼이 다시 생성으로 바뀝니다. */}
           <Button
-            variant="outline"
             type="button"
-            disabled={!printable}
-            onClick={() => window.print()}
+            variant={hasDraftContent ? 'outline' : 'primary'}
+            className={styles.generate}
+            aria-busy={generating || recovering}
+            onClick={requestGeneration}
+            disabled={
+              busy ||
+              !canEdit ||
+              !draft.canGenerate ||
+              Boolean(generationInputError) ||
+              !generatable ||
+              generating ||
+              recovering
+            }
           >
-            PDF 다운로드
+            {generating || recovering ? (
+              'AI 보고서 작성 중…'
+            ) : hasDraftContent ? (
+              <>
+                <RefreshIcon width={16} height={16} />
+                AI 보고서 다시 생성
+              </>
+            ) : (
+              'AI 보고서 작성'
+            )}
           </Button>
-        )}
+        </div>
       </div>
 
       {lockedDealIds.length > 0 && (
@@ -571,36 +629,50 @@ export default function Compose() {
         </p>
       )}
 
-      {(submitInputError || runError || saveError) && (
-        <p className={styles.mutationError} role="alert">
-          {submitInputError ? reportGenerationMessage(submitInputError) : (runError ?? saveError)}
-        </p>
-      )}
-      {Object.keys(runErrors).length > 0 && (
-        <div className={styles.mutationError} role="alert">
-          <p>일부 처리가 완료되지 않았습니다. 기존 작성 내용은 유지됩니다.</p>
-          <ul>
-            {Object.entries(runErrors).map(([step, message]) => (
-              <li key={step}>{reportGenerationMessage(message)}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className={showWork ? styles.layout : `${styles.layout} ${styles.solo}`}>
+      <div
+        className={
+          showWork
+            ? sideCollapsed
+              ? `${styles.layout} ${styles.sideCollapsed}`
+              : styles.layout
+            : `${styles.layout} ${styles.solo}`
+        }
+      >
         <div className={styles.side}>
-          <div className={styles.sideContent}>
+          {/* 접기 손잡이는 미팅 정보 판의 머리에 있습니다. 접히면 그 판까지 사라지므로
+              다시 펴는 손잡이만 왼쪽 레일에 남깁니다. */}
+          {showWork && sideCollapsed && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              iconOnly
+              className={styles.sideToggle}
+              aria-expanded={false}
+              aria-controls="compose-side"
+              aria-label="미팅 정보·원문 펼치기"
+              onClick={() => setSideCollapsed(false)}
+            >
+              <ChevronRightIcon width={15} height={15} />
+            </Button>
+          )}
+          <div
+            id="compose-side"
+            className={
+              sideCollapsed ? `${styles.sideContent} ${styles.collapsed}` : styles.sideContent
+            }
+          >
             <aside className={styles.reference}>
               <MeetingInfoPanel
                 item={{ ...item, date: meetingDate, time: meetingTime }}
                 onOpenDetail={() => setDetailOpen(true)}
+                onCollapse={showWork ? () => setSideCollapsed(true) : undefined}
                 deals={deals.deals}
                 dealsLoading={deals.loading}
                 dealsError={deals.error}
                 onReloadDeals={deals.reload}
                 selectedDealIds={draft.salesDealIds}
-                fixedDealIds={fixedDealIds}
-                onToggleDeal={draft.toggleSalesDeal}
+                onToggleDeal={toggleDeal}
                 onCreateDeal={() => {
                   if (busy || !canEdit || !item.customerCompanyId || deals.loading) return
                   createDealKey.current = `${item.id}:${item.customerCompanyId}`
@@ -635,68 +707,10 @@ export default function Compose() {
               )}
             </div>
           </div>
-          <div className={styles.generateBar} aria-busy={generating || recovering}>
-            {/* AI 없이 쓰는 길. 보고서 열이 이미 열렸다면 이 자리에 둘 이유가 없습니다. */}
-            {!showWork && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy || !canEdit}
-                onClick={() => setOpened(true)}
-              >
-                직접 작성
-              </Button>
-            )}
-            <Button
-              type="button"
-              className={styles.generate}
-              onClick={requestGeneration}
-              disabled={
-                busy ||
-                !canEdit ||
-                !draft.canGenerate ||
-                Boolean(generationInputError) ||
-                !generatable ||
-                generating ||
-                recovering
-              }
-            >
-              {generating || recovering ? 'AI 보고서 작성 중…' : 'AI 보고서 작성'}
-            </Button>
-          </div>
         </div>
 
         {showWork && (
           <section className={styles.work} aria-label="미팅 보고서">
-            <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
-              <div className={styles.saveCopy}>
-                <strong>미팅 보고서</strong>
-                <p>
-                  미팅일 {fmtDot(parseISO(meetingDate))} · 작성 완료 후에도 이 날짜로 저장됩니다.
-                </p>
-                <p>
-                  {draft.salesDealIds.length > 0
-                    ? `공통 기록과 딜 ${draft.salesDealIds.length}건을 한 문서로 저장합니다.`
-                    : '딜 미지정 미팅 기록을 한 문서로 저장합니다.'}
-                </p>
-              </div>
-              <Button
-                type="button"
-                className={styles.saveAllButton}
-                aria-label="미팅 보고서 작성 완료"
-                disabled={
-                  busy ||
-                  draft.attachmentsPending ||
-                  !canEdit ||
-                  editableDealIds.length !== draft.salesDealIds.length ||
-                  Boolean(submitInputError) ||
-                  missingBody
-                }
-                onClick={() => void submitAll()}
-              >
-                {submitting ? '완료 중…' : '미팅 보고서 작성 완료'}
-              </Button>
-            </div>
             <div className={styles.reports}>
               {(draft.salesDealIds.length === 0 ||
                 result ||
@@ -717,7 +731,6 @@ export default function Compose() {
                   if (!state) return null
                   const deal = deals.deals.find((one) => one.id === dealId)
                   const savedSection = savedByDeal.get(dealId)
-                  const product = deal?.product ?? savedSection?.product
 
                   return (
                     <DealReportCard
@@ -727,7 +740,6 @@ export default function Compose() {
                       savedDeal={savedSection?.salesDeal}
                       draft={state}
                       progress={draft.processingProgress}
-                      when={`${when}${product ? ` · ${product}` : ''}`}
                       saving={pending}
                       generating={generating || recovering}
                       canGenerate={
@@ -741,6 +753,35 @@ export default function Compose() {
                     />
                   )
                 })}
+            </div>
+            <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
+              <div className={styles.saveActions}>
+                <Button
+                  variant="outline"
+                  type="button"
+                  className={styles.pdfButton}
+                  disabled={!printable}
+                  onClick={() => window.print()}
+                >
+                  PDF 다운로드
+                </Button>
+                <Button
+                  type="button"
+                  className={styles.saveAllButton}
+                  aria-label="미팅 보고서 작성 완료"
+                  disabled={
+                    busy ||
+                    draft.attachmentsPending ||
+                    !canEdit ||
+                    editableDealIds.length !== draft.salesDealIds.length ||
+                    Boolean(submitInputError) ||
+                    missingBody
+                  }
+                  onClick={() => void submitAll()}
+                >
+                  {submitting ? '완료 중…' : '미팅 보고서 작성 완료'}
+                </Button>
+              </div>
             </div>
           </section>
         )}
@@ -769,6 +810,35 @@ export default function Compose() {
           }
         >
           <p>현재 편집 중인 내용은 아직 미팅 보고서로 저장되지 않았습니다.</p>
+        </Modal>
+      )}
+      {confirm?.kind === 'deselect' && (
+        <Modal
+          title="이 딜을 보고서에서 뺄까요?"
+          description="선택을 풀면 이 딜의 보고서가 목록에서 사라집니다."
+          onClose={() => setConfirm(null)}
+          footer={
+            <>
+              <Button variant="outline" type="button" onClick={() => setConfirm(null)}>
+                취소
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const { dealId } = confirm
+                  setConfirm(null)
+                  draft.toggleSalesDeal(dealId)
+                }}
+              >
+                해제
+              </Button>
+            </>
+          }
+        >
+          <p>
+            다시 선택하면 작성한 내용이 그대로 돌아옵니다. 뺀 채로 저장하면 이미 저장된 딜 보고서는
+            삭제됩니다.
+          </p>
         </Modal>
       )}
       {detailOpen && <RecordDrawer item={item} onClose={() => setDetailOpen(false)} />}

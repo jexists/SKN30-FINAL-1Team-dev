@@ -19,8 +19,6 @@ interface Props {
   titleId?: string
   title: string
   onTitleChange: (value: string) => void
-  /** 미팅한 날. 제목 아래에 한 줄로 놓습니다. */
-  when: string
   body: string
   /** 편집기를 다시 세워야 할 때 올라갑니다. */
   docKey: number
@@ -37,8 +35,6 @@ interface Props {
   locked: boolean
   saving: boolean
   onStartManual: () => void
-  onRegenerate: () => void
-  regenerateLabel?: string
   /** 딜 카드가 바깥 면을 맡을 때 시트의 중복 테두리·sticky를 걷습니다. */
   embedded?: boolean
 }
@@ -48,7 +44,6 @@ export default function ReportSheet({
   titleId,
   title,
   onTitleChange,
-  when,
   body,
   docKey,
   onChange,
@@ -61,8 +56,6 @@ export default function ReportSheet({
   locked,
   saving,
   onStartManual,
-  onRegenerate,
-  regenerateLabel = 'AI 다시 생성',
   embedded = false,
 }: Props) {
   const generatedTitleId = useId()
@@ -119,7 +112,6 @@ export default function ReportSheet({
                   />
                 </>
               )}
-              <p className={styles.when}>{when}</p>
             </div>
 
             {phase === 'generating' ? (
@@ -137,19 +129,6 @@ export default function ReportSheet({
           </>
         )}
       </article>
-
-      {!empty && (
-        <div className={styles.actions}>
-          <Button
-            variant="outline"
-            type="button"
-            disabled={locked || saving || generationDisabled || phase === 'generating'}
-            onClick={onRegenerate}
-          >
-            {regenerateLabel}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

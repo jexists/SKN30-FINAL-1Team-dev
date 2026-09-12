@@ -1,15 +1,11 @@
-import { useId, useState } from 'react'
-import { Link } from 'react-router'
-
-import { ChevronDownIcon } from '@/components/icons'
-import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
-import { dealDetailPath } from '@/constants/routes'
+import { type StatusTone } from '@/components/StatusBadge'
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import { isAuthorEditableReportStatus } from '@/shared/reports'
 import type { MeetingDealRef, MeetingProgress } from '@/types'
 
 import { isInsufficientDealPrediction } from '../../generatedDraft'
 import type { DealDraftState } from '../../useMeetingDraft'
+import DealCardHeader from '../DealCardHeader'
 import ReportSheet from '../ReportSheet'
 
 import styles from './DealReportCard.module.scss'
@@ -20,7 +16,6 @@ interface Props {
   savedDeal?: MeetingDealRef
   draft: DealDraftState
   progress?: MeetingProgress | null
-  when: string
   saving: boolean
   generating: boolean
   canGenerate: boolean
@@ -67,7 +62,6 @@ export default function DealReportCard({
   savedDeal,
   draft,
   progress,
-  when,
   saving,
   generating,
   canGenerate,
@@ -77,8 +71,6 @@ export default function DealReportCard({
   onStartManual,
   onGenerate,
 }: Props) {
-  const [open, setOpen] = useState(true)
-  const bodyId = useId()
   const badge = assessmentBadge(draft)
   const dealLabel = deal?.no ?? savedDeal?.label ?? dealId
   const dealTitle = deal ? deal.title.trim() || deal.product : savedDeal?.note
@@ -87,47 +79,16 @@ export default function DealReportCard({
   const generationDisabled = !isAuthorEditableReportStatus(draft.statusCode) || !canGenerate
 
   return (
-    <article className={`${styles.card} ${open ? styles.isOpen : ''}`}>
-      <header className={`${styles.header} ${open ? styles.isOpen : ''}`}>
-        <button
-          type="button"
-          className={styles.disclosure}
-          aria-label={`${dealLabel} 보고서 ${open ? '접기' : '펼치기'}`}
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <ChevronDownIcon className={styles.caret} width={17} height={17} />
-        </button>
+    <article className={styles.card}>
+      <DealCardHeader newTab dealId={dealId} label={dealLabel} note={dealTitle} badge={badge} />
 
-        <Link
-          className={styles.identity}
-          to={dealDetailPath(dealId)}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`${dealLabel} 딜 상세 새 탭에서 열기`}
-        >
-          <span className={styles.dealText}>
-            <span className={styles.dealLine}>
-              <strong>{dealLabel}</strong>
-            </span>
-            {dealTitle && <span className={styles.dealTitle}>{dealTitle}</span>}
-          </span>
-        </Link>
-
-        <span className={styles.result} title={badge.title}>
-          <StatusBadge label={badge.label} tone={badge.tone} />
-        </span>
-      </header>
-
-      <div id={bodyId} className={`${styles.body} ${open ? '' : styles.isClosed}`}>
+      <div className={styles.body}>
         <ReportSheet
           embedded
           phase={draft.phase}
           titleId={`report-title-${dealId}`}
           title={draft.title}
           onTitleChange={onTitleChange}
-          when={when}
           body={draft.values.body ?? ''}
           docKey={draft.docKey}
           onChange={onChange}
@@ -142,8 +103,6 @@ export default function DealReportCard({
           locked={locked}
           saving={saving || generating}
           onStartManual={onStartManual}
-          onRegenerate={onGenerate}
-          regenerateLabel="미팅 전체 다시 생성"
         />
       </div>
     </article>

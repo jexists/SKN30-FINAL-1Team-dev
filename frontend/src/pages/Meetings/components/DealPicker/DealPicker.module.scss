@@ -19,15 +19,28 @@
   cursor: pointer;
 
   &:hover {
-    background: var(--fill);
+    background: var(--fill-2);
   }
 
+  /*
+   * 고른 줄 배경에 단계 톤 tint 를 쓰지 않습니다. --blue-tint 로 두면 파랑 단계 태그의
+   * 배경과 값이 같아 그 줄에서만 태그가 pill 이 아닌 글자로 보입니다. 중립 회색에
+   * 파란 좌측 바로 표시하면 여섯 톤 어느 것과도 겹치지 않습니다.
+   */
   &:has(input:checked) {
-    background: var(--blue-tint);
+    background: var(--fill);
+    box-shadow: inset 2px 0 0 var(--blue);
   }
 
+  /* 선택된 줄에도 포커스 링이 보이도록 좌측 바와 함께 겹쳐 둡니다. */
   &:has(input:focus-visible) {
     box-shadow: 0 0 0 3px var(--blue-ring);
+  }
+
+  &:has(input:checked):has(input:focus-visible) {
+    box-shadow:
+      inset 2px 0 0 var(--blue),
+      0 0 0 3px var(--blue-ring);
   }
 
   &:has(input:disabled) {

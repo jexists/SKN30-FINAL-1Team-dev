@@ -1,0 +1,79 @@
+/* 딜 번호 왼쪽 끝을 본문 padding(--s5)에 맞춥니다. 머리와 본문이 한 축입니다. */
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+  min-height: 78px;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.identity {
+  min-width: 0;
+  border-radius: var(--r-sm);
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .dealLine {
+    color: var(--blue);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--blue-ring);
+    outline-offset: 3px;
+  }
+}
+
+.dealText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.dealLine {
+  color: var(--blue);
+  font-size: 15px;
+  letter-spacing: -0.015em;
+}
+
+.dealTitle {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+/* 좁은 폭에서는 배지를 딜 이름 아래 줄로 내립니다. */
+@include sm {
+  .header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s2);
+    padding: var(--s3);
+  }
+
+  .result {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+}
+
+@media print {
+  .header {
+    min-height: 0;
+    padding: 0 0 var(--s3);
+  }
+}

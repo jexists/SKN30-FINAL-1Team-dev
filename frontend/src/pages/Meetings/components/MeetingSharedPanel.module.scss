@@ -1,10 +1,15 @@
+/*
+ * 공통 기록은 아래 딜 보고서와 한 문서로 읽혀야 합니다. 그래서 껍데기·머리 띠·
+ * 본문 타이포를 Detail 의 딜 카드(.card/.cardBody/.reportBody)와 같게 맞춥니다.
+ */
 .panel {
   flex: none;
   min-width: 0;
-  padding: var(--s5);
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
+  box-shadow: var(--sh-2);
 }
 
 // 딜 보고서 위의 두 보조 기록은 넓은 작성 화면에서만 나란히 읽는다.
@@ -12,12 +17,9 @@
   .supporting {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--s3) var(--s4);
-    padding: var(--s4);
 
     .heading {
       grid-column: 1 / -1;
-      margin-bottom: 0;
 
       h2 {
         font-size: 13px;
@@ -26,22 +28,28 @@
 
     .section {
       min-width: 0;
-      margin-top: 0;
+      padding: var(--s4);
+    }
+
+    .section + .section {
+      border-left: 1px solid var(--line);
     }
   }
 }
 
+/* 머리 띠. 딜 카드 머리와 같은 자리에서 시작합니다. */
 .heading {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--s2);
-  margin-bottom: var(--s3);
+  padding: var(--s4) var(--s5);
 
   h2 {
     font-size: 15px;
     font-weight: 600;
+    letter-spacing: -0.015em;
   }
   span {
     color: var(--muted);
@@ -56,7 +64,8 @@
 }
 
 .section {
-  margin-top: var(--s4);
+  padding: var(--s5);
+  border-top: 1px solid var(--line);
 
   > label,
   > h3 {
@@ -86,19 +95,29 @@
       background: var(--surface-2);
     }
   }
+
+  @include md {
+    padding: var(--s4);
+  }
 }
 
+/* 읽는 화면의 본문. 딜 카드 본문과 같은 크기·행간이어야 한 문서로 읽힙니다. */
 .text,
 .printText {
-  font-size: 13px;
-  line-height: 1.8;
-  white-space: pre-wrap;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.75;
   overflow-wrap: anywhere;
 }
 
+.empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* 쓰는 동안에만 '확인 필요' 입니다. 읽는 화면에서는 이 클래스가 붙지 않습니다. */
 .needsReview {
-  padding-left: var(--s3);
-  border-left: 2px solid var(--orange);
+  background: var(--surface-2);
 
   > label,
   > h3,
@@ -115,20 +134,24 @@
   .supporting {
     display: block;
 
-    .section {
-      margin-top: var(--s4);
+    .section + .section {
+      border-left: 0;
     }
-  }
-
-  .needsReview {
-    padding-left: 0;
-    border: 0;
   }
 
   .panel {
     margin-bottom: var(--s5);
-    padding: 0;
     border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .heading {
+    padding: 0 0 var(--s3);
+  }
+  .section {
+    padding: var(--s4) 0 0;
+    border-top: 0;
+    background: none;
   }
   .note,
   .section textarea {

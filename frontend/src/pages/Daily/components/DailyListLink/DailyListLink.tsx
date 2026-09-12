@@ -6,7 +6,7 @@
 import { Link } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
-import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
+import { ChevronLeftIcon, ChevronRightIcon, DailyReportIcon } from '@/components/icons'
 
 import { dailyListPath, type Period } from '../../periods'
 
@@ -19,19 +19,38 @@ interface Props {
   className?: string
   /** 본문 위 왼쪽에 서서 되돌아가는 길로 읽힐 때. 화살표가 글자 앞으로 갑니다. */
   back?: boolean
+  /** 머리 띠 안에 들어갈 때. 버튼이 아니라 어디에서 왔는지를 가리키는 한 줄입니다. */
+  crumb?: boolean
 }
 
-export default function DailyListLink({ tab, className, back = false }: Props) {
-  const own = back ? `${styles.root} ${styles.back}` : styles.root
+export default function DailyListLink({ tab, className, back = false, crumb = false }: Props) {
+  // 되돌아가는 길과 머리 띠의 자취는 같은 줄 모양입니다. 앞에 서는 표식만 다릅니다.
+  // 되돌아가는 길은 화살표로 방향을, 자취는 아이콘으로 어느 화면인지를 가리킵니다.
+  if (crumb || back) {
+    const own = crumb ? styles.crumb : styles.back
+
+    return (
+      <Link className={className ? `${own} ${className}` : own} to={dailyListPath(tab)}>
+        {crumb ? (
+          <DailyReportIcon width={15} height={15} />
+        ) : (
+          <ChevronLeftIcon width={15} height={15} />
+        )}
+        업무보고
+      </Link>
+    )
+  }
 
   return (
     <Link
-      className={buttonClass({ variant: 'outline' }, className ? `${own} ${className}` : own)}
+      className={buttonClass(
+        { variant: 'outline' },
+        className ? `${styles.root} ${className}` : styles.root,
+      )}
       to={dailyListPath(tab)}
     >
-      {back && <ChevronLeftIcon width={15} height={15} />}
       업무보고
-      {!back && <ChevronRightIcon width={15} height={15} />}
+      <ChevronRightIcon width={15} height={15} />
     </Link>
   )
 }
