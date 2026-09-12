@@ -1297,7 +1297,10 @@ class _SupervisorGuard(AgentMiddleware):
     def __init__(self, coordinator: _Coordinator):
         self.coordinator = coordinator
         self.task_description = (
-            "Call exactly one server-allowed work unit per turn. Preserve a useful task "
+            "Call server-allowed work units per turn: multiple independent meeting "
+            "`write_initial` deals or period `prepare` sources may run in the same turn; "
+            "call one task for common/unassigned writers and `synthesize`, `review`, or "
+            "`repair` phases. Preserve a useful task "
             "description and include one `work_unit_id=<id>` line. Available agents:\n"
             f"- {coordinator.spec.writer_role}: selected "
             f"{coordinator.spec.report_kind} report writer\n"
