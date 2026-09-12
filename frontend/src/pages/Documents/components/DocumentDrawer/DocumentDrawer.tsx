@@ -39,8 +39,8 @@ import styles from './DocumentDrawer.module.scss'
 
 interface Props {
   doc: SalesDocument
-  /** 지우는 것은 팀장만 합니다. 수정은 팀원도 합니다. */
-  canDelete: boolean
+  /** 고치고 지우는 것은 팀장 또는 이 자료를 올린 본인만 합니다. */
+  canManage: boolean
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
@@ -93,7 +93,7 @@ function summaryWithoutHiddenSections(markdown: string): string {
 
 export default function DocumentDrawer({
   doc,
-  canDelete,
+  canManage,
   onClose,
   onEdit,
   onDelete,
@@ -347,36 +347,37 @@ export default function DocumentDrawer({
       sub={doc.documentNo ?? doc.id}
       onClose={onClose}
       actions={
-        <Popover
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          align="end"
-          compact
-          label="자료 메뉴"
-          trigger={
-            <button
-              type="button"
-              className={styles.menuBtn}
-              aria-label="자료 메뉴"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((value) => !value)}
-            >
-              <MoreIcon width={18} height={18} />
-            </button>
-          }
-        >
-          <div className={styles.menu}>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false)
-                onEdit()
-              }}
-            >
-              <EditIcon width={15} height={15} />
-              수정
-            </button>
-            {canDelete && (
+        // 고칠 수도 지울 수도 없으면 메뉴에 남는 항목이 없어 버튼째 감춘다.
+        !canManage ? undefined : (
+          <Popover
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            align="end"
+            compact
+            label="자료 메뉴"
+            trigger={
+              <button
+                type="button"
+                className={styles.menuBtn}
+                aria-label="자료 메뉴"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((value) => !value)}
+              >
+                <MoreIcon width={18} height={18} />
+              </button>
+            }
+          >
+            <div className={styles.menu}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onEdit()
+                }}
+              >
+                <EditIcon width={15} height={15} />
+                수정
+              </button>
               <button
                 type="button"
                 className={styles.danger}
@@ -388,9 +389,9 @@ export default function DocumentDrawer({
                 <TrashIcon width={15} height={15} />
                 삭제
               </button>
-            )}
-          </div>
-        </Popover>
+            </div>
+          </Popover>
+        )
       }
       meta={
         <>

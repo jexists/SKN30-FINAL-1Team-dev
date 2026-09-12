@@ -51,6 +51,8 @@ export interface SalesDocument {
    */
   owner: string
   ownerMemberId: string
+  /** 이 자료를 올린 사람. 수정·삭제 권한을 가릅니다(본인 또는 팀장). */
+  createdByMemberId: string
   file: DocumentFile
 }
 

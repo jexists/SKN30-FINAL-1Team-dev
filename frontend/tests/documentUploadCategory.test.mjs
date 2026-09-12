@@ -3,7 +3,7 @@ import test from 'node:test'
 
 const { categoryFromFileName } = await import('../src/pages/Documents/catalog.ts')
 
-const TRADE = ['견적서', '계약서', '발주서', '기타']
+const TRADE = ['견적서', '계약서', '발주서']
 
 test('파일명에서 읽어 낸 분류를 돌려준다', () => {
   assert.equal(categoryFromFileName('계약서 샘플_16.pdf', TRADE), '계약서')

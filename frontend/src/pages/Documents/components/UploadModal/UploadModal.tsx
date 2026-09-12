@@ -18,7 +18,6 @@ import { sizeLabel } from '@/utils/attachment'
 import {
   categoryFromFileName,
   clampCategory,
-  needsDeal,
   ROOMS,
   type RoomId,
   uploadCategories,
@@ -118,12 +117,6 @@ export default function UploadModal({ room, progress = null, onClose, onSubmit }
       showToast(`연결할 ${linkKind}을 고르세요.`, { tone: 'error' })
       return
     }
-    // 딜이 곧 방 소속인 자료는 딜 없이 올리면 다른 방으로 떨어집니다.
-    if (linkTarget === null && needsDeal(room, category)) {
-      showToast('기타 자료는 연결할 딜을 고르세요.', { tone: 'error' })
-      return
-    }
-
     const link: DocumentLink =
       linkKind === 'none' || linkTarget === null
         ? { kind: 'none', id: '', label: '' }

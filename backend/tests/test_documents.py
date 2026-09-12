@@ -717,6 +717,53 @@ def test_uploader_and_date_filters_look_at_one_file_only():
     assert "uploaded_by_member_id IN" in counts_sql
 
 
+def _list_sql(member: Member) -> tuple[str, _Db]:
+    db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]), _Result(rows=[]))
+    asyncio.run(documents_api.list_documents(DocumentPageParams(), member, db))
+    return str(db.statements[0]), db
+
+
+def test_member_sees_only_own_and_manager_documents():
+    """팀원 목록은 자기가 올린 자료와 팀장이 올린 자료로 좁힌다."""
+    member = _member()
+    sql, db = _list_sql(member)
+
+    assert "role_code = " in sql
+    assert " OR " in sql
+    assert member.id in db.statements[0].compile().params.values()
+    assert "manager" in db.statements[0].compile().params.values()
+    # 분류 탭 옆 건수와 등록자 선택지도 같은 범위를 본다.
+    assert "role_code = " in str(db.statements[2])
+    assert "role_code = " in str(db.statements[3])
+
+
+def test_manager_sees_every_team_document():
+    """팀장 목록에는 등록자 조건이 붙지 않는다."""
+    sql, _ = _list_sql(_member(role="manager"))
+
+    assert "role_code" not in sql
+
+
+def test_update_rejects_other_member_document():
+    """팀원은 남이 올린 자료를 고칠 수 없다."""
+    member = _member()
+    document = _document(_member())
+    document.team_id = member.team_id
+    db = _Db(_Result(scalar=document))
+
+    with _client(db, member) as client:
+        response = client.patch(
+            f"/api/documents/{document.id}",
+            json={"title": "몰래 고친 제목"},
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "document_owner_required"}
+    assert document.title == "합성 자료"
+    assert db.commit_count == 0
+
+
 def test_delete_marks_document_as_deleted():
     """삭제는 행을 지우지 않고 deleted_at 만 채운다."""
     member = _member(role="manager")
@@ -734,19 +781,48 @@ def test_delete_marks_document_as_deleted():
     assert db.added == []
 
 
-def test_delete_requires_manager():
-    """팀원은 자료를 지울 수 없다. 역할을 쿼리보다 먼저 본다."""
+def test_delete_allows_own_document():
+    """팀원은 자기가 올린 자료를 지울 수 있다."""
     member = _member()
-    db = _Db()
+    document = _document(member)
+    db = _Db(_Result(scalar=document))
 
     with _client(db, member) as client:
-        response = client.delete(f"/api/documents/{uuid4()}", headers={"Origin": ORIGIN})
+        response = client.delete(f"/api/documents/{document.id}", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 204
+    assert document.deleted_at is not None
+    assert db.commit_count == 1
+
+
+def test_delete_rejects_other_member_document():
+    """팀원은 남이 올린 자료를 지울 수 없다. 팀장만 전체를 지운다."""
+    member = _member()
+    document = _document(_member())
+    document.team_id = member.team_id
+    db = _Db(_Result(scalar=document))
+
+    with _client(db, member) as client:
+        response = client.delete(f"/api/documents/{document.id}", headers={"Origin": ORIGIN})
 
     assert response.status_code == 403
-    assert response.json() == {"detail": "manager_required"}
-    # 남의 팀 자료 id 를 넣어도 존재 여부가 새지 않도록 조회 자체를 하지 않는다.
-    assert db.statements == []
+    assert response.json() == {"detail": "document_owner_required"}
+    assert document.deleted_at is None
     assert db.commit_count == 0
+
+
+def test_delete_allows_manager_for_other_member_document():
+    """팀장은 남이 올린 자료도 지운다."""
+    member = _member(role="manager")
+    document = _document(_member())
+    document.team_id = member.team_id
+    db = _Db(_Result(scalar=document))
+
+    with _client(db, member) as client:
+        response = client.delete(f"/api/documents/{document.id}", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 204
+    assert document.deleted_at is not None
 
 
 def test_delete_is_idempotent():
@@ -792,12 +868,11 @@ def test_deleted_documents_are_hidden_from_list_and_detail():
     assert "document.deleted_at IS NULL" in str(detail_db.statements[0])
 
 
-def test_room_splits_other_documents_by_deal_link():
-    """자료실 두 방은 기타 자료를 딜 연결로 가른다.
+def test_room_splits_documents_by_category():
+    """자료실 두 방은 분류로 갈린다.
 
-    견적·계약·발주는 분류만으로 거래문서지만, 기타는 어느 방에도 붙박이가 아니다.
-    딜에 붙었으면 거래에 딸린 문서로 보고 거래문서실에, 아니면 영업자료실에 세운다.
-    두 방은 서로의 여집합이라 모르는 분류까지 반드시 한쪽에는 선다.
+    거래문서실은 견적·계약·발주고, 영업자료실은 이 조건의 부정 하나라 상품설명서와
+    기타에 더해 모르는 분류까지 빠짐없이 받는다.
 
     방 조건은 목록과 분류 탭 옆 건수가 함께 봐야 한다. 건수만 방을 안 보면
     거래문서실 탭에 영업자료 건수가 섞여 뜬다.
@@ -812,17 +887,17 @@ def test_room_splits_other_documents_by_deal_link():
     trade_rows, trade_counts = sqls("trade")
     sales_rows, sales_counts = sqls("sales")
 
+    # 숨김 분류를 빼는 NOT IN 하나는 어느 방에나 붙는다. 방 조건은 그 위에 얹히는
+    # category_code IN(거래) 과 NOT IN(영업) 하나다.
     for sql in (trade_rows, trade_counts):
         assert "document.category_code IN" in sql
-        assert "document.sales_deal_id IS NOT NULL" in sql
-        assert "NOT (" not in sql
+        assert sql.count("document.category_code NOT IN") == 1
 
     # 영업자료실은 거래문서 조건의 부정 하나다. 남는 것을 빠짐없이 받는다.
     for sql in (sales_rows, sales_counts):
-        assert "NOT (" in sql
-        assert "document.sales_deal_id IS NOT NULL" in sql
+        assert sql.count("document.category_code NOT IN") == 2
 
     # 방을 주지 않으면 예전처럼 가르지 않는다. 딜·고객사 상세의 조회가 이 길을 쓴다.
     db = _Db(_Result(scalar=0), _Result(rows=[]), _Result(rows=[]), _Result(rows=[]))
     asyncio.run(documents_api.list_documents(DocumentPageParams(), member, db))
-    assert "sales_deal_id IS NOT NULL" not in str(db.statements[0])
+    assert "document.category_code IN" not in str(db.statements[0])

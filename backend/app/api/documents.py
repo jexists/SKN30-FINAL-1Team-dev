@@ -16,7 +16,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -82,25 +82,17 @@ _HIDDEN_CATEGORY_CODES = ("business_card", "business_license")
 
 # 거래문서실이 담는 분류. 영업자료실은 이 나머지를 전부 가져간다.
 _TRADE_CATEGORY_CODES = ("quote", "contract", "purchase_order")
-_SALES_CATEGORY_CODES = ("product_brochure",)
 
 DOWNLOAD_EXPIRES_IN = 60
 
 
 def _is_trade_document():
-    """거래문서실에 서는 자료. 견적·계약·발주, 그리고 딜에 붙은 그 밖의 문서(기타)다.
+    """거래문서실에 서는 자료. 견적·계약·발주, 분류만으로 갈린다.
 
-    기타는 어느 방에도 붙박이가 아니라 연결로 가른다. 딜에 붙었으면 거래에 딸린
-    문서로 보고 거래문서실에, 아니면 영업자료실에 세운다. 영업자료실은 이 식의
-    부정이라 상품설명서와 딜 없는 기타에 더해 모르는 분류까지 빠짐없이 받는다.
+    영업자료실은 이 식의 부정이라 상품설명서와 기타에 더해 모르는 분류까지 빠짐없이
+    받는다.
     """
-    return or_(
-        Document.category_code.in_(_TRADE_CATEGORY_CODES),
-        and_(
-            Document.category_code.not_in(_TRADE_CATEGORY_CODES + _SALES_CATEGORY_CODES),
-            Document.sales_deal_id.is_not(None),
-        ),
-    )
+    return Document.category_code.in_(_TRADE_CATEGORY_CODES)
 
 
 def _contains(value: str) -> str:
@@ -134,13 +126,26 @@ def _joined_select(*entities):
     )
 
 
+def _visible_to(member: Member, creator=_creator):
+    """팀원은 자기가 올린 자료와 팀장이 올린 자료만 본다. 팀장은 팀 자료를 모두 본다."""
+    if member.role_code == "manager":
+        return []
+    return [
+        or_(
+            Document.created_by_member_id == member.id,
+            creator.role_code == "manager",
+        )
+    ]
+
+
 def _scope(member: Member, creator_ids: tuple[UUID, ...] | None = None):
-    """자료실은 팀 공유물이다. 팀원도 같은 팀 문서를 모두 본다."""
+    """자료실에서 이 사람이 볼 수 있는 범위. 같은 팀 + _visible_to 의 등록자 조건."""
     conditions = [
         Document.team_id == member.team_id,
         Document.deleted_at.is_(None),
         _creator.team_id == member.team_id,
         or_(Document.customer_company_id.is_(None), _company.team_id == member.team_id),
+        *_visible_to(member),
     ]
     if creator_ids is not None:
         conditions.append(Document.created_by_member_id.in_(creator_ids))
@@ -577,12 +582,18 @@ async def process_document_batch(
         )
 
     file_ids = list(dict.fromkeys(payload.file_ids))
+    batch_creator = aliased(Member)
     rows = (
         await db.execute(
             select(FileRow, Member.display_name)
             .join(Document, Document.id == FileRow.document_id)
             .join(Member, Member.id == FileRow.uploaded_by_member_id)
-            .where(FileRow.id.in_(file_ids), Document.team_id == member.team_id)
+            .join(batch_creator, batch_creator.id == Document.created_by_member_id)
+            .where(
+                FileRow.id.in_(file_ids),
+                Document.team_id == member.team_id,
+                *_visible_to(member, batch_creator),
+            )
         )
     ).all()
     rows_by_id = {row.id: (row, display_name) for row, display_name in rows}
@@ -674,6 +685,7 @@ async def update_document(
     member: CurrentMember,
     db: DbSession,
 ) -> DocumentRead:
+    """자료를 고친다. 팀장은 팀 자료 전부를, 팀원은 자기가 올린 자료만 고친다."""
     try:
         document = (
             await db.execute(
@@ -686,6 +698,11 @@ async def update_document(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="document_not_found",
+            )
+        if member.role_code != "manager" and document.created_by_member_id != member.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="document_owner_required",
             )
         values = payload.model_dump(exclude_unset=True)
         _ensure_exclusive_document_link(
@@ -710,21 +727,13 @@ async def delete_document(
     member: CurrentMember,
     db: DbSession,
 ) -> None:
-    """자료를 지운다. 팀장만 할 수 있다.
-
-    역할을 쿼리보다 먼저 본다. 그래야 팀원이 남의 팀 자료 id 를 넣어도 404 대신 403 을
-    받고, 그 id 가 있는지 없는지가 새지 않는다. delete_customer_contact 와 같은 순서다.
+    """자료를 지운다. 팀장은 팀 자료 전부를, 팀원은 자기가 올린 자료만 지운다.
 
     행은 남기고 deleted_at 만 채운다. file 이 ON DELETE 옵션 없이 이 문서를 참조해 실제
     DELETE 는 외래키에 막히고, 파일 행을 먼저 지우면 OCR·요약 결과와 감사 기록이 함께
     사라진다. 스토리지 원본과 document_chunk 도 그대로 둔다 — 조회하는 쪽(_scope 와
     search_chunks)이 이미 지운 자료를 걸러내므로 목록에도 RAG 답변에도 나오지 않는다.
     """
-    if member.role_code != "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="manager_required",
-        )
     try:
         document = (
             await db.execute(
@@ -737,6 +746,11 @@ async def delete_document(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="document_not_found",
+            )
+        if member.role_code != "manager" and document.created_by_member_id != member.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="document_owner_required",
             )
         # 이미 지운 자료를 다시 지워도 그대로 성공이다. 두 번 눌렀다고 실패를 보일 것이 없다.
         if document.deleted_at is None:

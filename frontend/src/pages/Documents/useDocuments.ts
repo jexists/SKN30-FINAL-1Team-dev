@@ -95,6 +95,7 @@ function toDocument(item: DocumentResponse): SalesDocument {
     description: item.description ?? '',
     owner: item.owner_display_name,
     ownerMemberId: item.owner_member_id,
+    createdByMemberId: item.created_by_member_id,
     // 파일을 아직 올리지 않은 자료도 목록에는 서야 해서 빈 칸을 채워 둡니다.
     file: file ?? {
       documentId: item.id,
@@ -283,7 +284,7 @@ export default function useDocuments(query?: DocumentQuery) {
     [documents],
   )
 
-  // 지우는 것은 팀장만 할 수 있습니다. 서버는 행을 남기고 지운 표시만 하지만,
+  // 지우는 것은 팀장 또는 올린 본인만 할 수 있습니다. 서버는 행을 남기고 지운 표시만 하지만,
   // 목록에서는 바로 빼야 방금 지운 자료가 남아 보이지 않습니다.
   const removeDocument = useCallback(async (id: string) => {
     setPending(true)

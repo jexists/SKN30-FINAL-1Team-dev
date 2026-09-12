@@ -44,11 +44,8 @@ export const LINK_KINDS = ['none', '상품', '딜'] as const
 
 /**
  * 자료실은 방 둘로 나뉩니다. 거래에 딸린 문서와 영업이 돌려 보는 자료는 쓰임이
- * 달라서, 방마다 담는 분류와 고를 수 있는 연결이 다릅니다.
- *
- * 기타는 두 방 어디에도 붙박이가 아니라 연결로 갈립니다. 딜에 붙은 기타는
- * 거래문서실에, 그렇지 않은 기타는 영업자료실에 섭니다. 목록을 가르는 실제 판단은
- * 서버가 room 파라미터로 합니다.
+ * 달라서, 방마다 담는 분류와 고를 수 있는 연결이 다릅니다. 목록을 가르는 실제
+ * 판단은 서버가 room 파라미터로 합니다.
  */
 export interface DocumentRoom {
   label: string
@@ -61,7 +58,7 @@ export interface DocumentRoom {
 export const ROOMS = {
   trade: {
     label: '거래문서실',
-    categories: ['견적서', '계약서', '발주서', '기타'],
+    categories: ['견적서', '계약서', '발주서'],
     // 거래문서는 딜에 붙는 것이 곧 방 소속이라 딜 연결로 고정합니다.
     linkKinds: ['딜'],
   },
@@ -84,16 +81,6 @@ export function uploadCategories(room: RoomId, kind: DocumentLink['kind']): Docu
   if (room === 'trade') return [...ROOMS.trade.categories]
   return kind === '상품' ? ['상품설명서', '기타'] : ['기타']
 }
-
-/**
- * 이 자료가 지금 방에 남으려면 딜 연결이 있어야 하는지.
- *
- * 거래문서실의 기타는 딜에 붙어 있다는 것만이 소속 근거입니다. 딜을 비우면 저장하는
- * 순간 영업자료실로 넘어가 방금 올린 자리에서 사라집니다. 견적·계약·발주는 분류만으로
- * 거래문서라 딜이 없어도 그 자리에 남습니다.
- */
-export const needsDeal = (room: RoomId, category: DocumentCategory): boolean =>
-  room === 'trade' && category === '기타'
 
 /** 허용 목록 밖의 분류는 기타로 접습니다. 연결을 바꿔 고를 수 없게 된 분류가 그렇습니다. */
 export const clampCategory = (

@@ -52,7 +52,7 @@ export default function Documents({ room }: Props) {
 
   // 자료는 팀원도 올립니다. 등록자 칸은 여러 사람이 섞여 보일 때만 세웁니다.
   // 등록자 필터는 보여 주는 것이 아니라 대상을 좁히는 조작이라 팀장에게 늘 둡니다.
-  const { profile, isManager } = useCurrentUser()
+  const { profile, memberId, isManager } = useCurrentUser()
   const showOwner = useShowOwner()
 
   const [params, setParams] = useSearchParams()
@@ -335,7 +335,7 @@ export default function Documents({ room }: Props) {
           onLoadSummary={loadOpenDocumentSummary}
           watchFileId={queuedFileIds.find((id) => id === fileOf(openDoc).id)}
           onApproveSummary={approveOpenDocument}
-          canDelete={isManager}
+          canManage={isManager || openDoc.createdByMemberId === memberId}
           onEdit={() => setEditing(true)}
           onDelete={() => {
             setDeleteError(null)

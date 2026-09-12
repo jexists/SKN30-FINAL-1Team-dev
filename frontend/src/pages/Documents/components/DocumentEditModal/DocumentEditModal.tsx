@@ -17,14 +17,7 @@ import type {
   SalesDocument,
 } from '@/types'
 
-import {
-  clampCategory,
-  LINK_KINDS,
-  needsDeal,
-  ROOMS,
-  type RoomId,
-  uploadCategories,
-} from '../../catalog'
+import { clampCategory, LINK_KINDS, ROOMS, type RoomId, uploadCategories } from '../../catalog'
 import { linkLabel } from '../../columns'
 import type { DocumentMeta } from '../../useDocuments'
 
@@ -96,12 +89,6 @@ export default function DocumentEditModal({
       showToast(`연결할 ${linkKind}을 고르세요.`, { tone: 'error' })
       return
     }
-    // 딜이 곧 방 소속인 자료는 딜을 비우면 다른 방으로 넘어가 이 자리에서 사라집니다.
-    if (linkEditable && linkTarget === null && needsDeal(room, category)) {
-      showToast('기타 자료는 연결할 딜을 고르세요.', { tone: 'error' })
-      return
-    }
-
     const meta: Partial<DocumentMeta> = {
       title: nextTitle,
       category,
