@@ -849,9 +849,7 @@ class _Coordinator:
             raise PermissionError("report_work_unit_invalid")
         allowed_locations = assignment.locations or unit.locations
         planned_locations = [item.location for item in artifact.plan]
-        if len(planned_locations) != len(set(planned_locations)) or set(planned_locations) != set(
-            allowed_locations
-        ):
+        if set(planned_locations) != set(allowed_locations):
             raise PermissionError("report_plan_scope_not_allowed")
         for item in artifact.plan:
             if (

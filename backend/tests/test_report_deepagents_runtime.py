@@ -1072,6 +1072,29 @@ def test_actual_period_entrypoint_returns_server_validated_child_body(monkeypatc
     )
 
 
+def test_period_repeated_plan_location_keeps_writer_review_and_finish_flow(monkeypatch):
+    from test_period_report_writing_deep import period_sample
+
+    class RepeatedPlanModel(ScriptedModel):
+        def _writer_artifact(self, assignment):
+            artifact = super()._writer_artifact(assignment)
+            if assignment["phase"] == "synthesize":
+                artifact["plan"] = artifact["plan"] * 3
+                artifact["draft"] = {
+                    "fields": [{"field_id": "body", "value": "중복 계획을 허용한 주간 본문"}]
+                }
+            return artifact
+
+    model = RepeatedPlanModel(writer_role="weekly-report-writer")
+    monkeypatch.setattr(harness, "configured_chat_model", lambda: model)
+
+    result = asyncio.run(period_report.run(period_sample("weekly")))
+
+    assert result.fields[0].value == "중복 계획을 허용한 주간 본문"
+    assert model._phases[-2:] == ["synthesize", "review_initial"]
+    assert model._parent_turns == 5
+
+
 @pytest.mark.parametrize(
     ("failure", "failure_work_unit"),
     [
