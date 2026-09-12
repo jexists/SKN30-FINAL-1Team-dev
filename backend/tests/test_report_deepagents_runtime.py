@@ -1210,7 +1210,7 @@ def test_all_runtime_markdown_files_are_accounted_for():
         for path in harness.skill_files(role)
     }
     actual = {
-        str(path.relative_to(harness.SKILL_ROOT)) for path in harness.SKILL_ROOT.rglob("*.md")
+        path.relative_to(harness.SKILL_ROOT).as_posix() for path in harness.SKILL_ROOT.rglob("*.md")
     }
     assert len(paths) == 6
     assert paths == actual
