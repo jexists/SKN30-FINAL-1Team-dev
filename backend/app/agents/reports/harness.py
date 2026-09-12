@@ -502,13 +502,20 @@ class _Coordinator:
     def reserve(self, calls: list[dict[str, Any]]) -> None:
         if not calls:
             raise LLMError("report_generation_failed")
-        if len(calls) != 1:
-            raise PermissionError("report_supervisor_action_invalid")
-        call = calls[0]
-        call_id = call.get("id")
-        if not isinstance(call_id, str) or not call_id:
+        batched_deals = (
+            len(calls) > 1
+            and self.spec.report_kind == "meeting"
+            and self.phase == "write_initial"
+        )
+        if not batched_deals and len(calls) != 1:
             raise PermissionError("report_supervisor_action_invalid")
         if self.phase == "finish":
+            if len(calls) != 1:
+                raise PermissionError("report_supervisor_action_invalid")
+            call = calls[0]
+            call_id = call.get("id")
+            if not isinstance(call_id, str) or not call_id or call_id in self.call_assignments:
+                raise PermissionError("report_supervisor_action_invalid")
             if call.get("name") != "finish_report":
                 raise PermissionError("report_supervisor_action_invalid")
             args = call.get("args", {})
@@ -518,36 +525,49 @@ class _Coordinator:
             ):
                 raise PermissionError("report_final_version_not_allowed")
             return
-        if call.get("name") != "task":
-            raise PermissionError("report_supervisor_action_invalid")
-        args = call.get("args", {})
-        if set(args) != {"description", "subagent_type"}:
+        pending: list[tuple[str, _Assignment]] = []
+        for call in calls:
+            call_id = call.get("id")
+            if not isinstance(call_id, str) or not call_id or call_id in self.call_assignments:
+                raise PermissionError("report_supervisor_action_invalid")
+            if call.get("name") != "task":
+                raise PermissionError("report_supervisor_action_invalid")
+            args = call.get("args", {})
+            if set(args) != {"description", "subagent_type"}:
+                raise PermissionError("report_delegation_not_allowed")
+            work_id = self._work_id(args["description"])
+            assignment = self.assignments.get(work_id)
+            if (
+                assignment is None
+                or assignment.phase != self.phase
+                or assignment.role != args["subagent_type"]
+                or work_id in self.reserved
+                or work_id in self.finished_assignments
+                or (batched_deals and assignment.unit is None)
+                or (batched_deals and assignment.unit.sales_deal_id is None)
+            ):
+                raise PermissionError("report_delegation_not_allowed")
+            pending.append((call_id, assignment))
+        if len({call_id for call_id, _ in pending}) != len(pending) or len(
+            {assignment.work_unit_id for _, assignment in pending}
+        ) != len(pending):
             raise PermissionError("report_delegation_not_allowed")
-        work_id = self._work_id(args["description"])
-        assignment = self.assignments.get(work_id)
-        if (
-            assignment is None
-            or assignment.phase != self.phase
-            or assignment.role != args["subagent_type"]
-            or work_id in self.reserved
-            or work_id in self.finished_assignments
-        ):
-            raise PermissionError("report_delegation_not_allowed")
-        self.reserved.add(work_id)
-        self.call_assignments[call_id] = assignment
-        self.task_count += 1
-        if assignment.phase.startswith("review"):
-            self.review_count += 1
-        elif assignment.phase == "repair":
-            self.repair_count += 1
-        try:
-            log_agent_event(
-                self.spec.stage + ".assignment_reserved",
-                outcome="reserved",
-                **self.assignment_log_fields(assignment),
-            )
-        except Exception:
-            pass
+        for call_id, assignment in pending:
+            self.reserved.add(assignment.work_unit_id)
+            self.call_assignments[call_id] = assignment
+            self.task_count += 1
+            if assignment.phase.startswith("review"):
+                self.review_count += 1
+            elif assignment.phase == "repair":
+                self.repair_count += 1
+            try:
+                log_agent_event(
+                    self.spec.stage + ".assignment_reserved",
+                    outcome="reserved",
+                    **self.assignment_log_fields(assignment),
+                )
+            except Exception:
+                pass
 
     def assignment_for_call(self, tool_call_id: str) -> _Assignment:
         try:
@@ -1209,7 +1229,28 @@ class _SupervisorGuard(AgentMiddleware):
                 if tool.name == "task"
                 else tool
             )
-        response = await handler(request.override(tools=tools))
+        messages = list(request.messages)
+        for index in range(len(messages) - 1, -1, -1):
+            message = messages[index]
+            if not isinstance(message, ToolMessage) or message.name != "task":
+                continue
+            try:
+                receipt = json.loads(message.content)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(receipt, dict) or "work_unit_id" not in receipt:
+                continue
+            messages[index] = message.model_copy(
+                update={
+                    "content": json.dumps(
+                        {**receipt, **self.coordinator.public_state()},
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                }
+            )
+            break
+        response = await handler(request.override(tools=tools, messages=messages))
         calls = [call for message in response.result for call in getattr(message, "tool_calls", [])]
         if any(call["name"] not in allowed for call in calls):
             raise PermissionError("report_tool_not_allowed")
@@ -1457,8 +1498,10 @@ async def _run_supervisor(spec: WorkflowSpec) -> WorkflowResult:
             "위임하고 검증된 receipt를 확인해 작성→1차 검토→지적 scope당 최대 1회 수정→"
             "finish_report 순서로 끝낸다. task 설명 첫 줄에 정확한 "
             "work_unit_id=<id>를 쓰고, 그 뒤에는 목적·검사할 결과·수정 이유를 구체적으로 적는다. "
-            "보고서나 review를 직접 쓰지 말고 source를 요청하거나 추측하지 않는다. parent task는 "
-            "매 turn 하나씩 순차 위임한다. 매 receipt의 최신 phase/allowlist를 다음 호출에 "
+            "보고서나 review를 직접 쓰지 말고 source를 요청하거나 추측하지 않는다. 미팅 초기에는 "
+            "남은 독립 딜 writer들을 같은 turn의 여러 task로 함께 위임한다. "
+            "common/unassigned writer와 review/repair task는 매 turn 하나씩 순차 위임한다. "
+            "매 receipt의 최신 phase/allowlist를 다음 호출에 "
             "사용한다. 검증된 최신 허용 버전을 선택한다.\n\n" + spec.instructions
         ),
         middleware=[

@@ -5,6 +5,7 @@ import copy
 import hashlib
 import itertools
 import json
+import threading
 from collections import defaultdict
 from contextvars import ContextVar
 from dataclasses import replace
@@ -677,7 +678,7 @@ def test_meeting_limits_scale_past_a_tiny_fixed_task_cap(monkeypatch):
 
 
 def test_parent_rejects_batched_tasks_before_children_run(monkeypatch):
-    spec = _spec("meeting", unit_count=2)
+    spec = _spec("daily", unit_count=2)
     model = ScriptedModel(writer_role=spec.writer_role, attack="batch-tasks")
 
     with pytest.raises(PermissionError, match="report_supervisor_action_invalid"):
@@ -685,6 +686,102 @@ def test_parent_rejects_batched_tasks_before_children_run(monkeypatch):
 
     assert model._descriptions == []
     assert model._phases == []
+
+
+def test_meeting_deal_writers_batch_through_native_tool_node(monkeypatch):
+    class BatchDealModel(ScriptedModel):
+        _writer_barrier = PrivateAttr(default_factory=lambda: threading.Barrier(2))
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            assignment = _assignment(messages)
+            if (
+                assignment
+                and assignment["phase"] == "write_initial"
+                and not any(isinstance(message, AIMessage) for message in messages)
+            ):
+                self._writer_barrier.wait(timeout=2)
+            return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+        def _supervisor(self, messages):
+            state = _public_state(messages)
+            units = state["next_work_units"]
+            if state["next_phase"] == "write_initial" and len(units) >= 2 and not self._attacked:
+                self._attacked = True
+                self._parent_turns += 1
+                return self._result(
+                    [
+                        self._call(
+                            "task",
+                            {
+                                "description": (
+                                    f"work_unit_id={unit['work_unit_id']}\n"
+                                    "배정된 범위의 동결 근거를 읽고 검증 가능한 "
+                                    "artifact를 반환하라."
+                                ),
+                                "subagent_type": unit["subagent_type"],
+                            },
+                        )
+                        for unit in units[:2]
+                    ]
+                )
+            return super()._supervisor(messages)
+
+    spec = _spec("meeting", unit_count=2)
+    spec = replace(
+        spec,
+        units=tuple(
+            replace(unit, sales_deal_id=f"deal-{index}")
+            for index, unit in enumerate(spec.units)
+        ),
+    )
+    model = BatchDealModel(writer_role=spec.writer_role)
+    result = asyncio.run(_run(monkeypatch, model, spec))
+
+    assert result.task_count == 3  # two deal writers in one turn, then one review
+    assert result.review_count == 1
+    assert model._parent_turns == 3
+    assert {
+        assignment["scope"]
+        for assignment in map(_assignment, model._seen)
+        if assignment and assignment.get("scope")
+    } == {"scope-1", "scope-2"}
+
+
+@pytest.mark.parametrize("attack", ["duplicate-id", "duplicate-work", "mixed-scope", "common"])
+def test_meeting_deal_batch_reservation_is_atomic(attack):
+    spec = _spec("meeting", unit_count=2)
+    spec = replace(
+        spec,
+        units=tuple(
+            replace(unit, sales_deal_id=None if attack == "common" and index else f"deal-{index}")
+            for index, unit in enumerate(spec.units)
+        ),
+    )
+    coordinator = harness._Coordinator(spec, object())
+    calls = [
+        {
+            "name": "task",
+            "id": "same-call" if attack == "duplicate-id" else f"call-{index}",
+            "args": {
+                "description": (
+                    f"work_unit_id=write-00{index + 1}\n"
+                    "배정된 범위의 동결 근거를 읽고 검증 가능한 artifact를 반환하라."
+                ),
+                "subagent_type": spec.writer_role,
+            },
+        }
+        for index in range(2)
+    ]
+    if attack == "mixed-scope":
+        calls[1]["args"]["description"] = calls[1]["args"]["description"].replace(
+            "write-002", "write-999"
+        )
+    elif attack == "duplicate-work":
+        calls[1]["args"]["description"] = calls[0]["args"]["description"]
+    with pytest.raises(PermissionError):
+        coordinator.reserve(calls)
+    assert coordinator.reserved == set()
+    assert coordinator.call_assignments == {}
 
 
 def test_native_dispatcher_strips_long_parent_private_state_from_children(monkeypatch):
