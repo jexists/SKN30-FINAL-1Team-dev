@@ -191,10 +191,18 @@ def scripted(monkeypatch, responses):
 
 def effective_instructions(call):
     """단계 계약과 실제 role에 제공되는 스킬 내용을 함께 검사한다."""
+    scope = json.loads(call["input_text"]).get("scope")
+    files = harness.skill_files(call["skill_role"])
+    if scope in {"common_report", "unassigned_report"}:
+        files = {
+            path: value
+            for path, value in files.items()
+            if path.endswith("report-shared/SKILL.md")
+        }
     return (
         call["instructions"]
         + "\n"
-        + "\n".join(file["content"] for file in harness.skill_files(call["skill_role"]).values())
+        + "\n".join(file["content"] for file in files.values())
     )
 
 
@@ -309,12 +317,18 @@ def test_meeting_heading_guidance_reaches_each_stage_and_repairs_scope(monkeypat
 
     result = asyncio.run(writer.run(sample()))
 
-    heading_rule = "필요한 항목은 Markdown **굵은 소제목**을 독립된 한 줄에 쓰고"
-    assert all(heading_rule in effective_instructions(call) for call in seen)
-    bullet_rule = (
-        "`unassigned_report`는 실제 딜 귀속이 불명확해 확인이 필요한 내용만 항목별 Markdown `- "
-        "내용` 목록"
+    heading_rule = "각 항목은 Markdown **굵은 소제목**을 독립된 한 줄에 쓰고"
+    assert all(
+        heading_rule in effective_instructions(call)
+        for call in seen
+        if json.loads(call["input_text"]).get("scope") not in {"common_report", "unassigned_report"}
     )
+    assert all(
+        heading_rule not in effective_instructions(call)
+        for call in seen
+        if json.loads(call["input_text"]).get("scope") in {"common_report", "unassigned_report"}
+    )
+    bullet_rule = "확인된 사실만 한 항목에 하나씩 Markdown `- 내용` 목록"
     assert all(bullet_rule in effective_instructions(call) for call in seen)
     assert seen[3]["role"] == harness.REVIEWER_ROLE
     assert json.loads(seen[-1]["input_text"])["scope"] == "unassigned_report"
@@ -345,13 +359,14 @@ def test_meeting_action_tail_keeps_bullets_and_narrative_rules_through_repair(mo
     assert len(seen) == 5
     for call in seen:
         instructions = effective_instructions(call)
+        if json.loads(call["input_text"]).get("scope") in {"common_report", "unassigned_report"}:
+            continue
         assert (
             "마지막 후속 조치는 소제목 뒤 빈 줄에 핵심어 중심의 Markdown 순서 없는 목록"
             in instructions
         )
-        assert "한 항목당 조치 1건" in instructions
         assert "소제목 뒤 빈 줄에 합니다체 서술 문단" in instructions
-        assert "- 후속 조치 미확인" in instructions
+        assert "- 해당사항 없음" in instructions
         assert contract.NO_DEAL_EVIDENCE_TEXT in instructions
     assert result.deal_reports[0].body == action_body
     assert result.deal_reports[0].body.split("**후속 조치**\n\n", 1)[1].startswith("- ")

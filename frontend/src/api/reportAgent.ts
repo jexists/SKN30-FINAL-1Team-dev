@@ -188,7 +188,24 @@ export async function waitForReportGeneration<T>(
   onStatus?: (status: AgentRunStatus) => void,
   signal?: AbortSignal,
   pollIntervalMs = POLL_INTERVAL_MS,
+  onProgress?: (progress: MeetingProgress) => void,
 ): Promise<CompletedAgentRun<T>> {
+  if (onProgress && (created.status_code === 'queued' || created.status_code === 'running')) {
+    const streamed = await waitForMeetingRun(created, {
+      eventsUrl: client.getUri({ url: `/agent-runs/${created.id}/events` }),
+      readRun: async (pollSignal) =>
+        (await client.get<AgentRunResponse<T>>(`/agent-runs/${created.id}`, { signal: pollSignal }))
+          .data,
+      onProgress: (progress) => {
+        onStatus?.(progress.status_code)
+        onProgress?.(progress)
+      },
+      signal,
+      pollIntervalMs,
+    })
+    onStatus?.(streamed.status_code)
+    return streamed
+  }
   let run = created
   const deadline = Date.now() + MEETING_WAIT_MS
   onStatus?.(run.status_code)

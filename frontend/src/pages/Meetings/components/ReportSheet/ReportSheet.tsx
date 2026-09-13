@@ -118,7 +118,8 @@ export default function ReportSheet({
               <GenerationProgress
                 progress={generationProgress}
                 preview={generationPreview}
-                fieldCount={1}
+                stageResults={generationProgress?.stage_results}
+                showStages={false}
               />
             ) : (
               <>

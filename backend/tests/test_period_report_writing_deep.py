@@ -343,7 +343,7 @@ def test_period_action_tail_keeps_bullets_and_narrative_rules_through_repair(
         assert "핵심어 중심의 Markdown 순서 없는 목록" in instructions
         assert "합니다체" in instructions
         assert "담당자·기한·완료 기준" in instructions
-        assert f"- {label} 미확인" in instructions
+        assert "- 해당사항 없음" in instructions
     assert seen[1]["role"] == harness.REVIEWER_ROLE
     assert result.fields[0].value == body
     assert result.fields[0].value.split(f"**{label}**\n\n", 1)[1].startswith("- ")

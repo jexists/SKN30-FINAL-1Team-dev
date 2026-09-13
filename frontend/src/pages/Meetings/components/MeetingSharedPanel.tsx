@@ -52,7 +52,11 @@ export default function MeetingSharedPanel({
       </div>
       {generating && previews.length === 0 && (
         <div className={styles.section}>
-          <GenerationProgress progress={progress} fieldCount={1} />
+          <GenerationProgress
+            progress={progress}
+            stageResults={progress?.stage_results}
+            showStages={false}
+          />
         </div>
       )}
       {previews.map((preview) => (
@@ -63,7 +67,12 @@ export default function MeetingSharedPanel({
           <p className={styles.note}>
             {preview.section === 'common' ? '공통 내용' : '딜 미지정 · 확인 필요'}
           </p>
-          <GenerationProgress progress={progress} preview={preview} fieldCount={1} />
+          <GenerationProgress
+            progress={progress}
+            preview={preview}
+            stageResults={progress?.stage_results}
+            showStages={false}
+          />
         </div>
       ))}
 

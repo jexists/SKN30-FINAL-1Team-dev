@@ -264,6 +264,8 @@ class AgentRunRead(BaseModel):
     generation_input: ReportGenerationInput | None
     # 완료 전에는 없다. 보고서에 자동 반영되지 않는 "제안" 초안이다.
     output_snapshot: dict[str, Any] | None
+    # 실행 중 화면에만 쓰는 진행 snapshot. 최종 output/evidence와 계약이 다르다.
+    progress_snapshot: dict[str, Any] | None = None
     # 결과 검토에 필요한 프롬프트 버전과 요약을 남긴다.
     evidence: dict[str, Any] | None
     # 실패했을 때만 채워진다.

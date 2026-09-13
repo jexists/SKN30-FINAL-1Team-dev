@@ -30,6 +30,8 @@ import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod, PERIOD_KIND, periodLabelFor, periodStart, toPeriod } from './periods'
 import useDailyDraft from './useDailyDraft'
 import useDailyReports from './useDailyReports'
+import GenerationProgress from '../Meetings/components/GenerationProgress'
+import StageResults from '../Meetings/components/GenerationProgress/StageResults'
 
 import styles from './Compose.module.scss'
 
@@ -281,7 +283,7 @@ export default function Compose() {
           <p>{existing.reviewNote}</p>
         </div>
       )}
-      <ReportReviewWarning evidence={draft.generationEvidence} />
+      {!generating && <ReportReviewWarning evidence={draft.generationEvidence} />}
 
       {locked && existing && (
         <p className={styles.locked}>
@@ -471,9 +473,15 @@ export default function Compose() {
             <div className={styles.reports}>
               <article className={styles.sheet}>
                 {draft.phase === 'generating' ? (
-                  <div className={styles.sheetBlank}>
-                    <p>{sourceKind} 보고서와 참고자료를 바탕으로 작성하고 있습니다…</p>
-                  </div>
+                  <GenerationProgress
+                    progress={draft.generationProgress}
+                    previews={draft.generationProgress?.previews}
+                    stageResults={draft.generationProgress?.stage_results}
+                    preview={draft.generationProgress?.previews.find(
+                      (item) => item.section === 'body',
+                    )}
+                    reportKind="period"
+                  />
                 ) : (
                   <>
                     <ReportFields
@@ -483,6 +491,7 @@ export default function Compose() {
                       readOnly={locked || draft.recovering}
                       onChange={draft.setValue}
                     />
+                    <StageResults progress={draft.generationProgress} />
 
                     {/* 제출을 막는 이유만 답니다. 낼 수 있을 때는 버튼이 스스로 말합니다. */}
                     {draft.missing.length > 0 && (

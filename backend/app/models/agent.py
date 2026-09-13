@@ -33,6 +33,7 @@ class AgentRun(Base):
     source_refs: Mapped[Any] = mapped_column(JSONB, nullable=False)
     input_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
     output_snapshot: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    progress_snapshot: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     evidence: Mapped[Any] = mapped_column(JSONB(none_as_null=True), nullable=True)
     error_message: Mapped[str | None]
     error_code: Mapped[str | None]

@@ -4,6 +4,7 @@ import { isAxiosError } from 'axios'
 
 import { useCurrentUser } from '@/auth/sessionContext'
 import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
+import { mergeMeetingProgress, restoreConfirmedBody } from '@/api/meetingStream'
 import {
   createReportGeneration,
   finishIdempotencyAttempt,
@@ -27,6 +28,7 @@ import type {
   ReportDraftSnapshot,
   ReportGenerationInput,
   ReportKind,
+  MeetingProgress,
 } from '@/types'
 import { attachmentPayloadsOf } from '@/utils/attachment'
 
@@ -121,18 +123,47 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const [generationRunId, setGenerationRunId] = useState<string>()
   const [activeRunId, setActiveRunId] = useState<string>()
   const [generationEvidence, setGenerationEvidence] = useState<Record<string, unknown> | null>(null)
+  const [generationProgress, setGenerationProgress] = useState<MeetingProgress | null>(null)
+  const confirmedProgress = useRef<MeetingProgress | null>(null)
   const generationAbort = useRef<AbortController | null>(null)
   const generationAttempt = useRef<IdempotencyAttempt | undefined>(undefined)
   const recoveryAbort = useRef<AbortController | null>(null)
   const recoveredScope = useRef('')
   const [recovering, setRecovering] = useState(true)
+  const restoreConfirmed = useCallback(() => {
+    const restored = restoreConfirmedBody(values, confirmedProgress.current?.confirmed_previews)
+    setGenerationProgress(null)
+    if (!restored.adopted) {
+      setPhase((current) =>
+        current === 'generating' ? (values.body?.trim() ? 'ready' : 'idle') : current,
+      )
+      return
+    }
+    const body = restored.values.body
+    setValues((current) => ({ ...current, body }))
+    setGenerationRunId(undefined)
+    setAiFilledIds((current) => {
+      const next = new Set(current)
+      if (body.trim()) next.add('body')
+      else next.delete('body')
+      return next
+    })
+    setDirtyIds((current) => new Set(current))
+    setPhase(body.trim() ? 'ready' : 'idle')
+  }, [values])
+  const receiveProgress = useCallback((next: MeetingProgress) => {
+    const merged = mergeMeetingProgress(confirmedProgress.current, next)
+    confirmedProgress.current = merged
+    setGenerationProgress(merged)
+  }, [])
   const cancelGeneration = useCallback(() => {
     recoveryAbort.current?.abort()
     setActiveRunId(undefined)
     setGenerationError(null)
     setRecovering(false)
     setPhase((current) => (current === 'generating' ? 'ready' : current))
-  }, [])
+    restoreConfirmed()
+  }, [restoreConfirmed])
   const cancellation = useAgentRunCancellation(
     activeRunId,
     () => {
@@ -181,6 +212,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     setAiFilledIds(new Set())
     setDirtyIds(new Set())
     setGenerationError(null)
+    setGenerationProgress(null)
+    confirmedProgress.current = null
     setGenerationRunId(undefined)
     setActiveRunId(undefined)
     setGenerationEvidence(saved?.aiEvidence ?? null)
@@ -293,6 +326,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   const resumeGeneration = useCallback(
     async (run: AgentRunResponse<ReportDraftSnapshot>, controller: AbortController) => {
       const input = periodInputOf(run, kind, dateISO)
+      confirmedProgress.current = null
+      setGenerationProgress(null)
       restoreGenerationInput(input)
       try {
         if (run.status_code === 'failed' || run.status_code === 'cancelled') {
@@ -303,16 +338,20 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
           setPhase('generating')
         }
         const completed = ['queued', 'running'].includes(run.status_code)
-          ? await waitForReportGeneration(run, undefined, controller.signal)
+          ? await waitForReportGeneration(run, undefined, controller.signal, 2_000, (progress) => {
+              if (!controller.signal.aborted && recoveryAbort.current === controller)
+                receiveProgress(progress)
+            })
           : run
         if (!completed.output_snapshot) throw new Error('agent_run_failed')
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && recoveryAbort.current === controller) {
           acceptGeneration(completed.id, completed.output_snapshot.fields, completed.evidence)
         }
       } catch (reason: unknown) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && recoveryAbort.current === controller) {
           setGenerationError(errorMessage(reason, '진행 중인 AI 보고서를 복구하지 못했습니다.'))
-          setPhase('ready')
+          restoreConfirmed()
+          setPhase((current) => (current === 'generating' ? 'ready' : current))
         }
       } finally {
         if (recoveryAbort.current === controller) {
@@ -321,7 +360,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
         }
       }
     },
-    [kind, dateISO, restoreGenerationInput, acceptGeneration],
+    [kind, dateISO, restoreGenerationInput, acceptGeneration, restoreConfirmed, receiveProgress],
   )
   const resumeGenerationRef = useRef(resumeGeneration)
   resumeGenerationRef.current = resumeGeneration
@@ -333,6 +372,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     generationAbort.current = controller
     setPhase('generating')
     setGenerationError(null)
+    setGenerationProgress(null)
+    confirmedProgress.current = null
     const previous = generationPayload()
     const payload = {
       ...previous,
@@ -353,9 +394,20 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
       const created = await createReportGeneration<ReportDraftSnapshot>(
         periodGenerationRequestOf(payload, attempt.key),
       )
+      if (controller.signal.aborted || generationAbort.current !== controller) return
       setActiveRunId(created.id)
-      const completed = await waitForReportGeneration(created, undefined, controller.signal)
-      if (!controller.signal.aborted) {
+      setGenerationProgress(null)
+      const completed = await waitForReportGeneration(
+        created,
+        undefined,
+        controller.signal,
+        2_000,
+        (progress) => {
+          if (!controller.signal.aborted && generationAbort.current === controller)
+            receiveProgress(progress)
+        },
+      )
+      if (!controller.signal.aborted && generationAbort.current === controller) {
         acceptGeneration(completed.id, completed.output_snapshot.fields, completed.evidence)
         generationAttempt.current = finishIdempotencyAttempt(generationAttempt.current, attempt.key)
       }
@@ -370,8 +422,13 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
         setFrozenActivities(previousActivities)
         setGenerationRunId(previousRunId)
         setGenerationError(errorMessage(reason, 'AI 보고서 초안을 만들지 못했습니다.'))
-        setPhase(
-          canonical || Object.values(values).some((value) => value.trim()) ? 'ready' : 'idle',
+        restoreConfirmed()
+        setPhase((current) =>
+          current === 'generating'
+            ? canonical || Object.values(values).some((value) => value.trim())
+              ? 'ready'
+              : 'idle'
+            : current,
         )
       }
     } finally {
@@ -389,6 +446,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     setAttachments,
     frozenActivities,
     generationRunId,
+    restoreConfirmed,
+    receiveProgress,
   ])
 
   useEffect(() => {
@@ -484,6 +543,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     cancelled: cancellation.cancelled,
     cancelError: cancellation.cancelError,
     generationEvidence,
+    generationProgress,
     generationError: inputError ? reportGenerationMessage(inputError) : generationError,
     sourceError,
     missing,

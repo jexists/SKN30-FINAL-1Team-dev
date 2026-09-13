@@ -178,19 +178,25 @@ class ScriptedModel(BaseChatModel):
         return self._result([self._call("finish_report", {"candidate_version": version})])
 
     def _reads(self, assignment):
+        skill_paths = (
+            ["/skills/report-shared/SKILL.md"]
+            if assignment["report_kind"] == "meeting"
+            and assignment.get("scope") in {"common_report", "unassigned_report"}
+            else [
+                "/skills/report-shared/SKILL.md",
+                "/skills/report-style/SKILL.md",
+                f"/skills/{self.writer_role}/SKILL.md",
+            ]
+            if assignment["report_kind"] == "meeting"
+            and assignment["role"] == harness.REVIEWER_ROLE
+            else [
+                "/skills/report-style/SKILL.md",
+                f"/skills/{self.writer_role}/SKILL.md",
+            ]
+        )
         calls = [
-            self._call(
-                "read_file",
-                {"file_path": "/skills/report-style/SKILL.md", "offset": 0, "limit": 1000},
-            ),
-            self._call(
-                "read_file",
-                {
-                    "file_path": f"/skills/{self.writer_role}/SKILL.md",
-                    "offset": 0,
-                    "limit": 1000,
-                },
-            ),
+            self._call("read_file", {"file_path": path, "offset": 0, "limit": 1000})
+            for path in skill_paths
         ]
         if assignment["phase"] == "prepare":
             source_id = assignment["scope"]
@@ -558,9 +564,11 @@ def test_actual_sdk_uses_one_supervisor_and_selected_writer_then_initial_review(
     assert all("SERVER_ASSIGNMENT=" in text for text in model._descriptions)
     assert usage == {"input_tokens": 70, "output_tokens": 14, "total_tokens": 84}
     assert result.draft.sections["scope-1"].body == "scope-1 초기 본문"
-    for calls in model._requested.values():
+    for key, calls in model._requested.items():
         names = [call["name"] for call in calls]
-        assert names.count("read_file") == 2
+        assert names.count("read_file") == (
+            3 if kind == "meeting" and key[0] == "review_initial" else 2
+        )
         if kind != "meeting":
             assert {"read_report_context", "read_report_sources"} <= set(names)
     runtime = [
@@ -570,7 +578,7 @@ def test_actual_sdk_uses_one_supervisor_and_selected_writer_then_initial_review(
     ]
     assert len(runtime) == 1
     assert runtime[0]["model_call_count"] == 7
-    assert runtime[0]["tool_call_count"] == (11 if kind == "meeting" else 13)
+    assert runtime[0]["tool_call_count"] == (12 if kind == "meeting" else 13)
     assert runtime[0]["delegation_count"] == runtime[0]["required_delegation_count"] == 2
     parent_messages = [
         messages for messages in model._seen if "REPORT_SUPERVISOR" in str(messages[0].content)
@@ -668,7 +676,9 @@ def test_writer_and_reviewer_must_read_required_meeting_scopes(monkeypatch):
 
     assert result.selected_version == 2
     for key, calls in model._requested.items():
-        assert [call["name"] for call in calls].count("read_file") == 2
+        assert [call["name"] for call in calls].count("read_file") == (
+            3 if key[1] == "review-1" else 2
+        )
         expected_scopes = (
             ["scope-1", "scope-2"]
             if key[1] == "review-1"
@@ -1679,7 +1689,13 @@ def test_child_guard_override_requires_reads_before_structured_output(kind, phas
                         _tool_call(
                             itertools.count(1),
                             "read_file",
-                            {"file_path": next(iter(files))},
+                                {
+                                    "file_path": next(
+                                        path
+                                        for path in files
+                                        if path.endswith("report-style/SKILL.md")
+                                    )
+                                },
                         )
                     ],
                 )
@@ -1945,5 +1961,5 @@ def test_all_runtime_markdown_files_are_accounted_for():
     actual = {
         path.relative_to(harness.SKILL_ROOT).as_posix() for path in harness.SKILL_ROOT.rglob("*.md")
     }
-    assert len(paths) == 6
+    assert len(paths) == 7
     assert paths == actual

@@ -6,9 +6,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 
 from app.api.deps import CurrentMember, DbSession, get_current_member
 from app.db.session import get_sessionmaker
+from app.models.agent import AgentRun
 from app.schemas.agent_runs import (
     AgentRunCancelRead,
     AgentRunCreate,
@@ -152,10 +154,36 @@ async def stream_agent_run(
                 yield event("error", {"detail": "agent_run_not_found"})
                 return
             if run.status_code not in {"queued", "running"}:
+                if (
+                    run.progress_snapshot is not None
+                    and run.progress_snapshot.get("attempt_count") == run.attempt_count
+                ):
+                    yield event(
+                        "progress", {**run.progress_snapshot, "status_code": run.status_code}
+                    )
                 yield event("done", run.model_dump(mode="json"))
                 return
             snapshot = progress_snapshot(agent_run_id)
-            sequence = (run.status_code, snapshot["sequence"] if snapshot else -1)
+            if snapshot is None:
+                # worker와 API가 분리돼 있어 DB snapshot을 SSE 간격으로 재조회한다.
+                async with get_sessionmaker()() as session:
+                    snapshot = (
+                        await session.execute(
+                            select(AgentRun.progress_snapshot).where(AgentRun.id == agent_run_id)
+                        )
+                    ).scalar_one_or_none()
+                snapshot = snapshot or run.progress_snapshot
+            if (
+                snapshot
+                and snapshot.get("attempt_count") is not None
+                and snapshot.get("attempt_count") != run.attempt_count
+            ):
+                snapshot = None
+            sequence = (
+                run.status_code,
+                run.attempt_count,
+                snapshot["sequence"] if snapshot else -1,
+            )
             if sequence != last_sequence and (snapshot is not None or last_sequence is None):
                 progress = snapshot or {
                     "run_id": str(agent_run_id),

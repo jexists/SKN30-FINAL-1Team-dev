@@ -341,17 +341,34 @@ export interface MeetingProcessingOutput {
 
 /** 검토·적용 전 화면에서만 보여 주는 문장입니다. ReportWriteRequest에 포함하지 않습니다. */
 export interface MeetingPreview {
-  section: 'deal' | 'common' | 'unassigned'
+  section: 'deal' | 'common' | 'unassigned' | 'body'
   sales_deal_id: string | null
   body: string
   revision: number
+  phase?: string
+  draft_version?: number
+  preview_state?: 'streaming' | 'confirmed' | 'rollback'
+}
+
+export interface MeetingStageResult {
+  stage: 'prepare' | 'review_initial' | 'content_analysis' | 'repair'
+  key: string
+  body: string
+  preview_state?: 'streaming' | 'confirmed'
 }
 
 export interface MeetingProgress {
   run_id: string
+  sequence?: number
+  attempt_count?: number
+  recovery_reason?: 'original_source_fallback' | 'valid_draft_fallback'
   status_code: AgentRunStatus
   stage: string
   previews: MeetingPreview[]
+  confirmed_previews?: MeetingPreview[]
+  stage_results?: MeetingStageResult[]
+  report_kind?: string
+  phase_counts?: { phase: string; total: number; completed: number; failed: number }
   review_attempt?: number
   review_limit?: number
 }

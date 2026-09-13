@@ -21,7 +21,7 @@ from app.schemas.agent_runs import AgentCode
 from app.schemas.reports import meeting_attachment_purpose
 from app.services import agent_runs, report_attachments
 from app.services.agent_logging import agent_operation, collect_token_usage, log_agent_error
-from app.services.agent_stream import progress_context
+from app.services.agent_stream import flush_progress_snapshot, progress_context
 
 MAX_ATTEMPTS = 2
 LEASE_SECONDS = 90
@@ -141,6 +141,7 @@ async def claim(lease_owner: str, run_id: UUID | None = None) -> AgentRun | None
         else:
             run.current_stage_code = "running_agent"
         run.attempt_count = (run.attempt_count or 0) + 1
+        run.progress_snapshot = None
         run.lease_owner = lease_owner
         run.heartbeat_at = now
         run.lease_expires_at = now + timedelta(seconds=LEASE_SECONDS)
@@ -616,22 +617,23 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
                         agent_code=run.agent_code,
                         model=settings.llm_model,
                         attempt=run.attempt_count,
-                        **(
-                            {"parent_run_id": str(run.parent_run_id)}
-                            if run.parent_run_id
-                            else {}
-                        ),
+                        **({"parent_run_id": str(run.parent_run_id)} if run.parent_run_id else {}),
                     ),
-                    progress_context(run.id),
+                    progress_context(
+                        run.id, lease_owner=lease_owner, attempt_count=run.attempt_count
+                    ),
                     collect_token_usage() as usage,
                 ):
-                    agent_code, input_snapshot, requester_id = await agent_runs.prepare_claimed(
-                        run, lease_owner
-                    )
-                    with review_delivery.capture() as review_evidence:
-                        output = await _dispatch_until_cancelled(
-                            run.id, agent_code, input_snapshot, requester_id
+                    try:
+                        agent_code, input_snapshot, requester_id = await agent_runs.prepare_claimed(
+                            run, lease_owner
                         )
+                        with review_delivery.capture() as review_evidence:
+                            output = await _dispatch_until_cancelled(
+                                run.id, agent_code, input_snapshot, requester_id
+                            )
+                    finally:
+                        await flush_progress_snapshot(run.id)
                     await _complete(run, lease_owner, output, usage, review_evidence)
         except asyncio.CancelledError:
             if await _is_cancelled(run.id):

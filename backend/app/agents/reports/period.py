@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.agents.reports import harness, period_sources, review_delivery
 from app.schemas.report_drafts import ReportDraftOutput
 from app.services.agent_logging import log_agent_event
-from app.services.agent_stream import publish_progress
+from app.services.agent_stream import publish_progress, publish_stream_preview
 from app.services.llm import LLMError
 
 PROMPT_VERSION = "report_writing.deepagents.v25"
@@ -142,6 +142,13 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
         evidence_refs=frozenset(evidence_refs),
         output_shape='{"fields":[{"field_id":"body","value":"..."}]}',
     )
+    def preview(version: int, draft: BaseModel) -> None:
+        value = ReportDraftOutput.model_validate(draft.model_dump(mode="json"))
+        publish_stream_preview(
+            section="body", sales_deal_id=None, body=value.fields[0].value,
+            phase="repair" if version == 2 else "write_initial", draft_version=version,
+            preview_state="confirmed",
+        )
     preparation_units = tuple(
         harness.WorkUnit(
             work_unit_id=f"prepare-{item['source_id'].replace(':', '-').replace('_', '-')}",
@@ -173,12 +180,18 @@ async def run(snapshot: dict[str, Any]) -> ReportDraftOutput:
         source_count=len(source_payload["source_units"]),
         preparation_units=preparation_units,
         synthesis_unit=synthesis_unit,
+        on_draft=preview,
     )
     outcome: harness.WorkflowResult | None = None
     completed = False
     started = perf_counter()
     try:
-        publish_progress("report_writing", review_attempt=0, review_limit=1)
+        publish_progress(
+            "report_preparing",
+            report_kind=source["report_kind"],
+            review_attempt=0,
+            review_limit=1,
+        )
         outcome = await harness.run_report_workflow(spec)
         review_delivery.record(outcome)
         draft = ReportDraftOutput.model_validate(outcome.draft.model_dump(mode="json"))

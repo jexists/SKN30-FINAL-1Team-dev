@@ -97,7 +97,8 @@ EXPECTED_COLUMN_COUNTS = {
     "file": 23,
     "document_chunk": 12,
     "document_file_audit": 9,
-    "agent_run": 34,
+    # 20260913_0033 으로 실행 중 화면용 progress snapshot 이 늘었다.
+    "agent_run": 35,
     # 20260829_0013 으로 contract_next_meeting_suggestion 을 새로 만들었다.
     "contract_next_meeting_suggestion": 7,
 }

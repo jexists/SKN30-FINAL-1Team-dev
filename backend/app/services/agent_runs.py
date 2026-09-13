@@ -102,6 +102,9 @@ def _run_read(run: AgentRun, requester_id: UUID) -> AgentRunRead:
         source_refs=run.source_refs,
         generation_input=_generation_input_read(run, requester_id),
         output_snapshot=_output_read(run, requester_id),
+        progress_snapshot=run.progress_snapshot
+        if generation_payload_visible(run, requester_id)
+        else None,
         evidence=run.evidence if generation_payload_visible(run, requester_id) else None,
         error_message=run.error_message,
         error_code=run.error_code,

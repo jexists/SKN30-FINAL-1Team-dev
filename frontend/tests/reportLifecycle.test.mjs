@@ -31,11 +31,15 @@ const { kindOf } = await vite.ssrLoadModule('/src/shared/useAttachments.ts')
 const { reportInputError, reportTextLength, REPORT_ATTACHMENT_LIMIT } =
   await vite.ssrLoadModule('/src/shared/reports.ts')
 const { errorMessage, messageForCode } = await vite.ssrLoadModule('/src/api/errorMessage.ts')
-const { AgentRunTerminalError } = await vite.ssrLoadModule('/src/api/meetingStream.ts')
+const { AgentRunTerminalError, restoreConfirmedBody } = await vite.ssrLoadModule(
+  '/src/api/meetingStream.ts',
+)
 const { canRecoverMeetingGeneration } = await vite.ssrLoadModule(
   '/src/pages/Meetings/useMeetingReports.ts',
 )
-const { mergeMeetingAnalysis } = await vite.ssrLoadModule('/src/pages/Meetings/useMeetingDraft.ts')
+const { mergeMeetingAnalysis, restoreConfirmedPreviewState } = await vite.ssrLoadModule(
+  '/src/pages/Meetings/useMeetingDraft.ts',
+)
 
 const template = {
   id: 'builtin-daily-freeform',
@@ -78,6 +82,113 @@ const run = (status, output = null) => ({
   error_code: status === 'failed' ? 'synthetic_failure' : null,
   error_message: null,
   created_at: '2026-08-31T00:00:00Z',
+})
+
+test('확정 baseline 복원은 partial을 채택하지 않고 대상 본문만 되돌린다', () => {
+  const drafts = {
+    'deal-a': { values: { body: '기존 A', custom: '유지' }, phase: 'generating', docKey: 2 },
+    'deal-b': { values: { body: '기존 B' }, phase: 'ready', docKey: 4 },
+  }
+  const restored = restoreConfirmedPreviewState(
+    drafts,
+    { common_report: { body: '공통 기존', evidence_ids: ['e'] }, unassigned_report: null },
+    ['deal-a'],
+    [
+      {
+        section: 'deal',
+        sales_deal_id: 'deal-a',
+        body: 'partial v2',
+        revision: 2,
+        draft_version: 2,
+        preview_state: 'streaming',
+      },
+      {
+        section: 'deal',
+        sales_deal_id: 'deal-a',
+        body: 'confirmed v1',
+        revision: 1,
+        draft_version: 1,
+        preview_state: 'confirmed',
+      },
+      { section: 'common', sales_deal_id: null, body: '공통 확정', revision: 1 },
+    ],
+  )
+  assert.equal(restored.drafts['deal-a'].values.body, 'confirmed v1')
+  assert.equal(restored.drafts['deal-a'].values.custom, '유지')
+  assert.equal(restored.drafts['deal-b'].values.body, '기존 B')
+  assert.equal(restored.shared.common_report.body, '공통 확정')
+  assert.deepEqual(restored.shared.common_report.evidence_ids, ['e'])
+  assert.equal(restored.adopted, true)
+  assert.deepEqual(restoreConfirmedBody({ body: '기존', other: '유지' }, []), {
+    values: { body: '기존', other: '유지' },
+    adopted: false,
+  })
+})
+
+test('기간 세 종류의 healthy SSE는 본문 progress를 전달하고 GET fallback을 호출하지 않는다', async (t) => {
+  const previous = globalThis.EventSource
+  const streams = []
+  class HealthyEventSource extends EventTarget {
+    constructor() {
+      super()
+      streams.push(this)
+      queueMicrotask(() => {
+        this.dispatchEvent(
+          new MessageEvent('progress', {
+            data: JSON.stringify({
+              run_id: 'period-run',
+              status_code: 'running',
+              stage: 'report_writing',
+              sequence: 1,
+              previews: [{ section: 'body', sales_deal_id: null, body: '본문 조각', revision: 1 }],
+            }),
+          }),
+        )
+        this.dispatchEvent(
+          new MessageEvent('done', {
+            data: JSON.stringify({
+              ...run('completed', { fields: [{ field_id: 'body', value: '최종 본문' }] }),
+              id: 'period-run',
+            }),
+          }),
+        )
+      })
+    }
+    close() {}
+  }
+  globalThis.EventSource = HealthyEventSource
+  t.after(() => {
+    globalThis.EventSource = previous
+  })
+  const originalAdapter = client.defaults.adapter
+  let gets = 0
+  client.defaults.adapter = async () => {
+    gets += 1
+    throw new Error('GET fallback')
+  }
+  try {
+    for (const reportKind of ['daily', 'weekly', 'monthly']) {
+      const seen = []
+      const created = {
+        ...run('running'),
+        id: 'period-run',
+        generation_input: { ...generationInput, report_kind: reportKind },
+      }
+      const completed = await waitForReportGeneration(
+        created,
+        undefined,
+        undefined,
+        0,
+        (progress) => seen.push(progress),
+      )
+      assert.equal(completed.output_snapshot.fields[0].value, '최종 본문')
+      assert.equal(seen.at(-1).previews[0].body, '본문 조각')
+    }
+  } finally {
+    client.defaults.adapter = originalAdapter
+  }
+  assert.equal(gets, 0)
+  assert.equal(streams.length, 3)
 })
 
 test('같은 논리 시도의 응답 유실 재시도는 멱등 키를 재사용하고 입력 변경은 새 키를 쓴다', () => {

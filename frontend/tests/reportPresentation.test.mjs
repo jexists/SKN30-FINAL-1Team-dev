@@ -478,14 +478,17 @@ test('저장 보고서 재진입은 AI 검토 경고를 복구하고 새 범위�
   assert.equal(toReport({ ...periodResponse(), ai_evidence: null }).aiEvidence, null)
   assert.equal(toMeetingReport({ ...response(), ai_evidence: null }).aiEvidence, null)
 
-  const [dailyDraft, meetingCompose] = await Promise.all([
+  const [dailyDraft, dailyCompose, meetingCompose] = await Promise.all([
     readFile(new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
   ])
   assert.match(dailyDraft, /setGenerationEvidence\(saved\?\.aiEvidence \?\? null\)/)
   assert.match(dailyDraft, /setGenerationEvidence\(evidence\)/)
   assert.match(meetingCompose, /setGenerationEvidence\(savedReport\?\.aiEvidence \?\? null\)/)
   assert.match(meetingCompose, /setGenerationEvidence\((completed|run)\.evidence\)/)
+  assert.match(dailyCompose, /!generating && <ReportReviewWarning evidence=\{draft\.generationEvidence\}/)
+  assert.match(meetingCompose, /!generating && !recovering && <ReportReviewWarning evidence=\{generationEvidence\}/)
 })
 
 test('자동 수정 전 검토 기록과 실제 검토 실패를 구분해 안내한다', () => {
@@ -1554,19 +1557,34 @@ test('공통·미지정 기록은 읽기 전용 Markdown과 편집용 연결 lab
   for (const [, id] of labels) assert(edit.includes(`<textarea id="${id}"`))
 })
 
-test('미팅 공통 기록은 재생성 중 이전 내용 대신 진행 상태를 표시한다', () => {
-  const view = renderToStaticMarkup(
+test('미팅 공통 기록은 새 preview 전 현재 진행 상태만 표시하고 preview 수신 뒤 새 본문을 표시한다', () => {
+  const waiting = renderToStaticMarkup(
     createElement(MeetingSharedPanel, {
       shared: { common_report: { body: '기존 공통 기록', evidence_ids: [] } },
       generating: true,
     }),
   )
 
-  assert.match(view, /aria-busy="true"/)
-  assert.match(view, /role="status"/)
-  assert.match(view, /aria-live="polite"/)
-  assert.match(view, /미팅 처리를 준비하는 중입니다/)
-  assert.doesNotMatch(view, /기존 공통 기록/)
+  assert.match(waiting, /aria-busy="true"/)
+  assert.match(waiting, /role="status"/)
+  assert.match(waiting, /aria-live="polite"/)
+  assert.match(waiting, /미팅 처리를 준비하는 중입니다/)
+  assert.doesNotMatch(waiting, /이전 보고서|기존 공통 기록/)
+
+  const preview = renderToStaticMarkup(
+    createElement(MeetingSharedPanel, {
+      shared: { common_report: { body: '기존 공통 기록', evidence_ids: [] } },
+      generating: true,
+      progress: {
+        run_id: 'run-1',
+        status_code: 'running',
+        stage: 'report_writing',
+        previews: [{ section: 'common', body: '새 공통 기록', revision: 1 }],
+      },
+    }),
+  )
+  assert.match(preview, /새 공통 기록/)
+  assert.doesNotMatch(preview, /기존 공통 기록/)
 })
 
 test('딜별 보고서는 재생성 중 이전 제목 대신 로딩 자리를 표시한다', async () => {

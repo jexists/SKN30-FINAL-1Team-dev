@@ -60,6 +60,45 @@
   gap: 20px;
 }
 
+.results {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.resultsTitle {
+  margin-bottom: var(--s3);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stageResults {
+  margin-top: var(--s2);
+  padding-left: var(--s3);
+}
+
+.stageResults h3 {
+  margin: 0 0 var(--s2);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.recovery {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .spin {
     animation: none;

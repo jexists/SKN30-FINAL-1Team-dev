@@ -18,7 +18,7 @@ from app.schemas.meeting_content import MeetingEvidenceLedger
 from app.schemas.reports import meeting_attachment_purpose
 from app.services import meeting_context
 from app.services.agent_logging import log_agent_error
-from app.services.agent_stream import publish_progress
+from app.services.agent_stream import publish_progress, publish_stage_result
 from app.services.llm import LLMError, is_transient_llm_error
 
 PROMPT_VERSION = "meeting_processing.v15"
@@ -72,6 +72,34 @@ async def run(snapshot: dict[str, Any]) -> MeetingProcessingOutput:
     evidence = prepared.evidence
     crm = prepared.crm_context
     additional = prepared.context_lookups
+    counts: dict[str, int] = {}
+    deal_names = {
+        str(item.get("sales_deal_id")): str(item.get("title") or item.get("deal_no") or "선택 딜")
+        for item in snapshot.get("deals", [])
+        if isinstance(item, dict) and item.get("sales_deal_id")
+    }
+    for item in evidence.items:
+        scopes = item.applicability.deal_ids if item.applicability.scope == "deal" else [None]
+        for deal_id in scopes:
+            key = str(deal_id) if deal_id is not None else item.applicability.scope
+            counts[key] = counts.get(key, 0) + 1
+    for key, count in counts.items():
+        label = (
+            deal_names.get(key, "선택 딜")
+            if key not in {"meeting_context", "company_context", "unresolved", "out_of_scope"}
+            else {
+                "meeting_context": "미팅 공통",
+                "company_context": "회사 공통",
+                "unresolved": "확인 필요",
+                "out_of_scope": "범위 밖",
+            }[key]
+        )
+        publish_stage_result(
+            stage="content_analysis",
+            key=f"evidence:{key}",
+            body=f"근거 분류: {label} · 근거 {count}건",
+            preview_state="confirmed",
+        )
 
     async def write_reports():
         try:

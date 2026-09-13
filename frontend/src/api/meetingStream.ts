@@ -141,24 +141,75 @@ export function readMeetingProgress(value: unknown, runId: string): MeetingProgr
   )
     return null
   if (
-    !event.previews.every(
-      (preview) =>
-        preview &&
-        ['deal', 'common', 'unassigned'].includes(preview.section) &&
-        (preview.section === 'deal'
-          ? typeof preview.sales_deal_id === 'string'
-          : preview.sales_deal_id === null) &&
-        typeof preview.body === 'string' &&
-        Number.isInteger(preview.revision) &&
-        preview.revision >= 0,
-    )
+    event.attempt_count !== undefined &&
+    (!Number.isInteger(event.attempt_count) || event.attempt_count < 1)
+  )
+    return null
+  if (event.sequence !== undefined && (!Number.isInteger(event.sequence) || event.sequence < 0))
+    return null
+  const validPreview = (preview: any) =>
+    preview &&
+    ['deal', 'common', 'unassigned', 'body'].includes(preview.section) &&
+    (preview.section === 'deal'
+      ? typeof preview.sales_deal_id === 'string'
+      : preview.sales_deal_id === null) &&
+    typeof preview.body === 'string' &&
+    Number.isInteger(preview.revision) &&
+    preview.revision >= 0 &&
+    (preview.draft_version === undefined || Number.isInteger(preview.draft_version)) &&
+    (preview.preview_state === undefined ||
+      ['streaming', 'confirmed', 'rollback'].includes(preview.preview_state))
+  if (!event.previews.every(validPreview)) return null
+  if (
+    event.confirmed_previews !== undefined &&
+    (!Array.isArray(event.confirmed_previews) || !event.confirmed_previews.every(validPreview))
+  )
+    return null
+  if (
+    event.stage_results !== undefined &&
+    (!Array.isArray(event.stage_results) ||
+      !event.stage_results.every(
+        (item: any) =>
+          item &&
+          ['prepare', 'review_initial', 'content_analysis', 'repair'].includes(item.stage) &&
+          typeof item.key === 'string' &&
+          typeof item.body === 'string' &&
+          (item.preview_state === undefined ||
+            ['streaming', 'confirmed'].includes(item.preview_state)),
+      ))
+  )
+    return null
+  const counts = event.phase_counts
+  if (
+    counts !== undefined &&
+    (!counts ||
+      typeof counts.phase !== 'string' ||
+      !Number.isInteger(counts.total) ||
+      !Number.isInteger(counts.completed) ||
+      !Number.isInteger(counts.failed) ||
+      counts.total < 0 ||
+      counts.completed < 0 ||
+      counts.failed < 0 ||
+      counts.completed + counts.failed > counts.total)
   )
     return null
   return {
     run_id: runId,
+    ...(typeof event.sequence === 'number' ? { sequence: event.sequence } : {}),
+    ...(typeof event.attempt_count === 'number' ? { attempt_count: event.attempt_count } : {}),
+    ...(event.recovery_reason === 'original_source_fallback' ||
+    event.recovery_reason === 'valid_draft_fallback'
+      ? { recovery_reason: event.recovery_reason }
+      : {}),
     status_code: event.status_code!,
     stage: event.stage,
     previews: event.previews,
+    ...(Array.isArray(event.confirmed_previews)
+      ? { confirmed_previews: event.confirmed_previews }
+      : {}),
+    ...(Array.isArray(event.stage_results) ? { stage_results: event.stage_results } : {}),
+    ...(typeof event.report_kind === 'string' ? { report_kind: event.report_kind } : {}),
+    ...(counts ? { phase_counts: counts } : {}),
     ...(typeof event.review_attempt === 'number' ? { review_attempt: event.review_attempt } : {}),
     ...(typeof event.review_limit === 'number' ? { review_limit: event.review_limit } : {}),
   }
@@ -170,15 +221,99 @@ export function mergeMeetingProgress(
   next: MeetingProgress,
 ): MeetingProgress {
   if (previous && previous.run_id !== next.run_id) return previous
+  if (
+    previous &&
+    next.attempt_count !== undefined &&
+    previous.attempt_count !== undefined &&
+    next.attempt_count < previous.attempt_count
+  )
+    return previous
+  if (
+    previous &&
+    next.attempt_count !== undefined &&
+    previous.attempt_count !== undefined &&
+    next.attempt_count > previous.attempt_count
+  ) {
+    previous = null
+  }
+  if (
+    previous &&
+    next.sequence !== undefined &&
+    previous.sequence !== undefined &&
+    next.sequence < previous.sequence
+  )
+    return previous
   const key = (preview: MeetingPreview) => `${preview.section}:${preview.sales_deal_id ?? ''}`
   const old = new Map(previous?.previews.map((preview) => [key(preview), preview]))
+  const incoming = new Map(next.previews.map((preview) => [key(preview), preview]))
+  const confirmedBefore = new Map(
+    previous?.confirmed_previews?.map((preview) => [key(preview), preview]),
+  )
+  const newer = (candidate: MeetingPreview, existing?: MeetingPreview) =>
+    !existing ||
+    (candidate.draft_version ?? 0) > (existing.draft_version ?? 0) ||
+    ((candidate.draft_version ?? 0) === (existing.draft_version ?? 0) &&
+      candidate.revision >= existing.revision)
+  const merged = [...old.entries()]
+  for (const [previewKey, preview] of incoming) {
+    const existing = old.get(previewKey)
+    const confirmed = confirmedBefore.get(previewKey)
+    if (
+      newer(preview, existing) &&
+      !(
+        confirmed &&
+        preview.preview_state === 'streaming' &&
+        (preview.draft_version ?? 0) <= (confirmed.draft_version ?? 0)
+      )
+    ) {
+      const index = merged.findIndex(([key]) => key === previewKey)
+      if (index >= 0) merged[index] = [previewKey, preview]
+      else merged.push([previewKey, preview])
+    }
+  }
+  const confirmed = new Map(confirmedBefore)
+  for (const preview of next.confirmed_previews ?? []) {
+    const existing = confirmed.get(key(preview))
+    if (newer(preview, existing)) confirmed.set(key(preview), preview)
+  }
+  const stageResults = new Map(previous?.stage_results?.map((item) => [item.key, item]))
+  for (const item of next.stage_results ?? []) {
+    const existing = stageResults.get(item.key)
+    if (!existing || existing.preview_state !== 'confirmed' || item.preview_state === 'confirmed')
+      stageResults.set(item.key, item)
+  }
+  const reportStage = (stage?: string) =>
+    stage?.startsWith('report_') || stage === 'report_preparing'
+  const retainingReportStage = Boolean(
+    previous && reportStage(previous.stage) && !reportStage(next.stage),
+  )
+  const stage = retainingReportStage ? previous!.stage : next.stage
   return {
     ...next,
-    previews: next.previews.map((preview) => {
-      const existing = old.get(key(preview))
-      return existing && existing.revision > preview.revision ? existing : preview
-    }),
+    stage,
+    ...(retainingReportStage && previous?.sequence !== undefined && next.sequence === undefined
+      ? { sequence: previous.sequence }
+      : {}),
+    ...(retainingReportStage && previous?.report_kind ? { report_kind: previous.report_kind } : {}),
+    ...(retainingReportStage && previous?.phase_counts
+      ? { phase_counts: previous.phase_counts }
+      : {}),
+    previews: merged.map(([, preview]) => preview),
+    ...(confirmed.size ? { confirmed_previews: [...confirmed.values()] } : {}),
+    ...(stageResults.size ? { stage_results: [...stageResults.values()] } : {}),
   }
+}
+
+export function restoreConfirmedBody(
+  values: Record<string, string>,
+  confirmed: MeetingPreview[] | undefined,
+): { values: Record<string, string>; adopted: boolean } {
+  const body = confirmed?.find(
+    (preview) => preview.section === 'body' && preview.preview_state !== 'streaming',
+  )?.body
+  return body === undefined
+    ? { values, adopted: false }
+    : { values: { ...values, body }, adopted: true }
 }
 
 /** 스트림 실패 시 같은 실행만 GET 합니다. 실행 생성/저장 API는 이 함수에 없습니다. */

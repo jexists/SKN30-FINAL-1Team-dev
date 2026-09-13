@@ -23,6 +23,8 @@ from langchain.agents.middleware import AgentMiddleware, before_model
 from langchain.agents.structured_output import StructuredOutputError, ToolStrategy
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.runnables import RunnableLambda
+from langchain_core.utils.json import parse_partial_json
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 from langsmith import tracing_context
@@ -36,7 +38,7 @@ from app.services.agent_logging import (
     log_agent_event,
     safe_report_scope,
 )
-from app.services.agent_stream import publish_progress
+from app.services.agent_stream import publish_progress, publish_stage_result, publish_stream_preview
 from app.services.llm import (
     LLMError,
     configured_chat_model,
@@ -58,6 +60,30 @@ REPORT_WRITER_ROLES = {
 }
 REPORT_ROLES = frozenset(REPORT_WRITER_ROLES.values())
 _WORK_ID = re.compile(r"(?m)^work_unit_id=([a-z0-9-]+)\s*$")
+
+_DIGEST_FIELDS = (
+    ("facts", "핵심 사실"),
+    ("decisions", "결정"),
+    ("uncertainties", "확인 필요"),
+    ("follow_ups", "후속 조치"),
+)
+
+
+def _digest_stage_fragments(draft: dict[str, Any], scope: str) -> list[tuple[str, str]]:
+    result: list[tuple[str, str]] = []
+    if draft.get("source_id") != scope:
+        return result
+    for field, label in _DIGEST_FIELDS:
+        entries = draft.get(field)
+        if not isinstance(entries, list):
+            continue
+        for index, item in enumerate(entries[:3], start=1):
+            if not isinstance(item, dict) or item.get("source_id") != scope:
+                continue
+            content = item.get("content")
+            if isinstance(content, str) and content.strip():
+                result.append((f"{field}:{index}", f"{label}: {content[:280]}"))
+    return result
 
 
 class PlanItem(BaseModel):
@@ -193,6 +219,156 @@ class _Events(AsyncCallbackHandler):
         self.task_limit = task_limit
         self.calls = self.tools = self.delegations = 0
         self.started: dict[Any, float] = {}
+        self._fragments: dict[tuple[Any, str], str] = {}
+        self._published: dict[Any, str] = {}
+        self._allowed_tools: dict[Any, set[str]] = {}
+
+    @staticmethod
+    def _body_fragment(text: str, *, period: bool) -> str | None:
+        try:
+            value = parse_partial_json(text)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+        if not isinstance(value, dict):
+            return None
+        value = value.get("draft")
+        if not isinstance(value, dict):
+            return None
+        if period:
+            fields = value.get("fields")
+            if not isinstance(fields, list) or not fields or not isinstance(fields[0], dict):
+                return None
+            return fields[0].get("value") if fields[0].get("field_id") == "body" else None
+        return value.get("body") if isinstance(value, dict) else None
+
+    @staticmethod
+    def _stage_fragments(
+        text: str, phase: str, source_scope: str | None = None
+    ) -> list[tuple[str, str]]:
+        try:
+            value = parse_partial_json(text)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+        draft = value.get("draft") if isinstance(value, dict) else None
+        if phase == "review_initial":
+            draft = value
+        if not isinstance(draft, dict):
+            return []
+        if phase == "prepare":
+            return _digest_stage_fragments(draft, source_scope or "")
+        issues = draft.get("issues", [])
+        if not isinstance(issues, list):
+            return []
+        return [
+            (f"issue:{item.get('location')}:{index}", str(item["action"])[:280])
+            for index, item in enumerate(issues, start=1)
+            if isinstance(item, dict)
+            and isinstance(item.get("action"), str)
+            and item["action"].strip()
+        ][:20]
+
+    async def on_llm_new_token(self, token, *, chunk=None, run_id, **kwargs):
+        active = _ACTIVE_ASSIGNMENT.get()
+        if active is None:
+            return
+        coordinator, assignment = active
+        if assignment.phase not in {
+            "prepare",
+            "review_initial",
+            "write_initial",
+            "repair",
+            "synthesize",
+        }:
+            return
+        if assignment.phase in {"prepare", "review_initial"}:
+            body_location = None
+        elif assignment.unit is None:
+            return
+        else:
+            body_location = (
+                f"{assignment.unit.scope}.body"
+                if coordinator.spec.report_kind == "meeting"
+                else "fields[0].value"
+            )
+        if body_location is not None and body_location not in assignment.locations:
+            return
+        if assignment.phase == "prepare" and (
+            assignment.unit is None or assignment.unit.scope not in assignment.locations
+        ):
+            return
+        chunks = getattr(getattr(chunk, "message", None), "tool_call_chunks", None) or ()
+        allowed = {"ReportReview"} if assignment.phase == "review_initial" else {"WriterArtifact"}
+        accepted: list[tuple[str, str]] = []
+        for item in chunks:
+            if not isinstance(item, dict) or not isinstance(item.get("args"), str):
+                continue
+            index = item.get("index")
+            tool_key = str(index if index is not None else item.get("id"))
+            known = self._allowed_tools.setdefault(run_id, set())
+            if item.get("name") in allowed:
+                known.add(tool_key)
+            if tool_key in known:
+                accepted.append((tool_key, item["args"]))
+        if not accepted:
+            return
+        for tool_key, text in accepted:
+            buffer_key = (run_id, tool_key)
+            buffer = self._fragments.get(buffer_key, "") + text
+            self._fragments[buffer_key] = buffer[-200_000:]
+            if assignment.phase in {"prepare", "review_initial"}:
+                for result_key, body in self._stage_fragments(
+                    self._fragments[buffer_key],
+                    assignment.phase,
+                    assignment.unit.scope
+                    if assignment.phase == "prepare" and assignment.unit
+                    else None,
+                ):
+                    if assignment.phase == "review_initial":
+                        location = result_key.split(":", 2)[1]
+                        if location not in assignment.locations:
+                            continue
+                        scope = next(
+                            (
+                                unit.scope
+                                for unit in coordinator.spec.units
+                                if location in unit.locations
+                            ),
+                            None,
+                        )
+                        if scope is None:
+                            continue
+                    else:
+                        scope = assignment.unit.scope if assignment.unit else None
+                        if scope is None:
+                            continue
+                    publish_stage_result(
+                        stage=assignment.phase,
+                        key=f"{scope}:{result_key}",
+                        body=body,
+                    )
+                continue
+            body = self._body_fragment(
+                self._fragments[buffer_key], period=coordinator.spec.report_kind != "meeting"
+            )
+            if body is None or not isinstance(body, str) or not body.strip():
+                continue
+            if body == self._published.get(buffer_key):
+                continue
+            self._published[buffer_key] = body
+            section = assignment.unit.scope
+            if coordinator.spec.report_kind == "meeting":
+                section = (
+                    "deal"
+                    if section.startswith("deal_reports[")
+                    else section.removesuffix("_report")
+                )
+            publish_stream_preview(
+                section=section,
+                sales_deal_id=assignment.unit.sales_deal_id,
+                body=body,
+                phase=assignment.phase,
+                draft_version=2 if assignment.phase == "repair" else 1,
+            )
 
     async def on_chat_model_start(self, serialized, messages, *, run_id, **kwargs):
         if self.calls >= self.model_limit:
@@ -216,6 +392,10 @@ class _Events(AsyncCallbackHandler):
             self.delegations += 1
 
     async def on_llm_end(self, response, *, run_id, **kwargs):
+        for key in [key for key in self._fragments if key[0] == run_id]:
+            self._fragments.pop(key, None)
+            self._published.pop(key, None)
+        self._allowed_tools.pop(run_id, None)
         usage = safe_token_usage((response.llm_output or {}).get("token_usage"))
         if not usage:
             for generations in response.generations:
@@ -232,6 +412,10 @@ class _Events(AsyncCallbackHandler):
         )
 
     async def on_llm_error(self, error, *, run_id, **kwargs):
+        for key in [key for key in self._fragments if key[0] == run_id]:
+            self._fragments.pop(key, None)
+            self._published.pop(key, None)
+        self._allowed_tools.pop(run_id, None)
         started = self.started.pop(run_id, perf_counter())
         log_agent_event(
             self.stage + ".model_failed",
@@ -245,11 +429,25 @@ def skill_files(role: str) -> dict[str, dict[str, Any]]:
         raise ValueError("report_role_invalid")
     paths = ["report-style/SKILL.md", f"{role}/SKILL.md"]
     if role == "sales-meeting-report":
+        paths.insert(0, "report-shared/SKILL.md")
         paths.append(f"{role}/references/examples.md")
     return {
         f"/skills/{path}": create_file_data((SKILL_ROOT / path).read_text(encoding="utf-8"))
         for path in paths
     }
+
+
+def _allowed_skill_paths(role: str, assignment: "_Assignment | None", files) -> frozenset[str]:
+    available = frozenset(files)
+    if role == REVIEWER_ROLE:
+        return available
+    if (
+        assignment
+        and assignment.unit
+        and assignment.unit.scope in {"common_report", "unassigned_report"}
+    ):
+        return frozenset({"/skills/report-shared/SKILL.md"})
+    return frozenset(path for path in available if path != "/skills/report-shared/SKILL.md")
 
 
 def _clone_model(value: BaseModel) -> BaseModel:
@@ -302,9 +500,7 @@ def _safe_section_validation_fields(
         "validation_error_path": ",".join(paths),
         "validation_missing_fields": ",".join(sorted(missing)),
         "validation_actual_keys": ",".join(known + unknown),
-        "validation_actual_types": ",".join(
-            f"{key}:{type(actual[key]).__name__}" for key in known
-        ),
+        "validation_actual_types": ",".join(f"{key}:{type(actual[key]).__name__}" for key in known),
         "validation_null_fields": ",".join(sorted(key for key in known if actual[key] is None)),
     }
 
@@ -379,6 +575,31 @@ class _Coordinator:
         self.seed_files: dict[str, dict[str, Any]] = {}
         if not self.assignments:
             self._assemble(1, persist=False)
+
+    def _publish_phase_counts(self) -> None:
+        active = [item for item in self.assignments.values() if item.phase == self.phase]
+        failed = sum(item.work_unit_id in self.failed_assignments for item in active)
+        completed = sum(
+            item.work_unit_id in self.finished_assignments
+            and item.work_unit_id not in self.failed_assignments
+            for item in active
+        )
+        stage = {
+            "prepare": "report_preparing",
+            "write_initial": "report_writing",
+            "synthesize": "report_writing",
+            "review_initial": "report_review",
+            "repair": "report_revising",
+        }.get(self.phase)
+        publish_progress(
+            stage,
+            phase_counts={
+                "phase": self.phase,
+                "total": len(active),
+                "completed": completed,
+                "failed": failed,
+            },
+        )
 
     @property
     def max_tasks(self) -> int:
@@ -521,9 +742,7 @@ class _Coordinator:
         if not calls:
             raise LLMError("report_generation_failed")
         batched_meeting_writers = (
-            len(calls) > 1
-            and self.spec.report_kind == "meeting"
-            and self.phase == "write_initial"
+            len(calls) > 1 and self.spec.report_kind == "meeting" and self.phase == "write_initial"
         )
         batched_preparation = (
             len(calls) > 1 and bool(self.spec.preparation_units) and self.phase == "prepare"
@@ -587,6 +806,7 @@ class _Coordinator:
                 )
             except Exception:
                 pass
+        self._publish_phase_counts()
 
     def assignment_for_call(self, tool_call_id: str) -> _Assignment:
         try:
@@ -619,9 +839,11 @@ class _Coordinator:
             "source_ids": (
                 [item["source_id"] for item in self.spec.source.get("source_units", [])]
                 if assignment.phase in {"synthesize", "review_initial", "repair"}
-                else [unit.scope] if assignment.phase == "prepare" and unit is not None
+                else [unit.scope]
+                if assignment.phase == "prepare" and unit is not None
                 else [item["source_id"] for item in self.spec.source.get("source_units", [])]
-            ) if self.spec.report_kind != "meeting"
+            )
+            if self.spec.report_kind != "meeting"
             else [],
             "output_shape": unit.output_shape if unit else "ReportReview",
         }
@@ -646,7 +868,9 @@ class _Coordinator:
             else (
                 frozenset(item["source_id"] for item in self.spec.source.get("source_units", []))
                 if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}
-                else frozenset({assignment.unit.scope}) if assignment.unit else frozenset()
+                else frozenset({assignment.unit.scope})
+                if assignment.unit
+                else frozenset()
             )
         )
         existing = (
@@ -726,9 +950,7 @@ class _Coordinator:
         return assignment.unit.scope
 
     def period_source_access(self, tool_name: str, source_id: object) -> bool:
-        existing = frozenset(
-            item["source_id"] for item in self.spec.source.get("source_units", [])
-        )
+        existing = frozenset(item["source_id"] for item in self.spec.source.get("source_units", []))
         active = _ACTIVE_ASSIGNMENT.get()
         if active is None:
             allowed, reason = frozenset(), "context_missing"
@@ -739,18 +961,22 @@ class _Coordinator:
             allowed = (
                 existing
                 if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}
-                else frozenset({assignment.unit.scope}) if assignment.unit else frozenset()
+                else frozenset({assignment.unit.scope})
+                if assignment.unit
+                else frozenset()
             )
             reason = (
                 "allowed"
                 if (source_id is None and assignment.phase != "prepare") or source_id in allowed
-                else "unknown_scope" if source_id not in existing
+                else "unknown_scope"
+                if source_id not in existing
                 else "other_assignment"
             )
         decision = (
-            source_id is None and active[1].phase != "prepare"
-            or source_id in allowed
-        ) if active is not None and active[0] is self else False
+            (source_id is None and active[1].phase != "prepare" or source_id in allowed)
+            if active is not None and active[0] is self
+            else False
+        )
         fields = {
             "report_kind": self.spec.report_kind,
             "tool_name": tool_name,
@@ -776,9 +1002,7 @@ class _Coordinator:
     @property
     def runtime_meeting_scopes(self) -> frozenset[str]:
         return frozenset(
-            scope
-            for scope, data in self.spec.source.items()
-            if data.get("required_evidence_ids")
+            scope for scope, data in self.spec.source.items() if data.get("required_evidence_ids")
         )
 
     def allowed_tools(
@@ -826,10 +1050,7 @@ class _Coordinator:
                 for call in calls
                 if call["name"] == "read_meeting_evidence"
             }
-            missing.extend(
-                f"read_meeting_evidence({scope})"
-                for scope in sorted(expected - actual)
-            )
+            missing.extend(f"read_meeting_evidence({scope})" for scope in sorted(expected - actual))
         else:
             if assignment.phase != "prepare" and not any(
                 call["name"] == "read_report_context" for call in calls
@@ -845,13 +1066,11 @@ class _Coordinator:
             if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}:
                 if None not in actual:
                     missing.extend(
-                        f"read_report_sources({scope})"
-                        for scope in sorted(expected - actual)
+                        f"read_report_sources({scope})" for scope in sorted(expected - actual)
                     )
             else:
                 missing.extend(
-                    f"read_report_sources({scope})"
-                    for scope in sorted(expected - actual)
+                    f"read_report_sources({scope})" for scope in sorted(expected - actual)
                 )
                 missing.extend(
                     f"unexpected source read: {scope}"
@@ -929,6 +1148,16 @@ class _Coordinator:
         self._persist(path, normalized.model_dump(mode="json"))
         if assignment.phase == "prepare":
             self.initial_artifacts[assignment.work_unit_id] = normalized
+            # 준비 단계에서 사용자에게 보여 줄 수 있는 구조화 사실만 짧게 공개한다.
+            if self.spec.report_kind in {"daily", "weekly", "monthly"}:
+                digest = section.model_dump(mode="json")
+                for result_key, body in _digest_stage_fragments(digest, assignment.unit.scope):
+                    publish_stage_result(
+                        stage="prepare",
+                        key=f"{assignment.unit.scope}:{result_key}",
+                        body=body,
+                        preview_state="confirmed",
+                    )
         elif assignment.phase == "repair":
             self.repair_artifacts[assignment.work_unit_id] = normalized
             self.repair_sections[assignment.unit.scope] = section
@@ -958,12 +1187,36 @@ class _Coordinator:
             review.model_dump(mode="json"),
         )
         self.reviews[review.review_round] = review
+        for index, issue in enumerate(review.issues[:20], start=1):
+            scope = location_to_scope.get(issue.location)
+            if scope is None:
+                continue
+            publish_stage_result(
+                stage="review_initial",
+                key=f"{scope}:issue:{issue.location}:{index}",
+                body=f"검토 필요: {issue.action[:280]}",
+                preview_state="confirmed",
+            )
         if review.review_round == 1 and review.issues:
             scopes = {location_to_scope[issue.location] for issue in review.issues}
             repairs: dict[str, _Assignment] = {}
             for unit in self.spec.units:
                 if unit.scope not in scopes:
                     continue
+                for index, issue in enumerate(
+                    (
+                        item
+                        for item in review.issues
+                        if location_to_scope.get(item.location) == unit.scope
+                    ),
+                    start=1,
+                ):
+                    publish_stage_result(
+                        stage="repair",
+                        key=f"{unit.scope}:issue:{issue.location}:{index}",
+                        body=f"수정 대상: {issue.action[:280]}",
+                        preview_state="confirmed",
+                    )
                 work_id = f"repair-{unit.work_unit_id.removeprefix('write-')}"
                 repairs[work_id] = _Assignment(
                     work_unit_id=work_id,
@@ -1002,10 +1255,15 @@ class _Coordinator:
             if self.spec.synthesis_unit is None:
                 raise LLMError("report_generation_failed")
             unit = self.spec.synthesis_unit
-            self.assignments = {unit.work_unit_id: _Assignment(
-                work_unit_id=unit.work_unit_id, phase="synthesize", role=self.spec.writer_role,
-                unit=unit, locations=unit.locations,
-            )}
+            self.assignments = {
+                unit.work_unit_id: _Assignment(
+                    work_unit_id=unit.work_unit_id,
+                    phase="synthesize",
+                    role=self.spec.writer_role,
+                    unit=unit,
+                    locations=unit.locations,
+                )
+            }
             self.phase = "synthesize"
             return
         if assignment.phase == "synthesize":
@@ -1042,6 +1300,7 @@ class _Coordinator:
             self.finished_assignments.add(assignment.work_unit_id)
             if assignment.role != REVIEWER_ROLE:
                 self._advance_after_writer(assignment)
+            self._publish_phase_counts()
             return {
                 "status": "accepted",
                 "work_unit_id": assignment.work_unit_id,
@@ -1086,6 +1345,8 @@ class _Coordinator:
                 self._advance_after_writer(assignment)
             else:
                 raise error
+            self._publish_phase_counts()
+            publish_progress(recovery_reason=reason_code)
             return {
                 "status": "degraded",
                 "work_unit_id": assignment.work_unit_id,
@@ -1226,12 +1487,25 @@ class _ChildGuard(AgentMiddleware):
     ):
         self.coordinator = coordinator
         self.files = files
-        self.required_skills = {path for path in files if path.endswith("/SKILL.md")}
         self.source_names = {
             getattr(tool, "__name__", getattr(tool, "name", "")) for tool in source_tools
         }
         self.output_name = output_schema.__name__
         self.role = role
+
+    def _required_skills(self) -> frozenset[str]:
+        active = _ACTIVE_ASSIGNMENT.get()
+        assignment = active[1] if active is not None and active[0] is self.coordinator else None
+        return frozenset(
+            path
+            for path in _allowed_skill_paths(self.role, assignment, self.files)
+            if path.endswith("/SKILL.md")
+        )
+
+    def _allowed_skill_paths(self) -> frozenset[str]:
+        active = _ACTIVE_ASSIGNMENT.get()
+        assignment = active[1] if active is not None and active[0] is self.coordinator else None
+        return _allowed_skill_paths(self.role, assignment, self.files)
 
     def _active(self) -> _Assignment:
         active = _ACTIVE_ASSIGNMENT.get()
@@ -1257,6 +1531,7 @@ class _ChildGuard(AgentMiddleware):
         ]
 
     def _skills_complete(self, calls: list[dict[str, Any]]) -> bool:
+        required_skills = self._required_skills()
         read = set()
         for call in calls:
             if call["name"] != "read_file":
@@ -1264,24 +1539,21 @@ class _ChildGuard(AgentMiddleware):
             args = call["args"]
             path = args.get("file_path")
             if (
-                path in self.required_skills
+                path in required_skills
                 and args.get("offset", 0) == 0
                 and args.get("limit", 2000) >= len(self.files[path]["content"].splitlines())
             ):
                 read.add(path)
-        return read == self.required_skills
+        return read == required_skills
 
-    def _missing_reads(
-        self, assignment: _Assignment, calls: list[dict[str, Any]]
-    ) -> list[str]:
+    def _missing_reads(self, assignment: _Assignment, calls: list[dict[str, Any]]) -> list[str]:
         missing = self.coordinator.missing_source_reads(assignment, calls)
-        for path in sorted(self.required_skills):
+        for path in sorted(self._required_skills()):
             if not any(
                 call["name"] == "read_file"
                 and call["args"].get("file_path") == path
                 and call["args"].get("offset", 0) == 0
-                and call["args"].get("limit", 2000)
-                >= len(self.files[path]["content"].splitlines())
+                and call["args"].get("limit", 2000) >= len(self.files[path]["content"].splitlines())
                 for call in calls
             ):
                 missing.insert(0, f"read_file({path})")
@@ -1295,9 +1567,6 @@ class _ChildGuard(AgentMiddleware):
             >= REPORT_TASK_MODEL_CALL_LIMIT
         ):
             raise LLMError("report_generation_limit")
-        discovered = {item["path"] for item in request.state.get("skills_metadata", [])}
-        if discovered != self.required_skills:
-            raise LLMError("report_generation_failed")
         allowed = self.coordinator.allowed_tools(assignment, self.source_names, self.output_name)
         previous = self._successful_calls(messages)
         output_available = self._skills_complete(previous) and self.coordinator.sources_complete(
@@ -1351,15 +1620,17 @@ class _ChildGuard(AgentMiddleware):
                 raise PermissionError("report_tool_not_allowed")
             if (
                 self.coordinator.spec.report_kind == "meeting"
-                and
-                call["name"] in self.source_names
+                and call["name"] in self.source_names
                 and assignment.role != REVIEWER_ROLE
                 and "scope" in call.get("args", {})
                 and call.get("args", {}).get("scope")
                 != self.coordinator.assigned_meeting_scope(call["name"])
             ):
                 raise PermissionError("report_scope_not_allowed")
-            if call["name"] == "read_file" and call["args"].get("file_path") not in self.files:
+            if (
+                call["name"] == "read_file"
+                and call["args"].get("file_path") not in self._allowed_skill_paths()
+            ):
                 raise PermissionError("report_file_not_allowed")
             if call["name"] != self.output_name and signature in previous_signatures:
                 raise LLMError("report_generation_limit")
@@ -1367,7 +1638,6 @@ class _ChildGuard(AgentMiddleware):
         if outputs and (
             len(outputs) != 1
             or len(calls) != 1
-            or not self._skills_complete(previous)
             or not self.coordinator.sources_complete(assignment, previous)
         ):
             raise LLMError("report_generation_failed")
@@ -1497,7 +1767,8 @@ class _SupervisorGuard(AgentMiddleware):
                             stage=self.coordinator.spec.stage + ".assignment_failed",
                             error_code=(
                                 str(normalized)
-                                if str(normalized) in {
+                                if str(normalized)
+                                in {
                                     "report_scope_not_allowed",
                                     "report_deal_not_allowed",
                                     "report_source_not_allowed",
@@ -1509,10 +1780,7 @@ class _SupervisorGuard(AgentMiddleware):
                         )
                     except Exception:
                         pass
-                    if (
-                        not self.coordinator.has_valid_draft
-                        and assignment.phase != "prepare"
-                    ) or (
+                    if (not self.coordinator.has_valid_draft and assignment.phase != "prepare") or (
                         assignment.phase == "prepare" and isinstance(normalized, PermissionError)
                     ):
                         raise normalized from None
@@ -1589,7 +1857,7 @@ def _child(
         else "REPORT_WRITER. 배정된 한 scope만 작성하거나 배정된 location만 수정한다."
     )
     prompt += (
-        "\n두 SKILL.md를 read_file(offset=0, limit=1000)로 모두 읽고 적용한다. "
+        "\n제공된 SKILL.md를 read_file(offset=0, limit=1000)로 모두 읽고 적용한다. "
         "사실은 domain reader와 허용된 version artifact로만 확인한다. source_index나 task 설명은 "
         "사실 근거가 아니다. 짧은 근거 계획은 최종 본문이 아니라 WriterArtifact.plan에 둔다. "
         "writer는 SERVER_ASSIGNMENT의 ID/version을 그대로 쓰고 allowed_locations 각각을 plan에 "
@@ -1654,6 +1922,28 @@ async def _run_supervisor(spec: WorkflowSpec) -> WorkflowResult:
         role=REVIEWER_ROLE,
         reviewer=True,
     )
+
+    def scoped(runnable, role):
+        async def invoke(state, config=None):
+            active = _ACTIVE_ASSIGNMENT.get()
+            assignment = active[1] if active is not None and active[0] is coordinator else None
+            paths = _allowed_skill_paths(role, assignment, files)
+            child = dict(state)
+            child["files"] = {
+                path: value
+                for path, value in state.get("files", {}).items()
+                if not path.startswith("/skills/") or path in paths
+            }
+            if "skills_metadata" in child:
+                child["skills_metadata"] = [
+                    item for item in child["skills_metadata"] if item["path"] in paths
+                ]
+            return await runnable.ainvoke(child, config)
+
+        return RunnableLambda(invoke)
+
+    writer = scoped(writer, spec.writer_role)
+    reviewer = scoped(reviewer, REVIEWER_ROLE)
     # 0.7.11의 native dispatcher/private-state filtering을 유지하면서, 예약된 transport
     # 이름으로 자동 GP 생성을 막는다. guard가 모델의 실제 writer 이름을 이 key로 변환한다.
     transport_subagents = [

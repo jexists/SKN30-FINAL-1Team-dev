@@ -47,7 +47,11 @@ test('새 근거 부모는 report child 완료 전에는 기다리고 analysis r
     status_code: 'completed',
     output_snapshot: { evidence: { selected_deal_ids: [] } },
     child_runs: [
-      { agent_code: 'meeting_report_writing', status_code: 'completed', output_snapshot: { deal_reports: [] } },
+      {
+        agent_code: 'meeting_report_writing',
+        status_code: 'completed',
+        output_snapshot: { deal_reports: [] },
+      },
       { agent_code: 'meeting_analysis', status_code: 'running', output_snapshot: null },
     ],
   }
@@ -64,7 +68,9 @@ test('부모 또는 report child 실패와 null output은 즉시 실패로 판�
     meetingChildDecision({
       status_code: 'completed',
       output_snapshot: { evidence: {} },
-      child_runs: [{ agent_code: 'meeting_report_writing', status_code: 'failed', output_snapshot: null }],
+      child_runs: [
+        { agent_code: 'meeting_report_writing', status_code: 'failed', output_snapshot: null },
+      ],
     }),
     'failed',
   )
@@ -177,6 +183,69 @@ test('같은 revision 스트림/수정 revision은 전체 문장을 교체하고
     revised,
   )
   assert.equal(first.previews[0].body, '긴 초안')
+})
+
+test('새 attempt는 이전 snapshot을 초기화하고 낮은 attempt는 무시한다', () => {
+  const first = { ...progress('첫 실행'), attempt_count: 1 }
+  const second = { ...progress('새 실행'), attempt_count: 2 }
+  assert.equal(mergeMeetingProgress(first, { ...first, attempt_count: 0 }), first)
+  assert.equal(mergeMeetingProgress(first, second).previews[0].body, '새 실행')
+})
+
+test('재연결 snapshot의 partial 본문과 확정 본문을 함께 보존해 rollback 기준을 잃지 않는다', () => {
+  const confirmed = {
+    ...progress('확정 v1', 1),
+    previews: [{ ...preview('부분 v2', 2), draft_version: 2, preview_state: 'streaming' }],
+    confirmed_previews: [
+      { ...preview('확정 v1', 1), draft_version: 1, preview_state: 'confirmed' },
+    ],
+  }
+  const merged = mergeMeetingProgress(null, confirmed)
+  assert.equal(merged.previews[0].body, '부분 v2')
+  assert.equal(merged.confirmed_previews[0].body, '확정 v1')
+  const reconnect = mergeMeetingProgress(merged, {
+    ...progress('부분 v2 더', 3),
+    previews: [{ ...preview('부분 v2 더', 3), draft_version: 2, preview_state: 'streaming' }],
+    confirmed_previews: [],
+  })
+  assert.equal(reconnect.previews[0].body, '부분 v2 더')
+  assert.equal(reconnect.confirmed_previews[0].body, '확정 v1')
+})
+
+test('확정 revision 후퇴와 ML 진행 이벤트는 현재 보고서 본문과 단계를 지우지 않는다', () => {
+  const current = {
+    ...progress('확정 본문', 4),
+    stage: 'report_writing',
+    confirmed_previews: [
+      { ...preview('확정 본문', 4), draft_version: 2, preview_state: 'confirmed' },
+    ],
+  }
+  const merged = mergeMeetingProgress(current, {
+    ...progress('늦은 본문', 5),
+    stage: 'analysis_complete',
+    previews: [{ ...preview('늦은 본문', 5), draft_version: 1, preview_state: 'streaming' }],
+    confirmed_previews: [
+      { ...preview('늦은 확정', 3), draft_version: 2, preview_state: 'confirmed' },
+    ],
+  })
+  assert.equal(merged.previews[0].body, '확정 본문')
+  assert.equal(merged.confirmed_previews[0].body, '확정 본문')
+  assert.equal(merged.stage, 'report_writing')
+})
+
+test('낮은 SSE sequence는 전체 snapshot을 무시한다', () => {
+  const current = {
+    ...progress('현재 본문', 2),
+    sequence: 8,
+    phase_counts: { phase: 'write_initial', total: 3, completed: 2, failed: 0 },
+  }
+  const ml = { ...progress('현재 본문', 3), stage: 'analysis_complete' }
+  const preserved = mergeMeetingProgress(current, ml)
+  assert.equal(preserved.sequence, 8)
+  assert.equal(preserved.phase_counts.total, 3)
+  assert.equal(preserved.stage, 'report_writing')
+  const stale = { ...progress('늦은 본문', 9), sequence: 7, stage: 'analysis_complete' }
+  assert.deepEqual(mergeMeetingProgress(preserved, stale), preserved)
 })
 
 test('인증 스트림은 현재 run만 표시하고 완료 output만 저장 호출부로 반환한다', async (t) => {

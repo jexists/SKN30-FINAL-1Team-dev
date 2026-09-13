@@ -45,6 +45,7 @@ import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingDealForm from './components/MeetingDealForm'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
+import StageResults from './components/GenerationProgress/StageResults'
 import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './useMeetingDraft'
 import useMeetingReports, {
   type MeetingDealDraftPayload,
@@ -146,6 +147,15 @@ export default function Compose() {
     analysisAbort.current = null
   }, [])
   const draft = useMeetingDraft(item, savedReport, draftReady, stopAnalysisWatch)
+  const {
+    beginGeneration,
+    receiveProgress,
+    acceptGenerated,
+    acceptAnalysis,
+    generationFailed,
+    restoreConfirmed,
+    restoreGenerationInput,
+  } = draft
   const onGenerationCancelled = useCallback(() => {
     stopAnalysisWatch()
     generationAbort.current?.abort()
@@ -156,7 +166,8 @@ export default function Compose() {
     setActiveRunId(undefined)
     setGenerating(false)
     setCancelledNotice(true)
-  }, [stopAnalysisWatch])
+    restoreConfirmed(draft.salesDealIds)
+  }, [draft.salesDealIds, restoreConfirmed, stopAnalysisWatch])
   const cancellation = useAgentRunCancellation(
     activeRunId,
     () => {
@@ -168,15 +179,6 @@ export default function Compose() {
   useEffect(() => {
     setGenerationEvidence(savedReport?.aiEvidence ?? null)
   }, [savedReport])
-  const {
-    beginGeneration,
-    receiveProgress,
-    acceptGenerated,
-    acceptAnalysis,
-    generationFailed,
-    restoreGenerationInput,
-  } = draft
-
   const startAnalysisWatchForParent = useCallback(
     (parentRunId: string) => {
       stopAnalysisWatch()
@@ -223,16 +225,34 @@ export default function Compose() {
         if (run.status_code === 'failed' || run.status_code === 'cancelled') {
           throw new Error(run.error_code ?? run.error_message ?? 'agent_run_failed')
         }
-        const completed = await waitForMeetingProcessing(run, receiveProgress, controller.signal)
+        const completed = await waitForMeetingProcessing(
+          run,
+          (progress) => {
+            if (!controller.signal.aborted && recoveryAbort.current === controller) {
+              receiveProgress({
+                ...progress,
+                previews: progress.previews.filter(
+                  (preview) =>
+                    preview.section !== 'deal' || dealIds.includes(preview.sales_deal_id!),
+                ),
+                confirmed_previews: progress.confirmed_previews?.filter(
+                  (preview) =>
+                    preview.section !== 'deal' || dealIds.includes(preview.sales_deal_id!),
+                ),
+              })
+            }
+          },
+          controller.signal,
+        )
         if (!completed.output_snapshot) throw new Error('agent_run_failed')
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || recoveryAbort.current !== controller) return
         acceptGenerated(completed.id, completed.output_snapshot)
         setGenerationEvidence(completed.evidence)
         startAnalysisWatch(completed)
         // 지난 실행의 실패는 딜 카드가 따로 알립니다. 여기서는 되살렸다는 사실만 알립니다.
         setRestored(Boolean(completed.output_snapshot.reports))
       } catch (reason: unknown) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && recoveryAbort.current === controller) {
           const parentRunId =
             typeof run.source_refs.parent_run_id === 'string'
               ? run.source_refs.parent_run_id
@@ -511,6 +531,7 @@ export default function Compose() {
       created = failedReportId
         ? await retryMeetingReport<MeetingProcessingOutput>(failedReportId)
         : await createReportGeneration<MeetingProcessingOutput>(request)
+      if (controller.signal.aborted || generationAbort.current !== controller) return
       setActiveRunId(
         typeof created.source_refs.parent_run_id === 'string'
           ? created.source_refs.parent_run_id
@@ -525,16 +546,20 @@ export default function Compose() {
       const run = await waitForMeetingProcessing(
         created,
         (progress) => {
+          if (controller.signal.aborted || generationAbort.current !== controller) return
           receiveProgress({
             ...progress,
             previews: progress.previews.filter(
+              (preview) => preview.section !== 'deal' || targets.includes(preview.sales_deal_id!),
+            ),
+            confirmed_previews: progress.confirmed_previews?.filter(
               (preview) => preview.section !== 'deal' || targets.includes(preview.sales_deal_id!),
             ),
           })
         },
         controller.signal,
       )
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || generationAbort.current !== controller) return
       acceptGenerated(run.id, run.output_snapshot)
       setActiveRunId(undefined)
       setGenerationEvidence(run.evidence)
@@ -542,7 +567,7 @@ export default function Compose() {
       generationAttempt.current = finishIdempotencyAttempt(generationAttempt.current, attempt.key)
       setRunErrors(run.output_snapshot.errors)
     } catch (reason: unknown) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && generationAbort.current === controller) {
         if (analysisParentRunId) startAnalysisWatchForParent(analysisParentRunId)
         if (isAgentRunTerminalError(reason)) {
           generationAttempt.current = finishIdempotencyAttempt(
@@ -613,7 +638,7 @@ export default function Compose() {
         {item.hospital} {item.title} 미팅 보고서 작성
       </h1>
 
-      <ReportReviewWarning evidence={generationEvidence} />
+      {!generating && !recovering && <ReportReviewWarning evidence={generationEvidence} />}
 
       <div className={styles.head}>
         <Link className={styles.back} to={meetingPickPath(item.date)}>
@@ -783,6 +808,7 @@ export default function Compose() {
         {showWork && (
           <section className={styles.work} aria-label="미팅 보고서">
             <div className={styles.reports}>
+              <StageResults progress={draft.processingProgress} />
               {(draft.salesDealIds.length === 0 ||
                 result ||
                 draft.processingProgress ||

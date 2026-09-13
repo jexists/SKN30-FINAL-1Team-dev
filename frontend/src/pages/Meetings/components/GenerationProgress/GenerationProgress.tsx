@@ -1,37 +1,44 @@
 // 서버의 실제 단계와 아직 검토되지 않은 문자열만 표시합니다. 저장·편집기는 별도입니다.
 import { RefreshIcon } from '@/components/icons'
-import Skeleton from '@/components/Skeleton'
-import type { MeetingPreview, MeetingProgress } from '@/types'
+import type { MeetingPreview, MeetingProgress, MeetingStageResult } from '@/types'
 
 import styles from './GenerationProgress.module.scss'
+import { previewLabel, progressModel } from './progressModel'
+import StageResults from './StageResults'
 
 interface Props {
   progress?: MeetingProgress | null
   preview?: MeetingPreview
-  /** 채워질 항목 수. 자리표시자를 실제 보고서 길이에 맞춥니다. */
-  fieldCount: number
+  previews?: MeetingPreview[]
+  stageResults?: MeetingStageResult[]
+  showStages?: boolean
+  reportKind?: 'meeting' | 'period'
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  starting: '미팅 처리 시작을 기다리는 중입니다',
-  content_analysis: '미팅 원문과 딜 근거를 분석하는 중입니다',
-  report_writing: '딜별 보고서를 작성하는 중입니다',
-  report_review: '보고서 근거와 표현을 검토하는 중입니다',
-  report_complete: '보고서 검토 완료 · 나머지 분석을 기다리는 중입니다',
-  features: '딜별 특성과 ML 결과를 분석하는 중입니다',
-  analysis_complete: 'ML 분석 완료 · 보고서 처리를 기다리는 중입니다',
-}
-
-export default function GenerationProgress({ progress, preview, fieldCount }: Props) {
-  const label = progress
-    ? (STAGE_LABELS[progress.stage] ?? '미팅 처리 결과를 기다리는 중입니다')
-    : '미팅 처리를 준비하는 중입니다'
+export default function GenerationProgress({
+  progress,
+  preview,
+  previews,
+  stageResults,
+  showStages = true,
+  reportKind = 'meeting',
+}: Props) {
+  const model = progressModel(progress, reportKind)
+  const visiblePreviews = [
+    ...(previews ?? []),
+    ...(preview &&
+    !(previews ?? []).some(
+      (item) => item.revision === preview.revision && item.section === preview.section,
+    )
+      ? [preview]
+      : []),
+  ]
   return (
     <div className={styles.root}>
       <div className={styles.head} role="status" aria-live="polite">
         <RefreshIcon className={styles.spin} width={16} height={16} aria-hidden="true" />
         <p className={styles.headline}>
-          {label}
+          {model.label}
           {progress?.stage === 'report_review' && progress.review_attempt != null && (
             <span>
               {' '}
@@ -40,23 +47,45 @@ export default function GenerationProgress({ progress, preview, fieldCount }: Pr
             </span>
           )}
         </p>
+        {progress?.phase_counts && <span aria-label="현재 단계 진행 수">{model.countLabel}</span>}
       </div>
+      <ol aria-label="보고서 진행 단계">
+        {model.steps.map((step) => (
+          <li key={step} aria-current={step === model.currentStep ? 'step' : undefined}>
+            {step}
+          </li>
+        ))}
+      </ol>
 
-      {preview ? (
-        <div className={styles.preview}>
-          <p className={styles.draftLabel}>작성 중인 초안 · 검토 전</p>
-          <p className={styles.body}>{preview.body || '문장을 작성하고 있습니다.'}</p>
+      {visiblePreviews.length ? (
+        <div className={styles.blocks}>
+          {visiblePreviews.map((item) => (
+            <div className={styles.preview} key={`${item.section}:${item.sales_deal_id ?? ''}`}>
+              <p className={styles.draftLabel}>{previewLabel(item)}</p>
+              <p className={styles.body}>{item.body || '내용을 확인하고 있습니다.'}</p>
+            </div>
+          ))}
           <p className={styles.notice}>
             검토 중 문장이 바뀔 수 있습니다. 완료 후에만 최종 보고서에 적용됩니다.
           </p>
         </div>
       ) : (
-        <div className={styles.blocks}>
-          {Array.from({ length: fieldCount }, (_, at) => (
-            <Skeleton key={at} height={76} radius="var(--r-sm)" />
-          ))}
-        </div>
+        <p className={styles.activity}>현재 단계 결과를 확인하고 있습니다.</p>
       )}
+      {showStages && (
+        <StageResults
+          progress={{
+            ...(progress ?? {
+              run_id: '',
+              status_code: 'running',
+              stage: 'starting',
+              previews: [],
+            }),
+            stage_results: stageResults,
+          }}
+        />
+      )}
+      {model.recoveryLabel && <p className={styles.recovery}>{model.recoveryLabel}</p>}
     </div>
   )
 }

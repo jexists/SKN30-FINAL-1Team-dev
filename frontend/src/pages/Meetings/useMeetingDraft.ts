@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { errorMessage, reportGenerationMessage } from '@/api/errorMessage'
+import { mergeMeetingProgress } from '@/api/meetingStream'
 import { reportInputError } from '@/shared/reports'
 import useAttachments from '@/shared/useAttachments'
 import type {
@@ -75,6 +76,47 @@ export function hasMeetingDraftContent(
 /** 미팅 생성 후보도 canonical 본문 한 칸만 받습니다. */
 export function mergeMeetingGeneratedValues(body: string): Record<string, string> {
   return { body }
+}
+
+export function restoreConfirmedPreviewState(
+  drafts: Record<string, DealDraftState>,
+  shared: MeetingSharedNotes | undefined,
+  dealIds: string[],
+  confirmed: MeetingProgress['confirmed_previews'] = [],
+  fallbackTitle = '',
+) {
+  let adopted = false
+  const nextDrafts = { ...drafts }
+  for (const id of dealIds) {
+    const body = confirmed.find(
+      (item) =>
+        item.section === 'deal' && item.sales_deal_id === id && item.preview_state !== 'streaming',
+    )?.body
+    const current = nextDrafts[id] ?? stateOf(fallbackTitle)
+    if (body === undefined)
+      nextDrafts[id] = { ...current, phase: isMeetingBodyBlank(current.values) ? 'idle' : 'ready' }
+    else {
+      adopted = true
+      nextDrafts[id] = {
+        ...current,
+        values: { ...current.values, body },
+        phase: body.trim() ? 'ready' : 'idle',
+        docKey: current.docKey + 1,
+      }
+    }
+  }
+  const nextShared = { ...(shared ?? { common_report: null, unassigned_report: null }) }
+  for (const section of ['common_report', 'unassigned_report'] as const) {
+    const previewSection = section === 'common_report' ? 'common' : 'unassigned'
+    const body = confirmed.find(
+      (item) => item.section === previewSection && item.preview_state !== 'streaming',
+    )?.body
+    if (body !== undefined) {
+      adopted = true
+      nextShared[section] = { ...(nextShared[section] ?? { evidence_ids: [] }), body }
+    }
+  }
+  return { drafts: nextDrafts, shared: adopted ? nextShared : shared, adopted }
 }
 
 function stateOf(
@@ -184,6 +226,7 @@ export default function useMeetingDraft(
   const files = useAttachments()
   // 스트리밍 중 문장은 미리보기로만 두고, 완료된 AgentRun 후보만 편집 상태에 올립니다.
   const [processingProgress, setProcessingProgress] = useState<MeetingProgress | null>(null)
+  const confirmedProgress = useRef<MeetingProgress | null>(null)
   const {
     addAttachments: addFiles,
     removeAttachment: removeFile,
@@ -215,6 +258,7 @@ export default function useMeetingDraft(
     setReportDate(savedReport?.date)
     setMeetingResult(result)
     setProcessingProgress(null)
+    confirmedProgress.current = null
     setAttachmentError(null)
   }, [savedReport, item?.salesDealId, fallbackTitle, setAttachments, setAttachmentError])
 
@@ -298,6 +342,7 @@ export default function useMeetingDraft(
   const beginGeneration = useCallback(
     (dealIds: string[]) => {
       setProcessingProgress(null)
+      confirmedProgress.current = null
       setSalesDealIds((previous) => [...new Set([...previous, ...dealIds])])
       for (const id of dealIds)
         updateDeal(id, (draft) => ({
@@ -373,6 +418,36 @@ export default function useMeetingDraft(
     [fallbackTitle],
   )
 
+  const restoreConfirmed = useCallback(
+    (dealIds: string[]) => {
+      const confirmed = confirmedProgress.current?.confirmed_previews ?? []
+      setProcessingProgress(null)
+      setDraftsByDeal((previous) => {
+        const restored = restoreConfirmedPreviewState(
+          previous,
+          undefined,
+          dealIds,
+          confirmed,
+          fallbackTitle,
+        )
+        return restored.drafts
+      })
+      setMeetingResult((current) => {
+        const restored = restoreConfirmedPreviewState(
+          {},
+          current?.shared,
+          dealIds,
+          confirmed,
+          fallbackTitle,
+        )
+        return restored.adopted
+          ? { ...current, runId: undefined, shared: restored.shared }
+          : current
+      })
+    },
+    [fallbackTitle],
+  )
+
   const generationFailed = useCallback(
     (dealIds: string[], reason: unknown) => {
       setProcessingProgress(null)
@@ -387,9 +462,16 @@ export default function useMeetingDraft(
           analysisPhase: draft.assessment ? 'completed' : 'failed',
           analysisError: draft.assessment ? null : '새 분석 결과를 받지 못했습니다.',
         }))
+      restoreConfirmed(dealIds)
     },
-    [updateDeal],
+    [updateDeal, restoreConfirmed],
   )
+
+  const receiveProgress = useCallback((next: MeetingProgress) => {
+    const merged = mergeMeetingProgress(confirmedProgress.current, next)
+    confirmedProgress.current = merged
+    setProcessingProgress(merged)
+  }, [])
 
   const acceptAnalysis = useCallback((child: AgentRunChildResponse) => {
     setDraftsByDeal((previous) => mergeMeetingAnalysis(previous, child))
@@ -419,7 +501,7 @@ export default function useMeetingDraft(
     draftsByDeal,
     meetingResult,
     processingProgress,
-    receiveProgress: setProcessingProgress,
+    receiveProgress,
     setTitle: (id: string, title: string) =>
       updateDeal(id, (draft) => ({ ...draft, title, touched: true })),
     applyDocument: (id: string, body: string) =>
@@ -429,6 +511,7 @@ export default function useMeetingDraft(
     acceptGenerated,
     acceptAnalysis,
     generationFailed,
+    restoreConfirmed,
     setShared: (commonBody: string, unassignedBody: string) =>
       setMeetingResult((current) => {
         const common = current?.shared?.common_report
