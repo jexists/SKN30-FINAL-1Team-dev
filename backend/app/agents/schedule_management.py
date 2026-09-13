@@ -11,7 +11,7 @@ from app.services.llm import generate_structured
 
 # 프롬프트는 라우터가 아니라 이 에이전트 파일에서만 관리한다.
 # 내용을 바꾸면 실행 이력에서 구분할 수 있도록 버전도 함께 올린다.
-PROMPT_VERSION = "schedule_management.v2"
+PROMPT_VERSION = "schedule_management.v4"
 
 SYSTEM_PROMPT = """너는 영업 일정관리를 보조하는 AI다.
 입력된 선호 기간, 소요 시간과 기존 일정만 근거로 후보를 만든다.
@@ -19,8 +19,11 @@ SYSTEM_PROMPT = """너는 영업 일정관리를 보조하는 AI다.
 입력의 current_date는 지금 시각(Asia/Seoul)이다. 모든 후보는 current_date 이후여야
 한다 — 이미 지난 날짜를 제안하지 마라.
 
-모든 후보의 시작·종료는 Asia/Seoul 기준 09:00~18:00 업무시간 안에서, 토·일요일을 뺀
-평일(월~금)에만 제안하라.
+모든 후보의 시작·종료는 Asia/Seoul 기준 09:00~18:00 업무시간 안에 두어라.
+
+요일은 평일(월~금)에서 고르는 것이 기본이다. 스스로 판단해 토·일을 채우지 마라.
+다만 reason 에 만나기로 한 날짜가 적혀 있으면 그 날은 요일과 무관하게 — 토·일이어도 —
+1순위 후보로 내라. 사람이 이미 합의한 날짜가 요일 관례보다 앞선다.
 기존 일정과 겹치는 후보는 만들지 말고, 발견한 충돌은 conflicts 에 근거 ID와 함께 남겨라.
 
 각 후보의 길이는 duration_minutes 와 정확히 같아야 한다 — 자리가 부족하다고 짧게 줄이지
@@ -118,15 +121,18 @@ def _now() -> datetime:
 
 
 def _within_business_hours(candidate: ScheduleCandidate) -> bool:
-    """후보 시작·종료가 같은 날짜의 평일 Asia/Seoul 09:00~18:00 안에 있는지 확인한다."""
+    """후보 시작·종료가 같은 날짜의 Asia/Seoul 09:00~18:00 안에 있는지 확인한다.
+
+    요일은 보지 않는다. 평일만 내라는 판단은 프롬프트가 하고, 서버는 그 예외를 막지 않는다.
+    보고서에서 "토요일에 만나기로 했다" 처럼 날짜를 합의한 경우 일정관리는 그 날을 후보로
+    내야 하는데, 서버가 요일로 거르면 사람이 합의한 자리를 그대로 버리게 된다.
+    """
     try:
         start = _parse(candidate.starts_at).astimezone(_SEOUL)
         end = _parse(candidate.ends_at).astimezone(_SEOUL)
     except ValueError:
         return False
     if end <= start or start.date() != end.date():
-        return False
-    if start.weekday() >= 5:  # 5=토요일, 6=일요일
         return False
     return _BUSINESS_START <= start.time() and end.time() <= _BUSINESS_END
 
@@ -292,7 +298,7 @@ def _dedupe_and_cap(candidates: list[ScheduleCandidate]) -> list[ScheduleCandida
 def _postprocess(
     output: ScheduleManagementOutput, snapshot: dict[str, Any]
 ) -> ScheduleManagementOutput:
-    """업무시간 밖·주말·과거·선호 기간 밖 후보는 버리고, 겹치는 후보는 conflicts로 옮긴다.
+    """업무시간 밖·과거·선호 기간 밖 후보는 버리고, 겹치는 후보는 conflicts로 옮긴다.
 
     프롬프트로 지침을 줘도 LLM이 어길 수 있어, 미래 여부는 여기서 다시 결정적으로 검증한다.
 
