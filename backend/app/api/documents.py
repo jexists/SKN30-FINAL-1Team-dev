@@ -43,7 +43,13 @@ from app.schemas.documents import (
     DocumentUploaderRead,
     DownloadRead,
 )
-from app.services import business_cards, document_processing, sales_context, storage
+from app.services import (
+    briefing_refresh,
+    business_cards,
+    document_processing,
+    sales_context,
+    storage,
+)
 from app.services.llm import LLMError
 from app.services.ocr import OcrError
 from app.services.storage import StorageError
@@ -398,6 +404,34 @@ async def _next_document_no(db: AsyncSession, member: Member, year: int) -> str:
     return f"{prefix}{next_number:04d}"
 
 
+def _document_scope_values(document: Document) -> tuple[UUID | None, UUID | None, UUID | None]:
+    """이 자료가 어떤 미팅에 영향을 주는지 정하는 연결 세 가지."""
+    return (document.sales_deal_id, document.customer_company_id, document.product_id)
+
+
+def _queue_briefing_refresh(
+    background: BackgroundTasks,
+    team_id: UUID,
+    scope: tuple[UUID | None, UUID | None, UUID | None],
+) -> None:
+    """자료 변경이 커밋된 뒤 영향받는 미래 미팅의 브리핑 갱신을 예약한다.
+
+    응답은 예약만 하고 돌아간다. 자료 저장 요청이 LLM 완료를 기다리지 않는다.
+    """
+    sales_deal_id, customer_company_id, product_id = scope
+    if sales_deal_id is None and customer_company_id is None and product_id is None:
+        return
+    background.add_task(
+        briefing_refresh.schedule_quietly,
+        briefing_refresh.schedule_for_document_scope(
+            team_id=team_id,
+            sales_deal_id=sales_deal_id,
+            customer_company_id=customer_company_id,
+            product_id=product_id,
+        ),
+    )
+
+
 @router.get("/documents", response_model=DocumentPage)
 async def list_documents(
     page: Annotated[DocumentPageParams, Query()],
@@ -682,6 +716,7 @@ async def create_document(
 async def update_document(
     document_id: UUID,
     payload: DocumentPatch,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> DocumentRead:
@@ -710,20 +745,28 @@ async def update_document(
             sales_deal_id=values.get("sales_deal_id", document.sales_deal_id),
         )
         await _validate_links(db, member, values)
+        # 연결을 바꾸면 이 자료를 잃는 미팅과 새로 얻는 미팅이 동시에 생긴다. 양쪽 다
+        # 갱신해야 하므로 바꾸기 전 범위를 먼저 붙잡아 둔다.
+        before_scope = _document_scope_values(document)
         for field_name, value in values.items():
             setattr(document, field_name, value)
         await db.flush()
         read = await _detail(db, member, document_id)
+        after_scope = _document_scope_values(document)
+        team_id = document.team_id
         await db.commit()
     except Exception:
         await db.rollback()
         raise
+    for scope in {before_scope, after_scope}:
+        _queue_briefing_refresh(background, team_id, scope)
     return read
 
 
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> None:
@@ -753,13 +796,19 @@ async def delete_document(
                 detail="document_owner_required",
             )
         # 이미 지운 자료를 다시 지워도 그대로 성공이다. 두 번 눌렀다고 실패를 보일 것이 없다.
-        if document.deleted_at is None:
+        deleted_now = document.deleted_at is None
+        if deleted_now:
             document.deleted_at = datetime.now(UTC)
             await db.flush()
+        scope = _document_scope_values(document)
+        team_id = document.team_id
         await db.commit()
     except Exception:
         await db.rollback()
         raise
+    if deleted_now:
+        # 지운 자료가 근거로 남아 있는 브리핑을 그대로 두지 않는다.
+        _queue_briefing_refresh(background, team_id, scope)
 
 
 @router.post(
@@ -974,6 +1023,7 @@ async def get_document_summary(
 async def approve_document_summary(
     document_id: UUID,
     file_id: UUID,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> DocumentSummaryRead:
@@ -1022,6 +1072,10 @@ async def approve_document_summary(
         raise
 
     await storage.remove(storage_key=document_processing.draft_storage_key(row.storage_key))
+    # 승인으로 비로소 청크가 검색 대상이 됐다. 커밋이 끝난 지금 갱신을 예약한다.
+    background.add_task(
+        briefing_refresh.schedule_quietly, briefing_refresh.schedule_for_file(row.id)
+    )
     return DocumentSummaryRead(
         file_id=row.id,
         file_name=row.file_name,

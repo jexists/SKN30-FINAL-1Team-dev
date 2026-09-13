@@ -21,6 +21,7 @@ from app.db.session import get_sessionmaker
 from app.ml.deal_baseline import DealModelError
 from app.models.agent import AgentRun
 from app.models.content import Report
+from app.models.crm import Activity
 from app.models.workspace import Member
 from app.schemas.agent_runs import (
     AgentRunCreate,
@@ -177,6 +178,31 @@ def _briefing_document_ids(input_snapshot: dict[str, Any]) -> list[str]:
     )
 
 
+async def _briefing_source_state(
+    db: AsyncSession, member: Member, activity_id: UUID
+) -> dict[str, Any]:
+    """브리핑 입력을 만든 시점의 자료 상태.
+
+    ``source_revision`` 은 검색 대상의 지문이고 ``source_observed_at`` 은 그 상태를 관찰한
+    시각이다. 둘을 나눈 이유는 역할이 다르기 때문이다 — 지문은 "달라졌는가"를, 관찰 시각은
+    "둘 중 어느 쪽이 더 나중 상태를 봤는가"를 답한다. 지문만으로는 완료된 두 실행의 선후를
+    정할 수 없고, 시각만으로는 내용이 그대로인데도 매번 다시 만들게 된다.
+    """
+    from app.services import briefing_refresh
+
+    activity = (
+        await db.execute(select(Activity).where(Activity.id == activity_id))
+    ).scalar_one_or_none()
+    if activity is None:
+        return {}
+    return {
+        "source_revision": await briefing_refresh.source_revision(
+            db, activity=activity, member=member
+        ),
+        "source_observed_at": datetime.now(UTC).isoformat(),
+    }
+
+
 def _scope(member: Member):
     """같은 팀에서 관리자는 전체를, 일반 구성원은 본인 실행만 본다."""
     conditions = [AgentRun.team_id == member.team_id]
@@ -256,6 +282,10 @@ async def _build_run_input(
         document_ids = _briefing_document_ids(input_snapshot)
         if document_ids:
             source_refs["document_ids"] = document_ids
+        # 이 실행이 무엇을 보고 만들어졌는지 실행 행에 남긴다. 완료 시점에 현재 상태와
+        # 비교해 후속 갱신을 예약하고(briefing_refresh.follow_up_if_stale), 조회하는 쪽은
+        # source_observed_at 으로 "어느 결과가 더 최신 자료를 봤는가"를 정한다.
+        source_refs.update(await _briefing_source_state(db, member, payload.activity_id))
         return (
             contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
             input_snapshot,

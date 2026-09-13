@@ -25,15 +25,18 @@ from app.schemas.activities import (
     ActivityRead,
 )
 from app.schemas.agent_runs import AgentRunCreate
-from app.services import activity_documents, contract_next_meeting_pipeline
+from app.services import activity_documents, briefing_refresh, contract_next_meeting_pipeline
 from app.services import agent_runs as agent_run_service
 
 router = APIRouter(tags=["activities"])
 
 _SEOUL = ZoneInfo("Asia/Seoul")
-# activity 하나당 브리핑 실행이 최대 한 번만 큐잉되도록 activity_id로 결정적 idempotency_key를
-# 만든다. 같은 activity_id로 다시 호출돼도 agent_runs.create()의 기존 멱등 로직이 중복을 막는다.
+# 일정 등록이 만드는 첫 브리핑의 멱등키 네임스페이스. briefing_refresh 도 같은 값을 쓰되
+# "activity_id:revision" 으로 키를 만들어, 첫 브리핑과 이후 갱신이 서로를 막지 않는다.
 _BRIEFING_IDEMPOTENCY_NAMESPACE = uuid5(NAMESPACE_URL, "urn:salesluv:contract_management_briefing")
+# 한 미팅의 브리핑 실행 이력에서 최신 상태를 판정할 때 훑는 행 수. 갱신이 잦아도 최근
+# 몇 건 안에 성공 실행이 들어 있다.
+_BRIEFING_RUN_SCAN_LIMIT = 20
 _owner = aliased(Member)
 _contact = aliased(CustomerContact)
 _contact_owner = aliased(Member)
@@ -167,29 +170,74 @@ def _activity_read(
     )
 
 
-async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID) -> dict | None:
-    """일정에 연결된 단발성 브리핑의 최신 저장 결과를 돌려준다."""
-    run = (
-        await db.execute(
-            select(AgentRun)
-            .where(
-                AgentRun.team_id == member.team_id,
-                AgentRun.agent_code == "contract_management_briefing",
-                AgentRun.status_code.in_(("queued", "running", "completed", "failed")),
-                AgentRun.source_refs["activity_id"].as_string() == str(activity_id),
+async def _briefing_runs(
+    db: AsyncSession, member: Member, activity_id: UUID
+) -> tuple[AgentRun | None, AgentRun | None]:
+    """이 미팅의 브리핑 실행 중 (게시할 것, 가장 최근 것)을 고른다.
+
+    게시 대상은 "가장 최근에 끝난 실행" 이 아니라 **가장 나중 상태의 자료를 보고 만든
+    성공 실행** 이다. 정렬 키가 ``finished_at`` 이 아니라 ``source_observed_at`` 인 이유가
+    그것이다 — 옛 자료로 시작한 실행이 늦게 끝났다고 해서 더 새 자료로 만든 브리핑을
+    덮으면 안 된다. 실패한 실행은 애초에 후보가 아니므로 마지막 성공 브리핑이 남는다.
+    """
+    runs = list(
+        (
+            await db.execute(
+                select(AgentRun)
+                .where(
+                    AgentRun.team_id == member.team_id,
+                    AgentRun.agent_code == "contract_management_briefing",
+                    AgentRun.source_refs["activity_id"].as_string() == str(activity_id),
+                )
+                .order_by(AgentRun.created_at.desc().nullslast(), AgentRun.id.desc())
+                .limit(_BRIEFING_RUN_SCAN_LIMIT)
             )
-            .order_by(AgentRun.finished_at.desc().nullsfirst(), AgentRun.id.desc())
-            .limit(1)
         )
-    ).scalar_one_or_none()
-    if run is None:
+        .scalars()
+        .all()
+    )
+    if not runs:
+        return None, None
+    completed = [run for run in runs if run.status_code == "completed"]
+    published = max(
+        completed,
+        key=lambda run: (
+            (run.source_refs or {}).get("source_observed_at") or "",
+            run.finished_at.isoformat() if run.finished_at else "",
+        ),
+        default=None,
+    )
+    return published, runs[0]
+
+
+async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID) -> dict | None:
+    """일정에 연결된 브리핑의 최신 성공 결과와, 갱신이 도는 중인지를 함께 돌려준다.
+
+    화면은 이 응답을 읽기만 한다. 여기서 실행을 만들지 않는다 — 미팅 상세를 열었다고
+    RAG 검색이나 LLM 생성을 시작하고 기다리게 하지 않기 위해서다. 만드는 쪽은
+    ``app.services.briefing_refresh`` 가 자료·일정 변경 시점에 미리 예약한다.
+    """
+    published, latest = await _briefing_runs(db, member, activity_id)
+    if latest is None:
         return None
+    run = published or latest
+    # 이미 성공 브리핑이 있는데 그 뒤 갱신이 실패했을 때만 따로 알린다. 보여줄 이전 결과가
+    # 없으면 그 실패는 run 자체의 error 로 나간다.
+    superseded = published is not None and latest.id != published.id
     return {
         "run_id": str(run.id),
         "status": run.status_code,
         "content": run.output_snapshot,
         "error": run.error_message,
         "generated_at": _seoul(run.finished_at).isoformat() if run.finished_at else None,
+        # 갱신이 도는 중이어도 본문을 가리지 않는다. 화면은 이 값으로 작은 상태 문구만
+        # 띄우고, 완료되면 조회로 교체한다.
+        "refreshing": latest.status_code in {"queued", "running"},
+        "refresh_error": (
+            latest.error_message
+            if superseded and latest.status_code in {"failed", "cancelled"}
+            else None
+        ),
     }
 
 
@@ -651,6 +699,8 @@ async def create_activity(
                 agent_code="contract_management_briefing",
                 activity_id=activity_id,
                 parent_run_id=schedule_management_run_id,
+                # 등록 직후의 "첫 브리핑" 한 번만 책임진다. 이후 자료·연결이 바뀌어 다시
+                # 만들어야 하는 경우는 briefing_refresh 가 revision 별 멱등키로 예약한다.
                 idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity_id)),
             ),
             member,
@@ -767,10 +817,22 @@ async def _claim_suggestion(
     suggestion.updated_at = datetime.now(UTC)
 
 
+# 이 값들이 바뀌면 브리핑이 검색하는 범위나 대상 시점이 달라진다. 시작 시각은 과거 일정이
+# 미래로 옮겨 오는 경우까지 포함한다 — 그때 비로소 브리핑이 필요해진다.
+_BRIEFING_SOURCE_FIELDS = {
+    "customer_contact_id",
+    "customer_company_id",
+    "sales_deal_id",
+    "product_id",
+    "starts_at",
+}
+
+
 @router.patch("/activities/{activity_id}", response_model=ActivityRead)
 async def update_activity(
     activity_id: UUID,
     payload: ActivityPatch,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityRead:
@@ -819,10 +881,18 @@ async def update_activity(
         activity.updated_at = datetime.now(UTC)
         await db.flush()
         read = _activity_read(*await _activity_row(db, member, activity_id))
+        briefing_affected = bool(_BRIEFING_SOURCE_FIELDS & values.keys())
         await db.commit()
     except Exception:
         await db.rollback()
         raise
+    if briefing_affected:
+        # 커밋 뒤에 예약한다. 응답은 기다리지 않는다 — 수정 요청이 LLM 생성을 붙들고
+        # 있으면 화면이 그만큼 멈춘다.
+        background.add_task(
+            briefing_refresh.schedule_quietly,
+            briefing_refresh.schedule_for_activity(activity_id),
+        )
     return read
 
 
