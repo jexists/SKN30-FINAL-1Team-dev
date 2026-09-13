@@ -18,6 +18,7 @@ from app.db.session import get_sessionmaker
 from app.models.content import Document, DocumentChunk, DocumentFileAudit
 from app.models.content import File as FileRow
 from app.models.sales import SalesDeal
+from app.models.workspace import Member
 from app.services import embeddings, storage
 from app.services.document_extraction import ExtractedDocument, ExtractionError, extract_document
 from app.services.llm import LLMError
@@ -268,6 +269,12 @@ async def execute(file_id: UUID) -> None:
                 before_status="processing",
             )
             await session.commit()
+        # 커밋이 끝난 뒤에만 브리핑 갱신을 예약한다. 이 줄보다 앞에서 예약하면 아직 저장
+        # 중인 청크를 브리핑이 검색해 미완성 근거를 인용할 수 있다. 예약은 큐에 행을 넣을
+        # 뿐 LLM 을 기다리지 않으므로 자료 처리 시간에 영향을 주지 않는다.
+        from app.services import briefing_refresh
+
+        await briefing_refresh.schedule_quietly(briefing_refresh.schedule_for_file(file_id))
     except (
         ExtractionError,
         LLMError,
@@ -355,6 +362,24 @@ def _tokens(value: str) -> set[str]:
     return {token.lower() for token in re.findall(r"[\w가-힣]{2,}", value)}
 
 
+def document_access(member: Member | None) -> list[Any]:
+    """자료실의 등록자 공개 범위를 RAG와 저장된 근거 조회에도 적용한다."""
+    if member is None or member.role_code == "manager":
+        return []
+    return [
+        or_(
+            Document.created_by_member_id == member.id,
+            select(Member.id)
+            .where(
+                Member.id == Document.created_by_member_id,
+                Member.team_id == member.team_id,
+                Member.role_code == "manager",
+            )
+            .exists(),
+        )
+    ]
+
+
 def latest_completed_file() -> Any:
     """문서마다 완료된 파일 하나만 남기는 조건.
 
@@ -377,7 +402,11 @@ def latest_completed_file() -> Any:
     )
 
 
-def document_scopes(sales_deal_id: UUID | None, customer_company_id: UUID | None) -> list[Any]:
+def document_scopes(
+    sales_deal_id: UUID | None,
+    customer_company_id: UUID | None,
+    product_ids: set[UUID] | None = None,
+) -> list[Any]:
     """딜·고객사 연결 조건. 둘 다 없으면 빈 목록이라 document 조인 자체를 하지 않는다.
 
     고객사 조건은 ``Document.customer_company_id`` 만 봐서는 안 된다. 자료실 업로드
@@ -386,6 +415,8 @@ def document_scopes(sales_deal_id: UUID | None, customer_company_id: UUID | None
     넓어진다 — 그 컬럼만 보면 조건을 하나 더 붙이고도 결과는 딜 단독과 같아진다.
     """
     scopes: list[Any] = []
+    if product_ids:
+        scopes.append(Document.product_id.in_(product_ids))
     if sales_deal_id is not None:
         scopes.append(Document.sales_deal_id == sales_deal_id)
     if customer_company_id is not None:

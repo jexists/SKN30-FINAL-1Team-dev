@@ -285,6 +285,25 @@
   gap: var(--s2);
 }
 
+// 갱신이 도는 중이라는 표시입니다. 제목 옆에 작게만 붙고 본문을 가리지 않습니다.
+.refreshTag {
+  margin-left: 8px;
+  border-radius: 4px;
+  padding: 2px 7px;
+  background: var(--fill);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+// 마지막 성공 브리핑은 그대로 두고 갱신 실패만 한 줄로 알립니다.
+.refreshError {
+  margin-bottom: var(--s2);
+  color: var(--muted);
+  font-size: 11px;
+}
+
 // 자료요약 Agent 가 만든 요약. 원문 그대로라 자료실 드로어와 같은 pre 로 둡니다.
 .sourceSummary {
   margin-top: var(--s1);

@@ -283,7 +283,11 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
         )}
 
         <section className={`${styles.block} ${styles.full}`}>
-          <h3>🤖 AI 브리핑</h3>
+          <h3>
+            🤖 AI 브리핑
+            {/* 갱신 중이라는 표시는 제목 옆에만 둡니다. 본문은 그대로 두고 읽게 합니다. */}
+            {briefing?.refreshing && <span className={styles.refreshTag}>최신 자료 반영 중</span>}
+          </h3>
           {!item.customerContactId ? (
             <p className={styles.note}>
               담당자 연락처가 연결되지 않아 AI 브리핑을 만들 수 없습니다.
@@ -294,16 +298,24 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
             </p>
           ) : briefingLoading ? (
             <Skeleton height={72} radius="var(--r-md)" />
-          ) : briefing === null ? (
-            <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
-          ) : briefing.status === 'failed' ? (
-            <p className={styles.note} role="alert">
-              브리핑 생성에 실패했습니다{briefing.error ? `: ${briefing.error}` : ''}
+          ) : briefing === null || (briefing.status !== 'completed' && !briefing.content) ? (
+            // 아직 한 번도 완성된 적이 없을 때만 준비 중을 보여줍니다. 실패까지 여기서
+            // 알립니다 — 보여줄 이전 결과가 없기 때문입니다.
+            <p className={styles.note} role={briefing?.status === 'failed' ? 'alert' : undefined}>
+              {briefing?.status === 'failed'
+                ? `브리핑 생성에 실패했습니다${briefing.error ? `: ${briefing.error}` : ''}`
+                : 'AI 브리핑 준비 중입니다…'}
             </p>
-          ) : briefing.status !== 'completed' || !briefing.content ? (
-            <p className={styles.note}>브리핑을 생성하는 중입니다…</p>
+          ) : !briefing.content ? (
+            <p className={styles.note}>AI 브리핑 준비 중입니다…</p>
           ) : (
             <>
+              {/* 마지막 성공 브리핑은 그대로 두고, 실패는 작게만 알립니다. */}
+              {briefing.refresh_error && (
+                <p className={styles.refreshError} role="status">
+                  최신 자료로 다시 만들지 못했습니다. 이전 브리핑을 보여드립니다.
+                </p>
+              )}
               <p className={styles.note}>{highlightChecks(briefing.content.contract_summary)}</p>
               {briefing.content.risks.length > 0 && (
                 <div className={styles.pills}>

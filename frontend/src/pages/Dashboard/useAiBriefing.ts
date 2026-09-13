@@ -4,11 +4,21 @@ import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import type { ActivityRead, AiBriefing } from '@/types'
 
-const POLL_INTERVAL_MS = 2_000
-const MAX_POLLS = 30
+const POLL_INTERVAL_MS = 5_000
 
-const wait = (milliseconds: number) =>
-  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
+/** 드로어가 닫히면 남은 타이머도 즉시 정리한다. */
+const wait = (milliseconds: number, signal: AbortSignal) =>
+  new Promise<boolean>((resolve) => {
+    const onAbort = () => {
+      window.clearTimeout(timer)
+      resolve(false)
+    }
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve(true)
+    }, milliseconds)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 
 interface Options {
   activityId: string
@@ -17,12 +27,11 @@ interface Options {
 }
 
 /**
- * 미팅 상세를 열 때 AI 브리핑을 자동으로 준비한다.
+ * 미팅 상세를 열 때 서버가 준비한 AI 브리핑을 읽는다.
  *
- * 버튼 없이, 열 때 이 활동에 걸린 브리핑 실행이 없으면(`ai_briefing == null`) 그 자리에서
- * 딱 한 번만 생성을 요청한다. 이미 있으면(완료·진행 중 무엇이든) 다시 만들지 않고 그 상태를
- * 그대로 보여준다 — 그래서 다른 곳을 봤다 돌아와도 내용이 바뀌지 않는다.
- * 자세한 배경은 docs/technical/multiagent/계약에이전트_설계.md 7장 참고.
+ * 생성과 갱신은 자료·업무 변경 트리거와 worker의 책임이다. 화면은 실행을 만들지 않는다.
+ * 이전 성공본 뒤에서 갱신이 돌 때 응답의 status는 completed이고 refreshing만 true이므로,
+ * status가 아니라 refreshing을 기준으로 재조회해야 한다.
  */
 export default function useAiBriefing({ activityId, eligible }: Options) {
   const [briefing, setBriefing] = useState<AiBriefing | null>(null)
@@ -37,49 +46,49 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
       return
     }
 
-    let cancelled = false
+    const controller = new AbortController()
+    setBriefing(null)
     setLoading(true)
     setError(null)
 
-    async function ensure() {
-      let { data } = await client.get<ActivityRead>(`/activities/${activityId}`)
-      if (cancelled) return
+    async function load() {
+      let { data } = await client.get<ActivityRead>(`/activities/${activityId}`, {
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
 
-      if (data.ai_briefing == null) {
-        await client.post('/agent-runs', {
-          agent_code: 'contract_management_briefing',
-          activity_id: activityId,
-          idempotency_key: crypto.randomUUID(),
-        })
-        if (cancelled) return
-        ;({ data } = await client.get<ActivityRead>(`/activities/${activityId}`))
-        if (cancelled) return
-      }
-
-      for (
-        let poll = 0;
-        data.ai_briefing?.status === 'queued' || data.ai_briefing?.status === 'running';
-        poll += 1
-      ) {
-        if (poll >= MAX_POLLS) throw new Error('briefing_timeout')
-        await wait(POLL_INTERVAL_MS)
-        if (cancelled) return
-        ;({ data } = await client.get<ActivityRead>(`/activities/${activityId}`))
-        if (cancelled) return
-      }
-
-      setBriefing(data.ai_briefing ?? null)
+      let current = data.ai_briefing ?? null
+      setBriefing(current)
       setLoading(false)
+
+      while (current?.refreshing === true) {
+        if (!(await wait(POLL_INTERVAL_MS, controller.signal))) return
+
+        try {
+          ;({ data } = await client.get<ActivityRead>(`/activities/${activityId}`, {
+            signal: controller.signal,
+          }))
+        } catch {
+          // 갱신 상태 조회가 잠깐 끊겨도 마지막 성공 본문을 가리지 않는다. 드로어가 열려
+          // 있으면 같은 간격으로 다시 확인하고, 닫혔으면 아래 signal 확인으로 끝낸다.
+          if (controller.signal.aborted) return
+          continue
+        }
+        if (controller.signal.aborted) return
+
+        current = data.ai_briefing ?? null
+        setBriefing(current)
+      }
     }
 
-    ensure().catch((cause: unknown) => {
-      if (cancelled) return
+    load().catch((cause: unknown) => {
+      if (controller.signal.aborted) return
       setError(errorMessage(cause, 'AI 브리핑을 불러오지 못했습니다.'))
       setLoading(false)
     })
 
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [activityId, eligible])
 

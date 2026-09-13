@@ -59,7 +59,7 @@ from app.schemas.sales_deals import (
     SalesPipelineRead,
     SalesPipelineStageRead,
 )
-from app.services import contract_next_meeting_pipeline, storage
+from app.services import briefing_refresh, contract_next_meeting_pipeline, storage
 from app.services.storage import StorageError
 from app.services.upload_guard import UploadRejected, check_image_upload, check_size
 
@@ -1505,6 +1505,7 @@ async def create_sales_deal(
 async def update_sales_deal(
     sales_deal_id: UUID,
     payload: SalesDealPatch,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> SalesDealRead:
@@ -1605,6 +1606,13 @@ async def update_sales_deal(
         _validate_sales_deal_dates(sales_deal)
         await db.flush()
         read = await _read_one(db, member, sales_deal_id)
+        # 대표 제품이나 견적 품목이 바뀌면 이 딜의 미팅이 보게 될 제품 자료가 달라진다.
+        # 고객사를 옮기면 관련 자료의 범위 자체가 바뀐다.
+        briefing_affected = bool(
+            {"product_id", "customer_company_id"} & values.keys()
+            or "items" in payload.model_fields_set
+        )
+        team_id = sales_deal.team_id
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -1615,6 +1623,16 @@ async def update_sales_deal(
     except Exception:
         await db.rollback()
         raise
+    if briefing_affected:
+        background.add_task(
+            briefing_refresh.schedule_quietly,
+            briefing_refresh.schedule_for_document_scope(
+                team_id=team_id,
+                sales_deal_id=sales_deal_id,
+                customer_company_id=None,
+                product_id=None,
+            ),
+        )
     return read
 
 

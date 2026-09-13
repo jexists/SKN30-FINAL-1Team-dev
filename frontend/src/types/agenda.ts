@@ -166,6 +166,10 @@ export interface AiBriefing {
   content: ContractBriefingOutput | null
   error: string | null
   generated_at: string | null
+  /** 최신 자료로 다시 만드는 중. 이 값이 true 여도 위의 결과는 그대로 보여준다. */
+  refreshing?: boolean
+  /** 갱신 시도가 실패했다. 위의 결과는 마지막 성공 브리핑이라 그대로 유지된다. */
+  refresh_error?: string | null
 }
 
 /** 미팅에 관련된 자료실 문서 한 건. AI 브리핑과 무관하게 조회된다. */

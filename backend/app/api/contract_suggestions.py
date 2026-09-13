@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -14,6 +15,33 @@ from app.schemas.contract_suggestions import ContractNextMeetingSuggestionRead
 router = APIRouter(tags=["contract-suggestions"])
 
 
+def _future_candidates(candidates: list[Any], now: datetime) -> list[Any]:
+    """이미 지나간 시간대를 후보에서 뺀다.
+
+    제안은 만들 때만 미래였다. 그 뒤 다시 계산하지 않으므로, 며칠 지나면 저장된 후보가
+    전부 과거가 되어 "9월 13일에 9월 4일을 제안"하는 카드가 뜬다. 조회할 때 걸러 낸다.
+
+    파싱할 수 없는 값은 남긴다 — 형식이 낯설다는 이유로 멀쩡한 후보를 감추지 않는다.
+    지난 것이 확실한 후보만 뺀다.
+    """
+    kept: list[Any] = []
+    for candidate in candidates:
+        raw = candidate.get("starts_at") if isinstance(candidate, dict) else None
+        if not isinstance(raw, str):
+            kept.append(candidate)
+            continue
+        try:
+            starts_at = datetime.fromisoformat(raw)
+        except ValueError:
+            kept.append(candidate)
+            continue
+        if starts_at.tzinfo is None:
+            starts_at = starts_at.replace(tzinfo=UTC)
+        if starts_at >= now:
+            kept.append(candidate)
+    return kept
+
+
 def _read(
     suggestion: ContractNextMeetingSuggestion,
     deal: SalesDeal,
@@ -22,6 +50,7 @@ def _read(
     owner_name: str,
     schedule_run: AgentRun,
     next_meeting_run: AgentRun | None,
+    schedule_candidates: list[Any],
 ) -> ContractNextMeetingSuggestionRead:
     next_meeting_output = (next_meeting_run.output_snapshot if next_meeting_run else None) or {}
     suggestion_detail = next_meeting_output.get("next_meeting_suggestion") or {}
@@ -38,7 +67,7 @@ def _read(
         reason=suggestion_detail.get("reason", ""),
         risks=next_meeting_output.get("risks") or [],
         schedule_management_run_id=suggestion.schedule_management_run_id,
-        schedule_candidates=(schedule_run.output_snapshot or {}).get("schedule_candidates") or [],
+        schedule_candidates=schedule_candidates,
         status_code=suggestion.status_code,
         created_at=suggestion.created_at,
         updated_at=suggestion.updated_at,
@@ -112,11 +141,18 @@ async def list_contract_next_meeting_suggestions(
             .all()
         }
 
+    now = datetime.now(UTC)
     results: list[ContractNextMeetingSuggestionRead] = []
     for suggestion, deal, company_name, owner_name in rows:
         schedule_run = schedule_runs.get(suggestion.schedule_management_run_id)
         # 아직 실행 중이거나 실패한 제안은 보여줄 내용이 없다 — 다음 트리거가 다시 채운다.
         if schedule_run is None or schedule_run.status_code != "completed":
+            continue
+        candidates = _future_candidates(
+            (schedule_run.output_snapshot or {}).get("schedule_candidates") or [], now
+        )
+        # 고를 수 있는 시간대가 하나도 남지 않았으면 보여 줄 것이 없다.
+        if not candidates:
             continue
         next_meeting_run = (
             next_meeting_runs.get(schedule_run.parent_run_id)
@@ -132,6 +168,7 @@ async def list_contract_next_meeting_suggestions(
                 owner_name,
                 schedule_run,
                 next_meeting_run,
+                candidates,
             )
         )
     return results

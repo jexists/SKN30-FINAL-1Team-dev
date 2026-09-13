@@ -1128,10 +1128,19 @@ async def test_prepare_claimed_routes_generic_inputs_and_persists_snapshot(monke
         request_hash=service._request_hash(request_snapshot),
         input_snapshot={},
     )
-    db = _Db(_Result(scalar=member), SimpleNamespace(rowcount=1))
+    results = [_Result(scalar=member)]
+    if agent_code == "contract_management_briefing":
+        # 브리핑 실행은 입력을 만든 뒤 그 시점의 자료 상태(source revision)를 함께 적는다.
+        # 미팅을 못 찾으면 지문 없이 진행하므로 여기서는 조회 한 번만 더 받아 준다.
+        results.append(_Result(scalar=None))
+    db = _Db(*results, SimpleNamespace(rowcount=1))
     monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
 
     code, input_snapshot, requester_id = await service.prepare_claimed(run, "worker-1")
+
+    update_statement = next(
+        statement for statement in db.statements if "agent_run.lease_owner" in str(statement)
+    )
 
     assert (code, input_snapshot, requester_id) == (
         agent_code,
@@ -1142,12 +1151,11 @@ async def test_prepare_claimed_routes_generic_inputs_and_persists_snapshot(monke
     assert len(calls) == 1 and calls[0][:2] == (db, member)
     if agent_code != "contract_management_select_candidates":
         assert calls[0][2] == target_id
-    values = db.statements[1].compile().params
+    values = update_statement.compile().params
     assert values["prompt_version"] == prompts[agent_code]
     assert values["input_snapshot"] == snapshots[agent_code]
     assert values["current_stage_code"] == "running_agent"
-    assert "agent_run.status_code" in str(db.statements[1])
-    assert "agent_run.lease_owner" in str(db.statements[1])
+    assert "agent_run.status_code" in str(update_statement)
     assert db.commit_count == 1
 
 

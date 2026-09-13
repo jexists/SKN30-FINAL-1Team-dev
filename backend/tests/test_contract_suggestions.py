@@ -4,7 +4,7 @@
 (docs/technical/multiagent/계약에이전트_설계.md 3장·11장).
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -22,6 +22,18 @@ from app.models.workspace import Member
 ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 29, 9, tzinfo=UTC)
 _MISSING = object()
+
+
+def _candidate(candidate_id: str, starts_at: datetime, *, priority: int = 1) -> dict:
+    """후보 하나. 조회가 실제 현재 시각으로 지난 후보를 거르므로 시각은 상대값으로 만든다."""
+    return {
+        "candidate_id": candidate_id,
+        "title": "계약 갱신 미팅",
+        "starts_at": starts_at.isoformat(),
+        "ends_at": (starts_at + timedelta(hours=1)).isoformat(),
+        "priority": priority,
+        "reason": "가장 이른 빈 시간",
+    }
 
 
 class _Scalars:
@@ -183,14 +195,7 @@ def test_list_returns_stored_candidates_without_calling_the_llm():
         parent_run_id=next_meeting_run.id,
         output={
             "schedule_candidates": [
-                {
-                    "candidate_id": "candidate-1",
-                    "title": "계약 갱신 미팅",
-                    "starts_at": "2026-09-01T10:00:00+09:00",
-                    "ends_at": "2026-09-01T11:00:00+09:00",
-                    "priority": 1,
-                    "reason": "가장 이른 빈 시간",
-                }
+                _candidate("candidate-1", datetime.now(UTC) + timedelta(days=1))
             ]
         },
     )
@@ -213,6 +218,93 @@ def test_list_returns_stored_candidates_without_calling_the_llm():
     assert [risk["code"] for risk in item["risks"]] == ["contract_expiring"]
     # 팀원은 자기가 맡은 딜만 본다.
     assert member.id in db.statements[0].compile().params.values()
+
+
+def test_list_drops_candidates_whose_time_has_passed():
+    """제안은 만들 때만 미래였다. 지나간 시간대는 조회에서 뺀다.
+
+    제안을 다시 계산하지 않으므로, 걸러 내지 않으면 "9월 13일에 9월 4일을 제안"하는 카드가
+    그대로 뜬다.
+    """
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    now = datetime.now(UTC)
+    schedule_run = _run(
+        member.team_id,
+        agent_code="schedule_management",
+        output={
+            "schedule_candidates": [
+                _candidate("지난-후보", now - timedelta(days=3)),
+                _candidate("남을-후보", now + timedelta(days=2), priority=2),
+            ]
+        },
+    )
+    suggestion = _suggestion(deal, schedule_run.id)
+    db = _Db(
+        _Result(rows=[(suggestion, deal, company.name, member.display_name)]),
+        _Result(scalar_values=[schedule_run]),
+    )
+
+    with _client(db, member) as client:
+        response = client.get("/api/contract-next-meeting-suggestions", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 200
+    [item] = response.json()
+    assert [c["candidate_id"] for c in item["schedule_candidates"]] == ["남을-후보"]
+
+
+def test_list_hides_a_suggestion_whose_candidates_have_all_passed():
+    """고를 수 있는 시간대가 하나도 남지 않았으면 보여 줄 것이 없다."""
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    now = datetime.now(UTC)
+    schedule_run = _run(
+        member.team_id,
+        agent_code="schedule_management",
+        output={
+            "schedule_candidates": [
+                _candidate("지난-후보-1", now - timedelta(days=9)),
+                _candidate("지난-후보-2", now - timedelta(days=4), priority=2),
+            ]
+        },
+    )
+    suggestion = _suggestion(deal, schedule_run.id)
+    db = _Db(
+        _Result(rows=[(suggestion, deal, company.name, member.display_name)]),
+        _Result(scalar_values=[schedule_run]),
+    )
+
+    with _client(db, member) as client:
+        response = client.get("/api/contract-next-meeting-suggestions", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_keeps_a_candidate_whose_time_cannot_be_read():
+    """형식이 낯설다는 이유로 멀쩡한 후보를 감추지 않는다. 지난 것이 확실할 때만 뺀다."""
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    schedule_run = _run(
+        member.team_id,
+        agent_code="schedule_management",
+        output={"schedule_candidates": [{"candidate_id": "형식-이상", "starts_at": "언젠가"}]},
+    )
+    suggestion = _suggestion(deal, schedule_run.id)
+    db = _Db(
+        _Result(rows=[(suggestion, deal, company.name, member.display_name)]),
+        _Result(scalar_values=[schedule_run]),
+    )
+
+    with _client(db, member) as client:
+        response = client.get("/api/contract-next-meeting-suggestions", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 200
+    [item] = response.json()
+    assert [c["candidate_id"] for c in item["schedule_candidates"]] == ["형식-이상"]
 
 
 def test_list_skips_suggestions_whose_run_has_not_finished():
