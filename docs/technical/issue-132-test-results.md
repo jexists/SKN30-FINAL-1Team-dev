@@ -26,23 +26,29 @@
 | 고객·딜·일정·발주·C/S·보고서·보고서 검토·인증 8개 테스트 파일 | 252 passed |
 | 추가 전 전체 회귀 (`-m 'not integration'`) | 1167 passed, 1 failed, 3 skipped, 5 deselected |
 | production 앱 초기화 신규 테스트 | 11 passed |
-| 딜 팀 조건 신규 테스트 | 20 passed |
-| 발주 팀 조건 신규 테스트 | 16 passed |
-| C/S 팀 조건 신규 테스트 | 10 passed |
+| 딜 팀·담당자 조건 신규 테스트 | 24 passed |
+| 발주 팀·담당자 조건 신규 테스트 | 20 passed |
+| C/S 팀·담당자 조건 신규 테스트 | 14 passed |
 | 공용 검사(team_scope) 자체 검증 | 6 passed |
-| 신규 테스트 포함 전체 회귀 | 1221 passed, 1 failed, 3 skipped, 6 deselected |
+| 보고서 팀·담당자 조건 신규 테스트 | 10 passed |
+| 일정 팀·담당자 조건 신규 테스트 | 14 passed |
+| 고객 팀·담당자 조건 신규 테스트 | 10 passed |
+| 신규 테스트 포함 전체 회귀 | 1271 passed, 3 skipped, 6 deselected (실패 0) |
+| 리뷰 반영 후 전체 회귀 | 1280 passed, 2 skipped, 6 deselected (실패 0) |
 | alias 판별 보완 후 딜 팀 조건 재검증 | 20 passed |
 | 신규 파일 Ruff lint/format, `git diff --check` | 통과 |
 
 전체 회귀 이후 alias 판별을 보완했으며, 영향받은 테스트 20개와 변이 검사를 다시 실행했다.
 실행별 숫자는 중복된 테스트를 포함하므로 더하지 않는다.
 
-### 기존 실패 1건
+### 기존 실패 1건 (해소)
 
-`backend/tests/test_models.py:127`, `test_all_database_tables_are_mapped`:
-모델별 `EXPECTED_COLUMN_COUNTS` 비교는 통과하지만, 별도의 총합 상수 `446`과 실제 합계 `458`이 다르다.
-신규 테스트 추가 전에도 동일하게 실패했다. 모델 매핑 테스트의 총합 기대값 불일치이며,
-실제 DB 스키마 일치 여부를 판정한 결과는 아니다. 이번 실행에서는 기존 테스트를 변경하지 않았다.
+`backend/tests/test_models.py`, `test_all_database_tables_are_mapped`:
+최초 실행에서는 총합 기대값이 상수 `446`으로 박혀 있어 실제 합계 `458`과 어긋나 실패했다.
+이후 `develop`에서 그 상수가 계산값 비교로 바뀌어 이 실패는 더 이상 재현되지 않는다.
+`develop` 병합 후 재실행에서 실패 0을 확인했다. 이 PR 이 고친 것은 아니다.
+
+위 표의 "실패 0"과 이 절이 서로 달라 보였던 것을 정리한 결과다.
 
 ### 실제 DB 관련 미실행
 
@@ -121,6 +127,79 @@ alias 테이블 동일성 검사를 추가한 뒤 위 실패를 확인했다. �
   사용자 정보 포함 origin, 정상/HTTP 혼합 origin, wildcard.
 - 정상 1개: 복수 HTTPS origin에서 앱 import 성공 및 production secure-cookie 설정 확인.
 - 단순 비정상 종료뿐 아니라 해당 설정 검증 오류와 성공 표식 부재를 확인했다.
+
+## 담당자 범위 (같은 팀 안)
+
+팀 격리가 다른 **팀**을 막는다면, 담당자 범위는 같은 팀 안에서 다른 **사람**의 자료를 막는다.
+`role_code == "member"` 분기가 코드 21곳에 흩어져 있는데 검증이 없었다.
+
+검사 방향이 팀 격리와 반대다. 팀 조건은 팀원·팀장 **모두에게** 있어야 하지만, 담당자 조건은
+**팀원에게만** 있어야 한다. 팀장에게도 걸리면 팀 전체를 보지 못해 관리 화면이 비어 보인다.
+그래서 자원마다 "팀원이면 있다"와 "팀장이면 없다"를 함께 본다.
+
+컬럼 이름이 자원마다 다르다.
+
+| 자원 | 담당자 컬럼 | 구조 |
+|---|---|---|
+| 딜 | `SalesDeal.owner_member_id` | 최상위 AND |
+| 일정 | `Activity.owner_member_id` | 최상위 AND |
+| 발주 | `_sales_deal.owner_member_id` | 발주에 담당자 컬럼이 없어 딸린 딜로 좁힌다 |
+| C/S | `SupportRequest.assignee_member_id` | 접수자가 아니라 처리할 사람 |
+| 보고서 | `Report.author_member_id` | 받는 사람이 아니라 쓴 사람 |
+| 고객 | `CustomerContact.owner_member_id` | 담당자가 별도 표라 대표 담당자 비교와 담당자 표 EXISTS 를 `or_` 로 묶는다 |
+
+고객만 구조가 다르다. `customers._assigned_to` 가 대표 담당자가 아니어도 담당자로 지정됐으면
+자기 고객으로 보기 때문이다. 최상위 `OR` 의 **양쪽을 모두** 본다. 앞쪽 대표 담당자 비교는
+`has_owner_predicate` 로, 뒤쪽 `EXISTS` 안의 `CustomerContactAssignee.member_id` 바인딩은
+`has_exists_bound_predicate` 로 확인한다.
+
+서브쿼리 안 조건은 보통 바깥 행을 거르지 못해 세지 않지만, 이 `EXISTS` 는 최상위 `OR` 의
+한쪽이라 바깥 행을 실제로 거른다. 앞쪽만 보면 뒤쪽 바인딩이 인증된 사용자에서 풀려도 통과한다.
+
+`team_scope.has_owner_predicate` 는 팀 격리와 같은 판별을 쓴다(`has_bound_predicate`).
+컬럼과 묶인 값만 다르다.
+
+팀장 검사는 값을 지정하지 않는 `narrows_to_single_owner` 를 쓴다. 팀장 본인 id 로만 확인하면
+쿼리가 다른 값으로 좁혀졌을 때 통과하기 때문이다. 이 검사는 담당자 필터가 없는 요청에만 쓴다.
+팀장이 화면에서 담당자를 골라 보낸 조건은 정상이며 여기서 구분하지 않는다.
+
+팀장은 상세뿐 아니라 목록도 본다. 여섯 자원 모두 상세와 목록을 함께 검사한다.
+
+### 담당자 범위 변이 검사
+
+`role_code == "member"` 분기의 담당자 조건을 임시 복사본에서 모두 무력화했다. `if` 블록이
+비면 구문이 깨지므로 `append(...)` 를 `pass` 로 바꿔 분기는 남기고 조건만 없앴다.
+
+| 변이 | 결과 |
+|---|---|
+| 6개 자원 담당자 조건 13곳 무력화 | 12 failed, 72 passed: 여섯 자원 모두 회귀 탐지 |
+
+리뷰 반영으로 검사를 두 가지 늘렸고, 각각에 대응하는 변이를 따로 확인했다.
+
+| 변이 | 결과 |
+|---|---|
+| 고객 `EXISTS` 안 `member_id` 바인딩을 인증 사용자에서 고정값으로 교체 | 2 failed, 8 passed: 신규 `EXISTS` 검사 2개가 탐지 |
+| 일정 담당자 조건을 팀장에게도 걸되 값은 제3자 id 로 교체 | 4 failed, 10 passed: 팀장 상세·목록 검사가 탐지 |
+
+두 번째 변이는 값 기준 검사(`has_owner_predicate`)로는 잡히지 않는다. 팀장 본인 id 와
+비교하므로 다른 값에 묶인 조건을 통과시킨다. `narrows_to_single_owner` 가 그 자리를 메운다.
+
+원본에는 변이를 적용하지 않았고, 검사 후 복원과 `git status` 무변경을 확인했다.
+
+### 쿼리 조건이 아닌 세 곳은 이미 덮여 있었다
+
+`role_code == "member"` 분기 21곳 중 세 곳은 WHERE 조건이 아니라 응답으로 막는다. 이 방식은
+쿼리를 들여다볼 필요가 없어, 호출해서 나오는 상태 코드로 확인한다. 확인해 보니 셋 다 기존
+테스트가 이미 덮고 있어 이번에 추가하지 않았다.
+
+| 위치 | 막는 것 | 덮는 기존 테스트 |
+|---|---|---|
+| `contract_suggestions.py` | 남의 딜에 달린 제안 무시 → 404 | `test_dismiss_hides_other_owners_suggestion_as_not_found` (저장이 일어나지 않은 것까지 확인) |
+| `sales_deals.py` `_team_contact` | 남의 고객을 내 딜에 붙이기 → 422 | `test_sales_deals.py` 의 `contact_owner_mismatch` 검증 (팀장은 통과하는 것도 함께 확인) |
+| `dashboard.py` | 팀원이 남의 실적 조회 → 403 | `test_member_cannot_widen_owner_scope` |
+
+`sales_deals.py` 쪽은 쓰기 경로다. 읽기와 달리 남의 고객을 자기 딜에 끌어다 붙이는 문제라
+따로 확인이 필요한데, 기존 테스트가 팀원 거부와 팀장 허용을 함께 보고 있다.
 
 ## flush/commit 정적 점검
 
