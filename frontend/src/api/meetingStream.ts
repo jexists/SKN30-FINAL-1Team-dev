@@ -354,8 +354,24 @@ export function waitForMeetingRun<T>(
     function aborted() {
       finish(new DOMException('화면을 떠나 대기를 종료했습니다.', 'AbortError'))
     }
+    function applyProgressSnapshot(run: AgentRunResponse<T>) {
+      const next = readMeetingProgress(run.progress_snapshot, created.id)
+      if (!next) return
+      const terminalStatus = ['completed', 'partial', 'failed', 'cancelled'].includes(
+        run.status_code,
+      )
+      const normalized =
+        terminalStatus && next.status_code !== run.status_code
+          ? { ...next, status_code: run.status_code, stage: run.current_stage_code ?? next.stage }
+          : next
+      const merged = mergeMeetingProgress(progress, normalized)
+      if (progress && stableSignature(progress) === stableSignature(merged)) return
+      progress = merged
+      options.onProgress?.(merged)
+    }
     function terminal(run: AgentRunResponse<T>): boolean {
       if (run.id !== created.id) return false
+      applyProgressSnapshot(run)
       if (run.status_code === 'failed' || run.status_code === 'cancelled') {
         finish(new AgentRunTerminalError(run.error_code ?? run.error_message ?? 'agent_run_failed'))
         return true

@@ -383,6 +383,7 @@ export interface AgentRunResponse<T = ReportDraftSnapshot> {
   current_stage_code: string | null
   attempt_count: number
   output_snapshot: T | null
+  progress_snapshot?: unknown
   evidence: Record<string, unknown> | null
   error_code: string | null
   error_message: string | null

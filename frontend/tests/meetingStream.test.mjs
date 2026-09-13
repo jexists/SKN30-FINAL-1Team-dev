@@ -116,6 +116,11 @@ const completed = {
   current_stage_code: 'completed',
   output_snapshot: { reports: '검증된 최종 보고서' },
 }
+const finalProgress = {
+  ...progress('최종 snapshot', 3),
+  status_code: 'completed',
+  stage: 'report_complete',
+}
 
 function requestError(status, code = 'ERR_NETWORK') {
   const error = new AxiosError('가상 조회 오류', code)
@@ -322,6 +327,51 @@ test('스트림 오류는 새 실행 없이 같은 run 조회로 한 번만 전�
   assert.equal(reads, 1)
   assert.equal(streams.length, 1)
   assert.equal(streams[0].closed, true)
+})
+
+test('SSE 단절 뒤 GET progress_snapshot도 공유 pipeline으로 한 번 반영하고 terminal snapshot을 전달한다', async (t) => {
+  const streams = fakeStream(t)
+  const seen = []
+  let reads = 0
+  const waiting = waitForMeetingRun(created, {
+    eventsUrl: '/events',
+    readRun: async () => {
+      reads += 1
+      return { ...completed, progress_snapshot: finalProgress }
+    },
+    onProgress: (event) => seen.push(event),
+  })
+  streams[0].onerror(new Event('error'))
+  const result = await waiting
+  assert.equal(reads, 1)
+  assert.equal(seen.length, 1)
+  assert.equal(seen[0].status_code, 'completed')
+  assert.equal(seen[0].previews[0].body, '최종 snapshot')
+  assert.equal(result.output_snapshot, completed.output_snapshot)
+})
+
+test('반복 GET snapshot은 중복 콜백하지 않고 깨진 snapshot은 terminal 반환을 막지 않는다', async (t) => {
+  const streams = fakeStream(t)
+  const seen = []
+  let reads = 0
+  const waiting = waitForMeetingRun(created, {
+    eventsUrl: '/events',
+    readRun: async () => {
+      reads += 1
+      if (reads === 1) throw requestError(503)
+      if (reads < 4) {
+        return { ...created, progress_snapshot: progress('폴링 snapshot') }
+      }
+      return { ...completed, progress_snapshot: { nope: true } }
+    },
+    onProgress: (event) => seen.push(event),
+    pollIntervalMs: 1,
+  })
+  streams[0].onerror(new Event('error'))
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  assert.equal((await waiting).id, created.id)
+  assert.equal(seen.length, 1)
+  assert.equal(reads, 4)
 })
 
 test('서버 custom error도 기존 인증 갱신 GET 경로로 전환하고 부분 완료를 반환한다', async (t) => {

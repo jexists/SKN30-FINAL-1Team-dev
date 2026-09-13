@@ -286,6 +286,9 @@ def test_period_uses_frozen_submissions_directly_and_preserves_output(monkeypatc
         assert f"/skills/{period.PERIOD_WRITER_ROLES[kind]}/SKILL.md" in harness.skill_files(
             call["skill_role"]
         )
+        report_style = harness.skill_files(call["skill_role"])["/skills/report-style/SKILL.md"]
+        assert "해당사항 없음 (제공된 자료에 관련 내용 없음)" in report_style["content"]
+        assert "PeriodSourceDigest" in report_style["content"]
         assert period.GUIDANCE_CONTRACT in effective_instructions(call)
         assert call["role"] in {period.PERIOD_WRITER_ROLES[kind], harness.REVIEWER_ROLE}
     assert seen[0]["schema"] is ReportDraftOutput
