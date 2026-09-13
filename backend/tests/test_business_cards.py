@@ -34,6 +34,7 @@ async def test_extract_builds_registration_ready_draft(monkeypatch):
     assert draft.fields.company_name == "합성 회사"
     assert business_cards.contact_memo(draft.fields) == "웹사이트: https://example.test"
     assert "contact@example.test" in captured["input_text"]
+    assert "첫 번째 번호 하나만" in captured["instructions"]
 
 
 def test_normalize_ocr_contact_text_keeps_contact_symbols_parseable():
@@ -57,8 +58,17 @@ async def test_extract_does_not_mark_incomplete_ocr_as_ready(monkeypatch):
     assert draft.missing_required_fields == ["company_name", "phone"]
 
 
-def test_card_fields_keep_only_digits_in_the_phone():
+def test_card_fields_keep_only_the_first_number_per_contact_type():
     assert BusinessCardFields(phone="010-0000-0000  ").phone == "01000000000"
+    fields = BusinessCardFields(
+        phone="010-1111-2222 / 010-3333-4444",
+        telephone="02-1234-5678, 02-9876-5432",
+        fax="02-5555-6666 · 02-7777-8888",
+    )
+
+    assert fields.phone == "01011112222"
+    assert fields.telephone == "0212345678"
+    assert fields.fax == "0255556666"
 
 
 def test_match_labels_reports_normalized_phone_email_and_name_company():

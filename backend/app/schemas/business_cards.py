@@ -1,11 +1,30 @@
 """명함 OCR 결과와 고객 담당자 등록 초안 스키마."""
 
+import re
 from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from app.schemas.customers import to_digits
+
+# 한 입력칸에는 번호 하나만 저장한다. +82 표기와 국내 유·무선 번호를 함께 찾는다.
+_PHONE_NUMBER = re.compile(
+    r"(?<!\d)(?:\+?82[-.\s]?)?(?:0?1[0-9]|0\d{1,2})[-.\s]?\d{3,4}[-.\s]?\d{4}(?!\d)"
+)
+
+
+def first_phone_digits(value: Any) -> Any:
+    """여러 번호가 오면 명함에 먼저 표시된 번호 하나만 숫자로 정규화한다."""
+    if not isinstance(value, str):
+        return value
+    match = _PHONE_NUMBER.search(value)
+    if match is not None:
+        return to_digits(match.group())
+
+    # 구분자 없이 두 번호가 붙은 값은 어느 쪽인지 판별할 수 없으므로 저장하지 않는다.
+    digits = to_digits(value)
+    return digits if len(digits) <= 20 else ""
 
 
 class BusinessCardFields(BaseModel):
@@ -19,9 +38,12 @@ class BusinessCardFields(BaseModel):
     department: str = Field(default="", max_length=254)
     job_title: str = Field(default="", max_length=254)
     email: str = Field(default="", max_length=254)
-    # 저장 형식과 같게 숫자만 남긴다. 화면에 보일 하이픈은 프론트가 붙인다.
-    phone: Annotated[str, BeforeValidator(to_digits)] = Field(default="", max_length=50)
-    telephone: Annotated[str, BeforeValidator(to_digits)] = Field(default="", max_length=50)
+    # 한 항목에는 첫 번호 하나만 저장한다. 화면에 보일 하이픈은 프론트가 붙인다.
+    phone: Annotated[str, BeforeValidator(first_phone_digits)] = Field(default="", max_length=50)
+    telephone: Annotated[str, BeforeValidator(first_phone_digits)] = Field(
+        default="", max_length=50
+    )
+    fax: Annotated[str, BeforeValidator(first_phone_digits)] = Field(default="", max_length=50)
     website: str = Field(default="", max_length=254)
     address: str = Field(default="", max_length=500)
     memo: str = Field(default="", max_length=5_000)

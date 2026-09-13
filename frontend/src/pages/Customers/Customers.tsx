@@ -373,6 +373,7 @@ export default function Customers() {
                   email: cardDraft.email,
                   phone: cardDraft.phone,
                   telephone: cardDraft.telephone,
+                  fax: cardDraft.fax,
                 }
               : licenseDraft?.representative.trim()
                 ? { name: licenseDraft.representative.trim() }

@@ -15,6 +15,7 @@ export interface BusinessCardDraft {
   email: string
   phone: string
   telephone: string
+  fax: string
   matches: BusinessCardMatch[]
   sourceImage: File
 }
@@ -45,6 +46,7 @@ interface BusinessCardScanStatus {
     email: string
     phone: string
     telephone: string
+    fax: string
     address: string
   } | null
 }
@@ -140,6 +142,7 @@ export async function recognizeBusinessCard(
       email: scan.fields.email,
       phone: scan.fields.phone,
       telephone: scan.fields.telephone,
+      fax: scan.fields.fax,
       address: scan.fields.address,
     }
     let matches: BusinessCardMatch[] = []
@@ -158,6 +161,7 @@ export async function recognizeBusinessCard(
       email: fields.email,
       phone: fields.phone,
       telephone: fields.telephone,
+      fax: fields.fax,
       matches,
       sourceImage: image,
     }

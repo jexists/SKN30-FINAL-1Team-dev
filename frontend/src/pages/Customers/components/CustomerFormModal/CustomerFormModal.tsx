@@ -90,7 +90,7 @@ function validate({ draft, company, businessNo, assigneeIds }: Form): Errors {
   const errors: Errors = {}
   if (company === null) errors.company = '회사를 검색해서 고르거나 직접 등록해 주세요.'
   if (draft.name.trim() === '') errors.name = '이름을 입력하세요.'
-  if (phoneDigits(draft.phone) === '') errors.phone = '전화번호를 입력하세요.'
+  if (phoneDigits(draft.phone) === '') errors.phone = '휴대폰 번호를 입력하세요.'
   if (draft.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
     errors.email = '이메일 형식이 맞지 않습니다. 예: name@company.com'
   }
@@ -610,11 +610,11 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="전화" required error={errors.phone} check={fromDocument.has('phone')}>
+          <Field label="휴대폰" required error={errors.phone} check={fromDocument.has('phone')}>
             <input
               type="tel"
               value={formatPhone(draft.phone)}
-              placeholder="02-000-0000"
+              placeholder="010-0000-0000"
               maxLength={50}
               aria-invalid={errors.phone !== undefined}
               disabled={submitting}
@@ -642,11 +642,11 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="휴대폰">
+          <Field label="전화" check={fromDocument.has('telephone')}>
             <input
               type="tel"
               value={formatPhone(draft.telephone)}
-              placeholder="010-0000-0000"
+              placeholder="02-000-0000"
               maxLength={50}
               disabled={submitting}
               onChange={(event) => set('telephone', phoneDigits(event.target.value))}
