@@ -15,11 +15,13 @@ import httpx
 import pytest
 from deepagents.middleware._state import private_state_field_names
 from deepagents.middleware.summarization import SummarizationState
-from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
+from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
 from app.agents.reports import harness
@@ -79,6 +81,7 @@ class ScriptedModel(BaseChatModel):
     marker: str = ""
     _seen: list = PrivateAttr(default_factory=list)
     _bound: list = PrivateAttr(default_factory=list)
+    _choices: list = PrivateAttr(default_factory=list)
     _counter: itertools.count = PrivateAttr(default_factory=lambda: itertools.count(1))
     _parent_turns: int = PrivateAttr(default=0)
     _attacked: bool = PrivateAttr(default=False)
@@ -94,6 +97,7 @@ class ScriptedModel(BaseChatModel):
 
     def bind_tools(self, tools, **kwargs):
         self._last_tools = {getattr(tool, "name", "") for tool in tools}
+        self._choices.append(kwargs.get("tool_choice"))
         self._bound.append(
             {getattr(tool, "name", ""): getattr(tool, "description", "") for tool in tools}
         )
@@ -531,6 +535,7 @@ def test_actual_sdk_uses_one_supervisor_and_selected_writer_then_initial_review(
         tools["task"] for tools in model._bound if "task" in tools and "finish_report" in tools
     ]
     assert parent_task_descriptions
+    assert "required" in model._choices
     assert all(
         role in value and "general-purpose" not in value for value in parent_task_descriptions
     )
@@ -1591,6 +1596,195 @@ def test_scoped_and_period_tools_keep_exact_frozen_boundaries():
     assert len(sources()[0]["content"]["body"]) == 60_000
     with pytest.raises(PermissionError):
         sources("source-2")
+
+
+def test_period_prepare_requires_assigned_source_but_not_period_context():
+    spec = _spec("daily")
+    unit = replace(
+        spec.units[0],
+        work_unit_id="prepare-source-1",
+        scope="source-1",
+    )
+    spec = replace(spec, preparation_units=(unit,))
+    coordinator = harness._Coordinator(spec, object())
+    prepare = coordinator.assignments["prepare-source-1"]
+
+    assert coordinator.sources_complete(
+        prepare,
+        [{"name": "read_report_sources", "args": {"source_id": "source-1"}}],
+    )
+    assert not coordinator.sources_complete(
+        prepare,
+        [{"name": "read_report_sources", "args": {"source_id": "source-2"}}],
+    )
+    assert not coordinator.sources_complete(
+        replace(prepare, phase="write_initial"),
+        [{"name": "read_report_sources", "args": {"source_id": None}}],
+    )
+
+    synthesize = replace(prepare, phase="synthesize", work_unit_id="write-001", unit=None)
+    complete = [
+        {"name": "read_report_context", "args": {}},
+        {"name": "read_report_sources", "args": {"source_id": None}},
+        {"name": "read_writer_digests", "args": {}},
+    ]
+    assert coordinator.sources_complete(synthesize, complete)
+    assert not coordinator.sources_complete(synthesize, complete[1:])
+    mixed = [
+        {"name": "read_report_sources", "args": {"source_id": "source-1"}},
+        {"name": "read_report_sources", "args": {"source_id": "source-2"}},
+        {"name": "read_report_sources", "args": {"source_id": None}},
+    ]
+    assert not coordinator.sources_complete(prepare, mixed)
+    assert isinstance(coordinator.missing_source_reads(prepare, mixed), list)
+    synth_missing = coordinator.missing_source_reads(synthesize, [])
+    assert {
+        "read_report_context",
+        "read_report_sources(source-1)",
+        "read_writer_digests",
+    } <= set(synth_missing)
+
+
+@pytest.mark.parametrize("kind,phase", [("meeting", "write_initial"), ("daily", "prepare")])
+def test_child_guard_override_requires_reads_before_structured_output(kind, phase):
+    spec = _spec(kind)
+    unit = spec.units[0]
+    if phase == "prepare":
+        spec = replace(spec, preparation_units=(unit,))
+    coordinator = harness._Coordinator(spec, object())
+    assignment = coordinator.assignments[unit.work_unit_id]
+    files = harness.skill_files(spec.writer_role)
+    output = Finding
+    tools = (
+        create_scoped_meeting_tools({"source": spec.source})
+        if kind == "meeting"
+        else create_period_tools(spec.source)
+    )
+    read_tool = StructuredTool.from_function(
+        lambda: {}, name="read_file", description="read"
+    )
+    output_tool = StructuredTool.from_function(
+        lambda: {}, name="Finding", description="output"
+    )
+    guard = harness._ChildGuard(coordinator, files, tools, output, spec.writer_role)
+    seen = []
+
+    async def handler(request):
+        seen.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        _tool_call(
+                            itertools.count(1),
+                            "read_file",
+                            {"file_path": next(iter(files))},
+                        )
+                    ],
+                )
+            ]
+        )
+
+    request = ModelRequest(
+        model=FakeMessagesListChatModel(responses=[AIMessage(content="")]),
+        messages=[],
+        tools=[read_tool, output_tool],
+        response_format=ToolStrategy(Finding),
+        state={
+            "skills_metadata": [
+                {"path": path} for path in files if path.endswith("/SKILL.md")
+            ]
+        },
+    )
+    token = harness._ACTIVE_ASSIGNMENT.set((coordinator, assignment))
+    try:
+        asyncio.run(guard.awrap_model_call(request, handler))
+    finally:
+        harness._ACTIVE_ASSIGNMENT.reset(token)
+    assert seen[0].tool_choice == "required"
+    assert seen[0].response_format is None
+    assert "SERVER_CHECK:" in seen[0].messages[-1].content
+    assert assignment.unit.scope in seen[0].messages[-1].content if phase == "prepare" else True
+
+
+def test_child_guard_completed_request_preserves_request_messages_and_strategy():
+    spec = _spec("daily")
+    coordinator = harness._Coordinator(spec, object())
+    assignment = coordinator.assignments["write-001"]
+    files = harness.skill_files(spec.writer_role)
+    read_tool = StructuredTool.from_function(lambda: {}, name="read_file", description="read")
+    source_tool = StructuredTool.from_function(
+        lambda source_id=None: {}, name="read_report_sources", description="source"
+    )
+    context_tool = StructuredTool.from_function(
+        lambda: {}, name="read_report_context", description="context"
+    )
+    output_tool = StructuredTool.from_function(lambda: {}, name="Finding", description="output")
+    guard = harness._ChildGuard(
+        coordinator, files, [source_tool], Finding, spec.writer_role
+    )
+    counter = itertools.count(1)
+    history = []
+    for path in sorted(files):
+        if path.endswith("/SKILL.md"):
+            call = _tool_call(
+                counter,
+                "read_file",
+                {"file_path": path, "limit": len(files[path]["content"].splitlines())},
+            )
+            history.extend([AIMessage(content="", tool_calls=[call]), ToolMessage(
+                content="ok", tool_call_id=call["id"]
+            )])
+    call = _tool_call(counter, "read_report_sources", {"source_id": None})
+    history.extend([AIMessage(content="", tool_calls=[call]), ToolMessage(
+        content="ok", tool_call_id=call["id"]
+    )])
+    call = _tool_call(counter, "read_report_context", {})
+    history.extend([AIMessage(content="", tool_calls=[call]), ToolMessage(
+        content="ok", tool_call_id=call["id"]
+    )])
+    seen = []
+
+    async def handler(request):
+        seen.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        _tool_call(
+                            counter,
+                            "Finding",
+                            {},
+                        )
+                    ],
+                )
+            ]
+        )
+
+    request = ModelRequest(
+        model=FakeMessagesListChatModel(responses=[AIMessage(content="")]),
+        messages=[HumanMessage(content="request-marker")],
+        tools=[read_tool, source_tool, context_tool, output_tool],
+        response_format=ToolStrategy(Finding),
+        state={
+            "messages": history,
+            "skills_metadata": [
+                {"path": p} for p in files if p.endswith("/SKILL.md")
+            ],
+        },
+    )
+    token = harness._ACTIVE_ASSIGNMENT.set((coordinator, assignment))
+    try:
+        asyncio.run(guard.awrap_model_call(request, handler))
+    finally:
+        harness._ACTIVE_ASSIGNMENT.reset(token)
+    assert seen[0].messages == request.messages
+    assert seen[0].response_format is request.response_format
+    assert seen[0].tool_choice is None
+    assert "Finding" in {tool.name for tool in seen[0].tools}
+    assert all(message.content != "SERVER_CHECK:" for message in seen[0].messages)
 
 
 def test_scope_guards_emit_real_json_correlation_for_meeting_and_period(caplog):

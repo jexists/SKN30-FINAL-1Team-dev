@@ -22,7 +22,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware, before_model
 from langchain.agents.structured_output import StructuredOutputError, ToolStrategy
 from langchain_core.callbacks import AsyncCallbackHandler
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 from langsmith import tracing_context
@@ -95,7 +95,15 @@ class WriterArtifact(BaseModel):
 class ReviewIssue(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    location: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    location: str = Field(
+        min_length=1,
+        max_length=200,
+        pattern=r"\S",
+        description=(
+            "SERVER_ASSIGNMENT.allowed_locations의 문자열을 그대로 쓴다. "
+            "세부 위치 설명은 evidence/action에 둔다."
+        ),
+    )
     evidence: str = Field(min_length=1, max_length=1_000, pattern=r"\S")
     action: str = Field(min_length=1, max_length=1_000, pattern=r"\S")
 
@@ -794,6 +802,12 @@ class _Coordinator:
         return allowed
 
     def sources_complete(self, assignment: _Assignment, calls: list[dict[str, Any]]) -> bool:
+        return not self.missing_source_reads(assignment, calls)
+
+    def missing_source_reads(
+        self, assignment: _Assignment, calls: list[dict[str, Any]]
+    ) -> list[str]:
+        missing: list[str] = []
         if self.spec.report_kind == "meeting":
             expected = (
                 self.runtime_meeting_scopes
@@ -812,11 +826,15 @@ class _Coordinator:
                 for call in calls
                 if call["name"] == "read_meeting_evidence"
             }
-            if not expected <= actual:
-                return False
+            missing.extend(
+                f"read_meeting_evidence({scope})"
+                for scope in sorted(expected - actual)
+            )
         else:
-            if not any(call["name"] == "read_report_context" for call in calls):
-                return False
+            if assignment.phase != "prepare" and not any(
+                call["name"] == "read_report_context" for call in calls
+            ):
+                missing.append("read_report_context")
             expected = (
                 {assignment.unit.scope}
                 if assignment.phase == "prepare" and assignment.unit
@@ -825,14 +843,24 @@ class _Coordinator:
             reads = [call for call in calls if call["name"] == "read_report_sources"]
             actual = {call["args"].get("source_id") for call in reads}
             if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}:
-                if None not in actual and not expected <= actual:
-                    return False
-            elif expected != actual:
-                return False
+                if None not in actual:
+                    missing.extend(
+                        f"read_report_sources({scope})"
+                        for scope in sorted(expected - actual)
+                    )
+            else:
+                missing.extend(
+                    f"read_report_sources({scope})"
+                    for scope in sorted(expected - actual)
+                )
+                missing.extend(
+                    f"unexpected source read: {scope}"
+                    for scope in sorted(actual - expected, key=str)
+                )
         if assignment.phase == "synthesize" and not any(
             call["name"] == "read_writer_digests" for call in calls
         ):
-            return False
+            missing.append("read_writer_digests")
         required_artifacts: set[tuple[str, int]] = set()
         if assignment.phase == "repair":
             required_artifacts = {("read_validated_draft", 1), ("read_validated_review", 1)}
@@ -845,7 +873,11 @@ class _Coordinator:
             )
             for call in calls
         }
-        return required_artifacts <= observed
+        missing.extend(
+            f"{name}(draft_version={version})"
+            for name, version in sorted(required_artifacts - observed)
+        )
+        return missing
 
     def _validate_plan(self, artifact: WriterArtifact, assignment: _Assignment) -> None:
         unit = assignment.unit
@@ -1239,6 +1271,22 @@ class _ChildGuard(AgentMiddleware):
                 read.add(path)
         return read == self.required_skills
 
+    def _missing_reads(
+        self, assignment: _Assignment, calls: list[dict[str, Any]]
+    ) -> list[str]:
+        missing = self.coordinator.missing_source_reads(assignment, calls)
+        for path in sorted(self.required_skills):
+            if not any(
+                call["name"] == "read_file"
+                and call["args"].get("file_path") == path
+                and call["args"].get("offset", 0) == 0
+                and call["args"].get("limit", 2000)
+                >= len(self.files[path]["content"].splitlines())
+                for call in calls
+            ):
+                missing.insert(0, f"read_file({path})")
+        return missing
+
     async def awrap_model_call(self, request, handler):
         assignment = self._active()
         messages = request.state.get("messages", [])
@@ -1255,10 +1303,30 @@ class _ChildGuard(AgentMiddleware):
         output_available = self._skills_complete(previous) and self.coordinator.sources_complete(
             assignment, previous
         )
+        required_tools = [tool for tool in request.tools if tool.name in allowed]
+        tool_choice = request.tool_choice
+        outgoing_messages = request.messages
+        if not output_available:
+            required_tools = [tool for tool in required_tools if tool.name != self.output_name]
+            tool_choice = "required"
+            outgoing_messages = list(request.messages)
+            missing_reads = ", ".join(self._missing_reads(assignment, previous)) or "확인 필요"
+            outgoing_messages.append(
+                HumanMessage(
+                    content=(
+                        "SERVER_CHECK: 필수 자료 조회가 아직 완료되지 않았습니다. "
+                        f"남은 조회: {missing_reads}. "
+                        "남은 허용 read 도구를 호출하고, 자료 조회 전에는 "
+                        "구조화 산출물을 제출하지 마십시오."
+                    )
+                )
+            )
         response = await handler(
             request.override(
-                tools=[tool for tool in request.tools if tool.name in allowed],
+                tools=required_tools,
                 response_format=request.response_format if output_available else None,
+                tool_choice=tool_choice,
+                messages=outgoing_messages,
             )
         )
         calls = [call for message in response.result for call in getattr(message, "tool_calls", [])]
