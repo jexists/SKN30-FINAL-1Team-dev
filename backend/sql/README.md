@@ -25,6 +25,11 @@
 
 ## 스키마 파일
 
+- `20260914_0034_support_request_soft_delete.sql`: CS대응을 지울 수 있게 `support_request`에
+  `deleted_at`을 더합니다. 지우는 사람은 등록한 본인과 팀장이며, `support_response`와
+  `support_request_edit_backup`이 이 표를 참조하고 있어 행은 남기고 시각만 채웁니다.
+  현재 연결된 개발 DB에 적용됐습니다. 운영 DB 반영은 배포 절차에서 별도로 적용해야 합니다.
+
 - `20260914_0032_customer_contact_optional_mobile.sql`: 명함 OCR 고객등록에서 일반 전화만
   확인된 담당자도 등록할 수 있게 `customer_contact.phone`을 nullable로 바꿉니다. 단건
   API는 직접·사업자등록증 등록에 휴대폰을, 명함 등록에 일반 전화를 각각 필수로 검증합니다.

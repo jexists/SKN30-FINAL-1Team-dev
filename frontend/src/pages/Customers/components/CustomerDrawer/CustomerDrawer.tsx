@@ -18,7 +18,7 @@ import styles from './CustomerDrawer.module.scss'
 
 interface Props {
   customer: Customer
-  /** 삭제는 팀장만 합니다. 아니면 메뉴에서 아예 빼고, 막는 일은 백엔드가 다시 합니다. */
+  /** 삭제는 등록한 본인과 팀장만 합니다. 아니면 메뉴에서 아예 빼고, 막는 일은 백엔드가 다시 합니다. */
   canDelete: boolean
   onEdit: () => void
   onDelete: () => void

@@ -180,6 +180,7 @@ async def _unresolved_support_signals(
     """이 회사에 걸린, 아직 끝나지 않은 C/S 요청."""
     result = await db.execute(
         select(SupportRequest).where(
+            SupportRequest.deleted_at.is_(None),
             SupportRequest.team_id == member.team_id,
             SupportRequest.customer_company_id == customer_company_id,
             SupportRequest.status_code.in_(_OPEN_SUPPORT_STATUSES),

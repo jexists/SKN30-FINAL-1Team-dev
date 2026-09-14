@@ -1,0 +1,145 @@
+/*
+ * 요약 본문. 높이를 매지 않습니다 — 드로어 본문이 이미 스크롤을 맡고 있어서 여기에 다시
+ * max-height 를 걸면 한 화면에 스크롤 막대가 둘 생깁니다.
+ */
+.root {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums; // 문장에 섞여 오는 금액·수량이 자리를 맞춰 서게
+  line-height: 1.7;
+
+  > :first-child {
+    margin-top: 0;
+  }
+}
+
+/*
+ * 도입 문단. 크기는 본문과 같습니다 — 14px 로 키우면 구획 제목과 같은 크기가 되어
+ * 문단인지 제목인지 갈리지 않았습니다. 구획 제목 앞 첫 문단이라는 자리와 색만으로
+ * 충분히 앞에 섭니다.
+ */
+.lead {
+  margin: 0;
+  color: var(--ink);
+  white-space: pre-line; // 문단이 여럿이면 줄바꿈을 살립니다
+}
+
+// 선을 걷은 자리에서 묶음을 가르는 것은 여백뿐입니다. 구획 사이는 항목 사이(--s5)보다
+// 한 단 넓어야 다음 제목이 앞 항목에 붙어 보이지 않습니다.
+.section {
+  margin-top: var(--s7);
+}
+
+/*
+ * 구획 제목. 보고서 화면(ReportView 의 .heading)과 같은 표시입니다 — 파란 막대가 시작을
+ * 짚고 꼬리선이 구획 폭을 끝까지 가릅니다. 이 요약만의 장식을 새로 만들면 같은 앱 안에서
+ * 혼자 다른 말투가 되므로, 크기만 드로어에 맞춰 줄입니다.
+ */
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+  color: var(--ink);
+  // 크기는 본문과 같고 굵기로만 갈립니다. 이 요약을 담는 드로어의 섹션 제목(15px/700)이
+  // 이 구획들의 부모라, 여기서 크기까지 올리면 자식이 부모보다 커집니다. 600 이 아니라
+  // 700 인 것은 설치된 한글 서체가 500 과 600 을 같은 자소로 그려, 600 으로 두면
+  // 본문과 구별되지 않기 때문입니다.
+  font-size: 13px;
+  font-weight: 700;
+
+  &::before {
+    content: '';
+    flex: none;
+    align-self: stretch;
+    width: 3px;
+    border-radius: var(--r-pill);
+    background: var(--blue);
+  }
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+}
+
+/*
+ * 항목이 한글 장문이라 불릿 점도 구분선도 쓰지 않습니다. 점은 줄바꿈마다 시선을 끊고,
+ * 항목마다 선을 그으면 한 화면에 선이 예닐곱 개가 되어 글보다 선이 먼저 보입니다.
+ * 항목 사이 여백만 본문 줄 간격보다 넉넉히 두면 그것만으로 덩어리가 갈립니다.
+ */
+.points {
+  margin: 0;
+  // 제목의 막대(3px)와 그 뒤 간격만큼 안으로 들여 항목이 제목 글자 선에서 시작하게.
+  // 번호 칸이 이 자리를 대신하는 리스크(.risks)에는 넣지 않습니다.
+  padding: 0 0 0 10px;
+  list-style: none;
+
+  li + li {
+    margin-top: var(--s5);
+  }
+}
+
+/*
+ * 영업 참고사항. 주요 내용은 문서가 말하는 것이고 이쪽은 담당자가 행동하는 것이라,
+ * 면을 깔지 않고 글자 색만 한 단계 앞에 세웁니다.
+ */
+.act {
+  color: var(--ink);
+}
+
+/*
+ * 리스크. 면을 깔지 않고 제목의 막대 색만 바꿉니다. 구분선과 틴트를 걷은 자리에서
+ * 이 막대가 요약 전체의 유일한 색이라, 훑을 때 여기서 눈이 멈춥니다.
+ */
+.riskHeading::before {
+  background: var(--red);
+}
+
+/*
+ * 리스크만 번호를 붙입니다. 몇 건인지가 판단을 바꾸는 것은 여기뿐이고, 번호를 매기면
+ * 목록이 스스로 세므로 제목 옆에 건수를 따로 둘 이유가 없어집니다.
+ *
+ * 번호를 글과 같은 칸에 두면 두 번째 줄이 번호 아래로 파고듭니다. 칸을 나눠 번호를
+ * 따로 세우면 자릿수가 늘어도(10 이상) 글의 시작선이 움직이지 않습니다.
+ *
+ * 회색 숫자는 글보다 흐려서 목록이 몇 건인지가 읽히지 않았습니다. 번호를 빨강 틴트
+ * 원판에 올려 제목의 빨간 막대와 같은 색으로 묶으면, 구획 안에서 번호가 이 구획의
+ * 표시로 읽힙니다. 원판은 번호에만 쓰므로 본문은 여전히 면 없이 남습니다.
+ */
+.risks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: risk;
+
+  li {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: var(--s3);
+    counter-increment: risk;
+  }
+
+  li::before {
+    content: counter(risk);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    // 정원. 본문 한 줄(13px × 1.7 ≒ 22px) 안에서 위아래 2px 씩 남겨 첫 줄과 눈높이를 맞춥니다.
+    height: 18px;
+    margin-top: 2px;
+    border-radius: var(--r-pill);
+    background: var(--red-tint);
+    color: var(--red-ink);
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  li + li {
+    margin-top: var(--s5);
+  }
+}
