@@ -78,24 +78,44 @@ const EMPTY = {
 type Draft = typeof EMPTY
 type ErrorKey = keyof Draft | 'company' | 'businessNo' | 'address' | 'assignees'
 type Errors = Partial<Record<ErrorKey, string>>
+type RegistrationMode = 'standard' | 'business_card' | 'business_license'
 
 interface Form {
   draft: Draft
   company: CompanySelection | null
   businessNo: string
+  address: AddressValue
   assigneeIds: string[]
 }
 
-function validate({ draft, company, businessNo, assigneeIds }: Form): Errors {
+function validate(
+  { draft, company, businessNo, address, assigneeIds }: Form,
+  registrationMode: RegistrationMode = 'standard',
+): Errors {
   const errors: Errors = {}
   if (company === null) errors.company = '회사를 검색해서 고르거나 직접 등록해 주세요.'
   if (draft.name.trim() === '') errors.name = '이름을 입력하세요.'
-  if (phoneDigits(draft.phone) === '') errors.phone = '휴대폰 번호를 입력하세요.'
-  if (draft.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
+  if (registrationMode === 'business_card' || registrationMode === 'business_license') {
+    if (phoneDigits(draft.telephone) === '') errors.telephone = '전화번호를 입력하세요.'
+  } else if (phoneDigits(draft.phone) === '') {
+    errors.phone = '휴대폰 번호를 입력하세요.'
+  }
+  if (registrationMode === 'business_license' && draft.email.trim() === '') {
+    errors.email = '이메일을 입력하세요.'
+  } else if (
+    draft.email.trim() !== '' &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())
+  ) {
     errors.email = '이메일 형식이 맞지 않습니다. 예: name@company.com'
   }
-  if (businessNo.trim() !== '' && businessNoDigits(businessNo).length !== 10) {
+  if (
+    (registrationMode === 'business_license' || businessNo.trim() !== '') &&
+    businessNoDigits(businessNo).length !== 10
+  ) {
     errors.businessNo = '사업자 등록번호는 숫자 10자리입니다. 예: 123-45-67890'
+  }
+  if (registrationMode === 'business_license' && address.address.trim() === '') {
+    errors.address = '주소를 입력하세요.'
   }
   if (assigneeIds.length === 0) errors.assignees = '담당자를 한 명 이상 고르세요.'
   return errors
@@ -126,12 +146,16 @@ function filledByDocument(
 
 /**
  * 문서에서 읽지 못한 필수 칸. 저장을 눌러 보기 전에 어디가 비었는지 먼저 보여 줍니다.
- * 백엔드 명함 서비스가 보는 세 항목(name·company_name·phone)과 같습니다.
+ * 명함은 일반 전화, 그 밖의 등록은 휴대폰을 연락처 필수값으로 봅니다.
  */
-function missingRequired(form: Form): Errors {
-  const found = validate(form)
+function missingRequired(form: Form, registrationMode: RegistrationMode): Errors {
+  const found = validate(form, registrationMode)
   const initial: Errors = {}
-  for (const key of ['company', 'name', 'phone'] as const) {
+  const keys: ErrorKey[] =
+    registrationMode === 'business_license'
+      ? ['company', 'businessNo', 'address', 'name', 'telephone', 'email']
+      : ['company', 'name', registrationMode === 'business_card' ? 'telephone' : 'phone']
+  for (const key of keys) {
     if (found[key] !== undefined) initial[key] = found[key]
   }
   return initial
@@ -148,7 +172,12 @@ async function findDuplicate(
   try {
     const { data } = await client.post<CustomerDuplicateResponse[]>(
       '/customer-contacts/duplicate-check',
-      { company_name: name, name: fields.name, phone: fields.phone, email: fields.email ?? '' },
+      {
+        company_name: name,
+        name: fields.name,
+        phone: fields.phone ?? fields.telephone ?? '',
+        email: fields.email ?? '',
+      },
     )
     return data[0] ?? null
   } catch {
@@ -164,7 +193,7 @@ function draftOf(name: string, fields: CustomerContactUpdateRequest): DuplicateD
     department: fields.department ?? '',
     jobTitle: fields.job_title ?? '',
     email: fields.email ?? '',
-    phone: fields.phone,
+    phone: fields.phone ?? fields.telephone ?? '',
     memo: fields.memo ?? '',
     visited: fields.visited,
   }
@@ -234,6 +263,20 @@ export default function CustomerFormModal({
   // OCR에 올린 원본은 등록 성공 뒤 자료실에 보관할 때까지 이 폼이 그대로 들고 있다.
   // 별도 업로드·다운로드 없이 브라우저의 object URL로 입력값과 나란히 확인한다.
   const sourceFile = archiveImage ?? archiveLicense
+  // 문서 OCR 등록은 일반 전화가 필수다. 직접·엑셀 등록의 휴대폰 규칙은 바꾸지 않는다.
+  const businessCardRegistration = archiveImage !== undefined && !editing
+  const businessLicenseRegistration = archiveLicense !== undefined && !editing
+  const registrationMode: RegistrationMode = businessCardRegistration
+    ? 'business_card'
+    : businessLicenseRegistration
+      ? 'business_license'
+      : 'standard'
+  // 휴대폰 없이 일반 전화만으로 명함 등록된 고객을 나중에 수정할 때도, 저장을 위해
+  // 휴대폰을 새로 요구하지 않는다.
+  const requiresTelephone =
+    registrationMode !== 'standard' || (editing && customer.phone === '' && Boolean(customer.telephone))
+  const validationMode: RegistrationMode =
+    requiresTelephone && registrationMode === 'standard' ? 'business_card' : registrationMode
   // 원본이 있으면 검수 화면이다. 열어 둔 채로 시작하고, 입력 공간이 필요하면 접는다.
   const [sourceOpen, setSourceOpen] = useState(true)
   const reviewing = sourceFile !== undefined
@@ -274,12 +317,16 @@ export default function CustomerFormModal({
   })
   const [errors, setErrors] = useState<Errors>(() =>
     reviewing && customer === undefined
-      ? missingRequired({
-          draft: { ...EMPTY, ...initial },
-          company: initialCompany ?? null,
-          businessNo: initialBusinessNo ?? '',
-          assigneeIds: [],
-        })
+      ? missingRequired(
+          {
+            draft: { ...EMPTY, ...initial },
+            company: initialCompany ?? null,
+            businessNo: initialBusinessNo ?? '',
+            address: initialAddress ?? EMPTY_ADDRESS,
+            assigneeIds: [],
+          },
+          validationMode,
+        )
       : {},
   )
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -367,7 +414,10 @@ export default function CustomerFormModal({
   const submit = async () => {
     if (submitting || companyLoading) return
 
-    const found = validate({ draft, company, businessNo, assigneeIds })
+    const found = validate(
+      { draft, company, businessNo, address, assigneeIds },
+      validationMode,
+    )
     setErrors(found)
     if (Object.keys(found).length > 0 || company === null) return
 
@@ -384,7 +434,7 @@ export default function CustomerFormModal({
         department: optional(draft.dept),
         job_title: optional(draft.title),
         email: optional(draft.email),
-        phone: phoneDigits(draft.phone),
+        phone: phoneDigits(draft.phone) || null,
         telephone: phoneDigits(draft.telephone) || null,
         fax: phoneDigits(draft.fax) || null,
         source_code: sourceCode === '' ? null : sourceCode,
@@ -414,7 +464,11 @@ export default function CustomerFormModal({
       }
 
       // 상태는 등록할 때만 정해집니다. 수정 폼에는 상태 칸이 없습니다.
-      const payload: CustomerContactCreateRequest = { ...fields, status_code: 'new' }
+      const payload: CustomerContactCreateRequest = {
+        ...fields,
+        status_code: 'new',
+        registration_mode: registrationMode,
+      }
       const { data } = await client.post<CustomerContactResponse>('/customer-contacts', payload)
       let warning: string | undefined
       if (archiveImage) {
@@ -557,32 +611,37 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field
-            label="사업자 등록번호"
-            error={errors.businessNo}
-            check={fromDocument.has('businessNo')}
-          >
-            <input
-              value={maskBusinessNo(businessNo)}
-              aria-invalid={errors.businessNo !== undefined}
-              placeholder="123-45-67890"
-              maxLength={12}
-              // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
-              readOnly={company?.kind === 'existing'}
-              // 회사를 고르기 전이라도, 등록증에서 읽어 온 값은 고칠 수 있어야 합니다.
-              disabled={submitting || (company === null && businessNo === '')}
-              onChange={(event) => {
-                setBusinessNo(businessNoDigits(event.target.value))
-                clearError('businessNo')
-                confirmed('businessNo')
-              }}
-            />
-          </Field>
+          {!businessCardRegistration && (
+            <Field
+              label="사업자 등록번호"
+              required={businessLicenseRegistration}
+              error={errors.businessNo}
+              check={fromDocument.has('businessNo')}
+            >
+              <input
+                value={maskBusinessNo(businessNo)}
+                aria-invalid={errors.businessNo !== undefined}
+                placeholder="123-45-67890"
+                maxLength={12}
+                // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
+                readOnly={company?.kind === 'existing'}
+                // 회사를 고르기 전이라도, 등록증에서 읽어 온 값은 고칠 수 있어야 합니다.
+                disabled={submitting || (company === null && businessNo === '')}
+                onChange={(event) => {
+                  setBusinessNo(businessNoDigits(event.target.value))
+                  clearError('businessNo')
+                  confirmed('businessNo')
+                }}
+              />
+            </Field>
+          )}
 
           {/* 주소는 회사에 붙는 값입니다. 이미 있는 회사면 그 회사의 주소를 보여 주기만 합니다. */}
           <Field
             label="주소"
             wide
+            required={businessLicenseRegistration}
+            error={errors.address}
             check={fromDocument.has('address')}
             hint="앞부분을 누르면 주소를 찾고, 뒤에 이어 쓰면 상세주소가 됩니다."
             hintId="address-field-hint"
@@ -610,7 +669,12 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="휴대폰" required error={errors.phone} check={fromDocument.has('phone')}>
+          <Field
+            label="휴대폰"
+            required={!requiresTelephone}
+            error={errors.phone}
+            check={fromDocument.has('phone')}
+          >
             <input
               type="tel"
               value={formatPhone(draft.phone)}
@@ -642,7 +706,12 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="전화" check={fromDocument.has('telephone')}>
+          <Field
+            label="전화"
+            required={requiresTelephone}
+            error={errors.telephone}
+            check={fromDocument.has('telephone')}
+          >
             <input
               type="tel"
               value={formatPhone(draft.telephone)}
@@ -664,7 +733,12 @@ export default function CustomerFormModal({
             />
           </Field>
 
-          <Field label="이메일" error={errors.email} check={fromDocument.has('email')}>
+          <Field
+            label="이메일"
+            required={businessLicenseRegistration}
+            error={errors.email}
+            check={fromDocument.has('email')}
+          >
             <input
               type="email"
               value={draft.email}

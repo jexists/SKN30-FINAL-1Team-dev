@@ -18,6 +18,7 @@ async def test_extract_builds_registration_ready_draft(monkeypatch):
             department="영업팀",
             job_title="팀장",
             phone="010-0000-0000",
+            telephone="02-000-0000",
             email="contact@example.test",
             website="https://example.test",
         )
@@ -55,7 +56,7 @@ async def test_extract_does_not_mark_incomplete_ocr_as_ready(monkeypatch):
     draft = await business_cards.extract(ocr_text="이름만 인식됨")
 
     assert draft.ready_for_contact_registration is False
-    assert draft.missing_required_fields == ["company_name", "phone"]
+    assert draft.missing_required_fields == ["company_name", "telephone"]
 
 
 def test_card_fields_keep_only_the_first_number_per_contact_type():

@@ -296,7 +296,9 @@ def _contact_read(
         department=contact.department,
         job_title=contact.job_title,
         email=contact.email,
-        phone=contact.phone,
+        # API 화면은 빈 문자열로 통일해 기존 클라이언트가 null 연락처를 별도 처리하지
+        # 않게 한다. DB에서는 명함 등록의 휴대폰 부재를 NULL로 보관한다.
+        phone=contact.phone or "",
         telephone=contact.telephone,
         fax=contact.fax,
         customer_contact_status_id=None if contact_status is None else contact_status.id,
@@ -623,6 +625,13 @@ async def create_customer_contact(
     db: DbSession,
 ) -> CustomerContactRead:
     company = await _get_company(db, member, payload.company_id)
+    if payload.registration_mode == "business_license" and (
+        not company.business_no or not company.address
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="business_license_company_fields_required",
+        )
     # 화면이 확인을 건너뛰었거나 두 요청이 겹쳐도 같은 사람이 한 줄 더 생기지 않게 한다.
     # 이 표에는 유일 제약이 없으므로 막는 자리는 여기뿐이다.
     duplicates = await customer_duplicates.find_duplicates(
@@ -631,7 +640,7 @@ async def create_customer_contact(
         probe=DuplicateProbe(
             company_name=company.name,
             name=payload.name,
-            phone=payload.phone,
+            phone=payload.phone or payload.telephone or "",
             email=payload.email or "",
         ),
         limit=1,
@@ -643,6 +652,8 @@ async def create_customer_contact(
         )
     values = payload.model_dump()
     status_code = values.pop("status_code")
+    # 등록 규칙 선택값이며 customer_contact 컬럼은 아니다.
+    values.pop("registration_mode")
     contact_status = (
         None
         if status_code is None

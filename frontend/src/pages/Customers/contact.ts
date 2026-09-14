@@ -58,7 +58,7 @@ export function toCustomer(contact: CustomerContactResponse): Customer {
     dept: contact.department ?? '',
     title: contact.job_title ?? '',
     email: contact.email ?? '',
-    phone: contact.phone,
+    phone: contact.phone ?? '',
     telephone: contact.telephone ?? '',
     fax: contact.fax ?? '',
     owner: contact.owner_display_name,

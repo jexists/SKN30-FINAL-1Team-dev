@@ -11,6 +11,9 @@ export interface BusinessLicenseDraft {
   address: string
   /** 등록증의 대표자. 담당자 이름 칸의 첫 값으로 씁니다. */
   representative: string
+  telephone: string
+  fax: string
+  email: string
   /** 인식에 쓴 원본. 고객 등록 뒤 그 회사에 보관합니다. */
   sourceFile: File
 }
@@ -28,6 +31,9 @@ interface BusinessLicenseScanStatus {
     business_no: string
     address: string
     representative: string
+    telephone: string
+    fax: string
+    email: string
   } | null
 }
 
@@ -125,6 +131,9 @@ export async function extractBusinessLicense(
       businessNo: scan.fields.business_no,
       address: scan.fields.address,
       representative: scan.fields.representative,
+      telephone: scan.fields.telephone,
+      fax: scan.fields.fax,
+      email: scan.fields.email,
       sourceFile: file,
     }
   } catch (error: unknown) {

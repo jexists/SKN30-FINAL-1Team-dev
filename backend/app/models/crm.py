@@ -37,7 +37,9 @@ class CustomerContact(Base):
     department: Mapped[str | None]
     job_title: Mapped[str | None]
     email: Mapped[str | None]
-    phone: Mapped[str]
+    # 명함 등록은 일반 전화만 확인되는 경우가 있어 휴대폰은 비워 둘 수 있다.
+    # 어느 번호가 필수인지는 등록 경로별 API 검증이 맡는다.
+    phone: Mapped[str | None]
     # 일반 전화. 휴대폰(phone)과 구분해 보관하며, 없는 고객도 있어 선택 항목이다.
     telephone: Mapped[str | None]
     # 팩스. 선택 항목이라 없을 수 있다. 사람을 찾는 값이 아니라 검색은 phone 만 본다.

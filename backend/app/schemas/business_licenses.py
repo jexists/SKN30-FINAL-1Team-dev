@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
+from app.schemas.business_cards import first_phone_digits
 from app.schemas.customers import to_digits
 
 
@@ -18,6 +19,13 @@ class BusinessLicenseFields(BaseModel):
     business_no: Annotated[str, BeforeValidator(to_digits)] = Field(default="", max_length=30)
     address: str = Field(default="", max_length=500)
     representative: str = Field(default="", max_length=100)
+    # 사업자등록증에 함께 적힌 연락처만 가져온다. 없는 값은 고객 등록 화면에서 직접
+    # 보완하게 비워 둔다.
+    telephone: Annotated[str, BeforeValidator(first_phone_digits)] = Field(
+        default="", max_length=50
+    )
+    fax: Annotated[str, BeforeValidator(first_phone_digits)] = Field(default="", max_length=50)
+    email: str = Field(default="", max_length=254)
     confidence: float | None = Field(default=None, ge=0, le=1)
     unresolved_fields: list[str] = Field(default_factory=list, max_length=10)
 

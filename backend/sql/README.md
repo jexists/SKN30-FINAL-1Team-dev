@@ -25,6 +25,11 @@
 
 ## 스키마 파일
 
+- `20260914_0032_customer_contact_optional_mobile.sql`: 명함 OCR 고객등록에서 일반 전화만
+  확인된 담당자도 등록할 수 있게 `customer_contact.phone`을 nullable로 바꿉니다. 단건
+  API는 직접·사업자등록증 등록에 휴대폰을, 명함 등록에 일반 전화를 각각 필수로 검증합니다.
+  현재 연결된 개발 DB에 적용됐습니다. 운영 DB 반영은 배포 절차에서 별도로 적용해야 합니다.
+
 - `20260907_0024_report_attachment_originals.sql`: 공용 Storage에 보관한 보고서 첨부 원본을
   `report_attachment`에 기록합니다. 미귀속 원본은 24시간 만료를 기존 AgentRun worker가
   정리하며, 생성 시 복구 기한까지 연장하고 확정 후에는 보고서에 한 번 귀속합니다.
@@ -397,6 +402,7 @@
 | 2026-09-11 | 현재 연결된 개발 DB | `20260911_0030_customer_contact_fax.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. customer_contact 15→16컬럼(`fax` text, nullable, 기본값 없음). 고객 861행 보존(861→861)이고 `fax`는 861행 모두 `NULL`입니다 — 더하기만이라 백필도 지우는 행도 없습니다. 적용 전 ORM↔물리 스키마를 대조해 미적용 컬럼이 `customer_contact.fax` 하나뿐임을 확인했고, 적용 후 다시 대조해 차이가 사라진 것을 확인했습니다. `test_models_match_configured_database`는 0025·0028 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다. RLS·인덱스·제약은 건드리지 않았습니다 |
 | 2026-09-11 | 현재 연결된 개발 DB | `20260911_0031_customer_contact_telephone.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. customer_contact 16→17컬럼(`telephone` text, nullable, 기본값 없음). 고객 862행 보존(862→862)이고 `telephone`은 862행 모두 `NULL`입니다 — 더하기만이라 백필도 지우는 행도 없습니다. 적용 후 물리 스키마에서 타입·nullable·기본값과 컬럼 설명을 확인했습니다. RLS·인덱스·제약은 건드리지 않았습니다 |
 | 2026-09-12 | 현재 연결된 개발 DB | `20260912_0032_deal_document_memo.sql` | transaction pooler(6543, `statement_cache_size=0`) | 성공. sales_deal 36→39컬럼(`quote_memo`·`contract_memo`·`order_memo` 모두 text, nullable, 기본값 없음, 각각 공백 금지 CHECK). 딜 419행 보존(419→419)이고 세 칸 모두 419행 전부 `NULL`입니다 — 더하기만이라 백필도 지우는 행도 없습니다. 적용 전 세 컬럼이 없는 것과 딜 행수를 확인했고, 적용 후 물리 스키마에서 타입·nullable·기본값·컬럼 설명·CHECK 이름을 조회하고 ORM(`app/models/sales.py`)과 컬럼 집합을 양방향으로 대조해 차이가 없는 것을 확인했습니다. `test_models_match_configured_database`는 0025 때와 같이 트랜잭션 풀러에서 돌지 않아 같은 대조를 직접 수행했습니다. RLS(켜짐 유지)·인덱스·기존 제약은 건드리지 않았습니다 |
+| 2026-09-14 | 현재 연결된 개발 DB | `20260914_0032_customer_contact_optional_mobile.sql` | session pooler(5432) | 성공. 명함·사업자등록증 등록에서 일반 전화만 확인된 담당자를 저장할 수 있게 `customer_contact.phone`의 NOT NULL을 해제했습니다. 고객 862행은 862→862로 보존됐고, `phone`은 nullable이며 빈 문자열을 계속 거부하는 CHECK 제약을 적용 후 직접 확인했습니다. 기존 전화값을 지우거나 바꾸지 않았습니다. |
 
 ## 개발 DB 재구축 런북
 

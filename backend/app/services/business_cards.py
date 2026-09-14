@@ -18,7 +18,8 @@ SYSTEM_PROMPT = """너는 SalesLuv 명함 구조화 에이전트다.
 명함에 실제로 표시된 값만 추출하고, 확인되지 않은 값은 빈 문자열로 둬라.
 휴대폰 번호는 phone, 대표번호·일반 전화는 telephone, 팩스는 fax에 넣어라. 각 항목에
 번호가 여러 개면 명함에 표시된 순서상 첫 번째 번호 하나만 넣고, 번호를 이어 붙이거나
-구분자로 나열하지 마라. 번호 종류가 확인되지 않으면 phone에 넣되 임의로 추정하지 마라.
+구분자로 나열하지 마라. 01로 시작하는 번호는 phone, 그 밖의 일반 전화번호는 telephone에
+넣어라. 번호 종류가 확인되지 않으면 telephone에 넣되 임의로 추정하지 마라.
 이메일은 OCR 원문을 최대한 보존하라.
 회사명과 사람 이름을 혼동하지 마라. 도로명·지번 등 명함에 표시된 소재지는 address에 넣어라.
 JSON만 출력한다."""
@@ -30,7 +31,7 @@ async def extract(*, ocr_text: str, file_name: str = "business-card") -> Busines
     if not cleaned:
         return BusinessCardDraft(
             fields=BusinessCardFields(),
-            missing_required_fields=["name", "company_name", "phone"],
+            missing_required_fields=["name", "company_name", "telephone"],
             metadata={"file_name": file_name},
         )
     fields = await generate_structured(
@@ -53,7 +54,7 @@ async def extract(*, ocr_text: str, file_name: str = "business-card") -> Busines
 
 def _missing_required(fields: BusinessCardFields) -> list[str]:
     missing: list[str] = []
-    for field_name in ("name", "company_name", "phone"):
+    for field_name in ("name", "company_name", "telephone"):
         if not getattr(fields, field_name).strip():
             missing.append(field_name)
     return missing
@@ -84,7 +85,7 @@ def _probe(fields: BusinessCardFields) -> DuplicateProbe:
     return DuplicateProbe(
         company_name=fields.company_name,
         name=fields.name,
-        phone=fields.phone,
+        phone=fields.phone or fields.telephone,
         email=fields.email,
     )
 

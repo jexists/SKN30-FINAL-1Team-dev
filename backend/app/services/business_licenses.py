@@ -13,6 +13,8 @@ SYSTEM_PROMPT = """너는 SalesLuv 사업자등록증 구조화 에이전트다.
 문서에 실제로 표시된 값만 추출하고, 확인되지 않은 값은 빈 문자열로 둬라.
 상호(법인명·단체명)는 company, 사업자등록번호는 business_no, 사업장 소재지는 address에 넣어라.
 대표자(성명)는 representative에 넣어라. 회사 이름이 아니라 사람 이름이다.
+문서에 표시된 일반 전화번호는 telephone, 팩스는 fax, 이메일은 email에 넣어라. 휴대폰은
+추출하지 마라. 문서에 없는 연락처·이메일은 빈 문자열로 둬라.
 문서에 `법인명(단체명)`, `상호`, `대표자`, `사업장 소재지`처럼 표시된 값을 우선 찾아라.
 OCR 텍스트는 마크다운 표(`| 라벨 | 값 |`)로 올 수 있다. 표에서는 첫 칸이 라벨, 나머지 칸이 값이다.
 confidence는 추출 전체의 확신도(0~1)다.
@@ -39,14 +41,19 @@ async def extract(*, ocr_text: str, file_name: str = "business-license") -> Busi
         schema_name="business_license_fields",
     )
     # 모델이 표준 라벨을 놓치는 경우에도 OCR 원문에 명시된 값만 보완한다.
-    fields = fields.model_copy(
-        update={
+    fields = BusinessLicenseFields.model_validate(
+        {
+            **fields.model_dump(),
             "company": fields.company.strip() or _labeled_value(cleaned, _COMPANY_LABELS),
             "business_no": fields.business_no.strip() or _business_no_value(cleaned),
             "address": fields.address.strip() or _labeled_value(cleaned, _ADDRESS_LABELS),
             "representative": (
                 fields.representative.strip() or _labeled_value(cleaned, _REPRESENTATIVE_LABELS)
             ),
+            "telephone": fields.telephone.strip()
+            or _labeled_value(cleaned, _TELEPHONE_LABELS),
+            "fax": fields.fax.strip() or _labeled_value(cleaned, _FAX_LABELS),
+            "email": fields.email.strip() or _labeled_value(cleaned, _EMAIL_LABELS),
         }
     )
     missing = _missing_required(fields)
@@ -75,11 +82,17 @@ _ADDRESS_LABELS = (
     "주소",
 )
 _REPRESENTATIVE_LABELS = ("대표자", "대표이사", "성명")
+_TELEPHONE_LABELS = ("전화번호", "전화", "TEL", "Tel")
+_FAX_LABELS = ("팩스번호", "팩스", "FAX", "Fax")
+_EMAIL_LABELS = ("전자우편", "이메일", "E-mail", "Email")
 # 한 줄에 두 항목이 붙어 나올 때 값을 끊을 지점. 뒤에 콜론이 붙은 것만 라벨로 본다.
 _VALUE_STOP_LABELS = (
     *_COMPANY_LABELS,
     *_ADDRESS_LABELS,
     *_REPRESENTATIVE_LABELS,
+    *_TELEPHONE_LABELS,
+    *_FAX_LABELS,
+    *_EMAIL_LABELS,
     "등록번호",
     "법인등록번호",
     "개업연월일",

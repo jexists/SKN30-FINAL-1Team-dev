@@ -123,7 +123,7 @@ export interface CustomerContactCreateRequest {
   department: string | null
   job_title: string | null
   email: string | null
-  phone: string
+  phone: string | null
   telephone: string | null
   fax: string | null
   status_code: CustomerStatusCode | null
@@ -132,13 +132,18 @@ export interface CustomerContactCreateRequest {
   visited: boolean
   /** 팀장만 보낼 수 있습니다. 비우면 등록한 사람이 담당자가 됩니다. */
   assignee_member_ids?: string[]
+  /** 명함 등록은 일반 전화가 필수이고, 그 밖의 등록은 휴대폰이 필수입니다. */
+  registration_mode?: 'standard' | 'business_card' | 'business_license'
 }
 
 /**
  * 고객 수정. 등록과 같은 항목을 보내되 상태는 다루지 않습니다.
  * 보낸 칸만 바뀌므로 화면이 늘 전부 채워 보냅니다.
  */
-export type CustomerContactUpdateRequest = Omit<CustomerContactCreateRequest, 'status_code'>
+export type CustomerContactUpdateRequest = Omit<
+  CustomerContactCreateRequest,
+  'status_code' | 'registration_mode'
+>
 
 export interface PageResponse<T> {
   items: T[]

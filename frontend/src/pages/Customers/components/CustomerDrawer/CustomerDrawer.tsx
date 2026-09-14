@@ -208,15 +208,19 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
           <Block title="연락처">
             <dl className={styles.facts}>
               <div>
-                <dt>전화</dt>
+                <dt>휴대폰</dt>
                 <dd>
-                  <a className={`${styles.mail} tnum`} href={`tel:${customer.phone}`}>
-                    {formatPhone(customer.phone)}
-                  </a>
+                  {customer.phone ? (
+                    <a className={`${styles.mail} tnum`} href={`tel:${customer.phone}`}>
+                      {formatPhone(customer.phone)}
+                    </a>
+                  ) : (
+                    <span className={styles.muted}>—</span>
+                  )}
                 </dd>
               </div>
               <div>
-                <dt>휴대폰</dt>
+                <dt>전화</dt>
                 <dd>
                   {customer.telephone ? (
                     <a className={`${styles.mail} tnum`} href={`tel:${customer.telephone}`}>

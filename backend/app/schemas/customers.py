@@ -144,7 +144,7 @@ class CustomerContactCreate(_WriteModel):
     department: Text | None = None
     job_title: Text | None = None
     email: Email | None = None
-    phone: Phone
+    phone: Phone | None = None
     telephone: Phone | None = None
     fax: Phone | None = None
     status_code: OptionCode | None = None
@@ -154,6 +154,20 @@ class CustomerContactCreate(_WriteModel):
     visited: bool = False
     # 담당자. 비우면 등록한 사람 혼자가 담당자가 된다. 첫 번째가 대표 담당자다.
     assignee_member_ids: list[UUID] | None = None
+    # 명함 등록은 일반 전화가 확인되는 경우가 많아 그 번호를 필수로 받는다. 이 값은
+    # 저장 컬럼이 아니라 등록 시 검증 규칙을 고르는 용도다.
+    registration_mode: Literal["standard", "business_card", "business_license"] = "standard"
+
+    @model_validator(mode="after")
+    def required_contact_number(self) -> Self:
+        if self.registration_mode in {"business_card", "business_license"}:
+            if self.telephone is None:
+                raise ValueError("telephone is required for document registration")
+        if self.registration_mode == "business_license" and self.email is None:
+            raise ValueError("email is required for business_license registration")
+        if self.registration_mode == "standard" and self.phone is None:
+            raise ValueError("phone is required for standard registration")
+        return self
 
 
 class CustomerContactPatch(_WriteModel):
@@ -174,7 +188,7 @@ class CustomerContactPatch(_WriteModel):
 
     @model_validator(mode="after")
     def required_fields_cannot_be_null(self) -> Self:
-        for field_name in ("company_id", "name", "phone", "visited", "assignee_member_ids"):
+        for field_name in ("company_id", "name", "visited", "assignee_member_ids"):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} cannot be null")
         return self

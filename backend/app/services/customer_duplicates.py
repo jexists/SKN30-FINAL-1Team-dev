@@ -172,7 +172,7 @@ async def find_duplicates(
                 department=contact.department,
                 job_title=contact.job_title,
                 email=contact.email,
-                phone=contact.phone,
+                phone=contact.phone or "",
                 memo=contact.memo,
                 visited=contact.visited,
                 matched_by=matched_by,

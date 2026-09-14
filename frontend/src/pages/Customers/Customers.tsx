@@ -375,8 +375,13 @@ export default function Customers() {
                   telephone: cardDraft.telephone,
                   fax: cardDraft.fax,
                 }
-              : licenseDraft?.representative.trim()
-                ? { name: licenseDraft.representative.trim() }
+              : licenseDraft
+                ? {
+                    name: licenseDraft.representative.trim(),
+                    email: licenseDraft.email,
+                    telephone: licenseDraft.telephone,
+                    fax: licenseDraft.fax,
+                  }
                 : undefined
           }
           initialCompany={

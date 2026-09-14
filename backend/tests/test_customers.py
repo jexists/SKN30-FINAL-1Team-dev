@@ -267,6 +267,32 @@ def test_customer_request_sales_deal_trims_and_rejects_invalid_values():
     assert CustomerCompanyPatch(region_code=None).model_dump(exclude_unset=True) == {
         "region_code": None
     }
+    assert CustomerContactCreate(
+        company_id=uuid4(),
+        name="명함 고객",
+        telephone="02-000-0000",
+        registration_mode="business_card",
+    ).phone is None
+    with pytest.raises(ValidationError, match="telephone is required"):
+        CustomerContactCreate(
+            company_id=uuid4(),
+            name="명함 고객",
+            registration_mode="business_card",
+        )
+    assert CustomerContactCreate(
+        company_id=uuid4(),
+        name="등록증 고객",
+        telephone="02-000-0000",
+        email="license@example.test",
+        registration_mode="business_license",
+    ).phone is None
+    with pytest.raises(ValidationError, match="email is required"):
+        CustomerContactCreate(
+            company_id=uuid4(),
+            name="등록증 고객",
+            telephone="02-000-0000",
+            registration_mode="business_license",
+        )
     assert CustomerContactPatch(memo=None).model_dump(exclude_unset=True) == {"memo": None}
     assert CustomerPageParams(q="  합성 고객  ").q == "합성 고객"
 
@@ -425,6 +451,30 @@ def test_contact_create_uses_current_owner_and_join_fields():
     assert db.added[0].visited is False
     assert db.flush_count == db.commit_count == 1
     assert member.team_id in db.statements[0].compile().params.values()
+
+
+def test_business_card_contact_create_requires_telephone_but_not_mobile():
+    member = _member()
+    company = _company(member.team_id)
+    db = _Db(_Result(scalar=company), _Result(rows=[]))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "명함 고객",
+                "telephone": "02-000-0000",
+                "registration_mode": "business_card",
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["phone"] == ""
+    assert db.added[0].phone is None
+    assert db.added[0].telephone == "020000000"
+    assert not hasattr(db.added[0], "registration_mode")
 
 
 def test_contact_list_is_owner_scoped_for_member_and_returns_join_fields():

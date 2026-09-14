@@ -89,7 +89,7 @@ export const ALL_COLUMNS: ColumnDef[] = [
   },
   {
     id: 'phone',
-    header: '전화',
+    header: '휴대폰',
     width: 128,
     minWidth: 120,
     sortable: false,

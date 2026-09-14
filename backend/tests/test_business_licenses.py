@@ -14,6 +14,9 @@ async def test_extract_builds_company_registration_draft(monkeypatch):
             company="합성 주식회사",
             business_no="123-45-67890",
             address="서울시 합성구",
+            telephone="02-000-0000",
+            fax="02-000-0001",
+            email="billing@example.test",
         )
 
     monkeypatch.setattr(business_licenses, "generate_structured", _generate)
@@ -26,6 +29,9 @@ async def test_extract_builds_company_registration_draft(monkeypatch):
     assert draft.ready_for_company_registration is True
     assert draft.missing_required_fields == []
     assert draft.fields.company == "합성 주식회사"
+    assert draft.fields.telephone == "020000000"
+    assert draft.fields.fax == "020000001"
+    assert draft.fields.email == "billing@example.test"
     assert captured["schema_name"] == "business_license_fields"
 
 
@@ -40,6 +46,25 @@ async def test_extract_marks_missing_company_or_number(monkeypatch):
 
     assert draft.ready_for_company_registration is False
     assert draft.missing_required_fields == ["company", "business_no"]
+
+
+@pytest.mark.anyio
+async def test_extract_falls_back_to_labeled_contact_fields(monkeypatch):
+    async def _generate(**_kwargs):
+        return BusinessLicenseFields()
+
+    monkeypatch.setattr(business_licenses, "generate_structured", _generate)
+
+    draft = await business_licenses.extract(
+        ocr_text=(
+            "상호: 합성 주식회사\n사업자등록번호: 123-45-67890\n"
+            "전화번호: 02-000-0000\n팩스: 02-000-0001\n이메일: billing@example.test"
+        )
+    )
+
+    assert draft.fields.telephone == "020000000"
+    assert draft.fields.fax == "020000001"
+    assert draft.fields.email == "billing@example.test"
 
 
 @pytest.mark.anyio
