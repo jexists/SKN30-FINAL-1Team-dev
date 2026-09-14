@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
-from app.models.content import Document
+from app.models.content import Document, Report, ReportDeal
 from app.models.content import File as FileRow
 from app.models.crm import Activity
 from app.models.sales import SalesDeal, SalesDealItem
@@ -86,6 +86,7 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
     * 딜의 대표 제품과 견적 품목 — 제품 자료의 범위를 정한다
     * 그 범위에서 실제로 읽히게 될 문서와 파일 — ``document_id``, ``file_id``,
       ``version_no``, ``processed_at``
+    * 회사의 최근 확정 보고서 10건 — ``report_id``, ``version``, 현재 제출본과 수정 시각
 
     파일 목록은 ``search_chunks`` 와 같은 조건으로 뽑는다. 그래서
 
@@ -123,6 +124,48 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
             [str(document_id), str(file_id), version_no, _isoformat(processed_at)]
             for document_id, file_id, version_no, processed_at in rows
         )
+    reports: list[list[Any]] = []
+    if activity.customer_company_id is not None:
+        recent_report_ids = (
+            select(Report.id)
+            .join(ReportDeal, ReportDeal.report_id == Report.id)
+            .where(
+                Report.team_id == activity.team_id,
+                Report.status_code.in_(("approved", "submitted")),
+                ReportDeal.sales_deal_id.in_(
+                    select(SalesDeal.id).where(
+                        SalesDeal.team_id == activity.team_id,
+                        SalesDeal.customer_company_id == activity.customer_company_id,
+                        SalesDeal.deleted_at.is_(None),
+                    )
+                ),
+            )
+            .group_by(Report.id)
+            .order_by(Report.report_date.desc(), Report.id)
+            .limit(10)
+            .subquery()
+        )
+        report_rows = (
+            await db.execute(
+                select(
+                    Report.id,
+                    Report.version,
+                    Report.current_submission_id,
+                    Report.updated_at,
+                )
+                .join(recent_report_ids, recent_report_ids.c.id == Report.id)
+                .order_by(Report.report_date.desc(), Report.id)
+            )
+        ).all()
+        reports = [
+            [
+                str(report_id),
+                version,
+                str(submission_id) if submission_id is not None else None,
+                _isoformat(updated_at),
+            ]
+            for report_id, version, submission_id, updated_at in report_rows
+        ]
     payload = {
         "activity": [
             str(activity.customer_company_id) if activity.customer_company_id else None,
@@ -133,6 +176,7 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
         ],
         "products": sorted(str(value) for value in product_ids),
         "files": files,
+        "reports": reports,
     }
     return hashlib.sha256(_canonical(payload).encode()).hexdigest()
 
@@ -357,6 +401,19 @@ async def schedule_for_document_scope(
         return await schedule_activities(session, activities)
 
 
+async def schedule_for_company(*, team_id: UUID, customer_company_id: UUID) -> list[UUID]:
+    """보고서가 확정된 회사의 미래 미팅 브리핑을 모두 예약한다."""
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as session:
+        activities = await _future_meetings(
+            session,
+            team_id=team_id,
+            scopes=[_company_scope(customer_company_id)],
+            now=datetime.now(UTC),
+        )
+        return await schedule_activities(session, activities)
+
+
 async def schedule_for_file(file_id: UUID) -> list[UUID]:
     """자료 처리가 끝난 파일 하나를 기준으로 영향받는 미팅을 예약한다.
 
@@ -409,6 +466,13 @@ async def schedule_quietly(coroutine) -> None:
             stage="briefing_refresh.schedule",
             error_code="briefing_refresh_schedule_failed",
         )
+
+
+async def schedule_company_quietly(*, team_id: UUID, customer_company_id: UUID) -> None:
+    """BackgroundTasks 실행 시점에 회사 브리핑 갱신 coroutine을 만든다."""
+    await schedule_quietly(
+        schedule_for_company(team_id=team_id, customer_company_id=customer_company_id)
+    )
 
 
 async def follow_up_if_stale(run_id: UUID) -> list[UUID]:

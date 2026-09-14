@@ -779,7 +779,7 @@ def evidence(
         context = (input_snapshot or {}).get("document_context") or {}
         return {
             "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
-            "risk_count": len(output.risks),
+            "highlight_count": len(output.highlights),
             # 근거가 비어 있을 때 자료가 없었는지 검색이 안 됐는지 구분한다.
             "document_count": len(context.get("summaries") or []),
             "chunk_count": len(context.get("sources") or []),

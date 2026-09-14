@@ -53,6 +53,7 @@ class _Session:
         deal_product=None,
         item_products=(),
         files=(),
+        reports=(),
         activities=(),
         existing_run=None,
     ):
@@ -60,6 +61,7 @@ class _Session:
         self.deal_product = deal_product
         self.item_products = item_products
         self.files = files
+        self.reports = reports
         self.activities = activities
         self.existing_run = existing_run
         self.statements = []
@@ -73,6 +75,7 @@ class _Session:
         # 하위 질의가 들어 있어서, 덜 구체적인 조건을 먼저 보면 엉뚱한 답을 돌려준다.
         for marker, result in (
             ("FROM public.document", _Result(rows=self.files)),
+            ("FROM public.report", _Result(rows=self.reports)),
             ("FROM public.activity", _Result(scalars=self.activities)),
             ("FROM public.agent_run", _Result(scalar=self.existing_run)),
             ("FROM public.sales_deal_item", _Result(scalars=self.item_products)),
@@ -193,6 +196,26 @@ async def test_revision_changes_when_the_searchable_state_changes(change):
 
 
 @pytest.mark.anyio
+async def test_revision_changes_when_a_recent_report_is_finalized():
+    """보고서 저장 트리거가 같은 미팅에 새 브리핑 실행을 만들 수 있어야 한다."""
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+    report_id = uuid4()
+
+    original = await briefing_refresh.source_revision(
+        _Session(reports=[]), activity=activity, member=member
+    )
+    updated = await briefing_refresh.source_revision(
+        _Session(reports=[(report_id, 2, uuid4(), NOW)]),
+        activity=activity,
+        member=member,
+    )
+
+    assert original != updated
+
+
+@pytest.mark.anyio
 async def test_revision_applies_the_document_visibility_rule():
     """팀원이 볼 수 없는 자료 때문에 브리핑이 다시 만들어지지 않도록, 지문 계산에도
     자료실 공개 범위를 그대로 건다."""
@@ -226,6 +249,30 @@ def test_document_scope_only_covers_the_links_the_document_has():
     assert "customer_company_id" not in str(deal_only[0])
     # 아무 데도 안 걸린 자료는 갱신 대상이 없다.
     assert unlinked == []
+
+
+@pytest.mark.anyio
+async def test_company_refresh_schedules_only_future_company_meetings(monkeypatch):
+    team_id = uuid4()
+    company_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id, customer_company_id=company_id)
+    session = _Session(activities=[activity])
+    scheduled = []
+
+    async def _schedule(_db, activities):
+        scheduled.extend(activities)
+        return [activity.id]
+
+    monkeypatch.setattr(briefing_refresh, "get_sessionmaker", lambda: lambda: _Context(session))
+    monkeypatch.setattr(briefing_refresh, "schedule_activities", _schedule)
+
+    assert await briefing_refresh.schedule_for_company(
+        team_id=team_id, customer_company_id=company_id
+    ) == [activity.id]
+    assert scheduled == [activity]
+    activity_query = next(text for text in session.statements if "FROM public.activity" in text)
+    assert "customer_company_id" in activity_query
 
 
 def test_product_scope_reaches_the_deal_product_and_the_quote_items():
@@ -624,12 +671,16 @@ class _DocumentSession:
     def __init__(self, document):
         self.document = document
         self.commits = 0
+        self.added = []
 
     async def execute(self, _statement):
         return _Result(scalar=self.document)
 
     async def flush(self):
         pass
+
+    def add(self, value):
+        self.added.append(value)
 
     async def commit(self):
         self.commits += 1
@@ -673,6 +724,7 @@ class _CapturingBackground:
             return []
 
         monkeypatch.setattr(briefing_refresh, "schedule_for_document_scope", _schedule)
+        monkeypatch.setattr(briefing_refresh, "schedule_for_company", _schedule)
 
     def add_task(self, function, *args, **kwargs):
         self.tasks = getattr(self, "tasks", [])
@@ -681,6 +733,65 @@ class _CapturingBackground:
     async def drain(self):
         for function, args, kwargs in getattr(self, "tasks", []):
             await function(*args, **kwargs)
+
+
+@pytest.mark.anyio
+async def test_creating_a_linked_document_refreshes_company_meetings(monkeypatch):
+    from fastapi import Response
+
+    from app.api import documents as documents_api
+    from app.schemas.documents import DocumentCreate
+
+    team_id = uuid4()
+    company_id = uuid4()
+    member = _member(team_id)
+    session = _DocumentSession(None)
+    background = _CapturingBackground(monkeypatch)
+
+    async def _nothing(*_args, **_kwargs):
+        return None
+
+    async def _document_no(*_args, **_kwargs):
+        return "SL-DC-2026-0001"
+
+    monkeypatch.setattr(documents_api, "_detail", _nothing)
+    monkeypatch.setattr(documents_api, "_validate_links", _nothing)
+    monkeypatch.setattr(documents_api, "_next_document_no", _document_no)
+
+    await documents_api.create_document(
+        DocumentCreate(
+            category_code="contract",
+            title="가상 계약서",
+            customer_company_id=company_id,
+        ),
+        Response(),
+        background,
+        member,
+        session,
+    )
+    await background.drain()
+
+    assert session.commits == 1
+    assert background.calls == [
+        {
+            "team_id": team_id,
+            "customer_company_id": company_id,
+        }
+    ]
+
+
+@pytest.mark.anyio
+async def test_document_linked_only_to_a_deal_resolves_that_deals_company():
+    from app.api import documents as documents_api
+
+    team_id = uuid4()
+    company_id = uuid4()
+    document = _document(team_id, uuid4(), sales_deal_id=uuid4())
+
+    assert (
+        await documents_api._document_company_id(_DocumentSession(company_id), document)
+        == company_id
+    )
 
 
 @pytest.mark.anyio

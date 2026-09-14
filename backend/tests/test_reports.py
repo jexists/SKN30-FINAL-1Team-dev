@@ -1498,6 +1498,7 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     member = _member()
     activity_id = uuid4()
     deal_id = uuid4()
+    company_id = uuid4()
     transcript = "예산이 승인되었습니다."
     attachments = (
         []
@@ -1552,7 +1553,7 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     monkeypatch.setattr(reports_api, "_existing_finalize", AsyncMock(return_value=None))
     monkeypatch.setattr(reports_api, "_finalize_run", AsyncMock(return_value=run))
     monkeypatch.setattr(reports_api, "_own_activity_ids", AsyncMock(return_value=()))
-    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock(return_value=uuid4()))
+    monkeypatch.setattr(reports_api, "_validate_meeting_deals", AsyncMock(return_value=company_id))
 
     async def detail(_db, _member_value, report_id):
         return SimpleNamespace(id=report_id)
@@ -1565,15 +1566,19 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
 
     monkeypatch.setattr(reports_api, "_detail", detail)
     monkeypatch.setattr(reports_api.contract_next_meeting_pipeline, "queue", queue)
+    refresh_company = AsyncMock(return_value=[])
+    monkeypatch.setattr(reports_api.briefing_refresh, "schedule_for_company", refresh_company)
     response = Response()
+    background = BackgroundTasks()
 
     result = await reports_api.finalize_report(
         payload,
         response,
-        BackgroundTasks(),
+        background,
         member,
         db,
     )
+    await background()
 
     report = next(item for item in db.added if isinstance(item, Report))
     section = next(item for item in db.added if isinstance(item, ReportDeal))
@@ -1596,6 +1601,7 @@ async def test_finalize_atomically_persists_server_ml_and_redacts_run(monkeypatc
     assert run.input_snapshot == {} and run.output_snapshot is None
     assert db.commit_count == 1 and db.rollback_count == 0
     assert queued[0][0] == deal_id
+    refresh_company.assert_awaited_once_with(team_id=member.team_id, customer_company_id=company_id)
 
 
 @pytest.mark.anyio

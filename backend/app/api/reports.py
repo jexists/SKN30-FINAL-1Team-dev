@@ -42,6 +42,7 @@ from app.schemas.reports import (
 )
 from app.services import agent_runs as agent_run_service
 from app.services import (
+    briefing_refresh,
     contract_next_meeting_pipeline,
     report_attachments,
     report_sources,
@@ -1078,6 +1079,7 @@ async def finalize_report(
 ) -> ReportRead:
     """사람이 승인한 최종값과 불변 제출본을 한 트랜잭션에서 저장한다."""
     member_id = member.id
+    team_id = member.team_id
     request_hash = _finalize_request_hash(payload)
     if existing := await _existing_finalize(db, member, payload.idempotency_key, request_hash):
         response.headers["Location"] = f"/api/reports/{existing.id}"
@@ -1327,6 +1329,14 @@ async def finalize_report(
         raise
 
     response.headers["Location"] = f"/api/reports/{read.id}"
+    if customer_company_id is not None:
+        # 다음 일정 파이프라인은 LLM 호출까지 이어져 오래 걸릴 수 있으므로, 짧은
+        # 브리핑 큐 예약을 먼저 넣는다. Starlette BackgroundTasks는 등록 순서대로 돈다.
+        background.add_task(
+            briefing_refresh.schedule_company_quietly,
+            team_id=team_id,
+            customer_company_id=customer_company_id,
+        )
     for sales_deal_id in sales_deal_ids:
         contract_next_meeting_pipeline.queue(
             background,

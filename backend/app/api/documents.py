@@ -409,6 +409,23 @@ def _document_scope_values(document: Document) -> tuple[UUID | None, UUID | None
     return (document.sales_deal_id, document.customer_company_id, document.product_id)
 
 
+async def _document_company_id(db: AsyncSession, document: Document) -> UUID | None:
+    """문서 직접 연결을 우선하고, 딜만 있으면 그 딜의 회사를 찾는다."""
+    if document.customer_company_id is not None:
+        return document.customer_company_id
+    if document.sales_deal_id is None:
+        return None
+    return (
+        await db.execute(
+            select(SalesDeal.customer_company_id).where(
+                SalesDeal.id == document.sales_deal_id,
+                SalesDeal.team_id == document.team_id,
+                SalesDeal.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+
+
 def _queue_briefing_refresh(
     background: BackgroundTasks,
     team_id: UUID,
@@ -683,6 +700,7 @@ async def get_document(
 async def create_document(
     payload: DocumentCreate,
     response: Response,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> DocumentRead:
@@ -706,11 +724,19 @@ async def create_document(
         db.add(document)
         await db.flush()
         read = await _detail(db, member, document.id)
+        briefing_company_id = await _document_company_id(db, document)
+        team_id = document.team_id
         await db.commit()
     except Exception:
         await db.rollback()
         raise
     response.headers["Location"] = f"/api/documents/{document.id}"
+    if briefing_company_id is not None:
+        background.add_task(
+            briefing_refresh.schedule_company_quietly,
+            team_id=team_id,
+            customer_company_id=briefing_company_id,
+        )
     return read
 
 

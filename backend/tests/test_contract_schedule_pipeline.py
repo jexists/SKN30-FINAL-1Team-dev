@@ -136,6 +136,19 @@ def _standalone_briefing_input() -> dict:
     return {
         "customer_company": {"id": "company-demo-1", "name": "AI 브리핑 테스트 병원"},
         "sales_deals": _standalone_contract_input()["sales_deals"],
+        "recent_reports": [
+            {
+                "id": "report-demo-1",
+                "sales_deal_id": "deal-demo-1",
+                "source_activity_id": "activity-previous-1",
+                "report_date": "2026-08-25",
+                "content": {
+                    "values": {
+                        "body": "고객은 제품 시연 후 도입 범위와 최종 견적을 검토하기로 했습니다."
+                    }
+                },
+            }
+        ],
         "approved_next_meeting": {
             "activity_id": "activity-approved-candidate-1",
             "sales_deal_id": "deal-demo-1",
@@ -144,13 +157,6 @@ def _standalone_briefing_input() -> dict:
             "ends_at": "2026-09-02T15:00:00+09:00",
             "location": "AI 브리핑 테스트 병원",
         },
-        "document_summaries": [
-            {
-                "document_id": "document-demo-1",
-                "title": "제품 제안서",
-                "summary": "고객은 제품 시연 후 도입 범위와 견적을 협의할 예정이다.",
-            }
-        ],
     }
 
 
@@ -216,7 +222,7 @@ async def test_contract_briefing_with_real_llm():
     output = await contract_management.generate_briefing(agent_input)
     _print_json("CONTRACT BRIEFING OUTPUT", output.model_dump())
 
-    assert output.contract_summary.strip()
+    assert output.highlights
     assert llm_input["approved_next_meeting"]["activity_id"]
 
 
@@ -328,6 +334,19 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
     briefing_input = {
         "customer_company": contract_input["customer_company"],
         "sales_deals": contract_input["sales_deals"],
+        "recent_reports": [
+            {
+                "id": "report-demo-1",
+                "sales_deal_id": "deal-demo-1",
+                "source_activity_id": "activity-previous-1",
+                "report_date": "2026-08-25",
+                "content": {
+                    "values": {
+                        "body": "고객은 제품 시연 후 도입 범위와 최종 견적을 검토하기로 했습니다."
+                    }
+                },
+            }
+        ],
         "approved_next_meeting": {
             "activity_id": approved_activity_id,
             "sales_deal_id": schedule_input["sales_deal_id"],
@@ -336,19 +355,12 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
             "ends_at": approved_candidate.ends_at,
             "location": "AI 브리핑 테스트 병원",
         },
-        "document_summaries": [
-            {
-                "document_id": "document-demo-1",
-                "title": "제품 제안서",
-                "summary": "고객은 제품 시연 후 도입 범위와 견적을 협의할 예정이다.",
-            }
-        ],
     }
     briefing_llm_input = contract_management._BriefingLLMInput(
         customer_company=briefing_input["customer_company"],
         sales_deals=briefing_input["sales_deals"],
         approved_next_meeting=briefing_input["approved_next_meeting"],
-        document_summaries=briefing_input["document_summaries"],
+        recent_reports=briefing_input["recent_reports"],
     ).model_dump()
     _print_json("3. CONTRACT BRIEFING INPUT", briefing_llm_input)
     briefing = await contract_management.generate_briefing(briefing_input)
@@ -357,5 +369,5 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
     assert "internal_member_email" not in contract_llm_input
     assert "owner_member_id" not in schedule_llm_input["activities"][0]
     assert approved_candidate == schedule.schedule_candidates[0]
-    assert briefing.contract_summary.strip()
+    assert briefing.highlights
     assert briefing_input["approved_next_meeting"]["activity_id"] == approved_activity_id

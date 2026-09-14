@@ -1220,10 +1220,10 @@ async def test_prepare_claimed_rejects_lost_lease_before_exposing_snapshot(monke
         (
             "contract_management_briefing",
             "generate_briefing",
-            {"risks": []},
+            {"highlights": []},
             {
                 "prompt_version": contract_management.GENERATE_BRIEFING_PROMPT_VERSION,
-                "risk_count": 0,
+                "highlight_count": 0,
                 "document_count": 1,
                 "chunk_count": 2,
             },
@@ -1970,8 +1970,9 @@ async def test_prepare_claimed_refreshes_the_run_input_snapshot(monkeypatch):
     assert run.input_snapshot == built
     evidence = service.evidence(
         "contract_management_briefing",
-        SimpleNamespace(risks=[]),
+        SimpleNamespace(highlights=[]),
         run.input_snapshot,
     )
+    assert evidence["highlight_count"] == 0
     assert evidence["document_count"] == 1
     assert evidence["chunk_count"] == 1
