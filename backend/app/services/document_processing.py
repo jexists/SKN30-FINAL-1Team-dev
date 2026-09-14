@@ -8,7 +8,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, or_, select
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import case, cast, delete, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -18,6 +19,7 @@ from app.db.session import get_sessionmaker
 from app.models.content import Document, DocumentChunk, DocumentFileAudit
 from app.models.content import File as FileRow
 from app.models.sales import SalesDeal
+from app.models.workspace import Member
 from app.services import embeddings, storage
 from app.services.document_extraction import ExtractedDocument, ExtractionError, extract_document
 from app.services.llm import LLMError
@@ -156,6 +158,8 @@ async def _persist_result(
                     "source_type": extracted_payload.get("source_type"),
                 },
                 embedding=None if vectors is None else vectors[index],
+                embedding_vector=None if vectors is None else vectors[index],
+                embedding_model=None if vectors is None else embeddings.model_identity(),
             )
         )
     db.add(
@@ -268,6 +272,12 @@ async def execute(file_id: UUID) -> None:
                 before_status="processing",
             )
             await session.commit()
+        # 커밋이 끝난 뒤에만 브리핑 갱신을 예약한다. 이 줄보다 앞에서 예약하면 아직 저장
+        # 중인 청크를 브리핑이 검색해 미완성 근거를 인용할 수 있다. 예약은 큐에 행을 넣을
+        # 뿐 LLM 을 기다리지 않으므로 자료 처리 시간에 영향을 주지 않는다.
+        from app.services import briefing_refresh
+
+        await briefing_refresh.schedule_quietly(briefing_refresh.schedule_for_file(file_id))
     except (
         ExtractionError,
         LLMError,
@@ -355,6 +365,24 @@ def _tokens(value: str) -> set[str]:
     return {token.lower() for token in re.findall(r"[\w가-힣]{2,}", value)}
 
 
+def document_access(member: Member | None) -> list[Any]:
+    """자료실의 등록자 공개 범위를 RAG와 저장된 근거 조회에도 적용한다."""
+    if member is None or member.role_code == "manager":
+        return []
+    return [
+        or_(
+            Document.created_by_member_id == member.id,
+            select(Member.id)
+            .where(
+                Member.id == Document.created_by_member_id,
+                Member.team_id == member.team_id,
+                Member.role_code == "manager",
+            )
+            .exists(),
+        )
+    ]
+
+
 def latest_completed_file() -> Any:
     """문서마다 완료된 파일 하나만 남기는 조건.
 
@@ -377,7 +405,11 @@ def latest_completed_file() -> Any:
     )
 
 
-def document_scopes(sales_deal_id: UUID | None, customer_company_id: UUID | None) -> list[Any]:
+def document_scopes(
+    sales_deal_id: UUID | None,
+    customer_company_id: UUID | None,
+    product_ids: set[UUID] | None = None,
+) -> list[Any]:
     """딜·고객사 연결 조건. 둘 다 없으면 빈 목록이라 document 조인 자체를 하지 않는다.
 
     고객사 조건은 ``Document.customer_company_id`` 만 봐서는 안 된다. 자료실 업로드
@@ -386,6 +418,8 @@ def document_scopes(sales_deal_id: UUID | None, customer_company_id: UUID | None
     넓어진다 — 그 컬럼만 보면 조건을 하나 더 붙이고도 결과는 딜 단독과 같아진다.
     """
     scopes: list[Any] = []
+    if product_ids:
+        scopes.append(Document.product_id.in_(product_ids))
     if sales_deal_id is not None:
         scopes.append(Document.sales_deal_id == sales_deal_id)
     if customer_company_id is not None:
@@ -410,6 +444,9 @@ async def search_chunks(
     document_id: UUID | None = None,
     sales_deal_id: UUID | None = None,
     customer_company_id: UUID | None = None,
+    product_ids: set[UUID] | None = None,
+    search_info: dict | None = None,
+    member: Member | None = None,
 ) -> list[tuple[DocumentChunk, float]]:
     """임베딩이 있으면 코사인, 없으면 출처 보존 키워드 점수로 검색한다.
 
@@ -423,7 +460,9 @@ async def search_chunks(
     자료가 AI 답변의 근거로 계속 나오면 안 되므로 Document 는 늘 조인한다.
     """
     conditions = [
+        *document_access(member),
         DocumentChunk.team_id == team_id,
+        Document.team_id == team_id,
         FileRow.processing_status == "completed",
         latest_completed_file(),
         Document.deleted_at.is_(None),
@@ -435,25 +474,61 @@ async def search_chunks(
         .join(FileRow, FileRow.id == DocumentChunk.file_id)
         .join(Document, Document.id == DocumentChunk.document_id)
     )
-    scopes = document_scopes(sales_deal_id, customer_company_id)
+    scopes = document_scopes(sales_deal_id, customer_company_id, product_ids)
     if scopes:
         conditions.append(or_(*scopes))
-    rows = (await db.execute(statement.where(*conditions))).scalars().all()
+    # Keyword candidates are scored in PostgreSQL, not by loading the team's entire corpus.
+    tokens = sorted(_tokens(query))
+    words = func.regexp_split_to_array(func.lower(DocumentChunk.content), r"[^\w가-힣]+")
+    keyword_score = sum(
+        (case((literal(token) == func.any(words), 1.0), else_=0.0) for token in tokens),
+        literal(0.0),
+    ) / max(len(tokens), 1)
+    candidate_limit = max(20, limit * 4)
+    keyword_rows = (
+        await db.execute(
+            statement.add_columns(keyword_score.label("score"))
+            .where(*conditions, keyword_score > 0)
+            .order_by(keyword_score.desc(), DocumentChunk.id)
+            .limit(candidate_limit)
+        )
+    ).all()
     query_vector: list[float] | None = None
-    if settings.embedding_configured and rows:
+    if search_info is not None:
+        search_info.update(method="keyword", status="completed")
+    if settings.embedding_configured:
         try:
             query_vector = (await embeddings.embed([query]))[0]
         except embeddings.EmbeddingError:
             query_vector = None
-    query_tokens = _tokens(query)
-    scored: list[tuple[DocumentChunk, float]] = []
-    for row in rows:
-        if query_vector is not None and isinstance(row.embedding, list):
-            score = embeddings.cosine_similarity(query_vector, row.embedding)
-        else:
-            content_tokens = _tokens(row.content)
-            score = len(query_tokens & content_tokens) / max(len(query_tokens), 1)
-        if score > 0:
-            scored.append((row, score))
-    scored.sort(key=lambda item: (-item[1], item[0].chunk_no))
+            if search_info is not None:
+                search_info["status"] = "embedding_unavailable"
+    vector_rows = []
+    if query_vector is not None:
+        dimensions = settings.embedding_dimensions
+        distance = cast(DocumentChunk.embedding_vector, Vector(dimensions)).cosine_distance(
+            query_vector
+        )
+        vector_rows = (
+            await db.execute(
+                statement.add_columns((1 - distance).label("score"))
+                .where(
+                    *conditions,
+                    func.vector_dims(DocumentChunk.embedding_vector) == dimensions,
+                    DocumentChunk.embedding_model == embeddings.model_identity(),
+                    distance <= 1 - settings.document_search_min_similarity,
+                )
+                .order_by(distance)
+                .limit(candidate_limit)
+            )
+        ).all()
+        if search_info is not None:
+            search_info["method"] = "hybrid"
+    # Reciprocal rank fusion avoids comparing keyword ratios directly to cosine scores.
+    merged: dict[UUID, tuple[DocumentChunk, float]] = {}
+    for ranking in (keyword_rows, vector_rows):
+        for rank, (row, _score) in enumerate(ranking, 1):
+            previous = merged.get(row.id, (row, 0.0))[1]
+            merged[row.id] = (row, previous + 1 / (60 + rank))
+    scored = sorted(merged.values(), key=lambda item: (-item[1], str(item[0].id)))
     return scored[:limit]

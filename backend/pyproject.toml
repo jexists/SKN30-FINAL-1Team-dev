@@ -3,6 +3,7 @@ name = "backend"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "pgvector>=0.4.1,<0.5",
     "asyncpg>=0.31.0",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>브리핑 자료 화면 검증</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import { createElement as h, act } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import { MemoryRouter } from 'react-router'
+      import { SessionContext } from '../src/auth/sessionContext.ts'
+      import { client } from '../src/api/client.ts'
+      import RecordDrawer from '../src/pages/Dashboard/components/RecordDrawer/RecordDrawer.tsx'
+      import '../src/styles/global.scss'
+
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      const root = createRoot(document.getElementById('root'))
+      const fixture = {
+        run_id: 'run-1',
+        status: 'completed',
+        error: null,
+        generated_at: '2026-09-12T15:00:00+09:00',
+        content: {
+          contract_summary:
+            '합성병원 초음파 장비 납품 전 협의가 예정되어 있습니다.\n\n계약서에 따라 검수 후 대금을 지급합니다. 이번 미팅에서 설치 공간과 전원 준비 여부를 확인하세요.',
+          source_refs: [{ type: 'document', id: 'contract' }],
+          risks: [],
+          recommended_actions: ['납품 전 설치 환경과 검수 일정을 확인하세요.'],
+        },
+        documents: {
+          product: [
+            {
+              document_id: 'catalog',
+              file_id: 'catalog-file',
+              file_name: '초음파_진단기_제품설명서.pdf',
+              summary_markdown: '제품의 주요 기능과 설치 환경을 설명합니다.',
+            },
+          ],
+          related: [
+            {
+              document_id: 'contract',
+              file_id: 'contract-file',
+              file_name: '장비_납품_계약서.pdf',
+              summary_markdown: '검수 완료 후 30일 이내 대금을 지급합니다.',
+              excerpts: [
+                {
+                  content: '제4조 대금 지급: 검수 완료 후 30일 이내 대금을 지급합니다.',
+                  page_start: 2,
+                  page_end: 2,
+                },
+              ],
+            },
+            {
+              document_id: 'catalog',
+              file_id: 'catalog-file',
+              file_name: '초음파_진단기_제품설명서.pdf',
+              summary_markdown: null,
+              excerpts: [
+                {
+                  content: '설치 전 전용 전원 및 장비 배치 공간을 확보해야 합니다.',
+                  page_start: 4,
+                  page_end: 4,
+                },
+              ],
+            },
+          ],
+          search: { method: 'hybrid', status: 'completed' },
+        },
+      }
+      let briefing = structuredClone(fixture)
+      // 화면은 브리핑을 조회만 한다. /agent-runs 로 생성을 요청하면 여기서 걸린다.
+      let unexpected = []
+      client.defaults.adapter = async (config) => {
+        let data
+        if (config.url === '/activities/meeting-1') data = { ai_briefing: briefing }
+        else if (config.url === '/reports' || config.url === '/orders')
+          data = { items: [], total: 0, has_more: false }
+        else if (config.url === '/sales-deals/deal-1')
+          data = {
+            id: 'deal-1',
+            title: '초음파 장비 납품',
+            deal_no: 'SL-DL-TEST',
+            opened_on: '2026-09-12',
+            deal_amount: 10000000,
+            sales_pipeline_stage_name: '납품 협의',
+            items: [],
+            participants: [],
+            sales_pipeline_stage_outcome_code: 'open',
+            customer_company_name: '합성병원',
+          }
+        else {
+          unexpected.push(config.url)
+          throw new Error('Unexpected fixture request')
+        }
+        return { data, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      const item = {
+        id: 'meeting-1',
+        title: '초음파 장비 납품 전 협의',
+        hospital: '합성병원',
+        contact: '합성 담당자',
+        dept: '구매팀',
+        product: '초음파 진단기',
+        place: '회의실',
+        date: '2026-09-12',
+        time: '16:00',
+        done: false,
+        brief: '',
+        owner: '테스트 영업',
+        ownerMemberId: 'member-1',
+        customerContactId: 'contact-1',
+        salesDealId: 'deal-1',
+      }
+      const session = {
+        status: 'authenticated',
+        session: {
+          memberId: 'member-1',
+          role: 'member',
+          isAdmin: false,
+          profile: { name: '합성 담당자', title: '영업' },
+        },
+        login: async () => {},
+        logout: async () => {},
+      }
+      let revision = 0
+      async function render() {
+        await act(async () =>
+          root.render(
+            h(
+              SessionContext.Provider,
+              { value: session },
+              h(MemoryRouter, null, h(RecordDrawer, { key: revision++, item, onClose: () => {} })),
+            ),
+          ),
+        )
+      }
+      const check = (condition, label) => {
+        if (!condition) throw new Error(label)
+      }
+      await render()
+      const heading = [...document.querySelectorAll('h3')].find(
+        (el) => el.textContent === '🤖 AI 브리핑',
+      )
+      check(
+        heading.closest('section').querySelector('[aria-label="제품 자료"]'),
+        '제품 자료가 브리핑 내부에 있어야 함',
+      )
+      check(
+        heading.closest('section').querySelector('[aria-label="관련 자료"]'),
+        '관련 자료가 브리핑 내부에 있어야 함',
+      )
+      check(document.body.textContent.includes('RAG 검색'), 'RAG 태그')
+      check(document.querySelectorAll('blockquote').length === 2, '페이지별 검색 근거')
+      check(document.querySelectorAll('i').length >= 1, '인용 표시')
+      check(
+        !document.body.textContent.includes('관련 영업·발주를 불러오지 못했습니다'),
+        '연결 딜 정상 표시',
+      )
+      // 임시로 두었던 수동 새로고침은 화면에서 사라졌다. 갱신은 백엔드가 미리 해 둔다.
+      check(
+        ![...document.querySelectorAll('button')].some((el) => el.textContent.includes('새로고침')),
+        '브리핑 새로고침 버튼이 없어야 함',
+      )
+      check(!document.body.textContent.includes('브리핑 새로고침'), '새로고침 문구 잔존 없음')
+
+      // 갱신이 도는 중에도 저장된 브리핑과 자료가 그대로 보여야 한다.
+      briefing = structuredClone(fixture)
+      briefing.refreshing = true
+      await render()
+      check(document.body.textContent.includes('최신 자료 반영 중'), '갱신 중 상태 표시')
+      check(document.body.textContent.includes('설치 공간과 전원'), '갱신 중에도 본문 유지')
+      check(document.querySelectorAll('blockquote').length === 2, '갱신 중에도 관련 자료 유지')
+      check(
+        document.querySelector('[aria-label="제품 자료"]').textContent.includes('제품설명서'),
+        '갱신 중에도 제품 자료 유지',
+      )
+      check(!document.body.textContent.includes('준비 중'), '기존 결과가 있으면 준비 중 아님')
+
+      // 갱신에 실패해도 마지막 성공 브리핑은 남는다.
+      briefing = structuredClone(fixture)
+      briefing.refresh_error = 'llm_timeout'
+      await render()
+      check(document.body.textContent.includes('설치 공간과 전원'), '실패해도 이전 본문 유지')
+      check(
+        document.body.textContent.includes('최신 자료로 다시 만들지 못했습니다'),
+        '갱신 실패 안내',
+      )
+
+      // 아직 한 번도 만들어진 적이 없을 때만 준비 중을 보여준다.
+      briefing = {
+        run_id: 'r',
+        status: 'queued',
+        content: null,
+        error: null,
+        generated_at: null,
+        refreshing: true,
+      }
+      await render()
+      check(document.body.textContent.includes('AI 브리핑 준비 중'), '최초 브리핑 준비 중')
+
+      briefing = structuredClone(fixture)
+      briefing.documents = {
+        related: [],
+        product: [],
+        search: { method: 'keyword', status: 'embedding_unavailable' },
+      }
+      await render()
+      check(document.body.textContent.includes('의미 검색을 사용할 수 없어'), '임베딩 장애 안내')
+      check(document.querySelectorAll('blockquote').length === 0, '이전 근거 잔존 없음')
+      briefing.documents.search = { method: 'none', status: 'failed' }
+      await render()
+      check(!document.body.textContent.includes('RAG 검색'), '검색 실패에 성공 배지 없음')
+      delete briefing.documents
+      await render()
+      check(document.body.textContent.includes('이전 브리핑입니다'), '기존 브리핑 호환')
+      check(unexpected.length === 0, `예상 밖 API 호출: ${unexpected.join(', ')}`)
+      briefing = structuredClone(fixture)
+      await render()
+      document.documentElement.dataset.testResult = 'passed'
+      document.title = 'PASS · 브리핑 자료 화면 검증'
+    </script>
+  </body>
+</html>

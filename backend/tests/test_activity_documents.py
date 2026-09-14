@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.models.content import Document
 from app.services import activity_documents
 
 _MISSING = object()
@@ -69,78 +70,40 @@ def _file(file_name: str, version_no: int, summary: str | None = None):
     )
 
 
+def _scope():
+    return Document.sales_deal_id == uuid4()
+
+
 @pytest.mark.anyio
-async def test_related_documents_keep_only_one_file_per_document():
+async def test_documents_keep_only_one_file_per_document():
     """예전 자료가 파일을 여러 개 들고 있어도 목록에는 한 줄만 선다."""
     document = _document("계약서")
     db = _Db(
         # 정렬이 나중에 올린 것을 먼저 주므로 첫 행만 담긴다.
-        _Result(rows=[(document, _file("계약서_v2.pdf", 2)), (document, _file("계약서.pdf", 1))]),
-        _Result(scalar=None),  # 딜의 상품
-        _Result(scalar_values=[]),  # 딜 견적 품목의 상품
+        _Result(rows=[(document, _file("계약서_v2.pdf", 2)), (document, _file("계약서.pdf", 1))])
     )
 
-    groups = await activity_documents.list_for_activity(
-        db,
-        team_id=uuid4(),
-        activity=_activity(sales_deal_id=uuid4()),
-        customer_company_id=uuid4(),
-    )
+    documents = await activity_documents.list_documents(db, team_id=uuid4(), scopes=[_scope()])
 
-    assert [item["file_name"] for item in groups["related"]] == ["계약서_v2.pdf"]
-    assert groups["product"] == []
+    assert [item["file_name"] for item in documents] == ["계약서_v2.pdf"]
 
 
 @pytest.mark.anyio
 async def test_documents_carry_the_saved_summary():
     """자료요약 Agent 가 저장한 요약을 파일명과 함께 내려 화면이 다시 조회하지 않는다."""
-    db = _Db(
-        _Result(rows=[(_document("계약서"), _file("계약서.pdf", 1, summary="## 결제 조건"))]),
-        _Result(scalar=None),
-        _Result(scalar_values=[]),
-    )
+    db = _Db(_Result(rows=[(_document("계약서"), _file("계약서.pdf", 1, summary="## 결제 조건"))]))
 
-    groups = await activity_documents.list_for_activity(
-        db,
-        team_id=uuid4(),
-        activity=_activity(sales_deal_id=uuid4()),
-        customer_company_id=uuid4(),
-    )
+    documents = await activity_documents.list_documents(db, team_id=uuid4(), scopes=[_scope()])
 
-    assert groups["related"][0]["summary_markdown"] == "## 결제 조건"
+    assert documents[0]["summary_markdown"] == "## 결제 조건"
 
 
 @pytest.mark.anyio
-async def test_product_documents_are_separated_and_not_duplicated():
-    """예전 자료는 상품과 고객사를 함께 들고 있다 — 양쪽에 같은 문서를 세우지 않는다."""
-    shared = _document("공용")
-    catalog = _document("카탈로그")
-    db = _Db(
-        _Result(rows=[(shared, _file("공용.pdf", 1))]),
-        _Result(rows=[(shared, _file("공용.pdf", 1)), (catalog, _file("카탈로그.pdf", 1))]),
-    )
-
-    groups = await activity_documents.list_for_activity(
-        db,
-        team_id=uuid4(),
-        activity=_activity(product_id=uuid4()),
-        customer_company_id=uuid4(),
-    )
-
-    assert [item["title"] for item in groups["related"]] == ["공용"]
-    assert [item["title"] for item in groups["product"]] == ["카탈로그"]
-
-
-@pytest.mark.anyio
-async def test_activity_without_links_runs_no_query():
+async def test_no_scope_runs_no_query():
     """딜도 고객사도 상품도 없으면 조회할 것이 없다 — 빈 IN 절을 만들지 않는다."""
     db = _Db()
 
-    groups = await activity_documents.list_for_activity(
-        db, team_id=uuid4(), activity=_activity(), customer_company_id=None
-    )
-
-    assert groups == {"related": [], "product": []}
+    assert await activity_documents.list_documents(db, team_id=uuid4(), scopes=[]) == []
     assert db.statements == []
 
 
@@ -152,10 +115,23 @@ async def test_product_ids_collect_activity_deal_and_quote_items():
     item_product_id = uuid4()
     db = _Db(_Result(scalar=deal_product_id), _Result(scalar_values=[item_product_id]))
 
-    product_ids = await activity_documents._product_ids(
+    product_ids = await activity_documents.product_ids(
         db,
         team_id=uuid4(),
         activity=_activity(sales_deal_id=uuid4(), product_id=activity_product_id),
     )
 
-    assert product_ids == {activity_product_id, deal_product_id, item_product_id}
+    assert product_ids == {deal_product_id, item_product_id}
+    assert all("team_id" in str(statement) for statement in db.statements)
+
+
+@pytest.mark.anyio
+async def test_activity_product_without_deal_is_not_used():
+    db = _Db()
+    assert (
+        await activity_documents.product_ids(
+            db, team_id=uuid4(), activity=_activity(product_id=uuid4())
+        )
+        == set()
+    )
+    assert db.statements == []

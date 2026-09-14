@@ -161,35 +161,30 @@ export interface ActivityRead {
 export type AiBriefingStatus = 'queued' | 'running' | 'completed' | 'failed'
 
 export interface AiBriefing {
+  documents?: BriefingDocuments
   run_id: string
   status: AiBriefingStatus
   content: ContractBriefingOutput | null
   error: string | null
   generated_at: string | null
+  /** 최신 자료로 다시 만드는 중. 이 값이 true 여도 위의 결과는 그대로 보여준다. */
+  refreshing?: boolean
+  /** 갱신 시도가 실패했다. 위의 결과는 마지막 성공 브리핑이라 그대로 유지된다. */
+  refresh_error?: string | null
 }
 
-/** 미팅에 관련된 자료실 문서 한 건. AI 브리핑과 무관하게 조회된다. */
-export interface ActivityDocument {
+export interface BriefingDocument {
   document_id: string
-  document_no: string
-  category_code: string
-  title: string
   file_id: string
   file_name: string
-  /** 자료요약 Agent 가 만든 요약. 아직 요약이 없는 파일이면 null 이다. */
   summary_markdown: string | null
-  uploaded_at: string
+  excerpts?: { content: string; page_start: number | null; page_end: number | null }[]
 }
 
-/**
- * `GET /activities/{id}/documents` 의 응답. 브리핑 실행 기록이 아니라 연결 관계만 보므로
- * 미팅을 열 때마다 새로 조회하며, 브리핑을 만든 뒤 올라온 자료도 곧바로 보인다.
- *
- * `product` 는 고객사와 무관한 공용 자료(카탈로그·스펙)라 화면에서도 섞지 않는다.
- */
-export interface ActivityDocuments {
-  related: ActivityDocument[]
-  product: ActivityDocument[]
+export interface BriefingDocuments {
+  related: BriefingDocument[]
+  product: BriefingDocument[]
+  search: { method: 'hybrid' | 'keyword' | 'none' | 'unknown'; status: string }
 }
 
 export interface ActivityCreateRequest {

@@ -7,7 +7,7 @@ from app.agents.document_summary import DocumentSummaryOutput
 from app.core.config import settings
 from app.models.content import Document
 from app.models.content import File as FileRow
-from app.services import document_processing, storage
+from app.services import briefing_refresh, document_processing, storage
 from app.services.document_extraction import ExtractedDocument
 
 
@@ -45,7 +45,8 @@ class _Session:
 
 
 @pytest.mark.anyio
-async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch):
+@pytest.mark.parametrize("embedding_mode", ["disabled", "success", "unavailable"])
+async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch, embedding_mode):
     team_id = uuid4()
     document = Document(
         id=uuid4(),
@@ -107,13 +108,36 @@ async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch):
         )
 
     monkeypatch.setattr(document_processing, "get_sessionmaker", _sessionmaker)
-    monkeypatch.setattr(type(settings), "embedding_configured", property(lambda self: False))
+    monkeypatch.setattr(
+        type(settings),
+        "embedding_configured",
+        property(lambda self: embedding_mode != "disabled"),
+    )
+    vector = [1.0] + [0.0] * 383
+
+    async def _embed(texts):
+        assert "계약기간: 1년" in texts[0]
+        if embedding_mode == "unavailable":
+            raise document_processing.embeddings.EmbeddingError("synthetic_unavailable")
+        return [vector for _ in texts]
+
+    monkeypatch.setattr(document_processing.embeddings, "embed", _embed)
     monkeypatch.setattr(storage, "download", _download)
     monkeypatch.setattr(document_processing, "extract_document", _extract)
     monkeypatch.setattr(document_processing.document_summary, "run", _summary)
+    # 브리핑 갱신은 저장이 커밋된 뒤에만 예약해야 한다. 그 전에 예약하면 아직 저장 중인
+    # 청크를 브리핑이 검색해 미완성 근거를 인용한다.
+    scheduled = []
+
+    async def _schedule(file_id):
+        scheduled.append((file_id, second.committed))
+        return []
+
+    monkeypatch.setattr(briefing_refresh, "schedule_for_file", _schedule)
 
     await document_processing.execute(row.id)
 
+    assert scheduled == [(row.id, True)]
     assert first.committed
     assert second.committed
     assert row.processing_status == "completed"
@@ -126,6 +150,12 @@ async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch):
     audits = [item for item in second.added if item.__class__.__name__ == "DocumentFileAudit"]
     assert len(chunks) == 1
     assert chunks[0].page_start == 1
+    assert chunks[0].embedding_vector == (vector if embedding_mode == "success" else None)
+    assert chunks[0].embedding_model == (
+        document_processing.embeddings.model_identity() if embedding_mode == "success" else None
+    )
+    if embedding_mode == "unavailable":
+        assert row.summary_payload["embedding_status"] == "synthetic_unavailable"
     assert audits[0].action_code == "summary_completed"
 
 
@@ -199,6 +229,13 @@ async def test_execute_marks_file_failed_when_source_download_fails(monkeypatch)
 
     monkeypatch.setattr(storage, "download", _download)
     monkeypatch.setattr(storage, "remove", _remove)
+    scheduled = []
+
+    async def _schedule(file_id):
+        scheduled.append(file_id)
+        return []
+
+    monkeypatch.setattr(briefing_refresh, "schedule_for_file", _schedule)
 
     await document_processing.execute(row.id)
 
@@ -206,6 +243,8 @@ async def test_execute_marks_file_failed_when_source_download_fails(monkeypatch)
     assert row.processing_error == "storage_download_failed:503"
     assert removed == [document_processing.draft_storage_key(row.storage_key)]
     assert failure_result.committed
+    # 처리에 실패한 자료는 검색 대상이 아니다. 브리핑 갱신을 일으키지 않는다.
+    assert scheduled == []
 
 
 @pytest.mark.anyio

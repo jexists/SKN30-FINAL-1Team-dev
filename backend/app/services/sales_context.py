@@ -24,6 +24,9 @@ async def retrieve_briefing_context(
     document_id: UUID | None = None,
     sales_deal_id: UUID | None = None,
     customer_company_id: UUID | None = None,
+    product_ids: set[UUID] | None = None,
+    search_info: dict | None = None,
+    member=None,
 ) -> dict[str, list[dict[str, object]] | str]:
     """검색된 근거와 해당 파일의 저장 요약을 브리핑 입력 형태로 묶는다.
 
@@ -42,18 +45,22 @@ async def retrieve_briefing_context(
         document_id=document_id,
         sales_deal_id=sales_deal_id,
         customer_company_id=customer_company_id,
+        **({"product_ids": product_ids} if product_ids is not None else {}),
+        **({"search_info": search_info} if search_info is not None else {}),
+        **({"member": member} if member is not None else {}),
     )
     if not matches:
         return {"query": query, "summaries": [], "sources": []}
 
     file_ids = list(dict.fromkeys(row.file_id for row, _ in matches))
-    scopes = document_processing.document_scopes(sales_deal_id, customer_company_id)
+    scopes = document_processing.document_scopes(sales_deal_id, customer_company_id, product_ids)
     summary_result = await db.execute(
         select(FileRow, Document.id)
         .join(Document, Document.id == FileRow.document_id)
         .where(
             FileRow.id.in_(file_ids),
             Document.team_id == team_id,
+            *document_processing.document_access(member),
             Document.deleted_at.is_(None),
             *([or_(*scopes)] if scopes else []),
             FileRow.processing_status == "completed",

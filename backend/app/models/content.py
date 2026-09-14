@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -304,6 +305,8 @@ class DocumentChunk(Base):
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     embedding: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    embedding_vector: Mapped[Any | None] = mapped_column(Vector(), nullable=True)
+    embedding_model: Mapped[str | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 

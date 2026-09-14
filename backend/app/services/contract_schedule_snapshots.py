@@ -16,11 +16,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import AgentRun
-from app.models.content import Report, ReportDeal
+from app.models.content import Document, Report, ReportDeal
 from app.models.crm import Activity, CustomerCompany, SupportRequest
-from app.models.sales import SalesDeal, SalesPipelineStage
+from app.models.sales import Product, SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
-from app.services import sales_context
+from app.services import activity_documents, sales_context
 from app.services.embeddings import EmbeddingError
 from app.services.report_sources import _body_values, _shared_body
 from app.services.storage import StorageError
@@ -485,7 +485,12 @@ def _briefing_search_query(
     deals: list[tuple[SalesDeal, SalesPipelineStage]],
 ) -> str:
     """자료실을 찾아볼 검색어. LLM 을 한 번 더 부르지 않고 결정적으로 만든다."""
-    parts = [company.name, activity.title, *(deal.title for deal, _stage in deals)]
+    parts = [
+        company.name,
+        activity.title,
+        *(deal.title for deal, _stage in deals if deal.id == activity.sales_deal_id),
+        activity.note,
+    ]
     # 자료실 검색 API 의 q 상한과 같은 길이로 자른다.
     return " ".join(part for part in parts if part)[:_BRIEFING_QUERY_MAX_CHARS]
 
@@ -495,6 +500,7 @@ async def _briefing_document_context(
     company: CustomerCompany,
     activity: Activity,
     deals: list[tuple[SalesDeal, SalesPipelineStage]],
+    member: Member,
 ) -> dict[str, Any]:
     """자료요약 Agent 가 저장한 요약·근거를 브리핑 입력 형태로 가져온다.
 
@@ -502,8 +508,32 @@ async def _briefing_document_context(
     데이터가 없어도 최소 동작한다" 원칙에 따라 빈 문맥으로 되돌린다.
     """
     query = _briefing_search_query(company, activity, deals)
+    products = []
     try:
-        return await sales_context.retrieve_briefing_context(
+        product_ids = await activity_documents.product_ids(
+            db, team_id=company.team_id, activity=activity
+        )
+        products = await activity_documents.list_documents(
+            db,
+            team_id=company.team_id,
+            scopes=[Document.product_id.in_(product_ids)] if product_ids else [],
+            member=member,
+        )
+        if product_ids:
+            names = (
+                (
+                    await db.execute(
+                        select(Product.name).where(
+                            Product.id.in_(product_ids), Product.team_id == company.team_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            query = " ".join([query[:350], *names])[:_BRIEFING_QUERY_MAX_CHARS]
+        search_info = {}
+        context = await sales_context.retrieve_briefing_context(
             db,
             team_id=company.team_id,
             query=query,
@@ -511,9 +541,21 @@ async def _briefing_document_context(
             # 자료는 딜에만 붙기도 하고 고객사에만 붙기도 해서 둘 다 넘긴다(OR).
             sales_deal_id=activity.sales_deal_id,
             customer_company_id=company.id,
+            product_ids=product_ids,
+            search_info=search_info,
+            member=member,
         )
+        return {**context, "product_documents": products, "search": search_info}
     except (SQLAlchemyError, EmbeddingError, StorageError):
-        return {"query": query, "summaries": [], "sources": []}
+        # A failed SQL statement must not leave the worker session in an aborted transaction.
+        await db.rollback()
+        return {
+            "query": query,
+            "summaries": [],
+            "sources": [],
+            "product_documents": products,
+            "search": {"method": "none", "status": "failed"},
+        }
 
 
 async def build_briefing_snapshot(
@@ -592,7 +634,7 @@ async def build_briefing_snapshot(
         },
         # 구조화된 조회 결과를 그대로 둔다. 이 스냅샷은 agent_run.input_snapshot 으로
         # 저장되므로, 실행 시점에 어떤 근거를 봤는지가 그대로 남는다.
-        "document_context": await _briefing_document_context(db, company, activity, deals),
+        "document_context": await _briefing_document_context(db, company, activity, deals, member),
     }
 
 

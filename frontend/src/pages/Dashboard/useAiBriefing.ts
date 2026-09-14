@@ -4,25 +4,32 @@ import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import type { ActivityRead, AiBriefing } from '@/types'
 
-const POLL_INTERVAL_MS = 2_000
-const MAX_POLLS = 30
+/** 갱신이 도는 중일 때만 결과를 바꿔 받는 간격. 조회(GET)만 하고 실행을 만들지 않는다. */
+const POLL_INTERVAL_MS = 5_000
+/** 갱신이 끝나지 않아도 조회를 계속 붙들지 않는다. 화면은 이미 이전 브리핑을 보여주고 있다. */
+const MAX_POLLS = 24
 
 const wait = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
 
 interface Options {
   activityId: string
-  /** 브리핑을 만들 수 있는 대상인지 — 미팅 타입이면서 연락처가 연결돼 있어야 한다. */
+  /** 브리핑이 붙을 수 있는 대상인지 — 미팅 타입이면서 연락처가 연결돼 있어야 한다. */
   eligible: boolean
 }
 
 /**
- * 미팅 상세를 열 때 AI 브리핑을 자동으로 준비한다.
+ * 저장돼 있는 AI 브리핑을 읽어 옵니다.
  *
- * 버튼 없이, 열 때 이 활동에 걸린 브리핑 실행이 없으면(`ai_briefing == null`) 그 자리에서
- * 딱 한 번만 생성을 요청한다. 이미 있으면(완료·진행 중 무엇이든) 다시 만들지 않고 그 상태를
- * 그대로 보여준다 — 그래서 다른 곳을 봤다 돌아와도 내용이 바뀌지 않는다.
- * 자세한 배경은 docs/technical/multiagent/계약에이전트_설계.md 7장 참고.
+ * 이 훅은 브리핑을 **만들지 않습니다**. 미팅 상세를 열었다고 RAG 검색이나 LLM 생성을
+ * 시작하면 그만큼 화면이 멈춰 있게 되므로, 만드는 일은 백엔드가 자료 처리·일정 변경
+ * 시점에 미리 끝내 둡니다(`backend/app/services/briefing_refresh.py`). 화면이 하는 일은
+ * 조회뿐입니다.
+ *
+ * - 열면 저장된 최신 성공 브리핑을 그대로 보여줍니다.
+ * - 갱신이 도는 중(`refreshing`)이어도 이전 결과를 로딩 화면으로 덮지 않습니다. 그때만
+ *   가벼운 GET polling 으로 완료된 결과와 바꿔 답니다. 이 polling 은 실행을 만들지 않습니다.
+ * - 갱신이 실패해도 마지막 성공 브리핑은 그대로 남습니다(`refresh_error` 로만 알립니다).
  */
 export default function useAiBriefing({ activityId, eligible }: Options) {
   const [briefing, setBriefing] = useState<AiBriefing | null>(null)
@@ -41,38 +48,24 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
     setLoading(true)
     setError(null)
 
-    async function ensure() {
+    async function read() {
       let { data } = await client.get<ActivityRead>(`/activities/${activityId}`)
       if (cancelled) return
 
-      if (data.ai_briefing == null) {
-        await client.post('/agent-runs', {
-          agent_code: 'contract_management_briefing',
-          activity_id: activityId,
-          idempotency_key: crypto.randomUUID(),
-        })
-        if (cancelled) return
-        ;({ data } = await client.get<ActivityRead>(`/activities/${activityId}`))
-        if (cancelled) return
-      }
+      // 첫 조회 결과를 곧바로 겁니다. 갱신이 돌고 있어도 본문을 기다리지 않습니다.
+      setBriefing(data.ai_briefing ?? null)
+      setLoading(false)
 
-      for (
-        let poll = 0;
-        data.ai_briefing?.status === 'queued' || data.ai_briefing?.status === 'running';
-        poll += 1
-      ) {
-        if (poll >= MAX_POLLS) throw new Error('briefing_timeout')
+      for (let poll = 0; data.ai_briefing?.refreshing && poll < MAX_POLLS; poll += 1) {
         await wait(POLL_INTERVAL_MS)
         if (cancelled) return
         ;({ data } = await client.get<ActivityRead>(`/activities/${activityId}`))
         if (cancelled) return
+        setBriefing(data.ai_briefing ?? null)
       }
-
-      setBriefing(data.ai_briefing ?? null)
-      setLoading(false)
     }
 
-    ensure().catch((cause: unknown) => {
+    read().catch((cause: unknown) => {
       if (cancelled) return
       setError(errorMessage(cause, 'AI 브리핑을 불러오지 못했습니다.'))
       setLoading(false)

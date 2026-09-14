@@ -1,8 +1,11 @@
-"""미팅에 관련된 자료실 문서 조회.
+"""미팅이 다루는 상품과, 연결 조건에 걸리는 자료실 문서를 찾는다.
 
-AI 브리핑과는 분리된 경로다. LLM 도 실행 이력(agent_run)도 거치지 않고 연결 관계만
-보므로, 미팅을 열 때마다 새로 조회해도 된다 — 브리핑이 만들어진 뒤에 올라온 자료가
-곧바로 보이는 것이 이 모듈이 따로 있는 이유다.
+브리핑 입력을 만드는 쪽(``contract_schedule_snapshots``)과 갱신 대상을 계산하는 쪽
+(``briefing_refresh``)이 "이 미팅이 무슨 상품을 다루는가", "그 범위에 어떤 자료가
+붙어 있는가"를 똑같은 규칙으로 답해야 해서 여기 한 번만 두었다. 한쪽만 규칙이 달라지면
+브리핑에 실린 자료와 갱신을 일으키는 자료가 어긋난다.
+
+RAG 검색은 하지 않는다 — 연결 관계만 본다.
 """
 
 from __future__ import annotations
@@ -20,42 +23,45 @@ from app.models.sales import SalesDeal, SalesDealItem
 from app.services import document_processing
 
 
-async def _product_ids(db: AsyncSession, *, team_id: UUID, activity: Activity) -> set[UUID]:
-    """이 미팅이 다루는 상품. 미팅 자체와 딜, 그리고 딜의 견적 품목까지 본다."""
-    product_ids: set[UUID] = set()
-    if activity.product_id is not None:
-        product_ids.add(activity.product_id)
+async def product_ids(db: AsyncSession, *, team_id: UUID, activity: Activity) -> set[UUID]:
+    """딜의 대표 상품과 견적 품목만 조회한다. 일정에만 연결된 상품은 제외한다."""
+    collected: set[UUID] = set()
     if activity.sales_deal_id is None:
-        return product_ids
+        return collected
 
     deal_product_id = (
         await db.execute(
             select(SalesDeal.product_id).where(
                 SalesDeal.id == activity.sales_deal_id,
                 SalesDeal.team_id == team_id,
+                SalesDeal.deleted_at.is_(None),
             )
         )
     ).scalar_one_or_none()
     if deal_product_id is not None:
-        product_ids.add(deal_product_id)
+        collected.add(deal_product_id)
 
     item_product_ids = (
         (
             await db.execute(
-                select(SalesDealItem.product_id).where(
-                    SalesDealItem.sales_deal_id == activity.sales_deal_id
+                select(SalesDealItem.product_id)
+                .join(SalesDeal, SalesDeal.id == SalesDealItem.sales_deal_id)
+                .where(
+                    SalesDealItem.sales_deal_id == activity.sales_deal_id,
+                    SalesDeal.team_id == team_id,
+                    SalesDeal.deleted_at.is_(None),
                 )
             )
         )
         .scalars()
         .all()
     )
-    product_ids.update(item_product_ids)
-    return product_ids
+    collected.update(item_product_ids)
+    return collected
 
 
-async def _documents(
-    db: AsyncSession, *, team_id: UUID, scopes: list[Any]
+async def list_documents(
+    db: AsyncSession, *, team_id: UUID, scopes: list[Any], member=None
 ) -> list[dict[str, object]]:
     """연결 조건에 걸리는 문서를 완료된 파일 하나씩으로 추린다.
 
@@ -69,6 +75,7 @@ async def _documents(
             .join(FileRow, FileRow.document_id == Document.id)
             .where(
                 Document.team_id == team_id,
+                *document_processing.document_access(member),
                 Document.deleted_at.is_(None),
                 FileRow.processing_status == "completed",
                 or_(*scopes),
@@ -101,35 +108,3 @@ async def _documents(
             "uploaded_at": file_row.uploaded_at,
         }
     return list(documents.values())
-
-
-async def list_for_activity(
-    db: AsyncSession,
-    *,
-    team_id: UUID,
-    activity: Activity,
-    customer_company_id: UUID | None,
-) -> dict[str, list[dict[str, object]]]:
-    """미팅 화면에 세울 자료를 성격별로 나눠 돌려준다.
-
-    ``related`` 는 이 딜·고객사에 붙은 자료고, ``product`` 는 이 미팅이 다루는 상품에
-    붙은 자료다. 상품 자료는 고객사와 무관한 공용 자료(카탈로그·스펙 등)라 같은 목록에
-    섞으면 어느 쪽이 이 고객사 것인지 구분할 수 없어 따로 나눈다.
-    """
-    related = await _documents(
-        db,
-        team_id=team_id,
-        scopes=document_processing.document_scopes(activity.sales_deal_id, customer_company_id),
-    )
-    product_ids = await _product_ids(db, team_id=team_id, activity=activity)
-    product = await _documents(
-        db,
-        team_id=team_id,
-        scopes=[Document.product_id.in_(product_ids)] if product_ids else [],
-    )
-    # 예전 자료는 상품과 고객사를 함께 들고 있을 수 있다. 양쪽에 같은 문서를 세우지 않는다.
-    related_ids = {item["document_id"] for item in related}
-    return {
-        "related": related,
-        "product": [item for item in product if item["document_id"] not in related_ids],
-    }

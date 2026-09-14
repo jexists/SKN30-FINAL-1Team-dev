@@ -15,12 +15,35 @@ class EmbeddingError(Exception):
     """임베딩 공급자 호출 실패."""
 
 
+def model_identity() -> str:
+    model = (
+        settings.embedding_local_model
+        if settings.embedding_provider == "local"
+        else settings.embedding_model
+    )
+    return f"{settings.embedding_provider}:{model}:{settings.embedding_dimensions}"
+
+
+def validate_vectors(vectors: list, count: int) -> list[list[float]]:
+    if len(vectors) != count:
+        raise EmbeddingError("embedding_count_mismatch")
+    for vector in vectors:
+        if not isinstance(vector, list) or len(vector) != settings.embedding_dimensions:
+            raise EmbeddingError("embedding_dimension_mismatch")
+        if not all(
+            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+            for value in vector
+        ) or not any(vector):
+            raise EmbeddingError("embedding_values_invalid")
+    return vectors
+
+
 async def embed(texts: list[str]) -> list[list[float]]:
     if not settings.embedding_configured:
         raise EmbeddingError("embedding_not_configured")
     if settings.embedding_provider == "local":
         try:
-            return await _local_embed(texts)
+            return validate_vectors(await _local_embed(texts), len(texts))
         except EmbeddingError:
             raise
         except Exception as error:
@@ -46,7 +69,7 @@ async def embed(texts: list[str]) -> list[list[float]]:
         raise EmbeddingError("embedding_response_invalid") from error
     if len(vectors) != len(texts) or not all(isinstance(vector, list) for vector in vectors):
         raise EmbeddingError("embedding_count_mismatch")
-    return vectors
+    return validate_vectors(vectors, len(texts))
 
 
 @lru_cache(maxsize=1)

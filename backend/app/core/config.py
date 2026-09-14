@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     embedding_model: str = ""
     embedding_local_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     embedding_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    embedding_dimensions: Literal[384, 1536] = 384
+    document_search_min_similarity: float = Field(default=0.45, ge=0, le=1)
 
     # 스캔 PDF·이미지 OCR. Runpod Serverless, Azure 또는 선택적 로컬 엔진을 지원한다.
     ocr_provider: Literal["openai", "none", "runpod", "azure", "local"] = "openai"

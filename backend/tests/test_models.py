@@ -95,7 +95,7 @@ EXPECTED_COLUMN_COUNTS = {
     "document": 15,
     # 20260828_0015 로 만료 시각과 승인자 정보가 늘었다.
     "file": 23,
-    "document_chunk": 12,
+    "document_chunk": 14,
     "document_file_audit": 9,
     # 20260913_0033 으로 실행 중 화면용 progress snapshot 이 늘었다.
     "agent_run": 35,

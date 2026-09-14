@@ -59,6 +59,9 @@ class _Db:
         assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
         return self.results.pop(0)
 
+    async def rollback(self):
+        pass
+
 
 def _member() -> Member:
     return Member(
@@ -975,6 +978,8 @@ def _briefing_db(member, company, activity, deals, *, last_activity=None, suppor
         _Result(rows=deals),  # _open_deals
         _Result(rows=last_activity or []),  # _last_activity_by_deal
         _Result(scalar_values=support or []),  # _unresolved_support_signals
+        _Result(scalar=None),  # 딜 대표 제품
+        _Result(scalar_values=[]),  # 견적 제품
     )
 
 
@@ -1022,7 +1027,8 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
     assert captured["team_id"] == member.team_id
     # 검색어는 결정적으로 조립한다 — 여기서 LLM 을 한 번 더 부르지 않는다.
     assert captured["query"] == "테스트 병원 계약 갱신 미팅 초음파 장비 계약"
-    assert snapshot["document_context"] == context
+    assert snapshot["document_context"]["sources"] == context["sources"]
+    assert snapshot["document_context"]["product_documents"] == []
     assert "sales_deal.customer_company_id = public.customer_company.id" in str(db.statements[0])
 
 
