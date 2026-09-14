@@ -21,7 +21,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_sessionmaker
 from scripts.demo import medion
-from scripts.seed_demo_medion import COMPANY_COUNT, STAGE_STEPS
+from scripts.seed_demo_medion import (
+    COMPANY_COUNT,
+    DENSE_FROM,
+    DENSE_MIN,
+    DENSE_TO,
+    SPARSE_MONTHS,
+    STAGE_STEPS,
+)
 
 MIN = "min"
 
@@ -300,6 +307,94 @@ def _checks() -> tuple[tuple[str, str, Any], ...]:
             "보고서 종류 수 (미팅·일일·주간·월간)",
             "select count(distinct report_kind) from report where team_id = :team",
             4,
+        ),
+        # --- 미팅 밀도·메모 -------------------------------------------
+        (
+            f"미팅이 {DENSE_MIN}건 미만인 이번 달 평일 (담당자별)",
+            "select count(*) from ("
+            "  select d::date as day, m.id as owner from generate_series("
+            f"    cast(:base as date) - {-DENSE_FROM}, cast(:base as date) + {DENSE_TO},"
+            "    interval '1 day') d"
+            "  cross join member m"
+            "  where extract(isodow from d) < 6"
+            "    and m.team_id = :team and m.email = any(:emails)) x"
+            " where (select count(*) from activity a"
+            "        where a.team_id = :team and a.deleted_at is null"
+            "          and a.owner_member_id = x.owner"
+            "          and (a.starts_at at time zone 'Asia/Seoul')::date = x.day)"
+            f"       < {DENSE_MIN}",
+            0,
+        ),
+        (
+            "미팅이 있는 지난 평일의 비율 (%)",
+            "select round(100.0 * count(*) filter (where n > 0) / greatest(count(*), 1)) from ("
+            "  select (select count(*) from activity a"
+            "          where a.team_id = :team and a.deleted_at is null"
+            "            and a.owner_member_id = m.id"
+            "            and (a.starts_at at time zone 'Asia/Seoul')::date = d::date) as n"
+            "  from generate_series("
+            f"    date_trunc('month', cast(:base as date))"
+            f"      - interval '{SPARSE_MONTHS} month',"
+            f"    cast(:base as date) - {-DENSE_FROM + 1}, interval '1 day') d"
+            "  cross join member m"
+            "  where extract(isodow from d) < 6"
+            "    and m.team_id = :team and m.email = any(:emails)) x",
+            (MIN, 70),
+        ),
+        (
+            "메모가 있는 고객",
+            "select count(*) from customer_contact c"
+            " join customer_company co on co.id = c.company_id"
+            " where co.team_id = :team and c.deleted_at is null"
+            "   and coalesce(c.memo, '') <> ''",
+            (MIN, 90),
+        ),
+        (
+            "메모가 비어 있는 고객 (빈 화면 시연용)",
+            "select count(*) from customer_contact c"
+            " join customer_company co on co.id = c.company_id"
+            " where co.team_id = :team and c.deleted_at is null"
+            "   and coalesce(c.memo, '') = ''",
+            (MIN, 1),
+        ),
+        # --- 관련 보고서·검토 상태 ------------------------------------
+        # 보고서 상세의 '관련 보고서' 는 하위 보고서를 날짜로 다시 조회해 그린다
+        # (frontend/src/pages/Daily/sources.ts). 구간이 어긋나면 열었을 때 빈다.
+        (
+            "관련 보고서가 비어 있는 월간 보고서",
+            "select count(*) from report m where m.team_id = :team"
+            "   and m.report_kind = 'monthly'"
+            "   and not exists (select 1 from report w where w.team_id = :team"
+            "     and w.report_kind = 'weekly'"
+            "     and w.author_member_id = m.author_member_id"
+            "     and w.status_code in ('submitted', 'approved')"
+            "     and w.report_date between m.period_start - 7 and m.period_end)",
+            0,
+        ),
+        (
+            "관련 보고서가 비어 있는 주간 보고서",
+            "select count(*) from report w where w.team_id = :team"
+            "   and w.report_kind = 'weekly'"
+            "   and not exists (select 1 from report d where d.team_id = :team"
+            "     and d.report_kind = 'daily'"
+            "     and d.author_member_id = w.author_member_id"
+            "     and d.status_code in ('submitted', 'approved')"
+            "     and d.report_date between w.period_start and w.period_end)",
+            0,
+        ),
+        (
+            "한 주가 지났는데 작성중인 보고서",
+            "select count(*) from report"
+            " where team_id = :team and status_code = 'draft'"
+            "   and report_date < cast(:base as date) - 7",
+            0,
+        ),
+        (
+            "한 주가 지난 보고서 중 확정 비율 (%)",
+            "select round(100.0 * count(*) filter (where status_code = 'approved')"
+            "  / greatest(count(*), 1)) from report"
+            " where team_id = :team and report_date < cast(:base as date) - 7",
+            (MIN, 80),
         ),
         (
             "미래 일정이 완료 처리됨",

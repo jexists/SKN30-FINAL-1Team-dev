@@ -12,7 +12,7 @@ SQL 은 검사하지 않는다. 날짜 축·금액·키·참조 관계가 목표
 import re
 import sys
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -20,10 +20,18 @@ from zoneinfo import ZoneInfo
 from scripts import seed_demo_medion as seeder_module
 from scripts.demo import medion
 from scripts.seed_demo_medion import (
+    DENSE_FROM,
+    DENSE_MIN,
+    DENSE_TO,
     FLOW,
     ORDER_STAGES,
     SIGNED_STAGES,
+    SPARSE_MIN,
+    SPARSE_MONTHS,
     Seeder,
+    add_months,
+    month_start,
+    weekdays,
 )
 
 
@@ -200,6 +208,58 @@ def check(seeder: Seeder, rows: dict[str, list[dict[str, Any]]], base: date) -> 
         if r["report_kind"] in ("weekly", "monthly")
     ]
     assert len(period_keys) == len(set(period_keys)), "report_period_author_range_key 위반"
+
+    # 평일이 비지 않는지. 영업 화면에 미팅이 하루도 없는 날이 있으면 데모가 멈춘다.
+    per_day: dict[tuple[Any, date], int] = defaultdict(int)
+    for activity in rows["activity"]:
+        per_day[(activity["owner_member_id"], activity["starts_at"].date())] += 1
+    owners = sorted({c["owner_member_id"] for c in contacts}, key=str)
+    for day in weekdays(base + timedelta(days=DENSE_FROM), base + timedelta(days=DENSE_TO)):
+        for owner in owners:
+            assert per_day[(owner, day)] >= DENSE_MIN, (
+                f"{day} 에 미팅이 {per_day[(owner, day)]}건뿐이다 (목표 {DENSE_MIN})"
+            )
+    sparse = weekdays(
+        add_months(month_start(base), -SPARSE_MONTHS), base + timedelta(days=DENSE_FROM - 1)
+    )
+    for owner in owners:
+        filled = sum(1 for day in sparse if per_day[(owner, day)] >= SPARSE_MIN)
+        assert filled >= len(sparse) * 0.7, f"미팅 없는 평일이 너무 많다: {filled}/{len(sparse)}"
+
+    # 보고서 상세의 '관련 보고서' 는 하위 보고서를 날짜로 다시 조회해 그린다
+    # (frontend/src/pages/Daily/sources.ts). 구간이 어긋나면 열었을 때 빈다.
+    rolled = ("submitted", "approved")
+    children = defaultdict(list)
+    for report in reports:
+        if report["report_kind"] in ("daily", "weekly") and report["status_code"] in rolled:
+            children[(report["author_member_id"], report["report_kind"])].append(
+                report["report_date"]
+            )
+    for report in reports:
+        if report["report_kind"] not in ("weekly", "monthly"):
+            continue
+        kind = "weekly" if report["report_kind"] == "monthly" else "daily"
+        first = seeder_module.week_start(report["period_start"])
+        found = [
+            d
+            for d in children[(report["author_member_id"], kind)]
+            if first <= d <= report["period_end"]
+        ]
+        assert found, f"{report['title']} 의 관련 보고서가 비어 있다"
+
+    # 한 주가 지난 보고서는 확정돼 있어야 한다. 한 달 전 글이 검토 대기로 남으면 안 된다.
+    old_reports = [r for r in reports if (base - r["report_date"]).days > 7]
+    approved = sum(1 for r in old_reports if r["status_code"] == "approved")
+    assert approved >= len(old_reports) * 0.8, f"오래된 보고서의 확정 비율이 낮다: {approved}"
+    assert not [r for r in old_reports if r["status_code"] == "draft"], (
+        "한 주가 지났는데 작성중인 보고서가 있다"
+    )
+
+    # 고객현황 메모. 대부분 채우고 일부는 빈 화면 시연용으로 남긴다.
+    written = [c for c in contacts if c["memo"]]
+    assert len(written) >= len(contacts) * 0.7, f"메모가 적다: {len(written)}/{len(contacts)}"
+    assert len(written) < len(contacts), "빈 메모가 하나도 없다"
+    assert all("{" not in c["memo"] for c in written), "메모 서식 자리가 남아 있다"
 
     # 발주
     for order in rows["purchase_order"]:

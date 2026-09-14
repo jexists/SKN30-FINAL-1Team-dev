@@ -117,6 +117,19 @@ STAGE_STEPS = {
     "order_delivered": 10,
     "closed_cancelled": 6,
 }
+# 평일 채움. 서사 흐름만 따르면 미팅이 하나도 없는 평일이 대부분이라 화면이 빈다.
+# 이번 달 구간(기준일 −14 ~ +3)은 평일마다 1인당 세 건, 그 이전 일곱 달은 평일 열에
+# 여덟만 한 건을 채운다. 과거 건에는 미팅 보고서가 그대로 따라붙는다.
+DENSE_FROM, DENSE_TO = -14, 3
+DENSE_MIN = 3
+SPARSE_MONTHS = 7
+SPARSE_MIN = 1
+SPARSE_RATIO = 8  # pick(..., 10) 이 이 값보다 작은 날만 채운다.
+FILL_HOURS = (9, 11, 13, 15, 17)
+
+# 월간 보고서가 덮는 개월 수. 일일·주간도 같은 구간에서 만든다.
+PERIOD_MONTHS = 3
+
 # 고객이 서명한 단계. contract_sent 는 계약서를 보내기만 해 서명일이 없다.
 SIGNED_STAGES = ("contract_review", "contract_completed", "order_in_progress", "order_delivered")
 ORDER_STAGES = ("order_in_progress", "order_delivered")
@@ -525,6 +538,27 @@ def add_months(day: date, months: int) -> date:
     return date(total // 12, total % 12 + 1, 1)
 
 
+def weekdays(start: date, end: date) -> list[date]:
+    """start 부터 end 까지(양끝 포함)의 평일."""
+    days = []
+    day = start
+    while day <= end:
+        if day.weekday() < 5:
+            days.append(day)
+        day += timedelta(days=1)
+    return days
+
+
+def week_starts(first: date, last: date) -> list[date]:
+    """first 주부터 last 주까지의 주 시작일(일요일)."""
+    weeks = []
+    day = first
+    while day <= last:
+        weeks.append(day)
+        day += timedelta(days=7)
+    return weeks
+
+
 def week_start(day: date) -> date:
     """대시보드와 화면이 모두 일요일 시작을 쓴다."""
     return day - timedelta(days=(day.weekday() + 1) % 7)
@@ -813,6 +847,18 @@ class Seeder:
                     "job_title": medion.JOB_TITLES[pick(f"jt:{key}", len(medion.JOB_TITLES))],
                 }
                 self.contacts.append(record)
+                status_code = medion.CONTACT_STATUS_CODES[
+                    pick(f"st:{key}", len(medion.CONTACT_STATUS_CODES))
+                ]
+                # 여섯 곳에 한 곳은 메모를 비워 둔다. 빈 메모 화면도 데모에 필요하다.
+                memos = medion.CONTACT_MEMOS[status_code]
+                memo = (
+                    None
+                    if index % 6 == 5
+                    else memos[pick(f"memo:{key}", len(memos))].format(
+                        name=name, job=record["job_title"], dept=record["department"]
+                    )
+                )
                 await upsert(
                     self.db,
                     CustomerContact,
@@ -829,15 +875,11 @@ class Seeder:
                         "phone": f"010-0000-{2000 + index * 2 + slot:04d}",
                         "telephone": None,
                         "fax": None,
-                        "customer_contact_status_id": self.status[
-                            medion.CONTACT_STATUS_CODES[
-                                pick(f"st:{key}", len(medion.CONTACT_STATUS_CODES))
-                            ]
-                        ],
+                        "customer_contact_status_id": self.status[status_code],
                         "source_code": medion.SOURCE_CODES[
                             pick(f"src:{key}", len(medion.SOURCE_CODES))
                         ],
-                        "memo": None,
+                        "memo": memo,
                         "visited": index % 3 != 2,
                         "registered_at": at(registered, 10),
                         "deleted_at": None,
@@ -1145,6 +1187,82 @@ class Seeder:
         )
         return activity_id
 
+    def _fill_step(self, plan: dict[str, Any], day: date) -> int:
+        """개설일로부터 지난 날수에 가장 가까운 FLOW 단계.
+
+        제목과 보고서 본문이 모두 이 단계에서 나오므로, 날짜와 이야기가 어긋나지 않는다.
+        """
+        elapsed = (day - plan["opened"]).days
+        last = STAGE_STEPS[plan["stage"]] - 1
+        step = min(range(len(FLOW)), key=lambda i: abs(FLOW[i][3] - elapsed))
+        return min(step, last)
+
+    def _fill_pool(self, owner: str, day: date) -> list[dict[str, Any]]:
+        """그 날 살아 있던 딜. 개설 전이거나 이미 끝난 딜에는 미팅을 붙이지 않는다."""
+        return [
+            plan
+            for plan in self.deals
+            if plan["owner"] == owner
+            and plan["opened"] <= day
+            and (plan["closed"] is None or day <= plan["closed"])
+            # 계약 뒤에도 설치·교육·납품 미팅이 이어지므로 석 달까지는 붙인다.
+            and (plan["signed"] is None or day <= plan["signed"] + timedelta(days=90))
+        ]
+
+    async def _fill_weekdays(self) -> None:
+        """평일이 비지 않게 미팅을 채운다.
+
+        서사 딜 17건의 FLOW 만으로는 하루 0건인 평일이 대부분이다. 매출 축의 얕은 딜도
+        고객·모델·금액을 모두 갖고 있어(plan_deals) 미팅 보고서 본문이 그대로 나온다.
+        """
+        counts: dict[tuple[str, date], int] = defaultdict(int)
+        hours: dict[tuple[str, date], set[int]] = defaultdict(set)
+        for record in self.activities:
+            counts[(record["owner"], record["day"])] += 1
+            hours[(record["owner"], record["day"])].add(record["hour"])
+
+        dense_start = self.day(DENSE_FROM)
+        last = self.day(DENSE_TO)
+        day = add_months(month_start(self.base), -SPARSE_MONTHS)
+        while day <= last:
+            if day.weekday() >= 5:
+                day += timedelta(days=1)
+                continue
+            for owner in (LEADER, MEMBER):
+                if day >= dense_start:
+                    target = DENSE_MIN
+                elif pick(f"sparse:{owner}:{day.isoformat()}", 10) < SPARSE_RATIO:
+                    target = SPARSE_MIN
+                else:
+                    target = 0
+                pool = self._fill_pool(owner, day)
+                if not pool:
+                    continue
+                used = hours[(owner, day)]
+                for index in range(counts[(owner, day)], target):
+                    key = f"fill:{owner}:{day.isoformat()}:{index}"
+                    plan = pool[pick(f"fillpick:{key}", len(pool))]
+                    step = self._fill_step(plan, day)
+                    title, category, tag, _ = FLOW[step]
+                    hour = next((h for h in FILL_HOURS if h not in used), FILL_HOURS[-1])
+                    used.add(hour)
+                    await self._activity(
+                        key,
+                        owner=owner,
+                        contact=plan["contact"],
+                        title=f"{plan['contact']['company_name']} {title}",
+                        category=category,
+                        action_tag=tag,
+                        day=day,
+                        hour=hour,
+                        deal_id=plan["id"],
+                        product=plan["model"],
+                        step=step,
+                        deal_key=plan["key"],
+                    )
+                    self.bump("activity_fill")
+            day += timedelta(days=1)
+
     async def seed_activities(self) -> None:
         # 1) 서사 딜의 진행 흐름. 견적일·계약일이 이 표에서 나왔으므로 날짜가 어긋나지 않는다.
         for plan in self.deals:
@@ -1195,6 +1313,9 @@ class Seeder:
                     deal_key=plan["key"],
                 )
                 self.bump("activity_today")
+
+        # 2.5) 평일 채움. 위 두 단계가 끝난 뒤 부족한 날만 메운다. 순서를 바꾸면 겹친다.
+        await self._fill_weekdays()
 
         # 3) 앞으로의 일정. 아직 끝나지 않은 딜에만 후속을 단다. 보고서는 달지 않는다.
         future_titles = (
@@ -1255,18 +1376,23 @@ class Seeder:
 
     # ------------------------------------------------------------ 보고서
 
-    def _review(self, author: str, day: date) -> tuple[str, UUID | None, datetime | None]:
+    def _review(
+        self, author: str, day: date, key: str
+    ) -> tuple[str, UUID | None, datetime | None]:
         """작성 시점으로 검토 상태를 정한다.
 
-        팀장이 쓴 글은 검토자가 없다. 팀원 글은 오래된 것부터 확정되고, 최근 것은
-        검토 대기로 남겨 대시보드와 보고서 목록의 검토 흐름을 시연할 수 있게 한다.
+        팀장이 쓴 글은 검토자가 없다. 팀원 글은 한 주가 지나면 확정된다 — 한 달 전 보고서가
+        검토 대기로 남아 있으면 결재가 멈춘 팀처럼 보인다. 열에 한 건만 대기로 남겨
+        검토 대기 탭이 비지 않게 한다.
         """
         if author == LEADER:
             return "approved", None, None
         delta = (self.base - day).days
-        if delta >= 30:
-            return "approved", self.members[LEADER], at(day + timedelta(days=2), 10)
         if delta >= 7:
+            if pick(f"pend:{key}", 10) != 0:
+                return "approved", self.members[LEADER], at(day + timedelta(days=2), 10)
+            return "submitted", None, None
+        if delta >= 3:
             return "submitted", None, None
         return "draft", None, None
 
@@ -1355,7 +1481,7 @@ class Seeder:
         author = plans[0]["owner"]
         contact = plans[0]["contact"]
         title = record["title"]
-        status, reviewer, reviewed_at = status_override or self._review(author, day)
+        status, reviewer, reviewed_at = status_override or self._review(author, day, key)
         report_id = sid("report", key)
         written = at(day, 18)
 
@@ -1479,7 +1605,7 @@ class Seeder:
         activity_ids: tuple[UUID, ...] = (),
     ) -> None:
         """일일·주간·월간 보고서. 미팅과 같은 굵은 소제목 꼴을 쓴다."""
-        status, reviewer, reviewed_at = self._review(author, day)
+        status, reviewer, reviewed_at = self._review(author, day, key)
         report_id = sid("report", key)
         body = render_sections(order, values)
         written = at(day, 18)
@@ -1542,6 +1668,10 @@ class Seeder:
 
     async def seed_reports(self) -> None:
         deals_by_key = {p["key"]: p for p in self.deals}
+        # 월간이 덮는 구간. 일일·주간도 같은 날부터 만든다. 보고서 상세의 '관련 보고서'가
+        # 하위 보고서를 날짜로 다시 조회해 그리므로(frontend/src/pages/Daily/sources.ts),
+        # 이 구간이 어긋나면 월간을 열었을 때 관련 보고서가 빈다.
+        period_start = add_months(month_start(self.base), -PERIOD_MONTHS)
 
         # 1) 미팅 보고서. 지난 일정은 하나도 빠짐없이 붙인다.
         #    화면이 완료된 미팅에 '보고서 미작성' 을 띄우므로 빠뜨리면 데모 중에 드러난다.
@@ -1578,17 +1708,14 @@ class Seeder:
                 ),
             )
 
-        # 2) 일일 보고서. 지난 3주의 평일에 활동이 있었던 날만 쓴다.
+        # 2) 일일 보고서. 월간 구간 시작일부터 어제까지, 활동이 있었던 평일만 쓴다.
         by_owner_day: dict[tuple[str, date], list[dict[str, Any]]] = defaultdict(list)
         for record in self.activities:
             if record["day"] < self.base:
                 by_owner_day[(record["owner"], record["day"])].append(record)
 
         for owner in (LEADER, MEMBER):
-            for offset in range(1, 22):
-                day = self.day(-offset)
-                if day.weekday() >= 5:
-                    continue
+            for day in weekdays(period_start, self.base - timedelta(days=1)):
                 records = by_owner_day.get((owner, day), [])
                 if not records:
                     continue
@@ -1629,10 +1756,11 @@ class Seeder:
                     activity_ids=tuple(r["id"] for r in records),
                 )
 
-        # 3) 주간 보고서. 지난 5주.
+        # 3) 주간 보고서. 월간 구간 시작 주부터 지난주까지. 월간의 관련 보고서가 이걸 읽는다.
         for owner in (LEADER, MEMBER):
-            for index in range(1, 6):
-                start = week_start(self.base) - timedelta(days=7 * index)
+            for start in week_starts(
+                week_start(period_start), week_start(self.base) - timedelta(days=7)
+            ):
                 end = start + timedelta(days=6)
                 previous = [
                     r
@@ -1698,9 +1826,9 @@ class Seeder:
                     activity_ids=tuple(r["id"] for r in records),
                 )
 
-        # 4) 월간 보고서. 지난 3개월.
+        # 4) 월간 보고서. 지난 PERIOD_MONTHS 개월.
         for owner in (LEADER, MEMBER):
-            for index in range(1, 4):
+            for index in range(1, PERIOD_MONTHS + 1):
                 start = add_months(month_start(self.base), -index)
                 end = next_month(start) - timedelta(days=1)
                 records = [
