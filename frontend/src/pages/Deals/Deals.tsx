@@ -43,7 +43,9 @@ const RANGES = [
   { value: '0', label: '전체' },
 ]
 
-const DEFAULT_RANGE = '6'
+// 번호로 찾은 건이 기간에 걸려 사라지지 않게 전체로 둡니다. 기간은 '최근 수정' 기준이라
+// 오래 전에 맺고 손대지 않은 계약이 6개월 창 밖으로 나갑니다.
+const DEFAULT_RANGE = '0'
 
 // 파이프라인 칸에서 '전체'를 고른 상태. 비우면 기본 파이프라인으로 돌아갑니다.
 const ALL_PIPELINES = 'all'

@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from app.services.team_configuration import ConfigurationConflict
 from scripts.seed_demo_auth import (
     DEFAULT_PIPELINE_STAGES,
     LOOKUP_DEFAULTS,
@@ -154,7 +155,7 @@ def test_configuration_id_collision_stops_before_any_write():
     )
     session = FakeSession([FakeResult([collision])])
 
-    with pytest.raises(SystemExit, match="충돌"):
+    with pytest.raises(ConfigurationConflict, match="충돌"):
         asyncio.run(seed_team_configuration(session, team_id))
 
     assert len(session.statements) == 1

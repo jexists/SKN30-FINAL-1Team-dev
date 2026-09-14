@@ -402,8 +402,12 @@ export function isOwnAgendaItem(
  *
  * 목록에서 찾으면 그 활동이 언제 것인지 모르는 채로 전 기간을 받아야 합니다. 번호를 아는
  * 조회이므로 단건으로 받습니다.
+ *
+ * `ownOnly` 는 남의 일정을 비울지 정합니다. 기본값은 작성 화면 기준인 true 입니다.
+ * 읽기만 하는 화면은 false 로 넘깁니다 — 팀장이 팀원 보고서의 근거 일정을 보는 것은
+ * 막을 이유가 없고, 서버도 같은 팀이면 내려줍니다(app/api/activities.py 의 _scope).
  */
-export function useAgendaItem(id: string) {
+export function useAgendaItem(id: string, { ownOnly = true }: { ownOnly?: boolean } = {}) {
   const [item, setItem] = useState<AgendaItem | undefined>(undefined)
   const [loading, setLoading] = useState(id !== '')
   const [error, setError] = useState<string | null>(null)
@@ -426,7 +430,8 @@ export function useAgendaItem(id: string) {
         const next = activityToAgenda(data)
         // 보고는 본인이 한 일을 적습니다. 주소를 직접 고쳐 남의 일정으로 들어오면 비웁니다.
         // 팀장이 아니면 서버가 이미 본인 것만 주므로 그대로 받습니다.
-        const own = getOwnMemberIds()
+        // 쓰기를 막는 것이 목적이라 읽기만 하는 화면(ownOnly=false)에는 걸지 않습니다.
+        const own = ownOnly ? getOwnMemberIds() : undefined
         const mine =
           own === undefined ||
           (next.ownerMemberId !== undefined && own.includes(next.ownerMemberId))
@@ -439,7 +444,7 @@ export function useAgendaItem(id: string) {
         setLoading(false)
       })
     return () => controller.abort()
-  }, [id, reloadKey, scopeKey])
+  }, [id, reloadKey, scopeKey, ownOnly])
 
   return { item, loading, error, reload: () => setReloadKey((key) => key + 1) }
 }

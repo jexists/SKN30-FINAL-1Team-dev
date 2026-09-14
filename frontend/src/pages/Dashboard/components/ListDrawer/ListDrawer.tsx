@@ -2,10 +2,11 @@
 // 대시보드의 모든 카운터 뒤에 이 드로어 하나가 섭니다. KPI 타일이면 필터 없이,
 // 발주 타일이면 위에 필터 칩을 달고 같은 표면을 씁니다.
 import { useState } from 'react'
+import { Link } from 'react-router'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
-import { ChevronDownIcon } from '@/components/icons'
+import { ChevronDownIcon, ChevronRightIcon } from '@/components/icons'
 import OwnerName from '@/components/OwnerName'
 import { InlineLoader } from '@/components/Skeleton'
 import { useShowOwner } from '@/shared/scope'
@@ -38,11 +39,13 @@ function Row({
   showOwner,
   expandable,
   expanded,
+  linked,
 }: {
   row: DrawerListRow
   showOwner: boolean
   expandable?: boolean
   expanded?: boolean
+  linked?: boolean
 }) {
   return (
     <>
@@ -85,6 +88,8 @@ function Row({
             height={15}
           />
         )}
+        {/* 제 화면으로 넘어가는 줄이라는 표시. 펼치는 줄과 같은 자리에 방향만 달리 섭니다. */}
+        {linked && <ChevronRightIcon className={styles.caret} width={15} height={15} />}
       </div>
     </>
   )
@@ -187,6 +192,16 @@ export default function ListDrawer({
             const detail = row.detail
             const expanded = openKey === row.key
             const panelId = `list-row-${row.key}`
+
+            if (row.href) {
+              return (
+                <div key={row.key} className={styles.item}>
+                  <Link to={row.href} className={`${styles.row} ${styles.clickable}`}>
+                    <Row row={row} showOwner={showOwner} linked />
+                  </Link>
+                </div>
+              )
+            }
 
             if (no && onOpenOrder) {
               return (

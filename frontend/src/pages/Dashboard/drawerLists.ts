@@ -2,6 +2,7 @@
 //
 // 어느 목록이든 서버가 준 것을 그리기만 합니다. 거르고 정렬하는 일은 카드 숫자를 만든
 // 조건과 같아야 해서 서버에 두었습니다. 여기서 다시 거르면 타일과 목록이 어긋납니다.
+import { dealDetailPath } from '@/constants/routes'
 import { STATUS_LABEL as SUPPORT_STATUS_LABEL } from '@/pages/Complaints/statuses'
 import type { SalesDealResponse, SupportRequestResponse } from '@/types'
 import { ddayLabel, fmtDay, parseISO, TODAY } from '@/utils/date'
@@ -35,6 +36,8 @@ export interface DrawerListRow {
   }
   /** 있으면 줄을 눌러 펼칠 수 있습니다. */
   detail?: DrawerListDetail
+  /** 있으면 줄이 이 곳으로 넘어가는 링크가 됩니다. */
+  href?: string
   orderNo?: string
 }
 
@@ -133,6 +136,8 @@ export function renewalList(deals: SalesDealResponse[]): DrawerList {
           numeric: endsOn !== null,
           lines: [{ text: won(deal.deal_amount), numeric: true }],
         },
+        // 계약은 딜 한 행에 얹혀 있습니다. 번호로 다시 찾게 하지 않고 그 딜을 바로 엽니다.
+        href: dealDetailPath(deal.id),
       }
     }),
     empty: '30일 이내 종료 예정인 계약이 없습니다.',

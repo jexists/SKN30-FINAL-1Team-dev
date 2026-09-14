@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.models.workspace import Member, Team
 from app.schemas.admin import AccountCreate, AccountCreated, TeamRead
 from app.services import supabase_auth
+from app.services.team_configuration import seed_team_configuration
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -150,4 +151,7 @@ async def _resolve_team(payload: AccountCreate, db: DbSession) -> Team:
     team = Team(id=uuid4(), **payload.team.model_dump())
     db.add(team)
     await db.flush()
+    # 팀 행만 있고 룩업이 비면 고객·활동·견적·계약 등록이 모두 코드를 못 찾고 422 가 된다.
+    # 화면에서 채울 방법이 없으므로 팀을 만든 자리에서 같이 넣는다.
+    await seed_team_configuration(db, team.id)
     return team
