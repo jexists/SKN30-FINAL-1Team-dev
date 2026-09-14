@@ -3,10 +3,10 @@ import { Link } from 'react-router'
 
 import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
+import DocumentSummaryView from '@/components/DocumentSummaryView'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
 import Popover from '@/components/Popover'
-import ReportBody from '@/components/ReportBody'
 import { SkeletonBlocks } from '@/components/Skeleton'
 import {
   ChevronDownIcon,
@@ -64,32 +64,6 @@ const ARTIFACTS: { key: DocumentArtifact; label: string; ext: string }[] = [
   { key: 'json', label: '인식 데이터', ext: '.json' },
   { key: 'summary', label: 'AI 요약', ext: '.md' },
 ]
-
-/**
- * 새 요약은 서버에서 추출 필드·출처를 본문에 넣지 않는다. 이미 저장된 구버전 요약도
- * 드로어에서는 같은 기준으로 보여야 하므로, 해당 섹션을 렌더링 직전에 제외한다.
- */
-function summaryWithoutHiddenSections(markdown: string): string {
-  const lines = markdown.split('\n')
-  const hiddenHeadings = new Set(['## 추출 필드', '## 출처'])
-  const hiddenTitles = new Set(['# 문서 요약', '# 문서요약'])
-  // 'AI 문서 요약' 바로 아래에 '핵심 요약'이 또 서면 라벨만 두 줄이 된다. 본문은
-  // 남기고 소제목만 걷어, 첫 문단이 요약의 도입부가 되게 한다.
-  const unlabeledHeadings = new Set(['## 핵심 요약', '## 요약'])
-  const visibleLines: string[] = []
-  let hiding = false
-
-  for (const line of lines) {
-    // 새 요약은 제목을 만들지 않지만, 구버전의 제목도 화면에서는 표시하지 않는다.
-    if (hiddenTitles.has(line.trim())) continue
-    if (/^#{1,2}\s+/.test(line)) {
-      hiding = hiddenHeadings.has(line.trim())
-      if (unlabeledHeadings.has(line.trim())) continue
-    }
-    if (!hiding) visibleLines.push(line)
-  }
-  return visibleLines.join('\n')
-}
 
 export default function DocumentDrawer({
   doc,
@@ -478,10 +452,10 @@ export default function DocumentDrawer({
                   OCR·요약 결과를 확인한 뒤 승인해야 최종 DB와 RAG에 저장됩니다.
                 </p>
               )}
-              {/* 저장된 요약은 마크다운입니다. 보고서 본문과 같은 렌더러로 그립니다. */}
-              <ReportBody
-                body={summaryWithoutHiddenSections(summary.summary_markdown)}
-                className={styles.summaryBody}
+              {/* 구조화 요약(summary_payload)이 있으면 그것을, 없으면 마크다운을 읽습니다. */}
+              <DocumentSummaryView
+                payload={summary.summary_payload}
+                markdown={summary.summary_markdown}
               />
               {summary?.processing_status === 'review_required' && (
                 <div className={styles.approveRow}>

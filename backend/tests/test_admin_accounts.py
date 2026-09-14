@@ -39,6 +39,7 @@ class _Db:
         self.teams = teams or []
         self.members = members or []
         self.added: list[object] = []
+        self.statements: list[str] = []
         self.fail_on_commit = fail_on_commit
         self.committed = False
         self.rolled_back = False
@@ -49,6 +50,7 @@ class _Db:
     async def execute(self, statement):
         # list_teams 는 Team 과 Member 를 차례로 훑고, _resolve_team 은 count 를 센다.
         text = str(statement)
+        self.statements.append(text)
         if "FROM public.member" in text:
             return _CountResult(len(self.members), self.members)
         if "count(" in text:
@@ -211,6 +213,10 @@ def test_admin_creates_team_and_member_and_sends_one_invite(monkeypatch):
     assert member.role_code == "member"
     # 담당지역은 선택 입력이다. 고르지 않으면 미지정으로 서고 팀장이 나중에 채운다.
     assert member.region_code is None
+    # 새 팀은 기본 설정까지 같이 서야 한다. 없으면 고객·활동·견적 등록이 전부 422 가 된다.
+    inserted = [text for text in db.statements if text.startswith("INSERT INTO")]
+    for table in ("customer_contact_status", "activity_category", "sales_pipeline"):
+        assert any(f"INSERT INTO public.{table} " in text for text in inserted), table
 
 
 def test_admin_can_pick_the_region_the_new_member_will_cover(monkeypatch):

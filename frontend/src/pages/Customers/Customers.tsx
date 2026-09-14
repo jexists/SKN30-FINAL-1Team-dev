@@ -70,8 +70,9 @@ export default function Customers() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  // 삭제는 팀장만 합니다. 메뉴에서 감추기만 하고 실제로 막는 일은 백엔드가 합니다.
-  const { isManager } = useCurrentUser()
+  // 삭제는 등록한 본인과 팀장만 합니다. 메뉴에서 감추기만 하고 실제로 막는 일은
+  // 백엔드가 합니다.
+  const { memberId, isManager } = useCurrentUser()
 
   const { prefs, toggleColumn, moveColumn, setWidth, reset } = useColumnPrefs()
   // 한 사람만 보고 있으면 담당자 칸이 줄마다 같은 이름이라 아예 감춥니다. 팀원은 늘 그렇습니다.
@@ -420,7 +421,7 @@ export default function Customers() {
       {openCustomer && (
         <CustomerDrawer
           customer={openCustomer}
-          canDelete={isManager}
+          canDelete={isManager || openCustomer.createdByMemberId === memberId}
           onEdit={() => setEditing(openCustomer)}
           onDelete={() => {
             setDeleteError(null)

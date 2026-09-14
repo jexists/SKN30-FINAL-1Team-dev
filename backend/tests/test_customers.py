@@ -1105,10 +1105,47 @@ def test_write_still_rejects_an_unknown_source_code():
         )
 
 
-def test_member_cannot_delete_a_customer_before_any_query():
-    """팀원의 삭제는 조회 전에 막힌다. 있는 고객인지가 응답으로 새면 안 된다."""
+def test_member_deletes_the_customer_they_registered():
+    """팀원도 자기가 등록한 고객은 지운다."""
     member = _member()
-    db = _Db()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id)
+    db = _Db(_Result(scalar=contact))
+
+    with _client(db, member) as client:
+        response = client.delete(
+            f"/api/customer-contacts/{contact.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 204
+    assert contact.deleted_at is not None
+    assert db.commit_count == 1
+
+
+def test_member_cannot_delete_a_customer_someone_else_registered():
+    """담당자로 지정돼 고칠 수는 있어도, 남이 등록한 고객은 지우지 못한다."""
+    member = _member()
+    company = _company(member.team_id)
+    contact = _contact(company.id, member.id, created_by_id=uuid4())
+    db = _Db(_Result(scalar=contact))
+
+    with _client(db, member) as client:
+        response = client.delete(
+            f"/api/customer-contacts/{contact.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "contact_owner_required"}
+    assert contact.deleted_at is None
+    assert db.commit_count == 0
+
+
+def test_member_deleting_an_unknown_customer_gets_404():
+    """팀원이 못 보는 고객은 있는지 없는지가 새지 않게 404 다."""
+    member = _member()
+    db = _Db(_Result(scalar=None))
 
     with _client(db, member) as client:
         response = client.delete(
@@ -1116,9 +1153,8 @@ def test_member_cannot_delete_a_customer_before_any_query():
             headers={"Origin": ORIGIN},
         )
 
-    assert response.status_code == 403
-    assert response.json() == {"detail": "manager_required"}
-    assert not db.statements
+    assert response.status_code == 404
+    assert response.json() == {"detail": "customer_contact_not_found"}
     assert db.commit_count == 0
 
 
@@ -1138,10 +1174,13 @@ def test_manager_deleting_an_unknown_customer_gets_404():
 
 
 def test_manager_delete_marks_the_customer_and_keeps_the_row():
-    """행을 지우지 않고 deleted_at 만 채운다. 딜·일정이 이 고객을 참조하고 있다."""
+    """행을 지우지 않고 deleted_at 만 채운다. 딜·일정이 이 고객을 참조하고 있다.
+
+    팀장은 남이 등록한 고객도 지운다.
+    """
     manager = _member(role="manager")
     company = _company(manager.team_id)
-    contact = _contact(company.id, manager.id)
+    contact = _contact(company.id, manager.id, created_by_id=uuid4())
     db = _Db(_Result(scalar=contact))
 
     with _client(db, manager) as client:

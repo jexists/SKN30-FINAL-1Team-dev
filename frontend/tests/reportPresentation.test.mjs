@@ -1464,18 +1464,15 @@ test('일정 줄은 낸 보고서를 고치는 길을 세우지 않고 드로어
 
 test('미팅 탭은 초안까지 보여 상태 칩의 작성중이 비지 않는다', () => {
   assert.deepEqual(historyQueryScopes('meeting'), [{ report_kind: ['meeting'] }])
-  assert.deepEqual(historyQueryScopes('meeting', ['draft']), [
+  assert.deepEqual(historyQueryScopes('meeting', '작성중'), [
     { report_kind: ['meeting'], status_code: ['draft'] },
   ])
-  assert.deepEqual(
-    historyQueryScopes('meeting', ['submitted', 'approved', 'rejected', 'changes_requested']),
-    [
-      {
-        report_kind: ['meeting'],
-        status_code: ['submitted', 'approved', 'rejected', 'changes_requested'],
-      },
-    ],
-  )
+  assert.deepEqual(historyQueryScopes('meeting', '작성완료'), [
+    {
+      report_kind: ['meeting'],
+      status_code: ['submitted', 'approved', 'rejected', 'changes_requested'],
+    },
+  ])
 })
 
 test('전체 목록과 달력은 일반 draft를 유지하고 미팅 draft만 제외한다', () => {
@@ -1486,15 +1483,17 @@ test('전체 목록과 달력은 일반 draft를 유지하고 미팅 draft만 �
       status_code: ['submitted', 'approved', 'rejected', 'changes_requested'],
     },
   ])
-  assert.deepEqual(historyQueryScopes('all', ['draft']), [
+  assert.deepEqual(historyQueryScopes('all', '작성중'), [
     { report_kind: ['daily', 'weekly', 'monthly'], status_code: ['draft'] },
   ])
-  assert.deepEqual(historyQueryScopes('all', ['draft', 'approved']), [
+  assert.deepEqual(historyQueryScopes('all', '작성완료'), [
     {
-      report_kind: ['daily', 'weekly', 'monthly'],
-      status_code: ['draft', 'approved'],
+      report_kind: ['meeting'],
+      status_code: ['submitted', 'approved', 'rejected', 'changes_requested'],
     },
-    { report_kind: ['meeting'], status_code: ['approved'] },
+  ])
+  assert.deepEqual(historyQueryScopes('all', '확정'), [
+    { report_kind: ['daily', 'weekly', 'monthly'], status_code: ['approved'] },
   ])
 })
 

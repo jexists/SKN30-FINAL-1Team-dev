@@ -1,3 +1,4 @@
+import DocumentSummaryView from '@/components/DocumentSummaryView'
 import type { BriefingDocument, BriefingDocuments } from '@/types/agenda'
 import { downloadFile } from '@/pages/Documents/download'
 import styles from './RecordDrawer.module.scss'
@@ -49,7 +50,10 @@ export default function BriefingMaterials({ documents, citedDocumentIds, hasDeal
       {document.summary_markdown && (
         <details className={styles.sourceSummary}>
           <summary>자료요약 보기</summary>
-          <pre>{document.summary_markdown}</pre>
+          <DocumentSummaryView
+            markdown={document.summary_markdown}
+            className={styles.summaryBody}
+          />
         </details>
       )}
     </li>

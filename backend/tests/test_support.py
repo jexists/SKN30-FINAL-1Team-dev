@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.api.deps import get_current_member
-from app.api.support import _may_edit
+from app.api.support import _may_edit, _scope
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
@@ -651,6 +651,99 @@ def test_support_patch_allows_only_the_author_and_managers():
     assert db.added == []
     assert db.flush_count == db.commit_count == 0
     assert db.rollback_count == 1
+
+
+def test_support_delete_marks_the_request_and_keeps_the_row():
+    """행을 지우지 않고 deleted_at 만 채운다. 대응 이력과 수정 백업이 이 건을 참조한다."""
+    author = _member()
+    company = _company(author.team_id)
+    deal = _deal(author, company)
+    request = _request(author, deal)
+    db = _Db(_Result(scalar=request))
+
+    with _client(db, author) as client:
+        response = client.delete(
+            f"/api/support-requests/{request.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 204
+    assert request.deleted_at is not None
+    assert db.commit_count == 1
+    assert db.rollback_count == 0
+    # 대응·백업 행은 그대로 둔다. 지우는 문장이 나가지 않아야 한다.
+    assert db.added == []
+    assert len(db.statements) == 1
+    assert "DELETE" not in str(db.statements[0])
+
+
+def test_manager_deletes_a_request_someone_else_registered():
+    author = _member()
+    manager = _member(role="manager", team_id=author.team_id)
+    company = _company(author.team_id)
+    deal = _deal(author, company)
+    request = _request(author, deal)
+    db = _Db(_Result(scalar=request))
+
+    with _client(db, manager) as client:
+        response = client.delete(
+            f"/api/support-requests/{request.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 204
+    assert request.deleted_at is not None
+    assert db.commit_count == 1
+
+
+def test_support_delete_allows_only_the_author_and_managers():
+    author = _member()
+    stranger = _member(team_id=author.team_id)
+    company = _company(author.team_id)
+    deal = _deal(author, company)
+    request = _request(author, deal)
+
+    # 수정과 같은 규칙을 쓴다. _scope 가 팀원에게 남의 건을 보여 주지 않아 평소 닿지 않는
+    # 길이지만, 조회 범위가 넓어져도 삭제 권한이 함께 넓어지면 안 된다.
+    db = _Db(_Result(scalar=request))
+    with _client(db, stranger) as client:
+        response = client.delete(
+            f"/api/support-requests/{request.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "forbidden"}
+    assert request.deleted_at is None
+    assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_deleting_an_invisible_request_is_404_and_a_second_delete_too():
+    """지운 건은 _scope 가 걸러 낸다. 한 번 더 지우려 해도 처음 시각을 덮어쓰지 않는다."""
+    member = _member()
+    db = _Db(_Result(scalar=None))
+
+    with _client(db, member) as client:
+        response = client.delete(
+            f"/api/support-requests/{uuid4()}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "support_request_not_found"}
+    assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_support_reads_hide_deleted_requests():
+    """목록·상세·탭 건수가 쓰는 _scope 가 지운 건을 걸러 내는지 본다.
+
+    대시보드 C/S 카드와 상세 잠금(_locked_request)도 같은 _scope 를 지난다.
+    """
+    member = _member()
+    conditions = [str(condition) for condition in _scope(member)]
+    assert "public.support_request.deleted_at IS NULL" in conditions
 
 
 def test_support_patch_hides_invisible_request_and_rejects_empty_body():

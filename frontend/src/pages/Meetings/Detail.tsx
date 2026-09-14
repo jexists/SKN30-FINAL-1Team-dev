@@ -137,8 +137,10 @@ export default function Detail() {
     ;(materialsCollapsed ? expandRef : collapseRef).current?.focus()
   }, [materialsCollapsed])
   // 자세히 보기는 작성 화면과 같은 드로어입니다. 일정 원본은 보고서에 없어 따로 받아 옵니다.
+  // 읽기만 하므로 남의 일정도 받습니다. 팀장이 팀원 보고서의 근거 일정을 못 보면
+  // 검토를 할 수가 없습니다. 쓰기는 작성 화면의 canWrite 가 따로 막습니다.
   const [detailOpen, setDetailOpen] = useState(false)
-  const agenda = useAgendaItem(report?.agendaId ?? '')
+  const agenda = useAgendaItem(report?.agendaId ?? '', { ownOnly: false })
 
   if (loading)
     return (

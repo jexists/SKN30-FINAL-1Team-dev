@@ -78,6 +78,7 @@
 
 /* 상태 점. 선택 칸은 배경이 파래져서 흰색으로 뒤집습니다. */
 .markDone,
+.markWritten,
 .markPending,
 .markDraft,
 .markRejected,
@@ -89,6 +90,10 @@
 
 .markDone {
   background: var(--green);
+}
+
+.markWritten {
+  background: var(--purple);
 }
 
 .markPending {
@@ -109,6 +114,18 @@
 
 .isOnBlue {
   background: #fff;
+}
+
+/* 한 날에 두 건 이상일 때 점 뒤에 서는 건수입니다. */
+.markCount {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.isOnBlueText {
+  color: #fff;
 }
 
 /* 작성 리스트 */
@@ -134,7 +151,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--s3);
   padding: var(--s3) var(--s4);
@@ -146,16 +163,6 @@
 
   & + .row {
     border-top: 1px solid var(--line);
-  }
-
-  // 좁아지면 보고 대상·날짜부터 접습니다. 제목과 상태가 남아야 합니다.
-  @include md {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-
-    .approver,
-    .date {
-      display: none;
-    }
   }
 }
 
@@ -194,13 +201,6 @@
     color: var(--muted);
     font-size: 12px;
   }
-}
-
-.approver,
-.date {
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
 // 제목 자리의 키보드용 손잡이입니다. 누를 곳은 줄 전체이므로 제목에는 단서를

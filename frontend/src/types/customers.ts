@@ -49,6 +49,8 @@ export interface Customer {
   /** API 응답에만 있는 식별자와 지역 코드 */
   companyId?: string
   ownerMemberId?: string
+  /** 등록한 사람. 담당자와 달리 바뀌지 않으며 삭제 권한을 가릅니다(본인 또는 팀장). */
+  createdByMemberId?: string
   regionCode?: string | null
   /** 유입 경로의 원래 코드. source 는 사람이 읽는 라벨이라 수정 폼이 되돌려 쓸 수 없습니다. */
   sourceCode?: CustomerSourceCode | null

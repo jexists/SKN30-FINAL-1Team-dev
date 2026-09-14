@@ -394,7 +394,7 @@
   font-size: 11px;
 }
 
-// 드로어 우상단 '수정' 메뉴. 다른 상세 화면(NoticeDrawer·ProductDrawer)과 같은 모양입니다.
+// 드로어 우상단 '수정·삭제' 메뉴. 다른 상세 화면(NoticeDrawer·ProductDrawer)과 같은 모양입니다.
 .menuBtn {
   display: grid;
   place-items: center;
@@ -448,6 +448,33 @@
       background: var(--fill-2);
     }
   }
+
+  // 지우는 것은 되돌릴 수 없어 색으로 한 번 더 세웁니다.
+  .danger {
+    color: var(--red-ink);
+
+    svg {
+      color: currentcolor;
+    }
+
+    &:hover {
+      background: var(--red-tint);
+    }
+  }
+}
+
+// 삭제 확인 모달. 되돌릴 수 없다는 말을 본문에 한 줄로 둡니다.
+.confirm {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.confirmError {
+  margin-top: var(--s2);
+  color: var(--red-ink);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 // 수정 모달에서 회사·딜이 서는 자리. 고를 수 없는 값이라 입력 칸으로 세우지 않습니다.

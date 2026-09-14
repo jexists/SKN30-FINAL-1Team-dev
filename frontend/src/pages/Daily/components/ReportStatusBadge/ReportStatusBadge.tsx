@@ -10,7 +10,9 @@ interface Props {
 const TONE: Record<ReportStatus | MeetingStatusLabel | '수정중', StatusTone> = {
   작성중: 'blue',
   수정중: 'blue',
-  작성완료: 'green',
+  // 미팅 기록은 팀장 검토를 안 거칩니다. 승인까지 끝난 '확정'과 같은 초록이면
+  // 목록에서 둘이 구분되지 않고, 회색은 '미작성' 자리라 보라로 갈라 둡니다.
+  작성완료: 'purple',
   '검토 대기': 'orange',
   확정: 'green',
   반려: 'red',

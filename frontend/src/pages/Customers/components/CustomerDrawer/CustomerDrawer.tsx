@@ -18,7 +18,7 @@ import styles from './CustomerDrawer.module.scss'
 
 interface Props {
   customer: Customer
-  /** 삭제는 팀장만 합니다. 아니면 메뉴에서 아예 빼고, 막는 일은 백엔드가 다시 합니다. */
+  /** 삭제는 등록한 본인과 팀장만 합니다. 아니면 메뉴에서 아예 빼고, 막는 일은 백엔드가 다시 합니다. */
   canDelete: boolean
   onEdit: () => void
   onDelete: () => void
@@ -39,11 +39,13 @@ function Block({ title, children }: BlockProps) {
   )
 }
 
-const shown = (value: string | null | undefined): string => value || '—'
+const dash = <span className={styles.muted}>—</span>
+
+const shown = (value: string | null | undefined): ReactNode => value || dash
 
 /** 회사 주소 한 줄. 등록 폼에서 보던 것과 같은 모양입니다. */
-function companyAddress(company: CustomerCompanyResponse | null): string {
-  if (company === null || !company.address) return '—'
+function companyAddress(company: CustomerCompanyResponse | null): ReactNode {
+  if (company === null || !company.address) return dash
   const head = company.postcode ? `(${company.postcode}) ${company.address}` : company.address
   return company.address_detail ? `${head} ${company.address_detail}` : head
 }
@@ -122,7 +124,7 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
       ? customer.owners.map((owner) => owner.name)
       : [customer.owner]
 
-  const facts: [string, string][] = [
+  const facts: [string, ReactNode][] = [
     ['부서', shown(customer.dept)],
     ['직함', shown(customer.title)],
     ['담당자', ownerNames.join(', ')],
@@ -215,7 +217,7 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
                       {formatPhone(customer.phone)}
                     </a>
                   ) : (
-                    <span className={styles.muted}>—</span>
+                    dash
                   )}
                 </dd>
               </div>
@@ -227,20 +229,14 @@ export default function CustomerDrawer({ customer, canDelete, onEdit, onDelete, 
                       {formatPhone(customer.telephone)}
                     </a>
                   ) : (
-                    <span className={styles.muted}>—</span>
+                    dash
                   )}
                 </dd>
               </div>
               {/* 팩스는 거는 번호가 아니라 링크로 두지 않습니다. */}
               <div>
                 <dt>팩스</dt>
-                <dd className="tnum">
-                  {customer.fax ? (
-                    formatPhone(customer.fax)
-                  ) : (
-                    <span className={styles.muted}>—</span>
-                  )}
-                </dd>
+                <dd className="tnum">{customer.fax ? formatPhone(customer.fax) : dash}</dd>
               </div>
               <div>
                 <dt>이메일</dt>

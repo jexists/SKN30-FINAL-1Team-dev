@@ -167,6 +167,28 @@ export default function useSupportRequests(openId: string | null, query: Support
     return data
   }, [])
 
+  const removeRequest = useCallback(async (requestId: string) => {
+    if (pendingRef.current) return false
+    pendingRef.current = true
+    setPendingKey(`delete:${requestId}`)
+    setMutationError(null)
+
+    try {
+      await client.delete(`/support-requests/${requestId}`)
+      // 눈앞에서 먼저 지우고, 쪽수와 탭 건수는 다시 받아 맞춥니다.
+      setRequests((previous) => previous.filter((item) => item.id !== requestId))
+      setDetail((previous) => (previous?.id === requestId ? null : previous))
+      setReloadKey((value) => value + 1)
+      return true
+    } catch (caught: unknown) {
+      setMutationError(mutationErrorMessage(caught, 'CS대응을 삭제'))
+      return false
+    } finally {
+      pendingRef.current = false
+      setPendingKey(null)
+    }
+  }, [])
+
   const addResponse = useCallback(async (requestId: string, body: string) => {
     if (pendingRef.current) return false
     pendingRef.current = true
@@ -209,6 +231,7 @@ export default function useSupportRequests(openId: string | null, query: Support
     clearMutationError: () => setMutationError(null),
     createRequest,
     updateRequest,
+    removeRequest,
     transition,
     addResponse,
   }

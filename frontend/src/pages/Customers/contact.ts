@@ -73,6 +73,7 @@ export function toCustomer(contact: CustomerContactResponse): Customer {
     overdue: false,
     companyId: contact.company_id,
     ownerMemberId: contact.owner_member_id,
+    createdByMemberId: contact.created_by_member_id,
     owners: contact.assignees.map((assignee) => ({
       id: assignee.id,
       name: assignee.display_name,

@@ -25,15 +25,17 @@ export const NO_FILTERS: HistoryFilters = { status: '', start: '', end: '' }
 const PERIOD_STATUSES: ReportStatus[] = ['작성중', '검토 대기', '확정', '반려']
 /** 미팅 보고서는 팀장 검토를 받지 않아 쓰는 중과 다 쓴 것 둘뿐입니다. */
 const MEETING_STATUSES: MeetingStatusLabel[] = ['작성중', '작성완료']
+/** 전체 탭은 두 종류가 한 목록에 서므로 어휘도 합칩니다. */
+const ALL_STATUSES: FilterStatus[] = ['작성중', '작성완료', '검토 대기', '확정', '반려']
 
 /** 이 탭의 상태 칩. 탭마다 어휘가 달라 목록·주소·도구 줄이 모두 이 함수를 봅니다. */
 export const statusesFor = (period: Period): FilterStatus[] =>
-  period === 'meeting' ? MEETING_STATUSES : PERIOD_STATUSES
+  period === 'meeting' ? MEETING_STATUSES : period === 'all' ? ALL_STATUSES : PERIOD_STATUSES
 
 /** 상태 탭 앞에 붙는 점. 보고서 배지와 같은 색이지만 그쪽은 StatusTone 이라 표가 다릅니다. */
 export const STATUS_TONE: Record<FilterStatus, ColumnTone> = {
   작성중: 'blue',
-  작성완료: 'green',
+  작성완료: 'purple',
   '검토 대기': 'orange',
   확정: 'green',
   반려: 'red',

@@ -25,6 +25,21 @@
 
 ## 스키마 파일
 
+- `20260914_0034_team_configuration_backfill.sql`: 어드민 계정 발급으로 만든 팀에 빠져 있던
+  팀별 기본값(고객 상태·활동 카테고리·활동 태그·거래 유형·발주/견적/계약 상태와 기본 영업
+  파이프라인·단계)을 채웁니다. 스키마는 바꾸지 않는 데이터 보정이며, id를
+  `app/services/team_configuration.configuration_id` 와 같은 규칙으로 만들고 모든 INSERT가
+  `ON CONFLICT DO NOTHING` 이라 반복 실행해도 안전합니다. 팀이 직접 바꾸거나 지운 행은
+  건드리지 않습니다. 2026-09-14 현재 연결된 개발 DB(session pooler)에 적용했고, 비어 있던
+  팀 5개(`SalesLuv 운영`, `고객현황테스트`, `브리핑테스트 병원`, `테스트 팀명`, `테스트12345`)에
+  260행이 들어갔습니다. 재실행 시 추가 삽입이 0행임을 확인했습니다. 운영 DB 반영은 배포
+  절차에서 별도로 적용해야 합니다.
+
+- `20260914_0034_support_request_soft_delete.sql`: CS대응을 지울 수 있게 `support_request`에
+  `deleted_at`을 더합니다. 지우는 사람은 등록한 본인과 팀장이며, `support_response`와
+  `support_request_edit_backup`이 이 표를 참조하고 있어 행은 남기고 시각만 채웁니다.
+  현재 연결된 개발 DB에 적용됐습니다. 운영 DB 반영은 배포 절차에서 별도로 적용해야 합니다.
+
 - `20260914_0032_customer_contact_optional_mobile.sql`: 명함 OCR 고객등록에서 일반 전화만
   확인된 담당자도 등록할 수 있게 `customer_contact.phone`을 nullable로 바꿉니다. 단건
   API는 직접·사업자등록증 등록에 휴대폰을, 명함 등록에 일반 전화를 각각 필수로 검증합니다.
