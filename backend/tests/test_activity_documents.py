@@ -113,7 +113,10 @@ async def test_product_ids_collect_activity_deal_and_quote_items():
     activity_product_id = uuid4()
     deal_product_id = uuid4()
     item_product_id = uuid4()
-    db = _Db(_Result(scalar=deal_product_id), _Result(scalar_values=[item_product_id]))
+    db = _Db(
+        _Result(scalar_values=[deal_product_id]),
+        _Result(scalar_values=[item_product_id]),
+    )
 
     product_ids = await activity_documents.product_ids(
         db,
@@ -123,6 +126,25 @@ async def test_product_ids_collect_activity_deal_and_quote_items():
 
     assert product_ids == {deal_product_id, item_product_id}
     assert all("team_id" in str(statement) for statement in db.statements)
+
+
+@pytest.mark.anyio
+async def test_product_ids_collect_products_from_multiple_candidate_deals():
+    deal_ids = [uuid4(), uuid4()]
+    product_ids = [uuid4(), uuid4()]
+    item_product_id = uuid4()
+    db = _Db(_Result(scalar_values=product_ids), _Result(scalar_values=[item_product_id]))
+
+    found = await activity_documents.product_ids_for_deals(
+        db, team_id=uuid4(), sales_deal_ids=deal_ids
+    )
+
+    assert found == {*product_ids, item_product_id}
+    assert all(
+        "sales_deal.id IN" in str(statement)
+        or "sales_deal_item.sales_deal_id IN" in str(statement)
+        for statement in db.statements
+    )
 
 
 @pytest.mark.anyio

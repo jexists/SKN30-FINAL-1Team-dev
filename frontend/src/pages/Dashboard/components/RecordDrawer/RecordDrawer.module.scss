@@ -324,6 +324,47 @@
   vertical-align: middle;
 }
 
+// 사용자가 브리핑의 딜 범위를 본문과 혼동하지 않도록 제목 바로 아래에 항상 표시합니다.
+.briefingScope {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+  padding: 9px 11px;
+  border: 1px solid;
+  border-radius: var(--r-md);
+  font-size: 11px;
+
+  strong {
+    flex: none;
+    font-size: 12px;
+  }
+
+  span {
+    color: var(--ink-2);
+  }
+}
+
+.briefingScopeLinked {
+  border-color: #b9dfca;
+  background: var(--green-tint);
+  color: var(--green-ink);
+}
+
+.briefingScopeCompany {
+  border-color: #a9cdf9;
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+
+@include sm {
+  .briefingScope {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+}
+
 // 마지막 성공 브리핑은 그대로 두고 갱신 실패만 한 줄로 알립니다.
 .refreshError {
   margin-bottom: var(--s2);

@@ -51,6 +51,7 @@ class _Session:
         *,
         member=None,
         deal_product=None,
+        candidate_deals=(),
         item_products=(),
         files=(),
         reports=(),
@@ -59,6 +60,7 @@ class _Session:
     ):
         self.member = member
         self.deal_product = deal_product
+        self.candidate_deals = candidate_deals
         self.item_products = item_products
         self.files = files
         self.reports = reports
@@ -73,13 +75,18 @@ class _Session:
         self.statements.append(text)
         # 바깥 FROM 절부터 본다. 자료 조회에는 공개 범위(member)와 고객사 범위(sales_deal)
         # 하위 질의가 들어 있어서, 덜 구체적인 조건을 먼저 보면 엉뚱한 답을 돌려준다.
+        if "FROM public.sales_deal" in text and "sales_deal.product_id" in text:
+            return _Result(scalars=(() if self.deal_product is None else (self.deal_product,)))
         for marker, result in (
             ("FROM public.document", _Result(rows=self.files)),
             ("FROM public.report", _Result(rows=self.reports)),
             ("FROM public.activity", _Result(scalars=self.activities)),
             ("FROM public.agent_run", _Result(scalar=self.existing_run)),
             ("FROM public.sales_deal_item", _Result(scalars=self.item_products)),
-            ("FROM public.sales_deal", _Result(scalar=self.deal_product)),
+            (
+                "FROM public.sales_deal",
+                _Result(scalars=self.candidate_deals),
+            ),
             ("FROM public.member", _Result(scalar=self.member)),
         ):
             if marker in text:
@@ -154,6 +161,24 @@ async def test_revision_is_stable_for_the_same_material_state():
     assert briefing_refresh.idempotency_key(
         activity.id, first
     ) == briefing_refresh.idempotency_key(activity.id, second)
+
+
+@pytest.mark.anyio
+async def test_revision_uses_recent_company_deals_when_activity_has_no_deal():
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id, sales_deal_id=None)
+    candidate_deal_id = uuid4()
+
+    session = _Session(candidate_deals=[candidate_deal_id])
+    revision = await briefing_refresh.source_revision(session, activity=activity, member=member)
+
+    assert revision
+    assert any("LIMIT" in statement for statement in session.statements)
+    changed = await briefing_refresh.source_revision(
+        _Session(candidate_deals=[]), activity=activity, member=member
+    )
+    assert revision != changed
 
 
 @pytest.mark.anyio

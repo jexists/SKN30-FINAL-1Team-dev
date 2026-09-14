@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +36,7 @@ from app.models.agent import AgentRun
 from app.models.content import Document, Report, ReportDeal
 from app.models.content import File as FileRow
 from app.models.crm import Activity
-from app.models.sales import SalesDeal, SalesDealItem
+from app.models.sales import SalesDeal, SalesDealItem, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import activity_documents, document_processing
 
@@ -47,6 +47,7 @@ IDEMPOTENCY_NAMESPACE = uuid5(NAMESPACE_URL, "urn:salesluv:contract_management_b
 # 한 번의 자료 처리로 되살아나는 미팅 수의 상한. 고객사 전체 자료를 하나 올렸다고 수백 건의
 # LLM 실행이 한꺼번에 큐에 쌓이는 것을 막는다. 가까운 미팅부터 채운다.
 MAX_ACTIVITIES_PER_TRIGGER = 50
+BRIEFING_DEAL_LIMIT = 5
 
 
 def _canonical(value: Any) -> str:
@@ -98,8 +99,37 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
     ``member`` 는 실행 주체다. 자료실 공개 범위(``document_access``)를 지문 계산에도 똑같이
     적용해, 그 사람이 볼 수 없는 자료 때문에 브리핑이 다시 만들어지지 않게 한다.
     """
-    product_ids = await activity_documents.product_ids(
-        db, team_id=activity.team_id, activity=activity
+    if activity.sales_deal_id is not None:
+        deal_ids = [activity.sales_deal_id]
+    elif activity.customer_company_id is not None:
+        deal_ids = list(
+            (
+                await db.execute(
+                    select(SalesDeal.id)
+                    .join(
+                        SalesPipelineStage,
+                        and_(
+                            SalesPipelineStage.sales_pipeline_id == SalesDeal.sales_pipeline_id,
+                            SalesPipelineStage.id == SalesDeal.sales_pipeline_stage_id,
+                        ),
+                    )
+                    .where(
+                        SalesDeal.team_id == activity.team_id,
+                        SalesDeal.customer_company_id == activity.customer_company_id,
+                        SalesDeal.deleted_at.is_(None),
+                        SalesPipelineStage.phase_code != "closed",
+                    )
+                    .order_by(SalesDeal.created_at.desc(), SalesDeal.id)
+                    .limit(BRIEFING_DEAL_LIMIT)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    else:
+        deal_ids = []
+    product_ids = await activity_documents.product_ids_for_deals(
+        db, team_id=activity.team_id, sales_deal_ids=deal_ids
     )
     scopes = document_processing.document_scopes(
         activity.sales_deal_id, activity.customer_company_id, product_ids
@@ -174,6 +204,7 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
             str(activity.product_id) if activity.product_id else None,
             _isoformat(activity.starts_at),
         ],
+        "candidate_deals": sorted(str(value) for value in deal_ids),
         "products": sorted(str(value) for value in product_ids),
         "files": files,
         "reports": reports,

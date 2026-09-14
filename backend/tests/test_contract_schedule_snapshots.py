@@ -977,7 +977,7 @@ def _briefing_db(member, company, activity, deals, *, reports=None):
         _Result(scalar=company),  # _company_or_404
         _Result(rows=deals),  # _open_deals
         _Result(rows=reports or []),  # _recent_finalized_reports
-        _Result(scalar=None),  # 딜 대표 제품
+        _Result(scalar_values=[]),  # 딜 대표 제품
         _Result(scalar_values=[]),  # 견적 제품
     )
 
@@ -1029,6 +1029,30 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
     assert snapshot["document_context"]["sources"] == context["sources"]
     assert snapshot["document_context"]["product_documents"] == []
     assert "sales_deal.customer_company_id = public.customer_company.id" in str(db.statements[0])
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_uses_recent_company_deals_when_activity_has_no_deal(monkeypatch):
+    member, company, deal, activity = _briefing_fixture()
+    activity.sales_deal_id = None
+    captured = {}
+
+    async def _retrieve(_db, **kwargs):
+        captured.update(kwargs)
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+    db = _briefing_db(member, company, activity, [(deal, _stage())])
+
+    snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
+
+    assert [item["id"] for item in snapshot["sales_deals"]] == [str(deal.id)]
+    assert snapshot["approved_next_meeting"]["sales_deal_id"] is None
+    assert snapshot["approved_next_meeting"]["candidate_sales_deal_ids"] == [str(deal.id)]
+    assert snapshot["approved_next_meeting"]["deal_scope"] == "recent_company_deals"
+    assert captured["customer_company_id"] == company.id
+    open_deals_query = db.statements[2].compile(dialect=postgresql.dialect())
+    assert 5 in open_deals_query.params.values()
 
 
 @pytest.mark.anyio

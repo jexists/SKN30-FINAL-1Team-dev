@@ -237,6 +237,87 @@ SALES_COOKIE_JAR="$(mktemp -t salesluv-sales-cookies)"
 
 신규 이메일에는 실행 시각이 포함되므로 계정 중복을 피할 수 있다.
 
+### 5.1.1 자동 테스트용 로그인 쿠키 준비
+
+자동 테스트가 신규 영업사원 권한으로 API를 호출하려면 로그인 쿠키 파일이 필요하다.
+비밀번호와 쿠키 내용을 문서·명령 기록·채팅에 직접 남기지 않고, 아래 고정 경로의 임시
+파일만 자동 테스트에 전달한다.
+
+터미널에 `>`만 표시되면 명령의 따옴표나 파이프가 끝나지 않은 상태다. 이때는
+`Control+C`로 취소한 후 아래 명령을 **코드 블록 전체가 아니라 한 줄씩** 실행한다. 변수명의
+`_` 앞에는 역슬래시를 붙이지 않는다.
+
+```bash
+API=http://127.0.0.1:8000/api
+```
+
+```bash
+AUTO_TEST_COOKIE_JAR=/tmp/salesluv-briefing-10x.cookies
+```
+
+```bash
+AUTO_TEST_EMAIL=bak1@naver.com
+```
+
+```bash
+printf "신규 영업사원 비밀번호 입력: "
+```
+
+```bash
+read -s AUTO_TEST_PASSWORD
+```
+
+비밀번호만 입력하고 Enter를 누른다. 입력하는 글자는 터미널에 표시되지 않는다. 이어서
+아래 명령을 한 줄씩 실행한다.
+
+```bash
+echo
+```
+
+```bash
+jq -n --arg email "$AUTO_TEST_EMAIL" --arg password "$AUTO_TEST_PASSWORD" '{email:$email,password:$password}' | curl -sS -c "$AUTO_TEST_COOKIE_JAR" -H "Origin: http://localhost:5173" -H "Content-Type: application/json" --data-binary @- "$API/auth/login" | jq '{id,team_id,role_code,detail}'
+```
+
+```bash
+unset AUTO_TEST_PASSWORD
+```
+
+```bash
+chmod 600 "$AUTO_TEST_COOKIE_JAR"
+```
+
+로그인 쿠키가 정상인지 확인한다.
+
+```bash
+curl -sS -b "$AUTO_TEST_COOKIE_JAR" "$API/auth/me" | jq '{id,team_id,role_code,detail}'
+```
+
+통과 기준:
+
+- `id`와 `team_id`가 비어 있지 않다.
+- `role_code=member`다.
+- `detail`에 `not_authenticated`가 없다.
+- `/tmp/salesluv-briefing-10x.cookies` 파일의 권한이 현재 사용자만 읽을 수 있는 `600`이다.
+
+자동 테스트에는 쿠키 값이 아니라 다음 파일 경로만 전달한다.
+
+```text
+/tmp/salesluv-briefing-10x.cookies
+```
+
+자동 테스트 종료 후 쿠키 파일과 셸 변수를 제거한다.
+
+```bash
+rm "$AUTO_TEST_COOKIE_JAR"
+```
+
+```bash
+unset AUTO_TEST_COOKIE_JAR AUTO_TEST_EMAIL
+```
+
+쿠키 파일이나 `salesluv_access` 값을 화면 캡처, 문서, 채팅에 붙여 넣지 않는다. 쿠키가
+노출되었다면 로그아웃 후 다시 로그인해 기존 세션을 폐기한다.
+
 ### 5.2 관리자 로그인
 
 다음 명령을 실행하고 관리자 계정 비밀번호를 입력한다.

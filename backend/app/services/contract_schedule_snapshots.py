@@ -50,6 +50,8 @@ _BRIEFING_QUERY_MAX_CHARS = 500
 _OPEN_SUPPORT_STATUSES = ("received", "diagnosing", "in_progress")
 # 청크 하나가 최대 1,600자라 5건이면 문맥 블록 상한(12,000자) 안에 든다.
 _BRIEFING_DOCUMENT_LIMIT = 5
+# 일정에 딜이 직접 연결되지 않았을 때 같은 고객사의 최근 열린 딜을 후보로 제공한다.
+_BRIEFING_DEAL_LIMIT = 5
 
 
 def _seoul_iso(value: datetime | None) -> str | None:
@@ -91,10 +93,14 @@ async def _company_or_404(
 
 
 async def _open_deals(
-    db: AsyncSession, member: Member, customer_company_id: UUID
+    db: AsyncSession,
+    member: Member,
+    customer_company_id: UUID,
+    *,
+    limit: int | None = None,
 ) -> list[tuple[SalesDeal, SalesPipelineStage]]:
     """이 회사에서 아직 끝나지 않은 딜을 단계 정보와 함께 가져온다."""
-    result = await db.execute(
+    statement = (
         select(SalesDeal, SalesPipelineStage)
         .join(
             SalesPipelineStage,
@@ -109,7 +115,11 @@ async def _open_deals(
             SalesDeal.deleted_at.is_(None),
             SalesPipelineStage.phase_code != "closed",
         )
+        .order_by(SalesDeal.created_at.desc(), SalesDeal.id)
     )
+    if limit is not None:
+        statement = statement.limit(limit)
+    result = await db.execute(statement)
     return list(result.all())
 
 
@@ -511,8 +521,10 @@ async def _briefing_document_context(
     query = _briefing_search_query(company, activity, deals)
     products = []
     try:
-        product_ids = await activity_documents.product_ids(
-            db, team_id=company.team_id, activity=activity
+        product_ids = await activity_documents.product_ids_for_deals(
+            db,
+            team_id=company.team_id,
+            sales_deal_ids=[deal.id for deal, _stage in deals],
         )
         products = await activity_documents.list_documents(
             db,
@@ -604,7 +616,14 @@ async def build_briefing_snapshot(
 
     customer_company_id = company.id
     company = await _company_or_404(db, member, customer_company_id)
-    deals = await _open_deals(db, member, customer_company_id)
+    deals = await _open_deals(
+        db,
+        member,
+        customer_company_id,
+        limit=None if activity.sales_deal_id else _BRIEFING_DEAL_LIMIT,
+    )
+    if activity.sales_deal_id is not None:
+        deals = [(deal, stage) for deal, stage in deals if deal.id == activity.sales_deal_id]
 
     deal_ids = [deal.id for deal, _stage in deals]
     recent_reports = await _recent_finalized_reports(db, member, deal_ids, limit=10)
@@ -616,6 +635,8 @@ async def build_briefing_snapshot(
         "approved_next_meeting": {
             "activity_id": str(activity.id),
             "sales_deal_id": str(activity.sales_deal_id) if activity.sales_deal_id else None,
+            "candidate_sales_deal_ids": [str(deal.id) for deal, _stage in deals],
+            "deal_scope": "linked" if activity.sales_deal_id else "recent_company_deals",
             "title": activity.title,
             # 화면이 서울 시간으로 보여 주는 미팅을 LLM 이 UTC 로 받아 브리핑에 그대로
             # 옮겨 적으면, 같은 미팅의 시각이 화면과 본문에서 아홉 시간 어긋나 보인다.

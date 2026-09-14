@@ -29,17 +29,29 @@ async def product_ids(db: AsyncSession, *, team_id: UUID, activity: Activity) ->
     if activity.sales_deal_id is None:
         return collected
 
-    deal_product_id = (
+    return await product_ids_for_deals(
+        db, team_id=team_id, sales_deal_ids=[activity.sales_deal_id]
+    )
+
+
+async def product_ids_for_deals(
+    db: AsyncSession, *, team_id: UUID, sales_deal_ids: list[UUID]
+) -> set[UUID]:
+    """여러 후보 딜의 대표 상품과 견적 품목을 한 번에 모은다."""
+    collected: set[UUID] = set()
+    if not sales_deal_ids:
+        return collected
+
+    deal_product_ids = (
         await db.execute(
             select(SalesDeal.product_id).where(
-                SalesDeal.id == activity.sales_deal_id,
+                SalesDeal.id.in_(sales_deal_ids),
                 SalesDeal.team_id == team_id,
                 SalesDeal.deleted_at.is_(None),
             )
         )
-    ).scalar_one_or_none()
-    if deal_product_id is not None:
-        collected.add(deal_product_id)
+    ).scalars().all()
+    collected.update(product_id for product_id in deal_product_ids if product_id is not None)
 
     item_product_ids = (
         (
@@ -47,7 +59,7 @@ async def product_ids(db: AsyncSession, *, team_id: UUID, activity: Activity) ->
                 select(SalesDealItem.product_id)
                 .join(SalesDeal, SalesDeal.id == SalesDealItem.sales_deal_id)
                 .where(
-                    SalesDealItem.sales_deal_id == activity.sales_deal_id,
+                    SalesDealItem.sales_deal_id.in_(sales_deal_ids),
                     SalesDeal.team_id == team_id,
                     SalesDeal.deleted_at.is_(None),
                 )

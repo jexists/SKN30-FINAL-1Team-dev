@@ -66,7 +66,7 @@ export default function BriefingMaterials({ documents, citedDocumentIds, hasDeal
           <p className={styles.note}>
             {hasDeal
               ? '이 브리핑에 저장된 제품 자료가 없습니다.'
-              : '연결된 영업 건이 없어 제품 자료가 없습니다.'}
+              : '같은 고객사의 최근 영업 딜에서 확인된 제품 자료가 없습니다.'}
           </p>
         )}
       </section>
