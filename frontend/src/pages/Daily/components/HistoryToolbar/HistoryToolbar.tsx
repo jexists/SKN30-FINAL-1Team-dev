@@ -15,7 +15,7 @@ import { useMemo } from 'react'
 import DayPicker from '@/components/DayPicker'
 import SearchInput from '@/components/SearchInput'
 import Tabs, { type TabItem } from '@/components/Tabs'
-import { iso, parseISO } from '@/utils/date'
+import { toDate, toISO } from '@/utils/date'
 
 import {
   activePreset,
@@ -40,10 +40,6 @@ interface Props {
   /** 지금 보고 있는 탭. 상태 칩의 어휘를 이 값이 정합니다. */
   period: Period
 }
-
-/** 빈 문자열은 조건 없음이라 달력에는 아무것도 고르지 않은 것으로 넘깁니다. */
-const toDate = (value: string) => (value === '' ? null : parseISO(value))
-const toISO = (date: Date | null) => (date === null ? '' : iso(date))
 
 export default function HistoryToolbar({
   query,

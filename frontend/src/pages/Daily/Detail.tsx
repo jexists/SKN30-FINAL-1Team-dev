@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router'
 import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
+import ColumnHead from '@/components/ColumnHead'
 import {
   CalendarIcon,
   ChevronDownIcon,
@@ -27,7 +28,7 @@ import ActivityList from './components/ActivityList'
 import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod } from './periods'
-import { activityLink } from './sources'
+import { activityLink, relatedActivities } from './sources'
 import { canEditPeriodReport, toReport, useRelatedReports } from './useDailyReports'
 
 import styles from './Detail.module.scss'
@@ -194,9 +195,8 @@ export default function Detail() {
             materialsCollapsed ? `${styles.materials} ${styles.collapsed}` : styles.materials
           }
         >
-          {/* 판의 머리는 접어도 남습니다. 한 열로 접히는 폭에서는 여기가 여닫이입니다. */}
-          <div className={styles.materialHead}>
-            <h2>관련 보고서</h2>
+          {/* 열의 머리는 접어도 남습니다. 한 열로 접히는 폭에서는 여기가 여닫이입니다. */}
+          <ColumnHead title="보고서 자료">
             <Button
               type="button"
               variant="outline"
@@ -206,7 +206,7 @@ export default function Detail() {
               className={styles.collapseAction}
               aria-expanded
               aria-controls="period-detail-materials"
-              aria-label="관련 자료 접기"
+              aria-label="보고서 자료 접기"
               onClick={() => {
                 toggledRef.current = true
                 setMaterialsCollapsed(true)
@@ -219,15 +219,16 @@ export default function Detail() {
               className={styles.mobileToggle}
               aria-expanded={!materialsCollapsed}
               aria-controls="period-detail-materials-body"
-              aria-label={materialsCollapsed ? '관련 자료 펼치기' : '관련 자료 접기'}
+              aria-label={materialsCollapsed ? '보고서 자료 펼치기' : '보고서 자료 접기'}
               onClick={() => setMaterialsCollapsed((collapsed) => !collapsed)}
             >
               <ChevronDownIcon width={16} height={16} aria-hidden="true" />
             </button>
-          </div>
+          </ColumnHead>
 
           <div id="period-detail-materials-body" className={styles.materialsBody}>
-            <section>
+            <section className={styles.panel}>
+              <h2 className={styles.panelTitle}>관련 보고서</h2>
               {related.loading ? (
                 <p role="status">관련 보고서를 불러오는 중입니다.</p>
               ) : related.error ? (
@@ -238,18 +239,25 @@ export default function Detail() {
                   </Button>
                 </>
               ) : (
+                /* 작성 화면과 같은 규칙입니다 — 생성에 쓰인 제출본만 줄로 섭니다. */
                 <ActivityList
-                  activities={related.activities}
+                  activities={relatedActivities(report.kind, related.activities)}
+                  flush
+                  empty="작성 완료된 보고서가 없습니다."
                   renderAside={(item) => {
                     const to = activityLink(item)
-                    return to ? <Link to={to}>원본 보기</Link> : null
+                    return to ? (
+                      <Link className={buttonClass({ variant: 'outline', size: 'sm' })} to={to}>
+                        보고서 확인
+                      </Link>
+                    ) : null
                   }}
                 />
               )}
             </section>
 
-            <section>
-              <h2 className={styles.materialHead}>
+            <section className={styles.panel}>
+              <h2 className={styles.panelTitle}>
                 참고자료
                 {report.attachments.length > 0 && (
                   <span className={styles.count}>{report.attachments.length}건</span>

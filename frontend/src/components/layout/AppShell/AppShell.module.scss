@@ -43,12 +43,14 @@
  * 인쇄 전용 쪽 여백 장치(AppShell.tsx 참고). 화면에서는 표가 없는 것처럼 흘립니다 —
  * display:contents 라 안의 내용이 .content 의 자식으로 그대로 섭니다.
  */
+// 자식 결합자여야 합니다. 자손으로 두면 Outlet 안 목록 표의 행·칸까지 함께
+// display:contents 가 되어 본문이 칸을 잃습니다.
 .printPage,
 .printPage > thead,
 .printPage > tbody,
 .printPage > tfoot,
-.printPage tr,
-.printPage td {
+.printPage > * > tr,
+.printPage > * > tr > td {
   display: contents;
 }
 
@@ -85,11 +87,12 @@
     display: table-footer-group;
   }
 
-  .printPage tr {
+  // 위 화면용 블록과 선택자가 짝이어야 합니다.
+  .printPage > * > tr {
     display: table-row;
   }
 
-  .printPage td {
+  .printPage > * > tr > td {
     display: table-cell;
   }
 

@@ -146,10 +146,6 @@
       display: none;
     }
 
-    .materialHead {
-      margin-bottom: 0;
-    }
-
     .mobileToggle svg {
       transform: none;
     }
@@ -207,44 +203,72 @@
 }
 
 /*
- * 왼쪽 자료 판. 작성 화면의 자료 열과 같은 규칙입니다 — 테두리만 있고 그림자가
- * 없습니다. 오른쪽 보고서만 떠 있어서, 흰 면이 둘이어도 어느 쪽이 결과물인지
- * 한눈에 갈립니다. 자료는 놓여 있고 문서는 들려 있습니다.
+ * 왼쪽 자료 열. 작성 화면의 자료 열(.side)과 같은 회색 바탕입니다 — 그 위에 흰
+ * 판들이 놓이고, 떠 있는 것은 오른쪽 보고서 한 장뿐입니다. 자료는 놓여 있고
+ * 문서는 들려 있습니다.
  */
 .materials {
   grid-area: materials;
+  /* 작성 화면의 자료 열(.side)과 같은 짜임입니다 — 머리는 붙박이, 아래만 구릅니다. */
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s6));
+  /* 열 머리의 밑줄과 첫 판 사이를 띄웁니다 — 붙으면 선이 판의 테두리에 겹칩니다. */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+  // 화면보다 길어지면 이 상자 안(.materialsBody)에서만 구릅니다.
+  max-height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+
+  // 한 열로 접히면 위아래로 서므로 붙여 둘 자리가 없습니다.
+  @include lg {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* 열 안에 놓이는 판들. 사이는 선이 아니라 열의 바탕이 가릅니다. */
+.materialsBody {
+  display: grid;
+  flex: 1;
+  gap: 16px;
+  min-height: 0;
+  align-content: start;
+  overflow: auto;
+
+  @include lg {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+/* 작성 화면의 .reference / .input 과 같은 면 — 테두리만 있고 그림자는 없습니다. */
+.panel {
   min-width: 0;
   padding: var(--s5);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
 
-  section + section {
-    margin-top: var(--s5);
-    padding-top: var(--s5);
-    border-top: 1px solid var(--line);
-  }
-
   @include md {
     padding: var(--s4);
   }
 }
 
-/* 판의 머리. 제목이 왼쪽에 붙고 그 판의 조작이 오른쪽으로 이어집니다. */
-.materialHead {
+/* 판의 이름. 작성 화면 카드 제목과 같은 크기·같은 무게입니다. */
+.panelTitle {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--s2);
+  gap: var(--s1) var(--s3);
   margin-bottom: var(--s3);
-  color: var(--ink-2);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-
-  h2 {
-    font-size: inherit;
-    font-weight: inherit;
-  }
 }
 
 .count {

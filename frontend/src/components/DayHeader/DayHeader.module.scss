@@ -1,7 +1,5 @@
 // demo/layout_v3.html §12
 .head {
-  // 열린 달력이 날짜 바로 아래에서 뜨도록 숨긴 입력칸의 기준이 됩니다.
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -40,18 +38,11 @@
   }
 }
 
-// 브라우저 달력이 열릴 자리만 잡아 둡니다.
-// display: none 이면 showPicker 가 열리지 않아 보이지 않게만 둡니다.
-.picker {
-  position: absolute;
-  left: 0;
-  top: 100%;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
+// 달력을 여는 제목은 감싸개 안에 섭니다. DayPicker 의 기본 너비는 툴바 기준이라
+// 여기서는 글자만큼만 차지하게 되돌립니다.
+.dateCell {
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .pill {

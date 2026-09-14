@@ -691,6 +691,15 @@ export default function Compose() {
   const reviewNotes = (draft.processingProgress?.stage_results ?? [])
     .filter((item) => item.stage === 'review_initial' || item.stage === 'repair')
     .map((item) => item.body)
+  // 고쳐 쓴 본문이 실제로 흐르기 시작하면 메모는 읽고 난 것입니다. 그때 위로 올립니다.
+  // 검토가 끝난 시점은 아직 이릅니다 — 올려 두고 한참 기다리게 됩니다. 판(draft_version) 2 는
+  // 수정 단계 본문에만 붙고, 병합이 되돌리지 않으므로 한 번 참이면 끝까지 참입니다.
+  const revising = (draft.processingProgress?.previews ?? []).some(
+    (item) => (item.draft_version ?? 1) >= 2,
+  )
+  const liveMemo = streaming ? (
+    <ReportReviewWarning evidence={generationEvidence} generating notes={reviewNotes} />
+  ) : null
 
   const printable =
     hasSharedBody ||
@@ -914,6 +923,7 @@ export default function Compose() {
             {/* 끝난 뒤에 남는 한 줄. 생성 중에는 흐름 맨 아래에서 쌓입니다. */}
             <div className={styles.reviewMemo}>
               {!streaming && <ReportReviewWarning evidence={generationEvidence} />}
+              {revising && liveMemo}
             </div>
             <div className={styles.reports}>
               {(streaming || analysing > 0) && (
@@ -968,10 +978,8 @@ export default function Compose() {
                     />
                   )
                 })}
-              {/* 검토는 초안 다음에 일어납니다. 도착 순서대로 흐름 맨 아래에 쌓입니다. */}
-              {streaming && (
-                <ReportReviewWarning evidence={generationEvidence} generating notes={reviewNotes} />
-              )}
+              {/* 검토는 초안 다음에 일어납니다. 수정이 시작되면 이 상자는 위로 올라갑니다. */}
+              {!revising && liveMemo}
               {/* 지금 하는 일은 늘 마지막 글입니다. 바닥까지 내려 읽어도 이 줄이 보입니다. */}
               {(streaming || analysing > 0) && (
                 <GenerationProgress

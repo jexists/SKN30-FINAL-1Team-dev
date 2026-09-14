@@ -110,15 +110,6 @@
   }
 }
 
-.isOutline {
-  border-color: var(--blue);
-  box-shadow: inset 0 0 0 1px var(--blue);
-
-  .num {
-    color: var(--blue);
-  }
-}
-
 // 선택한 날을 바로 아래 내용으로 이어 주는 꼬리입니다. 칸에서 떨어뜨리면
 // 삼각형만 따로 떠 보여, 붙여서 말풍선 한 덩어리로 읽히게 합니다.
 .hasNotch .isSelected::after {

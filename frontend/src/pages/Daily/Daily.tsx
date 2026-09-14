@@ -31,7 +31,6 @@ import {
 
 import HistoryToolbar from './components/HistoryToolbar'
 import MonthCalendar from './components/MonthCalendar'
-import ReportDrawer from './components/ReportDrawer'
 import ReportKindMenu, { type ComposeKind } from './components/ReportKindMenu'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { countFilters, parseFilters, writeFilters, type HistoryFilters } from './historyFilters'
@@ -72,9 +71,6 @@ export default function Daily() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [showMonth, setShowMonth] = useState(false)
   const [cursor, setCursor] = useState(() => startOfMonth(TODAY))
-  // 달력에서 고른 날짜. 요약 패널이 열려 있는 동안에만 값이 있습니다.
-  // 작성 리스트는 패널 없이 곧장 전문으로 갑니다.
-  const [openISO, setOpenISO] = useState('')
 
   const query = params.get('q') ?? ''
   // 탭마다 상태 어휘가 다릅니다. 주소에 남은 다른 탭의 값은 여기서 버립니다.
@@ -121,6 +117,16 @@ export default function Daily() {
     (next: HistoryFilters) => setParams(writeFilters(params, next, period), { replace: true }),
     [params, setParams, period],
   )
+
+  // 달력에서 고른 날짜는 아래 작성 리스트의 구간이 됩니다. 따로 상태를 두지 않고
+  // 구간이 하루짜리일 때만 그 칸을 켭니다. 같은 날을 다시 누르면 구간을 풉니다.
+  const pickedISO = filters.start !== '' && filters.start === filters.end ? filters.start : ''
+  const pickDay = (next: string) =>
+    setFilters(
+      next === pickedISO
+        ? { ...filters, start: '', end: '' }
+        : { ...filters, start: next, end: next },
+    )
 
   // 탭을 갈아탈 때 그 탭에 없는 조건은 함께 지웁니다. 보이지 않는 필터가 목록을
   // 걸러 버리면 왜 비었는지 알 길이 없습니다.
@@ -263,15 +269,15 @@ export default function Daily() {
           <MonthCalendar
             cursor={cursor}
             byDate={inKind}
-            selectedISO={openISO}
-            onSelect={setOpenISO}
+            selectedISO={pickedISO}
+            onSelect={pickDay}
           />
         ) : (
           <div className={styles.strip}>
             <WeekStrip
               days={days}
-              selectedISO={openISO}
-              onSelect={setOpenISO}
+              selectedISO={pickedISO}
+              onSelect={pickDay}
               onOutOfRange={(next) => setWeekOffset(weekOffset + (next < iso(days[0]) ? -1 : 1))}
               renderMarks={renderMark}
               label="제출 이력 주간 달력"
@@ -384,16 +390,6 @@ export default function Daily() {
       <p className={styles.count}>
         전체 <b className="tnum">{total}</b>건 중 {visible.length}건 표시
       </p>
-
-      {openISO !== '' && (
-        <ReportDrawer
-          dateISO={openISO}
-          rows={inKind.get(openISO) ?? []}
-          // '전체' 탭은 종류를 고르지 않았으므로 머리말 CTA 와 같이 일일로 봅니다.
-          kind={kind ?? '일일'}
-          onClose={() => setOpenISO('')}
-        />
-      )}
     </section>
   )
 }

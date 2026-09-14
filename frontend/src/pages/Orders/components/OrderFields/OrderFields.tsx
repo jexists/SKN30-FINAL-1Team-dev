@@ -5,10 +5,12 @@
 // 여러 제품이 들어가는 일이 흔해서 한 줄로 고정할 수 없습니다.
 import type { ReactNode } from 'react'
 
+import DayPicker from '@/components/DayPicker'
 import FormField from '@/components/FormField'
 import ItemRows, { type ItemState } from '@/components/ItemRows'
 import RecordPicker from '@/components/RecordPicker'
 import Select from '@/components/Select'
+import { toDate, toISO } from '@/utils/date'
 import type {
   CustomerCompanyResponse,
   PurchaseOrderStatusResponse,
@@ -114,30 +116,39 @@ export default function OrderFields({
         </Field>
       )}
 
-      <Field label="발주일" error={errors.ordered}>
-        <input
-          type="date"
-          value={form.ordered}
+      <Field label="발주일" error={errors.ordered} htmlFor={false}>
+        <DayPicker
+          label="발주일"
+          fill
+          fixed
+          selected={toDate(form.ordered)}
+          invalid={errors.ordered !== undefined}
           disabled={disabled}
-          onChange={(e) => onChange('ordered', e.target.value)}
+          onChange={(date) => onChange('ordered', toISO(date))}
         />
       </Field>
 
-      <Field label="납기" error={errors.due}>
-        <input
-          type="date"
-          value={form.due}
+      <Field label="납기" error={errors.due} htmlFor={false}>
+        <DayPicker
+          label="납기"
+          fill
+          fixed
+          selected={toDate(form.due)}
+          invalid={errors.due !== undefined}
           disabled={disabled}
-          onChange={(e) => onChange('due', e.target.value)}
+          onChange={(date) => onChange('due', toISO(date))}
         />
       </Field>
 
-      <Field label="예상 입고" error={errors.expect}>
-        <input
-          type="date"
-          value={form.expect}
+      <Field label="예상 입고" error={errors.expect} htmlFor={false}>
+        <DayPicker
+          label="예상 입고"
+          fill
+          fixed
+          selected={toDate(form.expect)}
+          invalid={errors.expect !== undefined}
           disabled={disabled}
-          onChange={(e) => onChange('expect', e.target.value)}
+          onChange={(date) => onChange('expect', toISO(date))}
         />
       </Field>
 

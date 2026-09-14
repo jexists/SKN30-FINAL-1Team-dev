@@ -390,3 +390,235 @@
     outline-offset: 3px;
   }
 }
+
+/**
+ * react-datepicker 팝업 스킨.
+ *
+ * 라이브러리 기본 스킨은 이 앱과 다른 시대의 것이라 팝업만 프로젝트 토큰으로
+ * 다시 칠합니다. 라이브러리 클래스라 :global 로 잡습니다. 날짜만 고르는 칸과
+ * 시간까지 고르는 칸이 같은 팝업을 쓰므로 여기 한 벌만 둡니다.
+ *
+ * 쓰는 쪽의 겉 요소 안에서 부릅니다 — `.root { @include datepicker-popup; }`
+ */
+@mixin datepicker-popup {
+  /* stylelint-disable-next-line selector-pseudo-class-no-unknown */
+  :global {
+    .react-datepicker-wrapper {
+      display: block;
+    }
+
+    .react-datepicker {
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--sh-pop);
+      background: var(--surface);
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--ink);
+    }
+
+    .react-datepicker__header {
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-2);
+      padding-top: 10px;
+    }
+
+    // 월 달력의 머리는 달 이름이 아니라 연도입니다.
+    //
+    // 달 제목은 h2 입니다. 팝업이 제목 안에서 열리는 자리(DayHeader)에서는 바깥
+    // 화면의 `h2 { display: flex }` 가 이 h2 까지 잡아 가운데 정렬이 풀립니다.
+    // 흐름을 여기서 못 박아 어느 자리에서 열리든 같게 섭니다.
+    .react-datepicker__current-month,
+    .react-datepicker-year-header,
+    .react-datepicker-time__header {
+      display: block;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    // 날짜 칸과 월 칸은 같은 모양입니다. 규칙을 둘로 나누지 않습니다.
+    .react-datepicker__day-name,
+    .react-datepicker__day,
+    .react-datepicker__month-text,
+    .react-datepicker__time-list-item {
+      color: var(--ink-2);
+    }
+
+    // 막힌 칸에는 손이 닿지 않습니다. 라이브러리가 aria-disabled 로 표시해 줍니다.
+    .react-datepicker__day:not([aria-disabled='true']):hover,
+    .react-datepicker__month-text:not([aria-disabled='true']):hover,
+    .react-datepicker__time-list-item:hover {
+      border-radius: var(--r-sm);
+      background: var(--fill);
+    }
+
+    // 커서가 가리키는 칸(화살표 이동, '오늘' 로 옮겨온 자리). 고른 값이 아니라
+    // 지금 보고 있는 자리이므로 채우지 않고 옅게만 둡니다 — 둘 다 파랗게 채우면
+    // 무엇이 값인지 흐려집니다. 아래 --selected 가 겹칠 때는 그쪽이 이깁니다.
+    .react-datepicker__day--keyboard-selected,
+    .react-datepicker__month-text--keyboard-selected {
+      border-radius: var(--r-sm);
+      background: var(--blue-tint);
+      color: var(--blue);
+      font-weight: 600;
+    }
+
+    .react-datepicker__day--selected,
+    .react-datepicker__month-text--selected,
+    .react-datepicker__time-list-item--selected {
+      border-radius: var(--r-sm);
+      background: var(--blue) !important;
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    .react-datepicker__day--today,
+    .react-datepicker__month-text--today {
+      color: var(--blue-press);
+      font-weight: 700;
+    }
+
+    .react-datepicker__day--outside-month {
+      color: var(--muted-2);
+    }
+
+    // 고를 수 없는 칸. 라이브러리 기본 회색은 우리 규칙에 덮이므로(선택자가 한 겹
+    // 더 깊습니다) 여기서 다시 칠합니다. 위의 기본 글자색보다 뒤에 와야 이깁니다.
+    .react-datepicker__day--disabled,
+    .react-datepicker__month-text--disabled {
+      color: var(--muted-2);
+      cursor: default;
+    }
+
+    // 월 달력. 라이브러리는 달 칸을 5em 짜리로 좁게 두어 글자가 칸에 끼입니다.
+    // 한 줄에 세 칸 그대로, 칸만 넓혀 날짜 달력과 비슷한 폭에 세웁니다.
+    .react-datepicker__monthPicker {
+      margin: 0;
+      padding: var(--s3);
+    }
+
+    .react-datepicker__monthPicker .react-datepicker__month-text {
+      width: 78px;
+      margin: 2px;
+      padding: 9px 0;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /**
+     * 맨 아래 '오늘' 줄. 브라우저 기본 달력이 쓰던 자리를 그대로 지킵니다 — 여기
+     * 있던 것을 찾던 손이 헤매지 않게.
+     *
+     * 라이브러리 기본은 회색 바탕에 굵은 검정이라 이 앱의 조작부와 닮지 않았습니다.
+     * 다른 곳의 글자 조작부와 같은 파랑으로, 달력 칸과 같은 hover 로 되칠합니다.
+     */
+    .react-datepicker__today-button {
+      // 격자에서는 날짜 칸 아래 한 줄을 통째로 씁니다.
+      grid-column: 1 / -1;
+      clear: left;
+      padding: 0;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+
+      button {
+        width: 100%;
+        padding: 10px 0;
+        border: 0;
+        border-radius: 0 0 var(--r-lg) var(--r-lg);
+        background: none;
+        color: var(--blue);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background var(--t-fast) var(--ease-out);
+
+        &:hover {
+          background: var(--fill);
+        }
+
+        &:focus-visible {
+          outline: 2px solid var(--blue);
+          outline-offset: -2px;
+        }
+      }
+    }
+
+    /**
+     * 날짜 칸과 시각 칸. 라이브러리는 둘을 float 로 세우고 시각 목록에 고정 높이를
+     * 줍니다 — 머리글 줄이 서로 어긋나고, 목록이 카드 아래로 삐져나옵니다.
+     * 두 칸을 같은 격자에 얹어 머리글은 한 줄에, 몸통은 같은 높이에 세웁니다.
+     */
+    .react-datepicker {
+      display: grid;
+      grid-template-columns: auto auto;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    .react-datepicker__month-container,
+    .react-datepicker__time-container {
+      display: grid;
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+      min-height: 0;
+    }
+
+    .react-datepicker__time-container {
+      // 라이브러리가 '다음 달' 화살표를 85px 안쪽에 세웁니다. 폭을 지킵니다.
+      width: 85px;
+      border-left: 1px solid var(--line);
+    }
+
+    .react-datepicker__header--time {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .react-datepicker__time-container .react-datepicker__time,
+    .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box {
+      width: 100%;
+      min-height: 0;
+      height: 100%;
+      background: var(--surface);
+    }
+
+    .react-datepicker__time-container
+      .react-datepicker__time
+      .react-datepicker__time-box
+      ul.react-datepicker__time-list {
+      // 흐름에서 빼야 합니다. 목록이 제 높이를 격자에 보태면 격자가 목록만큼
+      // 늘어나고, 그 높이를 다시 목록이 받아 결국 24시간이 다 펼쳐집니다.
+      position: absolute;
+      inset: 0;
+      box-sizing: border-box;
+      padding: var(--s1) 0;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    .react-datepicker__time-container
+      .react-datepicker__time
+      .react-datepicker__time-box
+      ul.react-datepicker__time-list
+      li.react-datepicker__time-list-item {
+      height: auto;
+      margin: 0 6px;
+      padding: 7px 0;
+      border-radius: var(--r-sm);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .react-datepicker__triangle {
+      display: none;
+    }
+
+    // 팝업은 모달 안에서 떠야 합니다. 모달의 쌓임 맥락 위로 올립니다.
+    .react-datepicker-popper {
+      z-index: 5;
+    }
+  }
+}

@@ -23,10 +23,13 @@ import {
   fmtDot,
   iso,
   parseISO,
+  toDate,
+  toISO,
   TODAY_ISO,
   wholeMonthsBetween,
 } from '@/utils/date'
 
+import DayPicker from '@/components/DayPicker'
 import Field from '@/components/FormField'
 import { toSalesDeal, type SalesDeal } from '@/pages/Deals/useSalesDeals'
 
@@ -262,12 +265,15 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
           />
         </Field>
 
-        <Field label="견적일" required error={errors.issuedOn}>
-          <input
-            type="date"
-            value={form.issuedOn}
+        <Field label="견적일" required error={errors.issuedOn} htmlFor={false}>
+          <DayPicker
+            label="견적일"
+            fill
+            fixed
+            selected={toDate(form.issuedOn)}
+            invalid={errors.issuedOn !== undefined}
             disabled={submitting}
-            onChange={(event) => setIssuedOn(event.target.value)}
+            onChange={(date) => setIssuedOn(toISO(date))}
           />
         </Field>
 
@@ -291,12 +297,16 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
         </Field>
 
         {form.validMonths === CUSTOM_VALID && (
-          <Field label="유효기한" required error={errors.validUntil}>
-            <input
-              type="date"
-              value={form.validUntil}
+          <Field label="유효기한" required error={errors.validUntil} htmlFor={false}>
+            <DayPicker
+              label="유효기한"
+              fill
+              fixed
+              selected={toDate(form.validUntil)}
+              minDate={toDate(form.issuedOn) ?? undefined}
+              invalid={errors.validUntil !== undefined}
               disabled={submitting}
-              onChange={(event) => set('validUntil', event.target.value)}
+              onChange={(date) => set('validUntil', toISO(date))}
             />
           </Field>
         )}

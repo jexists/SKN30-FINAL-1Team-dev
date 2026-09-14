@@ -99,6 +99,15 @@ export default function Compose() {
   const reviewNotes = (draft.generationProgress?.stage_results ?? [])
     .filter((item) => item.stage === 'review_initial' || item.stage === 'repair')
     .map((item) => item.body)
+  // 고쳐 쓴 본문이 실제로 흐르기 시작하면 메모는 읽고 난 것입니다. 그때 위로 올립니다.
+  // 검토가 끝난 시점은 아직 이릅니다 — 올려 두고 한참 기다리게 됩니다. 판(draft_version) 2 는
+  // 수정 단계 본문에만 붙고, 병합이 되돌리지 않으므로 한 번 참이면 끝까지 참입니다.
+  const revising = (draft.generationProgress?.previews ?? []).some(
+    (item) => (item.draft_version ?? 1) >= 2,
+  )
+  const liveMemo = generating ? (
+    <ReportReviewWarning evidence={draft.generationEvidence} generating notes={reviewNotes} />
+  ) : null
   const busy = locked || pending || draft.recovering || generating
   const hasDraftContent = draft.phase === 'ready'
   // 양식지의 첫 줄. 주간·월간은 덮는 기간을, 일일은 그날을 세웁니다.
@@ -387,8 +396,8 @@ export default function Compose() {
                 </span>
               </h2>
               {/*
-              날짜가 이 카드의 머리말입니다. 주간·월간은 하루가 아니라 덮는 기간을 세우고,
-              누르면 그 단위의 달력(주는 날짜, 월은 월)이 열립니다.
+              날짜가 이 카드의 머리말입니다. 덮는 기간이 하루든 한 주든 한 달이든 한 점을
+              고르는 일이라 — 주는 어느 날을 찍든 그 주로 접힙니다 — 머리말 하나로 세웁니다.
             */}
               <DayHeader
                 dateISO={dateISO}
@@ -501,6 +510,7 @@ export default function Compose() {
             </ColumnHead>
             {/* 끝난 뒤에 남는 한 줄. 생성 중에는 흐름 맨 아래에서 쌓입니다. */}
             {!generating && <ReportReviewWarning evidence={draft.generationEvidence} />}
+            {revising && liveMemo}
             <div className={styles.reports}>
               {draft.phase === 'generating' ? (
                 <GenerationProgress
@@ -542,14 +552,8 @@ export default function Compose() {
                   )}
                 </>
               )}
-              {/* 검토는 초안 다음에 일어납니다. 도착 순서대로 흐름 맨 아래에 쌓입니다. */}
-              {generating && (
-                <ReportReviewWarning
-                  evidence={draft.generationEvidence}
-                  generating
-                  notes={reviewNotes}
-                />
-              )}
+              {/* 검토는 초안 다음에 일어납니다. 수정이 시작되면 이 상자는 위로 올라갑니다. */}
+              {!revising && liveMemo}
               {/* 지금 하는 일은 늘 마지막 글입니다. 바닥까지 내려 읽어도 이 줄이 보입니다. */}
               {generating && (
                 <GenerationProgress
@@ -680,8 +684,7 @@ export default function Compose() {
 
       {confirm?.kind === 'submit' && (
         <Modal
-          title="보고서를 제출할까요?"
-          description="제출하면 보고 대상에게 검토 요청이 갑니다."
+          title="보고서를 제출하시겠어요?"
           onClose={() => setConfirm(null)}
           footer={
             <>
@@ -703,7 +706,9 @@ export default function Compose() {
             </>
           }
         >
-          <p>{periodLabel ?? fmtDot(parseISO(dateISO))}</p>
+          <p>
+            {periodLabel ?? fmtDot(parseISO(dateISO))} {kind} 보고서를 제출합니다.
+          </p>
         </Modal>
       )}
     </section>

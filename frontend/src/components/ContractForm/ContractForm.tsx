@@ -6,13 +6,14 @@
 import { useRef, useState } from 'react'
 
 import Button from '@/components/Button'
+import DayPicker from '@/components/DayPicker'
 import Field from '@/components/FormField'
 import Modal from '@/components/Modal'
 import RecordPicker from '@/components/RecordPicker'
 import Select from '@/components/Select'
 import { toSalesDeal, type SalesDeal } from '@/pages/Deals/useSalesDeals'
 import type { DocumentStatusResponse, SalesDealDocumentFields, SalesDealResponse } from '@/types'
-import { addDays, iso, TODAY, TODAY_ISO } from '@/utils/date'
+import { addDays, iso, toDate, toISO, TODAY, TODAY_ISO } from '@/utils/date'
 import { formatBusinessNo, wonFull } from '@/utils/format'
 
 import styles from './ContractForm.module.scss'
@@ -212,21 +213,28 @@ export default function ContractForm({ deal, statuses, onClose, onSubmit }: Prop
           />
         </Field>
 
-        <Field label="계약일" required error={errors.signedOn}>
-          <input
-            type="date"
-            value={form.signedOn}
+        <Field label="계약일" required error={errors.signedOn} htmlFor={false}>
+          <DayPicker
+            label="계약일"
+            fill
+            fixed
+            selected={toDate(form.signedOn)}
+            invalid={errors.signedOn !== undefined}
             disabled={submitting}
-            onChange={(event) => set('signedOn', event.target.value)}
+            onChange={(date) => set('signedOn', toISO(date))}
           />
         </Field>
 
-        <Field label="계약 종료일" required error={errors.endsOn}>
-          <input
-            type="date"
-            value={form.endsOn}
+        <Field label="계약 종료일" required error={errors.endsOn} htmlFor={false}>
+          <DayPicker
+            label="계약 종료일"
+            fill
+            fixed
+            selected={toDate(form.endsOn)}
+            minDate={toDate(form.signedOn) ?? undefined}
+            invalid={errors.endsOn !== undefined}
             disabled={submitting}
-            onChange={(event) => set('endsOn', event.target.value)}
+            onChange={(date) => set('endsOn', toISO(date))}
           />
         </Field>
 

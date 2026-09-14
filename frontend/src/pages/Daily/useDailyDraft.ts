@@ -221,7 +221,9 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     setGenerationRunId(undefined)
     setActiveRunId(undefined)
     setGenerationEvidence(saved?.aiEvidence ?? null)
-    setRecovering(true)
+    // 복구 중인지는 아래 복구 효과만 세웁니다. 여기서 올리면, 이미 복구를 마친 뒤
+    // canonical 이 바뀌어 reset 만 다시 도는 경우(효과는 recoveredScope 에 막혀 건너뜁니다)
+    // 내려 줄 사람이 없어 제출·다시 작성 버튼이 그대로 잠깁니다.
     // 이어 쓰는 보고서는 이미 쓴 내용이 있으므로 입력칸을 바로 펴 줍니다.
     setPhase(saved ? 'ready' : 'idle')
   }, [setAttachments, setAttachmentError, canonical])
