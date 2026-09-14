@@ -102,10 +102,7 @@ function validate(
   }
   if (registrationMode === 'business_license' && draft.email.trim() === '') {
     errors.email = '이메일을 입력하세요.'
-  } else if (
-    draft.email.trim() !== '' &&
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())
-  ) {
+  } else if (draft.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
     errors.email = '이메일 형식이 맞지 않습니다. 예: name@company.com'
   }
   if (
@@ -274,7 +271,8 @@ export default function CustomerFormModal({
   // 휴대폰 없이 일반 전화만으로 명함 등록된 고객을 나중에 수정할 때도, 저장을 위해
   // 휴대폰을 새로 요구하지 않는다.
   const requiresTelephone =
-    registrationMode !== 'standard' || (editing && customer.phone === '' && Boolean(customer.telephone))
+    registrationMode !== 'standard' ||
+    (editing && customer.phone === '' && Boolean(customer.telephone))
   const validationMode: RegistrationMode =
     requiresTelephone && registrationMode === 'standard' ? 'business_card' : registrationMode
   // 원본이 있으면 검수 화면이다. 열어 둔 채로 시작하고, 입력 공간이 필요하면 접는다.
@@ -414,10 +412,7 @@ export default function CustomerFormModal({
   const submit = async () => {
     if (submitting || companyLoading) return
 
-    const found = validate(
-      { draft, company, businessNo, address, assigneeIds },
-      validationMode,
-    )
+    const found = validate({ draft, company, businessNo, address, assigneeIds }, validationMode)
     setErrors(found)
     if (Object.keys(found).length > 0 || company === null) return
 
