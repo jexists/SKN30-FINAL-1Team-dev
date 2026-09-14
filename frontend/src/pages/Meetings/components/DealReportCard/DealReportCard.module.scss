@@ -19,17 +19,27 @@
 }
 
 @media print {
+  /*
+   * 딜 보고서는 한 쪽보다 깁니다. 쪼개지 못하게 막으면 넘치는 만큼 잘립니다.
+   * 대신 딜이 바뀌는 자리를 윗선 하나로 갈라 둡니다 — 면이 사라진 종이에서
+   * 앞 딜의 마지막 줄과 다음 딜의 머리가 붙어 읽히지 않게.
+   */
   .card {
     display: block;
-    margin-bottom: var(--s6);
+    margin: var(--s7) 0 0;
+    padding-top: var(--s5);
     overflow: visible;
     border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
     box-shadow: none;
-    break-inside: avoid;
+    print-color-adjust: exact;
   }
 
   .body {
     display: block;
+    padding-top: var(--s5);
     border-top: 1px solid var(--line);
   }
 }

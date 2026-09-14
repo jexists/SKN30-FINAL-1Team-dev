@@ -1,10 +1,9 @@
-import { useId } from 'react'
-
-import ReportBody from '@/components/ReportBody'
+import ReportView from '@/components/ReportView'
 import type { MeetingProgress, MeetingSharedNotes } from '@/types'
 
-import styles from './MeetingSharedPanel.module.scss'
+import EditableReport from './EditableReport'
 import GenerationProgress from './GenerationProgress'
+import styles from './MeetingSharedPanel.module.scss'
 
 interface Props {
   shared: MeetingSharedNotes | null
@@ -12,6 +11,9 @@ interface Props {
   generating?: boolean
   disabled?: boolean
   showCommon?: boolean
+  /** 공통·미지정 편집기를 각각 다시 세우는 값. 서로 커서를 밀지 않게 따로 셉니다. */
+  commonDocKey?: number
+  unassignedDocKey?: number
   onChange?: (commonBody: string, unassignedBody: string) => void
 }
 
@@ -21,16 +23,13 @@ export default function MeetingSharedPanel({
   generating = false,
   disabled = false,
   showCommon = false,
+  commonDocKey = 0,
+  unassignedDocKey = 0,
   onChange,
 }: Props) {
-  const id = useId()
   const commonBody = shared?.common_report?.body ?? ''
   const unassignedBody = shared?.unassigned_report?.body ?? ''
   const previews = progress?.previews.filter((preview) => preview.section !== 'deal') ?? []
-  const supporting =
-    onChange &&
-    !showCommon &&
-    (generating ? previews.length > 1 : shared?.common_report && shared?.unassigned_report)
   if (
     !showCommon &&
     !shared?.common_report &&
@@ -41,38 +40,19 @@ export default function MeetingSharedPanel({
     return null
 
   return (
-    <section
-      className={`${styles.panel} ${supporting ? styles.supporting : ''}`}
-      aria-label="미팅 공통·미지정 기록"
-      aria-busy={generating}
-    >
+    <section className={styles.panel} aria-label="미팅 공통·미지정 기록" aria-busy={generating}>
       <div className={styles.heading}>
         <h2>미팅 공통 기록</h2>
         {onChange && <span>미팅 공통 내용과 확인이 필요한 기록</span>}
       </div>
-      {generating && previews.length === 0 && (
-        <div className={styles.section}>
-          <GenerationProgress
-            progress={progress}
-            stageResults={progress?.stage_results}
-            showStages={false}
-          />
-        </div>
-      )}
       {previews.map((preview) => (
         <div
           className={`${styles.section} ${preview.section === 'unassigned' ? styles.needsReview : ''}`}
           key={preview.section}
         >
-          <p className={styles.note}>
-            {preview.section === 'common' ? '공통 내용' : '딜 미지정 · 확인 필요'}
-          </p>
-          <GenerationProgress
-            progress={progress}
-            preview={preview}
-            stageResults={progress?.stage_results}
-            showStages={false}
-          />
+          {/* 판 머리가 이미 '미팅 공통 기록' 입니다. 갈래가 다른 미지정 기록에만 이름을 답니다. */}
+          {preview.section === 'unassigned' && <p className={styles.note}>딜 미지정 · 확인 필요</p>}
+          <GenerationProgress feed={false} progress={progress} preview={preview} />
         </div>
       ))}
 
@@ -83,6 +63,7 @@ export default function MeetingSharedPanel({
             title: '공통 내용',
             report: shared?.common_report,
             value: commonBody,
+            docKey: commonDocKey,
             change: (value: string) => onChange?.(value, unassignedBody),
           },
           {
@@ -95,6 +76,7 @@ export default function MeetingSharedPanel({
             title: onChange ? '딜 미지정 · 확인 필요' : '딜 미지정 기록',
             report: shared?.unassigned_report,
             value: unassignedBody,
+            docKey: unassignedDocKey,
             change: (value: string) => onChange?.(commonBody, value),
           },
         ]
@@ -108,20 +90,16 @@ export default function MeetingSharedPanel({
             >
               {onChange ? (
                 <>
-                  <label htmlFor={id + part.key}>{part.title}</label>
-                  <textarea
-                    id={id + part.key}
-                    rows={showCommon && part.key === 'common' ? 6 : 3}
-                    value={part.value}
+                  {/* 딜 본문과 같은 방식입니다 — 읽다가 누르면 그 자리에서 고칩니다.
+                      이름은 읽는 화면과 같은 규칙으로, 미지정 기록에만 답니다. */}
+                  {part.key === 'unassigned' && <p className={styles.note}>{part.title}</p>}
+                  <EditableReport
+                    body={part.value}
+                    docKey={part.docKey}
                     disabled={disabled}
-                    placeholder="기록된 내용이 없습니다."
-                    onChange={(event) => part.change(event.target.value)}
+                    onChange={part.change}
+                    aria-label={`${part.title} 고치기`}
                   />
-                  {part.value.trim() ? (
-                    <ReportBody className={styles.printText} body={part.value} />
-                  ) : (
-                    <p className={`${styles.printText} ${styles.empty}`}>기록된 내용 없음</p>
-                  )}
                 </>
               ) : (
                 <>
@@ -129,7 +107,7 @@ export default function MeetingSharedPanel({
                       붙이지 않고, 갈래가 다른 미지정 기록에만 이름을 답니다. */}
                   {part.key === 'unassigned' && <h3>{part.title}</h3>}
                   {part.value.trim() ? (
-                    <ReportBody className={styles.text} body={part.value} />
+                    <ReportView body={part.value} />
                   ) : (
                     <p className={styles.empty}>기록된 내용 없음</p>
                   )}

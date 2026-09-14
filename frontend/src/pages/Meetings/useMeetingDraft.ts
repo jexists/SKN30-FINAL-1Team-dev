@@ -48,6 +48,21 @@ export interface DealDraftState {
 export interface MeetingResultState {
   runId?: string
   shared?: MeetingSharedNotes
+  /*
+   * 공통·미지정 편집기를 다시 세워야 할 때 올라갑니다. 둘을 따로 세는 이유는
+   * setShared 가 키 입력마다 두 본문을 함께 다시 쓰기 때문입니다 — 공용 카운터
+   * 하나면 한쪽을 칠 때마다 다른 쪽 편집기가 다시 서서 커서가 처음으로 돌아갑니다.
+   */
+  commonDocKey?: number
+  unassignedDocKey?: number
+}
+
+/** 본문을 통째로 갈아 끼울 때만 올립니다. 사람이 치는 동안에는 절대 바뀌지 않아야 합니다. */
+function nextSharedKeys(current: MeetingResultState | null) {
+  return {
+    commonDocKey: (current?.commonDocKey ?? 0) + 1,
+    unassignedDocKey: (current?.unassignedDocKey ?? 0) + 1,
+  }
 }
 
 /** 원문·첨부·선택 딜이 바뀌면 이전 입력의 AgentRun을 최종 제출에 연결하지 않습니다. */
@@ -151,10 +166,9 @@ function stateOf(
 }
 
 function meetingResultOf(report?: MeetingReport): MeetingResultState | null {
+  // 불러온 본문도 통째로 들어오는 것입니다. 기본값(0)과 갈라 두어 편집기가 새 값으로 섭니다.
   return report?.meetingShared
-    ? {
-        shared: report.meetingShared,
-      }
+    ? { shared: report.meetingShared, commonDocKey: 1, unassignedDocKey: 1 }
     : null
 }
 
@@ -212,6 +226,8 @@ export default function useMeetingDraft(
   const [salesDealIds, setSalesDealIds] = useState<string[]>([])
   const [draftsByDeal, setDraftsByDeal] = useState<Record<string, DealDraftState>>({})
   const [meetingResult, setMeetingResult] = useState<MeetingResultState | null>(null)
+  /** 지금 화면의 본문을 AI 가 썼는지. 저장본을 열어 읽을 때는 내려갑니다. */
+  const [aiFilled, setAiFilled] = useState(false)
   const invalidateGeneration = useCallback(() => {
     setMeetingResult(invalidateMeetingGeneration)
     onInputChange?.()
@@ -257,6 +273,7 @@ export default function useMeetingDraft(
     )
     setReportDate(savedReport?.date)
     setMeetingResult(result)
+    setAiFilled(false)
     setProcessingProgress(null)
     confirmedProgress.current = null
     setAttachmentError(null)
@@ -405,8 +422,12 @@ export default function useMeetingDraft(
           }),
         ),
       )
+      setAiFilled(
+        Boolean(output.reports) || dealIds.some((dealId) => generatedDealOf(output, dealId).report),
+      )
       setMeetingResult((current) => ({
         runId,
+        ...(output.reports ? nextSharedKeys(current) : {}),
         shared: output.reports
           ? {
               common_report: output.reports.common_report,
@@ -422,6 +443,8 @@ export default function useMeetingDraft(
     (dealIds: string[]) => {
       const confirmed = confirmedProgress.current?.confirmed_previews ?? []
       setProcessingProgress(null)
+      // 중단 전까지 AI 가 쓴 본문을 그대로 이어 씁니다 — 여전히 AI 가 쓴 글입니다.
+      if (confirmed.length > 0) setAiFilled(true)
       setDraftsByDeal((previous) => {
         const restored = restoreConfirmedPreviewState(
           previous,
@@ -441,7 +464,7 @@ export default function useMeetingDraft(
           fallbackTitle,
         )
         return restored.adopted
-          ? { ...current, runId: undefined, shared: restored.shared }
+          ? { ...current, ...nextSharedKeys(current), runId: undefined, shared: restored.shared }
           : current
       })
     },
@@ -500,6 +523,7 @@ export default function useMeetingDraft(
     restoreGenerationInput,
     draftsByDeal,
     meetingResult,
+    aiFilled,
     processingProgress,
     receiveProgress,
     setTitle: (id: string, title: string) =>

@@ -116,6 +116,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     setAttachmentError,
   } = files
   const [values, setValues] = useState<Record<string, string>>({ body: '' })
+  /** 본문이 밖에서 통째로 갈릴 때만 올립니다. 타자마다 올리면 편집기가 매번 다시 섭니다. */
+  const [docKey, setDocKey] = useState(0)
   const [approver, setApprover] = useState<string>(APPROVERS[0] ?? '')
   const [aiFilledIds, setAiFilledIds] = useState<ReadonlySet<string>>(new Set())
   const [dirtyIds, setDirtyIds] = useState<ReadonlySet<string>>(new Set())
@@ -141,6 +143,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     }
     const body = restored.values.body
     setValues((current) => ({ ...current, body }))
+    setDocKey((key) => key + 1)
     setGenerationRunId(undefined)
     setAiFilledIds((current) => {
       const next = new Set(current)
@@ -208,6 +211,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     setAttachmentError(null)
     setTranscript(saved?.transcript ?? '')
     setValues({ body: saved?.values.body ?? '' })
+    setDocKey((key) => key + 1)
     setApprover(saved?.approver ?? APPROVERS[0] ?? '')
     setAiFilledIds(new Set())
     setDirtyIds(new Set())
@@ -287,6 +291,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     ) => {
       const generated = mergeGeneratedValues(fields)
       setValues(generated)
+      setDocKey((key) => key + 1)
       setAiFilledIds(generated.body ? new Set(['body']) : new Set())
       setDirtyIds(new Set())
       setGenerationRunId(runId)
@@ -305,6 +310,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
       setAttachmentError(null)
       setTranscript(restored.transcript)
       setValues(restored.values)
+      setDocKey((key) => key + 1)
       setApprover(restored.approver || APPROVERS[0] || '')
       setAiFilledIds(new Set())
       setDirtyIds(new Set())
@@ -374,6 +380,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     setGenerationError(null)
     setGenerationProgress(null)
     confirmedProgress.current = null
+    // 새 초안에는 새 검토가 붙습니다. 직전 실행의 근거를 이 초안의 것으로 보여 주지 않습니다.
+    setGenerationEvidence(null)
     const previous = generationPayload()
     const payload = {
       ...previous,
@@ -530,6 +538,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     attachmentsPending: files.pending,
     values,
     setValue,
+    docKey,
     approver,
     setApprover,
     aiFilledIds,
@@ -538,6 +547,8 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     generate,
     recovering,
     generationRunId,
+    /** 지금 돌고 있는 run. 생성 중단 버튼은 이 값으로만 섭니다 — generationRunId 는 끝난 뒤에 섭니다. */
+    activeRunId,
     cancelGeneration: cancellation.cancel,
     cancelling: cancellation.cancelling,
     cancelled: cancellation.cancelled,

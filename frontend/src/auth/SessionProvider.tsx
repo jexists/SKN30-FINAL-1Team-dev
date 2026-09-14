@@ -15,13 +15,29 @@ interface AuthUser {
   display_name: string
   role_code: Session['role']
   job_title: string | null
+  team_name: string | null
+  company_name: string | null
+  department: string | null
   is_admin: boolean
 }
 
-const toSession = ({ id, display_name, role_code, job_title, is_admin }: AuthUser): Session => ({
+const toSession = ({
+  id,
+  display_name,
+  role_code,
+  job_title,
+  company_name,
+  department,
+  is_admin,
+}: AuthUser): Session => ({
   role: role_code,
   memberId: id,
-  profile: { name: display_name, title: job_title ?? '' },
+  profile: {
+    name: display_name,
+    title: job_title ?? '',
+    department: department ?? '',
+    company: company_name ?? '',
+  },
   isAdmin: is_admin,
 })
 

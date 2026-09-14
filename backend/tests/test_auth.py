@@ -20,7 +20,7 @@ from app.api.auth import _login_limiter, _reserve_login_attempt
 from app.core.config import Settings, settings
 from app.db.session import get_db
 from app.main import app
-from app.models.workspace import Member
+from app.models.workspace import Member, Team
 from app.services import supabase_auth
 
 ORIGIN = settings.cors_origin_list[0]
@@ -137,13 +137,22 @@ def auth_environment(monkeypatch):
 
 
 def _member(*, active: bool = True, role_code: str = "manager") -> Member:
+    # 회사명·부서는 팀의 값이고 세션 응답이 그대로 나른다. 팀 없이 만들지 않는다.
+    team = Team(
+        id=uuid4(),
+        name="영업1팀",
+        company_name="세일즈럽",
+        department="영업본부",
+        business_no=None,
+    )
     return Member(
         id=AUTH_USER_ID,
-        team_id=uuid4(),
+        team_id=team.id,
         display_name="합성 팀장",
         role_code=role_code,
         job_title="영업팀장",
         active=active,
+        team=team,
     )
 
 
@@ -196,6 +205,10 @@ def test_login_sets_token_cookies_and_a_readable_session_hint(monkeypatch):
         "display_name": "합성 팀장",
         "role_code": "manager",
         "job_title": "영업팀장",
+        # 회사명·부서는 구성원이 아니라 팀의 값이다. 보고서 머리표가 쓴다.
+        "team_name": "영업1팀",
+        "company_name": "세일즈럽",
+        "department": "영업본부",
         # ADMIN_USER_IDS 가 비어 있으므로 어드민이 아니다.
         "is_admin": False,
     }
@@ -353,6 +366,10 @@ def test_verified_token_resolves_the_linked_member(monkeypatch):
     assert me.status_code == 200
     assert me.json()["id"] == str(member.id)
     assert member.id == AUTH_USER_ID
+    # 보고서 머리표가 쓰는 값. 팀에서 와서 세션 응답에 실린다.
+    assert me.json()["team_name"] == "영업1팀"
+    assert me.json()["company_name"] == "세일즈럽"
+    assert me.json()["department"] == "영업본부"
 
 
 def test_unlinked_or_inactive_member_is_forbidden(monkeypatch):

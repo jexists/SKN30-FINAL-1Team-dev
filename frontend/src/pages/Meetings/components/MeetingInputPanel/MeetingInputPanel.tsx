@@ -61,13 +61,13 @@ export default function MeetingInputPanel({
     <div className={styles.root}>
       <section className={styles.block}>
         <div className={styles.blockHead}>
-          <h2>
+          <h3>
             미팅 원문
             <span className={styles.required} aria-hidden="true">
               *
             </span>
             <span className="sr-only">필수</span>
-          </h2>
+          </h3>
           <InfoHint text="보고서의 근거가 되는 원본 기록입니다. 녹음·이미지·PDF·직접 입력 중 하나만 넣어도 됩니다." />
         </div>
 
@@ -138,7 +138,7 @@ export default function MeetingInputPanel({
 
       <section className={styles.block}>
         <div className={styles.blockHead}>
-          <h2>보고서 참고자료</h2>
+          <h3>보고서 참고자료</h3>
           <InfoHint text="선택 입력입니다. 배경자료로만 쓰며 미팅 발언으로 사용하지 않습니다." />
         </div>
         <AttachmentPanel

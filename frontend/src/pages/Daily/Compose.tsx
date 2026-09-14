@@ -2,8 +2,10 @@
 import { useCallback, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
+import { useCurrentUser } from '@/auth/sessionContext'
 import Button, { buttonClass } from '@/components/Button'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import ColumnHead from '@/components/ColumnHead'
 import DayHeader from '@/components/DayHeader'
 import ErrorToast from '@/components/ErrorToast'
 import FormField from '@/components/FormField'
@@ -13,16 +15,18 @@ import {
   DownloadIcon,
   InfoIcon,
   RefreshIcon,
+  StopIcon,
 } from '@/components/icons'
 import Modal from '@/components/Modal'
-import ReportFields from '@/components/ReportFields'
+import ReportDocHeader from '@/components/ReportDocHeader'
 import ReportReviewWarning from '@/components/ReportReviewWarning'
 import Skeleton from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import { dailyComposePath, dailyReportPath } from '@/constants/routes'
+import useTeamMembers from '@/hooks/useTeamMembers'
 import { reportTextLength } from '@/shared/reports'
 import type { ReportKind } from '@/types'
-import { fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
+import { fmtDay, fmtDot, parseISO, TODAY_ISO } from '@/utils/date'
 
 import ActivityList from './components/ActivityList'
 import DailyListLink from './components/DailyListLink'
@@ -30,8 +34,9 @@ import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod, PERIOD_KIND, periodLabelFor, periodStart, toPeriod } from './periods'
 import useDailyDraft from './useDailyDraft'
 import useDailyReports from './useDailyReports'
+import EditableReport from '../Meetings/components/EditableReport'
 import GenerationProgress from '../Meetings/components/GenerationProgress'
-import StageResults from '../Meetings/components/GenerationProgress/StageResults'
+import useStickToBottom from '../Meetings/components/GenerationProgress/useStickToBottom'
 
 import styles from './Compose.module.scss'
 
@@ -63,6 +68,12 @@ export default function Compose() {
   const dateISO = periodStart(kind, params.get('date') ?? TODAY_ISO)
 
   const draft = useDailyDraft(dateISO, kind)
+  // 보고서 머리표가 쓰는 값입니다. 부서·회사는 팀의 값이라 구성원마다 같습니다.
+  const { profile } = useCurrentUser()
+  // 보고 대상 이름은 사람이 머리표에서 적습니다. 다만 검토 요청은 팀장에게 가므로
+  // 가리키는 사람은 팀장으로 고정합니다 — 팀장은 팀당 한 명입니다.
+  const { members } = useTeamMembers()
+  const manager = members.find((member) => member.role_code === 'manager')
   const { submitReport, pending, error } = useDailyReports()
   const loadError = draft.error ?? error
 
@@ -82,8 +93,16 @@ export default function Compose() {
   const hasWork = draft.phase !== 'idle' || draft.dirtyIds.size > 0 || draft.transcript.length > 0
   // 생성 버튼이 머리말에 서므로 '지금 만들 수 있는가'와 '이미 만든 것이 있는가'를 한 곳에서 봅니다.
   const generating = draft.phase === 'generating'
+  // 글이 자라는 동안 스크롤 상자가 바닥을 따라갑니다. 표식은 .reports 의 마지막 자식입니다.
+  const streamEnd = useStickToBottom(generating)
+  // 검토·수정이 남긴 말만 검토 메모로 갑니다. 나머지는 진행 상황입니다.
+  const reviewNotes = (draft.generationProgress?.stage_results ?? [])
+    .filter((item) => item.stage === 'review_initial' || item.stage === 'repair')
+    .map((item) => item.body)
   const busy = locked || pending || draft.recovering || generating
   const hasDraftContent = draft.phase === 'ready'
+  // 양식지의 첫 줄. 주간·월간은 덮는 기간을, 일일은 그날을 세웁니다.
+  const docTitle = `${periodLabel ?? fmtDay(parseISO(dateISO))} ${kind} 업무 보고서`
   // 등록 단계에서는 아직 만든 것이 없습니다. 결과 자리를 비워 두지 않고 한 열만 씁니다.
   const showWork = !draft.hasAiFields || draft.phase !== 'idle'
 
@@ -94,6 +113,8 @@ export default function Compose() {
     date: dateISO,
     kind,
     approver: draft.approver,
+    // 문서에 적힌 이름과 별개로, 제출하면 검토 요청은 팀장에게 갑니다.
+    approverId: manager?.id ?? null,
     values: draft.values,
     activities: draft.activities,
     attachments: draft.attachments,
@@ -224,7 +245,7 @@ export default function Compose() {
   }
 
   return (
-    <section className={showWork ? styles.page : `${styles.page} ${styles.pageSolo}`}>
+    <section className={styles.page}>
       <h1 className="sr-only">{kind}업무보고 작성</h1>
 
       {/*
@@ -239,6 +260,16 @@ export default function Compose() {
           {draft.generationError && !generating && (
             <p className={styles.headNote} role="alert">
               {draft.generationError}
+            </p>
+          )}
+          {draft.cancelError && (
+            <p className={styles.headNote} role="alert">
+              {draft.cancelError}
+            </p>
+          )}
+          {draft.cancelled && (
+            <p className={styles.headNote} role="status">
+              생성이 중단되었습니다.
             </p>
           )}
         </div>
@@ -264,6 +295,23 @@ export default function Compose() {
                 'AI 보고서 작성'
               )}
             </Button>
+
+            {/*
+              멈추는 길은 시작한 자리 바로 옆입니다 — 미팅 작성 화면과 같습니다.
+              도는 run 은 activeRunId 입니다. generationRunId 는 끝난 뒤에야 서므로
+              그것으로 게이팅하면 첫 생성에서 이 버튼이 나오지 않습니다.
+            */}
+            {(generating || draft.recovering) && draft.activeRunId && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={draft.cancelling}
+                onClick={() => void draft.cancelGeneration()}
+              >
+                <StopIcon />
+                {draft.cancelling ? '중단 중…' : '생성 중단'}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -283,8 +331,6 @@ export default function Compose() {
           <p>{existing.reviewNote}</p>
         </div>
       )}
-      {!generating && <ReportReviewWarning evidence={draft.generationEvidence} />}
-
       {locked && existing && (
         <p className={styles.locked}>
           {periodLabel ?? fmtDot(parseISO(dateISO))} 보고서는 이미 제출했습니다 · {existing.status}.{' '}
@@ -302,22 +348,29 @@ export default function Compose() {
         }
       >
         <div className={styles.side}>
-          {/* 접으면 판째로 사라지므로 다시 펴는 손잡이만 왼쪽 레일에 남깁니다. */}
-          {showWork && sideCollapsed && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              iconOnly
-              className={styles.sideToggle}
-              aria-expanded={false}
-              aria-controls="period-compose-side"
-              aria-label="관련 보고서·참고자료 펼치기"
-              onClick={() => setSideCollapsed(false)}
-            >
-              <ChevronRightIcon width={15} height={15} />
-            </Button>
-          )}
+          {/* 왼쪽 열 전체의 머리. 접기 손잡이는 아래 판들이 아니라 이 열을 여닫습니다.
+              접으면 제목은 물러나고 손잡이만 레일로 남습니다. */}
+          <ColumnHead title={!sideCollapsed && '보고서 작성 자료'} bare={sideCollapsed}>
+            {showWork && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                iconOnly
+                className={styles.sideToggle}
+                aria-expanded={!sideCollapsed}
+                aria-controls="period-compose-side"
+                aria-label={sideCollapsed ? '보고서 작성 자료 펼치기' : '보고서 작성 자료 접기'}
+                onClick={() => setSideCollapsed((collapsed) => !collapsed)}
+              >
+                {sideCollapsed ? (
+                  <ChevronRightIcon width={15} height={15} />
+                ) : (
+                  <ChevronLeftIcon width={15} height={15} />
+                )}
+              </Button>
+            )}
+          </ColumnHead>
           <div
             id="period-compose-side"
             className={
@@ -332,22 +385,6 @@ export default function Compose() {
                   <InfoIcon width={14} height={14} aria-hidden="true" />
                   작성 완료된 {sourceKind} 보고서만 반영됩니다.
                 </span>
-                {/* 접을 상대는 보고서 열입니다. 등록 단계에는 아직 없어 손잡이도 서지 않습니다. */}
-                {showWork && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    iconOnly
-                    className={styles.collapseAction}
-                    aria-expanded
-                    aria-controls="period-compose-side"
-                    aria-label="관련 보고서·참고자료 접기"
-                    onClick={() => setSideCollapsed(true)}
-                  >
-                    <ChevronLeftIcon width={15} height={15} />
-                  </Button>
-                )}
               </h2>
               {/*
               날짜가 이 카드의 머리말입니다. 주간·월간은 하루가 아니라 덮는 기간을 세우고,
@@ -432,36 +469,6 @@ export default function Compose() {
                     AI 보고서 작성 버튼을 다시 눌러야 반영됩니다.
                   </span>
                 </FormField>
-                <Button
-                  type="button"
-                  className={styles.generate}
-                  disabled={
-                    locked ||
-                    pending ||
-                    draft.recovering ||
-                    !draft.canGenerate ||
-                    draft.phase === 'generating'
-                  }
-                  onClick={onGenerate}
-                >
-                  {draft.phase === 'generating' ? 'AI 보고서 작성 중…' : 'AI 보고서 작성'}
-                </Button>
-                {draft.phase === 'generating' && draft.generationRunId && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={draft.cancelling}
-                    onClick={() => void draft.cancelGeneration()}
-                  >
-                    {draft.cancelling ? '중단 중…' : '생성 중단'}
-                  </Button>
-                )}
-                {draft.cancelError && (
-                  <p className={styles.failed} role="alert">
-                    {draft.cancelError}
-                  </p>
-                )}
-                {draft.cancelled && <p role="status">생성이 중단되었습니다.</p>}
               </div>
             )}
           </div>
@@ -470,51 +477,95 @@ export default function Compose() {
         {/* 화면에서 유일하게 떠 있는 면. 그것만으로 "내는 것은 여기" 가 전달됩니다. */}
         {showWork && (
           <div className={styles.work}>
+            {/* 왼쪽 열 머리와 같은 줄에 섭니다. 오른쪽 끝은 이 문서를 종이로 내보내는 자리입니다. */}
+            <ColumnHead
+              title={
+                <>
+                  보고서 작성
+                  {/* 어디까지가 AI 가 쓴 것인지. 문서 안이 아니라 이 열의 머리에서 말합니다. */}
+                  {draft.aiFilledIds.has('body') && <span className={styles.aiBadge}>AI 작성</span>}
+                </>
+              }
+            >
+              <Button
+                variant="outline"
+                type="button"
+                size="sm"
+                className={styles.pdfButton}
+                disabled={draft.phase === 'idle' || draft.phase === 'generating'}
+                onClick={() => window.print()}
+              >
+                <DownloadIcon width={15} height={15} />
+                PDF 다운로드
+              </Button>
+            </ColumnHead>
+            {/* 끝난 뒤에 남는 한 줄. 생성 중에는 흐름 맨 아래에서 쌓입니다. */}
+            {!generating && <ReportReviewWarning evidence={draft.generationEvidence} />}
             <div className={styles.reports}>
-              <article className={styles.sheet}>
-                {draft.phase === 'generating' ? (
-                  <GenerationProgress
-                    progress={draft.generationProgress}
-                    previews={draft.generationProgress?.previews}
-                    stageResults={draft.generationProgress?.stage_results}
-                    preview={draft.generationProgress?.previews.find(
-                      (item) => item.section === 'body',
-                    )}
-                    reportKind="period"
-                  />
-                ) : (
-                  <>
-                    <ReportFields
-                      template={draft.template}
-                      values={draft.values}
-                      aiFilledIds={draft.aiFilledIds}
-                      readOnly={locked || draft.recovering}
-                      onChange={draft.setValue}
+              {draft.phase === 'generating' ? (
+                <GenerationProgress
+                  feed="steps"
+                  progress={draft.generationProgress}
+                  previews={draft.generationProgress?.previews}
+                  preview={draft.generationProgress?.previews.find(
+                    (item) => item.section === 'body',
+                  )}
+                  reportKind="period"
+                />
+              ) : (
+                <>
+                  {/* 다 쓰인 뒤에는 양식지가 됩니다. 이 머리표가 그대로 PDF 의 머리글입니다. */}
+                  {draft.phase !== 'idle' && (
+                    <ReportDocHeader
+                      title={docTitle}
+                      author={profile.name}
+                      jobTitle={profile.title}
+                      department={profile.department}
+                      company={profile.company}
+                      writtenOn={fmtDot(parseISO(TODAY_ISO))}
+                      approver={draft.approver}
+                      onApproverChange={locked ? undefined : draft.setApprover}
                     />
-                    <StageResults progress={draft.generationProgress} />
-
-                    {/* 제출을 막는 이유만 답니다. 낼 수 있을 때는 버튼이 스스로 말합니다. */}
-                    {draft.missing.length > 0 && (
-                      <p className={styles.missing}>제출 전 확인: {draft.missing.join(', ')}</p>
-                    )}
-                  </>
-                )}
-              </article>
+                  )}
+                  {/* 평소에는 문서로 읽고, 누르면 그 자리에서 고칩니다 — 미팅 보고서와 같습니다. */}
+                  <EditableReport
+                    body={draft.values.body ?? ''}
+                    docKey={draft.docKey}
+                    disabled={locked || draft.recovering}
+                    onChange={(body) => draft.setValue('body', body)}
+                    placeholder={draft.template.fields[0]?.placeholder}
+                    aria-label="보고서 본문 고치기"
+                  />
+                  {/* 제출을 막는 이유만 답니다. 낼 수 있을 때는 버튼이 스스로 말합니다. */}
+                  {draft.missing.length > 0 && (
+                    <p className={styles.missing}>제출 전 확인: {draft.missing.join(', ')}</p>
+                  )}
+                </>
+              )}
+              {/* 검토는 초안 다음에 일어납니다. 도착 순서대로 흐름 맨 아래에 쌓입니다. */}
+              {generating && (
+                <ReportReviewWarning
+                  evidence={draft.generationEvidence}
+                  generating
+                  notes={reviewNotes}
+                />
+              )}
+              {/* 지금 하는 일은 늘 마지막 글입니다. 바닥까지 내려 읽어도 이 줄이 보입니다. */}
+              {generating && (
+                <GenerationProgress
+                  feed="live"
+                  progress={draft.generationProgress}
+                  reportKind="period"
+                />
+              )}
+              {generating && (
+                <div ref={streamEnd} className={styles.streamEnd} aria-hidden="true" />
+              )}
             </div>
 
-            {/* 이 화면의 제출 지점입니다. 왼쪽은 종이로 뽑는 길, 오른쪽이 내는 길입니다. */}
+            {/* 이 화면의 제출 지점입니다. 종이로 뽑는 길은 이 열의 머리에 있습니다. */}
             <div className={styles.saveBar}>
               <div className={styles.saveActions}>
-                <Button
-                  variant="outline"
-                  type="button"
-                  className={styles.pdfButton}
-                  disabled={draft.phase === 'idle' || draft.phase === 'generating'}
-                  onClick={() => window.print()}
-                >
-                  <DownloadIcon width={15} height={15} />
-                  PDF 다운로드
-                </Button>
                 <Button
                   type="button"
                   className={styles.submit}

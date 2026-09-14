@@ -21,7 +21,14 @@ import {
   waitForMeetingProcessing,
 } from '@/api/reportAgent'
 import Button from '@/components/Button'
-import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon } from '@/components/icons'
+import ColumnHead from '@/components/ColumnHead'
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DownloadIcon,
+  RefreshIcon,
+  StopIcon,
+} from '@/components/icons'
 import Modal from '@/components/Modal'
 import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import ReportReviewWarning from '@/components/ReportReviewWarning'
@@ -39,13 +46,15 @@ import type {
   ReportGenerationInput,
 } from '@/types'
 import { attachmentPayloadsOf, meetingAttachmentPurposeOf } from '@/utils/attachment'
+import { fmtDot, parseISO } from '@/utils/date'
 
 import DealReportCard from './components/DealReportCard'
 import MeetingInfoPanel from './components/MeetingInfoPanel'
 import MeetingDealForm from './components/MeetingDealForm'
 import MeetingInputPanel from './components/MeetingInputPanel'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
-import StageResults from './components/GenerationProgress/StageResults'
+import GenerationProgress from './components/GenerationProgress'
+import useStickToBottom from './components/GenerationProgress/useStickToBottom'
 import useMeetingDraft, { hasMeetingDraftContent, isMeetingBodyBlank } from './useMeetingDraft'
 import useMeetingReports, {
   type MeetingDealDraftPayload,
@@ -333,6 +342,11 @@ export default function Compose() {
     setConfirm(null)
   }, [agendaId, item?.customerCompanyId])
 
+  const streaming = generating || recovering
+  // 글이 자라는 동안 스크롤 상자가 바닥을 따라갑니다. 표식은 .reports 의 마지막 자식입니다.
+  // 아래 이른 반환보다 앞에 서야 합니다 — 훅은 렌더마다 같은 순서로 불려야 합니다.
+  const streamEnd = useStickToBottom(streaming)
+
   if (agendaLoading || loading) {
     return (
       <section>
@@ -498,6 +512,8 @@ export default function Compose() {
     stopAnalysisWatch()
     setGenerating(true)
     beginGeneration(targets)
+    // 새 초안에는 새 검토가 붙습니다. 직전 실행의 근거를 이 초안의 것으로 보여 주지 않습니다.
+    setGenerationEvidence(null)
     setRunError(null)
     setRunErrors({})
     setRestored(false)
@@ -628,23 +644,131 @@ export default function Compose() {
     }
   }
 
+  /*
+   * 생성 중에는 빈 상자를 미리 세우지 않습니다. 제 내용이 도착한 상자만 나타나고,
+   * 상자가 차례로 생겨나는 것 자체가 진행 표시입니다 — 그래서 상자 안마다 같은
+   * 진행 문구를 또 둘 이유가 없습니다.
+   */
+  const previewOf = (section: string, dealId?: string) =>
+    draft.processingProgress?.previews.some(
+      (preview) =>
+        (dealId ? preview.section === 'deal' : preview.section === section) &&
+        (dealId ? preview.sales_deal_id === dealId : true),
+    ) ?? false
+  const sharedArrived = previewOf('common') || previewOf('unassigned')
+  /*
+   * 지금 서버가 손대고 있는 자리. 위에서 글이 제자리로 바뀌는 동안 아래 줄이 '어디인지'를
+   * 말해 줍니다. 진행 데이터에 대상 이름은 없고, 흐르는 중인 preview 가 유일한 신호입니다.
+   */
+  const liveTarget = (draft.processingProgress?.previews ?? [])
+    .filter((preview) => preview.preview_state === 'streaming')
+    .map((preview) => {
+      if (preview.section === 'common') return '미팅 공통 기록'
+      if (preview.section === 'unassigned') return '딜 미지정 기록'
+      const deal = deals.deals.find((one) => one.id === preview.sales_deal_id)
+      // 카드와 같은 이름을 씁니다(DealReportCard.tsx). 위아래가 다른 이름을 부르면 못 잇습니다.
+      return deal ? deal.title.trim() || deal.product : null
+    })
+    .filter(Boolean)
+    .join(' · ')
+  // ML 판정은 딜마다 돌지만 알릴 것은 하나입니다. 카드마다 띄우지 않고 전체 로그에 한 줄.
+  const analysing = draft.salesDealIds.filter(
+    (dealId) => draft.draftsByDeal[dealId]?.analysisPhase === 'running',
+  ).length
+  const analysisRows = analysing
+    ? [
+        {
+          key: 'ml',
+          label: '성사 가능성 분석 중',
+          state: 'running' as const,
+          detail: draft.salesDealIds.length > 1 ? `딜 ${analysing}개` : undefined,
+        },
+      ]
+    : []
+
+  // 검토·수정 단계가 남긴 말만 검토 메모로 보냅니다. 자료 정리·근거 분류는
+  // 사람이 확인할 것이 아니라 진행 상황이므로 활동 줄에 남습니다.
+  const reviewNotes = (draft.processingProgress?.stage_results ?? [])
+    .filter((item) => item.stage === 'review_initial' || item.stage === 'repair')
+    .map((item) => item.body)
+
   const printable =
     hasSharedBody ||
     draft.salesDealIds.some((dealId) => draft.draftsByDeal[dealId]?.phase === 'ready')
 
   return (
-    <section className={showWork ? styles.page : `${styles.page} ${styles.pageSolo}`}>
+    <section className={styles.page}>
       <h1 className="sr-only">
         {item.hospital} {item.title} 미팅 보고서 작성
       </h1>
 
-      {!generating && !recovering && <ReportReviewWarning evidence={generationEvidence} />}
-
+      {/* 어느 미팅을 쓰는 중인지 화면 맨 위에서 바로 읽힙니다. 일시는 제목 아래 한 줄로 붙습니다. */}
       <div className={styles.head}>
-        <Link className={styles.back} to={meetingPickPath(item.date)}>
-          <ChevronLeftIcon width={15} height={15} />
-          미팅 리스트
-        </Link>
+        <div className={styles.heading}>
+          <Link className={styles.back} to={meetingPickPath(item.date)}>
+            <ChevronLeftIcon width={15} height={15} />
+            미팅 리스트
+          </Link>
+          <div className={styles.headingMain}>
+            <div className={styles.headingText}>
+              <h1 className={styles.title}>
+                {item.hospital || '회사 미지정'}
+                {item.title && <span> · {item.title}</span>}
+              </h1>
+              <p className={styles.meta}>
+                {fmtDot(parseISO(meetingDate))} {meetingTime}
+                {item.contact ? ` · ${item.contact}` : ''}
+              </p>
+            </div>
+            <div className={styles.headActions}>
+              {/* 작성 시작 지점입니다. 이미 본문이 있으면 같은 버튼이 다시 생성으로 바뀝니다. */}
+              <Button
+                type="button"
+                variant={hasDraftContent ? 'outline' : 'primary'}
+                className={styles.generate}
+                aria-busy={generating || recovering}
+                onClick={requestGeneration}
+                disabled={
+                  busy ||
+                  !canEdit ||
+                  !draft.canGenerate ||
+                  Boolean(generationInputError) ||
+                  !generatable ||
+                  generating ||
+                  recovering
+                }
+              >
+                {generating || recovering ? (
+                  'AI 보고서 작성 중…'
+                ) : hasDraftContent ? (
+                  <>
+                    <RefreshIcon width={16} height={16} />
+                    AI 보고서 다시 생성
+                  </>
+                ) : (
+                  'AI 보고서 작성'
+                )}
+              </Button>
+              {(generating || recovering) && activeRunId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={cancellation.cancelling}
+                  onClick={() => void cancellation.cancel()}
+                >
+                  <StopIcon />
+                  {cancellation.cancelling ? '중단 중…' : '생성 중단'}
+                </Button>
+              )}
+              {cancellation.cancelError && (
+                <p className={styles.mutationError} role="alert">
+                  {cancellation.cancelError}
+                </p>
+              )}
+              {cancelledNotice && <p role="status">생성이 중단되었습니다.</p>}
+            </div>
+          </div>
+        </div>
 
         <div className={styles.headNotice}>
           {restored && !runError && (
@@ -669,53 +793,6 @@ export default function Compose() {
             </div>
           )}
         </div>
-
-        <div className={styles.headActions}>
-          {/* 작성 시작 지점입니다. 이미 본문이 있으면 같은 버튼이 다시 생성으로 바뀝니다. */}
-          <Button
-            type="button"
-            variant={hasDraftContent ? 'outline' : 'primary'}
-            className={styles.generate}
-            aria-busy={generating || recovering}
-            onClick={requestGeneration}
-            disabled={
-              busy ||
-              !canEdit ||
-              !draft.canGenerate ||
-              Boolean(generationInputError) ||
-              !generatable ||
-              generating ||
-              recovering
-            }
-          >
-            {generating || recovering ? (
-              'AI 보고서 작성 중…'
-            ) : hasDraftContent ? (
-              <>
-                <RefreshIcon width={16} height={16} />
-                AI 보고서 다시 생성
-              </>
-            ) : (
-              'AI 보고서 작성'
-            )}
-          </Button>
-          {(generating || recovering) && activeRunId && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={cancellation.cancelling}
-              onClick={() => void cancellation.cancel()}
-            >
-              {cancellation.cancelling ? '중단 중…' : '생성 중단'}
-            </Button>
-          )}
-          {cancellation.cancelError && (
-            <p className={styles.mutationError} role="alert">
-              {cancellation.cancelError}
-            </p>
-          )}
-          {cancelledNotice && <p role="status">생성이 중단되었습니다.</p>}
-        </div>
       </div>
 
       {lockedDealIds.length > 0 && (
@@ -735,23 +812,29 @@ export default function Compose() {
         }
       >
         <div className={styles.side}>
-          {/* 접기 손잡이는 미팅 정보 판의 머리에 있습니다. 접히면 그 판까지 사라지므로
-              다시 펴는 손잡이만 왼쪽 레일에 남깁니다. */}
-          {showWork && sideCollapsed && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              iconOnly
-              className={styles.sideToggle}
-              aria-expanded={false}
-              aria-controls="compose-side"
-              aria-label="미팅 정보·원문 펼치기"
-              onClick={() => setSideCollapsed(false)}
-            >
-              <ChevronRightIcon width={15} height={15} />
-            </Button>
-          )}
+          {/* 왼쪽 열 전체의 머리. 접기 손잡이는 아래 판들이 아니라 이 열을 여닫습니다.
+              접으면 제목은 물러나고 손잡이만 레일로 남습니다. */}
+          <ColumnHead title={!sideCollapsed && '보고서 작성 자료'} bare={sideCollapsed}>
+            {showWork && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                iconOnly
+                className={styles.sideToggle}
+                aria-expanded={!sideCollapsed}
+                aria-controls="compose-side"
+                aria-label={sideCollapsed ? '보고서 작성 자료 펼치기' : '보고서 작성 자료 접기'}
+                onClick={() => setSideCollapsed((collapsed) => !collapsed)}
+              >
+                {sideCollapsed ? (
+                  <ChevronRightIcon width={15} height={15} />
+                ) : (
+                  <ChevronLeftIcon width={15} height={15} />
+                )}
+              </Button>
+            )}
+          </ColumnHead>
           <div
             id="compose-side"
             className={
@@ -762,7 +845,6 @@ export default function Compose() {
               <MeetingInfoPanel
                 item={{ ...item, date: meetingDate, time: meetingTime }}
                 onOpenDetail={() => setDetailOpen(true)}
-                onCollapse={showWork ? () => setSideCollapsed(true) : undefined}
                 deals={deals.deals}
                 dealsLoading={deals.loading}
                 dealsError={deals.error}
@@ -807,18 +889,51 @@ export default function Compose() {
 
         {showWork && (
           <section className={styles.work} aria-label="미팅 보고서">
+            {/* 왼쪽 열 머리와 같은 줄에 섭니다. 오른쪽 끝은 이 문서를 종이로 내보내는 자리입니다. */}
+            <ColumnHead
+              title={
+                <>
+                  보고서 작성
+                  {/* 어디까지가 AI 가 쓴 것인지. 문서 안이 아니라 이 열의 머리에서 말합니다. */}
+                  {draft.aiFilled && <span className={styles.aiBadge}>AI 작성</span>}
+                </>
+              }
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={styles.pdfButton}
+                disabled={!printable || streaming}
+                onClick={() => window.print()}
+              >
+                <DownloadIcon width={15} height={15} />
+                PDF 다운로드
+              </Button>
+            </ColumnHead>
+            {/* 끝난 뒤에 남는 한 줄. 생성 중에는 흐름 맨 아래에서 쌓입니다. */}
+            <div className={styles.reviewMemo}>
+              {!streaming && <ReportReviewWarning evidence={generationEvidence} />}
+            </div>
             <div className={styles.reports}>
-              <StageResults progress={draft.processingProgress} />
-              {(draft.salesDealIds.length === 0 ||
-                result ||
-                draft.processingProgress ||
-                generating) && (
+              {(streaming || analysing > 0) && (
+                <GenerationProgress
+                  feed="steps"
+                  progress={draft.processingProgress}
+                  extras={analysisRows}
+                />
+              )}
+              {(streaming
+                ? sharedArrived
+                : draft.salesDealIds.length === 0 || result || draft.processingProgress) && (
                 <MeetingSharedPanel
                   shared={result?.shared ?? null}
                   progress={draft.processingProgress}
                   generating={generating || recovering}
                   disabled={busy}
                   showCommon={draft.salesDealIds.length === 0}
+                  commonDocKey={result?.commonDocKey}
+                  unassignedDocKey={result?.unassignedDocKey}
                   onChange={canEdit ? draft.setShared : undefined}
                 />
               )}
@@ -826,6 +941,9 @@ export default function Compose() {
                 draft.salesDealIds.map((dealId) => {
                   const state = draft.draftsByDeal[dealId]
                   if (!state) return null
+                  // 아직 이 딜의 글이 오지 않았으면 상자를 세우지 않습니다. 생성이 끝나면
+                  // 결과가 없는 딜도 이유를 보여야 하므로 전부 섭니다.
+                  if (streaming && !previewOf('deal', dealId)) return null
                   const deal = deals.deals.find((one) => one.id === dealId)
                   const savedSection = savedByDeal.get(dealId)
 
@@ -850,18 +968,23 @@ export default function Compose() {
                     />
                   )
                 })}
+              {/* 검토는 초안 다음에 일어납니다. 도착 순서대로 흐름 맨 아래에 쌓입니다. */}
+              {streaming && (
+                <ReportReviewWarning evidence={generationEvidence} generating notes={reviewNotes} />
+              )}
+              {/* 지금 하는 일은 늘 마지막 글입니다. 바닥까지 내려 읽어도 이 줄이 보입니다. */}
+              {(streaming || analysing > 0) && (
+                <GenerationProgress
+                  feed="live"
+                  progress={draft.processingProgress}
+                  extras={analysisRows}
+                  liveTarget={liveTarget}
+                />
+              )}
+              {streaming && <div ref={streamEnd} className={styles.streamEnd} aria-hidden="true" />}
             </div>
             <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
               <div className={styles.saveActions}>
-                <Button
-                  variant="outline"
-                  type="button"
-                  className={styles.pdfButton}
-                  disabled={!printable}
-                  onClick={() => window.print()}
-                >
-                  PDF 다운로드
-                </Button>
                 <Button
                   type="button"
                   className={styles.saveAllButton}

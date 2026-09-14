@@ -5,6 +5,9 @@ import type { Role } from '@/types'
 export interface Profile {
   name: string
   title: string
+  /** 부서·회사는 구성원이 아니라 팀의 값입니다. 보고서 머리표가 씁니다. 없으면 빈 문자열입니다. */
+  department: string
+  company: string
 }
 
 export interface Session {

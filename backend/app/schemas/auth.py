@@ -46,5 +46,9 @@ class SessionRead(BaseModel):
     display_name: str
     role_code: Literal["member", "manager"]
     job_title: str | None
+    # 팀에서 온 값. 보고서 머리표(작성자·부서명·직책·회사명)가 쓴다.
+    team_name: str | None = None
+    company_name: str | None = None
+    department: str | None = None
     # 계정 발급 권한. member 행이 아니라 ADMIN_USER_IDS 에서 나온다.
     is_admin: bool = False

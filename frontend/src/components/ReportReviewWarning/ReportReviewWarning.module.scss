@@ -1,5 +1,8 @@
+/*
+ * 주황은 이 화면에서 "당신이 봐야 한다" 하나만 뜻합니다. 보고서가 주인공이므로
+ * 평소에는 첫 줄만 내놓고 물러나 있다가, 쓰는 사람이 열 때만 목록을 폅니다.
+ */
 .warning {
-  margin-bottom: var(--s3);
   padding: var(--s3) var(--s4);
   border-radius: var(--r-md);
   background: var(--orange-tint);
@@ -9,5 +12,67 @@
   ul {
     margin: var(--s2) 0 0;
     padding-left: var(--s4);
+    line-height: 1.7;
+  }
+
+  li + li {
+    margin-top: var(--s1);
+  }
+}
+
+.summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  // 기본 삼각형을 지웁니다. 여는 방향은 아래 화살표가 직접 말합니다.
+  list-style: none;
+  cursor: pointer;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--orange-ink);
+    outline-offset: 3px;
+    border-radius: var(--r-xs);
+  }
+
+  strong {
+    min-width: 0;
+    font-weight: 600;
+    // 접혀 있을 때는 첫 줄만입니다.
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.chevron {
+  flex: none;
+  align-self: center;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+[open] > .summary {
+  strong {
+    white-space: normal;
+  }
+
+  .chevron {
+    transform: rotate(180deg);
+  }
+}
+
+/* 검토 메모는 화면에서 확인하는 것입니다. 종이에는 최종 본문만 남습니다. */
+@media print {
+  .warning {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
   }
 }

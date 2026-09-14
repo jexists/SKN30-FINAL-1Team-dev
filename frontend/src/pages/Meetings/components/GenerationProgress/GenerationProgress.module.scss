@@ -1,97 +1,113 @@
+/*
+ * 과정은 비계(飛階)이지 결과물이 아닙니다. 전부 회색으로 물러나 있고, 파랗게
+ * 살아 있는 줄은 언제나 정확히 하나입니다 — 그 하나가 "지금 무엇을 하는 중인가"를
+ * 혼자 짊어집니다. 여기에 다른 색을 더하면 그 뜻이 흐려집니다.
+ */
 .root {
   display: flex;
   flex-direction: column;
-  gap: var(--s4);
+  gap: var(--s5);
 }
 
-.head {
+.feed {
   display: flex;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--blue);
-}
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  // 판 머리 선에 글자가 붙으면 구석에 뭉쳐 보입니다.
+  padding: var(--s2) 0;
+  list-style: none;
 
-/* InlineLoader 와 같은 회전입니다. 화면에서 도는 것은 언제나 같은 속도로 돕니다. */
-.spin {
-  flex: none;
-  animation: spin 0.9s linear infinite;
-}
-
-.headline {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.preview {
-  padding: var(--s4);
-  border-radius: var(--r-md);
-  background: var(--fill);
-}
-
-.draftLabel {
-  margin-bottom: var(--s3);
-  color: var(--orange-ink);
-  font-size: 12px;
-  font-weight: 600;
-}
-.body {
-  color: var(--ink);
-  font-size: 13px;
-  line-height: 1.8;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.notice {
-  margin-top: var(--s3);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-@media print {
-  .root {
-    display: none;
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s2);
+    min-width: 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
   }
 }
 
-.blocks {
+.rowLabel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 한 줄이 한 일을 마쳤다는 표시. 글자 줄에 맞춰 가운데로 세웁니다. */
+.mark {
+  flex: none;
+  align-self: center;
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
 }
 
-.results {
-  color: var(--muted);
+.done .mark::before {
+  content: '✓';
+  color: var(--muted-2);
   font-size: 12px;
+  line-height: 1;
 }
 
-.resultsTitle {
-  margin-bottom: var(--s3);
-  color: var(--ink);
+/* 아직 도는 것은 점입니다. 곁일(ML 분석)은 멈춘 점, 지금 단계는 뛰는 점입니다. */
+.running .mark::before,
+.live .mark::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-2);
+}
+
+.live .mark::before {
+  background: var(--blue);
+  animation: pulse 1.6s var(--ease-out) infinite;
+}
+
+/*
+ * 살아 있는 줄. 글자 위로 옅은 빛이 한 번씩 지나갑니다 — 화면에서 유일하게
+ * 움직이는 것이고, 그래서 눈이 여기부터 갑니다.
+ */
+.live {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.live .rowLabel {
+  background: linear-gradient(
+    100deg,
+    var(--blue) 40%,
+    color-mix(in srgb, var(--blue) 40%, white) 50%,
+    var(--blue) 60%
+  );
+  background-size: 260% 100%;
+  // Safari 는 아직 접두사 쪽만 봅니다. 빠지면 글자가 통째로 사라집니다.
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sweep 1.8s linear infinite;
+}
+
+/* 숫자는 부연입니다. 살아 있는 줄에서도 조용히 뒤따릅니다. */
+.detail {
+  flex: none;
+  color: var(--muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
-.stageResults {
-  margin-top: var(--s2);
-  padding-left: var(--s3);
-}
+/*
+ * 흘러나오는 본문. 최종 보고서가 설 자리에서 최종 보고서의 크기·행간으로 흐릅니다
+ * (ReportDocument .mce-content-body 와 같은 값). 그래야 다 쓰이는 순간 글이
+ * 움직이지 않고 그 자리에서 문서가 됩니다.
+ */
+.stream {
+  @include report-facts;
 
-.stageResults h3 {
-  margin: 0 0 var(--s2);
   color: var(--ink);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.stageResults ol {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2) var(--s4);
-  margin: 0;
-  padding-left: 20px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .recovery {
@@ -99,14 +115,35 @@
   font-size: 12px;
 }
 
+@media print {
+  .root {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .spin {
+  .live .mark::before {
+    animation: none;
+  }
+
+  .live .rowLabel {
+    background: none;
+    -webkit-text-fill-color: currentcolor;
     animation: none;
   }
 }
 
-@keyframes spin {
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes sweep {
+  from {
+    background-position: 180% 0;
+  }
   to {
-    transform: rotate(360deg);
+    background-position: -80% 0;
   }
 }

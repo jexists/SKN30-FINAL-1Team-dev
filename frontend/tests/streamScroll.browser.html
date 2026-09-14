@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>스트리밍 자동 스크롤 회귀</title>
+    <style>
+      /* 작성 화면의 .reports 와 같은 모양. 안쪽 상자가 구릅니다. */
+      #box {
+        height: 200px;
+        overflow: auto;
+      }
+      #line {
+        flex: none;
+        height: 1px;
+      }
+      /* 줄바꿈을 실제 줄로 셉니다 — 한 줄로 접히면 상자를 넘지 못합니다. */
+      #box p {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <p>로컬 Vite에서 이 파일을 여세요. 실제 훅으로 바닥 따라가기와 멈춤을 검사합니다.</p>
+    <pre id="result">실행 중…</pre>
+    <div id="root"></div>
+    <script type="module">
+      import { act, createElement, useState } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import useStickToBottom from '../src/pages/Meetings/components/GenerationProgress/useStickToBottom.ts'
+
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      const root = createRoot(document.getElementById('root'))
+      const out = document.getElementById('result')
+      const checks = []
+      const check = (condition, label) => {
+        if (!condition) throw new Error(label)
+        checks.push(label)
+        // 어디까지 갔는지 그때그때 적습니다 — 헤드리스로 열면 이 글이 곧 결과입니다.
+        out.textContent = `RUNNING ${checks.length}\n${checks.join('\n')}`
+      }
+      // IntersectionObserver·MutationObserver 는 프레임이 지나야 전달됩니다.
+      const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 80)))
+
+      let grow
+      function Stream() {
+        const [lines, setLines] = useState(1)
+        const end = useStickToBottom(true)
+        grow = () => setLines((count) => count + 20)
+        return createElement(
+          'div',
+          { id: 'box' },
+          createElement(
+            'p',
+            null,
+            Array.from({ length: lines }, (_, index) => `줄 ${index}`).join('\n'),
+          ),
+          createElement('div', { id: 'line', ref: end }),
+        )
+      }
+
+      const atBottom = (box) => Math.abs(box.scrollHeight - box.clientHeight - box.scrollTop) <= 1
+
+      async function run() {
+        await act(async () => root.render(createElement(Stream)))
+        const box = document.getElementById('box')
+        check(box.scrollHeight > box.clientHeight === false, '처음에는 아직 구를 것이 없음')
+
+        await act(async () => grow())
+        await settle()
+        check(box.scrollHeight > box.clientHeight, '글이 자라 상자를 넘침')
+        check(atBottom(box), '바닥이 보이는 동안에는 자란 만큼 따라 내려감')
+
+        // 사용자가 앞부분을 읽으러 올립니다. 표식이 잘려 나가면 따라가기가 멈춥니다.
+        box.scrollTop = 0
+        await settle()
+        await act(async () => grow())
+        await settle()
+        check(box.scrollTop === 0, '올려 읽는 중에는 따라가지 않음')
+
+        // 다시 바닥까지 내리면 알아서 재개합니다.
+        box.scrollTop = box.scrollHeight - box.clientHeight
+        await settle()
+        await act(async () => grow())
+        await settle()
+        check(atBottom(box), '바닥으로 돌아오면 따라가기 재개')
+
+        out.textContent = `PASS ${checks.length}\n${checks.join('\n')}`
+      }
+      run()
+        .catch((error) => {
+          out.textContent = `FAIL ${checks.length}\n${checks.join('\n')}\n${error.stack}`
+        })
+        .finally(async () => {
+          await act(async () => root.unmount())
+        })
+    </script>
+  </body>
+</html>

@@ -1,8 +1,8 @@
 // 미팅 맥락과 연결할 딜을 나란한 두 판으로 펼쳐 둡니다. 판마다 제 머리와 제 조작을 답니다.
+// 열 전체의 머리(보고서 작성 자료)와 접기 손잡이는 Compose 가 답니다.
 import type { SalesDeal } from '@/pages/Deals/useSalesDeals'
 import type { AgendaItem } from '@/types'
 import Button from '@/components/Button'
-import { ChevronLeftIcon } from '@/components/icons'
 import { fmtDot, parseISO } from '@/utils/date'
 
 import DealPicker from '../DealPicker'
@@ -21,8 +21,6 @@ interface Props {
   onToggleDeal: (id: string) => void
   onCreateDeal?: () => void
   onOpenDetail: () => void
-  /** 왼쪽 열을 접는 손잡이. 접을 곳(보고서 열)이 있을 때만 넘어옵니다. */
-  onCollapse?: () => void
   disabled: boolean
 }
 
@@ -36,7 +34,6 @@ export default function MeetingInfoPanel({
   onToggleDeal,
   onCreateDeal,
   onOpenDetail,
-  onCollapse,
   disabled,
 }: Props) {
   return (
@@ -44,33 +41,17 @@ export default function MeetingInfoPanel({
       <div className={styles.cols}>
         <section className={styles.block}>
           <div className={styles.head}>
-            <h2>미팅 정보</h2>
-            {/* 접기 손잡이가 오른쪽 끝을 쓰면 자세히 보기는 제목 옆에 섭니다.
-                손잡이가 없는 한 열짜리 화면에서는 자세히 보기가 그 자리를 그대로 씁니다. */}
+            <h3>미팅 정보</h3>
+            {/* 열 전체를 접는 손잡이는 열 머리로 옮겼습니다. 오른쪽 끝은 이 판의 조작 몫입니다. */}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className={onCollapse ? undefined : styles.headAction}
+              className={styles.headAction}
               onClick={onOpenDetail}
             >
               자세히 보기
             </Button>
-            {onCollapse && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                iconOnly
-                className={styles.headAction}
-                aria-expanded
-                aria-controls="compose-side"
-                aria-label="미팅 정보·원문 접기"
-                onClick={onCollapse}
-              >
-                <ChevronLeftIcon width={15} height={15} />
-              </Button>
-            )}
           </div>
           <div className={styles.context}>
             <strong>{item.hospital || '회사 미지정'}</strong>
@@ -84,7 +65,7 @@ export default function MeetingInfoPanel({
 
         <section className={styles.block}>
           <div className={styles.head}>
-            <h2>관련 딜</h2>
+            <h3>관련 딜</h3>
             <span className={styles.count}>
               {selectedDealIds.length}건 선택
               {dealsLoading ? ' · 조회 중' : dealsError ? ' · 조회 오류' : ''}

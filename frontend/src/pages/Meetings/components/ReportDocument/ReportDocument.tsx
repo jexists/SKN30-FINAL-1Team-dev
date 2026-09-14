@@ -23,11 +23,34 @@ interface Props {
   docKey: number
   disabled: boolean
   onChange: (body: string) => void
+  /** 읽기 보기에서 막 넘어왔을 때. 누른 자리에 바로 커서가 서야 합니다. */
+  autoFocus?: boolean
+  /** 읽기 보기를 누른 화면 좌표. 키보드로 들어왔으면 없습니다. */
+  caretAt?: { x: number; y: number } | null
 }
 
-export default function ReportDocument({ body, docKey, disabled, onChange }: Props) {
+/** 화면 좌표에 해당하는 글자 자리. 편집기 본문 안일 때만 돌려줍니다. */
+function rangeAtPoint(x: number, y: number, body: HTMLElement): Range | null {
+  const doc = body.ownerDocument
+  const spot = doc.caretPositionFromPoint(x, y)
+  if (!spot || !body.contains(spot.offsetNode)) return null
+  const range = doc.createRange()
+  range.setStart(spot.offsetNode, spot.offset)
+  range.collapse(true)
+  return range
+}
+
+export default function ReportDocument({
+  body,
+  docKey,
+  disabled,
+  onChange,
+  autoFocus = false,
+  caretAt = null,
+}: Props) {
   // 툴바를 제자리에 세웁니다. inline 기본값은 본문 위에 떠서 보고서 제목과 첫
   // 항목을 가립니다. 자리를 미리 잡아 두고 그 안에 그리게 합니다.
+  // 자리는 늘 붙어 있고, 보이고 말고는 CSS 가 :focus-within 으로 정합니다.
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null)
 
   /*
@@ -50,7 +73,9 @@ export default function ReportDocument({ body, docKey, disabled, onChange }: Pro
   return (
     <div className={styles.root}>
       {/* 자리가 먼저 있어야 편집기가 그 안에 툴바를 그립니다. */}
-      <div className={styles.toolbar} ref={setToolbar} />
+      <div className={styles.toolbarSlot}>
+        <div className={styles.toolbar} ref={setToolbar} />
+      </div>
 
       {toolbar && (
         <Editor
@@ -63,6 +88,18 @@ export default function ReportDocument({ body, docKey, disabled, onChange }: Pro
           // (init.license_key 가 아니라 래퍼의 prop 으로 넘겨야 합니다)
           licenseKey="gpl"
           onEditorChange={(html) => onChange(toMarkdown(html))}
+          /*
+           * 읽기 보기를 눌러 들어온 경우입니다. 편집기가 선 뒤에야 커서를 세울 수 있습니다.
+           * 누른 자리에 커서를 세워야 화면이 제자리에 남습니다 — 그냥 focus() 하면 커서가
+           * 본문 맨 앞에 서고, 브라우저가 그 자리를 화면에 끌어다 놓아 읽던 곳을 잃습니다.
+           */
+          onInit={(_event, editor) => {
+            if (!autoFocus) return
+            const body = editor.getBody()
+            const range = caretAt && rangeAtPoint(caretAt.x, caretAt.y, body)
+            body.focus({ preventScroll: true })
+            if (range) editor.selection.setRng(range)
+          }}
           init={{
             // iframe 이 아니라 이 자리에서 바로 고칩니다. 인쇄(= PDF 다운로드)가
             // iframe 안을 담지 못하기 때문이고, 흰 시트 자체가 편집면이 되어야

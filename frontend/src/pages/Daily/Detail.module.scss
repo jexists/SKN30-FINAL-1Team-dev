@@ -278,13 +278,6 @@
   }
 }
 
-.docTitle {
-  margin-bottom: var(--s6);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
 /* 반려 사유는 문서가 아니라 문서에 붙은 말입니다. 떠 있지 않고 색으로만 구분합니다. */
 .review {
   padding: var(--s4) var(--s5);
@@ -334,21 +327,11 @@
     display: none;
   }
 
-  /* 종이에서는 머리 띠가 문서의 머리글입니다. 면도 물결도 남기지 않습니다. */
+  /*
+   * 문서의 머리글은 이제 본문 안의 양식지 머리표(ReportDocHeader)입니다. 머리 띠까지
+   * 남기면 같은 것이 두 번 찍히므로 종이에서는 통째로 걷습니다.
+   */
   .banner.banner {
-    margin-bottom: var(--s5);
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  .banner.banner::after {
-    display: none;
-  }
-
-  /* 종이에서 목록으로 돌아가는 길은 쓸 수 없습니다. */
-  .heading.heading a {
     display: none;
   }
 

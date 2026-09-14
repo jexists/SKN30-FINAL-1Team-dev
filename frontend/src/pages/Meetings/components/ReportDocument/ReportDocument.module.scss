@@ -9,14 +9,14 @@
 
   // 편집 중 파란 테두리를 그리는 기본 동작을 끕니다. 문서에 상자가 생깁니다.
   :global(.mce-content-body) {
+    @include report-facts;
+
     flex: 1;
     outline: none;
     // 백지로 시작하면 빈 문단 하나뿐이라 누를 자리가 한 줄밖에 없습니다.
     // 시트 아래쪽을 눌러도 글을 쓸 수 있게 높이를 잡아 둡니다.
     min-height: 320px;
     color: var(--ink);
-    font-size: 14px;
-    line-height: 1.75;
 
     &:focus-visible {
       outline: none;
@@ -45,26 +45,25 @@
     margin: 0 0 var(--s3);
     padding-left: var(--s5);
   }
-
-  :global(li) {
-    margin-bottom: 2px;
-  }
 }
 
 /*
- * 툴바 자리. 본문 위에 떠서 보고서 제목을 가리지 않도록 제 칸을 차지합니다.
- * 편집기가 이 안에 그리므로 비어 있어도 높이를 잡아 둡니다.
+ * 툴바 자리. 이 편집기는 읽기 보기를 눌러야 서므로, 서 있는 동안은 늘 편집 중입니다.
+ * 감추고 말고는 EditableReport 가 읽기/편집을 갈라 맡습니다.
+ * 편집기가 이 안에 그리므로 노드는 먼저 자리를 잡고 있어야 합니다.
  */
-.toolbar {
+.toolbarSlot {
   flex: none;
-  min-height: var(--control-h);
-  margin-bottom: var(--s3);
+}
 
+.toolbar {
   :global(.tox-tinymce-inline) {
     position: static !important;
   }
 
   :global(.tox-editor-header) {
+    // 접힌 칸에서 테두리만 1px 삐져나오지 않게 아래 여백을 안쪽에서 잡습니다.
+    margin-bottom: var(--s3);
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
     box-shadow: none;
@@ -83,12 +82,13 @@
   }
 
   // 툴바 자리도 같이 접습니다. 비워 두면 제목 아래에 빈 띠가 인쇄됩니다.
-  .toolbar {
+  .toolbarSlot {
     display: none;
   }
 
   .root :global(.mce-content-body) {
     min-height: 0;
+    max-width: none;
     outline: none !important;
   }
 }

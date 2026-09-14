@@ -275,3 +275,25 @@ a {
     outline-width: 4px;
   }
 }
+
+/* 종이에는 주소도 쪽번호도 없습니다. 여백은 본문(AppShell .content)이 직접 지닙니다. */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+/* 화면을 채우려던 높이입니다. 종이에서는 내용만큼 흘러야 여러 쪽으로 이어집니다. */
+@media print {
+  html,
+  body,
+  #root {
+    height: auto;
+  }
+
+  // 쪽이 바뀌는 자리에 문단의 한 줄만 떨어져 남지 않게 합니다.
+  p,
+  li {
+    orphans: 2;
+    widows: 2;
+  }
+}

@@ -19,7 +19,8 @@ interface Props {
   /** 딜 번호. SL-V2-020-03 처럼 사람이 부르는 이름입니다. */
   label: string
   note?: string
-  badge: DealBadge
+  /** 판정 결과. 아직 도는 중이면 배지 대신 활동 한 줄이 말합니다. */
+  badge?: DealBadge
   /** 작성 중에는 쓰던 것을 잃지 않게 새 탭으로 엽니다. */
   newTab?: boolean
 }
@@ -40,9 +41,11 @@ export default function DealCardHeader({ dealId, label, note, badge, newTab = fa
         </span>
       </Link>
 
-      <span className={styles.result} title={badge.title}>
-        <StatusBadge label={badge.label} tone={badge.tone} />
-      </span>
+      {badge && (
+        <span className={styles.result} title={badge.title}>
+          <StatusBadge label={badge.label} tone={badge.tone} />
+        </span>
+      )}
     </header>
   )
 }

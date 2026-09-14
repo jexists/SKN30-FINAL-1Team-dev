@@ -1,13 +1,16 @@
+/*
+ * 두 박스의 여백과, 그 안의 글이 서는 세로선.
+ * $box-pad  : 박스 안쪽 여백. 위아래·좌우 같은 값입니다.
+ * $text-line: 판 제목이 박스 안 판의 글(미팅 정보)과 같은 선에 서기 위한 들여쓰기.
+ *             박스 여백 10 + 박스 테두리 1 + 판 테두리 1 + 판 여백 --s4.
+ */
+$box-pad: 16px;
+$text-line: calc(var(--s4) + 12px);
+
+/* 구르는 것은 창 하나입니다. 보고서는 제 길이만큼 늘어나고, 왼쪽 자료판만 따라붙습니다. */
 .page {
   display: flex;
   flex-direction: column;
-  // AppShell의 상단바와 content 위·아래 여백을 제외한 작성 화면 높이.
-  height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
-
-  @include lg {
-    display: block;
-    height: auto;
-  }
 }
 
 /* 머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 PDF 입니다. 상세 화면과 같은 자리입니다. */
@@ -15,14 +18,13 @@
 .head {
   flex: none;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
+  flex-direction: column;
+  gap: var(--s2);
   margin-bottom: var(--s4);
 
   /*
-   * 넓은 화면은 .page 가 화면 높이에 맞춰져 머리말이 늘 보입니다.
-   * 페이지가 통째로 구르는 좁은 화면에서만 톱바 아래에 붙여 둡니다.
+   * 넓은 화면에서는 왼쪽 자료판이 붙어 따라오므로 머리말까지 붙여 두지 않습니다.
+   * 한 열로 접혀 읽는 자리가 하나뿐인 좁은 화면에서만 톱바 아래에 붙여 둡니다.
    */
   @include lg {
     position: sticky;
@@ -34,10 +36,63 @@
   }
 }
 
-/* 머리말 가운데 자리. 알림이 없으면 빈 칸으로 남아 좌우 버튼 자리를 지킵니다. */
-.headNotice {
+/*
+ * 머리말 왼쪽. 나가는 길 아래에 어느 미팅인지와 언제인지가 섭니다.
+ * 아래 두 박스의 머리(보고서 작성 자료 / 보고서 작성)와 한 세로선에 서도록
+ * 박스의 여백만큼(테두리 1px + --s4) 들여 씁니다.
+ */
+.heading {
   flex: 1;
+  display: grid;
+  gap: var(--s1);
   min-width: 0;
+  padding-left: $text-line;
+}
+
+/* 제목·일시 묶음과 작성 버튼이 한 줄에서 마주 봅니다. 버튼은 세로 가운데입니다. */
+.headingMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.headingText {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+/* 이 화면에서 가장 큰 글자. 미팅명은 회사 뒤에 옅게 붙습니다. */
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+
+  span {
+    color: var(--ink-2);
+    font-weight: 600;
+  }
+}
+
+/* 일시와 담당자. 제목 아래 한 줄입니다. */
+.meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* 제목 줄 아래 알림 자리. 내용이 없으면 자리를 차지하지 않습니다. */
+.headNotice {
+  flex: none;
+  min-width: 0;
+  padding-left: $text-line;
+
+  &:empty {
+    display: none;
+  }
 
   > * + * {
     margin-top: var(--s2);
@@ -55,8 +110,9 @@
   }
 }
 
-/* 되돌아가기 반대편. 작성 버튼이 끝에 옵니다. */
+/* 제목 오른쪽. 작성 버튼이 끝에 옵니다. */
 .headActions {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s2);
@@ -65,6 +121,9 @@
 /* 되돌아가는 길은 버튼이 아니라 파란 글자 한 줄입니다. */
 .back {
   @include back-link;
+
+  // 나가는 길은 들여쓰기를 따르지 않습니다. 페이지 맨 왼쪽, 원래 자리입니다.
+  margin-left: -20px;
 }
 
 .locked {
@@ -122,7 +181,12 @@
  */
 .layout.solo {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto;
+
+  // 옆에 나란히 설 상대가 없으므로 붙여 둘 것도 없습니다.
+  .side {
+    position: static;
+    max-height: none;
+  }
 
   // 페이지가 스크롤합니다. 안쪽에 스크롤 상자를 하나 더 두면 두 번 굴려야 합니다.
   .sideContent {
@@ -131,27 +195,18 @@
   }
 }
 
-/* 한 열일 때는 좌우로 나눠 각각 스크롤시킬 이유가 없습니다. */
-.page.pageSolo {
-  display: block;
-  height: auto;
-}
-
 /* 왼쪽 = 참고 자료와 입력, 오른쪽 = 최종 보고서. */
 .layout {
   display: grid;
-  flex: 1;
   grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto;
   min-height: 0;
   gap: var(--s5);
-  align-items: stretch;
+  align-items: start;
 
   @include lg {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto;
     gap: var(--s4);
-    align-items: start;
   }
 }
 
@@ -161,11 +216,17 @@
  */
 .layout.sideCollapsed {
   grid-template-columns: auto minmax(0, 1fr);
+
+  // 감쌀 내용이 손잡이 하나뿐입니다. 박스는 내용과 함께 물러납니다.
+  .side {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
 }
 
-/* 접기 손잡이. 왼쪽 열 머리에 붙어 제 글자만큼만 섭니다. */
+/* 접기 손잡이. 열 머리 오른쪽 끝에 제 글자만큼만 섭니다. */
 .sideToggle {
-  flex: none;
   align-self: start;
 }
 
@@ -174,16 +235,30 @@
   display: none;
 }
 
-/* 왼쪽 열. 위는 참고 자료, 아래는 입력판입니다. */
+/*
+ * 왼쪽 열. 머리와 그 아래 자료판들이 통으로 한 박스입니다 — 오른쪽 보고서와 같은 짜임입니다.
+ * 안의 판들이 흰 면이라 바탕을 한 단 눕혀 갈라 두고, 놓여 있는 면이므로 그림자는 두지 않습니다.
+ * 떠 있는 면은 오른쪽 보고서 하나뿐입니다.
+ */
 .side {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s6));
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
+  gap: $box-pad;
   min-width: 0;
   min-height: 0;
+  // 화면보다 길어지면 이 상자 안(.sideContent)에서만 구릅니다.
+  max-height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
+  padding: $box-pad;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
 
+  // 한 열로 접히면 위아래로 서므로 붙여 둘 자리가 없습니다.
   @include lg {
-    gap: var(--s4);
+    position: static;
+    max-height: none;
   }
 }
 
@@ -191,7 +266,7 @@
   position: relative;
   display: grid;
   flex: 1;
-  gap: var(--s3);
+  gap: $box-pad;
   min-height: 0;
   align-content: start;
   overflow: auto;
@@ -218,28 +293,52 @@
   min-width: 0;
 }
 
-/* 오른쪽 작업 열. 나오는 것(보고서)만 섭니다. */
+/* 오른쪽 작업 열. 나오는 것(보고서)만 섭니다. 문서 한 장이라 통으로 한 박스이고,
+   이 화면에서 유일하게 떠 있는 면입니다. */
 .work {
+  @include card;
+
+  // 보고서 한 장이 놓이는 면이라 다른 박스보다 여백을 한 단 넓힙니다.
+  // 열 머리는 제 선을 이 여백 밖까지 그어야 하므로 같은 값을 알려 줍니다.
+  --col-pad: 24px;
+
+  display: flex;
+  flex-direction: column;
+  gap: $box-pad;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--col-pad);
+  // 머리 줄은 왼쪽 열과 같은 높이에 섭니다. 넓힌 여백은 좌우와 아래만입니다.
+  padding-top: $box-pad;
+}
+
+/* 열 머리 제목 옆 한 칸. 이 보고서를 AI 가 썼다는 표시입니다. */
+.aiBadge {
+  @include tag-pill;
+
+  flex: none;
+  margin-left: var(--s2);
+  background: var(--purple-tint);
+  color: var(--purple-ink);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* 딜 카드가 줄줄이 서는 자리. 스크롤 상자로 두지 않습니다 — 구르는 것은 창입니다. */
+.reports {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--s5);
   min-width: 0;
-  min-height: 0;
 }
 
-.reports {
-  position: relative;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--s5);
-  min-height: 0;
-  overflow: auto;
-
-  @include lg {
-    flex: none;
-    overflow: visible;
-  }
+/* 스트림이 자라는 동안 바닥을 잡아 두는 표식. 자리는 1px 만 씁니다. */
+.streamEnd {
+  flex: none;
+  height: 1px;
+  // 따라붙는 자리를 아래 제출 줄 높이만큼 띄웁니다 — 마지막 줄이 창 맨 밑에 붙지 않게.
+  scroll-margin-bottom: 96px;
 }
 
 /* 여러 딜 카드의 저장 지점은 이 한 곳입니다. 긴 보고서를 내려 읽어도 상단에 남습니다. */
@@ -247,14 +346,14 @@
   flex: none;
   display: flex;
   min-width: 0;
-  padding-top: var(--s3);
+  padding-top: var(--s5);
 }
 
 .saveActions {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--s2);
 }
 
@@ -282,15 +381,24 @@
 @media print {
   // 클래스를 겹쳐 씁니다. 화면용 규칙과 특정도가 같으면 파일이 붙는 순서에 좌우돼
   // 개발 서버에서 무엇이 이길지 달라집니다.
+  // 왼쪽 자료 열은 통째로 걷습니다. 남겨 두면 sticky 와 100dvh 높이 제한이
+  // 인쇄 흐름에 그대로 남아 뒤쪽 쪽이 잘립니다.
   .head.head,
+  .side.side,
   .locked.locked,
   .mutationError.mutationError,
   .saveBar.saveBar,
-  .generateBar.generateBar,
-  .reference.reference,
-  .sideToggle.sideToggle,
-  .input.input {
+  .generateBar.generateBar {
     display: none;
+  }
+
+  // 화면에서 문서를 들어 올리던 면입니다. 종이에서는 종이가 곧 면입니다.
+  .work.work {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
   }
 
   .layout.layout {

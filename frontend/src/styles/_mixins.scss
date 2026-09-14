@@ -319,6 +319,50 @@
   }
 }
 
+/*
+ * 보고서 본문의 사실 행.
+ *
+ * 본문은 평평한 불릿 목록이고 불릿 하나가 확인된 사실 하나입니다(서버가 그렇게
+ * 씁니다). 로그처럼 붙여 두지 않고 각자 행과 여백을 줍니다 — 한 줄씩 눈으로
+ * 확인하고 고치는 일이 이 화면에서 사람이 하는 일의 전부이기 때문입니다.
+ *
+ * 흘러나오는 글(GenerationProgress)·고치는 글(ReportDocument)·낸 글(Detail) 이
+ * 모두 이것을 씁니다. 셋이 어긋나면 다 쓰이는 순간 글이 한 번 튑니다.
+ */
+@mixin report-facts {
+  font-size: 15px;
+  // 한글 본문은 400 보다 한 단 굵어야 읽힙니다. 가변 폰트가 없으면 400 으로
+  // 내려앉을 뿐이라 잃는 것은 없습니다.
+  font-weight: 450;
+  line-height: 1.6;
+  // 전역 body 의 음수 자간(-0.006em)을 본문에서는 물려받지 않습니다 — 한글이
+  // 가로로 눌려 보입니다. 글자 폭은 서체가 정한 대로 둡니다.
+  letter-spacing: normal;
+
+  // 읽기 보기(.text)와 같은 정렬입니다. 한쪽만 바꾸면 눌러 고칠 때 글이 튑니다.
+  :global(p) {
+    text-align: justify;
+  }
+
+  // 글에서 온 목록만 줄로 가릅니다. 후속 조치 항목은 제 클래스를 달고 제 여백을
+  // 쓰므로, 여기서 함께 집으면 이름표가 붙은 조치까지 여백이 눌립니다.
+  :global(li):not([class]) {
+    padding-block: var(--s2);
+
+    & + & {
+      border-top: 1px solid var(--line);
+    }
+
+    &:first-child {
+      padding-top: 0;
+    }
+
+    &:last-child {
+      padding-bottom: 0;
+    }
+  }
+}
+
 @mixin flex-center {
   display: flex;
   align-items: center;

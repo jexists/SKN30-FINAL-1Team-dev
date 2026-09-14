@@ -421,6 +421,19 @@ export function RefreshIcon(props: IconProps) {
   )
 }
 
+/*
+ * 멈춤은 채운 네모가 표준입니다 — 테두리만 두면 빈 체크칸으로 읽힙니다.
+ * 다른 아이콘과 달리 네모가 상자를 꽉 채우고 기본 크기도 작습니다. 상자 안에 빈틈을
+ * 두면 단추 왼쪽 여백이 그 빈틈만큼 넓어 보여 좌우가 어긋납니다.
+ */
+export function StopIcon({ width = 10, height = 10, ...rest }: IconProps) {
+  return (
+    <Icon width={width} height={height} {...rest}>
+      <rect width="24" height="24" rx="6" fill="currentColor" stroke="none" />
+    </Icon>
+  )
+}
+
 export function InfoIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>

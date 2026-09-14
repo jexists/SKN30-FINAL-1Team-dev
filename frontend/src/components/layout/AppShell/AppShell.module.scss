@@ -39,14 +39,62 @@
   }
 }
 
+/*
+ * 인쇄 전용 쪽 여백 장치(AppShell.tsx 참고). 화면에서는 표가 없는 것처럼 흘립니다 —
+ * display:contents 라 안의 내용이 .content 의 자식으로 그대로 섭니다.
+ */
+.printPage,
+.printPage > thead,
+.printPage > tbody,
+.printPage > tfoot,
+.printPage tr,
+.printPage td {
+  display: contents;
+}
+
+.printGap {
+  display: none;
+}
+
 // 인쇄(= 화면의 'PDF 다운로드')에서는 껍데기를 걷어내고 본문만 남깁니다.
 @media print {
   .main {
     margin-left: 0;
   }
 
+  // 위아래 여백은 쪽마다 다시 그려지는 thead/tfoot 가 맡습니다. 여기서는 좌우만.
   .content {
     max-width: none;
-    padding: 0;
+    padding: 0 15mm;
+  }
+
+  .printPage {
+    display: table;
+    width: 100%;
+  }
+
+  .printPage > thead {
+    display: table-header-group;
+  }
+
+  .printPage > tbody {
+    display: table-row-group;
+  }
+
+  .printPage > tfoot {
+    display: table-footer-group;
+  }
+
+  .printPage tr {
+    display: table-row;
+  }
+
+  .printPage td {
+    display: table-cell;
+  }
+
+  .printGap {
+    display: block;
+    height: 16mm;
   }
 }

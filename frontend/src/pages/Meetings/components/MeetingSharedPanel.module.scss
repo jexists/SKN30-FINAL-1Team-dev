@@ -2,6 +2,11 @@
  * 공통 기록은 아래 딜 보고서와 한 문서로 읽혀야 합니다. 그래서 껍데기·머리 띠·
  * 본문 타이포를 Detail 의 딜 카드(.card/.cardBody/.reportBody)와 같게 맞춥니다.
  */
+/*
+ * 공통 기록은 딜 보고서를 읽기 위한 맥락입니다. 바탕은 같은 흰 면이되 그림자를
+ * 걷습니다 — 떠 있는 면은 내는 것(딜 보고서) 하나뿐이어야 어느 쪽이 결과물인지
+ * 형태만으로 갈립니다.
+ */
 .panel {
   flex: none;
   min-width: 0;
@@ -9,32 +14,6 @@
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
-  box-shadow: var(--sh-2);
-}
-
-// 딜 보고서 위의 두 보조 기록은 넓은 작성 화면에서만 나란히 읽는다.
-@media (min-width: #{$bp-xl + 1px}) {
-  .supporting {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-
-    .heading {
-      grid-column: 1 / -1;
-
-      h2 {
-        font-size: 13px;
-      }
-    }
-
-    .section {
-      min-width: 0;
-      padding: var(--s4);
-    }
-
-    .section + .section {
-      border-left: 1px solid var(--line);
-    }
-  }
 }
 
 /* 머리 띠. 딜 카드 머리와 같은 자리에서 시작합니다. */
@@ -47,7 +26,7 @@
   padding: var(--s4) var(--s5);
 
   h2 {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     letter-spacing: -0.015em;
   }
@@ -74,51 +53,20 @@
     font-size: 12px;
     font-weight: 600;
   }
-  textarea {
-    width: 100%;
-    min-height: 108px;
-    padding: var(--s3);
-    border: 1px solid var(--line);
-    border-radius: var(--r-md);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-    font-size: 13px;
-    line-height: 1.8;
-    resize: vertical;
-
-    &:focus-visible {
-      outline: 3px solid var(--blue-ring);
-      outline-offset: 1px;
-    }
-    &:disabled {
-      background: var(--surface-2);
-    }
-  }
-
   @include md {
     padding: var(--s4);
   }
 }
 
 /* 읽는 화면의 본문. 딜 카드 본문과 같은 크기·행간이어야 한 문서로 읽힙니다. */
-.text,
-.printText {
-  color: var(--ink-2);
-  font-size: 14px;
-  line-height: 1.75;
-  overflow-wrap: anywhere;
-}
-
 .empty {
   color: var(--muted);
   font-size: 13px;
 }
 
-/* 쓰는 동안에만 '확인 필요' 입니다. 읽는 화면에서는 이 클래스가 붙지 않습니다. */
+/* 쓰는 동안에만 '확인 필요' 입니다. 읽는 화면에서는 이 클래스가 붙지 않습니다.
+   바탕은 본문과 같은 흰 면이고, 갈래가 다르다는 것은 글자 색만으로 말합니다. */
 .needsReview {
-  background: var(--surface-2);
-
   > label,
   > h3,
   > .note {
@@ -126,23 +74,12 @@
   }
 }
 
-.printText {
-  display: none;
-}
-
 @media print {
-  .supporting {
-    display: block;
-
-    .section + .section {
-      border-left: 0;
-    }
-  }
-
   .panel {
     margin-bottom: var(--s5);
     border: 0;
     border-radius: 0;
+    background: none;
     box-shadow: none;
   }
   .heading {
@@ -153,11 +90,7 @@
     border-top: 0;
     background: none;
   }
-  .note,
-  .section textarea {
+  .note {
     display: none;
-  }
-  .printText {
-    display: block;
   }
 }

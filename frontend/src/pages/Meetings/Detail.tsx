@@ -16,7 +16,7 @@ import {
   SheetIcon,
   TeamIcon,
 } from '@/components/icons'
-import ReportBody from '@/components/ReportBody'
+import ReportView from '@/components/ReportView'
 import { SkeletonDetail } from '@/components/Skeleton'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
@@ -95,7 +95,7 @@ function DealSectionCard({
         </h2>
 
         {section.values.body?.trim() ? (
-          <ReportBody className={styles.reportBody} body={section.values.body} />
+          <ReportView className={styles.reportBody} body={section.values.body} />
         ) : (
           <p className={styles.emptyBody}>작성된 내용이 없습니다.</p>
         )}

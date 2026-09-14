@@ -294,15 +294,15 @@
 /* 작성 화면에서는 고쳐 쓰는 칸이지만 여기서는 그냥 머리글입니다. */
 .docTitle {
   margin-bottom: var(--s6);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
+/* 본문 색·크기는 ReportView 가 맡습니다. 여기서 색을 덧씌우면 구획이 있는 본문과
+   소제목 없는 본문이 같은 특이도로 부딪혀 파일 순서에 따라 색이 갈립니다. */
 .reportBody {
-  color: var(--ink-2);
-  font-size: 14px;
-  line-height: 1.75;
+  @include report-facts;
 }
 
 .emptyBody {
@@ -319,8 +319,8 @@
 .evidence {
   margin-top: var(--s5);
   padding: var(--s3);
+  border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  background: var(--surface-2);
   color: var(--muted);
   font-size: 12px;
   line-height: 1.7;
@@ -381,19 +381,32 @@
     display: block;
   }
 
+  /*
+   * 딜 보고서는 한 쪽보다 깁니다. 쪼개지 못하게 막으면 넘치는 만큼 잘립니다.
+   * 딜이 바뀌는 자리는 작성 화면과 같이 윗선 하나로 가릅니다.
+   */
   .card.card {
+    padding-top: var(--s5);
     overflow: visible;
     border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
     box-shadow: none;
-    break-inside: avoid;
+    print-color-adjust: exact;
   }
 
   .cardBody.cardBody {
     display: block;
-    padding: var(--s3) 0 0;
+    padding: var(--s5) 0 0;
   }
 
+  /* 종이에서는 격자를 쓰지 않습니다 — 쪽을 넘길 때 행이 사라집니다. */
   .dealSections.dealSections {
-    gap: var(--s7);
+    display: block;
+  }
+
+  .dealSections.dealSections > * + * {
+    margin-top: var(--s7);
   }
 }

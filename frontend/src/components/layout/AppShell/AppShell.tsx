@@ -94,6 +94,24 @@ export default function AppShell() {
           <Topbar />
           <div className={styles.content}>
             {/*
+              인쇄에서만 표가 되는 껍데기입니다. 브라우저는 thead/tfoot 를 쪽마다
+              다시 그리므로, 빈 머리·꼬리 한 줄이 곧 매 쪽의 위아래 여백이 됩니다.
+              @page 여백을 0으로 두어야 브라우저가 제 머리글(주소·쪽번호)을 그리지
+              않으므로, 여백은 이렇게 본문이 직접 만들어야 합니다.
+              화면에서는 display:contents 로 표가 없는 것처럼 흘립니다.
+            */}
+            <table className={styles.printPage}>
+              <thead>
+                <tr>
+                  <td>
+                    <div className={styles.printGap} aria-hidden="true" />
+                  </td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    {/*
               보기 범위가 바뀌면 화면을 처음부터 다시 세웁니다.
 
               범위를 바꾸는 것은 조건을 좁히는 일이 아니라 보는 대상 자체를 바꾸는
@@ -101,7 +119,18 @@ export default function AppShell() {
               채 새로 받아 오면 잠깐 다른 사람의 자료가 남습니다. 키를 갈면 각 화면이
               자료 0건에서 다시 시작해 첫 진입과 똑같이 자리표시자가 섭니다.
             */}
-            <Outlet key={scopeKey} />
+                    <Outlet key={scopeKey} />
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>
+                    <div className={styles.printGap} aria-hidden="true" />
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
 

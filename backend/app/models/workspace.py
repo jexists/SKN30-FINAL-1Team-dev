@@ -2,7 +2,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -37,6 +37,9 @@ class Member(Base):
     region_code: Mapped[str | None]
     active: Mapped[bool] = mapped_column(server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    # 회사명·부서는 구성원이 아니라 팀의 값이다. 보고서 머리표가 이 값을 쓴다.
+    # 비동기 세션에서는 지연 로딩이 터지므로 언제나 함께 읽는다.
+    team: Mapped["Team"] = relationship(lazy="joined")
 
 
 class Notice(Base):

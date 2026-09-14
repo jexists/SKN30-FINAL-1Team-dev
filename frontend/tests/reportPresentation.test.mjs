@@ -69,6 +69,13 @@ const { initScope, resetScope } = await vite.ssrLoadModule('/src/shared/scope.ts
 const { default: MeetingSharedPanel } = await vite.ssrLoadModule(
   '/src/pages/Meetings/components/MeetingSharedPanel.tsx',
 )
+const { default: ReportView } = await vite.ssrLoadModule('/src/components/ReportView/index.ts')
+const { default: ReportDocHeader } = await vite.ssrLoadModule(
+  '/src/components/ReportDocHeader/index.ts',
+)
+const { default: GenerationProgress } = await vite.ssrLoadModule(
+  '/src/pages/Meetings/components/GenerationProgress/GenerationProgress.tsx',
+)
 const { ReportReviewContents } = await vite.ssrLoadModule(
   '/src/pages/Dashboard/components/ReportReviewDrawer/ReportReviewDrawer.tsx',
 )
@@ -487,8 +494,93 @@ test('저장 보고서 재진입은 AI 검토 경고를 복구하고 새 범위�
   assert.match(dailyDraft, /setGenerationEvidence\(evidence\)/)
   assert.match(meetingCompose, /setGenerationEvidence\(savedReport\?\.aiEvidence \?\? null\)/)
   assert.match(meetingCompose, /setGenerationEvidence\((completed|run)\.evidence\)/)
-  assert.match(dailyCompose, /!generating && <ReportReviewWarning evidence=\{draft\.generationEvidence\}/)
-  assert.match(meetingCompose, /!generating && !recovering && <ReportReviewWarning evidence=\{generationEvidence\}/)
+  // 검토 메모는 자리를 옮깁니다. 생성 중에는 흐르는 글 맨 아래에서 단계 결과가 쌓이고(펼침),
+  // 끝나면 스크롤 상자 위 한 줄로 접혀 실행 근거만 남습니다.
+  const live =
+    /\{(?:streaming|generating) && \(?\s*<ReportReviewWarning[^>]*?\bgenerating\b[^>]*?notes=\{reviewNotes\}/s
+  const settled = /\{!(?:streaming|generating) && <ReportReviewWarning evidence=\{[^}]+\} \/>\}/
+  for (const source of [dailyCompose, meetingCompose]) {
+    assert.match(source, live)
+    assert.match(source, settled)
+    // 끝난 뒤 메모는 흐르는 글보다 앞(위)에 섭니다.
+    assert.ok(source.search(settled) < source.search(live))
+    // 검토·수정이 남긴 말만 갑니다. 자료 정리·근거 분류는 진행 상황입니다.
+    assert.match(source, /item\.stage === 'review_initial' \|\| item\.stage === 'repair'/)
+  }
+
+  // 흐르는 동안 바닥을 따라가는 표식은 스크롤 상자(.reports)의 마지막 자식입니다.
+  for (const source of [dailyCompose, meetingCompose]) {
+    assert.match(source, /useStickToBottom\((?:streaming|generating)\)/)
+    assert.match(
+      source,
+      /<div ref=\{streamEnd\} className=\{styles\.streamEnd\} aria-hidden="true" \/>\s*\)?\}?\s*<\/div>/,
+    )
+  }
+
+  // 새 초안에는 새 검토가 붙습니다. 생성을 시작하는 자리에서 직전 근거를 비웁니다.
+  assert.match(meetingCompose, /beginGeneration\(targets\)[\s\S]{0,200}setGenerationEvidence\(null\)/)
+  assert.match(dailyDraft, /setGenerationProgress\(null\)[\s\S]{0,200}setGenerationEvidence\(null\)/)
+})
+
+test('지금 하는 일 한 줄은 본문과 검토 메모보다 아래, 지나온 단계는 위에 선다', async () => {
+  const [dailyCompose, meetingCompose] = await Promise.all([
+    readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
+  ])
+
+  /*
+   * 검토·수정 단계에서는 본문이 위에서 제자리로 바뀝니다. 바닥까지 내려 읽는 사람에게는
+   * 맨 아래 한 줄이 유일한 "아직 돌고 있다" 이므로, 순서가 곧 기능입니다.
+   */
+  for (const source of [dailyCompose, meetingCompose]) {
+    const steps = source.indexOf('feed="steps"')
+    const live = source.indexOf('feed="live"')
+    const memo = source.search(/\{(?:streaming|generating) && \(?\s*<ReportReviewWarning/)
+    const mark = source.indexOf('ref={streamEnd}')
+    assert.ok(steps !== -1 && live !== -1, '두 자리 모두 세운다')
+    assert.ok(steps < memo, '지나온 단계는 본문보다 위')
+    assert.ok(memo < live, '지금 하는 일은 검토 메모보다 아래')
+    assert.ok(live < mark, '바닥 표식은 그보다도 아래')
+  }
+
+  // 미팅만 대상 이름을 답니다 — 일일은 본문이 하나뿐이라 '어디'가 없습니다.
+  assert.match(meetingCompose, /liveTarget=\{liveTarget\}/)
+  assert.match(meetingCompose, /preview\.preview_state === 'streaming'/)
+  assert.doesNotMatch(dailyCompose, /liveTarget/)
+})
+
+test('진행 줄은 한 화면에서 지나온 단계와 지금 하는 일로 나뉘어 그려진다', () => {
+  const progress = { run_id: 'r1', status_code: 'running', stage: 'report_review', previews: [] }
+  const steps = renderToStaticMarkup(
+    createElement(GenerationProgress, { feed: 'steps', progress, reportKind: 'meeting' }),
+  )
+  const live = renderToStaticMarkup(
+    createElement(GenerationProgress, {
+      feed: 'live',
+      progress,
+      reportKind: 'meeting',
+      liveTarget: '마케팅솔루션 딜',
+    }),
+  )
+
+  // 지나온 단계만. 살아 있는 줄(aria-current)은 이쪽에 없습니다.
+  assert.match(steps, /미팅 내용 분석함/)
+  assert.match(steps, /딜별 보고서 작성함/)
+  assert.doesNotMatch(steps, /aria-current/)
+  // 읽어 주는 쪽에는 지금 하는 일이 여전히 한 문장으로 갑니다. 줄이 옮겨 가도 안내는 남습니다.
+  assert.match(steps, /class="sr-only" role="status"[^>]*>근거·표현 검토 중</)
+
+  // 살아 있는 줄 하나만. 대상 이름이 부연으로 따라붙습니다.
+  assert.match(live, /aria-current="step"/)
+  assert.match(live, /마케팅솔루션 딜/)
+  assert.doesNotMatch(live, /미팅 내용 분석함/)
+  assert.equal(live.match(/aria-current/g).length, 1)
+
+  // 상자 안 본문 자리에서는 둘 다 끕니다.
+  const off = renderToStaticMarkup(
+    createElement(GenerationProgress, { feed: false, progress, reportKind: 'meeting' }),
+  )
+  assert.doesNotMatch(off, /aria-current|분석함/)
 })
 
 test('자동 수정 전 검토 기록과 실제 검토 실패를 구분해 안내한다', () => {
@@ -1113,8 +1205,10 @@ test('딜 미지정 미팅은 공통 본문만으로 생성·확정·검토할 �
   const editor = renderToStaticMarkup(
     createElement(MeetingSharedPanel, { shared: null, showCommon: true, onChange() {} }),
   )
-  assert.match(editor, /<label[^>]*>공통 내용<\/label>/)
-  assert.match(editor, /<textarea/)
+  assert.match(editor, /공통 내용/)
+  // 딜 본문과 같은 방식입니다 — 읽다가 눌러 들어갑니다.
+  assert.match(editor, /aria-label="공통 내용 고치기"/)
+  assert.doesNotMatch(editor, /<textarea/)
 })
 
 test('기간 새 생성은 참고첨부·범위·본문·메모를 쓰고 메모는 최종 저장에 보존한다', () => {
@@ -1533,7 +1627,132 @@ test('V2 이전 제출본은 submission id 없이 검토 요청해 서버가 스
   assert.equal(sent.expected_status_code, 'submitted')
 })
 
-test('공통·미지정 기록은 읽기 전용 Markdown과 편집용 연결 label을 구분한다', () => {
+test('소제목이 없는 본문도 구획이 있는 본문과 같은 본문 타이포로 그린다', () => {
+  // 소제목이 있으면 구획으로 읽고, 없으면 원문 그대로 그립니다. 두 길이 같은 화면에
+  // 나란히 서므로(딜 보고서 옆 공통 기록) 글자 크기와 줄높이가 같아야 합니다.
+  const parsed = renderToStaticMarkup(
+    createElement(ReportView, { body: '**논의 내용**\n\n새 장비 도입 조건을 확인했습니다.' }),
+  )
+  const flat = renderToStaticMarkup(
+    createElement(ReportView, { body: '- 데이터 이전 기간에 대한 우려가 있습니다.' }),
+  )
+
+  const bodyClass = parsed.match(/class="[^"]*ReportView__text[^"]*"/)
+  assert.ok(bodyClass, '구획 본문에 ReportView__text 가 붙어야 합니다')
+  assert.match(flat, /ReportView__text/)
+})
+
+test('기간 보고서 본문은 고정 항목마다 구획이 서고, 잘린 스트림에서도 하나씩 늘어난다', () => {
+  // 구획이 도착하는 대로 하나씩 늘어나는 것이 이 화면의 진행 표시입니다. 도중 본문에서도
+  // 구획 수가 맞아야 하고, 구획마다 상자를 두르지 않고 여백으로만 가릅니다.
+  const full = '**오늘 한 일**\n\nA 병원을 방문했습니다.\n\n**다음 업무**\n\n- 제안서 전달 | 담당: 본인'
+  const partial = '**오늘 한 일**\n\nA 병원을 방'
+
+  const whole = renderToStaticMarkup(createElement(ReportView, { body: full }))
+  const mid = renderToStaticMarkup(createElement(ReportView, { body: partial }))
+
+  assert.equal(whole.match(/<section/g).length, 2)
+  assert.equal(mid.match(/<section/g).length, 1)
+})
+
+test('보고 대상은 문서에 적어 둔 이름을 먼저 읽는다', () => {
+  // 검토 요청이 가는 사람(recipient)은 팀장으로 고정돼 있습니다. 그 이름을 앞세우면
+  // 사람이 머리표에 적은 보고 대상이 화면에서 사라집니다.
+  const written = toReport({
+    ...periodResponse(),
+    content: { approver: '김이사' },
+  })
+  const blank = toReport({ ...periodResponse(), content: { approver: '   ' } })
+  const none = toReport({ ...periodResponse(), recipient_display_name: null })
+
+  assert.equal(written.approver, '김이사')
+  // 적지 않았으면 검토가 가는 사람으로 물러납니다.
+  assert.equal(blank.approver, '합성 팀장')
+  // 둘 다 없으면 빈 값입니다 — 화면이 '미지정' 으로 옮겨 적습니다.
+  assert.equal(none.approver, '')
+})
+
+test('보고 대상은 고칠 수 있을 때 미지정 대신 빈 입력칸으로 선다', () => {
+  // 아직 정하지 않은 것을 '미지정' 이라고 단정하지 않습니다. 읽기 전용일 때만 그렇게 씁니다.
+  const editable = renderToStaticMarkup(
+    createElement(ReportDocHeader, {
+      title: '9월 3일 (목) 일일 업무 보고서',
+      author: '박팀투',
+      jobTitle: '팀장',
+      department: '영업1팀',
+      company: '브레이스',
+      writtenOn: '2026.09.03 (목)',
+      onApproverChange: () => {},
+    }),
+  )
+  const readOnly = renderToStaticMarkup(
+    createElement(ReportDocHeader, {
+      title: '9월 3일 (목) 일일 업무 보고서',
+      author: '박팀투',
+      jobTitle: '팀장',
+      department: '영업1팀',
+      company: '브레이스',
+      writtenOn: '2026.09.03 (목)',
+    }),
+  )
+
+  assert.match(editable, /<input/)
+  assert.ok(!/미지정/.test(editable))
+  assert.ok(!/<input/.test(readOnly))
+  assert.match(readOnly, /미지정/)
+})
+
+test('보고서 머리표는 빈 칸을 지우지 않고 미지정으로 채운다', () => {
+  // 칸이 사라지면 양식이 무너집니다. 종이에 찍힐 표라 줄 수가 값에 따라 달라지면 안 됩니다.
+  const header = renderToStaticMarkup(
+    createElement(ReportDocHeader, {
+      title: '9월 3일 (목) 일일 업무 보고서',
+      author: '박팀투',
+      jobTitle: '팀장',
+      department: '',
+      company: '  ',
+      writtenOn: '2026.09.03 (목)',
+      approver: '김이사',
+    }),
+  )
+
+  assert.match(header, /9월 3일 \(목\) 일일 업무 보고서/)
+  assert.equal(header.match(/<dt>/g).length, 6)
+  // 부서명·회사명 두 칸이 비었으므로 미지정이 두 번입니다.
+  assert.equal(header.match(/미지정/g).length, 2)
+})
+
+test('직책만은 미지정이 아니라 팀원으로 채운다', () => {
+  // 팀장이 아닌 사람은 모두 팀원입니다. 직함을 적어 두지 않았다고 빈 칸으로 두지 않습니다.
+  const header = renderToStaticMarkup(
+    createElement(ReportDocHeader, {
+      title: '2026년 9월 월간 업무 보고서',
+      author: '이사원',
+      jobTitle: '',
+      department: '영업1팀',
+      company: '브레이스',
+      writtenOn: '2026.09.30 (수)',
+      approver: '박팀투',
+    }),
+  )
+
+  assert.match(header, /팀원/)
+  // 팀장을 못 찾은 화면이면 보고 대상만 비고, 나머지 칸은 그대로 섭니다.
+  const noManager = renderToStaticMarkup(
+    createElement(ReportDocHeader, {
+      title: '2026년 9월 월간 업무 보고서',
+      author: '이사원',
+      department: '영업1팀',
+      company: '브레이스',
+      writtenOn: '2026.09.30 (수)',
+    }),
+  )
+
+  assert.equal(noManager.match(/<dt>/g).length, 6)
+  assert.equal(noManager.match(/미지정/g).length, 1)
+})
+
+test('공통·미지정 기록은 읽기 전용 Markdown과 편집용 여는 자리를 구분한다', () => {
   const shared = {
     common_report: {
       body: '**미팅 목적**\n\n- 공통 내용 본문\n\n<script>alert(1)</script>',
@@ -1546,15 +1765,17 @@ test('공통·미지정 기록은 읽기 전용 Markdown과 편집용 연결 lab
   assert.doesNotMatch(view, /<h3[^>]*>공통 내용<\/h3>/)
   assert.match(view, /<h3[^>]*>딜 미지정 기록<\/h3>/)
   assert.doesNotMatch(view, /<label|<textarea/)
-  assert.match(view, /<strong>미팅 목적<\/strong>/)
+  // 굵은 소제목은 구획 제목으로 읽힙니다. 본문 Markdown 은 그대로 살아 있습니다.
+  assert.match(view, /<h3[^>]*>미팅 목적<\/h3>/)
   assert.match(view, /<li>공통 내용 본문<\/li>/)
   assert.doesNotMatch(view, /<script/i)
   assert.match(view, /&lt;script&gt;/)
   assert.match(view, /미지정 내용 본문/)
   const edit = renderToStaticMarkup(createElement(MeetingSharedPanel, { shared, onChange() {} }))
-  const labels = [...edit.matchAll(/<label for="([^"]+)">/g)]
-  assert.equal(labels.length, 2)
-  for (const [, id] of labels) assert(edit.includes(`<textarea id="${id}"`))
+  // 두 기록 모두 눌러서 고치는 자리이고, 각자 제 이름을 달고 있습니다.
+  const opens = [...edit.matchAll(/aria-label="([^"]+) 고치기"/g)].map(([, name]) => name)
+  assert.deepEqual(opens, ['공통 내용', '딜 미지정 · 확인 필요'])
+  assert.doesNotMatch(edit, /<textarea/)
 })
 
 test('미팅 공통 기록은 새 preview 전 현재 진행 상태만 표시하고 preview 수신 뒤 새 본문을 표시한다', () => {
@@ -1566,9 +1787,9 @@ test('미팅 공통 기록은 새 preview 전 현재 진행 상태만 표시하�
   )
 
   assert.match(waiting, /aria-busy="true"/)
-  assert.match(waiting, /role="status"/)
-  assert.match(waiting, /aria-live="polite"/)
-  assert.match(waiting, /미팅 처리를 준비하는 중입니다/)
+  // 진행 문구는 보고서 목록 맨 위 한 곳에만 섭니다. 상자마다 되풀이하지 않습니다.
+  assert.doesNotMatch(waiting, /미팅 내용 분석 중|role="status"/)
+  // 무엇보다 지난 본문을 새 결과인 척 내놓지 않습니다.
   assert.doesNotMatch(waiting, /이전 보고서|기존 공통 기록/)
 
   const preview = renderToStaticMarkup(
@@ -1587,19 +1808,22 @@ test('미팅 공통 기록은 새 preview 전 현재 진행 상태만 표시하�
   assert.doesNotMatch(preview, /기존 공통 기록/)
 })
 
-test('딜별 보고서는 재생성 중 이전 제목 대신 로딩 자리를 표시한다', async () => {
+test('딜별 보고서는 재생성 중 이전 제목을 내놓지 않고 제목·본문이 함께 온다', async () => {
   const source = await readFile(
     new URL('../src/pages/Meetings/components/ReportSheet/ReportSheet.tsx', import.meta.url),
     'utf8',
   )
-  const titleBlock = source.slice(
-    source.indexOf('<div className={styles.titleBlock}>'),
-    source.indexOf('<p className={styles.when}>'),
-  )
 
-  assert.match(titleBlock, /phase === 'generating'/)
-  assert.match(titleBlock, /<Skeleton width="68%" height=\{39\}/)
-  assert.match(titleBlock, /:\s*\([\s\S]*<input/)
+  // 쓰는 동안에는 진행 줄만 섭니다. 빈 칸도 스켈레톤도 세우지 않습니다.
+  assert.doesNotMatch(source, /Skeleton/)
+  const at = source.indexOf("phase === 'generating' ? (")
+  const generating = source.slice(at, source.indexOf(') : (', at))
+  assert.match(generating, /<GenerationProgress/)
+  assert.doesNotMatch(generating, /titleBlock|<input/)
+
+  // 제목과 문서는 다 된 쪽에서 함께 나타납니다.
+  const ready = source.slice(source.indexOf(') : (', at))
+  assert.match(ready, /titleBlock[\s\S]*<input[\s\S]*<EditableReport/)
 })
 
 test('일일·주간·월간 생성과 확정은 해당 하위 종류의 참조·제출본·포함 여부를 그대로 전달한다', async () => {

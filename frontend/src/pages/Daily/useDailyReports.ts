@@ -76,9 +76,12 @@ export function toReport(item: ReportResponse): DailyReport {
     kind,
     period: periodLabelFor(kind, item.report_date),
     template: templateFor(kind),
+    // 문서에 적어 둔 이름이 먼저입니다. 검토 요청이 가는 사람(recipient)은 팀장으로
+    // 고정돼 있어, 그 이름을 앞세우면 사람이 머리표에 적은 보고 대상이 화면에서 사라집니다.
     approver:
-      item.recipient_display_name ??
-      (typeof content.approver === 'string' ? content.approver : '결재자 미지정'),
+      (typeof content.approver === 'string' && content.approver.trim()
+        ? content.approver
+        : item.recipient_display_name) ?? '',
     status: STATUS_BY_API[item.status_code],
     apiStatus: item.status_code,
     version: item.version,
@@ -104,6 +107,8 @@ export interface DraftPayload {
   date: string
   kind: ReportKind
   approver: string
+  /** 보고 대상의 member.id. 검토 요청이 이 사람에게 갑니다. 못 찾았으면 비웁니다. */
+  approverId?: string | null
   values: Record<string, string>
   activities: DailyReport['activities']
   attachments: DailyReport['attachments']
@@ -147,7 +152,7 @@ export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
     period_end: draft.kind === '일일' ? null : to,
     source_activity_id: null,
     sales_deal_id: null,
-    recipient_member_id: null,
+    recipient_member_id: draft.approverId ?? null,
     template_snapshot: templateFor(draft.kind),
     content: {
       approver: draft.approver,

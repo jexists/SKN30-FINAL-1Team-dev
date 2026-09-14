@@ -52,9 +52,18 @@ def _session_read(member: Member) -> SessionRead:
     """세션 응답. is_admin 은 member 행에 없으므로 여기서 채운다.
 
     권한의 근거를 DB 밖에 두었기 때문에 ORM 객체를 그대로 돌려줄 수 없다.
+    회사명·부서는 팀의 값이라 같은 자리에서 함께 옮긴다.
     """
+    # 팀은 FK 가 NOT NULL 이라 실제 요청에서는 늘 있다. 다만 관계를 읽지 않은 객체도
+    # 들어올 수 있으므로 없으면 빈 값으로 둔다 — 세션을 못 내주는 것보다 낫다.
+    team = member.team
     return SessionRead.model_validate(member).model_copy(
-        update={"is_admin": member.id in settings.admin_user_id_set}
+        update={
+            "is_admin": member.id in settings.admin_user_id_set,
+            "team_name": team.name if team else None,
+            "company_name": team.company_name if team else None,
+            "department": team.department if team else None,
+        }
     )
 
 

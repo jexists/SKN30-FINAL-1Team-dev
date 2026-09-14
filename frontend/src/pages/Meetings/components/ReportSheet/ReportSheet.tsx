@@ -5,12 +5,11 @@
 import { useId } from 'react'
 
 import Button from '@/components/Button'
-import Skeleton from '@/components/Skeleton'
 import type { MeetingPreview, MeetingProgress } from '@/types'
 
 import type { MeetingPhase } from '../../useMeetingDraft'
 import GenerationProgress from '../GenerationProgress'
-import ReportDocument from '../ReportDocument'
+import EditableReport from '../EditableReport'
 
 import styles from './ReportSheet.module.scss'
 
@@ -94,11 +93,19 @@ export default function ReportSheet({
           </div>
         ) : (
           <>
-            <div className={styles.titleBlock}>
-              {phase === 'generating' ? (
-                <Skeleton width="68%" height={39} radius="var(--r-sm)" />
-              ) : (
-                <>
+            {/*
+              쓰는 중에는 제목 자리를 비워 둡니다. 빈 칸도 스켈레톤도 세우지 않습니다 —
+              제목과 문서는 다 되는 순간 함께 나타나야 그 자리에서 결과로 읽힙니다.
+            */}
+            {phase === 'generating' ? (
+              <GenerationProgress
+                feed={false}
+                progress={generationProgress}
+                preview={generationPreview}
+              />
+            ) : (
+              <>
+                <div className={styles.titleBlock}>
                   <label className="sr-only" htmlFor={inputId}>
                     보고서 제목
                   </label>
@@ -110,20 +117,14 @@ export default function ReportSheet({
                     placeholder="보고서 제목을 적으세요"
                     onChange={(event) => onTitleChange(event.target.value)}
                   />
-                </>
-              )}
-            </div>
-
-            {phase === 'generating' ? (
-              <GenerationProgress
-                progress={generationProgress}
-                preview={generationPreview}
-                stageResults={generationProgress?.stage_results}
-                showStages={false}
-              />
-            ) : (
-              <>
-                <ReportDocument body={body} docKey={docKey} disabled={locked} onChange={onChange} />
+                </div>
+                <EditableReport
+                  body={body}
+                  docKey={docKey}
+                  disabled={locked}
+                  onChange={onChange}
+                  placeholder="보고서 본문을 적으려면 누르세요."
+                />
                 {evidence && <p className={styles.evidence}>{evidence}</p>}
               </>
             )}

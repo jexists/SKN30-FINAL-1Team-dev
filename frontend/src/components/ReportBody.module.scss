@@ -13,7 +13,7 @@
   :global(ol),
   :global(pre),
   :global(blockquote) {
-    margin: 0 0 0.75em;
+    margin: 0 0 var(--s4);
   }
 
   :global(ul),

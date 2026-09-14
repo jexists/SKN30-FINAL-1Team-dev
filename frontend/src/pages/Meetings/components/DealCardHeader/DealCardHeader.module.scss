@@ -38,14 +38,14 @@
 
 .dealLine {
   color: var(--blue);
-  font-size: 15px;
+  font-size: 16px;
   letter-spacing: -0.015em;
 }
 
 .dealTitle {
   overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -72,8 +72,24 @@
 }
 
 @media print {
+  /* 카드는 쪽을 넘겨 쪼개되, 머리표만 홀로 떨어지지 않게 붙잡습니다. */
   .header {
     min-height: 0;
     padding: 0 0 var(--s3);
+    background: none;
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  /* 판정 배지는 화면에서 진행을 알리는 표시입니다. 문서에 남길 내용이 아닙니다. */
+  .result {
+    display: none;
+  }
+
+  /* 종이에는 줄 끝에 말줄임이 없습니다. 딜 이름은 줄을 늘려 다 적습니다. */
+  .dealTitle {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
   }
 }

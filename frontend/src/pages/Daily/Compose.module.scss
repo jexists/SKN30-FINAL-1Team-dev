@@ -1,16 +1,13 @@
+/* 두 박스의 안쪽 여백. 열 머리(ColumnHead)가 선을 끝까지 긋는 기준이기도 합니다. */
+$box-pad: 16px;
+
 /*
- * 작성 화면 한 판. 미팅 보고서 작성과 같이 화면 높이에 맞추고 좌·우 열이 각자 구릅니다.
- * 한 열로 접히는 폭에서는 페이지가 통째로 구릅니다.
+ * 작성 화면 한 판. 미팅 보고서 작성과 같이 구르는 것은 창 하나이고,
+ * 보고서는 제 길이만큼 늘어나며 왼쪽 자료판만 따라붙습니다.
  */
 .page {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
-
-  @include lg {
-    display: block;
-    height: auto;
-  }
 }
 
 /* 머리말 한 줄. 왼쪽은 나가는 길, 가운데는 알림, 오른쪽은 AI 작성입니다. */
@@ -106,18 +103,15 @@
 /* 왼쪽 = 무엇을 근거로 쓰는지, 오른쪽 = 무엇을 낼지. 미팅 보고서 작성과 같은 비율입니다. */
 .layout {
   display: grid;
-  flex: 1;
   grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto;
   min-height: 0;
   gap: var(--s5);
-  align-items: stretch;
+  align-items: start;
 
   @include lg {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto;
     gap: var(--s4);
-    align-items: start;
   }
 }
 
@@ -127,19 +121,18 @@
  */
 .layout.solo {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto;
+
+  // 옆에 나란히 설 상대가 없으므로 붙여 둘 것도 없습니다.
+  .side {
+    position: static;
+    max-height: none;
+  }
 
   // 페이지가 스크롤합니다. 안쪽에 스크롤 상자를 하나 더 두면 두 번 굴려야 합니다.
   .sideContent {
     flex: none;
     overflow: visible;
   }
-}
-
-/* 한 열일 때는 좌우로 나눠 각각 스크롤시킬 이유가 없습니다. */
-.page.pageSolo {
-  display: block;
-  height: auto;
 }
 
 /*
@@ -153,18 +146,39 @@
   @include lg {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  // 감쌀 내용이 손잡이 하나뿐입니다. 박스는 내용과 함께 물러납니다.
+  .side {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
 }
 
-/* 왼쪽 열. 위는 자료, 아래는 넣는 것입니다. */
+/*
+ * 왼쪽 열. 머리와 그 아래 자료판들이 통으로 한 박스입니다 — 오른쪽 보고서와 같은 짜임입니다.
+ * 안의 판들이 흰 면이라 바탕을 한 단 눕혀 갈라 두고, 놓여 있는 면이므로 그림자는 두지 않습니다.
+ * 떠 있는 면은 오른쪽 보고서 하나뿐입니다.
+ */
 .side {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s6));
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
+  gap: $box-pad;
   min-width: 0;
   min-height: 0;
+  // 화면보다 길어지면 이 상자 안(.sideContent)에서만 구릅니다.
+  max-height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
+  padding: $box-pad;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
 
+  // 한 열로 접히면 위아래로 서므로 붙여 둘 자리가 없습니다.
   @include lg {
-    gap: var(--s4);
+    position: static;
+    max-height: none;
   }
 }
 
@@ -172,7 +186,7 @@
 .sideContent {
   display: grid;
   flex: 1;
-  gap: var(--s5);
+  gap: $box-pad;
   min-height: 0;
   align-content: start;
   overflow: auto;
@@ -188,9 +202,8 @@
   display: none;
 }
 
-/* 다시 펴는 손잡이. 접힌 열의 자리에 제 글자만큼만 섭니다. */
+/* 열을 여닫는 손잡이. 한 열로 접히는 폭에서는 접을 상대가 없어 사라집니다. */
 .sideToggle {
-  flex: none;
   align-self: start;
 
   @include lg {
@@ -198,35 +211,50 @@
   }
 }
 
-/* 접기 손잡이는 자료판 머리의 오른쪽 끝. 한 열로 접히면 접을 이유가 없어 사라집니다. */
-.collapseAction {
-  flex: none;
-  margin-left: auto;
-
-  @include lg {
-    display: none;
-  }
-}
-
-/* 오른쪽 작업 열. 나오는 것(보고서)과 내는 길만 섭니다. */
+/* 오른쪽 작업 열. 나오는 것(보고서)과 내는 길만 섭니다. 이 화면에서 유일하게 떠 있는 면입니다. */
 .work {
+  @include card;
+
+  // 보고서 한 장이 놓이는 면이라 다른 박스보다 여백을 한 단 넓힙니다.
+  // 열 머리는 제 선을 이 여백 밖까지 그어야 하므로 같은 값을 알려 줍니다.
+  --col-pad: 24px;
+
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
+  gap: $box-pad;
   min-width: 0;
   min-height: 0;
+  padding: var(--col-pad);
+  // 머리 줄은 왼쪽 열과 같은 높이에 섭니다. 넓힌 여백은 좌우와 아래만입니다.
+  padding-top: $box-pad;
 }
 
-/* 긴 보고서는 이 상자 안에서 구릅니다. 제출 줄은 그 아래에 늘 남습니다. */
+/* 보고서가 서는 자리. 스크롤 상자로 두지 않습니다 — 구르는 것은 창입니다. */
 .reports {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  min-width: 0;
+}
 
-  @include lg {
-    flex: none;
-    overflow: visible;
-  }
+/* 어디까지가 AI 가 쓴 것인지. 문서 안이 아니라 이 열의 머리에 섭니다. */
+.aiBadge {
+  @include tag-pill;
+
+  flex: none;
+  margin-left: var(--s2);
+  background: var(--purple-tint);
+  color: var(--purple-ink);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* 스트림이 자라는 동안 바닥을 잡아 두는 표식. 자리는 1px 만 씁니다. */
+.streamEnd {
+  flex: none;
+  height: 1px;
+  // 따라붙는 자리를 아래 제출 줄 높이만큼 띄웁니다 — 마지막 줄이 창 맨 밑에 붙지 않게.
+  scroll-margin-bottom: 96px;
 }
 
 /*
@@ -410,28 +438,6 @@
 }
 
 /*
- * 오른쪽 문서. 왼쪽 자료판과 같은 흰 면이지만 이쪽만 떠 있습니다 — 그림자 한 겹과
- * 넉넉한 여백이 그 차이를 혼자 짊어집니다. 업무보고서 작성 화면의 시트와 같은 값입니다.
- */
-.sheet {
-  padding: var(--s7) var(--s6);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--sh-2);
-
-  @include md {
-    padding: var(--s5) var(--s4);
-  }
-}
-
-@media screen {
-  .sheet :global(textarea) {
-    min-height: clamp(18rem, 45dvh, 32rem);
-  }
-}
-
-/*
  * AI 가 보고서를 만들지 못했을 때. 결과가 나왔어야 할 자리에서 이유를 냅니다.
  * 왼쪽 구석의 작은 글씨는 기다리다 지친 사람의 눈에 들어오지 않습니다.
  */
@@ -479,14 +485,14 @@
   flex: none;
   display: flex;
   min-width: 0;
-  padding-top: var(--s3);
+  padding-top: var(--s5);
 }
 
 .saveActions {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--s2);
 }
 
@@ -534,10 +540,19 @@
   .review.review,
   .reference.reference,
   .input.input,
-  .sideToggle.sideToggle,
   .saveBar.saveBar,
   .missing.missing {
     display: none;
+  }
+
+  // 화면에서 문서를 들어 올리던 면입니다. 종이에서는 종이가 곧 면입니다.
+  .work.work,
+  .side.side {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
   }
 
   .layout.layout {
@@ -550,10 +565,9 @@
     overflow: visible;
   }
 
-  .sheet.sheet {
-    padding: 0;
-    border: 0;
-    box-shadow: none;
+  /* 종이에는 편집용 표식이 남지 않습니다. */
+  .aiBadge {
+    display: none;
   }
 
   .page {

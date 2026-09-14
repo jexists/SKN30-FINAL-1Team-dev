@@ -26,12 +26,15 @@ interface Props {
   onGenerate: () => void
 }
 
-function assessmentBadge(draft: DealDraftState): {
-  label: string
-  tone: StatusTone
-  title?: string
-} {
-  if (draft.analysisPhase === 'running') return { label: 'ML 분석 중', tone: 'blue' }
+function assessmentBadge(draft: DealDraftState):
+  | {
+      label: string
+      tone: StatusTone
+      title?: string
+    }
+  | undefined {
+  // 도는 중인 일은 배지가 아니라 활동 한 줄로 알립니다. 배지는 판정 결과 자리입니다.
+  if (draft.analysisPhase === 'running') return undefined
   if (isInsufficientDealPrediction(draft.analysisError)) {
     return { label: '판단 정보 부족', tone: 'neutral' }
   }
