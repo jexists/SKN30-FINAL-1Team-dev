@@ -7,7 +7,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
 import { refreshOwnerColors } from '@/shared/ownerColors'
-import type { TeamMemberPatchRequest, TeamMemberRow, TeamOverviewResponse } from '@/types'
+import type {
+  HandoverCounts,
+  TeamMemberPatchRequest,
+  TeamMemberRow,
+  TeamOverviewResponse,
+} from '@/types'
 
 export default function useTeamOverview(targetMonth: string) {
   const [data, setData] = useState<TeamOverviewResponse | null>(null)
@@ -58,5 +63,22 @@ export default function useTeamOverview(targetMonth: string) {
     [targetMonth],
   )
 
-  return { data, loading, error, reload, saveMember }
+  /** 이 팀원이 지금 맡고 있는 일의 수. 드로어가 열릴 때 한 번 셉니다. */
+  const loadHandover = useCallback(async (memberId: string) => {
+    const { data: counts } = await client.get<HandoverCounts>(
+      `/team/members/${memberId}/handover-preview`,
+    )
+    return counts
+  }, [])
+
+  const handover = useCallback(async (fromId: string, toId: string) => {
+    const { data: moved } = await client.post<HandoverCounts>(`/team/members/${fromId}/handover`, {
+      to_member_id: toId,
+    })
+    // 담당자가 바뀌었으므로 목록의 실적도 다시 셉니다.
+    setReloadKey((previous) => previous + 1)
+    return moved
+  }, [])
+
+  return { data, loading, error, reload, saveMember, loadHandover, handover }
 }

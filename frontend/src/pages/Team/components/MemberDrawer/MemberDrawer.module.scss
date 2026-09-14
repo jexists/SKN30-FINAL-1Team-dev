@@ -184,6 +184,19 @@
   font-size: 12px;
 }
 
+// 비활성으로 저장하면 담당 데이터가 목록에서 사라진다는 경고입니다. .hint 와 달리
+// 바탕을 깔아 둡니다 — 되돌릴 수 없는 일은 아니지만 알아채지 못하면 팀장이 자기
+// 화면에서도 그 건들을 찾지 못합니다.
+.warning {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-xs);
+  background: var(--red-tint);
+  color: var(--red-ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 520px) {
   .facts,
   .fields {

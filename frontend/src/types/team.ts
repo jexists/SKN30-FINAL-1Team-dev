@@ -47,3 +47,11 @@ export interface TeamMemberPatchRequest {
   /** 어느 달의 목표를 고치는지. 그달 1일입니다. */
   target_month?: string
 }
+
+/** 팀원 한 명이 지금 맡고 있는 일의 수. 미리보기와 이관 결과가 같은 모양입니다. */
+export interface HandoverCounts {
+  customer_contacts: number
+  sales_deals: number
+  activities: number
+  support_requests: number
+}

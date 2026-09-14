@@ -15,15 +15,24 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import sales_deals as deals_api
 from app.api.deps import CurrentMember, DbSession
+from app.models.crm import (
+    Activity,
+    ActivityCompanion,
+    CustomerContact,
+    CustomerContactAssignee,
+    SupportRequest,
+)
 from app.models.sales import SalesDeal, SalesTarget
 from app.models.workspace import Member
 from app.schemas.team import (
+    HandoverCounts,
+    HandoverRequest,
     TeamMemberPatch,
     TeamMemberRow,
     TeamOverviewParams,
@@ -252,3 +261,148 @@ async def update_team_member(
     targets = await _targets_by_member(db, [member_id], month_start)
     confirmed = await _confirmed_by_member(db, member, month_start)
     return _member_row(target, targets.get(member_id, 0), confirmed.get(member_id, 0))
+
+
+# 팀원 한 명이 '지금 들고 있는 일'. 소프트 삭제된 행은 세지 않는다 — 화면에 보이지 않는
+# 건수를 넘긴다고 말하면 팀장이 숫자를 대조할 곳이 없다.
+_HANDOVER_COUNTS = (
+    (CustomerContact, CustomerContact.owner_member_id, CustomerContact.deleted_at),
+    (SalesDeal, SalesDeal.owner_member_id, SalesDeal.deleted_at),
+    (Activity, Activity.owner_member_id, Activity.deleted_at),
+    (SupportRequest, SupportRequest.assignee_member_id, None),
+)
+
+
+async def _handover_counts(db: AsyncSession, member_id: UUID) -> HandoverCounts:
+    """네 건수를 왕복 한 번에 센다."""
+    columns = []
+    for model, owner, deleted_at in _HANDOVER_COUNTS:
+        where = [owner == member_id]
+        if deleted_at is not None:
+            where.append(deleted_at.is_(None))
+        columns.append(select(func.count()).select_from(model).where(*where).scalar_subquery())
+    contacts, deals, activities, supports = (await db.execute(select(*columns))).one()
+    return HandoverCounts(
+        customer_contacts=contacts,
+        sales_deals=deals,
+        activities=activities,
+        support_requests=supports,
+    )
+
+
+async def _team_member(db: AsyncSession, member: Member, member_id: UUID) -> Member:
+    """읽기만 할 때 쓰는 _locked_team_member. 잠그지 않는다."""
+    target = (
+        await db.execute(
+            select(Member).where(
+                Member.id == member_id,
+                Member.team_id == member.team_id,
+                Member.role_code.in_(("member", "manager")),
+            )
+        )
+    ).scalar_one_or_none()
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="member_not_found")
+    return target
+
+
+@router.get("/team/members/{member_id}/handover-preview", response_model=HandoverCounts)
+async def get_handover_preview(
+    member_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> HandoverCounts:
+    """이 팀원을 비활성으로 내리면 어디로도 보이지 않게 될 데이터의 수."""
+    _require_manager(member)
+    await _team_member(db, member, member_id)
+    return await _handover_counts(db, member_id)
+
+
+@router.post("/team/members/{member_id}/handover", response_model=HandoverCounts)
+async def handover_member_workload(
+    member_id: UUID,
+    payload: HandoverRequest,
+    member: CurrentMember,
+    db: DbSession,
+) -> HandoverCounts:
+    """담당 데이터를 다른 팀원에게 한 번에 넘긴다.
+
+    목록 라우터의 스코프가 담당자의 active 를 보므로(_scope), 넘기지 않고 비활성으로
+    내리면 그 사람의 거래처·딜·일정·고객불만이 팀장 화면에서도 사라진다. 비활성 전환과
+    묶지 않고 따로 두는 까닭은, 재직 중인 팀원 사이의 인수인계도 같은 길을 쓰기 때문이다.
+
+    작성자·등록자 같은 이력 컬럼은 손대지 않는다. 지난 일을 누가 했는지는 사실이고,
+    스코프도 그 컬럼의 active 를 보지 않는다.
+    """
+    _require_manager(member)
+    if payload.to_member_id == member_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="same_member")
+
+    try:
+        # 두 행을 id 순으로 함께 잠근다. 팀장 둘이 서로 반대 방향으로 이관해도 교착되지
+        # 않는다.
+        rows = list(
+            (
+                await db.execute(
+                    select(Member)
+                    .where(
+                        Member.id.in_((member_id, payload.to_member_id)),
+                        Member.team_id == member.team_id,
+                        Member.role_code.in_(("member", "manager")),
+                    )
+                    .order_by(Member.id)
+                    .with_for_update(of=Member)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        found = {row.id: row for row in rows}
+        if len(found) != 2:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="member_not_found")
+        if not found[payload.to_member_id].active:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="inactive_target")
+
+        moved = HandoverCounts(customer_contacts=0, sales_deals=0, activities=0, support_requests=0)
+        # 복합 PK 를 가진 조인 테이블부터 정리한다. 인계자가 이미 같은 거래처·일정에
+        # 붙어 있으면 그대로 UPDATE 할 수 없다. 겹치는 쪽을 지우고 나머지를 옮긴다.
+        for join_model, parent_column in (
+            (CustomerContactAssignee, CustomerContactAssignee.customer_contact_id),
+            (ActivityCompanion, ActivityCompanion.activity_id),
+        ):
+            other = join_model.__table__.alias()
+            await db.execute(
+                delete(join_model).where(
+                    join_model.member_id == member_id,
+                    exists().where(
+                        other.c[parent_column.key] == parent_column,
+                        other.c.member_id == payload.to_member_id,
+                    ),
+                )
+            )
+            await db.execute(
+                update(join_model)
+                .where(join_model.member_id == member_id)
+                .values(member_id=payload.to_member_id)
+            )
+
+        # 삭제된 행도 함께 옮긴다. 되살렸을 때 주인이 비활성인 채로 남으면 그 순간 다시
+        # 보이지 않게 된다. 그래서 여기에는 미리보기와 달리 deleted_at 조건이 없고,
+        # 옮긴 수가 미리보기 숫자보다 많을 수 있다.
+        for model, owner, field in (
+            (CustomerContact, CustomerContact.owner_member_id, "customer_contacts"),
+            (SalesDeal, SalesDeal.owner_member_id, "sales_deals"),
+            (Activity, Activity.owner_member_id, "activities"),
+            (SupportRequest, SupportRequest.assignee_member_id, "support_requests"),
+        ):
+            result = await db.execute(
+                update(model).where(owner == member_id).values({owner.key: payload.to_member_id})
+            )
+            setattr(moved, field, result.rowcount)
+
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    return moved

@@ -51,7 +51,8 @@ export default function Team() {
   const [targetMonth, setTargetMonth] = useState(thisMonth)
   const [openId, setOpenId] = useState<string | null>(null)
 
-  const { data, loading, error, reload, saveMember } = useTeamOverview(targetMonth)
+  const { data, loading, error, reload, saveMember, loadHandover, handover } =
+    useTeamOverview(targetMonth)
 
   const months = useMemo(monthOptions, [])
   const members = useMemo<TeamMemberRow[]>(() => {
@@ -141,9 +142,12 @@ export default function Team() {
       {open !== null && (
         <MemberDrawer
           member={open}
+          members={members}
           isSelf={open.id === memberId}
           targetMonth={targetMonth.slice(0, 7)}
           onSave={saveMember}
+          onLoadHandover={loadHandover}
+          onHandover={handover}
           onClose={() => setOpenId(null)}
         />
       )}
