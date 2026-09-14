@@ -23,6 +23,7 @@ import { ListPageSkeleton, SkeletonDetail, TableSkeleton } from '@/components/Sk
 import Tabs, { type TabItem } from '@/components/Tabs'
 import { BP_DESKTOP } from '@/constants/breakpoints'
 import useMediaQuery from '@/hooks/useMediaQuery'
+import { useShowOwner } from '@/shared/scope'
 import type { SupportRequestResponse, SupportStatusCode, SupportResponseResponse } from '@/types'
 import { fmtDotShort } from '@/utils/date'
 
@@ -60,7 +61,8 @@ export default function Complaints() {
   const query = params.get('q') ?? ''
   const status = params.get('status') ?? ''
 
-  const [openId, setOpenId] = useState<string | null>(null)
+  // 대시보드 드로어가 건 하나를 지목해 들어옵니다. 목록에 없는 쪽수여도 상세는 id 로 받습니다.
+  const [openId, setOpenId] = useState<string | null>(params.get('id'))
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -68,6 +70,12 @@ export default function Complaints() {
   const [page, setPage] = useState(1)
   const isDesktop = useMediaQuery(`(min-width: ${BP_DESKTOP}px)`)
   const { memberId, isManager } = useCurrentUser()
+  // 한 사람 것만 보고 있으면 담당자 칸은 같은 이름만 반복합니다.
+  const showOwner = useShowOwner()
+  const columns = useMemo(
+    () => COLUMNS.filter((column) => column.id !== 'owner' || showOwner),
+    [showOwner],
+  )
 
   // 검색어나 탭이 바뀌면 결과가 줄어 지금 쪽수가 범위를 넘을 수 있습니다.
   useEffect(() => {
@@ -215,17 +223,17 @@ export default function Complaints() {
           <div className={styles.scroller}>
             <table
               className={styles.table}
-              style={{ width: COLUMNS.reduce((sum, column) => sum + column.width, 0) }}
+              style={{ width: columns.reduce((sum, column) => sum + column.width, 0) }}
             >
               <caption className="sr-only">CS대응 목록. 줄을 누르면 상세가 열립니다.</caption>
               <colgroup>
-                {COLUMNS.map((column) => (
+                {columns.map((column) => (
                   <col key={column.id} style={{ width: column.width }} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
-                  {COLUMNS.map((column) => (
+                  {columns.map((column) => (
                     <th key={column.id} scope="col">
                       {column.header}
                     </th>
@@ -254,12 +262,14 @@ export default function Complaints() {
                     <td className="tnum" title={dealLabel(request)}>
                       {dealLabel(request)}
                     </td>
-                    <td title={request.assignee_display_name}>
-                      <OwnerName
-                        name={request.assignee_display_name}
-                        memberId={request.assignee_member_id}
-                      />
-                    </td>
+                    {showOwner && (
+                      <td title={request.assignee_display_name}>
+                        <OwnerName
+                          name={request.assignee_display_name}
+                          memberId={request.assignee_member_id}
+                        />
+                      </td>
+                    )}
                     <td className={styles.issue} title={request.title}>
                       {request.title}
                     </td>
@@ -296,10 +306,12 @@ export default function Complaints() {
               <p className={styles.miniNote}>{request.body}</p>
               <div className={styles.miniMeta}>
                 <span className="tnum">{dealLabel(request)}</span>
-                <OwnerName
-                  name={request.assignee_display_name}
-                  memberId={request.assignee_member_id}
-                />
+                {showOwner && (
+                  <OwnerName
+                    name={request.assignee_display_name}
+                    memberId={request.assignee_member_id}
+                  />
+                )}
                 <span className="tnum">{fmtDotShort(dateOf(request.occurred_at))}</span>
               </div>
             </li>

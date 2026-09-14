@@ -50,6 +50,16 @@ const weekDays = (offset: number) => {
   return Array.from({ length: 7 }, (_, i) => addDays(first, i))
 }
 
+/** 달력 점의 색과 서는 순서. 한 날에 여러 상태가 있으면 이 순서로 섭니다. */
+const MARK_ORDER = ['작성중', '작성완료', '검토 대기', '확정', '반려'] as const
+const MARK_TONE: Record<(typeof MARK_ORDER)[number], string> = {
+  작성중: styles.markDraft,
+  작성완료: styles.markWritten,
+  '검토 대기': styles.markPending,
+  확정: styles.markDone,
+  반려: styles.markRejected,
+}
+
 export default function Daily() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -155,24 +165,37 @@ export default function Daily() {
     setParams(query, { replace: true })
   }
 
-  // 칸마다 점 하나. 평일인데 지나갔고 일일보고가 비었으면 미작성 표시입니다.
+  // 칸마다 그날 있는 상태를 색으로 세웁니다. 한 날에 여러 건이면 상태별로 점이
+  // 하나씩 서고(같은 상태는 하나로 묶습니다) 건수를 뒤에 적습니다. 점 하나만
+  // 찍으면 검토 대기와 작성완료가 같이 있는 날이 한 색으로 보입니다.
   const renderMark = (dateISO: string, isSelected: boolean) => {
-    const row = inKind.get(dateISO)?.[0]
+    const rows = inKind.get(dateISO) ?? []
     const dow = parseISO(dateISO).getDay()
-    const tone = (() => {
-      if (row?.status === '확정' || row?.status === '작성완료') return styles.markDone
-      if (row?.status === '검토 대기') return styles.markPending
-      if (row?.status === '작성중') return styles.markDraft
-      if (row?.status === '반려') return styles.markRejected
+    const tones = MARK_ORDER.filter((status) => rows.some((row) => row.status === status)).map(
+      (status) => MARK_TONE[status],
+    )
+    const onBlue = isSelected ? styles.isOnBlue : ''
+
+    if (tones.length === 0) {
       // 주간·월간·미팅은 매일 내는 보고가 아니므로 미작성으로 보지 않습니다.
       if (period !== 'all' && period !== 'daily') return null
       const past = dateISO < TODAY_ISO
-      if (past && dow !== 0 && dow !== 6) return styles.markMissing
-      return null
-    })()
+      if (!past || dow === 0 || dow === 6) return null
+      return <i className={`${styles.markMissing} ${onBlue}`} />
+    }
 
-    if (!tone) return null
-    return <i className={`${tone} ${isSelected ? styles.isOnBlue : ''}`} />
+    return (
+      <>
+        {tones.map((tone) => (
+          <i key={tone} className={`${tone} ${onBlue}`} />
+        ))}
+        {rows.length > 1 && (
+          <b className={`${styles.markCount} ${isSelected ? styles.isOnBlueText : ''} tnum`}>
+            {rows.length}
+          </b>
+        )}
+      </>
+    )
   }
 
   // 첫 진입입니다. 탭·달력·리스트가 차례로 나타나면 화면이 여러 번 들썩이므로
@@ -292,11 +315,12 @@ export default function Daily() {
             <span>
               <i className={styles.markDraft} /> 작성중
             </span>
-            {period === 'meeting' ? (
+            {period !== 'daily' && period !== 'weekly' && period !== 'monthly' && (
               <span>
-                <i className={styles.markDone} /> 작성완료
+                <i className={styles.markWritten} /> 작성완료
               </span>
-            ) : (
+            )}
+            {period !== 'meeting' && (
               <>
                 <span>
                   <i className={styles.markPending} /> 검토 대기
@@ -362,11 +386,8 @@ export default function Daily() {
                     {row.title}
                   </Link>
                 </strong>
-                <span className={styles.rowMeta}>{row.meta}</span>
+                <span className={`${styles.rowMeta} tnum`}>{fmtDotShort(parseISO(row.date))}</span>
               </div>
-
-              <span className={styles.approver}>{row.aside}</span>
-              <span className={`${styles.date} tnum`}>{fmtDotShort(parseISO(row.date))}</span>
               <ReportStatusBadge status={row.status} />
             </li>
           ))}

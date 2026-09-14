@@ -13,7 +13,7 @@ import { toMeetingReport } from '@/pages/Meetings/useMeetingReports'
 import { fetchAllReportPages } from '@/shared/reportQuery'
 import { useScopeOwnerIds } from '@/shared/scope'
 import type { ApiReportKind, ApiReportStatus, ReportResponse } from '@/types'
-import { type HistoryFilters } from './historyFilters'
+import { type FilterStatus, type HistoryFilters } from './historyFilters'
 import { PERIOD_KIND, showsDaily, showsMeetings, type Period } from './periods'
 import { byDateDesc, fromDailyReport, fromMeetingReport, type ListRow } from './rows'
 import { toReport } from './useDailyReports'
@@ -59,10 +59,16 @@ function kindsOf(period: Period): ApiReportKind[] {
  */
 export function historyQueryScopes(
   period: Period,
-  selectedStatuses?: ApiReportStatus[],
+  status: FilterStatus | '' = '',
 ): HistoryQueryScope[] {
   const scopes: HistoryQueryScope[] = []
-  const dailyKinds = kindsOf(period).filter((kind) => kind !== 'meeting')
+  const selectedStatuses = status === '' ? undefined : API_STATUS[status]
+  // 두 종류가 한 목록에 서는 '전체' 탭에서는 상태 칩이 종류도 가릅니다. 일반 보고서에는
+  // '작성완료'가 없고, 미팅 기록에는 검토 단계가 없습니다. 코드만 보고 고르면
+  // 같은 서버 코드(submitted…)를 쓰는 반대쪽 종류가 함께 딸려 옵니다.
+  const dailyKinds =
+    status === '작성완료' ? [] : kindsOf(period).filter((kind) => kind !== 'meeting')
+  const meetingHidden = status === '검토 대기' || status === '확정' || status === '반려'
   if (dailyKinds.length > 0) {
     scopes.push({
       report_kind: dailyKinds,
@@ -70,7 +76,7 @@ export function historyQueryScopes(
     })
   }
 
-  if (showsMeetings(period)) {
+  if (showsMeetings(period) && !meetingHidden) {
     if (period === 'meeting') {
       scopes.push({
         report_kind: ['meeting'],
@@ -105,8 +111,7 @@ export function toRow(item: ReportResponse): ListRow {
 export function useReportList(period: Period, query: string, filters: HistoryFilters) {
   const authorIds = useScopeOwnerIds()
   const paramsByScope = useMemo(() => {
-    const selectedStatuses = filters.status === '' ? undefined : API_STATUS[filters.status]
-    return historyQueryScopes(period, selectedStatuses).map((scope) => ({
+    return historyQueryScopes(period, filters.status).map((scope) => ({
       ...scope,
       author_member_id: authorIds,
       // 빈 문자열은 조건 없음입니다. 그대로 보내면 "빈 날짜" 를 고른 것이 됩니다.

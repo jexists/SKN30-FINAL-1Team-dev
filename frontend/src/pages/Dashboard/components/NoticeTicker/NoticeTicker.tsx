@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
-import StatusBadge from '@/components/StatusBadge'
-import { postedLabel, recipientLabel } from '@/shared/notices'
-import { statusLabel } from '@/shared/noticeStatus'
+import { postedLabel } from '@/shared/notices'
 import type { Notice } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 
@@ -81,18 +79,7 @@ export default function NoticeTicker({
             <li key={n.id ?? n.text}>
               <button type="button" onClick={() => onOpen(n)}>
                 <p>{n.text}</p>
-                {/* 팀장은 남에게 간 지시도 봅니다. 누구에게 간 것인지 시각 앞에 세웁니다. */}
-                <small>
-                  {n.recipients ? `${recipientLabel(n.recipients)} · ` : ''}
-                  {postedLabel(n)}
-                </small>
-                {/* 내가 받은 지시일 때만 섭니다. 열지 않고도 처리했는지 보이게 합니다. */}
-                {n.myStatus && (
-                  <StatusBadge
-                    label={statusLabel(n.myStatus.status_code).label}
-                    tone={statusLabel(n.myStatus.status_code).tone}
-                  />
-                )}
+                <small>{postedLabel(n)}</small>
               </button>
             </li>
           ))}

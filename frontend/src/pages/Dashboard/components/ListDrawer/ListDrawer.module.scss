@@ -33,24 +33,13 @@
   }
 }
 
-// 줄은 드로어 본문의 여백까지 넓혀 씁니다. 구분선은 다시 여백 안으로 들입니다.
-// 펼친 상세도 같은 칸에 들어가므로 바깥 상자가 너비와 구분선을 맡습니다.
+// 줄은 드로어 본문의 여백까지 넓혀 씁니다. 구분선 없이 줄 사이 여백으로만 나눕니다.
+// 펼친 상세도 같은 칸에 들어가므로 바깥 상자가 너비를 맡습니다.
 .item {
   --gut: var(--s5);
 
-  position: relative;
   width: calc(100% + var(--gut) * 2);
   margin: 0 calc(var(--gut) * -1);
-
-  & + .item::after {
-    content: '';
-    position: absolute;
-    left: var(--gut);
-    right: var(--gut);
-    top: 0;
-    height: 1px;
-    background: var(--line);
-  }
 
   @include sm {
     --gut: var(--s4);
@@ -85,23 +74,30 @@
   min-width: 0;
 
   h3 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
     font-size: 15px;
     font-weight: 700;
     letter-spacing: -0.01em;
   }
 
   h3 span {
-    margin-left: 6px;
     color: var(--muted);
     font-size: 12px;
     font-weight: 400;
   }
 
+  // 한 줄만 보입니다. 넘치면 잘라 '…' 로 맺어 줄 높이가 건마다 달라지지 않게 합니다.
   p {
     margin-top: 4px;
+    overflow: hidden;
     color: var(--ink-2);
     font-size: 13px;
     line-height: 1.6;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 }
 
@@ -134,6 +130,8 @@
 
 .side {
   display: grid;
+  align-self: center;
+  align-self: center;
   gap: 3px;
   justify-items: end;
   text-align: right;
@@ -148,103 +146,8 @@
 }
 
 .caret {
-  margin-top: 2px;
   color: var(--muted);
   transition: transform var(--t-fast);
-}
-
-.up {
-  transform: rotate(180deg);
-}
-
-// 펼친 상세. 줄과 같은 여백 안에 들어가 한 덩어리로 읽힙니다.
-.detail {
-  padding: 0 var(--gut) var(--s4);
-
-  dl {
-    display: grid;
-    grid-template-columns: 84px minmax(0, 1fr);
-    gap: 6px var(--s4);
-    padding: var(--s3) var(--s4);
-    border-radius: var(--r-sm);
-    background: var(--fill-2);
-    font-size: 13px;
-  }
-
-  dl > div {
-    display: contents;
-  }
-
-  dt {
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  dd {
-    color: var(--ink);
-    word-break: break-word;
-  }
-
-  @include sm {
-    dl {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 2px;
-    }
-
-    dl > div + div {
-      margin-top: 8px;
-    }
-  }
-}
-
-.notes {
-  margin-top: var(--s4);
-
-  h4 {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--ink-2);
-  }
-
-  ol {
-    display: grid;
-    gap: var(--s3);
-    margin-top: 8px;
-    list-style: none;
-  }
-
-  li div {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-  }
-
-  li strong {
-    font-size: 13px;
-    font-weight: 700;
-  }
-
-  li span {
-    color: var(--muted);
-    font-size: 11px;
-  }
-
-  li p {
-    margin-top: 3px;
-    color: var(--ink-2);
-    font-size: 13px;
-    line-height: 1.6;
-  }
-}
-
-.noNotes {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.late {
-  color: var(--orange-ink);
 }
 
 .empty {

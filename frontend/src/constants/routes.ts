@@ -85,6 +85,10 @@ export const meetingComposePath = (agendaId?: string) =>
 /** 확정한 업무보고서 상세 */
 export const meetingReportPath = (id: string) => `${ROUTES.MEETINGS}/${id}`
 
+/** CS 대응 상세. 목록 위 상세 드로어를 바로 엽니다. */
+export const supportRequestPath = (id: string) =>
+  `${ROUTES.COMPLAINTS}?id=${encodeURIComponent(id)}`
+
 /** 영업 보드. 목록과 같은 데이터를 단계별 칸으로 봅니다. */
 export const dealBoardPath = () => `${ROUTES.DEALS}/board`
 

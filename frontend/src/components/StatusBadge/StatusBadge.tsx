@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import styles from './StatusBadge.module.scss'
 
 /** 배지 색. neutral 은 tag-pill 기본색으로, 아직 아무 일도 일어나지 않은 상태에 씁니다. */
-export type StatusTone = 'neutral' | 'blue' | 'orange' | 'green' | 'red'
+export type StatusTone = 'neutral' | 'blue' | 'purple' | 'orange' | 'green' | 'red'
 
 interface Props {
   label: string
@@ -15,6 +15,7 @@ interface Props {
 const TONE: Record<StatusTone, string> = {
   neutral: '',
   blue: 'isBlue',
+  purple: 'isPurple',
   orange: 'isOrange',
   green: 'isGreen',
   red: 'isRed',
