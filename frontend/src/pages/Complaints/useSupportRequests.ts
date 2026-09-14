@@ -29,8 +29,7 @@ export function mutationErrorMessage(error: unknown, action: string): string {
   if (!isAxiosError(error)) return fallback
   if (error.response?.status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
   if (error.response?.status === 403) return `${action}할 권한이 없습니다.`
-  if (error.response?.status === 404)
-    return 'CS대응을 찾을 수 없습니다. 목록을 새로고침해 주세요.'
+  if (error.response?.status === 404) return 'CS대응을 찾을 수 없습니다. 목록을 새로고침해 주세요.'
   if (error.response?.status === 409)
     return '다른 변경이 먼저 반영되었습니다. 새로고침한 뒤 다시 시도해 주세요.'
   if (error.response?.status === 422) return '입력한 내용을 확인해 주세요.'
