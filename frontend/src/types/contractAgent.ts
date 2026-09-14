@@ -37,13 +37,29 @@ export interface SourceRef {
   id: string
 }
 
-export interface ContractBriefingOutput {
+export interface BriefingHighlight {
+  title: string
+  body: string
+  suggested_actions: string[]
+  source_refs: SourceRef[]
+  related_deal_ids: string[]
+}
+
+export interface HighlightBriefingOutput {
+  highlights: BriefingHighlight[]
+  missing_information: string[]
+}
+
+/** 마이그레이션 전에 저장된 AgentRun 결과를 일정 상세에서 계속 읽기 위한 구 형식. */
+export interface LegacyContractBriefingOutput {
   contract_summary: string
   source_refs: SourceRef[]
   risks: ContractRisk[]
   missing_information: string[]
   recommended_actions: string[]
 }
+
+export type ContractBriefingOutput = HighlightBriefingOutput | LegacyContractBriefingOutput
 
 /**
  * `GET /contract-next-meeting-suggestions` 한 건. 트리거(보고서 확정·일정 수동 등록·영업 딜

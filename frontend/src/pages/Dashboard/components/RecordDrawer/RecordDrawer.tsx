@@ -11,7 +11,7 @@ import { statusScope } from '@/shared/agenda'
 import { useAgendaReportLink } from '@/shared/agendaReport'
 import { RISK_LABEL } from '@/shared/riskLabels'
 import { useShowOwner } from '@/shared/scope'
-import type { AgendaItem } from '@/types'
+import type { AgendaItem, ContractBriefingOutput, ContractRisk, SourceRef } from '@/types'
 import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
@@ -28,7 +28,8 @@ import styles from './RecordDrawer.module.scss'
  * 어긋날 수 있는데, 그때 글이 깨지는 것보다 강조가 빠지는 편이 낫습니다. 짝이 안 맞아
  * 남은 대괄호는 화면에 새지 않도록 지웁니다.
  */
-function highlightChecks(summary: string) {
+function highlightChecks(summary?: string) {
+  if (!summary) return null
   return summary.split(/\[\[(.+?)\]\]/g).map((part, index) =>
     index % 2 === 1 ? (
       <mark key={index} className={styles.check}>
@@ -38,6 +39,65 @@ function highlightChecks(summary: string) {
       part.replace(/\[\[|\]\]/g, '')
     ),
   )
+}
+
+interface BriefingViewHighlight {
+  title: string
+  body: string
+  suggestedActions: string[]
+  sourceRefs: SourceRef[]
+}
+
+interface BriefingView {
+  highlights: BriefingViewHighlight[]
+  missingInformation: string[]
+  risks: ContractRisk[]
+}
+
+/** 새 highlights 형식과 DB에 남은 구 contract_summary 형식을 한 화면 모델로 맞춥니다. */
+function briefingView(content: ContractBriefingOutput | null | undefined): BriefingView | null {
+  if (!content || typeof content !== 'object') return null
+  if ('highlights' in content) {
+    const highlights = Array.isArray(content.highlights) ? content.highlights : []
+    return {
+      highlights: highlights
+        .filter((highlight) => highlight && typeof highlight === 'object')
+        .map((highlight) => ({
+          title: typeof highlight.title === 'string' ? highlight.title : '',
+          body: typeof highlight.body === 'string' ? highlight.body : '',
+          suggestedActions: Array.isArray(highlight.suggested_actions)
+            ? highlight.suggested_actions.filter(
+                (value): value is string => typeof value === 'string',
+              )
+            : [],
+          sourceRefs: Array.isArray(highlight.source_refs) ? highlight.source_refs : [],
+        }))
+        .filter((highlight) => highlight.title || highlight.body),
+      missingInformation: Array.isArray(content.missing_information)
+        ? content.missing_information.filter((value): value is string => typeof value === 'string')
+        : [],
+      risks: [],
+    }
+  }
+  return {
+    highlights:
+      typeof content.contract_summary === 'string' && content.contract_summary
+        ? [
+            {
+              title: '',
+              body: content.contract_summary,
+              suggestedActions: Array.isArray(content.recommended_actions)
+                ? content.recommended_actions
+                : [],
+              sourceRefs: Array.isArray(content.source_refs) ? content.source_refs : [],
+            },
+          ]
+        : [],
+    missingInformation: Array.isArray(content.missing_information)
+      ? content.missing_information
+      : [],
+    risks: Array.isArray(content.risks) ? content.risks : [],
+  }
 }
 
 interface Props {
@@ -66,10 +126,11 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     loading: briefingLoading,
     error: briefingError,
   } = useAiBriefing({ activityId: item.id, eligible: !!item.customerContactId })
+  const briefingContent = briefingView(briefing?.content)
   // 인용 여부는 목록을 거르는 조건이 아니라 줄에 붙는 표시입니다. 브리핑이 인용을
   // 빠뜨려도 자료 자체는 보여야 하고, 브리핑이 실패해도 목록은 남아야 합니다.
   const citedDocumentIds = new Set(
-    (briefing?.content?.source_refs ?? [])
+    (briefingContent?.highlights.flatMap((highlight) => highlight.sourceRefs) ?? [])
       .filter((ref) => ref.type === 'document')
       .map((ref) => ref.id),
   )
@@ -284,7 +345,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
                 ? `브리핑 생성에 실패했습니다${briefing.error ? `: ${briefing.error}` : ''}`
                 : 'AI 브리핑 준비 중입니다…'}
             </p>
-          ) : !briefing.content ? (
+          ) : !briefingContent ? (
             <p className={styles.note}>AI 브리핑 준비 중입니다…</p>
           ) : (
             <>
@@ -294,22 +355,43 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
                   최신 자료로 다시 만들지 못했습니다. 이전 브리핑을 보여드립니다.
                 </p>
               )}
-              <p className={styles.note}>{highlightChecks(briefing.content.contract_summary)}</p>
-              {briefing.content.risks.length > 0 && (
+              {briefingContent.highlights.length > 0 ? (
+                briefingContent.highlights.map((highlight, index) => (
+                  <div className={styles.highlight} key={`${highlight.title}-${index}`}>
+                    {highlight.title && <h4>{highlight.title}</h4>}
+                    {highlight.body && (
+                      <p className={styles.note}>{highlightChecks(highlight.body)}</p>
+                    )}
+                    {highlight.suggestedActions.length > 0 && (
+                      <ul className={styles.actions}>
+                        {highlight.suggestedActions.map((action, actionIndex) => (
+                          <li key={actionIndex}>{action}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className={styles.note}>표시할 브리핑 내용이 없습니다.</p>
+              )}
+              {briefingContent.risks.length > 0 && (
                 <div className={styles.pills}>
-                  {briefing.content.risks.map((risk, index) => (
+                  {briefingContent.risks.map((risk, index) => (
                     <i key={`${risk.code}-${index}`} className={styles.pill}>
                       {RISK_LABEL[risk.code]}
                     </i>
                   ))}
                 </div>
               )}
-              {briefing.content.recommended_actions.length > 0 && (
-                <ul className={styles.actions}>
-                  {briefing.content.recommended_actions.map((action, index) => (
-                    <li key={index}>{action}</li>
-                  ))}
-                </ul>
+              {briefingContent.missingInformation.length > 0 && (
+                <div className={styles.missingInformation}>
+                  <h4>확인이 필요한 정보</h4>
+                  <ul className={styles.actions}>
+                    {briefingContent.missingInformation.map((information, index) => (
+                      <li key={index}>{information}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </>
           )}

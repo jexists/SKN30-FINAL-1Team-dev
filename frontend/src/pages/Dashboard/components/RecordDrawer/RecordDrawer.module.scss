@@ -55,6 +55,18 @@
   }
 }
 
+.highlight + .highlight,
+.missingInformation {
+  margin-top: var(--s4);
+}
+
+.highlight h4,
+.missingInformation h4 {
+  margin-bottom: var(--s2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 // 계약번호·납기처럼 제목을 거드는 값. 제목보다 약하게 둡니다.
 .sub {
   color: var(--muted);
