@@ -52,7 +52,7 @@ class CustomerContact(Base):
     # 담당자가 직접 켜고 끄는 표시. 활동 기록에서 파생하지 않는다.
     visited: Mapped[bool] = mapped_column(server_default=text("false"))
     registered_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    # 팀장이 지운 시각. 행은 남는다. 딜·일정이 이 고객을 참조하고 있어 지울 수 없고,
+    # 지운 시각. 행은 남는다. 딜·일정이 이 고객을 참조하고 있어 지울 수 없고,
     # 지난 기록에서 만난 사람의 이름이 사라져서도 안 된다.
     deleted_at: Mapped[datetime | None]
 
@@ -148,6 +148,9 @@ class SupportRequest(Base):
     registered_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     # 마지막으로 본문을 고친 시각. 한 번도 고치지 않았으면 None 이다.
     updated_at: Mapped[datetime | None]
+    # 지운 시각. 행은 남는다. support_response 와 support_request_edit_backup 이 이 건을
+    # 참조하고 있어 지울 수 없고, 대응 이력과 수정 전 백업이 사라져서도 안 된다.
+    deleted_at: Mapped[datetime | None]
 
 
 class SupportResponse(Base):

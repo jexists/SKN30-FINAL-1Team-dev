@@ -62,7 +62,8 @@ EXPECTED_COLUMN_COUNTS = {
     "activity_companion": 2,
     # 20260825_0006 으로 support_request 에 customer_company_id/sales_deal_id/occurred_at 이
     # 늘고 customer_contact_id 가 빠졌다. 불만은 담당자 대신 회사와 계약건에 맨다.
-    "support_request": 12,
+    # 20260914_0034 로 deleted_at 이 늘었다. 등록한 본인과 팀장이 지운다.
+    "support_request": 13,
     "support_request_edit_backup": 8,
     "support_response": 5,
     "sales_pipeline": 10,

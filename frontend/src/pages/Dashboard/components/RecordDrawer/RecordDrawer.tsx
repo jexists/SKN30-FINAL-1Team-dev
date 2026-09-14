@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import Button, { buttonClass } from '@/components/Button'
+import DocumentSummaryView from '@/components/DocumentSummaryView'
 import Drawer from '@/components/Drawer'
 import Popover from '@/components/Popover'
 import Skeleton, { InlineLoader } from '@/components/Skeleton'
@@ -90,7 +91,11 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
       {document.summary_markdown && (
         <details className={styles.sourceSummary}>
           <summary>자료요약 보기</summary>
-          <pre>{document.summary_markdown}</pre>
+          {/* 여기는 요약 마크다운만 옵니다. 자료실 드로어와 같은 컴포넌트로 그립니다. */}
+          <DocumentSummaryView
+            markdown={document.summary_markdown}
+            className={styles.summaryBody}
+          />
         </details>
       )}
     </li>

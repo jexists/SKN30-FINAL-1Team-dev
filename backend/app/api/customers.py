@@ -983,20 +983,19 @@ async def delete_customer_contact(
     member: CurrentMember,
     db: DbSession,
 ) -> None:
-    """고객을 지운다. 팀장만 할 수 있다.
+    """고객을 지운다. 등록한 본인과 팀장이 할 수 있다.
 
-    역할을 쿼리보다 먼저 본다. 그래야 팀원이 남의 팀 고객 id 를 넣어도 404 대신 403 을
-    받고, 그 id 가 있는지 없는지가 새지 않는다. update_customer_company 와 같은 순서다.
+    수정과 달리 담당자로 지정된 것만으로는 지울 수 없다. 담당자는 여러 명이고, 그중
+    한 사람이 다른 사람이 등록한 고객을 없애면 남은 담당자의 목록에서 조용히 사라진다.
+
+    역할보다 조회를 먼저 한다. 팀원도 지울 수 있게 되어 역할만으로는 답이 정해지지 않고,
+    _contact_scope 가 이미 팀원에게 자기 담당 고객만 보이므로 남의 팀 고객 id 는 그대로
+    404 가 된다. 있는지 없는지는 새지 않는다.
 
     행은 남기고 deleted_at 만 채운다. activity, sales_deal, sales_deal_participant 가
     이 고객을 참조하고 있어 실제 DELETE 는 외래키에 막히고, 참조를 먼저 끊으면 지난 딜과
     일정에서 누구를 만났는지가 사라진다. 담당자 행도 그대로 둔다.
     """
-    if member.role_code != "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="manager_required",
-        )
     result = await db.execute(
         select(CustomerContact)
         .join(CustomerCompany, CustomerContact.company_id == CustomerCompany.id)
@@ -1008,6 +1007,11 @@ async def delete_customer_contact(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="customer_contact_not_found",
+        )
+    if member.role_code != "manager" and contact.created_by_member_id != member.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="contact_owner_required",
         )
     contact.deleted_at = datetime.now(UTC)
     await _flush_and_commit(db)

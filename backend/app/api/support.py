@@ -60,6 +60,8 @@ def _joined_select(*entities):
 
 def _scope(member: Member, assignee_ids: tuple[UUID, ...] | None = None):
     conditions = [
+        # 지운 건은 목록에도 상세에도 나오지 않는다. 수정·상태 변경·삭제도 여기서 404 가 된다.
+        SupportRequest.deleted_at.is_(None),
         SupportRequest.team_id == member.team_id,
         _assignee.team_id == member.team_id,
         _assignee.active.is_(True),
@@ -192,7 +194,7 @@ async def _locked_request(
 
 
 def _may_edit(member: Member, request: SupportRequest) -> bool:
-    """고칠 수 있는 사람인지. 등록한 본인과 팀장뿐이다.
+    """고치거나 지울 수 있는 사람인지. 등록한 본인과 팀장뿐이다.
 
     _scope 가 이미 볼 수 있는 범위를 좁혀 두었으므로 여기서 팀을 다시 보지 않는다.
     팀원이면 남의 불만은 애초에 조회 단계에서 404 로 끊긴다.
@@ -425,6 +427,32 @@ async def update_support_request(
         await db.rollback()
         raise
     return read
+
+
+@router.delete("/support-requests/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_support_request(
+    request_id: UUID,
+    member: CurrentMember,
+    db: DbSession,
+) -> None:
+    """CS대응을 지운다. 등록한 본인과 팀장이 할 수 있다.
+
+    행은 남기고 deleted_at 만 채운다. support_response 와 support_request_edit_backup 이
+    이 건을 참조하고 있어 실제 DELETE 는 외래키에 막히고, 참조를 먼저 끊으면 대응 이력과
+    고치기 전 본문이 사라진다. 대응과 백업 행도 그대로 둔다.
+    """
+    try:
+        request = await _locked_request(db, member, request_id)
+        if not _may_edit(member, request):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+
+        # _scope 가 지운 건을 걸러 내므로 여기까지 온 건은 살아 있다. 같은 건을 한 번 더
+        # 지우려 하면 처음 지운 시각을 덮어쓰지 않고 404 가 된다. 고객 삭제와 같다.
+        request.deleted_at = datetime.now(UTC)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
 
 @router.post(

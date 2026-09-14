@@ -162,10 +162,14 @@
 /* ---- 파일 ---- */
 
 // 이 제목 아래에 마크다운 소제목이 다시 선다. 부모가 자식보다 커야 위계가 읽힌다.
+// 자식은 요약의 구획 제목(DocumentSummaryView 의 .heading, 13px/700)이라 여기는
+// 두 눈금 위인 15px 로 선다. 자간은 15px 이상에서만 — 그 아래로 내려가면 한글이
+// 가로로 눌려 보인다(머리말 17px 이 -0.014em 을 쓰는 것과 같은 계열).
 .sectionTitle {
   color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
 }
 
 // 파일 이름과 크기·등록자·등록일을 카드 한 장으로 묶습니다. 문서에 대한 값(메모·연결)과
@@ -173,7 +177,7 @@
 .fileCard {
   display: grid;
   gap: 4px;
-  margin-top: var(--s3);
+  margin-top: var(--s4);
   padding: var(--s3);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -214,7 +218,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s3);
-  margin-bottom: var(--s2);
+  // '원본 파일' 제목 아래(.fileCard)와 같은 간격. 섹션 제목 둘이 서로 다른 높이에서
+  // 본문을 시작하면 같은 층의 제목으로 읽히지 않습니다.
+  margin-bottom: var(--s4);
 }
 
 .summarize {
@@ -233,81 +239,14 @@
 }
 
 .summary {
-  margin-top: var(--s5);
-  padding-bottom: var(--s5);
+  margin-top: var(--s6);
+  padding-bottom: var(--s6);
   border-bottom: 1px solid var(--line);
 }
 
 // 요약과 원본은 다루는 대상이 다릅니다. 여백만으로는 경계가 보이지 않습니다.
 .source {
-  margin-top: var(--s5);
-}
-
-/*
- * 마크다운으로 그린 요약 본문. 기본 모양은 ReportBody 가 잡고, 소제목·목록의
- * 크기와 간격만 이 드로어의 위계에 맞춰 다시 잡습니다.
- *
- * 높이를 매지 않습니다. 드로어 본문이 이미 스크롤을 맡고 있어서 여기에 다시
- * max-height 를 걸면 한 화면에 스크롤 막대가 둘 생깁니다. 회색 상자도 함께
- * 걷었습니다. 요약이 이 드로어의 본문이 된 자리에서 상자는 장식입니다.
- */
-.summaryBody {
-  color: var(--ink-2);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums; // 금액·수량이 자리를 맞춰 서게
-  line-height: 1.7;
-
-  /*
-   * 소제목은 본문보다 작고 옅게 두고, 위쪽 여백으로 묶음을 만든다. 굵기만으로
-   * 나누면 '주요 내용'과 그 아래 항목이 같은 크기로 서서 한 덩어리로 읽힌다.
-   */
-  :global(h1),
-  :global(h2),
-  :global(h3),
-  :global(h4),
-  :global(h5),
-  :global(h6) {
-    margin: var(--s5) 0 var(--s2);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  > :global(:first-child) {
-    margin-top: 0;
-  }
-
-  // 첫 문단이 요약의 도입부다. 한 걸음 앞에 세워 무엇에 대한 문서인지 먼저 읽히게 한다.
-  > :global(p:first-child) {
-    color: var(--ink);
-    font-size: 14px;
-    line-height: 1.65;
-  }
-
-  :global(ul),
-  :global(ol) {
-    padding-left: 1.15em;
-  }
-
-  :global(li) {
-    margin-bottom: 6px;
-
-    &::marker {
-      color: var(--muted);
-    }
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-
-  :global(strong) {
-    color: var(--ink);
-  }
-
-  :global(pre) {
-    overflow-x: auto;
-  }
+  margin-top: var(--s6);
 }
 
 .summaryError {

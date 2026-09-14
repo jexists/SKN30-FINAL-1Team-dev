@@ -5,7 +5,15 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
-import { ComplaintIcon, EditIcon, MoreIcon, PlusIcon, SearchIcon } from '@/components/icons'
+import {
+  ComplaintIcon,
+  EditIcon,
+  MoreIcon,
+  PlusIcon,
+  SearchIcon,
+  TrashIcon,
+} from '@/components/icons'
+import Modal from '@/components/Modal'
 import OwnerName from '@/components/OwnerName'
 import Popover from '@/components/Popover'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
@@ -55,6 +63,7 @@ export default function Complaints() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [page, setPage] = useState(1)
   const isDesktop = useMediaQuery(`(min-width: ${BP_DESKTOP}px)`)
@@ -81,6 +90,7 @@ export default function Complaints() {
     clearMutationError,
     createRequest,
     updateRequest,
+    removeRequest,
     transition,
     addResponse,
   } = useSupportRequests(openId, {
@@ -125,13 +135,14 @@ export default function Complaints() {
   const open = detail?.id === openId ? detail : summary
   const isFiltered = query.trim() !== '' || status !== ''
 
-  // 고칠 수 있는 사람은 등록한 본인과 팀장뿐입니다. 서버(support.py `_may_edit`)가 실제로
-  // 막고 여기서는 누를 수 없는 메뉴를 세우지 않을 뿐입니다.
+  // 고치고 지울 수 있는 사람은 등록한 본인과 팀장뿐입니다. 서버(support.py `_may_edit`)가
+  // 실제로 막고 여기서는 누를 수 없는 메뉴를 세우지 않을 뿐입니다.
   const canEdit = detail !== null && (isManager || detail.assignee_member_id === memberId)
 
   const closeDrawer = useCallback(() => {
     setOpenId(null)
     setEditing(false)
+    setDeleting(false)
     setMenuOpen(false)
     clearMutationError()
   }, [clearMutationError])
@@ -337,6 +348,18 @@ export default function Complaints() {
                     <EditIcon width={15} height={15} />
                     수정
                   </button>
+                  <button
+                    type="button"
+                    className={styles.danger}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      clearMutationError()
+                      setDeleting(true)
+                    }}
+                  >
+                    <TrashIcon width={15} height={15} />
+                    삭제
+                  </button>
                 </div>
               </Popover>
             ) : undefined
@@ -440,6 +463,47 @@ export default function Complaints() {
             setEditing(false)
           }}
         />
+      )}
+
+      {deleting && detail && (
+        <Modal
+          title="CS대응을 삭제하시겠습니까?"
+          description={`${detail.customer_company_name} · ${detail.title}`}
+          onClose={() => setDeleting(false)}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pendingKey !== null}
+                onClick={() => setDeleting(false)}
+              >
+                취소
+              </Button>
+              <Button
+                type="button"
+                disabled={pendingKey !== null}
+                onClick={() => {
+                  void removeRequest(detail.id).then((done) => {
+                    if (done) {
+                      setDeleting(false)
+                      closeDrawer()
+                    }
+                  })
+                }}
+              >
+                {pendingKey === `delete:${detail.id}` ? '삭제 중…' : '삭제'}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>삭제한 CS대응은 목록에서 사라집니다.</p>
+          {mutationError && (
+            <p className={styles.confirmError} role="alert">
+              {mutationError}
+            </p>
+          )}
+        </Modal>
       )}
 
       {adding && (

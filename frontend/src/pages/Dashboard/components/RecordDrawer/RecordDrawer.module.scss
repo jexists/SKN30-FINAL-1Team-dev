@@ -285,7 +285,7 @@
   gap: var(--s2);
 }
 
-// 자료요약 Agent 가 만든 요약. 원문 그대로라 자료실 드로어와 같은 pre 로 둡니다.
+// 자료요약 Agent 가 만든 요약. 길어서 목록을 밀어내므로 접어 둡니다.
 .sourceSummary {
   margin-top: var(--s1);
 
@@ -294,19 +294,11 @@
     font-size: 11px;
     cursor: pointer;
   }
+}
 
-  pre {
-    margin-top: var(--s2);
-    padding: var(--s3);
-    border-radius: var(--r-sm);
-    background: var(--fill);
-    color: var(--ink-2);
-    font-family: inherit;
-    font-size: 12px;
-    line-height: 1.7;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
+// 펼친 요약은 DocumentSummaryView 가 그립니다. 여기서는 자리만 띄웁니다.
+.summaryBody {
+  margin-top: var(--s2);
 }
 
 // 브리핑이 실제로 인용한 자료에만 붙습니다. 목록을 거르지 않고 표시만 더합니다.
