@@ -3,7 +3,8 @@
  *
  * 모달 본문은 overflow: auto, 다이얼로그는 overflow: hidden 이라 목록을 흐름 안에 두면
  * 잘립니다. body 로 꺼내 좌표로 띄우는 대신 위치를 여기서 잽니다. 아래 공간이 좁으면
- * 위로 뒤집습니다. 좌표는 열 때 한 번만 재므로, 열어 둔 채 본문을 스크롤하면 제자리에 남습니다.
+ * 위로 뒤집습니다. 한 번 잰 좌표는 화면이 움직여도 따라오지 않으니, 열어 둔 채 스크롤·크기
+ * 변경이 일어나는 자리에서는 부르는 쪽이 다시 재야 합니다(Select.tsx).
  */
 export default function menuPosition(box: HTMLElement | null): React.CSSProperties | undefined {
   const rect = box?.getBoundingClientRect()

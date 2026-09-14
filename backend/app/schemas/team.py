@@ -108,3 +108,24 @@ class TeamOverviewParams(BaseModel):
         if self.target_month is not None and self.target_month.day != 1:
             raise ValueError("target_month_must_be_first_day")
         return self
+
+
+class HandoverCounts(BaseModel):
+    """한 팀원이 지금 맡고 있는 일의 수.
+
+    미리보기와 이관 결과가 같은 모양을 쓴다. 팀장이 '12건을 넘긴다' 를 보고 눌렀으면
+    결과도 같은 칸으로 읽혀야 한다.
+    """
+
+    customer_contacts: int
+    sales_deals: int
+    activities: int
+    support_requests: int
+
+
+class HandoverRequest(BaseModel):
+    """담당 데이터를 누구에게 넘길지."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    to_member_id: UUID

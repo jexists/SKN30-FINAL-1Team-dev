@@ -35,14 +35,19 @@ class _Scalars:
 
 
 class _Result:
-    def __init__(self, *, scalar=_MISSING, rows=None, scalar_values=None):
+    def __init__(self, *, scalar=_MISSING, rows=None, scalar_values=None, rowcount=0):
         self.scalar = scalar
         self.rows = [] if rows is None else rows
         self.scalar_values = [] if scalar_values is None else scalar_values
+        self.rowcount = rowcount
 
     def scalar_one_or_none(self):
         assert self.scalar is not _MISSING
         return self.scalar
+
+    def one(self):
+        assert len(self.rows) == 1
+        return self.rows[0]
 
     def all(self):
         return self.rows
@@ -459,3 +464,122 @@ def test_patch_can_clear_the_region_back_to_unset():
     assert response.status_code == 200
     assert response.json()["region_code"] is None
     assert teammate.region_code is None
+
+
+def test_handover_preview_counts_live_work_only():
+    """소프트 삭제된 행은 세지 않는다. 화면에 없는 건수를 넘긴다고 말할 수 없다."""
+    manager = _member(role="manager")
+    teammate = _member(team_id=manager.team_id)
+
+    db = _Db(
+        _Result(scalar=teammate),
+        _Result(rows=[(12, 5, 8, 2)]),
+    )
+    with _client(db, manager) as client:
+        response = client.get(f"/api/team/members/{teammate.id}/handover-preview")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "customer_contacts": 12,
+        "sales_deals": 5,
+        "activities": 8,
+        "support_requests": 2,
+    }
+    sql = str(db.statements[1])
+    assert sql.count("deleted_at IS NULL") == 3
+
+
+def test_handover_moves_every_owner_column_and_clears_join_duplicates():
+    """겹치는 담당·동행자 행을 먼저 지운다. 복합 PK 라 그대로 UPDATE 하면 터진다."""
+    manager = _member(role="manager")
+    leaver = _member(name="퇴직 예정", team_id=manager.team_id)
+    heir = _member(name="인계자", team_id=manager.team_id)
+
+    db = _Db(
+        _Result(scalar_values=[leaver, heir]),
+        _Result(),  # DELETE customer_contact_assignee 중복
+        _Result(),  # UPDATE customer_contact_assignee
+        _Result(),  # DELETE activity_companion 중복
+        _Result(),  # UPDATE activity_companion
+        _Result(rowcount=12),
+        _Result(rowcount=5),
+        _Result(rowcount=8),
+        _Result(rowcount=2),
+    )
+    with _client(db, manager) as client:
+        response = client.post(
+            f"/api/team/members/{leaver.id}/handover",
+            headers={"Origin": ORIGIN},
+            json={"to_member_id": str(heir.id)},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "customer_contacts": 12,
+        "sales_deals": 5,
+        "activities": 8,
+        "support_requests": 2,
+    }
+    assert db.commit_count == 1
+
+    statements = [str(statement) for statement in db.statements]
+    # 조인 테이블은 '겹치는 행 삭제 → 나머지 이동' 순서여야 한다.
+    assert statements[1].startswith("DELETE FROM public.customer_contact_assignee")
+    assert "EXISTS" in statements[1]
+    assert statements[2].startswith("UPDATE public.customer_contact_assignee")
+    assert statements[3].startswith("DELETE FROM public.activity_companion")
+    assert statements[4].startswith("UPDATE public.activity_companion")
+    # 담당 컬럼 넷을 모두 옮긴다.
+    assert "UPDATE public.customer_contact SET owner_member_id" in statements[5]
+    assert "UPDATE public.sales_deal SET owner_member_id" in statements[6]
+    assert "UPDATE public.activity SET owner_member_id" in statements[7]
+    assert "UPDATE public.support_request SET assignee_member_id" in statements[8]
+    # 이력 컬럼은 손대지 않는다. 지난 일을 누가 했는지는 사실이다.
+    assert not any("created_by_member_id" in sql for sql in statements)
+    assert not any("author_member_id" in sql for sql in statements)
+    # 삭제된 행도 함께 옮긴다. 되살렸을 때 주인이 비활성이면 그대로 다시 사라진다.
+    assert not any("deleted_at" in sql for sql in statements[5:])
+
+
+def test_handover_refuses_an_inactive_heir_and_self_handover():
+    manager = _member(role="manager")
+    leaver = _member(team_id=manager.team_id)
+    heir = _member(team_id=manager.team_id, active=False)
+
+    db = _Db(_Result(scalar_values=[leaver, heir]))
+    with _client(db, manager) as client:
+        inactive = client.post(
+            f"/api/team/members/{leaver.id}/handover",
+            headers={"Origin": ORIGIN},
+            json={"to_member_id": str(heir.id)},
+        )
+        same = client.post(
+            f"/api/team/members/{leaver.id}/handover",
+            headers={"Origin": ORIGIN},
+            json={"to_member_id": str(leaver.id)},
+        )
+
+    assert inactive.status_code == 409
+    assert inactive.json() == {"detail": "inactive_target"}
+    assert same.status_code == 400
+    assert same.json() == {"detail": "same_member"}
+    assert db.commit_count == 0
+    # 같은 사람을 고른 요청은 조회조차 하지 않는다.
+    assert len(db.statements) == 1
+
+
+def test_handover_and_preview_are_manager_only():
+    teammate = _member()
+    db = _Db()
+
+    with _client(db, teammate) as client:
+        preview = client.get(f"/api/team/members/{teammate.id}/handover-preview")
+        moved = client.post(
+            f"/api/team/members/{teammate.id}/handover",
+            headers={"Origin": ORIGIN},
+            json={"to_member_id": str(uuid4())},
+        )
+
+    assert preview.status_code == moved.status_code == 403
+    assert preview.json() == moved.json() == {"detail": "manager_required"}
+    assert db.statements == []

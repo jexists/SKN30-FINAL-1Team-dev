@@ -2,10 +2,11 @@
 //
 // 대시보드 하루 카드와 업무보고서 작성 화면이 같은 것을 보여 주므로 머리말도
 // 하나만 둡니다. 다른 점은 날짜를 바꿀 수 있는지 하나뿐이라 그것만 선택으로 받습니다.
-import { useRef, type ReactNode } from 'react'
+import { forwardRef, type ReactNode } from 'react'
 
+import DayPicker from '@/components/DayPicker'
 import { ChevronDownIcon } from '@/components/icons'
-import { fmtDay, parseISO, TODAY } from '@/utils/date'
+import { fmtDay, parseISO, startOfMonth, toDate, toISO, TODAY } from '@/utils/date'
 
 import styles from './DayHeader.module.scss'
 
@@ -29,6 +30,21 @@ interface Props {
 const DAY = 86_400_000
 const RELATIVE: Record<string, string> = { '-1': '어제', '0': '오늘', '1': '내일' }
 
+/**
+ * 달력을 여는 제목. react-datepicker 는 customInput 에 value·onChange 까지 함께
+ * 꽂지만 버튼은 글자를 밖에서 받으므로 여는 손잡이(onClick)와 달력이 설 자리(ref)만
+ * 씁니다.
+ */
+const DateTrigger = forwardRef<HTMLButtonElement, { onClick?: () => void; children?: ReactNode }>(
+  function DateTrigger({ onClick, children }, ref) {
+    return (
+      <button type="button" ref={ref} className={styles.dateBtn} onClick={onClick}>
+        {children}
+      </button>
+    )
+  },
+)
+
 export default function DayHeader({
   dateISO,
   onDateChange,
@@ -37,35 +53,36 @@ export default function DayHeader({
   pickerType = 'date',
   children,
 }: Props) {
-  /** 날짜를 누르면 열리는 브라우저 달력. 입력칸 자체는 보이지 않습니다. */
-  const pickerRef = useRef<HTMLInputElement>(null)
   const date = parseISO(dateISO)
   // 하루를 가리킬 때만 어제·오늘·내일이 뜻을 가집니다.
   const relative = label
     ? undefined
     : RELATIVE[String(Math.round((date.getTime() - TODAY.getTime()) / DAY))]
   const title = label ?? fmtDay(date)
-  // 월 달력은 'YYYY-MM' 만 주고받습니다. 밖에서는 언제나 그 달 1일로 봅니다.
   const month = pickerType === 'month'
 
   return (
     <div className={styles.head}>
       <h2>
         {onDateChange ? (
-          <button
-            type="button"
-            className={styles.dateBtn}
-            onClick={() => {
-              const el = pickerRef.current
-              if (!el) return
-              // showPicker 가 없는 브라우저에서는 입력칸을 잡아 주는 정도까지만 합니다.
-              if (el.showPicker) el.showPicker()
-              else el.focus()
-            }}
-          >
-            {title}
-            <ChevronDownIcon width={15} height={15} />
-          </button>
+          <DayPicker
+            className={styles.dateCell}
+            label={month ? '기준 월' : '기준 날짜'}
+            month={month}
+            // 작성 화면의 자료 열은 overflow 를 자릅니다. 달력이 그 안에서 잘리지 않게 합니다.
+            fixed
+            selected={date}
+            maxDate={maxISO ? (toDate(maxISO) ?? undefined) : undefined}
+            // 월 달력은 고른 달에 지금 고른 날의 일(日)을 얹어 돌려줍니다. 밖에서는
+            // 월간을 언제나 그 달 1일로 보므로 여기서 못 박습니다.
+            onChange={(next) => next && onDateChange(toISO(month ? startOfMonth(next) : next))}
+            customInput={
+              <DateTrigger>
+                {title}
+                <ChevronDownIcon width={15} height={15} />
+              </DateTrigger>
+            }
+          />
         ) : (
           title
         )}
@@ -76,24 +93,6 @@ export default function DayHeader({
       </h2>
 
       {children}
-
-      {onDateChange && (
-        <input
-          ref={pickerRef}
-          className={styles.picker}
-          // 보이지 않는 칸이라 탭으로 걸리면 갈 곳 없는 정거장이 됩니다.
-          tabIndex={-1}
-          type={pickerType}
-          aria-label={month ? '기준 월' : '기준 날짜'}
-          value={month ? dateISO.slice(0, 7) : dateISO}
-          max={month ? maxISO?.slice(0, 7) : maxISO}
-          onChange={(event) => {
-            const value = event.target.value
-            if (value === '') return
-            onDateChange(month ? `${value}-01` : value)
-          }}
-        />
-      )}
     </div>
   )
 }

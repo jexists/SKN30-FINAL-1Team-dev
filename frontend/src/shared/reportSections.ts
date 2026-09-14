@@ -35,10 +35,12 @@ const SEPARATOR = /\s+[·|]\s+/
  * 일일·주간·월간의 마지막 구획은 '할 일 — 담당 미지정, 기한 미확인, 완료 기준: …' 꼴로 옵니다.
  * 지침이 구분자를 정해 주지 않아 딜 보고서(' · ')와 다른 꼴이 나옵니다.
  *
- * 둘 다 뒤가 알려진 이름표일 때만 자릅니다. 그냥 줄표·쉼표로 자르면
+ * 꼬리에 알려진 이름표가 있을 때만 자릅니다. 그냥 줄표·쉼표로 자르면
  * '설치 조건, 기존 장비와의 역할 분담, … 확인 — 담당 미지정' 같은 줄의 할 일이 조각납니다.
  */
-const TAIL = new RegExp(`\\s+[—–]\\s+(?=(?:${FIELD_LABELS.join('|')})[\\s:])`)
+// 줄표 뒤 첫 조각이 이름표가 아닌 때가 있습니다 — '… — 합의된 후속 조치, 담당 미지정, …'
+// 처럼 상태가 이름표 없이 먼저 옵니다. 꼬리 어딘가에 이름표가 있으면 자릅니다.
+const TAIL = new RegExp(`\\s+[—–]\\s+(?=[^\\n]*?(?:${FIELD_LABELS.join('|')})[\\s:])`)
 const TAIL_SEPARATOR = new RegExp(`\\s*[,·|]\\s*(?=(?:${FIELD_LABELS.join('|')})[\\s:])`)
 
 const HEADING = /^\*\*(.+?)\*\*$/
@@ -85,6 +87,8 @@ function actionOf(item: string): ReportAction {
   for (const part of parts) {
     const matched = FIELD.exec(part.trim())
     if (matched) fields.push({ label: matched[1], value: strong(matched[2] ?? matched[3]).trim() })
+    // 꼬리에서 이름표가 없는 조각은 상태입니다. 할 일은 이미 줄표 앞에 다 있습니다.
+    else if (head) fields.push({ label: '상태', value: strong(part).trim() })
     else task.push(strong(part).trim())
   }
   return { task: task.filter(Boolean).join(' · '), fields }

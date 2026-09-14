@@ -207,21 +207,46 @@
  */
 .materials {
   grid-area: materials;
+  /* 작성 화면의 자료 열(.side)과 같은 짜임입니다 — 머리는 붙박이, 아래만 구릅니다. */
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s6));
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  // 화면보다 길어지면 이 상자 안(.materialsBody)에서만 구릅니다.
+  max-height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
   padding: var(--s5);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
 
-  /* 길이는 잘라 두지 않고 페이지와 함께 흐릅니다. 보고서만 볼 때는 통째로 접습니다. */
   section + section {
     margin-top: var(--s5);
     padding-top: var(--s5);
     border-top: 1px solid var(--line);
   }
 
+  // 한 열로 접히면 위아래로 서므로 붙여 둘 자리가 없습니다.
+  @include lg {
+    position: static;
+    max-height: none;
+  }
+
   @include md {
     padding: var(--s4);
+  }
+}
+
+/* 머리 아래 자료가 쌓이는 자리. 열이 화면보다 길어지면 여기서만 구릅니다. */
+.materialsBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+
+  @include lg {
+    flex: none;
+    overflow: visible;
   }
 }
 

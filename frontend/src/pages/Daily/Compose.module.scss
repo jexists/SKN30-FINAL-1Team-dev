@@ -279,6 +279,12 @@ $box-pad: 16px;
 .input {
   display: grid;
   gap: var(--s4);
+
+  /* 잠긴 메모 칸은 미팅 직접 입력과 같은 회색으로 지금 못 쓴다고 말합니다. */
+  :global(textarea[readonly]) {
+    background: var(--fill);
+    color: var(--muted);
+  }
 }
 
 /* 작성완료·미작성 묶음을 가르는 탭. 날짜 머리말 바로 아래에 섭니다. */

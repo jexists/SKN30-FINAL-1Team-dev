@@ -26,6 +26,9 @@ export interface ColumnDef {
 
 const short = (isoDate: string) => fmtDotShort(parseISO(isoDate))
 
+/** 연락처 열에 쓰는 번호. 휴대폰이 비어 있을 때만 일반 전화를 씁니다. */
+const contactNumber = (c: Customer): string => c.phone || (c.telephone ?? '')
+
 /** 담당자들. API 응답에 담당자 목록이 없으면 대표 한 명만 씁니다. */
 const ownersOf = (c: Customer): CustomerOwner[] =>
   c.owners !== undefined && c.owners.length > 0
@@ -89,12 +92,13 @@ export const ALL_COLUMNS: ColumnDef[] = [
   },
   {
     id: 'phone',
-    header: '휴대폰',
+    header: '연락처',
     width: 128,
     minWidth: 120,
     sortable: false,
-    value: (c) => formatPhone(c.phone),
-    render: (c) => createElement(PlainNumber, { value: formatPhone(c.phone) }),
+    // 휴대폰이 있으면 휴대폰을, 없으면 일반 전화를 연락처 한 칸에 보여 줍니다.
+    value: (c) => formatPhone(contactNumber(c)),
+    render: (c) => createElement(PlainNumber, { value: formatPhone(contactNumber(c)) }),
   },
   {
     id: 'owner',

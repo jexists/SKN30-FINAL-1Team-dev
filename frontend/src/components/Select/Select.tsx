@@ -2,7 +2,15 @@
 //
 // 브라우저 기본 select 는 목록을 OS 가 그려서 앱과 모양이 어긋납니다. 목록을 우리가 그리면
 // 여백·글꼴·모서리가 다른 화면과 같아집니다. 검색해서 고르는 자리는 RecordPicker 를 씁니다.
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 
 import menuPosition from '@/components/ComboBox/menuPosition'
@@ -56,6 +64,22 @@ export default function Select({
   const selectedIndex = options.findIndex((option) => option.value === value)
   const [activeIndex, setActiveIndex] = useState(Math.max(0, selectedIndex))
 
+  // 목록은 fixed 좌표로 띄우므로 화면이 움직이면 다시 재야 트리거를 따라옵니다.
+  const place = useCallback(() => {
+    const spot = menuPosition(triggerRef.current)
+    // menuPosition 은 트리거 너비를 그대로 씁니다. 검색 입력은 늘 폼 한 칸을 다 쓰지만
+    // 여기 트리거는 고른 값만큼만 좁을 수 있어, 그대로 두면 긴 항목이 잘립니다.
+    // 트리거보다 좁아지지 않되 항목 이름만큼 넓어지게 하고, 화면 밖으로는 못 나가게 막습니다.
+    setPosition(
+      spot && {
+        ...spot,
+        width: 'max-content',
+        minWidth: spot.width,
+        maxWidth: window.innerWidth - Number(spot.left ?? 0) - 8,
+      },
+    )
+  }, [])
+
   // 열 때 한 번 자리를 잡고, 고른 항목(없으면 첫 줄)으로 포커스를 옮깁니다.
   useEffect(() => {
     if (!open) return
@@ -76,33 +100,21 @@ export default function Select({
       setOpen(false)
     }
 
-    // 좌표는 열 때 한 번만 재므로, 화면이 움직이면 목록만 제자리에 남습니다. 그럴 땐 닫습니다.
-    const close = () => setOpen(false)
-
+    // 모달 본문을 스크롤해도 닫지 않고 좌표만 다시 잡습니다. 캡처 단계라 목록 안 스크롤에도
+    // 불리지만, 트리거 자리가 그대로라 결과가 같습니다.
     document.addEventListener('pointerdown', onPointerDown, true)
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
     return () => {
       cancelAnimationFrame(frame)
       document.removeEventListener('pointerdown', onPointerDown, true)
-      window.removeEventListener('scroll', close, true)
-      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
     }
-  }, [open, selectedIndex])
+  }, [open, selectedIndex, place])
 
   const openMenu = () => {
-    const place = menuPosition(triggerRef.current)
-    // menuPosition 은 트리거 너비를 그대로 씁니다. 검색 입력은 늘 폼 한 칸을 다 쓰지만
-    // 여기 트리거는 고른 값만큼만 좁을 수 있어, 그대로 두면 긴 항목이 잘립니다.
-    // 트리거보다 좁아지지 않되 항목 이름만큼 넓어지게 하고, 화면 밖으로는 못 나가게 막습니다.
-    setPosition(
-      place && {
-        ...place,
-        width: 'max-content',
-        minWidth: place.width,
-        maxWidth: window.innerWidth - Number(place.left ?? 0) - 8,
-      },
-    )
+    place()
     setOpen(true)
   }
 

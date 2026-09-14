@@ -141,29 +141,29 @@ export default function Complaints() {
   if (loading && rows.length === 0 && !error) {
     return (
       <section className={styles.page} aria-busy={loading}>
-        <h1 className="sr-only">고객불만관리</h1>
-        <ListPageSkeleton label="고객불만 목록을 불러오는 중입니다." tabs />
+        <h1 className="sr-only">CS대응 관리</h1>
+        <ListPageSkeleton label="CS대응 목록을 불러오는 중입니다." tabs />
       </section>
     )
   }
 
   return (
     <section className={styles.page} aria-busy={loading}>
-      <h1 className="sr-only">고객불만관리</h1>
+      <h1 className="sr-only">CS대응 관리</h1>
 
       <div className={styles.toolbar}>
         <SearchInput
           className={styles.search}
           value={query}
           placeholder="제목·회사·계약번호·내용 검색"
-          label="고객불만 검색"
+          label="CS대응 검색"
           onSearch={(next) => setParam('q', next)}
         />
 
         <div className={styles.actions}>
           <Button disabled={loading} onClick={() => setAdding(true)}>
             <PlusIcon width={15} height={15} />
-            고객불만 등록
+            CS대응 등록
           </Button>
         </div>
       </div>
@@ -178,14 +178,14 @@ export default function Complaints() {
       <ErrorToast message={error} onRetry={reload} />
 
       {!error && loading ? (
-        <TableSkeleton label="고객불만 목록을 새로고침하는 중입니다." rows={rows.length} />
+        <TableSkeleton label="CS대응 목록을 새로고침하는 중입니다." rows={rows.length} />
       ) : rows.length === 0 ? (
         <div className={styles.card}>
           <div className={styles.empty}>
             {isFiltered ? (
               <>
                 <SearchIcon width={34} height={34} strokeWidth={1.5} />
-                <p>조건에 맞는 고객불만이 없습니다.</p>
+                <p>조건에 맞는 CS대응이 없습니다.</p>
                 <Button variant="outline" onClick={() => setParams(new URLSearchParams())}>
                   검색·필터 초기화
                 </Button>
@@ -193,8 +193,8 @@ export default function Complaints() {
             ) : (
               <>
                 <ComplaintIcon width={34} height={34} strokeWidth={1.5} />
-                <p>접수된 고객불만이 없습니다.</p>
-                <Button onClick={() => setAdding(true)}>불만 등록</Button>
+                <p>접수된 CS대응이 없습니다.</p>
+                <Button onClick={() => setAdding(true)}>CS대응 등록</Button>
               </>
             )}
           </div>
@@ -206,7 +206,7 @@ export default function Complaints() {
               className={styles.table}
               style={{ width: COLUMNS.reduce((sum, column) => sum + column.width, 0) }}
             >
-              <caption className="sr-only">고객불만 목록. 줄을 누르면 상세가 열립니다.</caption>
+              <caption className="sr-only">CS대응 목록. 줄을 누르면 상세가 열립니다.</caption>
               <colgroup>
                 {COLUMNS.map((column) => (
                   <col key={column.id} style={{ width: column.width }} />
@@ -312,12 +312,12 @@ export default function Complaints() {
                 onClose={() => setMenuOpen(false)}
                 align="end"
                 compact
-                label="고객불만 메뉴"
+                label="CS대응 메뉴"
                 trigger={
                   <button
                     type="button"
                     className={styles.menuBtn}
-                    aria-label="고객불만 메뉴"
+                    aria-label="CS대응 메뉴"
                     aria-expanded={menuOpen}
                     disabled={pendingKey !== null}
                     onClick={() => setMenuOpen((value) => !value)}

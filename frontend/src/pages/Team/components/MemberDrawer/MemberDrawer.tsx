@@ -6,7 +6,7 @@
 // 목표는 월 하나만 저장합니다(sales_target 이 월 단위입니다). 분기·연간은 팀장이 감을
 // 잡으라고 환산해 보여 줄 뿐이라 입력칸을 두지 않습니다. 넣을 수 있게 해 두면 저장되지
 // 않는 칸이 되어 오히려 헷갈립니다.
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
@@ -17,17 +17,21 @@ import StatusBadge from '@/components/StatusBadge'
 import { errorMessage } from '@/api/errorMessage'
 import { REGION_OPTIONS } from '@/shared/regionCodes'
 import { showToast } from '@/shared/toast'
-import type { Role, TeamMemberPatchRequest, TeamMemberRow } from '@/types'
+import type { HandoverCounts, Role, TeamMemberPatchRequest, TeamMemberRow } from '@/types'
 import { wonFull } from '@/utils/format'
 
 import styles from './MemberDrawer.module.scss'
 
 interface Props {
   member: TeamMemberRow
+  /** 팀 전체. 담당 데이터를 넘겨받을 사람을 여기서 고릅니다. */
+  members: TeamMemberRow[]
   /** 지금 로그인한 팀장 본인인지. 자기 역할과 재직 상태는 스스로 바꾸지 못합니다. */
   isSelf: boolean
   targetMonth: string
   onSave: (memberId: string, patch: TeamMemberPatchRequest) => Promise<unknown>
+  onLoadHandover: (memberId: string) => Promise<HandoverCounts>
+  onHandover: (fromId: string, toId: string) => Promise<HandoverCounts>
   onClose: () => void
 }
 
@@ -46,7 +50,24 @@ const DEFAULT_SWATCH = '#e3e3e5'
 const HEX = /^#[0-9a-fA-F]{6}$/
 const COLOR_ERROR = '#RRGGBB 형식으로 적어 주세요.'
 
-export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onClose }: Props) {
+/** 이관 대상. 서버가 세는 네 가지와 같은 순서입니다. */
+const HANDOVER_LABEL: Record<keyof HandoverCounts, string> = {
+  customer_contacts: '거래처',
+  sales_deals: '딜',
+  activities: '일정',
+  support_requests: '고객불만',
+}
+
+export default function MemberDrawer({
+  member,
+  members,
+  isSelf,
+  targetMonth,
+  onSave,
+  onLoadHandover,
+  onHandover,
+  onClose,
+}: Props) {
   const [jobTitle, setJobTitle] = useState(member.job_title ?? '')
   const [role, setRole] = useState<Role>(member.role_code)
   const [active, setActive] = useState(member.active)
@@ -57,6 +78,52 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
   const [color, setColor] = useState(member.badge_color ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 넘길 담당 데이터의 수. 아직 세지 않았으면 null 입니다.
+  const [counts, setCounts] = useState<HandoverCounts | null>(null)
+  const [heir, setHeir] = useState('')
+  const [moving, setMoving] = useState(false)
+
+  const countHandover = useCallback(() => {
+    void onLoadHandover(member.id)
+      .then(setCounts)
+      // 건수를 못 세도 드로어의 나머지는 쓸 수 있어야 합니다. 이관 칸만 비워 둡니다.
+      .catch(() => setCounts(null))
+  }, [member.id, onLoadHandover])
+
+  useEffect(() => {
+    // 이관 칸이 보일 때만 셉니다. 자기 자신은 비활성으로 내릴 수 없어 그 칸이 없습니다.
+    if (!isSelf && !active) countHandover()
+  }, [isSelf, active, countHandover])
+
+  // 인계자는 재직 중인 다른 팀원뿐입니다. 비활성인 사람에게 넘기면 그대로 또 사라집니다.
+  const heirOptions = [
+    { value: '', label: '선택' },
+    ...members
+      .filter((row) => row.active && row.id !== member.id)
+      .map((row) => ({ value: row.id, label: row.display_name })),
+  ]
+  const total =
+    counts === null
+      ? 0
+      : counts.customer_contacts + counts.sales_deals + counts.activities + counts.support_requests
+
+  const moveWork = async () => {
+    setMoving(true)
+    setError(null)
+    try {
+      const moved = await onHandover(member.id, heir)
+      const name = members.find((row) => row.id === heir)?.display_name ?? '다른 팀원'
+      const movedTotal =
+        moved.customer_contacts + moved.sales_deals + moved.activities + moved.support_requests
+      showToast(`${movedTotal}건을 ${name} 님에게 넘겼습니다.`)
+      setHeir('')
+      countHandover()
+    } catch (caught: unknown) {
+      setError(errorMessage(caught, '이관하지 못했습니다.'))
+    } finally {
+      setMoving(false)
+    }
+  }
 
   const colorValid = color === '' || HEX.test(color)
   // 저장될 값입니다. 표기만 소문자로 맞추고 색 자체는 손대지 않습니다.
@@ -278,6 +345,64 @@ export default function MemberDrawer({ member, isSelf, targetMonth, onSave, onCl
           </div>
         </dl>
       </section>
+
+      {/* 담당 데이터 이관. 비활성을 고른 때만 나옵니다.
+          목록 조회가 담당자의 재직 여부를 보기 때문에, 비활성으로 내리면 이 사람의
+          거래처·딜·일정·고객불만이 팀장 화면에서도 보이지 않게 됩니다. 넘길 곳을 같은
+          화면에서 고르지 못하면 그 사실을 알고도 할 수 있는 일이 없습니다.
+          재직 중인 팀원에게는 숨깁니다 — 평소에 쓸 일이 없는 칸이고, 실수로 누르면
+          남의 담당을 통째로 가져가는 일이 됩니다. */}
+      {!isSelf && !active && counts !== null && (
+        <section className={styles.section}>
+          <h3 className={styles.heading}>담당 데이터 이관</h3>
+
+          {total === 0 ? (
+            <p className={styles.hint}>넘길 담당 데이터가 없습니다.</p>
+          ) : (
+            <>
+              <dl className={styles.facts}>
+                {(Object.keys(HANDOVER_LABEL) as (keyof HandoverCounts)[]).map((key) => (
+                  <div key={key}>
+                    <dt>{HANDOVER_LABEL[key]}</dt>
+                    <dd className="tnum">{counts[key]}건</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <p className={styles.warning} role="alert">
+                {member.active
+                  ? `비활성으로 저장하면 이 ${total}건이 팀장 화면을 포함한 모든 목록에서 보이지 않습니다. 먼저 이관해 주세요.`
+                  : `이 ${total}건은 지금 팀장 화면을 포함한 모든 목록에서 보이지 않습니다. 이관하거나 다시 재직으로 되돌려 주세요.`}
+              </p>
+
+              <div className={styles.fields}>
+                <FormField label="넘겨받을 팀원" htmlFor={false}>
+                  <Select
+                    label="넘겨받을 팀원"
+                    value={heir}
+                    options={heirOptions}
+                    disabled={moving}
+                    onChange={setHeir}
+                  />
+                </FormField>
+              </div>
+              <p className={styles.colorNote}>
+                <span>거래처·딜·일정·고객불만의 담당자를 한 번에 바꿉니다.</span>
+                <Button
+                  variant="outline"
+                  disabled={heir === '' || moving}
+                  onClick={() => void moveWork()}
+                >
+                  {moving ? '이관 중…' : '이관하기'}
+                </Button>
+              </p>
+              <p className={styles.hint}>
+                등록자·작성자 기록은 그대로 둡니다. 목표 매출도 옮기지 않습니다.
+              </p>
+            </>
+          )}
+        </section>
+      )}
 
       {error !== null && (
         <p className={styles.error} role="alert">

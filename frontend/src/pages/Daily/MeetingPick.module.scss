@@ -13,16 +13,7 @@
 }
 
 .calendarHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
   margin-bottom: var(--s4);
-}
-
-.range {
-  font-size: 17px;
-  font-weight: 700;
 }
 
 .calendarTools {
@@ -70,6 +61,15 @@
   line-height: 1;
   font-weight: 600;
   color: var(--muted);
+}
+
+// 선택 칸은 배경이 파랗게 차므로 점과 '+N' 을 흰색으로 뒤집습니다.
+.isOnBlue {
+  color: #fff;
+}
+
+.markDot.isOnBlue {
+  background: #fff;
 }
 
 .filters {

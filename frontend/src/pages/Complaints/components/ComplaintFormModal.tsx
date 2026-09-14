@@ -88,7 +88,7 @@ export default function ComplaintFormModal({ initial, onClose, onSubmit, onPatch
       try {
         await onPatch(patch)
       } catch (caught: unknown) {
-        setSubmitError(mutationErrorMessage(caught, '고객불만을 수정'))
+        setSubmitError(mutationErrorMessage(caught, 'CS대응을 수정'))
         setSubmitting(false)
       }
       return
@@ -109,7 +109,7 @@ export default function ComplaintFormModal({ initial, onClose, onSubmit, onPatch
         occurred_at: occurredAt.toISOString(),
       })
     } catch (caught: unknown) {
-      setSubmitError(mutationErrorMessage(caught, '고객불만을 등록'))
+      setSubmitError(mutationErrorMessage(caught, 'CS대응을 등록'))
       setSubmitting(false)
     }
   }
@@ -120,7 +120,7 @@ export default function ComplaintFormModal({ initial, onClose, onSubmit, onPatch
 
   return (
     <Modal
-      title={editing ? '고객불만 수정' : '고객불만 등록'}
+      title={editing ? 'CS대응 수정' : 'CS대응 등록'}
       onClose={close}
       onSubmit={submit}
       footer={
@@ -135,7 +135,7 @@ export default function ComplaintFormModal({ initial, onClose, onSubmit, onPatch
                 : '수정 저장'
               : submitting
                 ? '등록 중…'
-                : '불만 등록'}
+                : 'CS대응 등록'}
           </Button>
         </>
       }

@@ -55,6 +55,12 @@
   font-size: 11px;
 }
 
+// 막는 것이 아니라 되묻는 것이라 빨강을 쓰지 않습니다.
+.warn {
+  color: var(--orange-ink);
+  font-size: 11px;
+}
+
 // 삭제는 되돌릴 수 없으니 저장·취소와 붙여 두지 않고 반대편으로 보냅니다.
 .delete {
   display: inline-flex;

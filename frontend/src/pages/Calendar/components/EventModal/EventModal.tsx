@@ -91,6 +91,8 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
   const [companyError, setCompanyError] = useState('')
   const [rangeError, setRangeError] = useState('')
   const [requestError, setRequestError] = useState('')
+  // 지난 날짜로 등록하려는 참입니다. 한 번 더 누르면 그대로 올립니다.
+  const [pastAsked, setPastAsked] = useState(false)
   const [pending, setPending] = useState(false)
 
   // 고쳐 쓰려고 연 일정. 저장된 것은 고객 id 하나뿐이라 회사·담당자 두 칸을 채우려면
@@ -127,6 +129,7 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
     if (!next) return
     const shift = next.getTime() - start.getTime()
     setStart(next)
+    setPastAsked(false)
     setEnd((prev) => new Date(prev.getTime() + shift))
   }
 
@@ -199,6 +202,13 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
       return
     }
 
+    // 다녀온 미팅을 뒤늦게 적는 일이 있어 지난 날짜도 막지 않습니다. 다만 달을 잘못
+    // 고른 실수가 더 흔해, 등록할 때 한 번 묻고 같은 자리에서 한 번 더 누르게 합니다.
+    if (mode === 'create' && !pastAsked && iso(start) < iso(new Date())) {
+      setPastAsked(true)
+      return
+    }
+
     setPending(true)
     setRequestError('')
     try {
@@ -259,7 +269,7 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
             취소
           </Button>
           <Button type="submit" disabled={pending}>
-            {pending ? '저장 중…' : '저장'}
+            {pending ? '저장 중…' : pastAsked ? '지난 날짜로 등록' : '저장'}
           </Button>
         </>
       }
@@ -291,6 +301,11 @@ export default function EventModal({ draft, mode = 'edit', onClose, onSave, onDe
             />
           </div>
           {rangeError && <span className={styles.error}>{rangeError}</span>}
+          {pastAsked && !rangeError && (
+            <span className={styles.warn} role="alert">
+              오늘보다 이전 날짜입니다. 이대로 등록하려면 저장을 한 번 더 누르세요.
+            </span>
+          )}
         </div>
 
         <div className={`${styles.field} ${styles.isWide}`}>

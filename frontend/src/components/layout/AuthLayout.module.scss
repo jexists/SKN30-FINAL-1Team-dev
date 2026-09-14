@@ -75,6 +75,9 @@
     height: 96%;
     background: radial-gradient(ellipse at 70% 80%, rgba(47, 139, 255, 0.5), transparent 62%);
     filter: blur(12px);
+    // 광선이 오른쪽 폼 칸까지 넘어옵니다. .story 가 위에 깔리는 탓에 그대로 두면
+    // 입력칸 왼쪽 절반이 클릭을 먹습니다. 그림이므로 클릭은 통과시킵니다.
+    pointer-events: none;
     animation: beam 20s var(--ease-out) infinite;
   }
 }

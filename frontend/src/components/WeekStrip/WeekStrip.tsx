@@ -24,8 +24,6 @@ interface Props {
   label: string
   /** 선택 칸 아래 삼각형. 바로 아래로 내용이 이어지는 화면에서만 씁니다. */
   notch?: boolean
-  /** 배경을 채우지 않고 테두리만 강조해야 하는 날짜 선택 화면에서 씁니다. */
-  selectionStyle?: 'filled' | 'outline'
   /** 이 날짜 뒤는 고를 수 없습니다. 미래의 업무보고를 막는 화면에서 씁니다. */
   maxISO?: string
 }
@@ -38,7 +36,6 @@ export default function WeekStrip({
   renderMarks,
   label,
   notch = false,
-  selectionStyle = 'filled',
   maxISO,
 }: Props) {
   const keys = days.map(iso)
@@ -78,7 +75,7 @@ export default function WeekStrip({
         const cls = [
           styles.day,
           isToday && styles.isToday,
-          isSelected && (selectionStyle === 'outline' ? styles.isOutline : styles.isSelected),
+          isSelected && styles.isSelected,
           dow === 0 && styles.isSun,
           dow === 6 && styles.isSat,
         ]

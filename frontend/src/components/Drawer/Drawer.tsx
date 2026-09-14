@@ -2,7 +2,7 @@
 // 상세는 전부 오른쪽 드로어로 엽니다. 목록을 화면에 남겨 둔 채로 볼 수 있고,
 // 히스토리처럼 세로로 긴 내용을 담을 자리가 나옵니다. 모달은 확인용으로 남깁니다.
 //
-// 동작은 ContractDrawer / ReportDrawer 와 같습니다. Escape 로 닫고 배경은
+// 동작은 ContractDrawer 와 같습니다. Escape 로 닫고 배경은
 // 스크롤을 멈추며, 닫으면 눌렀던 자리로 포커스가 돌아갑니다.
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 

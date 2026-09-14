@@ -123,6 +123,24 @@ test('일일 보고서의 줄표·쉼표 꼴도 같은 카드로 읽힌다', () 
   assert.equal(actions[2].fields.length, 3)
 })
 
+test('줄표 뒤 이름표 없는 상태가 먼저 와도 카드로 읽힌다', () => {
+  const sections = reportSections(`**다음 업무**
+
+- 공식 제품 자료 제공 — 합의된 후속 조치, 담당 미지정, 기한 미확인, 완료 기준 미확인
+- 의사결정자와의 다음 일정 확정 — 검토 필요, 담당 미지정, 기한 미확인, 완료 기준: 다음 일정 확정`)
+
+  const { actions } = sections[0]
+  assert.equal(actions[0].task, '공식 제품 자료 제공')
+  assert.deepEqual(actions[0].fields, [
+    { label: '상태', value: '합의된 후속 조치' },
+    { label: '담당', value: '미지정' },
+    { label: '기한', value: '미확인' },
+    { label: '완료 기준', value: '미확인' },
+  ])
+  assert.equal(actions[1].task, '의사결정자와의 다음 일정 확정')
+  assert.equal(actions[1].fields[0].value, '검토 필요')
+})
+
 test('아는 꼴이 아니면 null 을 내어 원문을 그대로 그리게 한다', () => {
   // 미팅 공통·미지정 기록 — 소제목 없는 평평한 목록입니다.
   assert.equal(

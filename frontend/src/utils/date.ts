@@ -86,6 +86,11 @@ export function parseISO(s: string): Date {
   return new Date(y, m - 1, d)
 }
 
+// 달력 칸(DayPicker)은 Date 를 주고받고 폼·쿼리는 ISO 글자를 주고받습니다.
+// 빈 값은 '아직 안 고름' 이라 null 과 '' 로 서로 건너갑니다.
+export const toDate = (value: string) => (value === '' ? null : parseISO(value))
+export const toISO = (date: Date | null) => (date === null ? '' : iso(date))
+
 /** 2026.08.11 — 표처럼 자리가 좁은 곳에서 씁니다. */
 export function fmtDotShort(d: Date): string {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { buttonClass } from '@/components/Button'
+import DayHeader from '@/components/DayHeader'
 import ErrorToast from '@/components/ErrorToast'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
 import Skeleton from '@/components/Skeleton'
@@ -10,7 +11,7 @@ import WeekStrip from '@/components/WeekStrip'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
 import { useMeetingReportsOn } from '@/pages/Meetings/useMeetingReports'
 import { useAgendaState } from '@/shared/agenda'
-import { addDays, iso, startOfWeek, TODAY, TODAY_ISO, weekRangeLabel } from '@/utils/date'
+import { addDays, iso, parseISO, TODAY, TODAY_ISO, weekRangeLabel } from '@/utils/date'
 
 import { meetingLinkFor, type SourceMeta } from './sources'
 import DailyListLink from './components/DailyListLink'
@@ -31,16 +32,15 @@ type Filter = (typeof FILTERS)[number]
 const filterOf = (status: SourceMeta['status']): Filter =>
   status === null ? '미작성' : status === '확정' || status === '검토 대기' ? '작성완료' : '작성중'
 
+// 대시보드 주간 일정과 같은 롤링 7일입니다. 오늘이 셋째 칸에 섭니다.
 const weekDays = (offset: number) => {
-  const first = addDays(startOfWeek(TODAY), offset * 7)
+  const first = addDays(TODAY, -2 + offset * 7)
   return Array.from({ length: 7 }, (_, index) => addDays(first, index))
 }
 
 const initialWeekOffset = (dateISO: string) => {
-  const todayStart = startOfWeek(TODAY).getTime()
-  return Math.round(
-    (startOfWeek(new Date(`${dateISO}T00:00:00`)).getTime() - todayStart) / 604800000,
-  )
+  const fromToday = Math.round((parseISO(dateISO).getTime() - TODAY.getTime()) / 86400000)
+  return Math.floor((fromToday + 2) / 7)
 }
 
 export default function MeetingPick() {
@@ -127,31 +127,38 @@ export default function MeetingPick() {
       <DailyListLink back tab="meeting" className={styles.back} />
 
       <article className={styles.calendar}>
+        {/* 제목이 곧 달력 손잡이입니다. 주 띠는 세 칸밖에 고를 수 없어 먼 날짜는 여기서 갑니다. */}
         <div className={styles.calendarHead}>
-          <p className={`${styles.range} tnum`}>{weekRangeLabel(days)}</p>
-          <div className={styles.calendarTools}>
-            <button type="button" onClick={() => changeWeek(weekOffset - 1)} aria-label="이전 주">
-              <ChevronLeftIcon width={16} height={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setWeekOffset(0)
-                changeDate(TODAY_ISO)
-              }}
-              disabled={weekOffset === 0 && dateISO === TODAY_ISO}
-            >
-              오늘
-            </button>
-            <button
-              type="button"
-              onClick={() => changeWeek(weekOffset + 1)}
-              aria-label="다음 주"
-              disabled={!canShowNextWeek}
-            >
-              <ChevronRightIcon width={16} height={16} />
-            </button>
-          </div>
+          <DayHeader
+            dateISO={dateISO}
+            label={weekRangeLabel(days)}
+            maxISO={TODAY_ISO}
+            onDateChange={onSelectDate}
+          >
+            <div className={styles.calendarTools}>
+              <button type="button" onClick={() => changeWeek(weekOffset - 1)} aria-label="이전 주">
+                <ChevronLeftIcon width={16} height={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekOffset(0)
+                  changeDate(TODAY_ISO)
+                }}
+                disabled={weekOffset === 0 && dateISO === TODAY_ISO}
+              >
+                오늘
+              </button>
+              <button
+                type="button"
+                onClick={() => changeWeek(weekOffset + 1)}
+                aria-label="다음 주"
+                disabled={!canShowNextWeek}
+              >
+                <ChevronRightIcon width={16} height={16} />
+              </button>
+            </div>
+          </DayHeader>
         </div>
 
         <WeekStrip
@@ -159,7 +166,7 @@ export default function MeetingPick() {
           selectedISO={dateISO}
           onSelect={onSelectDate}
           onOutOfRange={(next) => setWeekOffset(initialWeekOffset(next))}
-          renderMarks={(key) => {
+          renderMarks={(key, isSelected) => {
             // 대시보드 주간 일정과 같은 읽기. 점 하나가 일정 하나이고, 넘치면 '+N'.
             const total = countByDate.get(key) ?? 0
             const shown = Math.min(total, total > MAX_MARKS ? MAX_MARKS - 1 : MAX_MARKS)
@@ -167,10 +174,17 @@ export default function MeetingPick() {
             return (
               <>
                 {Array.from({ length: shown }, (_, index) => (
-                  <i key={index} aria-hidden="true" className={styles.markDot} />
+                  <i
+                    key={index}
+                    aria-hidden="true"
+                    className={`${styles.markDot} ${isSelected ? styles.isOnBlue : ''}`}
+                  />
                 ))}
                 {hidden > 0 && (
-                  <span aria-hidden="true" className={`${styles.more} tnum`}>
+                  <span
+                    aria-hidden="true"
+                    className={`${styles.more} ${isSelected ? styles.isOnBlue : ''} tnum`}
+                  >
                     +{hidden}
                   </span>
                 )}
@@ -179,7 +193,6 @@ export default function MeetingPick() {
             )
           }}
           label="미팅 보고서 날짜 선택"
-          selectionStyle="outline"
           maxISO={TODAY_ISO}
         />
       </article>

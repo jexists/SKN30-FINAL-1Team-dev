@@ -494,16 +494,18 @@ test('저장 보고서 재진입은 AI 검토 경고를 복구하고 새 범위�
   assert.match(dailyDraft, /setGenerationEvidence\(evidence\)/)
   assert.match(meetingCompose, /setGenerationEvidence\(savedReport\?\.aiEvidence \?\? null\)/)
   assert.match(meetingCompose, /setGenerationEvidence\((completed|run)\.evidence\)/)
-  // 검토 메모는 자리를 옮깁니다. 생성 중에는 흐르는 글 맨 아래에서 단계 결과가 쌓이고(펼침),
-  // 끝나면 스크롤 상자 위 한 줄로 접혀 실행 근거만 남습니다.
+  // 검토 메모는 수정 스트림이 시작되면 상단으로 옮기고, 그렇지 않은 생성 중에는
+  // 흐르는 글 맨 아래에서 단계 결과를 보여 줍니다.
   const live =
-    /\{(?:streaming|generating) && \(?\s*<ReportReviewWarning[^>]*?\bgenerating\b[^>]*?notes=\{reviewNotes\}/s
+    /const liveMemo = (?:streaming|generating) \?\s*\(\s*<ReportReviewWarning[^>]*?\bgenerating\b[^>]*?notes=\{reviewNotes\}/s
   const settled = /\{!(?:streaming|generating) && <ReportReviewWarning evidence=\{[^}]+\} \/>\}/
   for (const source of [dailyCompose, meetingCompose]) {
     assert.match(source, live)
     assert.match(source, settled)
-    // 끝난 뒤 메모는 흐르는 글보다 앞(위)에 섭니다.
-    assert.ok(source.search(settled) < source.search(live))
+    assert.match(source, /\{revising && liveMemo\}/)
+    assert.match(source, /\{!revising && liveMemo\}/)
+    // 수정이 시작되면 메모는 완료 후 표시 자리와 같은 상단으로 올라갑니다.
+    assert.ok(source.search(settled) < source.indexOf('{revising && liveMemo}'))
     // 검토·수정이 남긴 말만 갑니다. 자료 정리·근거 분류는 진행 상황입니다.
     assert.match(source, /item\.stage === 'review_initial' \|\| item\.stage === 'repair'/)
   }
@@ -535,12 +537,14 @@ test('지금 하는 일 한 줄은 본문과 검토 메모보다 아래, 지나�
   for (const source of [dailyCompose, meetingCompose]) {
     const steps = source.indexOf('feed="steps"')
     const live = source.indexOf('feed="live"')
-    const memo = source.search(/\{(?:streaming|generating) && \(?\s*<ReportReviewWarning/)
+    const memo = source.indexOf('{!revising && liveMemo}')
+    const revisedMemo = source.indexOf('{revising && liveMemo}')
     const mark = source.indexOf('ref={streamEnd}')
     assert.ok(steps !== -1 && live !== -1, '두 자리 모두 세운다')
     assert.ok(steps < memo, '지나온 단계는 본문보다 위')
     assert.ok(memo < live, '지금 하는 일은 검토 메모보다 아래')
     assert.ok(live < mark, '바닥 표식은 그보다도 아래')
+    assert.ok(revisedMemo < steps, '수정 중 검토 메모는 본문보다 위')
   }
 
   // 미팅만 대상 이름을 답니다 — 일일은 본문이 하나뿐이라 '어디'가 없습니다.
@@ -1990,7 +1994,7 @@ test('기간 상세와 작성은 같은 현재 관련 조회를 사용하며 저
     detail,
     /useRelatedReports\(report\?\.kind \?\? '일일', report\?\.date \?\? '', !!report\)/,
   )
-  assert.match(detail, /activities=\{related\.activities\}/)
+  assert.match(detail, /activities=\{relatedActivities\(report\.kind, related\.activities\)\}/)
   // 작성 화면만 그날 일정까지 함께 세웁니다(withAgenda). 상세는 저장된 참조만 봅니다.
   assert.match(draft, /useRelatedReports\(kind, dateISO, true, true\)/)
   assert.match(queries, /'관련 보고서를 불러오지 못했습니다\.',\s+true,/)
