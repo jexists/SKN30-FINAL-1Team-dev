@@ -5,7 +5,14 @@ import { useCurrentUser } from '@/auth/sessionContext'
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import ErrorToast from '@/components/ErrorToast'
-import { ComplaintIcon, EditIcon, MoreIcon, PlusIcon, SearchIcon, TrashIcon } from '@/components/icons'
+import {
+  ComplaintIcon,
+  EditIcon,
+  MoreIcon,
+  PlusIcon,
+  SearchIcon,
+  TrashIcon,
+} from '@/components/icons'
 import Modal from '@/components/Modal'
 import OwnerName from '@/components/OwnerName'
 import Popover from '@/components/Popover'
