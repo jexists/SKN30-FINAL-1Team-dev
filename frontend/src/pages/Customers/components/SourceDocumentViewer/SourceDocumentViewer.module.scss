@@ -42,6 +42,46 @@
 }
 
 /*
+ * 요약과 원본을 가르는 탭. 요약을 함께 받은 자리에만 섭니다. 머리말 바로 아래에
+ * 붙어, 무대가 무엇으로 바뀌는지가 한 줄로 읽힙니다.
+ */
+.tabs {
+  display: flex;
+  gap: var(--s3);
+  flex: none;
+  padding: 0 var(--s4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.tab {
+  padding: var(--s2) 2px;
+  border: 0;
+  // 고른 탭 아래에만 선이 들어와, 폭이 흔들리지 않게 자리를 미리 비워 둡니다.
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--ink-2);
+  }
+
+  &:focus-visible {
+    border-radius: var(--r-xs);
+    outline: 2px solid var(--blue);
+    outline-offset: -2px;
+  }
+}
+
+.tabOn {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+
+/*
  * 문서가 놓이는 자리. 폼이 아무리 길어져도 이 패널은 스크롤을 따라가지 않고,
  * 확대해서 넘치는 것만 여기 안에서 움직입니다.
  */

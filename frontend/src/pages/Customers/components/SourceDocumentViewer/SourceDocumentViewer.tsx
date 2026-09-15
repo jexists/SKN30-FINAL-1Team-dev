@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 
 import Button from '@/components/Button'
@@ -35,12 +36,31 @@ interface Props {
   /** 패널을 접습니다. 접힌 상태는 부른 쪽이 들고 있습니다. */
   onCollapse: () => void
   /**
-   * 원본이 화면을 통째로 덮는 자리인지. 좁은 화면의 드로어처럼 이 패널만 보일
-   * 때는 옆으로 접는 것이 아니라 닫는 것으로 읽혀, 화살표 대신 X 를 세웁니다.
+   * 머리말의 조작부를 무엇으로 읽을지.
+   *
+   * 옆에 본문이 남아 있으면 이 패널은 옆으로 접히는 것이라 화살표를 세웁니다.
+   * 이 패널만 보이거나, 부른 쪽이 여닫는 자리를 한 곳으로 두었다면 닫는 것으로
+   * 읽혀 X 를 세웁니다.
    */
-  fullScreen?: boolean
+  dismiss?: 'collapse' | 'close'
+  /**
+   * 이 값이 있으면 머리말 아래에 '요약 / 원본' 탭을 세우고 요약 탭에 이것을 그립니다.
+   * 넘기지 않으면 지금까지처럼 원본 한 자리만 있는 패널입니다.
+   */
+  summary?: ReactNode
+  /** 지금 펴 둔 탭. summary 가 있을 때만 뜻이 있고, 상태는 부른 쪽이 들고 있습니다. */
+  tab?: Tab
+  onTabChange?: (tab: Tab) => void
+  /**
+   * 원본을 부른 쪽이 눌린 뒤에 받아 올 때의 상태. 넘기지 않으면 file·text 가 이미
+   * 준비된 것으로 봅니다.
+   */
+  sourceStatus?: 'idle' | 'loading' | 'ready' | 'error'
+  /** 원본을 받아 오지 못한 사유. 원본 탭 안에만 뜹니다. */
+  sourceError?: string | null
 }
 
+type Tab = 'summary' | 'source'
 type Kind = 'image' | 'pdf' | 'text'
 type Status = 'loading' | 'ready' | 'error'
 
@@ -77,8 +97,16 @@ export default function SourceDocumentViewer({
   file,
   text,
   onCollapse,
-  fullScreen = false,
+  dismiss = 'collapse',
+  summary,
+  tab = 'source',
+  onTabChange,
+  sourceStatus = 'ready',
+  sourceError,
 }: Props) {
+  // 요약을 함께 받은 자리만 탭이 있는 패널이 됩니다. 나머지 사용처는 원본 한 자리입니다.
+  const tabbed = !!summary
+  const onSummary = tabbed && tab === 'summary'
   const kind = documentKind(file, text)
   // 그릴 원본만 남깁니다. 글로 대신 보여 주는 자리에는 이름만 오므로 여기가 비고,
   // 아래 효과들이 이 값 하나만 보고 다시 돌지 말지 정합니다.
@@ -217,10 +245,11 @@ export default function SourceDocumentViewer({
   const zoomBy = (step: number) =>
     setZoom((previous) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, previous + step)))
 
+  const label = tabbed ? '참고 자료' : '원본 문서'
   return (
-    <section className={styles.viewer} aria-label="원본 문서">
+    <section className={styles.viewer} aria-label={label}>
       <header className={styles.head}>
-        <h3>원본 문서</h3>
+        <h3>{label}</h3>
         <span className={styles.fileName} title={file.name}>
           {file.name}
         </span>
@@ -229,15 +258,39 @@ export default function SourceDocumentViewer({
           variant="ghost"
           size="sm"
           iconOnly
-          aria-label={fullScreen ? '원본 문서 닫기' : '원본 문서 접기'}
+          aria-label={dismiss === 'close' ? `${label} 닫기` : `${label} 접기`}
           onClick={onCollapse}
         >
-          {fullScreen ? <CloseIcon /> : <ChevronLeftIcon />}
+          {dismiss === 'close' ? <CloseIcon /> : <ChevronLeftIcon />}
         </Button>
       </header>
 
+      {/* 같은 자료를 요약으로 볼지 원본으로 볼지만 가릅니다. 원본은 누른 뒤에 받아 옵니다. */}
+      {tabbed && (
+        <div className={styles.tabs} role="tablist" aria-label={`${file.name} 보기 방식`}>
+          {(['summary', 'source'] as Tab[]).map((name) => (
+            <button
+              key={name}
+              type="button"
+              role="tab"
+              className={`${styles.tab} ${tab === name ? styles.tabOn : ''}`}
+              aria-selected={tab === name}
+              onClick={() => onTabChange?.(name)}
+            >
+              {name === 'summary' ? '요약' : '원본'}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className={styles.stage} ref={stageRef}>
-        {status === 'error' ? (
+        {onSummary ? (
+          summary
+        ) : sourceStatus === 'error' ? (
+          <p className={styles.notice}>{sourceError ?? '원본을 열지 못했습니다.'}</p>
+        ) : sourceStatus !== 'ready' ? (
+          <p className={styles.notice}>원본을 여는 중…</p>
+        ) : status === 'error' ? (
           <p className={styles.notice}>원본을 미리 볼 수 없습니다. 파일은 그대로 보관됩니다.</p>
         ) : text !== undefined ? (
           <div className={styles.textPage}>
@@ -276,11 +329,13 @@ export default function SourceDocumentViewer({
             </div>
           )
         )}
-        {status === 'loading' && <p className={styles.notice}>원본을 여는 중…</p>}
+        {!onSummary && sourceStatus === 'ready' && status === 'loading' && (
+          <p className={styles.notice}>원본을 여는 중…</p>
+        )}
       </div>
 
       {/* 확대·회전·페이지는 그림에만 뜻이 있습니다. 글은 그대로 흐르게 둡니다. */}
-      {kind !== 'text' && (
+      {kind !== 'text' && !onSummary && sourceStatus === 'ready' && (
         <div className={styles.toolbar}>
           <div className={styles.group}>
             <Button

@@ -382,7 +382,7 @@ export default function DocumentDrawer({
           <SourceDocumentViewer
             file={source ?? { name: file.fileName }}
             text={textSource}
-            fullScreen={sourceFullScreen}
+            dismiss={sourceFullScreen ? 'close' : 'collapse'}
             onCollapse={closeSource}
           />
         )
