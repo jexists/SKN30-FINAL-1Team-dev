@@ -1,4 +1,4 @@
--- Every immutable report submission is searchable; briefing reads only each report's current one.
+-- Every report submission is searchable; briefing reads only each report's current one.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS vector;
 
