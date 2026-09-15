@@ -6,10 +6,8 @@
 """
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID, uuid4
-
-import pytest
 
 from app.models.agent import ContractNextMeetingSuggestion
 from app.models.crm import CustomerCompany
@@ -88,6 +86,12 @@ def _suggestion(deal: SalesDeal, schedule_run_id: UUID, *, status_code: str = "p
         team_id=deal.team_id,
         sales_deal_id=deal.id,
         schedule_management_run_id=schedule_run_id,
+        target_date=date(2026, 9, 20),
+        target_time=None,
+        selected_duration_minutes=None,
+        excluded_dates=[],
+        refresh_reason=None,
+        applied_activity_id=None,
         status_code=status_code,
         created_at=NOW,
         updated_at=NOW,
@@ -126,12 +130,12 @@ def test_report_trigger_passes_the_submitted_report_to_the_snapshot(monkeypatch)
         async def __aexit__(self, *_exc):
             return False
 
-    async def _build(db, member, company_id, sales_deal_id, required_report_id):
-        captured.append((db, member, company_id, sales_deal_id, required_report_id))
+    async def _build(db, member, company_id, sales_deal_id, required_report_id, excluded_dates):
+        captured.append((db, member, company_id, sales_deal_id, required_report_id, excluded_dates))
         raise pipeline.HTTPException(404, "stop_after_capture")
 
-    async def _true(*_args):
-        return True
+    async def _noop(*_args):
+        return None
 
     async def _deal_result(*_args):
         return deal
@@ -140,63 +144,70 @@ def test_report_trigger_passes_the_submitted_report_to_the_snapshot(monkeypatch)
         return owner
 
     monkeypatch.setattr(pipeline, "get_sessionmaker", lambda: lambda: _Context())
-    monkeypatch.setattr(pipeline, "_reserve", _true)
+    monkeypatch.setattr(pipeline, "_lock_deal", _noop)
     monkeypatch.setattr(pipeline, "_open_deal", _deal_result)
     monkeypatch.setattr(pipeline, "_member", _member_result)
     monkeypatch.setattr(pipeline.contract_schedule_snapshots, "build_next_meeting_snapshot", _build)
 
     asyncio.run(pipeline._run_pipeline(deal.id, {"report_id": str(report_id)}))
 
-    assert captured[0][2:] == (deal.customer_company_id, deal.id, report_id)
+    assert captured[0][2:] == (deal.customer_company_id, deal.id, report_id, None)
 
 
-def test_reserve_locks_the_deal_before_looking():
-    """잠금이 조회보다 먼저 걸려야 한다 — 순서가 뒤집히면 막지 못하는 틈이 그대로 남는다."""
+def test_lock_deal_uses_a_deal_scoped_advisory_lock():
+    """동시에 들어온 요청은 딜별 잠금으로 최신 queued 행을 안전하게 교체한다."""
     sales_deal_id = uuid4()
-    db = _Db(_Result(), _Result(scalar=None))
+    db = _Db(_Result())
 
-    assert asyncio.run(pipeline._reserve(db, sales_deal_id)) is True
+    asyncio.run(pipeline._lock_deal(db, sales_deal_id))
     assert "pg_advisory_xact_lock" in str(db.statements[0])
-    # 잠금은 딜 단위다 — 키가 고정이면 서로 다른 딜까지 줄을 세운다.
     assert str(sales_deal_id) in db.parameters[0]["key"]
 
 
-def test_reserve_gives_up_when_another_run_holds_the_deal():
-    """다른 실행이 이미 자리를 잡고 있으면 LLM 을 부르기 전에 물러난다."""
-    db = _Db(_Result(), _Result(scalar=uuid4()))
-
-    assert asyncio.run(pipeline._reserve(db, uuid4())) is False
-
-
-def test_skips_a_deal_that_just_ran():
-    """트리거 한 번이 LLM 두 번이라, 같은 딜에 몰려 들어오면 건너뛴다."""
+def test_active_run_only_blocks_a_live_running_job():
+    """완료 시각 쿨다운 없이 lease가 살아 있는 실행만 후속 요청을 대기시킨다."""
     sales_deal_id = uuid4()
-    found_db = _Db(_Result(scalar=uuid4()))
-    assert asyncio.run(pipeline._ran_recently(found_db, sales_deal_id)) is True
+    running_id = uuid4()
+    found_db = _Db(_Result(scalar=running_id))
+    assert asyncio.run(pipeline._active_run_id(found_db, sales_deal_id, NOW)) == running_id
 
     empty_db = _Db(_Result(scalar=None))
-    assert asyncio.run(pipeline._ran_recently(empty_db, sales_deal_id)) is False
+    assert asyncio.run(pipeline._active_run_id(empty_db, sales_deal_id, NOW)) is None
 
     sql = str(empty_db.statements[0])
-    # 진행 중이거나 쿨다운 안에 시작한 실행이 있으면 막는다.
     assert "source_refs" in sql
-    assert "agent_run.status_code IN" in sql
-    assert "agent_run.started_at >=" in sql
+    assert "agent_run.status_code =" in sql
+    assert "agent_run.lease_expires_at >" in sql
+    assert "agent_run.finished_at" not in sql
+    assert "agent_run.agent_code IN" in sql
 
 
-def test_upsert_revives_a_dismissed_suggestion():
-    """닫아 둔 제안도 그 딜에 새 변화가 생기면 다시 올라온다."""
+def test_upsert_replaces_the_whole_previous_suggestion():
     owner = _member()
     deal = _deal(owner)
-    dismissed = _suggestion(deal, uuid4(), status_code="dismissed")
+    dismissed = _suggestion(deal, uuid4(), status_code="expired")
     dismissed.updated_at = NOW - timedelta(days=1)
     new_run_id = uuid4()
     db = _Db(_Result(scalar=dismissed))
 
-    asyncio.run(pipeline._upsert_suggestion(db, deal.team_id, deal.id, new_run_id))
+    asyncio.run(
+        pipeline._upsert_suggestion(
+            db,
+            deal.team_id,
+            deal.id,
+            new_run_id,
+            target_date=date(2026, 9, 22),
+            target_time=time(11, 0),
+            excluded_dates=[date(2026, 9, 20)],
+            refresh_reason="이전 날짜가 지났습니다.",
+        )
+    )
 
     assert dismissed.status_code == "pending"
     assert dismissed.schedule_management_run_id == new_run_id
+    assert dismissed.target_date == date(2026, 9, 22)
+    assert dismissed.target_time == time(11, 0)
+    assert dismissed.excluded_dates == ["2026-09-20"]
     assert dismissed.updated_at > NOW - timedelta(days=1)
     assert db.commit_count == 1
 
@@ -206,13 +217,18 @@ def test_does_nothing_without_an_llm(monkeypatch):
     monkeypatch.setattr(
         pipeline.settings.__class__, "llm_configured", property(lambda _self: False)
     )
-    assert asyncio.run(pipeline._run_pipeline(uuid4(), {})) is None
+    assert asyncio.run(pipeline._run_pipeline(uuid4(), {})) is False
 
 
-@pytest.mark.parametrize("minutes", [0, 9])
-def test_cooldown_covers_the_declared_window(minutes):
-    """쿨다운 값이 바뀌면 이 시험이 먼저 알린다."""
-    assert timedelta(minutes=minutes) < pipeline._COOLDOWN
+def test_durable_snapshot_converts_dates_for_jsonb():
+    """거절 날짜가 포함된 입력도 AgentRun JSONB에 저장할 수 있어야 한다."""
+    value = pipeline.jsonable_encoder(
+        {"today": date(2026, 9, 15), "meeting_at": time(16, 0), "deal_id": uuid4()}
+    )
+
+    assert value["today"] == "2026-09-15"
+    assert value["meeting_at"] == "16:00:00"
+    assert isinstance(value["deal_id"], str)
 
 
 def test_keeps_a_suggestion_about_the_triggering_deal():

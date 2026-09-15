@@ -183,6 +183,11 @@ export async function finalizeReport(
   return (await client.post<ReportResponse>('/reports/finalize', request, { signal })).data
 }
 
+/** 보고서를 지웁니다. 되살릴 수 없고, 팀장이 확정한 보고서는 서버가 막습니다. */
+export async function deleteReport(reportId: string, signal?: AbortSignal): Promise<void> {
+  await client.delete(`/reports/${reportId}`, { signal })
+}
+
 export async function waitForReportGeneration<T>(
   created: AgentRunResponse<T>,
   onStatus?: (status: AgentRunStatus) => void,

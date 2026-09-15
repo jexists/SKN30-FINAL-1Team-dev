@@ -15,7 +15,7 @@ from app.api import reports as api
 from app.models.content import Report, ReportAttachment, ReportSubmission
 from app.schemas.agent_runs import ReportGenerationCreate
 from app.schemas.reports import ReportAttachmentRead, ReportFinalize, effective_meeting_transcript
-from app.services import agent_runs, agent_worker, storage
+from app.services import agent_runs, agent_worker, contract_next_meeting_pipeline, storage
 from app.services import report_attachments as service
 
 
@@ -264,6 +264,7 @@ async def test_worker_existing_sweep_also_cleans_pending_originals(monkeypatch):
     cleanup = AsyncMock()
     monkeypatch.setattr(agent_worker, "_fail_exhausted_leases", AsyncMock())
     monkeypatch.setattr(agent_runs, "redact_expired_payloads", AsyncMock())
+    monkeypatch.setattr(contract_next_meeting_pipeline, "resume_pending", AsyncMock())
     monkeypatch.setattr(service, "cleanup_expired", cleanup)
     monkeypatch.setattr(agent_worker, "claim", AsyncMock(return_value=None))
     assert await agent_worker.run_once("synthetic") is False

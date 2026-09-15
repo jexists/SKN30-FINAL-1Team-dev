@@ -1,47 +1,35 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { dismissNextMeetingSuggestion, listNextMeetingSuggestions } from '@/api/contractAgent'
+import {
+  applyDateOnlySuggestion,
+  getNextMeetingGenerationStatus,
+  listNextMeetingSuggestions,
+  refreshNextMeetingSuggestions,
+  rejectNextMeetingSuggestion,
+} from '@/api/contractAgent'
 import { errorMessage } from '@/api/errorMessage'
-import { durationLabel, kstParts } from '@/shared/agenda'
 import { RISK_LABEL } from '@/shared/riskLabels'
 import type {
   AgendaItem,
   AiSuggestion,
-  AiSuggestionOption,
   CalendarEvent,
   ContractNextMeetingSuggestion,
 } from '@/types'
 
+type Duration = 30 | 60 | 90
 type NewEvent = Partial<Omit<CalendarEvent, 'id'>> & { date: string; title: string }
 type AddEvent = (draft: NewEvent) => Promise<AgendaItem>
 
-/** priority 오름차순(1이 가장 추천)으로 고른 시간 후보. */
-function toOptions(item: ContractNextMeetingSuggestion): AiSuggestionOption[] {
-  return [...item.schedule_candidates]
-    .sort((a, b) => a.priority - b.priority)
-    .map((candidate) => {
-      const start = kstParts(candidate.starts_at)
-      return {
-        candidateId: candidate.candidate_id,
-        date: start.date,
-        time: start.time,
-        dur: durationLabel(candidate.starts_at, candidate.ends_at),
-        startsAt: candidate.starts_at,
-        endsAt: candidate.ends_at,
-        title: candidate.title,
-        priority: candidate.priority,
-      }
-    })
+function durationLabel(minutes: Duration): string {
+  if (minutes === 30) return '30분'
+  if (minutes === 60) return '1시간'
+  return '1시간 30분'
 }
 
 function toAiSuggestion(
   item: ContractNextMeetingSuggestion,
-  selectedCandidateId: string | undefined,
-): AiSuggestion | null {
-  const options = toOptions(item)
-  if (options.length === 0) return null
-  // 고른 것이 없으면 가장 추천하는 후보를 쓴다.
-  const chosen = options.find((o) => o.candidateId === selectedCandidateId) ?? options[0]
+  duration: Duration | undefined,
+): AiSuggestion {
   return {
     id: item.sales_deal_id,
     customerCompanyId: item.customer_company_id,
@@ -52,51 +40,50 @@ function toAiSuggestion(
     contact: item.customer_contact_name ?? '',
     dept: '',
     kind: 'visit',
-    date: chosen.date,
-    time: chosen.time,
-    dur: chosen.dur,
-    startsAt: chosen.startsAt,
-    endsAt: chosen.endsAt,
+    date: item.target_date,
+    time: item.target_time?.slice(0, 5) ?? null,
+    selectedDurationMinutes: duration ?? null,
+    durationOptions: item.duration_options,
     place: '',
-    activityTitle: chosen.title,
+    activityTitle: `${item.sales_deal_title} 후속 미팅`,
     proposalReason: item.reason,
     basis: [...new Set(item.risks.map((risk) => RISK_LABEL[risk.code]))],
     scheduleRunId: item.schedule_management_run_id,
-    options,
-    selectedCandidateId: chosen.candidateId,
+    refreshReason: item.refresh_reason,
   }
 }
 
-/**
- * 캘린더 "AI 추천 일정" 패널의 데이터·동작을 소유한다.
- *
- * 트리거(보고서 확정·일정 수동 등록·영업 딜 생성/이동·CS 처리 시작)가 서버에서 미리
- * 계산해 저장해 둔 제안을 조회만 한다 — LLM을 직접 호출하지 않으므로 화면이 바로 뜬다.
- * 자세한 배경은 docs/technical/multiagent/계약에이전트_설계.md 11장 참고.
- */
+/** 캘린더의 한 날짜짜리 AI 추천 카드와 사용자 선택을 관리한다. */
 export default function useAiSuggestions(addEvent: AddEvent) {
-  // 서버에서 받은 원본을 그대로 들고, 선택은 따로 둔다. 후보를 바꿔 골라도 나머지 값은
-  // 다시 만들 필요가 없다.
   const [items, setItems] = useState<ContractNextMeetingSuggestion[]>([])
-  const [selection, setSelection] = useState<Record<string, string>>({})
+  const [durations, setDurations] = useState<Record<string, Duration>>({})
+  const [generating, setGenerating] = useState(false)
+  const [latestReportPending, setLatestReportPending] = useState(false)
+  const wasGenerating = useRef(false)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const suggestions = useMemo(
-    () =>
-      items
-        .map((item) => toAiSuggestion(item, selection[item.sales_deal_id]))
-        .filter((item) => item !== null),
-    [items, selection],
+    () => items.map((item) => toAiSuggestion(item, durations[item.sales_deal_id])),
+    [durations, items],
   )
 
   const reload = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      setItems(await listNextMeetingSuggestions())
-      setSelection({})
+      // 갱신 실패가 기존 카드를 지우면 안 된다. 조회는 별도로 끝까지 시도한다.
+      await refreshNextMeetingSuggestions().catch(() => undefined)
+      const [nextItems, status] = await Promise.all([
+        listNextMeetingSuggestions(),
+        getNextMeetingGenerationStatus(),
+      ])
+      setItems(nextItems)
+      setGenerating(status.generating)
+      setLatestReportPending(status.latest_report_pending)
+      wasGenerating.current = status.generating
+      setDurations({})
     } catch (cause) {
       setError(errorMessage(cause, 'AI 추천을 불러오지 못했습니다.'))
       setItems([])
@@ -105,17 +92,46 @@ export default function useAiSuggestions(addEvent: AddEvent) {
     }
   }, [])
 
-  /** 카드에서 다른 시간 후보를 고른다. */
-  const selectOption = useCallback((suggestionId: string, candidateId: string) => {
-    setSelection((current) => ({ ...current, [suggestionId]: candidateId }))
+  useEffect(() => {
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const status = await getNextMeetingGenerationStatus()
+        if (cancelled) return
+        const finished = wasGenerating.current && !status.generating
+        wasGenerating.current = status.generating
+        setGenerating(status.generating)
+        setLatestReportPending(status.latest_report_pending)
+        if (finished) setItems(await listNextMeetingSuggestions())
+      } catch {
+        // 상태 조회 한 번의 실패로 기존 카드와 오류 영역을 지우지 않는다.
+      }
+    }
+    const timer = window.setInterval(() => void poll(), 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  const selectDuration = useCallback((suggestionId: string, duration: Duration) => {
+    setDurations((current) => ({ ...current, [suggestionId]: duration }))
   }, [])
 
   const accept = useCallback(
-    async (suggestion: AiSuggestion, overrideDateISO?: string) => {
+    async (suggestion: AiSuggestion, overrideDateISO?: string): Promise<AgendaItem | null> => {
+      const duration = suggestion.selectedDurationMinutes
+      if (duration === null) throw new Error('recommendation_duration_required')
+      const targetDate = overrideDateISO ?? suggestion.date
+      if (suggestion.time === null || suggestion.time === '') {
+        await applyDateOnlySuggestion(suggestion.id, duration, targetDate)
+        setItems((list) => list.filter((item) => item.sales_deal_id !== suggestion.id))
+        return null
+      }
       const added = await addEvent({
-        date: overrideDateISO ?? suggestion.date,
+        date: targetDate,
         time: suggestion.time,
-        dur: suggestion.dur,
+        dur: durationLabel(duration),
         kind: suggestion.kind,
         title: suggestion.activityTitle,
         hospital: suggestion.hospital,
@@ -131,10 +147,24 @@ export default function useAiSuggestions(addEvent: AddEvent) {
     [addEvent],
   )
 
-  const dismiss = useCallback((id: string) => {
-    setItems((list) => list.filter((item) => item.sales_deal_id !== id))
-    // 서버 반영에 실패해도 화면은 이미 닫힌 채로 둔다 — 다음 조회에서 다시 나타날 뿐이다.
-    void dismissNextMeetingSuggestion(id).catch(() => {})
+  const reject = useCallback(async (id: string) => {
+    setError(null)
+    try {
+      await rejectNextMeetingSuggestion(id)
+      // 서버는 거절 직후 계약관리 에이전트를 영속 큐에 넣는다. 상태 조회가 반영되기 전에도
+      // 카드만 사라진 빈 화면으로 보이지 않도록 즉시 생성 중 상태를 표시한다.
+      setGenerating(true)
+      wasGenerating.current = true
+      setLatestReportPending(false)
+      setItems((list) => list.filter((item) => item.sales_deal_id !== id))
+      setDurations((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+    } catch (cause) {
+      setError(errorMessage(cause, '새 추천 날짜를 만들지 못했습니다.'))
+    }
   }, [])
 
   return {
@@ -144,8 +174,10 @@ export default function useAiSuggestions(addEvent: AddEvent) {
     loading,
     error,
     reload,
-    selectOption,
+    generating,
+    latestReportPending,
+    selectDuration,
     accept,
-    dismiss,
+    reject,
   }
 }

@@ -16,10 +16,10 @@
   align-items: center;
   gap: var(--s3);
   padding: var(--s2) var(--s2) var(--s2) var(--s3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: var(--sh-3);
+  border: 1px solid var(--red);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  box-shadow: var(--sh-2);
   color: var(--ink);
   font-size: 14px;
   animation: drop var(--t) var(--ease-spring);
@@ -30,14 +30,14 @@
   }
 }
 
-// 오류라는 신호는 이 점 하나가 답니다. 면 전체를 붉게 물들이거나 테두리
-// 한쪽만 빨갛게 두면 (둥근 모서리에 잘려) 모양이 지저분해집니다.
+// ToastHost 와 같은 붉은 원입니다. 옅게 깐 면 위에서 이 원만 진해
+// 눈이 먼저 닿습니다.
 .mark {
   flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--red);
   color: #fff;
@@ -57,14 +57,14 @@
   width: 30px;
   height: 30px;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-badge);
   background: transparent;
-  color: var(--muted-2);
+  color: var(--muted);
   cursor: pointer;
   transition: background var(--t-fast);
 
   &:hover {
-    background: var(--fill);
+    background: color-mix(in srgb, var(--red) 16%, transparent);
     color: var(--ink-2);
   }
 }

@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
-from sqlalchemy import Text, delete, func, or_, select
+from sqlalchemy import Text, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -17,10 +17,12 @@ from app.api.deps import CurrentMember, DbSession, active_member, owner_scope
 from app.api.sales_deals import _sales_deal_row
 from app.models.agent import AgentRun
 from app.models.content import (
+    File,
     Report,
     ReportActivity,
     ReportAttachment,
     ReportDeal,
+    ReportSource,
     ReportSubmission,
 )
 from app.models.crm import Activity
@@ -515,6 +517,31 @@ async def _locked_report(db: AsyncSession, member: Member, report_id: UUID) -> R
             detail="report_not_owned",
         )
     return report
+
+
+async def _require_unused_submissions(db: AsyncSession, report: Report) -> None:
+    """이 보고서의 제출본을 다른 보고서가 근거로 쓰고 있지 않은지 본다.
+
+    주간·월간 보고서는 일일 보고서의 제출본을 report_source 로 붙들고 있고, 그 FK 는
+    RESTRICT 다. 그대로 지우면 IntegrityError 가 나므로 먼저 이유를 말해 준다.
+    """
+    used = await db.execute(
+        select(ReportSource.report_id)
+        .join(
+            ReportSubmission,
+            ReportSource.source_report_submission_id == ReportSubmission.id,
+        )
+        .where(
+            ReportSubmission.report_id == report.id,
+            ReportSource.report_id != report.id,
+        )
+        .limit(1)
+    )
+    if used.first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="report_used_as_source",
+        )
 
 
 async def _locked_report_for_review(db: AsyncSession, member: Member, report_id: UUID) -> Report:
@@ -1415,20 +1442,42 @@ async def delete_report(
 ) -> None:
     try:
         report = await _locked_report(db, member, report_id)
-        if report.status_code not in _EDITABLE_STATUSES:
+        # 팀장이 확정한 보고서는 결재가 끝난 문서다. 작성자도 지우지 못한다.
+        if report.status_code == "approved":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="report_not_editable",
+                detail="report_already_approved",
             )
-        if report.current_submission_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="report_has_submission_history",
-            )
-        # report 에는 deleted_at 이 없다. 묶인 일정은 report_activity 의 FK CASCADE 가 지운다.
+        await _require_unused_submissions(db, report)
+
+        # report 에는 deleted_at 이 없다. 아래는 지우기 전에 RESTRICT 참조를 먼저 푸는 일이다.
+        # CASCADE 로 묶인 report_activity·report_deal·report_source·meeting_deal_analysis 와
+        # SET NULL 인 agent_run.report_id 는 손대지 않아도 따라온다.
+        #
+        # 첨부 원본은 여기서 스토리지까지 지우지 않는다. 귀속을 풀고 만료만 찍어 두면
+        # report_attachments.cleanup_expired 가 평소처럼 객체와 행을 함께 치운다.
+        await db.execute(
+            update(ReportAttachment)
+            .where(ReportAttachment.report_id == report.id)
+            .values(report_id=None, expires_at=datetime.now(UTC))
+        )
+        # 지금 이 칸에 쓰는 코드는 없지만 FK 는 RESTRICT 라 남은 옛 행이 삭제를 막는다.
+        await db.execute(update(File).where(File.report_id == report.id).values(report_id=None))
+        # 제출 이력은 보고서와 함께 사라진다. 갱신 금지 트리거는 UPDATE 에만 걸려 있다.
+        report.current_submission_id = None
+        await db.flush()
+        await db.execute(delete(ReportSubmission).where(ReportSubmission.report_id == report.id))
+
         await db.delete(report)
         await db.flush()
         await db.commit()
+    except IntegrityError:
+        # 위에서 풀지 못한 참조가 남아 있을 때다. 500 대신 이유를 말한다.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="report_delete_blocked",
+        ) from None
     except Exception:
         await db.rollback()
         raise

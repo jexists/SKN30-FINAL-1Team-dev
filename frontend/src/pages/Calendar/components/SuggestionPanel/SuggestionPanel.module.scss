@@ -69,6 +69,16 @@
   line-height: 1.55;
 }
 
+.generating {
+  margin-top: var(--s3);
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .list {
   display: flex;
   flex-direction: column;
@@ -129,30 +139,14 @@
   color: var(--blue);
 }
 
-.time {
-  color: var(--muted);
-  font-weight: 400;
-}
-
-.dismiss {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
+.refreshed {
   margin-left: auto;
-  border: 0;
-  border-radius: var(--r-xs);
-  background: none;
-  color: var(--muted-2);
-  cursor: pointer;
-  transition:
-    background var(--t-fast),
-    color var(--t-fast);
-
-  &:hover {
-    background: var(--fill);
-    color: var(--ink-2);
-  }
+  padding: 3px 7px;
+  border-radius: var(--r-sm);
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-size: 10px;
+  font-style: normal;
 }
 
 .org {
@@ -187,6 +181,13 @@
   line-height: 1.6;
 }
 
+.refreshReason {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .basis {
   display: flex;
   align-items: center;
@@ -209,8 +210,7 @@
 }
 
 .accept {
-  width: 100%;
-  margin-top: var(--s3);
+  flex: 1;
 }
 
 .empty {
@@ -228,12 +228,28 @@
   color: var(--muted-2);
 }
 
-// 시간 후보. 고른 것 하나만 위의 날짜·시각 줄에 반영됩니다.
+.durationField {
+  margin-top: var(--s3);
+  padding: 0;
+  border: 0;
+
+  legend {
+    color: var(--muted);
+    font-size: 11px;
+  }
+}
+
 .options {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
   margin-top: 10px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s3);
 }
 
 .option {

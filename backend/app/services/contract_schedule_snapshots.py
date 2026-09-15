@@ -6,7 +6,7 @@
 """
 
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -33,16 +33,6 @@ _QUOTE_EXPIRING_WITHIN_DAYS = 14
 _FOLLOW_UP_OVERDUE_AFTER_DAYS = 30
 _CONTRACT_REVISIT_DUE_AFTER_DAYS = 7
 _CONTRACT_REVISIT_URGENT_AFTER_DAYS = 14
-_SCHEDULE_SEARCH_PADDING_DAYS = 7
-_DEFAULT_PREFERRED_WINDOW_DAYS = 7
-# 계약관리가 준 선호 기간이 이 폭보다 좁으면 끝을 밀어 이만큼 확보한다.
-#
-# 실행 145건 실측: 폭이 1일 이하인 34건은 후보가 평균 2.0개(0개로 끝난 실행 2건)였고,
-# 7일 이상인 35건은 평균 5.9개(0개 0건)였다. 게다가 그 34건이 낸 후보 69개 중 선호 기간을
-# 실제로 지킨 것은 15개뿐이었다 — 좁은 기간은 지켜지지도 않은 채 결과만 나빴다.
-#
-# 선호 기간이 아예 없을 때 쓰는 폭과 같은 값으로 맞춘다. 기준을 두 개 두지 않는다.
-_MIN_PREFERRED_WINDOW_DAYS = _DEFAULT_PREFERRED_WINDOW_DAYS
 # 자료실 검색 API 의 q 상한과 맞춘다.
 _BRIEFING_QUERY_MAX_CHARS = 500
 # C/S 상태는 received·diagnosing·in_progress·completed 네 가지고(app/schemas/support.py),
@@ -54,20 +44,6 @@ _BRIEFING_DOCUMENT_LIMIT = 5
 def _seoul_iso(value: datetime | None) -> str | None:
     """LLM 에 보낼 시각. 화면과 같은 서울 시간으로 맞춘다."""
     return None if value is None else value.astimezone(_SEOUL).isoformat()
-
-
-def _parse_aware_or_none(value: str) -> datetime | None:
-    """ISO 문자열을 tz-aware datetime으로 파싱한다. 형식이 깨졌으면 None.
-
-    LLM 출력이나 클라이언트 요청값은 offset이 없을(naive) 수 있다 — 그런 값은 UTC로 본다.
-    """
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed
 
 
 async def _company_or_404(
@@ -480,6 +456,7 @@ async def build_next_meeting_snapshot(
     customer_company_id: UUID,
     sales_deal_id: UUID | None = None,
     required_report_id: UUID | None = None,
+    excluded_dates: list[date] | None = None,
 ) -> dict[str, Any]:
     """계약관리 1차 실행(propose_next_meeting) 입력. 위험 판정 신호를 계산해 넣는다.
 
@@ -523,6 +500,8 @@ async def build_next_meeting_snapshot(
         "recent_approved_reports": await _recent_finalized_reports(
             db, member, deal_ids, required_report_id
         ),
+        "current_datetime": datetime.now(_SEOUL).isoformat(),
+        "excluded_dates": excluded_dates or [],
     }
 
 
@@ -713,111 +692,56 @@ async def build_schedule_snapshot(
     member: Member,
     sales_deal_id: UUID,
     parent_run: AgentRun | None,
-    preferred_starts_at: str | None,
-    preferred_ends_at: str | None,
-    duration_minutes: int | None,
+    target_date: date | str | None,
+    target_time: str | None,
+    recommendation_status: str = "pending",
+    excluded_dates: list[date] | None = None,
 ) -> dict[str, Any]:
-    """일정관리 실행 입력. 선호 시간대는 부모 실행(계약관리 제안) 또는 요청값에서 온다."""
-    deal = (
+    """일정관리 실행 입력. 날짜를 넓히거나 기본 소요시간을 만들지 않는다."""
+    row = (
         await db.execute(
-            select(SalesDeal).where(
+            select(SalesDeal, SalesPipelineStage.outcome_code)
+            .join(SalesPipelineStage, SalesPipelineStage.id == SalesDeal.sales_pipeline_stage_id)
+            .where(
                 SalesDeal.id == sales_deal_id,
                 SalesDeal.team_id == member.team_id,
                 SalesDeal.deleted_at.is_(None),
             )
         )
-    ).scalar_one_or_none()
-    if deal is None:
+    ).one_or_none()
+    if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="sales_deal_not_found")
+    deal, deal_outcome_code = row
 
     reason: str | None = None
     if parent_run is not None:
         suggestion = (parent_run.output_snapshot or {}).get("next_meeting_suggestion") or {}
-        preferred_starts_at = suggestion.get("preferred_starts_at")
-        preferred_ends_at = suggestion.get("preferred_ends_at")
-        duration_minutes = suggestion.get("duration_minutes", 60)
+        target_date = suggestion.get("target_date")
+        target_time = suggestion.get("target_time")
         reason = suggestion.get("reason")
 
-    now = datetime.now(UTC)
-    if preferred_starts_at is not None and preferred_ends_at is not None:
-        # 상위 제안(계약관리 1차 실행)이 이미 지난 날짜를 줬을 수 있다 — LLM이 현재
-        # 시각을 잘못 가늠했을 때의 방어선이다. preferred_starts_at/ends_at은 LLM 출력이나
-        # 클라이언트 요청값을 그대로 받은 문자열이라 형식이 깨졌거나(파싱 실패) offset이
-        # 없을(naive) 수 있다 — 둘 다 방어한다.
-        parsed_start = _parse_aware_or_none(preferred_starts_at)
-        parsed_end = _parse_aware_or_none(preferred_ends_at)
-        # 시작이 끝보다 늦으면(LLM 이 날짜를 거꾸로 답한 경우) 탐색 범위가 성립하지 않아
-        # 활동 조회도 일정 에이전트 입력도 무의미해진다 — 아래 기본 범위로 넘긴다.
-        inverted = (
-            parsed_start is not None
-            and parsed_end is not None
-            and max(parsed_start, now) >= parsed_end
+    if target_date is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="target_date_required",
         )
-        if parsed_start is None or parsed_end is None or parsed_end <= now or inverted:
-            preferred_starts_at = None
-            preferred_ends_at = None
-        else:
-            # 파싱해서 시간대를 붙인 값을 되돌려 담는다. 아래에서 원본 문자열을 다시
-            # 파싱하는데 datetime.fromisoformat 은 naive 를 naive 그대로 통과시켜,
-            # offset 없는 입력이 여기서는 UTC, contract_management 에서는 Asia/Seoul 로
-            # 갈린다 — 같은 글자가 9시간 다르게 읽힌다.
-            # max 는 "시작이 이미 지났으면 지금으로 당긴다"를 분기 없이 처리한다.
-            preferred_starts_at = max(parsed_start, now).isoformat()
-            preferred_ends_at = parsed_end.isoformat()
-
-    if preferred_starts_at is None or preferred_ends_at is None:
-        # 계약관리 제안에 구체적인 선호 시간대가 없으면(예: 근거만 있고 날짜 미정),
-        # 오늘부터 일주일을 기본 탐색 범위로 둔다.
-        window_start = now
-        window_end = now + timedelta(days=_DEFAULT_PREFERRED_WINDOW_DAYS)
-    else:
-        window_start = datetime.fromisoformat(preferred_starts_at)
-        window_end = datetime.fromisoformat(preferred_ends_at)
-        # 하루 안의 범위는 보고서에서 합의한 날짜·시간일 수 있어 그대로 지켨다.
-        # 날짜가 다른데 최소 폭보다 좁은 일반 추천 기간만 넓힌다.
-        #
-        # 끝만 뒤로 민다. 시작을 당기면 계약관리가 의도한 시점보다 앞선 시간을 제안하게
-        # 되는데, "왜 지금인가"는 계약관리의 판단이라 여기서 뒤집지 않는다.
-        widened_end = window_start + timedelta(days=_MIN_PREFERRED_WINDOW_DAYS)
-        same_seoul_day = window_start.astimezone(_SEOUL).date() == window_end.astimezone(
-            _SEOUL
-        ).date()
-        if not same_seoul_day and widened_end > window_end:
-            window_end = widened_end
-            preferred_starts_at = window_start.isoformat()
-            preferred_ends_at = window_end.isoformat()
-
-    padding = timedelta(days=_SCHEDULE_SEARCH_PADDING_DAYS)
-    activities = (
-        (
-            await db.execute(
-                select(Activity).where(
-                    Activity.team_id == member.team_id,
-                    Activity.owner_member_id == deal.owner_member_id,
-                    Activity.deleted_at.is_(None),
-                    Activity.starts_at >= window_start - padding,
-                    Activity.starts_at <= window_end + padding,
-                )
-            )
+    try:
+        parsed_target_date = (
+            target_date if isinstance(target_date, date) else date.fromisoformat(target_date)
         )
-        .scalars()
-        .all()
-    )
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="invalid_target_date"
+        ) from None
 
     return {
         "sales_deal_id": str(deal.id),
-        "preferred_starts_at": preferred_starts_at,
-        "preferred_ends_at": preferred_ends_at,
-        "duration_minutes": duration_minutes or 60,
+        "target_date": parsed_target_date.isoformat(),
+        "target_time": target_time,
         "reason": reason,
-        "activities": [
-            {
-                "id": str(activity.id),
-                "owner_member_id": str(activity.owner_member_id),
-                "starts_at": activity.starts_at.isoformat(),
-                "ends_at": activity.ends_at.isoformat() if activity.ends_at else None,
-                "all_day": activity.all_day,
-            }
-            for activity in activities
-        ],
+        "recommendation_status": recommendation_status,
+        "deal_outcome_code": deal_outcome_code,
+        "excluded_dates": [value.isoformat() for value in (excluded_dates or [])],
+        "current_datetime": datetime.now(_SEOUL).isoformat(),
+        "timezone": "Asia/Seoul",
     }

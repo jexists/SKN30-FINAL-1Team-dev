@@ -106,6 +106,11 @@ export function isAuthorEditableReportStatus(
   return status === 'draft' || status === 'submitted' || status === 'changes_requested'
 }
 
+/** 팀장이 확정한 보고서는 수정도 삭제도 못 합니다. 서버 규칙과 같은 한 줄입니다. */
+export function isApprovedReportStatus(status: ApiReportStatus | undefined): boolean {
+  return status === 'approved'
+}
+
 export function canRecoverReportGeneration(
   run: Pick<AgentRunResponse, 'created_at' | 'status_code'>,
   savedReport:

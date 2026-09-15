@@ -22,15 +22,6 @@ export interface ContractRisk {
   message: string
 }
 
-export interface ScheduleCandidate {
-  candidate_id: string
-  title: string
-  starts_at: string
-  ends_at: string
-  priority: number
-  reason: string
-}
-
 /** 브리핑 본문이 인용한 근거 하나. id 는 종류에 따라 딜·보고서·문서의 id 다. */
 export interface SourceRef {
   type: 'sales_deal' | 'report' | 'support_request' | 'activity' | 'document'
@@ -63,8 +54,8 @@ export type ContractBriefingOutput = HighlightBriefingOutput | LegacyContractBri
 
 /**
  * `GET /contract-next-meeting-suggestions` 한 건. 트리거(보고서 확정·일정 수동 등록·영업 딜
- * 생성/이동·CS 처리 시작)로 서버가 미리 "다음 미팅 제안 → 일정 후보"까지 계산해 저장해 둔
- * 결과다 — 캘린더가 이 값을 읽을 때는 LLM을 부르지 않는다.
+ * 생성/이동·CS 처리 시작)로 서버가 미리 "다음 미팅 날짜 제안 → 유효성 점검"까지 저장한
+ * 결과다. 카드 하나에는 계약관리 Agent가 정한 날짜 하나만 있다.
  * backend/app/schemas/contract_suggestions.py 의 ContractNextMeetingSuggestionRead 를 옮긴다.
  */
 export interface ContractNextMeetingSuggestion {
@@ -80,8 +71,18 @@ export interface ContractNextMeetingSuggestion {
   reason: string
   risks: ContractRisk[]
   schedule_management_run_id: string
-  schedule_candidates: ScheduleCandidate[]
-  status_code: 'pending' | 'dismissed' | 'accepted'
+  target_date: string
+  target_time: string | null
+  selected_duration_minutes: number | null
+  duration_options: [30, 60, 90]
+  refresh_reason: string | null
+  status_code: 'pending' | 'rejected' | 'expired' | 'accepted'
   created_at: string
   updated_at: string
+}
+
+export interface ContractNextMeetingGenerationStatus {
+  generating: boolean
+  latest_report_pending: boolean
+  sales_deal_ids: string[]
 }

@@ -281,9 +281,7 @@ def test_generic_queue_only_accepts_contract_and_schedule_agents():
             "schedule_management",
             {
                 "sales_deal_id": uuid4(),
-                "preferred_starts_at": "2026-08-18T09:00:00+09:00",
-                "preferred_ends_at": "2026-08-18T12:00:00+09:00",
-                "duration_minutes": 60,
+                "target_date": "2026-09-20",
             },
             schedule_management.PROMPT_VERSION,
             None,
@@ -1109,9 +1107,7 @@ async def test_prepare_claimed_routes_generic_inputs_and_persists_snapshot(monke
         "contract_management_briefing": {"activity_id": target_id},
         "schedule_management": {
             "sales_deal_id": target_id,
-            "preferred_starts_at": "2026-08-18T09:00:00+09:00",
-            "preferred_ends_at": "2026-08-18T12:00:00+09:00",
-            "duration_minutes": 60,
+            "target_date": "2026-09-20",
         },
     }[agent_code]
     payload = AgentRunCreate(
@@ -1175,9 +1171,7 @@ async def test_prepare_claimed_routes_generic_inputs_and_persists_snapshot(monke
     code, input_snapshot, requester_id = await service.prepare_claimed(run, "worker-1")
 
     update_statement = next(
-        statement
-        for statement in db.statements
-        if "agent_run.lease_owner" in str(statement)
+        statement for statement in db.statements if "agent_run.lease_owner" in str(statement)
     )
 
     assert (code, input_snapshot, requester_id) == (
@@ -1265,10 +1259,11 @@ async def test_prepare_claimed_rejects_lost_lease_before_exposing_snapshot(monke
         (
             "schedule_management",
             "run",
-            {"schedule_candidates": []},
+            {"decision": "valid", "reason_code": "recommendation_valid"},
             {
                 "prompt_version": schedule_management.PROMPT_VERSION,
-                "candidate_count": 0,
+                "decision": "valid",
+                "reason_code": "recommendation_valid",
             },
         ),
     ],
@@ -1630,8 +1625,12 @@ async def test_worker_completion_rejects_lost_lease(monkeypatch):
     db = _Db(SimpleNamespace(rowcount=0), SimpleNamespace(rowcount=0))
     monkeypatch.setattr(service, "get_sessionmaker", lambda: lambda: _SessionContext(db))
     output = SimpleNamespace(
-        schedule_candidates=[],
-        model_dump=lambda **_kwargs: {"schedule_candidates": []},
+        decision="valid",
+        reason_code="recommendation_valid",
+        model_dump=lambda **_kwargs: {
+            "decision": "valid",
+            "reason_code": "recommendation_valid",
+        },
     )
 
     with pytest.raises(RuntimeError, match="agent_run_lease_lost"):
@@ -1765,6 +1764,7 @@ async def test_running_generation_is_cancelled_and_redacted_at_payload_expiry(mo
             raise
 
     db = _Db(SimpleNamespace(rowcount=1))
+
     async def not_cancelled(_run_id):
         return False
 

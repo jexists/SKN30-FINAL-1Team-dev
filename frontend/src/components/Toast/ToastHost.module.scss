@@ -18,6 +18,9 @@
   pointer-events: none;
 }
 
+// 무슨 일이 일어났는지는 면 색이 먼저 말합니다. 흰 카드에 점 하나만 찍으면
+// 색이 아이콘 안에 갇혀 멀리서는 성공과 실패가 같아 보입니다. 면·테두리·
+// 아이콘을 한 색으로 묶고, 글자만 검게 두어 읽는 데는 방해하지 않습니다.
 .toast {
   pointer-events: auto;
   width: max-content;
@@ -26,20 +29,23 @@
   align-items: center;
   gap: var(--s3);
   padding: var(--s2) var(--s2) var(--s2) var(--s3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: var(--sh-3);
+  border: 1px solid var(--tone-line);
+  border-radius: var(--r-sm);
+  background: var(--tone-tint);
+  box-shadow: var(--sh-2);
   color: var(--ink);
   font-size: 14px;
   animation: drop var(--t) var(--ease-spring);
 
-  &[data-tone='error'] {
-    border-color: color-mix(in srgb, var(--red) 36%, var(--line));
+  // 기본은 성공입니다.
+  --tone-tint: var(--green-tint);
+  --tone-line: color-mix(in srgb, var(--green) 62%, var(--green-ink));
+  --tone-mark: var(--green-ink);
 
-    .mark {
-      background: var(--red);
-    }
+  &[data-tone='error'] {
+    --tone-tint: var(--red-tint);
+    --tone-line: var(--red);
+    --tone-mark: var(--red);
   }
 }
 
@@ -50,34 +56,43 @@
   }
 }
 
-// 잘 됐다는 신호는 이 점 하나가 답니다. ErrorToast 의 붉은 점과 같은 크기로
-// 두어 두 안내가 번갈아 떠도 줄 높이가 흔들리지 않습니다.
+// ErrorToast 의 점과 같은 크기·글자입니다. 두 안내가 번갈아 떠도 줄 높이가
+// 흔들리지 않습니다.
+//
+// 오류 표시는 아이콘이 아니라 느낌표 한 글자입니다. 테두리가 있는 아이콘을
+// 넣으면 채운 원 안에 원이 하나 더 생겨 가운데가 어긋나 보입니다.
 .mark {
   flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--tone-mark);
   color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .text {
   min-width: 0;
 }
 
+// 색면 위에 서므로 흰 알약으로 떼어 놓습니다. 같은 색 위에 같은 색을
+// 얹으면 누를 수 있는 것인지 보이지 않습니다.
 .action {
   flex: none;
   padding: 6px 9px;
-  border-radius: var(--r-sm);
-  background: var(--fill);
+  border: 1px solid var(--tone-line);
+  border-radius: var(--r-badge);
+  background: var(--surface);
   color: var(--ink);
   font-size: 12px;
   font-weight: 650;
 
   &:hover {
-    background: var(--line);
+    background: var(--tone-tint);
   }
 
   &:focus-visible {
@@ -93,14 +108,14 @@
   width: 30px;
   height: 30px;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-badge);
   background: transparent;
-  color: var(--muted-2);
+  color: var(--muted);
   cursor: pointer;
   transition: background var(--t-fast);
 
   &:hover {
-    background: var(--fill);
+    background: color-mix(in srgb, var(--tone-line) 16%, transparent);
     color: var(--ink-2);
   }
 }

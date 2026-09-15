@@ -621,10 +621,30 @@ async def create_activity(
         values["customer_company_id"], company_name = await _resolve_company_id(
             db, member, values["customer_company_id"], contact_info
         )
+        claimed_suggestion = None
         if schedule_management_run_id is not None:
+            if payload.ends_at is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="recommendation_duration_required",
+                )
             # 일정을 만들기 전에 제안을 선점한다 — 커밋 뒤에 표시하면 동시 요청 둘이
             # 모두 pending 을 읽어 같은 추천에서 일정이 두 번 등록된다.
-            await _claim_suggestion(db, member, schedule_management_run_id)
+            claimed_suggestion = await _claim_suggestion(db, member, schedule_management_run_id)
+            if claimed_suggestion is not None:
+                conflict = await _conflict_warning(
+                    db,
+                    team_id=member.team_id,
+                    owner_member_id=member.id,
+                    activity_id=None,
+                    starts_at=payload.starts_at,
+                    ends_at=payload.ends_at,
+                )
+                if conflict is not None:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="schedule_conflict",
+                    )
         activity = Activity(
             id=uuid4(),
             team_id=member.team_id,
@@ -635,6 +655,19 @@ async def create_activity(
         )
         db.add(activity)
         await db.flush()
+        if claimed_suggestion is not None:
+            duration_minutes = int((payload.ends_at - payload.starts_at).total_seconds() // 60)
+            if duration_minutes not in {30, 60, 90}:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="invalid_recommendation_duration",
+                )
+            claimed_suggestion.target_date = payload.starts_at.astimezone(_SEOUL).date()
+            claimed_suggestion.target_time = (
+                payload.starts_at.astimezone(_SEOUL).time().replace(tzinfo=None)
+            )
+            claimed_suggestion.selected_duration_minutes = duration_minutes
+            claimed_suggestion.applied_activity_id = activity.id
         read = _activity_read(
             activity,
             member.display_name,
@@ -649,10 +682,6 @@ async def create_activity(
         )
         activity_id = activity.id
         activity_sales_deal_id = activity.sales_deal_id
-        team_id = member.team_id
-        owner_member_id = member.id
-        starts_at = activity.starts_at
-        ends_at = activity.ends_at
         await db.commit()
     except Exception:
         await db.rollback()
@@ -684,16 +713,7 @@ async def create_activity(
     except HTTPException as error:
         read.briefing_queue_warning = str(error.detail)
 
-    if schedule_management_run_id is not None:
-        read.schedule_conflict_warning = await _conflict_warning(
-            db,
-            team_id=team_id,
-            owner_member_id=owner_member_id,
-            activity_id=activity_id,
-            starts_at=starts_at,
-            ends_at=ends_at,
-        )
-    elif activity_sales_deal_id is not None:
+    if schedule_management_run_id is None and activity_sales_deal_id is not None:
         # AI 추천을 거치지 않은 수동 등록이다 — 이 딜이 AI 추천 체인을 한 번도 안 거쳤을
         # 수 있다는 신호로 보고 트리거한다(계약에이전트_설계.md 3장).
         contract_next_meeting_pipeline.queue(
@@ -709,34 +729,27 @@ async def _conflict_warning(
     *,
     team_id: UUID,
     owner_member_id: UUID,
-    activity_id: UUID,
+    activity_id: UUID | None,
     starts_at: datetime,
     ends_at: datetime | None,
 ) -> str | None:
-    """승인한 시간에 이 담당자의 다른 일정이 이미 있으면 안내 문구를 만든다.
+    """승인하려는 시간에 이 담당자의 다른 일정이 이미 있으면 안내 문구를 만든다.
 
-    제안은 트리거 시점에 미리 계산해 둔 값이라, 그때는 비어 있던 자리에 승인하기 전까지
-    다른 일정이 잡혔을 수 있다. 일정관리 에이전트가 겹침을 걸러 내는 것은 계산 시점 한
-    번뿐이므로 여기서 한 번 더 본다. 등록은 이미 커밋됐고 되돌리지 않는다 — 사람이 보고
-    옮기도록 알리기만 한다.
+    추천 카드가 만들어진 뒤 일정이 바뀔 수 있으므로 INSERT 직전에 다시 조회한다. 충돌이
+    있으면 호출자가 409를 반환하고 같은 트랜잭션을 롤백하므로 일정은 저장되지 않는다.
     """
     # 종료가 없는(하루 종일) 일정은 그날 전체를 차지한 것으로 본다.
     ends_at = ends_at or starts_at + timedelta(days=1)
-    rows = (
-        await db.execute(
-            select(Activity.title, Activity.starts_at)
-            .where(
-                Activity.team_id == team_id,
-                Activity.owner_member_id == owner_member_id,
-                Activity.id != activity_id,
-                Activity.deleted_at.is_(None),
-                Activity.starts_at < ends_at,
-                func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1)) > starts_at,
-            )
-            .order_by(Activity.starts_at)
-            .limit(1)
-        )
-    ).all()
+    statement = select(Activity.title, Activity.starts_at).where(
+        Activity.team_id == team_id,
+        Activity.owner_member_id == owner_member_id,
+        Activity.deleted_at.is_(None),
+        Activity.starts_at < ends_at,
+        func.coalesce(Activity.ends_at, Activity.starts_at + timedelta(days=1)) > starts_at,
+    )
+    if activity_id is not None:
+        statement = statement.where(Activity.id != activity_id)
+    rows = (await db.execute(statement.order_by(Activity.starts_at).limit(1))).all()
     if not rows:
         return None
     title, other_start = rows[0]
@@ -746,7 +759,7 @@ async def _conflict_warning(
 
 async def _claim_suggestion(
     db: AsyncSession, member: Member, schedule_management_run_id: UUID
-) -> None:
+) -> ContractNextMeetingSuggestion | None:
     """AI 추천 카드를 승인해서 만든 등록이다 — 그 제안을 이 요청의 것으로 선점한다.
 
     승인 버튼을 연달아 누르거나 두 탭에서 함께 누르면 요청이 겹친다. 제안을 읽기만 하고
@@ -781,13 +794,14 @@ async def _claim_suggestion(
         )
     ).scalar_one_or_none()
     if suggestion is None:
-        return
+        return None
     if suggestion.status_code != "pending":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="suggestion_already_processed"
         )
     suggestion.status_code = "accepted"
     suggestion.updated_at = datetime.now(UTC)
+    return suggestion
 
 
 # 이 값들이 바뀌면 브리핑이 검색하는 범위나 대상 시점이 달라진다. 시작 시각은 과거 일정이

@@ -67,9 +67,11 @@ export default function Calendar() {
     loading: suggestionsLoading,
     error: suggestionsError,
     reload: reloadSuggestions,
-    selectOption: selectSuggestionOption,
+    generating: suggestionsGenerating,
+    latestReportPending,
+    selectDuration: selectSuggestionDuration,
     accept: acceptSuggestion,
-    dismiss: dismissSuggestion,
+    reject: rejectSuggestion,
   } = useAiSuggestions(addEvent)
 
   useEffect(() => {
@@ -108,6 +110,10 @@ export default function Calendar() {
       if (!suggestion) return
       try {
         const added = await acceptSuggestion(suggestion, dateISO)
+        if (added === null) {
+          setSelectedISO(dateISO)
+          return
+        }
         setSelectedISO(dateISO)
         setJustAddedId(added.id)
         setApprovalWarning(warningOf(added))
@@ -142,7 +148,7 @@ export default function Calendar() {
       start(pointer, {
         kind: 'suggestion',
         id: suggestion.id,
-        label: `${suggestion.time} ${suggestion.hospital}`,
+        label: `${suggestion.time ?? '시간 미정'} ${suggestion.hospital}`,
       }),
     [start],
   )
@@ -151,6 +157,10 @@ export default function Calendar() {
     async (suggestion: AiSuggestion) => {
       try {
         const added = await acceptSuggestion(suggestion)
+        if (added === null) {
+          setSelectedISO(suggestion.date)
+          return
+        }
         setSelectedISO(added.date)
         setJustAddedId(added.id)
         setApprovalWarning(warningOf(added))
@@ -235,10 +245,17 @@ export default function Calendar() {
             previewId={previewId}
             onPreview={setPreviewId}
             onAccept={acceptSuggestionToCalendar}
-            onSelectOption={selectSuggestionOption}
-            onDismiss={dismissSuggestion}
+            onSelectDuration={selectSuggestionDuration}
+            onReject={(id) => void rejectSuggestion(id)}
             onGrab={grabSuggestion}
             loading={suggestionsLoading}
+            generationMessage={
+              latestReportPending
+                ? '최신 보고서 반영 중…'
+                : suggestionsGenerating
+                  ? 'AI 추천 일정 생성 중…'
+                  : null
+            }
             error={suggestionsError}
             onRetry={reloadSuggestions}
           />

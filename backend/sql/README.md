@@ -25,6 +25,10 @@
 
 ## 스키마 파일
 
+- `20260915_0036_schedule_recommendation_card.sql`: 영업 딜별 일정 추천에 추천 날짜·선택
+  소요시간·거절 날짜·재추천 사유·적용 일정 연결을 추가하고 상태값을
+  `pending/rejected/expired/accepted`로 확장합니다. 반복 실행할 수 있습니다.
+
 - `20260915_0035_customer_company_soft_delete.sql`: `customer_company`에 `deleted_at`을 더해
   살아 있는 고객이 하나도 없는 회사를 회사검색에서 감춥니다. 회사를 미리 등록하는 화면이
   없어 회사는 고객 등록 과정에서만 생기는데, 고객현황에서 고객을 모두 지워도 회사만 남아

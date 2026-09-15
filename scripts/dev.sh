@@ -43,10 +43,7 @@ PIDS+=("$!")
 bash scripts/frontend.sh &
 PIDS+=("$!")
 
-(
-  cd backend
-  exec uv run python -m app.services.agent_worker --poll-seconds 2
-) &
+bash scripts/agent-worker.sh &
 PIDS+=("$!")
 
 echo

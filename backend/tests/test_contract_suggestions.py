@@ -5,6 +5,7 @@
 """
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -152,6 +153,12 @@ def _suggestion(deal: SalesDeal, schedule_run_id: UUID, *, status_code: str = "p
         team_id=deal.team_id,
         sales_deal_id=deal.id,
         schedule_management_run_id=schedule_run_id,
+        target_date=datetime(2026, 9, 20).date(),
+        target_time=None,
+        selected_duration_minutes=None,
+        excluded_dates=[],
+        refresh_reason=None,
+        applied_activity_id=None,
         status_code=status_code,
         created_at=NOW,
         updated_at=NOW,
@@ -164,7 +171,7 @@ def _client(db: _Db, member: Member) -> TestClient:
     return TestClient(app)
 
 
-def test_list_returns_stored_candidates_without_calling_the_llm():
+def test_list_returns_one_stored_date_without_calling_the_llm():
     """패널이 그대로 그릴 값이 저장된 실행에서 나온다 — 조회 한 번으로 끝난다."""
     member = _member()
     company = _company(member.team_id)
@@ -181,18 +188,7 @@ def test_list_returns_stored_candidates_without_calling_the_llm():
         member.team_id,
         agent_code="schedule_management",
         parent_run_id=next_meeting_run.id,
-        output={
-            "schedule_candidates": [
-                {
-                    "candidate_id": "candidate-1",
-                    "title": "계약 갱신 미팅",
-                    "starts_at": "2026-09-01T10:00:00+09:00",
-                    "ends_at": "2026-09-01T11:00:00+09:00",
-                    "priority": 1,
-                    "reason": "가장 이른 빈 시간",
-                }
-            ]
-        },
+        output={"decision": "valid", "reason_code": "recommendation_valid"},
     )
     suggestion = _suggestion(deal, schedule_run.id)
     db = _Db(
@@ -209,7 +205,9 @@ def test_list_returns_stored_candidates_without_calling_the_llm():
     assert item["sales_deal_id"] == str(deal.id)
     assert item["customer_company_name"] == "합성 병원"
     assert item["reason"] == "계약 갱신 협의"
-    assert item["schedule_candidates"][0]["candidate_id"] == "candidate-1"
+    assert item["target_date"] == "2026-09-20"
+    assert item["target_time"] is None
+    assert item["duration_options"] == [30, 60, 90]
     assert [risk["code"] for risk in item["risks"]] == ["contract_expiring"]
     # 팀원은 자기가 맡은 딜만 본다.
     assert member.id in db.statements[0].compile().params.values()
@@ -246,28 +244,39 @@ def test_manager_sees_the_whole_team_and_empty_list_skips_extra_queries():
     assert member.id not in db.statements[0].compile().params.values()
 
 
-def test_dismiss_marks_the_suggestion_and_rejects_repeats():
+def test_reject_replaces_the_suggestion_and_excludes_the_old_date(monkeypatch):
     member = _member()
     company = _company(member.team_id)
     deal = _deal(member, company)
     suggestion = _suggestion(deal, uuid4())
     db = _Db(_Result(rows=[(suggestion, deal)]))
+    captured = {}
+
+    async def regenerate(sales_deal_id, **kwargs):
+        captured.update({"sales_deal_id": sales_deal_id, **kwargs})
+        return True
+
+    monkeypatch.setattr(
+        "app.api.contract_suggestions.contract_next_meeting_pipeline.regenerate", regenerate
+    )
 
     with _client(db, member) as client:
         response = client.post(
-            f"/api/contract-next-meeting-suggestions/{deal.id}/dismiss",
+            f"/api/contract-next-meeting-suggestions/{deal.id}/reject",
             headers={"Origin": ORIGIN},
         )
 
     assert response.status_code == 204
-    assert suggestion.status_code == "dismissed"
+    assert suggestion.status_code == "rejected"
+    assert captured["sales_deal_id"] == deal.id
+    assert captured["excluded_dates"] == [suggestion.target_date]
     assert db.commit_count == 1
 
-    already = _suggestion(deal, uuid4(), status_code="dismissed")
+    already = _suggestion(deal, uuid4(), status_code="accepted")
     repeat_db = _Db(_Result(rows=[(already, deal)]))
     with _client(repeat_db, member) as client:
         response = client.post(
-            f"/api/contract-next-meeting-suggestions/{deal.id}/dismiss",
+            f"/api/contract-next-meeting-suggestions/{deal.id}/reject",
             headers={"Origin": ORIGIN},
         )
 
@@ -275,7 +284,7 @@ def test_dismiss_marks_the_suggestion_and_rejects_repeats():
     assert repeat_db.commit_count == 0
 
 
-def test_dismiss_hides_other_owners_suggestion_as_not_found():
+def test_reject_hides_other_owners_suggestion_as_not_found():
     member = _member()
     other = _member(team_id=member.team_id)
     company = _company(member.team_id)
@@ -284,7 +293,7 @@ def test_dismiss_hides_other_owners_suggestion_as_not_found():
 
     with _client(db, member) as client:
         response = client.post(
-            f"/api/contract-next-meeting-suggestions/{deal.id}/dismiss",
+            f"/api/contract-next-meeting-suggestions/{deal.id}/reject",
             headers={"Origin": ORIGIN},
         )
 
@@ -292,14 +301,131 @@ def test_dismiss_hides_other_owners_suggestion_as_not_found():
     assert db.commit_count == 0
 
 
-def test_dismiss_requires_an_existing_suggestion():
+def test_reject_keeps_the_card_when_regeneration_queue_fails(monkeypatch):
+    """계약관리 작업을 예약하지 못하면 기존 카드를 숨기지 않는다."""
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    suggestion = _suggestion(deal, uuid4())
+    db = _Db(_Result(rows=[(suggestion, deal)]))
+
+    async def fail(*_args, **_kwargs):
+        raise RuntimeError("synthetic queue failure")
+
+    monkeypatch.setattr(
+        "app.api.contract_suggestions.contract_next_meeting_pipeline.regenerate", fail
+    )
+
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/contract-next-meeting-suggestions/{deal.id}/reject",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "recommendation_refresh_failed"
+    assert suggestion.status_code == "pending"
+    assert db.commit_count == 0
+
+
+def test_reject_requires_an_existing_suggestion():
     member = _member()
     db = _Db(_Result(rows=[]))
 
     with _client(db, member) as client:
         response = client.post(
-            f"/api/contract-next-meeting-suggestions/{uuid4()}/dismiss",
+            f"/api/contract-next-meeting-suggestions/{uuid4()}/reject",
             headers={"Origin": ORIGIN},
         )
 
     assert response.status_code == 404
+
+
+def test_apply_date_only_requires_a_supported_duration():
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    suggestion = _suggestion(deal, uuid4())
+
+    db = _Db(_Result(rows=[(suggestion, deal)]))
+    with _client(db, member) as client:
+        response = client.post(
+            f"/api/contract-next-meeting-suggestions/{deal.id}/apply",
+            headers={"Origin": ORIGIN},
+            json={"duration_minutes": 60},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["target_date"] == "2026-09-20"
+    assert suggestion.selected_duration_minutes == 60
+    assert suggestion.status_code == "accepted"
+
+    invalid_db = _Db()
+    with _client(invalid_db, member) as client:
+        response = client.post(
+            f"/api/contract-next-meeting-suggestions/{deal.id}/apply",
+            headers={"Origin": ORIGIN},
+            json={"duration_minutes": 45},
+        )
+    assert response.status_code == 422
+
+
+def test_refresh_replaces_only_when_schedule_agent_requests_it(monkeypatch):
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    suggestion = _suggestion(deal, uuid4())
+    suggestion.target_date = datetime(2026, 9, 14).date()
+    captured = {}
+
+    async def run(snapshot):
+        captured["snapshot"] = snapshot
+        return SimpleNamespace(
+            decision="refresh_required",
+            reason="추천 날짜가 지나 새 날짜 논의가 필요합니다.",
+        )
+
+    async def regenerate(sales_deal_id, **kwargs):
+        captured.update({"sales_deal_id": sales_deal_id, **kwargs})
+        return True
+
+    monkeypatch.setattr("app.api.contract_suggestions.schedule_management.run", run)
+    monkeypatch.setattr(
+        "app.api.contract_suggestions.contract_next_meeting_pipeline.regenerate", regenerate
+    )
+    db = _Db(_Result(rows=[(suggestion, deal, "in_progress")]))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/contract-next-meeting-suggestions/refresh",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"checked_count": 1, "replaced_count": 1}
+    assert captured["sales_deal_id"] == deal.id
+    assert captured["excluded_dates"] == [suggestion.target_date]
+
+
+def test_refresh_failure_keeps_the_existing_card(monkeypatch):
+    member = _member()
+    company = _company(member.team_id)
+    deal = _deal(member, company)
+    suggestion = _suggestion(deal, uuid4())
+
+    async def fail(_snapshot):
+        raise RuntimeError("synthetic agent failure")
+
+    monkeypatch.setattr("app.api.contract_suggestions.schedule_management.run", fail)
+    db = _Db(_Result(rows=[(suggestion, deal, "in_progress")]))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/contract-next-meeting-suggestions/refresh",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"checked_count": 1, "replaced_count": 0}
+    assert suggestion.status_code == "pending"
+    assert db.commit_count == 0

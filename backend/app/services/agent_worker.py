@@ -129,12 +129,17 @@ async def claim(lease_owner: str, run_id: UUID | None = None) -> AgentRun | None
         if run_id is not None:
             conditions.append(AgentRun.id == run_id)
         else:
-            # 구 contract pipeline은 request_hash 없이 행을 만든 뒤 같은 프로세스에서
-            # execute(run_id)를 직접 호출한다. 범용 worker는 새 영속 요청만 선점한다.
-            conditions.append(AgentRun.request_hash.is_not(None))
+            # 사용자 요청과 영속 추천 pipeline만 범용 worker가 선점한다. durable 표시가 없는
+            # 구 contract queued 행은 입력 세대가 불명확하므로 자동 재생하지 않는다.
+            conditions.append(
+                or_(
+                    AgentRun.request_hash.is_not(None),
+                    AgentRun.source_refs["durable_pipeline"].astext == "true",
+                )
+            )
             worker_pool = AgentRun.source_refs["_worker_pool"].astext
             if settings.app_env == "production":
-                # 분리 필드 도입 전에 쌓인 행은 기존 배포 큐이므로 production이 이어서 처리한다.
+                # 환경 구분 전에 쌓인 행은 기존 배포 큐이므로 production이 이어서 처리한다.
                 conditions.append(or_(worker_pool.is_(None), worker_pool == "production"))
             else:
                 conditions.append(worker_pool == settings.app_env)
@@ -554,10 +559,9 @@ async def _fail(
             for field, value in values.items():
                 setattr(run, field, value)
             return
-        # request_hash가 없는 구 system 실행은 범용 worker가 다시 선점하지 않는다.
-        # 재시도 상태로 돌려놓으면 계약 pipeline이 영원히 queued에 묶인다.
+        durable_pipeline = bool((run.source_refs or {}).get("durable_pipeline"))
         retry = (
-            run.request_hash is not None
+            (run.request_hash is not None or durable_pipeline)
             and agent_runs.is_transient_error(error_code)
             and run.attempt_count < MAX_ATTEMPTS
         )
@@ -632,6 +636,26 @@ async def _follow_up_briefing(run: AgentRun) -> None:
         )
 
 
+async def _follow_up_contract_schedule(run: AgentRun) -> None:
+    """완료된 추천 단계에서 다음 영속 단계 또는 최종 카드를 만든다."""
+    if run.status_code != "completed" or not (run.source_refs or {}).get("durable_pipeline"):
+        return
+    if run.agent_code not in {"contract_management_next_meeting", "schedule_management"}:
+        return
+    try:
+        from app.services import contract_next_meeting_pipeline
+
+        await contract_next_meeting_pipeline.resume_completed(run.id)
+    except Exception as error:
+        log_agent_error(
+            error,
+            stage="contract_schedule.follow_up",
+            run_id=str(run.id),
+            agent_code=run.agent_code,
+            error_code="contract_schedule_follow_up_failed",
+        )
+
+
 async def run_claimed(run: AgentRun, lease_owner: str) -> None:
     heartbeat = asyncio.create_task(_heartbeat(run.id, lease_owner))
     usage: dict[str, int] | None = None
@@ -672,6 +696,7 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
                         await flush_progress_snapshot(run.id)
                     await _complete(run, lease_owner, output, usage, review_evidence)
             await _follow_up_briefing(run)
+            await _follow_up_contract_schedule(run)
         except asyncio.CancelledError:
             if await _is_cancelled(run.id):
                 return
@@ -735,6 +760,9 @@ async def execute(run_id: UUID) -> None:
 
 
 async def run_once(lease_owner: str) -> bool:
+    from app.services import contract_next_meeting_pipeline
+
+    await contract_next_meeting_pipeline.resume_pending()
     now = datetime.now(UTC)
     await _fail_exhausted_leases(now)
     await agent_runs.redact_expired_payloads(now)
@@ -751,6 +779,9 @@ async def run_forever(lease_owner: str, poll_seconds: float = 2.0) -> None:
     next_cleanup = 0.0
     while True:
         if loop.time() >= next_cleanup:
+            from app.services import contract_next_meeting_pipeline
+
+            await contract_next_meeting_pipeline.resume_pending()
             now = datetime.now(UTC)
             await _fail_exhausted_leases(now)
             await agent_runs.redact_expired_payloads(now)

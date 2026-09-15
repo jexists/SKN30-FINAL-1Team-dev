@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, text
+from sqlalchemy import BigInteger, Date, ForeignKey, Integer, Time, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,9 +56,8 @@ class AgentRun(Base):
 class ContractNextMeetingSuggestion(Base):
     """캘린더 "AI 추천 일정" 패널이 조회하는 상태. agent_run 은 그대로 감사로그로 둔다.
 
-    영업 건 하나에 활성 제안은 최대 1개다(sales_deal_id UNIQUE). 날짜·시간·사유 같은 실제
-    내용은 여기 복제하지 않는다 — schedule_management_run_id 로 agent_run.output_snapshot 을
-    조회한다. 계약에이전트_설계.md 6장 "제안 상태 저장" 참고.
+    영업 건 하나에 활성 제안은 최대 1개다(sales_deal_id UNIQUE). 카드가 매번 실행 로그를
+    역추적하지 않아도 되도록 계약 Agent가 정한 날짜와 사용자 선택값을 함께 보관한다.
     """
 
     __tablename__ = "contract_next_meeting_suggestion"
@@ -67,7 +66,15 @@ class ContractNextMeetingSuggestion(Base):
     team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
     sales_deal_id: Mapped[UUID] = mapped_column(ForeignKey("public.sales_deal.id"), unique=True)
     schedule_management_run_id: Mapped[UUID] = mapped_column(ForeignKey("public.agent_run.id"))
-    # pending 보여줄 것 / dismissed 사용자가 닫음 / accepted 일정으로 등록됨
+    target_date: Mapped[date | None] = mapped_column(Date)
+    target_time: Mapped[time | None] = mapped_column(Time)
+    selected_duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    excluded_dates: Mapped[Any] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    refresh_reason: Mapped[str | None]
+    applied_activity_id: Mapped[UUID | None] = mapped_column(ForeignKey("public.activity.id"))
+    # pending 보여줄 것 / rejected 재추천 요청 / expired 만료 / accepted 반영됨
     status_code: Mapped[str]
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]

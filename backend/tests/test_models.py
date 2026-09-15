@@ -101,8 +101,8 @@ EXPECTED_COLUMN_COUNTS = {
     "document_file_audit": 9,
     # 20260913_0033 으로 실행 중 화면용 progress snapshot 이 늘었다.
     "agent_run": 35,
-    # 20260829_0013 으로 contract_next_meeting_suggestion 을 새로 만들었다.
-    "contract_next_meeting_suggestion": 7,
+    # 20260915_0035 에서 한 날짜 카드와 사용자 선택 상태를 직접 저장한다.
+    "contract_next_meeting_suggestion": 13,
 }
 
 # Supabase에 이미 남아 있지만 현재 애플리케이션이 사용하지 않는 과거 테이블입니다.
@@ -155,7 +155,7 @@ def test_all_database_tables_are_mapped():
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 117
+    assert len(foreign_key_constraints) == 118
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

@@ -72,7 +72,7 @@ class ActivityCreate(_WriteModel):
     location: ShortText | None = None
     action_tag: OptionCode | None = None
     note: Note | None = None
-    # AI가 추천한 일정 후보를 승인해서 등록하는 경우에만 채운다. 값이 있으면 등록 성공 후
+    # AI가 추천한 날짜에 시작 시각까지 정해 등록하는 경우에만 채운다. 값이 있으면 등록 성공 후
     # 브리핑 실행(contract_management_briefing)을 자동으로 큐에 넣는다.
     schedule_management_run_id: UUID | None = None
 
