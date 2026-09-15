@@ -335,9 +335,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
               role="status"
             >
               <strong>
-                {item.salesDealId
-                  ? '연결된 영업 딜 기준'
-                  : '동일 고객사의 최근 영업 딜 기준'}
+                {item.salesDealId ? '연결된 영업 딜 기준' : '동일 고객사의 최근 영업 딜 기준'}
               </strong>
               <span>
                 {item.salesDealId
