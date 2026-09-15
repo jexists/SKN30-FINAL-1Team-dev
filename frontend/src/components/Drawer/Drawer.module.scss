@@ -9,9 +9,12 @@
 }
 
 .panel {
+  // 본문이 차지하는 폭. 옆 패널이 붙어도 이 값은 그대로 두고 전체 폭만 늘립니다.
+  --drawer-w: 420px;
+
   display: flex;
   flex-direction: column;
-  width: min(420px, 100vw);
+  width: min(var(--drawer-w), 100vw);
   max-height: 100%;
   background: var(--surface);
   box-shadow: var(--sh-3);
@@ -36,7 +39,7 @@
 
 // layout_v3 의 .is-wide. 본문을 2열로 나눠 담는 드로어입니다.
 .wide {
-  width: min(760px, 100vw);
+  --drawer-w: 760px;
 }
 
 /*
@@ -51,13 +54,17 @@
 // 왼쪽으로 열린 자리를 패널이 가져갑니다.
 .hasSide {
   flex-direction: row;
-  width: min(1040px, 100vw);
+  // 본문 폭에 패널 몫 620px 을 더합니다. 본문을 줄여 자리를 만들면 글이 통째로 다시
+  // 배치되어, 읽던 자리가 사라지고 다른 화면이 뜬 것처럼 보입니다.
+  width: min(calc(var(--drawer-w) + 620px), 100vw);
 
   .main {
     display: flex;
     flex-direction: column;
     flex: none;
-    width: 420px;
+    // 폭이 넉넉하면 본문은 제 폭을 그대로 지킵니다. 화면이 좁아 전체가 100vw 로
+    // 잘릴 때만 본문이 양보해, 정작 펴 본 원본이 찌그러지지 않게 합니다.
+    width: min(var(--drawer-w), 60%);
     min-width: 0;
   }
 
@@ -73,6 +80,25 @@
     // 바텀시트는 내용만큼만 높이를 잡습니다. 원본만 남은 자리에서는 그 내용이
     // 다시 시트 높이를 재서 그려지므로, 높이를 못 박아야 문서가 제 크기로 펴집니다.
     height: 88vh;
+  }
+}
+
+// 옆 패널을 펴도 본문을 남기는 드로어(Drawer 의 keepMain). 위 .hasSide 가 감춘
+// 본문을 되살립니다. 특이도가 같아 순서로 이기므로 반드시 .hasSide 뒤에 둡니다.
+.keepMain {
+  @include md {
+    .main {
+      // 나란히 두되 본문이 폭을 양보합니다. 원본 쪽이 절반보다 조금 넓습니다.
+      display: flex;
+      width: min(420px, 46%);
+    }
+  }
+
+  // 바텀시트는 한 장짜리라 둘을 나란히 둘 방법이 없습니다. 그때만 물러납니다.
+  @include sm {
+    .main {
+      display: none;
+    }
   }
 }
 

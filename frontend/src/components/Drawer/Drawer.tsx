@@ -34,6 +34,19 @@ interface Props {
    * 열면 본문은 있던 자리에 그대로 있고 새로 열린 자리에 패널이 들어옵니다.
    */
   side?: ReactNode
+  /**
+   * 옆 패널 바깥을 누르면 부를 것. 넘기면 본문 어디를 눌러도 패널이 닫힙니다.
+   * 팝오버처럼 보고 나면 자연히 물러나야 하는 패널만 이것을 씁니다.
+   */
+  onSideDismiss?: () => void
+  /**
+   * 옆 패널을 펴도 본문을 남길지. 기본은 좁아지면 본문을 감추고 패널만 남깁니다.
+   *
+   * 본문을 보면서 근거 자료를 확인하는 자리(브리핑)에서는 본문이 사라지면 할 일이
+   * 없어집니다. 그런 드로어만 이것을 켜고, 좁아지면 본문이 감춰지는 대신 패널과
+   * 폭을 나눠 가집니다. 바텀시트에서는 나란히 둘 방법이 없어 그때만 물러납니다.
+   */
+  keepMain?: boolean
   /** 값이 바뀌면 본문 스크롤을 맨 위로 되돌립니다. 필터를 갈아탈 때 씁니다. */
   resetKey?: string
   onClose: () => void
@@ -49,6 +62,8 @@ export default function Drawer({
   filters,
   footer,
   side,
+  onSideDismiss,
+  keepMain,
   resetKey,
   onClose,
   children,
@@ -111,18 +126,27 @@ export default function Drawer({
     >
       <aside
         ref={panelRef}
-        className={`${styles.panel} ${wide ? styles.wide : ''} ${side ? styles.hasSide : ''}`}
+        className={`${styles.panel} ${wide ? styles.wide : ''} ${side ? styles.hasSide : ''} ${
+          side && keepMain ? styles.keepMain : ''
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        {side && <div className={styles.side}>{side}</div>}
+        {side && (
+          <div className={styles.side} onPointerDown={(event) => event.stopPropagation()}>
+            {side}
+          </div>
+        )}
 
         {/* 옆 패널이 없을 때 이 칸은 display:contents 로 사라집니다.
             머리말·본문·바닥이 지금까지처럼 패널의 직접 자식으로 놓입니다. */}
-        <div className={styles.main}>
+        <div
+          className={styles.main}
+          onPointerDown={side && onSideDismiss ? () => onSideDismiss() : undefined}
+        >
           <header className={styles.head}>
             <div className={styles.heading}>
               <h2 id={titleId}>{title}</h2>
