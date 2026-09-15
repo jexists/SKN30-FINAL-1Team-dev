@@ -148,10 +148,10 @@ class FinalEvaluation(BaseModel):
     draft_version: int = Field(ge=2, le=2)
     summary: str = Field(
         min_length=1,
-        max_length=200,
+        max_length=500,
         pattern=r"\S",
         description=(
-            "보고서 전체 품질을 한 문장(20자 내외)으로 평가. "
+            "보고서 전체 품질을 한 문장으로 평가. "
             "예: '전체적으로 잘 정리되었습니다', '일부 날짜를 확인해 주세요'. "
             "내부 용어·필드명·시스템 ID·버전 번호·검증 용어(동결, 보존, 식별자)를 쓰지 않는다."
         ),
