@@ -359,6 +359,9 @@ def test_generation_freezes_exact_meeting_submission_version(sample, monkeypatch
     source.current_submission_id = submission.id
     db = AsyncMock()
     db.get.return_value = member
+    company_result = MagicMock()
+    company_result.all.return_value = []
+    db.execute.return_value = company_result
     sources_input, frozen_refs = asyncio.run(service.freeze_report_sources(db, member, parent))
 
     assert sources_input["reports"][0]["submission_id"] == str(submission.id)
