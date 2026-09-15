@@ -13,6 +13,7 @@ import type {
 } from '@/types'
 
 import { kindOfFile, type RoomId } from './catalog'
+import { fetchDocumentSummary } from './download'
 import { pollSummary } from '@/api/polling'
 
 // 공통 API 제한(10초)보다 길게 잡습니다. 이 요청은 실제 OCR·요약을 기다리지 않고
@@ -335,12 +336,8 @@ export default function useDocuments(query?: DocumentQuery) {
   )
 
   const loadSummary = useCallback(
-    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> => {
-      const { data } = await client.get<DocumentSummaryResponse>(
-        `/documents/${documentId}/files/${fileId}/summary`,
-      )
-      return data
-    },
+    async (documentId: string, fileId: string): Promise<DocumentSummaryResponse> =>
+      fetchDocumentSummary(documentId, fileId),
     [],
   )
 

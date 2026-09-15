@@ -1,6 +1,6 @@
 import { client } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
-import type { DocumentFile, DownloadResponse } from '@/types'
+import type { DocumentFile, DocumentSummaryResponse, DownloadResponse } from '@/types'
 
 export type DocumentArtifact = 'text' | 'txt' | 'md' | 'json' | 'summary'
 
@@ -46,6 +46,22 @@ export async function fetchSourceFile(file: DocumentFile): Promise<File> {
   return new File([await response.blob()], data.file_name || file.fileName, {
     type: data.media_type ?? '',
   })
+}
+
+/**
+ * 처리 과정에서 뽑아 둔 글과 요약을 읽어 옵니다.
+ *
+ * 브라우저가 그리지 못하는 형식(docx·pptx·hwp)은 원본 대신 여기 담긴 추출 글을
+ * 세웁니다. 자료실 밖에서도 원본 패널을 열 수 있도록 목록 훅에서 꺼내 두었습니다.
+ */
+export async function fetchDocumentSummary(
+  documentId: string,
+  fileId: string,
+): Promise<DocumentSummaryResponse> {
+  const { data } = await client.get<DocumentSummaryResponse>(
+    `/documents/${documentId}/files/${fileId}/summary`,
+  )
+  return data
 }
 
 export async function downloadArtifact(
