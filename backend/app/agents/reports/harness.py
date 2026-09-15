@@ -150,11 +150,18 @@ class FinalEvaluation(BaseModel):
         min_length=1,
         max_length=500,
         pattern=r"\S",
-        description="v2 전체에 대한 한 줄 평가.",
+        description=(
+            "보고서를 읽을 상사·동료가 이해할 수 있는 한 줄 평가. "
+            "내부 필드명(fields[0].value 등), 시스템 ID(meeting_bundle:1 등), "
+            "버전 번호(v1/v2) 같은 기술 용어를 쓰지 않는다."
+        ),
     )
     notes: list[str] = Field(
         max_length=10,
-        description="사용자가 제출 전 확인하면 좋을 사항. 없으면 빈 리스트.",
+        description=(
+            "사용자가 제출 전 확인하면 좋을 사항을 일상 언어로 작성. "
+            "내부 필드명·시스템 ID·검증 용어를 쓰지 않는다. 없으면 빈 리스트."
+        ),
     )
 
 
@@ -1921,8 +1928,12 @@ def _child(
         "REPORT_REVIEWER. phase=review_initial이면 검증된 초안을 직접 고치지 말고 "
         "location/evidence/action issue만 ReportReview로 반환한다. "
         "phase=evaluate_final이면 수정 완료된 v2 초안을 읽고 사용자가 제출 전 참고할 "
-        "간결한 평가를 FinalEvaluation으로 반환한다. summary는 전체 품질을 한 문장으로, "
-        "notes는 사용자가 확인하면 좋을 구체적 사항을 짧고 읽기 쉽게 적는다."
+        "간결한 평가를 FinalEvaluation으로 반환한다. "
+        "이 평가는 보고서를 작성한 영업사원이 상사에게 제출하기 전에 읽는다. "
+        "summary는 '보고서가 잘 정리되었습니다' 같은 일상 문장으로 전체 품질을 한 줄로, "
+        "notes는 '날짜가 맞는지 확인해 주세요' 같이 사용자가 바로 행동할 수 있는 구체적 "
+        "확인 사항을 적는다. 내부 필드명(fields[0].value 등), 시스템 ID(meeting_bundle:1, "
+        "source_id 등), 버전 번호(v1/v2), 검증 용어(동결, 보존, 준수)는 절대 쓰지 않는다."
         if reviewer
         else (
             "REPORT_WRITER. SERVER_ASSIGNMENT.phase가 prepare이면 배정된 한 source_id의 원문만 "
