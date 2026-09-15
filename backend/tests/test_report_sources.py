@@ -909,7 +909,7 @@ def source_db():
 
     from app.models.agent import AgentRun
     from app.models.content import ReportActivity, ReportAttachment, ReportDeal
-    from app.models.crm import Activity
+    from app.models.crm import Activity, CustomerCompany
 
     engine = create_engine(
         "sqlite://", execution_options={"schema_translate_map": {"public": None}}
@@ -925,6 +925,7 @@ def source_db():
         ReportAttachment,
         ReportActivity,
         Activity,
+        CustomerCompany,
         AgentRun,
     ):
         table = model.__table__.to_metadata(metadata)
