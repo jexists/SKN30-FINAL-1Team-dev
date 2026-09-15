@@ -65,8 +65,7 @@ export default function useAiSuggestions(addEvent: AddEvent) {
   const [error, setError] = useState<string | null>(null)
 
   const suggestions = useMemo(
-    () =>
-      items.map((item) => toAiSuggestion(item, durations[item.sales_deal_id])),
+    () => items.map((item) => toAiSuggestion(item, durations[item.sales_deal_id])),
     [durations, items],
   )
 

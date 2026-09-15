@@ -1,9 +1,6 @@
 import { client } from './client'
 
-import type {
-  ContractNextMeetingGenerationStatus,
-  ContractNextMeetingSuggestion,
-} from '@/types'
+import type { ContractNextMeetingGenerationStatus, ContractNextMeetingSuggestion } from '@/types'
 
 // 트리거(보고서 확정·일정 수동 등록·영업 딜 생성/이동·CS 처리 시작)가 서버에서
 // "다음 미팅 날짜 제안 → 유효성 점검"까지 미리 계산해 저장해 둔다. 캘린더는 그 결과를 조회만
