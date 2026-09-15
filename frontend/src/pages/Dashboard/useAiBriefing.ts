@@ -38,6 +38,9 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
   const [error, setError] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
   const [regenerateError, setRegenerateError] = useState<string | null>(null)
+  // 폴링을 다 썼는데도 갱신이 끝나지 않은 상태. 화면은 진행 줄을 걷고 이전 브리핑을
+  // 다시 제대로 읽게 합니다 — 더 볼 것이 오지 않는데 초만 세고 있을 이유가 없습니다.
+  const [stalled, setStalled] = useState(false)
   const currentActivityId = useRef(activityId)
   currentActivityId.current = activityId
 
@@ -54,6 +57,7 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
     setError(null)
     setRegenerating(false)
     setRegenerateError(null)
+    setStalled(false)
 
     async function read() {
       let { data } = await client.get<ActivityRead>(`/activities/${activityId}`)
@@ -70,6 +74,7 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
         if (cancelled) return
         setBriefing(data.ai_briefing ?? null)
       }
+      if (data.ai_briefing?.refreshing) setStalled(true)
     }
 
     read().catch((cause: unknown) => {
@@ -89,6 +94,7 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
     setRegenerating(true)
     setRegenerateError(null)
     setError(null)
+    setStalled(false)
     try {
       await regenerateBriefing(requestedActivityId)
       let { data } = await client.get<ActivityRead>(`/activities/${requestedActivityId}`)
@@ -100,6 +106,7 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
         if (currentActivityId.current !== requestedActivityId) return
         setBriefing(data.ai_briefing ?? null)
       }
+      if (data.ai_briefing?.refreshing) setStalled(true)
     } catch (cause: unknown) {
       if (currentActivityId.current === requestedActivityId) {
         setRegenerateError(errorMessage(cause, 'AI 브리핑을 다시 만들지 못했습니다.'))
@@ -109,5 +116,5 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
     }
   }
 
-  return { briefing, loading, error, regenerate, regenerating, regenerateError }
+  return { briefing, loading, error, regenerate, regenerating, regenerateError, stalled }
 }

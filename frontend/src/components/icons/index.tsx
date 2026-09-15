@@ -114,6 +114,16 @@ export function QuoteIcon(props: IconProps) {
   )
 }
 
+// 자료 목록의 파일 한 건. 확장자를 가리지 않는 일반 문서 모양입니다.
+export function FileIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+    </Icon>
+  )
+}
+
 export function ContractIcon(props: IconProps) {
   return (
     <Icon {...props}>
