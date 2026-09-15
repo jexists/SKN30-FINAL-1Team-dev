@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -94,6 +94,29 @@ async def _get_company(
             detail="customer_company_not_found",
         )
     return company
+
+
+def _hide_company_without_contacts(company_id: UUID, *, excluding: UUID):
+    """살아 있는 고객이 하나도 없으면 그 고객사를 회사검색에서 감추는 문장.
+
+    회사를 미리 등록해 두는 화면이 없어, 고객이 모두 빠진 회사는 고르는 자리에 나올 이유가
+    없다. 지금 지우거나 옮기는 고객은 아직 flush 되지 않았을 수 있어 `excluding` 으로 직접
+    뺀다. 되살리는 방향은 회사 객체를 이미 들고 있는 자리에서 deleted_at 을 비운다.
+    """
+    alive = (
+        select(CustomerContact.id)
+        .where(
+            CustomerContact.company_id == company_id,
+            CustomerContact.deleted_at.is_(None),
+            CustomerContact.id != excluding,
+        )
+        .exists()
+    )
+    return (
+        update(CustomerCompany)
+        .where(CustomerCompany.id == company_id, ~alive)
+        .values(deleted_at=datetime.now(UTC))
+    )
 
 
 def _assigned_to(member_ids: tuple[UUID, ...]):
@@ -373,7 +396,12 @@ async def list_customer_companies(
     member: CurrentMember,
     db: DbSession,
 ) -> CustomerCompanyPage:
-    scope = [CustomerCompany.team_id == member.team_id]
+    # 살아 있는 고객이 하나도 없는 회사는 고르는 자리에서 감춘다. id 로 읽는 자리는 거르지
+    # 않아 지난 딜·보고서에는 회사 이름이 그대로 남는다.
+    scope = [
+        CustomerCompany.team_id == member.team_id,
+        CustomerCompany.deleted_at.is_(None),
+    ]
     if page.q is not None:
         scope.append(CustomerCompany.name.ilike(_contains(page.q), escape="\\"))
     total_result = await db.execute(select(func.count(CustomerCompany.id)).where(*scope))
@@ -443,6 +471,10 @@ async def create_customer_company(
         company = result.scalar_one_or_none()
         if company is None:
             raise exc
+        # 고객이 모두 빠져 감춰 둔 회사를 같은 이름으로 다시 등록하는 길이다. 되살려 쓴다.
+        if company.deleted_at is not None:
+            company.deleted_at = None
+            await _flush_and_commit(db)
         response.status_code = status.HTTP_200_OK
     except Exception:
         await db.rollback()
@@ -625,6 +657,8 @@ async def create_customer_contact(
     db: DbSession,
 ) -> CustomerContactRead:
     company = await _get_company(db, member, payload.company_id)
+    # 고객이 다시 붙으므로 감춰 둔 회사는 회사검색에 돌아온다.
+    company.deleted_at = None
     if payload.registration_mode == "business_license" and (
         not company.business_no or not company.address
     ):
@@ -801,6 +835,8 @@ async def _bulk_company(
                 )
             )
             company = result.scalar_one()
+    # 고객이 다시 붙으므로 감춰 둔 회사는 회사검색에 돌아온다.
+    company.deleted_at = None
     cache[name] = company
     return company
 
@@ -951,8 +987,12 @@ async def update_customer_contact(
             ContactAssigneeRead(id=assignee.id, display_name=assignee.display_name)
             for assignee in resolved
         ]
-    if "company_id" in values:
+    if "company_id" in values and values["company_id"] != contact.company_id:
+        previous_company_id = contact.company_id
         company = await _get_company(db, member, values["company_id"])
+        # 옮겨 간 회사는 고객이 생겼고, 떠난 회사는 마지막 한 명이었을 수 있다.
+        company.deleted_at = None
+        await db.execute(_hide_company_without_contacts(previous_company_id, excluding=contact.id))
         company_name = company.name
         company_region_code = company.region_code
     if "status_code" in values:
@@ -995,6 +1035,9 @@ async def delete_customer_contact(
     행은 남기고 deleted_at 만 채운다. activity, sales_deal, sales_deal_participant 가
     이 고객을 참조하고 있어 실제 DELETE 는 외래키에 막히고, 참조를 먼저 끊으면 지난 딜과
     일정에서 누구를 만났는지가 사라진다. 담당자 행도 그대로 둔다.
+
+    이 고객이 회사의 마지막 한 명이었으면 회사도 회사검색에서 감춘다. 회사를 미리 등록해
+    두는 화면이 없어, 고객이 모두 빠진 회사가 고르는 자리에 남으면 지운 것처럼 보이지 않는다.
     """
     result = await db.execute(
         select(CustomerContact)
@@ -1014,4 +1057,6 @@ async def delete_customer_contact(
             detail="contact_owner_required",
         )
     contact.deleted_at = datetime.now(UTC)
+    # 이 회사의 마지막 고객이었으면 회사도 회사검색에서 빠진다.
+    await db.execute(_hide_company_without_contacts(contact.company_id, excluding=contact.id))
     await _flush_and_commit(db)

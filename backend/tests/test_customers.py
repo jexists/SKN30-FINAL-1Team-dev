@@ -565,6 +565,7 @@ def test_contact_patch_revalidates_destination_company_team():
         _Result(rows=[_contact_row(contact, old_company, manager, contact_status)]),
         _assignee_result((contact, manager)),
         _Result(scalar=new_company),
+        _Result(),
     )
 
     with _client(db, manager) as client:
@@ -581,6 +582,9 @@ def test_contact_patch_revalidates_destination_company_team():
     assert contact.company_id == new_company.id
     assert db.flush_count == db.commit_count == 1
     assert manager.team_id in db.statements[2].compile().params.values()
+    # 옮겨 간 회사는 되살아나고, 떠난 회사는 마지막 한 명이었는지 다시 센다.
+    assert new_company.deleted_at is None
+    assert old_company.id in db.statements[3].compile().params.values()
 
 
 def test_contact_status_write_resolves_only_active_same_team_lookup():
@@ -1110,7 +1114,7 @@ def test_member_deletes_the_customer_they_registered():
     member = _member()
     company = _company(member.team_id)
     contact = _contact(company.id, member.id)
-    db = _Db(_Result(scalar=contact))
+    db = _Db(_Result(scalar=contact), _Result())
 
     with _client(db, member) as client:
         response = client.delete(
@@ -1181,7 +1185,7 @@ def test_manager_delete_marks_the_customer_and_keeps_the_row():
     manager = _member(role="manager")
     company = _company(manager.team_id)
     contact = _contact(company.id, manager.id, created_by_id=uuid4())
-    db = _Db(_Result(scalar=contact))
+    db = _Db(_Result(scalar=contact), _Result())
 
     with _client(db, manager) as client:
         response = client.delete(
@@ -1193,9 +1197,74 @@ def test_manager_delete_marks_the_customer_and_keeps_the_row():
     assert contact.deleted_at is not None
     assert db.commit_count == 1
     assert db.rollback_count == 0
-    # 담당자 행은 그대로 둔다. 지우는 문장이 나가지 않아야 한다.
-    assert len(db.statements) == 1
-    assert "DELETE" not in str(db.statements[0])
+    # 조회 한 번과 회사를 감추는 UPDATE 한 번. 담당자 행을 지우는 문장은 나가지 않는다.
+    assert len(db.statements) == 2
+    assert all("DELETE" not in str(statement) for statement in db.statements)
+
+
+def test_deleting_the_last_customer_hides_the_company_from_search():
+    """회사를 미리 등록하는 화면이 없어, 고객이 모두 빠진 회사는 회사검색에서 감춘다.
+
+    지금 지우는 고객은 아직 flush 전이라 조건에서 직접 뺀다. 다른 고객이 남아 있으면
+    NOT EXISTS 가 거짓이 되어 회사는 그대로 검색된다.
+    """
+    manager = _member(role="manager")
+    company = _company(manager.team_id)
+    contact = _contact(company.id, manager.id)
+    db = _Db(_Result(scalar=contact), _Result())
+
+    with _client(db, manager) as client:
+        assert (
+            client.delete(
+                f"/api/customer-contacts/{contact.id}",
+                headers={"Origin": ORIGIN},
+            ).status_code
+            == 204
+        )
+
+    hide = db.statements[1]
+    compiled = str(hide.compile())
+    assert compiled.startswith("UPDATE public.customer_company SET deleted_at=")
+    assert "NOT (EXISTS" in compiled
+    assert "public.customer_contact.deleted_at IS NULL" in compiled
+    assert "public.customer_contact.id != " in compiled
+    assert {company.id, contact.id} <= set(hide.compile().params.values())
+
+
+def test_company_search_hides_companies_without_live_customers():
+    manager = _member(role="manager")
+    db = _Db(_Result(scalar=0), _Result(scalar_values=[]))
+
+    with _client(db, manager) as client:
+        assert client.get("/api/customer-companies?q=합성").status_code == 200
+
+    for statement in db.statements:
+        assert "customer_company.deleted_at IS NULL" in str(statement)
+
+
+def test_registering_a_customer_brings_a_hidden_company_back():
+    """감춰 둔 회사에 고객을 다시 등록하면 회사검색에 돌아온다."""
+    member = _member()
+    company = _company(member.team_id)
+    company.deleted_at = NOW
+    contact_status = _contact_status(member.team_id, code="proposal")
+    db = _Db(_Result(scalar=company), _Result(rows=[]), _Result(scalar=contact_status))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/customer-contacts",
+            headers={"Origin": ORIGIN},
+            json={
+                "company_id": str(company.id),
+                "name": "합성 고객",
+                "email": "customer@demo.test",
+                "phone": "02-000-0000",
+                "status_code": "proposal",
+            },
+        )
+
+    assert response.status_code == 201
+    assert company.deleted_at is None
 
 
 def test_deleted_customers_are_hidden_from_list_and_detail():
