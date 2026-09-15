@@ -59,6 +59,10 @@ REPORT_WRITER_ROLES = {
     "monthly": "monthly-report-writer",
 }
 REPORT_ROLES = frozenset(REPORT_WRITER_ROLES.values())
+_BROAD_PHASES = frozenset({
+    "synthesize", "review_initial", "repair",
+    "write_initial", "evaluate_final",
+})
 _WORK_ID = re.compile(r"(?m)^work_unit_id=([a-z0-9-]+)\s*$")
 
 _DIGEST_FIELDS = (
@@ -884,7 +888,7 @@ class _Coordinator:
             ),
             "source_ids": (
                 [item["source_id"] for item in self.spec.source.get("source_units", [])]
-                if assignment.phase in {"synthesize", "review_initial", "repair", "evaluate_final"}
+                if assignment.phase in _BROAD_PHASES - {"write_initial"}
                 else [unit.scope]
                 if assignment.phase == "prepare" and unit is not None
                 else [item["source_id"] for item in self.spec.source.get("source_units", [])]
@@ -917,7 +921,7 @@ class _Coordinator:
             if self.spec.report_kind == "meeting" and assignment.unit is not None
             else (
                 frozenset(item["source_id"] for item in self.spec.source.get("source_units", []))
-                if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial", "evaluate_final"}
+                if assignment.phase in _BROAD_PHASES
                 else frozenset({assignment.unit.scope})
                 if assignment.unit
                 else frozenset()
@@ -1010,7 +1014,7 @@ class _Coordinator:
             assignment = active[1]
             allowed = (
                 existing
-                if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial", "evaluate_final"}
+                if assignment.phase in _BROAD_PHASES
                 else frozenset({assignment.unit.scope})
                 if assignment.unit
                 else frozenset()
@@ -1113,7 +1117,7 @@ class _Coordinator:
             )
             reads = [call for call in calls if call["name"] == "read_report_sources"]
             actual = {call["args"].get("source_id") for call in reads}
-            if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial", "evaluate_final"}:
+            if assignment.phase in _BROAD_PHASES:
                 if None not in actual:
                     missing.extend(
                         f"read_report_sources({scope})" for scope in sorted(expected - actual)
