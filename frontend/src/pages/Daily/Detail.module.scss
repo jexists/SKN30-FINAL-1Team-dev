@@ -102,10 +102,22 @@
   margin-left: auto;
 }
 
-/* 제출이 끝난 보고서. 수정 버튼 자리에 왜 없는지를 대신 둡니다. */
-.sealed {
+/* 되돌릴 수 없는 버튼. 공지·상품 삭제와 같은 빨강을 씁니다. */
+.danger {
+  border-color: var(--red-tint);
+  background: var(--red-tint);
+  color: var(--red-ink);
+
+  &:hover {
+    background: var(--red-tint);
+    filter: brightness(0.97);
+  }
+}
+
+/* 삭제 확인 창의 덧말. */
+.hint {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* 왼쪽 = 근거로 삼은 자료, 오른쪽 = 나온 보고서. 작성 화면과 같은 비율·같은 간격입니다. */

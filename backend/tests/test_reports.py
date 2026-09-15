@@ -67,6 +67,9 @@ class _Result:
     def all(self):
         return self.rows
 
+    def first(self):
+        return self.rows[0] if self.rows else None
+
     def scalars(self):
         return _Scalars(self.scalar_values)
 
@@ -90,6 +93,17 @@ class _Db:
                 value.revision_no for value in self.added if isinstance(value, ReportSubmission)
             ]
             return _Result(scalar=max(revisions, default=0))
+        # 보고서 삭제가 참조를 푸는 문장들. 돌려줄 행이 없다.
+        if statement_text.startswith(
+            ("update public.report_attachment", "update public.file")
+        ) or statement_text.startswith("delete from public.report_submission"):
+            return _Result()
+        # 삭제 전 역참조 검사. 다른 테스트의 report_source 조회와 달리 결과를 꺼내 쓴다.
+        if "from public.report_source join public.report_submission" in " ".join(
+            statement_text.split()
+        ):
+            assert self.results, "예상보다 많은 쿼리가 실행되었습니다."
+            return self.results.pop(0)
         if "from public.report_source" in statement_text:
             return _Result(scalar_values=[])
         if "from public.report_attachment" in statement_text:
@@ -702,25 +716,47 @@ async def test_deal_section_replace_preserves_server_ai_fields_and_ml_evidence()
         )
 
 
-def test_submitted_report_is_not_deletable():
+def test_submitted_report_is_deletable():
     member = _member()
     submitted = _report(member, status_code="submitted")
-    delete_db = _Db(_Result(scalar=submitted))
+    delete_db = _Db(_Result(scalar=submitted), _Result(rows=[]))
     with _client(delete_db, member) as client:
         removed = client.delete(
             f"/api/reports/{submitted.id}",
             headers={"Origin": ORIGIN},
         )
-    assert removed.status_code == 409
-    assert removed.json() == {"detail": "report_not_editable"}
-    assert delete_db.deleted == []
-    assert delete_db.commit_count == 0
+    assert removed.status_code == 204
+    assert delete_db.deleted == [submitted]
+    assert delete_db.commit_count == 1
 
 
-def test_changes_requested_report_with_submission_history_is_not_deletable():
+def test_changes_requested_report_with_submission_history_is_deletable():
+    """확정 이력이 있어도 지운다. 제출본은 보고서와 함께 사라진다."""
     member = _member()
     report = _report(member, status_code="changes_requested")
     report.current_submission_id = uuid4()
+    db = _Db(_Result(scalar=report), _Result(rows=[]))
+
+    with _client(db, member) as client:
+        response = client.delete(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 204
+    assert db.deleted == [report]
+    # 복합 FK 가 걸려 있어 제출본을 지우기 전에 현재 확정본 자리를 비운다.
+    assert report.current_submission_id is None
+    assert any(
+        str(statement).lower().startswith("delete from public.report_submission")
+        for statement in db.statements
+    )
+    assert db.commit_count == 1
+
+
+def test_approved_report_is_not_deletable():
+    member = _member()
+    report = _report(member, status_code="approved")
     db = _Db(_Result(scalar=report))
 
     with _client(db, member) as client:
@@ -730,8 +766,28 @@ def test_changes_requested_report_with_submission_history_is_not_deletable():
         )
 
     assert response.status_code == 409
-    assert response.json() == {"detail": "report_has_submission_history"}
+    assert response.json() == {"detail": "report_already_approved"}
     assert db.deleted == []
+    assert db.commit_count == 0
+    assert db.rollback_count == 1
+
+
+def test_report_used_as_source_is_not_deletable():
+    """주간 보고서가 근거로 쓰는 일일 보고서는 지울 수 없다."""
+    member = _member()
+    report = _report(member, status_code="submitted")
+    db = _Db(_Result(scalar=report), _Result(rows=[(uuid4(),)]))
+
+    with _client(db, member) as client:
+        response = client.delete(
+            f"/api/reports/{report.id}",
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "report_used_as_source"}
+    assert db.deleted == []
+    assert db.commit_count == 0
     assert db.rollback_count == 1
 
 

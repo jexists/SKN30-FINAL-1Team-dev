@@ -15,9 +15,9 @@
 
 ---
 
-## Team Cass Terra
+## Team CassTerra
 
-서비스 **SalesLuv**를 만드는 4인 팀 **카스테라(Cass Terra)**입니다.
+서비스 **SalesLuv**를 만드는 4인 팀 **카스테라(CassTerra)**입니다.
 
 <table>
   <tr>
@@ -26,7 +26,7 @@
         <img src="https://github.com/SEONGBAE0201.png?size=120" width="100" alt="천성배 GitHub 프로필" /><br />
         <sub><b>천성배</b></sub>
       </a><br />
-      <sub>PM · OCR<br />자료실 요약 에이전트</sub>
+      <sub>PM<br />OCR · Runpod<br />자료실 요약 에이전트</sub>
     </td>
     <td align="center">
       <a href="https://github.com/j3s30p">
@@ -40,14 +40,14 @@
         <img src="https://github.com/jexists.png?size=120" width="100" alt="정주애 GitHub 프로필" /><br />
         <sub><b>정주애</b></sub>
       </a><br />
-      <sub>프론트엔드 · 백엔드 · 인프라</sub>
+      <sub>풀스택<br />인프라<br /><br /></sub>
     </td>
     <td align="center">
       <a href="https://github.com/jiyu-park">
         <img src="https://github.com/jiyu-park.png?size=120" width="100" alt="박지유 GitHub 프로필" /><br />
         <sub><b>박지유</b></sub>
       </a><br />
-      <sub>계약관리 · 일정관리 에이전트</sub>
+      <sub>계약관리<br />일정관리 에이전트<br /><br /></sub>
     </td>
   </tr>
 </table>

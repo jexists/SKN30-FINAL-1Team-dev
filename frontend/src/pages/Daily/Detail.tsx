@@ -1,7 +1,9 @@
 // 제출한 기간 보고서를 읽는 화면입니다. 미팅 보고서 상세와 같은 머리 띠·같은 두 열을 씁니다.
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
+import { deleteReport } from '@/api/reportAgent'
+import { errorMessage } from '@/api/errorMessage'
 import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
@@ -15,13 +17,17 @@ import {
   EditIcon,
   SheetIcon,
   TeamIcon,
+  TrashIcon,
 } from '@/components/icons'
+import Modal from '@/components/Modal'
 import ReportDocHeader from '@/components/ReportDocHeader'
 import ReportView from '@/components/ReportView'
 import { SkeletonDetail } from '@/components/Skeleton'
 import { dailyComposePath, ROUTES } from '@/constants/routes'
 import useTeamMembers from '@/hooks/useTeamMembers'
 import { useReportDetail } from '@/shared/reportQuery'
+import { isApprovedReportStatus } from '@/shared/reports'
+import { showToast } from '@/shared/toast'
 import { fmtDay, fmtDot, parseISO } from '@/utils/date'
 
 import ActivityList from './components/ActivityList'
@@ -47,6 +53,11 @@ export default function Detail() {
   // 머리표가 쓰는 명부입니다. 작성자의 직책을 여기서 찾습니다 — 내 보고서든 남의
   // 보고서든 같은 길이라 예외를 두지 않습니다.
   const { members } = useTeamMembers()
+
+  const navigate = useNavigate()
+  // 삭제는 되돌릴 수 없으므로 한 번 물어봅니다.
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [removing, setRemoving] = useState(false)
 
   // 작성 화면과 같은 손잡이입니다. 보고서만 넓게 읽고 싶을 때 자료 열을 접습니다.
   const [materialsCollapsed, setMaterialsCollapsed] = useState(false)
@@ -91,6 +102,24 @@ export default function Detail() {
   }
 
   const editable = canEditPeriodReport(report, memberId)
+  // 지우는 것도 쓴 사람만 합니다. 서버도 남의 보고서에는 403 을 돌려줍니다.
+  const mine = report.ownerMemberId === memberId
+  const approved = isApprovedReportStatus(report.apiStatus)
+
+  const removeReport = async () => {
+    setRemoving(true)
+    try {
+      await deleteReport(report.id)
+      showToast('보고서를 삭제했습니다.')
+      setConfirmingRemove(false)
+      navigate(ROUTES.DAILY)
+    } catch (caught) {
+      showToast(errorMessage(caught, '보고서를 삭제하지 못했습니다.'), { tone: 'error' })
+    } finally {
+      setRemoving(false)
+    }
+  }
+
   const day = parseISO(report.date)
   // 직책은 보고서에 실려 오지 않습니다. 명부에서 작성자를 찾아 채웁니다.
   const author = members.find((member) => member.id === report.ownerMemberId)
@@ -133,6 +162,10 @@ export default function Detail() {
           </p>
         </div>
 
+        {/*
+          잠긴 보고서에서도 버튼은 자리를 지킵니다. 사라진 버튼은 이유를 말해 주지
+          못하므로, 누르면 왜 안 되는지를 알려 줍니다. 막는 것은 서버입니다.
+        */}
         <div className={styles.actions}>
           {editable ? (
             <Link
@@ -143,7 +176,41 @@ export default function Detail() {
               {report.apiStatus === 'draft' ? '이어서 작성' : '수정해서 다시 제출'}
             </Link>
           ) : (
-            <span className={styles.sealed}>제출이 끝나 수정할 수 없습니다</span>
+            mine && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  showToast(
+                    approved
+                      ? '확정된 보고서라 수정할 수 없습니다.'
+                      : '제출이 끝나 수정할 수 없습니다.',
+                    { tone: 'error' },
+                  )
+                }
+              >
+                <EditIcon width={15} height={15} />
+                수정하기
+              </Button>
+            )
+          )}
+
+          {mine && (
+            <Button
+              type="button"
+              variant="outline"
+              className={styles.danger}
+              onClick={() => {
+                if (approved) {
+                  showToast('확정된 보고서라 삭제할 수 없습니다.', { tone: 'error' })
+                  return
+                }
+                setConfirmingRemove(true)
+              }}
+            >
+              <TrashIcon width={15} height={15} />
+              삭제
+            </Button>
           )}
 
           {/* 작성 화면과 같은 버튼입니다. 인쇄가 곧 PDF 입니다. */}
@@ -289,6 +356,32 @@ export default function Detail() {
           </Button>
         )}
       </div>
+
+      {confirmingRemove && (
+        <Modal
+          title="보고서를 삭제할까요?"
+          description={`${report.period ?? fmtDot(day)} ${report.kind}업무보고가 목록에서 사라집니다.`}
+          onClose={() => setConfirmingRemove(false)}
+          onSubmit={removeReport}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={removing}
+                onClick={() => setConfirmingRemove(false)}
+              >
+                취소
+              </Button>
+              <Button type="submit" variant="outline" className={styles.danger} disabled={removing}>
+                {removing ? '삭제 중…' : '삭제'}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.hint}>지운 보고서는 되살릴 수 없습니다.</p>
+        </Modal>
+      )}
     </section>
   )
 }
