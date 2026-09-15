@@ -114,21 +114,17 @@ def _standalone_contract_input() -> dict:
 
 
 def _standalone_schedule_input() -> dict:
+    target_date = schedule_management._now().date().isoformat()
     return {
         "sales_deal_id": "deal-demo-1",
-        "preferred_starts_at": "2026-09-01T09:00:00+09:00",
-        "preferred_ends_at": "2026-09-05T18:00:00+09:00",
-        "duration_minutes": 60,
+        "target_date": target_date,
+        "target_time": None,
         "reason": "견적 만료 전에 의사결정권자 미팅이 필요합니다.",
-        "activities": [
-            {
-                "id": "activity-existing-1",
-                "owner_member_id": "member-private-1",
-                "starts_at": "2026-09-01T09:00:00+09:00",
-                "ends_at": "2026-09-01T10:00:00+09:00",
-                "all_day": False,
-            }
-        ],
+        "recommendation_status": "pending",
+        "deal_outcome_code": "in_progress",
+        "excluded_dates": [],
+        "current_datetime": schedule_management._now().isoformat(),
+        "timezone": "Asia/Seoul",
     }
 
 
@@ -179,7 +175,9 @@ async def test_select_next_meeting_candidates_with_real_llm():
 async def test_contract_next_meeting_with_real_llm():
     agent_input = _standalone_contract_input()
     llm_input = contract_management._NextMeetingLLMInput(
-        **agent_input, current_date=contract_management._now().isoformat()
+        **agent_input,
+        current_datetime=contract_management._now().isoformat(),
+        excluded_dates=[],
     ).model_dump()
 
     _print_json("CONTRACT NEXT MEETING INPUT", llm_input)
@@ -193,24 +191,14 @@ async def test_contract_next_meeting_with_real_llm():
 async def test_schedule_management_with_real_llm():
     agent_input = _standalone_schedule_input()
     llm_input = schedule_management._ScheduleLLMInput(
-        sales_deal_id=agent_input["sales_deal_id"],
-        preferred_starts_at=agent_input["preferred_starts_at"],
-        preferred_ends_at=agent_input["preferred_ends_at"],
-        duration_minutes=agent_input["duration_minutes"],
-        reason=agent_input["reason"],
-        activities=[
-            schedule_management._ActivityWindow.model_validate(activity)
-            for activity in agent_input["activities"]
-        ],
-        current_date=schedule_management._now().isoformat(),
+        **{key: agent_input[key] for key in schedule_management._ScheduleLLMInput.model_fields},
     ).model_dump()
 
     _print_json("SCHEDULE MANAGEMENT INPUT", llm_input)
     output = await schedule_management.run(agent_input)
     _print_json("SCHEDULE MANAGEMENT OUTPUT", output.model_dump())
 
-    assert output.schedule_candidates
-    assert "owner_member_id" not in llm_input["activities"][0]
+    assert output.decision == "valid"
 
 
 @pytest.mark.anyio
@@ -266,7 +254,8 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
         sales_deals=contract_input["sales_deals"],
         risk_signals=contract_input["risk_signals"],
         recent_approved_reports=contract_input["recent_approved_reports"],
-        current_date=contract_management._now().isoformat(),
+        current_datetime=contract_management._now().isoformat(),
+        excluded_dates=[],
     ).model_dump()
     _print_json("1. CONTRACT NEXT MEETING INPUT", contract_llm_input)
     proposal = await contract_management.propose_next_meeting(contract_input)
@@ -281,52 +270,40 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
 
     schedule_input = {
         "sales_deal_id": suggestion.sales_deal_id if suggestion else "deal-demo-1",
-        "preferred_starts_at": (suggestion.preferred_starts_at if suggestion else None)
-        or "2026-09-01T09:00:00+09:00",
-        "preferred_ends_at": (suggestion.preferred_ends_at if suggestion else None)
-        or "2026-09-05T18:00:00+09:00",
-        "duration_minutes": suggestion.duration_minutes if suggestion else 60,
+        "target_date": (
+            suggestion.target_date.isoformat()
+            if suggestion
+            else schedule_management._now().date().isoformat()
+        ),
+        "target_time": (
+            suggestion.target_time.isoformat() if suggestion and suggestion.target_time else None
+        ),
         "reason": (
             suggestion.reason
             if suggestion
             else "견적 유효기간 전에 제품 도입 범위와 최종 견적을 검토해야 합니다."
         ),
-        "activities": [
-            {
-                "id": "activity-existing-1",
-                "owner_member_id": "member-private-1",
-                "starts_at": "2026-09-01T09:00:00+09:00",
-                "ends_at": "2026-09-01T10:00:00+09:00",
-                "all_day": False,
-            }
-        ],
+        "recommendation_status": "pending",
+        "deal_outcome_code": "in_progress",
+        "excluded_dates": [],
+        "current_datetime": schedule_management._now().isoformat(),
+        "timezone": "Asia/Seoul",
     }
     schedule_llm_input = schedule_management._ScheduleLLMInput(
-        sales_deal_id=schedule_input["sales_deal_id"],
-        preferred_starts_at=schedule_input["preferred_starts_at"],
-        preferred_ends_at=schedule_input["preferred_ends_at"],
-        duration_minutes=schedule_input["duration_minutes"],
-        reason=schedule_input["reason"],
-        activities=[
-            schedule_management._ActivityWindow.model_validate(activity)
-            for activity in schedule_input["activities"]
-        ],
-        current_date=schedule_management._now().isoformat(),
+        **{key: schedule_input[key] for key in schedule_management._ScheduleLLMInput.model_fields},
     ).model_dump()
     _print_json("2. SCHEDULE MANAGEMENT INPUT", schedule_llm_input)
     schedule = await schedule_management.run(schedule_input)
     _print_json("2. SCHEDULE MANAGEMENT OUTPUT", schedule.model_dump())
 
-    assert schedule.schedule_candidates, "일정 에이전트가 유효한 후보를 생성하지 않았습니다."
-    # 사용자 승인 단계: 추천 목록의 첫 번째 후보를 선택했다고 가정한다.
-    approved_candidate_index = 0
-    approved_candidate = schedule.schedule_candidates[approved_candidate_index]
+    assert schedule.decision == "valid"
+    # 사용자 승인 단계: 60분과 10시를 선택했다고 가정한다.
     approved_activity_id = "activity-created-from-candidate-1"
     _print_json(
         "USER APPROVAL (FIRST CANDIDATE)",
         {
-            "selected_candidate_number": approved_candidate_index + 1,
-            "selected_candidate": approved_candidate.model_dump(),
+            "selected_duration_minutes": 60,
+            "selected_start_time": "10:00",
             "created_activity_id": approved_activity_id,
         },
     )
@@ -350,9 +327,9 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
         "approved_next_meeting": {
             "activity_id": approved_activity_id,
             "sales_deal_id": schedule_input["sales_deal_id"],
-            "title": approved_candidate.title,
-            "starts_at": approved_candidate.starts_at,
-            "ends_at": approved_candidate.ends_at,
+            "title": "제품 도입 최종 검토 미팅",
+            "starts_at": f"{schedule_input['target_date']}T10:00:00+09:00",
+            "ends_at": f"{schedule_input['target_date']}T11:00:00+09:00",
             "location": "AI 브리핑 테스트 병원",
         },
     }
@@ -367,7 +344,6 @@ async def test_contract_schedule_briefing_pipeline_with_real_llm():
     _print_json("3. CONTRACT BRIEFING OUTPUT", briefing.model_dump())
 
     assert "internal_member_email" not in contract_llm_input
-    assert "owner_member_id" not in schedule_llm_input["activities"][0]
-    assert approved_candidate == schedule.schedule_candidates[0]
+    assert schedule_llm_input["target_date"] == schedule_input["target_date"]
     assert briefing.highlights
     assert briefing_input["approved_next_meeting"]["activity_id"] == approved_activity_id

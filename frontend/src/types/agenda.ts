@@ -199,7 +199,7 @@ export interface ActivityCreateRequest {
   location?: string | null
   action_tag?: ActivityActionTagCode | null
   note?: string | null
-  /** AI가 추천한 일정 후보를 승인해서 등록할 때만 채운다 */
+  /** AI 추천 날짜에 시작 시각까지 정해 등록할 때만 채운다 */
   schedule_management_run_id?: string | null
 }
 

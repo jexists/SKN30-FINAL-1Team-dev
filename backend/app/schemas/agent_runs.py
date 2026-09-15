@@ -67,9 +67,8 @@ _OPTIONAL_FIELDS: dict[str, set[str]] = {
     "contract_management_briefing": {"parent_run_id"},
     "schedule_management": {
         "parent_run_id",
-        "preferred_starts_at",
-        "preferred_ends_at",
-        "duration_minutes",
+        "target_date",
+        "target_time",
     },
 }
 _IDENTIFYING_FIELDS = {
@@ -77,9 +76,8 @@ _IDENTIFYING_FIELDS = {
     "sales_deal_id",
     "activity_id",
     "parent_run_id",
-    "preferred_starts_at",
-    "preferred_ends_at",
-    "duration_minutes",
+    "target_date",
+    "target_time",
 }
 
 
@@ -96,10 +94,9 @@ class AgentRunCreate(BaseModel):
     activity_id: UUID | None = None
     # 앞선 실행 결과를 이어받을 때만 쓴다 (일정 등록을 만든 일정관리 실행 등).
     parent_run_id: UUID | None = None
-    # parent_run_id 가 없는 일정관리 실행에서 직접 지정하는 선호 시간대.
-    preferred_starts_at: str | None = None
-    preferred_ends_at: str | None = None
-    duration_minutes: int | None = Field(default=None, ge=5, le=480)
+    # parent_run_id 가 없는 일정관리 실행에서 직접 점검할 추천 날짜와 선택적 합의 시각.
+    target_date: date | None = None
+    target_time: str | None = None
     # 같은 키로 다시 보내면 새 실행을 만들지 않고 기존 실행을 돌려준다.
     idempotency_key: UUID
 
@@ -117,19 +114,11 @@ class AgentRunCreate(BaseModel):
                 raise ValueError(f"{name}_not_supported")
 
         if self.agent_code == "schedule_management" and self.parent_run_id is None:
-            # 계약관리 제안이 없으면 선호 시간대를 직접 받아야 한다.
-            missing = {"preferred_starts_at", "preferred_ends_at", "duration_minutes"} - {
-                name for name in optional if getattr(self, name) is not None
-            }
-            if missing:
-                raise ValueError("preferred_schedule_required_without_parent_run")
+            if self.target_date is None:
+                raise ValueError("target_date_required_without_parent_run")
         if self.agent_code == "schedule_management" and self.parent_run_id is not None:
-            if (
-                self.preferred_starts_at is not None
-                or self.preferred_ends_at is not None
-                or self.duration_minutes is not None
-            ):
-                raise ValueError("preferred_schedule_not_supported_with_parent_run")
+            if self.target_date is not None or self.target_time is not None:
+                raise ValueError("target_schedule_not_supported_with_parent_run")
         return self
 
 

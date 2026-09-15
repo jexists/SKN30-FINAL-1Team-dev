@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import date, datetime, time
 
 import pytest
 from pydantic import ValidationError
@@ -63,19 +63,20 @@ def test_briefing_highlight_requires_a_source_ref():
         )
 
 
-def test_next_meeting_duration_is_bounded():
+def test_next_meeting_has_one_date_and_optional_time():
     valid = {
         "sales_deal_id": "deal-1",
         "reason": "계약 종료 전 조건 협의가 필요합니다.",
+        "target_date": "2026-09-15",
     }
 
-    assert contract_management.NextMeetingSuggestion(**valid).duration_minutes == 60
-
-    with pytest.raises(ValidationError):
-        contract_management.NextMeetingSuggestion(**valid, duration_minutes=4)
-
-    with pytest.raises(ValidationError):
-        contract_management.NextMeetingSuggestion(**valid, duration_minutes=481)
+    suggestion = contract_management.NextMeetingSuggestion(**valid)
+    assert suggestion.target_date == date(2026, 9, 15)
+    assert suggestion.target_time is None
+    assert contract_management.NextMeetingSuggestion(
+        **valid, target_time="11:00"
+    ).target_time == time(11, 0)
+    assert "duration_minutes" not in contract_management.NextMeetingSuggestion.model_fields
 
 
 def test_next_meeting_proposal_output_has_no_briefing_field():
@@ -221,14 +222,13 @@ async def test_propose_next_meeting_uses_dedicated_prompt_schema_and_snapshot(mo
         "sales_deals": [],
         "risk_signals": risk_signals,
         "recent_approved_reports": [],
-        "current_date": fixed_now.isoformat(),
+        "current_datetime": fixed_now.isoformat(),
+        "excluded_dates": [],
     }
 
 
 @pytest.mark.anyio
-async def test_propose_next_meeting_drops_stale_preferred_window(monkeypatch):
-    """프롬프트로 current_date 이후만 제안하라고 일러도 LLM이 어길 수 있다 — 과거 날짜가
-    나오면 날짜만 비우고 위험 판정·추천 행동은 그대로 살린다."""
+async def test_propose_next_meeting_drops_stale_target(monkeypatch):
     fixed_now = datetime(2026, 8, 26, 9, 0, tzinfo=contract_management._SEOUL)
     monkeypatch.setattr(contract_management, "_now", lambda: fixed_now)
 
@@ -240,8 +240,7 @@ async def test_propose_next_meeting_drops_stale_preferred_window(monkeypatch):
             next_meeting_suggestion=contract_management.NextMeetingSuggestion(
                 sales_deal_id="deal-1",
                 reason="계약 갱신 협의",
-                preferred_starts_at="2026-08-20T09:00:00+09:00",  # current_date보다 과거
-                preferred_ends_at="2026-08-20T10:00:00+09:00",
+                target_date="2026-08-20",
             ),
         )
 
@@ -250,14 +249,11 @@ async def test_propose_next_meeting_drops_stale_preferred_window(monkeypatch):
     result = await contract_management.propose_next_meeting({})
 
     assert result.recommended_actions == ["과거 날짜를 제안한 경우"]
-    assert result.next_meeting_suggestion is not None
-    assert result.next_meeting_suggestion.sales_deal_id == "deal-1"
-    assert result.next_meeting_suggestion.preferred_starts_at is None
-    assert result.next_meeting_suggestion.preferred_ends_at is None
+    assert result.next_meeting_suggestion is None
 
 
 @pytest.mark.anyio
-async def test_propose_next_meeting_keeps_valid_future_preferred_window(monkeypatch):
+async def test_propose_next_meeting_keeps_one_future_target(monkeypatch):
     fixed_now = datetime(2026, 8, 26, 9, 0, tzinfo=contract_management._SEOUL)
     monkeypatch.setattr(contract_management, "_now", lambda: fixed_now)
 
@@ -269,8 +265,8 @@ async def test_propose_next_meeting_keeps_valid_future_preferred_window(monkeypa
             next_meeting_suggestion=contract_management.NextMeetingSuggestion(
                 sales_deal_id="deal-1",
                 reason="계약 갱신 협의",
-                preferred_starts_at="2026-09-01T09:00:00+09:00",
-                preferred_ends_at="2026-09-01T10:00:00+09:00",
+                target_date="2026-09-01",
+                target_time="11:00",
             ),
         )
 
@@ -278,8 +274,8 @@ async def test_propose_next_meeting_keeps_valid_future_preferred_window(monkeypa
 
     result = await contract_management.propose_next_meeting({})
 
-    assert result.next_meeting_suggestion.preferred_starts_at == "2026-09-01T09:00:00+09:00"
-    assert result.next_meeting_suggestion.preferred_ends_at == "2026-09-01T10:00:00+09:00"
+    assert result.next_meeting_suggestion.target_date == date(2026, 9, 1)
+    assert result.next_meeting_suggestion.target_time == time(11, 0)
 
 
 @pytest.mark.anyio

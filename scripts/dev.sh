@@ -43,6 +43,9 @@ PIDS+=("$!")
 bash scripts/frontend.sh &
 PIDS+=("$!")
 
+bash scripts/agent-worker.sh &
+PIDS+=("$!")
+
 echo
 echo "종료하려면 Ctrl+C"
 echo

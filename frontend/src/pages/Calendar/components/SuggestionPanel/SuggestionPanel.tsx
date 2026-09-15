@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import Button from '@/components/Button'
-import { CloseIcon, InfoIcon } from '@/components/icons'
+import { InfoIcon } from '@/components/icons'
 import Popover from '@/components/Popover'
 import Skeleton from '@/components/Skeleton'
 import { KIND_LABEL } from '@/shared/agenda'
@@ -18,12 +18,12 @@ interface Props {
   previewId: string | null
   onPreview: (id: string | null) => void
   onAccept: (suggestion: AiSuggestion) => void
-  /** 카드에서 다른 시간 후보를 고릅니다. */
-  onSelectOption: (suggestionId: string, candidateId: string) => void
-  onDismiss: (id: string) => void
+  onSelectDuration: (suggestionId: string, duration: 30 | 60 | 90) => void
+  onReject: (id: string) => void
   onGrab: (pointer: ReactPointerEvent, suggestion: AiSuggestion) => void
   /** 저장된 추천을 읽어 오는 중. LLM을 기다리는 것이 아니라 조회 한 번입니다. */
   loading?: boolean
+  generationMessage?: string | null
   error?: string | null
   /**
    * 조회에 실패했을 때 추천 목록만 다시 읽습니다.
@@ -40,10 +40,11 @@ export default function SuggestionPanel({
   previewId,
   onPreview,
   onAccept,
-  onSelectOption,
-  onDismiss,
+  onSelectDuration,
+  onReject,
   onGrab,
   loading = false,
+  generationMessage = null,
   error = null,
   onRetry,
 }: Props) {
@@ -80,12 +81,18 @@ export default function SuggestionPanel({
             }
           >
             <p className={styles.sub}>
-              후속 조치 기한과 계약 만료일을 보고 고른 딜입니다. 보고서를 확정하거나 딜을 옮기면
-              그때 다시 계산합니다. 카드를 끌어 원하는 날짜에 놓거나, 추천한 날짜에 그대로 넣으세요.
+              계약관리 AI가 후속 논의가 필요한 날짜 한 개를 추천합니다. 일정에 반영하기 전
+              소요시간을 선택하세요.
             </p>
           </Popover>
         </div>
       </header>
+
+      {generationMessage && (
+        <p className={styles.generating} role="status">
+          {generationMessage}
+        </p>
+      )}
 
       {/*
         조회 한 번이라 금방 끝납니다. 그래도 그 사이에 "추천할 일정이 없습니다"를 보여 주면
@@ -126,17 +133,7 @@ export default function SuggestionPanel({
             >
               <div className={styles.when}>
                 <span className="tnum">{fmtDay(parseISO(s.date))}</span>
-                <span className={`${styles.time} tnum`}>
-                  {s.time} · {s.dur}
-                </span>
-                <button
-                  type="button"
-                  className={styles.dismiss}
-                  aria-label={`${s.hospital} ${s.title} 추천 닫기`}
-                  onClick={() => onDismiss(s.id)}
-                >
-                  <CloseIcon width={14} height={14} />
-                </button>
+                {s.refreshReason && <i className={styles.refreshed}>재추천됨</i>}
               </div>
 
               <h3 className={styles.org}>
@@ -145,30 +142,28 @@ export default function SuggestionPanel({
               </h3>
               <p className={styles.title}>{s.title}</p>
               <p className={styles.reason}>{s.proposalReason}</p>
+              {s.refreshReason && (
+                <p className={styles.refreshReason}>재추천 이유: {s.refreshReason}</p>
+              )}
 
-              {/*
-                일정관리 에이전트가 겹치지 않는 시간을 여러 개 내놓습니다. 가장 추천하는
-                것을 위에 크게 두고, 나머지는 눌러서 바꿀 수 있게 칩으로 둡니다.
-              */}
-              {s.options.length > 1 && (
+              <fieldset className={styles.durationField}>
+                <legend>소요시간</legend>
                 <div className={styles.options}>
-                  {s.options.map((option) => (
+                  {s.durationOptions.map((duration) => (
                     <button
-                      key={option.candidateId}
+                      key={duration}
                       type="button"
                       className={`${styles.option} ${
-                        option.candidateId === s.selectedCandidateId ? styles.isChosen : ''
+                        duration === s.selectedDurationMinutes ? styles.isChosen : ''
                       }`}
-                      aria-pressed={option.candidateId === s.selectedCandidateId}
-                      onClick={() => onSelectOption(s.id, option.candidateId)}
+                      aria-pressed={duration === s.selectedDurationMinutes}
+                      onClick={() => onSelectDuration(s.id, duration)}
                     >
-                      <span className="tnum">
-                        {fmtDay(parseISO(option.date))} {option.time}
-                      </span>
+                      <span className="tnum">{duration}분</span>
                     </button>
                   ))}
                 </div>
-              )}
+              </fieldset>
 
               <div className={styles.basis}>
                 <i className={styles.kind}>{KIND_LABEL[s.kind]}</i>
@@ -179,9 +174,18 @@ export default function SuggestionPanel({
                 ))}
               </div>
 
-              <Button className={styles.accept} onClick={() => onAccept(s)}>
-                추천일에 넣기
-              </Button>
+              <div className={styles.actions}>
+                <Button variant="outline" onClick={() => onReject(s.id)}>
+                  추천 거절
+                </Button>
+                <Button
+                  className={styles.accept}
+                  disabled={s.selectedDurationMinutes === null}
+                  onClick={() => onAccept(s)}
+                >
+                  추천일에 넣기
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

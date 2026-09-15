@@ -964,6 +964,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "ends_at": "2026-08-17T11:00:00+09:00",
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
@@ -982,11 +983,8 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
     assert db.rollback_count == 0
 
 
-def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch):
-    """제안은 미리 계산해 둔 값이라 승인할 때쯤 그 자리에 다른 일정이 생겼을 수 있다.
-
-    등록은 이미 커밋됐으므로 되돌리지 않고, 겹친 일정을 경고로만 알린다.
-    """
+def test_approving_a_suggestion_rejects_when_the_slot_is_already_taken(monkeypatch):
+    """승인 직전 충돌하면 Activity를 INSERT하지 않는다."""
     monkeypatch.setattr(type(settings), "llm_configured", property(lambda self: True))
 
     async def _fake_execute(run_id: UUID) -> None:
@@ -1011,13 +1009,12 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
         agent_code="schedule_management",
         status_code="completed",
     )
+    suggestion = _pending_suggestion(member, parent_run.id)
     db = _Db(
         _Result(scalar=deal),  # _team_sales_deal
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
-        _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
-        _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
-        _Result(scalar=parent_run),  # _parent_run_or_409
+        _Result(scalar=suggestion),  # _claim_suggestion
         _Result(rows=[("기존 방문", datetime(2026, 8, 17, 1, tzinfo=UTC))]),  # 겹치는 일정
     )
 
@@ -1029,23 +1026,24 @@ def test_approving_a_suggestion_warns_when_the_slot_is_already_taken(monkeypatch
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "ends_at": "2026-08-17T11:00:00+09:00",
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(parent_run.id),
             },
         )
 
-    # 등록 자체는 성공한다 — 경고는 알림일 뿐 거절이 아니다.
-    assert response.status_code == 201
-    body = response.json()
-    assert "기존 방문" in body["schedule_conflict_warning"]
-    assert db.rollback_count == 0
+    assert response.status_code == 409
+    assert response.json()["detail"] == "schedule_conflict"
+    assert db.added == []
+    assert db.commit_count == 0
+    assert db.rollback_count == 1
 
     sql = str(db.statements[-1])
-    # 같은 담당자의 미삭제 일정만, 자기 자신은 빼고 본다.
+    # 같은 담당자의 미삭제 일정만 본다. 아직 INSERT 전이라 자기 id 제외 조건은 없다.
     assert "activity.owner_member_id" in sql
     assert "activity.deleted_at IS NULL" in sql
-    assert "activity.id !=" in sql
+    assert "activity.id !=" not in sql
 
 
 def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(monkeypatch):
@@ -1098,6 +1096,7 @@ def test_schedule_management_run_id_failure_surfaces_warning_but_keeps_activity(
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "ends_at": "2026-08-17T11:00:00+09:00",
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(missing_run_id),
@@ -1117,6 +1116,12 @@ def _pending_suggestion(member: Member, schedule_run_id: UUID) -> ContractNextMe
         team_id=member.team_id,
         sales_deal_id=uuid4(),
         schedule_management_run_id=schedule_run_id,
+        target_date=datetime(2026, 8, 17).date(),
+        target_time=None,
+        selected_duration_minutes=None,
+        excluded_dates=[],
+        refresh_reason=None,
+        applied_activity_id=None,
         status_code="pending",
         created_at=datetime(2026, 8, 17, tzinfo=UTC),
         updated_at=datetime(2026, 8, 17, tzinfo=UTC),
@@ -1138,9 +1143,9 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
         _Result(scalar=category),  # _active_activity_category
         _Result(scalar=company.name),  # _team_company: 등록 응답이 쓸 회사 이름
         _Result(scalar=suggestion),  # _claim_suggestion: 아직 pending
+        _Result(rows=[]),  # INSERT 직전 충돌 검사
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=None),  # _parent_run_or_409: 부모 실행을 찾지 못함
-        _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
     with _client(db, member) as client:
@@ -1151,6 +1156,7 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "ends_at": "2026-08-17T11:00:00+09:00",
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),
@@ -1159,6 +1165,8 @@ def test_approving_a_suggestion_claims_it_before_the_activity_is_created(monkeyp
 
     assert response.status_code == 201
     assert suggestion.status_code == "accepted"
+    assert suggestion.selected_duration_minutes == 60
+    assert suggestion.applied_activity_id == db.added[0].id
     # 선점이 등록보다 먼저다 — 커밋 한 번에 둘이 함께 저장된다.
     assert len(db.added) == 1
     assert db.commit_count == 1
@@ -1190,6 +1198,7 @@ def test_claim_scopes_the_suggestion_to_the_team_and_owner(monkeypatch):
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "ends_at": "2026-08-17T11:00:00+09:00",
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(uuid4()),
@@ -1232,6 +1241,7 @@ def test_approving_an_already_accepted_suggestion_is_rejected(monkeypatch):
                 "category_code": "demo",
                 "title": "AI 추천 일정 승인",
                 "starts_at": "2026-08-17T10:00:00+09:00",
+                "ends_at": "2026-08-17T11:00:00+09:00",
                 "customer_company_id": str(company.id),
                 "sales_deal_id": str(deal.id),
                 "schedule_management_run_id": str(schedule_run_id),

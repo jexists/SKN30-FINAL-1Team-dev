@@ -637,16 +637,9 @@ async def test_contract_report_context_rejects_malformed_normalized_body(
 
 
 @pytest.mark.anyio
-async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
+async def test_build_schedule_snapshot_uses_parent_target_without_widening():
     member = _member()
     deal = _deal(member)
-    # 날짜를 박아 두면 그날이 지난 뒤에는 기간이 통째로 버려지는데, 이 테스트는 기간을
-    # 단언하지 않아 그래도 통과한다 — 이름과 달리 아무것도 검사하지 않게 된다.
-    base = datetime.now(UTC)
-    preferred_starts_at = (base + timedelta(days=2)).isoformat()
-    preferred_ends_at = (
-        base + timedelta(days=2 + snapshots._MIN_PREFERRED_WINDOW_DAYS)
-    ).isoformat()
     parent = AgentRun(
         id=uuid4(),
         team_id=member.team_id,
@@ -656,222 +649,72 @@ async def test_build_schedule_snapshot_uses_parent_run_preferred_window():
             "next_meeting_suggestion": {
                 "sales_deal_id": str(deal.id),
                 "reason": "계약 갱신 협의",
-                "preferred_starts_at": preferred_starts_at,
-                "preferred_ends_at": preferred_ends_at,
-                "duration_minutes": 45,
+                "target_date": "2026-09-20",
+                "target_time": "11:00:00",
             }
         },
     )
-    activity = Activity(
-        id=uuid4(),
-        team_id=member.team_id,
-        owner_member_id=deal.owner_member_id,
-        title="기존 미팅",
-        starts_at=datetime(2026, 8, 26, 9, tzinfo=UTC),
-        ends_at=datetime(2026, 8, 26, 10, tzinfo=UTC),
-        all_day=False,
-        deleted_at=None,
-    )
-    db = _Db(
-        _Result(scalar=deal),  # SalesDeal 조회
-        _Result(scalar_values=[activity]),  # Activity 조회
-    )
+    db = _Db(_Result(rows=[(deal, "in_progress")]))
 
-    snapshot = await snapshots.build_schedule_snapshot(
-        db, member, deal.id, parent, None, None, None
-    )
+    snapshot = await snapshots.build_schedule_snapshot(db, member, deal.id, parent, None, None)
 
-    assert snapshot["duration_minutes"] == 45
+    assert snapshot["target_date"] == "2026-09-20"
+    assert snapshot["target_time"] == "11:00:00"
     assert snapshot["reason"] == "계약 갱신 협의"
-    # 이 테스트의 이름이 주장하는 것. 없으면 기간이 버려져도 통과한다.
-    assert snapshot["preferred_starts_at"] == preferred_starts_at
-    assert snapshot["preferred_ends_at"] == preferred_ends_at
-    assert snapshot["activities"] == [
-        {
-            "id": str(activity.id),
-            "owner_member_id": str(activity.owner_member_id),
-            "starts_at": activity.starts_at.isoformat(),
-            "ends_at": activity.ends_at.isoformat(),
-            "all_day": False,
-        }
-    ]
+    assert "duration_minutes" not in snapshot
+    assert "preferred_starts_at" not in snapshot
+    assert "activities" not in snapshot
 
 
 @pytest.mark.anyio
-async def test_build_schedule_snapshot_without_parent_uses_request_preferred_window():
+async def test_build_schedule_snapshot_accepts_direct_single_date():
     member = _member()
     deal = _deal(member)
-    db = _Db(
-        _Result(scalar=deal),
-        _Result(scalar_values=[]),
-    )
-
-    # 날짜를 박아 두면 그날이 지나는 순간 build_schedule_snapshot 이 시작을 now 로 당겨
-    # (max) 다른 분기를 탄다 — 오늘이 언제든 미래가 되도록 now 기준으로 만든다.
-    base = datetime.now(UTC)
-    starts_at = (base + timedelta(days=3)).isoformat()
-    # 최소 폭보다 넓게 잡는다. 좁으면 끝이 밀려 "요청값을 그대로 쓴다"를 검사하지 못한다.
-    ends_at = (base + timedelta(days=3 + snapshots._MIN_PREFERRED_WINDOW_DAYS)).isoformat()
+    db = _Db(_Result(rows=[(deal, "in_progress")]))
 
     snapshot = await snapshots.build_schedule_snapshot(
         db,
         member,
         deal.id,
         None,
-        starts_at,
-        ends_at,
-        30,
+        date(2026, 9, 22),
+        None,
+        excluded_dates=[date(2026, 9, 20)],
     )
 
-    assert snapshot["preferred_starts_at"] == starts_at
-    assert snapshot["preferred_ends_at"] == ends_at
-    assert snapshot["duration_minutes"] == 30
-    assert snapshot["reason"] is None
+    assert snapshot["target_date"] == "2026-09-22"
+    assert snapshot["target_time"] is None
+    assert snapshot["excluded_dates"] == ["2026-09-20"]
+    assert snapshot["deal_outcome_code"] == "in_progress"
+    assert snapshot["timezone"] == "Asia/Seoul"
 
 
 @pytest.mark.anyio
-async def test_build_schedule_snapshot_widens_a_narrow_preferred_window():
-    """계약관리가 "30분 한 칸"을 줘도 첫 실행 전에 최소 폭을 확보한다.
-
-    좁은 기간으로는 후보가 거의 나오지 않는다 — 실측에서 폭 1일 이하 실행의 평균 후보는
-    2.0개였다. 실패한 뒤에 넓혀 다시 부르는 대신, 부르기 전에 넓힌다.
-    """
+async def test_build_schedule_snapshot_requires_a_valid_target_date():
     member = _member()
     deal = _deal(member)
-    db = _Db(
-        _Result(scalar=deal),
-        _Result(scalar_values=[]),
-    )
-    base = datetime.now(UTC)
-    starts_at = (base + timedelta(days=3)).isoformat()
 
-    snapshot = await snapshots.build_schedule_snapshot(
-        db,
-        member,
-        deal.id,
-        None,
-        starts_at,
-        (base + timedelta(days=3, minutes=30)).isoformat(),
-        30,
-    )
+    with pytest.raises(HTTPException) as missing:
+        await snapshots.build_schedule_snapshot(
+            _Db(_Result(rows=[(deal, "in_progress")])),
+            member,
+            deal.id,
+            None,
+            None,
+            None,
+        )
+    assert missing.value.detail == "target_date_required"
 
-    # 시작은 계약관리의 판단이라 그대로 두고 끝만 민다.
-    assert snapshot["preferred_starts_at"] == starts_at
-    assert (
-        snapshot["preferred_ends_at"]
-        == (
-            datetime.fromisoformat(starts_at) + timedelta(days=snapshots._MIN_PREFERRED_WINDOW_DAYS)
-        ).isoformat()
-    )
-
-
-@pytest.mark.anyio
-async def test_build_schedule_snapshot_drops_a_preferred_window_already_past():
-    """이미 지난 선호 기간은 버리고 기본 탐색 범위로 넘긴다.
-
-    과거 날짜는 시간이 흘러도 계속 과거라, 여기서는 박아 둬도 썩지 않는다.
-    """
-    member = _member()
-    deal = _deal(member)
-    db = _Db(
-        _Result(scalar=deal),
-        _Result(scalar_values=[]),
-    )
-
-    snapshot = await snapshots.build_schedule_snapshot(
-        db,
-        member,
-        deal.id,
-        None,
-        "2020-01-01T09:00:00+09:00",
-        "2020-01-03T18:00:00+09:00",
-        30,
-    )
-
-    assert snapshot["preferred_starts_at"] is None
-    assert snapshot["preferred_ends_at"] is None
-
-
-@pytest.mark.anyio
-async def test_schedule_snapshot_normalizes_naive_preferred_window():
-    """시간대 없는 입력은 UTC 로 못 박아 내보낸다.
-
-    원본 문자열을 그대로 흘려보내면 이 단계는 UTC 로, contract_management 는
-    Asia/Seoul 로 읽어 같은 글자가 9시간 다르게 해석된다.
-    """
-    member = _member()
-    deal = _deal(member)
-    db = _Db(
-        _Result(scalar=deal),
-        _Result(scalar_values=[]),
-    )
-
-    snapshot = await snapshots.build_schedule_snapshot(
-        db,
-        member,
-        deal.id,
-        None,
-        "2026-12-01T09:00:00",  # offset 없음
-        "2026-12-03T18:00:00",
-        60,
-    )
-
-    start = datetime.fromisoformat(snapshot["preferred_starts_at"])
-    end = datetime.fromisoformat(snapshot["preferred_ends_at"])
-    assert start.tzinfo is not None
-    assert end.tzinfo is not None
-    assert start.utcoffset() == timedelta(0)
-    assert start == datetime(2026, 12, 1, 9, tzinfo=UTC)
-
-
-@pytest.mark.anyio
-async def test_schedule_snapshot_pulls_a_past_start_up_to_now():
-    """시작이 이미 지났으면 지금으로 당긴다 — 끝이 미래면 창 자체는 살린다."""
-    member = _member()
-    deal = _deal(member)
-    db = _Db(
-        _Result(scalar=deal),
-        _Result(scalar_values=[]),
-    )
-    before = datetime.now(UTC)
-
-    snapshot = await snapshots.build_schedule_snapshot(
-        db,
-        member,
-        deal.id,
-        None,
-        "2020-01-01T00:00:00+00:00",  # 한참 과거
-        "2026-12-03T18:00:00+00:00",  # 끝은 미래
-        60,
-    )
-
-    start = datetime.fromisoformat(snapshot["preferred_starts_at"])
-    assert start >= before
-    assert start <= datetime.now(UTC)
-
-
-@pytest.mark.anyio
-async def test_schedule_snapshot_drops_an_inverted_preferred_window():
-    """시작이 끝보다 늦으면 탐색 범위가 성립하지 않는다 — 기본 범위로 넘긴다."""
-    member = _member()
-    deal = _deal(member)
-    db = _Db(
-        _Result(scalar=deal),
-        _Result(scalar_values=[]),
-    )
-
-    snapshot = await snapshots.build_schedule_snapshot(
-        db,
-        member,
-        deal.id,
-        None,
-        "2026-12-05T09:00:00+00:00",  # 시작이
-        "2026-12-03T18:00:00+00:00",  # 끝보다 늦다
-        60,
-    )
-
-    assert snapshot["preferred_starts_at"] is None
-    assert snapshot["preferred_ends_at"] is None
+    with pytest.raises(HTTPException) as invalid:
+        await snapshots.build_schedule_snapshot(
+            _Db(_Result(rows=[(deal, "in_progress")])),
+            member,
+            deal.id,
+            None,
+            "not-a-date",
+            None,
+        )
+    assert invalid.value.detail == "invalid_target_date"
 
 
 # ---- build_next_meeting_snapshot: 딜 범위 한정 ----

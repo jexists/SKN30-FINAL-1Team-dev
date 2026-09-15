@@ -311,9 +311,8 @@ async def _build_run_input(
         member,
         payload.sales_deal_id,
         parent,
-        payload.preferred_starts_at,
-        payload.preferred_ends_at,
-        payload.duration_minutes,
+        payload.target_date,
+        payload.target_time,
     )
     source_refs: dict[str, Any] = {"sales_deal_id": str(payload.sales_deal_id)}
     if parent is not None:
@@ -786,7 +785,8 @@ def evidence(
         }
     return {
         "prompt_version": schedule_management.PROMPT_VERSION,
-        "candidate_count": len(output.schedule_candidates),
+        "decision": output.decision,
+        "reason_code": output.reason_code,
     }
 
 
