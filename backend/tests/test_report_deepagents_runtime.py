@@ -235,7 +235,9 @@ class ScriptedModel(BaseChatModel):
             if assignment["phase"] == "synthesize":
                 calls.append(self._call("read_writer_digests", {}))
         phase = assignment["phase"]
-        if phase == "review_initial":
+        if phase == "evaluate_final":
+            calls.append(self._call("read_validated_draft", {"draft_version": 2}))
+        elif phase == "review_initial":
             calls.append(self._call("read_validated_draft", {"draft_version": 1}))
             if self.attack != "missing-plan-once" or self._attacked:
                 calls.append(self._call("read_writer_plans", {"draft_version": 1}))
@@ -394,6 +396,12 @@ class ScriptedModel(BaseChatModel):
                 response=httpx.Response(status, request=request),
             )
         self._phases.append(assignment["phase"])
+        if assignment["phase"] == "evaluate_final":
+            return self._result([self._call("FinalEvaluation", {
+                "draft_version": 2,
+                "summary": "v2 수정본이 원문 근거에 부합합니다.",
+                "notes": ["제목의 표현을 한 번 더 확인해 주세요."],
+            })])
         if assignment["role"] == harness.REVIEWER_ROLE:
             return self._result([self._call("ReportReview", self._review_artifact(assignment))])
         return self._result([self._call("WriterArtifact", self._writer_artifact(assignment))])
@@ -601,12 +609,15 @@ def test_flagged_scopes_are_repaired_once_and_v2_child_draft_wins(monkeypatch):
     assert len(created) == len(invoked) == 1
     assert compiled == [spec.writer_role, harness.REVIEWER_ROLE]
     assert result.selected_version == 2 and result.degraded is False
-    assert (result.task_count, result.review_count, result.repair_count) == (5, 1, 2)
+    assert (result.task_count, result.review_count, result.repair_count) == (6, 1, 2)
     assert model._phases.count("review_initial") == 1
     assert model._phases.count("repair") == 2
+    assert model._phases.count("evaluate_final") == 1
     assert result.initial_review_conducted is True
     assert result.repair_completed is True
     assert result.review_incomplete is False
+    assert result.final_evaluation is not None
+    assert result.final_evaluation.summary == "v2 수정본이 원문 근거에 부합합니다."
     assert [issue.location for issue in result.review_issues] == [
         "scope-1.body",
         "scope-2.body",
@@ -660,11 +671,12 @@ def test_no_second_review_task_or_model_call_after_repair(monkeypatch):
     assert [issue.location for issue in result.review_issues] == ["scope-1.body"]
     assert result.review_incomplete is False
     assert result.repair_completed is True
-    assert (result.task_count, result.review_count, result.repair_count) == (3, 1, 1)
+    assert (result.task_count, result.review_count, result.repair_count) == (4, 1, 1)
     assert model._phases == [
         "write_initial",
         "review_initial",
         "repair",
+        "evaluate_final",
     ]
 
 
@@ -676,6 +688,8 @@ def test_writer_and_reviewer_must_read_required_meeting_scopes(monkeypatch):
 
     assert result.selected_version == 2
     for key, calls in model._requested.items():
+        if key[1] == "evaluate-final":
+            continue
         assert [call["name"] for call in calls].count("read_file") == (
             3 if key[1] == "review-1" else 2
         )
@@ -1475,7 +1489,7 @@ def test_partial_repair_failure_keeps_valid_mixed_v2_with_honest_metadata(monkey
     assert [issue.location for issue in result.review_issues] == ["scope-1.body", "scope-2.body"]
     assert result.review_incomplete is True
     assert result.repair_completed is False
-    assert (result.task_count, result.review_count, result.repair_count) == (5, 1, 2)
+    assert (result.task_count, result.review_count, result.repair_count) == (6, 1, 2)
 
 
 def test_invalid_repair_assembly_never_replaces_v1(monkeypatch):

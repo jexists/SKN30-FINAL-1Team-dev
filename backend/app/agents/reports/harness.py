@@ -59,6 +59,10 @@ REPORT_WRITER_ROLES = {
     "monthly": "monthly-report-writer",
 }
 REPORT_ROLES = frozenset(REPORT_WRITER_ROLES.values())
+_BROAD_PHASES = frozenset({
+    "synthesize", "review_initial", "repair",
+    "write_initial", "evaluate_final",
+})
 _WORK_ID = re.compile(r"(?m)^work_unit_id=([a-z0-9-]+)\s*$")
 
 _DIGEST_FIELDS = (
@@ -142,6 +146,32 @@ class ReportReview(BaseModel):
     issues: list[ReviewIssue] = Field(max_length=250)
 
 
+class FinalEvaluation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    draft_version: int = Field(ge=2, le=2)
+    summary: str = Field(
+        min_length=1,
+        max_length=500,
+        pattern=r"\S",
+        description=(
+            "보고서 전체 품질을 한 문장으로 평가. "
+            "예: '전체적으로 잘 정리되었습니다', '일부 날짜를 확인해 주세요'. "
+            "내부 용어·필드명·시스템 ID·버전 번호·검증 용어(동결, 보존, 식별자)를 쓰지 않는다."
+        ),
+    )
+    notes: list[str] = Field(
+        max_length=10,
+        description=(
+            "사용자가 제출 전 직접 확인할 수 있는 구체적 행동을 일상 언어로 작성. "
+            "예: '9월 20일 미팅 날짜가 맞는지 확인해 주세요'. "
+            "AI 시스템이 해야 할 일(삭제하고 바꿔라 등)이 아니라 "
+            "사람이 눈으로 확인할 사항만 적는다. "
+            "내부 용어·필드명·시스템 ID를 쓰지 않는다. 없으면 빈 리스트."
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class WorkUnit:
     work_unit_id: str
@@ -184,6 +214,7 @@ class WorkflowResult:
     initial_review_conducted: bool = True
     repair_completed: bool | None = None
     degraded_reason_code: str | None = None
+    final_evaluation: FinalEvaluation | None = None
 
     @property
     def remaining_issues(self) -> tuple[ReviewIssue, ...]:
@@ -280,7 +311,7 @@ class _Events(AsyncCallbackHandler):
             "synthesize",
         }:
             return
-        if assignment.phase in {"prepare", "review_initial"}:
+        if assignment.phase in {"prepare", "review_initial", "evaluate_final"}:
             body_location = None
         elif assignment.unit is None:
             return
@@ -297,7 +328,11 @@ class _Events(AsyncCallbackHandler):
         ):
             return
         chunks = getattr(getattr(chunk, "message", None), "tool_call_chunks", None) or ()
-        allowed = {"ReportReview"} if assignment.phase == "review_initial" else {"WriterArtifact"}
+        allowed = (
+            {"ReportReview"} if assignment.phase == "review_initial"
+            else {"FinalEvaluation"} if assignment.phase == "evaluate_final"
+            else {"WriterArtifact"}
+        )
         accepted: list[tuple[str, str]] = []
         for item in chunks:
             if not isinstance(item, dict) or not isinstance(item.get("args"), str):
@@ -570,6 +605,7 @@ class _Coordinator:
         self.degraded = False
         self.degraded_reason_code: str | None = None
         self.review_incomplete = False
+        self.final_eval: FinalEvaluation | None = None
         self.task_count = self.review_count = self.repair_count = 0
         self.lock = asyncio.Lock()
         self.seed_files: dict[str, dict[str, Any]] = {}
@@ -590,6 +626,7 @@ class _Coordinator:
             "synthesize": "report_writing",
             "review_initial": "report_review",
             "repair": "report_revising",
+            "evaluate_final": "report_evaluating",
         }.get(self.phase)
         publish_progress(
             stage,
@@ -603,7 +640,7 @@ class _Coordinator:
 
     @property
     def max_tasks(self) -> int:
-        return len(self.spec.preparation_units) + len(self.spec.units) * 2 + 1
+        return len(self.spec.preparation_units) + len(self.spec.units) * 2 + 2
 
     @property
     def has_valid_draft(self) -> bool:
@@ -694,6 +731,20 @@ class _Coordinator:
             self.assignments = {}
             self.phase = "finish"
             self.eligible_versions = {2}
+        if self.phase == "finish" and 2 in self.eligible_versions:
+            self.assignments = {
+                "evaluate-final": _Assignment(
+                    work_unit_id="evaluate-final",
+                    phase="evaluate_final",
+                    role=REVIEWER_ROLE,
+                    draft_version=2,
+                    locations=frozenset(
+                        location for unit in self.spec.units for location in unit.locations
+                    ),
+                )
+            }
+            self.phase = "evaluate_final"
+            publish_progress("report_evaluating")
 
     def _available(self) -> list[_Assignment]:
         return [
@@ -838,14 +889,18 @@ class _Coordinator:
             ),
             "source_ids": (
                 [item["source_id"] for item in self.spec.source.get("source_units", [])]
-                if assignment.phase in {"synthesize", "review_initial", "repair"}
+                if assignment.phase in _BROAD_PHASES - {"write_initial"}
                 else [unit.scope]
                 if assignment.phase == "prepare" and unit is not None
                 else [item["source_id"] for item in self.spec.source.get("source_units", [])]
             )
             if self.spec.report_kind != "meeting"
             else [],
-            "output_shape": unit.output_shape if unit else "ReportReview",
+            "output_shape": (
+                "FinalEvaluation" if assignment.phase == "evaluate_final"
+                else unit.output_shape if unit
+                else "ReportReview"
+            ),
         }
         return "\n\nSERVER_ASSIGNMENT=" + json.dumps(
             payload, ensure_ascii=False, separators=(",", ":")
@@ -867,7 +922,7 @@ class _Coordinator:
             if self.spec.report_kind == "meeting" and assignment.unit is not None
             else (
                 frozenset(item["source_id"] for item in self.spec.source.get("source_units", []))
-                if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}
+                if assignment.phase in _BROAD_PHASES
                 else frozenset({assignment.unit.scope})
                 if assignment.unit
                 else frozenset()
@@ -960,7 +1015,7 @@ class _Coordinator:
             assignment = active[1]
             allowed = (
                 existing
-                if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}
+                if assignment.phase in _BROAD_PHASES
                 else frozenset({assignment.unit.scope})
                 if assignment.unit
                 else frozenset()
@@ -1009,7 +1064,7 @@ class _Coordinator:
         self, assignment: _Assignment, source_names: set[str], output: str
     ) -> set[str]:
         allowed = {"read_file", output, *source_names}
-        if assignment.phase in {"repair", "review_initial"}:
+        if assignment.phase in {"repair", "review_initial", "evaluate_final"}:
             allowed.add("read_validated_draft")
         if assignment.phase == "review_initial":
             allowed.add("read_writer_plans")
@@ -1063,7 +1118,7 @@ class _Coordinator:
             )
             reads = [call for call in calls if call["name"] == "read_report_sources"]
             actual = {call["args"].get("source_id") for call in reads}
-            if assignment.phase in {"synthesize", "review_initial", "repair", "write_initial"}:
+            if assignment.phase in _BROAD_PHASES:
                 if None not in actual:
                     missing.extend(
                         f"read_report_sources({scope})" for scope in sorted(expected - actual)
@@ -1083,6 +1138,8 @@ class _Coordinator:
         required_artifacts: set[tuple[str, int]] = set()
         if assignment.phase == "repair":
             required_artifacts = {("read_validated_draft", 1), ("read_validated_review", 1)}
+        elif assignment.phase == "evaluate_final":
+            required_artifacts = {("read_validated_draft", 2)}
         elif assignment.phase == "review_initial":
             required_artifacts = {("read_validated_draft", 1), ("read_writer_plans", 1)}
         observed = {
@@ -1288,24 +1345,40 @@ class _Coordinator:
             self.degraded = True
             self.review_incomplete = True
 
+    def _accept_evaluation(self, assignment: _Assignment, content: str) -> None:
+        evaluation = FinalEvaluation.model_validate_json(content)
+        if evaluation.draft_version != assignment.draft_version:
+            raise PermissionError("report_artifact_version_mismatch")
+        self._persist(
+            "/artifacts/evaluation.json",
+            evaluation.model_dump(mode="json"),
+        )
+        self.final_eval = evaluation
+        self.assignments = {}
+        self.phase = "finish"
+
     async def accept(self, assignment: _Assignment, content: str) -> dict[str, Any]:
         async with self.lock:
             if assignment.work_unit_id in self.finished_assignments:
                 raise PermissionError("report_delegation_not_allowed")
             issues: list[ReviewIssue] | None = None
-            if assignment.role == REVIEWER_ROLE:
+            if assignment.phase == "evaluate_final":
+                self._accept_evaluation(assignment, content)
+            elif assignment.role == REVIEWER_ROLE:
                 issues = self._accept_review(assignment, content)
             else:
                 self._accept_writer(assignment, content)
             self.finished_assignments.add(assignment.work_unit_id)
-            if assignment.role != REVIEWER_ROLE:
+            if assignment.phase not in {"evaluate_final"} and assignment.role != REVIEWER_ROLE:
                 self._advance_after_writer(assignment)
             self._publish_phase_counts()
             return {
                 "status": "accepted",
                 "work_unit_id": assignment.work_unit_id,
                 "artifact_path": (
-                    f"/artifacts/reviews/r{assignment.review_round}.json"
+                    "/artifacts/evaluation.json"
+                    if assignment.phase == "evaluate_final"
+                    else f"/artifacts/reviews/r{assignment.review_round}.json"
                     if assignment.role == REVIEWER_ROLE
                     else f"/artifacts/source-digests/{assignment.unit.scope}.json"
                     if assignment.phase == "prepare" and assignment.unit
@@ -1330,7 +1403,10 @@ class _Coordinator:
             self.degraded_reason_code = reason_code
             self.finished_assignments.add(assignment.work_unit_id)
             self.failed_assignments.add(assignment.work_unit_id)
-            if assignment.phase == "review_initial":
+            if assignment.phase == "evaluate_final":
+                self.assignments = {}
+                self.phase = "finish"
+            elif assignment.phase == "review_initial":
                 self.assignments = {}
                 self.phase = "finish"
                 self.eligible_versions = {1}
@@ -1402,6 +1478,7 @@ class _Coordinator:
             review_incomplete=self.review_incomplete,
             initial_review_conducted=1 in self.reviews,
             repair_completed=self._repair_completed(),
+            final_evaluation=self.final_eval,
             degraded_reason_code=self.degraded_reason_code,
         )
 
@@ -1413,6 +1490,7 @@ class _Coordinator:
         allowed = {
             "repair": {("draft", 1), ("review", 1)},
             "review_initial": {("draft", 1), ("plans", 1)},
+            "evaluate_final": {("draft", 2)},
         }.get(assignment.phase, set())
         if (kind, version) not in allowed:
             raise PermissionError("report_artifact_not_allowed")
@@ -1490,8 +1568,15 @@ class _ChildGuard(AgentMiddleware):
         self.source_names = {
             getattr(tool, "__name__", getattr(tool, "name", "")) for tool in source_tools
         }
-        self.output_name = output_schema.__name__
+        self.output_name = getattr(output_schema, "__name__", "ReportReview")
         self.role = role
+
+    def _effective_output_name(self) -> str:
+        active = _ACTIVE_ASSIGNMENT.get()
+        if active is not None and active[0] is self.coordinator:
+            if active[1].phase == "evaluate_final":
+                return "FinalEvaluation"
+        return self.output_name
 
     def _required_skills(self) -> frozenset[str]:
         active = _ACTIVE_ASSIGNMENT.get()
@@ -1567,7 +1652,8 @@ class _ChildGuard(AgentMiddleware):
             >= REPORT_TASK_MODEL_CALL_LIMIT
         ):
             raise LLMError("report_generation_limit")
-        allowed = self.coordinator.allowed_tools(assignment, self.source_names, self.output_name)
+        output_name = self._effective_output_name()
+        allowed = self.coordinator.allowed_tools(assignment, self.source_names, output_name)
         previous = self._successful_calls(messages)
         output_available = self._skills_complete(previous) and self.coordinator.sources_complete(
             assignment, previous
@@ -1576,7 +1662,7 @@ class _ChildGuard(AgentMiddleware):
         tool_choice = request.tool_choice
         outgoing_messages = request.messages
         if not output_available:
-            required_tools = [tool for tool in required_tools if tool.name != self.output_name]
+            required_tools = [tool for tool in required_tools if tool.name != output_name]
             tool_choice = "required"
             outgoing_messages = list(request.messages)
             missing_reads = ", ".join(self._missing_reads(assignment, previous)) or "확인 필요"
@@ -1632,9 +1718,9 @@ class _ChildGuard(AgentMiddleware):
                 and call["args"].get("file_path") not in self._allowed_skill_paths()
             ):
                 raise PermissionError("report_file_not_allowed")
-            if call["name"] != self.output_name and signature in previous_signatures:
+            if call["name"] != output_name and signature in previous_signatures:
                 raise LLMError("report_generation_limit")
-        outputs = [call for call in calls if call["name"] == self.output_name]
+        outputs = [call for call in calls if call["name"] == output_name]
         if outputs and (
             len(outputs) != 1
             or len(calls) != 1
@@ -1651,7 +1737,7 @@ class _SupervisorGuard(AgentMiddleware):
             "Call server-allowed work units per turn: multiple independent meeting "
             "`write_initial` writers (deal, common, or unassigned) or period `prepare` "
             "sources may run in the same turn; call one task for `synthesize`, `review`, "
-            "or `repair` phases. Preserve a useful task "
+            "`repair`, or `evaluate_final` phases. Preserve a useful task "
             "description and include one `work_unit_id=<id>` line. Available agents:\n"
             f"- {coordinator.spec.writer_role}: selected "
             f"{coordinator.spec.report_kind} report writer\n"
@@ -1840,13 +1926,22 @@ def _child(
     if len(schemas) > 1 and all("kind" in schema.model_fields for schema in schemas):
         draft_schema = Annotated[draft_schema, Field(discriminator="kind")]
     output = (
-        ReportReview
+        ReportReview | FinalEvaluation
         if reviewer
         else create_model("WriterArtifact", __base__=WriterArtifact, draft=(draft_schema, ...))
     )
     guard = _ChildGuard(coordinator, files, source_tools, output, role)
     prompt = (
-        "REPORT_REVIEWER. 검증된 초안을 직접 고치지 말고 location/evidence/action issue만 반환한다."
+        "REPORT_REVIEWER. phase=review_initial이면 검증된 초안을 직접 고치지 말고 "
+        "location/evidence/action issue만 ReportReview로 반환한다. "
+        "phase=evaluate_final이면 수정 완료된 초안을 읽고 사용자가 제출 전 참고할 "
+        "간결한 평가를 FinalEvaluation으로 반환한다. "
+        "이 평가는 보고서를 작성한 영업사원이 상사에게 제출하기 전에 읽는다. "
+        "summary는 20자 내외로 '잘 정리되었습니다' 또는 '일부 확인이 필요합니다' 수준. "
+        "notes는 사람이 눈으로 확인할 사항만 적는다. 예: '9월 20일 미팅 날짜가 맞는지 "
+        "확인해 주세요'. AI가 해야 할 작업(삭제하라, 바꿔라)은 적지 않는다. "
+        "절대 금지 용어: fields, value, v1, v2, bundle, source_id, 동결, 보존, 준수, "
+        "식별자, 검증, artifact, draft_version, location, evidence_ref."
         if reviewer
         else (
             "REPORT_WRITER. SERVER_ASSIGNMENT.phase가 prepare이면 배정된 한 source_id의 원문만 "
@@ -1976,7 +2071,7 @@ async def _run_supervisor(spec: WorkflowSpec) -> WorkflowResult:
         system_prompt=(
             "REPORT_SUPERVISOR. 서버가 이미 report_kind를 고정했다. 다음 허용 work unit을 task로 "
             "위임하고 검증된 receipt를 확인해 작성→1차 검토→지적 scope당 최대 1회 수정→"
-            "finish_report 순서로 끝낸다. task 설명 첫 줄에 정확한 "
+            "최종 평가→finish_report 순서로 끝낸다. task 설명 첫 줄에 정확한 "
             "work_unit_id=<id>를 쓰고, 그 뒤에는 목적·검사할 결과·수정 이유를 구체적으로 적는다. "
             "보고서나 review를 직접 쓰지 말고 source를 요청하거나 추측하지 않는다. 미팅 초기에는 "
             "남은 독립 writer들을 같은 turn의 여러 task로 함께 위임한다. "

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.content import Report, ReportDeal, ReportSource, ReportSubmission
-from app.models.crm import Activity
+from app.models.crm import Activity, CustomerCompany
 from app.models.workspace import Member
 from app.services.report_submissions import (
     create_submission,
@@ -616,6 +616,17 @@ async def _build_normalized_sources(
                     "values": _snapshot_values(snapshot),
                 }
             )
+    if meetings and not legacy:
+        meeting_activity_ids = [m["activity_id"] for m in meetings.values()]
+        result = await db.execute(
+            select(Activity.id, CustomerCompany.name)
+            .join(CustomerCompany, Activity.customer_company_id == CustomerCompany.id)
+            .where(Activity.id.in_(meeting_activity_ids))
+        )
+        company_by_activity: dict[UUID, str] = dict(result.all())
+        for meeting in meetings.values():
+            meeting["company_name"] = company_by_activity.get(meeting["activity_id"])
+
     return jsonable_encoder(
         {
             "reports": output,
