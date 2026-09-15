@@ -1,7 +1,9 @@
 // 제출한 미팅 기록을 읽는 화면입니다. 작성 화면과 같은 컴포넌트를 읽기 모드로 씁니다.
 import { useEffect, useId, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
+import { errorMessage } from '@/api/errorMessage'
+import { deleteReport } from '@/api/reportAgent'
 import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
@@ -15,16 +17,20 @@ import {
   EditIcon,
   SheetIcon,
   TeamIcon,
+  TrashIcon,
 } from '@/components/icons'
+import Modal from '@/components/Modal'
 import ReportView from '@/components/ReportView'
 import { SkeletonDetail } from '@/components/Skeleton'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
 import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
 import DailyListLink from '@/pages/Daily/components/DailyListLink'
+import { dailyListPath } from '@/pages/Daily/periods'
 import { useAgendaItem } from '@/shared/agenda'
 import { useReportDetail } from '@/shared/reportQuery'
-import { isAuthorEditableReportStatus } from '@/shared/reports'
+import { isApprovedReportStatus, isAuthorEditableReportStatus } from '@/shared/reports'
+import { showToast } from '@/shared/toast'
 import { fmtDay, parseISO } from '@/utils/date'
 import { meetingAttachmentPurposeOf } from '@/utils/attachment'
 import type { MeetingDealSection } from '@/types'
@@ -126,6 +132,10 @@ export default function Detail() {
   // 보고서는 쓴 사람만 고칩니다. 팀장이 팀원의 보고서를 열어도 고치는 길은 서지 않습니다.
   const { memberId } = useCurrentUser()
   const isMine = report?.ownerMemberId === memberId
+  const navigate = useNavigate()
+  // 삭제는 되돌릴 수 없으므로 한 번 물어봅니다.
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [removing, setRemoving] = useState(false)
   // 작성 화면과 같은 손잡이입니다. 보고서만 넓게 읽고 싶을 때 자료 열을 접습니다.
   const [materialsCollapsed, setMaterialsCollapsed] = useState(false)
   // 접으면 누른 손잡이가 화면에서 사라집니다. 남는 쪽 손잡이로 초점을 넘겨 줍니다.
@@ -174,7 +184,22 @@ export default function Detail() {
   }
 
   const editable = isAuthorEditableReportStatus(report.apiStatus)
+  const approved = isApprovedReportStatus(report.apiStatus)
   const meetingDay = parseISO(report.date)
+
+  const removeReport = async () => {
+    setRemoving(true)
+    try {
+      await deleteReport(report.id)
+      showToast('보고서를 삭제했습니다.')
+      setConfirmingRemove(false)
+      navigate(dailyListPath('meeting'))
+    } catch (caught) {
+      showToast(errorMessage(caught, '보고서를 삭제하지 못했습니다.'), { tone: 'error' })
+    } finally {
+      setRemoving(false)
+    }
+  }
 
   return (
     <section>
@@ -224,19 +249,55 @@ export default function Detail() {
           </p>
         </div>
 
+        {/*
+          잠그는 것은 서버입니다(approved 는 더 이상 고칠 수도 지울 수도 없습니다).
+          잠긴 보고서에서도 버튼은 자리를 지키고, 누르면 왜 안 되는지를 말해 줍니다.
+        */}
         <div className={styles.actions}>
-          {/* 잠그는 것은 서버입니다(approved 는 더 이상 고칠 수 없습니다). */}
-          {!editable ? (
-            <span className={styles.sealed}>작성이 완료되어 수정할 수 없습니다</span>
-          ) : isMine ? (
-            <Link
-              className={buttonClass({ variant: 'outline' })}
-              to={meetingComposePath(report.agendaId)}
+          {isMine &&
+            (editable ? (
+              <Link
+                className={buttonClass({ variant: 'outline' })}
+                to={meetingComposePath(report.agendaId)}
+              >
+                <EditIcon width={15} height={15} />
+                수정하기
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  showToast(
+                    approved
+                      ? '확정된 보고서라 수정할 수 없습니다.'
+                      : '작성이 완료되어 수정할 수 없습니다.',
+                    { tone: 'error' },
+                  )
+                }
+              >
+                <EditIcon width={15} height={15} />
+                수정하기
+              </Button>
+            ))}
+
+          {isMine && (
+            <Button
+              type="button"
+              variant="outline"
+              className={styles.danger}
+              onClick={() => {
+                if (approved) {
+                  showToast('확정된 보고서라 삭제할 수 없습니다.', { tone: 'error' })
+                  return
+                }
+                setConfirmingRemove(true)
+              }}
             >
-              <EditIcon width={15} height={15} />
-              수정하기
-            </Link>
-          ) : null}
+              <TrashIcon width={15} height={15} />
+              삭제
+            </Button>
+          )}
 
           {/* 작성 화면과 같은 버튼입니다. 인쇄가 곧 PDF 입니다. */}
           <Button type="button" onClick={() => window.print()}>
@@ -381,6 +442,32 @@ export default function Detail() {
 
       {detailOpen && agenda.item && (
         <RecordDrawer item={agenda.item} onClose={() => setDetailOpen(false)} />
+      )}
+
+      {confirmingRemove && (
+        <Modal
+          title="보고서를 삭제할까요?"
+          description={`${report.hospital} 미팅 보고서가 목록에서 사라집니다.`}
+          onClose={() => setConfirmingRemove(false)}
+          onSubmit={removeReport}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={removing}
+                onClick={() => setConfirmingRemove(false)}
+              >
+                취소
+              </Button>
+              <Button type="submit" variant="outline" className={styles.danger} disabled={removing}>
+                {removing ? '삭제 중…' : '삭제'}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.hint}>지운 보고서는 되살릴 수 없습니다.</p>
+        </Modal>
       )}
     </section>
   )

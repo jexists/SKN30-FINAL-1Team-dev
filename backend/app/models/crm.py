@@ -22,6 +22,9 @@ class CustomerCompany(Base):
     # 층·호수처럼 사람이 직접 적는 부분.
     address_detail: Mapped[str | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    # 살아 있는 고객이 하나도 없어 회사검색에서 감춘 시각. 고객을 다시 등록하면 NULL 로 돌아온다.
+    # 딜·보고서가 이 회사를 참조하고 있어 행은 남고, id 로 읽는 자리는 거르지 않는다.
+    deleted_at: Mapped[datetime | None]
 
 
 class CustomerContact(Base):

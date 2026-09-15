@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { Link } from 'react-router'
 
-import { CheckIcon, CloseIcon, InfoIcon } from '@/components/icons'
+import { CheckIcon, CloseIcon } from '@/components/icons'
 import { dismissToast, getToasts, subscribeToasts } from '@/shared/toast'
 
 import styles from './ToastHost.module.scss'
@@ -28,11 +28,7 @@ export default function ToastHost() {
           aria-live={toast.tone === 'error' ? 'assertive' : 'polite'}
         >
           <span className={styles.mark} aria-hidden="true">
-            {toast.tone === 'error' ? (
-              <InfoIcon width={14} height={14} />
-            ) : (
-              <CheckIcon width={13} height={13} />
-            )}
+            {toast.tone === 'error' ? '!' : <CheckIcon width={13} height={13} />}
           </span>
           <span className={styles.text}>{toast.message}</span>
           {toast.to && toast.actionLabel && (

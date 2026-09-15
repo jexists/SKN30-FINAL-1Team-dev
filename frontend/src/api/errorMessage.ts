@@ -166,7 +166,9 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
     '보고서에 저장된 미팅 메모가 서로 다릅니다. 입력한 내용을 보관한 뒤 최신 내용을 확인해 주세요.',
   meeting_report_changed:
     '실행 중 보고서가 수정되어 AI 결과를 적용하지 않았습니다. 최신 보고서를 확인해 주세요.',
-  report_has_submission_history: '확정 이력이 있는 보고서는 삭제할 수 없습니다.',
+  report_already_approved: '확정된 보고서는 수정하거나 삭제할 수 없습니다.',
+  report_used_as_source: '다른 보고서가 근거로 사용 중이라 삭제할 수 없습니다.',
+  report_delete_blocked: '연결된 자료가 있어 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   meeting_notes_empty: '기록된 공통·미지정 내용은 비워서 저장할 수 없습니다.',
   meeting_notes_without_evidence: '근거가 없는 공통·미지정 항목에는 메모를 추가할 수 없습니다.',
   report_agent_output_invalid:
@@ -187,6 +189,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   recommendation_duration_required: '추천 일정의 소요시간을 선택해 주세요.',
   invalid_recommendation_duration: '소요시간은 30분, 60분, 90분 중에서 선택해 주세요.',
   recommendation_refresh_failed: '새 추천 날짜를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
+  document_owner_required: '등록자와 팀장만 수정·삭제할 수 있습니다.',
   document_summary_not_awaiting_approval:
     '승인 대기 중인 문서 요약이 없습니다. 먼저 OCR·요약을 실행해 주세요.',
   summary_draft_unavailable: '승인 대기 중인 요약 결과를 불러오지 못했습니다. 다시 처리해 주세요.',

@@ -4,7 +4,7 @@
 //
 // 조건은 주소에 둡니다(q·owner·range·category). 목록을 걸러 둔 채로 링크를 건네면
 // 받는 쪽도 같은 화면을 봅니다. 정렬과 페이지는 보는 사람 사정이라 주소에 남기지 않습니다.
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { errorMessage } from '@/api/errorMessage'
@@ -13,12 +13,13 @@ import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import FilterSelect from '@/components/FilterSelect'
 import Modal from '@/components/Modal'
-import { UploadIcon } from '@/components/icons'
+import { TrashIcon, UploadIcon } from '@/components/icons'
 import Pagination, { PAGE_SIZE } from '@/components/Pagination'
 import SearchInput from '@/components/SearchInput'
 import { ListPageSkeleton, TableSkeleton } from '@/components/Skeleton'
 import { useShowOwner } from '@/shared/scope'
-import type { DocumentCategory } from '@/types'
+import { showToast } from '@/shared/toast'
+import type { DocumentCategory, SalesDocument } from '@/types'
 import { addDays, iso, TODAY } from '@/utils/date'
 
 import { fileOf, ROOMS, type RoomId } from './catalog'
@@ -72,6 +73,10 @@ export default function Documents({ room }: Props) {
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  // 목록에서 체크한 자료들. 보이는 쪽에서만 고릅니다.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
   // 올리는 중에 몇 개째인지. 파일 하나가 요청 여러 번이라 개수가 보여야 합니다.
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   // 방금 올려 서버가 접수한 파일들. 올린 직후의 행은 아직 접수 전 상태를 들고 있어서,
@@ -149,6 +154,38 @@ export default function Documents({ room }: Props) {
 
   // 헤더 정렬을 끄므로 누를 일이 없습니다. 고객 목록과 같은 처리입니다.
   const ignoreSort = useCallback(() => undefined, [])
+
+  // 고치고 지울 수 있는 자료인지. 서버와 같은 규칙입니다(document_owner_required).
+  // 목록의 체크박스와 드로어의 메뉴가 이 하나를 같이 봅니다.
+  const canManage = useCallback(
+    (doc: SalesDocument) => isManager || doc.createdByMemberId === memberId,
+    [isManager, memberId],
+  )
+
+  const toggleRow = useCallback((id: string) => {
+    setSelected((previous) => {
+      const next = new Set(previous)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }, [])
+
+  // 전체선택은 지울 수 있는 줄만 다룹니다. 남의 자료는 애초에 고를 수 없습니다.
+  const togglePage = useCallback(() => {
+    setSelected((previous) => {
+      const deletable = pageRows.filter(canManage)
+      const all = deletable.length > 0 && deletable.every((doc) => previous.has(doc.id))
+      const next = new Set(previous)
+      deletable.forEach((doc) => (all ? next.delete(doc.id) : next.add(doc.id)))
+      return next
+    })
+  }, [canManage, pageRows])
+
+  // 조건이나 쪽이 바뀌면 보이는 줄이 통째로 달라집니다. 안 보이는 자료가 선택에
+  // 남아 있으면 지울 때 무엇이 사라질지 알 수 없습니다.
+  useEffect(() => {
+    setSelected(new Set())
+  }, [documentQuery])
 
   const clearFilters = useCallback(() => {
     setParams(new URLSearchParams(), { replace: true })
@@ -240,6 +277,43 @@ export default function Documents({ room }: Props) {
     }
   }, [openDoc, reload, removeDocument])
 
+  // 실제로 지울 자료입니다. 보이는 줄에서만 뽑으므로, 드로어에서 한 건을 먼저
+  // 지웠거나 목록이 다시 들어와 줄이 사라져도 개수가 저절로 맞습니다.
+  const picked = useMemo(
+    () => pageRows.filter((doc) => selected.has(doc.id) && canManage(doc)),
+    [canManage, pageRows, selected],
+  )
+
+  // 고른 자료를 한 건씩 지웁니다. 한 건이 실패해도 나머지는 계속 지웁니다.
+  // 훅의 오류 안내는 건마다 덮어써서 마지막 것만 남으므로, 결과는 여기서 세어
+  // 모달 안에 직접 씁니다.
+  const confirmBulkDelete = useCallback(async () => {
+    const failed: string[] = []
+    for (const doc of picked) {
+      try {
+        await removeDocument(doc.id)
+      } catch {
+        failed.push(doc.id)
+      }
+    }
+    const done = picked.length - failed.length
+    // 목록에서는 빠졌지만 분류 탭 옆 건수와 합계는 서버가 셉니다. 다시 받아 맞춥니다.
+    reload()
+    if (failed.length === 0) {
+      setSelected(new Set())
+      setBulkDeleting(false)
+      showToast(`${done}건을 삭제했습니다.`)
+      return
+    }
+    // 실패한 것만 남겨 둡니다. 모달을 닫지 않고 그대로 다시 시도할 수 있습니다.
+    setSelected(new Set(failed))
+    setBulkError(
+      done === 0
+        ? `${failed.length}건을 삭제하지 못했습니다.`
+        : `${done}건을 삭제했고 ${failed.length}건은 삭제하지 못했습니다.`,
+    )
+  }, [picked, reload, removeDocument])
+
   const isFiltered =
     query.trim() !== '' || owner !== '' || category !== '' || range !== DEFAULT_RANGE
 
@@ -292,6 +366,20 @@ export default function Documents({ room }: Props) {
         />
 
         <div className={styles.actions}>
+          {/* 고른 것이 있을 때만 섭니다. 평소에는 업로드 버튼 하나뿐인 툴바입니다. */}
+          {picked.length > 0 && (
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                setBulkError(null)
+                setBulkDeleting(true)
+              }}
+            >
+              <TrashIcon width={15} height={15} />
+              선택 {picked.length}건 삭제
+            </Button>
+          )}
           <Button disabled={pending} onClick={() => setUploading(true)}>
             <UploadIcon width={15} height={15} />
             파일 업로드
@@ -319,6 +407,10 @@ export default function Documents({ room }: Props) {
           onClearFilters={clearFilters}
           showOwner={showOwner}
           onUpload={() => setUploading(true)}
+          selected={selected}
+          onToggleRow={toggleRow}
+          onTogglePage={togglePage}
+          canDelete={canManage}
         />
       )}
 
@@ -335,7 +427,7 @@ export default function Documents({ room }: Props) {
           onLoadSummary={loadOpenDocumentSummary}
           watchFileId={queuedFileIds.find((id) => id === fileOf(openDoc).id)}
           onApproveSummary={approveOpenDocument}
-          canManage={isManager || openDoc.createdByMemberId === memberId}
+          canManage={canManage(openDoc)}
           onEdit={() => setEditing(true)}
           onDelete={() => {
             setDeleteError(null)
@@ -381,6 +473,35 @@ export default function Documents({ room }: Props) {
           {deleteError && (
             <p className={styles.confirmError} role="alert">
               {deleteError}
+            </p>
+          )}
+        </Modal>
+      )}
+
+      {bulkDeleting && picked.length > 0 && (
+        <Modal
+          title={`선택한 자료 ${picked.length}건을 삭제하시겠습니까?`}
+          onClose={() => setBulkDeleting(false)}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => setBulkDeleting(false)}
+              >
+                취소
+              </Button>
+              <Button type="button" disabled={pending} onClick={() => void confirmBulkDelete()}>
+                {pending ? '삭제 중…' : '삭제'}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.confirm}>삭제한 자료는 목록과 AI 검색에서 사라집니다.</p>
+          {bulkError && (
+            <p className={styles.confirmError} role="alert">
+              {bulkError}
             </p>
           )}
         </Modal>

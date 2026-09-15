@@ -36,7 +36,7 @@ EXPECTED_COLUMN_COUNTS = {
     # 20260824_0003 으로 customer_company 에 business_no,
     # customer_contact 에 created_by_member_id 가 늘고 customer_contact_assignee 가 생겼다.
     # 20260826_0009 로 customer_company 에 postcode/address/address_detail 이 늘었다.
-    "customer_company": 9,
+    "customer_company": 10,
     # 20260824_0004 로 customer_contact 에 visited 가 늘었다.
     # 20260911_0030·0031 로 fax·telephone 이 늘었다.
     "customer_contact": 17,
