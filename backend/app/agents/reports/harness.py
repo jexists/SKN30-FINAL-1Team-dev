@@ -148,7 +148,7 @@ class FinalEvaluation(BaseModel):
     draft_version: int = Field(ge=2, le=2)
     summary: str = Field(
         min_length=1,
-        max_length=100,
+        max_length=200,
         pattern=r"\S",
         description=(
             "보고서 전체 품질을 한 문장(20자 내외)으로 평가. "
