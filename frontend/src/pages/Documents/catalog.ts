@@ -8,6 +8,15 @@ import type {
 
 export type CategoryTone = 'blue' | 'purple' | 'green' | 'orange' | 'gray'
 
+/**
+ * 고치거나 지울 수 없는 자료 앞에 세우는 사유입니다. 서버가 같은 규칙으로
+ * `document_owner_required` 를 돌려주므로 문구도 `errorMessage.ts` 와 맞춥니다.
+ */
+export const OWNER_ONLY = '등록자와 팀장만 수정·삭제할 수 있습니다.'
+
+/** 목록의 체크박스는 지우는 일만 하므로 삭제만 말합니다. */
+export const OWNER_ONLY_DELETE = '등록자와 팀장만 삭제할 수 있습니다.'
+
 export const DOCUMENT_CATEGORIES: DocumentCategory[] = [
   '견적서',
   '계약서',

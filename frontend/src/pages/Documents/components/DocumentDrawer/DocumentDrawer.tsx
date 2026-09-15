@@ -25,7 +25,7 @@ import type { DocumentSummaryResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 import { fmtDay, parseISO } from '@/utils/date'
 
-import { KIND_LABEL, fileOf, sourceMode } from '../../catalog'
+import { KIND_LABEL, OWNER_ONLY, fileOf, sourceMode } from '../../catalog'
 import { linkLabel } from '../../columns'
 import {
   downloadArtifact,
@@ -321,51 +321,55 @@ export default function DocumentDrawer({
       sub={doc.documentNo ?? doc.id}
       onClose={onClose}
       actions={
-        // 고칠 수도 지울 수도 없으면 메뉴에 남는 항목이 없어 버튼째 감춘다.
-        !canManage ? undefined : (
-          <Popover
-            open={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            align="end"
-            compact
-            label="자료 메뉴"
-            trigger={
-              <button
-                type="button"
-                className={styles.menuBtn}
-                aria-label="자료 메뉴"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((value) => !value)}
-              >
-                <MoreIcon width={18} height={18} />
-              </button>
-            }
-          >
-            <div className={styles.menu}>
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false)
-                  onEdit()
-                }}
-              >
-                <EditIcon width={15} height={15} />
-                수정
-              </button>
-              <button
-                type="button"
-                className={styles.danger}
-                onClick={() => {
-                  setMenuOpen(false)
-                  onDelete()
-                }}
-              >
-                <TrashIcon width={15} height={15} />
-                삭제
-              </button>
-            </div>
-          </Popover>
-        )
+        // 고칠 수도 지울 수도 없어도 메뉴는 그대로 세웁니다. 항목을 감추면 왜 못 하는지
+        // 알 길이 없어, 비활성으로 보여 주고 사유를 아래에 적습니다.
+        <Popover
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          align="end"
+          compact
+          label="자료 메뉴"
+          trigger={
+            <button
+              type="button"
+              className={styles.menuBtn}
+              aria-label="자료 메뉴"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((value) => !value)}
+            >
+              <MoreIcon width={18} height={18} />
+            </button>
+          }
+        >
+          <div className={styles.menu}>
+            <button
+              type="button"
+              disabled={!canManage}
+              title={canManage ? undefined : OWNER_ONLY}
+              onClick={() => {
+                setMenuOpen(false)
+                onEdit()
+              }}
+            >
+              <EditIcon width={15} height={15} />
+              수정
+            </button>
+            <button
+              type="button"
+              className={styles.danger}
+              disabled={!canManage}
+              title={canManage ? undefined : OWNER_ONLY}
+              onClick={() => {
+                setMenuOpen(false)
+                onDelete()
+              }}
+            >
+              <TrashIcon width={15} height={15} />
+              삭제
+            </button>
+            {!canManage && <p className={styles.menuHint}>{OWNER_ONLY}</p>}
+          </div>
+        </Popover>
       }
       meta={
         <>

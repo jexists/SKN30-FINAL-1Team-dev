@@ -183,6 +183,7 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
   product_not_found: '상품을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   product_image_not_found: '등록된 사진이 없습니다.',
   document_link_conflict: '상품과 딜은 동시에 연결할 수 없습니다. 하나만 선택해 주세요.',
+  document_owner_required: '등록자와 팀장만 수정·삭제할 수 있습니다.',
   document_summary_not_awaiting_approval:
     '승인 대기 중인 문서 요약이 없습니다. 먼저 OCR·요약을 실행해 주세요.',
   summary_draft_unavailable: '승인 대기 중인 요약 결과를 불러오지 못했습니다. 다시 처리해 주세요.',

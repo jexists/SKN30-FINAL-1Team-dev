@@ -63,6 +63,34 @@
   cursor: pointer;
 }
 
+/* ---- 선택 칸 ---- */
+
+.checkCell {
+  padding: 0 0 0 var(--s4) !important;
+
+  input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+
+  // 지울 수 없는 자료입니다. 잠긴 것이 보이도록 남겨 두고 사유는 title 이 말합니다.
+  input:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+}
+
+/* 고른 줄. hover 배경보다 세야 해서 !important 로 덮습니다. */
+.isSelected td {
+  background: var(--blue-tint) !important;
+
+  &:first-child {
+    box-shadow: inset 3px 0 var(--blue);
+  }
+}
+
 /**
  * 파일명 칸의 키보드용 손잡이입니다. 누를 곳은 줄 전체이므로 밑줄은 긋지 않습니다.
  */
@@ -247,13 +275,40 @@
   @include card;
   padding: var(--s3) var(--s4);
   cursor: pointer;
+
+  // 고른 카드. 표의 선택 줄과 같은 색으로 세웁니다.
+  &.isSelected {
+    background: var(--blue-tint);
+    box-shadow: inset 3px 0 var(--blue);
+  }
 }
 
 .miniHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--s2);
+
+  // 체크박스와 분류 배지는 폭이 고정이고, 남는 자리를 제목이 씁니다.
+  .openButton {
+    flex: 1;
+  }
+}
+
+.miniCheck {
+  display: flex;
+  flex: none;
+  align-items: center;
+
+  input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--blue);
+  }
+
+  input:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
 }
 
 .miniLink {
