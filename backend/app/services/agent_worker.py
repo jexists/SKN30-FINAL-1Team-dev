@@ -56,6 +56,14 @@ REQUIRED_SCHEMA = {
         "request_hash",
         "attachments_snapshot",
     },
+    "report_context_chunk": {
+        "report_submission_id",
+        "report_id",
+        "team_id",
+        "content",
+        "embedding_vector",
+        "embedding_model",
+    },
     "report_attachment": {"id", "report_id", "team_id", "expires_at", "extracted_text"},
     "report_source": set(),
 }
@@ -124,6 +132,12 @@ async def claim(lease_owner: str, run_id: UUID | None = None) -> AgentRun | None
             # 구 contract pipeline은 request_hash 없이 행을 만든 뒤 같은 프로세스에서
             # execute(run_id)를 직접 호출한다. 범용 worker는 새 영속 요청만 선점한다.
             conditions.append(AgentRun.request_hash.is_not(None))
+            worker_pool = AgentRun.source_refs["_worker_pool"].astext
+            if settings.app_env == "production":
+                # 분리 필드 도입 전에 쌓인 행은 기존 배포 큐이므로 production이 이어서 처리한다.
+                conditions.append(or_(worker_pool.is_(None), worker_pool == "production"))
+            else:
+                conditions.append(worker_pool == settings.app_env)
         run = (
             await session.execute(
                 select(AgentRun)
@@ -762,7 +776,8 @@ async def check_schema() -> None:
                     WHERE table_schema = 'public'
                       AND table_name IN (
                         'agent_run', 'report', 'report_deal',
-                        'report_submission', 'report_source', 'report_attachment'
+                        'report_submission', 'report_source', 'report_attachment',
+                        'report_context_chunk'
                       )
                     """
                 )

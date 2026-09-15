@@ -457,6 +457,7 @@ async def create_report_generation(
         # ORM에서 읽은 UUID/datetime이 들어와도 JSONB 저장 경계에서는 JSON 값만 남긴다.
         input_snapshot = jsonable_encoder(input_snapshot)
         source_refs = jsonable_encoder(source_refs)
+        source_refs["_worker_pool"] = settings.app_env
         generation_input = payload.model_dump(mode="json", exclude={"idempotency_key"})
         run = AgentRun(
             id=uuid4(),
@@ -587,7 +588,7 @@ async def create(
             request_snapshot=request_snapshot,
             request_hash=request_hash,
             scope_key=None,
-            source_refs=_request_source_refs(payload),
+            source_refs={**_request_source_refs(payload), "_worker_pool": settings.app_env},
             # NOT NULL인 구 계약을 유지한다. worker가 만든 실제 입력으로 교체된다.
             input_snapshot={},
             output_snapshot=None,

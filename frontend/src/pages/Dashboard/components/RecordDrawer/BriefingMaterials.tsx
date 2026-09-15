@@ -6,10 +6,9 @@ import styles from './RecordDrawer.module.scss'
 interface Props {
   documents?: BriefingDocuments
   citedDocumentIds: Set<string>
-  hasDeal: boolean
 }
 
-export default function BriefingMaterials({ documents, citedDocumentIds, hasDeal }: Props) {
+export default function BriefingMaterials({ documents, citedDocumentIds }: Props) {
   const row = (document: BriefingDocument) => (
     <li key={document.document_id}>
       <span className={styles.sourceName}>
@@ -67,11 +66,7 @@ export default function BriefingMaterials({ documents, citedDocumentIds, hasDeal
         {documents?.product.length ? (
           <ul className={styles.sourceList}>{documents.product.map(row)}</ul>
         ) : (
-          <p className={styles.note}>
-            {hasDeal
-              ? '이 브리핑에 저장된 제품 자료가 없습니다.'
-              : '같은 고객사의 최근 영업 딜에서 확인된 제품 자료가 없습니다.'}
-          </p>
+          <p className={styles.note}>최근 보고서와 고객사 딜에서 확인된 제품 자료가 없습니다.</p>
         )}
       </section>
       <section className={styles.sources} aria-label="관련 자료">

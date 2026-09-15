@@ -23,7 +23,11 @@ export async function dismissNextMeetingSuggestion(salesDealId: string): Promise
   await client.post(`/contract-next-meeting-suggestions/${salesDealId}/dismiss`)
 }
 
-// 브리핑 실행은 별도로 트리거하지 않는다 — `POST /activities`에 schedule_management 실행
-// id(`scheduleManagementRunId`)를 실어 보내면 서버가 등록 커밋 직후 자동으로 큐잉하고,
-// 같은 요청 안에서 이 제안의 상태도 accepted로 바꾼다
-// (backend/app/api/activities.py `create_activity`).
+/** 저장된 최신 보고서·자료를 다시 읽어 일정 브리핑을 재생성한다. */
+export async function regenerateBriefing(activityId: string): Promise<void> {
+  await client.post('/agent-runs', {
+    agent_code: 'contract_management_briefing',
+    activity_id: activityId,
+    idempotency_key: crypto.randomUUID(),
+  })
+}

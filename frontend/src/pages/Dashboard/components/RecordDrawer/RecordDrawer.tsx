@@ -125,7 +125,10 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     briefing,
     loading: briefingLoading,
     error: briefingError,
-  } = useAiBriefing({ activityId: item.id, eligible: !!item.customerContactId })
+    regenerate: regenerateBriefing,
+    regenerating: briefingRegenerating,
+    regenerateError: briefingRegenerateError,
+  } = useAiBriefing({ activityId: item.id, eligible: !!item.customerCompanyId })
   const briefingContent = briefingView(briefing?.content)
   // 인용 여부는 목록을 거르는 조건이 아니라 줄에 붙는 표시입니다. 브리핑이 인용을
   // 빠뜨려도 자료 자체는 보여야 하고, 브리핑이 실패해도 목록은 남아야 합니다.
@@ -326,28 +329,28 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
             🤖 AI 브리핑
             {/* 갱신 중이라는 표시는 제목 옆에만 둡니다. 본문은 그대로 두고 읽게 합니다. */}
             {briefing?.refreshing && <span className={styles.refreshTag}>최신 자료 반영 중</span>}
+            {item.customerCompanyId && (
+              <Button
+                className={styles.refreshButton}
+                variant="ghost"
+                size="sm"
+                disabled={briefingLoading || briefingRegenerating || briefing?.refreshing}
+                onClick={regenerateBriefing}
+              >
+                {briefingRegenerating || briefing?.refreshing
+                  ? '재생성 중'
+                  : '최신 내용으로 재생성'}
+              </Button>
+            )}
           </h3>
-          {item.customerContactId && (
-            <div
-              className={`${styles.briefingScope} ${
-                item.salesDealId ? styles.briefingScopeLinked : styles.briefingScopeCompany
-              }`}
-              role="status"
-            >
-              <strong>
-                {item.salesDealId ? '연결된 영업 딜 기준' : '동일 고객사의 최근 영업 딜 기준'}
-              </strong>
-              <span>
-                {item.salesDealId
-                  ? '이 일정에 지정된 딜의 정보를 사용합니다.'
-                  : '일정에 지정된 딜이 없어 최근 열린 딜을 최대 5건 확인합니다.'}
-              </span>
+          {item.customerCompanyId && (
+            <div className={`${styles.briefingScope} ${styles.briefingScopeCompany}`} role="status">
+              <strong>고객사 보고서 기준</strong>
+              <span>최근 보고서 3건과 과거 보고서 RAG, 고객사의 전체 딜을 참고합니다.</span>
             </div>
           )}
-          {!item.customerContactId ? (
-            <p className={styles.note}>
-              담당자 연락처가 연결되지 않아 AI 브리핑을 만들 수 없습니다.
-            </p>
+          {!item.customerCompanyId ? (
+            <p className={styles.note}>고객사가 연결되지 않아 AI 브리핑을 만들 수 없습니다.</p>
           ) : briefingError ? (
             <p className={styles.note} role="alert">
               {briefingError}
@@ -370,6 +373,11 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
               {briefing.refresh_error && (
                 <p className={styles.refreshError} role="status">
                   최신 자료로 다시 만들지 못했습니다. 이전 브리핑을 보여드립니다.
+                </p>
+              )}
+              {briefingRegenerateError && (
+                <p className={styles.refreshError} role="alert">
+                  {briefingRegenerateError}
                 </p>
               )}
               {briefingContent.highlights.length > 0 ? (
@@ -412,12 +420,13 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
               )}
             </>
           )}
+          {briefingRegenerateError && !briefingContent && (
+            <p className={styles.refreshError} role="alert">
+              {briefingRegenerateError}
+            </p>
+          )}
           {!briefingLoading && briefing && (
-            <BriefingMaterials
-              documents={briefing.documents}
-              citedDocumentIds={citedDocumentIds}
-              hasDeal={!!item.salesDealId}
-            />
+            <BriefingMaterials documents={briefing.documents} citedDocumentIds={citedDocumentIds} />
           )}
         </section>
 

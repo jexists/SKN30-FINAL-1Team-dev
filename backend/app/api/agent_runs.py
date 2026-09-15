@@ -4,11 +4,12 @@ from time import monotonic
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from app.api.deps import CurrentMember, DbSession, get_current_member
+from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
 from app.schemas.agent_runs import (
@@ -36,11 +37,15 @@ RETRY_AFTER_SECONDS = 2
 async def create_agent_run(
     payload: AgentRunCreate,
     response: Response,
+    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> AgentRunRead:
     """요청을 DB 큐에 먼저 등록한다. 별도 worker가 입력 구성부터 실행까지 맡는다."""
-    read, _ = await agent_run_service.create(payload, member, db)
+    read, run_id = await agent_run_service.create(payload, member, db)
+    if settings.app_env == "local" and run_id is not None:
+        # 공유 개발 DB의 다른 워커가 로컬 실행을 먼저 선점하지 않게 응답 직후 직접 선점한다.
+        background.add_task(agent_run_service.execute, run_id)
     # 어디를 언제 다시 조회할지 응답 헤더로 알려준다.
     response.headers["Location"] = f"/api/agent-runs/{read.id}"
     response.headers["Retry-After"] = str(RETRY_AFTER_SECONDS)

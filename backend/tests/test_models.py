@@ -89,6 +89,7 @@ EXPECTED_COLUMN_COUNTS = {
     "report": 31,
     "report_deal": 13,
     "report_submission": 17,
+    "report_context_chunk": 7,
     "report_attachment": 11,
     "report_source": 4,
     "report_activity": 2,
@@ -154,7 +155,7 @@ def test_all_database_tables_are_mapped():
         for table in Base.metadata.tables.values()
         for foreign_key in table.foreign_key_constraints
     ]
-    assert len(foreign_key_constraints) == 114
+    assert len(foreign_key_constraints) == 117
     assert all(
         element.column.table.schema == "public"
         for foreign_key in foreign_key_constraints

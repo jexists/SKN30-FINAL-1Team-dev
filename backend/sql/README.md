@@ -37,6 +37,14 @@
   없던 시드 회사 3231곳은 그대로 검색됩니다. 운영 DB 반영은 배포 절차에서 별도로 적용해야
   합니다.
 
+- `20260915_0036_report_context_rag.sql`: 모든 보고서 제출본을 `report_context_chunk`에
+  백필하고 새 제출본은 DB 트리거로 즉시 적재합니다. 브리핑 검색은 미팅 시점 기준의 현재
+  제출본만 읽으며, 최근 3건도 RAG 검색 대상에서 제외하지 않습니다. 로컬 PostgreSQL
+  `salesluv-report-rag-test`에 전체 migration과 백필·신규 제출 트리거를 검증했습니다.
+  원격 DB에는 아직 적용하지 않았습니다. 기존 문맥의 의미검색 벡터는 적용 대상 팀별로
+  `uv run python -m scripts.backfill_report_context_vectors --team-id <TEAM_UUID> --apply`를
+  실행해 채우며, 실행 전에는 키워드 RAG로 동작합니다.
+
 - `20260914_0034_team_configuration_backfill.sql`: 어드민 계정 발급으로 만든 팀에 빠져 있던
   팀별 기본값(고객 상태·활동 카테고리·활동 태그·거래 유형·발주/견적/계약 상태와 기본 영업
   파이프라인·단계)을 채웁니다. 스키마는 바꾸지 않는 데이터 보정이며, id를

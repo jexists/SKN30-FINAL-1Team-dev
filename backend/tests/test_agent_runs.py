@@ -2,12 +2,13 @@ import asyncio
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import httpx
 import openai
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException, Response
 from fastapi.testclient import TestClient
 from langchain_openai import StreamChunkTimeoutError
 from pydantic import ValidationError
@@ -22,6 +23,7 @@ from app.agents import (
 from app.agents.meeting import features as meeting_analysis
 from app.agents.reports import harness, review_delivery
 from app.agents.reports import meeting as report_writing_deep
+from app.api import agent_runs as agent_runs_api
 from app.api.deps import get_current_member
 from app.core.config import settings
 from app.db.session import get_db
@@ -42,6 +44,34 @@ ORIGIN = settings.cors_origin_list[0]
 NOW = datetime(2026, 8, 17, 9, tzinfo=UTC)
 TEMPLATE = {"fields": [{"id": "body", "label": "본문"}]}
 _MISSING = object()
+
+
+@pytest.mark.anyio
+async def test_local_api_immediately_claims_its_new_agent_run(monkeypatch):
+    run_id = uuid4()
+    read = SimpleNamespace(id=run_id)
+    create = AsyncMock(return_value=(read, run_id))
+    execute = AsyncMock()
+    monkeypatch.setattr(agent_runs_api.agent_run_service, "create", create)
+    monkeypatch.setattr(agent_runs_api.agent_run_service, "execute", execute)
+    monkeypatch.setattr(agent_runs_api.settings, "app_env", "local")
+    background = BackgroundTasks()
+
+    result = await agent_runs_api.create_agent_run(
+        AgentRunCreate(
+            agent_code="contract_management_briefing",
+            activity_id=uuid4(),
+            idempotency_key=uuid4(),
+        ),
+        Response(),
+        background,
+        SimpleNamespace(),
+        SimpleNamespace(),
+    )
+    await background()
+
+    assert result is read
+    execute.assert_awaited_once_with(run_id)
 
 
 class _Secret:
@@ -128,6 +158,7 @@ def reset_dependency_overrides():
 
 @pytest.fixture
 def llm_ready(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "test")
     monkeypatch.setattr(settings, "llm_api_url", "https://provider.invalid/v1/responses")
     monkeypatch.setattr(settings, "llm_model", "test-model")
     monkeypatch.setattr(settings, "llm_api_key", _Secret("super-secret-key"))
@@ -281,15 +312,18 @@ def test_generic_agent_requests_are_queued(
     assert run.agent_code == agent_code
     assert run.prompt_version == expected_prompt
     assert run.report_id is None and run.input_snapshot == {}
-    assert run.source_refs == (
-        expected_refs
-        if expected_refs is not None
-        else {
+    assert run.source_refs == {
+        **(
+            expected_refs
+            if expected_refs is not None
+            else {
             key: str(value)
             for key, value in identifying.items()
             if key in {"customer_company_id", "sales_deal_id", "activity_id"}
-        }
-    )
+            }
+        ),
+        "_worker_pool": settings.app_env,
+    }
     assert run.parent_run_id is None
     assert db.commit_count == 1
 
@@ -1379,6 +1413,8 @@ async def test_worker_claim_excludes_expired_or_redacted_report_payloads(monkeyp
     assert "agent_run.payload_expires_at" in statement
     assert "agent_run.payload_redacted_at IS NULL" in statement
     assert "agent_run.request_hash IS NOT NULL" in statement
+    assert "_worker_pool" in params
+    assert settings.app_env in params
     assert "schedule_management" in params
     assert "meeting_analysis" in params
 

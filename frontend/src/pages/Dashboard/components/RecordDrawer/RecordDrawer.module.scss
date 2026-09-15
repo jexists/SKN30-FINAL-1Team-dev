@@ -324,6 +324,10 @@
   vertical-align: middle;
 }
 
+.refreshButton {
+  margin-left: auto;
+}
+
 // 사용자가 브리핑의 딜 범위를 본문과 혼동하지 않도록 제목 바로 아래에 항상 표시합니다.
 .briefingScope {
   display: flex;
@@ -343,12 +347,6 @@
   span {
     color: var(--ink-2);
   }
-}
-
-.briefingScopeLinked {
-  border-color: #b9dfca;
-  background: var(--green-tint);
-  color: var(--green-ink);
 }
 
 .briefingScopeCompany {

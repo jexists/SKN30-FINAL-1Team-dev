@@ -1,6 +1,6 @@
 import copy
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -731,7 +731,7 @@ async def test_build_schedule_snapshot_without_parent_uses_request_preferred_win
 
 @pytest.mark.anyio
 async def test_build_schedule_snapshot_widens_a_narrow_preferred_window():
-    """계약관리가 "30분 한 칸"을 줘도 첫 실행 전에 최소 폭을 확보한다.
+    """여러 날에 걸친 일반 추천 기간이 너무 좁으면 첫 실행 전에 최소 폭을 확보한다.
 
     좁은 기간으로는 후보가 거의 나오지 않는다 — 실측에서 폭 1일 이하 실행의 평균 후보는
     2.0개였다. 실패한 뒤에 넓혀 다시 부르는 대신, 부르기 전에 넓힌다.
@@ -743,7 +743,7 @@ async def test_build_schedule_snapshot_widens_a_narrow_preferred_window():
         _Result(scalar_values=[]),
     )
     base = datetime.now(UTC)
-    starts_at = (base + timedelta(days=3)).isoformat()
+    starts_at = (base + timedelta(days=3)).replace(hour=14).isoformat()
 
     snapshot = await snapshots.build_schedule_snapshot(
         db,
@@ -751,7 +751,7 @@ async def test_build_schedule_snapshot_widens_a_narrow_preferred_window():
         deal.id,
         None,
         starts_at,
-        (base + timedelta(days=3, minutes=30)).isoformat(),
+        (base + timedelta(days=4)).replace(hour=15).isoformat(),
         30,
     )
 
@@ -763,6 +763,26 @@ async def test_build_schedule_snapshot_widens_a_narrow_preferred_window():
             datetime.fromisoformat(starts_at) + timedelta(days=snapshots._MIN_PREFERRED_WINDOW_DAYS)
         ).isoformat()
     )
+
+
+@pytest.mark.anyio
+async def test_build_schedule_snapshot_keeps_an_explicit_single_day_window():
+    member = _member()
+    deal = _deal(member)
+    db = _Db(
+        _Result(scalar=deal),
+        _Result(scalar_values=[]),
+    )
+    target = datetime.now(snapshots._SEOUL).date() + timedelta(days=7)
+    starts_at = datetime.combine(target, time(9), tzinfo=snapshots._SEOUL).isoformat()
+    ends_at = datetime.combine(target, time(18), tzinfo=snapshots._SEOUL).isoformat()
+
+    snapshot = await snapshots.build_schedule_snapshot(
+        db, member, deal.id, None, starts_at, ends_at, 60
+    )
+
+    assert snapshot["preferred_starts_at"] == starts_at
+    assert snapshot["preferred_ends_at"] == ends_at
 
 
 @pytest.mark.anyio
@@ -970,16 +990,75 @@ async def test_next_meeting_snapshot_rejects_a_deal_outside_the_company():
 # ---- build_briefing_snapshot: 자료요약 RAG 연결 ----
 
 
-def _briefing_db(member, company, activity, deals, *, reports=None):
+def _briefing_db(
+    member,
+    company,
+    activity,
+    deals,
+    *,
+    reports=None,
+    has_prior_meeting=None,
+    mentioned_products=None,
+    product_documents=None,
+):
     """build_briefing_snapshot 이 순서대로 실행하는 DB 조회에 답한다."""
-    return _Db(
-        _Result(rows=[(activity, company)]),  # 일정 + 고객사
-        _Result(scalar=company),  # _company_or_404
-        _Result(rows=deals),  # _open_deals
-        _Result(rows=reports or []),  # _recent_finalized_reports
-        _Result(scalar_values=[]),  # 딜 대표 제품
-        _Result(scalar_values=[]),  # 견적 제품
+    recent_rows = []
+    for report, section in reports or []:
+        snapshot = {
+            "title": getattr(report, "title", None),
+            "common_body": getattr(report, "common_body", None),
+            "unassigned_body": getattr(report, "unassigned_body", None),
+            "deals": (
+                []
+                if section is None
+                else [
+                    {
+                        "sales_deal_id": str(section.sales_deal_id),
+                        "title": getattr(section, "title", None),
+                        "body": getattr(section, "body", None),
+                    }
+                ]
+            ),
+        }
+        recent_rows.append(
+            (
+                report,
+                SimpleNamespace(
+                    id=uuid4(),
+                    submitted_at=datetime(2026, 9, 2, tzinfo=UTC),
+                    snapshot=snapshot,
+                ),
+            )
+        )
+    contact = SimpleNamespace(
+        id=activity.customer_contact_id,
+        name="김테스트",
+        department="영업기획",
+        job_title="팀장",
     )
+    results = [
+        _Result(rows=[(activity, company, contact)]),  # 일정 + 고객사 + 참석자
+        _Result(scalar=company),  # _company_or_404
+        _Result(rows=deals),  # _company_deals
+        _Result(rows=recent_rows),  # recent_reports
+        _Result(
+            scalar=(
+                uuid4()
+                if (bool(reports) if has_prior_meeting is None else has_prior_meeting)
+                else None
+            )
+        ),  # 이전 미팅
+    ]
+    if deals:
+        results.extend(
+            [_Result(scalar_values=[]), _Result(scalar_values=[])]  # 딜·견적 제품
+        )
+    if reports:
+        results.append(_Result(rows=mentioned_products or []))
+    if mentioned_products:
+        results.append(_Result(rows=product_documents or []))
+        results.append(_Result(scalar_values=[name for _, name in mentioned_products]))
+    return _Db(*results)
 
 
 def _briefing_fixture():
@@ -994,20 +1073,22 @@ def _briefing_fixture():
         id=uuid4(),
         team_id=member.team_id,
         owner_member_id=member.id,
+        customer_contact_id=uuid4(),
         sales_deal_id=deal.id,
         title="계약 갱신 미팅",
         starts_at=datetime(2026, 9, 3, 5, tzinfo=UTC),
         ends_at=datetime(2026, 9, 3, 6, tzinfo=UTC),
         all_day=False,
         location="본원 3층",
+        note="납기와 설치 조건을 확인합니다.",
         deleted_at=None,
     )
     return member, company, deal, activity
 
 
 @pytest.mark.anyio
-async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypatch):
-    """자료는 딜에만 붙기도 하고 고객사에만 붙기도 해서 둘 다 넘겨야 한다."""
+async def test_briefing_snapshot_searches_documents_by_company(monkeypatch):
+    """일정은 회사 범위이고, 딜 자료도 고객사를 거쳐 조회한다."""
     member, company, deal, activity = _briefing_fixture()
     captured = {}
     context = {"query": "테스트 병원", "summaries": [], "sources": [{"document_id": "doc-1"}]}
@@ -1021,14 +1102,15 @@ async def test_briefing_snapshot_searches_documents_by_deal_and_company(monkeypa
     db = _briefing_db(member, company, activity, [(deal, _stage())])
     snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
 
-    assert captured["sales_deal_id"] == deal.id
+    assert captured["sales_deal_id"] is None
     assert captured["customer_company_id"] == company.id
     assert captured["team_id"] == member.team_id
     # 검색어는 결정적으로 조립한다 — 여기서 LLM 을 한 번 더 부르지 않는다.
-    assert captured["query"] == "테스트 병원 계약 갱신 미팅 초음파 장비 계약"
+    assert captured["query"].startswith("테스트 병원 계약 갱신 미팅")
+    assert "초음파 장비 계약" in captured["query"]
     assert snapshot["document_context"]["sources"] == context["sources"]
     assert snapshot["document_context"]["product_documents"] == []
-    assert "sales_deal.customer_company_id = public.customer_company.id" in str(db.statements[0])
+    assert "activity.customer_company_id = public.customer_company.id" in str(db.statements[0])
 
 
 @pytest.mark.anyio
@@ -1047,16 +1129,42 @@ async def test_briefing_snapshot_uses_recent_company_deals_when_activity_has_no_
     snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
 
     assert [item["id"] for item in snapshot["sales_deals"]] == [str(deal.id)]
-    assert snapshot["approved_next_meeting"]["sales_deal_id"] is None
-    assert snapshot["approved_next_meeting"]["candidate_sales_deal_ids"] == [str(deal.id)]
-    assert snapshot["approved_next_meeting"]["deal_scope"] == "recent_company_deals"
+    assert snapshot["briefing_mode"] == "first_meeting"
+    assert "sales_deal_id" not in snapshot["approved_next_meeting"]
+    assert "candidate_sales_deal_ids" not in snapshot["approved_next_meeting"]
+    assert snapshot["approved_next_meeting"]["note"] == "납기와 설치 조건을 확인합니다."
+    assert snapshot["approved_next_meeting"]["customer_contact"] == {
+        "id": str(activity.customer_contact_id),
+        "name": "김테스트",
+        "department": "영업기획",
+        "job_title": "팀장",
+    }
     assert captured["customer_company_id"] == company.id
     open_deals_query = db.statements[2].compile(dialect=postgresql.dialect())
-    assert 5 in open_deals_query.params.values()
+    assert "phase_code !=" not in str(open_deals_query)
+    assert "LIMIT" not in str(open_deals_query)
 
 
 @pytest.mark.anyio
-async def test_briefing_snapshot_carries_ten_recent_reports_instead_of_risks(monkeypatch):
+async def test_briefing_snapshot_does_not_call_a_later_meeting_first_when_reports_are_empty(
+    monkeypatch,
+):
+    member, company, _deal_row, activity = _briefing_fixture()
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+    db = _briefing_db(member, company, activity, [], has_prior_meeting=True)
+
+    snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
+
+    assert snapshot["recent_reports"] == []
+    assert snapshot["briefing_mode"] == "relationship"
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_carries_three_recent_reports_instead_of_risks(monkeypatch):
     member, company, deal, activity = _briefing_fixture()
     report = SimpleNamespace(
         id=uuid4(),
@@ -1080,12 +1188,102 @@ async def test_briefing_snapshot_carries_ten_recent_reports_instead_of_risks(mon
     snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
 
     assert snapshot["recent_reports"][0]["id"] == str(report.id)
-    assert snapshot["recent_reports"][0]["content"]["values"] == {
-        "body": "고객이 납기 확인을 요청했습니다."
-    }
+    assert snapshot["briefing_mode"] == "relationship"
+    assert snapshot["recent_reports"][0]["deal_reports"][0]["body"] == (
+        "고객이 납기 확인을 요청했습니다."
+    )
     assert "risk_signals" not in snapshot
     report_query = db.statements[3].compile(dialect=postgresql.dialect())
-    assert 10 in report_query.params.values()
+    assert 4 in report_query.params.values()
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_carries_company_common_report_without_an_open_deal(monkeypatch):
+    member, company, _deal_row, activity = _briefing_fixture()
+    activity.sales_deal_id = None
+    report = SimpleNamespace(
+        id=uuid4(),
+        source_activity_id=uuid4(),
+        report_date=date(2026, 9, 15),
+        common_body="고객사가 오늘 저녁에 다시 논의하기로 했습니다.",
+        unassigned_body=None,
+    )
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    db = _briefing_db(member, company, activity, [], reports=[(report, None)])
+    snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
+
+    assert snapshot["sales_deals"] == []
+    assert snapshot["recent_reports"] == [
+        {
+            "id": str(report.id),
+            "submission_id": snapshot["recent_reports"][0]["submission_id"],
+            "source_activity_id": str(report.source_activity_id),
+            "report_date": "2026-09-15",
+            "submitted_at": "2026-09-02T00:00:00+00:00",
+            "title": None,
+            "meeting_shared": {
+                "common_report": "고객사가 오늘 저녁에 다시 논의하기로 했습니다.",
+                "unassigned_report": None,
+            },
+            "deal_reports": [],
+        }
+    ]
+    report_query = str(db.statements[3])
+    assert "report_submission.id = public.report.current_submission_id" in report_query
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_links_product_document_mentioned_in_prior_report(monkeypatch):
+    member, company, _deal_row, activity = _briefing_fixture()
+    activity.sales_deal_id = None
+    product_id = uuid4()
+    report = SimpleNamespace(
+        id=uuid4(),
+        source_activity_id=uuid4(),
+        report_date=date(2026, 9, 15),
+        common_body="다음 미팅에서는 LR1000 도입 조건을 논의합니다.",
+        unassigned_body=None,
+    )
+    document = SimpleNamespace(
+        id=uuid4(),
+        document_no="DOC-1",
+        category_code="product_brochure",
+        title="LR1000 상품설명서",
+    )
+    file_row = SimpleNamespace(
+        id=uuid4(),
+        file_name="LR1000.pdf",
+        version_no=1,
+        summary_markdown="LR1000 제품 요약",
+        uploaded_at=datetime(2026, 9, 15, tzinfo=UTC),
+    )
+    captured = {}
+
+    async def _retrieve(_db, **kwargs):
+        captured.update(kwargs)
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+    db = _briefing_db(
+        member,
+        company,
+        activity,
+        [],
+        reports=[(report, None)],
+        mentioned_products=[(product_id, "LR1000")],
+        product_documents=[(document, file_row)],
+    )
+
+    snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
+
+    assert captured["product_ids"] == {product_id}
+    assert captured["query"].endswith("LR1000")
+    assert snapshot["document_context"]["product_documents"][0]["document_id"] == str(document.id)
 
 
 @pytest.mark.anyio

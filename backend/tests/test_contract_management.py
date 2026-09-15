@@ -1,10 +1,53 @@
 import json
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
 from app.agents import contract_management
+
+
+def _fake_briefing_agent(
+    monkeypatch, output, captured, *, called_tools=None, missing_first_response=False
+):
+    sentinel_model = object()
+    monkeypatch.setattr(contract_management, "configured_chat_model", lambda: sentinel_model)
+
+    def create(model, **kwargs):
+        captured.update(model=model, **kwargs)
+
+        class Agent:
+            async def ainvoke(self, payload, config):
+                captured["invoke_count"] = captured.get("invoke_count", 0) + 1
+                captured["input_text"] = payload["messages"][0]["content"]
+                captured["config"] = config
+                selected_tools = [
+                    tool
+                    for tool in kwargs["tools"]
+                    if called_tools is None or tool.__name__ in called_tools
+                ]
+                captured["tool_results"] = {
+                    tool.__name__: await tool() for tool in selected_tools
+                }
+                names = called_tools if called_tools is not None else list(captured["tool_results"])
+                message = SimpleNamespace(
+                    tool_calls=[{"name": name} for name in names],
+                    usage_metadata={"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+                )
+                return {
+                    "messages": [message],
+                    "structured_response": (
+                        None
+                        if missing_first_response and captured["invoke_count"] == 1
+                        else output
+                    ),
+                }
+
+        return Agent()
+
+    monkeypatch.setattr(contract_management, "create_agent", create)
+    return sentinel_model
 
 
 def test_risk_rejects_unknown_code_and_extra_fields():
@@ -61,6 +104,29 @@ def test_briefing_highlight_requires_a_source_ref():
             body="근거가 없는 내용입니다.",
             source_refs=[],
         )
+
+
+def test_briefing_prompt_is_scannable_for_a_salesperson_before_the_meeting():
+    prompt = contract_management.GENERATE_BRIEFING_SYSTEM_PROMPT
+
+    assert "1~2분 안에" in prompt
+    assert "시간순으로 다시" in prompt
+    assert "결론과 현재 상태를 먼저" in prompt
+    assert "최대 3개" in prompt
+    assert 'briefing_mode="first_meeting"' in prompt
+    assert "딜과 과거 보고서가 없는 것은 정상" in prompt
+    assert "미팅 차수와 관계없이 sales_deals가 비어 있는 것은 정상" in prompt
+    assert "HighlightBriefingOutput 도구로 반환" in prompt
+    assert "코드 블록 JSON으로 출력하지 마라" in prompt
+
+
+def test_next_meeting_prompt_prioritizes_an_explicit_report_commitment():
+    prompt = contract_management.PROPOSE_NEXT_MEETING_SYSTEM_PROMPT
+
+    assert "일반 위험 신호보다 우선" in prompt
+    assert "보고서의 report_date를 기준" in prompt
+    assert "risk_signals가 비어 있어도 next_meeting_suggestion" in prompt
+    assert "09:00~18:00로 제한" in prompt
 
 
 def test_next_meeting_duration_is_bounded():
@@ -289,11 +355,7 @@ async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monke
         missing_information=["승인된 미팅 분석 결과 연동 대기 중입니다."],
     )
 
-    async def fake_generate_structured(**kwargs):
-        captured.update(kwargs)
-        return expected
-
-    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    model = _fake_briefing_agent(monkeypatch, expected, captured)
     approved_next_meeting = {
         "sales_deal_id": "deal-1",
         "starts_at": "2026-08-25T14:00:00+09:00",
@@ -308,31 +370,30 @@ async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monke
     result = await contract_management.generate_briefing(snapshot)
 
     assert result == expected
-    assert captured["instructions"] == contract_management.GENERATE_BRIEFING_SYSTEM_PROMPT
-    assert captured["schema"] is contract_management.HighlightBriefingOutput
-    assert captured["schema_name"] == "contract_management_generate_briefing"
+    assert captured["model"] is model
+    assert captured["system_prompt"] == contract_management.GENERATE_BRIEFING_SYSTEM_PROMPT
+    assert [tool.__name__ for tool in captured["tools"]] == [
+        "read_recent_reports",
+        "search_historical_reports",
+    ]
     # 입력은 허용 목록 JSON 한 줄 + 자료요약 경계 블록이다.
     payload, _, block = captured["input_text"].partition("\n")
     assert json.loads(payload) == {
         "customer_company": {"id": "company-1", "name": "테스트 병원"},
         "sales_deals": [],
-        "recent_reports": [],
         "approved_next_meeting": approved_next_meeting,
+        "briefing_mode": "relationship",
     }
     assert block.startswith("<document_context>")
     assert "관련 자료가 검색되지 않았다" in block
 
 
 @pytest.mark.anyio
-async def test_generate_briefing_sends_recent_reports_instead_of_risk_signals(monkeypatch):
+async def test_generate_briefing_reads_recent_three_and_historical_rag_through_tools(monkeypatch):
     captured = {}
     expected = contract_management.HighlightBriefingOutput()
 
-    async def fake_generate_structured(**kwargs):
-        captured.update(kwargs)
-        return expected
-
-    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    _fake_briefing_agent(monkeypatch, expected, captured)
     recent_reports = [
         {
             "id": "report-1",
@@ -344,6 +405,9 @@ async def test_generate_briefing_sends_recent_reports_instead_of_risk_signals(mo
     snapshot = {
         "customer_company": {"id": "company-1", "name": "테스트 병원"},
         "recent_reports": recent_reports,
+        "historical_report_context": [{"id": "report-old"}],
+        "has_older_reports": True,
+        "report_search": {"method": "keyword", "status": "completed"},
         "risk_signals": [{"code": "contract_expiring"}],
     }
 
@@ -351,8 +415,88 @@ async def test_generate_briefing_sends_recent_reports_instead_of_risk_signals(mo
 
     payload, _, _block = captured["input_text"].partition("\n")
     llm_input = json.loads(payload)
-    assert llm_input["recent_reports"] == recent_reports
+    assert "recent_reports" not in llm_input
     assert "risk_signals" not in llm_input
+    assert captured["tool_results"]["read_recent_reports"] == {
+        "reports": recent_reports,
+        "has_older_reports": True,
+    }
+    assert captured["tool_results"]["search_historical_reports"] == {
+        "reports": [{"id": "report-old", "context_excerpt": ""}],
+        "count": 1,
+        "search": {"method": "keyword", "status": "completed"},
+    }
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_rejects_a_result_that_skipped_a_required_tool(monkeypatch):
+    captured = {}
+    _fake_briefing_agent(
+        monkeypatch,
+        contract_management.HighlightBriefingOutput(),
+        captured,
+        called_tools=["search_historical_reports"],
+    )
+
+    with pytest.raises(contract_management.LLMError, match="briefing_required_tools_missing"):
+        await contract_management.generate_briefing({})
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_retries_one_missing_structured_response(monkeypatch):
+    captured = {}
+    expected = contract_management.HighlightBriefingOutput()
+    _fake_briefing_agent(
+        monkeypatch,
+        expected,
+        captured,
+        called_tools=["read_recent_reports"],
+        missing_first_response=True,
+    )
+
+    assert await contract_management.generate_briefing({}) == expected
+    assert captured["invoke_count"] == 2
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_can_skip_rag_when_recent_reports_are_enough(monkeypatch):
+    captured = {}
+    _fake_briefing_agent(
+        monkeypatch,
+        contract_management.HighlightBriefingOutput(),
+        captured,
+        called_tools=["read_recent_reports"],
+    )
+
+    await contract_management.generate_briefing(
+        {"recent_reports": [{"id": "report-1"}], "has_older_reports": False}
+    )
+
+    assert set(captured["tool_results"]) == {"read_recent_reports"}
+    assert captured["tool_results"]["read_recent_reports"]["has_older_reports"] is False
+
+
+@pytest.mark.anyio
+async def test_first_meeting_can_use_the_activity_as_its_only_source():
+    result = await contract_management.generate_briefing(
+        {
+            "customer_company": {"id": "company-1", "name": "신규 고객사"},
+            "briefing_mode": "first_meeting",
+            "approved_next_meeting": {
+                "activity_id": "activity-1",
+                "title": "신규 고객 첫 상담",
+                "note": "현재 운영 방식과 개선 과제를 확인합니다.",
+            },
+        }
+    )
+
+    assert len(result.highlights) == 1
+    assert result.highlights[0].source_refs == [
+        contract_management.BriefingSourceRef(
+            type="activity", id="activity-1", excerpt="신규 고객 첫 상담"
+        )
+    ]
+    assert not any("딜" in item or "보고서" in item for item in result.missing_information)
 
 
 @pytest.mark.anyio
@@ -384,11 +528,7 @@ async def test_generate_briefing_validates_every_highlight_reference(monkeypatch
         ],
     )
 
-    async def fake_generate_structured(**kwargs):
-        captured.update(kwargs)
-        return returned
-
-    monkeypatch.setattr(contract_management, "generate_structured", fake_generate_structured)
+    _fake_briefing_agent(monkeypatch, returned, captured)
     snapshot = {
         "customer_company": {"id": "company-1", "name": "테스트 병원"},
         "sales_deals": [{"id": "deal-1", "title": "초음파 도입"}],

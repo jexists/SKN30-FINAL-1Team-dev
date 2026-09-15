@@ -10,6 +10,7 @@ RAG 검색은 하지 않는다 — 연결 관계만 본다.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -19,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.content import Document
 from app.models.content import File as FileRow
 from app.models.crm import Activity
-from app.models.sales import SalesDeal, SalesDealItem
+from app.models.sales import Product, SalesDeal, SalesDealItem
 from app.services import document_processing
 
 
@@ -72,6 +73,29 @@ async def product_ids_for_deals(
     return collected
 
 
+async def mentioned_product_ids(
+    db: AsyncSession, *, team_id: UUID, values: Any
+) -> set[UUID]:
+    """확정 보고서에 정확한 상품명이 등장하면 그 상품 자료 범위도 연다."""
+    text = json.dumps(values, ensure_ascii=False).casefold()
+    if not text:
+        return set()
+    products = (
+        await db.execute(
+            select(Product.id, Product.name).where(
+                Product.team_id == team_id,
+                Product.active.is_(True),
+            )
+        )
+    ).all()
+    # ponytail: 상품 별칭은 실제 누락 사례가 생길 때 추가한다.
+    return {
+        product_id
+        for product_id, name in products
+        if (key := name.strip().casefold()) and key in text
+    }
+
+
 async def list_documents(
     db: AsyncSession, *, team_id: UUID, scopes: list[Any], member=None
 ) -> list[dict[str, object]]:
@@ -108,15 +132,15 @@ async def list_documents(
         if document.id in documents:
             continue
         documents[document.id] = {
-            "document_id": document.id,
+            "document_id": str(document.id),
             "document_no": document.document_no,
             "category_code": document.category_code,
             "title": document.title,
-            "file_id": file_row.id,
+            "file_id": str(file_row.id),
             "file_name": file_row.file_name,
             # 자료요약 Agent 가 저장해 둔 요약. processing_status 가 completed 인 행만
             # 담으므로 승인 전 초안이 새어 나가지 않는다.
             "summary_markdown": file_row.summary_markdown,
-            "uploaded_at": file_row.uploaded_at,
+            "uploaded_at": file_row.uploaded_at.isoformat(),
         }
     return list(documents.values())

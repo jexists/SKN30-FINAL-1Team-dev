@@ -1089,7 +1089,7 @@ export default function Compose() {
             draft.toggleSalesDeal(created.id)
             createDealKey.current = ''
             setCreateDealOpen(false)
-            showToast('새 딜을 생성하고 미팅에 연결했습니다.')
+            showToast('새 딜을 생성하고 보고서에 추가했습니다.')
           }}
           onClose={() => {
             createDealKey.current = ''

@@ -5,6 +5,7 @@
 모듈에서 정한 초기값이다 — 운영하면서 조정한다.
 """
 
+import json
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -17,10 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import AgentRun
 from app.models.content import Document, Report, ReportDeal
-from app.models.crm import Activity, CustomerCompany, SupportRequest
+from app.models.crm import Activity, CustomerCompany, CustomerContact, SupportRequest
 from app.models.sales import Product, SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
-from app.services import activity_documents, sales_context
+from app.services import activity_documents, report_context, sales_context
 from app.services.embeddings import EmbeddingError
 from app.services.report_sources import _body_values, _shared_body
 from app.services.storage import StorageError
@@ -50,10 +51,6 @@ _BRIEFING_QUERY_MAX_CHARS = 500
 _OPEN_SUPPORT_STATUSES = ("received", "diagnosing", "in_progress")
 # 청크 하나가 최대 1,600자라 5건이면 문맥 블록 상한(12,000자) 안에 든다.
 _BRIEFING_DOCUMENT_LIMIT = 5
-# 일정에 딜이 직접 연결되지 않았을 때 같은 고객사의 최근 열린 딜을 후보로 제공한다.
-_BRIEFING_DEAL_LIMIT = 5
-
-
 def _seoul_iso(value: datetime | None) -> str | None:
     """LLM 에 보낼 시각. 화면과 같은 서울 시간으로 맞춘다."""
     return None if value is None else value.astimezone(_SEOUL).isoformat()
@@ -120,6 +117,29 @@ async def _open_deals(
     if limit is not None:
         statement = statement.limit(limit)
     result = await db.execute(statement)
+    return list(result.all())
+
+
+async def _company_deals(
+    db: AsyncSession, member: Member, customer_company_id: UUID
+) -> list[tuple[SalesDeal, SalesPipelineStage]]:
+    """브리핑 배경에 쓸 고객사의 현재·종료 딜 전체. 삭제된 딜만 제외한다."""
+    result = await db.execute(
+        select(SalesDeal, SalesPipelineStage)
+        .join(
+            SalesPipelineStage,
+            and_(
+                SalesPipelineStage.sales_pipeline_id == SalesDeal.sales_pipeline_id,
+                SalesPipelineStage.id == SalesDeal.sales_pipeline_stage_id,
+            ),
+        )
+        .where(
+            SalesDeal.team_id == member.team_id,
+            SalesDeal.customer_company_id == customer_company_id,
+            SalesDeal.deleted_at.is_(None),
+        )
+        .order_by(SalesDeal.created_at.desc(), SalesDeal.id)
+    )
     return list(result.all())
 
 
@@ -331,6 +351,7 @@ async def _recent_finalized_reports(
     deal_ids: list[UUID],
     required_report_id: UUID | None = None,
     limit: int = 5,
+    customer_company_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """작성자가 확정한(submitted) 보고서까지 근거로 쓴다.
 
@@ -339,18 +360,32 @@ async def _recent_finalized_reports(
     트리거이기도 하므로(계약에이전트_설계.md 3장) 두 상태를 함께 본다. 확정 트리거가
     지정한 보고서는 5건 제한에 밀리지 않도록 맨 앞에 두며, 찾지 못하면 실행을 중단한다.
     """
-    if not deal_ids:
+    if not deal_ids and customer_company_id is None:
         return []
     priority = [] if required_report_id is None else [(Report.id == required_report_id).desc()]
+    matching_deal = ReportDeal.sales_deal_id.in_(deal_ids)
+    report_scope = [matching_deal]
+    if customer_company_id is not None:
+        report_scope.append(
+            and_(
+                Report.customer_company_id == customer_company_id,
+                or_(Report.common_body.is_not(None), Report.unassigned_body.is_not(None)),
+            )
+        )
     recent_report_ids = (
         select(Report.id)
-        .join(ReportDeal, ReportDeal.report_id == Report.id)
+        .outerjoin(
+            ReportDeal,
+            and_(ReportDeal.report_id == Report.id, matching_deal),
+        )
         .where(
             Report.team_id == member.team_id,
             Report.status_code.in_(("approved", "submitted")),
-            ReportDeal.sales_deal_id.in_(deal_ids),
+            or_(*report_scope),
         )
-        .group_by(Report.id)
+    )
+    recent_report_ids = (
+        recent_report_ids.group_by(Report.id)
         .order_by(*priority, Report.report_date.desc(), Report.id)
         .limit(limit)
         .subquery()
@@ -358,9 +393,9 @@ async def _recent_finalized_reports(
     result = await db.execute(
         select(Report, ReportDeal)
         .join(recent_report_ids, recent_report_ids.c.id == Report.id)
-        .join(ReportDeal, ReportDeal.report_id == Report.id)
-        .where(
-            ReportDeal.sales_deal_id.in_(deal_ids),
+        .outerjoin(
+            ReportDeal,
+            and_(ReportDeal.report_id == Report.id, matching_deal),
         )
         .order_by(*priority, Report.report_date.desc(), Report.id, ReportDeal.sales_deal_id)
     )
@@ -392,7 +427,7 @@ async def _recent_finalized_reports(
         output.append(
             {
                 "id": str(report.id),
-                "sales_deal_id": str(section.sales_deal_id),
+                "sales_deal_id": str(section.sales_deal_id) if section is not None else None,
                 "source_activity_id": (
                     str(report.source_activity_id) if report.source_activity_id else None
                 ),
@@ -495,13 +530,15 @@ def _briefing_search_query(
     company: CustomerCompany,
     activity: Activity,
     deals: list[tuple[SalesDeal, SalesPipelineStage]],
+    recent_reports: list[dict[str, Any]],
 ) -> str:
     """자료실을 찾아볼 검색어. LLM 을 한 번 더 부르지 않고 결정적으로 만든다."""
     parts = [
         company.name,
         activity.title,
-        *(deal.title for deal, _stage in deals if deal.id == activity.sales_deal_id),
         activity.note,
+        json.dumps(recent_reports, ensure_ascii=False),
+        *(deal.title for deal, _stage in deals),
     ]
     # 자료실 검색 API 의 q 상한과 같은 길이로 자른다.
     return " ".join(part for part in parts if part)[:_BRIEFING_QUERY_MAX_CHARS]
@@ -512,6 +549,7 @@ async def _briefing_document_context(
     company: CustomerCompany,
     activity: Activity,
     deals: list[tuple[SalesDeal, SalesPipelineStage]],
+    recent_reports: list[dict[str, Any]],
     member: Member,
 ) -> dict[str, Any]:
     """자료요약 Agent 가 저장한 요약·근거를 브리핑 입력 형태로 가져온다.
@@ -519,7 +557,7 @@ async def _briefing_document_context(
     조회가 실패해도 브리핑 자체는 만들어야 한다 — 계약에이전트_설계.md 의 "앞 단계
     데이터가 없어도 최소 동작한다" 원칙에 따라 빈 문맥으로 되돌린다.
     """
-    query = _briefing_search_query(company, activity, deals)
+    query = _briefing_search_query(company, activity, deals, recent_reports)
     products = []
     try:
         product_ids = await activity_documents.product_ids_for_deals(
@@ -527,6 +565,12 @@ async def _briefing_document_context(
             team_id=company.team_id,
             sales_deal_ids=[deal.id for deal, _stage in deals],
         )
+        if recent_reports:
+            product_ids.update(
+                await activity_documents.mentioned_product_ids(
+                    db, team_id=company.team_id, values=recent_reports
+                )
+            )
         products = await activity_documents.list_documents(
             db,
             team_id=company.team_id,
@@ -553,7 +597,8 @@ async def _briefing_document_context(
             query=query,
             limit=_BRIEFING_DOCUMENT_LIMIT,
             # 자료는 딜에만 붙기도 하고 고객사에만 붙기도 해서 둘 다 넘긴다(OR).
-            sales_deal_id=activity.sales_deal_id,
+            # 일정은 회사에 연결된다. 딜 자료도 customer_company_id가 딜을 거쳐 찾는다.
+            sales_deal_id=None,
             customer_company_id=company.id,
             product_ids=product_ids,
             search_info=search_info,
@@ -584,24 +629,14 @@ async def build_briefing_snapshot(
     """
     row = (
         await db.execute(
-            select(Activity, CustomerCompany)
-            # 회사는 일정이 직접 들고 있다(20260902_0019). 담당자를 거쳐 찾던 것을 끊는다 —
-            # 그 조인은 담당자가 없는 일정을 조회에서 통째로 떨어뜨렸다.
+            select(Activity, CustomerCompany, CustomerContact)
             .join(CustomerCompany, Activity.customer_company_id == CustomerCompany.id)
-            .outerjoin(SalesDeal, Activity.sales_deal_id == SalesDeal.id)
+            .join(CustomerContact, Activity.customer_contact_id == CustomerContact.id)
             .where(
                 Activity.id == activity_id,
                 Activity.team_id == member.team_id,
                 Activity.deleted_at.is_(None),
                 CustomerCompany.team_id == member.team_id,
-                or_(
-                    Activity.sales_deal_id.is_(None),
-                    and_(
-                        SalesDeal.team_id == member.team_id,
-                        SalesDeal.customer_company_id == CustomerCompany.id,
-                        SalesDeal.deleted_at.is_(None),
-                    ),
-                ),
             )
         )
     ).one_or_none()
@@ -609,7 +644,7 @@ async def build_briefing_snapshot(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="meeting_activity_not_found"
         )
-    activity, company = row
+    activity, company, customer_contact = row
     if member.role_code == "member" and activity.owner_member_id != member.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="meeting_activity_not_found"
@@ -617,37 +652,59 @@ async def build_briefing_snapshot(
 
     customer_company_id = company.id
     company = await _company_or_404(db, member, customer_company_id)
-    deals = await _open_deals(
+    deals = await _company_deals(db, member, customer_company_id)
+    recent_candidates = await report_context.recent_reports(
         db,
-        member,
-        customer_company_id,
-        limit=None if activity.sales_deal_id else _BRIEFING_DEAL_LIMIT,
+        member=member,
+        customer_company_id=customer_company_id,
+        limit=4,
     )
-    if activity.sales_deal_id is not None:
-        deals = [(deal, stage) for deal, stage in deals if deal.id == activity.sales_deal_id]
-
-    deal_ids = [deal.id for deal, _stage in deals]
-    recent_reports = await _recent_finalized_reports(db, member, deal_ids, limit=10)
+    recent_reports = recent_candidates[:3]
+    has_prior_meeting = (
+        await db.execute(
+            select(Activity.id)
+            .where(
+                Activity.team_id == member.team_id,
+                Activity.customer_company_id == customer_company_id,
+                Activity.deleted_at.is_(None),
+                Activity.starts_at < activity.starts_at,
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none() is not None
 
     return {
         "customer_company": {"id": str(company.id), "name": company.name},
         "sales_deals": [_deal_summary(deal, stage) for deal, stage in deals],
         "recent_reports": recent_reports,
+        "has_older_reports": len(recent_candidates) > 3,
+        "briefing_mode": "relationship" if has_prior_meeting else "first_meeting",
+        "report_search_query": _briefing_search_query(company, activity, deals, recent_reports),
+        "_report_scope": {
+            "team_id": str(member.team_id),
+            "customer_company_id": str(customer_company_id),
+        },
         "approved_next_meeting": {
             "activity_id": str(activity.id),
-            "sales_deal_id": str(activity.sales_deal_id) if activity.sales_deal_id else None,
-            "candidate_sales_deal_ids": [str(deal.id) for deal, _stage in deals],
-            "deal_scope": "linked" if activity.sales_deal_id else "recent_company_deals",
             "title": activity.title,
             # 화면이 서울 시간으로 보여 주는 미팅을 LLM 이 UTC 로 받아 브리핑에 그대로
             # 옮겨 적으면, 같은 미팅의 시각이 화면과 본문에서 아홉 시간 어긋나 보인다.
             "starts_at": _seoul_iso(activity.starts_at),
             "ends_at": _seoul_iso(activity.ends_at),
             "location": activity.location,
+            "note": activity.note,
+            "customer_contact": {
+                "id": str(customer_contact.id),
+                "name": customer_contact.name,
+                "department": customer_contact.department,
+                "job_title": customer_contact.job_title,
+            },
         },
         # 구조화된 조회 결과를 그대로 둔다. 이 스냅샷은 agent_run.input_snapshot 으로
         # 저장되므로, 실행 시점에 어떤 근거를 봤는지가 그대로 남는다.
-        "document_context": await _briefing_document_context(db, company, activity, deals, member),
+        "document_context": await _briefing_document_context(
+            db, company, activity, deals, recent_reports, member
+        ),
     }
 
 
@@ -716,13 +773,16 @@ async def build_schedule_snapshot(
     else:
         window_start = datetime.fromisoformat(preferred_starts_at)
         window_end = datetime.fromisoformat(preferred_ends_at)
-        # 좁은 선호 기간은 첫 실행 전에 넓힌다. 계약관리가 "30분 한 칸"처럼 좁은 기간을
-        # 줄 때가 있는데, 그 폭으로는 쓸 만한 후보가 나오지 않는다.
+        # 하루 안의 범위는 보고서에서 합의한 날짜·시간일 수 있어 그대로 지켨다.
+        # 날짜가 다른데 최소 폭보다 좁은 일반 추천 기간만 넓힌다.
         #
         # 끝만 뒤로 민다. 시작을 당기면 계약관리가 의도한 시점보다 앞선 시간을 제안하게
         # 되는데, "왜 지금인가"는 계약관리의 판단이라 여기서 뒤집지 않는다.
         widened_end = window_start + timedelta(days=_MIN_PREFERRED_WINDOW_DAYS)
-        if widened_end > window_end:
+        same_seoul_day = window_start.astimezone(_SEOUL).date() == window_end.astimezone(
+            _SEOUL
+        ).date()
+        if not same_seoul_day and widened_end > window_end:
             window_end = widened_end
             preferred_starts_at = window_start.isoformat()
             preferred_ends_at = window_end.isoformat()

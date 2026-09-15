@@ -185,6 +185,24 @@ class ReportSubmission(Base):
     submitted_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
+class ReportContextChunk(Base):
+    """확정 보고서 revision 한 건의 RAG 검색 문맥."""
+
+    __tablename__ = "report_context_chunk"
+
+    report_submission_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.report_submission.id", ondelete="CASCADE"), primary_key=True
+    )
+    report_id: Mapped[UUID] = mapped_column(
+        ForeignKey("public.report.id", ondelete="CASCADE")
+    )
+    team_id: Mapped[UUID] = mapped_column(ForeignKey("public.team.id"))
+    content: Mapped[str]
+    embedding_vector: Mapped[Any | None] = mapped_column(Vector(), nullable=True)
+    embedding_model: Mapped[str | None]
+    indexed_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
 class ReportAttachment(Base):
     """업로드한 원본. 확정 후에는 한 보고서의 제출 이력에서만 재사용한다."""
 

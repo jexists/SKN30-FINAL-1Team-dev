@@ -254,7 +254,6 @@ export default function useMeetingDraft(
 
   const initialize = useCallback(() => {
     const ids = [...new Set(savedReport?.dealSections.map((section) => section.salesDealId) ?? [])]
-    if (!savedReport && item?.salesDealId) ids.push(item.salesDealId)
     const result = meetingResultOf(savedReport)
     setTranscript(savedReport?.directTranscript ?? savedReport?.transcript ?? '')
     setAttachments(savedReport?.attachments ?? [])
@@ -277,7 +276,7 @@ export default function useMeetingDraft(
     setProcessingProgress(null)
     confirmedProgress.current = null
     setAttachmentError(null)
-  }, [savedReport, item?.salesDealId, fallbackTitle, setAttachments, setAttachmentError])
+  }, [savedReport, fallbackTitle, setAttachments, setAttachmentError])
 
   useEffect(() => {
     // Fast Refresh가 와도 같은 미팅의 편집/실행 상태는 유지합니다.

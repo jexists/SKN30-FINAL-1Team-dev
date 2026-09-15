@@ -43,6 +43,12 @@ PIDS+=("$!")
 bash scripts/frontend.sh &
 PIDS+=("$!")
 
+(
+  cd backend
+  exec uv run python -m app.services.agent_worker --poll-seconds 2
+) &
+PIDS+=("$!")
+
 echo
 echo "종료하려면 Ctrl+C"
 echo

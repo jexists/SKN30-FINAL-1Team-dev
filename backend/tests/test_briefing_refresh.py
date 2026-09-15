@@ -55,6 +55,7 @@ class _Session:
         item_products=(),
         files=(),
         reports=(),
+        products=(),
         activities=(),
         existing_run=None,
     ):
@@ -64,6 +65,7 @@ class _Session:
         self.item_products = item_products
         self.files = files
         self.reports = reports
+        self.products = products
         self.activities = activities
         self.existing_run = existing_run
         self.statements = []
@@ -80,6 +82,7 @@ class _Session:
         for marker, result in (
             ("FROM public.document", _Result(rows=self.files)),
             ("FROM public.report", _Result(rows=self.reports)),
+            ("FROM public.product", _Result(rows=self.products)),
             ("FROM public.activity", _Result(scalars=self.activities)),
             ("FROM public.agent_run", _Result(scalar=self.existing_run)),
             ("FROM public.sales_deal_item", _Result(scalars=self.item_products)),
@@ -164,7 +167,7 @@ async def test_revision_is_stable_for_the_same_material_state():
 
 
 @pytest.mark.anyio
-async def test_revision_uses_recent_company_deals_when_activity_has_no_deal():
+async def test_revision_uses_all_company_deals_when_activity_has_no_deal():
     team_id = uuid4()
     member = _member(team_id)
     activity = _activity(team_id, member.id, sales_deal_id=None)
@@ -174,7 +177,7 @@ async def test_revision_uses_recent_company_deals_when_activity_has_no_deal():
     revision = await briefing_refresh.source_revision(session, activity=activity, member=member)
 
     assert revision
-    assert any("LIMIT" in statement for statement in session.statements)
+    assert not any("LIMIT" in statement for statement in session.statements)
     changed = await briefing_refresh.source_revision(
         _Session(candidate_deals=[]), activity=activity, member=member
     )
@@ -232,12 +235,38 @@ async def test_revision_changes_when_a_recent_report_is_finalized():
         _Session(reports=[]), activity=activity, member=member
     )
     updated = await briefing_refresh.source_revision(
-        _Session(reports=[(report_id, 2, uuid4(), NOW)]),
+        _Session(reports=[(report_id, 2, uuid4(), NOW, None, None, None, {})]),
         activity=activity,
         member=member,
     )
 
     assert original != updated
+
+
+@pytest.mark.anyio
+async def test_revision_changes_for_a_company_common_report_without_an_open_deal():
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id, sales_deal_id=None)
+
+    original_session = _Session(candidate_deals=[], reports=[])
+    original = await briefing_refresh.source_revision(
+        original_session, activity=activity, member=member
+    )
+    updated = await briefing_refresh.source_revision(
+        _Session(
+            candidate_deals=[],
+            reports=[(uuid4(), 1, uuid4(), NOW, None, None, None, {})],
+        ),
+        activity=activity,
+        member=member,
+    )
+
+    assert original != updated
+    report_query = next(
+        text for text in original_session.statements if "FROM public.report" in text
+    )
+    assert "report_submission.id = public.report.current_submission_id" in report_query
 
 
 @pytest.mark.anyio
@@ -268,10 +297,10 @@ def test_document_scope_only_covers_the_links_the_document_has():
         sales_deal_id=None, customer_company_id=None, product_id=None
     )
 
-    # 딜에만 붙은 자료는 그 딜만 본다 — 같은 고객사의 다른 딜 미팅은 건드리지 않는다.
+    # 일정은 회사에 붙으므로 딜 자료도 그 딜의 고객사 미팅을 갱신한다.
     assert len(deal_only) == 1
-    assert "activity.sales_deal_id =" in str(deal_only[0])
-    assert "customer_company_id" not in str(deal_only[0])
+    assert "activity.customer_company_id IN" in str(deal_only[0])
+    assert "sales_deal.customer_company_id" in str(deal_only[0])
     # 아무 데도 안 걸린 자료는 갱신 대상이 없다.
     assert unlinked == []
 
@@ -303,7 +332,7 @@ async def test_company_refresh_schedules_only_future_company_meetings(monkeypatc
 def test_product_scope_reaches_the_deal_product_and_the_quote_items():
     scope = str(briefing_refresh._product_scope(uuid4()))
 
-    assert "activity.product_id =" in scope
+    assert "activity.customer_company_id IN" in scope
     assert "FROM public.sales_deal" in scope
     assert "FROM public.sales_deal_item" in scope
 
@@ -350,6 +379,7 @@ async def test_scheduling_queues_one_run_the_worker_can_claim(llm):
     assert run.requested_by_member_id == member.id
     assert run.source_refs["activity_id"] == str(activity.id)
     assert run.source_refs["source_revision"]
+    assert run.source_refs["_worker_pool"] == settings.app_env
     assert session.commits == 1
 
 

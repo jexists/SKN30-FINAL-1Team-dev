@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { client } from '@/api/client'
+import { regenerateBriefing } from '@/api/contractAgent'
 import { errorMessage } from '@/api/errorMessage'
 import type { ActivityRead, AiBriefing } from '@/types'
 
@@ -35,6 +36,10 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
   const [briefing, setBriefing] = useState<AiBriefing | null>(null)
   const [loading, setLoading] = useState(eligible)
   const [error, setError] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+  const [regenerateError, setRegenerateError] = useState<string | null>(null)
+  const currentActivityId = useRef(activityId)
+  currentActivityId.current = activityId
 
   useEffect(() => {
     if (!eligible) {
@@ -47,6 +52,8 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setRegenerating(false)
+    setRegenerateError(null)
 
     async function read() {
       let { data } = await client.get<ActivityRead>(`/activities/${activityId}`)
@@ -76,5 +83,31 @@ export default function useAiBriefing({ activityId, eligible }: Options) {
     }
   }, [activityId, eligible])
 
-  return { briefing, loading, error }
+  async function regenerate() {
+    if (!eligible || regenerating || briefing?.refreshing) return
+    const requestedActivityId = activityId
+    setRegenerating(true)
+    setRegenerateError(null)
+    setError(null)
+    try {
+      await regenerateBriefing(requestedActivityId)
+      let { data } = await client.get<ActivityRead>(`/activities/${requestedActivityId}`)
+      if (currentActivityId.current !== requestedActivityId) return
+      setBriefing(data.ai_briefing ?? null)
+      for (let poll = 0; data.ai_briefing?.refreshing && poll < MAX_POLLS; poll += 1) {
+        await wait(POLL_INTERVAL_MS)
+        ;({ data } = await client.get<ActivityRead>(`/activities/${requestedActivityId}`))
+        if (currentActivityId.current !== requestedActivityId) return
+        setBriefing(data.ai_briefing ?? null)
+      }
+    } catch (cause: unknown) {
+      if (currentActivityId.current === requestedActivityId) {
+        setRegenerateError(errorMessage(cause, 'AI 브리핑을 다시 만들지 못했습니다.'))
+      }
+    } finally {
+      if (currentActivityId.current === requestedActivityId) setRegenerating(false)
+    }
+  }
+
+  return { briefing, loading, error, regenerate, regenerating, regenerateError }
 }

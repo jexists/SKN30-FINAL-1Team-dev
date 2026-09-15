@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
@@ -86,6 +87,7 @@ async def test_documents_keep_only_one_file_per_document():
     documents = await activity_documents.list_documents(db, team_id=uuid4(), scopes=[_scope()])
 
     assert [item["file_name"] for item in documents] == ["계약서_v2.pdf"]
+    assert json.loads(json.dumps(documents))[0]["file_name"] == "계약서_v2.pdf"
 
 
 @pytest.mark.anyio
@@ -157,3 +159,19 @@ async def test_activity_product_without_deal_is_not_used():
         == set()
     )
     assert db.statements == []
+
+
+@pytest.mark.anyio
+async def test_report_product_name_adds_its_document_scope():
+    lr1000_id = uuid4()
+    unrelated_id = uuid4()
+    db = _Db(_Result(rows=[(lr1000_id, "LR1000"), (unrelated_id, "LR2000")]))
+
+    found = await activity_documents.mentioned_product_ids(
+        db,
+        team_id=uuid4(),
+        values=[{"common_body": "다음 미팅에서는 lr1000 도입 조건을 논의합니다."}],
+    )
+
+    assert found == {lr1000_id}
+    assert "product.active IS true" in str(db.statements[0])

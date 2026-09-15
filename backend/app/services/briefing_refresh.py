@@ -33,10 +33,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.session import get_sessionmaker
 from app.models.agent import AgentRun
-from app.models.content import Document, Report, ReportDeal
+from app.models.content import Document, Report, ReportDeal, ReportSubmission
 from app.models.content import File as FileRow
 from app.models.crm import Activity
-from app.models.sales import SalesDeal, SalesDealItem, SalesPipelineStage
+from app.models.sales import SalesDeal, SalesDealItem
 from app.models.workspace import Member
 from app.services import activity_documents, document_processing
 
@@ -47,7 +47,6 @@ IDEMPOTENCY_NAMESPACE = uuid5(NAMESPACE_URL, "urn:salesluv:contract_management_b
 # 한 번의 자료 처리로 되살아나는 미팅 수의 상한. 고객사 전체 자료를 하나 올렸다고 수백 건의
 # LLM 실행이 한꺼번에 큐에 쌓이는 것을 막는다. 가까운 미팅부터 채운다.
 MAX_ACTIVITIES_PER_TRIGGER = 50
-BRIEFING_DEAL_LIMIT = 5
 
 
 def _canonical(value: Any) -> str:
@@ -83,11 +82,11 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
     검색 결과가 달라질 만한 변화가 있으면 반드시 달라지는 값이어야 한다. 그래서 입력을
     "브리핑이 무엇을 보게 되는가" 그대로로 잡았다.
 
-    * 미팅이 정하는 검색 범위 — 고객사, 딜, 제품, 담당자, 시작 시각
+    * 미팅이 정하는 검색 범위 — 고객사, 담당자, 시작 시각
     * 딜의 대표 제품과 견적 품목 — 제품 자료의 범위를 정한다
     * 그 범위에서 실제로 읽히게 될 문서와 파일 — ``document_id``, ``file_id``,
       ``version_no``, ``processed_at``
-    * 회사의 최근 확정 보고서 10건 — ``report_id``, ``version``, 현재 제출본과 수정 시각
+    * 회사의 확정 보고서 전체 — ``report_id``, 현재 제출본과 제출 시각
 
     파일 목록은 ``search_chunks`` 와 같은 조건으로 뽑는다. 그래서
 
@@ -99,28 +98,17 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
     ``member`` 는 실행 주체다. 자료실 공개 범위(``document_access``)를 지문 계산에도 똑같이
     적용해, 그 사람이 볼 수 없는 자료 때문에 브리핑이 다시 만들어지지 않게 한다.
     """
-    if activity.sales_deal_id is not None:
-        deal_ids = [activity.sales_deal_id]
-    elif activity.customer_company_id is not None:
+    if activity.customer_company_id is not None:
         deal_ids = list(
             (
                 await db.execute(
                     select(SalesDeal.id)
-                    .join(
-                        SalesPipelineStage,
-                        and_(
-                            SalesPipelineStage.sales_pipeline_id == SalesDeal.sales_pipeline_id,
-                            SalesPipelineStage.id == SalesDeal.sales_pipeline_stage_id,
-                        ),
-                    )
                     .where(
                         SalesDeal.team_id == activity.team_id,
                         SalesDeal.customer_company_id == activity.customer_company_id,
                         SalesDeal.deleted_at.is_(None),
-                        SalesPipelineStage.phase_code != "closed",
                     )
                     .order_by(SalesDeal.created_at.desc(), SalesDeal.id)
-                    .limit(BRIEFING_DEAL_LIMIT)
                 )
             )
             .scalars()
@@ -131,9 +119,67 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
     product_ids = await activity_documents.product_ids_for_deals(
         db, team_id=activity.team_id, sales_deal_ids=deal_ids
     )
-    scopes = document_processing.document_scopes(
-        activity.sales_deal_id, activity.customer_company_id, product_ids
-    )
+    reports: list[list[Any]] = []
+    report_text: list[dict[str, Any]] = []
+    if activity.customer_company_id is not None:
+        deal_report_ids = select(ReportDeal.report_id).where(ReportDeal.sales_deal_id.in_(deal_ids))
+        recent_report_ids = (
+            select(Report.id)
+            .join(
+                ReportSubmission,
+                and_(
+                    ReportSubmission.report_id == Report.id,
+                    ReportSubmission.id == Report.current_submission_id,
+                ),
+            )
+            .where(
+                Report.team_id == activity.team_id,
+                Report.status_code.in_(("approved", "submitted")),
+                or_(
+                    Report.customer_company_id == activity.customer_company_id,
+                    Report.id.in_(deal_report_ids),
+                ),
+            )
+            .order_by(Report.report_date.desc(), Report.id)
+            .subquery()
+        )
+        report_rows = (
+            await db.execute(
+                select(
+                    Report.id,
+                    Report.version,
+                    Report.current_submission_id,
+                    ReportSubmission.submitted_at,
+                    ReportSubmission.snapshot,
+                )
+                .join(recent_report_ids, recent_report_ids.c.id == Report.id)
+                .join(
+                    ReportSubmission,
+                    and_(
+                        ReportSubmission.report_id == Report.id,
+                        ReportSubmission.id == Report.current_submission_id,
+                    ),
+                )
+                .order_by(Report.report_date.desc(), Report.id)
+            )
+        ).all()
+        reports = [
+            [
+                str(report_id),
+                version,
+                str(submission_id) if submission_id is not None else None,
+                _isoformat(submitted_at),
+            ]
+            for report_id, version, submission_id, submitted_at, *_ in report_rows
+        ]
+        report_text = [row[4] for row in report_rows[:3]]
+        if report_text:
+            product_ids.update(
+                await activity_documents.mentioned_product_ids(
+                    db, team_id=activity.team_id, values=report_text
+                )
+            )
+    scopes = document_processing.document_scopes(None, activity.customer_company_id, product_ids)
     files: list[list[Any]] = []
     if scopes:
         rows = (
@@ -154,54 +200,10 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
             [str(document_id), str(file_id), version_no, _isoformat(processed_at)]
             for document_id, file_id, version_no, processed_at in rows
         )
-    reports: list[list[Any]] = []
-    if activity.customer_company_id is not None:
-        recent_report_ids = (
-            select(Report.id)
-            .join(ReportDeal, ReportDeal.report_id == Report.id)
-            .where(
-                Report.team_id == activity.team_id,
-                Report.status_code.in_(("approved", "submitted")),
-                ReportDeal.sales_deal_id.in_(
-                    select(SalesDeal.id).where(
-                        SalesDeal.team_id == activity.team_id,
-                        SalesDeal.customer_company_id == activity.customer_company_id,
-                        SalesDeal.deleted_at.is_(None),
-                    )
-                ),
-            )
-            .group_by(Report.id)
-            .order_by(Report.report_date.desc(), Report.id)
-            .limit(10)
-            .subquery()
-        )
-        report_rows = (
-            await db.execute(
-                select(
-                    Report.id,
-                    Report.version,
-                    Report.current_submission_id,
-                    Report.updated_at,
-                )
-                .join(recent_report_ids, recent_report_ids.c.id == Report.id)
-                .order_by(Report.report_date.desc(), Report.id)
-            )
-        ).all()
-        reports = [
-            [
-                str(report_id),
-                version,
-                str(submission_id) if submission_id is not None else None,
-                _isoformat(updated_at),
-            ]
-            for report_id, version, submission_id, updated_at in report_rows
-        ]
     payload = {
         "activity": [
             str(activity.customer_company_id) if activity.customer_company_id else None,
-            str(activity.sales_deal_id) if activity.sales_deal_id else None,
             str(activity.customer_contact_id) if activity.customer_contact_id else None,
-            str(activity.product_id) if activity.product_id else None,
             _isoformat(activity.starts_at),
         ],
         "candidate_deals": sorted(str(value) for value in deal_ids),
@@ -254,7 +256,9 @@ async def _future_meetings(
 
 
 def _deal_scope(sales_deal_id: UUID) -> Any:
-    return Activity.sales_deal_id == sales_deal_id
+    return Activity.customer_company_id.in_(
+        select(SalesDeal.customer_company_id).where(SalesDeal.id == sales_deal_id)
+    )
 
 
 def _company_scope(customer_company_id: UUID) -> Any:
@@ -268,15 +272,15 @@ def _company_scope(customer_company_id: UUID) -> Any:
 
 
 def _product_scope(product_id: UUID) -> Any:
-    """그 제품을 다루는 미팅. 딜 대표 제품과 견적 품목까지 본다."""
-    return or_(
-        Activity.product_id == product_id,
-        Activity.sales_deal_id.in_(
-            select(SalesDeal.id).where(SalesDeal.product_id == product_id)
-        ),
-        Activity.sales_deal_id.in_(
-            select(SalesDealItem.sales_deal_id).where(SalesDealItem.product_id == product_id)
-        ),
+    """그 제품 딜이 있는 회사의 미팅. 일정 자체에는 제품·딜을 연결하지 않는다."""
+    item_deal_ids = select(SalesDealItem.sales_deal_id).where(
+        SalesDealItem.product_id == product_id
+    )
+    return Activity.customer_company_id.in_(
+        select(SalesDeal.customer_company_id).where(
+            SalesDeal.deleted_at.is_(None),
+            or_(SalesDeal.product_id == product_id, SalesDeal.id.in_(item_deal_ids)),
+        )
     )
 
 
@@ -288,8 +292,7 @@ def document_activity_scopes(
 ) -> list[Any]:
     """이 자료가 영향을 주는 미팅의 조건.
 
-    자료가 걸려 있는 범위만 본다. 딜에만 붙은 자료는 그 딜의 미팅만 건드리고, 같은 고객사의
-    다른 딜은 건드리지 않는다.
+    일정은 회사에만 연결되므로 딜·제품 자료도 그 딜을 가진 회사의 미팅을 갱신한다.
     """
     scopes: list[Any] = []
     if sales_deal_id is not None:
@@ -356,7 +359,11 @@ async def schedule_activities(db: AsyncSession, activities: list[Activity]) -> l
             # worker 가 입력을 만들고 실행한다 — 별도 worker 를 두지 않는 이유다.
             request_hash=_request_hash(request_snapshot),
             scope_key=None,
-            source_refs={"activity_id": str(activity.id), "source_revision": revision},
+            source_refs={
+                "activity_id": str(activity.id),
+                "source_revision": revision,
+                "_worker_pool": settings.app_env,
+            },
             input_snapshot={},
             output_snapshot=None,
             evidence=None,
