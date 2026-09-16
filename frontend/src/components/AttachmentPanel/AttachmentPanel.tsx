@@ -6,7 +6,6 @@ import { downloadReportAttachment } from '@/api/reportAttachments'
 import { buttonClass } from '@/components/Button'
 import ImageLightbox from '@/components/ImageLightbox'
 import Modal from '@/components/Modal'
-import { InlineLoader } from '@/components/Skeleton'
 import {
   CheckIcon,
   DocumentsIcon,
@@ -238,9 +237,20 @@ export default function AttachmentPanel({
       <DocumentsIcon width={20} height={20} />
     )
 
+  /** 올리는 동안 얼굴 위에 얹는 막. 가운데 링이 돌고 바닥 막대가 흐릅니다. */
+  const uploading = (item: ReportAttachment) =>
+    item.state === 'analyzing' && (
+      <span className={styles.uploading} role="status">
+        <span className={styles.uploadRing} aria-hidden="true" />
+        <span className={styles.uploadBar} aria-hidden="true" />
+        <span className="sr-only">{item.name} 올리는 중</span>
+      </span>
+    )
+
   const thumb = (item: ReportAttachment, className: string) => (
     <span className={className} aria-hidden="true">
       {face(item)}
+      {uploading(item)}
     </span>
   )
 
@@ -452,10 +462,8 @@ export default function AttachmentPanel({
                   <DocumentsIcon width={20} height={20} />
                 )}
               </button>
-              {/* 올리는 동안은 사진 위에서 아이콘만 돕니다. 실패는 테두리가 빨갛게 말합니다. */}
-              {item.state === 'analyzing' && (
-                <InlineLoader className={styles.photoLoading} label={`${item.name} 올리는 중`} />
-              )}
+              {/* 올리는 동안은 사진 위에 진행 막이 섭니다. 실패는 테두리가 빨갛게 말합니다. */}
+              {uploading(item)}
               {removeButton(item)}
             </li>
           ))}

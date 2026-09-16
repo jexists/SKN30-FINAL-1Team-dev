@@ -956,7 +956,7 @@ export default function Compose() {
                 attachmentError={
                   generationInputError
                     ? reportGenerationMessage(generationInputError)
-                    : (draft.inputError ?? draft.attachmentError)
+                    : draft.inputError
                 }
                 transcript={draft.transcript}
                 onTranscriptChange={draft.setTranscript}

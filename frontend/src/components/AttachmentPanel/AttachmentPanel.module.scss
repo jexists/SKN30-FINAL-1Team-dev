@@ -335,23 +335,76 @@
   }
 }
 
-/* 사진 위에 얹는 진행 표시. 버튼 안에 넣으면 <p> 가 <button> 안에 들어갑니다.
-   사진이 무엇이든 보이도록 어두운 막을 깔고 그 위에 흰 아이콘을 크게 돌립니다. */
-.photoLoading {
+/* 올리는 중 표시. 썸네일·사진 위에 막을 깔고 흰 링을 돌리며, 바닥에서 파란 막대가 흐릅니다.
+   사진이 무엇이든 보이도록 막은 어둡게, 조금 흐리게 둡니다. */
+.uploading {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: grid;
   place-items: center;
-  border-radius: var(--r-xs);
-  background: rgb(0 0 0 / 45%);
-  color: #fff;
+  overflow: hidden;
+  border-radius: inherit;
+  background: rgb(15 23 42 / 42%);
+  backdrop-filter: blur(2px);
   pointer-events: none;
+}
 
-  svg {
-    width: 28px;
-    height: 28px;
-    stroke-width: 2.4;
+.uploadRing {
+  width: clamp(18px, 40%, 30px);
+  aspect-ratio: 1;
+  border: 3px solid rgb(255 255 255 / 30%);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: upload-spin 0.8s linear infinite;
+}
+
+.uploadBar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 25%);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 45%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, transparent, var(--blue) 40%, #fff);
+    animation: upload-slide 1.2s var(--ease-out) infinite;
   }
+}
+
+@keyframes upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes upload-slide {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(230%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uploadRing,
+  .uploadBar::after {
+    animation: none;
+  }
+}
+
+/* 목록 칸(li)에는 둥근 모서리가 없어 inherit 로는 사진 모서리를 따라가지 못합니다. */
+.photoItem .uploading {
+  border-radius: var(--r-xs);
 }
 
 .photoItem .remove {
@@ -365,6 +418,7 @@
 
 .thumb,
 .tileFace {
+  position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;

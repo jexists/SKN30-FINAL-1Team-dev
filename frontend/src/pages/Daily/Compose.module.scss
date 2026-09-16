@@ -446,19 +446,6 @@ $box-pad: 16px;
 }
 
 /*
- * AI 가 보고서를 만들지 못했을 때. 결과가 나왔어야 할 자리에서 이유를 냅니다.
- * 왼쪽 구석의 작은 글씨는 기다리다 지친 사람의 눈에 들어오지 않습니다.
- */
-.failed {
-  padding: var(--s3);
-  border-radius: var(--r-sm);
-  background: var(--red-tint);
-  color: var(--red-ink);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-/*
  * 아직 쓸 것이 없는 상태. 종이 크기의 빈 사각형을 띄우면 무엇이 잘못된 것처럼
  * 보입니다. 시트는 안내에 필요한 만큼만 서고, 내용이 생기면 그때 자랍니다.
  */

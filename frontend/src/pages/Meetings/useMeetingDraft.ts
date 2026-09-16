@@ -248,7 +248,6 @@ export default function useMeetingDraft(
     removeAttachment: removeFile,
     setAttachmentExtract: setFileExtract,
     setAttachments,
-    setAttachmentError,
   } = files
   const fallbackTitle = item?.title ?? ''
 
@@ -275,8 +274,7 @@ export default function useMeetingDraft(
     setAiFilled(false)
     setProcessingProgress(null)
     confirmedProgress.current = null
-    setAttachmentError(null)
-  }, [savedReport, fallbackTitle, setAttachments, setAttachmentError])
+  }, [savedReport, fallbackTitle, setAttachments])
 
   useEffect(() => {
     // Fast Refresh가 와도 같은 미팅의 편집/실행 상태는 유지합니다.
@@ -342,7 +340,6 @@ export default function useMeetingDraft(
       setReportDate(restored.reportDate)
       setTranscript(restored.transcript)
       setAttachments(restored.attachments)
-      setAttachmentError(null)
       setSalesDealIds(restored.salesDealIds)
       setDraftsByDeal((previous) =>
         Object.fromEntries(
@@ -353,7 +350,7 @@ export default function useMeetingDraft(
         ),
       )
     },
-    [fallbackTitle, setAttachments, setAttachmentError],
+    [fallbackTitle, setAttachments],
   )
 
   const beginGeneration = useCallback(
@@ -515,7 +512,6 @@ export default function useMeetingDraft(
     addAttachments,
     removeAttachment,
     setAttachmentExtract,
-    attachmentError: files.attachmentError,
     inputError: inputError ? reportGenerationMessage(inputError) : null,
     attachmentsPending: files.pending,
     salesDealIds,

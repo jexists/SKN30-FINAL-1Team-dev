@@ -110,12 +110,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   /** 저장된 사용자 메모는 최종 제출 때 보존하고, 입력 중에는 새 생성 지침으로 사용합니다. */
   const [transcript, setTranscript] = useState('')
   const files = useAttachments()
-  const {
-    addAttachments: addFiles,
-    removeAttachment: removeFile,
-    setAttachments,
-    setAttachmentError,
-  } = files
+  const { addAttachments: addFiles, removeAttachment: removeFile, setAttachments } = files
   const [values, setValues] = useState<Record<string, string>>({ body: '' })
   /** 본문이 밖에서 통째로 갈릴 때만 올립니다. 타자마다 올리면 편집기가 매번 다시 섭니다. */
   const [docKey, setDocKey] = useState(0)
@@ -209,7 +204,6 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     const saved = canonical
     setFrozenActivities(saved?.activities.map((activity) => ({ ...activity })) ?? null)
     setAttachments(saved?.attachments ?? [])
-    setAttachmentError(null)
     setTranscript(saved?.transcript ?? '')
     setValues({ body: saved?.values.body ?? '' })
     setDocKey((key) => key + 1)
@@ -227,7 +221,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
     // 내려 줄 사람이 없어 제출·다시 작성 버튼이 그대로 잠깁니다.
     // 이어 쓰는 보고서는 이미 쓴 내용이 있으므로 입력칸을 바로 펴 줍니다.
     setPhase(saved ? 'ready' : 'idle')
-  }, [setAttachments, setAttachmentError, canonical])
+  }, [setAttachments, canonical])
 
   useEffect(() => {
     reset()
@@ -265,7 +259,18 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
       attachments: files.attachments,
       transcript,
     }),
-    [canonical, dateISO, kind, approver, values, related.activities, files.attachments, transcript],
+    [
+      canonical,
+      dateISO,
+      kind,
+      approver,
+      department,
+      company,
+      values,
+      related.activities,
+      files.attachments,
+      transcript,
+    ],
   )
 
   const inputError = reportInputError(periodGenerationRequestOf(generationPayload(), ''))
@@ -310,7 +315,6 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
       const restored = periodGenerationSeedOf(input)
       setFrozenActivities(restored.activities.map((activity) => ({ ...activity })))
       setAttachments(restored.attachments)
-      setAttachmentError(null)
       setTranscript(restored.transcript)
       setValues(restored.values)
       setDocKey((key) => key + 1)
@@ -329,7 +333,7 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
       )
       return restored
     },
-    [setAttachments, setAttachmentError],
+    [setAttachments],
   )
 
   const resumeGeneration = useCallback(

@@ -527,11 +527,6 @@ export default function Compose() {
                   note={`AI는 제출된 ${sourceKind} 보고서, 첨부 참고자료, 추가 결정사항 및 메모, 현재 작성한 본문을 바탕으로 작성합니다.`}
                   readOnly={locked || pending || draft.recovering || draft.phase === 'generating'}
                 />
-                {draft.attachmentError && (
-                  <p className={styles.failed} role="alert">
-                    {draft.attachmentError}
-                  </p>
-                )}
                 <FormField label="추가 결정사항 및 메모" error={draft.guidanceError ?? undefined}>
                   <textarea
                     id="period-report-guidance"

@@ -6,6 +6,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { reportAttachmentLimits, uploadReportAttachment } from '@/api/reportAttachments'
 import type { AttachmentKind, AttachmentPurpose, ReportAttachment } from '@/types'
 
+import { showToast } from './toast'
 import { REPORT_ATTACHMENT_LIMIT, REPORT_TEXT_LIMIT, reportTextLength } from './reports'
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.m4a', '.wav', '.webm'])
@@ -21,9 +22,12 @@ export const kindOf = (file: File): AttachmentKind | null => {
   return null
 }
 
+function toastError(message: string) {
+  showToast(message, { tone: 'error' })
+}
+
 export default function useAttachments() {
   const [attachments, setAttachmentState] = useState<ReportAttachment[]>([])
-  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const current = useRef(attachments)
   const mounted = useRef(true)
 
@@ -69,7 +73,7 @@ export default function useAttachments() {
         : 'MP3·M4A·WAV·WebM 음성, PNG·JPG·WebP 사진, PDF만 넣을 수 있습니다.'
 
       if (supported.length === 0) {
-        setAttachmentError(formatError)
+        toastError(formatError)
         return
       }
       const picked = supported.slice(
@@ -77,20 +81,16 @@ export default function useAttachments() {
         Math.max(0, REPORT_ATTACHMENT_LIMIT - current.current.length),
       )
       if (picked.length === 0) {
-        setAttachmentError('첨부 파일은 최대 10개까지 넣을 수 있습니다.')
+        toastError('첨부 파일은 최대 10개까지 넣을 수 있습니다.')
         return
       }
       if (picked.some(({ file }) => file.size === 0)) {
-        setAttachmentError(errorMessage(new Error('empty_file'), '빈 파일은 올릴 수 없습니다.'))
+        toastError(errorMessage(new Error('empty_file'), '빈 파일은 올릴 수 없습니다.'))
         return
       }
-      setAttachmentError(
-        picked.length < supported.length
-          ? '첨부 파일은 최대 10개까지 넣을 수 있습니다.'
-          : supported.length < files.length
-            ? formatError
-            : null,
-      )
+      if (picked.length < supported.length)
+        toastError('첨부 파일은 최대 10개까지 넣을 수 있습니다.')
+      else if (supported.length < files.length) toastError(formatError)
 
       // 올린 원본을 그 자리에서 다시 보고 들을 수 있게 종류를 가리지 않고 주소를 잡아 둡니다.
       // 사진은 올리는 동안의 얼굴로, 녹음·PDF는 상세에서 재생·참고 화면으로 씁니다.
@@ -136,7 +136,7 @@ export default function useAttachments() {
           updateAttachments((previous) =>
             previous.filter((file) => !added.some(({ item }) => item.id === file.id)),
           )
-          setAttachmentError(
+          toastError(
             errorMessage(
               reason,
               '첨부 용량 제한을 확인하지 못했습니다. 다시 파일을 선택해 주세요.',
@@ -190,7 +190,7 @@ export default function useAttachments() {
                   attachment.id === item.id ? { ...attachment, state: 'failed' } : attachment,
                 ),
               )
-              setAttachmentError(
+              toastError(
                 errorMessage(
                   reason,
                   extractText
@@ -234,8 +234,6 @@ export default function useAttachments() {
     attachments,
     /** AgentRun 복구 입력을 그대로 얹을 때 씁니다. */
     setAttachments,
-    attachmentError,
-    setAttachmentError,
     pending: attachments.some((attachment) => attachment.state === 'analyzing'),
     addAttachments,
     removeAttachment,

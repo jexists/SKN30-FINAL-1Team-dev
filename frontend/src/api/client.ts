@@ -41,8 +41,14 @@ function skipsRefresh(url: string | undefined): boolean {
  *
  * 로그인 폼과 계정 요청 폼은 어떤 실패든 입력란 아래에 문구를 띄웁니다. 같은
  * 내용을 모달로 한 번 더 말하면 중복이라 여기서만 빼 둡니다.
+ * 첨부 업로드는 실패를 토스트와 빨간 테두리로 알립니다.
  */
-const OWN_ERROR_SURFACE_PATHS = ['/auth/login', '/signup/request']
+const OWN_ERROR_SURFACE_PATHS = [
+  '/auth/login',
+  '/signup/request',
+  '/report-attachments',
+  '/report-attachments/limits',
+]
 
 function ownsItsErrorSurface(url: string | undefined): boolean {
   if (!url) return false
