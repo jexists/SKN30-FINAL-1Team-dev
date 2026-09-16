@@ -273,7 +273,9 @@ class BriefingSourceRef(BaseModel):
     chunk_id: str | None = Field(
         default=None,
         max_length=128,
-        description="For document references, the matching RAG chunk_id supplied in document context.",
+        description=(
+            "For document references, the matching RAG chunk_id supplied in document context."
+        ),
     )
 
 

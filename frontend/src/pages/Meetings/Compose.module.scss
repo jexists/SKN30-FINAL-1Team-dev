@@ -109,7 +109,7 @@ $text-line: calc(var(--s4) + 12px);
   font-size: 13px;
 
   &::before {
-    content: "* ";
+    content: '* ';
   }
 }
 
@@ -153,7 +153,7 @@ $text-line: calc(var(--s4) + 12px);
   p,
   li {
     &::before {
-      content: "* ";
+      content: '* ';
     }
   }
 }
