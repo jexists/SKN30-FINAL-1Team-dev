@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import re
+from collections.abc import Mapping, Sequence
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.document_summary import CHUNK_SIZE
 from app.models.content import Document, DocumentChunk
 from app.models.content import File as FileRow
 from app.services import document_processing
@@ -17,7 +19,22 @@ from app.services import document_processing
 MAX_BRIEFING_CONTEXT_CHARS = 30_000
 _TRADE_DOCUMENT_CATEGORIES = ("quote", "contract", "purchase_order")
 _CURRENT_STATE_DOCUMENT_LIMIT = len(_TRADE_DOCUMENT_CATEGORIES)
-_CURRENT_STATE_CHUNK_LIMIT = 3
+_CURRENT_STATE_CHUNK_LIMIT = 6
+# 점수를 매길 후보 수. 거래 문서는 상거래 조건을 앞쪽에 적으므로 앞에서부터 본다.
+_CURRENT_STATE_SCAN_LIMIT = 40
+# 문서 하나가 프롬프트에서 가져갈 수 있는 글자. 청크 상한의 배수로 잡아 "첫 청크조차 들어가지
+# 못하는" 상태가 생기지 않게 한다 — 예산을 상수로 따로 적으면 CHUNK_SIZE 가 커질 때 어긋난다.
+#
+# 문맥 블록은 뒤에서 통째로 잘리고(to_briefing_prompt_block) [현재 영업 상태]가 맨 앞이라,
+# 이 블록이 커지면 [검색 근거]가 조용히 사라진다. 평상시에는 걸리지 않는 안전핀이다 —
+# 실측한 계약서의 청크는 가장 긴 것이 453자로 상한에 한참 못 미친다.
+_CURRENT_STATE_DOC_CHARS = CHUNK_SIZE * 3
+
+# 거래 문서에서 "조건이 적힌 칸"을 알아보는 표시. 금액과 날짜가 곧 조건이다.
+_MONEY_PATTERN = re.compile(r"\d{1,3}(?:,\d{3})+|\d+\s*%")
+_DATE_PATTERN = re.compile(
+    r"\d{4}\s*년|\d{1,2}\s*월\s*\d{1,2}\s*일|\d+\s*일\s*이내|\d+\s*년\s*까지"
+)
 _PRODUCT_SUMMARY_MAX_CHARS = 240
 
 
@@ -128,6 +145,37 @@ def _source_item(chunk, file_row, document, *, score: float | None) -> dict[str,
     }
 
 
+def current_state_score(content: str) -> int:
+    """거래 문서의 한 칸이 "지금 조건"을 얼마나 담고 있는지.
+
+    길이로 고르면 계약서에서 거꾸로 간다. 실측하면 책임한계(354자)와 해제·해지(322자) 같은
+    약관이 품목표(274자)와 납기(38자)를 밀어낸다 — 영업 담당자가 볼 값은 짧게 적히고 법무
+    문구가 길기 때문이다. 견적·계약·발주가 말하는 조건은 결국 금액과 날짜이므로 그것을 센다.
+
+    금액을 날짜보다 무겁게 보는 것은, 같은 조항 안에서도 금액이 든 칸이 먼저 필요해서다.
+    """
+    return len(_MONEY_PATTERN.findall(content)) * 2 + len(_DATE_PATTERN.findall(content))
+
+
+def select_current_state_chunks(contents: Sequence[str]) -> list[int]:
+    """점수가 높은 칸부터 글자 예산 안에서 고르고, 고른 자리를 문서 순서로 돌려준다.
+
+    예산을 넘기는 칸은 건너뛰고 다음 칸을 본다. 거기서 멈추면 큰 약관 하나가 뒤의 짧은
+    금액 칸까지 막는다. 돌려주는 순서를 문서 순서로 되돌리는 것은, 프롬프트에서 조항이
+    원문과 같은 차례로 읽혀야 앞뒤 관계(계약금 → 잔금)가 살기 때문이다.
+    """
+    picked: list[int] = []
+    used = 0
+    for index in sorted(range(len(contents)), key=lambda i: (-current_state_score(contents[i]), i)):
+        if len(picked) >= _CURRENT_STATE_CHUNK_LIMIT:
+            break
+        if used + len(contents[index]) > _CURRENT_STATE_DOC_CHARS:
+            continue
+        picked.append(index)
+        used += len(contents[index])
+    return sorted(picked)
+
+
 async def retrieve_current_state_sources(
     db: AsyncSession,
     *,
@@ -138,8 +186,8 @@ async def retrieve_current_state_sources(
     """견적·계약·발주의 최신 핵심 청크를 RAG 순위와 무관하게 확보한다.
 
     브리핑이 이전 견적의 "미확정" 상태만 보고 새 계약·발주 기록을 놓치지 않도록,
-    거래 문서 종류별 최신 문서 하나를 고른다. 각 문서에서는 제목 같은 짧은 메타 청크보다
-    실제 조건이 든 본문을 우선하기 위해 긴 청크부터 제한된 수만 담는다.
+    거래 문서 종류별 최신 문서 하나를 고른다. 각 문서에서 어느 칸을 담을지는
+    select_current_state_chunks 가 정한다 — 금액·날짜가 든 칸이 곧 지금의 조건이다.
     """
     scopes = document_processing.document_scopes(None, customer_company_id)
     if not scopes:
@@ -166,7 +214,7 @@ async def retrieve_current_state_sources(
 
     sources: list[dict[str, object]] = []
     for document, file_row in document_rows:
-        chunks = (
+        candidates = (
             (
                 await db.execute(
                     select(DocumentChunk)
@@ -175,13 +223,19 @@ async def retrieve_current_state_sources(
                         DocumentChunk.document_id == document.id,
                         DocumentChunk.file_id == file_row.id,
                     )
-                    .order_by(func.length(DocumentChunk.content).desc(), DocumentChunk.chunk_no)
-                    .limit(_CURRENT_STATE_CHUNK_LIMIT)
+                    .order_by(DocumentChunk.chunk_no)
+                    .limit(_CURRENT_STATE_SCAN_LIMIT)
                 )
             )
             .scalars()
             .all()
         )
+        # 고르는 일은 파이썬에서 한다. DB에 정규식을 넣으면 읽기도 어렵고 이 규칙만 따로
+        # 테스트할 수도 없다 — 어느 칸이 브리핑에 갈지는 값이 맞는지 다음으로 중요하다.
+        chunks = [
+            candidates[index]
+            for index in select_current_state_chunks([row.content or "" for row in candidates])
+        ]
         observed_at = getattr(document, "created_at", None)
         for chunk in chunks:
             source = _source_item(chunk, file_row, document, score=None)
