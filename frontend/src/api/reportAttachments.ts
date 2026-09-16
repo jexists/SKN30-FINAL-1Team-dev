@@ -13,9 +13,14 @@ export async function reportAttachmentLimits(): Promise<{
   return (await client.get('/report-attachments/limits')).data
 }
 
-export async function uploadReportAttachment(file: File): Promise<ReportAttachmentPayload> {
+/** `extractText=false` 는 보여 주기만 하는 첨부입니다. 서버가 STT·OCR 없이 원본만 맡습니다. */
+export async function uploadReportAttachment(
+  file: File,
+  extractText = true,
+): Promise<ReportAttachmentPayload> {
   const form = new FormData()
   form.append('upload', file)
+  if (!extractText) form.append('extract_text', 'false')
   return (
     await client.post<ReportAttachmentPayload>('/report-attachments', form, {
       timeout: UPLOAD_TIMEOUT_MS,

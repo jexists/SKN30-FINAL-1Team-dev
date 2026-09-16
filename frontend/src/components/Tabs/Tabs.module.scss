@@ -96,6 +96,33 @@
   }
 }
 
+/* ---- underline ---- */
+// 통도 알약도 없이 밑줄만 긋습니다. 서랍·패널 머리말 바로 아래에 붙어
+// 화면을 통째로 가르는 자리 — 고른 것을 알리는 일 말고는 아무 모양도 만들지 않습니다.
+.underline {
+  gap: var(--s3);
+  border-bottom: 1px solid var(--line);
+
+  .tab {
+    padding: var(--s2) 2px;
+    border: 0;
+    // 고른 탭 아래에만 선이 들어와, 폭이 흔들리지 않게 자리를 미리 비워 둡니다.
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-size: 12px;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--ink-2);
+    }
+  }
+
+  .isActive {
+    border-bottom-color: var(--ink);
+    color: var(--ink);
+  }
+}
+
 /* ---- sm — 툴바가 아니라 카드 제목 옆에 서는 보조 탭 ---- */
 .sm {
   &.pill .tab {

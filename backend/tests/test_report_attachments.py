@@ -191,6 +191,29 @@ def test_upload_keeps_original_with_owner_metadata_and_expiry(monkeypatch):
     assert db.commits == 2
 
 
+def test_display_only_upload_skips_extraction(monkeypatch):
+    """보여 주기만 하는 첨부는 OCR·STT를 부르지 않고 원본만 맡는다."""
+
+    async def extract(**_kwargs):
+        raise AssertionError("display_only_upload_must_not_extract")
+
+    monkeypatch.setattr(report_attachments, "extract", extract)
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+    db = _UploadDb()
+    with _client(_member(), db) as client:
+        response = client.post(
+            "/api/report-attachments",
+            headers={"Origin": ORIGIN},
+            files={"upload": ("photo.png", png, "image/png")},
+            data={"extract_text": "false"},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["extract"] == ""
+    assert db.rows[0].extracted_text == ""
+    storage.upload.assert_awaited_once()
+
+
 def test_upload_maps_extraction_failure_without_leaking_provider_detail(monkeypatch):
     async def extract(**_kwargs):
         raise ExtractionError("provider response containing private text")

@@ -29,8 +29,11 @@ interface Props<T extends string> {
   onChange?: (value: T) => void
   /** 묶음의 이름. 화면마다 '계약 단계'·'보기 방식' 처럼 다릅니다. */
   label: string
-  /** pill 은 알약이 각각 서고, segmented 는 한 통 안에 함께 담깁니다. */
-  variant?: 'pill' | 'segmented'
+  /**
+   * pill 은 알약이 각각 서고, segmented 는 한 통 안에 함께 담기며,
+   * underline 은 밑줄만 그어 머리말 아래에서 화면을 가릅니다.
+   */
+  variant?: 'pill' | 'segmented' | 'underline'
   /** 툴바가 아니라 카드 제목 옆에 설 때는 sm 으로 한 단계 낮춥니다. */
   size?: 'md' | 'sm'
   className?: string

@@ -31,6 +31,9 @@ export default function useAttachments() {
     mounted.current = true
     return () => {
       mounted.current = false
+      current.current.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+      })
     }
   }, [])
 
@@ -52,6 +55,8 @@ export default function useAttachments() {
       files: FileList | File[],
       purpose: AttachmentPurpose = 'reference',
       acceptedKinds?: readonly AttachmentKind[],
+      /** 보여 주기만 하는 첨부는 false. 서버가 STT·OCR을 돌리지 않고 원본만 맡습니다. */
+      extractText = true,
     ) => {
       const supported = Array.from(files)
         .map((file) => ({ file, kind: kindOf(file) }))
@@ -87,6 +92,10 @@ export default function useAttachments() {
             : null,
       )
 
+      // 올린 원본을 그 자리에서 다시 보고 들을 수 있게 종류를 가리지 않고 주소를 잡아 둡니다.
+      // 사진은 올리는 동안의 얼굴로, 녹음·PDF는 상세에서 재생·참고 화면으로 씁니다.
+      // 업로드 응답을 덮어쓸 때도 스프레드가 이 주소를 그대로 남깁니다.
+      // 서버로는 나가지 않고, 목록에서 빠질 때 함께 거둡니다.
       const added = picked.map(({ file, kind }) => ({
         file,
         item: {
@@ -96,6 +105,7 @@ export default function useAttachments() {
           name: file.name,
           byteSize: file.size,
           state: 'analyzing' as const,
+          previewUrl: URL.createObjectURL(file),
         },
       }))
       updateAttachments((previous) => [...previous, ...added.map(({ item }) => item)])
@@ -120,6 +130,9 @@ export default function useAttachments() {
           mounted.current &&
           added.some(({ item }) => current.current.some((file) => file.id === item.id))
         ) {
+          added.forEach(({ item }) => {
+            if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+          })
           updateAttachments((previous) =>
             previous.filter((file) => !added.some(({ item }) => item.id === file.id)),
           )
@@ -138,7 +151,7 @@ export default function useAttachments() {
           if (!mounted.current || !current.current.some((attachment) => attachment.id === item.id))
             return
           try {
-            const uploaded = await uploadReportAttachment(file)
+            const uploaded = await uploadReportAttachment(file, extractText)
             // 업로드 중 삭제·초기화된 파일의 늦은 응답은 화면이나 원문에 되살리지 않습니다.
             if (
               !mounted.current ||
@@ -178,7 +191,12 @@ export default function useAttachments() {
                 ),
               )
               setAttachmentError(
-                errorMessage(reason, `${file.name} 파일을 올려 분석하지 못했습니다.`),
+                errorMessage(
+                  reason,
+                  extractText
+                    ? `${file.name} 파일을 올려 분석하지 못했습니다.`
+                    : `${file.name} 파일을 올리지 못했습니다.`,
+                ),
               )
             }
           }
@@ -190,7 +208,13 @@ export default function useAttachments() {
 
   const removeAttachment = useCallback(
     (id: string) => {
-      updateAttachments((previous) => previous.filter((item) => item.id !== id))
+      updateAttachments((previous) =>
+        previous.filter((item) => {
+          if (item.id !== id) return true
+          if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+          return false
+        }),
+      )
     },
     [updateAttachments],
   )

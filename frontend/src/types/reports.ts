@@ -67,6 +67,8 @@ export interface ReportAttachment {
   extract?: string
   /** 새 업로드의 원본 보관 표시. 구버전 입력에서는 누락을 유지합니다. */
   originalStored?: true
+  /** 작성 화면에서만 쓰는 미리보기 주소(blob:). 서버 payload 에는 담지 않습니다. */
+  previewUrl?: string
 }
 
 export type ReportStatus = '작성중' | '검토 대기' | '확정' | '반려'

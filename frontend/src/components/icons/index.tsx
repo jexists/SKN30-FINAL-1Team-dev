@@ -392,6 +392,14 @@ export function CheckIcon(props: IconProps) {
   )
 }
 
+export function PlayIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 5.5l10 6.5-10 6.5z" fill="currentColor" stroke="none" />
+    </Icon>
+  )
+}
+
 export function TrashIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.8} {...props}>

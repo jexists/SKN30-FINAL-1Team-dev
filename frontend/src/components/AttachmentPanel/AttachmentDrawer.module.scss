@@ -1,0 +1,130 @@
+.done {
+  color: var(--green-ink);
+  font-weight: 600;
+  white-space: nowrap;
+
+  /* 패널 목록과 같은 이유입니다. 아이콘만 글자 높이로 내립니다. */
+  svg {
+    vertical-align: -0.14em;
+    margin-right: 3px;
+  }
+}
+
+/* 서랍 본문 여백을 거슬러, 머리말 아래 선과 한 줄로 이어지게 폭을 끝까지 넓힙니다.
+   Tabs 의 max-width:100% 를 그대로 두면 넓힌 폭이 본문 폭에서 잘려 오른쪽 끝이 비므로 풉니다. */
+.tabs {
+  max-width: none;
+  margin: calc(-1 * var(--s5)) calc(-1 * var(--s5)) 0;
+  padding: 0 var(--s5);
+
+  @include sm {
+    margin: calc(-1 * var(--s4)) calc(-1 * var(--s4)) 0;
+    padding: 0 var(--s4);
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  min-width: 0;
+  margin-top: var(--s4);
+}
+
+.extractHead {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.audio {
+  width: 100%;
+}
+
+/* 눌러서 전체 화면으로 여는 자리라 버튼 껍데기는 지웁니다. */
+.imageButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+}
+
+.image {
+  max-width: 100%;
+  max-height: 60vh;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  object-fit: contain;
+}
+
+.pdf {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+
+  @include sm {
+    height: 50vh;
+  }
+}
+
+/* 원본 탭 자리에 대신 서는 한 줄. 왜 열 것이 없는지만 말합니다. */
+.missing {
+  width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.extract {
+  width: 100%;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+/* 뽑힌 글을 읽으면서 고치는 자리라 처음부터 넉넉히 폅니다. */
+.editor {
+  width: 100%;
+  min-height: 320px;
+  padding: var(--s3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.8;
+  resize: vertical;
+
+  &:focus-visible {
+    border-color: var(--blue);
+    outline: 2px solid var(--blue-ring);
+    outline-offset: 0;
+  }
+
+  @include sm {
+    min-height: 200px;
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+  width: 100%;
+}
+
+.foot {
+  width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}

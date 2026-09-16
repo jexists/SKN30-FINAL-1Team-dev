@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentMember, DbSession
@@ -63,8 +63,12 @@ async def upload_report_attachment(
     member: CurrentMember,
     db: DbSession,
     upload: Annotated[UploadFile, File()],
+    extract_text: Annotated[bool, Form()] = True,
 ) -> ReportAttachmentRead:
-    """검증·추출한 원본을 24시간 보관하며, 확정하면 보고서에 귀속한다."""
+    """검증·추출한 원본을 24시간 보관하며, 확정하면 보고서에 귀속한다.
+
+    ``extract_text=false``는 보여 주기만 하는 첨부다. STT·OCR을 돌리지 않고 원본만 맡는다.
+    """
     if not settings.storage_configured:
         raise HTTPException(503, "storage_not_configured")
     file_name = (upload.filename or "").strip()
@@ -84,14 +88,19 @@ async def upload_report_attachment(
     except UploadRejected as rejected:
         raise HTTPException(rejected.status_code, rejected.detail) from rejected
 
-    try:
-        extracted = await report_attachments.extract(
-            file_name=file_name,
-            media_type=allowed.media_type,
-            content=content,
-        )
-    except (stt.STTError, ocr.OcrError, ExtractionError) as error:
-        raise _processing_error(error) from error
+    if extract_text:
+        try:
+            extract = (
+                await report_attachments.extract(
+                    file_name=file_name,
+                    media_type=allowed.media_type,
+                    content=content,
+                )
+            ).plain_text
+        except (stt.STTError, ocr.OcrError, ExtractionError) as error:
+            raise _processing_error(error) from error
+    else:
+        extract = ""
 
     attachment_id = uuid4()
     read = ReportAttachmentRead(
@@ -99,7 +108,7 @@ async def upload_report_attachment(
         kind=report_attachments.kind_of(allowed.media_type, file_name),
         name=file_name,
         byte_size=len(content),
-        extract=extracted.plain_text,
+        extract=extract,
         original_stored=True,
     )
     now = datetime.now(UTC)

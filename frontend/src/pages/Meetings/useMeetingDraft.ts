@@ -314,9 +314,10 @@ export default function useMeetingDraft(
       picked: FileList | File[],
       purpose: AttachmentPurpose,
       acceptedKinds?: readonly AttachmentKind[],
+      extractText = true,
     ) => {
       invalidateGeneration()
-      return addFiles(picked, purpose, acceptedKinds)
+      return addFiles(picked, purpose, acceptedKinds, extractText)
     },
     [addFiles, invalidateGeneration],
   )

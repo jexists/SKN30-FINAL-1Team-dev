@@ -1,35 +1,43 @@
-.note {
-  margin-bottom: var(--s3);
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.actions {
+.root {
   display: flex;
-  gap: var(--s2);
-  flex-wrap: wrap;
-}
-
-/*
- * 파일을 넣는 자리는 버튼이 아니라 면입니다. 빈 칸에 작은 버튼 하나만 얹으면
- * 남은 자리가 무엇에 쓰는 곳인지 말하지 않습니다 — 자리 전체가 그 말을 합니다.
- */
-.action {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  flex-direction: column;
   min-width: 0;
-  min-height: 72px;
-  padding: var(--s3);
-  border: 1px dashed var(--line-2);
+}
+
+/* 제목과 '파일 추가'가 한 줄에 섭니다. 넣은 것이 없을 때는 버튼 자리가 비어 있습니다. */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 28px;
+  margin-bottom: var(--s2);
+
+  strong {
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  svg {
+    flex: none;
+    color: var(--muted);
+  }
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  height: var(--control-h-sm);
+  padding: 0 var(--s3);
+  border: 1px solid var(--line-2);
   border-radius: var(--r-sm);
   background: var(--surface);
-  font-size: 13px;
+  color: var(--blue);
+  font-size: 12px;
   font-weight: 600;
-  color: var(--ink-2);
+  white-space: nowrap;
   cursor: pointer;
   transition:
     border-color var(--t-fast),
@@ -38,7 +46,6 @@
   &:hover {
     border-color: var(--blue);
     background: var(--blue-tint);
-    color: var(--blue);
   }
 
   &:focus-visible {
@@ -47,38 +54,359 @@
   }
 }
 
-/* 아직 넣은 것이 없으면 남은 높이를 다 씁니다. 목록이 생기면 제 키만 씁니다. */
-.actions:only-child {
-  flex: 1;
+/* 무엇을 넣는 자리인지. 하나라도 들어오면 목록이 그 말을 대신하므로 사라집니다. */
+.description,
+.note {
+  margin-bottom: var(--s3);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-.actions + .list {
+/*
+ * 파일을 넣는 자리는 버튼이 아니라 면입니다. 빈 칸에 작은 버튼 하나만 얹으면
+ * 남은 자리가 무엇에 쓰는 곳인지 말하지 않습니다 — 자리 전체가 그 말을 합니다.
+ */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  min-height: 96px;
+  padding: var(--s4) var(--s3);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast),
+    background var(--t-fast);
+
+  &:hover {
+    border-color: var(--blue);
+    background: var(--blue-tint);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+}
+
+.dropLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dropHint {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.dropzone + .cards,
+.dropzone + .tiles,
+.dropzone + .list {
   margin-top: var(--s3);
 }
+
+/* ---- 미팅 원문 목록. 훑는 자리라 한 건이 한 줄을 넘지 않습니다 ---- */
 
 .list {
   display: flex;
   flex-direction: column;
+  gap: var(--s2);
 }
 
-.item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--s3);
-  padding: var(--s3) 0;
+.listItem {
+  position: relative;
+  min-width: 0;
+}
 
-  & + .item {
-    border-top: 1px solid var(--line);
+/* 줄 전체가 상세를 여는 버튼입니다. 삭제만 그 위에 따로 얹습니다. */
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3);
+  padding-right: calc(var(--s3) + 26px + var(--s2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast),
+    background var(--t-fast);
+
+  &:hover:not(:disabled) {
+    border-color: var(--blue);
+    background: var(--blue-tint);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: default;
   }
 }
 
-.kind {
-  @include tag-pill;
-
-  margin-top: 2px;
-  font-size: 11px;
+/* 읽기 전용에는 삭제 버튼이 없어, 오른쪽에 비워 둔 자리도 필요 없습니다. */
+.list[data-readonly] .row {
+  padding-right: var(--s3);
 }
+
+/*
+ * 얼굴을 세 줄(이름·상태·맛보기)에 맞춰 키웁니다. 얼굴보다 글이 길게 흘러내리면
+ * 줄의 왼쪽과 오른쪽 높이가 어긋나 목록이 들쭉날쭉해 보입니다.
+ */
+.row .thumb {
+  width: 62px;
+  height: 62px;
+  border-radius: var(--r-sm);
+
+  /* 얼굴이 커진 만큼 종류 아이콘도 함께 키웁니다. */
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* 세 줄을 얼굴과 같은 높이 안에서 위아래 가운데로 모읍니다. */
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 62px;
+}
+
+/* 밑줄 친 긴 파일명은 살짝 조여야 한 덩어리로 읽힙니다. */
+.row .name {
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+.row .meta,
+.rowPreview {
+  line-height: 1.45;
+}
+
+/* 이름과 상태는 한 덩어리로 붙습니다. 맛보기 한 줄만 그 아래로 떨어집니다. */
+.row .meta {
+  margin-top: -4px;
+}
+
+/* 이름도 맛보기도 한 줄입니다. 길면 잘라야 목록이 목록으로 남습니다. */
+.row .name,
+.rowPreview {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+}
+
+.rowPreview {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.listItem .remove {
+  position: absolute;
+  top: 50%;
+  right: var(--s3);
+  transform: translateY(-50%);
+}
+
+/* ---- 녹음처럼 한 건이 한 줄을 쓰는 첨부 ---- */
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.card {
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.cardRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.cards + .tiles {
+  margin-top: var(--s3);
+}
+
+/* ---- 이미지·PDF 는 무엇을 넣었는지가 이름보다 먼저 보여야 합니다 ---- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--s3);
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tileBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 이름과 용량이 타일 폭을 넘기지 않게 각각 한 줄로 자릅니다. */
+.tile .name {
+  font-size: 12px;
+}
+
+.tile .remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--surface);
+}
+
+/* ---- 참고자료 갤러리. 이름 없이 사진만 깔고 누르면 전체화면입니다 ---- */
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--s3);
+}
+
+.dropzone + .gallery {
+  margin-top: var(--s3);
+}
+
+.photoItem {
+  position: relative;
+  min-width: 0;
+}
+
+.photo {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--fill);
+  color: var(--muted);
+  cursor: pointer;
+
+  /* 실패는 문구 없이 빨간 테두리가 말합니다. 자세한 까닭은 판 아래 한 줄에 섭니다. */
+  &[data-state='failed'] {
+    border-color: var(--red);
+    border-width: 2px;
+    opacity: 0.6;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+}
+
+/* 사진 위에 얹는 진행 표시. 버튼 안에 넣으면 <p> 가 <button> 안에 들어갑니다.
+   사진이 무엇이든 보이도록 어두운 막을 깔고 그 위에 흰 아이콘을 크게 돌립니다. */
+.photoLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  pointer-events: none;
+
+  svg {
+    width: 28px;
+    height: 28px;
+    stroke-width: 2.4;
+  }
+}
+
+.photoItem .remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--surface);
+}
+
+/* ---- 얼굴(썸네일·아이콘) ---- */
+
+.thumb,
+.tileFace {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--fill);
+  color: var(--blue);
+}
+
+.thumb {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+
+.tileFace {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  color: var(--muted);
+}
+
+.thumbImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fileActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: 2px;
+
+  button:disabled {
+    color: var(--muted);
+    cursor: wait;
+  }
+}
+
+/* ---- 이름·상태 ---- */
 
 .body {
   min-width: 0;
@@ -98,20 +426,49 @@
   color: var(--muted);
 }
 
+/*
+ * inline-flex 로 두면 첫 자식인 아이콘에 베이스라인이 없어 상자 전체가 글줄 위로 들립니다.
+ * 보통 글처럼 흘려 두고 아이콘만 글자 높이에 맞춰 내립니다.
+ */
+.done {
+  color: var(--blue);
+  font-weight: 600;
+  white-space: nowrap;
+
+  svg {
+    vertical-align: -0.14em;
+    margin-right: 3px;
+  }
+}
+
+/* 추출 원문은 파일 정보가 아니라 그 아래 딸린 한 줄입니다. */
+.extractBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-top: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .toggle {
   align-self: flex-start;
-  margin-top: 4px;
   padding: 0;
   border: 0;
   background: none;
   color: var(--blue);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .extract {
-  margin-top: 6px;
+  margin-top: var(--s2);
   padding: var(--s2) var(--s3);
   border-radius: var(--r-xs);
   background: var(--surface-2);
@@ -156,6 +513,7 @@
   place-items: center;
   width: 26px;
   height: 26px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-xs);
   background: transparent;
@@ -172,18 +530,6 @@
   padding: var(--s3) 0;
   color: var(--muted);
   font-size: 13px;
-}
-
-.fileActions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s3);
-
-  button:disabled {
-    color: var(--muted);
-    cursor: wait;
-  }
 }
 
 .error {
