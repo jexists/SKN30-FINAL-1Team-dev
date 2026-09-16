@@ -213,7 +213,8 @@
 
   // 라벨보다 작게 두어 뱃지가 아니라 라벨이 먼저 읽힙니다.
   span:not(.hint) {
-    padding: 2px 4px;
+    height: auto;
+    padding: 1px 4px;
     border-radius: 4px;
     font-size: 8px;
     line-height: 1.4;

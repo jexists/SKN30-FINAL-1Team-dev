@@ -390,6 +390,13 @@ export default function CustomerFormModal({
     confirmed(key)
   }
 
+  // 팀장은 모두, 팀원은 자기가 작성한 고객일 때만 회사의 사업자번호·주소를 고칩니다.
+  const canEditCompany = isManager || customer?.createdByMemberId === memberId
+  const onOwnCompany = editing && company?.kind === 'existing' && company.company.id === companyId
+  const editingOwnCompany = onOwnCompany && canEditCompany
+  const notAuthorHint =
+    onOwnCompany && !canEditCompany ? '작성자가 아니어서 수정할 수 없습니다.' : undefined
+
   const pickCompany = (selection: CompanySelection | null) => {
     // 기존 회사에서 벗어날 때만 비웁니다. 그 회사의 번호·주소를 다음 회사가 물려받으면
     // 안 되기 때문입니다. 반대로 사업자등록증에서 읽어 채운 값은 회사 이름을 고르고
@@ -423,6 +430,29 @@ export default function CustomerFormModal({
     let fields: CustomerContactUpdateRequest | null = null
 
     try {
+      if (editingOwnCompany && company.kind === 'existing') {
+        const saved = company.company
+        const nextBusinessNo = businessNoDigits(businessNo)
+        const current = companyAddress(saved)
+        const patch = {
+          ...(nextBusinessNo !== businessNoDigits(saved.business_no ?? '')
+            ? { business_no: nextBusinessNo || null }
+            : {}),
+          ...(address.postcode !== current.postcode ||
+          address.address !== current.address ||
+          address.addressDetail !== current.addressDetail
+            ? {
+                postcode: optional(address.postcode),
+                address: optional(address.address),
+                address_detail: optional(address.addressDetail),
+              }
+            : {}),
+        }
+        if (Object.keys(patch).length > 0) {
+          await client.patch(`/customer-companies/${saved.id}`, patch)
+        }
+      }
+
       fields = {
         company_id: await resolveCompanyId(company, businessNo, address),
         name: draft.name.trim(),
@@ -612,14 +642,16 @@ export default function CustomerFormModal({
               required={businessLicenseRegistration}
               error={errors.businessNo}
               check={fromDocument.has('businessNo')}
+              hint={notAuthorHint}
             >
               <input
                 value={maskBusinessNo(businessNo)}
                 aria-invalid={errors.businessNo !== undefined}
                 placeholder="123-45-67890"
                 maxLength={12}
-                // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다.
-                readOnly={company?.kind === 'existing'}
+                // 이미 있는 회사는 그 회사의 값을 보여 주기만 합니다. 고객을 수정할 때 그 고객의
+                // 회사이고 고칠 권한이 있으면 고칠 수 있고, 저장하면 회사 사업자번호·주소가 바뀝니다.
+                readOnly={company?.kind === 'existing' && !editingOwnCompany}
                 // 회사를 고르기 전이라도, 등록증에서 읽어 온 값은 고칠 수 있어야 합니다.
                 disabled={submitting || (company === null && businessNo === '')}
                 onChange={(event) => {
@@ -638,7 +670,7 @@ export default function CustomerFormModal({
             required={businessLicenseRegistration}
             error={errors.address}
             check={fromDocument.has('address')}
-            hint="앞부분을 누르면 주소를 찾고, 뒤에 이어 쓰면 상세주소가 됩니다."
+            hint={notAuthorHint ?? '앞부분을 누르면 주소를 찾고, 뒤에 이어 쓰면 상세주소가 됩니다.'}
             hintId="address-field-hint"
             htmlFor={false}
           >
@@ -648,7 +680,7 @@ export default function CustomerFormModal({
                 setAddress(next)
                 confirmed('address')
               }}
-              readOnly={company?.kind === 'existing'}
+              readOnly={company?.kind === 'existing' && !editingOwnCompany}
               // 등록증에서 읽어 온 주소가 있으면 회사를 고르기 전에도 다시 고를 수 있습니다.
               disabled={submitting || (company === null && address.address === '')}
             />

@@ -490,12 +490,25 @@ async def update_customer_company(
     member: CurrentMember,
     db: DbSession,
 ) -> CustomerCompany:
-    if member.role_code != "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="manager_required",
-        )
     company = await _get_company(db, member, company_id)
+    # 팀원은 자기가 작성한 고객이 붙은 회사만 고친다. 팀장이 작성한 고객의 회사는 못 고친다.
+    if member.role_code != "manager":
+        authored = await db.execute(
+            select(
+                select(CustomerContact.id)
+                .where(
+                    CustomerContact.company_id == company.id,
+                    CustomerContact.created_by_member_id == member.id,
+                    CustomerContact.deleted_at.is_(None),
+                )
+                .exists()
+            )
+        )
+        if not authored.scalar_one():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="customer_company_not_author",
+            )
     changed = payload.model_dump(exclude_unset=True)
     for field_name, value in changed.items():
         setattr(company, field_name, value)

@@ -358,14 +358,23 @@ def test_company_create_reuses_same_team_name_after_unique_conflict():
     assert db.rollback_count == 1
 
 
-def test_company_patch_requires_manager_and_other_team_is_hidden():
+def test_company_patch_requires_manager_or_author_and_other_team_is_hidden():
     member = _member()
-    member_db = _Db()
+    company = _company(member.team_id)
+    member_db = _Db(_Result(scalar=company), _Result(scalar=False))
     with _client(member_db, member) as client:
         forbidden = client.patch(
-            f"/api/customer-companies/{uuid4()}",
+            f"/api/customer-companies/{company.id}",
             headers={"Origin": ORIGIN},
             json={"name": "변경"},
+        )
+
+    author_db = _Db(_Result(scalar=company), _Result(scalar=True))
+    with _client(author_db, member) as client:
+        allowed = client.patch(
+            f"/api/customer-companies/{company.id}",
+            headers={"Origin": ORIGIN},
+            json={"business_no": "1234567890"},
         )
 
     manager = _member(role="manager")
@@ -378,8 +387,11 @@ def test_company_patch_requires_manager_and_other_team_is_hidden():
         )
 
     assert forbidden.status_code == 403
-    assert forbidden.json() == {"detail": "manager_required"}
-    assert not member_db.statements
+    assert forbidden.json() == {"detail": "customer_company_not_author"}
+    assert member_db.commit_count == 0
+    assert allowed.status_code == 200
+    assert allowed.json()["business_no"] == "1234567890"
+    assert author_db.commit_count == 1
     assert hidden.status_code == 404
     assert hidden.json() == {"detail": "customer_company_not_found"}
     assert manager_db.commit_count == 0
