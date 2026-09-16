@@ -63,6 +63,9 @@ const { default: AttachmentPanel } = await vite.ssrLoadModule(
 const { default: MeetingInputPanel } = await vite.ssrLoadModule(
   '/src/pages/Meetings/components/MeetingInputPanel/MeetingInputPanel.tsx',
 )
+const { default: AttachmentDrawer } = await vite.ssrLoadModule(
+  '/src/components/AttachmentPanel/AttachmentDrawer.tsx',
+)
 const { attachmentPayloadsOf, attachmentsFromPayload, meetingAttachmentPurposeOf } =
   await vite.ssrLoadModule('/src/utils/attachment.ts')
 const { initScope, resetScope } = await vite.ssrLoadModule('/src/shared/scope.ts')
@@ -82,9 +85,8 @@ const { ReportReviewContents } = await vite.ssrLoadModule(
 const { reviewReport } = await vite.ssrLoadModule('/src/shared/reviewDecision.ts')
 const { client } = await vite.ssrLoadModule('/src/api/client.ts')
 const { downloadReportAttachment } = await vite.ssrLoadModule('/src/api/reportAttachments.ts')
-const { meetingRunErrorMessage, messageForCode, reportGenerationMessage } = await vite.ssrLoadModule(
-  '/src/api/errorMessage.ts',
-)
+const { meetingRunErrorMessage, messageForCode, reportGenerationMessage } =
+  await vite.ssrLoadModule('/src/api/errorMessage.ts')
 
 test('딜 상세 링크는 식별자를 인코딩해 영업 현황 드로어를 바로 연다', () => {
   assert.equal(dealDetailPath('deal/id?tab=1'), '/deals?deal=deal%2Fid%3Ftab%3D1')
@@ -121,6 +123,62 @@ test('첨부판은 허용 형식과 업로드 상태·조작 대상을 보조기
   assert.match(view, /role="status"[^>]*>12KB · 업로드·분석 중…/)
   assert.match(view, /aria-label="meeting\.mp3 업로드 취소"/)
   assert.match(view, /aria-controls="[^"]+-ready-pdf-extract"/)
+})
+
+test('보고서 참고자료는 이름 없이 사진만 깔고 누르면 전체화면으로 연다', () => {
+  const view = renderToStaticMarkup(
+    createElement(MeetingInputPanel, {
+      attachments: [
+        {
+          id: 'ref-photo',
+          kind: 'image',
+          purpose: 'reference',
+          name: '제품사진.jpg',
+          byteSize: 2 * 1024,
+          state: 'done',
+          previewUrl: 'blob:photo',
+        },
+        {
+          id: 'ref-uploading',
+          kind: 'image',
+          purpose: 'reference',
+          name: '올리는중.png',
+          byteSize: 1024,
+          state: 'analyzing',
+          previewUrl: 'blob:uploading',
+        },
+        {
+          id: 'ref-failed',
+          kind: 'image',
+          purpose: 'reference',
+          name: '실패.png',
+          byteSize: 1024,
+          state: 'failed',
+          previewUrl: 'blob:failed',
+        },
+      ],
+      transcript: '',
+      onAttach() {},
+      onRemoveAttachment() {},
+      onExtractChange() {},
+      onTranscriptChange() {},
+      attachmentError: null,
+      disabled: false,
+    }),
+  )
+  const reference = view.split('보고서 참고자료')[1]
+  // 사진만 깔립니다 — 파일명·용량 줄도, 점선 자리도 없습니다. 추가는 제목 옆 버튼입니다.
+  assert.match(reference, /<img[^>]*src="blob:photo"/)
+  assert.doesNotMatch(reference, />제품사진\.jpg</)
+  assert.doesNotMatch(reference, /2KB/)
+  assert.match(reference, /aria-label="제품사진\.jpg 크게 보기"/)
+  assert.match(reference, /파일 추가/)
+  assert.match(reference, /accept="\.png,\.jpg,\.jpeg,\.webp"/)
+  // 올리는 중에는 아이콘이 돌고, 진행 중·실패한 사진은 열 것이 없어 눌리지 않습니다.
+  assert.match(reference, /role="status"[\s\S]*올리는중\.png 올리는 중/)
+  assert.match(reference, /data-state="analyzing"[^>]*disabled/)
+  assert.match(reference, /data-state="failed"[^>]*disabled/)
+  assert.match(reference, /미팅 발언으로 사용하지 않습니다/)
 })
 
 test('미팅 입력은 형식과 목적을 분리하고 직접 입력을 파일 밖에 둔다', () => {
@@ -164,6 +222,149 @@ test('미팅 입력은 형식과 목적을 분리하고 직접 입력을 파일 
   assert.match(reference, /참고\.mp3/)
   assert.match(reference, /미팅 발언으로 사용하지 않습니다/)
   assert.doesNotMatch(reference, /<textarea/)
+})
+
+test('미팅 원문 목록은 한 줄로 훑고 상세 조작은 드로어가 맡는다', () => {
+  const items = [
+    {
+      id: 'audio',
+      kind: 'audio',
+      purpose: 'meeting_source',
+      name: '영업대본.mp3',
+      byteSize: 3 * 1024 * 1024,
+      state: 'done',
+      extract: '안녕하세요 원장님.',
+    },
+    {
+      id: 'doc',
+      kind: 'pdf',
+      purpose: 'meeting_source',
+      name: '자료.pdf',
+      byteSize: 1024,
+      state: 'analyzing',
+    },
+  ]
+  const list = renderToStaticMarkup(
+    createElement(AttachmentPanel, {
+      attachments: items,
+      title: '녹음',
+      note: '',
+      onAttach() {},
+      onRemove() {},
+      onExtractChange() {},
+    }),
+  )
+  // 목록에는 파일을 알아볼 것만 둡니다. 원본·원문을 여는 버튼은 전부 드로어 안입니다.
+  for (const action of [
+    '내용 보기',
+    '원본 다시 듣기',
+    '전체 화면 보기',
+    '참고 화면 보기',
+    '원문 보기',
+  ])
+    assert.doesNotMatch(list, new RegExp(action))
+  assert.doesNotMatch(list, /<textarea/)
+  assert.match(list, /STT 완료/)
+  assert.match(list, /안녕하세요 원장님/)
+  assert.match(list, /aria-label="영업대본\.mp3 삭제"/)
+  // 아직 분석 중인 줄은 열 것이 없습니다.
+  assert.match(list, /<button[^>]*disabled[^>]*>/)
+
+  const drawer = renderToStaticMarkup(
+    createElement(AttachmentDrawer, {
+      item: { ...items[0], previewUrl: 'blob:audio' },
+      onExtractChange() {},
+      onClose() {},
+    }),
+  )
+  assert.match(drawer, /role="dialog"/)
+  // 녹음은 재생 막대 한 줄이라 뺏을 자리가 없습니다 — 탭 없이 원문과 함께 쌓입니다.
+  assert.match(drawer, /<audio[^>]*controls/)
+  assert.match(drawer, /안녕하세요 원장님/)
+  assert.doesNotMatch(drawer, /원본 다시 듣기|추출된 텍스트/)
+
+  const pdf = renderToStaticMarkup(
+    createElement(AttachmentDrawer, {
+      item: { ...items[1], state: 'done', extract: '데이터 전처리', previewUrl: 'blob:pdf' },
+      onExtractChange() {},
+      onClose() {},
+    }),
+  )
+  // 그림·PDF 는 둘을 쌓으면 서로 자리를 뺏으므로 탭으로 갈라 각자 서랍 높이를 다 씁니다.
+  assert.match(pdf, /<iframe/)
+  assert.match(pdf, /참고 화면<\/button>/)
+  assert.match(pdf, /추출된 텍스트<\/button>/)
+
+  // 복구한 초안은 원본을 들고 있지 않아 재생 대신 이유를 말합니다.
+  const restored = renderToStaticMarkup(
+    createElement(AttachmentDrawer, { item: items[0], onExtractChange() {}, onClose() {} }),
+  )
+  assert.doesNotMatch(restored, /<audio/)
+  assert.match(restored, /원본 파일을 다시 열 수 없습니다/)
+})
+
+test('잠긴 미팅 원문은 작성 화면과 같은 목록으로 두고 고치는 자리만 걷는다', () => {
+  const attachments = [
+    {
+      id: 'audio',
+      kind: 'audio',
+      purpose: 'meeting_source',
+      name: '영업대본.mp3',
+      byteSize: 3 * 1024 * 1024,
+      state: 'done',
+      extract: '안녕하세요 원장님.',
+      previewUrl: 'blob:audio',
+    },
+    {
+      id: 'photo',
+      kind: 'image',
+      purpose: 'reference',
+      name: '제품사진.jpg',
+      byteSize: 2 * 1024,
+      state: 'done',
+      previewUrl: 'blob:photo',
+    },
+  ]
+  const render = (disabled) =>
+    renderToStaticMarkup(
+      createElement(MeetingInputPanel, {
+        attachments,
+        transcript: '직접 기록',
+        onAttach() {},
+        onRemoveAttachment() {},
+        onExtractChange() {},
+        onTranscriptChange() {},
+        attachmentError: null,
+        disabled,
+      }),
+    )
+  const open = render(false)
+  const locked = render(true)
+
+  // 잠겨도 같은 줄 목록·같은 사진 갤러리입니다 — 예전 카드/타일로 돌아가지 않습니다.
+  const shapes = [/AttachmentPanel__row/, /AttachmentPanel__rowPreview/, /AttachmentPanel__photo/]
+  for (const shape of shapes) for (const view of [open, locked]) assert.match(view, shape)
+  assert.doesNotMatch(locked, /AttachmentPanel__card|AttachmentPanel__tile/)
+  assert.match(locked, /안녕하세요 원장님/)
+  assert.match(locked, /aria-label="제품사진\.jpg 크게 보기"/)
+  // 고치는 자리만 사라집니다. 직접 입력은 흐려지지 않고 읽기 전용으로 남습니다.
+  assert.match(open, /파일 추가/)
+  assert.doesNotMatch(locked, /파일 추가|type="file"|aria-label="[^"]* 삭제"/)
+  assert.match(locked, /<textarea[^>]*readOnly=""/)
+  assert.doesNotMatch(locked, /<textarea[^>]*disabled/)
+
+  // 줄을 누르면 열리는 드로어도 읽기 전용입니다 — 원본과 추출문은 그대로 보입니다.
+  const drawer = renderToStaticMarkup(
+    createElement(AttachmentDrawer, {
+      item: attachments[0],
+      readOnly: true,
+      onExtractChange() {},
+      onClose() {},
+    }),
+  )
+  assert.match(drawer, /<audio[^>]*controls/)
+  assert.match(drawer, /안녕하세요 원장님/)
+  assert.doesNotMatch(drawer, />수정<|<textarea|저장하기/)
 })
 
 test('첨부 목적과 교정문은 왕복 보존하고 과거 목적 누락은 임의로 채우지 않는다', () => {
@@ -247,10 +448,32 @@ test('완료 첨부판은 보관된 파일의 원본 기능과 구버전 원본 
       readOnly: true,
     }),
   )
-  assert.equal((view.match(/>원본 보기<\/button>/g) ?? []).length, 1)
-  assert.equal((view.match(/>다운로드<\/button>/g) ?? []).length, 1)
-  assert.match(view, /원본 파일이 저장되지 않아 확인할 수 없습니다/)
+  // 낸 뒤의 화면도 작성 화면과 같은 줄 목록입니다 — 원본·다운로드는 전부 드로어 안입니다.
+  assert.match(view, /AttachmentPanel__row/)
+  assert.doesNotMatch(view, /AttachmentPanel__card|AttachmentPanel__tile/)
+  assert.doesNotMatch(view, />원본 보기<|>다운로드<|내용 보기/)
   assert.doesNotMatch(view, /type="file"|업로드 취소|aria-label=".* 삭제"/)
+
+  // 원본을 맡지 않은 구버전 첨부는 드로어가 왜 열 것이 없는지 말합니다.
+  const legacy = renderToStaticMarkup(
+    createElement(AttachmentDrawer, { item: files[1], readOnly: true, onClose() {} }),
+  )
+  assert.match(legacy, /원본 파일이 저장되지 않아 확인할 수 없습니다/)
+  assert.match(legacy, /과거 추출문/)
+
+  // 보관된 원본은 드로어에서 열고 내려받습니다.
+  const stored = renderToStaticMarkup(
+    createElement(AttachmentDrawer, {
+      item: files[0],
+      readOnly: true,
+      originalUrl: 'blob:stored',
+      onDownload() {},
+      onClose() {},
+    }),
+  )
+  assert.match(stored, /<img[^>]*src="blob:stored"/)
+  assert.match(stored, />다운로드</)
+  assert.doesNotMatch(stored, />수정<|<textarea/)
 })
 
 test('원본 조회는 인증 클라이언트의 blob을 받고 JSON 오류도 사용자 오류로 읽는다', async () => {
@@ -520,8 +743,14 @@ test('저장 보고서 재진입은 AI 검토 경고를 복구하고 새 범위�
   }
 
   // 새 초안에는 새 검토가 붙습니다. 생성을 시작하는 자리에서 직전 근거를 비웁니다.
-  assert.match(meetingCompose, /beginGeneration\(targets\)[\s\S]{0,200}setGenerationEvidence\(null\)/)
-  assert.match(dailyDraft, /setGenerationProgress\(null\)[\s\S]{0,200}setGenerationEvidence\(null\)/)
+  assert.match(
+    meetingCompose,
+    /beginGeneration\(targets\)[\s\S]{0,200}setGenerationEvidence\(null\)/,
+  )
+  assert.match(
+    dailyDraft,
+    /setGenerationProgress\(null\)[\s\S]{0,200}setGenerationEvidence\(null\)/,
+  )
 })
 
 test('지금 하는 일 한 줄은 본문과 검토 메모보다 아래, 지나온 단계는 위에 선다', async () => {
@@ -1136,7 +1365,13 @@ test('미팅 생성은 AgentRun 입력만 보내고 최종 확정에만 전체 �
   assert.equal('ai_evidence' in finalized.deal_sections[0], false)
 
   const withoutDeal = meetingFinalizeRequestOf(
-    { ...draft, dealSections: [], reportId: 'existing-report', version: 7, statusCode: 'submitted' },
+    {
+      ...draft,
+      dealSections: [],
+      reportId: 'existing-report',
+      version: 7,
+      statusCode: 'submitted',
+    },
     'meeting-remove-deal-key',
   )
   assert.deepEqual(withoutDeal.deal_sections, [])
@@ -1210,8 +1445,8 @@ test('딜 미지정 미팅은 공통 본문만으로 생성·확정·검토할 �
     createElement(MeetingSharedPanel, { shared: null, showCommon: true, onChange() {} }),
   )
   assert.match(editor, /공통 내용/)
-  // 딜 본문과 같은 방식입니다 — 읽다가 눌러 들어갑니다.
-  assert.match(editor, /aria-label="공통 내용 고치기"/)
+  // 수정은 보고서 아래의 공통 버튼에서 시작합니다. 각 본문을 눌러 편집기로 들어가지 않습니다.
+  assert.doesNotMatch(editor, /aria-label="공통 내용 고치기"/)
   assert.doesNotMatch(editor, /<textarea/)
 })
 
@@ -1648,7 +1883,8 @@ test('소제목이 없는 본문도 구획이 있는 본문과 같은 본문 타
 test('기간 보고서 본문은 고정 항목마다 구획이 서고, 잘린 스트림에서도 하나씩 늘어난다', () => {
   // 구획이 도착하는 대로 하나씩 늘어나는 것이 이 화면의 진행 표시입니다. 도중 본문에서도
   // 구획 수가 맞아야 하고, 구획마다 상자를 두르지 않고 여백으로만 가릅니다.
-  const full = '**오늘 한 일**\n\nA 병원을 방문했습니다.\n\n**다음 업무**\n\n- 제안서 전달 | 담당: 본인'
+  const full =
+    '**오늘 한 일**\n\nA 병원을 방문했습니다.\n\n**다음 업무**\n\n- 제안서 전달 | 담당: 본인'
   const partial = '**오늘 한 일**\n\nA 병원을 방'
 
   const whole = renderToStaticMarkup(createElement(ReportView, { body: full }))
@@ -1775,9 +2011,9 @@ test('공통·미지정 기록은 읽기 전용 Markdown과 편집용 여는 자
   assert.match(view, /&lt;script&gt;/)
   assert.match(view, /미지정 내용 본문/)
   const edit = renderToStaticMarkup(createElement(MeetingSharedPanel, { shared, onChange() {} }))
-  // 두 기록 모두 눌러서 고치는 자리이고, 각자 제 이름을 달고 있습니다.
+  // 수정 진입은 보고서 아래의 버튼 하나가 맡습니다. 이 패널은 읽는 본문만 그립니다.
   const opens = [...edit.matchAll(/aria-label="([^"]+) 고치기"/g)].map(([, name]) => name)
-  assert.deepEqual(opens, ['공통 내용', '딜 미지정 · 확인 필요'])
+  assert.deepEqual(opens, [])
   assert.doesNotMatch(edit, /<textarea/)
 })
 
