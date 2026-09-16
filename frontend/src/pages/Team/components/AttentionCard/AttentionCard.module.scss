@@ -32,23 +32,68 @@
   }
 }
 
+// 갈래 이름은 왼쪽에 폭을 정해 세우고 사람은 오른쪽에 늘어놓습니다. 위아래로 쌓으면
+// 갈래마다 두 줄을 먹어 카드가 표를 밀어냅니다. 왼쪽 폭이 같아 이름들이 한 줄로 맞습니다.
+.group {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+
+  @include sm {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s2);
+  }
+}
+
 .row {
   display: flex;
   align-items: center;
-  gap: var(--s3);
-  width: 100%;
-  padding: var(--s3) var(--s2);
-  border: 0;
-  border-radius: var(--r-xs);
-  background: none;
+  gap: var(--s2);
+  min-height: 28px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
-  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background var(--t-fast);
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast);
 
   &:hover {
+    border-color: var(--line-2);
     background: var(--fill-2);
   }
+
+  &:focus-visible {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-ring);
+    outline: none;
+  }
+}
+
+.rate {
+  color: var(--red-ink);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 // 갈래를 알리는 한 글자. 색은 이 카드에서만 쓰는 강조이고 나머지 화면은 조용히 둡니다.
@@ -78,36 +123,8 @@
   color: var(--muted);
 }
 
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
 .title {
   color: var(--ink);
   font-size: 13px;
   font-weight: 600;
-}
-
-.names {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.action {
-  flex: none;
-  margin-left: auto;
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 600;
-
-  // 좁은 화면에서는 이름이 먼저 읽혀야 합니다. 손잡이 전체가 눌리므로 문구는 접습니다.
-  @include sm {
-    display: none;
-  }
 }

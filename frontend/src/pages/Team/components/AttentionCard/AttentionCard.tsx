@@ -1,7 +1,7 @@
 // 지금 팀장이 손봐야 할 사람만 모아 두는 카드입니다.
 //
 // 목록은 여덟 명이 다 같은 무게로 서 있어서, 훑지 않으면 누구부터 볼지 알 수 없습니다.
-// 여기서는 갈래마다 한 줄만 두고 이름을 앞에서 셋까지 보여 준 뒤 첫 사람의 상세를 엽니다.
+// 여기서는 갈래마다 한 줄을 두고, 그 아래 이름을 하나씩 눌러 바로 상세를 엽니다.
 //
 // 새로 받아 오는 값은 없습니다. 이미 화면에 있는 구성원 목록에서 추려낼 뿐입니다.
 // 볼 것이 하나도 없으면 이 카드는 아예 서지 않습니다.
@@ -26,13 +26,6 @@ interface Group {
   people: readonly TeamMemberRow[]
 }
 
-/** 이름을 셋까지 늘어놓고 나머지는 수로 접습니다. */
-function names(people: readonly TeamMemberRow[]): string {
-  const shown = people.slice(0, 3).map((member) => member.display_name)
-  const rest = people.length - shown.length
-  return rest > 0 ? `${shown.join(' · ')} 외 ${rest}명` : shown.join(' · ')
-}
-
 export default function AttentionCard({ members, onOpen }: Props) {
   const active = members.filter((member) => member.active)
 
@@ -50,9 +43,10 @@ export default function AttentionCard({ members, onOpen }: Props) {
       mark: '↘',
       title: `달성률 ${WATCH}% 미만`,
       // 목표가 없는 사람은 위 갈래에서 이미 셉니다. 한 사람이 두 줄에 서지 않게 합니다.
-      people: active.filter(
-        (member) => member.achievement_rate !== null && member.achievement_rate < WATCH,
-      ),
+      // 가장 뒤처진 사람부터 세웁니다.
+      people: active
+        .filter((member) => member.achievement_rate !== null && member.achievement_rate < WATCH)
+        .sort((a, b) => (a.achievement_rate ?? 0) - (b.achievement_rate ?? 0)),
     },
     {
       key: 'inactive',
@@ -76,24 +70,32 @@ export default function AttentionCard({ members, onOpen }: Props) {
 
       <ul className={styles.list}>
         {groups.map((group) => (
-          <li key={group.key}>
-            <button
-              type="button"
-              className={styles.row}
-              // 여는 것은 첫 사람 하나입니다. 무엇이 열리는지 손잡이 이름으로 밝혀 둡니다.
-              onClick={() => onOpen(group.people[0].id)}
-            >
+          <li key={group.key} className={styles.group}>
+            <div className={styles.row}>
               <span className={`${styles.mark} ${styles[group.tone]}`} aria-hidden="true">
                 {group.mark}
               </span>
-              <span className={styles.body}>
-                <span className={styles.title}>
-                  {group.title} {group.people.length}명
-                </span>
-                <span className={styles.names}>{names(group.people)}</span>
+              <span className={styles.title}>
+                {group.title} {group.people.length}명
               </span>
-              <span className={styles.action}>{group.people[0].display_name} 열기</span>
-            </button>
+            </div>
+            {/* 한 사람씩 바로 엽니다. 첫 사람만 열면 나머지는 표에서 다시 찾아야 합니다. */}
+            <div className={styles.chips}>
+              {group.people.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  className={styles.chip}
+                  aria-label={`${member.display_name} 상세 열기`}
+                  onClick={() => onOpen(member.id)}
+                >
+                  {member.display_name}
+                  {group.key === 'behind' && (
+                    <span className={`${styles.rate} tnum`}>{member.achievement_rate}%</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </li>
         ))}
       </ul>
