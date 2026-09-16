@@ -24,14 +24,23 @@ function Action({ action }: { action: ReportAction }) {
   const rest = action.fields.filter((field) => field !== status && field !== fulfilled)
   const done = Boolean(fulfilled && DONE.test(fulfilled.value.trim()))
   return (
-    <li className={styles.action}>
+    <li className={fulfilled ? styles.action : `${styles.action} ${styles.noCheck}`}>
       <div className={styles.actionHead}>
         {/*
           누르는 칸이 아니라 이행 여부를 읽어 그리는 표시입니다. 여기서 체크를
           바꿔도 보고서 본문은 달라지지 않으므로 조작처럼 보이게 두지 않습니다.
+          이행 여부가 오지 않는 조치(다음 업무는 대개 그렇습니다)에는 빈 네모를
+          두지 않습니다 — 누를 수 있는 칸으로 오해됩니다.
         */}
-        <span className={done ? `${styles.check} ${styles.isDone}` : styles.check} aria-hidden />
-        <span className="sr-only">이행 여부: {fulfilled?.value ?? '미확인'}</span>
+        {fulfilled && (
+          <>
+            <span
+              className={done ? `${styles.check} ${styles.isDone}` : styles.check}
+              aria-hidden
+            />
+            <span className="sr-only">이행 여부: {fulfilled.value}</span>
+          </>
+        )}
         <p className={blank(action.task) ? `${styles.task} ${styles.blank}` : styles.task}>
           {action.task}
         </p>
@@ -39,19 +48,24 @@ function Action({ action }: { action: ReportAction }) {
           합의와 요청은 같은 것이 아닙니다. 서버가 가장 조심하는 구분이므로
           (report-style: '요청을 합의로 바꾸지 않습니다') 화면에서도 갈라 둡니다.
         */}
-        {status && (
-          <StatusBadge
-            label={status.value}
-            tone={
-              blank(status.value) ? 'neutral' : status.value.startsWith('합의') ? 'green' : 'blue'
-            }
-          />
-        )}
+        {status &&
+          /* 미확인 상태는 화면에서는 남기되 인쇄에서는 접습니다 — .blank 를 걸어 둡니다. */
+          (blank(status.value) ? (
+            <span className={styles.blank}>
+              <StatusBadge label={status.value} />
+            </span>
+          ) : (
+            <StatusBadge
+              label={status.value}
+              tone={status.value.startsWith('합의') ? 'green' : 'blue'}
+            />
+          ))}
       </div>
       {rest.length > 0 && (
         <dl className={styles.fields}>
+          {/* 미확인 칸은 감싼 div 에도 표시를 남깁니다 — 인쇄에서 이름표까지 함께 접습니다. */}
           {rest.map((field) => (
-            <div key={field.label}>
+            <div key={field.label} className={blank(field.value) ? styles.blank : undefined}>
               <dt>{field.label}</dt>
               <dd className={blank(field.value) ? styles.blank : undefined}>{field.value}</dd>
             </div>

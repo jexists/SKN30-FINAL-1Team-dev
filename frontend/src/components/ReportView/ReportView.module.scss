@@ -163,6 +163,11 @@
     display: contents;
   }
 
+  // 이행 표시가 없는 조치는 들여쓸 기준선도 없습니다.
+  .noCheck & {
+    padding-left: 0;
+  }
+
   dt {
     color: var(--muted);
     font-size: 13px;
@@ -183,6 +188,21 @@
  * 이어지되 소제목만 홀로 떨어지지 않게 붙잡습니다.
  */
 @media print {
+  /*
+   * 종이에는 확인된 것만 남깁니다. 화면에서는 사람이 고칠 자리를 알아야 하므로
+   * 미확인 칸을 회색으로 남기지만, 내보낸 PDF 에서까지 '미확인'이 줄을 차지하면
+   * 읽는 쪽이 채워진 값을 찾기 어려워집니다.
+   */
+  .fields .blank,
+  .actionHead > .blank {
+    display: none;
+  }
+
+  // 칸이 전부 미확인이면 빈 묶음의 여백까지 지웁니다.
+  .fields:not(:has(> div:not(.blank))) {
+    display: none;
+  }
+
   .heading {
     break-after: avoid;
   }

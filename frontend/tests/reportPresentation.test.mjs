@@ -2259,3 +2259,36 @@ test('기간 상세와 작성은 같은 현재 관련 조회를 사용하며 저
   assert.match(view, /href="\/daily\/later-daily"/)
   assert.doesNotMatch(view, /사용한 확정본|포함된 활동/)
 })
+
+test('이행 여부가 없는 조치에는 체크 표시를 두지 않는다', () => {
+  // 다음 업무는 아직 하지 않은 일이라 이행 여부가 오지 않습니다. 빈 네모를 그리면
+  // 누를 수 있는 칸으로 오해되고, 눌러도 본문은 달라지지 않습니다.
+  const future = renderToStaticMarkup(
+    createElement(ReportView, {
+      body: '**다음 업무**\n\n- **견적 전달** · 담당자: 본인 · 기한: 미확인',
+    }),
+  )
+  const doneOne = renderToStaticMarkup(
+    createElement(ReportView, {
+      body: '**다음 업무**\n\n- **견적 전달** · 담당자: 본인 · 이행 여부: 완료',
+    }),
+  )
+
+  assert.doesNotMatch(future, /ReportView__check/)
+  assert.match(future, /ReportView__noCheck/)
+  assert.match(doneOne, /ReportView__check/)
+  assert.match(doneOne, /ReportView__isDone/)
+})
+
+test('미확인 칸은 이름표까지 함께 표시를 달아 인쇄에서 접힌다', () => {
+  // 화면에서는 사람이 고칠 자리로 남기고, PDF 로 내보낼 때만 감춥니다. 감추는 단위가
+  // 값 하나가 아니라 이름표와 값 한 쌍이어야 이름표만 남는 줄이 생기지 않습니다.
+  const html = renderToStaticMarkup(
+    createElement(ReportView, {
+      body: '**다음 업무**\n\n- **견적 전달** · 담당자: 본인 · 기한: 미확인',
+    }),
+  )
+
+  assert.match(html, /<div class="[^"]*ReportView__blank[^"]*"><dt>기한<\/dt>/)
+  assert.doesNotMatch(html, /<div class="[^"]*ReportView__blank[^"]*"><dt>담당자<\/dt>/)
+})
