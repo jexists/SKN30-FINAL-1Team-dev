@@ -25,6 +25,12 @@
 
 ## 스키마 파일
 
+- `20260916_0040_report_attachment_display_only.sql`: 미팅 보고서 참고자료는 OCR 없이 원본만
+  보관(`extract_text=false`)하므로 `report_attachment.extracted_text`에 빈 문자열을 허용합니다.
+  NULL은 계속 업로드 미완료 표식이고, 기존 행은 새 제약을 그대로 만족합니다.
+  2026-09-16 현재 연결된 개발 DB(transaction pooler)에 적용했고, 기존 행 67건은 새 제약을
+  그대로 통과했습니다. 운영 DB 반영은 배포 절차에서 별도로 적용해야 합니다.
+
 - `20260915_0039_company_scope_schedule_suggestion.sql`: 일정추천을 고객사 단위로 통일하면서
   남아 있던 딜 단위(`deal:<id>`) 대기 카드를 만료 처리합니다.
   다음 트리거가 고객사 카드로 다시 만듭니다. 스키마 변경은 없습니다. 2026-09-15 현재 연결된
