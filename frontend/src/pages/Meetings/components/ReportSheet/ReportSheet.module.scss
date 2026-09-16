@@ -61,6 +61,11 @@
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1.35;
+  display: block;
+  resize: none;
+  field-sizing: content;
+  overflow-wrap: anywhere;
   outline: none;
   transition: background var(--t-fast);
 

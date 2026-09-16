@@ -2058,11 +2058,11 @@ test('딜별 보고서는 재생성 중 이전 제목을 내놓지 않고 제목
   const at = source.indexOf("phase === 'generating' ? (")
   const generating = source.slice(at, source.indexOf(') : (', at))
   assert.match(generating, /<GenerationProgress/)
-  assert.doesNotMatch(generating, /titleBlock|<input/)
+  assert.doesNotMatch(generating, /titleBlock|<textarea/)
 
   // 제목과 문서는 다 된 쪽에서 함께 나타납니다.
   const ready = source.slice(source.indexOf(') : (', at))
-  assert.match(ready, /titleBlock[\s\S]*<input[\s\S]*<EditableReport/)
+  assert.match(ready, /titleBlock[\s\S]*<textarea[\s\S]*<EditableReport/)
 })
 
 test('일일·주간·월간 생성과 확정은 해당 하위 종류의 참조·제출본·포함 여부를 그대로 전달한다', async () => {

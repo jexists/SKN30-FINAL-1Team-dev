@@ -112,14 +112,16 @@ export default function ReportSheet({
                   <label className="sr-only" htmlFor={inputId}>
                     보고서 제목
                   </label>
-                  <input
+                  <textarea
                     id={inputId}
                     className={styles.title}
+                    rows={1}
                     value={title}
                     /* 본문과 같은 규칙입니다 — 아래 [수정] 을 눌러야 이 칸이 열립니다. */
                     disabled={locked || !editing}
                     placeholder="보고서 제목을 적으세요"
-                    onChange={(event) => onTitleChange(event.target.value)}
+                    /* 제목은 한 줄 값입니다 — 줄바꿈은 막고 긴 제목만 접어 보여 줍니다. */
+                    onChange={(event) => onTitleChange(event.target.value.replace(/\n/g, ' '))}
                   />
                 </div>
                 <EditableReport
