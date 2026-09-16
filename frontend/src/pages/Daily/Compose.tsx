@@ -94,6 +94,8 @@ export default function Compose() {
   // 수정에 들어간 순간의 본문과 보고 대상. [취소] 는 이 값으로 되돌립니다.
   const bodySnapshot = useRef('')
   const approverSnapshot = useRef('')
+  const departmentSnapshot = useRef('')
+  const companySnapshot = useRef('')
   // 미팅 작성 화면과 같은 손잡이입니다. 보고서만 넓게 볼 때 자료 열을 접습니다.
   // 자료 열 접기 기능은 잠시 내려둡니다. 손잡이가 없으니 늘 펼친 채로 둡니다.
   // const [sideCollapsed, setSideCollapsed] = useState(false)
@@ -169,6 +171,8 @@ export default function Compose() {
     date: dateISO,
     kind,
     approver: draft.approver,
+    department: draft.department,
+    company: draft.company,
     // 문서에 적힌 이름과 별개로, 제출하면 검토 요청은 팀장에게 갑니다.
     approverId: manager?.id ?? null,
     values: draft.values,
@@ -469,7 +473,21 @@ export default function Compose() {
                 pickerType={kind === '월간' ? 'month' : 'date'}
                 maxISO={TODAY_ISO}
                 onDateChange={onDateInput}
-              />
+              >
+                {/* 제출 때 고정한 목록이 지금 일정과 다를 때만 섭니다. */}
+                {draft.sourcesOutdated && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-label="관련 보고서를 현재 상태로 새로고침"
+                    onClick={draft.refreshSources}
+                  >
+                    <RefreshIcon width={14} height={14} />
+                    새로고침
+                  </Button>
+                )}
+              </DayHeader>
 
               {draft.relatedLoading ? (
                 <div role="status">
@@ -600,12 +618,19 @@ export default function Compose() {
                       title={docTitle}
                       author={profile.name}
                       jobTitle={profile.title}
-                      department={profile.department}
-                      company={profile.company}
+                      department={profile.department || draft.department}
+                      company={profile.company || draft.company}
                       writtenOn={fmtDot(parseISO(TODAY_ISO))}
                       approver={draft.approver}
-                      /* 본문과 같은 규칙입니다 — 아래 [수정] 을 눌러야 이 칸이 열립니다. */
+                      /* 본문과 같은 규칙입니다 — 아래 [수정] 을 눌러야 이 칸이 열립니다.
+                         부서·회사는 계정에 값이 없을 때만 직접 적습니다. */
                       onApproverChange={editing && !locked ? draft.setApprover : undefined}
+                      onDepartmentChange={
+                        editing && !locked && !profile.department ? draft.setDepartment : undefined
+                      }
+                      onCompanyChange={
+                        editing && !locked && !profile.company ? draft.setCompany : undefined
+                      }
                     />
                   )}
                   {/* 평소에는 문서로 읽고, 아래 [수정] 을 눌러야 고칩니다 — 미팅 보고서와 같습니다. */}
@@ -699,6 +724,8 @@ export default function Compose() {
                       onClick={() => {
                         bodySnapshot.current = draft.values.body ?? ''
                         approverSnapshot.current = draft.approver
+                        departmentSnapshot.current = draft.department
+                        companySnapshot.current = draft.company
                         setEditing(true)
                       }}
                     >
@@ -865,6 +892,8 @@ export default function Compose() {
                 onClick={() => {
                   draft.setValue('body', bodySnapshot.current)
                   draft.setApprover(approverSnapshot.current)
+                  draft.setDepartment(departmentSnapshot.current)
+                  draft.setCompany(companySnapshot.current)
                   setEditing(false)
                   setConfirm(null)
                 }}

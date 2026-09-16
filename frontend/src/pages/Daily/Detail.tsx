@@ -32,8 +32,8 @@ import ActivityList from './components/ActivityList'
 import DailyListLink from './components/DailyListLink'
 import ReportStatusBadge from './components/ReportStatusBadge'
 import { kindToPeriod } from './periods'
-import { activityLink, relatedActivities } from './sources'
-import { canEditPeriodReport, toReport, useRelatedReports } from './useDailyReports'
+import { activityLink } from './sources'
+import { canEditPeriodReport, toReport } from './useDailyReports'
 
 import styles from './Detail.module.scss'
 
@@ -45,7 +45,6 @@ export default function Detail() {
   )
 
   const report = item ? toReport(item) : undefined
-  const related = useRelatedReports(report?.kind ?? '일일', report?.date ?? '', !!report)
   // 보고서는 쓴 사람만 고칩니다. 팀장이 팀원의 보고서를 열어도 고치는 길은 서지 않습니다.
   const { memberId, profile } = useCurrentUser()
   // 머리표가 쓰는 명부입니다. 작성자의 직책을 여기서 찾습니다 — 내 보고서든 남의
@@ -221,8 +220,8 @@ export default function Detail() {
               title={docTitle}
               author={report.owner}
               jobTitle={author?.job_title ?? undefined}
-              department={profile.department}
-              company={profile.company}
+              department={profile.department || report.department}
+              company={profile.company || report.company}
               writtenOn={fmtDot(day)}
               approver={report.approver}
             />
@@ -238,31 +237,20 @@ export default function Detail() {
           <div className={styles.materialsBody}>
             <section className={styles.panel}>
               <h2 className={styles.panelTitle}>관련 보고서</h2>
-              {related.loading ? (
-                <p role="status">관련 보고서를 불러오는 중입니다.</p>
-              ) : related.error ? (
-                <>
-                  <p role="alert">{related.error}</p>
-                  <Button variant="outline" onClick={related.reload}>
-                    다시 시도
-                  </Button>
-                </>
-              ) : (
-                /* 작성 화면과 같은 규칙입니다 — 생성에 쓰인 제출본만 줄로 섭니다. */
-                <ActivityList
-                  activities={relatedActivities(report.kind, related.activities)}
-                  flush
-                  empty="작성 완료된 보고서가 없습니다."
-                  renderAside={(item) => {
-                    const to = activityLink(item)
-                    return to ? (
-                      <Link className={buttonClass({ variant: 'outline', size: 'sm' })} to={to}>
-                        보고서 확인
-                      </Link>
-                    ) : null
-                  }}
-                />
-              )}
+              {/* 지금 다시 찾지 않습니다 — 제출 때 생성에 쓴 제출본만 줄로 섭니다. */}
+              <ActivityList
+                activities={report.activities}
+                flush
+                empty="작성 완료된 보고서가 없습니다."
+                renderAside={(item) => {
+                  const to = activityLink(item)
+                  return to ? (
+                    <Link className={buttonClass({ variant: 'outline', size: 'sm' })} to={to}>
+                      보고서 확인
+                    </Link>
+                  ) : null
+                }}
+              />
             </section>
 
             <section className={styles.panel}>

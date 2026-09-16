@@ -1938,11 +1938,10 @@ test('보고 대상은 고칠 수 있을 때 미지정 대신 빈 입력칸으�
   assert.match(editable, /<input/)
   assert.ok(!/미지정/.test(editable))
   assert.ok(!/<input/.test(readOnly))
-  assert.match(readOnly, /미지정/)
+  assert.ok(!/보고 대상/.test(readOnly))
 })
 
-test('보고서 머리표는 빈 칸을 지우지 않고 미지정으로 채운다', () => {
-  // 칸이 사라지면 양식이 무너집니다. 종이에 찍힐 표라 줄 수가 값에 따라 달라지면 안 됩니다.
+test('보고서 머리표는 빈 부서·회사 줄을 미지정 대신 빼고, 수정 중에만 입력칸으로 연다', () => {
   const header = renderToStaticMarkup(
     createElement(ReportDocHeader, {
       title: '9월 3일 (목) 일일 업무 보고서',
@@ -1956,9 +1955,21 @@ test('보고서 머리표는 빈 칸을 지우지 않고 미지정으로 채운�
   )
 
   assert.match(header, /9월 3일 \(목\) 일일 업무 보고서/)
-  assert.equal(header.match(/<dt>/g).length, 6)
-  // 부서명·회사명 두 칸이 비었으므로 미지정이 두 번입니다.
-  assert.equal(header.match(/미지정/g).length, 2)
+  assert.equal(header.match(/<dt>/g).length, 4)
+  assert.ok(!/미지정|부서명|회사명/.test(header))
+
+  const editing = renderToStaticMarkup(
+    createElement(ReportDocHeader, {
+      title: '9월 3일 (목) 일일 업무 보고서',
+      author: '박팀투',
+      writtenOn: '2026.09.03 (목)',
+      onDepartmentChange: () => {},
+      onCompanyChange: () => {},
+    }),
+  )
+  assert.equal(editing.match(/<input/g).length, 2)
+  assert.match(editing, /aria-label="부서명"/)
+  assert.match(editing, /aria-label="회사명"/)
 })
 
 test('직책만은 미지정이 아니라 팀원으로 채운다', () => {
@@ -1987,8 +1998,8 @@ test('직책만은 미지정이 아니라 팀원으로 채운다', () => {
     }),
   )
 
-  assert.equal(noManager.match(/<dt>/g).length, 6)
-  assert.equal(noManager.match(/미지정/g).length, 1)
+  assert.equal(noManager.match(/<dt>/g).length, 5)
+  assert.ok(!/미지정/.test(noManager))
 })
 
 test('공통·미지정 기록은 읽기 전용 Markdown과 편집용 여는 자리를 구분한다', () => {
@@ -2219,17 +2230,17 @@ test('다음 날 작성 완료·일정 이동 후 수정에도 기존 미팅일�
   assert.doesNotMatch(view, /2026\.09\.02/)
 })
 
-test('기간 상세와 작성은 같은 현재 관련 조회를 사용하며 저장 시 없던 보고서도 연결한다', async () => {
+test('기간 상세는 제출 때 쓴 보고서만, 작성은 현재 조회와 비교해 새로고침한다', async () => {
   const [detail, draft, queries] = await Promise.all([
     readFile(new URL('../src/pages/Daily/Detail.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/pages/Daily/useDailyDraft.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/pages/Daily/useDailyReports.ts', import.meta.url), 'utf8'),
   ])
-  assert.match(
-    detail,
-    /useRelatedReports\(report\?\.kind \?\? '일일', report\?\.date \?\? '', !!report\)/,
-  )
-  assert.match(detail, /activities=\{relatedActivities\(report\.kind, related\.activities\)\}/)
+  // 상세는 다시 조회하지 않고 제출 때 저장한 참조만 보여 줍니다.
+  assert.doesNotMatch(detail, /useRelatedReports/)
+  assert.match(detail, /activities=\{report\.activities\}/)
+  // 작성은 고정된 목록이 현재 조회와 다르면 새로고침으로 되돌립니다.
+  assert.match(draft, /sourcesOutdated,\s+refreshSources,/)
   // 작성 화면만 그날 일정까지 함께 세웁니다(withAgenda). 상세는 저장된 참조만 봅니다.
   assert.match(draft, /useRelatedReports\(kind, dateISO, true, true\)/)
   assert.match(queries, /'관련 보고서를 불러오지 못했습니다\.',\s+true,/)

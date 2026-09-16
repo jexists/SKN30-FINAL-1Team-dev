@@ -84,6 +84,9 @@ export interface DailyReportSeed {
   off: number
   kind: ReportKind
   approver: string
+  /** 계정에 부서·회사가 비어 있을 때 작성자가 머리표에 직접 적은 값 */
+  department?: string
+  company?: string
   status: ReportStatus
   /** ReportFieldDef.id → 입력값 */
   values: Record<string, string>

@@ -23,9 +23,11 @@ interface Props {
    * 낸 뒤에 읽는 화면에서는 고칠 자리가 아닙니다.
    */
   onApproverChange?: (value: string) => void
+  /** 계정에 부서가 없을 때만 넘깁니다. 수정 중에 직접 적는 칸이 됩니다. */
+  onDepartmentChange?: (value: string) => void
+  onCompanyChange?: (value: string) => void
 }
 
-/* 빈 칸을 줄째로 빼지 않습니다 — 칸이 사라지면 양식이 무너집니다. */
 function value(text?: string) {
   return text?.trim() ? text.trim() : '미지정'
 }
@@ -47,33 +49,45 @@ export default function ReportDocHeader({
   writtenOn,
   approver,
   onApproverChange,
+  onDepartmentChange,
+  onCompanyChange,
 }: Props) {
   /*
-   * 보고 대상만 사람이 적는 칸입니다. 고칠 수 있을 때는 칸을 비워 두고 — 아직 정하지
-   * 않은 것을 '미지정' 이라고 단정하지 않습니다 — 손이 올라갈 때 배경 한 겹으로만
-   * 고칠 수 있다고 알립니다. 종이에서는 안내 문구가 지워지고 적은 글만 남습니다.
+   * 부서·회사·보고 대상은 비어 있으면 '미지정' 으로 채우지 않고 줄을 뺍니다.
+   * 고칠 수 있을 때(수정 중)만 칸을 비워 두고 직접 적게 합니다 — 손이 올라갈 때
+   * 배경 한 겹으로만 알립니다. 종이에서는 안내 문구가 지워지고 적은 글만 남습니다.
    */
-  const approverCell: ReactNode = onApproverChange ? (
-    <input
-      className={styles.input}
-      type="text"
-      value={approver ?? ''}
-      maxLength={40}
-      placeholder="보고 대상"
-      aria-label="보고 대상"
-      onChange={(event) => onApproverChange(event.target.value)}
-    />
-  ) : (
-    value(approver)
-  )
+  function field(
+    label: string,
+    text?: string,
+    onChange?: (value: string) => void,
+  ): [string, ReactNode][] {
+    if (onChange) {
+      return [
+        [
+          label,
+          <input
+            className={styles.input}
+            type="text"
+            value={text ?? ''}
+            maxLength={40}
+            placeholder={label}
+            aria-label={label}
+            onChange={(event) => onChange(event.target.value)}
+          />,
+        ],
+      ]
+    }
+    return text?.trim() ? [[label, text.trim()]] : []
+  }
 
   const rows: [string, ReactNode][] = [
     ['작성자', value(author)],
-    ['부서명', value(department)],
+    ...field('부서명', department, onDepartmentChange),
     ['직책', jobTitleValue(jobTitle)],
     ['작성일', value(writtenOn)],
-    ['회사명', value(company)],
-    ['보고 대상', approverCell],
+    ...field('회사명', company, onCompanyChange),
+    ...field('보고 대상', approver, onApproverChange),
   ]
 
   return (

@@ -82,6 +82,8 @@ export function toReport(item: ReportResponse): DailyReport {
       (typeof content.approver === 'string' && content.approver.trim()
         ? content.approver
         : item.recipient_display_name) ?? '',
+    department: typeof content.department === 'string' ? content.department : '',
+    company: typeof content.company === 'string' ? content.company : '',
     status: STATUS_BY_API[item.status_code],
     apiStatus: item.status_code,
     version: item.version,
@@ -109,6 +111,8 @@ export interface DraftPayload {
   approver: string
   /** 보고 대상의 member.id. 검토 요청이 이 사람에게 갑니다. 못 찾았으면 비웁니다. */
   approverId?: string | null
+  department?: string
+  company?: string
   values: Record<string, string>
   activities: DailyReport['activities']
   attachments: DailyReport['attachments']
@@ -156,6 +160,8 @@ export function reportRequestOf(draft: DraftPayload): ReportWriteRequest {
     template_snapshot: templateFor(draft.kind),
     content: {
       approver: draft.approver,
+      department: draft.department ?? '',
+      company: draft.company ?? '',
       values: { body },
       // 목록에는 미작성 일정도 서지만, 보고서에 남기는 것은 실제로 참조한 줄뿐입니다.
       activities: included,
