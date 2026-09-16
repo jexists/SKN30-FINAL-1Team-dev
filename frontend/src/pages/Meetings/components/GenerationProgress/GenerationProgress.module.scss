@@ -14,8 +14,7 @@
   flex-direction: column;
   gap: var(--s3);
   margin: 0;
-  // 판 머리 선에 글자가 붙으면 구석에 뭉쳐 보입니다.
-  padding: var(--s2) 0;
+  padding: 0;
   list-style: none;
 
   li {

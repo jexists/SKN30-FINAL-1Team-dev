@@ -88,7 +88,12 @@ export function ReportReviewContents({ report }: { report: MeetingReport }) {
           return attachments.length > 0 ? (
             <section className={styles.section} key={purpose}>
               <h3 className={styles.heading}>{label}</h3>
-              <AttachmentPanel attachments={attachments} reportId={report.id} readOnly />
+              <AttachmentPanel
+                attachments={attachments}
+                reportId={report.id}
+                readOnly
+                gallery={purpose === 'reference'}
+              />
             </section>
           ) : null
         })}

@@ -142,18 +142,16 @@
   }
 }
 
+/* 접은 상태. 넓은 폭에서는 열째로 사라지고(펼치는 손잡이가 그 자리에 섭니다),
+   한 열로 접히는 폭에서는 열 머리만 남기고 판들을 감춥니다. */
 .collapsed.collapsed {
   display: none;
 
   @include lg {
-    display: block;
+    display: flex;
 
     .materialsBody {
       display: none;
-    }
-
-    .materialHead {
-      margin-bottom: 0;
     }
 
     .mobileToggle svg {
@@ -213,45 +211,40 @@
 }
 
 /*
- * 왼쪽 자료 판. 작성 화면의 참고 열과 같은 규칙입니다 — 테두리만 있고 그림자가
- * 없습니다. 오른쪽 보고서만 떠 있어서, 흰 면이 둘이어도 어느 쪽이 결과물인지
- * 한눈에 갈립니다. 자료는 놓여 있고 문서는 들려 있습니다.
+ * 왼쪽 자료 열. 작성 화면의 자료 열(.side)과 같은 박스입니다 — 열 머리가 박스 안
+ * 맨 위에 서고, 그 아래 판들만 구릅니다. 자료는 한 단 낮은 바탕 위에 놓이고,
+ * 떠 있는 것은 오른쪽 보고서뿐입니다.
  */
-.materials {
+.materialsColumn {
   grid-area: materials;
-  /* 작성 화면의 자료 열(.side)과 같은 짜임입니다 — 머리는 붙박이, 아래만 구릅니다. */
   position: sticky;
   top: calc(var(--topbar-h) + var(--s6));
   display: flex;
   flex-direction: column;
+  // 열 머리와 첫 판 사이. 오른쪽 보고서 열의 머리 아래와 같은 간격입니다.
+  gap: 16px;
   min-width: 0;
   min-height: 0;
   // 화면보다 길어지면 이 상자 안(.materialsBody)에서만 구릅니다.
   max-height: calc(100dvh - var(--topbar-h) - var(--s6) * 2);
-  padding: var(--s5);
+  // 작성 화면의 자료 열과 같은 여백입니다. 열 머리가 제 선을 이 밖까지 긋습니다.
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  background: var(--surface);
-
-  section + section {
-    margin-top: var(--s5);
-    padding-top: var(--s5);
-    border-top: 1px solid var(--line);
-  }
+  background: var(--surface-2);
 
   // 한 열로 접히면 위아래로 서므로 붙여 둘 자리가 없습니다.
   @include lg {
     position: static;
     max-height: none;
   }
-
-  @include md {
-    padding: var(--s4);
-  }
 }
 
-/* 머리 아래 자료가 쌓이는 자리. 열이 화면보다 길어지면 여기서만 구릅니다. */
+/* 열 머리 아래 판이 쌓이는 자리. 열이 화면보다 길어지면 여기서만 구릅니다. */
 .materialsBody {
+  display: grid;
+  align-content: start;
+  gap: 16px;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -262,8 +255,31 @@
   }
 }
 
-/* 판의 머리. 제목이 왼쪽에 붙고 그 판의 조작이 오른쪽으로 이어집니다. */
-.materialHead {
+/* 자료 판 한 장. 작성 화면의 판과 같은 면·같은 여백입니다. */
+.panel {
+  display: grid;
+  gap: var(--s3);
+  align-content: start;
+  min-width: 0;
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+/* 판 안의 한 칸(원문 파일·직접 입력·참고자료). 칸 사이를 선 하나가 지납니다. */
+.part {
+  min-width: 0;
+
+  & + & {
+    padding-top: var(--s4);
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* 판의 머리. 제목이 왼쪽에 붙고 그 판의 조작이 오른쪽 끝에 섭니다. */
+.panelHead,
+.sectionHead {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -279,13 +295,58 @@
   }
 }
 
+/* 판 제목 아래 바로 내용이 붙는 칸은 머리 아래 여백을 제 것으로 둡니다. */
+.panelHead {
+  margin-bottom: 0;
+}
+
+.panelAction {
+  margin-left: auto;
+}
+
+/* 판 첫 줄. 어느 회사의 언제 기록인지를 사실 목록 위에 답니다. */
+.context {
+  display: grid;
+  gap: var(--s1);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+
+  strong {
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  span {
+    color: var(--ink-2);
+  }
+}
+
+/* 같은 판 안에서 갈래가 바뀌는 자리입니다. 선 대신 한 단 더 띄웁니다. */
+.dealHead {
+  margin-top: var(--s2);
+}
+
 /* 보고서 열: 종이 한 장과 그 아래 조작부. */
 .report {
-  grid-area: sheet;
-  min-width: 0;
+  @include card;
 
-  > section {
-    margin-bottom: var(--s5);
+  grid-area: sheet;
+  // 보고서 한 장이 놓이는 면이라 다른 박스보다 여백을 한 단 넓힙니다.
+  // 열 머리는 제 선을 이 여백 밖까지 그어야 하므로 같은 값을 알려 줍니다.
+  --col-pad: 24px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: var(--col-pad);
+  // 머리 줄은 왼쪽 열과 같은 높이에 섭니다. 넓힌 여백은 좌우와 아래만입니다.
+  padding-top: 16px;
+
+  @include md {
+    --col-pad: 16px;
   }
 }
 
@@ -390,7 +451,7 @@
  * 순서에 좌우돼 개발 서버에서 무엇이 이길지 달라지기 때문입니다.
  */
 @media print {
-  .materials.materials,
+  .materialsColumn.materialsColumn,
   .materialsToggle.materialsToggle,
   .actions.actions {
     display: none;
@@ -416,6 +477,21 @@
 
   .layout.layout {
     display: block;
+  }
+
+  /* 화면에서 문서를 들어 올리던 면입니다. 종이에서는 종이가 곧 면입니다. */
+  .report.report {
+    display: block;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  /* 화면에서 칸을 벌리던 gap 은 block 흐름에서 듣지 않습니다. */
+  .report.report > * + * {
+    margin-top: var(--s5);
   }
 
   /*

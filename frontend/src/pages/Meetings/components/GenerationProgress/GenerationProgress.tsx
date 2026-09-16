@@ -34,7 +34,7 @@ interface Props {
 /** 최종 본문이 설 자리에서, 최종 본문과 같은 컴포넌트로 흐릅니다. */
 function StreamedBody({ body }: { body: string }) {
   const shown = useStreamedText(body)
-  return <ReportView className={styles.stream} body={shown} />
+  return <ReportView flush className={styles.stream} body={shown} />
 }
 
 export default function GenerationProgress({

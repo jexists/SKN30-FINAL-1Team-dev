@@ -1,0 +1,112 @@
+/* 머리 띠. 면과 물결은 미팅 보고서 상세와 같은 것(page-banner)을 씁니다. */
+.banner {
+  @include page-banner;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+
+.heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--s2);
+
+  /* 글 앞에 선 파란 선 한 줄. 머리 띠의 어느 쪽이 본문인지 눈이 먼저 잡습니다. */
+  padding-left: var(--s4);
+  border-left: 3px solid var(--blue);
+
+  /* 좁은 폭에서는 머리 띠가 곧 한 열이라 세로선이 가리킬 바깥쪽이 없습니다. */
+  @include md {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+/* 기간과 상태는 한 덩어리입니다. 언제의 보고서이고 지금 어디까지 왔는지. */
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  font-variant-numeric: tabular-nums;
+
+  /* 종류는 기간에 딸린 말이라 한 단계 작고 조용합니다. */
+  span {
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 앞의 아이콘이 무엇에 대한 값인지 말합니다. */
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  svg {
+    flex: none;
+    color: var(--muted-2);
+  }
+}
+
+/* 가운뎃점 대신 선 한 줄. 항목마다 아이콘이 서 있어 점은 묻힙니다. */
+.bar {
+  width: 1px;
+  height: 12px;
+  background: var(--line-2);
+}
+
+/* 좁은 폭에서는 날짜가 한 줄을 다 쓰고 나머지가 그 아래로 함께 내려갑니다. */
+@include md {
+  .meta {
+    row-gap: 0;
+  }
+
+  /* 줄바꿈 자리이자 두 줄 사이 간격입니다(행 간격을 0으로 두어 한 번만 벌어집니다). */
+  .breakBar {
+    width: 100%;
+    height: var(--s1);
+    background: none;
+  }
+}
+
+/* 머리 띠 오른쪽 끝. 정체 덩어리가 폭을 다 쓰고 남은 자리에 섭니다. */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+  margin-left: auto;
+}
+
+/*
+ * 인쇄가 곧 PDF 입니다. 문서의 머리글은 본문 안의 양식지 머리표(ReportDocHeader)이므로
+ * 머리 띠까지 남기면 같은 것이 두 번 찍힙니다. 종이에서는 통째로 걷습니다.
+ * 클래스를 겹쳐 쓰는 것은 화면용 규칙과 특정도가 같으면 파일이 붙는 순서에 좌우돼
+ * 개발 서버에서 무엇이 이길지 달라지기 때문입니다.
+ */
+@media print {
+  .banner.banner {
+    display: none;
+  }
+}

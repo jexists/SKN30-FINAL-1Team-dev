@@ -15,6 +15,7 @@
   align-items: flex-start;
   gap: var(--s3);
   padding: var(--s3);
+  border: 1px solid var(--line);
   border-radius: var(--r-sm);
   cursor: pointer;
 
@@ -46,6 +47,19 @@
   &:has(input:disabled) {
     cursor: default;
     opacity: 0.6;
+  }
+}
+
+/* 읽는 화면의 줄. 버튼 기본 모양을 지워 고르는 줄과 같은 생김새로 둡니다. */
+.open {
+  width: 100%;
+  background: none;
+  font: inherit;
+  text-align: left;
+
+  &:focus-visible {
+    outline: 3px solid var(--blue-ring);
+    outline-offset: -2px;
   }
 }
 

@@ -374,7 +374,7 @@ test('첨부 훅은 업로드 중 제거된 파일의 늦은 응답을 되살리
 
   assert.equal(REPORT_ATTACHMENT_LIMIT, 10)
   assert.match(source, /REPORT_ATTACHMENT_LIMIT - current\.current\.length/)
-  assert.match(source, /uploadReportAttachment\(file\)/)
+  assert.match(source, /uploadReportAttachment\(file, extractText\)/)
   assert.match(
     source,
     /!mounted\.current \|\|[\s\S]*?!current\.current\.some\(\(attachment\) => attachment\.id === item\.id\)[\s\S]*?return/,
@@ -481,7 +481,10 @@ test('첨부 업로드 중에는 기간·미팅 생성과 최종 제출을 시�
   ])
 
   assert.match(dailyDraft, /attachmentsPending: files\.pending/)
-  assert.match(dailyDraft, /setGenerationRunId\(undefined\)[\s\S]*?addFiles\(picked\)/)
+  assert.match(
+    dailyDraft,
+    /setGenerationRunId\(undefined\)[\s\S]*?addFiles\(picked, 'reference', acceptedKinds\)/,
+  )
   assert.match(dailyDraft, /setGenerationRunId\(undefined\)[\s\S]*?removeFile\(id\)/)
   assert.match(dailyCompose, /if\s*\(\s*draft\.attachmentsPending\s*\|\|/)
   assert.match(dailyCompose, /draft\.recovering \|\|\n\s+draft\.attachmentsPending/)

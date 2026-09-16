@@ -123,6 +123,49 @@ test('일일 보고서의 줄표·쉼표 꼴도 같은 카드로 읽힌다', () 
   assert.equal(actions[2].fields.length, 3)
 })
 
+test('줄표가 칸마다 반복되고 마지막 이름표가 빠져도 같은 카드가 된다', () => {
+  // 실제 관측된 미팅 보고서 출력. 구분자가 ' — ' 이고 '완료 기준:' 이름표가 통째로 빠집니다.
+  const sections = reportSections(`**후속 조치**
+
+- 합의된 후속 조치: 견적 발송 후 검토 여부 확인 — 담당자: 판매자 — 기한: 다음 주 목요일 오후(기준일 미확인) — 고객의 검토 여부 확인
+- 합의된 후속 조치: 견적 수신 확인 전 전화하지 않기 — 담당자: 판매자 — 기한: 다음 주 목요일 오후 — 해당 기간에는 전화하지 않고 다음 주 목요일 오후에 수신 확인 연락`)
+
+  const { actions } = sections[0]
+  assert.equal(actions.length, 2)
+
+  // 제목에 접두사로 붙은 상태는 필드로 옮깁니다 — 가운뎃점 꼴의 '· 상태: 합의' 와 같은 정보입니다.
+  assert.equal(actions[0].task, '견적 발송 후 검토 여부 확인')
+  assert.deepEqual(actions[0].fields, [
+    { label: '상태', value: '합의된 후속 조치' },
+    { label: '담당자', value: '판매자' },
+    { label: '기한', value: '다음 주 목요일 오후(기준일 미확인)' },
+    // 이름표 없이 온 마지막 조각은 남은 칸인 완료 기준입니다.
+    { label: '완료 기준', value: '고객의 검토 여부 확인' },
+  ])
+
+  assert.equal(actions[1].task, '견적 수신 확인 전 전화하지 않기')
+  assert.equal(
+    actions[1].fields[3].value,
+    '해당 기간에는 전화하지 않고 다음 주 목요일 오후에 수신 확인 연락',
+  )
+})
+
+test('가운뎃점 꼴은 이름표가 다 붙어 있어 그대로 같은 카드가 된다', () => {
+  const sections = reportSections(`**후속 조치**
+
+- 병원 상황에 맞는 2~3개 운영 시나리오 제안 · 담당: 담당 미지정 · 기한: 미확인 · 완료 기준: 후속 연락 결과와 다음 단계가 기록됨 · 상태: 합의
+- 다음 협의에 필요한 자료 또는 일정 확인 · 담당: 담당 미지정 · 기한: 미확인 · 완료 기준: 미확인 · 상태: 고객 요청·합의 여부 미확인`)
+
+  const { actions } = sections[0]
+  assert.equal(actions[0].task, '병원 상황에 맞는 2~3개 운영 시나리오 제안')
+  assert.deepEqual(
+    actions[0].fields.map((field) => field.label),
+    ['담당', '기한', '완료 기준', '상태'],
+  )
+  // 값 안에 붙어 있는 가운뎃점은 구분자가 아닙니다.
+  assert.equal(actions[1].fields[3].value, '고객 요청·합의 여부 미확인')
+})
+
 test('줄표 뒤 이름표 없는 상태가 먼저 와도 카드로 읽힌다', () => {
   const sections = reportSections(`**다음 업무**
 

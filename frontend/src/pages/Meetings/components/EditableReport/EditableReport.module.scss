@@ -1,29 +1,9 @@
 /*
- * 고칠 수 있다는 것은 손이 올라갔을 때 배경 한 겹으로만 말합니다 — 늘 칸처럼 보이면
- * 읽는 화면과 쓰는 화면에서 같은 본문이 다른 무게로 읽힙니다.
- * (ReportSheet .title 이 제목에서 쓰는 것과 같은 방식입니다.)
+ * 본문은 늘 문서로 읽힙니다. 고치는 길은 [수정] 버튼 하나뿐이라, 읽는 화면에
+ * 눌리는 면을 따로 깔지 않습니다.
  */
 .root {
   min-width: 0;
-}
-
-.editable {
-  // 글자 시작점은 그대로 두고 눌리는 면만 좌우로 넓힙니다.
-  width: calc(100% + var(--s3) * 2);
-  margin-inline: calc(var(--s3) * -1);
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r-sm);
-  cursor: text;
-  transition: background var(--t-fast);
-
-  &:hover {
-    background: var(--fill-2);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--blue);
-    outline-offset: -2px;
-  }
 }
 
 .placeholder {
@@ -31,22 +11,9 @@
   font-size: 14px;
 }
 
-/* 종이에는 누를 자리가 없습니다. 본문만 제자리에 찍힙니다. */
+/* 종이에는 안내가 남지 않습니다. 본문만 제자리에 찍힙니다. */
 @media print {
-  .editable {
-    width: 100%;
-    margin-inline: 0;
-    padding: 0;
-    background: none;
-  }
-
   .placeholder {
     display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .editable {
-    transition: none;
   }
 }

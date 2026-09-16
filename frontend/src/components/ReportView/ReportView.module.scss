@@ -63,6 +63,17 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * 문단과 조치는 이름표 막대만큼 들여 제목 글자와 같은 세로선에서 시작합니다.
+ * 흐르는 중(.flush)에는 들이지 않습니다 — 글이 쌓이는 동안 줄이 옆으로 밀리면 안 됩니다.
+ */
+.root:not(.flush) {
+  .section > .text,
+  .section > .actions {
+    margin-left: calc(3px + var(--s2));
+  }
+}
+
 /* 채워지지 않은 값. 회색으로 눕혀 채워진 값과 한눈에 갈리게 합니다. */
 .blank {
   color: var(--muted);

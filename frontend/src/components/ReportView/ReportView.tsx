@@ -62,7 +62,16 @@ function Action({ action }: { action: ReportAction }) {
   )
 }
 
-export default function ReportView({ body, className = '' }: { body: string; className?: string }) {
+export default function ReportView({
+  body,
+  className = '',
+  /** 흐르는 중에는 들여쓰기를 끕니다 — 글이 쌓이는 동안 줄이 옆으로 밀리지 않게. */
+  flush = false,
+}: {
+  body: string
+  className?: string
+  flush?: boolean
+}) {
   const sections = reportSections(body)
   // 아는 꼴이 아니면 구획으로 나누지 않고 원문 그대로 그립니다. 옛 줄글 보고서와
   // 공통·미지정 평목록이 이 길입니다. 다만 본문 타이포(.text)는 구획이 있는 길과
@@ -70,7 +79,7 @@ export default function ReportView({ body, className = '' }: { body: string; cla
   if (!sections) return <ReportBody className={`${styles.text} ${className}`.trim()} body={body} />
 
   return (
-    <div className={`${styles.root} ${className}`.trim()}>
+    <div className={[styles.root, flush ? styles.flush : '', className].filter(Boolean).join(' ')}>
       {sections.map((section, index) => (
         <section className={styles.section} key={`${index}-${section.heading}`}>
           {section.heading && <h3 className={styles.heading}>{section.heading}</h3>}

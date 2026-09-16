@@ -7,11 +7,12 @@ import { deleteReport } from '@/api/reportAgent'
 import { useCurrentUser } from '@/auth/sessionContext'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import Button, { buttonClass } from '@/components/Button'
+import ColumnHead from '@/components/ColumnHead'
 import {
   CalendarIcon,
   CheckIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
+  // ChevronLeftIcon, // 접기 손잡이와 함께 내려둠
   ChevronRightIcon,
   DownloadIcon,
   EditIcon,
@@ -24,18 +25,21 @@ import ReportView from '@/components/ReportView'
 import { SkeletonDetail } from '@/components/Skeleton'
 import StatusBadge, { type StatusTone } from '@/components/StatusBadge'
 import { meetingComposePath, ROUTES } from '@/constants/routes'
+import useCompanyDeals from '@/hooks/useCompanyDeals'
 import RecordDrawer from '@/pages/Dashboard/components/RecordDrawer'
+import SalesDealDrawer from '@/pages/Deals/SalesDealDrawer'
 import DailyListLink from '@/pages/Daily/components/DailyListLink'
 import { dailyListPath } from '@/pages/Daily/periods'
 import { useAgendaItem } from '@/shared/agenda'
 import { useReportDetail } from '@/shared/reportQuery'
 import { isApprovedReportStatus, isAuthorEditableReportStatus } from '@/shared/reports'
 import { showToast } from '@/shared/toast'
-import { fmtDay, parseISO } from '@/utils/date'
+import { fmtDay, fmtDot, parseISO } from '@/utils/date'
 import { meetingAttachmentPurposeOf } from '@/utils/attachment'
-import type { MeetingDealSection } from '@/types'
+import type { MeetingDealSection, ReportAttachment } from '@/types'
 
 import DealCardHeader from './components/DealCardHeader'
+import DealPicker from './components/DealPicker'
 import MeetingFacts from './components/MeetingFacts'
 import MeetingSharedPanel from './components/MeetingSharedPanel'
 import { isInsufficientDealPrediction } from './generatedDraft'
@@ -151,6 +155,9 @@ export default function Detail() {
   // 검토를 할 수가 없습니다. 쓰기는 작성 화면의 canWrite 가 따로 막습니다.
   const [detailOpen, setDetailOpen] = useState(false)
   const agenda = useAgendaItem(report?.agendaId ?? '', { ownOnly: false })
+  // 관련 딜은 읽기만 합니다. 줄을 누르면 영업 화면과 같은 드로어로 그 자리에서 봅니다.
+  const deals = useCompanyDeals(agenda.item?.customerCompanyId)
+  const [openDealId, setOpenDealId] = useState<string | null>(null)
 
   if (loading)
     return (
@@ -186,6 +193,37 @@ export default function Detail() {
   const editable = isAuthorEditableReportStatus(report.apiStatus)
   const approved = isApprovedReportStatus(report.apiStatus)
   const meetingDay = parseISO(report.date)
+  // 이 보고서가 다룬 딜만 세웁니다. 회사의 다른 딜은 이 기록과 상관이 없습니다.
+  const dealIds = report.dealSections.map((section) => section.salesDealId)
+  const reportDeals = deals.deals.filter((deal) => dealIds.includes(deal.id))
+
+  // 원문과 참고자료는 같은 모양의 한 칸입니다 — 원문은 줄 목록, 참고자료는 사진 갤러리.
+  const attachmentsOf = (purpose: 'meeting_source' | 'reference') =>
+    report.attachments.filter((attachment) => meetingAttachmentPurposeOf(attachment) === purpose)
+
+  const sourceAttachments = attachmentsOf('meeting_source')
+  const referenceAttachments = attachmentsOf('reference')
+
+  const attachmentPart = (
+    label: string,
+    purpose: 'meeting_source' | 'reference',
+    attachments: ReportAttachment[],
+  ) => {
+    return (
+      <div className={styles.part}>
+        <h2 className={styles.sectionHead}>
+          {label}
+          {attachments.length > 0 && <span className={styles.count}>{attachments.length}건</span>}
+        </h2>
+        <AttachmentPanel
+          attachments={attachments}
+          reportId={report.id}
+          readOnly
+          gallery={purpose === 'reference'}
+        />
+      </div>
+    )
+  }
 
   const removeReport = async () => {
     setRemoving(true)
@@ -298,12 +336,6 @@ export default function Detail() {
               삭제
             </Button>
           )}
-
-          {/* 작성 화면과 같은 버튼입니다. 인쇄가 곧 PDF 입니다. */}
-          <Button type="button" onClick={() => window.print()}>
-            <DownloadIcon width={15} height={15} />
-            PDF 다운로드
-          </Button>
         </div>
       </header>
 
@@ -318,6 +350,14 @@ export default function Detail() {
         }
       >
         <div className={styles.report}>
+          {/* 왼쪽 자료 열 머리와 같은 줄에 섭니다. 오른쪽 끝은 이 문서를 종이로 내보내는 자리입니다. */}
+          <ColumnHead title="보고서">
+            <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
+              <DownloadIcon width={15} height={15} />
+              PDF 다운로드
+            </Button>
+          </ColumnHead>
+
           <MeetingSharedPanel shared={report.meetingShared ?? null} />
           {report.dealSections.length === 0 ? (
             !report.meetingShared && <p className={styles.emptySections}>작성된 내용이 없습니다.</p>
@@ -338,21 +378,14 @@ export default function Detail() {
         <aside
           id="detail-materials"
           className={
-            materialsCollapsed ? `${styles.materials} ${styles.collapsed}` : styles.materials
+            materialsCollapsed
+              ? `${styles.materialsColumn} ${styles.collapsed}`
+              : styles.materialsColumn
           }
         >
-          {/* 판의 머리는 접어도 남습니다. 한 열로 접히는 폭에서는 여기가 여닫이입니다. */}
-          <div className={styles.materialHead}>
-            <h2>미팅 정보</h2>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!agenda.item}
-              onClick={() => setDetailOpen(true)}
-            >
-              자세히 보기
-            </Button>
+          {/* 열 머리는 접어도 남습니다. 한 열로 접히는 폭에서는 여기가 여닫이입니다. */}
+          <ColumnHead title="보고서 작성 자료">
+            {/* 접기 손잡이는 작성 화면과 같이 잠시 내려둡니다.
             <Button
               type="button"
               variant="outline"
@@ -361,7 +394,7 @@ export default function Detail() {
               ref={collapseRef}
               className={styles.collapseAction}
               aria-expanded
-              aria-controls="detail-materials"
+              aria-controls="detail-materials-body"
               aria-label="미팅 자료 접기"
               onClick={() => {
                 toggledRef.current = true
@@ -370,6 +403,7 @@ export default function Detail() {
             >
               <ChevronLeftIcon width={15} height={15} />
             </Button>
+            */}
             <button
               type="button"
               className={styles.mobileToggle}
@@ -380,39 +414,76 @@ export default function Detail() {
             >
               <ChevronDownIcon width={16} height={16} aria-hidden="true" />
             </button>
-          </div>
+          </ColumnHead>
 
           <div id="detail-materials-body" className={styles.materialsBody}>
-            <section>
+            {/* 작성 화면과 같이 맥락과 자료를 판 두 장으로 나눕니다. */}
+            <section className={styles.panel}>
+              <div className={styles.panelHead}>
+                <h2>미팅 정보</h2>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={styles.panelAction}
+                  disabled={!agenda.item}
+                  onClick={() => setDetailOpen(true)}
+                >
+                  자세히 보기
+                </Button>
+              </div>
+              {/* 작성 화면의 미팅 정보 판과 같은 차례입니다 — 어느 회사의 언제 기록인지 먼저. */}
+              <div className={styles.context}>
+                <strong>{report.hospital || '회사 미지정'}</strong>
+                <span>
+                  {report.contact || '담당자 미지정'} · 미팅일 {fmtDot(meetingDay)} {report.time}
+                </span>
+              </div>
               <MeetingFacts dept={report.dept} contact={report.contact} place={report.place} />
+
+              {/* 딜 없이 공통 기록만 남긴 미팅도 있습니다. 그때는 이 칸을 세우지 않습니다. */}
+              {dealIds.length > 0 && (
+                <>
+                  <div className={`${styles.panelHead} ${styles.dealHead}`}>
+                    <h2>관련 딜</h2>
+                    <span className={styles.count}>{dealIds.length}건</span>
+                  </div>
+                  <DealPicker
+                    deals={reportDeals}
+                    loading={deals.loading}
+                    error={deals.error}
+                    onRetry={deals.reload}
+                    selected={dealIds}
+                    onOpen={(deal) => setOpenDealId(deal.id)}
+                    disabled={false}
+                  />
+                </>
+              )}
             </section>
 
-            {(
-              [
-                ['미팅 원문 파일', 'meeting_source'],
-                ['참고자료', 'reference'],
-              ] as const
-            ).map(([label, purpose]) => {
-              const attachments = report.attachments.filter(
-                (attachment) => meetingAttachmentPurposeOf(attachment) === purpose,
-              )
-              return (
-                <section key={purpose}>
-                  <h2 className={styles.materialHead}>
-                    {label}
-                    {attachments.length > 0 && (
-                      <span className={styles.count}>{attachments.length}건</span>
-                    )}
-                  </h2>
-                  <AttachmentPanel attachments={attachments} reportId={report.id} readOnly />
-                </section>
-              )
-            })}
+            {/* 원문 판이 먼저입니다. 배경자료로만 쓴 참고자료는 따로 한 판입니다. */}
+            {(sourceAttachments.length > 0 || report.directTranscript) && (
+              <section className={styles.panel}>
+                {sourceAttachments.length > 0 &&
+                  attachmentPart('미팅 원문 파일', 'meeting_source', sourceAttachments)}
 
-            {report.transcript && (
-              <section>
-                <h2 className={styles.materialHead}>미팅 내용</h2>
-                <p className={styles.transcript}>{report.transcript}</p>
+                {/* 저장 원문(transcript)은 직접 입력에 파일 원문까지 합산한 것이라, 여기 깔면
+                    바로 위 첨부 목록의 추출 텍스트를 한 번 더 읽게 됩니다. 사람이 직접 친 것만 둡니다.
+                    직접 입력뿐이면 이 글이 곧 미팅 원문이라 그렇게 부릅니다. */}
+                {report.directTranscript && (
+                  <div className={styles.part}>
+                    <h2 className={styles.sectionHead}>
+                      {sourceAttachments.length > 0 ? '직접 입력' : '미팅 원문'}
+                    </h2>
+                    <p className={styles.transcript}>{report.directTranscript}</p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {referenceAttachments.length > 0 && (
+              <section className={styles.panel}>
+                {attachmentPart('참고자료', 'reference', referenceAttachments)}
               </section>
             )}
           </div>
@@ -442,6 +513,17 @@ export default function Detail() {
 
       {detailOpen && agenda.item && (
         <RecordDrawer item={agenda.item} onClose={() => setDetailOpen(false)} />
+      )}
+
+      {/* 영업 화면과 같은 드로어입니다. 고칠 손잡이를 주지 않아 읽기만 합니다. */}
+      {openDealId && (
+        <SalesDealDrawer
+          deal={deals.deals.find((deal) => deal.id === openDealId) ?? null}
+          loading={deals.loading}
+          error={deals.error}
+          onRetry={deals.reload}
+          onClose={() => setOpenDealId(null)}
+        />
       )}
 
       {confirmingRemove && (

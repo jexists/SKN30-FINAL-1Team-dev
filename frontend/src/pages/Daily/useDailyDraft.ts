@@ -24,6 +24,7 @@ import useAttachments from '@/shared/useAttachments'
 import useAgentRunCancellation from '@/shared/useAgentRunCancellation'
 import type {
   AgentRunResponse,
+  AttachmentKind,
   ReportActivity,
   ReportDraftSnapshot,
   ReportGenerationInput,
@@ -177,10 +178,10 @@ export default function useDailyDraft(dateISO: string, kind: ReportKind) {
   )
 
   const addAttachments = useCallback(
-    (picked: FileList | File[]) => {
+    (picked: FileList | File[], acceptedKinds?: readonly AttachmentKind[]) => {
       generationAbort.current?.abort()
       setGenerationRunId(undefined)
-      return addFiles(picked)
+      return addFiles(picked, 'reference', acceptedKinds)
     },
     [addFiles],
   )

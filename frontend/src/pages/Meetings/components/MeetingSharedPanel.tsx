@@ -10,6 +10,8 @@ interface Props {
   progress?: MeetingProgress | null
   generating?: boolean
   disabled?: boolean
+  /** 화면 아래 [수정] 이 켜져 있는가. 잠긴 글은 켜져 있어도 읽기로 남습니다. */
+  editing?: boolean
   showCommon?: boolean
   /** 공통·미지정 편집기를 각각 다시 세우는 값. 서로 커서를 밀지 않게 따로 셉니다. */
   commonDocKey?: number
@@ -22,6 +24,7 @@ export default function MeetingSharedPanel({
   progress,
   generating = false,
   disabled = false,
+  editing = false,
   showCommon = false,
   commonDocKey = 0,
   unassignedDocKey = 0,
@@ -90,15 +93,15 @@ export default function MeetingSharedPanel({
             >
               {onChange ? (
                 <>
-                  {/* 딜 본문과 같은 방식입니다 — 읽다가 누르면 그 자리에서 고칩니다.
+                  {/* 딜 본문과 같은 방식입니다 — 화면 아래 [수정] 이 이 글도 함께 엽니다.
                       이름은 읽는 화면과 같은 규칙으로, 미지정 기록에만 답니다. */}
                   {part.key === 'unassigned' && <p className={styles.note}>{part.title}</p>}
                   <EditableReport
                     body={part.value}
                     docKey={part.docKey}
                     disabled={disabled}
+                    editing={editing}
                     onChange={part.change}
-                    aria-label={`${part.title} 고치기`}
                   />
                 </>
               ) : (

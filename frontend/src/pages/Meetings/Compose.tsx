@@ -23,8 +23,9 @@ import {
 import Button from '@/components/Button'
 import ColumnHead from '@/components/ColumnHead'
 import {
+  ArrowDownIcon,
   ChevronLeftIcon,
-  ChevronRightIcon,
+  // ChevronRightIcon, // 접기 손잡이와 함께 내려둠
   DownloadIcon,
   RefreshIcon,
   StopIcon,
@@ -67,7 +68,13 @@ import useMeetingReports, {
 
 import styles from './Compose.module.scss'
 
-type Confirm = { kind: 'regenerate' } | { kind: 'deselect'; dealId: string } | null
+type Confirm =
+  | { kind: 'regenerate' }
+  | { kind: 'deselect'; dealId: string }
+  // 수정을 끝내는 두 길. 고친 것이 사라지는 쪽은 한 번 더 묻습니다.
+  | { kind: 'cancelEdit' }
+  | { kind: 'finishEdit' }
+  | null
 
 function meetingInputOf(
   run: AgentRunResponse<MeetingProcessingOutput>,
@@ -111,6 +118,16 @@ export default function Compose() {
   const [generationEvidence, setGenerationEvidence] = useState<Record<string, unknown> | null>(null)
   const [activeRunId, setActiveRunId] = useState<string>()
   const [cancelledNotice, setCancelledNotice] = useState(false)
+  // 본문을 고치는 중인지. 조작부는 아래 바 하나뿐이라 상태도 여기서 쥐고, 이 화면의
+  // 모든 글(딜 카드·공통·미지정)이 함께 열립니다.
+  const [editing, setEditing] = useState(false)
+  // 수정에 들어간 순간의 본문과 제목 전부. [취소] 는 이 값으로 되돌립니다.
+  const bodySnapshot = useRef({
+    deals: {} as Record<string, string>,
+    titles: {} as Record<string, string>,
+    common: '',
+    unassigned: '',
+  })
   const agendaId = params.get('agenda') ?? ''
   useEffect(() => {
     setGenerating(false)
@@ -123,6 +140,7 @@ export default function Compose() {
     setGenerationEvidence(null)
     setActiveRunId(undefined)
     setCancelledNotice(false)
+    setEditing(false)
     recoveredAgendaId.current = ''
     generationAttempt.current = undefined
     return () => {
@@ -334,7 +352,9 @@ export default function Compose() {
   // 일정 상세는 대시보드·캘린더가 쓰는 드로어를 그대로 엽니다. AI 브리핑까지 그 안에 있습니다.
   const [detailOpen, setDetailOpen] = useState(false)
   // 보고서를 읽을 때는 왼쪽 입력부를 통째로 접어 본문에 폭을 넘깁니다. 기억하지는 않습니다.
-  const [sideCollapsed, setSideCollapsed] = useState(false)
+  // 자료 열 접기 기능은 잠시 내려둡니다. 손잡이가 없으니 늘 펼친 채로 둡니다.
+  // const [sideCollapsed, setSideCollapsed] = useState(false)
+  const sideCollapsed = false
   useEffect(() => {
     setCreateDealOpen(false)
     createDealKey.current = ''
@@ -346,6 +366,22 @@ export default function Compose() {
   // 글이 자라는 동안 스크롤 상자가 바닥을 따라갑니다. 표식은 .reports 의 마지막 자식입니다.
   // 아래 이른 반환보다 앞에 서야 합니다 — 훅은 렌더마다 같은 순서로 불려야 합니다.
   const streamEnd = useStickToBottom(streaming)
+
+  // 오른쪽 보고서 열 자체입니다. 다 쓰인 뒤 [↓] 가 이 열의 아래끝으로 창을 내립니다.
+  const work = useRef<HTMLElement>(null)
+  // 그 아래끝에 박는 표식이 창에 들어왔는가. 보이면 이미 다 내려온 것이라 [↓] 가 할 일이 없습니다.
+  const [atEnd, setAtEnd] = useState(false)
+  /*
+   * 표식이 서고 지는 때를 그대로 따르게 ref 콜백에서 답니다 — 이 열은 조건부로 그려지고
+   * 이 컴포넌트에는 위쪽에 이른 반환이 있어, 효과의 의존성으로 맞추기 어렵습니다.
+   * 구르는 것은 창이므로 root 는 기본값(창)입니다.
+   */
+  const workEnd = useCallback((mark: HTMLDivElement | null) => {
+    if (!mark) return
+    const watch = new IntersectionObserver(([entry]) => setAtEnd(entry.isIntersecting))
+    watch.observe(mark)
+    return () => watch.disconnect()
+  }, [])
 
   if (agendaLoading || loading) {
     return (
@@ -468,6 +504,34 @@ export default function Compose() {
   // 보고서 열을 여는 조건. 작성을 시작했거나, 이미 결과·저장본이 있는 미팅입니다.
   const showWork =
     opened || generating || Boolean(result) || Boolean(savedReport) || hasDraftContent
+  /*
+   * 이 열에 AI 가 쓴 보고서가 놓여 있는가 — [↓] 가 설 조건입니다. 손으로만 쓴 보고서는
+   * 둘 다 비어 있으므로 서지 않습니다. 일일·주간·월간 화면과 같은 규칙입니다.
+   */
+  const aiReport = hasDraftContent && (draft.aiFilled || generationEvidence !== null)
+
+  /* 수정에 들어갑니다. 이 화면의 모든 글을 한 번에 떠 둡니다 — [취소] 가 전부를 되돌립니다. */
+  const startEditing = () => {
+    bodySnapshot.current = {
+      deals: Object.fromEntries(
+        draft.salesDealIds.map((id) => [id, draft.draftsByDeal[id]?.values.body ?? '']),
+      ),
+      titles: Object.fromEntries(
+        draft.salesDealIds.map((id) => [id, draft.draftsByDeal[id]?.title ?? '']),
+      ),
+      common: result?.shared?.common_report?.body ?? '',
+      unassigned: result?.shared?.unassigned_report?.body ?? '',
+    }
+    setEditing(true)
+  }
+
+  /* 떠 둔 값으로 전부 되돌립니다. 공통·미지정은 한 번에 함께 써야 서로 지우지 않습니다. */
+  const restoreBodies = () => {
+    const { deals: dealBodies, titles, common, unassigned } = bodySnapshot.current
+    for (const [id, body] of Object.entries(dealBodies)) draft.applyDocument(id, body)
+    for (const [id, title] of Object.entries(titles)) draft.setTitle(id, title)
+    if (result?.shared) draft.setShared(common, unassigned)
+  }
   const generationInputError = reportInputError(meetingGenerationRequestOf(payloadForMeeting(), ''))
   const submitInputError = reportInputError({
     ...meetingRequestOf(payloadForMeeting()),
@@ -509,6 +573,8 @@ export default function Compose() {
     generationAbort.current = controller
     setActiveRunId(undefined)
     setCancelledNotice(false)
+    // 새로 쓰면 고치던 글이 통째로 갈립니다. 수정 상태로 남겨 두지 않습니다.
+    setEditing(false)
     stopAnalysisWatch()
     setGenerating(true)
     beginGeneration(targets)
@@ -730,34 +796,40 @@ export default function Compose() {
               </p>
             </div>
             <div className={styles.headActions}>
-              {/* 작성 시작 지점입니다. 이미 본문이 있으면 같은 버튼이 다시 생성으로 바뀝니다. */}
-              <Button
-                type="button"
-                variant={hasDraftContent ? 'outline' : 'primary'}
-                className={styles.generate}
-                aria-busy={generating || recovering}
-                onClick={requestGeneration}
-                disabled={
-                  busy ||
-                  !canEdit ||
-                  !draft.canGenerate ||
-                  Boolean(generationInputError) ||
-                  !generatable ||
-                  generating ||
-                  recovering
-                }
-              >
-                {generating || recovering ? (
-                  'AI 보고서 작성 중…'
-                ) : hasDraftContent ? (
-                  <>
-                    <RefreshIcon width={16} height={16} />
-                    AI 보고서 다시 생성
-                  </>
-                ) : (
-                  'AI 보고서 작성'
-                )}
-              </Button>
+              {/* 작성 시작 지점입니다. 이미 본문이 있으면 같은 버튼이 다시 생성으로 바뀝니다.
+                  쓰는 동안에는 진행을 오른쪽 열이 말하므로 이 자리에는 멈추는 길만 남깁니다. */}
+              {!streaming && (
+                <Button
+                  type="button"
+                  variant={hasDraftContent ? 'outline' : 'primary'}
+                  className={styles.generate}
+                  onClick={requestGeneration}
+                  aria-busy={draft.attachmentsPending}
+                  disabled={
+                    busy ||
+                    draft.attachmentsPending ||
+                    !canEdit ||
+                    !draft.canGenerate ||
+                    Boolean(generationInputError) ||
+                    !generatable
+                  }
+                >
+                  {/* 왜 못 누르는지를 버튼이 직접 말합니다 — 파일이 다 읽히기 전까지는 그 사정만 보입니다. */}
+                  {draft.attachmentsPending ? (
+                    <>
+                      <span className={styles.spinner} aria-hidden="true" />
+                      파일 분석 중...
+                    </>
+                  ) : hasDraftContent ? (
+                    <>
+                      <RefreshIcon width={16} height={16} />
+                      AI 보고서 다시 생성
+                    </>
+                  ) : (
+                    'AI 보고서 작성'
+                  )}
+                </Button>
+              )}
               {(generating || recovering) && activeRunId && (
                 <Button
                   type="button"
@@ -824,6 +896,7 @@ export default function Compose() {
           {/* 왼쪽 열 전체의 머리. 접기 손잡이는 아래 판들이 아니라 이 열을 여닫습니다.
               접으면 제목은 물러나고 손잡이만 레일로 남습니다. */}
           <ColumnHead title={!sideCollapsed && '보고서 작성 자료'} bare={sideCollapsed}>
+            {/* 접기 손잡이는 잠시 내려둡니다.
             {showWork && (
               <Button
                 type="button"
@@ -843,6 +916,7 @@ export default function Compose() {
                 )}
               </Button>
             )}
+            */}
           </ColumnHead>
           <div
             id="compose-side"
@@ -872,8 +946,10 @@ export default function Compose() {
             <div className={styles.input}>
               <MeetingInputPanel
                 attachments={draft.attachments}
+                reportId={savedReport?.id}
                 onAttach={(files, purpose, acceptedKinds) =>
-                  void draft.addAttachments(files, purpose, acceptedKinds)
+                  // 참고자료는 보고서 옆에 사진으로만 세웁니다. 읽을 일이 없어 OCR을 돌리지 않습니다.
+                  void draft.addAttachments(files, purpose, acceptedKinds, purpose !== 'reference')
                 }
                 onRemoveAttachment={draft.removeAttachment}
                 onExtractChange={draft.setAttachmentExtract}
@@ -897,14 +973,17 @@ export default function Compose() {
         </div>
 
         {showWork && (
-          <section className={styles.work} aria-label="미팅 보고서">
+          <section className={styles.work} aria-label="미팅 보고서" ref={work}>
             {/* 왼쪽 열 머리와 같은 줄에 섭니다. 오른쪽 끝은 이 문서를 종이로 내보내는 자리입니다. */}
             <ColumnHead
               title={
                 <>
                   보고서 작성
-                  {/* 어디까지가 AI 가 쓴 것인지. 문서 안이 아니라 이 열의 머리에서 말합니다. */}
-                  {draft.aiFilled && <span className={styles.aiBadge}>AI 작성</span>}
+                  {/* 어디까지가 AI 가 쓴 것인지. 문서 안이 아니라 이 열의 머리에서 말합니다.
+                      쓰는 동안에는 같은 자리에서 진행 중임을 말합니다. */}
+                  {(streaming || draft.aiFilled) && (
+                    <span className={styles.aiBadge}>{streaming ? 'AI 작성중' : 'AI 작성'}</span>
+                  )}
                 </>
               }
             >
@@ -913,7 +992,7 @@ export default function Compose() {
                 variant="outline"
                 size="sm"
                 className={styles.pdfButton}
-                disabled={!printable || streaming}
+                disabled={!printable || streaming || editing}
                 onClick={() => window.print()}
               >
                 <DownloadIcon width={15} height={15} />
@@ -925,7 +1004,13 @@ export default function Compose() {
               {!streaming && <ReportReviewWarning evidence={generationEvidence} />}
               {revising && liveMemo}
             </div>
-            <div className={styles.reports}>
+            <div
+              className={
+                streaming || analysing > 0
+                  ? `${styles.reports} ${styles.reportsGenerating}`
+                  : styles.reports
+              }
+            >
               {(streaming || analysing > 0) && (
                 <GenerationProgress
                   feed="steps"
@@ -941,6 +1026,7 @@ export default function Compose() {
                   progress={draft.processingProgress}
                   generating={generating || recovering}
                   disabled={busy}
+                  editing={editing}
                   showCommon={draft.salesDealIds.length === 0}
                   commonDocKey={result?.commonDocKey}
                   unassignedDocKey={result?.unassignedDocKey}
@@ -971,6 +1057,7 @@ export default function Compose() {
                         draft.canGenerate && generatable && !generationInputError && !createDealOpen
                       }
                       readOnly={!canEditDeal(dealId) || createDealOpen}
+                      editing={editing}
                       onTitleChange={(value) => draft.setTitle(dealId, value)}
                       onChange={(body) => draft.applyDocument(dealId, body)}
                       onStartManual={() => draft.startManual(dealId)}
@@ -991,26 +1078,86 @@ export default function Compose() {
               )}
               {streaming && <div ref={streamEnd} className={styles.streamEnd} aria-hidden="true" />}
             </div>
-            <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
-              <div className={styles.saveActions}>
+
+            {/*
+              쓰는 중인지 다 썼는지를 한 자리에서 말합니다. 쓰는 동안에는 점 세 개로
+              "아직 쓰는 중"만 알리고 — 누를 것이 아니므로 버튼이 아닙니다 — 다 쓰이면
+              같은 자리가 보고서 아래끝으로 내려가는 손잡이가 됩니다. 둘은 겹치지 않습니다.
+            */}
+            {streaming ? (
+              <div className={styles.dots} role="status" aria-label="AI가 보고서를 작성 중입니다">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : (
+              aiReport && (
                 <Button
                   type="button"
-                  className={styles.saveAllButton}
-                  aria-label="미팅 보고서 작성 완료"
-                  disabled={
-                    busy ||
-                    draft.attachmentsPending ||
-                    !canEdit ||
-                    editableDealIds.length !== draft.salesDealIds.length ||
-                    Boolean(submitInputError) ||
-                    missingBody
-                  }
-                  onClick={() => void submitAll()}
+                  variant="outline"
+                  iconOnly
+                  // 이미 바닥이면 자리까지 비웁니다 — 마지막 글과 조작부 사이가 벌어집니다.
+                  className={atEnd ? `${styles.jump} ${styles.atEnd}` : styles.jump}
+                  aria-label="보고서 맨 아래로 이동"
+                  onClick={() => work.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
                 >
-                  {submitting ? '완료 중…' : '미팅 보고서 작성 완료'}
+                  <ArrowDownIcon width={18} height={18} />
                 </Button>
+              )
+            )}
+
+            {/*
+              이 화면의 조작부입니다. 보고서 맨 아래, 마지막 글 다음에 놓입니다 — 다 읽고
+              내려온 자리에서 고치거나 냅니다. 딜 카드가 여럿이어도 [수정] 은 여기 하나뿐이고,
+              누르면 이 화면의 모든 글이 함께 열립니다. 종이로 뽑는 길은 이 열의 머리에 있습니다.
+              쓰는 동안에는 누를 것이 하나도 없으므로 바 자체를 내립니다.
+            */}
+            {!streaming && (
+              <div className={styles.saveBar} aria-busy={submitting || draft.attachmentsPending}>
+                {editing ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => setConfirm({ kind: 'cancelEdit' })}
+                    >
+                      취소
+                    </Button>
+                    <Button type="button" onClick={() => setConfirm({ kind: 'finishEdit' })}>
+                      수정 완료
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      disabled={busy || !canEdit || !hasDraftContent}
+                      onClick={startEditing}
+                    >
+                      수정
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={
+                        busy ||
+                        draft.attachmentsPending ||
+                        !canEdit ||
+                        editableDealIds.length !== draft.salesDealIds.length ||
+                        Boolean(submitInputError) ||
+                        missingBody
+                      }
+                      onClick={() => void submitAll()}
+                    >
+                      {submitting ? '완료 중…' : '작성 완료'}
+                    </Button>
+                  </>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* 이 열의 아래끝. 1px 만 차지하고, 보이는지 여부가 [↓] 를 감출지 정합니다. */}
+            <div ref={workEnd} className={styles.workEnd} aria-hidden="true" />
           </section>
         )}
       </div>
@@ -1069,6 +1216,59 @@ export default function Compose() {
           </p>
         </Modal>
       )}
+
+      {/* 수정에서 나가는 두 길. 고친 것이 사라지는 쪽은 한 번 더 묻습니다. */}
+      {confirm?.kind === 'cancelEdit' && (
+        <Modal
+          title="수정을 취소하시겠어요?"
+          onClose={() => setConfirm(null)}
+          footer={
+            <>
+              <Button variant="outline" type="button" onClick={() => setConfirm(null)}>
+                돌아가기
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  restoreBodies()
+                  setEditing(false)
+                  setConfirm(null)
+                }}
+              >
+                수정 취소
+              </Button>
+            </>
+          }
+        >
+          <p>수정한 내용이 사라지고 수정 전 내용으로 되돌아갑니다.</p>
+        </Modal>
+      )}
+
+      {confirm?.kind === 'finishEdit' && (
+        <Modal
+          title="수정을 완료하시겠어요?"
+          onClose={() => setConfirm(null)}
+          footer={
+            <>
+              <Button variant="outline" type="button" onClick={() => setConfirm(null)}>
+                계속 수정
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setEditing(false)
+                  setConfirm(null)
+                }}
+              >
+                수정 완료
+              </Button>
+            </>
+          }
+        >
+          <p>현재 내용으로 수정 완료합니다.</p>
+        </Modal>
+      )}
+
       {detailOpen && <RecordDrawer item={item} onClose={() => setDetailOpen(false)} />}
       {createDealOpen && item.customerCompanyId && (
         <MeetingDealForm

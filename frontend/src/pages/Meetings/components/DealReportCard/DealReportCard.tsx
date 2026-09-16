@@ -20,6 +20,8 @@ interface Props {
   generating: boolean
   canGenerate: boolean
   readOnly: boolean
+  /** 화면 아래 [수정] 이 켜져 있는가. 잠긴 카드는 켜져 있어도 읽기로 남습니다. */
+  editing?: boolean
   onTitleChange: (value: string) => void
   onChange: (body: string) => void
   onStartManual: () => void
@@ -69,6 +71,7 @@ export default function DealReportCard({
   generating,
   canGenerate,
   readOnly,
+  editing = false,
   onTitleChange,
   onChange,
   onStartManual,
@@ -104,6 +107,7 @@ export default function DealReportCard({
           onRetryGenerate={onGenerate}
           generationDisabled={generationDisabled}
           locked={locked}
+          editing={editing}
           saving={saving || generating}
           onStartManual={onStartManual}
         />

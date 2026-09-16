@@ -1,5 +1,5 @@
 // 제출한 기간 보고서를 읽는 화면입니다. 미팅 보고서 상세와 같은 머리 띠·같은 두 열을 씁니다.
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
 import { deleteReport } from '@/api/reportAgent'
@@ -10,9 +10,6 @@ import Button, { buttonClass } from '@/components/Button'
 import ColumnHead from '@/components/ColumnHead'
 import {
   CalendarIcon,
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   DownloadIcon,
   EditIcon,
   SheetIcon,
@@ -20,6 +17,7 @@ import {
   TrashIcon,
 } from '@/components/icons'
 import Modal from '@/components/Modal'
+import ReportBanner from '@/components/ReportBanner'
 import ReportDocHeader from '@/components/ReportDocHeader'
 import ReportView from '@/components/ReportView'
 import { SkeletonDetail } from '@/components/Skeleton'
@@ -58,17 +56,6 @@ export default function Detail() {
   // 삭제는 되돌릴 수 없으므로 한 번 물어봅니다.
   const [confirmingRemove, setConfirmingRemove] = useState(false)
   const [removing, setRemoving] = useState(false)
-
-  // 작성 화면과 같은 손잡이입니다. 보고서만 넓게 읽고 싶을 때 자료 열을 접습니다.
-  const [materialsCollapsed, setMaterialsCollapsed] = useState(false)
-  // 접으면 누른 손잡이가 화면에서 사라집니다. 남는 쪽 손잡이로 초점을 넘겨 줍니다.
-  const collapseRef = useRef<HTMLButtonElement>(null)
-  const expandRef = useRef<HTMLButtonElement>(null)
-  const toggledRef = useRef(false)
-  useEffect(() => {
-    if (!toggledRef.current) return
-    ;(materialsCollapsed ? expandRef : collapseRef).current?.focus()
-  }, [materialsCollapsed])
 
   if (loading)
     return (
@@ -131,113 +118,102 @@ export default function Detail() {
 
       {/*
         머리 띠 하나가 어디에서 왔는지, 어느 기간의 보고서인지, 지금 어디까지 왔는지,
-        그리고 이 문서로 할 수 있는 일을 함께 답니다.
+        그리고 이 문서로 할 수 있는 일을 함께 답니다. 작성 화면과 같은 띠입니다.
+
+        잠긴 보고서에서도 버튼은 자리를 지킵니다. 사라진 버튼은 이유를 말해 주지
+        못하므로, 누르면 왜 안 되는지를 알려 줍니다. 막는 것은 서버입니다.
       */}
-      <header className={styles.banner}>
-        <div className={styles.heading}>
-          {/* 이 보고서가 놓인 탭으로 돌아갑니다. */}
-          <DailyListLink crumb tab={kindToPeriod(report.kind)} />
-
-          <p className={styles.title}>
-            {report.period ?? fmtDot(day)}
-            <span>{report.kind}업무보고</span>
-            <ReportStatusBadge status={report.status} />
-          </p>
-
-          <p className={styles.meta}>
-            <span className={styles.metaItem}>
-              <CalendarIcon width={14} height={14} />
-              <span className={styles.when}>{fmtDot(day)}</span>
-            </span>
-            <span className={`${styles.bar} ${styles.breakBar}`} aria-hidden="true" />
-            <span className={styles.metaItem}>
-              <TeamIcon width={14} height={14} />
-              작성자 {report.owner}
-            </span>
-            <span className={styles.bar} aria-hidden="true" />
-            <span className={styles.metaItem}>
-              <SheetIcon width={14} height={14} />
-              보고 대상 {report.approver || '미지정'}
-            </span>
-          </p>
-        </div>
-
-        {/*
-          잠긴 보고서에서도 버튼은 자리를 지킵니다. 사라진 버튼은 이유를 말해 주지
-          못하므로, 누르면 왜 안 되는지를 알려 줍니다. 막는 것은 서버입니다.
-        */}
-        <div className={styles.actions}>
-          {editable ? (
-            <Link
-              className={buttonClass({ variant: 'outline' })}
-              to={dailyComposePath(report.date, report.kind)}
-            >
-              <EditIcon width={15} height={15} />
-              {report.apiStatus === 'draft' ? '이어서 작성' : '수정해서 다시 제출'}
-            </Link>
-          ) : (
-            mine && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  showToast(
-                    approved
-                      ? '확정된 보고서라 수정할 수 없습니다.'
-                      : '제출이 끝나 수정할 수 없습니다.',
-                    { tone: 'error' },
-                  )
-                }
-              >
-                <EditIcon width={15} height={15} />
-                수정하기
-              </Button>
-            )
-          )}
-
-          {mine && (
+      <ReportBanner
+        /* 이 보고서가 놓인 탭으로 돌아갑니다. */
+        crumb={<DailyListLink crumb tab={kindToPeriod(report.kind)} />}
+        title={report.period ?? fmtDot(day)}
+        kind={`${report.kind}업무보고`}
+        badge={<ReportStatusBadge status={report.status} />}
+        meta={[
+          <>
+            <CalendarIcon width={14} height={14} />
+            {fmtDot(day)}
+          </>,
+          <>
+            <TeamIcon width={14} height={14} />
+            작성자 {report.owner}
+          </>,
+          <>
+            <SheetIcon width={14} height={14} />
+            보고 대상 {report.approver || '미지정'}
+          </>,
+        ]}
+      >
+        {editable ? (
+          <Link
+            className={buttonClass({ variant: 'outline' })}
+            to={dailyComposePath(report.date, report.kind)}
+          >
+            <EditIcon width={15} height={15} />
+            {report.apiStatus === 'draft' ? '이어서 작성' : '수정해서 다시 제출'}
+          </Link>
+        ) : (
+          mine && (
             <Button
               type="button"
               variant="outline"
-              className={styles.danger}
-              onClick={() => {
-                if (approved) {
-                  showToast('확정된 보고서라 삭제할 수 없습니다.', { tone: 'error' })
-                  return
-                }
-                setConfirmingRemove(true)
-              }}
+              onClick={() =>
+                showToast(
+                  approved
+                    ? '확정된 보고서라 수정할 수 없습니다.'
+                    : '제출이 끝나 수정할 수 없습니다.',
+                  { tone: 'error' },
+                )
+              }
             >
-              <TrashIcon width={15} height={15} />
-              삭제
+              <EditIcon width={15} height={15} />
+              수정하기
             </Button>
-          )}
+          )
+        )}
 
-          {/* 작성 화면과 같은 버튼입니다. 인쇄가 곧 PDF 입니다. */}
-          <Button type="button" onClick={() => window.print()}>
-            <DownloadIcon width={15} height={15} />
-            PDF 다운로드
+        {mine && (
+          <Button
+            type="button"
+            variant="outline"
+            className={styles.danger}
+            onClick={() => {
+              if (approved) {
+                showToast('확정된 보고서라 삭제할 수 없습니다.', { tone: 'error' })
+                return
+              }
+              setConfirmingRemove(true)
+            }}
+          >
+            <TrashIcon width={15} height={15} />
+            삭제
           </Button>
-        </div>
-      </header>
+        )}
+      </ReportBanner>
+
+      {/* 반려 사유는 문서가 아니라 문서에 붙은 말입니다. 작성 화면과 같이 면 밖에 섭니다. */}
+      {report.reviewNote && (
+        <article className={styles.review} role="note">
+          <h2>반려 사유</h2>
+          <p>{report.reviewNote}</p>
+        </article>
+      )}
 
       {/*
         결과물이 먼저입니다. 자료를 왼쪽에 놓는 것은 grid-template-areas 가 하고,
         DOM 순서는 건드리지 않습니다. 한 열로 접힐 때 긴 자료 아래에 보고서가 묻히면
         안 되고, 키보드 순서도 두 폭에서 같아야 합니다.
       */}
-      <div
-        className={
-          materialsCollapsed ? `${styles.layout} ${styles.materialsCollapsed}` : styles.layout
-        }
-      >
+      <div className={styles.layout}>
         <div className={styles.report}>
-          {report.reviewNote && (
-            <article className={styles.review} role="note">
-              <h2>반려 사유</h2>
-              <p>{report.reviewNote}</p>
-            </article>
-          )}
+          {/* 왼쪽 자료 열의 머리와 같은 줄에 섭니다. 작성 화면과도 같은 자리입니다. */}
+          <ColumnHead title="보고서">
+            {/* 이 문서를 종이로 내보내는 자리. 인쇄가 곧 PDF 입니다. */}
+            <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
+              <DownloadIcon width={15} height={15} />
+              PDF 다운로드
+            </Button>
+          </ColumnHead>
 
           <article className={styles.card}>
             {/* 화면에서 읽는 양식지가 그대로 PDF 가 됩니다. 머리 띠는 조작부로만 남습니다. */}
@@ -256,44 +232,10 @@ export default function Detail() {
         </div>
 
         {/* 보고서를 쓸 때 근거로 삼은 것들. 짧은 것부터 둡니다. */}
-        <aside
-          id="period-detail-materials"
-          className={
-            materialsCollapsed ? `${styles.materials} ${styles.collapsed}` : styles.materials
-          }
-        >
-          {/* 열의 머리는 접어도 남습니다. 한 열로 접히는 폭에서는 여기가 여닫이입니다. */}
-          <ColumnHead title="보고서 자료">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              iconOnly
-              ref={collapseRef}
-              className={styles.collapseAction}
-              aria-expanded
-              aria-controls="period-detail-materials"
-              aria-label="보고서 자료 접기"
-              onClick={() => {
-                toggledRef.current = true
-                setMaterialsCollapsed(true)
-              }}
-            >
-              <ChevronLeftIcon width={15} height={15} />
-            </Button>
-            <button
-              type="button"
-              className={styles.mobileToggle}
-              aria-expanded={!materialsCollapsed}
-              aria-controls="period-detail-materials-body"
-              aria-label={materialsCollapsed ? '보고서 자료 펼치기' : '보고서 자료 접기'}
-              onClick={() => setMaterialsCollapsed((collapsed) => !collapsed)}
-            >
-              <ChevronDownIcon width={16} height={16} aria-hidden="true" />
-            </button>
-          </ColumnHead>
+        <aside className={styles.materials}>
+          <ColumnHead title="보고서 자료" />
 
-          <div id="period-detail-materials-body" className={styles.materialsBody}>
+          <div className={styles.materialsBody}>
             <section className={styles.panel}>
               <h2 className={styles.panelTitle}>관련 보고서</h2>
               {related.loading ? (
@@ -330,31 +272,15 @@ export default function Detail() {
                   <span className={styles.count}>{report.attachments.length}건</span>
                 )}
               </h2>
-              <AttachmentPanel attachments={report.attachments} reportId={report.id} readOnly />
+              <AttachmentPanel
+                attachments={report.attachments}
+                reportId={report.id}
+                readOnly
+                gallery
+              />
             </section>
           </div>
         </aside>
-
-        {/* 접으면 판째로 사라지므로 펼치는 손잡이만 화면 왼쪽에 남습니다. */}
-        {materialsCollapsed && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            iconOnly
-            ref={expandRef}
-            className={styles.materialsToggle}
-            aria-expanded={false}
-            aria-controls="period-detail-materials"
-            aria-label="관련 자료 펼치기"
-            onClick={() => {
-              toggledRef.current = true
-              setMaterialsCollapsed(false)
-            }}
-          >
-            <ChevronRightIcon width={15} height={15} />
-          </Button>
-        )}
       </div>
 
       {confirmingRemove && (

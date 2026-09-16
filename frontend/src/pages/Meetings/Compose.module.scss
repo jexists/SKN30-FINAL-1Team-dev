@@ -11,6 +11,9 @@ $text-line: calc(var(--s4) + 12px);
 .page {
   display: flex;
   flex-direction: column;
+  // 보고서 카드가 끝난 뒤 바깥 바탕이 보이는 자리. 화면 맨 아래에 카드가 붙지 않게
+  // AppShell 의 여백 위에 한 단 더 둡니다.
+  padding-bottom: var(--s8);
 }
 
 /* 머리말 한 줄. 왼쪽은 나가는 길, 오른쪽은 PDF 입니다. 상세 화면과 같은 자리입니다. */
@@ -106,7 +109,7 @@ $text-line: calc(var(--s4) + 12px);
   font-size: 13px;
 
   &::before {
-    content: '* ';
+    content: "* ";
   }
 }
 
@@ -150,7 +153,7 @@ $text-line: calc(var(--s4) + 12px);
   p,
   li {
     &::before {
-      content: '* ';
+      content: "* ";
     }
   }
 }
@@ -283,6 +286,29 @@ $text-line: calc(var(--s4) + 12px);
   flex: none;
 }
 
+/* 파일이 읽히는 동안 버튼 안에서 도는 점. 글자 앞에 섭니다. */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--fill);
+  border-top-color: currentcolor;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 /*
  * 참고 열. 흰 면이되 바닥에 붙어 있습니다 — 테두리만 있고 그림자가 없습니다.
  * 오른쪽 보고서만 그림자로 떠 있어서, 흰 면이 둘이어도 어느 쪽을 고치는 중인지
@@ -333,32 +359,133 @@ $text-line: calc(var(--s4) + 12px);
   min-width: 0;
 }
 
+/*
+ * 쓰는 동안에는 진행 줄 몇 개뿐이라 면이 접혀 보입니다. 아래로 숨 쉴 자리만 잡아 둡니다.
+ * min-height 라 글이 자라면 그대로 늘어납니다.
+ */
+.reportsGenerating {
+  // 단계 목록과 지금 하는 일 한 줄은 한 덩어리로 읽혀야 합니다 — 단계 사이 간격과 같은 값.
+  gap: var(--s3);
+  // 창 높이에서 머리말·열 머리·아래 여백만큼만 뺍니다 — 카드가 한 화면을 채우고 끝납니다.
+  min-height: calc(100vh - 400px);
+}
+
 /* 스트림이 자라는 동안 바닥을 잡아 두는 표식. 자리는 1px 만 씁니다. */
 .streamEnd {
   flex: none;
   height: 1px;
-  // 따라붙는 자리를 아래 제출 줄 높이만큼 띄웁니다 — 마지막 줄이 창 맨 밑에 붙지 않게.
+  // 따라붙는 자리를 아래 조작부 높이만큼 띄웁니다 — 마지막 줄이 창 맨 밑에 붙지 않게.
   scroll-margin-bottom: 96px;
 }
 
-/* 여러 딜 카드의 저장 지점은 이 한 곳입니다. 긴 보고서를 내려 읽어도 상단에 남습니다. */
+/*
+ * 이 화면의 조작부입니다. 떠 있지 않습니다 — 보고서 마지막 글 다음에 그대로 놓여,
+ * 끝까지 읽고 내려온 사람만 만납니다. 빨리 내려가는 길은 아래 [↓] 가 맡습니다.
+ * 딜 카드가 여럿이어도 [수정] 과 [작성 완료] 는 이 한 줄에만 섭니다.
+ */
 .saveBar {
   flex: none;
+  // 오른쪽 끝에 제 너비만큼만. 좌우 여백은 .work 의 --col-pad 가 만듭니다.
+  align-self: flex-end;
   display: flex;
-  min-width: 0;
-  padding-top: var(--s5);
-}
-
-.saveActions {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
   gap: var(--s2);
+  // .work 의 gap 위에 조금 더. 마지막 글과 내는 손이 한 덩어리로 붙지 않게 합니다.
+  margin-top: var(--s2);
 }
 
-.pdfButton,
-.saveAllButton {
+/*
+ * 쓰는 중(...)과 다 쓴 뒤(↓)가 같은 자리를 나눠 씁니다. 구르는 것은 창이고 이 열은
+ * 그 흐름 안의 한 칸이라 sticky 하나면 충분합니다 — fixed 로 띄우면 기준이 창이 되어
+ * 왼쪽 자료 열까지 걸칩니다. align-self 는 세로 흐름의 가로 가운데, 곧 이 열의 가운데입니다.
+ */
+.dots,
+.jump {
+  position: sticky;
+  // 창 아래에서 이만큼 띄워 섭니다.
+  bottom: var(--s5);
+  z-index: 1;
+  flex: none;
+  align-self: center;
+  margin-top: var(--s5);
+}
+
+/*
+ * 누를 것이 아니라 "아직 쓰는 중"이라는 말입니다. 그래서 손잡이로 보일 만한 것 —
+ * 손 모양, 눌리는 느낌, 짙은 면 — 을 두지 않습니다.
+ */
+.dots {
+  display: flex;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+
+  span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--muted-2);
+    // 진행 줄의 점과 같은 호흡입니다. 셋이 조금씩 어긋나 차례로 밝아집니다.
+    animation: blink 1.4s var(--ease-out) infinite;
+  }
+
+  span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+/*
+ * 다 쓰인 뒤 보고서 아래끝으로 내려가는 손잡이. 긴 글 위에 떠 있으므로 면보다 한 겹
+ * 들어 올려 눈에 걸리게 합니다 — 글에 파묻히면 내려갈 길이 있는 줄 모릅니다.
+ */
+.jump {
+  border-radius: 50%;
+  box-shadow: var(--sh-2);
+}
+
+/*
+ * 이미 아래끝이면 할 일이 없습니다. 자리까지 비웁니다 — 남겨 두면 마지막 글과 조작부
+ * 사이에 빈 칸으로 남아 카드 아래끝이 화면 밖까지 밀립니다.
+ */
+.jump.atEnd {
+  display: none;
+}
+
+/*
+ * 이 열의 아래끝 표식. 자리는 1px 만 씁니다 — 다만 flex 아이템이라 앞에 gap 이 한 번
+ * 더 붙습니다. 그만큼 당겨 지웁니다. 조작부 아래 여백은 .work 의 --col-pad 하나뿐이어야
+ * 합니다.
+ */
+.workEnd {
+  flex: none;
+  height: 1px;
+  margin-top: -$box-pad;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots span {
+    animation: none;
+  }
+}
+
+@keyframes blink {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+.pdfButton {
   flex: none;
 
   @include sm {
@@ -388,6 +515,8 @@ $text-line: calc(var(--s4) + 12px);
   .locked.locked,
   .mutationError.mutationError,
   .saveBar.saveBar,
+  .dots.dots,
+  .jump.jump,
   .generateBar.generateBar {
     display: none;
   }

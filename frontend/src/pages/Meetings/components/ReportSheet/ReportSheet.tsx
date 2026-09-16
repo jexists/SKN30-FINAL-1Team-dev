@@ -32,6 +32,8 @@ interface Props {
   /** 서버가 Agent 실행을 허용하지 않는 상태입니다. 편집·저장은 계속 가능합니다. */
   generationDisabled?: boolean
   locked: boolean
+  /** 화면 아래 [수정] 이 켜져 있는가. 잠긴 글은 켜져 있어도 읽기로 남습니다. */
+  editing?: boolean
   saving: boolean
   onStartManual: () => void
   /** 딜 카드가 바깥 면을 맡을 때 시트의 중복 테두리·sticky를 걷습니다. */
@@ -53,6 +55,7 @@ export default function ReportSheet({
   onRetryGenerate,
   generationDisabled = false,
   locked,
+  editing = false,
   saving,
   onStartManual,
   embedded = false,
@@ -113,7 +116,8 @@ export default function ReportSheet({
                     id={inputId}
                     className={styles.title}
                     value={title}
-                    disabled={locked}
+                    /* 본문과 같은 규칙입니다 — 아래 [수정] 을 눌러야 이 칸이 열립니다. */
+                    disabled={locked || !editing}
                     placeholder="보고서 제목을 적으세요"
                     onChange={(event) => onTitleChange(event.target.value)}
                   />
@@ -122,8 +126,8 @@ export default function ReportSheet({
                   body={body}
                   docKey={docKey}
                   disabled={locked}
+                  editing={editing}
                   onChange={onChange}
-                  placeholder="보고서 본문을 적으려면 누르세요."
                 />
                 {evidence && <p className={styles.evidence}>{evidence}</p>}
               </>

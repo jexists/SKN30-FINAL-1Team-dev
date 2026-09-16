@@ -17,7 +17,10 @@ interface Props {
   onRetry: () => void
   /** 고른 딜의 id */
   selected: string[]
-  onToggle: (id: string) => void
+  /** 고르는 화면에서만 옵니다. */
+  onToggle?: (id: string) => void
+  /** 읽는 화면. 주면 체크박스 대신 줄 전체가 딜 상세를 여는 손잡이가 됩니다. */
+  onOpen?: (deal: SalesDeal) => void
   disabled: boolean
 }
 
@@ -28,6 +31,7 @@ export default function DealPicker({
   onRetry,
   selected,
   onToggle,
+  onOpen,
   disabled,
 }: Props) {
   if (loading) {
@@ -57,30 +61,48 @@ export default function DealPicker({
 
   return (
     <ul className={styles.list}>
-      {ordered.map((deal) => (
-        <li key={deal.id}>
-          <label className={styles.row}>
-            <input
-              type="checkbox"
-              className={styles.check}
-              checked={selected.includes(deal.id)}
-              disabled={disabled}
-              onChange={() => onToggle(deal.id)}
-            />
-
-            <span className={styles.body}>
-              {/* 식별자 줄. 금액은 오른쪽 끝에 세워 여러 딜의 숫자가 한 열로 읽힙니다. */}
-              <span className={styles.head}>
-                <span className={styles.no}>{deal.no}</span>
-                <StageChip tone={deal.stageTone}>{deal.stageName}</StageChip>
-                <span className={['tnum', styles.amount].join(' ')}>{won(deal.amount)}</span>
-              </span>
-              {/* 제목이 비어 있는 딜이 있습니다. 그때는 제품이 그 자리를 대신합니다. */}
-              <span className={styles.title}>{deal.title.trim() || deal.product}</span>
+      {ordered.map((deal) => {
+        const body = (
+          <span className={styles.body}>
+            {/* 식별자 줄. 금액은 오른쪽 끝에 세워 여러 딜의 숫자가 한 열로 읽힙니다. */}
+            <span className={styles.head}>
+              <span className={styles.no}>{deal.no}</span>
+              <StageChip tone={deal.stageTone}>{deal.stageName}</StageChip>
+              <span className={['tnum', styles.amount].join(' ')}>{won(deal.amount)}</span>
             </span>
-          </label>
-        </li>
-      ))}
+            {/* 제목이 비어 있는 딜이 있습니다. 그때는 제품이 그 자리를 대신합니다. */}
+            <span className={styles.title}>{deal.title.trim() || deal.product}</span>
+          </span>
+        )
+
+        return (
+          <li key={deal.id}>
+            {onOpen ? (
+              /* 읽는 화면. 고를 것이 없으므로 줄 전체가 딜을 여는 손잡이입니다. */
+              <button
+                type="button"
+                className={`${styles.row} ${styles.open}`}
+                aria-label={`${deal.no} 딜 상세 열기`}
+                onClick={() => onOpen(deal)}
+              >
+                {body}
+              </button>
+            ) : (
+              <label className={styles.row}>
+                <input
+                  type="checkbox"
+                  className={styles.check}
+                  checked={selected.includes(deal.id)}
+                  disabled={disabled}
+                  onChange={() => onToggle?.(deal.id)}
+                />
+
+                {body}
+              </label>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }

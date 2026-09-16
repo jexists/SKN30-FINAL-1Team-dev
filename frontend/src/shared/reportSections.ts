@@ -41,7 +41,25 @@ const SEPARATOR = /\s+[·|]\s+/
 // 줄표 뒤 첫 조각이 이름표가 아닌 때가 있습니다 — '… — 합의된 후속 조치, 담당 미지정, …'
 // 처럼 상태가 이름표 없이 먼저 옵니다. 꼬리 어딘가에 이름표가 있으면 자릅니다.
 const TAIL = new RegExp(`\\s+[—–]\\s+(?=[^\\n]*?(?:${FIELD_LABELS.join('|')})[\\s:])`)
-const TAIL_SEPARATOR = new RegExp(`\\s*[,·|]\\s*(?=(?:${FIELD_LABELS.join('|')})[\\s:])`)
+/*
+ * 꼬리 안의 구분자. 줄표는 이름표가 뒤따르지 않아도 자릅니다 — '… — 담당자: 판매자 —
+ * 기한: 미확인 — 고객의 검토 여부 확인' 처럼 마지막 칸의 이름표를 빼먹는 꼴이 옵니다.
+ * 앞뒤 공백을 요구하므로 값 안에 붙어 있는 기호는 자르지 않습니다.
+ * 쉼표·가운뎃점은 이름표가 뒤따를 때만 자릅니다. 값 안의 쉼표가 조각나면 안 됩니다.
+ */
+const TAIL_SEPARATOR = new RegExp(
+  `\\s+[—–]\\s+|\\s*[,·|]\\s*(?=(?:${FIELD_LABELS.join('|')})[\\s:])`,
+)
+
+/*
+ * 지시문이 정한 칸 순서(할 일 · 담당자 · 기한 · 완료 기준). 이름표 없이 온 꼬리 조각을
+ * 이 순서의 다음 빈칸으로 읽습니다 — 이름표를 지어내는 게 아니라 지시문의 순서를 씁니다.
+ */
+const FIELD_ORDER = ['담당자', '기한', '완료 기준']
+
+// 할 일 제목에 상태가 접두사로 붙어 오는 꼴. ' · 상태: 합의' 와 같은 정보라 필드로 옮깁니다.
+// 긴 쪽을 앞에 둡니다 — 정규식 교대는 앞에서부터 맞습니다.
+const STATUS_PREFIX = /^(합의된 후속 조치|검토 필요|합의|요청|제안|필요)\s*[::]\s*/
 
 const HEADING = /^\*\*(.+?)\*\*$/
 // 콜론 없이 '담당 미지정' 처럼도 옵니다. 알려진 빈 값 낱말만 허용해
@@ -72,6 +90,21 @@ function strong(text: string): string {
   return text.replace(/\*\*(.+?)\*\*/g, '$1')
 }
 
+/** 이름표 없이 온 꼬리 조각을 정해진 칸 순서의 다음 빈칸에 넣습니다. */
+function fill(fields: ReportField[], value: string): void {
+  if (!value) return
+  // 이름표가 하나도 없는 맨 앞 조각은 상태입니다 — '… — 합의된 후속 조치, 담당 미지정, …'
+  if (!fields.length) {
+    fields.push({ label: '상태', value })
+    return
+  }
+  const used = new Set(fields.map((field) => (field.label === '담당' ? '담당자' : field.label)))
+  const next = FIELD_ORDER.find((label) => !used.has(label))
+  // 칸이 다 찼으면 앞 값이 쉼표에서 잘린 것입니다. 버리지 않고 이어 붙입니다.
+  if (next) fields.push({ label: next, value })
+  else fields[fields.length - 1].value += `, ${value}`
+}
+
 /**
  * 목록 한 줄을 할 일과 이름표로 가릅니다.
  * 이름표가 하나도 없으면 줄 전체가 할 일이 됩니다 — 버리지 않습니다.
@@ -87,11 +120,18 @@ function actionOf(item: string): ReportAction {
   for (const part of parts) {
     const matched = FIELD.exec(part.trim())
     if (matched) fields.push({ label: matched[1], value: strong(matched[2] ?? matched[3]).trim() })
-    // 꼬리에서 이름표가 없는 조각은 상태입니다. 할 일은 이미 줄표 앞에 다 있습니다.
-    else if (head) fields.push({ label: '상태', value: strong(part).trim() })
+    // 꼬리에서 이름표가 없는 조각은 빠진 칸입니다. 할 일은 이미 줄표 앞에 다 있습니다.
+    else if (head) fill(fields, strong(part).trim())
     else task.push(strong(part).trim())
   }
-  return { task: task.filter(Boolean).join(' · '), fields }
+
+  let title = task.filter(Boolean).join(' · ')
+  const status = STATUS_PREFIX.exec(title)
+  if (status && !fields.some((field) => field.label === '상태')) {
+    title = title.slice(status[0].length)
+    fields.unshift({ label: '상태', value: status[1] })
+  }
+  return { task: title, fields }
 }
 
 /** 구획 본문이 목록뿐이고 이름표가 하나라도 있으면 후속 조치로 읽습니다. */

@@ -24,6 +24,8 @@
 
   h2 {
     min-width: 0;
+    // 오른쪽 끝 조작부가 있는 열과 없는 열이 같은 높이로 섭니다.
+    min-height: var(--control-h-sm);
     // 제목 옆 배지가 기준선에 매달리면 글자가 줄 가운데에서 위로 밀립니다.
     display: flex;
     align-items: center;
