@@ -51,6 +51,8 @@ _BRIEFING_DOCUMENT_LIMIT = 5
 # 다음 일정 추천 도구가 볼 최근 미팅 수. 주기·요일 패턴을 보기에 충분한 만큼만 읽는다.
 _MEETING_HISTORY_LIMIT = 30
 _WEEKDAYS = ("월", "화", "수", "목", "금", "토", "일")
+
+
 def _seoul_iso(value: datetime | None) -> str | None:
     """LLM 에 보낼 시각. 화면과 같은 서울 시간으로 맞춘다."""
     return None if value is None else value.astimezone(_SEOUL).isoformat()
@@ -589,12 +591,25 @@ def _briefing_search_query(
     ]
     # 기존 검색어 순서는 유지하고, 계약서 비교에 필요한 세 필드 검색어가 긴 보고서에
     # 밀려 잘리지 않도록 뒤쪽 자리를 따로 확보한다.
-    contract_terms = (
-        "계약금액 총계약대금 계약종료일 계약만료일 지급조건 대금지급기일 결제조건"
-    )
+    contract_terms = "계약금액 총계약대금 계약종료일 계약만료일 지급조건 대금지급기일 결제조건"
     available = _BRIEFING_QUERY_MAX_CHARS - len(contract_terms) - 1
     base = " ".join(part for part in parts if part)[:available].rstrip()
     return f"{base} {contract_terms}".strip()
+
+
+def _merge_briefing_sources(*groups: list[dict[str, object]]) -> list[dict[str, object]]:
+    """현재 상태 근거를 앞에 두되, 같은 청크를 두 번 프롬프트에 넣지 않는다."""
+    merged: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for group in groups:
+        for source in group:
+            chunk_id = str(source.get("chunk_id") or "")
+            key = chunk_id or f"{source.get('document_id')}:{source.get('chunk_no')}"
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(source)
+    return merged
 
 
 async def _briefing_document_context(
@@ -612,7 +627,16 @@ async def _briefing_document_context(
     """
     query = _briefing_search_query(company, activity, deals, recent_reports)
     products = []
+    current_state_sources: list[dict[str, object]] = []
     try:
+        # 거래 문서의 최신 상태는 범용 RAG 상위 결과와 경쟁시키지 않는다. 그래야 이전
+        # 견적의 "미확정" 문장만 남고 뒤늦은 계약·발주 조건이 빠지는 일을 막는다.
+        current_state_sources = await sales_context.retrieve_current_state_sources(
+            db,
+            team_id=company.team_id,
+            customer_company_id=company.id,
+            member=member,
+        )
         product_ids = await activity_documents.product_ids_for_deals(
             db,
             team_id=company.team_id,
@@ -657,14 +681,23 @@ async def _briefing_document_context(
             search_info=search_info,
             member=member,
         )
-        return {**context, "product_documents": products, "search": search_info}
+        return {
+            **context,
+            # current_state_sources 는 프롬프트가 근거 성격을 구분하는 데 쓰고, sources에도
+            # 합쳐 화면·출처 검증이 같은 청크 집합을 보게 한다.
+            "current_state_sources": current_state_sources,
+            "sources": _merge_briefing_sources(current_state_sources, context["sources"]),
+            "product_documents": products,
+            "search": search_info,
+        }
     except (SQLAlchemyError, EmbeddingError, StorageError):
         # A failed SQL statement must not leave the worker session in an aborted transaction.
         await db.rollback()
         return {
             "query": query,
             "summaries": [],
-            "sources": [],
+            "current_state_sources": current_state_sources,
+            "sources": current_state_sources,
             "product_documents": products,
             "search": {"method": "none", "status": "failed"},
         }

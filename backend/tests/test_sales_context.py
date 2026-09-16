@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -21,6 +22,21 @@ class _Db:
 
     async def execute(self, _statement):
         return _Result(self.rows)
+
+
+class _StateDb:
+    """최신 거래 문서 조회와 청크 조회를 순서대로 돌려주는 최소 DB 이중체."""
+
+    def __init__(self, document_rows, chunks):
+        self.document_rows = document_rows
+        self.chunks = chunks
+        self.calls = 0
+
+    async def execute(self, _statement):
+        self.calls += 1
+        if self.calls == 1:
+            return _Result(self.document_rows)
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: self.chunks.pop(0)))
 
 
 @pytest.mark.anyio
@@ -63,6 +79,59 @@ async def test_retrieve_briefing_context_combines_matching_source_and_summary(mo
     assert context["summaries"][0]["summary_payload"]["summary"] == "계약금은 선납한다."
 
 
+@pytest.mark.anyio
+async def test_retrieve_current_state_sources_keeps_latest_trade_chunks_as_citable_data():
+    team_id, company_id, document_id, file_id, chunk_id = (uuid4() for _ in range(5))
+    document = SimpleNamespace(
+        id=document_id,
+        team_id=team_id,
+        category_code="contract",
+        sales_deal_id=None,
+        product_id=None,
+        created_at=datetime(2026, 9, 16),
+    )
+    file_row = SimpleNamespace(id=file_id, file_name="최신 계약서.pdf")
+    chunk = SimpleNamespace(
+        id=chunk_id,
+        document_id=document_id,
+        file_id=file_id,
+        chunk_no=2,
+        page_start=1,
+        page_end=1,
+        section="지급 조건",
+        content="계약금 30%, 잔금 70%입니다.",
+        metadata_json={},
+    )
+
+    sources = await sales_context.retrieve_current_state_sources(
+        _StateDb([(document, file_row)], [[chunk]]),
+        team_id=team_id,
+        customer_company_id=company_id,
+    )
+
+    assert sources == [
+        {
+            "chunk_id": str(chunk_id),
+            "document_id": str(document_id),
+            "file_id": str(file_id),
+            "file_name": "최신 계약서.pdf",
+            "category_code": "contract",
+            "sales_deal_id": None,
+            "product_id": None,
+            "chunk_no": 2,
+            "page_start": 1,
+            "page_end": 1,
+            "section": "지급 조건",
+            "content": "계약금 30%, 잔금 70%입니다.",
+            "score": None,
+            "metadata": {},
+            "source_role": "current_sales_state",
+            "state_document_kind": "contract",
+            "state_document_created_at": "2026-09-16T00:00:00",
+        }
+    ]
+
+
 def test_to_briefing_prompt_block_preserves_sources_and_escapes_document_data():
     block = sales_context.to_briefing_prompt_block(
         {
@@ -103,6 +172,54 @@ def test_to_briefing_prompt_block_shows_document_ids_for_citation():
     )
 
     assert block.count("문서ID: doc-1") == 2
+
+
+def test_to_briefing_prompt_block_separates_state_product_catalog_and_product_evidence():
+    block = sales_context.to_briefing_prompt_block(
+        {
+            "query": "설치와 계약 조건",
+            "current_state_sources": [
+                {
+                    "document_id": "contract-1",
+                    "chunk_id": "contract-chunk-1",
+                    "file_name": "최신 계약서.pdf",
+                    "category_code": "contract",
+                    "state_document_kind": "contract",
+                    "state_document_created_at": "2026-09-16T09:00:00+09:00",
+                    "content": "계약금 30%, 잔금 70%로 합의했다.",
+                }
+            ],
+            "product_documents": [
+                {
+                    "document_id": "product-1",
+                    "file_name": "LR2000.pdf",
+                    "category_code": "product_brochure",
+                    "summary_markdown": "설치 공간과 전원 조건을 확인한다.",
+                }
+            ],
+            "sources": [
+                {
+                    "document_id": "contract-1",
+                    "chunk_id": "contract-chunk-1",
+                    "file_name": "최신 계약서.pdf",
+                    "content": "계약금 30%, 잔금 70%로 합의했다.",
+                },
+                {
+                    "document_id": "product-1",
+                    "chunk_id": "product-chunk-1",
+                    "file_name": "LR2000.pdf",
+                    "content": "설치 공간은 1000mm 이상 필요하다.",
+                },
+            ],
+        }
+    )
+
+    assert "[현재 영업 상태]" in block
+    assert "[연결된 제품 자료 목록]" in block
+    assert "[제품 상세 근거]" in block
+    assert "계약금 30%, 잔금 70%" in block
+    assert "설치 공간은 1000mm 이상" in block
+    assert block.count("contract-chunk-1") == 1
 
 
 @pytest.mark.anyio

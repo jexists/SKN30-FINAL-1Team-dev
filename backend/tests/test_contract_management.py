@@ -27,9 +27,7 @@ def _fake_briefing_agent(
                     for tool in kwargs["tools"]
                     if called_tools is None or tool.__name__ in called_tools
                 ]
-                captured["tool_results"] = {
-                    tool.__name__: await tool() for tool in selected_tools
-                }
+                captured["tool_results"] = {tool.__name__: await tool() for tool in selected_tools}
                 names = called_tools if called_tools is not None else list(captured["tool_results"])
                 message = SimpleNamespace(
                     tool_calls=[{"name": name} for name in names],
@@ -38,9 +36,7 @@ def _fake_briefing_agent(
                 return {
                     "messages": [message],
                     "structured_response": (
-                        None
-                        if missing_first_response and captured["invoke_count"] == 1
-                        else output
+                        None if missing_first_response and captured["invoke_count"] == 1 else output
                     ),
                 }
 
@@ -116,6 +112,11 @@ def test_briefing_prompt_is_scannable_for_a_salesperson_before_the_meeting():
     assert 'briefing_mode="first_meeting"' in prompt
     assert "딜과 과거 보고서가 없는 것은 정상" in prompt
     assert "미팅 차수와 관계없이 sales_deals가 비어 있는 것은 정상" in prompt
+    assert "[현재 영업 상태]" in prompt
+    assert "[연결된 제품 자료 목록]" in prompt
+    assert "제품 자료로 계약 조건·가격·수량·납기" in prompt
+    assert "[제품 상세 근거]가 없다는 사실은 내부 조회 상태" in prompt
+    assert "관련 언급을 조용히 생략하라" in prompt
     assert "HighlightBriefingOutput 도구로 반환" in prompt
     assert "코드 블록 JSON으로 출력하지 마라" in prompt
 
@@ -255,9 +256,7 @@ def _fake_next_meeting_agent(monkeypatch, answers, captured):
         class Agent:
             async def ainvoke(self, payload, config):
                 captured.setdefault("messages", []).append(payload["messages"])
-                captured["tool_results"] = {
-                    tool.__name__: await tool() for tool in kwargs["tools"]
-                }
+                captured["tool_results"] = {tool.__name__: await tool() for tool in kwargs["tools"]}
                 answer = remaining.pop(0)
                 if isinstance(answer, Exception):
                     raise answer
@@ -333,9 +332,7 @@ async def test_propose_next_meeting_asks_again_when_the_suggestion_is_missing(mo
 @pytest.mark.anyio
 async def test_propose_next_meeting_falls_back_to_the_meeting_cycle(monkeypatch):
     monkeypatch.setattr(contract_management, "_now", lambda: _FIXED_NOW)
-    _fake_next_meeting_agent(
-        monkeypatch, [_proposal("2026-08-20"), _proposal("2026-08-21")], {}
-    )
+    _fake_next_meeting_agent(monkeypatch, [_proposal("2026-08-20"), _proposal("2026-08-21")], {})
     snapshot = {
         "excluded_dates": ["2026-09-01"],
         "_scope_sales_deal_id": None,

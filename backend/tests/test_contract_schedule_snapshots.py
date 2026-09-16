@@ -918,6 +918,7 @@ def _briefing_db(
                 else None
             )
         ),  # 이전 미팅
+        _Result(rows=[]),  # 거래 문서별 최신 현재 상태
     ]
     if deals:
         results.extend(
@@ -981,6 +982,49 @@ async def test_briefing_snapshot_searches_documents_by_company(monkeypatch):
     assert snapshot["document_context"]["sources"] == context["sources"]
     assert snapshot["document_context"]["product_documents"] == []
     assert "activity.customer_company_id = public.customer_company.id" in str(db.statements[0])
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_keeps_latest_state_sources_ahead_of_general_rag(monkeypatch):
+    member, company, _deal, activity = _briefing_fixture()
+    state_source = {
+        "document_id": "latest-contract",
+        "chunk_id": "latest-contract-chunk",
+        "file_name": "최신 계약서.pdf",
+        "content": "계약금 30%, 잔금 70%입니다.",
+        "source_role": "current_sales_state",
+    }
+    rag_source = {
+        "document_id": "older-quote",
+        "chunk_id": "older-quote-chunk",
+        "file_name": "이전 견적서.pdf",
+        "content": "구매 여부는 미확정입니다.",
+    }
+
+    async def _state_sources(_db, **_kwargs):
+        return [state_source]
+
+    async def _retrieve(_db, **_kwargs):
+        return {
+            "query": "테스트 병원",
+            "summaries": [],
+            # 범용 RAG가 같은 상태 청크를 돌려도 프롬프트에는 한 번만 들어가야 한다.
+            "sources": [state_source, rag_source],
+        }
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_current_state_sources", _state_sources)
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, []), member, activity.id
+    )
+
+    context = snapshot["document_context"]
+    assert context["current_state_sources"] == [state_source]
+    assert [source["chunk_id"] for source in context["sources"]] == [
+        "latest-contract-chunk",
+        "older-quote-chunk",
+    ]
 
 
 @pytest.mark.anyio
