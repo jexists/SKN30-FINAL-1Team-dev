@@ -14,10 +14,28 @@
 }
 
 // 아젠다 카드 제목(17px/600)을 이 크기의 카드에 맞춰 줄인 값입니다.
+// 누르면 전체 목록이 열립니다.
 .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  cursor: pointer;
+
+  svg {
+    color: var(--muted-2);
+  }
+
+  &:hover svg {
+    color: var(--text);
+  }
 }
 
 .nav {

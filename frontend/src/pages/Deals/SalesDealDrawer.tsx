@@ -60,31 +60,6 @@ export default function SalesDealDrawer({
   onClose,
 }: Props) {
   const readOnly = deal?.pipelineStatus === 'archived'
-  // 서류는 견적 → 계약 → 발주 순서로 갑니다. 앞 서류가 없으면 뒤 칸은 보이지 않습니다.
-  const hasQuote =
-    deal !== null &&
-    (deal.quoteStatusName !== null || deal.quoteAmount !== null || deal.quoteMemo !== null)
-  const hasContract =
-    deal !== null &&
-    (deal.contractStatusName !== null || deal.contractAmount !== null || deal.contractMemo !== null)
-  const facts = deal
-    ? [
-        ['파이프라인', deal.pipelineName],
-        ['제품', deal.product],
-        ['금액', wonFull(deal.amount)],
-        ['담당 영업', deal.owner],
-        ['고객 담당자', deal.contactName ?? '미지정'],
-        ['지역', deal.region],
-        ['영업 시작일', fmtDot(parseISO(deal.date))],
-        [
-          '미팅 대상자',
-          deal.participants.length === 0
-            ? '미지정'
-            : deal.participants.map((one) => one.customer_contact_name).join(', '),
-        ],
-      ]
-    : []
-
   return (
     <Drawer
       title={deal?.org ?? '영업 딜 상세'}
@@ -134,99 +109,140 @@ export default function SalesDealDrawer({
       ) : loading ? (
         <SkeletonDetail label="영업 딜 상세를 불러오는 중입니다." height={340} />
       ) : deal ? (
-        <>
-          {readOnly && <p className={styles.memoEmpty}>보관된 파이프라인 · 읽기 전용</p>}
-          <dl className={styles.drawerFacts}>
-            {facts.map(([label, value]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd className={label === '금액' || label === '영업 시작일' ? 'tnum' : undefined}>
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          {deal.memo ? (
-            <p className={styles.memo}>{deal.memo}</p>
-          ) : (
-            <p className={styles.memoEmpty}>메모가 없습니다.</p>
-          )}
-
-          {/* 견적 → 계약 → 발주. 세 값이 모두 같은 행에 남아 있어 여기서 한눈에 봅니다. */}
-          <DocumentSection
-            title="견적"
-            tone={deal.quoteStatusTone}
-            status={deal.quoteStatusName}
-            emptyText="아직 견적을 작성하지 않았습니다."
-            onEdit={readOnly ? undefined : onEditQuote}
-            hasValue={hasQuote}
-            facts={[
-              ['견적번호', dash(deal.quoteNo)],
-              ['견적일', day(deal.quoteIssuedOn)],
-              ['유효기한', day(deal.quoteValidUntil)],
-              ['견적금액', money(deal.quoteAmount)],
-              ['납품예상일자', dash(deal.quoteDeliveryTerms)],
-              ['메모', dash(deal.quoteMemo)],
-            ]}
-          >
-            {deal.items.length > 0 && (
-              <ul className={styles.drawerItems}>
-                {deal.items.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.product_name}</span>
-                    <span className="tnum">
-                      {item.quantity}개 × {wonFull(item.unit_price)}
-                    </span>
-                    <span className="tnum">{wonFull(item.quantity * item.unit_price)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </DocumentSection>
-
-          {hasQuote && (
-            <DocumentSection
-              title="계약"
-              tone={deal.contractStatusTone}
-              status={deal.contractStatusName}
-              emptyText="아직 계약을 작성하지 않았습니다."
-              onEdit={readOnly ? undefined : onEditContract}
-              hasValue={hasContract}
-              facts={[
-                ['계약번호', dash(deal.contractNo)],
-                ['계약일', day(deal.contractSignedOn)],
-                ['계약 종료일', day(deal.contractEndsOn)],
-                ['계약금액', money(deal.contractAmount)],
-                ['보증 조건', dash(deal.warrantyTerms)],
-                ['메모', dash(deal.contractMemo)],
-              ]}
-            />
-          )}
-
-          {hasContract && (
-            <DocumentSection
-              title="발주"
-              tone={deal.orderStatusTone}
-              status={deal.orderStatusName}
-              emptyText="아직 발주가 없습니다."
-              onEdit={readOnly ? undefined : onAddOrder}
-              editLabel="등록"
-              hasValue={deal.orderMemo !== null}
-              facts={deal.orderMemo === null ? [] : [['메모', deal.orderMemo]]}
-            >
-              {deal.orderStatusName !== null && (
-                // 발주는 딜 하나에 여러 건일 수 있어 값을 펼치지 않고 목록으로 보냅니다.
-                <Link className={styles.drawerLink} to={`${ROUTES.ORDERS}?q=${deal.no}`}>
-                  이 딜의 발주 보기
-                </Link>
-              )}
-            </DocumentSection>
-          )}
-        </>
+        <SalesDealDetail
+          deal={deal}
+          onEditQuote={onEditQuote}
+          onEditContract={onEditContract}
+          onAddOrder={onAddOrder}
+        />
       ) : (
         <p className={styles.drawerState}>영업 딜 상세 정보가 없습니다.</p>
       )}
     </Drawer>
+  )
+}
+
+interface DetailProps {
+  deal: SalesDeal
+  onEditQuote?: () => void
+  onEditContract?: () => void
+  onAddOrder?: () => void
+}
+
+/** 딜 상세 본문. 영업 딜 드로어와 대시보드 목록의 옆 패널이 함께 씁니다. 편집 콜백이 없으면 읽기만 합니다. */
+export function SalesDealDetail({ deal, onEditQuote, onEditContract, onAddOrder }: DetailProps) {
+  const readOnly = deal.pipelineStatus === 'archived'
+  // 서류는 견적 → 계약 → 발주 순서로 갑니다. 앞 서류가 없으면 뒤 칸은 보이지 않습니다.
+  const hasQuote =
+    deal.quoteStatusName !== null || deal.quoteAmount !== null || deal.quoteMemo !== null
+  const hasContract =
+    deal.contractStatusName !== null || deal.contractAmount !== null || deal.contractMemo !== null
+  const facts = [
+    ['파이프라인', deal.pipelineName],
+    ['제품', deal.product],
+    ['금액', wonFull(deal.amount)],
+    ['담당 영업', deal.owner],
+    ['고객 담당자', deal.contactName ?? '미지정'],
+    ['지역', deal.region],
+    ['영업 시작일', fmtDot(parseISO(deal.date))],
+    [
+      '미팅 대상자',
+      deal.participants.length === 0
+        ? '미지정'
+        : deal.participants.map((one) => one.customer_contact_name).join(', '),
+    ],
+  ]
+
+  return (
+    <>
+      {readOnly && <p className={styles.memoEmpty}>보관된 파이프라인 · 읽기 전용</p>}
+      <dl className={styles.drawerFacts}>
+        {facts.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd className={label === '금액' || label === '영업 시작일' ? 'tnum' : undefined}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {deal.memo ? (
+        <p className={styles.memo}>{deal.memo}</p>
+      ) : (
+        <p className={styles.memoEmpty}>메모가 없습니다.</p>
+      )}
+
+      {/* 견적 → 계약 → 발주. 세 값이 모두 같은 행에 남아 있어 여기서 한눈에 봅니다. */}
+      <DocumentSection
+        title="견적"
+        tone={deal.quoteStatusTone}
+        status={deal.quoteStatusName}
+        emptyText="아직 견적을 작성하지 않았습니다."
+        onEdit={readOnly ? undefined : onEditQuote}
+        hasValue={hasQuote}
+        facts={[
+          ['견적번호', dash(deal.quoteNo)],
+          ['견적일', day(deal.quoteIssuedOn)],
+          ['유효기한', day(deal.quoteValidUntil)],
+          ['견적금액', money(deal.quoteAmount)],
+          ['납품예상일자', dash(deal.quoteDeliveryTerms)],
+          ['메모', dash(deal.quoteMemo)],
+        ]}
+      >
+        {deal.items.length > 0 && (
+          <ul className={styles.drawerItems}>
+            {deal.items.map((item) => (
+              <li key={item.id}>
+                <span>{item.product_name}</span>
+                <span className="tnum">
+                  {item.quantity}개 × {wonFull(item.unit_price)}
+                </span>
+                <span className="tnum">{wonFull(item.quantity * item.unit_price)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </DocumentSection>
+
+      {hasQuote && (
+        <DocumentSection
+          title="계약"
+          tone={deal.contractStatusTone}
+          status={deal.contractStatusName}
+          emptyText="아직 계약을 작성하지 않았습니다."
+          onEdit={readOnly ? undefined : onEditContract}
+          hasValue={hasContract}
+          facts={[
+            ['계약번호', dash(deal.contractNo)],
+            ['계약일', day(deal.contractSignedOn)],
+            ['계약 종료일', day(deal.contractEndsOn)],
+            ['계약금액', money(deal.contractAmount)],
+            ['보증 조건', dash(deal.warrantyTerms)],
+            ['메모', dash(deal.contractMemo)],
+          ]}
+        />
+      )}
+
+      {hasContract && (
+        <DocumentSection
+          title="발주"
+          tone={deal.orderStatusTone}
+          status={deal.orderStatusName}
+          emptyText="아직 발주가 없습니다."
+          onEdit={readOnly ? undefined : onAddOrder}
+          editLabel="등록"
+          hasValue={deal.orderMemo !== null}
+          facts={deal.orderMemo === null ? [] : [['메모', deal.orderMemo]]}
+        >
+          {deal.orderStatusName !== null && (
+            // 발주는 딜 하나에 여러 건일 수 있어 값을 펼치지 않고 목록으로 보냅니다.
+            <Link className={styles.drawerLink} to={`${ROUTES.ORDERS}?q=${deal.no}`}>
+              이 딜의 발주 보기
+            </Link>
+          )}
+        </DocumentSection>
+      )}
+    </>
   )
 }
 

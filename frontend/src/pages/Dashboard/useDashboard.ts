@@ -15,6 +15,7 @@ import type {
   ApiPurchaseOrder,
   DashboardResponse,
   NoticeResponse,
+  NoticeType,
   OrderResponse,
   PageResponse,
   SalesDealResponse,
@@ -235,6 +236,15 @@ export function useNoticeDetail(noticeId: string | null) {
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), [])
   return { body, loading, error, reload }
+}
+
+/** 공지·팀장 지시사항 전체 목록. 카드 제목을 눌러 드로어를 열 때만 받습니다. 본문도 함께 옵니다. */
+export function useNoticeList(type: NoticeType | null) {
+  return useDrawerList<NoticeResponse>(
+    type !== null,
+    (signal, skip) => fetchPage<NoticeResponse>('/notices', signal, skip, { type }),
+    '목록을 불러오지 못했습니다.',
+  )
 }
 
 /**

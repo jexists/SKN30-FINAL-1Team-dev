@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
@@ -17,9 +16,10 @@ import {
   TrashIcon,
 } from '@/components/icons'
 import { BP_DESKTOP } from '@/constants/breakpoints'
-import { dealDetailPath } from '@/constants/routes'
 import useMediaQuery from '@/hooks/useMediaQuery'
+import { showToast } from '@/shared/toast'
 import SourceDocumentViewer from '@/pages/Customers/components/SourceDocumentViewer'
+import { ProductPanel, SalesDealPanel } from '@/pages/Dashboard/components/ListDrawer/DetailPanel'
 import type { SalesDocument } from '@/types'
 import type { DocumentSummaryResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
@@ -55,13 +55,9 @@ interface Props {
 /**
  * 내려받기 목록에 세울 처리 결과. 무엇을 받는지로 부르고 형식은 뒤에 작게 붙인다.
  *
- * API 의 'text' 는 'txt' 와 같은 값(extracted_text)을 확장자만 바꿔 내려준다.
- * 같은 것을 두 번 세워 둘 이유가 없어 화면에서는 'txt' 만 쓴다.
+ * 추출 텍스트·마크다운·인식 데이터(txt/md/json)는 API 에 남겨 두고 화면에서는 AI 요약만 받는다.
  */
 const ARTIFACTS: { key: DocumentArtifact; label: string; ext: string }[] = [
-  { key: 'txt', label: '추출 텍스트', ext: '.txt' },
-  { key: 'md', label: '추출 마크다운', ext: '.md' },
-  { key: 'json', label: '인식 데이터', ext: '.json' },
   { key: 'summary', label: 'AI 요약', ext: '.md' },
 ]
 
@@ -91,6 +87,8 @@ export default function DocumentDrawer({
   const [downloadOpen, setDownloadOpen] = useState(false)
   // 오른쪽 패널을 펼쳐 두었는지. 무엇을 세우는지는 아래 mode 가 가릅니다.
   const [sourceOpen, setSourceOpen] = useState(false)
+  // 연결된 딜·상품을 옆 패널로 펼쳤는지. 원본과 같은 자리를 나눠 써서 하나만 엽니다.
+  const [linkOpen, setLinkOpen] = useState(false)
   // 그림으로 그릴 원본. 통째로 받아 둔 파일이라 서명 주소 만료와 상관없습니다.
   const [source, setSource] = useState<File | null>(null)
   // 원본이 곧 글인 형식(txt·md)을 받아서 읽어 둔 것입니다.
@@ -125,11 +123,20 @@ export default function DocumentDrawer({
     ...(doc.description ? ([['메모', doc.description]] as [string, ReactNode][]) : []),
     [
       '연결',
-      // 딜에 붙은 자료는 그 딜의 영업 현황 상세로 바로 건너갑니다.
-      doc.link.kind === '딜' ? (
-        <Link key={doc.link.id} to={dealDetailPath(doc.link.id)} className={styles.linkTo}>
+      // 딜·상품에 붙은 자료는 화면을 떠나지 않고 드로어 옆에 그 상세를 펼칩니다.
+      doc.link.kind === '딜' || doc.link.kind === '상품' ? (
+        <button
+          key={doc.link.id}
+          type="button"
+          className={styles.linkTo}
+          aria-expanded={linkOpen}
+          onClick={() => {
+            closeSource()
+            setLinkOpen(true)
+          }}
+        >
           {linkLabel(doc)}
-        </Link>
+        </button>
       ) : (
         linkLabel(doc) || '연결된 곳 없음'
       ),
@@ -295,6 +302,7 @@ export default function DocumentDrawer({
     // 드로어가 pointerdown 을 막고 있어 팝오버의 바깥 클릭 닫기가 여기까지 오지
     // 않습니다. 원본을 여는 김에 열려 있던 목록도 함께 걷습니다.
     setDownloadOpen(false)
+    setLinkOpen(false)
     setSourceError(null)
     // 추출한 글은 이미 손에 있습니다. 받아 올 것이 없어 바로 펼칩니다.
     if (mode === 'extracted') {
@@ -344,11 +352,10 @@ export default function DocumentDrawer({
           <div className={styles.menu}>
             <button
               type="button"
-              disabled={!canManage}
-              title={canManage ? undefined : OWNER_ONLY}
               onClick={() => {
                 setMenuOpen(false)
-                onEdit()
+                if (canManage) onEdit()
+                else showToast(OWNER_ONLY, { tone: 'error' })
               }}
             >
               <EditIcon width={15} height={15} />
@@ -357,17 +364,15 @@ export default function DocumentDrawer({
             <button
               type="button"
               className={styles.danger}
-              disabled={!canManage}
-              title={canManage ? undefined : OWNER_ONLY}
               onClick={() => {
                 setMenuOpen(false)
-                onDelete()
+                if (canManage) onDelete()
+                else showToast(OWNER_ONLY, { tone: 'error' })
               }}
             >
               <TrashIcon width={15} height={15} />
               삭제
             </button>
-            {!canManage && <p className={styles.menuHint}>{OWNER_ONLY}</p>}
           </div>
         </Popover>
       }
@@ -378,13 +383,19 @@ export default function DocumentDrawer({
         </>
       }
       side={
-        sourceOpen && (
-          <SourceDocumentViewer
-            file={source ?? { name: file.fileName }}
-            text={textSource}
-            dismiss={sourceFullScreen ? 'close' : 'collapse'}
-            onCollapse={closeSource}
-          />
+        linkOpen && doc.link.kind === '딜' ? (
+          <SalesDealPanel id={doc.link.id} onClose={() => setLinkOpen(false)} />
+        ) : linkOpen && doc.link.kind === '상품' ? (
+          <ProductPanel id={doc.link.id} name={doc.link.label} onClose={() => setLinkOpen(false)} />
+        ) : (
+          sourceOpen && (
+            <SourceDocumentViewer
+              file={source ?? { name: file.fileName }}
+              text={textSource}
+              dismiss={sourceFullScreen ? 'close' : 'collapse'}
+              onCollapse={closeSource}
+            />
+          )
         )
       }
     >

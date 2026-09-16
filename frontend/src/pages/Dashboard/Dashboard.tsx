@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react'
 import Button from '@/components/Button'
 import ErrorToast from '@/components/ErrorToast'
 import Modal from '@/components/Modal'
-import type { AgendaItem, CalendarEvent, Notice } from '@/types'
+import type { AgendaItem, CalendarEvent, Notice, NoticeType } from '@/types'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import EventModal from '@/pages/Calendar/components/EventModal'
 import { DEFAULTS, useAgendaMutations } from '@/pages/Calendar/useCalendarEvents'
@@ -13,13 +13,19 @@ import { iso, TODAY_ISO } from '@/utils/date'
 import DashboardSkeleton from './components/DashboardSkeleton'
 import DayAgenda from './components/DayAgenda'
 import ListDrawer from './components/ListDrawer'
-import NoticeDrawer from './components/NoticeDrawer'
+import { SalesDealPanel, SupportRequestPanel } from './components/ListDrawer/DetailPanel'
+import NoticeDrawer, { NoticePanel } from './components/NoticeDrawer'
 import NoticeTicker from './components/NoticeTicker'
 import RecordDrawer from './components/RecordDrawer'
 import SummaryBand from './components/SummaryBand'
 import WeekCalendar from './components/WeekCalendar'
-import { csList, renewalList, type KpiListKey } from './drawerLists'
-import useDashboard, { useRenewalList, useSupportList, weekStart } from './useDashboard'
+import { csList, noticeList, renewalList, type KpiListKey } from './drawerLists'
+import useDashboard, {
+  useNoticeList,
+  useRenewalList,
+  useSupportList,
+  weekStart,
+} from './useDashboard'
 
 import styles from './Dashboard.module.scss'
 
@@ -29,13 +35,16 @@ type OpenDrawer =
   | { type: 'addEvent' }
   | { type: 'record'; item: AgendaItem }
   | { type: 'kpi'; key: KpiListKey }
-  | { type: 'notice'; label: string; notice: Notice }
+  | { type: 'notice'; notice: Notice }
+  | { type: 'notices'; kind: NoticeType }
 
 export default function Dashboard() {
   const [selectedISO, setSelectedISO] = useState(TODAY_ISO)
   const [weekOffset, setWeekOffset] = useState(0)
   const [flash, setFlash] = useState(false)
   const [open, setOpen] = useState<OpenDrawer | null>(null)
+  // 목록 드로어 옆에 펼친 상세. 드로어가 바뀌거나 닫히면 함께 접힙니다.
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [editing, setEditing] = useState<AgendaItem | null>(null)
   const [deleting, setDeleting] = useState<AgendaItem | null>(null)
 
@@ -47,6 +56,10 @@ export default function Dashboard() {
   const kpiKey = open?.type === 'kpi' ? open.key : null
   const support = useSupportList(kpiKey === 'cs')
   const renewals = useRenewalList(kpiKey === 'renewal', data?.date ?? TODAY_ISO)
+  const noticeKind = open?.type === 'notices' ? open.kind : null
+  const notices = useNoticeList(noticeKind)
+  const noticeLabel = noticeKind === 'DIRECTIVE' ? '팀장 지시사항' : '공지'
+  const openedNotice = notices.items.find((item) => item.id === detailId)
 
   const agendaRef = useRef<HTMLElement>(null)
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -61,7 +74,16 @@ export default function Dashboard() {
     setSelectedISO(TODAY_ISO)
   }, [])
 
-  const closeDrawer = useCallback(() => setOpen(null), [])
+  const closeDrawer = useCallback(() => {
+    setOpen(null)
+    setDetailId(null)
+  }, [])
+  const closeDetail = useCallback(() => setDetailId(null), [])
+  // 카드 제목은 목록을, 카드 줄은 그 글 하나만 엽니다. 목록에서 줄을 누르면 옆에 펼쳐집니다.
+  const openNotices = (kind: NoticeType) => {
+    setOpen({ type: 'notices', kind })
+    setDetailId(null)
+  }
 
   const jumpToToday = useCallback(() => {
     goToday()
@@ -89,13 +111,15 @@ export default function Dashboard() {
           <div className={styles.notices}>
             <NoticeTicker
               items={data.notices.items.map((item) => toNotice(item))}
-              onOpen={(notice) => setOpen({ type: 'notice', label: '공지', notice })}
+              onOpen={(notice) => setOpen({ type: 'notice', notice })}
+              onOpenList={() => openNotices('NOTICE')}
             />
             <NoticeTicker
               label="팀장 지시사항"
               items={data.directives.items.map((item) => toNotice(item))}
               emptyText="받은 지시사항이 없습니다"
-              onOpen={(notice) => setOpen({ type: 'notice', label: '팀장 지시사항', notice })}
+              onOpen={(notice) => setOpen({ type: 'notice', notice })}
+              onOpenList={() => openNotices('DIRECTIVE')}
             />
           </div>
 
@@ -203,6 +227,10 @@ export default function Dashboard() {
           remaining={support.total - support.items.length}
           loadingMore={support.loadingMore}
           onLoadMore={support.loadMore}
+          onOpenRow={setDetailId}
+          activeKey={detailId}
+          side={detailId && <SupportRequestPanel id={detailId} onClose={closeDetail} />}
+          onSideDismiss={closeDetail}
           onClose={closeDrawer}
         />
       )}
@@ -215,6 +243,10 @@ export default function Dashboard() {
           remaining={renewals.total - renewals.items.length}
           loadingMore={renewals.loadingMore}
           onLoadMore={renewals.loadMore}
+          onOpenRow={setDetailId}
+          activeKey={detailId}
+          side={detailId && <SalesDealPanel id={detailId} onClose={closeDetail} />}
+          onSideDismiss={closeDetail}
           onClose={closeDrawer}
         />
       )}
@@ -223,10 +255,38 @@ export default function Dashboard() {
         <NoticeDrawer
           // 다른 공지를 열면 이전 공지의 이행 상태가 남지 않도록 새로 세웁니다.
           key={open.notice.id}
-          label={open.label}
           notice={open.notice}
           // 이행 여부가 바뀌면 티커의 배지도 새 값으로 서야 합니다.
           onStatusChange={reload}
+          onClose={closeDrawer}
+        />
+      )}
+      {noticeKind !== null && (
+        <ListDrawer
+          list={noticeList(noticeLabel, notices.items, notices.total)}
+          loading={notices.loading}
+          error={notices.error}
+          onRetry={notices.reload}
+          remaining={notices.total - notices.items.length}
+          loadingMore={notices.loadingMore}
+          onLoadMore={notices.loadMore}
+          onOpenRow={setDetailId}
+          activeKey={detailId}
+          side={
+            openedNotice && (
+              <NoticePanel
+                key={openedNotice.id}
+                notice={toNotice({ ...openedNotice, targets: [] })}
+                // 이행 여부가 바뀌면 티커 배지와 목록도 새 값으로 서야 합니다.
+                onStatusChange={() => {
+                  reload()
+                  notices.reload()
+                }}
+                onClose={closeDetail}
+              />
+            )
+          }
+          onSideDismiss={closeDetail}
           onClose={closeDrawer}
         />
       )}

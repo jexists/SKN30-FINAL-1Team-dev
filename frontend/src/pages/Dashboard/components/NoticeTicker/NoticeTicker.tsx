@@ -19,6 +19,8 @@ interface Props {
   emptyText?: string
   /** 줄을 누르면 전문을 펼칩니다. 목록은 한 줄로 잘려 있어 여기가 상세로 가는 유일한 길입니다. */
   onOpen: (notice: Notice) => void
+  /** 카드 제목을 누르면 전체 목록을 엽니다. */
+  onOpenList: () => void
 }
 
 export default function NoticeTicker({
@@ -26,6 +28,7 @@ export default function NoticeTicker({
   items: notices = [],
   emptyText = '올라온 공지가 없습니다',
   onOpen,
+  onOpenList,
 }: Props) {
   const [page, setPage] = useState(0)
   const [paused, setPaused] = useState(false)
@@ -53,7 +56,10 @@ export default function NoticeTicker({
       onBlur={() => setPaused(false)}
     >
       <header className={styles.head}>
-        <span className={styles.label}>{label}</span>
+        <button type="button" className={styles.label} onClick={onOpenList}>
+          {label}
+          <ChevronRightIcon width={14} height={14} />
+        </button>
 
         {pageCount > 1 && (
           <div className={styles.nav}>

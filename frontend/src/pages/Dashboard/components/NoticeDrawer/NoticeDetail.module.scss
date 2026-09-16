@@ -1,0 +1,216 @@
+// 본문 첫 줄. 왼쪽에 작성자나 내 이행 배지, 오른쪽 끝에 올린 일시가 섭니다.
+.when {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 24px;
+  // 위 여백은 드로어 본문 padding(s5)입니다. 아래도 같게 두어 배지가 선 사이 한가운데 섭니다.
+  padding-bottom: var(--s5);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+
+  time {
+    flex: none;
+    margin-left: auto;
+  }
+}
+
+.author {
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+// 지시사항의 머리 정보. 상자 없이 이름과 값을 한 줄에 나란히 두고, 아래 선 하나로
+// 본문과 나눕니다. 네 값이 두 줄에 끝나 본문이 위로 올라옵니다.
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s5);
+  margin: 0;
+  // 위아래 선과의 거리를 같게 둡니다.
+  padding: var(--s4) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+
+  div {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s3);
+    min-width: 0;
+  }
+
+  dt {
+    flex: none;
+    width: 60px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  dd {
+    min-width: 0;
+    margin: 0;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+}
+
+// 지난 미이행 사유. 팀장이 왜 못 했는지 묻기 전에 여기서 읽습니다.
+.reason {
+  margin: var(--s3) 0 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  color: var(--red-ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+@media (max-width: 520px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// 본문은 HTML 한 덩어리입니다. 편집기가 낼 수 있는 태그(RichTextEditor.valid_elements)에
+// 맞춰 자식 요소의 여백과 크기를 여기서 정합니다.
+.detail {
+  // 넓은 패널에서도 한 줄이 눈으로 따라갈 만한 길이를 넘지 않게 합니다.
+  max-width: 68ch;
+  margin-top: var(--s4);
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.8;
+
+  :global(p) {
+    margin: 0 0 0.75em;
+  }
+
+  :global(ul),
+  :global(ol) {
+    margin: 0 0 0.75em;
+    padding-left: 1.25em;
+  }
+
+  :global(h2),
+  :global(h3),
+  :global(h4) {
+    margin: 1.25em 0 0.5em;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  :global(blockquote) {
+    margin: 0 0 0.75em;
+    padding-left: var(--s3);
+    border-left: 3px solid var(--line);
+    color: var(--muted);
+  }
+
+  :global(a) {
+    color: var(--brand-ink);
+    text-decoration: underline;
+  }
+
+  // 첨부 사진은 드로어 폭에 맞춰 줄이고 원래 비율을 지킵니다.
+  :global(img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: var(--s3) 0;
+    border-radius: var(--r-sm);
+    // 눌러서 전체보기로 엽니다. 본문 폭에 맞춰 줄여 놓아 작은 글자가 안 보입니다.
+    cursor: zoom-in;
+  }
+
+  > :global(*:last-child) {
+    margin-bottom: 0;
+  }
+}
+
+// 본문을 기다리는 동안의 자리표시자. 줄 높이와 문단 간격을 .detail 과 맞춰
+// 전문이 도착해도 아래 내용이 밀리지 않게 합니다.
+.pending {
+  margin-top: var(--s4);
+}
+
+.pendingParagraph {
+  display: grid;
+  gap: 14px; // 14px * 1.8 - 막대 높이 11px
+  margin: 0 0 calc(0.75em + 14px);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+// 목록 드로어 왼쪽에 붙는 패널. 머리·본문·바닥 치수는 Drawer 의 .head/.body/.foot 와 같아
+// 오른쪽 목록과 머리말 아래 선이 한 줄로 이어집니다.
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.panelHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex: none;
+  padding: var(--s5) var(--s5) var(--s4);
+  border-bottom: 1px solid var(--line);
+
+  // 머리 높이가 목록 쪽과 같아야 하므로 긴 제목은 두 줄로 늘리지 않고 자릅니다.
+  h2 {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.014em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--fill-2);
+    color: var(--ink);
+  }
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5);
+}
+
+.panelFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+  flex: none;
+  padding: var(--s4) var(--s5);
+  border-top: 1px solid var(--line);
+}

@@ -2,9 +2,10 @@
 //
 // 어느 목록이든 서버가 준 것을 그리기만 합니다. 거르고 정렬하는 일은 카드 숫자를 만든
 // 조건과 같아야 해서 서버에 두었습니다. 여기서 다시 거르면 타일과 목록이 어긋납니다.
-import { dealDetailPath, supportRequestPath } from '@/constants/routes'
+import { dealDetailPath, ROUTES, supportRequestPath } from '@/constants/routes'
 import { STATUS_LABEL as SUPPORT_STATUS_LABEL } from '@/pages/Complaints/statuses'
-import type { SalesDealResponse, SupportRequestResponse } from '@/types'
+import { postedLabel, toNotice } from '@/shared/notices'
+import type { NoticeResponse, SalesDealResponse, SupportRequestResponse } from '@/types'
 import { ddayLabel, fmtDay, parseISO, TODAY } from '@/utils/date'
 
 export type DrawerListTone = 'risk' | 'good' | 'now'
@@ -100,5 +101,21 @@ export function renewalList(deals: SalesDealResponse[]): DrawerList {
       }
     }),
     empty: '30일 이내 종료 예정인 계약이 없습니다.',
+  }
+}
+
+/** 공지·팀장 지시사항 카드의 전체 목록. 제목과 올린 날만 두고, 나머지는 옆 패널에서 봅니다. */
+export function noticeList(title: string, notices: NoticeResponse[], total: number): DrawerList {
+  return {
+    title: `${title} (${total}건)`,
+    sub: '',
+    rows: notices.map((item) => ({
+      key: item.id,
+      title: item.title,
+      note: postedLabel(toNotice({ ...item, targets: [] })),
+      tags: [],
+      side: {},
+      href: ROUTES.NOTICES,
+    })),
   }
 }

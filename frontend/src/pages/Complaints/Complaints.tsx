@@ -24,10 +24,11 @@ import Tabs, { type TabItem } from '@/components/Tabs'
 import { BP_DESKTOP } from '@/constants/breakpoints'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import { useShowOwner } from '@/shared/scope'
-import type { SupportRequestResponse, SupportStatusCode, SupportResponseResponse } from '@/types'
+import type { SupportRequestResponse, SupportStatusCode } from '@/types'
 import { fmtDotShort } from '@/utils/date'
 
 import ComplaintFormModal from './components/ComplaintFormModal'
+import { ResponseList, SupportRequestFacts } from './components/SupportRequestDetail'
 import { STATE_OPTIONS, STATES, STATUS_LABEL } from './statuses'
 import useSupportRequests from './useSupportRequests'
 
@@ -47,14 +48,6 @@ const COLUMNS = [
 const dealLabel = (request: SupportRequestResponse) => request.contract_no ?? request.deal_no
 
 const dateOf = (value: string) => new Date(value)
-
-const dateTime = new Intl.DateTimeFormat('ko-KR', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 
 export default function Complaints() {
   const [params, setParams] = useSearchParams()
@@ -271,6 +264,7 @@ export default function Complaints() {
                       </td>
                     )}
                     <td className={styles.issue} title={request.title}>
+                      {request.is_urgent && <UrgentBadge />}
                       {request.title}
                     </td>
                     <td className={styles.note} title={request.body}>
@@ -302,7 +296,10 @@ export default function Complaints() {
                 </button>
                 <StateBadge state={request.status_code} />
               </div>
-              <p className={styles.miniIssue}>{request.title}</p>
+              <p className={styles.miniIssue}>
+                {request.is_urgent && <UrgentBadge />}
+                {request.title}
+              </p>
               <p className={styles.miniNote}>{request.body}</p>
               <div className={styles.miniMeta}>
                 <span className="tnum">{dealLabel(request)}</span>
@@ -378,23 +375,22 @@ export default function Complaints() {
           }
           meta={
             <>
-              <StateBadge state={open.status_code} />
-              {open.is_urgent && <i className={`${styles.badge} ${styles.risk}`}>긴급</i>}
-            </>
-          }
-          footer={
-            detail?.id === open.id ? (
-              <div className={styles.stateChange}>
-                <span>{pendingKey === `transition:${open.id}` ? '변경 중…' : '상태 변경'}</span>
+              {/* 상태는 여기서 바로 바꿉니다. 배지와 같은 색을 고르개에 그대로 씁니다. */}
+              {detail?.id === open.id ? (
                 <Select
                   label="상태 변경"
+                  className={`${styles.stateSelect} ${styles[detail.status_code]}`}
+                  size="sm"
                   value={detail.status_code}
                   options={STATE_OPTIONS}
                   disabled={pendingKey !== null}
                   onChange={(next) => void transition(detail, next as SupportStatusCode)}
                 />
-              </div>
-            ) : undefined
+              ) : (
+                <StateBadge state={open.status_code} />
+              )}
+              {open.is_urgent && <UrgentBadge />}
+            </>
           }
         >
           {detailError ? (
@@ -408,50 +404,7 @@ export default function Complaints() {
             <SkeletonDetail label="상세 내용을 불러오는 중입니다." height={320} />
           ) : (
             <>
-              <dl className={styles.rows}>
-                <div>
-                  <dt>회사</dt>
-                  <dd>{detail.customer_company_name}</dd>
-                </div>
-                <div>
-                  <dt>딜선택</dt>
-                  <dd>
-                    <span className="tnum">{dealLabel(detail)}</span> · {detail.deal_title}
-                  </dd>
-                </div>
-                <div>
-                  <dt>제품</dt>
-                  <dd>{detail.product_name ?? '미지정'}</dd>
-                </div>
-                <div>
-                  <dt>워런티</dt>
-                  <dd>{detail.warranty_terms ?? '없음'}</dd>
-                </div>
-                <div>
-                  <dt>등록한 사람</dt>
-                  <dd>{detail.assignee_display_name}</dd>
-                </div>
-                <div>
-                  <dt>발생일시</dt>
-                  <dd>{dateTime.format(dateOf(detail.occurred_at))}</dd>
-                </div>
-                <div>
-                  <dt>등록일시</dt>
-                  <dd>{dateTime.format(dateOf(detail.registered_at))}</dd>
-                </div>
-                {/* 한 번도 고치지 않았으면 서지 않습니다. 고친 적이 있다는 사실만 보이고,
-                    고치기 전 값은 서버에 백업으로만 남습니다. */}
-                {detail.updated_at !== null && (
-                  <div>
-                    <dt>수정일시</dt>
-                    <dd>{dateTime.format(dateOf(detail.updated_at))}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt>내용</dt>
-                  <dd>{detail.body}</dd>
-                </div>
-              </dl>
+              <SupportRequestFacts request={detail} />
 
               <ResponseHistory
                 key={detail.id}
@@ -538,6 +491,10 @@ function StateBadge({ state }: { state: SupportStatusCode }) {
   return <i className={`${styles.badge} ${styles[state]}`}>{STATUS_LABEL[state]}</i>
 }
 
+function UrgentBadge() {
+  return <i className={`${styles.badge} ${styles.risk}`}>긴급</i>
+}
+
 interface ResponseHistoryProps {
   request: SupportRequestResponse
   pending: boolean
@@ -570,23 +527,7 @@ function ResponseHistory({
   return (
     <section className={styles.responses}>
       <h3>진행 이력</h3>
-      {request.responses.length === 0 ? (
-        <p className={styles.noResponses}>등록된 진행 이력이 없습니다.</p>
-      ) : (
-        <ol>
-          {request.responses.map((response: SupportResponseResponse) => (
-            <li key={response.id}>
-              <div>
-                <strong>{response.responder_display_name}</strong>
-                <time dateTime={response.responded_at}>
-                  {dateTime.format(dateOf(response.responded_at))}
-                </time>
-              </div>
-              <p>{response.body}</p>
-            </li>
-          ))}
-        </ol>
-      )}
+      <ResponseList request={request} />
 
       <form className={styles.responseForm} onSubmit={submit}>
         <label htmlFor={`response-${request.id}`}>다음 상황 추가</label>

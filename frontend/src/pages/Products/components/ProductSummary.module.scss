@@ -1,0 +1,90 @@
+.state {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.detail {
+  display: grid;
+  gap: var(--s4);
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+// 분류와 단가가 먼저 읽히는 머리. 사진이 없으면 왼쪽에 작은 표식이 섭니다.
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.thumb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-sm);
+  background: var(--fill-2);
+  color: var(--muted);
+}
+
+.headText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.category {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.price {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+// 이름표와 값을 한 줄에 나란히. 규격·비고가 길면 값 칸 안에서만 줄을 바꿉니다.
+.facts {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--line);
+
+  div {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: var(--s3);
+    padding: var(--s3) 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  dd.none {
+    color: var(--muted);
+  }
+}

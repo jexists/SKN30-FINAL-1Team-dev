@@ -65,8 +65,14 @@
   cursor: pointer;
   transition: background var(--t-fast);
 
-  &:hover {
+  &:hover,
+  &[aria-current='true'] {
     background: var(--fill-2);
+  }
+
+  // 줄은 드로어 끝까지 닿습니다. 포커스 링을 밖으로 두면 옆 칸과 머리말 선을 덮습니다.
+  &:focus-visible {
+    outline-offset: -3px;
   }
 }
 

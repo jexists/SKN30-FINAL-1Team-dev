@@ -1,6 +1,7 @@
 // demo/layout_v3.html 의 #listDrawer 입니다.
 // 대시보드의 모든 카운터 뒤에 이 드로어 하나가 섭니다. KPI 타일이면 필터 없이,
 // 발주 타일이면 위에 필터 칩을 달고 같은 표면을 씁니다.
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import Button from '@/components/Button'
@@ -30,6 +31,11 @@ interface Props {
   activeFilter?: OrderFilterKey
   onFilter?: (key: OrderFilterKey) => void
   onOpenOrder?: (no: string) => void
+  /** 있으면 링크 줄이 화면을 옮기지 않고 이것을 부릅니다. 상세는 `side` 로 옆에 펼칩니다. */
+  onOpenRow?: (key: string) => void
+  activeKey?: string | null
+  side?: ReactNode
+  onSideDismiss?: () => void
   onClose: () => void
 }
 
@@ -101,6 +107,10 @@ export default function ListDrawer({
   activeFilter,
   onFilter,
   onOpenOrder,
+  onOpenRow,
+  activeKey,
+  side,
+  onSideDismiss,
   onClose,
 }: Props) {
   const showOwner = useShowOwner()
@@ -111,6 +121,9 @@ export default function ListDrawer({
       title={list.title}
       sub={list.sub}
       onClose={onClose}
+      side={side}
+      keepMain
+      onSideDismiss={onSideDismiss}
       resetKey={activeFilter}
       filters={
         filters &&
@@ -145,6 +158,21 @@ export default function ListDrawer({
           {list.rows.map((row) => {
             // 발주 줄은 발주 드로어를, 나머지 줄은 제 화면을 엽니다.
             const no = row.orderNo
+
+            if (row.href && onOpenRow) {
+              return (
+                <div key={row.key} className={styles.item}>
+                  <button
+                    type="button"
+                    className={`${styles.row} ${styles.clickable}`}
+                    aria-current={activeKey === row.key}
+                    onClick={() => onOpenRow(row.key)}
+                  >
+                    <Row row={row} showOwner={showOwner} linked />
+                  </button>
+                </div>
+              )
+            }
 
             if (row.href) {
               return (

@@ -80,17 +80,6 @@
   }
 }
 
-// 왜 못 고치고 못 지우는지. 메뉴를 연 사람만 봅니다.
-.menuHint {
-  max-width: 180px;
-  margin-top: 4px;
-  padding: 0 10px 2px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-  white-space: normal;
-}
-
 // 받을 수 있는 것을 한 목록에 모읍니다. 무엇을 받는지가 왼쪽,
 // 형식과 크기가 오른쪽입니다. 형식 이름이 항목을 대표하지 않게 합니다.
 .downloadMenu {
@@ -176,7 +165,13 @@
   }
 
   .linkTo {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
     color: var(--blue);
+    text-align: left;
+    cursor: pointer;
 
     &:hover {
       text-decoration: underline;

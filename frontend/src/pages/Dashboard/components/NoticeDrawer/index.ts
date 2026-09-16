@@ -1,1 +1,1 @@
-export { default } from './NoticeDrawer'
+export { default, NoticePanel } from './NoticeDrawer'

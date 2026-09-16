@@ -153,8 +153,39 @@
 }
 
 .risk {
-  background: var(--orange-tint);
-  color: var(--orange-ink);
+  background: var(--red-tint);
+  color: var(--red-ink);
+}
+
+// 목록 제목 앞에 붙을 때 글자와 띄웁니다.
+.issue .risk,
+.miniIssue .risk {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+// 상세 머리의 상태 고르개. 바탕색은 상태 클래스가 root 에 칠하고 버튼은 비워 둡니다.
+.stateSelect {
+  border-radius: var(--r-badge);
+
+  // Select 의 .isSmall .trigger 보다 앞서야 긴급 배지와 키가 맞습니다. 테두리 1px 만큼 위아래를 덜어 냅니다.
+  &.stateSelect button {
+    gap: 4px;
+    min-height: 0;
+    padding: 2px 6px 2px 9px;
+    border-color: transparent;
+    border-radius: var(--r-badge);
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+    color: inherit;
+  }
 }
 
 /* ---- 빈 상태 ---- */
@@ -362,18 +393,6 @@
 }
 
 // 드로어 바닥의 상태 바꾸기.
-.stateChange {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-
-  span {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-  }
-}
-
 .isWide {
   grid-column: 1 / -1;
 }
