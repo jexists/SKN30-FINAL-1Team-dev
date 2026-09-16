@@ -9,6 +9,11 @@ import { won } from '@/utils/format'
 import type { BoardColumn } from './board'
 import type { SalesDeal } from './useSalesDeals'
 
+/* 0 은 적지 않은 값으로 보고 다음 금액으로 넘어갑니다. */
+function dealAmount(c: SalesDeal) {
+  return c.contractAmount || c.quoteAmount || c.amount
+}
+
 /** 단계까지 봐야 정렬 순서를 알 수 있어 컬럼 목록을 받아 만듭니다. */
 export function dealColumns(stages: BoardColumn[]): DataColumn<SalesDeal>[] {
   return [
@@ -17,14 +22,14 @@ export function dealColumns(stages: BoardColumn[]): DataColumn<SalesDeal>[] {
     { id: 'product', header: '제품', width: 156, sortable: true, text: (c) => c.product },
     {
       id: 'amount',
-      // 견적가·계약가가 아니라 딜을 열 때 적은 예상금액입니다.
-      header: '예상금액',
+      // 가장 확정에 가까운 금액을 씁니다 — 계약가, 없으면 견적가, 없으면 딜을 열 때 적은 예상금액.
+      header: '금액',
       width: 112,
       align: 'right',
       numeric: true,
       sortable: true,
-      text: (c) => won(c.amount),
-      sortValue: (c) => c.amount,
+      text: (c) => won(dealAmount(c)),
+      sortValue: (c) => dealAmount(c),
     },
     { id: 'owner', header: '담당 영업', width: 96, sortable: true, text: (c) => c.owner },
     {
