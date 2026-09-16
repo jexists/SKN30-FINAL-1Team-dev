@@ -186,7 +186,7 @@ def action(task: str, *fields: tuple[str, str]) -> str:
     """후속 조치 한 줄.
 
     이름표는 reportSections.ts 의 FIELD_LABELS 에 있는 것만 파싱된다
-    (담당자·담당·기한·완료 기준·상태·이행 여부·조건·선행조건·요청 대상).
+    (담당자·담당·기한·완료 기준·상태·이행 여부·조건·선행조건·전달 방식·요청 대상).
     구분자는 앞뒤 공백이 있는 ' · ' 여야 값 안의 가운뎃점이 잘리지 않는다.
     """
     parts = [f"**{task}**", *(f"{label}: {value}" for label, value in fields)]
