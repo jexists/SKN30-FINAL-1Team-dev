@@ -79,10 +79,15 @@ export function revealSteps({ blocks, risks, missingInformation }: RevealInput):
 /**
  * 문장이 끝나는 자리. 브리핑 본문에는 줄바꿈이 거의 없어 문장 부호로 끊습니다. 마지막
  * 문장의 끝(글 전체의 끝)은 쉬는 자리가 아니라 조각이 끝나는 자리라 넣지 않습니다.
+ *
+ * 마침표 뒤에 공백이나 글 끝이 와야 문장이 끝난 것으로 봅니다. 영업 브리핑에는 마침표가
+ * 문장 부호가 아닌 자리에 늘 섞여 들어옵니다 — 금액(12,500.50), 날짜(3.10), 단가(1.5억),
+ * 파일명(계약서.pdf). 이 조건이 없으면 숫자 한가운데서 끊겨, 타자가 거기서 쉬고 형광펜도
+ * 거기서 잘립니다(briefingCitations 가 이 자리를 문장 경계로 씁니다).
  */
 export function sentenceEnds(text: string): number[] {
   const ends: number[] = []
-  const finder = /[.!?。][\s"'”’)\]]*|\n+/g
+  const finder = /[.!?。]["'”’)\]]*(?:\s+|$)|\n+/g
   let match: RegExpExecArray | null
   while ((match = finder.exec(text))) {
     const end = match.index + match[0].length

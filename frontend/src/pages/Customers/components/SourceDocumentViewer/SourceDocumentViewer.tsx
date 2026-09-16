@@ -25,12 +25,6 @@ interface TextSource {
   extracted: boolean
 }
 
-interface Citation {
-  excerpt?: string | null
-  pageStart?: number | null
-  pageEnd?: number | null
-}
-
 interface Props {
   /**
    * 원본. 그릴 수 있는 형식은 파일째로 받고, 글로 대신 보여 주는 형식은 머리말에
@@ -64,9 +58,8 @@ interface Props {
   sourceStatus?: 'idle' | 'loading' | 'ready' | 'error'
   /** 원본을 받아 오지 못한 사유. 원본 탭 안에만 뜹니다. */
   sourceError?: string | null
-  /** 브리핑의 근거를 열 때 바로 보여 줄 페이지와 발췌문. */
+  /** 브리핑의 근거를 열 때 바로 펼 페이지. */
   initialPage?: number | null
-  citation?: Citation | null
 }
 
 type Tab = 'summary' | 'source'
@@ -113,7 +106,6 @@ export default function SourceDocumentViewer({
   sourceStatus = 'ready',
   sourceError,
   initialPage,
-  citation,
 }: Props) {
   // 요약을 함께 받은 자리만 탭이 있는 패널이 됩니다. 나머지 사용처는 원본 한 자리입니다.
   const tabbed = !!summary
@@ -293,13 +285,6 @@ export default function SourceDocumentViewer({
             </button>
           ))}
         </div>
-      )}
-
-      {citation?.excerpt && (
-        <aside className={styles.citation} aria-label="AI가 참고한 문장">
-          <strong>AI가 참고한 문장</strong>
-          <p>{citation.excerpt}</p>
-        </aside>
       )}
 
       <div className={styles.stage} ref={stageRef}>

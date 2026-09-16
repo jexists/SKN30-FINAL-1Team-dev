@@ -214,6 +214,16 @@ export function LogoutIcon(props: IconProps) {
   )
 }
 
+/** 상자 밖으로 나가는 화살표. 지금 화면을 두고 원문을 따로 여는 자리에 씁니다. */
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <path d="M15 3h6v6M10 14L21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    </Icon>
+  )
+}
+
 export function MenuIcon(props: IconProps) {
   return (
     <Icon strokeWidth={2} {...props}>

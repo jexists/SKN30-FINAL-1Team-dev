@@ -6,31 +6,13 @@ import styles from './RecordDrawer.module.scss'
 /**
  * 옆 패널의 '요약' 탭. 브리핑 응답에 이미 실려 온 것만 그려 기다릴 것이 없습니다.
  *
- * 검색이 집어 온 구절을 먼저, 자료요약 Agent 가 만든 글을 뒤에 둡니다. 브리핑이 왜 이
- * 자료를 들고 왔는지가 먼저 읽혀야 요약을 볼지 원본을 열지 정할 수 있습니다.
+ * 검색이 집어 온 구절은 세우지 않습니다. 원문에서 잘라 온 토막이라 표가 깨지고 인식이
+ * 어긋난 채로 보여, 자료요약 Agent 가 만든 글보다 읽히지 않았습니다. 브리핑이 어느
+ * 대목을 보고 썼는지는 본문의 형광펜과 그 끝의 원문 링크가 말합니다.
  */
 export default function BriefingSourceSummary({ document }: { document: BriefingDocument }) {
-  const excerpts = document.excerpts ?? []
   return (
     <div className={styles.summaryPane}>
-      {excerpts.length > 0 && (
-        <section>
-          <h4 className={styles.summaryPaneTitle}>브리핑이 참고한 부분</h4>
-          {excerpts.map((excerpt, index) => (
-            <blockquote className={styles.excerpt} key={index}>
-              {excerpt.page_start && (
-                <small>
-                  {excerpt.page_start}페이지
-                  {excerpt.page_end && excerpt.page_end !== excerpt.page_start
-                    ? `–${excerpt.page_end}페이지`
-                    : ''}
-                </small>
-              )}
-              <p>{excerpt.content}</p>
-            </blockquote>
-          ))}
-        </section>
-      )}
       {document.summary_markdown && (
         <section>
           <h4 className={styles.summaryPaneTitle}>자료요약</h4>

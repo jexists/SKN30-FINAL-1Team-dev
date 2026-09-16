@@ -325,40 +325,61 @@
   color: var(--orange-ink);
 }
 
+/*
+ * 문서에서 온 문장에 긋는 형광펜.
+ *
+ * 칠한 자리가 곧 "이 대목이 어디서 왔는가"이고, 그 끝의 아이콘(.citeMark)이 원문을 폅니다.
+ * 문단 앞에 파일 이름을 따로 세우지 않는 것은 그 둘이 같은 말을 두 번 하기 때문입니다.
+ * 확인이 필요한 값(.check)의 주의 색과 겹치지 않아, 한 문장 안에 둘이 같이 있어도 무엇이
+ * 근거이고 무엇이 할 일인지 갈라 읽힙니다.
+ */
+.cited {
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: var(--blue-tint);
+  color: inherit;
+}
+
+/*
+ * 칠한 문장 끝에 붙는 원문 링크.
+ *
+ * 문장 전체를 링크로 만들지 않았습니다. 그러면 스크린리더의 링크 목록이 문장으로 가득 차고,
+ * 짚은 자리가 틀렸을 때 틀린 문장이 통째로 눌리는 면이 됩니다. 누르는 자리는 이 아이콘
+ * 하나로 좁히고, 어느 문장의 근거인지는 형광펜이 말합니다.
+ */
+.citeMark {
+  display: inline-flex;
+  // 글자 사이에 서는 단추라 누르는 면을 넓히면 줄 높이가 밀립니다. 아이콘 크기 그대로 둡니다.
+  margin-left: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  vertical-align: -1px;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease-out);
+
+  &:hover {
+    color: var(--blue-press);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 1px;
+    border-radius: 2px;
+  }
+
+  &:active {
+    transform: none;
+  }
+}
+
 // AI 브리핑의 위험 배지 줄.
 .pills {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
   margin-top: var(--s3);
-}
-
-.briefingReferences {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  margin-top: var(--s3);
-
-  button {
-    padding: 3px var(--s2);
-    border: 1px solid var(--line);
-    border-radius: var(--r-pill);
-    background: var(--surface);
-    color: var(--blue-ink);
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-
-    &:hover {
-      border-color: var(--blue);
-      background: var(--blue-tint);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: 2px;
-    }
-  }
 }
 
 /*
@@ -416,101 +437,82 @@
   }
 }
 
-// 성격이 다른 묶음(제품 자료, 관련 자료)은 선 대신 여백으로 갈라 세웁니다. 가로로
-// 가르는 일은 구획 제목의 꼬리선이 이미 하고 있습니다.
+// 브리핑 끝에 다는 묶음(계약관리와 다른 값, 출처). 선 대신 여백으로 갈라 세웁니다.
+// 가로로 가르는 일은 구획 제목의 꼬리선이 이미 하고 있습니다.
 .sources {
   // 목록이 구획 제목 아래로 한 단 들어가는 깊이. 제목 글자와 같은 선(막대 3px + --s2)에
   // 세우면 목록이 제목과 나란히 서서 무엇에 딸린 목록인지가 읽히지 않습니다. 위의 불릿
   // 목록과 비슷한 깊이로 들여 제목 아래에 안기게 합니다.
   --source-indent: var(--s4);
-  // 파일 아이콘 칸. 파일명 아래 딸리는 안내를 파일명 선에 맞출 때도 씁니다.
-  --source-icon: 14px;
 
   margin-top: var(--s6);
 }
 
-.sourceList {
-  color: var(--ink-2);
-  font-size: 12px;
-  line-height: 1.7;
+/*
+ * 이 브리핑이 본 자료 전부. 한 줄에 한 건씩 세로로 세웁니다.
+ *
+ * 어느 문단이 무엇을 썼는지는 본문의 형광펜이 이미 말했습니다. 여기서 같은 말을 큰 줄로
+ * 다시 세우면 브리핑보다 목록이 더 커지므로, 파일 이름만 작게 남깁니다. 그래도 가로로
+ * 흘리지는 않습니다 — 긴 파일 이름이 서로 붙으면 어디까지가 한 파일인지 읽히지 않고,
+ * 몇 건인지도 세어지지 않습니다.
+ */
+.sourceLinks {
+  display: grid;
+  // 링크는 제 글자 폭만 차지합니다. 늘어나면 줄 전체가 눌리는 면으로 보입니다.
+  justify-items: start;
+  gap: var(--s1);
+  margin-top: var(--s2);
+  padding-left: var(--source-indent);
   list-style: none;
 }
 
-// 줄을 누르면 열리므로 항목 사이는 여백만 조금 둡니다. 여백을 더 벌리면 누를 수 있는
-// 면이 서로 떨어져 목록이 버튼 더미로 보입니다.
-.sourceItem + .sourceItem {
-  margin-top: var(--s1);
-}
-
-/*
- * 자료 한 건. 줄 전체가 자료를 여는 자리입니다 — 관련 발주 목록(.pick)이 이미 쓰는
- * 방식이라 같은 드로어 안에서 누르는 법이 하나로 읽힙니다. 줄마다 '자료 보기' 버튼을
- * 세우지 않는 것도 같은 이유입니다.
- */
-.sourceRow {
-  display: flex;
-  width: 100%;
+.sourceLink {
+  display: inline-flex;
+  max-width: 100%;
   align-items: center;
-  gap: var(--s2);
-  padding: var(--s2);
-  padding-left: var(--source-indent);
+  gap: 5px;
+  padding: 0;
   border: 0;
-  border-radius: var(--r-sm);
   background: none;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  // 긴 파일명이 통째로 다음 줄로 내려가면 아이콘만 윗줄에 남습니다. 자리에서 줄어들게
+  // 두면 아이콘 옆에서 제 줄을 접습니다.
+  overflow-wrap: anywhere;
   text-align: left;
   cursor: pointer;
-  transition: background var(--t-fast) var(--ease-out);
+  transition: color var(--t-fast) var(--ease-out);
 
-  // 바탕이 비어 있어 흰 면으로는 올린 줄이 드러나지 않습니다. 옅은 회색으로 덮습니다.
-  &:hover,
-  &:focus-visible {
-    background: var(--fill-2);
+  svg {
+    flex: none;
+    color: var(--muted-2);
   }
 
   &:hover,
   &:focus-visible {
-    .sourceName,
-    .sourceChevron {
-      color: var(--blue);
-    }
+    color: var(--blue);
   }
 
-  // 줄 하나가 드로어 폭을 거의 다 차지해, 누를 때 줄 전체가 줄어들면 크게 출렁입니다.
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  // 링크가 나란히 서는 줄이라 눌러서 하나만 줄어들면 줄이 출렁입니다.
   &:active {
     transform: none;
   }
 
-  // 여는 동안 줄을 흐리면 파일명이 읽히지 않습니다. 옆에 붙는 '여는 중…' 이 대신합니다.
+  // 여는 동안 이름을 흐리면 무엇을 여는 중인지 읽히지 않습니다. 뒤의 '여는 중…' 이 대신합니다.
   &:disabled {
     opacity: 1;
     cursor: default;
   }
 }
 
-.sourceIcon {
-  flex: none;
-  color: var(--muted);
-}
-
-// 줄 끝에서 이 줄이 무언가를 연다는 것을 알립니다.
-.sourceChevron {
-  flex: none;
-  margin-left: auto;
-  color: var(--muted-2);
-  transition: color var(--t-fast) var(--ease-out);
-}
-
-.sourceName {
-  overflow-wrap: anywhere;
-  // 긴 파일명이 통째로 다음 줄로 내려가면 아이콘만 윗줄에 남습니다. 자리에서 줄어들게
-  // 두면 아이콘 옆에서 제 줄을 접습니다.
-  min-width: 0;
-  color: var(--ink);
-  font-weight: 600;
-  transition: color var(--t-fast) var(--ease-out);
-}
-
-// 여는 동안만 파일명 뒤에 붙습니다. 줄 전체가 버튼이라 글자를 덮을 수 없습니다.
+// 여는 동안만 파일명 뒤에 붙습니다. 링크 전체가 버튼이라 글자를 덮을 수 없습니다.
 .sourceBusy {
   flex: none;
   color: var(--muted);
@@ -518,14 +520,10 @@
   font-weight: 400;
 }
 
-// 목록 자리에 대신 서는 안내문. 목록과 같은 자리에서 시작합니다.
+// 목록 아래에 딸리는 안내. 목록과 같은 자리에서 시작합니다.
 .sourceNote {
+  margin-top: var(--s2);
   padding-left: var(--source-indent);
-}
-
-// 파일명 아래 딸리는 안내. 줄을 바꿔 파일명과 같은 칸에서 시작합니다.
-.sourceDetail {
-  padding-left: calc(var(--source-indent) + var(--source-icon) + var(--s2));
 }
 
 // 갱신이 도는 중이라는 표시입니다. 제목 옆에 작게만 붙고 본문을 가리지 않습니다.
@@ -758,18 +756,6 @@
   font-weight: 600;
 }
 
-.excerpt {
-  margin: 8px 0 12px;
-  padding: 10px 12px;
-  border-left: 2px solid var(--line);
-  background: var(--fill);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  small {
-    color: var(--muted);
-  }
-}
-
 /*
  * 옆 패널의 '요약' 탭. 원본이 서는 자리와 같은 무대에 놓이므로, 그 안의 종이 한 장
  * (.textPage)과 같은 폭·여백으로 세워 탭을 오갈 때 글이 튀지 않게 합니다.
@@ -803,21 +789,10 @@
   letter-spacing: -0.01em;
 }
 
-// 브리핑이 실제로 인용한 자료에만 붙습니다. 목록을 거르지 않고 표시만 더합니다.
-.citedTag {
-  // 줄 전체가 버튼이 되며 이 표시도 그 줄의 칸 하나가 됐습니다. 긴 파일명에 밀려
-  // 찌그러지지 않게 제 폭을 지킵니다.
-  flex: none;
-  padding: 1px 6px;
-  border-radius: var(--r-sm);
-  background: var(--fill);
-  color: var(--muted);
-  font-size: 11px;
-  font-style: normal;
-}
-
+// 자료 한 건의 계약서 값 비교. 출처 목록이 한 줄로 줄면서 파일 아래에 달 자리가 없어져
+// 제 구획으로 섰습니다. 목록과 같은 선에서 시작해 브리핑 본문 아래로 한 단 들어갑니다.
 .sourceComparisons {
-  margin: 0 26px var(--s2) 30px;
+  margin: var(--s2) 0 0 var(--source-indent);
   padding: var(--s2) var(--s3);
   border-left: 2px solid #a5b4fc;
   background: #f8f9ff;

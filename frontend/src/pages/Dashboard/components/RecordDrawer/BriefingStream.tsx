@@ -4,9 +4,12 @@
 // 순서와 속도는 briefingReveal.ts 에 있습니다 — 여기서는 그 결과를 그리기만 합니다.
 // 블록마다 따로 타이머를 두지 않는 것이 중요합니다. 각자 세면 갱신으로 본문이 바뀌었을 때
 // 이미 끝까지 간 상태가 남아 새 브리핑이 통째로 튀어나옵니다.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
-import { highlightChecks } from './briefingText'
+import { ExternalLinkIcon } from '@/components/icons'
+
+import { citedRanges, clipRanges, type CitedRange } from './briefingCitations'
+import { briefingBody } from './briefingText'
 import {
   START,
   advance,
@@ -18,12 +21,30 @@ import {
 } from './briefingReveal'
 import styles from './RecordDrawer.module.scss'
 
+/**
+ * 문단이 근거로 쓴 자료 하나.
+ *
+ * 그 자료에서 온 문장을 찾으면 **그 문장 끝**에 원문을 여는 아이콘이 붙습니다. 못 찾으면
+ * 문단에는 아무것도 남지 않습니다 — 그 자료는 브리핑 끝의 출처 목록이 이름을 댑니다.
+ */
+export interface BriefingReference {
+  key: string
+  /**
+   * 아이콘의 이름이자 안내. 아이콘 하나가 유일한 단서라 무엇이 열리는지를 여기서 다
+   * 말해야 합니다 — 파일 이름과 열릴 자리를 함께 담습니다.
+   */
+  hint: string
+  /** 이 자료에서 온 문장을 본문에서 찾을 때 쓰는 원문 구절. */
+  excerpts: string[]
+  onOpen: () => void
+}
+
 export interface BriefingBlock {
   key: string
   title: string
   body: string
   actions: string[]
-  references?: { key: string; label: string; onOpen: () => void }[]
+  references?: BriefingReference[]
 }
 
 function reducedMotion() {
@@ -61,13 +82,12 @@ function useReveal(input: RevealInput, stream: boolean, signature: string) {
 /**
  * 글줄 하나. 아직 치는 중이면 끝에 캐럿이 섭니다.
  *
- * @param checks `[[ ]]` 로 표시된 "확인해야 할 값"을 강조할지. 본문에만 씁니다 — 제목과
- *   목록 줄은 마커를 쓰지 않습니다.
+ * @param content 글자 대신 그릴 것. 본문은 형광펜과 확인값 강조가 들어가 여기로 넘깁니다.
  */
-function line(shown: RevealedLine, checks = false) {
+function line(shown: RevealedLine, content?: ReactNode) {
   return (
     <>
-      {checks ? highlightChecks(shown.text) : shown.text}
+      {content ?? shown.text}
       {!shown.done && <span className={styles.caret} aria-hidden="true" />}
     </>
   )
@@ -103,45 +123,81 @@ export default function BriefingStream({
   missingInformation: string[]
 }) {
   // 내용이 같으면 조각도 그대로여야 타이머가 렌더마다 다시 걸리지 않습니다. 배열 자체는
-  // 렌더마다 새로 오므로 값으로 비교합니다.
+  // 렌더마다 새로 오므로 값으로 비교합니다. 출처가 바뀌면 형광펜 자리도 바뀌므로 함께 셉니다.
   const signature = [
-    blocks.map((block) => `${block.key}:${block.title}:${block.body}:${block.actions.join('·')}`),
+    blocks.map((block) =>
+      [
+        block.key,
+        block.title,
+        block.body,
+        block.actions.join('·'),
+        (block.references ?? []).map((reference) => reference.key).join('·'),
+      ].join(':'),
+    ),
     risks.join(','),
     missingInformation.join('|'),
   ].join('#')
   const reveal = useReveal({ blocks, risks, missingInformation }, stream, signature)
   const view = revealView(reveal.steps, reveal.state)
+  // 형광펜 자리는 다 쓴 본문에서 한 번만 잽니다. 타자 치는 동안 매 틱 다시 재면 같은 답을
+  // 초당 수십 번 구하게 되고, 무엇보다 문장이 늘어날 때마다 고른 문장이 바뀝니다.
+  const citations = useMemo(
+    () => blocks.map((block) => citedRanges(block.body, block.references ?? [])),
+    [signature], // eslint-disable-line react-hooks/exhaustive-deps -- 서명에 본문과 출처가 다 들어 있습니다.
+  )
   // 흐르지 않을 때는 등장 동작도 없습니다. 열자마자 전부 서 있어야 합니다.
   const appear = stream ? styles.appear : ''
 
   return (
     <>
-      {view.blocks.map((shown, index) => (
-        <div
-          key={blocks[index].key}
-          // 문단을 다 친 순간 자리를 잡습니다. 그때부터 제안이 아래에 붙습니다.
-          className={`${styles.highlight} ${shown.body.done && stream ? styles.settled : ''}`}
-        >
-          {shown.title.text && (
-            <h4 className={shown.title.done ? '' : styles.typingText}>{line(shown.title)}</h4>
-          )}
-          {(shown.body.text || !shown.body.done) && (
-            <p className={styles.note}>{line(shown.body, true)}</p>
-          )}
-          {shown.actions.length > 0 && (
-            <ul className={styles.actions}>{shown.actions.map(item)}</ul>
-          )}
-          {shown.body.done && blocks[index].references && blocks[index].references!.length > 0 && (
-            <div className={styles.briefingReferences} aria-label="참고 문서">
-              {blocks[index].references!.map((reference) => (
-                <button key={reference.key} type="button" onClick={reference.onOpen}>
-                  {reference.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+      {view.blocks.map((shown, index) => {
+        const references = blocks[index].references ?? []
+        const ranges = clipRanges(citations[index] ?? [], shown.body.text.length)
+        const reference = (range: CitedRange) => references.find((item) => item.key === range.key)
+        return (
+          <div
+            key={blocks[index].key}
+            // 문단을 다 친 순간 자리를 잡습니다. 그때부터 제안이 아래에 붙습니다.
+            className={`${styles.highlight} ${shown.body.done && stream ? styles.settled : ''}`}
+          >
+            {shown.title.text && (
+              <h4 className={shown.title.done ? '' : styles.typingText}>{line(shown.title)}</h4>
+            )}
+            {(shown.body.text || !shown.body.done) && (
+              <p className={styles.note}>
+                {line(
+                  shown.body,
+                  // 근거는 문단 앞이 아니라 그 근거로 쓴 문장에 답니다. 칠한 자리가 곧
+                  // 어디서 왔는지이고, 그 끝의 아이콘이 원문을 폅니다.
+                  //
+                  // 짚을 문장을 못 찾은 자료는 문단 안에 아무것도 남기지 않습니다. 파일
+                  // 이름을 문단 끝에 달아 두면 브리핑 끝의 출처 목록과 같은 이름이 두 번
+                  // 서고, 그게 이 화면에서 걷어내려던 바로 그 모양입니다.
+                  briefingBody(shown.body.text, ranges, (range) => {
+                    const found = reference(range)
+                    return (
+                      found && (
+                        <button
+                          type="button"
+                          className={styles.citeMark}
+                          title={found.hint}
+                          aria-label={found.hint}
+                          onClick={found.onOpen}
+                        >
+                          <ExternalLinkIcon width={12} height={12} aria-hidden="true" />
+                        </button>
+                      )
+                    )
+                  }),
+                )}
+              </p>
+            )}
+            {shown.actions.length > 0 && (
+              <ul className={styles.actions}>{shown.actions.map(item)}</ul>
+            )}
+          </div>
+        )
+      })}
       {view.risks > 0 && (
         <div className={styles.pills}>
           {risks.slice(0, view.risks).map((risk, index) => (

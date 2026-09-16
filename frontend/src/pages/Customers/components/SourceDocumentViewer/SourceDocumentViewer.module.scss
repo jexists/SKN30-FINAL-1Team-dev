@@ -81,26 +81,6 @@
   color: var(--ink);
 }
 
-.citation {
-  flex: none;
-  padding: var(--s2) var(--s4);
-  border-bottom: 1px solid var(--line);
-  background: var(--orange-tint);
-  color: var(--orange-ink);
-  font-size: 12px;
-  line-height: 1.55;
-
-  strong {
-    display: block;
-    font-size: 11px;
-  }
-
-  p {
-    margin: 2px 0 0;
-    color: var(--ink-2);
-  }
-}
-
 /*
  * 문서가 놓이는 자리. 폼이 아무리 길어져도 이 패널은 스크롤을 따라가지 않고,
  * 확대해서 넘치는 것만 여기 안에서 움직입니다.

@@ -24,7 +24,7 @@ import { useRelatedDeal } from '../../useDashboard'
 import BriefingMaterials from './BriefingMaterials'
 import BriefingProgress from './BriefingProgress'
 import BriefingSourceSummary from './BriefingSourceSummary'
-import BriefingStream from './BriefingStream'
+import BriefingStream, { type BriefingReference } from './BriefingStream'
 import InfoHint from './InfoHint'
 import useAiBriefing from '../../useAiBriefing'
 
@@ -35,7 +35,7 @@ const BRIEFING_SCOPE_TEXT =
 
 /** 요약 탭에 세울 것이 있는 자료인지. 없으면 탭 없이 원본만 폅니다. */
 function hasSummaryView(document: BriefingDocument) {
-  return !!document.summary_markdown || !!document.excerpts?.length
+  return !!document.summary_markdown
 }
 
 interface BriefingViewHighlight {
@@ -51,10 +51,9 @@ interface BriefingView {
   risks: ContractRisk[]
 }
 
+/** 본문 인용에서 원문을 열 때 바로 펼 자리. 있으면 요약 대신 원본부터 폅니다. */
 interface DocumentCitation {
-  excerpt: string | null
   pageStart: number | null
-  pageEnd: number | null
 }
 
 /** 새 highlights 형식과 DB에 남은 구 contract_summary 형식을 한 화면 모델로 맞춥니다. */
@@ -149,8 +148,9 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
   // 그냥 열었을 때는 흐르지 않습니다 — 읽으려고 연 글이 다시 써지면 자리를 잃습니다.
   const waitedForBriefing = useRef(false)
   if (briefingPending) waitedForBriefing.current = true
-  // 인용 여부는 목록을 거르는 조건이 아니라 줄에 붙는 표시입니다. 브리핑이 인용을
-  // 빠뜨려도 자료 자체는 보여야 하고, 브리핑이 실패해도 목록은 남아야 합니다.
+  // 인용 여부는 목록을 거르는 조건이 아니라 세우는 순서입니다. 브리핑이 인용을 빠뜨려도
+  // 자료 자체는 보여야 하고, 브리핑이 실패해도 목록은 남아야 합니다. 어느 문단이 무엇을
+  // 썼는지는 문단 앞 링크가 말하므로 끝의 목록에는 따로 표시를 달지 않습니다.
   const citedDocumentIds = new Set(
     (briefingContent?.highlights.flatMap((highlight) => highlight.sourceRefs) ?? [])
       .filter((ref) => ref.type === 'document')
@@ -287,33 +287,60 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     }
   }
 
-  function documentReferences(refs: SourceRef[]) {
-    const documents = briefing?.documents?.related ?? []
-    return refs.flatMap((ref) => {
-      if (ref.type !== 'document' || !ref.chunk_id) return []
+  /**
+   * 문단이 근거로 쓴 자료. 그 자료에서 온 문장을 찾으면 문장 끝에, 못 찾으면 문단 끝에
+   * 원문 링크가 섭니다(BriefingStream).
+   *
+   * 자료 하나에 하나입니다. 같은 파일을 두 청크로 인용해도 같은 파일 이름이 두 번 서면
+   * 무엇이 다른지 읽히지 않습니다. 형광펜을 그을 원문 구절은 인용된 만큼 모아 넘깁니다 —
+   * 링크는 하나여도 짚어 볼 구절은 여럿입니다.
+   */
+  function documentReferences(refs: SourceRef[]): BriefingReference[] {
+    // 제품 자료도 인용될 수 있습니다. 어느 묶음에서 왔든 링크는 달려야 합니다.
+    const documents = [
+      ...(briefing?.documents?.related ?? []),
+      ...(briefing?.documents?.product ?? []),
+    ]
+    const byDocument = new Map<string, BriefingReference>()
+    refs.forEach((ref) => {
+      if (ref.type !== 'document') return
       const document = documents.find((item) => item.document_id === ref.id)
-      const excerpt = document?.excerpts?.find((item) => item.chunk_id === ref.chunk_id)
-      if (!document || !excerpt) return []
-      const pageStart = excerpt.page_start
-      const pageEnd = excerpt.page_end
+      if (!document) return
+      const matched = ref.chunk_id
+        ? document.excerpts?.find((item) => item.chunk_id === ref.chunk_id)
+        : undefined
+      // 청크를 짚지 않은 인용(예전 형식의 브리핑)은 그 자료에서 뽑아 둔 구절을 모두
+      // 후보로 넘깁니다. 어느 문장이 그 자료에서 왔는지는 형광펜이 본문과 맞춰 봅니다.
+      const candidates = matched ? [matched] : (document.excerpts ?? [])
+      const quotes = [...new Set([ref.excerpt, ...candidates.map((item) => item.content)])].filter(
+        (value): value is string => !!value,
+      )
+      const found = byDocument.get(document.document_id)
+      if (found) {
+        found.excerpts.push(...quotes)
+        return
+      }
+      // 원문을 펼 자리는 짚은 청크, 없으면 그 자료의 첫 구절입니다.
+      const anchor = candidates[0]
+      const quote = ref.excerpt ?? anchor?.content ?? null
+      const pageStart = anchor?.page_start ?? null
+      const pageEnd = anchor?.page_end ?? null
       const page = pageStart
         ? pageEnd && pageEnd !== pageStart
           ? `${pageStart}-${pageEnd}페이지`
           : `${pageStart}페이지`
-        : '원문'
-      return [
-        {
-          key: `${ref.id}-${ref.chunk_id}`,
-          label: `${document.file_name} · ${page}`,
-          onOpen: () =>
-            void openSource(document, {
-              excerpt: ref.excerpt ?? excerpt.content ?? null,
-              pageStart,
-              pageEnd,
-            }),
-        },
-      ]
+        : null
+      byDocument.set(document.document_id, {
+        key: document.document_id,
+        // 아이콘 하나만 보이므로 파일 이름을 안내에 함께 답니다. 이름을 본문에 글자로
+        // 세우면 브리핑 끝의 출처 목록과 같은 이름이 두 번 섭니다.
+        hint: page ? `${document.file_name} · ${page} 열기` : `${document.file_name} 원문 열기`,
+        excerpts: quotes,
+        // 어느 대목을 보고 쓴 글인지 알 때는 원문의 그 자리를 바로 폅니다.
+        onOpen: () => void openSource(document, quote ? { pageStart } : null),
+      })
     })
+    return [...byDocument.values()]
   }
 
   const at = item.contact.lastIndexOf(' ')
@@ -368,13 +395,6 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
             }
             sourceError={source.error}
             initialPage={source.citation?.pageStart}
-            citation={
-              source.citation && {
-                excerpt: source.citation.excerpt,
-                pageStart: source.citation.pageStart,
-                pageEnd: source.citation.pageEnd,
-              }
-            }
             // 여닫는 자리가 '자료 보기' 한 곳이라 접기가 아니라 닫기로 읽힙니다.
             dismiss="close"
             onCollapse={closeSource}

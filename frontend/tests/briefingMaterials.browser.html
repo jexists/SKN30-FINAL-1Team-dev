@@ -113,6 +113,7 @@
         ownerMemberId: 'member-1',
         customerContactId: 'contact-1',
         salesDealId: 'deal-1',
+        customerCompanyId: 'company-1',
       }
       const session = {
         status: 'authenticated',
@@ -140,41 +141,83 @@
       const check = (condition, label) => {
         if (!condition) throw new Error(label)
       }
+      // 갱신이 도는 중이면 본문이 타자 치듯 펴진다(BriefingStream). 다 쳐질 때까지 기다린
+      // 뒤에 글을 본다 — 렌더 직후에는 첫 몇 글자만 서 있다.
+      const waitFor = async (condition, label, timeout = 8000) => {
+        const deadline = Date.now() + timeout
+        while (!condition()) {
+          if (Date.now() > deadline) throw new Error(`${label} (시간 초과)`)
+          await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 60))
+          })
+        }
+      }
       await render()
-      const heading = [...document.querySelectorAll('h3')].find(
-        (el) => el.textContent === '🤖 AI 브리핑',
+      const heading = [...document.querySelectorAll('h3')].find((el) =>
+        el.textContent.startsWith('AI 브리핑'),
       )
+      const briefingSection = heading.closest('section')
+      const sourceSection = briefingSection.querySelector('[aria-label="브리핑 출처"]')
+      check(sourceSection, '출처가 브리핑 내부에 있어야 함')
+      // 'RAG 검색'은 제목 옆 InfoHint 설명에도 들어 있다. 출처 구획 안에서만 본다.
+      check(sourceSection.textContent.includes('RAG 검색'), 'RAG 태그')
+
+      // 출처는 끝에 한 번만, 중복 없이 선다. 픽스처의 제품설명서는 제품 자료와 관련 자료
+      // 양쪽에 들어 있어, 묶음을 갈라 세우던 때는 같은 파일이 두 번 섰다.
+      const sourceNames = [...sourceSection.querySelectorAll('li')].map((el) =>
+        el.textContent.trim(),
+      )
+      check(sourceNames.length === 2, `출처 2건이어야 함: ${sourceNames.join(' / ')}`)
+      check(new Set(sourceNames).size === sourceNames.length, '같은 자료가 두 번 서면 안 됨')
       check(
-        heading.closest('section').querySelector('[aria-label="제품 자료"]'),
-        '제품 자료가 브리핑 내부에 있어야 함',
+        sourceNames.some((name) => name.includes('제품설명서')),
+        '제품 자료도 출처에 포함',
       )
+
+      // 그 자료에서 온 문장에만 형광펜이 그어지고, 원문 링크는 그 문장 끝에 붙는다.
+      const marks = [...briefingSection.querySelectorAll('mark')].filter((el) =>
+        el.className.includes('cited'),
+      )
+      check(marks.length === 1, `인용 문장 1개여야 함: ${marks.length}`)
+      check(marks[0].textContent.includes('대금을 지급합니다'), '인용 문장 위치')
+      const mark = marks[0].querySelector('button')
+      check(mark && mark.className.includes('citeMark'), '칠한 문장 끝에 원문 링크')
+      check(mark.title.includes('페이지'), `링크 안내에 위치: ${mark.title}`)
+
+      // 문단 앞에 파일 이름을 따로 세우지 않는다 — 형광펜과 같은 말을 두 번 하게 된다.
+      const paragraph = marks[0].closest('p')
       check(
-        heading.closest('section').querySelector('[aria-label="관련 자료"]'),
-        '관련 자료가 브리핑 내부에 있어야 함',
+        !paragraph.textContent.includes('장비_납품_계약서.pdf'),
+        '문단 안에 파일 이름이 다시 서면 안 됨',
       )
-      check(document.body.textContent.includes('RAG 검색'), 'RAG 태그')
-      check(document.querySelectorAll('blockquote').length === 2, '페이지별 검색 근거')
-      check(document.querySelectorAll('i').length >= 1, '인용 표시')
+      check(paragraph.firstChild.nodeType === Node.TEXT_NODE, '문단은 본문 글자로 시작해야 함')
       check(
         !document.body.textContent.includes('관련 영업·발주를 불러오지 못했습니다'),
         '연결 딜 정상 표시',
       )
-      // 임시로 두었던 수동 새로고침은 화면에서 사라졌다. 갱신은 백엔드가 미리 해 둔다.
+      // 고객사가 연결된 일정에서는 제목 옆에서 직접 다시 만들 수 있다.
       check(
-        ![...document.querySelectorAll('button')].some((el) => el.textContent.includes('새로고침')),
-        '브리핑 새로고침 버튼이 없어야 함',
+        [...briefingSection.querySelectorAll('button')].some((el) =>
+          el.textContent.includes('새로고침'),
+        ),
+        '브리핑 새로고침 버튼',
       )
-      check(!document.body.textContent.includes('브리핑 새로고침'), '새로고침 문구 잔존 없음')
 
       // 갱신이 도는 중에도 저장된 브리핑과 자료가 그대로 보여야 한다.
       briefing = structuredClone(fixture)
       briefing.refreshing = true
       await render()
       check(document.body.textContent.includes('최신 자료 반영 중'), '갱신 중 상태 표시')
-      check(document.body.textContent.includes('설치 공간과 전원'), '갱신 중에도 본문 유지')
-      check(document.querySelectorAll('blockquote').length === 2, '갱신 중에도 관련 자료 유지')
+      await waitFor(
+        () => document.body.textContent.includes('설치 공간과 전원'),
+        '갱신 중에도 본문 유지',
+      )
       check(
-        document.querySelector('[aria-label="제품 자료"]').textContent.includes('제품설명서'),
+        document.querySelectorAll('[aria-label="브리핑 출처"] li').length === 2,
+        '갱신 중에도 출처 유지',
+      )
+      check(
+        document.querySelector('[aria-label="브리핑 출처"]').textContent.includes('제품설명서'),
         '갱신 중에도 제품 자료 유지',
       )
       check(!document.body.textContent.includes('준비 중'), '기존 결과가 있으면 준비 중 아님')
@@ -199,7 +242,8 @@
         refreshing: true,
       }
       await render()
-      check(document.body.textContent.includes('AI 브리핑 준비 중'), '최초 브리핑 준비 중')
+      // 아직 결과가 없으면 진행 줄만 선다. 문구는 몇 초마다 돌아가므로 줄이 있는지만 본다.
+      check(document.querySelector('[aria-label="AI 브리핑 진행"]'), '최초 브리핑 진행 표시')
 
       briefing = structuredClone(fixture)
       briefing.documents = {
@@ -208,11 +252,16 @@
         search: { method: 'keyword', status: 'embedding_unavailable' },
       }
       await render()
-      check(document.body.textContent.includes('의미 검색을 사용할 수 없어'), '임베딩 장애 안내')
-      check(document.querySelectorAll('blockquote').length === 0, '이전 근거 잔존 없음')
+      // 검색이 돌았는데 걸린 자료가 없을 뿐이면 "없습니다" 한 줄을 세우는 대신 구획을
+      // 통째로 접는다. 의미 검색이 막혔다는 안내는 목록이 있을 때만 그 아래에 붙는다.
+      check(!document.querySelector('[aria-label="브리핑 출처"]'), '빈 출처 구획은 접힘')
+      check(!document.body.textContent.includes('제품설명서'), '이전 근거 잔존 없음')
       briefing.documents.search = { method: 'none', status: 'failed' }
       await render()
-      check(!document.body.textContent.includes('RAG 검색'), '검색 실패에 성공 배지 없음')
+      check(
+        !document.querySelector('[aria-label="브리핑 출처"]').textContent.includes('RAG 검색'),
+        '검색 실패에 성공 배지 없음',
+      )
       delete briefing.documents
       await render()
       check(document.body.textContent.includes('이전 브리핑입니다'), '기존 브리핑 호환')
