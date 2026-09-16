@@ -1,20 +1,102 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
+  gap: var(--s3);
 
   & + & {
     margin-top: var(--s5);
-    padding-top: var(--s4);
+    padding-top: var(--s5);
     border-top: 1px solid var(--line);
   }
 }
 
 .heading {
   margin: 0;
-  color: var(--ink);
-  font-size: 13px;
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+// 이달 실적. 드로어에서 유일하게 테두리를 두른 덩어리라 눈이 먼저 닿습니다.
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--s5);
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.heroLabel {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.heroRate {
+  margin: 0;
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--blue);
+    transition: width var(--t-fast);
+  }
+}
+
+.heroSub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+// 환산값 두 칸. 입력이 아니라는 것이 모양으로 보이게 바탕만 깝니다.
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--s2) var(--s3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+  }
 }
 
 // 값만 늘어놓는 줄. RecordDrawer 의 세부 정보와 같은 모양입니다.
@@ -163,12 +245,37 @@
   }
 }
 
-// 입력칸의 숫자가 길어 눈으로 세기 어렵습니다. 원 단위로 한 번 더 읽어 줍니다.
-.amount {
-  margin: 0;
-  color: var(--ink);
-  font-size: 15px;
-  font-weight: 700;
+// 금액 입력칸. FormField 의 `.field input` 보다 세게 두 겹으로 받습니다.
+.money {
+  position: relative;
+
+  .input {
+    padding-right: 140px;
+  }
+}
+
+// 칸 안에 앉은 읽기 전용 글자라 누르면 입력으로 그대로 들어가게 합니다.
+.reading {
+  position: absolute;
+  top: 50%;
+  right: 32px; // 숫자 칸의 위아래 화살표 자리를 비워 둡니다.
+  max-width: 108px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+// 라벨 옆에 붙는 작은 설명. 라벨과 같은 줄에서 한 단계 낮게 읽힙니다.
+.labelNote {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .hint {

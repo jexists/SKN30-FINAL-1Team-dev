@@ -11,14 +11,15 @@ import { useCallback, useEffect, useState } from 'react'
 import Button from '@/components/Button'
 import Drawer from '@/components/Drawer'
 import FormField from '@/components/FormField'
-import OwnerName from '@/components/OwnerName'
 import Select from '@/components/Select'
 import StatusBadge from '@/components/StatusBadge'
 import { errorMessage } from '@/api/errorMessage'
 import { REGION_OPTIONS } from '@/shared/regionCodes'
 import { showToast } from '@/shared/toast'
 import type { HandoverCounts, Role, TeamMemberPatchRequest, TeamMemberRow } from '@/types'
-import { wonFull } from '@/utils/format'
+import { wonFull, wonKorean } from '@/utils/format'
+
+import { health } from '../../health'
 
 import styles from './MemberDrawer.module.scss'
 
@@ -197,19 +198,29 @@ export default function MemberDrawer({
       }
       onClose={onClose}
     >
+      {/* 팀장이 이 사람을 연 까닭은 대개 실적입니다. 고칠 칸보다 먼저 보여 줍니다. */}
+      <section className={styles.hero} aria-label="이달 실적">
+        <div className={styles.heroTop}>
+          <span className={styles.heroLabel}>이달 달성률</span>
+          <StatusBadge {...health(member.achievement_rate)} />
+        </div>
+        <p className={`${styles.heroRate} tnum`}>
+          {member.achievement_rate === null ? '—' : `${member.achievement_rate}%`}
+        </p>
+        {member.achievement_rate !== null && (
+          <div className={styles.bar} aria-hidden="true">
+            <span style={{ width: `${Math.min(100, member.achievement_rate)}%` }} />
+          </div>
+        )}
+        <p className={`${styles.heroSub} tnum`}>
+          {member.achievement_rate === null
+            ? '목표를 정하면 달성률이 보입니다.'
+            : `${wonFull(member.confirmed_amount)} / ${wonFull(member.target_amount)}`}
+        </p>
+      </section>
+
       <section className={styles.section}>
         <h3 className={styles.heading}>기본 정보</h3>
-        <dl className={styles.facts}>
-          <div>
-            <dt>이름</dt>
-            <dd>{member.display_name}</dd>
-          </div>
-          <div>
-            <dt>이메일</dt>
-            <dd>{member.email ?? '—'}</dd>
-          </div>
-        </dl>
-
         <div className={styles.fields}>
           <FormField label="직책">
             <input
@@ -248,7 +259,16 @@ export default function MemberDrawer({
 
           {/* 색은 목록에서 담당자를 가르는 표시라 인사 정보와 함께 둡니다. 고른 색을 연하게
               바꾸지 않고 그대로 씁니다. 읽히지 않을 만큼 어두우면 글자만 흰색이 됩니다. */}
-          <FormField label="담당자 색상" error={colorValid ? undefined : COLOR_ERROR}>
+          <FormField
+            wide
+            label={
+              <>
+                담당자 색상
+                <span className={styles.labelNote}>모든 담당자 태그 색상입니다.</span>
+              </>
+            }
+            error={colorValid ? undefined : COLOR_ERROR}
+          >
             <div className={styles.colorRow}>
               <input
                 type="color"
@@ -275,20 +295,15 @@ export default function MemberDrawer({
           </FormField>
         </div>
 
-        {/* 목표 매출의 환산 안내와 같은 자리, 같은 크기입니다. 이름표를 문장 안에 세워 두면
-            무엇이 어디에 쓰이는지 따로 이름 붙여 설명할 것이 없습니다.
+        {/* 정해 둔 색이 있을 때만 나옵니다. 늘 흐릿하게 꺼져 있는 버튼은 자리만 차지합니다.
             지우기는 격자 밖에 둡니다. 라벨 안의 버튼을 누르면 색 고르기 창까지 함께 열립니다. */}
-        <p className={styles.colorNote}>
-          <span>
-            일정 목록에서 <OwnerName name={member.display_name} color={nextColor} /> 처럼 보입니다.
-          </span>
-          {/* 정해 둔 색이 있을 때만 나옵니다. 늘 흐릿하게 꺼져 있는 버튼은 자리만 차지합니다. */}
-          {color !== '' && (
+        {color !== '' && (
+          <p className={styles.colorNote}>
             <button type="button" className={styles.clear} onClick={() => setColor('')}>
               기본 회색으로 되돌리기
             </button>
-          )}
-        </p>
+          </p>
+        )}
 
         {isSelf && (
           <p className={styles.hint}>
@@ -299,49 +314,38 @@ export default function MemberDrawer({
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>목표 매출</h3>
-        <div className={styles.fields}>
-          <FormField label={`월 목표 (${targetMonth})`}>
+        <div>
+          <h3 className={styles.heading}>목표 매출</h3>
+          <p className={styles.hint}>월 목표만 저장되고, 분기·연간은 ×3·×12 환산값입니다.</p>
+        </div>
+        <FormField label={`월 목표 (${targetMonth})`}>
+          {/* 입력칸의 숫자가 길어 눈으로 세기 어렵습니다. 한글 단위로 칸 안 오른쪽에서 읽어 줍니다.
+              칸 밖 한 줄로 두면 같은 금액이 세 번(입력·₩·한글) 늘어서 오히려 시끄럽습니다. */}
+          <div className={styles.money}>
             <input
               type="number"
               className={`${styles.input} tnum`}
               value={monthlyTarget}
               min={0}
               step={1_000_000}
+              aria-describedby="member-target-reading"
               onChange={(event) => setMonthlyTarget(Math.max(0, Number(event.target.value)))}
             />
-          </FormField>
-        </div>
-        <p className={styles.amount}>{wonFull(monthlyTarget)}</p>
+            <span id="member-target-reading" className={styles.reading}>
+              {wonKorean(monthlyTarget)}
+            </span>
+          </div>
+        </FormField>
 
         {/* 저장하는 값은 월 목표 하나입니다. 아래 둘은 읽기 전용 환산값입니다. */}
-        <dl className={styles.facts}>
+        <dl className={styles.stats}>
           <div>
-            <dt>분기 목표</dt>
+            <dt>분기 환산</dt>
             <dd className="tnum">{wonFull(monthlyTarget * 3)}</dd>
           </div>
           <div>
-            <dt>연간 목표</dt>
+            <dt>연간 환산</dt>
             <dd className="tnum">{wonFull(monthlyTarget * 12)}</dd>
-          </div>
-        </dl>
-        <p className={styles.hint}>
-          분기·연간은 월 목표를 3배·12배로 환산한 값입니다. 저장되는 것은 월 목표뿐입니다.
-        </p>
-      </section>
-
-      <section className={styles.section}>
-        <h3 className={styles.heading}>이달 실적</h3>
-        <dl className={styles.facts}>
-          <div>
-            <dt>현재 매출</dt>
-            <dd className="tnum">{wonFull(member.confirmed_amount)}</dd>
-          </div>
-          <div>
-            <dt>달성률</dt>
-            <dd className="tnum">
-              {member.achievement_rate === null ? '목표 미설정' : `${member.achievement_rate}%`}
-            </dd>
           </div>
         </dl>
       </section>

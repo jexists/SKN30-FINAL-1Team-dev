@@ -8,6 +8,21 @@ export function wonFull(n: number): string {
   return `₩${n.toLocaleString('ko-KR')}`
 }
 
+/** 123450000 → 1억 2,345만 원. 긴 금액을 소리 내어 읽듯 한글 단위로 보여 줍니다. */
+export function wonKorean(n: number): string {
+  if (n === 0) return '0원'
+  const parts = [
+    [Math.floor(n / 1e8), '억'],
+    [Math.floor((n % 1e8) / 1e4), '만'],
+    [n % 1e4, ''],
+  ] as const
+  const text = parts
+    .filter(([value]) => value > 0)
+    .map(([value, unit]) => `${value.toLocaleString('ko-KR')}${unit}`)
+    .join(' ')
+  return `${text}원`
+}
+
 /**
  * 1234567890 → 123-45-67890. 저장은 숫자 10자리로 하고 하이픈은 화면에서만 붙입니다.
  *

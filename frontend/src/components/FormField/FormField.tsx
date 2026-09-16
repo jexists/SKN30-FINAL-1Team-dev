@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import styles from './FormField.module.scss'
 
 interface Props {
-  label: string
+  label: ReactNode
   required?: boolean
   error?: string
   /** 두 칸 배치에서 한 줄을 다 쓰게 합니다. */
