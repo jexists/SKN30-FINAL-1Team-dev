@@ -37,50 +37,78 @@
   gap: var(--s2);
 }
 
+// 한 품목은 옅은 면 하나로 묶습니다. 테두리를 두르면 입력칸 테두리와 겹쳐 표처럼 보입니다.
 .item {
   display: grid;
-  gap: 4px;
+  gap: var(--s2);
+  padding: var(--s3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
 }
 
-.itemRow {
+// 제품 이름이 길어 폭 전체를 줍니다. 삭제만 끝에 붙습니다.
+.productRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px 116px 116px 32px;
+  grid-template-columns: minmax(0, 1fr) 36px;
   align-items: center;
   gap: var(--s2);
+}
 
-  @include sm {
-    // 폰에서는 제품이 한 줄을 다 쓰고 수량·단가·금액·삭제가 아래로 내려옵니다.
-    grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr) 32px;
+.calcRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.num {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  > span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
   }
 }
 
-.product {
-  @include sm {
-    grid-column: 1 / -1;
-  }
-}
-
-.qty,
-.price {
+// .root input 의 width: 100% 를 이기도록 태그를 붙입니다.
+input.qty,
+input.price {
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-// 입력칸이 아니라 계산 결과라 배경 없이 숫자만 오른쪽에 붙입니다.
-.amount {
-  overflow: hidden;
-  color: var(--ink);
+input.qty {
+  width: 72px;
+}
+
+input.price {
+  width: 140px;
+}
+
+.times {
+  color: var(--muted);
   font-size: 13px;
+}
+
+// 입력칸이 아니라 계산 결과라 배경 없이 숫자만 오른쪽 끝에 붙입니다.
+.amount {
+  margin-left: auto;
+  color: var(--ink);
+  font-size: 14px;
   font-weight: 600;
   text-align: right;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .remove {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-sm);
   background: var(--surface);
@@ -100,10 +128,11 @@
 }
 
 .addItem {
-  justify-self: start;
-  padding: 6px var(--s3);
+  height: var(--control-h);
+  margin-top: 2px;
+  padding: 0 var(--s3);
   border: 1px dashed var(--line-2);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: transparent;
   color: var(--ink-2);
   font-size: 12px;

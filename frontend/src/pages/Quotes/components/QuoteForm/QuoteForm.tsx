@@ -33,6 +33,8 @@ import DayPicker from '@/components/DayPicker'
 import Field from '@/components/FormField'
 import { toSalesDeal, type SalesDeal } from '@/pages/Deals/useSalesDeals'
 
+import ProductPreview from './ProductPreview'
+
 import styles from './QuoteForm.module.scss'
 
 interface Props {
@@ -193,6 +195,8 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
   }
 
   const editing = deal?.quoteStatusCode != null
+  // 제품을 하나라도 고르면 옆에 제품 정보를 폅니다.
+  const previewing = form.items.some((item) => item.productId !== '')
 
   return (
     <Modal
@@ -200,6 +204,8 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
       description={
         target ? `${target.no} · ${target.org}` : '견적은 영업 딜에 붙습니다. 먼저 딜을 고르세요.'
       }
+      size={previewing ? 'xl' : 'md'}
+      flushBody
       onClose={close}
       onSubmit={() => void submit()}
       footer={
@@ -213,150 +219,167 @@ export default function QuoteForm({ deal, statuses, onClose, onSubmit }: Props) 
         </>
       }
     >
-      <div className={styles.grid}>
-        {deal === undefined && (
-          <Field label="영업 딜" required error={errors.deal} wide>
-            <RecordPicker<SalesDealResponse>
-              path="/sales-deals"
-              label="영업 딜"
-              placeholder="딜 번호나 고객사로 검색"
-              params={{ sales_pipeline_status_code: ['published'] }}
-              emptyText="일치하는 영업 딜이 없습니다."
-              loadingText="영업 딜을 불러오는 중입니다."
-              fallback="영업 딜을 불러오지 못했습니다."
-              value={target === null ? null : { id: target.id, label: target.no, note: target.org }}
-              disabled={submitting}
-              invalid={errors.deal !== undefined}
-              toOption={(row) => ({
-                id: row.id,
-                label: row.deal_no,
-                note: row.customer_company_name,
-              })}
-              onChange={(_next, row) => {
-                const picked = row === null ? null : toSalesDeal(row)
-                setTarget(picked)
-                setErrors((current) => ({ ...current, deal: undefined }))
-                // 이미 견적이 있는 딜을 고르면 그 값에서 이어 씁니다.
-                if (picked) setForm(initialState(picked, statuses))
-              }}
-            />
-          </Field>
-        )}
+      {/* 패널이 생겨도 폼 줄기는 같은 자리에 둡니다. 감싸는 요소가 바뀌면 입력 중인 칸이 포커스를 잃습니다. */}
+      <div className={styles.split} data-open={previewing}>
+        <div className={styles.formPane}>
+          <div className={styles.grid}>
+            {deal === undefined && (
+              <Field label="영업 딜" required error={errors.deal} wide>
+                <RecordPicker<SalesDealResponse>
+                  path="/sales-deals"
+                  label="영업 딜"
+                  placeholder="딜 번호나 고객사로 검색"
+                  params={{ sales_pipeline_status_code: ['published'] }}
+                  emptyText="일치하는 영업 딜이 없습니다."
+                  loadingText="영업 딜을 불러오는 중입니다."
+                  fallback="영업 딜을 불러오지 못했습니다."
+                  value={
+                    target === null ? null : { id: target.id, label: target.no, note: target.org }
+                  }
+                  disabled={submitting}
+                  invalid={errors.deal !== undefined}
+                  toOption={(row) => ({
+                    id: row.id,
+                    label: row.deal_no,
+                    note: row.customer_company_name,
+                  })}
+                  onChange={(_next, row) => {
+                    const picked = row === null ? null : toSalesDeal(row)
+                    setTarget(picked)
+                    setErrors((current) => ({ ...current, deal: undefined }))
+                    // 이미 견적이 있는 딜을 고르면 그 값에서 이어 씁니다.
+                    if (picked) setForm(initialState(picked, statuses))
+                  }}
+                />
+              </Field>
+            )}
 
-        <Field label="견적번호">
-          <input
-            value={form.no}
-            disabled={submitting}
-            maxLength={254}
-            placeholder="비우면 딜 번호로 봅니다"
-            onChange={(event) => set('no', event.target.value)}
-          />
-        </Field>
+            <Field label="견적번호">
+              <input
+                value={form.no}
+                disabled={submitting}
+                maxLength={254}
+                placeholder="비우면 딜 번호로 봅니다"
+                onChange={(event) => set('no', event.target.value)}
+              />
+            </Field>
 
-        <Field label="견적상태" required error={errors.statusCode} htmlFor={false}>
-          <Select
-            label="견적상태"
-            value={form.statusCode}
-            options={statuses.map((status) => ({ value: status.code, label: status.name }))}
-            placeholder="견적 상태를 선택하세요"
-            invalid={errors.statusCode !== undefined}
-            disabled={submitting || statuses.length === 0}
-            onChange={(next) => set('statusCode', next)}
-          />
-        </Field>
+            <Field label="견적상태" required error={errors.statusCode} htmlFor={false}>
+              <Select
+                label="견적상태"
+                value={form.statusCode}
+                options={statuses.map((status) => ({ value: status.code, label: status.name }))}
+                placeholder="견적 상태를 선택하세요"
+                invalid={errors.statusCode !== undefined}
+                disabled={submitting || statuses.length === 0}
+                onChange={(next) => set('statusCode', next)}
+              />
+            </Field>
 
-        <Field label="견적일" required error={errors.issuedOn} htmlFor={false}>
-          <DayPicker
-            label="견적일"
-            fill
-            fixed
-            selected={toDate(form.issuedOn)}
-            invalid={errors.issuedOn !== undefined}
-            disabled={submitting}
-            onChange={(date) => setIssuedOn(toISO(date))}
-          />
-        </Field>
+            <Field label="견적일" required error={errors.issuedOn} htmlFor={false}>
+              <DayPicker
+                label="견적일"
+                fill
+                fixed
+                selected={toDate(form.issuedOn)}
+                invalid={errors.issuedOn !== undefined}
+                disabled={submitting}
+                onChange={(date) => setIssuedOn(toISO(date))}
+              />
+            </Field>
 
-        <Field label="견적 유효기간" required error={errors.validUntil} htmlFor={false}>
-          <Select
-            label="견적 유효기간"
-            value={form.validMonths}
-            options={VALID_MONTH_OPTIONS}
-            invalid={errors.validUntil !== undefined}
-            disabled={submitting}
-            onChange={setValidMonths}
-          />
-          {/* 저장하는 것은 날짜입니다. 고른 기간이 며칠까지인지 바로 보여 줍니다. */}
-          {form.validMonths !== CUSTOM_VALID && (
-            <span className={styles.hint}>
-              {DATE_RE.test(form.validUntil)
-                ? `${fmtDot(parseISO(form.validUntil))} 까지`
-                : '견적일을 먼저 고르세요'}
-            </span>
+            <Field label="견적 유효기간" required error={errors.validUntil} htmlFor={false}>
+              <Select
+                label="견적 유효기간"
+                value={form.validMonths}
+                options={VALID_MONTH_OPTIONS}
+                invalid={errors.validUntil !== undefined}
+                disabled={submitting}
+                onChange={setValidMonths}
+              />
+              {/* 저장하는 것은 날짜입니다. 고른 기간이 며칠까지인지 바로 보여 줍니다. */}
+              {form.validMonths !== CUSTOM_VALID && (
+                <span className={styles.hint}>
+                  {DATE_RE.test(form.validUntil)
+                    ? `${fmtDot(parseISO(form.validUntil))} 까지`
+                    : '견적일을 먼저 고르세요'}
+                </span>
+              )}
+            </Field>
+
+            {form.validMonths === CUSTOM_VALID && (
+              <Field label="유효기한" required error={errors.validUntil} htmlFor={false}>
+                <DayPicker
+                  label="유효기한"
+                  fill
+                  fixed
+                  selected={toDate(form.validUntil)}
+                  minDate={toDate(form.issuedOn) ?? undefined}
+                  invalid={errors.validUntil !== undefined}
+                  disabled={submitting}
+                  onChange={(date) => set('validUntil', toISO(date))}
+                />
+              </Field>
+            )}
+
+            {/* 견적을 내는 쪽과 받는 쪽은 딜에서 따라옵니다. 고를 것이 아닙니다. */}
+            <Field label="견적업체명">
+              <input
+                value={target?.teamCompanyName ?? ''}
+                readOnly
+                disabled
+                aria-label="견적업체명"
+              />
+            </Field>
+
+            <Field label="견적수령업체">
+              <input value={target?.org ?? ''} readOnly disabled aria-label="견적수령업체" />
+            </Field>
+
+            <Field label="납품예상일자" wide>
+              <input
+                value={form.deliveryTerms}
+                disabled={submitting}
+                maxLength={254}
+                placeholder="계약완료 후 14일 이내"
+                onChange={(event) => set('deliveryTerms', event.target.value)}
+              />
+            </Field>
+
+            <div className={styles.wide}>
+              <ItemRows
+                items={form.items}
+                error={errors.items}
+                rows={errors.itemRows}
+                disabled={submitting}
+                onChange={(items) => set('items', items)}
+              />
+            </div>
+
+            <Field label="메모" wide>
+              <textarea
+                rows={3}
+                value={form.memo}
+                disabled={submitting}
+                maxLength={5000}
+                placeholder="고객 요청사항 등 입력"
+                onChange={(event) => set('memo', event.target.value)}
+              />
+            </Field>
+          </div>
+
+          {submitError && (
+            <p className={styles.submitError} role="alert">
+              {submitError}
+            </p>
           )}
-        </Field>
-
-        {form.validMonths === CUSTOM_VALID && (
-          <Field label="유효기한" required error={errors.validUntil} htmlFor={false}>
-            <DayPicker
-              label="유효기한"
-              fill
-              fixed
-              selected={toDate(form.validUntil)}
-              minDate={toDate(form.issuedOn) ?? undefined}
-              invalid={errors.validUntil !== undefined}
-              disabled={submitting}
-              onChange={(date) => set('validUntil', toISO(date))}
-            />
-          </Field>
-        )}
-
-        {/* 견적을 내는 쪽과 받는 쪽은 딜에서 따라옵니다. 고를 것이 아닙니다. */}
-        <Field label="견적업체명">
-          <input value={target?.teamCompanyName ?? ''} readOnly disabled aria-label="견적업체명" />
-        </Field>
-
-        <Field label="견적수령업체">
-          <input value={target?.org ?? ''} readOnly disabled aria-label="견적수령업체" />
-        </Field>
-
-        <Field label="납품예상일자" wide>
-          <input
-            value={form.deliveryTerms}
-            disabled={submitting}
-            maxLength={254}
-            placeholder="계약완료 후 14일 이내"
-            onChange={(event) => set('deliveryTerms', event.target.value)}
-          />
-        </Field>
-
-        <div className={styles.wide}>
-          <ItemRows
-            items={form.items}
-            error={errors.items}
-            rows={errors.itemRows}
-            disabled={submitting}
-            onChange={(items) => set('items', items)}
-          />
         </div>
-
-        <Field label="메모" wide>
-          <textarea
-            rows={3}
-            value={form.memo}
-            disabled={submitting}
-            maxLength={5000}
-            placeholder="고객 요청사항 등 입력"
-            onChange={(event) => set('memo', event.target.value)}
-          />
-        </Field>
+        {previewing && (
+          <aside className={styles.previewPane} aria-label="고른 제품 정보">
+            <ProductPreview items={form.items} />
+          </aside>
+        )}
       </div>
-
-      {submitError && (
-        <p className={styles.submitError} role="alert">
-          {submitError}
-        </p>
-      )}
     </Modal>
   )
 }

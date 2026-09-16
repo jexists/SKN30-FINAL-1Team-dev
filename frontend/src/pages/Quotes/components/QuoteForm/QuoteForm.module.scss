@@ -24,3 +24,44 @@
   color: var(--red-ink);
   font-size: 12px;
 }
+
+/*
+ * 왼쪽 폼, 오른쪽 제품 정보. 폼과 패널이 각자 스크롤합니다.
+ * 좁은 화면에서는 나란히 둘 자리가 없어 패널을 폼 아래로 내립니다.
+ */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+
+  &[data-open='true'] {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+
+  @include md {
+    &[data-open='true'] {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+  }
+}
+
+.formPane {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5);
+}
+
+.previewPane {
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--surface-2);
+
+  @include md {
+    max-height: 40vh;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}

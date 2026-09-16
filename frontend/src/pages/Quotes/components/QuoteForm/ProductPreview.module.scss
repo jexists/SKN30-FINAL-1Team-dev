@@ -1,0 +1,22 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+// 제품 이름이 길어도 탭 줄만 옆으로 밀립니다.
+.tabs {
+  flex: none;
+  overflow-x: auto;
+  padding: var(--s3) var(--s4) 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s4);
+}

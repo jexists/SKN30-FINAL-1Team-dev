@@ -40,6 +40,8 @@ export function validateItems(items: ItemState[]): { message?: string; rows?: It
   items.forEach((item, index) => {
     const row: Partial<Record<keyof ItemState, string>> = {}
     if (item.productId === '') row.productId = '제품을 선택하세요.'
+    else if (items.findIndex((other) => other.productId === item.productId) !== index)
+      row.productId = '이미 추가한 제품입니다.'
 
     const qty = itemNumber(item.qty)
     if (!/^\d+$/.test(item.qty) || !Number.isSafeInteger(qty) || qty <= 0)

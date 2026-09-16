@@ -39,6 +39,11 @@
   width: min(100%, 720px);
 }
 
+// 폼 옆에 참고 패널을 함께 펴는 모달.
+.isXLarge {
+  width: min(100%, 960px);
+}
+
 .form {
   display: flex;
   flex-direction: column;

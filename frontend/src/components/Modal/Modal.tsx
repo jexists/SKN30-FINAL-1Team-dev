@@ -6,9 +6,10 @@ import { lockScroll } from '@/shared/scrollLock'
 
 import styles from './Modal.module.scss'
 
-const SIZE_CLASS: Record<'md' | 'lg', string> = {
+const SIZE_CLASS: Record<'md' | 'lg' | 'xl', string> = {
   md: '',
   lg: styles.isLarge,
+  xl: styles.isXLarge,
 }
 
 interface ModalProps {
@@ -19,7 +20,7 @@ interface ModalProps {
   footer?: ReactNode
   /** 폼 모달이면 다이얼로그 본문을 <form> 으로 감쌉니다. */
   onSubmit?: () => void
-  size?: 'md' | 'lg'
+  size?: 'md' | 'lg' | 'xl'
   /**
    * 본문의 여백과 스크롤을 자식에게 넘길지. 좌우로 나눈 뒤 한쪽만 스크롤시키는
    * 화면처럼, 본문이 스크롤 영역을 스스로 정해야 할 때만 켭니다.
