@@ -117,6 +117,12 @@ def test_briefing_prompt_is_scannable_for_a_salesperson_before_the_meeting():
     assert "제품 자료로 계약 조건·가격·수량·납기" in prompt
     assert "[제품 상세 근거]가 없다는 사실은 내부 조회 상태" in prompt
     assert "관련 언급을 조용히 생략하라" in prompt
+    # 스캔 문서는 OCR을 타 표가 흐트러진 채로 온다. 읽지 못한 값을 나열하거나 처리 과정을
+    # 사용자에게 설명하지 않고, 확정할 수 있는 사실만 남기게 한다.
+    assert "어떤 값이 어느 항목의 것인지 확정할 수 없으면" in prompt
+    assert "읽지 못했다는 것은 내부 처리 상태" in prompt
+    assert "판독·훼손 같은 처리 용어를 쓰지 말고" in prompt
+    assert "남는 내용이 없으면 그 하이라이트는 만들지 마라" in prompt
     assert "HighlightBriefingOutput 도구로 반환" in prompt
     assert "코드 블록 JSON으로 출력하지 마라" in prompt
 
