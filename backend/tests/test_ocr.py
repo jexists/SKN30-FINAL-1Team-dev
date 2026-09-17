@@ -196,6 +196,112 @@ async def test_runpod_failure_falls_back_to_local_ocr(monkeypatch):
     assert result.payload["ocr_fallback"]["reason"] == "runpod_poll_timeout"
 
 
+@pytest.mark.anyio
+async def test_runpod_pdf_retries_all_pages_as_images_when_korean_is_missing(monkeypatch):
+    from app.services.document_extraction import ExtractedDocument
+
+    calls = []
+
+    async def _runpod(**kwargs):
+        calls.append(kwargs)
+        if kwargs["media_type"] == "application/pdf":
+            return ExtractedDocument(
+                plain_text="合同条款 合同金额 1234567890 合同期限 付款条件 甲方乙方 签署日期 违约责任",
+                markdown="合同条款 合同金额 1234567890 合同期限 付款条件 甲方乙方 签署日期 违约责任",
+                payload={},
+            )
+        return ExtractedDocument(
+            plain_text=f"페이지 {len(calls) - 1} 계약 내용",
+            markdown=f"페이지 {len(calls) - 1} 계약 내용",
+            payload={},
+        )
+
+    monkeypatch.setattr(type(ocr.settings), "ocr_configured", property(lambda self: True))
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "runpod")
+    monkeypatch.setattr(ocr.settings, "ocr_local_language", "korean")
+    monkeypatch.setattr(ocr.settings, "ocr_runpod_pdf_image_retry", True)
+    monkeypatch.setattr(ocr, "render_pdf_pages_png", lambda _content: [b"png-1", b"png-2"])
+    monkeypatch.setattr(ocr, "_runpod", _runpod)
+    ocr._semaphore_by_loop.clear()
+
+    result = await ocr.extract_document(
+        file_name="contract.pdf",
+        media_type="application/pdf",
+        content=b"pdf",
+        source_url="https://signed.example/contract.pdf",
+    )
+
+    assert [call["media_type"] for call in calls] == ["application/pdf", "image/png", "image/png"]
+    assert calls[0]["source_url"] == "https://signed.example/contract.pdf"
+    assert all(call["source_url"] is None for call in calls[1:])
+    assert result.payload["source_type"] == "runpod_rendered_pdf_image"
+    assert result.payload["ocr_fallback"]["rendered_page_count"] == 2
+    assert "계약 내용" in result.plain_text
+
+
+@pytest.mark.anyio
+async def test_runpod_pdf_request_failure_retries_all_pages_as_images(monkeypatch):
+    from app.services.document_extraction import ExtractedDocument
+
+    calls = []
+
+    async def _runpod(**kwargs):
+        calls.append(kwargs)
+        if kwargs["media_type"] == "application/pdf":
+            raise ocr.OcrError("runpod_job_failed")
+        return ExtractedDocument(
+            plain_text="제품 식별자 URF-V",
+            markdown="제품 식별자 URF-V",
+            payload={},
+        )
+
+    monkeypatch.setattr(type(ocr.settings), "ocr_configured", property(lambda self: True))
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "runpod")
+    monkeypatch.setattr(ocr.settings, "ocr_local_language", "korean")
+    monkeypatch.setattr(ocr.settings, "ocr_runpod_pdf_image_retry", True)
+    monkeypatch.setattr(ocr, "render_pdf_pages_png", lambda _content: [b"png-1", b"png-2"])
+    monkeypatch.setattr(ocr, "_runpod", _runpod)
+    ocr._semaphore_by_loop.clear()
+
+    result = await ocr.extract_document(
+        file_name="product.pdf",
+        media_type="application/pdf",
+        content=b"pdf",
+    )
+
+    assert [call["media_type"] for call in calls] == ["application/pdf", "image/png", "image/png"]
+    assert result.payload["source_type"] == "runpod_rendered_pdf_image"
+    assert result.payload["ocr_fallback"]["reason"] == "runpod_pdf_request_failed"
+    assert result.payload["ocr_fallback"]["initial_hangul_characters"] is None
+
+
+@pytest.mark.anyio
+async def test_runpod_pdf_keeps_normal_korean_result_without_image_retry(monkeypatch):
+    from app.services.document_extraction import ExtractedDocument
+
+    async def _runpod(**_kwargs):
+        return ExtractedDocument(
+            plain_text="계약 조건과 지급 조건을 확인합니다.",
+            markdown="계약 조건과 지급 조건을 확인합니다.",
+            payload={},
+        )
+
+    monkeypatch.setattr(type(ocr.settings), "ocr_configured", property(lambda self: True))
+    monkeypatch.setattr(ocr.settings, "ocr_provider", "runpod")
+    monkeypatch.setattr(ocr.settings, "ocr_local_language", "korean")
+    monkeypatch.setattr(ocr.settings, "ocr_runpod_pdf_image_retry", True)
+    monkeypatch.setattr(ocr, "render_pdf_pages_png", lambda _content: pytest.fail("unexpected retry"))
+    monkeypatch.setattr(ocr, "_runpod", _runpod)
+
+    result = await ocr.extract_document(
+        file_name="quote.pdf",
+        media_type="application/pdf",
+        content=b"pdf",
+    )
+
+    assert result.plain_text.startswith("계약 조건")
+
+
 def test_runpod_mineru_result_is_normalized(monkeypatch):
     monkeypatch.setattr(ocr.settings, "ocr_runpod_contract", "mineru")
     result = _runpod_result(

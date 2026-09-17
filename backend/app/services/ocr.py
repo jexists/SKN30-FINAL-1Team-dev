@@ -31,6 +31,7 @@ class OcrError(Exception):
 
 _semaphore_by_loop: WeakKeyDictionary[Any, asyncio.Semaphore] = WeakKeyDictionary()
 _semaphore_lock = Lock()
+_pdf_render_lock_by_loop: WeakKeyDictionary[Any, asyncio.Lock] = WeakKeyDictionary()
 
 
 def _ocr_semaphore() -> asyncio.Semaphore:
@@ -44,6 +45,17 @@ def _ocr_semaphore() -> asyncio.Semaphore:
         return semaphore
 
 
+def _pdf_render_lock() -> asyncio.Lock:
+    """PDFium 네이티브 렌더링을 이벤트 루프별로 한 건씩 실행한다."""
+    loop = asyncio.get_running_loop()
+    with _semaphore_lock:
+        lock = _pdf_render_lock_by_loop.get(loop)
+        if lock is None:
+            lock = asyncio.Lock()
+            _pdf_render_lock_by_loop[loop] = lock
+        return lock
+
+
 # 스캔 등록증 한 장을 읽기에 충분한 해상도. 더 키우면 전송 용량만 늘고 인식은 나아지지 않는다.
 PDF_RENDER_TARGET_SIDE = 2_200
 PDF_RENDER_MIN_SIDE = 1_100
@@ -54,8 +66,21 @@ _OPENAI_OCR_PROMPT = (
 _OPENAI_OCR_URL = "https://api.openai.com/v1/responses"
 
 
-def render_pdf_page_png(content: bytes, *, page_number: int = 1) -> bytes:
-    """스캔 PDF 한 장을 PNG로 굽는다.
+def _render_pdf_page(page: Any, *, target_side: int) -> bytes:
+    """한 PDF 페이지를 RunPod 인라인 한도 안의 PNG로 렌더링한다."""
+    longest_point_side = max(page.get_width(), page.get_height()) or 1
+    while True:
+        rendered = page.render(scale=target_side / longest_point_side).to_pil()
+        buffer = BytesIO()
+        rendered.save(buffer, format="PNG")
+        png = buffer.getvalue()
+        if len(png) <= settings.ocr_runpod_inline_max_bytes or target_side <= PDF_RENDER_MIN_SIDE:
+            return png
+        target_side = max(PDF_RENDER_MIN_SIDE, target_side // 2)
+
+
+def render_pdf_pages_png(content: bytes) -> list[bytes]:
+    """스캔 PDF의 모든 페이지를 PNG로 굽는다.
 
     PDF는 pdf-inspector 경로로 가는데 그쪽에는 한국어 설정이 걸려 있지 않다.
     이미지로 바꿔 보내면 PaddleOCR의 한국어 엔진 경로를 그대로 탄다.
@@ -67,34 +92,45 @@ def render_pdf_page_png(content: bytes, *, page_number: int = 1) -> bytes:
     except ImportError as error:
         raise OcrError("pdf_render_dependency_missing") from error
 
-    target_side = PDF_RENDER_TARGET_SIDE
     try:
         document = pypdfium2.PdfDocument(content)
         try:
-            if page_number < 1 or page_number > len(document):
-                raise OcrError("pdf_render_page_out_of_range")
-            page = document[page_number - 1]
-            # 원본이 커도 작아도 같은 해상도로 맞춘다. 고정 배율은 용지 크기에 따라
-            # 결과가 흔들린다.
-            longest_point_side = max(page.get_width(), page.get_height()) or 1
-            while True:
-                rendered = page.render(scale=target_side / longest_point_side).to_pil()
-                buffer = BytesIO()
-                rendered.save(buffer, format="PNG")
-                png = buffer.getvalue()
-                if (
-                    len(png) <= settings.ocr_runpod_inline_max_bytes
-                    or target_side <= PDF_RENDER_MIN_SIDE
-                ):
-                    return png
-                # 인라인 전송 한도를 넘으면 한 단계만 줄여 다시 굽는다.
-                target_side = max(PDF_RENDER_MIN_SIDE, target_side // 2)
+            return [
+                _render_pdf_page(document[index], target_side=PDF_RENDER_TARGET_SIDE)
+                for index in range(len(document))
+            ]
         finally:
             document.close()
     except OcrError:
         raise
     except Exception as error:
         raise OcrError(f"pdf_render_failed:{type(error).__name__}") from error
+
+
+def render_pdf_page_png(content: bytes, *, page_number: int = 1) -> bytes:
+    """스캔 PDF의 지정 페이지를 PNG로 굽는다."""
+    try:
+        pages = render_pdf_pages_png(content)
+    except OcrError:
+        raise
+    if page_number < 1 or page_number > len(pages):
+        raise OcrError("pdf_render_page_out_of_range")
+    return pages[page_number - 1]
+
+
+def _is_pdf(file_name: str, media_type: str | None) -> bool:
+    return media_type == "application/pdf" or Path(file_name).suffix.lower() == ".pdf"
+
+
+def _has_insufficient_korean_text(extracted: ExtractedDocument) -> bool:
+    """PDF 텍스트 경로의 한글 깨짐을 보수적으로 감지한다.
+
+    한국어 OCR 설정에서 본문이 충분히 길지만 한글 완성형이 거의 없을 때만
+    렌더링 재시도를 한다. 정상적인 한글 PDF와 이미지 입력에는 적용하지 않는다.
+    """
+    text = extracted.plain_text.strip()
+    hangul_count = sum("가" <= char <= "힣" for char in text)
+    return len(text) >= 40 and hangul_count < 5
 
 
 async def _run_local(
@@ -286,14 +322,43 @@ async def extract_document(
     if settings.ocr_provider == "runpod":
         try:
             async with _ocr_semaphore():
-                return await _runpod(
+                extracted = await _runpod(
                     file_name=file_name,
                     media_type=media_type,
                     content=content,
                     source_url=source_url,
                     profile=profile,
                 )
+            if (
+                settings.ocr_runpod_pdf_image_retry
+                and _is_pdf(file_name, media_type)
+                and settings.ocr_local_language == "korean"
+                and _has_insufficient_korean_text(extracted)
+            ):
+                return await _runpod_pdf_as_images(
+                    file_name=file_name,
+                    content=content,
+                    profile=profile,
+                    initial_result=extracted,
+                )
+            return extracted
         except OcrError as remote_error:
+            if (
+                settings.ocr_runpod_pdf_image_retry
+                and _is_pdf(file_name, media_type)
+                and settings.ocr_local_language == "korean"
+            ):
+                try:
+                    return await _runpod_pdf_as_images(
+                        file_name=file_name,
+                        content=content,
+                        profile=profile,
+                        initial_result=None,
+                        fallback_reason="runpod_pdf_request_failed",
+                    )
+                except OcrError:
+                    # Preserve the existing local fallback when the image path also fails.
+                    pass
             return await _local_fallback(
                 file_name=file_name,
                 media_type=media_type,
@@ -314,6 +379,57 @@ async def extract_document(
             profile=profile,
             remote_error=remote_error,
         )
+
+
+async def _runpod_pdf_as_images(
+    *,
+    file_name: str,
+    content: bytes,
+    profile: str,
+    initial_result: ExtractedDocument | None,
+    fallback_reason: str = "insufficient_korean_text",
+) -> ExtractedDocument:
+    """PDF의 모든 페이지를 동일 RunPod 이미지 OCR 경로로 재처리한다."""
+    async with _pdf_render_lock():
+        rendered_pages = await asyncio.to_thread(render_pdf_pages_png, content)
+    pages: list[dict[str, Any]] = []
+    for page_number, png in enumerate(rendered_pages, start=1):
+        async with _ocr_semaphore():
+            page_result = await _runpod(
+                file_name=f"{Path(file_name).stem}-page-{page_number}.png",
+                media_type="image/png",
+                content=png,
+                source_url=None,
+                profile=profile,
+            )
+        pages.append(
+            {
+                "page_number": page_number,
+                "markdown": page_result.markdown,
+                "source": "runpod_rendered_pdf_image",
+            }
+        )
+
+    initial_hangul = (
+        sum("가" <= char <= "힣" for char in initial_result.plain_text)
+        if initial_result
+        else None
+    )
+    return from_page_markdown(
+        pages=pages,
+        source_type="runpod_rendered_pdf_image",
+        payload_extra={
+            "ocr_provider": "runpod",
+            "source_file": file_name,
+            "ocr_fallback": {
+                "from_provider": "runpod_pdf",
+                "reason": fallback_reason,
+                "provider": "runpod_image",
+                "initial_hangul_characters": initial_hangul,
+                "rendered_page_count": len(rendered_pages),
+            },
+        },
+    )
 
 
 async def _runpod(
