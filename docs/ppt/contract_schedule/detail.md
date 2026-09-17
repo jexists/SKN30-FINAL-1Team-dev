@@ -74,7 +74,7 @@
 | 일정 생성·검증 | `schedule_management.py` |
 | 추천 실행 연결 | `contract_next_meeting_pipeline.py` |
 | 브리핑 검색 | `sales_context.py`, `document_processing.py` |
-| 자동 갱신·중복 방지 | `briefing_refresh.py` |
+| 브리핑 재생성 필요 판단 | `briefing_refresh.py` |
 | 실행·결과 조회 | `agent_worker.py`, `activities.py` |
 
 ## 8. 데모 흐름

@@ -29,8 +29,8 @@ from app.services import briefing_documents, briefing_refresh, contract_next_mee
 router = APIRouter(tags=["activities"])
 
 _SEOUL = ZoneInfo("Asia/Seoul")
-# 일정 등록이 만드는 첫 브리핑의 멱등키 네임스페이스. briefing_refresh 도 같은 값을 쓰되
-# "activity_id:revision" 으로 키를 만들어, 첫 브리핑과 이후 갱신이 서로를 막지 않는다.
+# 일정 등록이 만드는 첫 브리핑의 멱등키 네임스페이스. 이후 재생성은 사람이 새로고침을
+# 누를 때마다 새 키로 요청한다.
 _BRIEFING_IDEMPOTENCY_NAMESPACE = uuid5(NAMESPACE_URL, "urn:salesluv:contract_management_briefing")
 # 한 미팅의 브리핑 실행 이력에서 최신 상태를 판정할 때 훑는 행 수. 갱신이 잦아도 최근
 # 몇 건 안에 성공 실행이 들어 있다.
@@ -207,13 +207,35 @@ async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID
     """일정에 연결된 브리핑의 최신 성공 결과와, 갱신이 도는 중인지를 함께 돌려준다.
 
     화면은 이 응답을 읽기만 한다. 여기서 실행을 만들지 않는다 — 미팅 상세를 열었다고
-    RAG 검색이나 LLM 생성을 시작하고 기다리게 하지 않기 위해서다. 만드는 쪽은
-    ``app.services.briefing_refresh`` 가 자료·일정 변경 시점에 미리 예약한다.
+    RAG 검색이나 LLM 생성을 시작하고 기다리게 하지 않기 위해서다. 브리핑은 일정 등록 때
+    한 번 만들고, 그 뒤에는 사람이 새로고침을 눌렀을 때만 다시 만든다.
+
+    대신 게시 중인 브리핑이 본 입력 지문과 지금 지문을 비교해 ``outdated`` 로 알린다.
+    재생성이 도는 중에는 곧 최신 결과가 나오므로 계산하지 않는다 — 화면이 완료를 기다리며
+    반복 조회하는 동안 지문 질의가 되풀이되지 않게 한다.
     """
     published, latest = await _briefing_runs(db, member, activity_id)
     if latest is None:
         return None
     run = published or latest
+    refreshing = latest.status_code in {"queued", "running"}
+    outdated = False
+    stored_revision = (published.source_refs or {}).get("source_revision") if published else None
+    if stored_revision and not refreshing:
+        activity = (
+            await db.execute(
+                select(Activity).where(
+                    Activity.id == activity_id,
+                    Activity.team_id == member.team_id,
+                    Activity.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if activity is not None:
+            current_revision = await briefing_refresh.source_revision(
+                db, activity=activity, member=await briefing_refresh.owner(db, activity)
+            )
+            outdated = current_revision != stored_revision
     # 이미 성공 브리핑이 있는데 그 뒤 갱신이 실패했을 때만 따로 알린다. 보여줄 이전 결과가
     # 없으면 그 실패는 run 자체의 error 로 나간다.
     superseded = published is not None and latest.id != published.id
@@ -225,7 +247,9 @@ async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID
         "generated_at": _seoul(run.finished_at).isoformat() if run.finished_at else None,
         # 갱신이 도는 중이어도 본문을 가리지 않는다. 화면은 이 값으로 작은 상태 문구만
         # 띄우고, 완료되면 조회로 교체한다.
-        "refreshing": latest.status_code in {"queued", "running"},
+        "refreshing": refreshing,
+        # 브리핑을 만든 뒤 입력(자료·보고서·딜·일정 등)이 바뀌었다. 화면은 새로고침을 권한다.
+        "outdated": outdated,
         "refresh_error": (
             latest.error_message
             if superseded and latest.status_code in {"failed", "cancelled"}
@@ -702,8 +726,8 @@ async def create_activity(
                 agent_code="contract_management_briefing",
                 activity_id=activity_id,
                 parent_run_id=schedule_management_run_id,
-                # 등록 직후의 "첫 브리핑" 한 번만 책임진다. 이후 자료·연결이 바뀌어 다시
-                # 만들어야 하는 경우는 briefing_refresh 가 revision 별 멱등키로 예약한다.
+                # 등록 직후의 "첫 브리핑" 한 번만 책임진다. 이후 자료·연결이 바뀌어도 서버가
+                # 다시 만들지 않는다 — 사람이 새로고침을 눌러야 재생성된다.
                 idempotency_key=uuid5(_BRIEFING_IDEMPOTENCY_NAMESPACE, str(activity_id)),
             ),
             member,
@@ -804,22 +828,10 @@ async def _claim_suggestion(
     return suggestion
 
 
-# 이 값들이 바뀌면 브리핑이 검색하는 범위나 대상 시점이 달라진다. 시작 시각은 과거 일정이
-# 미래로 옮겨 오는 경우까지 포함한다 — 그때 비로소 브리핑이 필요해진다.
-_BRIEFING_SOURCE_FIELDS = {
-    "customer_contact_id",
-    "customer_company_id",
-    "sales_deal_id",
-    "product_id",
-    "starts_at",
-}
-
-
 @router.patch("/activities/{activity_id}", response_model=ActivityRead)
 async def update_activity(
     activity_id: UUID,
     payload: ActivityPatch,
-    background: BackgroundTasks,
     member: CurrentMember,
     db: DbSession,
 ) -> ActivityRead:
@@ -868,18 +880,10 @@ async def update_activity(
         activity.updated_at = datetime.now(UTC)
         await db.flush()
         read = _activity_read(*await _activity_row(db, member, activity_id))
-        briefing_affected = bool(_BRIEFING_SOURCE_FIELDS & values.keys())
         await db.commit()
     except Exception:
         await db.rollback()
         raise
-    if briefing_affected:
-        # 커밋 뒤에 예약한다. 응답은 기다리지 않는다 — 수정 요청이 LLM 생성을 붙들고
-        # 있으면 화면이 그만큼 멈춘다.
-        background.add_task(
-            briefing_refresh.schedule_quietly,
-            briefing_refresh.schedule_for_activity(activity_id),
-        )
     return read
 
 

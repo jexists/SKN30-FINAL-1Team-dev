@@ -527,6 +527,9 @@
 }
 
 // 갱신이 도는 중이라는 표시입니다. 제목 옆에 작게만 붙고 본문을 가리지 않습니다.
+// outdatedTag 는 브리핑을 만든 뒤 자료가 바뀌었다는 표시라 같은 모양에 숨쉬기만 빼고,
+// 눌러야 할 새로고침 버튼 바로 앞에 주황으로 섭니다.
+.outdatedTag,
 .refreshTag {
   margin-left: 8px;
   border-radius: 4px;
@@ -536,6 +539,9 @@
   font-size: 10px;
   font-weight: 600;
   vertical-align: middle;
+}
+
+.refreshTag {
   // 지금 돌고 있다는 표시. 껐다 켜는 깜빡임이 아니라 숨쉬듯 옅어졌다 돌아옵니다 —
   // 상태 표시가 깜빡이면 경고로 읽히고, 옆에 선 제목까지 눈이 따라갑니다. 속도는
   // 자리표시자의 반짝임(Skeleton 의 shimmer 1.6s)과 같게 둬 앱 안에서 기다림의
@@ -551,6 +557,17 @@
 
 .refreshButton {
   margin-left: auto;
+}
+
+.outdatedTag {
+  margin-left: auto;
+  background: var(--orange-tint);
+  color: var(--orange-ink);
+  font-size: 11px;
+}
+
+.outdatedTag + .refreshButton {
+  margin-left: 6px;
 }
 
 // 갱신이 도는 동안 남겨 두는 이전 브리핑입니다. 읽을 수는 있게 두되, 지금 값이 아니라고

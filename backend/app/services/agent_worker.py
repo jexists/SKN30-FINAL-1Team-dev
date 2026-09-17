@@ -19,7 +19,7 @@ from app.models.agent import AgentRun
 from app.models.content import Report, ReportDeal
 from app.schemas.agent_runs import AgentCode
 from app.schemas.reports import meeting_attachment_purpose
-from app.services import agent_runs, briefing_refresh, report_attachments
+from app.services import agent_runs, report_attachments
 from app.services.agent_logging import agent_operation, collect_token_usage, log_agent_error
 from app.services.agent_stream import flush_progress_snapshot, progress_context
 
@@ -614,28 +614,6 @@ async def _fail(
             setattr(run, field, value)
 
 
-async def _follow_up_briefing(run: AgentRun) -> None:
-    """브리핑이 도는 사이에 자료가 또 바뀌었으면 후속 실행을 큐에 남긴다.
-
-    후속 예약이 실패해도 방금 만든 브리핑은 이미 저장됐다. 다음 자료 처리나 미팅 수정이
-    같은 미팅을 다시 예약하므로 여기서 실행을 실패로 돌리지 않는다.
-    """
-    if run.agent_code != briefing_refresh.BRIEFING_AGENT_CODE:
-        return
-    if run.status_code != "completed":
-        return
-    try:
-        await briefing_refresh.follow_up_if_stale(run.id)
-    except Exception as error:
-        log_agent_error(
-            error,
-            stage="briefing_refresh.follow_up",
-            run_id=str(run.id),
-            agent_code=run.agent_code,
-            error_code="briefing_refresh_follow_up_failed",
-        )
-
-
 async def _follow_up_contract_schedule(run: AgentRun) -> None:
     """완료된 추천 단계에서 다음 영속 단계 또는 최종 카드를 만든다."""
     if run.status_code != "completed" or not (run.source_refs or {}).get("durable_pipeline"):
@@ -695,7 +673,6 @@ async def run_claimed(run: AgentRun, lease_owner: str) -> None:
                     finally:
                         await flush_progress_snapshot(run.id)
                     await _complete(run, lease_owner, output, usage, review_evidence)
-            await _follow_up_briefing(run)
             await _follow_up_contract_schedule(run)
         except asyncio.CancelledError:
             if await _is_cancelled(run.id):

@@ -565,6 +565,10 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
             {item.customerCompanyId && <InfoHint text={BRIEFING_SCOPE_TEXT} />}
             {/* 갱신 중이라는 표시는 제목 옆에만 둡니다. 본문은 그대로 두고 읽게 합니다. */}
             {briefing?.refreshing && <span className={styles.refreshTag}>최신 자료 반영 중</span>}
+            {/* 브리핑은 새로고침을 눌러야만 바뀝니다. 그 사이 입력이 바뀌었으면 버튼 옆에서 알립니다. */}
+            {briefing?.outdated && !briefingBusy && (
+              <span className={styles.outdatedTag}>반영되지 않은 내용이 있습니다</span>
+            )}
             {item.customerCompanyId && (
               <Button
                 className={styles.refreshButton}

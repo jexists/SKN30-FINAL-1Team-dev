@@ -222,6 +222,23 @@
       )
       check(!document.body.textContent.includes('준비 중'), '기존 결과가 있으면 준비 중 아님')
 
+      // 브리핑을 만든 뒤 입력이 바뀌었으면 본문은 그대로 두고 태그만 띄운다.
+      briefing = structuredClone(fixture)
+      briefing.outdated = true
+      await render()
+      check(document.body.textContent.includes('반영되지 않은 내용이 있습니다'), '재생성 필요 표시')
+      check(document.body.textContent.includes('설치 공간과 전원'), '재생성 필요여도 본문 유지')
+
+      // 재생성 중에는 진행 표시만 남기고 재생성 필요 표시는 숨긴다.
+      briefing = structuredClone(fixture)
+      briefing.outdated = true
+      briefing.refreshing = true
+      await render()
+      check(
+        !document.body.textContent.includes('반영되지 않은 내용이 있습니다'),
+        '재생성 중에는 재생성 필요 표시 숨김',
+      )
+
       // 갱신에 실패해도 마지막 성공 브리핑은 남는다.
       briefing = structuredClone(fixture)
       briefing.refresh_error = 'llm_timeout'

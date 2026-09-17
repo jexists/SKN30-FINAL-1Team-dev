@@ -1,37 +1,34 @@
-"""자료·일정 변경이 AI 브리핑 갱신으로 이어지는 경로.
+"""AI 브리핑 입력 지문과 "재생성 필요" 판단.
 
-여기서 지키려는 것은 넷이다.
+브리핑은 일정 등록 때 한 번 만들고, 그 뒤에는 사람이 새로고침을 눌렀을 때만 다시 만든다.
+여기서 지키려는 것은 셋이다.
 
-* 영향받는 **미래** 미팅만 예약한다. 무관한 딜과 지난 미팅은 건드리지 않는다.
-* 같은 자료 상태(source revision)에 대해서는 한 번만 만든다.
-* 자료 처리가 실패하면 아무것도 예약하지 않는다.
-* 늦게 끝난 옛 실행이 더 새 자료로 만든 브리핑을 덮지 않고, 실패한 갱신이 마지막 성공
+* 브리핑 내용이 달라질 만한 입력(자료·보고서·딜·일정·고객)이 바뀌면 지문이 반드시 바뀐다.
+* 같은 상태면 지문이 같다 — 아무것도 안 바뀌었는데 "재생성 필요"가 뜨지 않는다.
+* 늦게 끝난 옛 실행이 더 새 자료로 만든 브리핑을 덮지 않고, 실패한 재생성이 마지막 성공
   브리핑을 지우지 않는다.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
-from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo
+from uuid import uuid4
 
 import pytest
 
-from app.core.config import settings
 from app.models.agent import AgentRun
 from app.models.crm import Activity
 from app.models.workspace import Member
 from app.services import briefing_refresh
 
 NOW = datetime(2026, 9, 12, 9, tzinfo=UTC)
-# 일정 API 는 서울 오프셋으로만 시각을 받는다.
-_SEOUL = ZoneInfo("Asia/Seoul")
 
 
 class _Result:
-    def __init__(self, *, scalar=None, scalars=(), rows=()):
+    def __init__(self, *, scalar=None, scalars=(), rows=(), one=None):
         self._scalar = scalar
         self._scalars = list(scalars)
         self._rows = list(rows)
+        self._one = one
 
     def scalar_one_or_none(self):
         return self._scalar
@@ -42,6 +39,9 @@ class _Result:
     def all(self):
         return list(self._rows)
 
+    def one_or_none(self):
+        return self._one
+
 
 class _Session:
     """문장 본문을 보고 답을 고르는 가짜 세션. 질의 순서에 묶이지 않게 한다."""
@@ -51,26 +51,26 @@ class _Session:
         *,
         member=None,
         deal_product=None,
-        candidate_deals=(),
+        deals=(),
         item_products=(),
         files=(),
         reports=(),
         products=(),
-        activities=(),
-        existing_run=None,
+        company_name="고객사",
+        contact=("김담당", "구매팀", "과장"),
+        prior_meeting=None,
     ):
         self.member = member
         self.deal_product = deal_product
-        self.candidate_deals = candidate_deals
+        self.deals = deals
         self.item_products = item_products
         self.files = files
         self.reports = reports
         self.products = products
-        self.activities = activities
-        self.existing_run = existing_run
+        self.company_name = company_name
+        self.contact = contact
+        self.prior_meeting = prior_meeting
         self.statements = []
-        self.added = []
-        self.commits = 0
 
     async def execute(self, statement):
         text = str(statement)
@@ -83,30 +83,16 @@ class _Session:
             ("FROM public.document", _Result(rows=self.files)),
             ("FROM public.report", _Result(rows=self.reports)),
             ("FROM public.product", _Result(rows=self.products)),
-            ("FROM public.activity", _Result(scalars=self.activities)),
-            ("FROM public.agent_run", _Result(scalar=self.existing_run)),
+            ("FROM public.customer_company", _Result(scalar=self.company_name)),
+            ("FROM public.customer_contact", _Result(one=self.contact)),
+            ("FROM public.activity", _Result(scalar=self.prior_meeting)),
             ("FROM public.sales_deal_item", _Result(scalars=self.item_products)),
-            (
-                "FROM public.sales_deal",
-                _Result(scalars=self.candidate_deals),
-            ),
+            ("FROM public.sales_deal JOIN public.sales_pipeline_stage", _Result(rows=self.deals)),
             ("FROM public.member", _Result(scalar=self.member)),
         ):
             if marker in text:
                 return result
         raise AssertionError(f"예상하지 못한 질의입니다: {text[:120]}")
-
-    def add(self, value):
-        self.added.append(value)
-
-    async def flush(self):
-        pass
-
-    async def commit(self):
-        self.commits += 1
-
-    async def rollback(self):
-        pass
 
 
 def _member(team_id):
@@ -119,16 +105,20 @@ def _member(team_id):
     )
 
 
-def _activity(team_id, owner_id, *, starts_at=NOW + timedelta(days=3), **overrides):
+def _activity(team_id, owner_id, **overrides):
     values = {
         "id": uuid4(),
         "team_id": team_id,
         "owner_member_id": owner_id,
         "customer_contact_id": uuid4(),
         "customer_company_id": uuid4(),
-        "sales_deal_id": uuid4(),
+        "sales_deal_id": None,
         "product_id": None,
-        "starts_at": starts_at,
+        "title": "정기 미팅",
+        "starts_at": NOW + timedelta(days=3),
+        "ends_at": NOW + timedelta(days=3, hours=1),
+        "location": "본사",
+        "note": "견적 검토",
         "deleted_at": None,
         "completed_at": None,
     }
@@ -136,10 +126,27 @@ def _activity(team_id, owner_id, *, starts_at=NOW + timedelta(days=3), **overrid
     return Activity(**values)
 
 
-@pytest.fixture
-def llm(monkeypatch):
-    monkeypatch.setattr(type(settings), "llm_configured", property(lambda _self: True))
-    monkeypatch.setattr(settings, "llm_model", "test-model", raising=False)
+def _deal(deal_id, **overrides):
+    values = {
+        "id": deal_id,
+        "title": "장비 도입",
+        "phase_code": "quote",
+        "outcome_code": "in_progress",
+        "deal_amount": 1_000_000,
+        "contract_amount": None,
+        "contract_ends_on": None,
+        "contract_payment_terms": None,
+        "quote_valid_until": date(2026, 9, 30),
+        "expected_delivery_at": None,
+    }
+    values.update(overrides)
+    return tuple(values.values())
+
+
+async def _revision(activity, member, **session):
+    return await briefing_refresh.source_revision(
+        _Session(**session), activity=activity, member=member
+    )
 
 
 # ---------------------------------------------------------------- source revision
@@ -150,133 +157,179 @@ async def test_revision_is_stable_for_the_same_material_state():
     team_id = uuid4()
     member = _member(team_id)
     activity = _activity(team_id, member.id)
-    files = [(uuid4(), uuid4(), 1, NOW)]
+    deal_id = uuid4()
+    state = {
+        "deals": [_deal(deal_id)],
+        "files": [(uuid4(), "contract", uuid4(), 1, NOW)],
+        "reports": [(uuid4(), 1, uuid4(), NOW, {})],
+    }
 
-    first = await briefing_refresh.source_revision(
-        _Session(files=files), activity=activity, member=member
-    )
-    second = await briefing_refresh.source_revision(
-        _Session(files=files), activity=activity, member=member
-    )
-
-    assert first == second
-    # 같은 상태면 멱등키도 같다 — 같은 revision 은 한 번만 만들어진다.
-    assert briefing_refresh.idempotency_key(
-        activity.id, first
-    ) == briefing_refresh.idempotency_key(activity.id, second)
-
-
-@pytest.mark.anyio
-async def test_revision_uses_all_company_deals_when_activity_has_no_deal():
-    team_id = uuid4()
-    member = _member(team_id)
-    activity = _activity(team_id, member.id, sales_deal_id=None)
-    candidate_deal_id = uuid4()
-
-    session = _Session(candidate_deals=[candidate_deal_id])
-    revision = await briefing_refresh.source_revision(session, activity=activity, member=member)
-
-    assert revision
-    assert not any("LIMIT" in statement for statement in session.statements)
-    changed = await briefing_refresh.source_revision(
-        _Session(candidate_deals=[]), activity=activity, member=member
-    )
-    assert revision != changed
+    assert await _revision(activity, member, **state) == await _revision(activity, member, **state)
 
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
     "change",
-    ["new_file", "removed_file", "reprocessed", "new_version", "relinked"],
+    ["new_file", "removed_file", "reprocessed", "new_version", "recategorized"],
 )
 async def test_revision_changes_when_the_searchable_state_changes(change):
-    """지문이 바뀌어야 하는 변화들. 하나라도 놓치면 브리핑이 낡은 채로 남는다."""
+    """지문이 바뀌어야 하는 자료 변화들. 하나라도 놓치면 "재생성 필요"가 뜨지 않는다."""
     team_id = uuid4()
     member = _member(team_id)
     activity = _activity(team_id, member.id)
     document_id, file_id = uuid4(), uuid4()
-    before = [(document_id, file_id, 1, NOW)]
+    before = [(document_id, "quote", file_id, 1, NOW)]
     after = {
         # 새 자료가 범위에 들어왔다.
-        "new_file": [*before, (uuid4(), uuid4(), 1, NOW)],
+        "new_file": [*before, (uuid4(), "contract", uuid4(), 1, NOW)],
         # 자료를 지웠다 — 조회 조건에서 빠지므로 목록에서 사라진다.
         "removed_file": [],
         # 재처리로 processed_at 만 바뀌었다.
-        "reprocessed": [(document_id, file_id, 1, NOW + timedelta(hours=1))],
+        "reprocessed": [(document_id, "quote", file_id, 1, NOW + timedelta(hours=1))],
         # 같은 문서를 다시 올려 새 파일이 최신이 됐다.
-        "new_version": [(document_id, uuid4(), 2, NOW)],
-        "relinked": before,
+        "new_version": [(document_id, "quote", uuid4(), 2, NOW)],
+        # 견적서를 계약서로 분류를 바꿨다 — "현재 영업 상태" 근거가 달라진다.
+        "recategorized": [(document_id, "contract", file_id, 1, NOW)],
     }[change]
-    changed_activity = (
-        _activity(team_id, member.id, sales_deal_id=uuid4(), id=activity.id)
-        if change == "relinked"
-        else activity
-    )
 
-    original = await briefing_refresh.source_revision(
-        _Session(files=before), activity=activity, member=member
+    assert await _revision(activity, member, files=before) != await _revision(
+        activity, member, files=after
     )
-    updated = await briefing_refresh.source_revision(
-        _Session(files=after), activity=changed_activity, member=member
-    )
-
-    assert original != updated
 
 
 @pytest.mark.anyio
 async def test_revision_changes_when_a_recent_report_is_finalized():
-    """보고서 저장 트리거가 같은 미팅에 새 브리핑 실행을 만들 수 있어야 한다."""
     team_id = uuid4()
     member = _member(team_id)
     activity = _activity(team_id, member.id)
-    report_id = uuid4()
 
-    original = await briefing_refresh.source_revision(
-        _Session(reports=[]), activity=activity, member=member
-    )
-    updated = await briefing_refresh.source_revision(
-        _Session(reports=[(report_id, 2, uuid4(), NOW, None, None, None, {})]),
-        activity=activity,
-        member=member,
-    )
+    original = await _revision(activity, member, reports=[])
+    updated = await _revision(activity, member, reports=[(uuid4(), 2, uuid4(), NOW, {})])
 
     assert original != updated
 
 
 @pytest.mark.anyio
-async def test_revision_changes_for_a_company_common_report_without_an_open_deal():
+async def test_revision_reads_only_the_current_report_submission():
     team_id = uuid4()
     member = _member(team_id)
-    activity = _activity(team_id, member.id, sales_deal_id=None)
+    activity = _activity(team_id, member.id)
+    session = _Session()
 
-    original_session = _Session(candidate_deals=[], reports=[])
-    original = await briefing_refresh.source_revision(
-        original_session, activity=activity, member=member
-    )
-    updated = await briefing_refresh.source_revision(
-        _Session(
-            candidate_deals=[],
-            reports=[(uuid4(), 1, uuid4(), NOW, None, None, None, {})],
-        ),
-        activity=activity,
-        member=member,
-    )
+    await briefing_refresh.source_revision(session, activity=activity, member=member)
 
-    assert original != updated
-    report_query = next(
-        text for text in original_session.statements if "FROM public.report" in text
-    )
+    report_query = next(text for text in session.statements if "FROM public.report" in text)
     assert "report_submission.id = public.report.current_submission_id" in report_query
 
 
 @pytest.mark.anyio
+async def test_revision_changes_when_a_deal_is_registered():
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+
+    original = await _revision(activity, member, deals=[])
+    updated = await _revision(activity, member, deals=[_deal(uuid4())])
+
+    assert original != updated
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"title": "장비 추가 도입"},
+        {"phase_code": "contract"},
+        {"outcome_code": "won"},
+        {"deal_amount": 2_000_000},
+        {"contract_amount": 1_500_000},
+        {"contract_ends_on": date(2027, 9, 30)},
+        {"contract_payment_terms": "선금 30%"},
+        {"quote_valid_until": date(2026, 10, 15)},
+        {"expected_delivery_at": NOW + timedelta(days=30)},
+    ],
+)
+async def test_revision_changes_when_a_deal_field_changes(change):
+    """브리핑 입력의 딜 요약(sales_deals)에 들어가는 값은 모두 지문에 들어간다."""
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+    deal_id = uuid4()
+
+    original = await _revision(activity, member, deals=[_deal(deal_id)])
+    updated = await _revision(activity, member, deals=[_deal(deal_id, **change)])
+
+    assert original != updated
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"title": "계약 협의"},
+        {"location": "고객사 회의실"},
+        {"note": "계약 조건 확정"},
+        {"starts_at": NOW + timedelta(days=4)},
+        {"ends_at": NOW + timedelta(days=3, hours=2)},
+        {"customer_contact_id": uuid4()},
+        {"customer_company_id": uuid4()},
+    ],
+)
+async def test_revision_changes_when_the_meeting_changes(change):
+    """일정 등록 때 넣은 제목·장소·메모·시각도 브리핑 입력이다."""
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+    changed = _activity(
+        team_id,
+        member.id,
+        **{
+            key: getattr(activity, key)
+            for key in (
+                "id",
+                "customer_contact_id",
+                "customer_company_id",
+                "title",
+                "starts_at",
+                "ends_at",
+                "location",
+                "note",
+            )
+        }
+        | change,
+    )
+
+    assert await _revision(activity, member) != await _revision(changed, member)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "session",
+    [
+        {"company_name": "새 회사명"},
+        {"contact": ("김담당", "구매팀", "부장")},
+        {"contact": ("김담당", "재무팀", "과장")},
+        {"contact": ("이담당", "구매팀", "과장")},
+        # 앞선 일정이 생기면 첫 미팅 브리핑이 관계 브리핑으로 바뀐다.
+        {"prior_meeting": uuid4()},
+    ],
+)
+async def test_revision_changes_when_the_customer_context_changes(session):
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+
+    assert await _revision(activity, member) != await _revision(activity, member, **session)
+
+
+@pytest.mark.anyio
 async def test_revision_applies_the_document_visibility_rule():
-    """팀원이 볼 수 없는 자료 때문에 브리핑이 다시 만들어지지 않도록, 지문 계산에도
+    """담당자가 볼 수 없는 자료 때문에 "재생성 필요"가 뜨지 않도록, 지문 계산에도
     자료실 공개 범위를 그대로 건다."""
     team_id = uuid4()
     member = _member(team_id)
     activity = _activity(team_id, member.id)
-    session = _Session(files=[])
+    session = _Session(deals=[_deal(uuid4())])
 
     await briefing_refresh.source_revision(session, activity=activity, member=member)
 
@@ -286,312 +339,13 @@ async def test_revision_applies_the_document_visibility_rule():
     assert "processing_status" in document_query
 
 
-# ---------------------------------------------------------------- 대상 미팅 선택
-
-
-def test_document_scope_only_covers_the_links_the_document_has():
-    deal_only = briefing_refresh.document_activity_scopes(
-        sales_deal_id=uuid4(), customer_company_id=None, product_id=None
-    )
-    unlinked = briefing_refresh.document_activity_scopes(
-        sales_deal_id=None, customer_company_id=None, product_id=None
-    )
-
-    # 일정은 회사에 붙으므로 딜 자료도 그 딜의 고객사 미팅을 갱신한다.
-    assert len(deal_only) == 1
-    assert "activity.customer_company_id IN" in str(deal_only[0])
-    assert "sales_deal.customer_company_id" in str(deal_only[0])
-    # 아무 데도 안 걸린 자료는 갱신 대상이 없다.
-    assert unlinked == []
-
-
-@pytest.mark.anyio
-async def test_company_refresh_schedules_only_future_company_meetings(monkeypatch):
-    team_id = uuid4()
-    company_id = uuid4()
-    member = _member(team_id)
-    activity = _activity(team_id, member.id, customer_company_id=company_id)
-    session = _Session(activities=[activity])
-    scheduled = []
-
-    async def _schedule(_db, activities):
-        scheduled.extend(activities)
-        return [activity.id]
-
-    monkeypatch.setattr(briefing_refresh, "get_sessionmaker", lambda: lambda: _Context(session))
-    monkeypatch.setattr(briefing_refresh, "schedule_activities", _schedule)
-
-    assert await briefing_refresh.schedule_for_company(
-        team_id=team_id, customer_company_id=company_id
-    ) == [activity.id]
-    assert scheduled == [activity]
-    activity_query = next(text for text in session.statements if "FROM public.activity" in text)
-    assert "customer_company_id" in activity_query
-
-
-def test_product_scope_reaches_the_deal_product_and_the_quote_items():
-    scope = str(briefing_refresh._product_scope(uuid4()))
-
-    assert "activity.customer_company_id IN" in scope
-    assert "FROM public.sales_deal" in scope
-    assert "FROM public.sales_deal_item" in scope
-
-
-@pytest.mark.anyio
-async def test_only_future_uncompleted_meetings_are_selected():
-    team_id = uuid4()
-    session = _Session(activities=[])
-
-    await briefing_refresh._future_meetings(
-        session,
-        team_id=team_id,
-        scopes=[Activity.sales_deal_id == uuid4()],
-        now=NOW,
-    )
-
-    query = session.statements[0]
-    # 지난 미팅은 다시 만들지 않는다.
-    assert "activity.starts_at >=" in query
-    assert "activity.deleted_at IS NULL" in query
-    assert "activity.completed_at IS NULL" in query
-    assert "activity.team_id =" in query
-
-
-# ---------------------------------------------------------------- 예약과 중복 방지
-
-
-@pytest.mark.anyio
-async def test_scheduling_queues_one_run_the_worker_can_claim(llm):
-    team_id = uuid4()
-    member = _member(team_id)
-    activity = _activity(team_id, member.id)
-    session = _Session(member=member, files=[])
-
-    queued = await briefing_refresh.schedule_activities(session, [activity])
-
-    assert len(queued) == 1
-    run: AgentRun = session.added[0]
-    assert run.agent_code == "contract_management_briefing"
-    assert run.status_code == "queued"
-    assert run.trigger_code == "system"
-    # 범용 worker 가 집어가는 조건이다. 새 큐도 새 테이블도 만들지 않는다.
-    assert run.request_hash is not None
-    assert run.requested_by_member_id == member.id
-    assert run.source_refs["activity_id"] == str(activity.id)
-    assert run.source_refs["source_revision"]
-    assert run.source_refs["_worker_pool"] == settings.app_env
-    assert session.commits == 1
-
-
-@pytest.mark.anyio
-async def test_one_conflicting_meeting_does_not_lose_the_others(llm):
-    """UNIQUE 충돌은 그 미팅에서만 끝나야 한다. 한 건 때문에 나머지 예약까지 날리면,
-    같은 자료를 다시 올리기 전까지 그 미팅들은 낡은 브리핑을 그대로 들고 있게 된다."""
-    team_id = uuid4()
-    member = _member(team_id)
-    first, second = _activity(team_id, member.id), _activity(team_id, member.id)
-    taken = {first.id}
-
-    class _Conflicting(_Session):
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
-            self.pending = None
-
-        async def execute(self, statement):
-            if "FROM public.agent_run" in str(statement):
-                return _Result(scalar=None)
-            return await super().execute(statement)
-
-        def add(self, value):
-            self.pending = value
-            super().add(value)
-
-        async def commit(self):
-            from sqlalchemy.exc import IntegrityError
-
-            if UUID(self.pending.source_refs["activity_id"]) in taken:
-                raise IntegrityError("insert", {}, Exception("duplicate key"))
-            await super().commit()
-
-    session = _Conflicting(member=member, files=[])
-
-    queued = await briefing_refresh.schedule_activities(session, [first, second])
-
-    assert len(queued) == 1
-    assert session.commits == 1
-
-
-@pytest.mark.anyio
-async def test_the_same_revision_is_never_queued_twice(llm):
-    """자료 여러 개가 연달아 처리돼도 검색 대상이 그대로면 브리핑은 한 번만 만든다."""
-    team_id = uuid4()
-    member = _member(team_id)
-    activity = _activity(team_id, member.id)
-    session = _Session(member=member, files=[], existing_run=uuid4())
-
-    queued = await briefing_refresh.schedule_activities(session, [activity])
-
-    assert queued == []
-    assert session.added == []
-    assert session.commits == 0
-
-
-@pytest.mark.anyio
-async def test_a_new_revision_is_queued_even_while_another_run_is_in_flight(llm):
-    """queued/running 이 있다고 새 요청을 버리면, 실행이 시작된 뒤 올라온 자료가 누락된다.
-
-    멱등키가 revision 을 포함하므로 "이미 도는 중" 이 아니라 "같은 상태" 일 때만 막힌다.
-    """
-    team_id = uuid4()
-    member = _member(team_id)
-    activity = _activity(team_id, member.id)
-
-    old = await briefing_refresh.source_revision(
-        _Session(files=[]), activity=activity, member=member
-    )
-    new = await briefing_refresh.source_revision(
-        _Session(files=[(uuid4(), uuid4(), 1, NOW)]), activity=activity, member=member
-    )
-
-    assert briefing_refresh.idempotency_key(
-        activity.id, old
-    ) != briefing_refresh.idempotency_key(activity.id, new)
-
-
-@pytest.mark.anyio
-async def test_meetings_owned_by_an_inactive_member_are_skipped(llm):
-    """퇴사 처리된 담당자의 미팅은 큐에 넣어도 worker 가 반드시 실패시킨다."""
-    team_id = uuid4()
-    session = _Session(member=None, files=[])
-
-    queued = await briefing_refresh.schedule_activities(
-        session, [_activity(team_id, uuid4())]
-    )
-
-    assert queued == []
-    assert session.added == []
-
-
-@pytest.mark.anyio
-async def test_nothing_is_queued_without_an_llm(monkeypatch):
-    monkeypatch.setattr(type(settings), "llm_configured", property(lambda _self: False))
-    team_id = uuid4()
-    member = _member(team_id)
-    session = _Session(member=member, files=[])
-
-    activities = [_activity(team_id, member.id)]
-
-    assert await briefing_refresh.schedule_activities(session, activities) == []
-    assert session.added == []
-
-
-# ---------------------------------------------------------------- 후속 갱신
-
-
-@pytest.mark.anyio
-async def test_a_completed_run_schedules_a_follow_up_when_material_moved_on(monkeypatch, llm):
-    """실행 중에 새 자료가 들어왔다면, 그 결과는 이미 낡았으므로 후속을 남긴다."""
-    team_id = uuid4()
-    member = _member(team_id)
-    activity = _activity(team_id, member.id)
-    run = SimpleNamespace(
-        id=uuid4(),
-        agent_code="contract_management_briefing",
-        source_refs={"activity_id": str(activity.id), "source_revision": "실행-시작-시점"},
-    )
-    scheduled = []
-
-    class _FollowUpSession(_Session):
-        async def execute(self, statement):
-            text = str(statement)
-            if "FROM public.agent_run" in text:
-                self.statements.append(text)
-                return _Result(scalar=run)
-            if "FROM public.activity" in text:
-                self.statements.append(text)
-                return _Result(scalar=activity)
-            return await super().execute(statement)
-
-    session = _FollowUpSession(member=member, files=[])
-    monkeypatch.setattr(briefing_refresh, "get_sessionmaker", lambda: lambda: _Context(session))
-    monkeypatch.setattr(
-        briefing_refresh,
-        "schedule_activities",
-        _record(scheduled),
-    )
-
-    await briefing_refresh.follow_up_if_stale(run.id)
-
-    assert scheduled == [[activity.id]]
-
-
-@pytest.mark.anyio
-async def test_no_follow_up_when_the_material_is_unchanged(monkeypatch, llm):
-    team_id = uuid4()
-    member = _member(team_id)
-    activity = _activity(team_id, member.id)
-    current = await briefing_refresh.source_revision(
-        _Session(files=[]), activity=activity, member=member
-    )
-    run = SimpleNamespace(
-        id=uuid4(),
-        agent_code="contract_management_briefing",
-        source_refs={"activity_id": str(activity.id), "source_revision": current},
-    )
-    scheduled = []
-
-    class _FollowUpSession(_Session):
-        async def execute(self, statement):
-            text = str(statement)
-            if "FROM public.agent_run" in text:
-                return _Result(scalar=run)
-            if "FROM public.activity" in text:
-                return _Result(scalar=activity)
-            return await super().execute(statement)
-
-    session = _FollowUpSession(member=member, files=[])
-    monkeypatch.setattr(briefing_refresh, "get_sessionmaker", lambda: lambda: _Context(session))
-    monkeypatch.setattr(briefing_refresh, "schedule_activities", _record(scheduled))
-
-    assert await briefing_refresh.follow_up_if_stale(run.id) == []
-    assert scheduled == []
-
-
-class _Context:
-    def __init__(self, session):
-        self.session = session
-
-    async def __aenter__(self):
-        return self.session
-
-    async def __aexit__(self, *_args):
-        return False
-
-
-def _record(sink):
-    async def schedule(_db, activities):
-        sink.append([activity.id for activity in activities])
-        return [uuid4() for _ in activities]
-
-    return schedule
-
-
-# ---------------------------------------------------------------- 예약 실패 격리
-
-
-@pytest.mark.anyio
-async def test_a_failed_schedule_never_breaks_the_work_that_was_already_saved():
-    async def boom():
-        raise RuntimeError("db down")
-
-    # 예외가 밖으로 새면 자료 원문·요약 저장이 실패로 뒤집힌다.
-    await briefing_refresh.schedule_quietly(boom())
-
-
 # ---------------------------------------------------------------- 게시 규칙
 
 
-def _run(*, status, observed_at, finished_at, error=None, snapshot=None):
+def _run(*, status, observed_at, finished_at, error=None, snapshot=None, revision=None):
+    source_refs = {"activity_id": "a", "source_observed_at": observed_at}
+    if revision is not None:
+        source_refs["source_revision"] = revision
     return AgentRun(
         id=uuid4(),
         status_code=status,
@@ -599,37 +353,52 @@ def _run(*, status, observed_at, finished_at, error=None, snapshot=None):
         error_message=error,
         finished_at=finished_at,
         input_snapshot={},
-        source_refs={"activity_id": "a", "source_observed_at": observed_at},
+        source_refs=source_refs,
         created_at=finished_at or NOW,
     )
 
 
 class _RunsSession:
-    def __init__(self, runs):
+    def __init__(self, runs, activity=None):
         self.runs = runs
+        self.activity = activity
+        self.statements = []
 
-    async def execute(self, _statement):
+    async def execute(self, statement):
+        text = str(statement)
+        self.statements.append(text)
+        if "FROM public.activity" in text:
+            return _Result(scalar=self.activity)
         return _Result(scalars=self.runs)
 
 
-async def _briefing(runs, member):
+async def _briefing(runs, member, monkeypatch, *, activity=None, current_revision="same"):
     from app.api import activities as activities_api
+    from app.services import briefing_documents
 
     async def _documents(_db, **_kwargs):
         return {"related": [], "product": [], "search": {}}
 
-    import app.services.briefing_documents as briefing_documents
+    revisions = []
 
-    original = briefing_documents.visible_documents
-    briefing_documents.visible_documents = _documents
-    try:
-        return await activities_api._activity_briefing(_RunsSession(runs), member, uuid4())
-    finally:
-        briefing_documents.visible_documents = original
+    async def _source_revision(_db, *, activity, member):
+        revisions.append((activity, member))
+        return current_revision
+
+    async def _owner(_db, _activity):
+        return member
+
+    monkeypatch.setattr(briefing_documents, "visible_documents", _documents)
+    monkeypatch.setattr(briefing_refresh, "source_revision", _source_revision)
+    monkeypatch.setattr(briefing_refresh, "owner", _owner)
+    briefing = await activities_api._activity_briefing(
+        _RunsSession(runs, activity), member, uuid4()
+    )
+    return briefing, revisions
 
 
 @pytest.mark.anyio
-async def test_a_late_finishing_old_run_does_not_overwrite_a_fresher_briefing():
+async def test_a_late_finishing_old_run_does_not_overwrite_a_fresher_briefing(monkeypatch):
     """옛 자료로 시작한 실행이 늦게 끝나도 더 새 자료로 만든 브리핑을 밀어내지 않는다.
 
     정렬 기준이 "언제 끝났나" 가 아니라 "어느 시점 자료를 봤나" 인 이유다.
@@ -649,13 +418,13 @@ async def test_a_late_finishing_old_run_does_not_overwrite_a_fresher_briefing():
         snapshot={"contract_summary": "옛 자료"},
     )
 
-    briefing = await _briefing([stale, fresh], member)
+    briefing, _ = await _briefing([stale, fresh], member, monkeypatch)
 
     assert briefing["content"] == {"contract_summary": "새 자료 반영"}
 
 
 @pytest.mark.anyio
-async def test_a_failed_refresh_keeps_the_last_successful_briefing():
+async def test_a_failed_refresh_keeps_the_last_successful_briefing(monkeypatch):
     member = _member(uuid4())
     succeeded = _run(
         status="completed",
@@ -671,7 +440,7 @@ async def test_a_failed_refresh_keeps_the_last_successful_briefing():
     )
     failed.created_at = NOW + timedelta(minutes=10)
 
-    briefing = await _briefing([failed, succeeded], member)
+    briefing, _ = await _briefing([failed, succeeded], member, monkeypatch)
 
     assert briefing["status"] == "completed"
     assert briefing["content"] == {"contract_summary": "지난 성공"}
@@ -681,8 +450,8 @@ async def test_a_failed_refresh_keeps_the_last_successful_briefing():
 
 
 @pytest.mark.anyio
-async def test_a_running_refresh_still_shows_the_stored_briefing():
-    """갱신 중이어도 본문을 로딩으로 덮지 않는다 — 화면은 있는 결과를 바로 보여준다."""
+async def test_a_running_refresh_still_shows_the_stored_briefing(monkeypatch):
+    """재생성 중이어도 본문을 로딩으로 덮지 않는다 — 화면은 있는 결과를 바로 보여준다."""
     member = _member(uuid4())
     stored = _run(
         status="completed",
@@ -693,7 +462,7 @@ async def test_a_running_refresh_still_shows_the_stored_briefing():
     running = _run(status="running", observed_at=None, finished_at=None)
     running.created_at = NOW + timedelta(minutes=1)
 
-    briefing = await _briefing([running, stored], member)
+    briefing, _ = await _briefing([running, stored], member, monkeypatch)
 
     assert briefing["content"] == {"contract_summary": "저장된 브리핑"}
     assert briefing["refreshing"] is True
@@ -702,331 +471,109 @@ async def test_a_running_refresh_still_shows_the_stored_briefing():
 
 
 @pytest.mark.anyio
-async def test_the_first_briefing_reports_itself_as_pending():
+async def test_the_first_briefing_reports_itself_as_pending(monkeypatch):
     """아직 완성된 적이 없을 때만 화면이 '준비 중' 을 보여줄 수 있어야 한다."""
     member = _member(uuid4())
     queued = _run(status="queued", observed_at=None, finished_at=None)
 
-    briefing = await _briefing([queued], member)
+    briefing, _ = await _briefing([queued], member, monkeypatch)
 
     assert briefing["status"] == "queued"
     assert briefing["content"] is None
     assert briefing["refreshing"] is True
+    assert briefing["outdated"] is False
 
 
 @pytest.mark.anyio
-async def test_no_run_means_no_briefing_payload_at_all():
-    assert await _briefing([], _member(uuid4())) is None
+async def test_no_run_means_no_briefing_payload_at_all(monkeypatch):
+    briefing, _ = await _briefing([], _member(uuid4()), monkeypatch)
+
+    assert briefing is None
 
 
-# ---------------------------------------------------------------- 자료 변경 트리거
-
-
-class _DocumentSession:
-    def __init__(self, document):
-        self.document = document
-        self.commits = 0
-        self.added = []
-
-    async def execute(self, _statement):
-        return _Result(scalar=self.document)
-
-    async def flush(self):
-        pass
-
-    def add(self, value):
-        self.added.append(value)
-
-    async def commit(self):
-        self.commits += 1
-
-    async def rollback(self):
-        pass
-
-
-def _document(team_id, member_id, **overrides):
-    from app.models.content import Document
-
-    values = {
-        "id": uuid4(),
-        "team_id": team_id,
-        "created_by_member_id": member_id,
-        "document_no": "SL-DC-2026-0001",
-        "category_code": "contract",
-        "title": "계약서",
-        "description": None,
-        "customer_company_id": None,
-        "customer_contact_id": None,
-        "sales_deal_id": None,
-        "purchase_order_id": None,
-        "product_id": None,
-        "tags": [],
-        "created_at": NOW,
-        "deleted_at": None,
-    }
-    values.update(overrides)
-    return Document(**values)
-
-
-class _CapturingBackground:
-    """예약된 갱신 범위를 그대로 받아 두는 BackgroundTasks 대역."""
-
-    def __init__(self, monkeypatch):
-        self.calls = []
-
-        async def _schedule(**kwargs):
-            self.calls.append(kwargs)
-            return []
-
-        monkeypatch.setattr(briefing_refresh, "schedule_for_document_scope", _schedule)
-        monkeypatch.setattr(briefing_refresh, "schedule_for_company", _schedule)
-
-    def add_task(self, function, *args, **kwargs):
-        self.tasks = getattr(self, "tasks", [])
-        self.tasks.append((function, args, kwargs))
-
-    async def drain(self):
-        for function, args, kwargs in getattr(self, "tasks", []):
-            await function(*args, **kwargs)
+# ---------------------------------------------------------------- 재생성 필요 표시
 
 
 @pytest.mark.anyio
-async def test_creating_a_linked_document_refreshes_company_meetings(monkeypatch):
-    from fastapi import Response
-
-    from app.api import documents as documents_api
-    from app.schemas.documents import DocumentCreate
-
-    team_id = uuid4()
-    company_id = uuid4()
-    member = _member(team_id)
-    session = _DocumentSession(None)
-    background = _CapturingBackground(monkeypatch)
-
-    async def _nothing(*_args, **_kwargs):
-        return None
-
-    async def _document_no(*_args, **_kwargs):
-        return "SL-DC-2026-0001"
-
-    monkeypatch.setattr(documents_api, "_detail", _nothing)
-    monkeypatch.setattr(documents_api, "_validate_links", _nothing)
-    monkeypatch.setattr(documents_api, "_next_document_no", _document_no)
-
-    await documents_api.create_document(
-        DocumentCreate(
-            category_code="contract",
-            title="가상 계약서",
-            customer_company_id=company_id,
-        ),
-        Response(),
-        background,
-        member,
-        session,
-    )
-    await background.drain()
-
-    assert session.commits == 1
-    assert background.calls == [
-        {
-            "team_id": team_id,
-            "customer_company_id": company_id,
-        }
-    ]
-
-
-@pytest.mark.anyio
-async def test_document_linked_only_to_a_deal_resolves_that_deals_company():
-    from app.api import documents as documents_api
-
-    team_id = uuid4()
-    company_id = uuid4()
-    document = _document(team_id, uuid4(), sales_deal_id=uuid4())
-
-    assert (
-        await documents_api._document_company_id(_DocumentSession(company_id), document)
-        == company_id
-    )
-
-
-@pytest.mark.anyio
-async def test_deleting_a_document_refreshes_the_meetings_that_used_it(monkeypatch):
-    from app.api import documents as documents_api
-
-    team_id = uuid4()
-    member = _member(team_id)
-    deal_id = uuid4()
-    document = _document(team_id, member.id, sales_deal_id=deal_id)
-    background = _CapturingBackground(monkeypatch)
-
-    await documents_api.delete_document(
-        document.id, background, member, _DocumentSession(document)
-    )
-    await background.drain()
-
-    assert background.calls == [
-        {
-            "team_id": team_id,
-            "sales_deal_id": deal_id,
-            "customer_company_id": None,
-            "product_id": None,
-        }
-    ]
-
-
-@pytest.mark.anyio
-async def test_deleting_an_already_deleted_document_schedules_nothing(monkeypatch):
-    from app.api import documents as documents_api
-
-    team_id = uuid4()
-    member = _member(team_id)
-    document = _document(team_id, member.id, sales_deal_id=uuid4(), deleted_at=NOW)
-    background = _CapturingBackground(monkeypatch)
-
-    await documents_api.delete_document(
-        document.id, background, member, _DocumentSession(document)
-    )
-    await background.drain()
-
-    assert background.calls == []
-
-
-@pytest.mark.anyio
-async def test_relinking_a_document_refreshes_both_the_old_and_the_new_scope(monkeypatch):
-    """연결을 옮기면 자료를 잃는 미팅과 새로 얻는 미팅이 동시에 생긴다. 양쪽 다 갱신한다."""
-    from app.api import documents as documents_api
-    from app.schemas.documents import DocumentPatch
-
-    team_id = uuid4()
-    member = _member(team_id)
-    old_deal, new_deal = uuid4(), uuid4()
-    document = _document(team_id, member.id, sales_deal_id=old_deal)
-    session = _DocumentSession(document)
-    background = _CapturingBackground(monkeypatch)
-
-    async def _detail(*_args, **_kwargs):
-        return None
-
-    async def _validate(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(documents_api, "_detail", _detail)
-    monkeypatch.setattr(documents_api, "_validate_links", _validate)
-
-    await documents_api.update_document(
-        document.id,
-        DocumentPatch(sales_deal_id=new_deal),
-        background,
-        member,
-        session,
-    )
-    await background.drain()
-
-    scheduled_deals = {call["sales_deal_id"] for call in background.calls}
-    assert scheduled_deals == {old_deal, new_deal}
-
-
-@pytest.mark.anyio
-async def test_a_file_that_is_not_completed_or_whose_document_is_gone_schedules_nothing(
-    monkeypatch,
+@pytest.mark.parametrize(("current", "expected"), [("rev-1", False), ("rev-2", True)])
+async def test_outdated_compares_the_published_briefing_with_the_current_state(
+    monkeypatch, current, expected
 ):
-    """삭제된 자료와 처리 중인 파일은 검색 대상이 아니다. 갱신을 일으켜도 얻을 것이 없다."""
-    session = _Session(files=[])
-
-    class _Empty(_Session):
-        async def execute(self, statement):
-            self.statements.append(str(statement))
-            return _Result(scalar=None)
-
-    empty = _Empty()
-    monkeypatch.setattr(briefing_refresh, "get_sessionmaker", lambda: lambda: _Context(empty))
-
-    assert await briefing_refresh.schedule_for_file(uuid4()) == []
-    query = empty.statements[0]
-    assert "file.processing_status" in query
-    assert "document.deleted_at IS NULL" in query
-    assert session.added == []
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize(
-    ("patch", "expected"),
-    [
-        # 지난 일정이 미래로 옮겨 오면 그때 비로소 브리핑이 필요해진다.
-        ({"starts_at": (NOW + timedelta(days=5)).astimezone(_SEOUL)}, True),
-        ({"sales_deal_id": None}, True),
-        # 검색 범위와 무관한 수정은 브리핑을 다시 만들지 않는다.
-        ({"location": "본사 3층"}, False),
-    ],
-)
-async def test_changing_a_meeting_link_or_time_refreshes_that_meeting(
-    monkeypatch, patch, expected
-):
-    """미팅 생성뿐 아니라 고객사·딜·시간 변경도 브리핑을 다시 만들게 한다."""
-    from app.api import activities as activities_api
-    from app.schemas.activities import ActivityPatch
-
     team_id = uuid4()
     member = _member(team_id)
     activity = _activity(team_id, member.id)
-    scheduled = []
-
-    async def _locked(*_args, **_kwargs):
-        return activity
-
-    async def _row(*_args, **_kwargs):
-        return ()
-
-    async def _schedule(activity_id):
-        scheduled.append(activity_id)
-        return []
-
-    async def _contact(*_args, **_kwargs):
-        return None
-
-    async def _company(*_args, **_kwargs):
-        return activity.customer_company_id, "고객사"
-
-    async def _deal(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(activities_api, "_locked_activity", _locked)
-    monkeypatch.setattr(activities_api, "_contact_info", _contact)
-    monkeypatch.setattr(activities_api, "_resolve_company_id", _company)
-    monkeypatch.setattr(activities_api, "_team_sales_deal", _deal)
-    monkeypatch.setattr(activities_api, "_validate_customer_company", lambda *_args: None)
-    monkeypatch.setattr(activities_api, "_activity_row", _row)
-    monkeypatch.setattr(activities_api, "_activity_read", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(activities_api, "_validate_range", lambda *_args: None)
-    monkeypatch.setattr(briefing_refresh, "schedule_for_activity", _schedule)
-    background = _CapturingBackground(monkeypatch)
-
-    await activities_api.update_activity(
-        activity.id,
-        ActivityPatch(**patch),
-        background,
-        member,
-        _DocumentSession(activity),
+    published = _run(
+        status="completed",
+        observed_at="2026-09-12T09:00:00+00:00",
+        finished_at=NOW,
+        snapshot={"highlights": []},
+        revision="rev-1",
     )
-    await background.drain()
 
-    assert scheduled == ([activity.id] if expected else [])
+    briefing, revisions = await _briefing(
+        [published], member, monkeypatch, activity=activity, current_revision=current
+    )
+
+    assert briefing["outdated"] is expected
+    # 화면을 연 사람이 아니라 미팅 담당자 기준으로 계산한다.
+    assert revisions == [(activity, member)]
 
 
 @pytest.mark.anyio
-async def test_scheduling_for_an_activity_ignores_past_and_deleted_meetings(monkeypatch):
-    captured = {}
+async def test_outdated_is_not_computed_while_a_regeneration_is_running(monkeypatch):
+    """재생성 완료를 기다리는 반복 조회마다 지문 질의를 되풀이하지 않는다."""
+    team_id = uuid4()
+    member = _member(team_id)
+    stored = _run(
+        status="completed",
+        observed_at="2026-09-12T09:00:00+00:00",
+        finished_at=NOW,
+        snapshot={"highlights": []},
+        revision="rev-1",
+    )
+    running = _run(status="running", observed_at=None, finished_at=None)
+    running.created_at = NOW + timedelta(minutes=1)
 
-    class _Lookup(_Session):
-        async def execute(self, statement):
-            captured["query"] = str(statement)
-            return _Result(scalar=None)
-
-    monkeypatch.setattr(
-        briefing_refresh, "get_sessionmaker", lambda: lambda: _Context(_Lookup())
+    briefing, revisions = await _briefing(
+        [running, stored],
+        member,
+        monkeypatch,
+        activity=_activity(team_id, member.id),
+        current_revision="rev-2",
     )
 
-    assert await briefing_refresh.schedule_for_activity(uuid4()) == []
-    assert "activity.starts_at >=" in captured["query"]
-    assert "activity.deleted_at IS NULL" in captured["query"]
-    assert "activity.completed_at IS NULL" in captured["query"]
+    assert briefing["outdated"] is False
+    assert revisions == []
+
+
+@pytest.mark.anyio
+async def test_a_failed_regeneration_still_reports_the_published_briefing_as_outdated(
+    monkeypatch,
+):
+    team_id = uuid4()
+    member = _member(team_id)
+    published = _run(
+        status="completed",
+        observed_at="2026-09-12T09:00:00+00:00",
+        finished_at=NOW,
+        snapshot={"highlights": []},
+        revision="rev-1",
+    )
+    failed = _run(
+        status="failed",
+        observed_at="2026-09-12T10:00:00+00:00",
+        finished_at=NOW + timedelta(minutes=10),
+        error="llm_timeout",
+    )
+    failed.created_at = NOW + timedelta(minutes=10)
+
+    briefing, _ = await _briefing(
+        [failed, published],
+        member,
+        monkeypatch,
+        activity=_activity(team_id, member.id),
+        current_revision="rev-2",
+    )
+
+    assert briefing["content"] == {"highlights": []}
+    assert briefing["outdated"] is True

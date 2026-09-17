@@ -169,6 +169,8 @@ export interface AiBriefing {
   generated_at: string | null
   /** 최신 자료로 다시 만드는 중. 이 값이 true 여도 위의 결과는 그대로 보여준다. */
   refreshing?: boolean
+  /** 브리핑을 만든 뒤 입력(자료·보고서·딜·일정 등)이 바뀌었다. 새로고침을 눌러야 반영된다. */
+  outdated?: boolean
   /** 갱신 시도가 실패했다. 위의 결과는 마지막 성공 브리핑이라 그대로 유지된다. */
   refresh_error?: string | null
 }

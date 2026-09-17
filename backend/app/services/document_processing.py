@@ -313,12 +313,6 @@ async def execute(file_id: UUID) -> None:
                 before_status="processing",
             )
             await session.commit()
-        # 커밋이 끝난 뒤에만 브리핑 갱신을 예약한다. 이 줄보다 앞에서 예약하면 아직 저장
-        # 중인 청크를 브리핑이 검색해 미완성 근거를 인용할 수 있다. 예약은 큐에 행을 넣을
-        # 뿐 LLM 을 기다리지 않으므로 자료 처리 시간에 영향을 주지 않는다.
-        from app.services import briefing_refresh
-
-        await briefing_refresh.schedule_quietly(briefing_refresh.schedule_for_file(file_id))
     except (
         ExtractionError,
         LLMError,
