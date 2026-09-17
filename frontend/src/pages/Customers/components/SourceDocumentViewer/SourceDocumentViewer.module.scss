@@ -162,6 +162,19 @@
   word-break: break-word;
 }
 
+// 받아 오는 동안 무대를 덮는 종이. 글 원본(.textPage)과 같은 자리·모양으로 섭니다.
+.loading {
+  position: absolute;
+  inset: var(--s3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+}
+
 .notice {
   position: absolute;
   margin: 0;

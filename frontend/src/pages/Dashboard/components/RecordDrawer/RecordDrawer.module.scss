@@ -504,15 +504,9 @@
   &:active {
     transform: none;
   }
-
-  // 여는 동안 이름을 흐리면 무엇을 여는 중인지 읽히지 않습니다. 뒤의 '여는 중…' 이 대신합니다.
-  &:disabled {
-    opacity: 1;
-    cursor: default;
-  }
 }
 
-// 여는 동안만 파일명 뒤에 붙습니다. 링크 전체가 버튼이라 글자를 덮을 수 없습니다.
+// C/S 이름 뒤에 붙는 상태. 링크 전체가 버튼이라 글자를 덮을 수 없습니다.
 .sourceBusy {
   flex: none;
   color: var(--muted);

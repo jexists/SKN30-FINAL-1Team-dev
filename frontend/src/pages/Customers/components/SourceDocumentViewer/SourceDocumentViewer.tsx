@@ -4,6 +4,7 @@ import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs
 
 import Button from '@/components/Button'
 import ReportBody from '@/components/ReportBody'
+import Skeleton from '@/components/Skeleton'
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -75,6 +76,7 @@ const ZOOM_MIN = 0.5
 const ZOOM_MAX = 4
 const ZOOM_STEP = 0.25
 const EMPTY_SIZE: Size = { width: 0, height: 0 }
+const LOADING_LINES = ['100%', '92%', '96%', '70%', '100%', '88%', '94%', '60%']
 
 /**
  * 확장자와 MIME 을 함께 봅니다. 끌어다 놓은 파일은 type 이 비어 오는 일이 있어
@@ -93,6 +95,22 @@ function fitScale(content: Size, stage: Size, rotation: number): number {
   const width = turned ? content.height : content.width
   const height = turned ? content.width : content.height
   return Math.min(stage.width / width, stage.height / height)
+}
+
+/**
+ * 원본을 받아 오거나 그리는 동안 무대를 덮는 종이 한 장. 아직 그리지 않은 canvas·img 가
+ * 아래에 붙어 있어야 해서 그것들을 걷지 않고 위에 덮습니다.
+ */
+function LoadingPage() {
+  return (
+    <div className={styles.loading} role="status">
+      <span className="sr-only">원본을 여는 중입니다.</span>
+      <Skeleton width="45%" height={16} />
+      {LOADING_LINES.map((width, at) => (
+        <Skeleton key={at} width={width} />
+      ))}
+    </div>
+  )
 }
 
 export default function SourceDocumentViewer({
@@ -293,7 +311,7 @@ export default function SourceDocumentViewer({
         ) : sourceStatus === 'error' ? (
           <p className={styles.notice}>{sourceError ?? '원본을 열지 못했습니다.'}</p>
         ) : sourceStatus !== 'ready' ? (
-          <p className={styles.notice}>원본을 여는 중…</p>
+          <LoadingPage />
         ) : status === 'error' ? (
           <p className={styles.notice}>원본을 미리 볼 수 없습니다. 파일은 그대로 보관됩니다.</p>
         ) : text !== undefined ? (
@@ -333,9 +351,7 @@ export default function SourceDocumentViewer({
             </div>
           )
         )}
-        {!onSummary && sourceStatus === 'ready' && status === 'loading' && (
-          <p className={styles.notice}>원본을 여는 중…</p>
-        )}
+        {!onSummary && sourceStatus === 'ready' && status === 'loading' && <LoadingPage />}
       </div>
 
       {/* 확대·회전·페이지는 그림에만 뜻이 있습니다. 글은 그대로 흐르게 둡니다. */}

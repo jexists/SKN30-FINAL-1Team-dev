@@ -13,10 +13,6 @@ interface Props {
   citedDocumentIds: Set<string>
   /** 요약과 원본을 옆 패널에 펴 달라고 알립니다. 여는 일은 드로어를 가진 쪽이 합니다. */
   onOpenSource: (document: BriefingDocument) => void
-  /** 지금 받아 오는 중인 자료. 그 링크만 멈춥니다. */
-  openingDocumentId: string | null
-  /** 마지막으로 열지 못한 자료와 사유. 목록 아래에 한 줄로 답니다. */
-  sourceError: { documentId: string; message: string } | null
   /** 브리핑이 읽은 C/S. 누르면 자료처럼 옆 패널에 그 건의 상세를 폅니다. */
   supportRequests?: BriefingSupportRequest[]
   onOpenSupportRequest: (id: string) => void
@@ -51,8 +47,6 @@ export default function BriefingMaterials({
   documents,
   citedDocumentIds,
   onOpenSource,
-  openingDocumentId,
-  sourceError,
   supportRequests = [],
   onOpenSupportRequest,
   citedSupportRequestIds,
@@ -69,9 +63,6 @@ export default function BriefingMaterials({
   // 계약서 값이 계약관리와 다른 것은 출처 목록이 아니라 경고입니다. 목록을 한 줄로 줄이면
   // 파일 아래에 달 자리가 없어, 출처 위에 제 구획으로 세웁니다.
   const compared = sources.filter((document) => (document.contract_differences ?? []).length > 0)
-  const failed = sourceError
-    ? sources.find((document) => document.document_id === sourceError.documentId)
-    : null
   // 검색이 제대로 돌았는데 걸린 자료가 없을 뿐이라면 알릴 것이 없습니다. "없습니다" 한
   // 줄을 세우는 대신 묶음을 통째로 접습니다. 반대로 검색이 실패했거나 이전 형식의
   // 브리핑이라면 왜 비었는지 말해야 하므로 그때는 묶음을 남깁니다.
@@ -83,25 +74,19 @@ export default function BriefingMaterials({
         : !documents || search?.status === 'legacy'
           ? '이전 브리핑입니다. 다음 갱신부터 참고 자료를 함께 준비합니다.'
           : null
-  if (sources.length === 0 && supports.length === 0 && !notice && !sourceError) return null
+  if (sources.length === 0 && supports.length === 0 && !notice) return null
 
-  const link = (document: BriefingDocument) => {
-    const opening = openingDocumentId === document.document_id
-    return (
-      <button
-        type="button"
-        className={styles.sourceLink}
-        disabled={opening}
-        aria-busy={opening}
-        title="원문 열기"
-        onClick={() => onOpenSource(document)}
-      >
-        <FileIcon width={12} height={12} aria-hidden="true" />
-        {document.file_name}
-        {opening && <span className={styles.sourceBusy}>여는 중…</span>}
-      </button>
-    )
-  }
+  const link = (document: BriefingDocument) => (
+    <button
+      type="button"
+      className={styles.sourceLink}
+      title="원문 열기"
+      onClick={() => onOpenSource(document)}
+    >
+      <FileIcon width={12} height={12} aria-hidden="true" />
+      {document.file_name}
+    </button>
+  )
 
   return (
     <div aria-label="AI 브리핑 참고 자료">
@@ -157,7 +142,7 @@ export default function BriefingMaterials({
           </ul>
         </section>
       )}
-      {(sources.length > 0 || notice || sourceError) && (
+      {(sources.length > 0 || notice) && (
         <section className={styles.sources} aria-label="브리핑 출처">
           <h4 className={styles.sourcesTitle}>
             출처
@@ -175,11 +160,6 @@ export default function BriefingMaterials({
             </ul>
           )}
           {notice && <p className={`${styles.note} ${styles.sourceNote}`}>{notice}</p>}
-          {sourceError && (
-            <p className={`${styles.note} ${styles.sourceNote}`} role="alert">
-              {failed ? `${failed.file_name}: ${sourceError.message}` : sourceError.message}
-            </p>
-          )}
           {relatedDocs.length > 0 && search?.status === 'embedding_unavailable' && (
             <p className={`${styles.note} ${styles.sourceNote}`}>
               의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.

@@ -57,6 +57,13 @@ interface DocumentCitation {
   pageStart: number | null
 }
 
+/** 원본 대신 세우는 글. 브라우저가 그리지 못하는 형식이나 원본이 곧 글인 형식에 씁니다. */
+interface SourceText {
+  body: string
+  markdown: boolean
+  extracted: boolean
+}
+
 /** 새 highlights 형식과 DB에 남은 구 contract_summary 형식을 한 화면 모델로 맞춥니다. */
 function briefingView(content: ContractBriefingOutput | null | undefined): BriefingView | null {
   if (!content || typeof content !== 'object') return null
@@ -169,19 +176,13 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     document: BriefingDocument
     tab: 'summary' | 'source'
     file: File | null
-    text: { body: string; markdown: boolean; extracted: boolean } | null
+    text: SourceText | null
     citation: DocumentCitation | null
     loading: boolean
     error: string | null
   } | null>(null)
   // 옆에 펴 둔 C/S. 자료와 같은 자리를 쓰므로 둘 중 하나만 펴 둡니다.
   const [supportRequestId, setSupportRequestId] = useState<string | null>(null)
-  // 받아 오는 중인 자료. 누른 줄의 버튼만 멈춥니다.
-  const [openingId, setOpeningId] = useState<string | null>(null)
-  const [sourceError, setSourceError] = useState<{
-    documentId: string
-    message: string
-  } | null>(null)
   const showOwner = useShowOwner()
   // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
   const reportState = useAgendaReportLink(item)
@@ -193,7 +194,6 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
   /** C/S 상세를 옆에 폅니다. 대시보드 목록의 옆 패널과 같은 화면입니다. */
   function openSupportRequest(id: string) {
     setSource(null)
-    setSourceError(null)
     setSupportRequestId(id)
   }
 
@@ -241,56 +241,10 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
       : errorMessage(reason, '내용을 열지 못했습니다.')
   }
 
-  /**
-   * 자료를 옆에 폅니다. 요약은 브리핑에 이미 실려 와 기다릴 것이 없어 바로 펴고,
-   * 원본은 그 탭을 눌렀을 때 받아 옵니다.
-   */
-  async function openSource(doc: BriefingDocument, citation: DocumentCitation | null = null) {
-    setSourceError(null)
-    setSupportRequestId(null)
-    if (hasSummaryView(doc) && !citation) {
-      setSource({
-        document: doc,
-        tab: 'summary',
-        file: null,
-        text: null,
-        citation,
-        loading: false,
-        error: null,
-      })
-      return
-    }
-    // 세울 탭이 없는 자료는 예전처럼 원본을 받아 온 뒤에 폅니다. 열지 못하면 빈 패널을
-    // 세우는 대신 누른 줄에 사유를 답니다.
-    setOpeningId(doc.document_id)
-    try {
-      const loaded = await loadSource(doc)
-      setSource({
-        document: doc,
-        tab: 'source',
-        ...loaded,
-        citation,
-        loading: false,
-        error: null,
-      })
-    } catch (reason: unknown) {
-      setSourceError({ documentId: doc.document_id, message: sourceFailure(reason) })
-    } finally {
-      setOpeningId(null)
-    }
-  }
-
-  /** 탭을 옮깁니다. 원본은 처음 펼 때 한 번만 받아 오고 그 뒤로는 들고 있던 것을 씁니다. */
-  async function changeTab(tab: 'summary' | 'source') {
-    const current = source
-    if (current === null || current.tab === tab) return
-    const doc = current.document
-    const loaded = current.file !== null || current.text !== null
-    setSource({ ...current, tab, loading: tab === 'source' && !loaded, error: null })
-    if (tab !== 'source' || loaded || current.loading) return
-    // 받아 오는 동안 다른 자료로 갈아탔을 수 있어, 돌아와서 같은 자료인지 확인합니다.
+  /** 원본을 받아 패널에 채웁니다. 받아 오는 동안 다른 자료로 갈아탔으면 버립니다. */
+  async function fillSource(doc: BriefingDocument) {
     const settle = (
-      patch: Partial<{ file: File | null; text: typeof current.text; error: string | null }>,
+      patch: Partial<{ file: File | null; text: SourceText | null; error: string | null }>,
     ) =>
       setSource((previous) =>
         previous && previous.document.document_id === doc.document_id
@@ -302,6 +256,36 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     } catch (reason: unknown) {
       settle({ error: sourceFailure(reason) })
     }
+  }
+
+  /**
+   * 자료를 옆에 폅니다. 요약은 브리핑에 이미 실려 와 기다릴 것이 없어 바로 펴고,
+   * 원본은 그 탭을 눌렀을 때 받아 옵니다.
+   */
+  function openSource(doc: BriefingDocument, citation: DocumentCitation | null = null) {
+    const summary = hasSummaryView(doc) && !citation
+    setSupportRequestId(null)
+    // 원본부터 펼 자료도 패널은 바로 열고, 받아 오는 동안 패널 안에 자리표시자를 세웁니다.
+    setSource({
+      document: doc,
+      tab: summary ? 'summary' : 'source',
+      file: null,
+      text: null,
+      citation,
+      loading: !summary,
+      error: null,
+    })
+    if (!summary) void fillSource(doc)
+  }
+
+  /** 탭을 옮깁니다. 원본은 처음 펼 때 한 번만 받아 오고 그 뒤로는 들고 있던 것을 씁니다. */
+  function changeTab(tab: 'summary' | 'source') {
+    const current = source
+    if (current === null || current.tab === tab) return
+    const loaded = current.file !== null || current.text !== null
+    setSource({ ...current, tab, loading: tab === 'source' && !loaded, error: null })
+    if (tab !== 'source' || loaded || current.loading) return
+    void fillSource(current.document)
   }
 
   /**
@@ -354,7 +338,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
         hint: page ? `${document.file_name} · ${page} 열기` : `${document.file_name} 원문 열기`,
         excerpts: quotes,
         // 어느 대목을 보고 쓴 글인지 알 때는 원문의 그 자리를 바로 폅니다.
-        onOpen: () => void openSource(document, quote ? { pageStart } : null),
+        onOpen: () => openSource(document, quote ? { pageStart } : null),
       })
     })
     return [...byDocument.values()]
@@ -416,8 +400,6 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
         </>
       }
       onClose={onClose}
-      // 자료는 보다가 본문으로 돌아가면 볼 일이 끝납니다. 본문을 누르면 그대로 닫습니다.
-      onSideDismiss={closeSource}
       side={
         supportRequestId ? (
           <SupportRequestPanel id={supportRequestId} onClose={closeSource} />
@@ -432,7 +414,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
                 )
               }
               tab={source.tab}
-              onTabChange={(tab) => void changeTab(tab)}
+              onTabChange={changeTab}
               sourceStatus={
                 source.loading
                   ? 'loading'
@@ -704,8 +686,6 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
               documents={briefing.documents}
               citedDocumentIds={citedDocumentIds}
               onOpenSource={openSource}
-              openingDocumentId={openingId}
-              sourceError={sourceError}
               supportRequests={briefing.support_requests}
               onOpenSupportRequest={openSupportRequest}
               citedSupportRequestIds={citedSupportRequestIds}
