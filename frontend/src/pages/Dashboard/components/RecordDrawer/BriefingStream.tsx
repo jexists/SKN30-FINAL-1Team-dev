@@ -63,8 +63,11 @@ function useReveal(input: RevealInput, stream: boolean, signature: string) {
     const steps = revealSteps(input)
     return { signature, steps, state: stream && !reducedMotion() ? START : endState(steps) }
   }
-  const [reveal, setReveal] = useState(open)
-  if (reveal.signature !== signature) setReveal(open())
+  const [stored, setReveal] = useState(open)
+  // 이번 렌더도 새 조각으로 그립니다. 이전 조각을 그대로 쓰면 하이라이트 수가 줄어든
+  // 새 본문과 개수가 어긋나 없는 블록을 읽습니다.
+  const reveal = stored.signature === signature ? stored : open()
+  if (reveal !== stored) setReveal(reveal)
 
   useEffect(() => {
     const next = advance(reveal.steps, reveal.state)
