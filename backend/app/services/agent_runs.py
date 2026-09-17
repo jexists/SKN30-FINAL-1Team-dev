@@ -567,6 +567,37 @@ async def create(
                 db, member, payload.parent_run_id, expected_agent_code=expected_parent
             )
             parent_run_id = parent.id
+        if payload.agent_code == "contract_management_briefing":
+            # 미팅 보고서를 쓰기 시작했으면(작성중 포함) 미팅은 끝났다. 브리핑은 미팅 전에
+            # 보는 자료라 그 뒤로는 다시 만들지 않고 마지막 브리핑을 기록으로 남긴다.
+            # 성공한 브리핑이 아직 없으면 남길 것도 없으므로 한 번은 만들 수 있게 둔다.
+            completed_briefing = (
+                select(AgentRun.id)
+                .where(
+                    AgentRun.team_id == member.team_id,
+                    AgentRun.agent_code == "contract_management_briefing",
+                    AgentRun.status_code == "completed",
+                    AgentRun.source_refs["activity_id"].as_string() == str(payload.activity_id),
+                )
+                .exists()
+            )
+            meeting_report_id = (
+                await db.execute(
+                    select(Report.id)
+                    .where(
+                        Report.team_id == member.team_id,
+                        Report.report_kind == "meeting",
+                        Report.source_activity_id == payload.activity_id,
+                        completed_briefing,
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if meeting_report_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="briefing_locked_by_meeting_report",
+                )
     except Exception:
         await db.rollback()
         raise

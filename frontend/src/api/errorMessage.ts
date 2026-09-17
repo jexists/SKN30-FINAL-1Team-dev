@@ -166,6 +166,8 @@ const MESSAGE_BY_DETAIL: Record<string, string> = {
     '보고서에 저장된 미팅 메모가 서로 다릅니다. 입력한 내용을 보관한 뒤 최신 내용을 확인해 주세요.',
   meeting_report_changed:
     '실행 중 보고서가 수정되어 AI 결과를 적용하지 않았습니다. 최신 보고서를 확인해 주세요.',
+  briefing_locked_by_meeting_report:
+    '미팅 보고서를 작성한 일정은 AI 브리핑을 새로고침할 수 없습니다.',
   report_already_approved: '확정된 보고서는 수정하거나 삭제할 수 없습니다.',
   report_used_as_source: '다른 보고서가 근거로 사용 중이라 삭제할 수 없습니다.',
   report_delete_blocked: '연결된 자료가 있어 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.',

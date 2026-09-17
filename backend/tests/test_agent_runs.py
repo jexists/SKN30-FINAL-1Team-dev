@@ -292,7 +292,9 @@ def test_generic_agent_requests_are_queued(
     llm_ready, agent_code, identifying, expected_prompt, expected_refs
 ):
     member = _member()
-    db = _Db(_Result(scalar=None))
+    # 브리핑은 확정된 미팅 보고서가 없는지 한 번 더 묻는다.
+    extra = [_Result(scalar=None)] if agent_code == "contract_management_briefing" else []
+    db = _Db(_Result(scalar=None), *extra)
     payload = {
         "agent_code": agent_code,
         "idempotency_key": str(uuid4()),
@@ -341,7 +343,8 @@ def test_parented_agent_requests_keep_valid_parent(llm_ready, agent_code, parent
     member = _member()
     parent = _run(member, status_code="completed")
     parent.agent_code = parent_code
-    db = _Db(_Result(scalar=None), _Result(scalar=parent))
+    extra = [_Result(scalar=None)] if agent_code == "contract_management_briefing" else []
+    db = _Db(_Result(scalar=None), _Result(scalar=parent), *extra)
     payload = {
         "agent_code": agent_code,
         "parent_run_id": str(parent.id),
@@ -355,6 +358,30 @@ def test_parented_agent_requests_keep_valid_parent(llm_ready, agent_code, parent
     assert response.status_code == 202
     assert db.added[0].parent_run_id == parent.id
     assert db.added[0].source_refs["parent_run_id"] == str(parent.id)
+
+
+def test_briefing_refresh_is_locked_once_meeting_report_exists(llm_ready):
+    member = _member()
+    db = _Db(_Result(scalar=None), _Result(scalar=uuid4()))
+
+    with _client(db, member) as client:
+        response = client.post(
+            "/api/agent-runs",
+            headers={"Origin": ORIGIN},
+            json={
+                "agent_code": "contract_management_briefing",
+                "activity_id": str(uuid4()),
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "briefing_locked_by_meeting_report"
+    assert db.added == []
+    report_query = str(db.statements[1]).lower()
+    assert "report.source_activity_id" in report_query
+    assert "report.status_code" not in report_query
+    assert "agent_run.status_code" in report_query
 
 
 @pytest.mark.parametrize(

@@ -186,6 +186,9 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
   const showOwner = useShowOwner()
   // 드로어는 눌러야 열리므로 여기서 물어보는 것이 곧 온디맨드입니다.
   const reportState = useAgendaReportLink(item)
+  // 미팅 보고서를 쓰기 시작했으면(작성중 포함) 미팅은 끝났습니다. 성공한 브리핑이 있으면
+  // 그때 모습 그대로 남기고, 아직 없으면 한 번은 만들 수 있게 둡니다.
+  const briefingLocked = !!reportState.link?.written && briefing?.status === 'completed'
   function closeSource() {
     setSource(null)
     setSupportRequestId(null)
@@ -598,10 +601,10 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
             {/* 갱신 중이라는 표시는 제목 옆에만 둡니다. 본문은 그대로 두고 읽게 합니다. */}
             {briefing?.refreshing && <span className={styles.refreshTag}>최신 자료 반영 중</span>}
             {/* 브리핑은 새로고침을 눌러야만 바뀝니다. 그 사이 입력이 바뀌었으면 버튼 옆에서 알립니다. */}
-            {briefing?.outdated && !briefingBusy && (
+            {briefing?.outdated && !briefingBusy && !briefingLocked && (
               <span className={styles.outdatedTag}>반영되지 않은 내용이 있습니다</span>
             )}
-            {item.customerCompanyId && (
+            {item.customerCompanyId && !briefingLocked && (
               <Button
                 className={styles.refreshButton}
                 variant="ghost"
