@@ -80,6 +80,9 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 
+# OCR 전사 골드셋과 OCR 본문은 개인정보가 있을 수 있어 로컬 평가 경로에만 둔다.
+output/evals/ocr-cer-wer/raw/
+
 # 외부 공개 데이터로 만든 로컬 ML 아티팩트는 재배포 조건 확인 전 커밋하지 않음
 backend/pipeline/artifacts/*
 
