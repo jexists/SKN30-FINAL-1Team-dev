@@ -10,7 +10,7 @@ import asyncio
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -28,7 +28,6 @@ from runpod_ocr_dataset_eval import (
 )
 
 from app.services import ocr
-
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / "output/evals/ocr-runpod/runpod_dataset_summary.json"
@@ -78,7 +77,9 @@ async def _run_rendered_pdf(
             "elapsed_seconds": round(time.perf_counter() - started, 3),
             "page_count": len(pages),
             "field_matches": _field_matches(
-                text, item["expected"], item["fields"]  # type: ignore[arg-type]
+                text,
+                item["expected"],
+                item["fields"],  # type: ignore[arg-type]
             ),
         }
     except Exception as error:
@@ -123,7 +124,9 @@ async def _retry_business_license(path: Path, semaphore: asyncio.Semaphore) -> d
         }
 
 
-def _aggregate(items: list[dict[str, object]], results: list[dict[str, object]]) -> dict[str, object]:
+def _aggregate(
+    items: list[dict[str, object]], results: list[dict[str, object]]
+) -> dict[str, object]:
     bucket: dict[str, object] = {
         "input_count": len(items),
         "success_count": 0,
@@ -132,7 +135,7 @@ def _aggregate(items: list[dict[str, object]], results: list[dict[str, object]])
         "field_matches": {},
         "errors_by_code": {},
     }
-    for item, result in zip(items, results):
+    for _item, result in zip(items, results, strict=True):
         if result["status"] == "success":
             bucket["success_count"] = int(bucket["success_count"]) + 1
             bucket["processed_pages"] = int(bucket["processed_pages"]) + int(result["page_count"])
@@ -146,7 +149,9 @@ def _aggregate(items: list[dict[str, object]], results: list[dict[str, object]])
             errors = bucket["errors_by_code"]  # type: ignore[assignment]
             errors[code] = errors.get(code, 0) + 1
     for stats in bucket["field_matches"].values():  # type: ignore[union-attr]
-        stats["accuracy"] = round(stats["matched"] / stats["labeled"], 4) if stats["labeled"] else None
+        stats["accuracy"] = (
+            round(stats["matched"] / stats["labeled"], 4) if stats["labeled"] else None
+        )
     return bucket
 
 
@@ -185,17 +190,29 @@ async def main() -> int:
 
     business_dir = ROOT / "data/sample/사업자등록증_24개"
     retry_paths = [business_dir / name for name in FAILED_BUSINESS_LICENSES]
-    retry_results = await asyncio.gather(*[_retry_business_license(path, semaphore) for path in retry_paths])
+    retry_results = await asyncio.gather(
+        *[_retry_business_license(path, semaphore) for path in retry_paths]
+    )
     print(f"사업자등록증 재시도: {len(retry_results)}/{len(retry_results)} completed", flush=True)
 
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "method": {
             "comparison": "saved RunPod PDF-path baseline versus rendered PNG image-path candidate",
-            "provider": "same RunPod Serverless OCR worker and same configured Korean image model bundle",
-            "rendering": "all PDF pages, maximum long side 2200 pixels; reduced to 1100 pixels only when inline payload limit is exceeded",
+            "provider": (
+                "same RunPod Serverless OCR worker and same configured Korean image model "
+                "bundle"
+            ),
+            "rendering": (
+                "all PDF pages, maximum long side 2200 pixels; reduced to 1100 pixels only when "
+                "inline payload limit is "
+                "exceeded"
+            ),
             "concurrency": 2,
-            "field_metric": "normalized expected-value containment in combined OCR text; not field-location accuracy",
+            "field_metric": (
+                "normalized expected-value containment in combined OCR text; not field-location "
+                "accuracy"
+            ),
             "raw_text_persisted": False,
         },
         "baseline": {name: baseline["datasets"][name] for name in TARGETS},
@@ -204,10 +221,19 @@ async def main() -> int:
             "input_count": len(retry_results),
             "success_count": sum(result["status"] == "success" for result in retry_results),
             "error_count": sum(result["status"] != "success" for result in retry_results),
-            "preprocess": "EXIF transpose, RGB conversion, maximum long side 2400 pixels, PNG re-encode",
+            "preprocess": (
+                "EXIF transpose, RGB conversion, maximum long side 2400 pixels, PNG "
+                "re-encode"
+            ),
             "errors_by_code": {
                 code: sum(result.get("error_code") == code for result in retry_results)
-                for code in sorted({str(result.get("error_code")) for result in retry_results if result.get("error_code")})
+                for code in sorted(
+                    {
+                        str(result.get("error_code"))
+                        for result in retry_results
+                        if result.get("error_code")
+                    }
+                )
             },
         },
     }

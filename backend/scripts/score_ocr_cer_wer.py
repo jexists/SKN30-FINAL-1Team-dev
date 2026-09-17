@@ -11,9 +11,8 @@ import json
 import re
 import unicodedata
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[2]
 RAW = ROOT / "output/evals/ocr-cer-wer/raw"
@@ -93,10 +92,13 @@ def main() -> int:
             (gold_text, hypotheses_by_id[sample_id].get("ocr_text", ""))
         )
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "method": {
             "gold": "human-reviewed page-level transcription; all pages status=approved",
-            "normalization": "Unicode NFKC and whitespace collapse only; characters and punctuation retained",
+            "normalization": (
+                "Unicode NFKC and whitespace collapse only; characters and punctuation "
+                "retained"
+            ),
             "cer": "corpus character edit distance divided by corpus reference characters",
             "wer": "corpus whitespace-token edit distance divided by corpus reference tokens",
             "raw_text_persisted": False,
@@ -106,7 +108,9 @@ def main() -> int:
             "available_hypothesis_page_count": len(hypothesis_rows),
             "document_counts": {
                 document_type: sum(row.get("document_type") == document_type for row in gold_rows)
-                for document_type in sorted({row.get("document_type", "미분류") for row in gold_rows})
+                for document_type in sorted(
+                    {row.get("document_type", "미분류") for row in gold_rows}
+                )
             },
         },
         "overall": _score([pair for pairs in pairs_by_type.values() for pair in pairs]),

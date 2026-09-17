@@ -13,7 +13,7 @@ import asyncio
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -25,7 +25,6 @@ from runpod_ocr_dataset_eval import _clean, _gold_rows, _normalize
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import ocr
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DATASET = ROOT / "data/sample/상품설명서_50개"
@@ -99,14 +98,18 @@ async def main() -> int:
     labeled = len(success)
     pages = sum(int(result["page_count"] or 0) for result in success)
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "method": {
             "provider": "same configured RunPod Serverless OCR worker via backend OCR adapter",
             "input": "original product-description PDFs submitted through the RunPod PDF OCR route",
             "gold_label": "product identifier derived from each supplied PDF filename",
             "field_metric": "normalized expected-product-identifier containment in OCR plain text",
             "retry_policy": "one immediate retry only when a RunPod OCR request fails",
-            "scope": "product identifier extraction only; not full-document OCR accuracy, specification-value accuracy, CER/WER, or field-location accuracy",
+            "scope": (
+                "product identifier extraction only; not full-document OCR accuracy, "
+                "specification-value accuracy, CER/WER, or field-location "
+                "accuracy"
+            ),
             "raw_text_persisted": False,
         },
         "dataset": {
@@ -114,9 +117,7 @@ async def main() -> int:
             "success_count": len(success),
             "error_count": len(jobs) - len(success),
             "processed_pdf_pages": pages,
-            "retried_document_count": sum(
-                int(result.get("attempts", 1)) > 1 for result in results
-            ),
+            "retried_document_count": sum(int(result.get("attempts", 1)) > 1 for result in results),
             "product_identifier": {
                 "matched": matched,
                 "labeled": labeled,

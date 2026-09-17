@@ -206,8 +206,14 @@ async def test_runpod_pdf_retries_all_pages_as_images_when_korean_is_missing(mon
         calls.append(kwargs)
         if kwargs["media_type"] == "application/pdf":
             return ExtractedDocument(
-                plain_text="合同条款 合同金额 1234567890 合同期限 付款条件 甲方乙方 签署日期 违约责任",
-                markdown="合同条款 合同金额 1234567890 合同期限 付款条件 甲方乙方 签署日期 违约责任",
+                plain_text=(
+                    "合同条款 合同金额 1234567890 合同期限 付款条件 甲方乙方 签署日期 "
+                    "违约责任"
+                ),
+                markdown=(
+                    "合同条款 合同金额 1234567890 合同期限 付款条件 甲方乙方 签署日期 "
+                    "违约责任"
+                ),
                 payload={},
             )
         return ExtractedDocument(
@@ -290,7 +296,9 @@ async def test_runpod_pdf_keeps_normal_korean_result_without_image_retry(monkeyp
     monkeypatch.setattr(ocr.settings, "ocr_provider", "runpod")
     monkeypatch.setattr(ocr.settings, "ocr_local_language", "korean")
     monkeypatch.setattr(ocr.settings, "ocr_runpod_pdf_image_retry", True)
-    monkeypatch.setattr(ocr, "render_pdf_pages_png", lambda _content: pytest.fail("unexpected retry"))
+    monkeypatch.setattr(
+        ocr, "render_pdf_pages_png", lambda _content: pytest.fail("unexpected retry")
+    )
     monkeypatch.setattr(ocr, "_runpod", _runpod)
 
     result = await ocr.extract_document(

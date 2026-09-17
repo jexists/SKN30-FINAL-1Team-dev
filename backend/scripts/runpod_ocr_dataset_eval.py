@@ -13,7 +13,7 @@ import re
 import sys
 import time
 import unicodedata
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -21,7 +21,6 @@ from pypdf import PdfReader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import ocr
-
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "output" / "evals" / "ocr-runpod" / "runpod_dataset_summary.json"
@@ -37,8 +36,8 @@ def _colnum(cell_ref: str) -> int:
 
 def _read_xlsx_rows(path: Path, sheet_index: int = 0) -> list[list[str]]:
     """Read simple XLSX worksheets using the stdlib only."""
-    from zipfile import ZipFile
     from xml.etree import ElementTree as ET
+    from zipfile import ZipFile
 
     ns = {
         "a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
@@ -49,14 +48,14 @@ def _read_xlsx_rows(path: Path, sheet_index: int = 0) -> list[list[str]]:
         if "xl/sharedStrings.xml" in archive.namelist():
             root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
             shared = [
-                "".join(text.text or "" for text in item.iter("{%s}t" % ns["a"]))
+                "".join(text.text or "" for text in item.iter(f"{{{ns['a']}}}t"))
                 for item in root.findall("a:si", ns)
             ]
         workbook = ET.fromstring(archive.read("xl/workbook.xml"))
         relationships = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
         relmap = {item.attrib["Id"]: item.attrib["Target"] for item in relationships}
         sheet = list(workbook.find("a:sheets", ns))[sheet_index]
-        target = relmap[sheet.attrib["{%s}id" % ns["r"]]].lstrip("/")
+        target = relmap[sheet.attrib[f"{{{ns['r']}}}id"]].lstrip("/")
         target = target if target.startswith("xl/") else "xl/" + target
         root = ET.fromstring(archive.read(target))
         rows: list[list[str]] = []
@@ -65,9 +64,7 @@ def _read_xlsx_rows(path: Path, sheet_index: int = 0) -> list[list[str]]:
             for cell in row.findall("a:c", ns):
                 value = cell.find("a:v", ns)
                 if cell.attrib.get("t") == "inlineStr":
-                    text = "".join(
-                        node.text or "" for node in cell.findall("a:is//a:t", ns)
-                    )
+                    text = "".join(node.text or "" for node in cell.findall("a:is//a:t", ns))
                 elif value is None:
                     text = ""
                 elif cell.attrib.get("t") == "s":
@@ -201,9 +198,21 @@ def _dataset_specs() -> list[dict[str, object]]:
             "directory": ROOT / "data/sample/발주서_50개",
             "gold": ROOT / "data/sample/발주서_50개/발주서_50개_정답지.xlsx",
             "fields": [
-                "공급자", "공급자 사업자번호", "공급자 주소", "공급자 전화", "공급자 FAX",
-                "공급자 담당자", "발주자", "발주자 사업자번호", "발주자 주소", "발주자 전화",
-                "발주자 FAX", "발주자 담당자", "납품장소", "대금 지급조건", "총액",
+                "공급자",
+                "공급자 사업자번호",
+                "공급자 주소",
+                "공급자 전화",
+                "공급자 FAX",
+                "공급자 담당자",
+                "발주자",
+                "발주자 사업자번호",
+                "발주자 주소",
+                "발주자 전화",
+                "발주자 FAX",
+                "발주자 담당자",
+                "납품장소",
+                "대금 지급조건",
+                "총액",
             ],
             "profile": "document",
         },
@@ -224,7 +233,9 @@ async def _run_one(item: dict[str, object], semaphore: asyncio.Semaphore) -> dic
         try:
             result = await ocr._runpod(
                 file_name=path.name,
-                media_type="image/jpeg" if path.suffix.lower() in {".jpg", ".jpeg"} else "application/pdf",
+                media_type="image/jpeg"
+                if path.suffix.lower() in {".jpg", ".jpeg"}
+                else "application/pdf",
                 content=path.read_bytes(),
                 source_url=None,
                 profile=str(item["profile"]),
@@ -263,7 +274,11 @@ async def main() -> int:
     semaphore = asyncio.Semaphore(4)
     jobs: list[dict[str, object]] = []
     dataset_counts: dict[str, int] = {}
-    only = {item.strip() for item in __import__("os").environ.get("RUNPOD_EVAL_ONLY", "").split(",") if item.strip()}
+    only = {
+        item.strip()
+        for item in __import__("os").environ.get("RUNPOD_EVAL_ONLY", "").split(",")
+        if item.strip()
+    }
     for spec in _dataset_specs():
         if only and str(spec["name"]) not in only:
             continue
@@ -276,27 +291,61 @@ async def main() -> int:
             path = _file_from_name(directory, row.get("파일명", row.get("file_name", "")))
             if path is None:
                 continue
-            jobs.append({"name": spec["name"], "path": path, "profile": spec["profile"], "fields": fields, "expected": row})
+            jobs.append(
+                {
+                    "name": spec["name"],
+                    "path": path,
+                    "profile": spec["profile"],
+                    "fields": fields,
+                    "expected": row,
+                }
+            )
             count += 1
         dataset_counts[str(spec["name"])] = count
 
     if not only or "사업자등록증" in only:
         business_dir = ROOT / "data/sample/사업자등록증_24개"
         business_files = sorted(
-            path for path in business_dir.iterdir() if path.suffix.lower() in {".pdf", ".jpg", ".jpeg", ".png"}
+            path
+            for path in business_dir.iterdir()
+            if path.suffix.lower() in {".pdf", ".jpg", ".jpeg", ".png"}
         )
         for path in business_files:
             # 파일명은 문서 상호와 함께 제공된 약한 라벨이다. 사업자번호·대표자·
             # 주소는 독립적인 골드 라벨이 없어 채점하지 않는다.
             company = re.sub(r"\s*사업자등록증.*$", "", path.stem).strip()
-            jobs.append({"name": "사업자등록증", "path": path, "profile": "document", "fields": ["상호(파일명 파생)"], "expected": {"상호(파일명 파생)": company}})
+            jobs.append(
+                {
+                    "name": "사업자등록증",
+                    "path": path,
+                    "profile": "document",
+                    "fields": ["상호(파일명 파생)"],
+                    "expected": {"상호(파일명 파생)": company},
+                }
+            )
         dataset_counts["사업자등록증"] = len(business_files)
 
     results = await asyncio.gather(*[_run_one(item, semaphore) for item in jobs])
     aggregate: dict[str, dict[str, object]] = {}
-    for item, result in zip(jobs, results):
+    for item, result in zip(jobs, results, strict=True):
         name = str(item["name"])
-        bucket = aggregate.setdefault(name, {"input_count": 0, "success_count": 0, "error_count": 0, "field_matches": {}, "proxy": {"char_distance": 0, "char_reference": 0, "word_distance": 0, "word_reference": 0, "documents": 0}, "errors": []})
+        bucket = aggregate.setdefault(
+            name,
+            {
+                "input_count": 0,
+                "success_count": 0,
+                "error_count": 0,
+                "field_matches": {},
+                "proxy": {
+                    "char_distance": 0,
+                    "char_reference": 0,
+                    "word_distance": 0,
+                    "word_reference": 0,
+                    "documents": 0,
+                },
+                "errors": [],
+            },
+        )
         bucket["input_count"] = int(bucket["input_count"]) + 1
         if result["status"] == "success":
             bucket["success_count"] = int(bucket["success_count"]) + 1
@@ -314,22 +363,48 @@ async def main() -> int:
                 proxy_bucket["documents"] += 1
         else:
             bucket["error_count"] = int(bucket["error_count"]) + 1
-            bucket["errors"].append({"file": item["path"].name, "error_type": result.get("error_type"), "error_code": result.get("error_code")})  # type: ignore[union-attr]
+            bucket["errors"].append(
+                {
+                    "file": item["path"].name,
+                    "error_type": result.get("error_type"),
+                    "error_code": result.get("error_code"),
+                }
+            )  # type: ignore[union-attr]
 
     for bucket in aggregate.values():
         for stats in bucket["field_matches"].values():  # type: ignore[union-attr]
-            stats["accuracy"] = round(stats["matched"] / stats["labeled"], 4) if stats["labeled"] else None
+            stats["accuracy"] = (
+                round(stats["matched"] / stats["labeled"], 4) if stats["labeled"] else None
+            )
         proxy = bucket["proxy"]
-        proxy["cer_proxy"] = round(proxy["char_distance"] / proxy["char_reference"], 4) if proxy["char_reference"] else None
-        proxy["wer_proxy"] = round(proxy["word_distance"] / proxy["word_reference"], 4) if proxy["word_reference"] else None
+        proxy["cer_proxy"] = (
+            round(proxy["char_distance"] / proxy["char_reference"], 4)
+            if proxy["char_reference"]
+            else None
+        )
+        proxy["wer_proxy"] = (
+            round(proxy["word_distance"] / proxy["word_reference"], 4)
+            if proxy["word_reference"]
+            else None
+        )
 
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "method": {
             "provider": "RunPod Serverless via backend OCR adapter",
-            "field_metric": "normalized expected-value containment in OCR plain text; not field-location accuracy",
-            "proxy_metric": "CER/WER against embedded PDF text layer only; not human-reviewed gold transcription",
-            "business_registration_fields": "filename-derived company label only; independent registration-number/representative/address gold labels are absent",
+            "field_metric": (
+                "normalized expected-value containment in OCR plain text; not field-location "
+                "accuracy"
+            ),
+            "proxy_metric": (
+                "CER/WER against embedded PDF text layer only; not human-reviewed gold "
+                "transcription"
+            ),
+            "business_registration_fields": (
+                "filename-derived company label only; independent "
+                "registration-number/representative/address gold labels are "
+                "absent"
+            ),
             "raw_text_persisted": False,
         },
         "dataset_counts": dataset_counts,

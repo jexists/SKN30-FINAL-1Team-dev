@@ -7,13 +7,12 @@ import csv
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import ocr
-
 
 ROOT = Path(__file__).resolve().parents[2]
 RAW = ROOT / "output/evals/ocr-cer-wer/raw"
@@ -75,7 +74,7 @@ async def _capture_one(
             if not isinstance(pages, list) or len(pages) != len(rows):
                 return {"status": "error", "error_code": "page_count_mismatch"}
             output: list[dict[str, str]] = []
-            for manifest_row, page in zip(rows, pages):
+            for manifest_row, page in zip(rows, pages, strict=True):
                 text = page.get("markdown") if isinstance(page, dict) else None
                 if not isinstance(text, str):
                     return {"status": "error", "error_code": "page_markdown_missing"}
@@ -116,12 +115,13 @@ async def main() -> int:
             errors[str(result["error_code"])] += 1
         if completed % 10 == 0 or completed == len(jobs):
             print(
-                f"documents: {completed}/{len(jobs)} completed; pages: {len(captured_by_id)}/{len(expected_ids)}",
+                f"documents: {completed}/{len(jobs)} completed; "
+                f"pages: {len(captured_by_id)}/{len(expected_ids)}",
                 flush=True,
             )
     captured_ids = set(captured_by_id)
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "method": {
             "provider": "configured backend OCR adapter with conditional RunPod PDF-to-PNG retry",
             "max_document_concurrency": 2,

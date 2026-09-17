@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pypdf import PdfReader
-
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "output/evals/ocr-cer-wer/raw"
@@ -94,7 +93,7 @@ def main() -> int:
         writer.writerows(rows)
     PROTOCOL.write_text(_protocol(len(rows)), encoding="utf-8")
     summary = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "page_count": len(rows),
         "document_counts": {
             document_type: sum(row["document_type"] == document_type for row in rows)

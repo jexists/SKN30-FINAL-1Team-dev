@@ -16,7 +16,7 @@ import asyncio
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -31,7 +31,6 @@ from runpod_ocr_dataset_eval import (
 )
 
 from app.services import ocr
-
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "output/evals/ocr-final-policy/runpod_final_policy_summary.json"
@@ -96,7 +95,11 @@ async def _run_one(
         pdf_matches = _matches(pdf_result.plain_text, expected, fields)
         png_matches = _matches(png_text, expected, fields)
         selected = {
-            field: (pdf_matches[field] if field in PDF_SOURCE_FIELDS.get(name, set()) else png_matches[field])
+            field: (
+                pdf_matches[field]
+                if field in PDF_SOURCE_FIELDS.get(name, set())
+                else png_matches[field]
+            )
             for field in png_matches
         }
         return {
@@ -115,7 +118,9 @@ async def _run_one(
         }
 
 
-def _aggregate(items: list[dict[str, object]], results: list[dict[str, object]]) -> dict[str, object]:
+def _aggregate(
+    items: list[dict[str, object]], results: list[dict[str, object]]
+) -> dict[str, object]:
     bucket: dict[str, object] = {
         "input_count": len(items),
         "success_count": 0,
@@ -127,7 +132,9 @@ def _aggregate(items: list[dict[str, object]], results: list[dict[str, object]])
     for result in results:
         if result["status"] == "success":
             bucket["success_count"] = int(bucket["success_count"]) + 1
-            bucket["processed_png_pages"] = int(bucket["processed_png_pages"]) + int(result["page_count"])
+            bucket["processed_png_pages"] = int(bucket["processed_png_pages"]) + int(
+                result["page_count"]
+            )
             for field, matched in result["selected_matches"].items():  # type: ignore[union-attr]
                 stats = bucket["field_matches"].setdefault(field, {"matched": 0, "labeled": 0})  # type: ignore[union-attr]
                 stats["matched"] += int(bool(matched))
@@ -138,7 +145,9 @@ def _aggregate(items: list[dict[str, object]], results: list[dict[str, object]])
             errors = bucket["errors_by_code"]  # type: ignore[assignment]
             errors[code] = errors.get(code, 0) + 1
     for stats in bucket["field_matches"].values():  # type: ignore[union-attr]
-        stats["accuracy"] = round(stats["matched"] / stats["labeled"], 4) if stats["labeled"] else None
+        stats["accuracy"] = (
+            round(stats["matched"] / stats["labeled"], 4) if stats["labeled"] else None
+        )
     return bucket
 
 
@@ -170,13 +179,30 @@ async def main() -> int:
         datasets[name] = _aggregate(items, results)
 
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "method": {
-            "provider": "same configured RunPod Serverless OCR worker and Korean image model bundle",
-            "contract_policy": "PDF baseline plus all-page rendered-PNG retry; rendered-PNG selected for scored fields",
-            "purchase_order_policy": "PDF OCR selected only for 공급자 주소; all other selected fields use all-page rendered-PNG OCR",
-            "rendering": "all pages; max long side 2200 pixels, reduced to 1100 only above inline payload limit",
-            "field_metric": "normalized expected-value containment in selected OCR text; not CER/WER or field-location accuracy",
+            "provider": (
+                "same configured RunPod Serverless OCR worker and Korean image model "
+                "bundle"
+            ),
+            "contract_policy": (
+                "PDF baseline plus all-page rendered-PNG retry; rendered-PNG selected for scored "
+                "fields"
+            ),
+            "purchase_order_policy": (
+                "PDF OCR selected only for 공급자 주소; all other selected fields use all-page "
+                "rendered-PNG "
+                "OCR"
+            ),
+            "rendering": (
+                "all pages; max long side 2200 pixels, reduced to 1100 only above inline payload "
+                "limit"
+            ),
+            "field_metric": (
+                "normalized expected-value containment in selected OCR text; not CER/WER or "
+                "field-location "
+                "accuracy"
+            ),
             "raw_text_persisted": False,
         },
         "datasets": datasets,

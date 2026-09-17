@@ -8,17 +8,18 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import ocr
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "data/sample/상품설명서_50개/urf-v.pdf"
-OUTPUT = ROOT / "output/evals/ocr-product-description/runpod_product_description_failure_png_check.json"
+OUTPUT = (
+    ROOT / "output/evals/ocr-product-description/runpod_product_description_failure_png_check.json"
+)
 EXPECTED = "urf-v"
 
 
@@ -36,7 +37,7 @@ async def main() -> None:
     )
     fallback = result.payload.get("ocr_fallback", {})
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "input": "urf-v.pdf only, processed through the production OCR entry point",
         "provider": "same configured RunPod Serverless OCR worker via backend OCR adapter",
         "expected_identifier": EXPECTED,
