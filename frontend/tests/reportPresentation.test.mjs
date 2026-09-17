@@ -48,9 +48,6 @@ const { toHtml, toMarkdown } = await vite.ssrLoadModule('/src/pages/Meetings/rep
 const { default: ReportFields } = await vite.ssrLoadModule(
   '/src/components/ReportFields/ReportFields.tsx',
 )
-const { default: ReportReviewWarning } = await vite.ssrLoadModule(
-  '/src/components/ReportReviewWarning/ReportReviewWarning.tsx',
-)
 const { default: ActivityList } = await vite.ssrLoadModule(
   '/src/pages/Daily/components/ActivityList/ActivityList.tsx',
 )
@@ -717,22 +714,6 @@ test('저장 보고서 재진입은 AI 검토 경고를 복구하고 새 범위�
   assert.match(dailyDraft, /setGenerationEvidence\(evidence\)/)
   assert.match(meetingCompose, /setGenerationEvidence\(savedReport\?\.aiEvidence \?\? null\)/)
   assert.match(meetingCompose, /setGenerationEvidence\((completed|run)\.evidence\)/)
-  // 검토 메모는 수정 스트림이 시작되면 상단으로 옮기고, 그렇지 않은 생성 중에는
-  // 흐르는 글 맨 아래에서 단계 결과를 보여 줍니다.
-  const live =
-    /const liveMemo = (?:streaming|generating) \?\s*\(\s*<ReportReviewWarning[^>]*?\bgenerating\b[^>]*?notes=\{reviewNotes\}/s
-  const settled = /\{!(?:streaming|generating) && <ReportReviewWarning evidence=\{[^}]+\} \/>\}/
-  for (const source of [dailyCompose, meetingCompose]) {
-    assert.match(source, live)
-    assert.match(source, settled)
-    assert.match(source, /\{revising && liveMemo\}/)
-    assert.match(source, /\{!revising && liveMemo\}/)
-    // 수정이 시작되면 메모는 완료 후 표시 자리와 같은 상단으로 올라갑니다.
-    assert.ok(source.search(settled) < source.indexOf('{revising && liveMemo}'))
-    // 검토·수정이 남긴 말만 갑니다. 자료 정리·근거 분류는 진행 상황입니다.
-    assert.match(source, /item\.stage === 'review_initial' \|\| item\.stage === 'repair'/)
-  }
-
   // 흐르는 동안 바닥을 따라가는 표식은 스크롤 상자(.reports)의 마지막 자식입니다.
   for (const source of [dailyCompose, meetingCompose]) {
     assert.match(source, /useStickToBottom\((?:streaming|generating)\)/)
@@ -753,7 +734,7 @@ test('저장 보고서 재진입은 AI 검토 경고를 복구하고 새 범위�
   )
 })
 
-test('지금 하는 일 한 줄은 본문과 검토 메모보다 아래, 지나온 단계는 위에 선다', async () => {
+test('지금 하는 일 한 줄은 본문보다 아래, 지나온 단계는 위에 선다', async () => {
   const [dailyCompose, meetingCompose] = await Promise.all([
     readFile(new URL('../src/pages/Daily/Compose.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/pages/Meetings/Compose.tsx', import.meta.url), 'utf8'),
@@ -766,14 +747,10 @@ test('지금 하는 일 한 줄은 본문과 검토 메모보다 아래, 지나�
   for (const source of [dailyCompose, meetingCompose]) {
     const steps = source.indexOf('feed="steps"')
     const live = source.indexOf('feed="live"')
-    const memo = source.indexOf('{!revising && liveMemo}')
-    const revisedMemo = source.indexOf('{revising && liveMemo}')
     const mark = source.indexOf('ref={streamEnd}')
     assert.ok(steps !== -1 && live !== -1, '두 자리 모두 세운다')
-    assert.ok(steps < memo, '지나온 단계는 본문보다 위')
-    assert.ok(memo < live, '지금 하는 일은 검토 메모보다 아래')
+    assert.ok(steps < live, '지금 하는 일은 지나온 단계보다 아래')
     assert.ok(live < mark, '바닥 표식은 그보다도 아래')
-    assert.ok(revisedMemo < steps, '수정 중 검토 메모는 본문보다 위')
   }
 
   // 미팅만 대상 이름을 답니다 — 일일은 본문이 하나뿐이라 '어디'가 없습니다.
@@ -814,52 +791,6 @@ test('진행 줄은 한 화면에서 지나온 단계와 지금 하는 일로 �
     createElement(GenerationProgress, { feed: false, progress, reportKind: 'meeting' }),
   )
   assert.doesNotMatch(off, /aria-current|분석함/)
-})
-
-test('자동 수정 전 검토 기록과 실제 검토 실패를 구분해 안내한다', () => {
-  const issue = { action: '고객명을 확인해 주세요.' }
-  const repaired = renderToStaticMarkup(
-    createElement(ReportReviewWarning, {
-      evidence: {
-        report_review: {
-          review_required: false,
-          review_incomplete: false,
-          review_notes_may_predate_draft: true,
-          issues: [issue],
-        },
-      },
-    }),
-  )
-  assert.match(repaired, /자동 수정 전 AI 초안 검토 메모/)
-  assert.match(repaired, /고객명을 확인해 주세요/)
-  assert.doesNotMatch(repaired, /끝내지 못했습니다/)
-
-  const incomplete = renderToStaticMarkup(
-    createElement(ReportReviewWarning, {
-      evidence: {
-        report_review: {
-          review_required: true,
-          review_incomplete: true,
-          issues: [issue],
-        },
-      },
-    }),
-  )
-  assert.match(incomplete, /AI 초안 검토를 끝내지 못했습니다/)
-
-  const clean = renderToStaticMarkup(
-    createElement(ReportReviewWarning, {
-      evidence: {
-        report_review: {
-          review_required: false,
-          review_incomplete: false,
-          review_notes_may_predate_draft: true,
-          issues: [],
-        },
-      },
-    }),
-  )
-  assert.equal(clean, '')
 })
 
 test('미팅 보고서 내부 오류 코드는 작성·상세 화면에서 사용자 문구로 바꾼다', async () => {
