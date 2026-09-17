@@ -1,0 +1,183 @@
+{
+  "case": "hanbit-d30",
+  "t": 29,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 1,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 90.83,
+    "max_score": 100,
+    "percent": 90.8,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.833,
+        "weighted": 20.83,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 0.833,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "state_tracking": {
+        "ratio": 1.0,
+        "weighted": 15.0,
+        "weight": 15,
+        "derived_from": {
+          "checks": 6,
+          "passed": 6
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "금액, 사용자 수, 지원 이슈 상태는 근거와 대체로 일치한다. 다만 근거에 고객의 질문이 있었다는 기록이 없는데 '고객이 질문했고'라고 표현해 고객 발언을 과도하게 단정했다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "금액 확정, 법무·구매 단계, 오류 원인과 회신 일정 등 영업 담당자가 미팅에서 확인할 수 있는 구체적 행동을 제시했고 중복도 적다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 대상과 쟁점이 드러나며, 각 본문이 현재 상태를 먼저 제시한다. 시간순 나열이 아니라 핵심 이슈 중심으로 구성됐다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "계약 금액 세부, 법무 담당자와 일정, 시연 피드백, 오류 영향·원인·완료 기준 등 미팅에서 확인할 정보를 구체적으로 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "contract-review-stalled",
+        "verdict": "partial",
+        "highlight_index": 2,
+        "reason": "법무 검토 단계와 후속 상태 미확인을 다뤘지만, 계약서 검토가 10회차 넘게 장기 정체된 핵심 심각도를 명시적으로 드러내지 못했다."
+      },
+      {
+        "topic_id": "quote-amount-conflict",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "보고서의 2,400만 원과 최신 견적서 v2의 부가세 별도 2,650만 원 차이를 정확히 제시하고, 계약 진행 금액 확인을 요청했다."
+      },
+      {
+        "topic_id": "post-delivery-support",
+        "verdict": "covered",
+        "highlight_index": 4,
+        "reason": "전자차트 고도화 납품 후 야간 통계 배치 오류와 미해결 지원 요청을 다루고, 발생 조건·영향·회신 계획 확인을 제안했다."
+      }
+    ],
+    "must_not_appear": [
+      {
+        "topic_id": "form-standard-scope",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "브리핑에 나타나지 않았다."
+      },
+      {
+        "topic_id": "security-review-schedule",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "브리핑에 나타나지 않았다."
+      },
+      {
+        "topic_id": "delivery-terms-unresolved",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "브리핑에 나타나지 않았다."
+      },
+      {
+        "topic_id": "budget-approval-pending",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "브리핑에 나타나지 않았다."
+      },
+      {
+        "topic_id": "pacs-license-question",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "브리핑에 나타나지 않았다."
+      }
+    ],
+    "changed_values": [
+      {
+        "topic_id": "user-count-corrected",
+        "appeared": true,
+        "stale_value_used": false,
+        "reason": "최신 사용자 수 20명을 제시했으며, 이전 값인 25명을 현재 값처럼 사용하지 않았다."
+      }
+    ],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "고객이 특정 금액에 합의했다 (합의 기록 없음)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "재무팀 예산 승인이 완료됐다 (승인 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "유료 사용자는 25명이다 (9회차에 20명으로 정정됨)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "보안 심의를 통과했다 (16회차 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "계약이 체결됐다 (계약 완료 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "금액, 사용자 수, 지원 이슈 상태는 근거와 대체로 일치한다. 다만 근거에 고객의 질문이 있었다는 기록이 없는데 '고객이 질문했고'라고 표현해 고객 발언을 과도하게 단정했다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "금액 확정, 법무·구매 단계, 오류 원인과 회신 일정 등 영업 담당자가 미팅에서 확인할 수 있는 구체적 행동을 제시했고 중복도 적다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 대상과 쟁점이 드러나며, 각 본문이 현재 상태를 먼저 제시한다. 시간순 나열이 아니라 핵심 이슈 중심으로 구성됐다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "계약 금액 세부, 법무 담당자와 일정, 시연 피드백, 오류 영향·원인·완료 기준 등 미팅에서 확인할 정보를 구체적으로 지목했다."
+      }
+    ],
+    "critical_errors": [
+      "근거에 고객의 금액 질문이 있었다는 기록이 없는데 '2,400만 원과의 기준 차이를 고객이 질문했고'라고 고객 발언을 창작·단정했다."
+    ],
+    "summary": "핵심 세 가지 이슈와 최신 사용자 수·견적 금액을 전반적으로 정확히 반영했고, 미팅용 확인 행동도 구체적이다. 다만 계약 검토 장기 정체의 심각도를 약하게 표현했고, 근거 없는 고객 발언을 한 차례 포함했다."
+  }
+}

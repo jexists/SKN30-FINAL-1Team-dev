@@ -1,0 +1,112 @@
+{
+  "case": "hanul-d05",
+  "t": 4,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 85.0,
+    "max_score": 85,
+    "percent": 100.0,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "전자화가 검토 단계이고 범위·운영 조건·구매·계약·일정이 확정되지 않았다는 내용이 근거와 일치한다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "문서 범위, 결재 단계, 사용자 규모, 보안·권한, 의사결정 절차, 일정과 담당자 등 미팅에서 확인할 사항이 구체적이고 실행 가능하다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 전자화 검토 상태와 미확정 쟁점을 파악할 수 있으며, 각 본문이 현재 상태로 시작하고 시간순 나열을 피했다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "월 결재 건수, 대상 범위, 사용자·결재 절차, 연계·보안 조건, 도입 시점, 의사결정 및 견적·계약·구축 일정 등 확인 필요 사항을 충분히 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "paper-volume-unknown",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "월 결재 건수가 현재 확인되지 않았고, 이를 확인하지 않으면 전자화 효과와 추진 가능성을 판단하기 어렵다는 점을 다뤘다. 제안된 액션에도 월 결재 건수 확인이 포함되어 있다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "GMP 요건을 충족한다고 확인됐다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "시범 부서가 정해졌다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "도입이 확정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "전자화가 검토 단계이고 범위·운영 조건·구매·계약·일정이 확정되지 않았다는 내용이 근거와 일치한다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "문서 범위, 결재 단계, 사용자 규모, 보안·권한, 의사결정 절차, 일정과 담당자 등 미팅에서 확인할 사항이 구체적이고 실행 가능하다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 전자화 검토 상태와 미확정 쟁점을 파악할 수 있으며, 각 본문이 현재 상태로 시작하고 시간순 나열을 피했다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "월 결재 건수, 대상 범위, 사용자·결재 절차, 연계·보안 조건, 도입 시점, 의사결정 및 견적·계약·구축 일정 등 확인 필요 사항을 충분히 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심 미집계 항목인 월 결재 건수를 확인해야 한다는 점을 포함해, 품질관리 문서 전자화의 검토 단계와 미확정 사항을 정확하고 실행 가능하게 정리했다."
+  }
+}

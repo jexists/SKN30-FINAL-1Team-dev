@@ -1,0 +1,64 @@
+{
+  "case": "sejong-d01",
+  "deterministic_path": true,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "started_at": "2026-09-17T13:19:40+09:00",
+  "elapsed_seconds": 0.0,
+  "error": null,
+  "raw_output": {
+    "highlights": [
+      {
+        "title": "첫 미팅에서 고객 과제와 도입 조건을 확인하세요",
+        "body": "세종의료재단 윤재호 담당자와 첫 미팅이 예정되어 있습니다. 일정 메모의 목적은 '진행 중인 건 점검'이며, 현장에서 고객의 현재 상황과 성공 기준을 구체화해야 합니다.",
+        "suggested_actions": [
+          "현재 가장 해결하고 싶은 문제와 우선순위를 질문합니다.",
+          "예산, 도입 시기, 의사결정자를 확인합니다.",
+          "후속 검토 자료와 다음 단계를 합의합니다."
+        ],
+        "source_refs": [
+          {
+            "type": "activity",
+            "id": "activity-sejong-t00-next",
+            "excerpt": "세종의료재단 정기 미팅",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": []
+      }
+    ],
+    "missing_information": [
+      "고객의 현재 과제와 요구사항",
+      "예산·도입 시기·의사결정 구조"
+    ]
+  },
+  "filtered_output": {
+    "highlights": [
+      {
+        "title": "첫 미팅에서 고객 과제와 도입 조건을 확인하세요",
+        "body": "세종의료재단 윤재호 담당자와 첫 미팅이 예정되어 있습니다. 일정 메모의 목적은 '진행 중인 건 점검'이며, 현장에서 고객의 현재 상황과 성공 기준을 구체화해야 합니다.",
+        "suggested_actions": [
+          "현재 가장 해결하고 싶은 문제와 우선순위를 질문합니다.",
+          "예산, 도입 시기, 의사결정자를 확인합니다.",
+          "후속 검토 자료와 다음 단계를 합의합니다."
+        ],
+        "source_refs": [
+          {
+            "type": "activity",
+            "id": "activity-sejong-t00-next",
+            "excerpt": "세종의료재단 정기 미팅",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": []
+      }
+    ],
+    "missing_information": [
+      "고객의 현재 과제와 요구사항",
+      "예산·도입 시기·의사결정 구조"
+    ]
+  },
+  "dropped_highlight_count": 0,
+  "tool_calls": [],
+  "rag_call_count": 0,
+  "recent_read_called": false
+}

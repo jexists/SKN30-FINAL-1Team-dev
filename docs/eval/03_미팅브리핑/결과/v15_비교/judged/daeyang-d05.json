@@ -1,0 +1,117 @@
+{
+  "case": "daeyang-d05",
+  "t": 4,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 85.0,
+    "max_score": 85,
+    "percent": 100.0,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "2012년 도입, 유지보수 종료 예정, 정확한 종료일 미확인, 교체 검토 단계 등 핵심 사실이 제공된 근거와 일치한다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "종료 예정일, 운영 문제, 범위·기능, 예산·의사결정권자·일정 등 미팅에서 확인할 항목이 구체적이고 영업 담당자가 실행할 수 있다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 교체 검토 상태와 유지보수 종료일 미확인 쟁점을 파악할 수 있으며, 각 본문이 현재 상태부터 제시한다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "유지보수 종료일과 교체 기준, 운영 문제, 범위, 예산·일정, 구매·승인 절차, 데이터 이전 요구사항 등 미팅에서 확인할 정보를 폭넓게 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "eol-date-unknown",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "유지보수 종료 예정은 확인됐지만 정확한 종료일과 교체 기준이 미확인이라는 핵심 사안을 현재 상태에 맞게 명확히 제시했다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "고객이 80석에 합의했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "유지보수 요율을 8%로 조정하기로 했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "구형 설비 연동이 검증됐다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "계약이 체결됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "2012년 도입, 유지보수 종료 예정, 정확한 종료일 미확인, 교체 검토 단계 등 핵심 사실이 제공된 근거와 일치한다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "종료 예정일, 운영 문제, 범위·기능, 예산·의사결정권자·일정 등 미팅에서 확인할 항목이 구체적이고 영업 담당자가 실행할 수 있다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 교체 검토 상태와 유지보수 종료일 미확인 쟁점을 파악할 수 있으며, 각 본문이 현재 상태부터 제시한다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "유지보수 종료일과 교체 기준, 운영 문제, 범위, 예산·일정, 구매·승인 절차, 데이터 이전 요구사항 등 미팅에서 확인할 정보를 폭넓게 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심 미확인 사안을 정확히 짚고, 관련된 검토 조건과 실행 가능한 확인 질문을 함께 제시한 브리핑이다."
+  }
+}

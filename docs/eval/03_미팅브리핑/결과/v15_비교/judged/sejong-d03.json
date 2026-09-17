@@ -1,0 +1,112 @@
+{
+  "case": "sejong-d03",
+  "t": 2,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 75.0,
+    "max_score": 85,
+    "percent": 88.2,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.8,
+        "weighted": 20.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 1,
+          "penalty": 0.2
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "시스템 불일치와 통합 범위 미확인 상태는 근거와 일치한다. 다만 첫 하이라이트의 윤재호 차장 부재·복귀 일정은 제시된 골든 정보에서 확인되지 않는다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "병원별 시스템, 통합 범위, 일정, 예산, 의사결정 절차 등 영업 담당자가 미팅에서 확인할 항목이 구체적이고 실행 가능하다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 현재 상태와 핵심 쟁점을 파악할 수 있고, 시간순 나열 없이 현재 상태와 확인 과제를 중심으로 구성됐다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "병원별 시스템 현황, 통합 범위, 일정, 예산, 의사결정 절차, 신규 요청 여부 등 미팅에서 확인할 정보를 명확히 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "branch-inventory-unknown",
+        "verdict": "covered",
+        "highlight_index": 2,
+        "reason": "산하 병원 세 곳의 시스템 목록이 확인되지 않았고, 이로 인해 통합 범위·일정·예산·의사결정 절차를 정해야 한다는 핵심 사안을 정확히 다뤘다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 1,
+    "forbidden_claims": [
+      {
+        "item": "영업 건이 등록되어 있다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "고객이 도입을 확정했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "예산이 배정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "시스템 불일치와 통합 범위 미확인 상태는 근거와 일치한다. 다만 첫 하이라이트의 윤재호 차장 부재·복귀 일정은 제시된 골든 정보에서 확인되지 않는다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "병원별 시스템, 통합 범위, 일정, 예산, 의사결정 절차 등 영업 담당자가 미팅에서 확인할 항목이 구체적이고 실행 가능하다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 현재 상태와 핵심 쟁점을 파악할 수 있고, 시간순 나열 없이 현재 상태와 확인 과제를 중심으로 구성됐다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "병원별 시스템 현황, 통합 범위, 일정, 예산, 의사결정 절차, 신규 요청 여부 등 미팅에서 확인할 정보를 명확히 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심 사안인 산하 3개 병원의 시스템 현황 미파악과 통합 범위 미정을 정확히 다뤘다. 다만 골든의 핵심 주제와 직접 관련이 약한 일반 업무 점검 하이라이트가 하나 포함되어 있고, 윤재호 차장 관련 내용은 제공된 근거에서 확인되지 않는다."
+  }
+}

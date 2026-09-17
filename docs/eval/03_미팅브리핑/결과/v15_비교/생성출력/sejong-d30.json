@@ -1,0 +1,121 @@
+{
+  "case": "sejong-d30",
+  "deterministic_path": false,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "started_at": "2026-09-17T13:20:07+09:00",
+  "elapsed_seconds": 6.34,
+  "error": null,
+  "raw_output": {
+    "highlights": [
+      {
+        "title": "진행 중인 건의 구체적 상태와 다음 조치가 아직 확인되지 않았습니다",
+        "body": "최근 3회 미팅에서는 기존 진행 흐름을 유지했고, 별도 의사결정·추가 요청·변경 사항은 없었습니다. 이번 정기 미팅에서는 ‘진행 중인 건’이 무엇인지와 현재 단계, 담당자별 다음 조치를 구체화해야 합니다.",
+        "suggested_actions": [
+          "윤재호 차장에게 현재 진행 중인 업무·건별 상태와 우선순위를 확인",
+          "각 건의 다음 조치, 담당자, 목표 일정을 합의",
+          "새로운 금액·수량·납기·계약 조건 변경 여부를 확인"
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-sejong-29",
+            "excerpt": "이번 미팅에서는 기존에 안내된 내용과 현재 진행 상황을 중심으로 간단히 확인했으며, 별도의 의사결정이나 추가 요청 사항은 없었다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-sejong-28",
+            "excerpt": "진행 중인 딜은 있으나 이번 미팅에서 딜별로 별도 확인된 내용이나 변동 사항은 없었다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": []
+      }
+    ],
+    "missing_information": [
+      "현재 진행 중인 건의 구체적인 대상과 단계",
+      "건별 담당자·다음 조치·목표 일정",
+      "최신 금액·수량·납기·계약 조건 변경 여부"
+    ]
+  },
+  "filtered_output": {
+    "highlights": [
+      {
+        "title": "진행 중인 건의 구체적 상태와 다음 조치가 아직 확인되지 않았습니다",
+        "body": "최근 3회 미팅에서는 기존 진행 흐름을 유지했고, 별도 의사결정·추가 요청·변경 사항은 없었습니다. 이번 정기 미팅에서는 ‘진행 중인 건’이 무엇인지와 현재 단계, 담당자별 다음 조치를 구체화해야 합니다.",
+        "suggested_actions": [
+          "윤재호 차장에게 현재 진행 중인 업무·건별 상태와 우선순위를 확인",
+          "각 건의 다음 조치, 담당자, 목표 일정을 합의",
+          "새로운 금액·수량·납기·계약 조건 변경 여부를 확인"
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-sejong-29",
+            "excerpt": "이번 미팅에서는 기존에 안내된 내용과 현재 진행 상황을 중심으로 간단히 확인했으며, 별도의 의사결정이나 추가 요청 사항은 없었다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-sejong-28",
+            "excerpt": "진행 중인 딜은 있으나 이번 미팅에서 딜별로 별도 확인된 내용이나 변동 사항은 없었다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": []
+      }
+    ],
+    "missing_information": [
+      "현재 진행 중인 건의 구체적인 대상과 단계",
+      "건별 담당자·다음 조치·목표 일정",
+      "최신 금액·수량·납기·계약 조건 변경 여부"
+    ]
+  },
+  "dropped_highlight_count": 0,
+  "tool_calls": [
+    {
+      "name": "read_recent_reports",
+      "args": {
+        "report_ids": null
+      }
+    },
+    {
+      "name": "HighlightBriefingOutput",
+      "args": {
+        "highlights": [
+          {
+            "title": "진행 중인 건의 구체적 상태와 다음 조치가 아직 확인되지 않았습니다",
+            "body": "최근 3회 미팅에서는 기존 진행 흐름을 유지했고, 별도 의사결정·추가 요청·변경 사항은 없었습니다. 이번 정기 미팅에서는 ‘진행 중인 건’이 무엇인지와 현재 단계, 담당자별 다음 조치를 구체화해야 합니다.",
+            "suggested_actions": [
+              "윤재호 차장에게 현재 진행 중인 업무·건별 상태와 우선순위를 확인",
+              "각 건의 다음 조치, 담당자, 목표 일정을 합의",
+              "새로운 금액·수량·납기·계약 조건 변경 여부를 확인"
+            ],
+            "source_refs": [
+              {
+                "type": "report",
+                "id": "report-sejong-29",
+                "excerpt": "이번 미팅에서는 기존에 안내된 내용과 현재 진행 상황을 중심으로 간단히 확인했으며, 별도의 의사결정이나 추가 요청 사항은 없었다.",
+                "chunk_id": null
+              },
+              {
+                "type": "report",
+                "id": "report-sejong-28",
+                "excerpt": "진행 중인 딜은 있으나 이번 미팅에서 딜별로 별도 확인된 내용이나 변동 사항은 없었다.",
+                "chunk_id": null
+              }
+            ],
+            "related_deal_ids": []
+          }
+        ],
+        "missing_information": [
+          "현재 진행 중인 건의 구체적인 대상과 단계",
+          "건별 담당자·다음 조치·목표 일정",
+          "최신 금액·수량·납기·계약 조건 변경 여부"
+        ]
+      }
+    }
+  ],
+  "rag_call_count": 0,
+  "recent_read_called": true
+}

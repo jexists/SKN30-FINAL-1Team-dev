@@ -1,0 +1,117 @@
+{
+  "case": "daeyang-d10",
+  "t": 9,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 1,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 57.5,
+    "max_score": 85,
+    "percent": 67.6,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.0,
+        "weighted": 0.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 0.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "60석 검토 상태, 시연 환경 미확정, 연동 지원 방식, 계약·도입 일정 미확정 등은 제공된 근거와 일치한다. 미합의 사항도 확정된 것처럼 표현하지 않았다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "견적·승인·시연 환경·동시 접속·연동·의사결정 일정 등 미팅에서 확인할 행동이 구체적이고 영업 담당자가 실행할 수 있다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "각 제목이 대상과 쟁점을 명확히 드러내며, 본문 첫 문장도 현재 상태를 제시한다. 시간순 나열 없이 핵심 이슈별로 구성되어 빠르게 훑기 좋다."
+      },
+      "missing_information": {
+        "rating": 3,
+        "weighted": 7.5,
+        "weight": 10,
+        "reason": "구매 수량, 시연 환경, 기술 요구, 의사결정권자, 승인·도입 일정 등 다수의 확인 항목을 제시했지만, 유지보수 종료일과 교체 시점 판단에 필요한 핵심 확인 사항이 빠졌다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "eol-date-unknown",
+        "verdict": "missed",
+        "highlight_index": null,
+        "reason": "현 시스템의 유지보수 종료일이 미확인되어 교체 시점을 정할 수 있다는 핵심 사안이 브리핑에 언급되지 않았다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "고객이 80석에 합의했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "유지보수 요율을 8%로 조정하기로 했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "구형 설비 연동이 검증됐다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "계약이 체결됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "60석 검토 상태, 시연 환경 미확정, 연동 지원 방식, 계약·도입 일정 미확정 등은 제공된 근거와 일치한다. 미합의 사항도 확정된 것처럼 표현하지 않았다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "견적·승인·시연 환경·동시 접속·연동·의사결정 일정 등 미팅에서 확인할 행동이 구체적이고 영업 담당자가 실행할 수 있다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "각 제목이 대상과 쟁점을 명확히 드러내며, 본문 첫 문장도 현재 상태를 제시한다. 시간순 나열 없이 핵심 이슈별로 구성되어 빠르게 훑기 좋다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 3,
+        "reason": "구매 수량, 시연 환경, 기술 요구, 의사결정권자, 승인·도입 일정 등 다수의 확인 항목을 제시했지만, 유지보수 종료일과 교체 시점 판단에 필요한 핵심 확인 사항이 빠졌다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "브리핑은 근거에 충실하고 실행 가능한 확인 항목을 잘 제시했지만, 이번 브리핑의 필수 핵심 사안인 노후 설비 유지보수 종료 시점 미확인을 완전히 누락했다."
+  }
+}

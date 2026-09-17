@@ -1,0 +1,128 @@
+{
+  "case": "miraero-d10",
+  "t": 9,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 1,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 85.0,
+    "max_score": 85,
+    "percent": 100.0,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "장비 20대를 최종 도입으로 단정하지 않고 1차 산정 및 실사 후 조정 가능 상태로 표현해 근거와 부합한다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "실사·최종 수량·자동화 범위·의사결정 일정 등 영업 담당자가 미팅에서 확인하고 합의할 수 있는 구체적 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "하이라이트 제목만으로 검사실 자동화의 진행 상태, 장비 수량 쟁점, 자동화 범위 쟁점을 파악할 수 있으며 시간순 나열이 아니다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "실사 및 최종 수량, 자동화 범위, 예산·승인·계약 일정, 담당자와 기한 등 미팅에서 확인할 정보를 명확히 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "test-scope-unknown",
+        "verdict": "covered",
+        "highlight_index": 3,
+        "reason": "자동화 대상 검사 항목, 우선순위, 연계 범위가 아직 미확정임을 명시하고 미팅에서 확인할 항목을 제시했다."
+      },
+      {
+        "topic_id": "device-count",
+        "verdict": "covered",
+        "highlight_index": 2,
+        "reason": "장비 20대를 1차 산정한 사실과 실사 후 최종 수량이 조정될 수 있다는 현재 상태를 다루고, 최종 수량 확인을 제안했다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "장비 20대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "장비 15대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "9월에 오픈한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "박승우 대리가 담당이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "교육 일정이 확정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "장비 20대를 최종 도입으로 단정하지 않고 1차 산정 및 실사 후 조정 가능 상태로 표현해 근거와 부합한다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "실사·최종 수량·자동화 범위·의사결정 일정 등 영업 담당자가 미팅에서 확인하고 합의할 수 있는 구체적 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "하이라이트 제목만으로 검사실 자동화의 진행 상태, 장비 수량 쟁점, 자동화 범위 쟁점을 파악할 수 있으며 시간순 나열이 아니다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "실사 및 최종 수량, 자동화 범위, 예산·승인·계약 일정, 담당자와 기한 등 미팅에서 확인할 정보를 명확히 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심 필수 사안인 자동화 범위 미확정과 장비 20대의 수량 쟁점을 모두 정확히 다뤘다. 최종 도입 수량이나 일정 등을 합의된 사실로 과장하지 않았고, 미팅에서 확인할 후속 행동도 구체적이다."
+  }
+}

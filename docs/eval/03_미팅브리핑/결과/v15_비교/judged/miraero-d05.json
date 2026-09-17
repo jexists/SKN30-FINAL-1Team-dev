@@ -1,0 +1,128 @@
+{
+  "case": "miraero-d05",
+  "t": 4,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": false,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 56.25,
+    "max_score": 85,
+    "percent": 66.2,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.25,
+        "weighted": 6.25,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 0.25,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "20대와 구매·계약 미확인 상태를 단정된 도입 완료로 왜곡하지 않았고, 제시된 출처와도 대체로 부합한다. 다만 골든의 20대 도입 수량을 잠정 산정치로 낮춰 표현했다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "실사 일정·범위·담당자, 수량 확정 절차, 승인·견적·계약 일정을 확인하도록 구체적인 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 3,
+        "weighted": 7.5,
+        "weight": 10,
+        "reason": "제목만으로 수량과 구매 진행 쟁점을 파악할 수 있고 본문도 현재 상태로 시작한다. 다만 핵심 쟁점인 자동화 검사 범위가 빠져 브리핑의 초점이 완전하지 않다."
+      },
+      "missing_information": {
+        "rating": 3,
+        "weighted": 7.5,
+        "weight": 10,
+        "reason": "실사, 최종 수량, 예산·승인, 견적·계약 일정을 확인 항목으로 제시했지만 자동화 대상 검사 항목 자체를 확인해야 한다는 가장 중요한 누락 정보가 빠졌다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "test-scope-unknown",
+        "verdict": "missed",
+        "highlight_index": null,
+        "reason": "어떤 검사 항목까지 자동화할지 미확정되어 장비 구성을 확정할 수 없다는 핵심 쟁점을 다루지 않았다."
+      },
+      {
+        "topic_id": "device-count",
+        "verdict": "partial",
+        "highlight_index": 1,
+        "reason": "장비 20대를 언급했지만 최종 도입 수량이 아니라 1차 산정치이며 실사 후 조정될 수 있다고 설명해, 골든의 20대 도입 수량과 상태가 어긋난다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "장비 20대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "장비 15대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "9월에 오픈한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "박승우 대리가 담당이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "교육 일정이 확정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "20대와 구매·계약 미확인 상태를 단정된 도입 완료로 왜곡하지 않았고, 제시된 출처와도 대체로 부합한다. 다만 골든의 20대 도입 수량을 잠정 산정치로 낮춰 표현했다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "실사 일정·범위·담당자, 수량 확정 절차, 승인·견적·계약 일정을 확인하도록 구체적인 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 3,
+        "reason": "제목만으로 수량과 구매 진행 쟁점을 파악할 수 있고 본문도 현재 상태로 시작한다. 다만 핵심 쟁점인 자동화 검사 범위가 빠져 브리핑의 초점이 완전하지 않다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 3,
+        "reason": "실사, 최종 수량, 예산·승인, 견적·계약 일정을 확인 항목으로 제시했지만 자동화 대상 검사 항목 자체를 확인해야 한다는 가장 중요한 누락 정보가 빠졌다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "장비 20대와 실사·구매 절차의 불확실성은 비교적 명확히 정리했지만, 자동화 대상 검사 항목 미확정이라는 핵심 쟁점을 누락했다. 또한 골든상 20대 도입 수량을 잠정 산정치로 표현해 해당 토픽은 부분 충족이다."
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "case": "miraero-d03",
+  "t": 2,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 70.0,
+    "max_score": 85,
+    "percent": 82.4,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.8,
+        "weighted": 20.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 1,
+          "penalty": 0.2
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "핵심인 자동화 범위 미확정 상태는 근거와 일치한다. 다만 '검사 접수부터 결과 등록까지의 수기 단계'와 박승우 대리의 일정·연락 가능성은 제공된 근거 발췌에서 직접 확인되지 않는다."
+      },
+      "suggested_actions": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "검사 항목, 우선순위, 시스템 연계, 의사결정 기준과 후속 일정을 확인하도록 제안해 실무성이 높다. 다만 변동 사항 확인과 박승우 대리 일정 재확인은 일부 중복되거나 근거가 부족하다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "첫 하이라이트 제목과 첫 문장에서 자동화 범위 미확정이라는 현재 쟁점이 바로 드러나며, 시간순 요약이 아니다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "검사 항목·적용 범위, 우선순위·연계, 일정·의사결정·예산·성과 기준, 후속 담당자·기한 등 미팅에서 확인할 사항을 구체적으로 제시했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "test-scope-unknown",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "자동화 대상 검사 항목, 우선순위, 전체 또는 일부 적용 여부가 미확정되어 장비 구성과 다음 단계 진행이 어렵다는 핵심 사안을 정확히 다뤘다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 1,
+    "forbidden_claims": [
+      {
+        "item": "장비 20대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "장비 15대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "9월에 오픈한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "박승우 대리가 담당이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "교육 일정이 확정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "핵심인 자동화 범위 미확정 상태는 근거와 일치한다. 다만 '검사 접수부터 결과 등록까지의 수기 단계'와 박승우 대리의 일정·연락 가능성은 제공된 근거 발췌에서 직접 확인되지 않는다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 3,
+        "reason": "검사 항목, 우선순위, 시스템 연계, 의사결정 기준과 후속 일정을 확인하도록 제안해 실무성이 높다. 다만 변동 사항 확인과 박승우 대리 일정 재확인은 일부 중복되거나 근거가 부족하다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "첫 하이라이트 제목과 첫 문장에서 자동화 범위 미확정이라는 현재 쟁점이 바로 드러나며, 시간순 요약이 아니다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "검사 항목·적용 범위, 우선순위·연계, 일정·의사결정·예산·성과 기준, 후속 담당자·기한 등 미팅에서 확인할 사항을 구체적으로 제시했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심 미확정 사안은 정확히 포착했고 확인 질문도 구체적이다. 다만 두 번째 하이라이트는 이번 미팅의 핵심 골든 사안과 직접 관련성이 낮고, 일부 세부 사실은 제공된 근거보다 앞서 나갔다."
+  }
+}

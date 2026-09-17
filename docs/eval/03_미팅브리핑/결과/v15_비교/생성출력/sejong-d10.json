@@ -1,0 +1,136 @@
+{
+  "case": "sejong-d10",
+  "deterministic_path": false,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "started_at": "2026-09-17T13:19:58+09:00",
+  "elapsed_seconds": 9.52,
+  "error": null,
+  "raw_output": {
+    "highlights": [
+      {
+        "title": "현재 진행 중인 딜·추가 요청 없이 기존 소통만 유지 중",
+        "body": "최근 보고서 기준으로 현재 진행 중인 딜, 신규 요청, 조건 변경 또는 미해결 과제는 확인되지 않았습니다. 이번 미팅 메모의 ‘진행 중인 건 점검’이 무엇을 의미하는지 구체화하고, 이후 변동 여부를 확인하는 것이 중요합니다.",
+        "suggested_actions": [
+          "윤재호 차장에게 이번 점검 대상인 진행 건의 범위와 우선순위를 먼저 확인",
+          "최근 협의 내용에서 변경된 요청·일정·조건이 있는지 재확인",
+          "변동이 없다면 다음 연락 및 방문 일정만 합의"
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-sejong-09",
+            "excerpt": "이번 방문에서는 새로운 결정이나 요청, 조건 변경 없이 인사와 진행 상황 공유 및 일정 조정만 확인했다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-sejong-07",
+            "excerpt": "현재 진행 중인 딜은 없습니다.",
+            "chunk_id": null
+          },
+          {
+            "type": "activity",
+            "id": "activity-sejong-t09-next",
+            "excerpt": "진행 중인 건 점검",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": []
+      }
+    ],
+    "missing_information": [
+      "이번 미팅에서 점검할 구체적인 진행 건의 대상과 범위",
+      "최근 보고서 이후 변경된 일정·요청·조건이 있는지 여부"
+    ]
+  },
+  "filtered_output": {
+    "highlights": [
+      {
+        "title": "현재 진행 중인 딜·추가 요청 없이 기존 소통만 유지 중",
+        "body": "최근 보고서 기준으로 현재 진행 중인 딜, 신규 요청, 조건 변경 또는 미해결 과제는 확인되지 않았습니다. 이번 미팅 메모의 ‘진행 중인 건 점검’이 무엇을 의미하는지 구체화하고, 이후 변동 여부를 확인하는 것이 중요합니다.",
+        "suggested_actions": [
+          "윤재호 차장에게 이번 점검 대상인 진행 건의 범위와 우선순위를 먼저 확인",
+          "최근 협의 내용에서 변경된 요청·일정·조건이 있는지 재확인",
+          "변동이 없다면 다음 연락 및 방문 일정만 합의"
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-sejong-09",
+            "excerpt": "이번 방문에서는 새로운 결정이나 요청, 조건 변경 없이 인사와 진행 상황 공유 및 일정 조정만 확인했다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-sejong-07",
+            "excerpt": "현재 진행 중인 딜은 없습니다.",
+            "chunk_id": null
+          },
+          {
+            "type": "activity",
+            "id": "activity-sejong-t09-next",
+            "excerpt": "진행 중인 건 점검",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": []
+      }
+    ],
+    "missing_information": [
+      "이번 미팅에서 점검할 구체적인 진행 건의 대상과 범위",
+      "최근 보고서 이후 변경된 일정·요청·조건이 있는지 여부"
+    ]
+  },
+  "dropped_highlight_count": 0,
+  "tool_calls": [
+    {
+      "name": "read_recent_reports",
+      "args": {
+        "report_ids": null
+      }
+    },
+    {
+      "name": "HighlightBriefingOutput",
+      "args": {
+        "highlights": [
+          {
+            "title": "현재 진행 중인 딜·추가 요청 없이 기존 소통만 유지 중",
+            "body": "최근 보고서 기준으로 현재 진행 중인 딜, 신규 요청, 조건 변경 또는 미해결 과제는 확인되지 않았습니다. 이번 미팅 메모의 ‘진행 중인 건 점검’이 무엇을 의미하는지 구체화하고, 이후 변동 여부를 확인하는 것이 중요합니다.",
+            "suggested_actions": [
+              "윤재호 차장에게 이번 점검 대상인 진행 건의 범위와 우선순위를 먼저 확인",
+              "최근 협의 내용에서 변경된 요청·일정·조건이 있는지 재확인",
+              "변동이 없다면 다음 연락 및 방문 일정만 합의"
+            ],
+            "source_refs": [
+              {
+                "type": "report",
+                "id": "report-sejong-09",
+                "excerpt": "이번 방문에서는 새로운 결정이나 요청, 조건 변경 없이 인사와 진행 상황 공유 및 일정 조정만 확인했다.",
+                "chunk_id": null
+              },
+              {
+                "type": "report",
+                "id": "report-sejong-07",
+                "excerpt": "현재 진행 중인 딜은 없습니다.",
+                "chunk_id": null
+              },
+              {
+                "type": "activity",
+                "id": "activity-sejong-t09-next",
+                "excerpt": "진행 중인 건 점검",
+                "chunk_id": null
+              }
+            ],
+            "related_deal_ids": []
+          }
+        ],
+        "missing_information": [
+          "이번 미팅에서 점검할 구체적인 진행 건의 대상과 범위",
+          "최근 보고서 이후 변경된 일정·요청·조건이 있는지 여부"
+        ]
+      }
+    }
+  ],
+  "rag_call_count": 0,
+  "recent_read_called": true
+}

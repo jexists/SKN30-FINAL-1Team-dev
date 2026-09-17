@@ -1,0 +1,105 @@
+{
+  "case": "cheongsan-d01",
+  "t": 0,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": false,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 80.0,
+    "max_score": 85,
+    "percent": 94.1,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "첫 미팅이라는 맥락과 담당자 정보는 일치한다. 다만 '진행 중인 건 점검'이라는 일정 목적은 골든에서 확인되지 않아 근거가 다소 불명확하다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "고객 과제, 예산·도입 시기·의사결정자, 후속 단계 등 담당자가 현장에서 바로 확인할 수 있는 질문과 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 첫 미팅의 목적과 확인할 쟁점을 알 수 있고, 본문도 현재 상황을 먼저 제시한다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "첫 미팅에서 아직 알 수 없는 고객 과제·요구사항과 예산·도입 시기·의사결정 구조를 확인 대상으로 명시했다. 과거 보고서나 연결된 딜이 없다는 정상 상태를 누락으로 잘못 지적하지 않았다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "전자결재 확장을 진행 중이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "근태관리에 미해결 장애가 있다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "신규 계약이 논의 중이다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "첫 미팅이라는 맥락과 담당자 정보는 일치한다. 다만 '진행 중인 건 점검'이라는 일정 목적은 골든에서 확인되지 않아 근거가 다소 불명확하다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "고객 과제, 예산·도입 시기·의사결정자, 후속 단계 등 담당자가 현장에서 바로 확인할 수 있는 질문과 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 첫 미팅의 목적과 확인할 쟁점을 알 수 있고, 본문도 현재 상황을 먼저 제시한다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "첫 미팅에서 아직 알 수 없는 고객 과제·요구사항과 예산·도입 시기·의사결정 구조를 확인 대상으로 명시했다. 과거 보고서나 연결된 딜이 없다는 정상 상태를 누락으로 잘못 지적하지 않았다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "첫 미팅에 맞춰 확인해야 할 고객 과제와 도입 조건을 간결하게 제시했다. 다만 일정 목적에 대한 표현은 제공된 근거보다 구체적이다."
+  }
+}

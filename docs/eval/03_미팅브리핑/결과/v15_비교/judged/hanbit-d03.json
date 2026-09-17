@@ -1,0 +1,128 @@
+{
+  "case": "hanbit-d03",
+  "t": 2,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 85.0,
+    "max_score": 85,
+    "percent": 100.0,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "보안 심의 일정 미공지, 심의 통과 전 연동 개발 불가, 서식 표준화 범위 미확정 등 근거에 부합하며 고객의 합의나 완료를 과장하지 않았다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "심의 일정·제출 자료·담당자·기한과 서식 범위·예외 처리·요구사항 확정 기준 등 영업 담당자가 미팅에서 확인할 구체적 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "두 하이라이트 제목만으로 대상과 쟁점을 파악할 수 있고, 각 본문도 시간순 나열이 아니라 현재 상태를 첫 문장에 제시한다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "보안 심의의 일정·자료·검토 범위·결과 시점, 서식 및 통계 범위, 예산·구매·도입·계약 여부 등 미팅에서 확인할 정보를 폭넓게 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "form-standard-scope",
+        "verdict": "covered",
+        "highlight_index": 2,
+        "reason": "진료과별 서식 표준화와 통계 자동화의 적용 범위 및 예외 처리 기준이 미확정되어 개발 범위를 확정할 수 없다는 핵심 사안을 정확히 다뤘다."
+      },
+      {
+        "topic_id": "security-review-schedule",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "외부 연동의 선행 조건인 원내 보안 심의 일정이 아직 공지되지 않았고, 심의 전에는 개발을 시작할 수 없다는 상태를 정확히 다뤘다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "고객이 특정 금액에 합의했다 (합의 기록 없음)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "재무팀 예산 승인이 완료됐다 (승인 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "유료 사용자는 25명이다 (9회차에 20명으로 정정됨)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "보안 심의를 통과했다 (16회차 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "계약이 체결됐다 (계약 완료 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "보안 심의 일정 미공지, 심의 통과 전 연동 개발 불가, 서식 표준화 범위 미확정 등 근거에 부합하며 고객의 합의나 완료를 과장하지 않았다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "심의 일정·제출 자료·담당자·기한과 서식 범위·예외 처리·요구사항 확정 기준 등 영업 담당자가 미팅에서 확인할 구체적 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "두 하이라이트 제목만으로 대상과 쟁점을 파악할 수 있고, 각 본문도 시간순 나열이 아니라 현재 상태를 첫 문장에 제시한다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "보안 심의의 일정·자료·검토 범위·결과 시점, 서식 및 통계 범위, 예산·구매·도입·계약 여부 등 미팅에서 확인할 정보를 폭넓게 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "두 가지 핵심 고위험 사안인 서식 표준화 범위 미정과 보안 심의 일정 미정을 정확히 다뤘으며, 근거에 기반한 구체적 확인 행동과 누락 정보가 제시된 우수한 브리핑이다."
+  }
+}

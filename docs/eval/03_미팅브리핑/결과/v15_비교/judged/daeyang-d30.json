@@ -1,0 +1,151 @@
+{
+  "case": "daeyang-d30",
+  "t": 29,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 1,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 97.5,
+    "max_score": 100,
+    "percent": 97.5,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "state_tracking": {
+        "ratio": 1.0,
+        "weighted": 15.0,
+        "weight": 15,
+        "derived_from": {
+          "checks": 2,
+          "passed": 2
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "좌석 수, 금액, 유지보수 요율, 고객 요청, 구형 설비 연동 상태를 근거와 일치하게 기술했으며 미합의를 합의로 표현하지 않았다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "계약 상태, 좌석 기준, 요율 회신 및 승인, 연동 검증과 범위 반영 등 영업 담당자가 미팅에서 확인할 수 있는 구체적 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 대상과 쟁점을 파악할 수 있고, 각 본문이 시간순 나열이 아니라 현재 상태와 필요한 확인 사항 중심으로 시작한다."
+      },
+      "missing_information": {
+        "rating": 3,
+        "weighted": 7.5,
+        "weight": 10,
+        "reason": "계약 체결·승인 상태, 최종 좌석 수와 요율, 연동 검증 및 계약 범위, 의사결정 일정은 지목했지만 납기·설치일을 명시적으로 확인하도록 하지는 않았다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "seat-count-conflict",
+        "verdict": "covered",
+        "highlight_index": 2,
+        "reason": "80석 견적과 과거 60석 검토 간 불일치를 명확히 제시하고, 최종 좌석 수와 견적 기준 확인을 제안했다."
+      },
+      {
+        "topic_id": "maintenance-rate-open",
+        "verdict": "covered",
+        "highlight_index": 3,
+        "reason": "10% 요율과 고객의 8% 인하 요청, 아직 회신·승인·합의되지 않은 상태를 정확히 설명했다."
+      },
+      {
+        "topic_id": "legacy-migration-risk",
+        "verdict": "covered",
+        "highlight_index": 4,
+        "reason": "2012년 구형 설비의 연동 검증 미완료 및 검증 결과에 따른 계약 범위 변동 가능성을 제시했다."
+      }
+    ],
+    "must_not_appear": [
+      {
+        "topic_id": "eol-date-unknown",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "노후 설비 유지보수 종료 시점 미확인 사안이 브리핑에 나타나지 않았다."
+      },
+      {
+        "topic_id": "demo-env-request",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "시연 환경 요청 사안이 브리핑에 나타나지 않았다."
+      }
+    ],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "고객이 80석에 합의했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "유지보수 요율을 8%로 조정하기로 했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "구형 설비 연동이 검증됐다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "계약이 체결됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "좌석 수, 금액, 유지보수 요율, 고객 요청, 구형 설비 연동 상태를 근거와 일치하게 기술했으며 미합의를 합의로 표현하지 않았다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "계약 상태, 좌석 기준, 요율 회신 및 승인, 연동 검증과 범위 반영 등 영업 담당자가 미팅에서 확인할 수 있는 구체적 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 대상과 쟁점을 파악할 수 있고, 각 본문이 시간순 나열이 아니라 현재 상태와 필요한 확인 사항 중심으로 시작한다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 3,
+        "reason": "계약 체결·승인 상태, 최종 좌석 수와 요율, 연동 검증 및 계약 범위, 의사결정 일정은 지목했지만 납기·설치일을 명시적으로 확인하도록 하지는 않았다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심 미결 사안 3건을 모두 정확히 다뤘고, 해결된 사안이나 금지된 주장을 포함하지 않았다. 미팅 전 확인 행동도 구체적이며, 납기·설치일 확인만 보강할 여지가 있다."
+  }
+}

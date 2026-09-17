@@ -1,0 +1,109 @@
+{
+  "case": "cheongsan-d30",
+  "deterministic_path": false,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "started_at": "2026-09-17T13:15:22+09:00",
+  "elapsed_seconds": 7.07,
+  "error": null,
+  "raw_output": {
+    "highlights": [
+      {
+        "title": "근태관리 계약 갱신 조건표가 아직 전달되지 않았습니다",
+        "body": "현재 근태관리 계약 갱신은 고객 문의 단계이며, 갱신 조건표 전달과 갱신 합의가 완료되지 않았습니다. 이번 미팅에서 고객이 문의한 갱신 시점·조건에 답하고 후속 협의를 진전시키려면 안내 자료와 미확정 항목을 먼저 정리해야 합니다.",
+        "suggested_actions": [
+          "근태관리 갱신 조건표를 미팅 전에 준비해 고객에게 전달할 수 있도록 확인",
+          "갱신 적용 범위·비용·기간·절차와 가능한 갱신 시점을 고객과 구체적으로 확인",
+          "조건표 전달 후 고객의 수용 여부와 추가 협의사항, 다음 진행 일정을 합의"
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-cheongsan-29",
+            "excerpt": "갱신 조건표는 아직 고객에게 전달하지 못한 상태이며, 구체적인 갱신 일정과 조건은 추가 확인이 필요합니다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-p"
+        ]
+      }
+    ],
+    "missing_information": [
+      "갱신 조건표의 세부 내용과 전달 시점",
+      "갱신 대상 계약의 적용 범위·비용·기간·절차",
+      "고객이 수용할 갱신 조건과 갱신 완료 일정"
+    ]
+  },
+  "filtered_output": {
+    "highlights": [
+      {
+        "title": "근태관리 계약 갱신 조건표가 아직 전달되지 않았습니다",
+        "body": "현재 근태관리 계약 갱신은 고객 문의 단계이며, 갱신 조건표 전달과 갱신 합의가 완료되지 않았습니다. 이번 미팅에서 고객이 문의한 갱신 시점·조건에 답하고 후속 협의를 진전시키려면 안내 자료와 미확정 항목을 먼저 정리해야 합니다.",
+        "suggested_actions": [
+          "근태관리 갱신 조건표를 미팅 전에 준비해 고객에게 전달할 수 있도록 확인",
+          "갱신 적용 범위·비용·기간·절차와 가능한 갱신 시점을 고객과 구체적으로 확인",
+          "조건표 전달 후 고객의 수용 여부와 추가 협의사항, 다음 진행 일정을 합의"
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-cheongsan-29",
+            "excerpt": "갱신 조건표는 아직 고객에게 전달하지 못한 상태이며, 구체적인 갱신 일정과 조건은 추가 확인이 필요합니다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-p"
+        ]
+      }
+    ],
+    "missing_information": [
+      "갱신 조건표의 세부 내용과 전달 시점",
+      "갱신 대상 계약의 적용 범위·비용·기간·절차",
+      "고객이 수용할 갱신 조건과 갱신 완료 일정"
+    ]
+  },
+  "dropped_highlight_count": 0,
+  "tool_calls": [
+    {
+      "name": "read_recent_reports",
+      "args": {
+        "report_ids": null
+      }
+    },
+    {
+      "name": "HighlightBriefingOutput",
+      "args": {
+        "highlights": [
+          {
+            "title": "근태관리 계약 갱신 조건표가 아직 전달되지 않았습니다",
+            "body": "현재 근태관리 계약 갱신은 고객 문의 단계이며, 갱신 조건표 전달과 갱신 합의가 완료되지 않았습니다. 이번 미팅에서 고객이 문의한 갱신 시점·조건에 답하고 후속 협의를 진전시키려면 안내 자료와 미확정 항목을 먼저 정리해야 합니다.",
+            "suggested_actions": [
+              "근태관리 갱신 조건표를 미팅 전에 준비해 고객에게 전달할 수 있도록 확인",
+              "갱신 적용 범위·비용·기간·절차와 가능한 갱신 시점을 고객과 구체적으로 확인",
+              "조건표 전달 후 고객의 수용 여부와 추가 협의사항, 다음 진행 일정을 합의"
+            ],
+            "source_refs": [
+              {
+                "type": "report",
+                "id": "report-cheongsan-29",
+                "excerpt": "갱신 조건표는 아직 고객에게 전달하지 못한 상태이며, 구체적인 갱신 일정과 조건은 추가 확인이 필요합니다.",
+                "chunk_id": null
+              }
+            ],
+            "related_deal_ids": [
+              "deal-p"
+            ]
+          }
+        ],
+        "missing_information": [
+          "갱신 조건표의 세부 내용과 전달 시점",
+          "갱신 대상 계약의 적용 범위·비용·기간·절차",
+          "고객이 수용할 갱신 조건과 갱신 완료 일정"
+        ]
+      }
+    }
+  ],
+  "rag_call_count": 0,
+  "recent_read_called": true
+}

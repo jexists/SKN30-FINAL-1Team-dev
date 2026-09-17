@@ -1,0 +1,118 @@
+{
+  "case": "sejong-d05",
+  "t": 4,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": false,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 52.5,
+    "max_score": 85,
+    "percent": 61.8,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.3,
+        "weighted": 7.5,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 0.5,
+          "stale_shown": 0,
+          "off_topic": 1,
+          "penalty": 0.2
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "예산 확인 미완료 상태와 고객의 추가 요청 부재는 제시된 근거와 대체로 일치한다. 다만 '3월 5일 기준'은 인용된 근거에 직접 제시되지 않았고, 두 번째 하이라이트는 핵심 골든 범위를 벗어난다."
+      },
+      "suggested_actions": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "예산 확인 결과, 회신 시점, 다음 논의 일정을 묻는 실행 가능한 액션을 제시했다. 일부 액션은 예산 확인 여부 점검과 중복되고, 산하 병원 시스템 현황 확인 액션이 빠졌다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 예산 확인 미완료와 현재 딜 상태를 알 수 있고, 각 본문도 현재 상태를 먼저 제시한다. 시간순 나열 없이 미팅 대응 중심으로 구성됐다."
+      },
+      "missing_information": {
+        "rating": 2,
+        "weighted": 5.0,
+        "weight": 10,
+        "reason": "예산 편성 시기, 예산 반영 여부, 회신 일정과 후속 검토 일정을 지목했지만, 산하 3개 병원의 시스템 현황이라는 고우선 미확인 정보를 완전히 누락했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "branch-inventory-unknown",
+        "verdict": "missed",
+        "highlight_index": null,
+        "reason": "산하 3개 병원이 각각 어떤 시스템을 사용하는지 또는 통합 범위가 왜 미확정인지 언급하지 않았다."
+      },
+      {
+        "topic_id": "budget-cycle-unknown",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "예산 편성 시기와 주기가 아직 확인되지 않았음을 명시하고, 미팅에서 확인할 질문과 후속 일정 수립을 제안했다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 1,
+    "forbidden_claims": [
+      {
+        "item": "영업 건이 등록되어 있다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "고객이 도입을 확정했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "예산이 배정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "예산 확인 미완료 상태와 고객의 추가 요청 부재는 제시된 근거와 대체로 일치한다. 다만 '3월 5일 기준'은 인용된 근거에 직접 제시되지 않았고, 두 번째 하이라이트는 핵심 골든 범위를 벗어난다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 3,
+        "reason": "예산 확인 결과, 회신 시점, 다음 논의 일정을 묻는 실행 가능한 액션을 제시했다. 일부 액션은 예산 확인 여부 점검과 중복되고, 산하 병원 시스템 현황 확인 액션이 빠졌다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 예산 확인 미완료와 현재 딜 상태를 알 수 있고, 각 본문도 현재 상태를 먼저 제시한다. 시간순 나열 없이 미팅 대응 중심으로 구성됐다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 2,
+        "reason": "예산 편성 시기, 예산 반영 여부, 회신 일정과 후속 검토 일정을 지목했지만, 산하 3개 병원의 시스템 현황이라는 고우선 미확인 정보를 완전히 누락했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "예산 편성 주기 미확인 이슈는 잘 포착했지만, 산하 3개 병원의 시스템 현황 미파악이라는 핵심 고우선 사안을 빠뜨렸다. 두 번째 하이라이트는 이번 골든의 핵심 대응 과제와 직접 관련성이 낮다."
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "case": "hanbit-d05",
+  "t": 4,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 1,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 80.0,
+    "max_score": 85,
+    "percent": 94.1,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "세 가지 핵심 쟁점과 상태는 근거와 부합한다. 다만 ‘통계 자동화가 핵심 요구로 확인됐다’는 내용은 제시된 골든 및 해당 source excerpt에서 직접 뒷받침되지 않는다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "범위, 담당자, 기한, 심의 절차, 착수 조건 등 영업 담당자가 미팅에서 확인·합의할 수 있는 구체적 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "각 제목만으로 대상과 쟁점을 알 수 있고, 본문 첫 문장에서 현재 상태와 영향이 바로 제시된다. 시간순 나열도 없다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "이관 범위·기준·일정, 보안 심의 일정·제출 요건, 서식 표준화 범위와 통계 기준 등 미팅에서 확인할 항목을 구체적으로 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "form-standard-scope",
+        "verdict": "covered",
+        "highlight_index": 3,
+        "reason": "진료과별 서식 표준화 대상과 예외 범위가 미정이며, 개발 범위 확정이 어렵다는 핵심 상태를 정확히 다뤘다."
+      },
+      {
+        "topic_id": "security-review-schedule",
+        "verdict": "covered",
+        "highlight_index": 2,
+        "reason": "원내 보안 심의 일정과 제출 절차가 미정이고, 심의 전 외부 연동 개발 착수가 어렵다는 점을 다뤘다."
+      },
+      {
+        "topic_id": "delivery-terms-unresolved",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "기존 차트 이관 범위가 결정되지 않아 이관 기간과 납기를 확정할 수 없다는 핵심 쟁점을 정확히 다뤘다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "고객이 특정 금액에 합의했다 (합의 기록 없음)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "재무팀 예산 승인이 완료됐다 (승인 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "유료 사용자는 25명이다 (9회차에 20명으로 정정됨)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "보안 심의를 통과했다 (16회차 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "계약이 체결됐다 (계약 완료 전 시점에서)",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "세 가지 핵심 쟁점과 상태는 근거와 부합한다. 다만 ‘통계 자동화가 핵심 요구로 확인됐다’는 내용은 제시된 골든 및 해당 source excerpt에서 직접 뒷받침되지 않는다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "범위, 담당자, 기한, 심의 절차, 착수 조건 등 영업 담당자가 미팅에서 확인·합의할 수 있는 구체적 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "각 제목만으로 대상과 쟁점을 알 수 있고, 본문 첫 문장에서 현재 상태와 영향이 바로 제시된다. 시간순 나열도 없다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "이관 범위·기준·일정, 보안 심의 일정·제출 요건, 서식 표준화 범위와 통계 기준 등 미팅에서 확인할 항목을 구체적으로 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "세 가지 필수 쟁점을 모두 정확히 다룬 실무형 브리핑이다. 하이라이트와 확인 항목이 구체적이며, 통계 자동화 관련 일부 표현만 제시된 근거보다 범위를 넓혀 서술했다."
+  }
+}

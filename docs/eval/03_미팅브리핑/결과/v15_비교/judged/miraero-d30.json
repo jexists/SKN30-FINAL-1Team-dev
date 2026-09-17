@@ -1,0 +1,175 @@
+{
+  "case": "miraero-d30",
+  "t": 29,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 1,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 91.25,
+    "max_score": 100,
+    "percent": 91.2,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.75,
+        "weighted": 18.75,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 0.75,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "state_tracking": {
+        "ratio": 1.0,
+        "weighted": 15.0,
+        "weight": 15,
+        "derived_from": {
+          "checks": 4,
+          "passed": 4
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "장비 수량, 오픈일, 교육 상태와 계약 진행 단계가 제공된 근거와 일치하며 금지된 주장을 하지 않았다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "계약 확인, 교육 운영안 협의, 수량·일정 검증 등 담당자가 미팅 전후 실행할 수 있는 구체적 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "각 제목만으로 대상과 쟁점이 드러나고, 본문 첫 문장에 현재 상태가 제시되어 빠르게 훑기 좋다."
+      },
+      "missing_information": {
+        "rating": 3,
+        "weighted": 7.5,
+        "weight": 10,
+        "reason": "계약·교육·수량·오픈일 관련 확인 사항은 충분하지만, 담당자 교체 후 새 담당자와 의사결정 구조를 확인해야 한다는 내용이 빠졌다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "device-count",
+        "verdict": "covered",
+        "highlight_index": 3,
+        "reason": "장비 수량이 최신 값인 12대로 명시됐고, 계약서 반영 여부를 확인하도록 안내했다."
+      },
+      {
+        "topic_id": "golive-date",
+        "verdict": "covered",
+        "highlight_index": 3,
+        "reason": "오픈 예정일을 최신 값인 2026-11-02로 명시하고 계약·실행 일정 반영 여부를 확인하도록 했다."
+      },
+      {
+        "topic_id": "owner-change",
+        "verdict": "missed",
+        "highlight_index": null,
+        "reason": "서다인 과장으로 담당자가 교체됐고 이전 담당자가 퇴사했다는 내용을 다루지 않았다."
+      },
+      {
+        "topic_id": "training-plan-open",
+        "verdict": "covered",
+        "highlight_index": 2,
+        "reason": "교대 근무로 집합 교육이 어렵고 교육 일정과 방식이 미정이라는 현재 상태를 정확히 다뤘다."
+      }
+    ],
+    "must_not_appear": [
+      {
+        "topic_id": "test-scope-unknown",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "자동화 대상 검사 항목 미확정 사안을 언급하지 않았다."
+      }
+    ],
+    "changed_values": [
+      {
+        "topic_id": "device-count",
+        "appeared": true,
+        "stale_value_used": false,
+        "reason": "변경 후 값인 12대만 현재 값으로 제시했다."
+      },
+      {
+        "topic_id": "golive-date",
+        "appeared": true,
+        "stale_value_used": false,
+        "reason": "변경 후 값인 2026-11-02만 현재 값으로 제시했다."
+      },
+      {
+        "topic_id": "owner-change",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "담당자 변경 자체를 다루지 않았다."
+      }
+    ],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "장비 20대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "장비 15대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "9월에 오픈한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "박승우 대리가 담당이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "교육 일정이 확정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "장비 수량, 오픈일, 교육 상태와 계약 진행 단계가 제공된 근거와 일치하며 금지된 주장을 하지 않았다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "계약 확인, 교육 운영안 협의, 수량·일정 검증 등 담당자가 미팅 전후 실행할 수 있는 구체적 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "각 제목만으로 대상과 쟁점이 드러나고, 본문 첫 문장에 현재 상태가 제시되어 빠르게 훑기 좋다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 3,
+        "reason": "계약·교육·수량·오픈일 관련 확인 사항은 충분하지만, 담당자 교체 후 새 담당자와 의사결정 구조를 확인해야 한다는 내용이 빠졌다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심 수량·오픈일·교육 미정 상태는 정확하고 실행 가능하게 정리했지만, 중요도가 critical인 고객 담당자 교체 및 이전 담당자 퇴사 사실을 누락했다."
+  }
+}

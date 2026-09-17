@@ -1,0 +1,112 @@
+{
+  "case": "cheongsan-d03",
+  "t": 2,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 80.0,
+    "max_score": 85,
+    "percent": 94.1,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 3,
+        "weighted": 15.0,
+        "weight": 20,
+        "reason": "교대근무와 연장근로 규정이 미확인이라는 핵심 사실은 근거와 일치한다. 다만 수기 집계 개선을 위한 도입 검토 시작이라는 서술과 일부 구매·의사결정 상태는 제공된 근거보다 넓게 표현됐다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "교대근무 유형, 연장근로 승인·집계 기준, 담당자와 확인 시점 등 영업 담당자가 현장에서 바로 확인할 수 있는 행동이 구체적이고 중복이 적다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목만으로 근태 규정과 도입 적합성의 쟁점이 드러나고, 본문 첫 문장도 현재 미확정 상태를 제시한다. 시간순 나열이 아니라 미팅 쟁점 중심이다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "운영 형태, 규정 세부 기준, 적용 조직, 예산·일정·의사결정자, 후속 담당자와 기한 등 미팅에서 확인할 정보를 명확히 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "attendance-rule-unknown",
+        "verdict": "covered",
+        "highlight_index": 2,
+        "reason": "교대근무 운영 형태와 연장근로 규정이 아직 정해지지 않아 적용 범위와 도입 가능성을 판단하기 어렵다는 핵심 사안을 정확히 다뤘다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "전자결재 확장을 진행 중이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "근태관리에 미해결 장애가 있다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "신규 계약이 논의 중이다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 3,
+        "reason": "교대근무와 연장근로 규정이 미확인이라는 핵심 사실은 근거와 일치한다. 다만 수기 집계 개선을 위한 도입 검토 시작이라는 서술과 일부 구매·의사결정 상태는 제공된 근거보다 넓게 표현됐다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "교대근무 유형, 연장근로 승인·집계 기준, 담당자와 확인 시점 등 영업 담당자가 현장에서 바로 확인할 수 있는 행동이 구체적이고 중복이 적다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목만으로 근태 규정과 도입 적합성의 쟁점이 드러나고, 본문 첫 문장도 현재 미확정 상태를 제시한다. 시간순 나열이 아니라 미팅 쟁점 중심이다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "운영 형태, 규정 세부 기준, 적용 조직, 예산·일정·의사결정자, 후속 담당자와 기한 등 미팅에서 확인할 정보를 명확히 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "핵심인 교대근무 및 연장근로 규정 미확인 사항을 정확히 포함했고, 확인 행동도 구체적이다. 다만 첫 번째 하이라이트의 일부 도입 배경과 상태 표현은 제공된 근거보다 넓어 사실성은 소폭 감점했다."
+  }
+}

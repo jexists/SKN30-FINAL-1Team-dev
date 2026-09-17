@@ -1,0 +1,124 @@
+{
+  "case": "sejong-d10",
+  "t": 9,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": false,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 37.5,
+    "max_score": 85,
+    "percent": 44.1,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 0.0,
+        "weighted": 0.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 0.0,
+          "stale_shown": 0,
+          "off_topic": 1,
+          "penalty": 0.2
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "진행 중인 딜 없음, 신규 요청·조건 변경 없음이라는 내용은 제시된 출처와 부합하며 고객 발언이나 합의를 창작하지 않았다."
+      },
+      "suggested_actions": {
+        "rating": 2,
+        "weighted": 10.0,
+        "weight": 20,
+        "reason": "진행 건 범위와 최근 변경사항을 확인하는 행동은 구체적이지만, 이번 미팅의 핵심인 시스템 현황·예산 주기·의사결정자 확인과 무관하다."
+      },
+      "scannability": {
+        "rating": 3,
+        "weighted": 7.5,
+        "weight": 10,
+        "reason": "제목과 첫 문장에서 현재 상태는 빠르게 파악되지만, 미팅의 핵심 쟁점을 보여주지 않아 영업 대응용으로는 방향이 어긋난다."
+      },
+      "missing_information": {
+        "rating": 0,
+        "weighted": 0.0,
+        "weight": 10,
+        "reason": "확인해야 할 핵심 누락 정보인 산하 병원별 시스템, 예산 편성 주기, 실제 의사결정자를 지목하지 않았다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "branch-inventory-unknown",
+        "verdict": "missed",
+        "highlight_index": null,
+        "reason": "산하 3개 병원이 각각 어떤 시스템을 사용하는지, 통합 범위를 어떻게 파악할지 전혀 다루지 않았다."
+      },
+      {
+        "topic_id": "budget-cycle-unknown",
+        "verdict": "missed",
+        "highlight_index": null,
+        "reason": "재단의 예산 편성 시기나 제안 시점 확인 필요성을 언급하지 않았다."
+      },
+      {
+        "topic_id": "decision-owner-unknown",
+        "verdict": "missed",
+        "highlight_index": null,
+        "reason": "총무팀 외 실제 의사결정권자가 누구인지 확인해야 한다는 내용이 없다."
+      }
+    ],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 1,
+    "forbidden_claims": [
+      {
+        "item": "영업 건이 등록되어 있다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "고객이 도입을 확정했다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "예산이 배정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "진행 중인 딜 없음, 신규 요청·조건 변경 없음이라는 내용은 제시된 출처와 부합하며 고객 발언이나 합의를 창작하지 않았다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 2,
+        "reason": "진행 건 범위와 최근 변경사항을 확인하는 행동은 구체적이지만, 이번 미팅의 핵심인 시스템 현황·예산 주기·의사결정자 확인과 무관하다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 3,
+        "reason": "제목과 첫 문장에서 현재 상태는 빠르게 파악되지만, 미팅의 핵심 쟁점을 보여주지 않아 영업 대응용으로는 방향이 어긋난다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 0,
+        "reason": "확인해야 할 핵심 누락 정보인 산하 병원별 시스템, 예산 편성 주기, 실제 의사결정자를 지목하지 않았다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "출처에 근거한 현재 상태와 일반적인 후속 확인사항은 제시했지만, 이번 미팅의 핵심인 산하 3개 병원 시스템 현황, 예산 편성 주기, 의사결정자를 모두 놓쳤다."
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "case": "miraero-d01",
+  "t": 0,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": false,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 85.0,
+    "max_score": 85,
+    "percent": 100.0,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "근거 없는 장비 수량·오픈 일정·교육 확정 등을 제시하지 않았고, 첫 미팅에서 확인할 사항으로 신중하게 표현했다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "고객 과제, 예산·일정·의사결정자, 후속 단계 등 영업 담당자가 현장에서 바로 확인할 행동을 구체적으로 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "하이라이트 제목만으로 첫 미팅의 목적과 핵심 확인사항을 알 수 있고, 본문도 현재 상태와 대응 방향 중심으로 구성됐다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "첫 미팅에서 아직 확인되지 않은 고객 과제·요구사항과 예산·도입 시기·의사결정 구조를 명확히 지목했다. 과거 보고서나 연결된 딜이 없는 정상 상태를 누락으로 잘못 지적하지 않았다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "장비 20대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "장비 15대를 도입한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "9월에 오픈한다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "박승우 대리가 담당이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "교육 일정이 확정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "근거 없는 장비 수량·오픈 일정·교육 확정 등을 제시하지 않았고, 첫 미팅에서 확인할 사항으로 신중하게 표현했다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "고객 과제, 예산·일정·의사결정자, 후속 단계 등 영업 담당자가 현장에서 바로 확인할 행동을 구체적으로 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "하이라이트 제목만으로 첫 미팅의 목적과 핵심 확인사항을 알 수 있고, 본문도 현재 상태와 대응 방향 중심으로 구성됐다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "첫 미팅에서 아직 확인되지 않은 고객 과제·요구사항과 예산·도입 시기·의사결정 구조를 명확히 지목했다. 과거 보고서나 연결된 딜이 없는 정상 상태를 누락으로 잘못 지적하지 않았다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "첫 미팅에 적합하게 확인이 필요한 사항과 실행 가능한 질문을 간결하게 제시했으며, 금지된 구체 사실을 포함하지 않았다."
+  }
+}

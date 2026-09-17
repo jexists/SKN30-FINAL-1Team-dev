@@ -1,0 +1,292 @@
+{
+  "case": "miraero-d30",
+  "deterministic_path": false,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "started_at": "2026-09-17T13:19:22+09:00",
+  "elapsed_seconds": 17.74,
+  "error": null,
+  "raw_output": {
+    "highlights": [
+      {
+        "title": "검사실 자동화 계약서 발송 단계에서 조건 확인이 필요합니다",
+        "body": "검사실 자동화 딜은 현재 계약서 발송 단계로 진행 중입니다. 이번 미팅에서 계약 조건과 후속 절차를 확인하지 않으면 계약 진행 상태를 다음 단계로 넘기기 어렵습니다.",
+        "suggested_actions": [
+          "계약서 수령·검토·서명 상태와 고객 내부 승인 여부를 확인하세요.",
+          "계약금·잔금, 납기·설치일, 발주 및 검수 조건을 계약 기준으로 확인하세요.",
+          "계약 후 담당자와 다음 완료 기한을 합의하세요."
+        ],
+        "source_refs": [
+          {
+            "type": "sales_deal",
+            "id": "deal-y",
+            "excerpt": "검사실 자동화 | stage: contract_sent | phase: contract | outcome: in_progress",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-miraero-29",
+            "excerpt": "검사실 자동화 딜은 계약서 발송 단계로 진행 중임을 확인했다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-y"
+        ]
+      },
+      {
+        "title": "교대 근무를 반영한 검사실 인력 교육안이 아직 미정입니다",
+        "body": "검사실 자동화 교육은 교대 근무로 집합 교육이 어렵다는 고객 의견이 있었고, 일정과 방식이 아직 정해지지 않았습니다. 계약 이후 실행 준비의 핵심 공백이므로 고객이 가능한 운영안을 확인해야 합니다.",
+        "suggested_actions": [
+          "교육 대상 인원과 교대조별 운영 가능 시간을 확인하세요.",
+          "집합 교육 외 가능한 방식과 교육 횟수·소요 시간을 협의하세요.",
+          "교육 일정, 담당자, 완료 기준을 계약 후 일정에 반영하세요."
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-miraero-27",
+            "excerpt": "고객은 검사실 인력이 교대 근무를 하고 있어 집합 교육이 어렵다는 의견을 제시했습니다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-miraero-27",
+            "excerpt": "교육 일정·방식 미정 상태이며, 교육 운영안·일정·참석 대상과 완료 기준에 대한 합의 여부는 미확인입니다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-y"
+        ]
+      },
+      {
+        "title": "이전 확정 수량과 오픈 일정이 현재 계약 조건에 반영됐는지 확인해야 합니다",
+        "body": "과거 기록에는 장비 12대와 오픈 예정일 2026-11-02가 확인됐지만, 현재 영업 상태에는 해당 조건이 표시되지 않습니다. 계약서에 실제 반영된 수량과 일정이 무엇인지 이번 미팅에서 대조해야 합니다.",
+        "suggested_actions": [
+          "계약서의 최종 장비 수량이 12대인지 확인하세요.",
+          "오픈 예정일 2026-11-02가 계약·실행 일정에 반영됐는지 확인하세요.",
+          "수량·일정 변경 시 최신 합의본과 승인 상태를 확보하세요."
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-miraero-26",
+            "excerpt": "예산 조정으로 장비 수량을 12대로 최종 확정했다고 밝혔다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-miraero-20",
+            "excerpt": "오픈 예정일을 2026-11-02로 미루는 변경 사항을 전달했습니다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-y"
+        ]
+      }
+    ],
+    "missing_information": [
+      "계약서의 최신 검토·서명 상태와 고객 내부 승인 여부",
+      "계약 기준의 금액, 수량, 계약금·잔금, 납기·설치일, 발주 및 검수 조건",
+      "교대 근무를 반영한 교육 일정·방식·대상·담당자·완료 기준",
+      "장비 12대 및 2026-11-02 오픈 일정이 최신 계약 조건으로 확정·반영됐는지 여부"
+    ]
+  },
+  "filtered_output": {
+    "highlights": [
+      {
+        "title": "검사실 자동화 계약서 발송 단계에서 조건 확인이 필요합니다",
+        "body": "검사실 자동화 딜은 현재 계약서 발송 단계로 진행 중입니다. 이번 미팅에서 계약 조건과 후속 절차를 확인하지 않으면 계약 진행 상태를 다음 단계로 넘기기 어렵습니다.",
+        "suggested_actions": [
+          "계약서 수령·검토·서명 상태와 고객 내부 승인 여부를 확인하세요.",
+          "계약금·잔금, 납기·설치일, 발주 및 검수 조건을 계약 기준으로 확인하세요.",
+          "계약 후 담당자와 다음 완료 기한을 합의하세요."
+        ],
+        "source_refs": [
+          {
+            "type": "sales_deal",
+            "id": "deal-y",
+            "excerpt": "검사실 자동화 | stage: contract_sent | phase: contract | outcome: in_progress",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-miraero-29",
+            "excerpt": "검사실 자동화 딜은 계약서 발송 단계로 진행 중임을 확인했다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-y"
+        ]
+      },
+      {
+        "title": "교대 근무를 반영한 검사실 인력 교육안이 아직 미정입니다",
+        "body": "검사실 자동화 교육은 교대 근무로 집합 교육이 어렵다는 고객 의견이 있었고, 일정과 방식이 아직 정해지지 않았습니다. 계약 이후 실행 준비의 핵심 공백이므로 고객이 가능한 운영안을 확인해야 합니다.",
+        "suggested_actions": [
+          "교육 대상 인원과 교대조별 운영 가능 시간을 확인하세요.",
+          "집합 교육 외 가능한 방식과 교육 횟수·소요 시간을 협의하세요.",
+          "교육 일정, 담당자, 완료 기준을 계약 후 일정에 반영하세요."
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-miraero-27",
+            "excerpt": "고객은 검사실 인력이 교대 근무를 하고 있어 집합 교육이 어렵다는 의견을 제시했습니다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-miraero-27",
+            "excerpt": "교육 일정·방식 미정 상태이며, 교육 운영안·일정·참석 대상과 완료 기준에 대한 합의 여부는 미확인입니다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-y"
+        ]
+      },
+      {
+        "title": "이전 확정 수량과 오픈 일정이 현재 계약 조건에 반영됐는지 확인해야 합니다",
+        "body": "과거 기록에는 장비 12대와 오픈 예정일 2026-11-02가 확인됐지만, 현재 영업 상태에는 해당 조건이 표시되지 않습니다. 계약서에 실제 반영된 수량과 일정이 무엇인지 이번 미팅에서 대조해야 합니다.",
+        "suggested_actions": [
+          "계약서의 최종 장비 수량이 12대인지 확인하세요.",
+          "오픈 예정일 2026-11-02가 계약·실행 일정에 반영됐는지 확인하세요.",
+          "수량·일정 변경 시 최신 합의본과 승인 상태를 확보하세요."
+        ],
+        "source_refs": [
+          {
+            "type": "report",
+            "id": "report-miraero-26",
+            "excerpt": "예산 조정으로 장비 수량을 12대로 최종 확정했다고 밝혔다.",
+            "chunk_id": null
+          },
+          {
+            "type": "report",
+            "id": "report-miraero-20",
+            "excerpt": "오픈 예정일을 2026-11-02로 미루는 변경 사항을 전달했습니다.",
+            "chunk_id": null
+          }
+        ],
+        "related_deal_ids": [
+          "deal-y"
+        ]
+      }
+    ],
+    "missing_information": [
+      "계약서의 최신 검토·서명 상태와 고객 내부 승인 여부",
+      "계약 기준의 금액, 수량, 계약금·잔금, 납기·설치일, 발주 및 검수 조건",
+      "교대 근무를 반영한 교육 일정·방식·대상·담당자·완료 기준",
+      "장비 12대 및 2026-11-02 오픈 일정이 최신 계약 조건으로 확정·반영됐는지 여부"
+    ]
+  },
+  "dropped_highlight_count": 0,
+  "tool_calls": [
+    {
+      "name": "read_recent_reports",
+      "args": {
+        "report_ids": null
+      }
+    },
+    {
+      "name": "search_historical_reports",
+      "args": {
+        "query": "미래로병원 검사실 자동화 계약서 발송 이후 교육 계획 교대 근무 후속 확인"
+      }
+    },
+    {
+      "name": "HighlightBriefingOutput",
+      "args": {
+        "highlights": [
+          {
+            "title": "검사실 자동화 계약서 발송 단계에서 조건 확인이 필요합니다",
+            "body": "검사실 자동화 딜은 현재 계약서 발송 단계로 진행 중입니다. 이번 미팅에서 계약 조건과 후속 절차를 확인하지 않으면 계약 진행 상태를 다음 단계로 넘기기 어렵습니다.",
+            "suggested_actions": [
+              "계약서 수령·검토·서명 상태와 고객 내부 승인 여부를 확인하세요.",
+              "계약금·잔금, 납기·설치일, 발주 및 검수 조건을 계약 기준으로 확인하세요.",
+              "계약 후 담당자와 다음 완료 기한을 합의하세요."
+            ],
+            "source_refs": [
+              {
+                "type": "sales_deal",
+                "id": "deal-y",
+                "excerpt": "검사실 자동화 | stage: contract_sent | phase: contract | outcome: in_progress",
+                "chunk_id": null
+              },
+              {
+                "type": "report",
+                "id": "report-miraero-29",
+                "excerpt": "검사실 자동화 딜은 계약서 발송 단계로 진행 중임을 확인했다.",
+                "chunk_id": null
+              }
+            ],
+            "related_deal_ids": [
+              "deal-y"
+            ]
+          },
+          {
+            "title": "교대 근무를 반영한 검사실 인력 교육안이 아직 미정입니다",
+            "body": "검사실 자동화 교육은 교대 근무로 집합 교육이 어렵다는 고객 의견이 있었고, 일정과 방식이 아직 정해지지 않았습니다. 계약 이후 실행 준비의 핵심 공백이므로 고객이 가능한 운영안을 확인해야 합니다.",
+            "suggested_actions": [
+              "교육 대상 인원과 교대조별 운영 가능 시간을 확인하세요.",
+              "집합 교육 외 가능한 방식과 교육 횟수·소요 시간을 협의하세요.",
+              "교육 일정, 담당자, 완료 기준을 계약 후 일정에 반영하세요."
+            ],
+            "source_refs": [
+              {
+                "type": "report",
+                "id": "report-miraero-27",
+                "excerpt": "고객은 검사실 인력이 교대 근무를 하고 있어 집합 교육이 어렵다는 의견을 제시했습니다.",
+                "chunk_id": null
+              },
+              {
+                "type": "report",
+                "id": "report-miraero-27",
+                "excerpt": "교육 일정·방식 미정 상태이며, 교육 운영안·일정·참석 대상과 완료 기준에 대한 합의 여부는 미확인입니다.",
+                "chunk_id": null
+              }
+            ],
+            "related_deal_ids": [
+              "deal-y"
+            ]
+          },
+          {
+            "title": "이전 확정 수량과 오픈 일정이 현재 계약 조건에 반영됐는지 확인해야 합니다",
+            "body": "과거 기록에는 장비 12대와 오픈 예정일 2026-11-02가 확인됐지만, 현재 영업 상태에는 해당 조건이 표시되지 않습니다. 계약서에 실제 반영된 수량과 일정이 무엇인지 이번 미팅에서 대조해야 합니다.",
+            "suggested_actions": [
+              "계약서의 최종 장비 수량이 12대인지 확인하세요.",
+              "오픈 예정일 2026-11-02가 계약·실행 일정에 반영됐는지 확인하세요.",
+              "수량·일정 변경 시 최신 합의본과 승인 상태를 확보하세요."
+            ],
+            "source_refs": [
+              {
+                "type": "report",
+                "id": "report-miraero-26",
+                "excerpt": "예산 조정으로 장비 수량을 12대로 최종 확정했다고 밝혔다.",
+                "chunk_id": null
+              },
+              {
+                "type": "report",
+                "id": "report-miraero-20",
+                "excerpt": "오픈 예정일을 2026-11-02로 미루는 변경 사항을 전달했습니다.",
+                "chunk_id": null
+              }
+            ],
+            "related_deal_ids": [
+              "deal-y"
+            ]
+          }
+        ],
+        "missing_information": [
+          "계약서의 최신 검토·서명 상태와 고객 내부 승인 여부",
+          "계약 기준의 금액, 수량, 계약금·잔금, 납기·설치일, 발주 및 검수 조건",
+          "교대 근무를 반영한 교육 일정·방식·대상·담당자·완료 기준",
+          "장비 12대 및 2026-11-02 오픈 일정이 최신 계약 조건으로 확정·반영됐는지 여부"
+        ]
+      }
+    }
+  ],
+  "rag_call_count": 1,
+  "recent_read_called": true
+}

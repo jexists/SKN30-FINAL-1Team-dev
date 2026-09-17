@@ -1,0 +1,146 @@
+{
+  "case": "cheongsan-d30",
+  "t": 29,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": true,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 100.0,
+    "max_score": 100,
+    "percent": 100.0,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "state_tracking": {
+        "ratio": 1.0,
+        "weighted": 15.0,
+        "weight": 15,
+        "derived_from": {
+          "checks": 4,
+          "passed": 4
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "갱신 조건표 미전달, 구체적 일정·조건 추가 확인 필요라는 근거와 일치하며 고객 발언이나 합의를 창작하지 않았다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "조건표 준비, 적용 범위·비용·기간·절차 확인, 후속 일정 합의 등 영업 담당자가 실행할 구체적 행동을 제시했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목에서 갱신 조건표 미전달 상태와 쟁점이 즉시 드러나고, 본문도 현재 상태부터 제시한다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "조건표 내용과 전달 시점, 계약 조건, 고객 수용 여부와 완료 일정 등 미팅에서 확인할 항목을 구체적으로 지목했다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [
+      {
+        "topic_id": "renewal-question",
+        "verdict": "covered",
+        "highlight_index": 1,
+        "reason": "근태관리 계약 갱신 문의가 현재 고객 문의 단계이며, 갱신 시점과 조건을 아직 안내하지 않았다는 핵심 상태를 정확히 다뤘다."
+      }
+    ],
+    "must_not_appear": [
+      {
+        "topic_id": "attendance-rule-unknown",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "해결된 근태 규정 확인 필요 사안을 언급하지 않았다."
+      },
+      {
+        "topic_id": "install-schedule-unknown",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "해결된 설치 일정 미확정 사안을 언급하지 않았다."
+      },
+      {
+        "topic_id": "attendance-stabilize",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "해결된 근태관리 안정화 이슈를 언급하지 않았다."
+      },
+      {
+        "topic_id": "eapproval-cancel-reason",
+        "appeared": false,
+        "stale_value_used": false,
+        "reason": "해결된 전자결재 확장 취소 사안을 언급하지 않았다."
+      }
+    ],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "전자결재 확장을 진행 중이다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "근태관리에 미해결 장애가 있다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "신규 계약이 논의 중이다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "갱신 조건표 미전달, 구체적 일정·조건 추가 확인 필요라는 근거와 일치하며 고객 발언이나 합의를 창작하지 않았다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "조건표 준비, 적용 범위·비용·기간·절차 확인, 후속 일정 합의 등 영업 담당자가 실행할 구체적 행동을 제시했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목에서 갱신 조건표 미전달 상태와 쟁점이 즉시 드러나고, 본문도 현재 상태부터 제시한다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "조건표 내용과 전달 시점, 계약 조건, 고객 수용 여부와 완료 일정 등 미팅에서 확인할 항목을 구체적으로 지목했다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "갱신 시점 문의를 현재 미해결 상태로 정확히 포착했고, 해결된 과거 이슈나 금지된 주장을 끌어오지 않았다. 미팅 전 준비와 현장 확인 항목도 구체적이다."
+  }
+}

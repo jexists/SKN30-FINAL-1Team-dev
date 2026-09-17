@@ -1,0 +1,105 @@
+{
+  "case": "hanul-d01",
+  "t": 0,
+  "prompt_version": "contract_management.generate_briefing.v15",
+  "gates": {
+    "highlight_count_ok": true,
+    "actions_within_prompt_limit": true,
+    "recent_read_called": false,
+    "invalid_source_refs": [],
+    "dropped_highlight_count": 0,
+    "report_refs_missing_excerpt": [],
+    "rag_call_count": 0,
+    "rag_min_ok": true,
+    "rag_max_ok": true
+  },
+  "score": {
+    "total": 85.0,
+    "max_score": 85,
+    "percent": 100.0,
+    "by_criterion": {
+      "highlight_selection": {
+        "ratio": 1.0,
+        "weighted": 25.0,
+        "weight": 25,
+        "derived_from": {
+          "coverage": 1.0,
+          "stale_shown": 0,
+          "off_topic": 0,
+          "penalty": 0.0
+        }
+      },
+      "factual_accuracy": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "금지된 확정 표현이나 고객 발언의 창작 없이 첫 미팅 예정과 확인 필요 사항을 제시했다."
+      },
+      "suggested_actions": {
+        "rating": 4,
+        "weighted": 20.0,
+        "weight": 20,
+        "reason": "고객 과제, 예산·일정·의사결정자, 후속 단계 등 영업 담당자가 현장에서 확인할 수 있는 구체적 행동을 제안했다."
+      },
+      "scannability": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "제목과 본문 첫 문장에서 고객, 미팅 성격, 핵심 확인 목적이 바로 드러나며 시간순 나열이 아니다."
+      },
+      "missing_information": {
+        "rating": 4,
+        "weighted": 10.0,
+        "weight": 10,
+        "reason": "첫 미팅에서 확인해야 할 고객 과제·요구사항과 예산·도입 시기·의사결정 구조를 명시했다. 과거 보고서나 연결된 딜이 없다는 정상 상태를 누락으로 잘못 지적하지 않았다."
+      }
+    }
+  },
+  "judgement": {
+    "required_topics": [],
+    "must_not_appear": [],
+    "changed_values": [],
+    "off_topic_highlight_count": 0,
+    "forbidden_claims": [
+      {
+        "item": "GMP 요건을 충족한다고 확인됐다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "시범 부서가 정해졌다",
+        "violated": false,
+        "evidence": null
+      },
+      {
+        "item": "도입이 확정됐다",
+        "violated": false,
+        "evidence": null
+      }
+    ],
+    "criteria": [
+      {
+        "criterion": "factual_accuracy",
+        "rating": 4,
+        "reason": "금지된 확정 표현이나 고객 발언의 창작 없이 첫 미팅 예정과 확인 필요 사항을 제시했다."
+      },
+      {
+        "criterion": "suggested_actions",
+        "rating": 4,
+        "reason": "고객 과제, 예산·일정·의사결정자, 후속 단계 등 영업 담당자가 현장에서 확인할 수 있는 구체적 행동을 제안했다."
+      },
+      {
+        "criterion": "scannability",
+        "rating": 4,
+        "reason": "제목과 본문 첫 문장에서 고객, 미팅 성격, 핵심 확인 목적이 바로 드러나며 시간순 나열이 아니다."
+      },
+      {
+        "criterion": "missing_information",
+        "rating": 4,
+        "reason": "첫 미팅에서 확인해야 할 고객 과제·요구사항과 예산·도입 시기·의사결정 구조를 명시했다. 과거 보고서나 연결된 딜이 없다는 정상 상태를 누락으로 잘못 지적하지 않았다."
+      }
+    ],
+    "critical_errors": [],
+    "summary": "필수 주제나 변경 상태는 없으며, 금지된 주장도 나타나지 않았다. 첫 미팅에 맞춰 확인 질문과 다음 단계 합의를 간결하게 제시한 적절한 브리핑이다."
+  }
+}
