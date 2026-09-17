@@ -1,0 +1,62 @@
+- generic [ref=e368]:
+  - complementary "주 메뉴" [ref=e369]:
+    - generic [ref=e370]:
+      - link "대시보드로 이동" [ref=e371] [cursor=pointer]:
+        - /url: /
+        - img "SalesLuv" [ref=e372]
+      - button "사이드바 접기" [expanded] [ref=e373] [cursor=pointer]
+    - navigation [ref=e376]:
+      - group "대시보드" [ref=e377]:
+        - link "대시보드" [ref=e378] [cursor=pointer]:
+          - /url: /
+      - group "고객" [ref=e382]:
+        - paragraph [ref=e383]:
+          - generic [ref=e384]: 고객
+          - generic [aria-hidden]: 고객
+        - link "고객현황" [ref=e385] [cursor=pointer]:
+          - /url: /customers
+        - link "CS대응" [ref=e389] [cursor=pointer]:
+          - /url: /complaints
+      - group "영업" [ref=e394]:
+        - paragraph [ref=e395]:
+          - generic [ref=e396]: 영업
+          - generic [aria-hidden]: 영업
+        - link "캘린더" [ref=e397] [cursor=pointer]:
+          - /url: /calendar
+        - link "업무보고" [ref=e402] [cursor=pointer]:
+          - /url: /daily
+        - link "영업현황" [ref=e407] [cursor=pointer]:
+          - /url: /deals
+        - link "매출분석" [ref=e412] [cursor=pointer]:
+          - /url: /sales
+      - group "자료실" [ref=e417]:
+        - paragraph [ref=e418]:
+          - generic [ref=e419]: 자료실
+          - generic [aria-hidden]: 자료실
+        - link "거래문서" [ref=e420] [cursor=pointer]:
+          - /url: /documents/trade
+        - link "영업자료" [ref=e424] [cursor=pointer]:
+          - /url: /documents/sales
+    - generic [ref=e428]:
+      - link "김 김진남" [ref=e429] [cursor=pointer]:
+        - /url: /mypage
+        - generic [ref=e430]: 김
+        - strong [ref=e432]: 김진남
+      - button "로그아웃" [ref=e433] [cursor=pointer]
+  - generic [ref=e437]:
+    - banner [ref=e438]:
+      - paragraph [ref=e439]: 대시보드
+      - generic [ref=e440]: 내 현황
+      - link "알림" [ref=e441] [cursor=pointer]:
+        - /url: /notifications
+      - link "마이페이지" [ref=e445] [cursor=pointer]:
+        - /url: /mypage
+        - text: 김
+    - table [ref=e447]:
+      - rowgroup [ref=e448]:
+        - row [ref=e449]:
+          - cell [ref=e450]:
+            - generic [ref=e451]:
+              - heading "영업 대시보드" [level=1] [ref=e452]
+              - status [ref=e453]:
+                - generic [ref=e454]: 대시보드를 불러오는 중입니다.

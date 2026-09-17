@@ -1,0 +1,40 @@
+- generic [ref=e317]:
+  - generic [ref=e318]:
+    - img "SalesLuv" [ref=e320]
+    - generic [ref=e321]:
+      - heading "흩어진 영업기록을 하나의 흐름으로" [level=1] [ref=e322]: 흩어진 영업기록을하나의 흐름으로
+      - paragraph [ref=e323]: 회사·고객·일정·미팅 기록을 한 흐름으로 연결하는 영업 관리 서비스
+    - list [ref=e325]:
+      - listitem [ref=e326]:
+        - generic [ref=e331]:
+          - strong [ref=e332]: 방문 전 브리핑
+          - generic [ref=e333]: 회사·고객·지난 기록을 방문 직전에 한 장으로 정리
+      - listitem [ref=e334]:
+        - generic [ref=e338]:
+          - strong [ref=e339]: 영업활동 분석
+          - generic [ref=e340]: 일정과 미팅 기록을 이어 붙인 활동 흐름
+      - listitem [ref=e341]:
+        - generic [ref=e346]:
+          - strong [ref=e347]: 보고서 자동화
+          - generic [ref=e348]: 남긴 기록을 그대로 옮긴 업무보고 초안
+  - generic [ref=e349]:
+    - heading "로그인" [level=2] [ref=e350]
+    - paragraph [ref=e351]: SalesLuv 계정으로 로그인해주세요.
+    - generic [ref=e352]:
+      - generic [ref=e353]:
+        - generic [ref=e354]: 이메일
+        - textbox "이메일" [ref=e355]
+      - generic [ref=e356]:
+        - generic [ref=e357]: 비밀번호
+        - textbox "비밀번호" [ref=e358]
+      - button "로그인" [ref=e359] [cursor=pointer]
+    - generic [ref=e360]:
+      - paragraph [ref=e361]: 로컬 전용 · 비밀번호 12341234
+      - generic [ref=e362]:
+        - button "팀원1로 로그인" [ref=e363] [cursor=pointer]
+        - button "팀원2로 로그인" [ref=e364] [cursor=pointer]
+        - button "팀장로 로그인" [ref=e365] [cursor=pointer]
+    - paragraph [ref=e366]:
+      - text: SalesLuv 처음이신가요?
+      - link "회원가입" [ref=e367] [cursor=pointer]:
+        - /url: /signup

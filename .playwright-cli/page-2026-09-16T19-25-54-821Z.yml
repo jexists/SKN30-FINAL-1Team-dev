@@ -1,0 +1,615 @@
+- generic [ref=e54]:
+  - complementary "주 메뉴" [ref=e55]:
+    - generic [ref=e56]:
+      - link "대시보드로 이동" [ref=e57] [cursor=pointer]:
+        - /url: /
+        - img "SalesLuv" [ref=e129]
+      - button "사이드바 펼치기" [ref=e130] [cursor=pointer]
+    - navigation [ref=e58]:
+      - group "대시보드" [ref=e59]:
+        - link "대시보드" [ref=e60] [cursor=pointer]:
+          - /url: /
+      - group "고객" [ref=e63]:
+        - paragraph [ref=e64]:
+          - generic [ref=e134]: 고객
+          - generic [aria-hidden]: 고객
+        - link "고객현황" [ref=e65] [cursor=pointer]:
+          - /url: /customers
+        - link "CS대응" [ref=e68] [cursor=pointer]:
+          - /url: /complaints
+      - group "영업" [ref=e72]:
+        - paragraph [ref=e73]:
+          - generic [ref=e137]: 영업
+          - generic [aria-hidden]: 영업
+        - link "캘린더" [ref=e74] [cursor=pointer]:
+          - /url: /calendar
+        - link "업무보고" [active] [ref=e78] [cursor=pointer]:
+          - /url: /daily
+        - link "영업현황" [ref=e82] [cursor=pointer]:
+          - /url: /deals
+        - link "매출분석" [ref=e86] [cursor=pointer]:
+          - /url: /sales
+      - group "자료실" [ref=e90]:
+        - paragraph [ref=e91]:
+          - generic [ref=e142]: 자료실
+          - generic [aria-hidden]: 자료실
+        - link "거래문서" [ref=e92] [cursor=pointer]:
+          - /url: /documents/trade
+        - link "영업자료" [ref=e95] [cursor=pointer]:
+          - /url: /documents/sales
+    - generic [ref=e98]:
+      - link "김 김진남" [ref=e99] [cursor=pointer]:
+        - /url: /mypage
+        - generic [ref=e100]: 김
+        - strong [ref=e146]: 김진남
+      - button "로그아웃" [ref=e147] [cursor=pointer]
+  - generic [ref=e101]:
+    - banner [ref=e102]:
+      - paragraph [ref=e103]: 업무보고
+      - generic [ref=e104]: 내 현황
+      - link "알림" [ref=e105] [cursor=pointer]:
+        - /url: /notifications
+      - link "마이페이지" [ref=e109] [cursor=pointer]:
+        - /url: /mypage
+        - text: 김
+    - table [ref=e111]:
+      - rowgroup [ref=e112]:
+        - row [ref=e378]:
+          - cell [ref=e379]:
+            - generic [ref=e380]:
+              - heading "업무 보고" [level=1] [ref=e381]
+              - generic [ref=e382]:
+                - tablist "업무 보고 기간" [ref=e383]:
+                  - tab "전체" [selected] [ref=e384] [cursor=pointer]
+                  - tab "미팅보고서" [ref=e385] [cursor=pointer]
+                  - tab "일일업무" [ref=e386] [cursor=pointer]
+                  - tab "주간업무" [ref=e387] [cursor=pointer]
+                  - tab "월간업무" [ref=e388] [cursor=pointer]
+                - button "보고서 작성하기" [ref=e391] [cursor=pointer]
+              - article [ref=e394]:
+                - generic [ref=e395]:
+                  - paragraph [ref=e396]: 9월 13일 – 19일
+                  - generic [ref=e397]:
+                    - button "이전 주" [ref=e398] [cursor=pointer]
+                    - button "오늘" [disabled] [ref=e401]
+                    - button "다음 주" [ref=e402] [cursor=pointer]
+                    - button "달력 더보기" [ref=e405] [cursor=pointer]
+                - tablist "제출 이력 주간 달력" [ref=e407]:
+                  - tab "일 13" [ref=e408] [cursor=pointer]:
+                    - generic [ref=e409]: 일
+                    - generic [ref=e410]: "13"
+                  - tab "월 14 4" [ref=e411] [cursor=pointer]:
+                    - generic [ref=e412]: 월
+                    - generic [ref=e413]: "14"
+                    - generic [ref=e414]: "4"
+                  - tab "화 15" [ref=e418] [cursor=pointer]:
+                    - generic [ref=e419]: 화
+                    - generic [ref=e420]: "15"
+                  - tab "수 16" [ref=e423] [cursor=pointer]:
+                    - generic [ref=e424]: 수
+                    - generic [ref=e425]: "16"
+                  - tab "목 · 오늘 17" [ref=e428] [cursor=pointer]:
+                    - generic [ref=e429]:
+                      - text: 목
+                      - emphasis [ref=e430]: · 오늘
+                    - generic [ref=e431]: "17"
+                  - tab "금 18" [ref=e432] [cursor=pointer]:
+                    - generic [ref=e433]: 금
+                    - generic [ref=e434]: "18"
+                  - tab "토 19" [ref=e435] [cursor=pointer]:
+                    - generic [ref=e436]: 토
+                    - generic [ref=e437]: "19"
+                - paragraph [ref=e438]:
+                  - generic [ref=e439]: 작성중
+                  - generic [ref=e441]: 작성완료
+                  - generic [ref=e443]: 검토 대기
+                  - generic [ref=e445]: 확정
+                  - generic [ref=e447]: 반려
+                  - generic [ref=e449]: 미작성
+              - heading "작성 리스트" [level=2] [ref=e452]
+              - generic [ref=e453]:
+                - search [ref=e454]:
+                  - searchbox "보고서 검색" [ref=e459]
+                  - button "검색" [ref=e460] [cursor=pointer]
+                - generic [ref=e461]:
+                  - tablist "보고서 상태" [ref=e462]:
+                    - tab "전체" [selected] [ref=e463] [cursor=pointer]
+                    - tab "작성중" [ref=e464] [cursor=pointer]
+                    - tab "작성완료" [ref=e466] [cursor=pointer]
+                    - tab "검토 대기" [ref=e468] [cursor=pointer]
+                    - tab "확정" [ref=e470] [cursor=pointer]
+                    - tab "반려" [ref=e472] [cursor=pointer]
+                  - textbox "조회 시작일" [ref=e478]:
+                    - /placeholder: 시작일
+                  - generic [aria-hidden] [ref=e479]: ~
+                  - textbox "조회 종료일" [ref=e483]:
+                    - /placeholder: 종료일
+                  - tablist "기간 빠른 선택" [ref=e484]:
+                    - tab "전체" [selected] [ref=e485] [cursor=pointer]
+                    - tab "이번 주" [ref=e486] [cursor=pointer]
+                    - tab "이번 달" [ref=e487] [cursor=pointer]
+                    - tab "최근 3개월" [ref=e488] [cursor=pointer]
+              - list [ref=e489]:
+                - listitem [ref=e490] [cursor=pointer]:
+                  - generic [ref=e491]: 일일
+                  - generic [ref=e493]:
+                    - strong [ref=e494]:
+                      - link "9월 16일 (수) 일일업무보고" [ref=e495]:
+                        - /url: /daily/c103cf75-9c58-54ed-8e75-ff4a638ae50c
+                    - generic [ref=e496]: 2026.09.16
+                  - generic [ref=e497]: 작성중
+                - listitem [ref=e498] [cursor=pointer]:
+                  - generic [ref=e499]: 일일
+                  - generic [ref=e501]:
+                    - strong [ref=e502]:
+                      - link "9월 15일 (화) 일일업무보고" [ref=e503]:
+                        - /url: /daily/b1db8cfc-89e7-59d6-8cbf-55f45b742a3c
+                    - generic [ref=e504]: 2026.09.15
+                  - generic [ref=e505]: 작성중
+                - listitem [ref=e506] [cursor=pointer]:
+                  - generic [ref=e507]: 일일
+                  - generic [ref=e509]:
+                    - strong [ref=e510]:
+                      - link "9월 14일 (월) 일일업무보고" [ref=e511]:
+                        - /url: /daily/96b5952d-cc02-5d1a-a42f-7cbcb0ef630c
+                    - generic [ref=e512]: 2026.09.14
+                  - generic [ref=e513]: 검토 대기
+                - listitem [ref=e514] [cursor=pointer]:
+                  - generic [ref=e515]: 미팅
+                  - generic [ref=e517]:
+                    - strong [ref=e518]:
+                      - link "목포노동병원 · 목포노동병원 원장·진료과 미팅" [ref=e519]:
+                        - /url: /meetings/a3e1a226-a037-52ff-8902-4a9cafee7d2a
+                    - generic [ref=e520]: 2026.09.14
+                  - generic [ref=e521]: 작성완료
+                - listitem [ref=e522] [cursor=pointer]:
+                  - generic [ref=e523]: 미팅
+                  - generic [ref=e525]:
+                    - strong [ref=e526]:
+                      - link "인성병원 · 인성병원 니즈 확인 미팅" [ref=e527]:
+                        - /url: /meetings/da2c6205-bd83-5d29-b2aa-990c2abb3e24
+                    - generic [ref=e528]: 2026.09.14
+                  - generic [ref=e529]: 작성완료
+                - listitem [ref=e530] [cursor=pointer]:
+                  - generic [ref=e531]: 미팅
+                  - generic [ref=e533]:
+                    - strong [ref=e534]:
+                      - link "수병원 · 수병원 계약 조건 협의 및 체결" [ref=e535]:
+                        - /url: /meetings/f7ca82b5-d6f8-5990-bc63-05b0ae627851
+                    - generic [ref=e536]: 2026.09.14
+                  - generic [ref=e537]: 작성완료
+                - listitem [ref=e538] [cursor=pointer]:
+                  - generic [ref=e539]: 주간
+                  - generic [ref=e541]:
+                    - strong [ref=e542]:
+                      - link "9월 6일 – 12일 주간업무보고" [ref=e543]:
+                        - /url: /daily/40f38978-1c6b-55fb-ba2a-1a62fa9f2509
+                    - generic [ref=e544]: 2026.09.12
+                  - generic [ref=e545]: 검토 대기
+                - listitem [ref=e546] [cursor=pointer]:
+                  - generic [ref=e547]: 일일
+                  - generic [ref=e549]:
+                    - strong [ref=e550]:
+                      - link "9월 11일 (금) 일일업무보고" [ref=e551]:
+                        - /url: /daily/99fd29dd-d3d2-5eab-87e9-37507195b4e6
+                    - generic [ref=e552]: 2026.09.11
+                  - generic [ref=e553]: 검토 대기
+                - listitem [ref=e554] [cursor=pointer]:
+                  - generic [ref=e555]: 미팅
+                  - generic [ref=e557]:
+                    - strong [ref=e558]:
+                      - link "의료법인춘천서인병원 · 의료법인춘천서인병원 견적서 전달" [ref=e559]:
+                        - /url: /meetings/12172924-84c1-5ad6-9efb-21766555417b
+                    - generic [ref=e560]: 2026.09.11
+                  - generic [ref=e561]: 작성완료
+                - listitem [ref=e562] [cursor=pointer]:
+                  - generic [ref=e563]: 미팅
+                  - generic [ref=e565]:
+                    - strong [ref=e566]:
+                      - link "포레스트병원 · 포레스트병원 니즈 확인 미팅" [ref=e567]:
+                        - /url: /meetings/ba605782-fe85-55a1-9884-660555a95044
+                    - generic [ref=e568]: 2026.09.11
+                  - generic [ref=e569]: 작성완료
+                - listitem [ref=e570] [cursor=pointer]:
+                  - generic [ref=e571]: 미팅
+                  - generic [ref=e573]:
+                    - strong [ref=e574]:
+                      - link "목포노동병원 · 목포노동병원 원장·진료과 미팅" [ref=e575]:
+                        - /url: /meetings/c41e24bb-5abb-5ebf-a8b7-9cebf484e05a
+                    - generic [ref=e576]: 2026.09.11
+                  - generic [ref=e577]: 작성완료
+                - listitem [ref=e578] [cursor=pointer]:
+                  - generic [ref=e579]: 일일
+                  - generic [ref=e581]:
+                    - strong [ref=e582]:
+                      - link "9월 10일 (목) 일일업무보고" [ref=e583]:
+                        - /url: /daily/32c596cf-d46b-5ee0-b75b-b5bd42d3b11a
+                    - generic [ref=e584]: 2026.09.10
+                  - generic [ref=e585]: 확정
+                - listitem [ref=e586] [cursor=pointer]:
+                  - generic [ref=e587]: 미팅
+                  - generic [ref=e589]:
+                    - strong [ref=e590]:
+                      - link "예일병원 · 예일병원 계약 조건 협의 및 체결" [ref=e591]:
+                        - /url: /meetings/2fa6b4f9-a34e-5030-92e3-38f519453f5b
+                    - generic [ref=e592]: 2026.09.10
+                  - generic [ref=e593]: 작성완료
+                - listitem [ref=e594] [cursor=pointer]:
+                  - generic [ref=e595]: 미팅
+                  - generic [ref=e597]:
+                    - strong [ref=e598]:
+                      - link "포레스트병원 · 포레스트병원 니즈 확인 미팅" [ref=e599]:
+                        - /url: /meetings/5712fede-121f-5b55-9acc-19e273bf7bf3
+                    - generic [ref=e600]: 2026.09.10
+                  - generic [ref=e601]: 작성완료
+                - listitem [ref=e602] [cursor=pointer]:
+                  - generic [ref=e603]: 미팅
+                  - generic [ref=e605]:
+                    - strong [ref=e606]:
+                      - link "목포노동병원 · 목포노동병원 원장·진료과 미팅" [ref=e607]:
+                        - /url: /meetings/cd9ff1a3-a727-5860-804d-961b382d6b2b
+                    - generic [ref=e608]: 2026.09.10
+                  - generic [ref=e609]: 작성완료
+                - listitem [ref=e610] [cursor=pointer]:
+                  - generic [ref=e611]: 미팅
+                  - generic [ref=e613]:
+                    - strong [ref=e614]:
+                      - link "포레스트병원 · 포레스트병원 데모 준비 상태 점검" [ref=e615]:
+                        - /url: /meetings/d526f2de-30b8-58be-9ea7-d004f40e30ad
+                    - generic [ref=e616]: 2026.09.10
+                  - generic [ref=e617]: 작성완료
+                - listitem [ref=e618] [cursor=pointer]:
+                  - generic [ref=e619]: 일일
+                  - generic [ref=e621]:
+                    - strong [ref=e622]:
+                      - link "9월 9일 (수) 일일업무보고" [ref=e623]:
+                        - /url: /daily/17a11002-bf73-50d6-970c-12401ee1e7d8
+                    - generic [ref=e624]: 2026.09.09
+                  - generic [ref=e625]: 확정
+                - listitem [ref=e626] [cursor=pointer]:
+                  - generic [ref=e627]: 미팅
+                  - generic [ref=e629]:
+                    - strong [ref=e630]:
+                      - link "강원특별자치도재활병원 · 강원특별자치도재활병원 데모 결과 논의" [ref=e631]:
+                        - /url: /meetings/9763de2f-c66c-58bf-af0a-4e15f9dd12a8
+                    - generic [ref=e632]: 2026.09.09
+                  - generic [ref=e633]: 작성완료
+                - listitem [ref=e634] [cursor=pointer]:
+                  - generic [ref=e635]: 미팅
+                  - generic [ref=e637]:
+                    - strong [ref=e638]:
+                      - link "효성요양병원 (울산 중구) · 효성요양병원 (울산 중구) 설치 및 사용자 교육" [ref=e639]:
+                        - /url: /meetings/9f171ede-4d41-5b32-96e3-c3f46e1f7202
+                    - generic [ref=e640]: 2026.09.09
+                  - generic [ref=e641]: 작성완료
+                - listitem [ref=e642] [cursor=pointer]:
+                  - generic [ref=e643]: 미팅
+                  - generic [ref=e645]:
+                    - strong [ref=e646]:
+                      - link "인성병원 · 인성병원 니즈 확인 미팅" [ref=e647]:
+                        - /url: /meetings/f069062d-49ca-5895-99c6-048956de1844
+                    - generic [ref=e648]: 2026.09.09
+                  - generic [ref=e649]: 작성완료
+                - listitem [ref=e650] [cursor=pointer]:
+                  - generic [ref=e651]: 일일
+                  - generic [ref=e653]:
+                    - strong [ref=e654]:
+                      - link "9월 8일 (화) 일일업무보고" [ref=e655]:
+                        - /url: /daily/4f119206-655c-5eb7-a0ca-45f9b9a84929
+                    - generic [ref=e656]: 2026.09.08
+                  - generic [ref=e657]: 확정
+                - listitem [ref=e658] [cursor=pointer]:
+                  - generic [ref=e659]: 미팅
+                  - generic [ref=e661]:
+                    - strong [ref=e662]:
+                      - link "강원특별자치도재활병원 · 강원특별자치도재활병원 데모 결과 논의" [ref=e663]:
+                        - /url: /meetings/1b1f9023-7c99-5c74-ac6a-610096618bc0
+                    - generic [ref=e664]: 2026.09.08
+                  - generic [ref=e665]: 작성완료
+                - listitem [ref=e666] [cursor=pointer]:
+                  - generic [ref=e667]: 미팅
+                  - generic [ref=e669]:
+                    - strong [ref=e670]:
+                      - link "의료법인 연강의료재단 연강병원 · 의료법인 연강의료재단 연강병원 계약 조건 협의 및 체결" [ref=e671]:
+                        - /url: /meetings/20e4bc4f-0984-576a-8ca6-e4d840e4fb4c
+                    - generic [ref=e672]: 2026.09.08
+                  - generic [ref=e673]: 작성완료
+                - listitem [ref=e674] [cursor=pointer]:
+                  - generic [ref=e675]: 미팅
+                  - generic [ref=e677]:
+                    - strong [ref=e678]:
+                      - link "포레스트병원 · 포레스트병원 니즈 확인 미팅" [ref=e679]:
+                        - /url: /meetings/4f85f431-e7b9-5e08-aa66-67b352335194
+                    - generic [ref=e680]: 2026.09.08
+                  - generic [ref=e681]: 작성완료
+                - listitem [ref=e682] [cursor=pointer]:
+                  - generic [ref=e683]: 일일
+                  - generic [ref=e685]:
+                    - strong [ref=e686]:
+                      - link "9월 7일 (월) 일일업무보고" [ref=e687]:
+                        - /url: /daily/125daaef-12b4-52b0-beb9-1e2213844a75
+                    - generic [ref=e688]: 2026.09.07
+                  - generic [ref=e689]: 확정
+                - listitem [ref=e690] [cursor=pointer]:
+                  - generic [ref=e691]: 미팅
+                  - generic [ref=e693]:
+                    - strong [ref=e694]:
+                      - link "퍼스트병원 · 퍼스트병원 계약 조건 협의 및 체결" [ref=e695]:
+                        - /url: /meetings/05e8b6d7-4ed3-54bb-a1ef-7934b99a1225
+                    - generic [ref=e696]: 2026.09.07
+                  - generic [ref=e697]: 작성완료
+                - listitem [ref=e698] [cursor=pointer]:
+                  - generic [ref=e699]: 미팅
+                  - generic [ref=e701]:
+                    - strong [ref=e702]:
+                      - link "의료법인 연강의료재단 연강병원 · 의료법인 연강의료재단 연강병원 계약 조건 협의 및 체결" [ref=e703]:
+                        - /url: /meetings/49458bd2-7344-502d-9b29-57c180a096a1
+                    - generic [ref=e704]: 2026.09.07
+                  - generic [ref=e705]: 작성완료
+                - listitem [ref=e706] [cursor=pointer]:
+                  - generic [ref=e707]: 미팅
+                  - generic [ref=e709]:
+                    - strong [ref=e710]:
+                      - link "목포노동병원 · 목포노동병원 원장·진료과 미팅" [ref=e711]:
+                        - /url: /meetings/68e4e032-098c-5de7-9366-194d6c492fa5
+                    - generic [ref=e712]: 2026.09.07
+                  - generic [ref=e713]: 작성완료
+                - listitem [ref=e714] [cursor=pointer]:
+                  - generic [ref=e715]: 주간
+                  - generic [ref=e717]:
+                    - strong [ref=e718]:
+                      - link "8월 30일 – 9월 5일 주간업무보고" [ref=e719]:
+                        - /url: /daily/b5183797-546d-57f9-8d2e-1abeddb6319f
+                    - generic [ref=e720]: 2026.09.05
+                  - generic [ref=e721]: 확정
+                - listitem [ref=e722] [cursor=pointer]:
+                  - generic [ref=e723]: 일일
+                  - generic [ref=e725]:
+                    - strong [ref=e726]:
+                      - link "9월 4일 (금) 일일업무보고" [ref=e727]:
+                        - /url: /daily/9a9d1a91-b6a8-548b-bdf5-00cded97ee13
+                    - generic [ref=e728]: 2026.09.04
+                  - generic [ref=e729]: 확정
+                - listitem [ref=e730] [cursor=pointer]:
+                  - generic [ref=e731]: 미팅
+                  - generic [ref=e733]:
+                    - strong [ref=e734]:
+                      - link "사회복지법인 성신원 동대전정신병원 · 사회복지법인 성신원 동대전정신병원 계약 조건 협의 및 체결" [ref=e735]:
+                        - /url: /meetings/2756d5ab-3370-5d5f-b082-c77b2baa4617
+                    - generic [ref=e736]: 2026.09.04
+                  - generic [ref=e737]: 작성완료
+                - listitem [ref=e738] [cursor=pointer]:
+                  - generic [ref=e739]: 미팅
+                  - generic [ref=e741]:
+                    - strong [ref=e742]:
+                      - link "의료법인춘천서인병원 · 의료법인춘천서인병원 견적서 전달" [ref=e743]:
+                        - /url: /meetings/3a8da587-0833-5fe8-8d68-a316d39661f1
+                    - generic [ref=e744]: 2026.09.04
+                  - generic [ref=e745]: 작성완료
+                - listitem [ref=e746] [cursor=pointer]:
+                  - generic [ref=e747]: 미팅
+                  - generic [ref=e749]:
+                    - strong [ref=e750]:
+                      - link "포레스트병원 · 포레스트병원 니즈 확인 미팅" [ref=e751]:
+                        - /url: /meetings/d14c7a59-9001-5c3f-993c-4267915fed3f
+                    - generic [ref=e752]: 2026.09.04
+                  - generic [ref=e753]: 작성완료
+                - listitem [ref=e754] [cursor=pointer]:
+                  - generic [ref=e755]: 일일
+                  - generic [ref=e757]:
+                    - strong [ref=e758]:
+                      - link "9월 3일 (목) 일일업무보고" [ref=e759]:
+                        - /url: /daily/e3a71d57-9935-58aa-b8e8-5a5124d7c85c
+                    - generic [ref=e760]: 2026.09.03
+                  - generic [ref=e761]: 확정
+                - listitem [ref=e762] [cursor=pointer]:
+                  - generic [ref=e763]: 미팅
+                  - generic [ref=e765]:
+                    - strong [ref=e766]:
+                      - link "효성요양병원 (울산 중구) · 효성요양병원 (울산 중구) 설치 및 사용자 교육" [ref=e767]:
+                        - /url: /meetings/0580a620-6285-5023-8036-7f61983f3a1d
+                    - generic [ref=e768]: 2026.09.03
+                  - generic [ref=e769]: 작성완료
+                - listitem [ref=e770] [cursor=pointer]:
+                  - generic [ref=e771]: 미팅
+                  - generic [ref=e773]:
+                    - strong [ref=e774]:
+                      - link "인성병원 · 인성병원 니즈 확인 미팅" [ref=e775]:
+                        - /url: /meetings/0a0cdf24-a89b-52d6-8ef3-865fed0ba6bb
+                    - generic [ref=e776]: 2026.09.03
+                  - generic [ref=e777]: 작성완료
+                - listitem [ref=e778] [cursor=pointer]:
+                  - generic [ref=e779]: 미팅
+                  - generic [ref=e781]:
+                    - strong [ref=e782]:
+                      - link "포레스트병원 · 포레스트병원 니즈 확인 미팅" [ref=e783]:
+                        - /url: /meetings/5e769a42-e082-5197-98f4-4990232bde37
+                    - generic [ref=e784]: 2026.09.03
+                  - generic [ref=e785]: 작성완료
+                - listitem [ref=e786] [cursor=pointer]:
+                  - generic [ref=e787]: 일일
+                  - generic [ref=e789]:
+                    - strong [ref=e790]:
+                      - link "9월 2일 (수) 일일업무보고" [ref=e791]:
+                        - /url: /daily/99f9eab7-b7e5-587b-b27a-f2d7f76cd545
+                    - generic [ref=e792]: 2026.09.02
+                  - generic [ref=e793]: 확정
+                - listitem [ref=e794] [cursor=pointer]:
+                  - generic [ref=e795]: 미팅
+                  - generic [ref=e797]:
+                    - strong [ref=e798]:
+                      - link "강원특별자치도재활병원 · 강원특별자치도재활병원 데모 결과 논의" [ref=e799]:
+                        - /url: /meetings/6a1bb142-62c1-5d3d-b795-93884cb759c4
+                    - generic [ref=e800]: 2026.09.02
+                  - generic [ref=e801]: 작성완료
+                - listitem [ref=e802] [cursor=pointer]:
+                  - generic [ref=e803]: 일일
+                  - generic [ref=e805]:
+                    - strong [ref=e806]:
+                      - link "9월 1일 (화) 일일업무보고" [ref=e807]:
+                        - /url: /daily/9c88b555-bfce-5c20-bc58-1ede94042986
+                    - generic [ref=e808]: 2026.09.01
+                  - generic [ref=e809]: 확정
+                - listitem [ref=e810] [cursor=pointer]:
+                  - generic [ref=e811]: 미팅
+                  - generic [ref=e813]:
+                    - strong [ref=e814]:
+                      - link "목포노동병원 · 목포노동병원 원장·진료과 미팅" [ref=e815]:
+                        - /url: /meetings/5cd653e1-4d79-5520-91a2-64473979f1f8
+                    - generic [ref=e816]: 2026.09.01
+                  - generic [ref=e817]: 작성완료
+                - listitem [ref=e818] [cursor=pointer]:
+                  - generic [ref=e819]: 일일
+                  - generic [ref=e821]:
+                    - strong [ref=e822]:
+                      - link "8월 31일 (월) 일일업무보고" [ref=e823]:
+                        - /url: /daily/0afa9b03-ddb3-5a5f-ae9d-f6bfb97e2cd4
+                    - generic [ref=e824]: 2026.08.31
+                  - generic [ref=e825]: 확정
+                - listitem [ref=e826] [cursor=pointer]:
+                  - generic [ref=e827]: 월간
+                  - generic [ref=e829]:
+                    - strong [ref=e830]:
+                      - link "2026년 8월 월간업무보고" [ref=e831]:
+                        - /url: /daily/ede2b864-5fce-5edf-8f9e-84296191c056
+                    - generic [ref=e832]: 2026.08.31
+                  - generic [ref=e833]: 확정
+                - listitem [ref=e834] [cursor=pointer]:
+                  - generic [ref=e835]: 미팅
+                  - generic [ref=e837]:
+                    - strong [ref=e838]:
+                      - link "강원특별자치도재활병원 · 강원특별자치도재활병원 데모 결과 논의" [ref=e839]:
+                        - /url: /meetings/49f95563-0fba-5211-ae89-4a3743536647
+                    - generic [ref=e840]: 2026.08.31
+                  - generic [ref=e841]: 작성완료
+                - listitem [ref=e842] [cursor=pointer]:
+                  - generic [ref=e843]: 주간
+                  - generic [ref=e845]:
+                    - strong [ref=e846]:
+                      - link "8월 23일 – 29일 주간업무보고" [ref=e847]:
+                        - /url: /daily/e90fd186-3064-57b0-a747-deb8b783ac34
+                    - generic [ref=e848]: 2026.08.29
+                  - generic [ref=e849]: 확정
+                - listitem [ref=e850] [cursor=pointer]:
+                  - generic [ref=e851]: 일일
+                  - generic [ref=e853]:
+                    - strong [ref=e854]:
+                      - link "8월 28일 (금) 일일업무보고" [ref=e855]:
+                        - /url: /daily/74bc0666-1436-52d0-a737-cddfa57ed93e
+                    - generic [ref=e856]: 2026.08.28
+                  - generic [ref=e857]: 확정
+                - listitem [ref=e858] [cursor=pointer]:
+                  - generic [ref=e859]: 미팅
+                  - generic [ref=e861]:
+                    - strong [ref=e862]:
+                      - link "의료법인춘천서인병원 · 의료법인춘천서인병원 구매부서 견적 협의" [ref=e863]:
+                        - /url: /meetings/09beccb1-65a9-5f7f-a765-0b1b05ab1e55
+                    - generic [ref=e864]: 2026.08.28
+                  - generic [ref=e865]: 작성완료
+                - listitem [ref=e866] [cursor=pointer]:
+                  - generic [ref=e867]: 미팅
+                  - generic [ref=e869]:
+                    - strong [ref=e870]:
+                      - link "포레스트병원 · 포레스트병원 첫 방문 상담" [ref=e871]:
+                        - /url: /meetings/3c34d911-1678-556c-abf4-d509a53ee417
+                    - generic [ref=e872]: 2026.08.28
+                  - generic [ref=e873]: 작성완료
+                - listitem [ref=e874] [cursor=pointer]:
+                  - generic [ref=e875]: 일일
+                  - generic [ref=e877]:
+                    - strong [ref=e878]:
+                      - link "8월 27일 (목) 일일업무보고" [ref=e879]:
+                        - /url: /daily/0cd735f6-e0a7-5447-8f7f-87f609cef645
+                    - generic [ref=e880]: 2026.08.27
+                  - generic [ref=e881]: 확정
+                - listitem [ref=e882] [cursor=pointer]:
+                  - generic [ref=e883]: 일일
+                  - generic [ref=e885]:
+                    - strong [ref=e886]:
+                      - link "8월 26일 (수) 일일업무보고" [ref=e887]:
+                        - /url: /daily/77cfecf7-d808-522e-9e2b-8474506f83a0
+                    - generic [ref=e888]: 2026.08.26
+                  - generic [ref=e889]: 확정
+                - listitem [ref=e890] [cursor=pointer]:
+                  - generic [ref=e891]: 일일
+                  - generic [ref=e893]:
+                    - strong [ref=e894]:
+                      - link "8월 24일 (월) 일일업무보고" [ref=e895]:
+                        - /url: /daily/23a59619-75ed-5c45-9e4b-477bc78441cd
+                    - generic [ref=e896]: 2026.08.24
+                  - generic [ref=e897]: 확정
+                - listitem [ref=e898] [cursor=pointer]:
+                  - generic [ref=e899]: 주간
+                  - generic [ref=e901]:
+                    - strong [ref=e902]:
+                      - link "8월 16일 – 22일 주간업무보고" [ref=e903]:
+                        - /url: /daily/2ce3abeb-1165-54e3-b52d-05ec5d5b1e15
+                    - generic [ref=e904]: 2026.08.22
+                  - generic [ref=e905]: 검토 대기
+                - listitem [ref=e906] [cursor=pointer]:
+                  - generic [ref=e907]: 일일
+                  - generic [ref=e909]:
+                    - strong [ref=e910]:
+                      - link "8월 21일 (금) 일일업무보고" [ref=e911]:
+                        - /url: /daily/a385ec41-e2c9-5cdf-a85a-1ecb3bd3b4ee
+                    - generic [ref=e912]: 2026.08.21
+                  - generic [ref=e913]: 확정
+                - listitem [ref=e914] [cursor=pointer]:
+                  - generic [ref=e915]: 일일
+                  - generic [ref=e917]:
+                    - strong [ref=e918]:
+                      - link "8월 20일 (목) 일일업무보고" [ref=e919]:
+                        - /url: /daily/6ab138e8-e7a4-5a80-82e3-2d1bd1eaf869
+                    - generic [ref=e920]: 2026.08.20
+                  - generic [ref=e921]: 확정
+                - listitem [ref=e922] [cursor=pointer]:
+                  - generic [ref=e923]: 일일
+                  - generic [ref=e925]:
+                    - strong [ref=e926]:
+                      - link "8월 19일 (수) 일일업무보고" [ref=e927]:
+                        - /url: /daily/95b99ec1-d5f3-574d-906a-b209462d782c
+                    - generic [ref=e928]: 2026.08.19
+                  - generic [ref=e929]: 확정
+                - listitem [ref=e930] [cursor=pointer]:
+                  - generic [ref=e931]: 일일
+                  - generic [ref=e933]:
+                    - strong [ref=e934]:
+                      - link "8월 18일 (화) 일일업무보고" [ref=e935]:
+                        - /url: /daily/7d0b40b6-0345-5f51-ae81-79ce8e9c603f
+                    - generic [ref=e936]: 2026.08.18
+                  - generic [ref=e937]: 확정
+                - listitem [ref=e938] [cursor=pointer]:
+                  - generic [ref=e939]: 일일
+                  - generic [ref=e941]:
+                    - strong [ref=e942]:
+                      - link "8월 17일 (월) 일일업무보고" [ref=e943]:
+                        - /url: /daily/b49c910e-f3f7-564a-bf22-a43a2467228c
+                    - generic [ref=e944]: 2026.08.17
+                  - generic [ref=e945]: 확정
+                - listitem [ref=e946] [cursor=pointer]:
+                  - generic [ref=e947]: 주간
+                  - generic [ref=e949]:
+                    - strong [ref=e950]:
+                      - link "8월 9일 – 15일 주간업무보고" [ref=e951]:
+                        - /url: /daily/7ec0381b-3ba5-5964-ad77-0c669ca6ad31
+                    - generic [ref=e952]: 2026.08.15
+                  - generic [ref=e953]: 확정
+                - listitem [ref=e954] [cursor=pointer]:
+                  - generic [ref=e955]: 일일
+                  - generic [ref=e957]:
+                    - strong [ref=e958]:
+                      - link "8월 14일 (금) 일일업무보고" [ref=e959]:
+                        - /url: /daily/91ca3478-af13-5cb9-8034-007f40b33109
+                    - generic [ref=e960]: 2026.08.14
+                  - generic [ref=e961]: 확정
+                - listitem [ref=e962] [cursor=pointer]:
+                  - generic [ref=e963]: 일일
+                  - generic [ref=e965]:
+                    - strong [ref=e966]:
+                      - link "8월 13일 (목) 일일업무보고" [ref=e967]:
+                        - /url: /daily/87ee9681-ed5a-5824-aafa-072a87a35575
+                    - generic [ref=e968]: 2026.08.13
+                  - generic [ref=e969]: 확정
+                - listitem [ref=e970]:
+                  - button "194건 더 보기" [ref=e971] [cursor=pointer]
+              - paragraph [ref=e972]: 전체 254건 중 60건 표시

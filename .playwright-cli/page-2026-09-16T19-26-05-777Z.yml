@@ -1,0 +1,158 @@
+- generic [ref=e54]:
+  - complementary "주 메뉴" [ref=e55]:
+    - link "대시보드로 이동" [ref=e57] [cursor=pointer]:
+      - /url: /
+    - navigation [ref=e58]:
+      - group "대시보드" [ref=e59]:
+        - link "대시보드" [ref=e60] [cursor=pointer]:
+          - /url: /
+      - group "고객" [ref=e63]:
+        - paragraph [ref=e64]:
+          - generic: 고객
+          - generic [aria-hidden]: 고객
+        - link "고객현황" [ref=e65] [cursor=pointer]:
+          - /url: /customers
+        - link "CS대응" [ref=e68] [cursor=pointer]:
+          - /url: /complaints
+      - group "영업" [ref=e72]:
+        - paragraph [ref=e73]:
+          - generic: 영업
+          - generic [aria-hidden]: 영업
+        - link "캘린더" [ref=e74] [cursor=pointer]:
+          - /url: /calendar
+        - link "업무보고" [ref=e78] [cursor=pointer]:
+          - /url: /daily
+        - link "영업현황" [ref=e82] [cursor=pointer]:
+          - /url: /deals
+        - link "매출분석" [ref=e86] [cursor=pointer]:
+          - /url: /sales
+      - group "자료실" [ref=e90]:
+        - paragraph [ref=e91]:
+          - generic: 자료실
+          - generic [aria-hidden]: 자료실
+        - link "거래문서" [ref=e92] [cursor=pointer]:
+          - /url: /documents/trade
+        - link "영업자료" [ref=e95] [cursor=pointer]:
+          - /url: /documents/sales
+    - link "김 김진남" [ref=e99] [cursor=pointer]:
+      - /url: /mypage
+      - generic [ref=e100]: 김
+      - generic:
+        - strong: 김진남
+  - generic [ref=e101]:
+    - banner [ref=e102]:
+      - paragraph [ref=e103]: 미팅 보고서
+      - generic [ref=e104]: 내 현황
+      - link "알림" [ref=e105] [cursor=pointer]:
+        - /url: /notifications
+      - link "마이페이지" [ref=e109] [cursor=pointer]:
+        - /url: /mypage
+        - text: 김
+    - table [ref=e111]:
+      - rowgroup [ref=e112]:
+        - row [ref=e973]:
+          - cell "인성병원 인성병원 니즈 확인 미팅 미팅 보고서 업무보고 인성병원 인성병원 니즈 확인 미팅 작성완료 2026년 9월 14일 (월) 09:00 작성자 김진남 총 1건 수정하기 삭제 보고서 PDF 다운로드 노후 장비 교체 검토·예산 시점 미정" [ref=e974]:
+            - generic [ref=e975]:
+              - heading "인성병원 인성병원 니즈 확인 미팅 미팅 보고서" [level=1] [ref=e976]
+              - generic [ref=e977]:
+                - generic [ref=e978]:
+                  - link "업무보고" [ref=e979] [cursor=pointer]:
+                    - /url: /daily?tab=meeting
+                  - paragraph [ref=e983]:
+                    - text: 인성병원
+                    - generic [ref=e984]: 인성병원 니즈 확인 미팅
+                    - generic [ref=e985]: 작성완료
+                  - paragraph [ref=e988]:
+                    - generic [ref=e989]: 2026년 9월 14일 (월) 09:00
+                    - generic [ref=e995]: 작성자 김진남
+                    - generic [ref=e1001]: 총 1건
+                - generic [ref=e1005]:
+                  - link "수정하기" [ref=e1006] [cursor=pointer]:
+                    - /url: /meetings/new?agenda=5e326a4a-9b34-5088-8198-d8b878791cff
+                  - button "삭제" [ref=e1010] [cursor=pointer]
+              - generic [ref=e1014]:
+                - generic [ref=e1015]:
+                  - generic [ref=e1016]:
+                    - heading "보고서" [level=2] [ref=e1017]
+                    - button "PDF 다운로드" [ref=e1018] [cursor=pointer]
+                  - article [ref=e1023]:
+                    - generic [ref=e1024]:
+                      - link "MD-DL-2026-0036 딜 상세 열기" [ref=e1025] [cursor=pointer]:
+                        - /url: /deals?deal=438568a9-13e0-5e4c-8fd0-ea82822e52de
+                        - generic [ref=e1026]:
+                          - strong [ref=e1027]: MD-DL-2026-0036
+                          - generic [ref=e1028]: 장기 팔로업 건 (LR1000)
+                      - generic "ML 모델 demo-seed-v1" [ref=e1029]: 관찰 필요 · 36%
+                    - generic [ref=e1031]:
+                      - heading "노후 장비 교체 검토·예산 시점 미정" [level=2] [ref=e1032]
+                      - generic [ref=e1033]:
+                        - generic [ref=e1034]:
+                          - heading "미팅 목적" [level=3] [ref=e1035]
+                          - paragraph [ref=e1037]: 인성병원의 장비 교체 니즈를 구체화하기 위해 재방문했습니다.
+                        - generic [ref=e1038]:
+                          - heading "논의 내용" [level=3] [ref=e1039]
+                          - paragraph [ref=e1041]: 사용 중인 장비의 출력이 떨어져 시술 준비 시간이 늘고 있다는 설명을 들었습니다. LR1000 급으로 교체하는 방향을 검토하고 있으며, 피부과 인원의 숙련도를 고려해 조작 방식이 크게 달라지지 않는 모델을 선호했습니다.
+                        - generic [ref=e1042]:
+                          - heading "고객 요구" [level=3] [ref=e1043]
+                          - paragraph [ref=e1045]: 박윤서 실장이 예산 배정 전에 실물을 먼저 보고 싶다고 요청했습니다. 예산 시점은 미확인입니다.
+                        - generic [ref=e1046]:
+                          - heading "합의사항" [level=3] [ref=e1047]
+                          - paragraph [ref=e1049]: 데모를 진행하기로 합의했습니다. 구체적인 날짜는 미정입니다.
+                        - generic [ref=e1050]:
+                          - heading "후속 조치" [level=3] [ref=e1051]
+                          - list [ref=e1052]:
+                            - listitem [ref=e1053]:
+                              - generic [ref=e1054]:
+                                - paragraph [ref=e1055]: 데모 일정 조율
+                                - generic [ref=e1056]: 합의
+                              - generic [ref=e1057]:
+                                - generic [ref=e1058]:
+                                  - term [ref=e1059]: 담당
+                                  - definition [ref=e1060]: 본인
+                                - generic [ref=e1061]:
+                                  - term [ref=e1062]: 기한
+                                  - definition [ref=e1063]: 9월 21일
+                                - generic [ref=e1064]:
+                                  - term [ref=e1065]: 완료 기준
+                                  - definition [ref=e1066]: 날짜 확정
+                            - listitem [ref=e1067]:
+                              - generic [ref=e1068]:
+                                - paragraph [ref=e1069]: 사용 부서 참석자 확정
+                                - generic [ref=e1070]: 요청
+                              - generic [ref=e1071]:
+                                - generic [ref=e1072]:
+                                  - term [ref=e1073]: 요청 대상
+                                  - definition [ref=e1074]: 피부과
+                                - generic [ref=e1075]:
+                                  - term [ref=e1076]: 담당
+                                  - definition [ref=e1077]: 담당 미지정
+                                - generic [ref=e1078]:
+                                  - term [ref=e1079]: 기한
+                                  - definition [ref=e1080]: 미확인
+                                - generic [ref=e1081]:
+                                  - term [ref=e1082]: 완료 기준
+                                  - definition [ref=e1083]: 참석자 명단 수신
+                - complementary [ref=e1084]:
+                  - heading "보고서 작성 자료" [level=2] [ref=e1086]
+                  - generic [ref=e1088]:
+                    - generic [ref=e1089]:
+                      - heading "미팅 정보" [level=2] [ref=e1090]
+                      - button "자세히 보기" [ref=e1091] [cursor=pointer]
+                    - generic [ref=e1092]:
+                      - strong [ref=e1093]: 인성병원
+                      - generic [ref=e1094]: 박윤서 실장 · 미팅일 2026.09.14 (월) 09:00
+                    - generic [ref=e1095]:
+                      - generic [ref=e1096]:
+                        - term [ref=e1097]: 부서
+                        - definition [ref=e1098]: 피부과
+                      - generic [ref=e1099]:
+                        - term [ref=e1100]: 고객 담당자
+                        - definition [ref=e1101]: 박윤서 실장
+                      - generic [ref=e1102]:
+                        - term [ref=e1103]: 장소
+                        - definition [ref=e1104]: 인성병원 피부과
+                    - generic [ref=e1105]:
+                      - heading "관련 딜" [level=2] [ref=e1106]
+                      - generic [ref=e1107]: 1건
+                    - status [ref=e1108]:
+                      - generic [ref=e1109]: 영업 현황을 불러오는 중입니다.

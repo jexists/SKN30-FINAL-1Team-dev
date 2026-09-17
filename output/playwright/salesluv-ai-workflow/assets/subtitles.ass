@@ -1,0 +1,25 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 2560
+PlayResY: 1440
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Caption,AppleGothic,52,&H00FFFFFF,&H000000FF,&H0010151C,&HAA10151C,0,0,0,0,100,100,0,0,1,3,0,2,120,120,110,1
+Style: Title,AppleGothic,112,&H0021D4C2,&H000000FF,&H0010151C,&H00000000,1,0,0,0,100,100,0,0,1,0,0,5,120,120,0,1
+Style: Label,AppleGothic,36,&H00FFFFFF,&H000000FF,&H0010151C,&HCC0B1320,0,0,0,0,100,100,0,0,1,2,0,7,0,0,0,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.00,0:00:10.00,Caption,,0,0,0,,고객 정보와 영업 기록이 여러 도구에 흩어져 있습니다.
+Dialogue: 1,0:00:00.00,0:00:10.00,Title,,0,0,0,,SalesLuv\N분산된 영업 기록을 하나의 실행 흐름으로
+Dialogue: 0,0:00:10.00,0:00:18.00,Caption,,0,0,0,,SalesLuv는 고객 맥락을 연결하고, AI 초안을 사람의 검토로 업무에 반영합니다.
+Dialogue: 1,0:00:10.00,0:00:18.00,Label,,0,0,0,,연결된 영업 현황
+Dialogue: 0,0:00:18.00,0:00:30.00,Caption,,0,0,0,,신규 고객 정보는 팀이 함께 쓰는 영업 맥락으로 저장됩니다.
+Dialogue: 1,0:00:18.00,0:00:30.00,Label,,0,0,0,,고객 기본 정보 등록
+Dialogue: 0,0:00:30.00,0:00:41.00,Caption,,0,0,0,,AI가 핵심 제품 정보와 영업 포인트를 빠르게 정리합니다.
+Dialogue: 1,0:00:30.00,0:00:41.00,Label,,0,0,0,,AI 문서 요약
+Dialogue: 0,0:00:41.00,0:00:51.00,Caption,,0,0,0,,미팅 전에는 고객 이력과 자료를 바탕으로 준비할 내용을 제안합니다.
+Dialogue: 1,0:00:41.00,0:00:51.00,Label,,0,0,0,,미팅 맥락 브리핑
+Dialogue: 0,0:00:51.00,0:00:59.00,Caption,,0,0,0,,미팅 후에는 근거 기반 초안을 검토해 다음 업무로 연결합니다.
+Dialogue: 1,0:00:51.00,0:00:59.00,Label,,0,0,0,,AI 보고서 초안 · 검토

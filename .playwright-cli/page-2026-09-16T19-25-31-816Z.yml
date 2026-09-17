@@ -1,0 +1,58 @@
+- generic [ref=e54]:
+  - complementary "주 메뉴" [ref=e55]:
+    - link "대시보드로 이동" [ref=e57] [cursor=pointer]:
+      - /url: /
+    - navigation [ref=e58]:
+      - group "대시보드" [ref=e59]:
+        - link "대시보드" [ref=e60] [cursor=pointer]:
+          - /url: /
+      - group "고객" [ref=e63]:
+        - paragraph [ref=e64]:
+          - generic: 고객
+          - generic [aria-hidden]: 고객
+        - link "고객현황" [ref=e65] [cursor=pointer]:
+          - /url: /customers
+        - link "CS대응" [ref=e68] [cursor=pointer]:
+          - /url: /complaints
+      - group "영업" [ref=e72]:
+        - paragraph [ref=e73]:
+          - generic: 영업
+          - generic [aria-hidden]: 영업
+        - link "캘린더" [ref=e74] [cursor=pointer]:
+          - /url: /calendar
+        - link "업무보고" [ref=e78] [cursor=pointer]:
+          - /url: /daily
+        - link "영업현황" [ref=e82] [cursor=pointer]:
+          - /url: /deals
+        - link "매출분석" [ref=e86] [cursor=pointer]:
+          - /url: /sales
+      - group "자료실" [ref=e90]:
+        - paragraph [ref=e91]:
+          - generic: 자료실
+          - generic [aria-hidden]: 자료실
+        - link "거래문서" [ref=e92] [cursor=pointer]:
+          - /url: /documents/trade
+        - link "영업자료" [ref=e95] [cursor=pointer]:
+          - /url: /documents/sales
+    - link "김 김진남" [ref=e99] [cursor=pointer]:
+      - /url: /mypage
+      - generic [ref=e100]: 김
+      - generic:
+        - strong: 김진남
+  - generic [ref=e101]:
+    - banner [ref=e102]:
+      - paragraph [ref=e103]: 대시보드
+      - generic [ref=e104]: 내 현황
+      - link "알림" [ref=e105] [cursor=pointer]:
+        - /url: /notifications
+      - link "마이페이지" [ref=e109] [cursor=pointer]:
+        - /url: /mypage
+        - text: 김
+    - table [ref=e111]:
+      - rowgroup [ref=e112]:
+        - row [ref=e113]:
+          - cell [ref=e114]:
+            - generic [ref=e115]:
+              - heading "영업 대시보드" [level=1] [ref=e116]
+              - status [ref=e117]:
+                - generic [ref=e118]: 대시보드를 불러오는 중입니다.

@@ -1,0 +1,73 @@
+- generic [ref=e54]:
+  - complementary "주 메뉴" [ref=e55]:
+    - generic [ref=e56]:
+      - link "대시보드로 이동" [ref=e57] [cursor=pointer]:
+        - /url: /
+        - img "SalesLuv" [ref=e58]
+      - button "사이드바 접기" [expanded] [ref=e59] [cursor=pointer]
+    - navigation [ref=e62]:
+      - group "대시보드" [ref=e63]:
+        - link "대시보드" [ref=e64] [cursor=pointer]:
+          - /url: /
+      - group "고객" [ref=e68]:
+        - paragraph [ref=e69]:
+          - generic [ref=e70]: 고객
+          - generic [aria-hidden]: 고객
+        - link "고객현황" [ref=e71] [cursor=pointer]:
+          - /url: /customers
+        - link "CS대응" [ref=e75] [cursor=pointer]:
+          - /url: /complaints
+      - group "영업" [ref=e80]:
+        - paragraph [ref=e81]:
+          - generic [ref=e82]: 영업
+          - generic [aria-hidden]: 영업
+        - link "캘린더" [ref=e83] [cursor=pointer]:
+          - /url: /calendar
+        - link "업무보고" [ref=e88] [cursor=pointer]:
+          - /url: /daily
+        - link "영업현황" [ref=e93] [cursor=pointer]:
+          - /url: /deals
+        - link "매출분석" [ref=e98] [cursor=pointer]:
+          - /url: /sales
+      - group "자료실" [ref=e103]:
+        - paragraph [ref=e104]:
+          - generic [ref=e105]: 자료실
+          - generic [aria-hidden]: 자료실
+        - link "거래문서" [ref=e106] [cursor=pointer]:
+          - /url: /documents/trade
+        - link "영업자료" [ref=e110] [cursor=pointer]:
+          - /url: /documents/sales
+      - group "관리" [ref=e114]:
+        - paragraph [ref=e115]:
+          - generic [ref=e116]: 관리
+          - generic [aria-hidden]: 관리
+        - link "공지관리" [ref=e117] [cursor=pointer]:
+          - /url: /notices
+        - link "상품관리" [ref=e122] [cursor=pointer]:
+          - /url: /products
+        - link "팀 관리" [ref=e127] [cursor=pointer]:
+          - /url: /team
+    - generic [ref=e133]:
+      - link "정 정주애" [ref=e134] [cursor=pointer]:
+        - /url: /mypage
+        - generic [ref=e135]: 정
+        - strong [ref=e137]: 정주애
+      - button "로그아웃" [ref=e138] [cursor=pointer]
+  - generic [ref=e142]:
+    - banner [ref=e143]:
+      - paragraph [ref=e144]: 대시보드
+      - 'button "보기 범위: 팀 전체" [ref=e146] [cursor=pointer]':
+        - generic [ref=e147]: 팀 전체
+      - link "알림" [ref=e150] [cursor=pointer]:
+        - /url: /notifications
+      - link "마이페이지" [ref=e154] [cursor=pointer]:
+        - /url: /mypage
+        - text: 정
+    - table [ref=e156]:
+      - rowgroup [ref=e157]:
+        - row [ref=e158]:
+          - cell [ref=e159]:
+            - generic [ref=e160]:
+              - heading "영업 대시보드" [level=1] [ref=e161]
+              - status [ref=e162]:
+                - generic [ref=e163]: 대시보드를 불러오는 중입니다.

@@ -1,0 +1,80 @@
+- generic [ref=e54]:
+  - complementary "주 메뉴" [ref=e55]:
+    - generic [ref=e56]:
+      - link "대시보드로 이동" [ref=e57] [cursor=pointer]:
+        - /url: /
+        - img "SalesLuv" [ref=e129]
+      - button "사이드바 펼치기" [ref=e130] [cursor=pointer]
+    - navigation [ref=e58]:
+      - group "대시보드" [ref=e59]:
+        - link "대시보드" [ref=e60] [cursor=pointer]:
+          - /url: /
+      - group "고객" [ref=e63]:
+        - paragraph [ref=e64]:
+          - generic [ref=e134]: 고객
+          - generic [aria-hidden]: 고객
+        - link "고객현황" [ref=e65] [cursor=pointer]:
+          - /url: /customers
+        - link "CS대응" [ref=e68] [cursor=pointer]:
+          - /url: /complaints
+      - group "영업" [ref=e72]:
+        - paragraph [ref=e73]:
+          - generic [ref=e137]: 영업
+          - generic [aria-hidden]: 영업
+        - link "캘린더" [ref=e74] [cursor=pointer]:
+          - /url: /calendar
+        - link "업무보고" [ref=e78] [cursor=pointer]:
+          - /url: /daily
+        - link "영업현황" [ref=e82] [cursor=pointer]:
+          - /url: /deals
+        - link "매출분석" [ref=e86] [cursor=pointer]:
+          - /url: /sales
+      - group "자료실" [ref=e90]:
+        - paragraph [ref=e91]:
+          - generic [ref=e142]: 자료실
+          - generic [aria-hidden]: 자료실
+        - link "거래문서" [ref=e92] [cursor=pointer]:
+          - /url: /documents/trade
+        - link "영업자료" [active] [ref=e95] [cursor=pointer]:
+          - /url: /documents/sales
+    - generic [ref=e98]:
+      - link "김 김진남" [ref=e99] [cursor=pointer]:
+        - /url: /mypage
+        - generic [ref=e100]: 김
+        - strong [ref=e146]: 김진남
+      - button "로그아웃" [ref=e147] [cursor=pointer]
+  - generic [ref=e101]:
+    - banner [ref=e102]:
+      - paragraph [ref=e103]: 영업자료
+      - generic [ref=e104]: 내 현황
+      - link "알림" [ref=e105] [cursor=pointer]:
+        - /url: /notifications
+      - link "마이페이지" [ref=e109] [cursor=pointer]:
+        - /url: /mypage
+        - text: 김
+    - table [ref=e111]:
+      - rowgroup [ref=e112]:
+        - row [ref=e341]:
+          - cell [ref=e342]:
+            - generic [ref=e343]:
+              - heading "영업자료실" [level=1] [ref=e344]
+              - generic [ref=e345]:
+                - search [ref=e346]:
+                  - searchbox "자료 검색" [ref=e351]
+                  - button "검색" [ref=e352] [cursor=pointer]
+                - 'button "기간: 최근 1년" [ref=e354] [cursor=pointer]':
+                  - generic [ref=e355]: 최근 1년
+                - button "파일 업로드" [ref=e359] [cursor=pointer]
+              - tablist "자료 분류" [ref=e363]:
+                - tab "전체 0" [selected] [ref=e364] [cursor=pointer]:
+                  - text: 전체
+                  - generic [ref=e365]: "0"
+                - tab "상품설명서 0" [ref=e366] [cursor=pointer]:
+                  - text: 상품설명서
+                  - generic [ref=e368]: "0"
+                - tab "기타 0" [ref=e369] [cursor=pointer]:
+                  - text: 기타
+                  - generic [ref=e371]: "0"
+              - generic [ref=e373]:
+                - paragraph [ref=e376]: 아직 올린 자료가 없습니다.
+                - button "파일 업로드" [ref=e377] [cursor=pointer]

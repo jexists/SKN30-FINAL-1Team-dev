@@ -1,6 +1,6 @@
 # 메디온 데모 데이터
 
-팀 **파이널**(회사명 `메디온솔루션 영업1팀`)에 로그인해 화면을 돌아다녔을 때 실제 업무처럼
+팀 **playdata**(회사명 `플레이데이타`)에 로그인해 화면을 돌아다녔을 때 실제 업무처럼
 이어진 데이터가 보이도록, 반복 실행 가능한 데모 데이터를 넣는다.
 
 기존 [`scripts/seed_sample_bracelet.py`](../../backend/scripts/seed_sample_bracelet.py) 는 팀
@@ -63,12 +63,12 @@ uv run python -m scripts.verify_demo_medion
 
 | 이메일 | 이름 | 권한 |
 |---|---|---|
-| `medion.leader@gmail.com` | 노재현 | manager |
-| `medion.member@naver.com` | 박지훈 | member |
+| `leader@playdata.com` | 천성배 | manager |
+| `test@playdata.com` | 김진남 | member |
 
-팀 `파이널` (`d7a261eb-ad8d-4805-ab93-1c8a11830e44`) 에는 이 둘 말고
-`medion.member1~3@naver.com` 세 명이 더 있다. **데모 데이터는 위 두 계정에만 붙는다.**
-나머지 세 명은 팀 관리 화면에 실적 0 으로 남는다.
+팀 `playdata` (`85f2c57d-00c0-4790-9c71-4b23cd2100a6`) 에는 이 둘 말고
+`test1~4@playdata.com` 네 명이 더 있다. **데모 데이터는 위 두 계정에만 붙는다.**
+나머지 네 명은 팀 관리 화면에 실적 0 으로 남는다.
 
 기대와 다르면(계정이 없거나, 다른 팀이거나, 역할·이름이 다르면) 엉뚱한 곳에 쓰지 않으려고
 바로 중단한다. 계정은 Supabase Dashboard 와 `/admin` 화면에서 발급한다.
@@ -231,7 +231,7 @@ notice(DIRECTIVE) ──[notice_target: FK]──> member
 
 ### 지우는 것
 
-팀 `파이널` 이 소유한 **업무 데이터만**. 삭제는 생성의 역순이다.
+팀 `playdata` 가 소유한 **업무 데이터만**. 삭제는 생성의 역순이다.
 
 ```text
 report_attachment(report_id IS NULL) → file(부모가 팀 report/document) → document
@@ -249,7 +249,7 @@ report_attachment(report_id IS NULL) → file(부모가 팀 report/document) →
 ### 지우지 않는 것
 
 - **`team` 과 `member`, Supabase Auth 사용자** — 사람이 만든 고정 자산이다
-- **`medion.member1~3@naver.com` 세 명의 `sales_target`** — `sales_target` 의 삭제 범위는
+- **`test1~4@playdata.com` 네 명의 `sales_target`** — `sales_target` 의 삭제 범위는
   팀 전체가 아니라 두 데모 계정으로 좁혀 두었다
 - **팀별 룩업 7종**(`customer_contact_status` · `activity_category` · `activity_action_tag` ·
   `sales_deal_type` · `quote_status` · `contract_status` · `purchase_order_status`)과
@@ -377,6 +377,6 @@ DB 없이 도는 `scripts.demo.check_offline` 은 같은 불변식을 순수 파
   보고서도 저장한 뒤 다시 열면 이 배지가 사라진다.
 - **`미팅 원문 파일` · `참고자료` 는 `첨부 없음` 으로 남는다.** `report_attachment` 는
   Storage 업로드가 필요하고, 보고서에 귀속되면 아래 트리거가 reset 을 영구히 막는다.
-- **팀 이름이 `파이널` 이다.** 의료기기 영업팀임이 팀 이름만으로는 드러나지 않는다. 회사명이
-  `메디온솔루션 영업1팀` 이라 화면에서는 맥락이 보인다. 팀 이름을 바꾸려면 팀 관리 화면에서
-  직접 바꾼다 — 시더는 사람이 정한 이름을 건드리지 않는다.
+- **팀 이름이 `playdata` 다.** 의료기기 영업팀임이 팀 이름·회사명(`플레이데이타`)에서 드러나지
+  않는다. 팀 이름을 바꾸려면 팀 관리 화면에서 직접 바꾼다 — 시더는 사람이 정한 이름을
+  건드리지 않는다.

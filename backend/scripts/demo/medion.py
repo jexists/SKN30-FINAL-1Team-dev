@@ -15,8 +15,8 @@ from uuid import UUID, uuid5
 #
 # 팀과 계정은 사람이 이미 만들어 두었다. 시더는 이 둘을 만들지도 고치지도 않는다 —
 # 확인만 하고, 그 안에 업무 데이터를 채운다. 팀 이름도 손대지 않는다.
-TEAM_ID = UUID("d7a261eb-ad8d-4805-ab93-1c8a11830e44")
-TEAM_NAME = "파이널"
+TEAM_ID = UUID("85f2c57d-00c0-4790-9c71-4b23cd2100a6")
+TEAM_NAME = "playdata"
 SEED_TAG = "medion2026"
 
 
@@ -35,14 +35,14 @@ class MemberSeed(NamedTuple):
     role_code: str
 
 
-# 이 두 계정에 데모 데이터가 붙는다. 둘 다 이미 팀 파이널에 있고, 시더는 id 만 조회한다.
+# 이 두 계정에 데모 데이터가 붙는다. 둘 다 이미 팀 playdata 에 있고, 시더는 id 만 조회한다.
 # 계정을 만들지 않으므로 비밀번호를 받지도, 어디에 적지도 않는다.
 # 표시 이름은 확인용이다. DB 와 다르면 엉뚱한 팀을 건드린 것이므로 중단한다.
 LEADER = "leader"
 MEMBER = "member"
 MEMBERS = (
-    MemberSeed(LEADER, "medion.leader@gmail.com", "노재현", "manager"),
-    MemberSeed(MEMBER, "medion.member@naver.com", "박지훈", "member"),
+    MemberSeed(LEADER, "leader@playdata.com", "천성배", "manager"),
+    MemberSeed(MEMBER, "test@playdata.com", "김진남", "member"),
 )
 MEMBER_BY_KEY = {m.key: m for m in MEMBERS}
 EMAILS = tuple(m.email for m in MEMBERS)

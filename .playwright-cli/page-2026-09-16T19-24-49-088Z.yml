@@ -1,0 +1,528 @@
+- generic [ref=e368]:
+  - complementary "주 메뉴" [ref=e369]:
+    - generic [ref=e370]:
+      - link "대시보드로 이동" [ref=e371] [cursor=pointer]:
+        - /url: /
+        - img "SalesLuv" [ref=e372]
+      - button "사이드바 접기" [expanded] [ref=e373] [cursor=pointer]
+    - navigation [ref=e376]:
+      - group "대시보드" [ref=e377]:
+        - link "대시보드" [ref=e378] [cursor=pointer]:
+          - /url: /
+      - group "고객" [ref=e382]:
+        - paragraph [ref=e383]:
+          - generic [ref=e384]: 고객
+          - generic [aria-hidden]: 고객
+        - link "고객현황" [active] [ref=e385] [cursor=pointer]:
+          - /url: /customers
+        - link "CS대응" [ref=e389] [cursor=pointer]:
+          - /url: /complaints
+      - group "영업" [ref=e394]:
+        - paragraph [ref=e395]:
+          - generic [ref=e396]: 영업
+          - generic [aria-hidden]: 영업
+        - link "캘린더" [ref=e397] [cursor=pointer]:
+          - /url: /calendar
+        - link "업무보고" [ref=e402] [cursor=pointer]:
+          - /url: /daily
+        - link "영업현황" [ref=e407] [cursor=pointer]:
+          - /url: /deals
+        - link "매출분석" [ref=e412] [cursor=pointer]:
+          - /url: /sales
+      - group "자료실" [ref=e417]:
+        - paragraph [ref=e418]:
+          - generic [ref=e419]: 자료실
+          - generic [aria-hidden]: 자료실
+        - link "거래문서" [ref=e420] [cursor=pointer]:
+          - /url: /documents/trade
+        - link "영업자료" [ref=e424] [cursor=pointer]:
+          - /url: /documents/sales
+    - generic [ref=e428]:
+      - link "김 김진남" [ref=e429] [cursor=pointer]:
+        - /url: /mypage
+        - generic [ref=e430]: 김
+        - strong [ref=e432]: 김진남
+      - button "로그아웃" [ref=e433] [cursor=pointer]
+  - generic [ref=e437]:
+    - banner [ref=e438]:
+      - paragraph [ref=e439]: 고객현황
+      - generic [ref=e440]: 내 현황
+      - link "알림" [ref=e441] [cursor=pointer]:
+        - /url: /notifications
+      - link "마이페이지" [ref=e445] [cursor=pointer]:
+        - /url: /mypage
+        - text: 김
+    - table [ref=e447]:
+      - rowgroup [ref=e448]:
+        - row [ref=e655]:
+          - cell [ref=e656]:
+            - generic [ref=e657]:
+              - heading "고객 목록" [level=1] [ref=e658]
+              - generic [ref=e659]:
+                - search [ref=e660]:
+                  - searchbox "고객 검색" [ref=e665]
+                  - button "검색" [ref=e666] [cursor=pointer]
+                - generic [ref=e667]:
+                  - button "컬럼 설정" [ref=e670] [cursor=pointer]
+                  - button "고객 목록 엑셀로 내보내기" [ref=e675] [cursor=pointer]:
+                    - generic [ref=e679]: 내보내기
+                - button "고객 등록" [ref=e683] [cursor=pointer]
+              - table [ref=e690]:
+                - caption [ref=e691]: 고객 목록. 헤더를 눌러 정렬할 수 있습니다.
+                - rowgroup [ref=e702]:
+                  - row [ref=e703]:
+                    - columnheader [ref=e704]:
+                      - checkbox "이 페이지 전체 선택" [ref=e705] [cursor=pointer]
+                    - columnheader "회사 회사 열 너비 조절" [ref=e706]:
+                      - generic [ref=e707]: 회사
+                      - separator "회사 열 너비 조절" [ref=e708]
+                    - columnheader "이름 이름 열 너비 조절" [ref=e709]:
+                      - generic [ref=e710]: 이름
+                      - separator "이름 열 너비 조절" [ref=e711]
+                    - columnheader "부서 부서 열 너비 조절" [ref=e712]:
+                      - generic [ref=e713]: 부서
+                      - separator "부서 열 너비 조절" [ref=e714]
+                    - columnheader "직함 직함 열 너비 조절" [ref=e715]:
+                      - generic [ref=e716]: 직함
+                      - separator "직함 열 너비 조절" [ref=e717]
+                    - columnheader "이메일 이메일 열 너비 조절" [ref=e718]:
+                      - generic [ref=e719]: 이메일
+                      - separator "이메일 열 너비 조절" [ref=e720]
+                    - columnheader "연락처 연락처 열 너비 조절" [ref=e721]:
+                      - generic [ref=e722]: 연락처
+                      - separator "연락처 열 너비 조절" [ref=e723]
+                    - columnheader "유입경로 유입경로 열 너비 조절" [ref=e724]:
+                      - generic [ref=e725]: 유입경로
+                      - separator "유입경로 열 너비 조절" [ref=e726]
+                    - columnheader "메모 메모 열 너비 조절" [ref=e727]:
+                      - generic [ref=e728]: 메모
+                      - separator "메모 열 너비 조절" [ref=e729]
+                - rowgroup [ref=e730]:
+                  - row [ref=e731] [cursor=pointer]:
+                    - cell [ref=e732]:
+                      - checkbox "오다은 선택" [ref=e733]
+                    - cell "척탑병원" [ref=e734]
+                    - cell [ref=e735]:
+                      - button "오다은" [ref=e736]
+                    - cell "피부과" [ref=e737]
+                    - cell "주임" [ref=e738]
+                    - cell [ref=e739]:
+                      - link "contact0200@demo.test" [ref=e740]:
+                        - /url: mailto:contact0200@demo.test
+                    - cell "010-0000-2040" [ref=e741]
+                    - cell "기타" [ref=e742]
+                    - cell "홈페이지 문의로 유입. 현재 타사 장비 사용 중이며 유지보수 비용에 불만. 오다은 주임에게 비교 자료 요청받음." [ref=e743]
+                  - row [ref=e744] [cursor=pointer]:
+                    - cell [ref=e745]:
+                      - checkbox "오다은 선택" [ref=e746]
+                    - cell "푸른병원" [ref=e747]
+                    - cell [ref=e748]:
+                      - button "오다은" [ref=e749]
+                    - cell "재활의학과" [ref=e750]
+                    - cell "주임" [ref=e751]
+                    - cell [ref=e752]:
+                      - link "contact0030@demo.test" [ref=e753]:
+                        - /url: mailto:contact0030@demo.test
+                    - cell "010-0000-2006" [ref=e754]
+                    - cell "미디어" [ref=e755]
+                    - cell "데모 일정 조율 중. 오다은 주임은 사용 편의성, 원장은 투자 회수 기간을 먼저 본다. 두 관점의 자료를 나눠 준비할 것." [ref=e756]
+                  - row [ref=e757] [cursor=pointer]:
+                    - cell [ref=e758]:
+                      - checkbox "이태윤 선택" [ref=e759]
+                    - cell "의료법인 혜인의료재단 한국병원" [ref=e760]
+                    - cell [ref=e761]:
+                      - button "이태윤" [ref=e762]
+                    - cell "원무팀" [ref=e763]
+                    - cell "주임" [ref=e764]
+                    - cell [ref=e765]:
+                      - link "contact0110@demo.test" [ref=e766]:
+                        - /url: mailto:contact0110@demo.test
+                    - cell "010-0000-2022" [ref=e767]
+                    - cell "기타" [ref=e768]
+                    - cell [ref=e769]
+                  - row [ref=e770] [cursor=pointer]:
+                    - cell [ref=e771]:
+                      - checkbox "권윤서 선택" [ref=e772]
+                    - cell "으뜸병원" [ref=e773]
+                    - cell [ref=e774]:
+                      - button "권윤서" [ref=e775]
+                    - cell "정형외과" [ref=e776]
+                    - cell "부장" [ref=e777]
+                    - cell [ref=e778]:
+                      - link "contact0710@demo.test" [ref=e779]:
+                        - /url: mailto:contact0710@demo.test
+                    - cell "010-0000-2142" [ref=e780]
+                    - cell "미디어" [ref=e781]
+                    - cell [ref=e782]
+                  - row [ref=e783] [cursor=pointer]:
+                    - cell [ref=e784]:
+                      - checkbox "서태윤 선택" [ref=e785]
+                    - cell "심당요양병원" [ref=e786]
+                    - cell [ref=e787]:
+                      - button "서태윤" [ref=e788]
+                    - cell "재활의학과" [ref=e789]
+                    - cell "팀장" [ref=e790]
+                    - cell [ref=e791]:
+                      - link "contact0510@demo.test" [ref=e792]:
+                        - /url: mailto:contact0510@demo.test
+                    - cell "010-0000-2102" [ref=e793]
+                    - cell "기타" [ref=e794]
+                    - cell "원장 장기 부재로 결재가 멈춘 상태. 복귀 시점 미확인이라 무리한 팔로업은 피한다." [ref=e795]
+                  - row [ref=e796] [cursor=pointer]:
+                    - cell [ref=e797]:
+                      - checkbox "권현우 선택" [ref=e798]
+                    - cell "연수요양병원" [ref=e799]
+                    - cell [ref=e800]:
+                      - button "권현우" [ref=e801]
+                    - cell "성형외과" [ref=e802]
+                    - cell "과장" [ref=e803]
+                    - cell [ref=e804]:
+                      - link "contact0290@demo.test" [ref=e805]:
+                        - /url: mailto:contact0290@demo.test
+                    - cell "010-0000-2058" [ref=e806]
+                    - cell "기타" [ref=e807]
+                    - cell [ref=e808]
+                  - row [ref=e809] [cursor=pointer]:
+                    - cell [ref=e810]:
+                      - checkbox "박윤서 선택" [ref=e811]
+                    - cell "인성병원" [ref=e812]
+                    - cell [ref=e813]:
+                      - button "박윤서" [ref=e814]
+                    - cell "피부과" [ref=e815]
+                    - cell "실장" [ref=e816]
+                    - cell [ref=e817]:
+                      - link "contact0730@demo.test" [ref=e818]:
+                        - /url: mailto:contact0730@demo.test
+                    - cell "010-0000-2146" [ref=e819]
+                    - cell "행사·박람회" [ref=e820]
+                    - cell "원장 장기 부재로 결재가 멈춘 상태. 복귀 시점 미확인이라 무리한 팔로업은 피한다." [ref=e821]
+                  - row [ref=e822] [cursor=pointer]:
+                    - cell [ref=e823]:
+                      - checkbox "신유진 선택" [ref=e824]
+                    - cell "의료법인 행복한의료재단 센텀요양병원" [ref=e825]
+                    - cell [ref=e826]:
+                      - button "신유진" [ref=e827]
+                    - cell "진료협력팀" [ref=e828]
+                    - cell "주임" [ref=e829]
+                    - cell [ref=e830]:
+                      - link "contact0430@demo.test" [ref=e831]:
+                        - /url: mailto:contact0430@demo.test
+                    - cell "010-0000-2086" [ref=e832]
+                    - cell "온라인 문의" [ref=e833]
+                    - cell "1호기 운영 중이며 만족도가 높다. 분원 개설 시 추가 도입 의사를 밝혔다. 레퍼런스 병원으로 소개해도 좋다고 구두 동의함." [ref=e834]
+                  - row [ref=e835] [cursor=pointer]:
+                    - cell [ref=e836]:
+                      - checkbox "박준서 선택" [ref=e837]
+                    - cell "가온치과병원" [ref=e838]
+                    - cell [ref=e839]:
+                      - button "박준서" [ref=e840]
+                    - cell "의공학팀" [ref=e841]
+                    - cell "주임" [ref=e842]
+                    - cell [ref=e843]:
+                      - link "contact0700@demo.test" [ref=e844]:
+                        - /url: mailto:contact0700@demo.test
+                    - cell "010-0000-2140" [ref=e845]
+                    - cell "미디어" [ref=e846]
+                    - cell "의공학팀 인력 이동으로 검토가 중단됨. 후임 확인 후 다시 접촉 예정." [ref=e847]
+                  - row [ref=e848] [cursor=pointer]:
+                    - cell [ref=e849]:
+                      - checkbox "윤서연 선택" [ref=e850]
+                    - cell "효성요양병원 (울산 중구)" [ref=e851]
+                    - cell [ref=e852]:
+                      - button "윤서연" [ref=e853]
+                    - cell "진료협력팀" [ref=e854]
+                    - cell "차장" [ref=e855]
+                    - cell [ref=e856]:
+                      - link "contact0670@demo.test" [ref=e857]:
+                        - /url: mailto:contact0670@demo.test
+                    - cell "010-0000-2134" [ref=e858]
+                    - cell "기타" [ref=e859]
+                    - cell "계약 체결 완료. 설치 일정은 휴진일 기준으로 협의했고 사용자 교육은 진료협력팀 전원 대상. 추가 도입 여지는 내년 예산 논의 때 다시 확인." [ref=e860]
+                  - row [ref=e861] [cursor=pointer]:
+                    - cell [ref=e862]:
+                      - checkbox "한지훈 선택" [ref=e863]
+                    - cell "건국대학교충주병원" [ref=e864]
+                    - cell [ref=e865]:
+                      - button "한지훈" [ref=e866]
+                    - cell "구매팀" [ref=e867]
+                    - cell "원장" [ref=e868]
+                    - cell [ref=e869]:
+                      - link "contact0350@demo.test" [ref=e870]:
+                        - /url: mailto:contact0350@demo.test
+                    - cell "010-0000-2070" [ref=e871]
+                    - cell "온라인 문의" [ref=e872]
+                    - cell [ref=e873]
+                  - row [ref=e874] [cursor=pointer]:
+                    - cell [ref=e875]:
+                      - checkbox "임지훈 선택" [ref=e876]
+                    - cell "동명병원" [ref=e877]
+                    - cell [ref=e878]:
+                      - button "임지훈" [ref=e879]
+                    - cell "구매팀" [ref=e880]
+                    - cell "과장" [ref=e881]
+                    - cell [ref=e882]:
+                      - link "contact0401@demo.test" [ref=e883]:
+                        - /url: mailto:contact0401@demo.test
+                    - cell "010-0000-2081" [ref=e884]
+                    - cell "행사·박람회" [ref=e885]
+                    - cell "경쟁사 장비를 먼저 도입해 당분간 수요 없음. 계약 만료 시점에 맞춰 갱신 제안 준비." [ref=e886]
+                  - row [ref=e887] [cursor=pointer]:
+                    - cell [ref=e888]:
+                      - checkbox "오태윤 선택" [ref=e889]
+                    - cell "의료법인연송의료재단 신창요양병원" [ref=e890]
+                    - cell [ref=e891]:
+                      - button "오태윤" [ref=e892]
+                    - cell "마취통증의학과" [ref=e893]
+                    - cell "과장" [ref=e894]
+                    - cell [ref=e895]:
+                      - link "contact0850@demo.test" [ref=e896]:
+                        - /url: mailto:contact0850@demo.test
+                    - cell "010-0000-2170" [ref=e897]
+                    - cell "소개" [ref=e898]
+                    - cell "타 지점 도입 사례를 요청받아 전달함. 레퍼런스 병원 방문 의사 있음. 연락은 메일 회신이 가장 빠르다." [ref=e899]
+                  - row [ref=e900] [cursor=pointer]:
+                    - cell [ref=e901]:
+                      - checkbox "김윤서 선택" [ref=e902]
+                    - cell "세명대학교충주한방병원" [ref=e903]
+                    - cell [ref=e904]:
+                      - button "김윤서" [ref=e905]
+                    - cell "성형외과" [ref=e906]
+                    - cell "과장" [ref=e907]
+                    - cell [ref=e908]:
+                      - link "contact0690@demo.test" [ref=e909]:
+                        - /url: mailto:contact0690@demo.test
+                    - cell "010-0000-2138" [ref=e910]
+                    - cell "소개" [ref=e911]
+                    - cell "계약 후 발주 진행 중. 입고 일정 공유가 중요해 주 1회 진행 상황을 전달하고 있다. 다음 갱신 시점에 상위 모델 제안 예정." [ref=e912]
+                  - row [ref=e913] [cursor=pointer]:
+                    - cell [ref=e914]:
+                      - checkbox "정가은 선택" [ref=e915]
+                    - cell "삼성스카이병원" [ref=e916]
+                    - cell [ref=e917]:
+                      - button "정가은" [ref=e918]
+                    - cell "영상의학과" [ref=e919]
+                    - cell "차장" [ref=e920]
+                    - cell [ref=e921]:
+                      - link "contact0870@demo.test" [ref=e922]:
+                        - /url: mailto:contact0870@demo.test
+                    - cell "010-0000-2174" [ref=e923]
+                    - cell "기타" [ref=e924]
+                    - cell "계약 후 발주 진행 중. 입고 일정 공유가 중요해 주 1회 진행 상황을 전달하고 있다. 다음 갱신 시점에 상위 모델 제안 예정." [ref=e925]
+                  - row [ref=e926] [cursor=pointer]:
+                    - cell [ref=e927]:
+                      - checkbox "서우진 선택" [ref=e928]
+                    - cell "천안우리병원" [ref=e929]
+                    - cell [ref=e930]:
+                      - button "서우진" [ref=e931]
+                    - cell "마취통증의학과" [ref=e932]
+                    - cell "실장" [ref=e933]
+                    - cell [ref=e934]:
+                      - link "contact0530@demo.test" [ref=e935]:
+                        - /url: mailto:contact0530@demo.test
+                    - cell "010-0000-2106" [ref=e936]
+                    - cell "기존 거래" [ref=e937]
+                    - cell [ref=e938]
+                  - row [ref=e939] [cursor=pointer]:
+                    - cell [ref=e940]:
+                      - checkbox "조하윤 선택" [ref=e941]
+                    - cell "국립목포병원" [ref=e942]
+                    - cell [ref=e943]:
+                      - button "조하윤" [ref=e944]
+                    - cell "성형외과" [ref=e945]
+                    - cell "대리" [ref=e946]
+                    - cell [ref=e947]:
+                      - link "contact0300@demo.test" [ref=e948]:
+                        - /url: mailto:contact0300@demo.test
+                    - cell "010-0000-2060" [ref=e949]
+                    - cell "소개" [ref=e950]
+                    - cell "견적 회신 대기 중. 구매팀 내부 검토가 2주째 이어져 성형외과를 통해 상황을 확인하고 있다. 경쟁사 저가 제안이 함께 올라가 있다." [ref=e951]
+                  - row [ref=e952] [cursor=pointer]:
+                    - cell [ref=e953]:
+                      - checkbox "정건우 선택" [ref=e954]
+                    - cell "신세계한방병원 (인천 제물포구)" [ref=e955]
+                    - cell [ref=e956]:
+                      - button "정건우" [ref=e957]
+                    - cell "원무팀" [ref=e958]
+                    - cell "대리" [ref=e959]
+                    - cell [ref=e960]:
+                      - link "contact0270@demo.test" [ref=e961]:
+                        - /url: mailto:contact0270@demo.test
+                    - cell "010-0000-2054" [ref=e962]
+                    - cell "미디어" [ref=e963]
+                    - cell "원장 장기 부재로 결재가 멈춘 상태. 복귀 시점 미확인이라 무리한 팔로업은 피한다." [ref=e964]
+                  - row [ref=e965] [cursor=pointer]:
+                    - cell [ref=e966]:
+                      - checkbox "이지우 선택" [ref=e967]
+                    - cell "진주세란병원" [ref=e968]
+                    - cell [ref=e969]:
+                      - button "이지우" [ref=e970]
+                    - cell "의공학팀" [ref=e971]
+                    - cell "원장" [ref=e972]
+                    - cell [ref=e973]:
+                      - link "contact0090@demo.test" [ref=e974]:
+                        - /url: mailto:contact0090@demo.test
+                    - cell "010-0000-2018" [ref=e975]
+                    - cell "미디어" [ref=e976]
+                    - cell "의공학팀 증축 계획이 있어 장비 수요 예상. 예산 규모 미확인. 오전 진료 전 통화가 가장 잘 닿음." [ref=e977]
+                  - row [ref=e978] [cursor=pointer]:
+                    - cell [ref=e979]:
+                      - checkbox "장준서 선택" [ref=e980]
+                    - cell "소명한방병원" [ref=e981]
+                    - cell [ref=e982]:
+                      - button "장준서" [ref=e983]
+                    - cell "정형외과" [ref=e984]
+                    - cell "과장" [ref=e985]
+                    - cell [ref=e986]:
+                      - link "contact0230@demo.test" [ref=e987]:
+                        - /url: mailto:contact0230@demo.test
+                    - cell "010-0000-2046" [ref=e988]
+                    - cell "미디어" [ref=e989]
+                    - cell [ref=e990]
+                  - row [ref=e991] [cursor=pointer]:
+                    - cell [ref=e992]:
+                      - checkbox "오현우 선택" [ref=e993]
+                    - cell "참병원" [ref=e994]
+                    - cell [ref=e995]:
+                      - button "오현우" [ref=e996]
+                    - cell "마취통증의학과" [ref=e997]
+                    - cell "팀장" [ref=e998]
+                    - cell [ref=e999]:
+                      - link "contact0800@demo.test" [ref=e1000]:
+                        - /url: mailto:contact0800@demo.test
+                    - cell "010-0000-2160" [ref=e1001]
+                    - cell "행사·박람회" [ref=e1002]
+                    - cell "납품·설치 완료. 사용 부서 반응은 좋은 편이고 소모품 재주문 주기는 분기 단위. 오현우 팀장이 유지보수 창구." [ref=e1003]
+                  - row [ref=e1004] [cursor=pointer]:
+                    - cell [ref=e1005]:
+                      - checkbox "윤유진 선택" [ref=e1006]
+                    - cell "세인트마리여성병원" [ref=e1007]
+                    - cell [ref=e1008]:
+                      - button "윤유진" [ref=e1009]
+                    - cell "성형외과" [ref=e1010]
+                    - cell "실장" [ref=e1011]
+                    - cell [ref=e1012]:
+                      - link "contact0590@demo.test" [ref=e1013]:
+                        - /url: mailto:contact0590@demo.test
+                    - cell "010-0000-2118" [ref=e1014]
+                    - cell "온라인 문의" [ref=e1015]
+                    - cell [ref=e1016]
+                  - row [ref=e1017] [cursor=pointer]:
+                    - cell [ref=e1018]:
+                      - checkbox "강하윤 선택" [ref=e1019]
+                    - cell "서울더블유치과병원" [ref=e1020]
+                    - cell [ref=e1021]:
+                      - button "강하윤" [ref=e1022]
+                    - cell "성형외과" [ref=e1023]
+                    - cell "실장" [ref=e1024]
+                    - cell [ref=e1025]:
+                      - link "contact0010@demo.test" [ref=e1026]:
+                        - /url: mailto:contact0010@demo.test
+                    - cell "010-0000-2002" [ref=e1027]
+                    - cell "미디어" [ref=e1028]
+                    - cell "제안서 전달 완료. 경쟁사 두 곳과 병행 검토 중이며 출력 사양 비교를 중요하게 봄. 성형외과 사용 의견이 결정에 크게 반영된다." [ref=e1029]
+                  - row [ref=e1030] [cursor=pointer]:
+                    - cell [ref=e1031]:
+                      - checkbox "김시우 선택" [ref=e1032]
+                    - cell "버팀병원" [ref=e1033]
+                    - cell [ref=e1034]:
+                      - button "김시우" [ref=e1035]
+                    - cell "피부과" [ref=e1036]
+                    - cell "주임" [ref=e1037]
+                    - cell [ref=e1038]:
+                      - link "contact0930@demo.test" [ref=e1039]:
+                        - /url: mailto:contact0930@demo.test
+                    - cell "010-0000-2186" [ref=e1040]
+                    - cell "행사·박람회" [ref=e1041]
+                    - cell "올해 예산 배정이 무산되어 보류. 내년 초 재검토 요청받음. 김시우 주임과의 관계는 유지하고 분기마다 짧게 접촉할 것." [ref=e1042]
+                  - row [ref=e1043] [cursor=pointer]:
+                    - cell [ref=e1044]:
+                      - checkbox "박소율 선택" [ref=e1045]
+                    - cell "아이윤병원" [ref=e1046]
+                    - cell [ref=e1047]:
+                      - button "박소율" [ref=e1048]
+                    - cell "의공학팀" [ref=e1049]
+                    - cell "과장" [ref=e1050]
+                    - cell [ref=e1051]:
+                      - link "contact0501@demo.test" [ref=e1052]:
+                        - /url: mailto:contact0501@demo.test
+                    - cell "010-0000-2101" [ref=e1053]
+                    - cell "미디어" [ref=e1054]
+                    - cell "타 지점 도입 사례를 요청받아 전달함. 레퍼런스 병원 방문 의사 있음. 연락은 메일 회신이 가장 빠르다." [ref=e1055]
+                  - row [ref=e1056] [cursor=pointer]:
+                    - cell [ref=e1057]:
+                      - checkbox "장윤서 선택" [ref=e1058]
+                    - cell "약수한방병원" [ref=e1059]
+                    - cell [ref=e1060]:
+                      - button "장윤서" [ref=e1061]
+                    - cell "정형외과" [ref=e1062]
+                    - cell "원장" [ref=e1063]
+                    - cell [ref=e1064]:
+                      - link "contact0470@demo.test" [ref=e1065]:
+                        - /url: mailto:contact0470@demo.test
+                    - cell "010-0000-2094" [ref=e1066]
+                    - cell "기타" [ref=e1067]
+                    - cell [ref=e1068]
+                  - row [ref=e1069] [cursor=pointer]:
+                    - cell [ref=e1070]:
+                      - checkbox "서지훈 선택" [ref=e1071]
+                    - cell "의료법인 새한의료재단 목포성심요양병원" [ref=e1072]
+                    - cell [ref=e1073]:
+                      - button "서지훈" [ref=e1074]
+                    - cell "원무팀" [ref=e1075]
+                    - cell "팀장" [ref=e1076]
+                    - cell [ref=e1077]:
+                      - link "contact0810@demo.test" [ref=e1078]:
+                        - /url: mailto:contact0810@demo.test
+                    - cell "010-0000-2162" [ref=e1079]
+                    - cell "온라인 문의" [ref=e1080]
+                    - cell "홈페이지 문의로 유입. 현재 타사 장비 사용 중이며 유지보수 비용에 불만. 서지훈 팀장에게 비교 자료 요청받음." [ref=e1081]
+                  - row [ref=e1082] [cursor=pointer]:
+                    - cell [ref=e1083]:
+                      - checkbox "서수아 선택" [ref=e1084]
+                    - cell "참병원" [ref=e1085]
+                    - cell [ref=e1086]:
+                      - button "서수아" [ref=e1087]
+                    - cell "마취통증의학과" [ref=e1088]
+                    - cell "원장" [ref=e1089]
+                    - cell [ref=e1090]:
+                      - link "contact0801@demo.test" [ref=e1091]:
+                        - /url: mailto:contact0801@demo.test
+                    - cell "010-0000-2161" [ref=e1092]
+                    - cell "행사·박람회" [ref=e1093]
+                    - cell "학회 부스에서 명함 교환 후 첫 방문. 장비 사양 자료만 전달한 상태. 구매 시점은 내년 상반기로 듣고 있어 분기마다 접촉 예정." [ref=e1094]
+                  - row [ref=e1095] [cursor=pointer]:
+                    - cell [ref=e1096]:
+                      - checkbox "한태윤 선택" [ref=e1097]
+                    - cell "튼튼소아청소년과병원" [ref=e1098]
+                    - cell [ref=e1099]:
+                      - button "한태윤" [ref=e1100]
+                    - cell "원무팀" [ref=e1101]
+                    - cell "주임" [ref=e1102]
+                    - cell [ref=e1103]:
+                      - link "contact0600@demo.test" [ref=e1104]:
+                        - /url: mailto:contact0600@demo.test
+                    - cell "010-0000-2120" [ref=e1105]
+                    - cell "온라인 문의" [ref=e1106]
+                    - cell "원무팀 소개로 첫 통화. 사용 8년차 장비 교체를 검토 중이고 예산 시점은 미정. 한태윤 주임이 실무 창구, 최종 결정은 원장 결재." [ref=e1107]
+                  - row [ref=e1108] [cursor=pointer]:
+                    - cell [ref=e1109]:
+                      - checkbox "신유진 선택" [ref=e1110]
+                    - cell "퍼스트병원" [ref=e1111]
+                    - cell [ref=e1112]:
+                      - button "신유진" [ref=e1113]
+                    - cell "영상의학과" [ref=e1114]
+                    - cell "부장" [ref=e1115]
+                    - cell [ref=e1116]:
+                      - link "contact0100@demo.test" [ref=e1117]:
+                        - /url: mailto:contact0100@demo.test
+                    - cell "010-0000-2020" [ref=e1118]
+                    - cell "행사·박람회" [ref=e1119]
+                    - cell "원장 장기 부재로 결재가 멈춘 상태. 복귀 시점 미확인이라 무리한 팔로업은 피한다." [ref=e1120]
+              - navigation "페이지 이동" [ref=e1121]:
+                - paragraph [ref=e1122]:
+                  - generic [ref=e1123]: 1–30
+                  - text: / 70명
+                - generic [ref=e1124]:
+                  - button "이전 페이지" [disabled] [ref=e1125]
+                  - generic [ref=e1128]: 1 / 3
+                  - button "다음 페이지" [ref=e1129] [cursor=pointer]
