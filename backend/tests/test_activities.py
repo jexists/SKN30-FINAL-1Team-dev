@@ -955,6 +955,7 @@ def test_schedule_management_run_id_queues_briefing_after_activity_commit(monkey
         _Result(scalar=None),  # _claim_suggestion: 선점할 제안 없음
         _Result(scalar=None),  # agent_runs 멱등키 조회: 기존 실행 없음
         _Result(scalar=parent_run),  # _parent_run_or_409
+        _Result(scalar=None),  # 브리핑 잠금 확인: 미팅 보고서 없음
         _Result(rows=[]),  # 겹침 확인: 같은 시간대 일정 없음
     )
 
