@@ -16,7 +16,8 @@
     border-color var(--t-fast) var(--ease-out),
     background var(--t-fast) var(--ease-out);
 
-  &:hover {
+  &:hover,
+  &.isDragging {
     border-color: var(--blue);
     background: var(--blue-tint);
     color: var(--blue);

@@ -18,7 +18,8 @@
     border-color var(--t-fast) var(--ease-out),
     background var(--t-fast) var(--ease-out);
 
-  &:hover:not(:disabled) {
+  &:hover:not(:disabled),
+  &.isDragging {
     border-color: var(--blue);
     background: var(--blue-tint);
   }

@@ -5,6 +5,7 @@ import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import { UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
+import useFileDrop from '@/hooks/useFileDrop'
 import type { CustomerContactBulkItem, CustomerContactBulkResult } from '@/types'
 import { downloadCsv, parseCsv, toCsv } from '@/utils/csv'
 import { TODAY_ISO } from '@/utils/date'
@@ -181,6 +182,17 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
 
   const picking = result === null && !parsing && !sending
 
+  // 끌어다 놓은 파일은 accept 를 거치지 않아 CSV 인지 여기서 봅니다.
+  const { dragging, dropProps } = useFileDrop((files) => {
+    const next = files[0]
+    if (!/\.csv$/i.test(next.name) && next.type !== 'text/csv') {
+      setError('CSV(UTF-8) 파일만 넣을 수 있습니다.')
+      return
+    }
+    setFile(next)
+    setError(null)
+  }, !picking)
+
   return (
     <Modal
       title={heading}
@@ -216,7 +228,12 @@ export default function ImportModal({ onClose, onImported }: ImportModalProps) {
               event.target.value = ''
             }}
           />
-          <button type="button" className={styles.drop} onClick={() => fileRef.current?.click()}>
+          <button
+            type="button"
+            className={[styles.drop, dragging && styles.isDragging].filter(Boolean).join(' ')}
+            onClick={() => fileRef.current?.click()}
+            {...dropProps}
+          >
             <UploadIcon width={22} height={22} strokeWidth={1.5} />
             <strong>{file?.name ?? 'CSV 파일 선택'}</strong>
           </button>

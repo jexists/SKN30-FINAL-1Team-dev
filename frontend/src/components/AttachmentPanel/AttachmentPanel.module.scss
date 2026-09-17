@@ -2,6 +2,14 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  border-radius: var(--r-sm);
+
+  /* 놓는 자리가 머리 버튼으로 바뀐 뒤에는 판 전체가 받는다는 것을 윤곽으로 말합니다. */
+  &[data-dragging] {
+    outline: 2px dashed var(--blue);
+    outline-offset: 4px;
+    background: var(--blue-tint);
+  }
 }
 
 /* 제목과 '파일 추가'가 한 줄에 섭니다. 넣은 것이 없을 때는 버튼 자리가 비어 있습니다. */
@@ -85,7 +93,8 @@
     border-color var(--t-fast),
     background var(--t-fast);
 
-  &:hover {
+  &:hover,
+  &.isDragging {
     border-color: var(--blue);
     background: var(--blue-tint);
   }

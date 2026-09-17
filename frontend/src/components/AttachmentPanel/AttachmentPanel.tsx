@@ -15,6 +15,7 @@ import {
   TrashIcon,
   UploadIcon,
 } from '@/components/icons'
+import useFileDrop from '@/hooks/useFileDrop'
 import type { AttachmentKind, ReportAttachment } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 
@@ -202,6 +203,12 @@ export default function AttachmentPanel({
 
   const openPicker = () => fileRef.current?.click()
 
+  // 파일이 들어와 놓는 자리가 머리 버튼으로 바뀐 뒤에도 끌어다 놓을 수 있게 판 전체가 받습니다.
+  const { dragging, dropProps } = useFileDrop(
+    (files) => onAttach?.(files, acceptedKinds),
+    readOnly || !onAttach,
+  )
+
   // 머리에 올린 버튼이 놓는 자리를 대신합니다. 머리가 없는 화면은 놓는 자리를 그대로 둡니다.
   const headAdd = Boolean(title) && !readOnly && attachments.length > 0
   const showDropzone = !readOnly && !headAdd
@@ -345,7 +352,12 @@ export default function AttachmentPanel({
     )
 
   return (
-    <div className={styles.root} aria-busy={attachments.some((item) => item.state === 'analyzing')}>
+    <div
+      className={styles.root}
+      aria-busy={attachments.some((item) => item.state === 'analyzing')}
+      data-dragging={(dragging && !showDropzone) || undefined}
+      {...dropProps}
+    >
       {title && (
         <div className={styles.head}>
           {icon}
@@ -372,7 +384,11 @@ export default function AttachmentPanel({
            * 남은 자리가 무엇에 쓰는 곳인지 말하지 않습니다 — 자리 전체가 그 말을 합니다.
            */}
           {showDropzone && (
-            <button type="button" className={styles.dropzone} onClick={openPicker}>
+            <button
+              type="button"
+              className={[styles.dropzone, dragging && styles.isDragging].filter(Boolean).join(' ')}
+              onClick={openPicker}
+            >
               <span className={styles.dropLabel}>
                 <UploadIcon />
                 파일 추가

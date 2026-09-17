@@ -4,6 +4,7 @@ import { errorMessage, messageForCode } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import { CardIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
+import useFileDrop from '@/hooks/useFileDrop'
 import { sizeLabel } from '@/utils/attachment'
 
 import {
@@ -76,6 +77,9 @@ export default function BusinessCardModal({
     setImage(file)
   }
 
+  // 끌어다 놓아도 고른 것과 같은 검사를 거칩니다. 여러 장이면 첫 장만 읽습니다.
+  const { dragging, dropProps } = useFileDrop((files) => pick(files[0]), reading)
+
   const read = async () => {
     if (image === null || reading) return
 
@@ -142,7 +146,12 @@ export default function BusinessCardModal({
       />
 
       {/* 올린 사진이 명함 비율(91×55)로 놓입니다. 무엇을 넣는 자리인지 글자보다 먼저 보입니다. */}
-      <button type="button" className={styles.drop} onClick={() => fileRef.current?.click()}>
+      <button
+        type="button"
+        className={[styles.drop, dragging && styles.isDragging].filter(Boolean).join(' ')}
+        onClick={() => fileRef.current?.click()}
+        {...dropProps}
+      >
         {preview === null ? (
           <span className={styles.empty}>
             <CardIcon width={30} height={30} strokeWidth={1.4} />

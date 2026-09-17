@@ -4,6 +4,7 @@ import { errorMessage } from '@/api/errorMessage'
 import Button from '@/components/Button'
 import { CloseIcon, UploadIcon } from '@/components/icons'
 import Modal from '@/components/Modal'
+import useFileDrop from '@/hooks/useFileDrop'
 import type { ProductCreateRequest, ProductResponse } from '@/types'
 import { sizeLabel } from '@/utils/attachment'
 
@@ -66,6 +67,11 @@ export default function ProductFormModal({ initial, onClose, onSubmit }: Props) 
 
   const pickImage = (file: File | undefined) => {
     if (file === undefined) return
+    // 끌어다 놓은 파일은 accept 를 거치지 않습니다.
+    if (!IMAGE_ACCEPT.split(',').includes(file.type)) {
+      setErrors((previous) => ({ ...previous, image: 'PNG·JPG·WEBP 사진만 올릴 수 있습니다.' }))
+      return
+    }
     if (file.size > IMAGE_MAX_BYTES) {
       setErrors((previous) => ({ ...previous, image: '사진은 5MB까지 올릴 수 있습니다.' }))
       return
@@ -73,6 +79,8 @@ export default function ProductFormModal({ initial, onClose, onSubmit }: Props) 
     setImage(file)
     setErrors((previous) => ({ ...previous, image: undefined }))
   }
+
+  const { dragging, dropProps } = useFileDrop((files) => pickImage(files[0]), submitting)
 
   const submit = async () => {
     if (submitting) return
@@ -200,7 +208,12 @@ export default function ProductFormModal({ initial, onClose, onSubmit }: Props) 
 
         <div className={`${styles.field} ${styles.isWide}`}>
           <span className={styles.label}>사진</span>
-          <div className={styles.imagePicker}>
+          <div
+            className={[styles.imagePicker, dragging && styles.isDragging]
+              .filter(Boolean)
+              .join(' ')}
+            {...dropProps}
+          >
             {preview !== null && (
               <img
                 className={styles.preview}

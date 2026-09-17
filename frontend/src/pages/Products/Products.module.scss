@@ -242,6 +242,14 @@
   align-items: center;
   gap: var(--s3);
   flex-wrap: wrap;
+  border-radius: var(--r-sm);
+
+  /* 사진 자리는 테두리가 없어, 끌고 오는 동안만 받는 범위를 윤곽으로 보여 줍니다. */
+  &.isDragging {
+    outline: 2px dashed var(--blue);
+    outline-offset: 4px;
+    background: var(--blue-tint);
+  }
 }
 
 .preview {
