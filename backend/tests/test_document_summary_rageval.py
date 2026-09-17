@@ -44,3 +44,10 @@ def test_local_retriever_returns_page_and_source_metadata():
     assert matches
     assert matches[0]["file_name"] == "03_초음파도입_납품계약서.pdf"
     assert matches[0]["page_start"] in {1, 2}
+
+
+def test_local_retriever_handles_korean_word_forms():
+    query_tokens = document_summary_rageval._tokens("견적의 합계와 견적번호를 알려라")
+    content_tokens = document_summary_rageval._tokens("견적서를 제출했습니다. 견적합계와 견적번호")
+
+    assert document_summary_rageval._tokens_overlap(query_tokens, content_tokens) >= 1

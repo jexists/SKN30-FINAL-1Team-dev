@@ -33,6 +33,18 @@ UV_CACHE_DIR=/private/tmp/salesluv-uv-cache uv run python scripts/document_summa
 - `output/evals/document-summary-rageval/rageval_golden_set.json`
 - `output/evals/document-summary-rageval/llm_judge_results.json`
 
+사람검수 비교 화면:
+
+```bash
+UV_CACHE_DIR=/private/tmp/salesluv-uv-cache uv run python scripts/build_document_summary_review.py \
+  --results-dir ../output/evals/document-summary-rageval/sample-3-each \
+  --output ../output/evals/document-summary-rageval/sample-3-each/human_review.html
+```
+
+생성된 `human_review.html`에서 기준값·결과값·필드별 비교·검색 출처·Judge 점수를 확인하고,
+사람 판정과 메모를 입력한다. 입력은 브라우저의 localStorage에 저장되며 `검수 JSON 다운로드`로
+내보낼 수 있다. HTML 검수 화면의 판정은 골든셋의 `human_review.status`를 자동 변경하지 않는다.
+
 실제 문서를 넣을 때는 파일 경로를 명시한다. 실제 문서 원문이 외부 LLM으로 전송되므로
 개인정보·영업기밀의 전송 허용 여부를 먼저 확인해야 한다.
 
