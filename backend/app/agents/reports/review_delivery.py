@@ -22,7 +22,6 @@ def capture() -> Iterator[dict]:
 def record(result: WorkflowResult) -> None:
     target = _capture.get()
     if target is not None:
-        evaluation = result.final_evaluation
         target["report_review"] = {
             "reason_code": result.degraded_reason_code,
             "selected_version": result.selected_version,
@@ -33,14 +32,4 @@ def record(result: WorkflowResult) -> None:
             "review_notes_may_predate_draft": bool(result.review_issues)
             and result.selected_version == 2,
             "issues": [issue.model_dump(mode="json") for issue in result.review_issues],
-            **(
-                {
-                    "final_evaluation": {
-                        "summary": evaluation.summary,
-                        "notes": evaluation.notes,
-                    }
-                }
-                if evaluation is not None
-                else {}
-            ),
         }

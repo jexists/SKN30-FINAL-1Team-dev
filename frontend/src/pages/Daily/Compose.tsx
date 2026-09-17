@@ -25,7 +25,6 @@ import {
 import Modal from '@/components/Modal'
 import ReportBanner from '@/components/ReportBanner'
 import ReportDocHeader from '@/components/ReportDocHeader'
-import ReportReviewWarning from '@/components/ReportReviewWarning'
 import Skeleton from '@/components/Skeleton'
 import Tabs from '@/components/Tabs'
 import { dailyComposePath, dailyReportPath } from '@/constants/routes'
@@ -120,19 +119,6 @@ export default function Compose() {
   const generating = draft.phase === 'generating'
   // 글이 자라는 동안 스크롤 상자가 바닥을 따라갑니다. 표식은 .reports 의 마지막 자식입니다.
   const streamEnd = useStickToBottom(generating)
-  // 검토·수정이 남긴 말만 검토 메모로 갑니다. 나머지는 진행 상황입니다.
-  const reviewNotes = (draft.generationProgress?.stage_results ?? [])
-    .filter((item) => item.stage === 'review_initial' || item.stage === 'repair')
-    .map((item) => item.body)
-  // 고쳐 쓴 본문이 실제로 흐르기 시작하면 메모는 읽고 난 것입니다. 그때 위로 올립니다.
-  // 검토가 끝난 시점은 아직 이릅니다 — 올려 두고 한참 기다리게 됩니다. 판(draft_version) 2 는
-  // 수정 단계 본문에만 붙고, 병합이 되돌리지 않으므로 한 번 참이면 끝까지 참입니다.
-  const revising = (draft.generationProgress?.previews ?? []).some(
-    (item) => (item.draft_version ?? 1) >= 2,
-  )
-  const liveMemo = generating ? (
-    <ReportReviewWarning evidence={draft.generationEvidence} generating notes={reviewNotes} />
-  ) : null
   const busy = locked || pending || draft.recovering || generating
   // 멈출 수 있는 순간. 도는 run 이 있어야 하므로 activeRunId 까지 봅니다.
   const showStop = (generating || draft.recovering) && Boolean(draft.activeRunId)
@@ -592,9 +578,6 @@ export default function Compose() {
                 PDF 다운로드
               </Button>
             </ColumnHead>
-            {/* 끝난 뒤에 남는 한 줄. 생성 중에는 흐름 맨 아래에서 쌓입니다. */}
-            {!generating && <ReportReviewWarning evidence={draft.generationEvidence} />}
-            {revising && liveMemo}
             <div
               className={
                 generating ? `${styles.reports} ${styles.reportsGenerating}` : styles.reports
@@ -648,8 +631,6 @@ export default function Compose() {
                   )}
                 </>
               )}
-              {/* 검토는 초안 다음에 일어납니다. 수정이 시작되면 이 상자는 위로 올라갑니다. */}
-              {!revising && liveMemo}
               {/* 지금 하는 일은 늘 마지막 글입니다. 바닥까지 내려 읽어도 이 줄이 보입니다. */}
               {generating && (
                 <GenerationProgress
