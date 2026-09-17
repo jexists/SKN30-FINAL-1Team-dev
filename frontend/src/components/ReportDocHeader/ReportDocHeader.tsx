@@ -67,6 +67,7 @@ export default function ReportDocHeader({
         [
           label,
           <input
+            key={label}
             className={styles.input}
             type="text"
             value={text ?? ''}
