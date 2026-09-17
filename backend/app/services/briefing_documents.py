@@ -1,10 +1,11 @@
-"""브리핑 실행에 고정한 제품 자료와 RAG 근거의 화면 표현."""
+"""브리핑 실행에 고정한 제품 자료·RAG 근거·C/S의 화면 표현."""
 
 from uuid import UUID
 
 from sqlalchemy import select
 
 from app.models.content import Document, File
+from app.models.crm import SupportRequest
 from app.services.document_processing import document_access
 
 
@@ -85,3 +86,47 @@ async def visible_documents(db, *, team_id: UUID, context: dict, member=None) ->
         ],
         "search": context.get("search") or {"method": "unknown", "status": "legacy"},
     }
+
+
+async def visible_support_requests(db, *, member, snapshot: dict) -> list[dict]:
+    """브리핑이 읽은 C/S 중 지금도 볼 수 있는 건. 화면은 이 목록으로 C/S 상세 링크를 단다.
+
+    제목·상태는 실행 당시가 아니라 지금 값을 보여준다. 지운 건과 권한 밖의 건은 C/S 화면과
+    같은 규칙(``app.api.support._scope``)으로 걸러낸다. 순서는 브리핑이 읽은 순서를 따른다.
+    """
+    ids = []
+    for item in snapshot.get("support_requests") or []:
+        try:
+            ids.append(UUID(str(item["id"])))
+        except (KeyError, ValueError, TypeError):
+            continue
+    if not ids:
+        return []
+    conditions = [
+        SupportRequest.id.in_(ids),
+        SupportRequest.team_id == member.team_id,
+        SupportRequest.deleted_at.is_(None),
+    ]
+    if member.role_code == "member":
+        conditions.append(SupportRequest.assignee_member_id == member.id)
+    rows = (
+        await db.execute(
+            select(
+                SupportRequest.id,
+                SupportRequest.title,
+                SupportRequest.status_code,
+                SupportRequest.is_urgent,
+            ).where(*conditions)
+        )
+    ).all()
+    current = {row[0]: row for row in rows}
+    return [
+        {
+            "id": str(request_id),
+            "title": current[request_id][1],
+            "status_code": current[request_id][2],
+            "is_urgent": current[request_id][3],
+        }
+        for request_id in ids
+        if request_id in current
+    ]

@@ -261,6 +261,9 @@ async def _activity_briefing(db: AsyncSession, member: Member, activity_id: UUID
             member=member,
             context=(getattr(run, "input_snapshot", None) or {}).get("document_context") or {},
         ),
+        "support_requests": await briefing_documents.visible_support_requests(
+            db, member=member, snapshot=getattr(run, "input_snapshot", None) or {}
+        ),
     }
 
 

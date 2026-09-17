@@ -19,12 +19,18 @@ from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.content import Document, Report, ReportDeal, ReportSubmission
 from app.models.content import File as FileRow
-from app.models.crm import Activity, CustomerCompany, CustomerContact
+from app.models.crm import (
+    Activity,
+    CustomerCompany,
+    CustomerContact,
+    SupportRequest,
+    SupportResponse,
+)
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import activity_documents, document_processing
@@ -76,6 +82,7 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
     * 그 범위에서 실제로 읽히게 될 문서와 파일 — ``document_id``, ``category_code``,
       ``file_id``, ``version_no``, ``processed_at``
     * 회사의 확정 보고서 전체 — ``report_id``, 현재 제출본과 제출 시각
+    * 회사의 C/S — 제목·긴급·상태, 본문 수정 시각, 대응 기록 수와 마지막 대응 시각
 
     파일 목록은 ``search_chunks`` 와 같은 조건으로 뽑는다. 그래서
 
@@ -269,6 +276,55 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
                 .limit(1)
             )
         ).scalar_one_or_none() is not None
+    support_requests: list[list[Any]] = []
+    if activity.customer_company_id is not None:
+        support_conditions = [
+            SupportRequest.team_id == activity.team_id,
+            SupportRequest.customer_company_id == activity.customer_company_id,
+            SupportRequest.deleted_at.is_(None),
+        ]
+        # 브리핑 입력과 같은 규칙이다(contract_schedule_snapshots._briefing_support_requests).
+        if member is not None and member.role_code == "member":
+            support_conditions.append(SupportRequest.assignee_member_id == member.id)
+        support_rows = (
+            await db.execute(
+                select(
+                    SupportRequest.id,
+                    SupportRequest.title,
+                    SupportRequest.is_urgent,
+                    SupportRequest.status_code,
+                    SupportRequest.occurred_at,
+                    SupportRequest.updated_at,
+                    func.count(SupportResponse.id),
+                    func.max(SupportResponse.responded_at),
+                )
+                .outerjoin(SupportResponse, SupportResponse.support_request_id == SupportRequest.id)
+                .where(*support_conditions)
+                .group_by(SupportRequest.id)
+            )
+        ).all()
+        support_requests = sorted(
+            [
+                str(request_id),
+                title,
+                is_urgent,
+                status_code,
+                _isoformat(occurred_at),
+                _isoformat(updated_at),
+                response_count,
+                _isoformat(last_responded_at),
+            ]
+            for (
+                request_id,
+                title,
+                is_urgent,
+                status_code,
+                occurred_at,
+                updated_at,
+                response_count,
+                last_responded_at,
+            ) in support_rows
+        )
     payload = {
         "activity": [
             str(activity.customer_company_id) if activity.customer_company_id else None,
@@ -286,5 +342,6 @@ async def source_revision(db: AsyncSession, *, activity: Activity, member: Membe
         "products": sorted(str(value) for value in product_ids),
         "files": files,
         "reports": reports,
+        "support_requests": support_requests,
     }
     return hashlib.sha256(_canonical(payload).encode()).hexdigest()

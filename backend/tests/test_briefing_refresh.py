@@ -3,7 +3,7 @@
 브리핑은 일정 등록 때 한 번 만들고, 그 뒤에는 사람이 새로고침을 눌렀을 때만 다시 만든다.
 여기서 지키려는 것은 셋이다.
 
-* 브리핑 내용이 달라질 만한 입력(자료·보고서·딜·일정·고객)이 바뀌면 지문이 반드시 바뀐다.
+* 브리핑 내용이 달라질 만한 입력(자료·보고서·딜·일정·고객·C/S)이 바뀌면 지문이 반드시 바뀐다.
 * 같은 상태면 지문이 같다 — 아무것도 안 바뀌었는데 "재생성 필요"가 뜨지 않는다.
 * 늦게 끝난 옛 실행이 더 새 자료로 만든 브리핑을 덮지 않고, 실패한 재생성이 마지막 성공
   브리핑을 지우지 않는다.
@@ -59,6 +59,7 @@ class _Session:
         company_name="고객사",
         contact=("김담당", "구매팀", "과장"),
         prior_meeting=None,
+        support_requests=(),
     ):
         self.member = member
         self.deal_product = deal_product
@@ -70,6 +71,7 @@ class _Session:
         self.company_name = company_name
         self.contact = contact
         self.prior_meeting = prior_meeting
+        self.support_requests = support_requests
         self.statements = []
 
     async def execute(self, statement):
@@ -81,6 +83,7 @@ class _Session:
             return _Result(scalars=(() if self.deal_product is None else (self.deal_product,)))
         for marker, result in (
             ("FROM public.document", _Result(rows=self.files)),
+            ("FROM public.support_request", _Result(rows=self.support_requests)),
             ("FROM public.report", _Result(rows=self.reports)),
             ("FROM public.product", _Result(rows=self.products)),
             ("FROM public.customer_company", _Result(scalar=self.company_name)),
@@ -320,6 +323,75 @@ async def test_revision_changes_when_the_customer_context_changes(session):
     activity = _activity(team_id, member.id)
 
     assert await _revision(activity, member) != await _revision(activity, member, **session)
+
+
+def _support(request_id, **overrides):
+    values = {
+        "id": request_id,
+        "title": "화면 깜빡임",
+        "is_urgent": False,
+        "status_code": "received",
+        "occurred_at": NOW,
+        "updated_at": None,
+        "response_count": 0,
+        "last_responded_at": None,
+    }
+    values.update(overrides)
+    return tuple(values.values())
+
+
+@pytest.mark.anyio
+async def test_revision_changes_when_a_support_request_is_registered():
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+
+    original = await _revision(activity, member, support_requests=[])
+    updated = await _revision(activity, member, support_requests=[_support(uuid4())])
+
+    assert original != updated
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"status_code": "in_progress"},
+        {"status_code": "completed"},
+        {"is_urgent": True},
+        {"title": "화면 꺼짐"},
+        {"updated_at": NOW + timedelta(hours=1)},
+        {"response_count": 1, "last_responded_at": NOW + timedelta(hours=2)},
+    ],
+)
+async def test_revision_changes_when_a_support_request_changes(change):
+    """C/S 상태·긴급 여부·본문 수정·대응 기록이 바뀌면 브리핑이 달라질 수 있다."""
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+    request_id = uuid4()
+
+    original = await _revision(activity, member, support_requests=[_support(request_id)])
+    updated = await _revision(activity, member, support_requests=[_support(request_id, **change)])
+
+    assert original != updated
+
+
+@pytest.mark.anyio
+async def test_revision_applies_the_support_request_visibility_rule():
+    """브리핑 입력과 같이 팀원 담당자는 자기가 맡은 C/S만 지문에 넣는다."""
+    team_id = uuid4()
+    member = _member(team_id)
+    activity = _activity(team_id, member.id)
+    session = _Session()
+
+    await briefing_refresh.source_revision(session, activity=activity, member=member)
+
+    support_query = next(
+        text for text in session.statements if "FROM public.support_request" in text
+    )
+    assert "support_request.assignee_member_id" in support_query
+    assert "support_request.deleted_at IS NULL" in support_query
 
 
 @pytest.mark.anyio
@@ -577,3 +649,63 @@ async def test_a_failed_regeneration_still_reports_the_published_briefing_as_out
 
     assert briefing["content"] == {"highlights": []}
     assert briefing["outdated"] is True
+
+
+# ---------------------------------------------------------------- C/S 링크
+
+
+class _SupportSession:
+    def __init__(self, rows):
+        self.rows = rows
+        self.statements = []
+
+    async def execute(self, statement):
+        self.statements.append(str(statement))
+        return _Result(rows=self.rows)
+
+
+@pytest.mark.anyio
+async def test_visible_support_requests_keep_briefing_order_and_current_values():
+    from app.services import briefing_documents
+
+    member = _member(uuid4())
+    first, second, gone = uuid4(), uuid4(), uuid4()
+    snapshot = {
+        "support_requests": [
+            {"id": str(first), "title": "실행 당시 제목"},
+            {"id": str(gone), "title": "지워졌거나 권한 밖"},
+            {"id": str(second), "title": "둘째"},
+        ]
+    }
+    session = _SupportSession(
+        [
+            (second, "둘째", "completed", False),
+            (first, "지금 제목", "in_progress", True),
+        ]
+    )
+
+    result = await briefing_documents.visible_support_requests(
+        session, member=member, snapshot=snapshot
+    )
+
+    assert result == [
+        {"id": str(first), "title": "지금 제목", "status_code": "in_progress", "is_urgent": True},
+        {"id": str(second), "title": "둘째", "status_code": "completed", "is_urgent": False},
+    ]
+    # 팀원은 C/S 화면과 같이 자기가 맡은 건만, 지운 건은 빼고 본다.
+    assert "support_request.assignee_member_id" in session.statements[0]
+    assert "support_request.deleted_at IS NULL" in session.statements[0]
+
+
+@pytest.mark.anyio
+async def test_visible_support_requests_without_support_input_skip_the_query():
+    from app.services import briefing_documents
+
+    session = _SupportSession([])
+
+    result = await briefing_documents.visible_support_requests(
+        session, member=_member(uuid4()), snapshot={}
+    )
+
+    assert result == []
+    assert session.statements == []

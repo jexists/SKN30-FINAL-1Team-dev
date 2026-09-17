@@ -20,7 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import AgentRun
 from app.models.content import Document, Report, ReportDeal
-from app.models.crm import Activity, CustomerCompany, CustomerContact, SupportRequest
+from app.models.crm import (
+    Activity,
+    CustomerCompany,
+    CustomerContact,
+    SupportRequest,
+    SupportResponse,
+)
 from app.models.sales import Product, SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import (
@@ -46,6 +52,11 @@ _BRIEFING_QUERY_MAX_CHARS = 500
 # 끝난 것은 completed 뿐이다. in_progress 만 보면 접수·원인파악 단계의 미해결 요청이
 # 위험 신호에서 통째로 빠진다.
 _OPEN_SUPPORT_STATUSES = ("received", "diagnosing", "in_progress")
+# 브리핑이 도구로 읽는 C/S 수. 미해결 건은 미팅에서 먼저 나올 쟁점이라 넉넉히 두고,
+# 처리완료 건은 재발 여부를 볼 만큼만 둔다. 대응 기록은 건마다 최근 것만 읽는다.
+_BRIEFING_OPEN_SUPPORT_LIMIT = 20
+_BRIEFING_COMPLETED_SUPPORT_LIMIT = 3
+_BRIEFING_SUPPORT_RESPONSE_LIMIT = 3
 # 청크 하나가 최대 1,600자라 5건이면 문맥 블록 상한(12,000자) 안에 든다.
 _BRIEFING_DOCUMENT_LIMIT = 5
 # 다음 일정 추천 도구가 볼 최근 미팅 수. 주기·요일 패턴을 보기에 충분한 만큼만 읽는다.
@@ -703,6 +714,76 @@ async def _briefing_document_context(
         }
 
 
+async def _briefing_support_requests(
+    db: AsyncSession, member: Member, customer_company_id: UUID
+) -> list[dict[str, Any]]:
+    """브리핑이 read_support_requests 도구로 읽을 이 고객사의 C/S.
+
+    미해결 건은 긴급한 것부터, 그다음 최근 처리완료 건 몇 개를 담는다. 팀원은 C/S 화면과
+    같은 규칙으로 자기가 맡은 건만 본다(``app.api.support._scope``).
+    """
+    conditions = [
+        SupportRequest.team_id == member.team_id,
+        SupportRequest.customer_company_id == customer_company_id,
+        SupportRequest.deleted_at.is_(None),
+    ]
+    if member.role_code == "member":
+        conditions.append(SupportRequest.assignee_member_id == member.id)
+    requests = (
+        (
+            await db.execute(
+                select(SupportRequest)
+                .where(*conditions)
+                .order_by(SupportRequest.occurred_at.desc(), SupportRequest.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    open_requests = [item for item in requests if item.status_code in _OPEN_SUPPORT_STATUSES]
+    # 정렬이 안정적이라 긴급 건 안에서도, 나머지 안에서도 최근 발생 순서가 유지된다.
+    open_requests.sort(key=lambda item: not item.is_urgent)
+    completed = [item for item in requests if item.status_code not in _OPEN_SUPPORT_STATUSES]
+    selected = [
+        *open_requests[:_BRIEFING_OPEN_SUPPORT_LIMIT],
+        *completed[:_BRIEFING_COMPLETED_SUPPORT_LIMIT],
+    ]
+    if not selected:
+        return []
+
+    responses: dict[UUID, list[dict[str, Any]]] = {}
+    rows = (
+        (
+            await db.execute(
+                select(SupportResponse)
+                .where(SupportResponse.support_request_id.in_([item.id for item in selected]))
+                .order_by(SupportResponse.responded_at.desc(), SupportResponse.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for response in rows:
+        items = responses.setdefault(response.support_request_id, [])
+        if len(items) < _BRIEFING_SUPPORT_RESPONSE_LIMIT:
+            items.append({"responded_at": _seoul_iso(response.responded_at), "body": response.body})
+
+    return [
+        {
+            "id": str(item.id),
+            "sales_deal_id": str(item.sales_deal_id),
+            "title": item.title,
+            "body": item.body,
+            "is_urgent": item.is_urgent,
+            "status_code": item.status_code,
+            "occurred_at": _seoul_iso(item.occurred_at),
+            # 오래된 대응부터 읽히게 되돌린다. 마지막 줄이 가장 최근 대응이다.
+            "recent_responses": list(reversed(responses.get(item.id, []))),
+        }
+        for item in selected
+    ]
+
+
 async def build_briefing_snapshot(
     db: AsyncSession,
     member: Member,
@@ -758,6 +839,7 @@ async def build_briefing_snapshot(
             .limit(1)
         )
     ).scalar_one_or_none() is not None
+    support_requests = await _briefing_support_requests(db, member, customer_company_id)
 
     deal_summaries = [_deal_summary(deal, stage) for deal, stage in deals]
     document_context = await _briefing_document_context(
@@ -774,6 +856,12 @@ async def build_briefing_snapshot(
         "sales_deals": deal_summaries,
         "recent_reports": recent_reports,
         "has_older_reports": len(recent_candidates) > 3,
+        # C/S 원문은 LLM 입력 JSON 에 넣지 않고 read_support_requests 도구로만 읽힌다.
+        # 입력에는 미해결 건수만 실어 도구 호출이 필요한지 알린다.
+        "support_requests": support_requests,
+        "open_support_request_count": sum(
+            item["status_code"] in _OPEN_SUPPORT_STATUSES for item in support_requests
+        ),
         "briefing_mode": "relationship" if has_prior_meeting else "first_meeting",
         "report_search_query": _briefing_search_query(company, activity, deals, recent_reports),
         "_report_scope": {

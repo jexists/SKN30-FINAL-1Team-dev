@@ -423,6 +423,7 @@ async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monke
     assert captured["system_prompt"] == contract_management.GENERATE_BRIEFING_SYSTEM_PROMPT
     assert [tool.__name__ for tool in captured["tools"]] == [
         "read_recent_reports",
+        "read_support_requests",
         "search_historical_reports",
     ]
     # 입력은 허용 목록 JSON 한 줄 + 자료요약 경계 블록이다.
@@ -432,6 +433,7 @@ async def test_generate_briefing_uses_dedicated_prompt_schema_and_snapshot(monke
         "sales_deals": [],
         "approved_next_meeting": approved_next_meeting,
         "briefing_mode": "relationship",
+        "open_support_request_count": 0,
     }
     assert block.startswith("<document_context>")
     assert "관련 자료가 검색되지 않았다" in block
@@ -489,6 +491,203 @@ async def test_generate_briefing_rejects_a_result_that_skipped_a_required_tool(m
 
     with pytest.raises(contract_management.LLMError, match="briefing_required_tools_missing"):
         await contract_management.generate_briefing({})
+
+
+_OPEN_SUPPORT = {
+    "id": "support-1",
+    "sales_deal_id": "deal-1",
+    "title": "초음파 화면 깜빡임",
+    "body": "검사 중 화면이 꺼졌다 켜집니다.",
+    "is_urgent": True,
+    "status_code": "in_progress",
+    "occurred_at": "2026-09-01T10:00:00+09:00",
+    "recent_responses": [{"responded_at": "2026-09-02T10:00:00+09:00", "body": "부품 교체 예정"}],
+}
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_reads_support_requests_only_through_the_tool(monkeypatch):
+    captured = {}
+    _fake_briefing_agent(monkeypatch, contract_management.HighlightBriefingOutput(), captured)
+
+    await contract_management.generate_briefing(
+        {"support_requests": [_OPEN_SUPPORT], "open_support_request_count": 1}
+    )
+
+    payload, _, _block = captured["input_text"].partition("\n")
+    llm_input = json.loads(payload)
+    # C/S 원문은 입력 JSON 에 싣지 않고 건수만 알린다.
+    assert "support_requests" not in llm_input
+    assert llm_input["open_support_request_count"] == 1
+    assert captured["tool_results"]["read_support_requests"] == {
+        "support_requests": [_OPEN_SUPPORT]
+    }
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_rejects_a_result_that_skipped_open_support_requests(monkeypatch):
+    """미해결 C/S가 있는데 읽지 않고 만든 브리핑은 가장 중요한 쟁점을 빠뜨렸을 수 있다."""
+    _fake_briefing_agent(
+        monkeypatch,
+        contract_management.HighlightBriefingOutput(),
+        {},
+        called_tools=["read_recent_reports"],
+    )
+
+    with pytest.raises(contract_management.LLMError, match="briefing_required_tools_missing"):
+        await contract_management.generate_briefing(
+            {"support_requests": [_OPEN_SUPPORT], "open_support_request_count": 1}
+        )
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_does_not_require_support_tool_without_open_requests(monkeypatch):
+    expected = contract_management.HighlightBriefingOutput()
+    _fake_briefing_agent(monkeypatch, expected, {}, called_tools=["read_recent_reports"])
+
+    completed = {**_OPEN_SUPPORT, "status_code": "completed"}
+    result = await contract_management.generate_briefing(
+        {"support_requests": [completed], "open_support_request_count": 0}
+    )
+
+    assert result == expected
+
+
+@pytest.mark.anyio
+async def test_generate_briefing_keeps_only_support_request_refs_from_the_input(monkeypatch):
+    returned = contract_management.HighlightBriefingOutput(
+        highlights=[
+            contract_management.BriefingHighlight(
+                title="긴급 C/S: 초음파 화면 깜빡임이 아직 처리 중이에요",
+                body="부품 교체를 예정한 상태입니다. 고객이 먼저 물어볼 수 있습니다.",
+                source_refs=[
+                    contract_management.BriefingSourceRef(
+                        type="support_request", id="support-1", excerpt="부품 교체 예정"
+                    ),
+                    contract_management.BriefingSourceRef(type="support_request", id="없는-cs"),
+                ],
+            ),
+            contract_management.BriefingHighlight(
+                title="입력에 없는 C/S만 인용했어요",
+                body="근거가 없는 내용입니다.",
+                source_refs=[
+                    contract_management.BriefingSourceRef(type="support_request", id="없는-cs")
+                ],
+            ),
+        ]
+    )
+    _fake_briefing_agent(monkeypatch, returned, {})
+
+    result = await contract_management.generate_briefing(
+        {"support_requests": [_OPEN_SUPPORT], "open_support_request_count": 1}
+    )
+
+    assert len(result.highlights) == 1
+    assert [(ref.type, ref.id) for ref in result.highlights[0].source_refs] == [
+        ("support_request", "support-1")
+    ]
+
+
+@pytest.mark.anyio
+async def test_first_meeting_with_support_requests_is_written_by_the_agent(monkeypatch):
+    """첫 미팅이어도 C/S가 있으면 고정 체크리스트로 끝내지 않고 C/S를 읽게 한다."""
+    captured = {}
+    expected = contract_management.HighlightBriefingOutput()
+    _fake_briefing_agent(monkeypatch, expected, captured)
+
+    result = await contract_management.generate_briefing(
+        {
+            "briefing_mode": "first_meeting",
+            "approved_next_meeting": {"activity_id": "activity-1", "title": "첫 상담"},
+            "support_requests": [_OPEN_SUPPORT],
+            "open_support_request_count": 1,
+        }
+    )
+
+    assert result == expected
+    assert "read_support_requests" in captured["tool_results"]
+
+
+def test_validate_briefing_does_not_backfill_documents_into_support_request_cards():
+    """C/S 카드는 제품명·숫자가 계약서와 겹쳐도 문서 근거를 덧붙이지 않는다."""
+    output = contract_management.HighlightBriefingOutput(
+        highlights=[
+            contract_management.BriefingHighlight(
+                title="초음파 장비 화면 깜빡임이 10월 5일 납품 전 처리 중이에요",
+                body="초음파 장비 부품 입고를 기다리고 있습니다.",
+                source_refs=[
+                    contract_management.BriefingSourceRef(type="support_request", id="support-1")
+                ],
+                related_deal_ids=["deal-1"],
+            )
+        ]
+    )
+    snapshot = {
+        "sales_deals": [{"id": "deal-1"}],
+        "support_requests": [{"id": "support-1"}],
+        "document_context": {
+            "sources": [
+                {
+                    "document_id": "doc-1",
+                    "chunk_id": "chunk-1",
+                    "sales_deal_id": "deal-1",
+                    "content": "초음파 장비 납품일은 10월 5일로 한다. 계약금 30%, 잔금 70%.",
+                }
+            ]
+        },
+    }
+
+    result = contract_management._validate_briefing_output(output, snapshot)
+
+    assert [(ref.type, ref.id) for ref in result.highlights[0].source_refs] == [
+        ("support_request", "support-1")
+    ]
+
+
+def test_validate_briefing_moves_the_support_request_highlight_to_the_top():
+    output = contract_management.HighlightBriefingOutput(
+        highlights=[
+            contract_management.BriefingHighlight(
+                title="납품일 변경 요청이 남아 있어요",
+                body="10월 12일로 미뤄 달라고 했습니다.",
+                source_refs=[contract_management.BriefingSourceRef(type="report", id="report-1")],
+            ),
+            contract_management.BriefingHighlight(
+                title="C/S 2건: 화면 깜빡임이 처리 중이에요",
+                body="부품 입고를 기다리고 있습니다.",
+                source_refs=[
+                    contract_management.BriefingSourceRef(type="support_request", id="support-1")
+                ],
+            ),
+            contract_management.BriefingHighlight(
+                title="할인 요청에 답해야 해요",
+                body="10% 할인을 요청했습니다.",
+                source_refs=[contract_management.BriefingSourceRef(type="report", id="report-2")],
+            ),
+        ]
+    )
+    snapshot = {
+        "recent_reports": [{"id": "report-1"}, {"id": "report-2"}],
+        "support_requests": [{"id": "support-1"}],
+    }
+
+    result = contract_management._validate_briefing_output(output, snapshot)
+
+    assert [highlight.title for highlight in result.highlights] == [
+        "C/S 2건: 화면 깜빡임이 처리 중이에요",
+        "납품일 변경 요청이 남아 있어요",
+        "할인 요청에 답해야 해요",
+    ]
+
+
+def test_briefing_prompt_puts_open_support_requests_first():
+    prompt = contract_management.GENERATE_BRIEFING_SYSTEM_PROMPT
+
+    assert contract_management.GENERATE_BRIEFING_PROMPT_VERSION.endswith(".v16")
+    assert "read_support_requests를 반드시" in prompt
+    assert "C/S 하이라이트를 정확히 하나만 만들어 highlights의 첫 번째에 두고" in prompt
+    assert "1. 미해결 C/S가 있으면 위 규칙대로 C/S 하이라이트 하나를 맨 앞에 둔다." in prompt
+    assert 'type="support_request"' in prompt
 
 
 @pytest.mark.anyio

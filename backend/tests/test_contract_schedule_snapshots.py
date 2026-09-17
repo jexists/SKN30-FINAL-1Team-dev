@@ -11,7 +11,7 @@ from sqlalchemy.exc import MultipleResultsFound
 
 from app.agents import contract_management
 from app.models.agent import AgentRun
-from app.models.crm import Activity, CustomerCompany
+from app.models.crm import Activity, CustomerCompany, SupportRequest, SupportResponse
 from app.models.sales import SalesDeal, SalesPipelineStage
 from app.models.workspace import Member
 from app.services import contract_schedule_snapshots as snapshots
@@ -870,6 +870,8 @@ def _briefing_db(
     has_prior_meeting=None,
     mentioned_products=None,
     product_documents=None,
+    support_requests=None,
+    support_responses=None,
 ):
     """build_briefing_snapshot 이 순서대로 실행하는 DB 조회에 답한다."""
     recent_rows = []
@@ -918,8 +920,11 @@ def _briefing_db(
                 else None
             )
         ),  # 이전 미팅
-        _Result(rows=[]),  # 거래 문서별 최신 현재 상태
+        _Result(scalar_values=support_requests or []),  # 고객사 C/S
     ]
+    if support_requests:
+        results.append(_Result(scalar_values=support_responses or []))  # C/S 대응 기록
+    results.append(_Result(rows=[]))  # 거래 문서별 최신 현재 상태
     if deals:
         results.extend(
             [_Result(scalar_values=[]), _Result(scalar_values=[])]  # 딜·견적 제품
@@ -982,6 +987,111 @@ async def test_briefing_snapshot_searches_documents_by_company(monkeypatch):
     assert snapshot["document_context"]["sources"] == context["sources"]
     assert snapshot["document_context"]["product_documents"] == []
     assert "activity.customer_company_id = public.customer_company.id" in str(db.statements[0])
+
+
+def _support_request(member, company, **overrides):
+    values = {
+        "id": uuid4(),
+        "team_id": member.team_id,
+        "customer_company_id": company.id,
+        "sales_deal_id": uuid4(),
+        "assignee_member_id": member.id,
+        "title": "초음파 화면 깜빡임",
+        "body": "검사 중 화면이 꺼졌다 켜집니다.",
+        "is_urgent": False,
+        "status_code": "received",
+        "occurred_at": datetime(2026, 9, 1, 1, tzinfo=UTC),
+        "deleted_at": None,
+    }
+    values.update(overrides)
+    return SupportRequest(**values)
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_orders_open_support_requests_for_the_tool(monkeypatch):
+    """미해결 C/S는 긴급 건부터, 처리완료 건은 최근 몇 건만 담고 원문은 도구로만 넘긴다."""
+    member, company, _deal, activity = _briefing_fixture()
+    normal = _support_request(member, company, title="일반 미해결")
+    urgent = _support_request(
+        member,
+        company,
+        title="긴급 미해결",
+        is_urgent=True,
+        status_code="in_progress",
+        occurred_at=datetime(2026, 8, 20, tzinfo=UTC),
+    )
+    done = [
+        _support_request(
+            member,
+            company,
+            title=f"처리완료 {index}",
+            status_code="completed",
+            occurred_at=datetime(2026, 8, 10 - index, tzinfo=UTC),
+        )
+        for index in range(4)
+    ]
+    responses = [
+        SupportResponse(
+            id=uuid4(),
+            support_request_id=urgent.id,
+            responder_member_id=member.id,
+            body=f"대응 {index}",
+            responded_at=datetime(2026, 9, 2, index, tzinfo=UTC),
+        )
+        for index in (4, 3, 2, 1)  # 최신 대응부터 조회된다.
+    ]
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+    db = _briefing_db(
+        member,
+        company,
+        activity,
+        [],
+        support_requests=[normal, urgent, *done],
+        support_responses=responses,
+    )
+
+    snapshot = await snapshots.build_briefing_snapshot(db, member, activity.id)
+
+    assert [item["title"] for item in snapshot["support_requests"]] == [
+        "긴급 미해결",
+        "일반 미해결",
+        "처리완료 0",
+        "처리완료 1",
+        "처리완료 2",
+    ]
+    assert snapshot["open_support_request_count"] == 2
+    # 건마다 최근 대응 3건만, 오래된 것부터 읽히게 담는다.
+    assert [item["body"] for item in snapshot["support_requests"][0]["recent_responses"]] == [
+        "대응 2",
+        "대응 3",
+        "대응 4",
+    ]
+    assert snapshot["support_requests"][0]["occurred_at"] == "2026-08-20T09:00:00+09:00"
+    # 팀원은 C/S 화면과 같은 규칙으로 자기가 맡은 건만 본다.
+    support_query = str(db.statements[5].compile(dialect=postgresql.dialect()))
+    assert "support_request.assignee_member_id" in support_query
+    assert "support_request.deleted_at IS NULL" in support_query
+
+
+@pytest.mark.anyio
+async def test_briefing_snapshot_without_support_requests_skips_the_response_query(monkeypatch):
+    member, company, _deal, activity = _briefing_fixture()
+
+    async def _retrieve(_db, **_kwargs):
+        return {"query": "", "summaries": [], "sources": []}
+
+    monkeypatch.setattr(snapshots.sales_context, "retrieve_briefing_context", _retrieve)
+
+    snapshot = await snapshots.build_briefing_snapshot(
+        _briefing_db(member, company, activity, []), member, activity.id
+    )
+
+    assert snapshot["support_requests"] == []
+    assert snapshot["open_support_request_count"] == 0
 
 
 @pytest.mark.anyio
