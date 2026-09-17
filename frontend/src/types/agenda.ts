@@ -1,4 +1,5 @@
 import type { ContractBriefingOutput } from './contractAgent'
+import type { SupportStatusCode } from './counters'
 
 /** 일정 종류. 등록 폼에서 고르지 않고 서버의 category_code 를 그대로 옮긴 값입니다. */
 export type AgendaKind = 'visit' | 'demo' | 'edu' | 'call' | 'delivery' | 'booth'
@@ -173,6 +174,15 @@ export interface AiBriefing {
   outdated?: boolean
   /** 갱신 시도가 실패했다. 위의 결과는 마지막 성공 브리핑이라 그대로 유지된다. */
   refresh_error?: string | null
+  /** 브리핑이 읽은 C/S 중 지금도 볼 수 있는 건. 제목·상태는 지금 값이다. */
+  support_requests?: BriefingSupportRequest[]
+}
+
+export interface BriefingSupportRequest {
+  id: string
+  title: string
+  status_code: SupportStatusCode
+  is_urgent: boolean
 }
 
 export interface BriefingDocument {

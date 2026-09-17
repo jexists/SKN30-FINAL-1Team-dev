@@ -78,6 +78,28 @@
         if (config.url === '/activities/meeting-1') data = { ai_briefing: briefing }
         else if (config.url === '/reports' || config.url === '/orders')
           data = { items: [], total: 0, has_more: false }
+        else if (config.url === '/support-requests/support-1')
+          data = {
+            id: 'support-1',
+            customer_company_id: 'company-1',
+            customer_company_name: '합성병원',
+            sales_deal_id: 'deal-1',
+            deal_no: 'SL-DL-TEST',
+            contract_no: null,
+            deal_title: '초음파 장비 납품',
+            product_name: '초음파 진단기',
+            warranty_terms: null,
+            assignee_member_id: 'member-1',
+            assignee_display_name: '합성 담당자',
+            title: '초음파 화면 깜빡임',
+            body: '검사 중 화면이 꺼졌다 켜집니다.',
+            is_urgent: true,
+            status_code: 'in_progress',
+            occurred_at: '2026-09-01T10:00:00+09:00',
+            registered_at: '2026-09-01T10:30:00+09:00',
+            updated_at: null,
+            responses: [],
+          }
         else if (config.url === '/sales-deals/deal-1')
           data = {
             id: 'deal-1',
@@ -202,6 +224,87 @@
         ),
         '브리핑 새로고침 버튼',
       )
+
+      // 브리핑이 읽은 C/S 는 출처와 나뉜 제 구획에 서고, 누르면 자료처럼 옆 패널에 상세가 펴진다.
+      // C/S 하이라이트 문장에도 자료와 같이 형광펜과 상세 링크가 붙는다.
+      briefing = structuredClone(fixture)
+      briefing.support_requests = [
+        {
+          id: 'support-1',
+          title: '초음파 화면 깜빡임',
+          status_code: 'in_progress',
+          is_urgent: true,
+        },
+      ]
+      briefing.content = {
+        highlights: [
+          {
+            title: 'C/S 1건: 초음파 화면 깜빡임이 처리 중',
+            body: '화면 깜빡임은 메인보드 교체 부품을 발주해 입고를 기다리는 상태입니다. 미팅에서 진행 상황을 먼저 설명하세요.',
+            suggested_actions: [],
+            source_refs: [
+              {
+                type: 'support_request',
+                id: 'support-1',
+                excerpt: '메인보드 교체 부품 발주, 입고 대기',
+              },
+            ],
+            related_deal_ids: [],
+          },
+        ],
+        missing_information: [],
+      }
+      await render()
+      const supportSection = document.querySelector('[aria-label="브리핑 C/S"]')
+      check(supportSection, 'C/S 구획')
+      check(
+        !document
+          .querySelector('[aria-label="브리핑 출처"]')
+          .textContent.includes('초음파 화면 깜빡임'),
+        'C/S 는 자료 출처에 섞이지 않음',
+      )
+      const supportLink = supportSection.querySelector('button')
+      check(supportLink.textContent.includes('긴급 · 처리중'), 'C/S 긴급·상태 표시')
+      await waitFor(
+        () => !!document.querySelector('button[title="C/S · 초음파 화면 깜빡임 상세 열기"]'),
+        'C/S 인용 문장 끝 링크',
+      )
+      const supportMark = document.querySelector(
+        'button[title="C/S · 초음파 화면 깜빡임 상세 열기"]',
+      )
+      check(
+        supportMark.closest('mark').textContent.includes('입고를 기다리는'),
+        'C/S 인용 문장 위치',
+      )
+      await act(async () => supportMark.click())
+      await waitFor(
+        () => !!document.querySelector('[aria-label="초음파 화면 깜빡임 상세"]'),
+        '인용 링크로 C/S 상세 옆 패널',
+      )
+      const supportPanel = document.querySelector('[aria-label="초음파 화면 깜빡임 상세"]')
+      check(supportPanel.textContent.includes('검사 중 화면이 꺼졌다 켜집니다.'), 'C/S 본문 표시')
+      check(
+        supportPanel.querySelector('a')?.getAttribute('href') === '/complaints?id=support-1',
+        'C/S 화면에서 열기 주소',
+      )
+      briefing = structuredClone(fixture)
+      briefing.support_requests = [
+        {
+          id: 'support-1',
+          title: '초음파 화면 깜빡임',
+          status_code: 'in_progress',
+          is_urgent: true,
+        },
+      ]
+      await render()
+      await act(async () => document.querySelector('[aria-label="브리핑 C/S"] button').click())
+      await waitFor(
+        () => !!document.querySelector('[aria-label="초음파 화면 깜빡임 상세"]'),
+        'C/S 목록으로 옆 패널',
+      )
+      check(document.body.textContent.includes('설치 공간과 전원'), 'C/S 를 펴도 브리핑 본문 유지')
+      briefing = structuredClone(fixture)
+      await render()
 
       // 갱신이 도는 중에도 저장된 브리핑과 자료가 그대로 보여야 한다.
       briefing = structuredClone(fixture)

@@ -21,6 +21,7 @@ import { fmtDay, parseISO } from '@/utils/date'
 import { won } from '@/utils/format'
 
 import { useRelatedDeal } from '../../useDashboard'
+import { SupportRequestPanel } from '../ListDrawer/DetailPanel'
 import BriefingMaterials from './BriefingMaterials'
 import BriefingProgress from './BriefingProgress'
 import BriefingSourceSummary from './BriefingSourceSummary'
@@ -156,6 +157,11 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
       .filter((ref) => ref.type === 'document')
       .map((ref) => ref.id),
   )
+  const citedSupportRequestIds = new Set(
+    (briefingContent?.highlights.flatMap((highlight) => highlight.sourceRefs) ?? [])
+      .filter((ref) => ref.type === 'support_request')
+      .map((ref) => ref.id),
+  )
   const [menuOpen, setMenuOpen] = useState(false)
   // 옆에 펴 둔 자료. 요약은 브리핑에 실려 와 바로 서고, 원본은 그 탭을 눌러야 받아 옵니다.
   // 그릴 수 있는 형식은 file 로, 글로 대신하는 형식은 text 로 채워집니다.
@@ -168,6 +174,8 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     loading: boolean
     error: string | null
   } | null>(null)
+  // 옆에 펴 둔 C/S. 자료와 같은 자리를 쓰므로 둘 중 하나만 펴 둡니다.
+  const [supportRequestId, setSupportRequestId] = useState<string | null>(null)
   // 받아 오는 중인 자료. 누른 줄의 버튼만 멈춥니다.
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [sourceError, setSourceError] = useState<{
@@ -179,6 +187,14 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
   const reportState = useAgendaReportLink(item)
   function closeSource() {
     setSource(null)
+    setSupportRequestId(null)
+  }
+
+  /** C/S 상세를 옆에 폅니다. 대시보드 목록의 옆 패널과 같은 화면입니다. */
+  function openSupportRequest(id: string) {
+    setSource(null)
+    setSourceError(null)
+    setSupportRequestId(id)
   }
 
   /**
@@ -231,6 +247,7 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
    */
   async function openSource(doc: BriefingDocument, citation: DocumentCitation | null = null) {
     setSourceError(null)
+    setSupportRequestId(null)
     if (hasSummaryView(doc) && !citation) {
       setSource({
         document: doc,
@@ -343,6 +360,35 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
     return [...byDocument.values()]
   }
 
+  /**
+   * 문단이 근거로 쓴 C/S. 자료와 같은 규칙으로 그 C/S 에서 온 문장에 형광펜을 긋고, 문장 끝
+   * 아이콘을 누르면 옆 패널에 C/S 상세를 폅니다.
+   */
+  function supportRequestReferences(refs: SourceRef[]): BriefingReference[] {
+    const requests = briefing?.support_requests ?? []
+    const byRequest = new Map<string, BriefingReference>()
+    refs.forEach((ref) => {
+      if (ref.type !== 'support_request') return
+      // 지웠거나 볼 수 없게 된 C/S 는 목록에서 빠져 있어 링크를 달지 않습니다.
+      const request = requests.find((item) => item.id === ref.id)
+      if (!request) return
+      const quotes = [ref.excerpt, request.title].filter((value): value is string => !!value)
+      const found = byRequest.get(request.id)
+      if (found) {
+        found.excerpts.push(...quotes)
+        return
+      }
+      byRequest.set(request.id, {
+        // 자료의 document_id 와 겹치지 않게 앞에 붙입니다.
+        key: `support:${request.id}`,
+        hint: `C/S · ${request.title} 상세 열기`,
+        excerpts: quotes,
+        onOpen: () => openSupportRequest(request.id),
+      })
+    })
+    return [...byRequest.values()]
+  }
+
   const at = item.contact.lastIndexOf(' ')
   const facts: [string, string][] = (
     [
@@ -373,32 +419,36 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
       // 자료는 보다가 본문으로 돌아가면 볼 일이 끝납니다. 본문을 누르면 그대로 닫습니다.
       onSideDismiss={closeSource}
       side={
-        source && (
-          <SourceDocumentViewer
-            file={source.file ?? { name: source.document.file_name }}
-            text={source.text ?? undefined}
-            summary={
-              hasSummaryView(source.document) && (
-                <BriefingSourceSummary document={source.document} />
-              )
-            }
-            tab={source.tab}
-            onTabChange={(tab) => void changeTab(tab)}
-            sourceStatus={
-              source.loading
-                ? 'loading'
-                : source.error
-                  ? 'error'
-                  : source.file || source.text
-                    ? 'ready'
-                    : 'idle'
-            }
-            sourceError={source.error}
-            initialPage={source.citation?.pageStart}
-            // 여닫는 자리가 '자료 보기' 한 곳이라 접기가 아니라 닫기로 읽힙니다.
-            dismiss="close"
-            onCollapse={closeSource}
-          />
+        supportRequestId ? (
+          <SupportRequestPanel id={supportRequestId} onClose={closeSource} />
+        ) : (
+          source && (
+            <SourceDocumentViewer
+              file={source.file ?? { name: source.document.file_name }}
+              text={source.text ?? undefined}
+              summary={
+                hasSummaryView(source.document) && (
+                  <BriefingSourceSummary document={source.document} />
+                )
+              }
+              tab={source.tab}
+              onTabChange={(tab) => void changeTab(tab)}
+              sourceStatus={
+                source.loading
+                  ? 'loading'
+                  : source.error
+                    ? 'error'
+                    : source.file || source.text
+                      ? 'ready'
+                      : 'idle'
+              }
+              sourceError={source.error}
+              initialPage={source.citation?.pageStart}
+              // 여닫는 자리가 '자료 보기' 한 곳이라 접기가 아니라 닫기로 읽힙니다.
+              dismiss="close"
+              onCollapse={closeSource}
+            />
+          )
         )
       }
       actions={
@@ -634,7 +684,10 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
                         title: highlight.title,
                         body: highlight.body,
                         actions: highlight.suggestedActions,
-                        references: documentReferences(highlight.sourceRefs),
+                        references: [
+                          ...documentReferences(highlight.sourceRefs),
+                          ...supportRequestReferences(highlight.sourceRefs),
+                        ],
                       }))}
                       risks={briefingContent.risks.map((risk) => RISK_LABEL[risk.code])}
                       missingInformation={briefingContent.missingInformation}
@@ -653,6 +706,9 @@ export default function RecordDrawer({ item, onClose, onEdit, onDelete }: Props)
               onOpenSource={openSource}
               openingDocumentId={openingId}
               sourceError={sourceError}
+              supportRequests={briefing.support_requests}
+              onOpenSupportRequest={openSupportRequest}
+              citedSupportRequestIds={citedSupportRequestIds}
             />
           )}
         </section>

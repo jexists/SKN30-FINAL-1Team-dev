@@ -1,7 +1,8 @@
 // 브리핑 끝에 다는 출처. 어느 문단이 무엇을 썼는지는 문단 앞 링크가 이미 말했으므로,
 // 여기서는 "이 브리핑이 본 자료 전부"를 중복 없이 작게 한 번만 셉니다.
-import { FileIcon } from '@/components/icons'
-import type { BriefingDocument, BriefingDocuments } from '@/types/agenda'
+import { ComplaintIcon, FileIcon } from '@/components/icons'
+import { STATUS_LABEL as SUPPORT_STATUS_LABEL } from '@/pages/Complaints/statuses'
+import type { BriefingDocument, BriefingDocuments, BriefingSupportRequest } from '@/types/agenda'
 
 import InfoHint from './InfoHint'
 import styles from './RecordDrawer.module.scss'
@@ -16,6 +17,11 @@ interface Props {
   openingDocumentId: string | null
   /** 마지막으로 열지 못한 자료와 사유. 목록 아래에 한 줄로 답니다. */
   sourceError: { documentId: string; message: string } | null
+  /** 브리핑이 읽은 C/S. 누르면 자료처럼 옆 패널에 그 건의 상세를 폅니다. */
+  supportRequests?: BriefingSupportRequest[]
+  onOpenSupportRequest: (id: string) => void
+  /** 브리핑 문단이 실제로 인용한 C/S. 목록에서 앞자리에 세울 때만 씁니다. */
+  citedSupportRequestIds: Set<string>
 }
 
 /**
@@ -47,11 +53,19 @@ export default function BriefingMaterials({
   onOpenSource,
   openingDocumentId,
   sourceError,
+  supportRequests = [],
+  onOpenSupportRequest,
+  citedSupportRequestIds,
 }: Props) {
   const search = documents?.search
   const searched = search && ['hybrid', 'keyword'].includes(search.method)
   const relatedDocs = documents?.related ?? []
   const sources = uniqueSources([...(documents?.product ?? []), ...relatedDocs], citedDocumentIds)
+  // C/S 도 자료처럼 브리핑이 실제로 쓴 건을 앞에 둡니다.
+  const supports = [
+    ...supportRequests.filter((request) => citedSupportRequestIds.has(request.id)),
+    ...supportRequests.filter((request) => !citedSupportRequestIds.has(request.id)),
+  ]
   // 계약서 값이 계약관리와 다른 것은 출처 목록이 아니라 경고입니다. 목록을 한 줄로 줄이면
   // 파일 아래에 달 자리가 없어, 출처 위에 제 구획으로 세웁니다.
   const compared = sources.filter((document) => (document.contract_differences ?? []).length > 0)
@@ -69,7 +83,7 @@ export default function BriefingMaterials({
         : !documents || search?.status === 'legacy'
           ? '이전 브리핑입니다. 다음 갱신부터 참고 자료를 함께 준비합니다.'
           : null
-  if (sources.length === 0 && !notice) return null
+  if (sources.length === 0 && supports.length === 0 && !notice && !sourceError) return null
 
   const link = (document: BriefingDocument) => {
     const opening = openingDocumentId === document.document_id
@@ -118,34 +132,61 @@ export default function BriefingMaterials({
           ))}
         </section>
       )}
-      <section className={styles.sources} aria-label="브리핑 출처">
-        <h4 className={styles.sourcesTitle}>
-          출처
-          {searched && <span className={styles.ragTag}>RAG 검색</span>}
-          {/* 어떻게 찾았는지는 목록이 있을 때만 의미가 있어 제목 옆에 접어 둡니다. */}
-          {relatedDocs.length > 0 && search?.method === 'keyword' && (
-            <InfoHint text="키워드로 관련 자료를 검색했습니다." />
-          )}
-        </h4>
-        {sources.length > 0 && (
+      {/* C/S 는 파일이 아니라 고객 요청이라 자료 출처와 섞지 않고 제 구획에 둡니다. */}
+      {supports.length > 0 && (
+        <section className={styles.sources} aria-label="브리핑 C/S">
+          <h4 className={styles.sourcesTitle}>C/S</h4>
           <ul className={styles.sourceLinks}>
-            {sources.map((document) => (
-              <li key={document.document_id}>{link(document)}</li>
+            {supports.map((request) => (
+              <li key={request.id}>
+                <button
+                  type="button"
+                  className={styles.sourceLink}
+                  title="C/S 상세 열기"
+                  onClick={() => onOpenSupportRequest(request.id)}
+                >
+                  <ComplaintIcon width={12} height={12} aria-hidden="true" />
+                  {request.title}
+                  <span className={styles.sourceBusy}>
+                    {request.is_urgent ? '긴급 · ' : ''}
+                    {SUPPORT_STATUS_LABEL[request.status_code] ?? request.status_code}
+                  </span>
+                </button>
+              </li>
             ))}
           </ul>
-        )}
-        {notice && <p className={`${styles.note} ${styles.sourceNote}`}>{notice}</p>}
-        {sourceError && (
-          <p className={`${styles.note} ${styles.sourceNote}`} role="alert">
-            {failed ? `${failed.file_name}: ${sourceError.message}` : sourceError.message}
-          </p>
-        )}
-        {relatedDocs.length > 0 && search?.status === 'embedding_unavailable' && (
-          <p className={`${styles.note} ${styles.sourceNote}`}>
-            의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.
-          </p>
-        )}
-      </section>
+        </section>
+      )}
+      {(sources.length > 0 || notice || sourceError) && (
+        <section className={styles.sources} aria-label="브리핑 출처">
+          <h4 className={styles.sourcesTitle}>
+            출처
+            {searched && <span className={styles.ragTag}>RAG 검색</span>}
+            {/* 어떻게 찾았는지는 목록이 있을 때만 의미가 있어 제목 옆에 접어 둡니다. */}
+            {relatedDocs.length > 0 && search?.method === 'keyword' && (
+              <InfoHint text="키워드로 관련 자료를 검색했습니다." />
+            )}
+          </h4>
+          {sources.length > 0 && (
+            <ul className={styles.sourceLinks}>
+              {sources.map((document) => (
+                <li key={document.document_id}>{link(document)}</li>
+              ))}
+            </ul>
+          )}
+          {notice && <p className={`${styles.note} ${styles.sourceNote}`}>{notice}</p>}
+          {sourceError && (
+            <p className={`${styles.note} ${styles.sourceNote}`} role="alert">
+              {failed ? `${failed.file_name}: ${sourceError.message}` : sourceError.message}
+            </p>
+          )}
+          {relatedDocs.length > 0 && search?.status === 'embedding_unavailable' && (
+            <p className={`${styles.note} ${styles.sourceNote}`}>
+              의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.
+            </p>
+          )}
+        </section>
+      )}
     </div>
   )
 }
