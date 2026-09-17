@@ -9,7 +9,8 @@
 자료실 업로드
   → POST /api/documents/{document_id}/files/{file_id}/process
   → TXT·MD·JSON 임시 검토 결과 생성
-  → 구조화 요약
+  → OCR Markdown을 요약 Agent에 전달
+  → 같은 Markdown을 청크화해 RAG에 저장
   → 사용자 확인·승인
   → file 결과 컬럼·document_chunk 최종 저장
   → GET /api/documents/rag-search?q=...
@@ -117,9 +118,15 @@ GET /api/documents/{document_id}/files/{file_id}/summary
 POST /api/documents/{document_id}/files/{file_id}/approve-summary
 ```
 
-`review_required` 상태에서만 승인할 수 있다. 승인 시 추출 원문·Markdown·JSON 요약을
-`file`에 저장하고, 같은 결과를 청크로 나눠 `document_chunk`에 저장한다. 이후 임베딩을
-사용할 수 있으면 청크에 함께 저장하고, 실패하면 키워드 검색 fallback을 유지한다.
+`review_required` 상태에서만 승인할 수 있다. 승인 시 추출 원문과 Markdown을 `file`에
+저장하고, Markdown만 청크로 나눠 `document_chunk.content`에 저장한다. 이후 임베딩을
+사용할 수 있으면 동일한 Markdown 청크를 임베딩하고, 실패하면 키워드 검색 fallback을
+유지한다.
+
+JSON은 RAG 본문이나 요약 Agent 입력으로 보내는 형식이 아니다. OCR 페이지·블록 payload와
+요약의 선택적 `extracted_fields`는 화면·감사·정확값 비교를 위한 보조 저장값으로 남긴다.
+청크의 `metadata`에는 파일·문서 ID, 원문 형식, 페이지·섹션, 청크 번호, 내용 해시와 OCR
+확신도가 있을 때만 그 값을 보관한다. 이 메타데이터는 검색어·임베딩 대상 content와 분리된다.
 
 금액·기간·날짜가 포함된 파일을 새 버전으로 올리거나 `OCR·요약 다시 실행`하면 OCR과
 요약을 처음부터 다시 실행해 새 검토 결과를 만든다. 새 결과도 승인 전에는 기존 RAG에
@@ -165,8 +172,8 @@ GET /api/documents/briefing-context?q=납기&sales_deal_id={sales_deal_id}
 ```
 
 응답은 `summaries`와 `sources`로 나뉜다. `summaries`는 자료요약 Agent의
-`summary_markdown`·`summary_payload`를, `sources`는 근거 청크·출처 파일명·검색 점수를
-담는다. `sales_deal_id`를 지정하면 해당 딜에 연결된 자료만 검색한다. 영업·계약관리
+`summary_markdown`과 화면·감사용 보조 `summary_payload`를, `sources`는 Markdown 근거
+청크·출처 파일명·검색 점수를 담는다. `sales_deal_id`를 지정하면 해당 딜에 연결된 자료만 검색한다. 영업·계약관리
 Agent는 이 응답을 브리핑 프롬프트의 `document_context`로 전달할 수 있다.
 
 백엔드에서 이미 조회한 문맥을 LLM 입력에 넣을 때는 다음 어댑터를 사용한다.
@@ -177,9 +184,9 @@ from app.services.sales_context import to_briefing_prompt_block
 document_context = to_briefing_prompt_block(context)
 ```
 
-어댑터는 요약과 검색 근거를 문서명·페이지와 함께 묶고, 문서 데이터의 `<`, `>`, `&`를
-이스케이프하며, 기본 입력 길이를 제한한다. 구조화된 `context` 응답은 감사·화면 표시용으로
-별도 보존하고, 변환된 문자열은 LLM 프롬프트에만 사용한다.
+어댑터는 요약과 Markdown 검색 근거를 문서명·페이지와 함께 묶고, 문서 데이터의 `<`, `>`,
+`&`를 이스케이프하며, 기본 입력 길이를 제한한다. 구조화된 `context` 응답은 감사·화면
+표시용으로 별도 보존하고, 변환된 문자열만 LLM 프롬프트에 사용한다.
 
 `sources`에는 `page_start`·`page_end`가 포함되며, 값이 없으면 해당 추출기가 페이지
 경계를 제공하지 않은 문서다.

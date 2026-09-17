@@ -150,6 +150,12 @@ async def test_execute_auto_saves_summary_and_rag_chunks(monkeypatch, embedding_
     audits = [item for item in second.added if item.__class__.__name__ == "DocumentFileAudit"]
     assert len(chunks) == 1
     assert chunks[0].page_start == 1
+    assert chunks[0].metadata_json["content_format"] == "markdown"
+    assert chunks[0].metadata_json["file_id"] == str(row.id)
+    assert chunks[0].metadata_json["document_id"] == str(row.document_id)
+    assert chunks[0].metadata_json["page_start"] == 1
+    assert len(chunks[0].metadata_json["content_sha256"]) == 64
+    assert "계약기간은 1년이다." not in str(chunks[0].metadata_json)
     assert chunks[0].embedding_vector == (vector if embedding_mode == "success" else None)
     assert chunks[0].embedding_model == (
         document_processing.embeddings.model_identity() if embedding_mode == "success" else None

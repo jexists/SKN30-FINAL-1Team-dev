@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import UTC, datetime, timedelta
@@ -26,6 +27,44 @@ from app.services.llm import LLMError
 from app.services.ocr import OcrError
 
 DRAFT_SUFFIX = ".document-summary-draft.json"
+
+
+def _rag_chunk_metadata(
+    *,
+    row: FileRow,
+    extracted_payload: dict[str, Any],
+    item: dict[str, Any],
+    chunk_no: int,
+) -> dict[str, Any]:
+    """RAG 청크와 함께 보관할 최소 추적 메타데이터를 만든다.
+
+    검색·임베딩에는 Markdown content만 사용한다. 이 JSON은 의미 추출값을 검색 입력에
+    복제하기 위한 것이 아니라, 화면에서 원문 위치와 OCR 상태를 추적하기 위한 것이다.
+    """
+    content = str(item["content"])
+    metadata: dict[str, Any] = {
+        "content_format": item.get("content_format", document_summary.RAG_CONTENT_FORMAT),
+        "file_id": str(row.id),
+        "document_id": str(row.document_id) if row.document_id else None,
+        "file_name": row.file_name,
+        "source_type": extracted_payload.get("source_type"),
+        "chunk_no": chunk_no,
+        "page_start": item.get("page_start"),
+        "page_end": item.get("page_end"),
+        "section": item.get("section"),
+        "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+    }
+    page_confidences = [
+        page.get("ocr_confidence")
+        for page in extracted_payload.get("pages", [])
+        if page.get("page_number") in {item.get("page_start"), item.get("page_end")}
+        and page.get("ocr_confidence") is not None
+    ]
+    if page_confidences:
+        metadata["ocr_confidence"] = (
+            page_confidences[0] if len(set(page_confidences)) == 1 else page_confidences
+        )
+    return metadata
 
 
 def draft_storage_key(storage_key: str) -> str:
@@ -153,10 +192,12 @@ async def _persist_result(
                 page_end=item.get("page_end"),
                 section=item.get("section"),
                 content=item["content"],
-                metadata_json={
-                    "file_name": row.file_name,
-                    "source_type": extracted_payload.get("source_type"),
-                },
+                metadata_json=_rag_chunk_metadata(
+                    row=row,
+                    extracted_payload=extracted_payload,
+                    item=item,
+                    chunk_no=index,
+                ),
                 embedding=None if vectors is None else vectors[index],
                 embedding_vector=None if vectors is None else vectors[index],
                 embedding_model=None if vectors is None else embeddings.model_identity(),

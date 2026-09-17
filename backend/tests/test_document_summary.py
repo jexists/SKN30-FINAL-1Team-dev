@@ -3,7 +3,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from app.agents.document_summary import SYSTEM_PROMPT, chunks
+from app.agents.document_summary import SYSTEM_PROMPT, _prompt_input, chunks
 from app.services.document_extraction import ExtractionError, extract_document
 
 
@@ -24,6 +24,20 @@ def test_document_summary_prompt_requires_natural_prose_without_inventing_facts(
     assert "자연스럽고 읽기 쉽게" in SYSTEM_PROMPT
     assert "완결된 문장" in SYSTEM_PROMPT
     assert "원인·평가·전망을 추가" in SYSTEM_PROMPT
+
+
+def test_summary_agent_receives_markdown_without_structured_payload():
+    prompt = _prompt_input(
+        {
+            "file_name": "contract.md",
+            "media_type": "text/markdown",
+            "markdown": "## 계약 조건\n\n계약기간: 1년",
+            "payload": {"pages": [{"secret": "structured-only"}]},
+        }
+    )
+
+    assert "계약기간: 1년" in prompt
+    assert "structured-only" not in prompt
 
 
 def test_text_and_html_extraction_create_markdown_and_json_payload():
@@ -66,6 +80,7 @@ def test_docx_extraction_preserves_table_rows():
     assert result.payload["source_type"] == "docx"
     assert result.payload["pages"][0]["markdown"]
     assert chunks(result.markdown, pages=result.payload["pages"])[0]["page_start"] == 1
+    assert chunks(result.markdown, pages=result.payload["pages"])[0]["content_format"] == "markdown"
 
 
 def test_pptx_extraction_creates_slide_source_pages():
@@ -153,6 +168,7 @@ def test_chunks_keep_section_and_overlap_long_text():
 
     assert len(result) > 1
     assert all(item["section"] == "지급조건" for item in result)
+    assert all(item["content_format"] == "markdown" for item in result)
     assert all(item["content"] for item in result)
 
 
